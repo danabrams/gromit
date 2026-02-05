@@ -365,6 +365,15 @@ Some trailing text here.`
 	}
 }
 
+// TestLearningCategoryNilReceiver tests that LearningCategory handles nil receiver
+func TestLearningCategoryNilReceiver(t *testing.T) {
+	var analysis *Analysis
+	result := analysis.LearningCategory()
+	if result != "gotchas" {
+		t.Errorf("expected 'gotchas' for nil Analysis, got %q", result)
+	}
+}
+
 // TestParseAnalysisOutputTrimWhitespace tests that output is trimmed
 func TestParseAnalysisOutputTrimWhitespace(t *testing.T) {
 	output := `

@@ -75,6 +75,10 @@ func (r *Retro) Run(ctx context.Context, apply bool) (*Result, error) {
 		return nil, fmt.Errorf("running Claude analysis: %w", err)
 	}
 
+	if claudeResult == nil {
+		return &Result{Success: false}, nil
+	}
+
 	result := &Result{
 		Analysis: claudeResult.Output,
 		Success:  claudeResult.Success,

@@ -156,7 +156,9 @@ func ParseAndLogEvent(sl *StreamLogger, stats *StreamStats, line []byte) {
 			switch block.Type {
 			case "tool_use":
 				filePath := extractFilePath(block.Input)
-				stats.RecordToolCall(block.Name, filePath)
+				if stats != nil {
+					stats.RecordToolCall(block.Name, filePath)
+				}
 				if filePath != "" {
 					sl.LogEvent("TOOL_CALL: %s %s", block.Name, filePath)
 				} else {

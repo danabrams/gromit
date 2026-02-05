@@ -34,6 +34,9 @@ type Analysis struct {
 
 // LearningCategory maps failure categories to learning categories
 func (a *Analysis) LearningCategory() string {
+	if a == nil {
+		return "gotchas"
+	}
 	switch a.Category {
 	case CategoryMissingContext:
 		return "conventions"

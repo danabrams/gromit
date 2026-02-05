@@ -244,6 +244,35 @@ func TestParseAndLogEventInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestParseAndLogEventNilStats(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+
+	// Should not panic when stats is nil
+	line := []byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/foo.go"}}]}}`)
+	ParseAndLogEvent(sl, nil, line)
+	sl.Close()
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+
+	// Should still log the event even with nil stats
+	if !strings.Contains(string(content), "TOOL_CALL: Read /foo.go") {
+		t.Errorf("expected TOOL_CALL log entry with nil stats, got: %s", string(content))
+	}
+}
+
+func TestParseAndLogEventNilStatsAndLogger(t *testing.T) {
+	// Should not panic when both stats and logger are nil
+	line := []byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/foo.go"}}]}}`)
+	ParseAndLogEvent(nil, nil, line)
+}
+
 func TestParseAndLogEventTextTruncation(t *testing.T) {
 	dir := t.TempDir()
 	sl, err := NewStreamLogger(dir)

@@ -173,7 +173,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 }
 
 func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
-	if r.logger == nil {
+	if r.logger == nil || result == nil {
 		return
 	}
 
@@ -416,6 +416,9 @@ func (r *Runner) selectModel(b *bead.Bead) string {
 }
 
 func (r *Runner) logResult(result *IterationResult) {
+	if result == nil {
+		return
+	}
 	if result.Success {
 		r.log("SUCCESS: %s completed in %v", result.BeadID, result.Duration)
 		if result.Escalated {
