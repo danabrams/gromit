@@ -26,3 +26,6 @@ When a task is reported as failed with no error output, verify that the implemen
 ### 2026-02-05 | ralph-runner-btj.1 | patterns
 When implementing command handlers, ensure all referenced functions are fully implemented before testing. Breaking up command logic across multiple files requires explicit implementation in each file, not just in main.go.
 
+### 2026-02-05 | ralph-runner-btj.1 | gotchas
+Validation failures due to missing tools (Go, Node, Python, etc.) are environment issues, not code issues. Check tool availability before assuming code is broken. Ralph's validation step runs in the same environment as the task, so missing tools block validation even if code is correct.
+

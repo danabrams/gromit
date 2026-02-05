@@ -69,9 +69,20 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	retroPath := filepath.Join(cwd, ".ralph/templates/PROMPT_retro.md")
+	if err := writeFileIfNotExists(retroPath, defaultRetroTemplate, forceInit); err != nil {
+		return err
+	}
+
 	// Write RULES.md
 	rulesPath := filepath.Join(cwd, ".ralph/RULES.md")
 	if err := writeFileIfNotExists(rulesPath, defaultRules, forceInit); err != nil {
+		return err
+	}
+
+	// Write LEARNINGS.md
+	learningsPath := filepath.Join(cwd, ".ralph/LEARNINGS.md")
+	if err := writeFileIfNotExists(learningsPath, defaultLearnings, forceInit); err != nil {
 		return err
 	}
 
@@ -83,9 +94,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("\nDone! Next steps:")
 	fmt.Println("  1. Edit ralph.yaml to customize validation commands")
-	fmt.Println("  2. Create specs in .ralph/specs/ for complex features")
-	fmt.Println("  3. Create beads with: bd create \"Task title\" --priority 1")
-	fmt.Println("  4. Run: ralph run --dry-run")
+	fmt.Println("  2. Edit .ralph/RULES.md to add project-specific rules")
+	fmt.Println("  3. Create specs in .ralph/specs/ for complex features")
+	fmt.Println("  4. Create beads with: bd create \"Task title\" --priority 1")
+	fmt.Println("  5. Run: ralph run --dry-run")
+	fmt.Println("\nPeriodically run 'ralph retro' to analyze and consolidate learnings.")
 
 	return nil
 }
@@ -306,6 +319,28 @@ These are non-negotiable constraints for this project. Ralph will always follow 
 - Follow existing patterns in the codebase
 `
 
+const defaultLearnings = `# Learnings
+
+Accumulated operational knowledge from Ralph iterations.
+This file is automatically updated. Review periodically with ` + "`ralph retro`" + `.
+
+---
+
+## Confirmed
+
+*Patterns seen multiple times - high confidence.*
+
+*No confirmed learnings yet.*
+
+---
+
+## Provisional
+
+*Seen once - may be specific to one task.*
+
+*No provisional learnings yet.*
+`
+
 const defaultValidateTemplate = `# Validation Run
 
 Run the following validation commands and report results.
@@ -327,4 +362,65 @@ Run the following validation commands and report results.
 4. If any command fails, output exactly: ` + "`VALIDATION_FAILED`" + ` followed by error details
 
 Do not make any code changes during validation - only run the commands and report results.
+`
+
+const defaultRetroTemplate = `# Retrospective Analysis
+
+You are analyzing accumulated learnings from ralph-runner iterations to identify patterns, consolidate knowledge, and recommend updates to project rules.
+
+## Current Rules
+
+{{.Rules}}
+
+## Current Learnings
+
+{{.Learnings}}
+
+## Task
+
+Analyze the learnings above and provide:
+
+1. **Consolidation Opportunities**: Identify duplicate or related learnings that should be merged
+2. **Patterns Worth Promoting**: Suggest learnings that should become rules in RULES.md
+3. **Stale Learnings**: Identify learnings that may no longer be relevant
+4. **Rule Updates**: Propose specific changes to RULES.md
+
+## Output Format
+
+Use the following format:
+
+### Consolidation
+
+For each set of related learnings:
+- **Learnings to merge**: [List dates/IDs]
+- **Consolidated version**: [Single clear statement]
+- **Rationale**: [Why these should be merged]
+
+### Promote to Rules
+
+For learnings that should become rules:
+- **Learning**: [Date | ID | Content]
+- **Proposed rule**: [How it should appear in RULES.md]
+- **Section**: [Which section of RULES.md: Code Style, Architecture, Safety, or Process]
+- **Rationale**: [Why this should be a rule]
+
+### Archive
+
+For stale or obsolete learnings:
+- **Learning**: [Date | ID | Content]
+- **Rationale**: [Why this is no longer relevant]
+
+### Rule Changes
+
+For direct updates to existing rules:
+- **Current rule**: [Exact text from RULES.md]
+- **Proposed change**: [New text]
+- **Rationale**: [Why this change is needed]
+
+## Guidelines
+
+- Be conservative - only promote patterns seen multiple times
+- Focus on actionable, specific rules
+- Ensure proposed rules align with Go idioms and project goals
+- Consider whether a learning is truly a "rule" (constraint) or just good advice
 `

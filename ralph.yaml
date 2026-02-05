@@ -31,8 +31,8 @@ loop:
 validation:
   enabled: true
   commands:
-    - "go test ./..."
-    - "go build ./cmd/ralph"
+    - "mise exec -- go test ./..."
+    - "mise exec -- go build ./cmd/ralph"
 
 # Claude CLI settings
 claude:
