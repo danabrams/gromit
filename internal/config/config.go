@@ -47,6 +47,7 @@ type ClaudeConfig struct {
 }
 
 type PathsConfig struct {
+	RalphDir        string `yaml:"ralph_dir"`
 	Templates       string `yaml:"templates"`
 	Specs           string `yaml:"specs"`
 	Logs            string `yaml:"logs"`
@@ -86,6 +87,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.Claude.Timeout == 0 {
 		c.Claude.Timeout = 600
+	}
+	if c.Paths.RalphDir == "" {
+		c.Paths.RalphDir = ".ralph"
 	}
 	if c.Paths.Templates == "" {
 		c.Paths.Templates = ".ralph/templates"

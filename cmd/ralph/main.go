@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/danabrams/ralph-runner/internal/config"
+	"github.com/danabrams/ralph-runner/internal/retro"
 	"github.com/danabrams/ralph-runner/internal/runner"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +19,7 @@ var (
 	configPath    string
 	maxIterations int
 	dryRun        bool
+	applyChanges  bool
 )
 
 func main() {
@@ -56,14 +60,33 @@ var statusCmd = &cobra.Command{
 	RunE:  showStatus,
 }
 
+var retroCmd = &cobra.Command{
+	Use:   "retro",
+	Short: "Run retrospective analysis",
+	Long: `Analyze accumulated learnings to identify patterns and recommend rule updates.
+
+The retro command:
+1. Reads LEARNINGS.md
+2. Uses opus to analyze patterns and consolidate learnings
+3. Identifies duplicate or related learnings
+4. Proposes promoting patterns to RULES.md
+5. Suggests archiving stale learnings
+
+Use --apply to automatically apply changes (not yet implemented - outputs to file for review).`,
+	RunE: runRetro,
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "ralph.yaml", "Path to config file")
 
 	runCmd.Flags().IntVarP(&maxIterations, "max-iterations", "n", 0, "Maximum iterations (0 = unlimited)")
 	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run without executing")
 
+	retroCmd.Flags().BoolVar(&applyChanges, "apply", false, "Apply proposed changes automatically")
+
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(retroCmd)
 }
 
 func loadConfig() (*config.Config, error) {
@@ -113,4 +136,66 @@ func showStatus(cmd *cobra.Command, args []string) error {
 
 	r := runner.NewRunner(cfg, os.Stdout)
 	return r.Status()
+}
+
+func runRetro(cmd *cobra.Command, args []string) error {
+	cfg, err := loadConfig()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	// Determine .ralph directory from config
+	ralphDir := cfg.Paths.RalphDir
+	if ralphDir == "" {
+		// Default to .ralph in current directory
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("getting working directory: %w", err)
+		}
+		ralphDir = filepath.Join(cwd, ".ralph")
+	}
+
+	// Set up context with signal handling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		fmt.Fprintln(os.Stderr, "\nReceived interrupt, stopping...")
+		cancel()
+	}()
+
+	// Run retrospective
+	fmt.Println("Running retrospective analysis...")
+	fmt.Println("This may take a few minutes as it uses opus for quality analysis.\n")
+
+	r := retro.NewRetro(cfg, ralphDir)
+	result, err := r.Run(ctx, applyChanges)
+	if err != nil {
+		return fmt.Errorf("running retro: %w", err)
+	}
+
+	if !result.Success {
+		return fmt.Errorf("retro analysis failed")
+	}
+
+	// Display results
+	fmt.Println("=" + "=" + strings.Repeat("=", 78))
+	fmt.Println("RETROSPECTIVE ANALYSIS")
+	fmt.Println("=" + "=" + strings.Repeat("=", 78))
+	fmt.Println()
+	fmt.Println(result.Analysis)
+	fmt.Println()
+	fmt.Println("=" + "=" + strings.Repeat("=", 78))
+
+	if applyChanges {
+		fmt.Println("\nProposed changes written to .ralph/RETRO_PROPOSED_CHANGES.md")
+		fmt.Println("Review and apply manually.")
+	} else {
+		fmt.Println("\nTo apply changes, run: ralph retro --apply")
+	}
+
+	return nil
 }
