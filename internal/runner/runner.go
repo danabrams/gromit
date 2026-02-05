@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/danabrams/ralph-runner/internal/analyzer"
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/claude"
 	"github.com/danabrams/ralph-runner/internal/config"
@@ -19,6 +21,7 @@ type Runner struct {
 	cfg      *config.Config
 	beads    *bead.Client
 	claude   *claude.Client
+	analyzer *analyzer.Analyzer
 	renderer *prompt.Renderer
 	logger   *logger.Logger
 	output   io.Writer
@@ -32,14 +35,21 @@ func NewRunner(cfg *config.Config, output io.Writer) *Runner {
 		fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
 	}
 
+	claudeClient := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+
+	// Determine ralph directory (parent of templates dir)
+	ralphDir := filepath.Dir(cfg.Paths.Templates)
+
 	return &Runner{
-		cfg:    cfg,
-		beads:  bead.NewClient(),
-		claude: claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout),
+		cfg:      cfg,
+		beads:    bead.NewClient(),
+		claude:   claudeClient,
+		analyzer: analyzer.NewAnalyzer(claudeClient, cfg.Models.Validation), // Use haiku for analysis
 		renderer: prompt.NewRenderer(
 			cfg.Paths.Templates,
 			cfg.Paths.Specs,
 			cfg.Paths.ProjectClaudeMD,
+			ralphDir,
 		),
 		logger: log,
 		output: output,
@@ -196,7 +206,7 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		return result
 	}
 
-	// Execute with escalation on failure
+	// Execute with analysis and escalation on failure
 	var claudeResult *claude.Result
 	for {
 		r.log("Running Claude with model: %s", model)
@@ -210,10 +220,55 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		result.Output = claudeResult.Output
 
 		if claudeResult.Success {
-			break // Success, no need to escalate
+			break // Success, no need to analyze or escalate
 		}
 
-		// Try escalation
+		// Run failure analysis
+		r.log("Build failed, running failure analysis...")
+		analysis, err := r.analyzer.Analyze(ctx, b, claudeResult.Output)
+		if err != nil {
+			r.log("Warning: failure analysis failed: %v", err)
+		} else {
+			r.log("Analysis: category=%s, recoverable=%v", analysis.Category, analysis.Recoverable)
+			r.log("Root cause: %s", analysis.RootCause)
+
+			// Add learning if extracted
+			if analysis.Learning != nil {
+				r.log("Learning extracted: %s", *analysis.Learning)
+				lf := r.renderer.GetLearningsFile()
+				if lf != nil {
+					learning, err := lf.Add(b.ID, *analysis.Learning, analysis.LearningCategory())
+					if err != nil {
+						r.log("Warning: failed to add learning: %v", err)
+					} else if learning != nil {
+						r.log("Learning added to LEARNINGS.md")
+					}
+				}
+			}
+
+			// Handle unclear spec - skip this bead
+			if analysis.Category == analyzer.CategoryUnclearSpec {
+				result.Error = fmt.Errorf("spec unclear: %s - needs human review", analysis.RootCause)
+				return result
+			}
+
+			// If recoverable, retry with context (same model)
+			if analysis.Recoverable {
+				r.log("Failure is recoverable, retrying with context...")
+				promptCtx.IsRetry = true
+				promptCtx.PrevFailure = claudeResult.Output
+				promptCtx.FailureContext = analysis.Suggestion
+
+				buildPrompt, err = r.renderer.RenderBuild(promptCtx)
+				if err != nil {
+					result.Error = fmt.Errorf("rendering retry prompt: %w", err)
+					return result
+				}
+				continue // Retry with same model
+			}
+		}
+
+		// Not recoverable - try escalation
 		nextModel := r.cfg.NextEscalationModel(model)
 		if nextModel == "" {
 			r.log("Build failed, no more models to escalate to")
@@ -221,13 +276,13 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 			return result
 		}
 
-		r.log("Build failed with %s, escalating to %s", model, nextModel)
+		r.log("Escalating from %s to %s", model, nextModel)
 		result.Escalated = true
 		result.EscalatedTo = nextModel
 		model = nextModel
 		result.Model = model
 
-		// Update prompt context with failure info for retry
+		// Update prompt context with failure info for escalation
 		promptCtx.IsRetry = true
 		promptCtx.PrevFailure = claudeResult.Output
 		promptCtx.Model = model
@@ -255,6 +310,16 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		}
 
 		if !claude.IsValidationPassed(valResult) {
+			// Run analysis on validation failure too
+			r.log("Validation failed, running failure analysis...")
+			analysis, err := r.analyzer.Analyze(ctx, b, valResult.Output)
+			if err == nil && analysis.Learning != nil {
+				lf := r.renderer.GetLearningsFile()
+				if lf != nil {
+					lf.Add(b.ID, *analysis.Learning, analysis.LearningCategory())
+				}
+			}
+
 			result.Error = fmt.Errorf("validation failed")
 			result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + valResult.Output
 			return result

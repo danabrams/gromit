@@ -69,6 +69,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Write RULES.md
+	rulesPath := filepath.Join(cwd, ".ralph/RULES.md")
+	if err := writeFileIfNotExists(rulesPath, defaultRules, forceInit); err != nil {
+		return err
+	}
+
 	// Add to .gitignore if it exists
 	gitignorePath := filepath.Join(cwd, ".gitignore")
 	if _, err := os.Stat(gitignorePath); err == nil {
@@ -189,6 +195,28 @@ const defaultBuildTemplate = `# Task Execution
 
 You are executing a single task from the work queue. Focus only on this task.
 
+{{if .Rules}}
+## Rules (Non-Negotiable)
+
+{{.Rules}}
+{{end}}
+
+{{if .ConfirmedLearnings}}
+## Learnings (Confirmed Patterns)
+
+These patterns have been observed multiple times in this project:
+
+{{formatLearnings .ConfirmedLearnings}}
+{{end}}
+
+{{if .RecentLearnings}}
+## Recent Learnings
+
+Recent observations that may be relevant:
+
+{{formatLearnings .RecentLearnings}}
+{{end}}
+
 ## Project Context
 
 {{if .ClaudeMD}}
@@ -227,8 +255,11 @@ This task is part of: **{{.ParentBead.Title}}**
 {{if .IsRetry}}
 ## Previous Attempt Failed
 
-The previous attempt with a different model failed. Here's what happened:
+{{if .FailureContext}}
+Analysis suggests: {{.FailureContext}}
+{{end}}
 
+Previous output:
 ` + "```" + `
 {{.PrevFailure}}
 ` + "```" + `
@@ -251,6 +282,28 @@ When the task is complete:
 - The implementation matches the specification
 
 Do NOT output any special completion markers - just complete the task and exit.
+`
+
+const defaultRules = `# Rules
+
+These are non-negotiable constraints for this project. Ralph will always follow these.
+
+## Code Style
+
+<!-- Add project-specific rules here, for example: -->
+<!-- - Always use TypeScript strict mode -->
+<!-- - Never use 'any' type - use 'unknown' and narrow -->
+<!-- - Use pnpm, never npm or yarn -->
+
+## Safety
+
+- Never commit secrets, API keys, or credentials
+- Never delete data without explicit confirmation in the spec
+
+## Process
+
+- Always run tests before committing
+- Follow existing patterns in the codebase
 `
 
 const defaultValidateTemplate = `# Validation Run

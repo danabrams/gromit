@@ -1,0 +1,338 @@
+package learnings
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+)
+
+// Learning represents a single learning entry
+type Learning struct {
+	Date      time.Time
+	BeadID    string
+	Content   string
+	Category  string // "conventions", "gotchas", "patterns"
+	Hash      string // SHA256 of content for dedup
+	RelatedTo string // ID of similar learning (if fuzzy matched)
+}
+
+// File manages the LEARNINGS.md file
+type File struct {
+	path       string
+	confirmed  []Learning
+	provisional []Learning
+}
+
+// Category constants
+const (
+	CategoryConventions = "conventions"
+	CategoryGotchas     = "gotchas"
+	CategoryPatterns    = "patterns"
+)
+
+// NewFile creates a new learnings file manager
+func NewFile(dir string) *File {
+	return &File{
+		path: filepath.Join(dir, "LEARNINGS.md"),
+	}
+}
+
+// Load reads and parses the LEARNINGS.md file
+func (f *File) Load() error {
+	content, err := os.ReadFile(f.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist yet - that's fine
+			return nil
+		}
+		return fmt.Errorf("reading learnings file: %w", err)
+	}
+
+	f.confirmed, f.provisional = parseLearnings(string(content))
+	return nil
+}
+
+// Add adds a new learning, checking for duplicates
+func (f *File) Add(beadID, content, category string) (*Learning, error) {
+	hash := hashContent(content)
+
+	// Check for exact duplicate
+	for _, l := range f.confirmed {
+		if l.Hash == hash {
+			return nil, nil // Exact duplicate, skip
+		}
+	}
+	for _, l := range f.provisional {
+		if l.Hash == hash {
+			return nil, nil // Exact duplicate, skip
+		}
+	}
+
+	learning := Learning{
+		Date:     time.Now(),
+		BeadID:   beadID,
+		Content:  content,
+		Category: category,
+		Hash:     hash,
+	}
+
+	// Check for fuzzy match in provisional (might promote to confirmed)
+	for i, existing := range f.provisional {
+		if similarity(existing.Content, content) > 0.7 {
+			// Similar learning exists - promote to confirmed
+			f.provisional = append(f.provisional[:i], f.provisional[i+1:]...)
+			learning.RelatedTo = existing.BeadID
+			f.confirmed = append(f.confirmed, learning)
+			return &learning, f.Save()
+		}
+	}
+
+	// Check for fuzzy match in confirmed (mark as related)
+	for _, existing := range f.confirmed {
+		if similarity(existing.Content, content) > 0.7 {
+			learning.RelatedTo = existing.BeadID
+			break
+		}
+	}
+
+	// Add as provisional
+	f.provisional = append(f.provisional, learning)
+	return &learning, f.Save()
+}
+
+// Save writes the learnings back to the file
+func (f *File) Save() error {
+	// Ensure directory exists
+	dir := filepath.Dir(f.path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("creating directory: %w", err)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("# Learnings\n\n")
+	sb.WriteString("Accumulated operational knowledge from Ralph iterations.\n")
+	sb.WriteString("This file is automatically updated. Review periodically with `ralph retro`.\n\n")
+
+	// Write confirmed learnings
+	sb.WriteString("---\n\n## Confirmed\n\n")
+	sb.WriteString("*Patterns seen multiple times - high confidence.*\n\n")
+	if len(f.confirmed) == 0 {
+		sb.WriteString("*No confirmed learnings yet.*\n\n")
+	} else {
+		for _, l := range f.confirmed {
+			writeLearning(&sb, l)
+		}
+	}
+
+	// Write provisional learnings
+	sb.WriteString("---\n\n## Provisional\n\n")
+	sb.WriteString("*Seen once - may be specific to one task.*\n\n")
+	if len(f.provisional) == 0 {
+		sb.WriteString("*No provisional learnings.*\n\n")
+	} else {
+		for _, l := range f.provisional {
+			writeLearning(&sb, l)
+		}
+	}
+
+	return os.WriteFile(f.path, []byte(sb.String()), 0644)
+}
+
+// GetConfirmed returns all confirmed learnings
+func (f *File) GetConfirmed() []Learning {
+	return f.confirmed
+}
+
+// GetProvisional returns all provisional learnings
+func (f *File) GetProvisional() []Learning {
+	return f.provisional
+}
+
+// GetRecent returns provisional learnings from the last N iterations
+// Since we don't track iteration numbers, we use time-based (last N hours)
+func (f *File) GetRecent(hours int) []Learning {
+	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
+	var recent []Learning
+	for _, l := range f.provisional {
+		if l.Date.After(cutoff) {
+			recent = append(recent, l)
+		}
+	}
+	return recent
+}
+
+// Stats returns statistics about learnings
+func (f *File) Stats() (confirmed, provisional int) {
+	return len(f.confirmed), len(f.provisional)
+}
+
+// ShouldSuggestRetro returns true if conditions suggest running a retro
+func (f *File) ShouldSuggestRetro(lastRetro time.Time, failureRate float64) (bool, string) {
+	confirmedCount, provisionalCount := f.Stats()
+
+	if provisionalCount > 10 {
+		return true, fmt.Sprintf("%d provisional learnings accumulated", provisionalCount)
+	}
+
+	if time.Since(lastRetro) > 7*24*time.Hour {
+		return true, "more than 7 days since last retro"
+	}
+
+	if failureRate > 0.3 {
+		return true, fmt.Sprintf("failure rate is %.0f%%", failureRate*100)
+	}
+
+	if confirmedCount+provisionalCount > 20 {
+		return true, "learnings file is getting large"
+	}
+
+	return false, ""
+}
+
+func writeLearning(sb *strings.Builder, l Learning) {
+	sb.WriteString(fmt.Sprintf("### %s | %s | %s\n",
+		l.Date.Format("2006-01-02"),
+		l.BeadID,
+		l.Category,
+	))
+	if l.RelatedTo != "" {
+		sb.WriteString(fmt.Sprintf("*Related to: %s*\n\n", l.RelatedTo))
+	}
+	sb.WriteString(l.Content)
+	sb.WriteString("\n\n")
+}
+
+func hashContent(content string) string {
+	// Normalize: lowercase, remove extra whitespace
+	normalized := strings.ToLower(strings.TrimSpace(content))
+	normalized = regexp.MustCompile(`\s+`).ReplaceAllString(normalized, " ")
+
+	hash := sha256.Sum256([]byte(normalized))
+	return hex.EncodeToString(hash[:8]) // First 8 bytes is enough
+}
+
+// similarity calculates a simple trigram-based similarity score
+func similarity(a, b string) float64 {
+	a = strings.ToLower(strings.TrimSpace(a))
+	b = strings.ToLower(strings.TrimSpace(b))
+
+	if a == b {
+		return 1.0
+	}
+
+	trigramsA := trigrams(a)
+	trigramsB := trigrams(b)
+
+	if len(trigramsA) == 0 || len(trigramsB) == 0 {
+		return 0.0
+	}
+
+	// Count matching trigrams
+	matches := 0
+	for t := range trigramsA {
+		if trigramsB[t] {
+			matches++
+		}
+	}
+
+	// Jaccard similarity
+	union := len(trigramsA) + len(trigramsB) - matches
+	if union == 0 {
+		return 0.0
+	}
+	return float64(matches) / float64(union)
+}
+
+func trigrams(s string) map[string]bool {
+	result := make(map[string]bool)
+	if len(s) < 3 {
+		return result
+	}
+	for i := 0; i <= len(s)-3; i++ {
+		result[s[i:i+3]] = true
+	}
+	return result
+}
+
+// parseLearnings parses the LEARNINGS.md file content
+func parseLearnings(content string) (confirmed, provisional []Learning) {
+	// Simple parser - looks for ### headers in Confirmed/Provisional sections
+	lines := strings.Split(content, "\n")
+
+	inConfirmed := false
+	inProvisional := false
+	var current *Learning
+	var contentLines []string
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "## Confirmed") {
+			inConfirmed = true
+			inProvisional = false
+			continue
+		}
+		if strings.HasPrefix(line, "## Provisional") {
+			inConfirmed = false
+			inProvisional = true
+			continue
+		}
+
+		if strings.HasPrefix(line, "### ") {
+			// Save previous learning
+			if current != nil {
+				current.Content = strings.TrimSpace(strings.Join(contentLines, "\n"))
+				current.Hash = hashContent(current.Content)
+				if inConfirmed {
+					confirmed = append(confirmed, *current)
+				} else if inProvisional {
+					provisional = append(provisional, *current)
+				}
+			}
+
+			// Parse header: ### 2026-02-05 | bead-id | category
+			parts := strings.Split(strings.TrimPrefix(line, "### "), " | ")
+			current = &Learning{}
+			contentLines = nil
+
+			if len(parts) >= 1 {
+				current.Date, _ = time.Parse("2006-01-02", strings.TrimSpace(parts[0]))
+			}
+			if len(parts) >= 2 {
+				current.BeadID = strings.TrimSpace(parts[1])
+			}
+			if len(parts) >= 3 {
+				current.Category = strings.TrimSpace(parts[2])
+			}
+			continue
+		}
+
+		if current != nil {
+			// Check for related-to line
+			if strings.HasPrefix(line, "*Related to:") {
+				re := regexp.MustCompile(`\*Related to: (.+)\*`)
+				if matches := re.FindStringSubmatch(line); len(matches) > 1 {
+					current.RelatedTo = matches[1]
+				}
+				continue
+			}
+			contentLines = append(contentLines, line)
+		}
+	}
+
+	// Don't forget the last learning
+	if current != nil && len(contentLines) > 0 {
+		current.Content = strings.TrimSpace(strings.Join(contentLines, "\n"))
+		current.Hash = hashContent(current.Content)
+		if inConfirmed {
+			confirmed = append(confirmed, *current)
+		} else if inProvisional {
+			provisional = append(provisional, *current)
+		}
+	}
+
+	return confirmed, provisional
+}

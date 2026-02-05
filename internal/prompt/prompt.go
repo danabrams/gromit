@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/ralph-runner/internal/learnings"
 )
 
 // Context holds all data available to prompt templates
@@ -21,29 +22,47 @@ type Context struct {
 
 	// Project context
 	ClaudeMD    string // Content of project's CLAUDE.md
+	Rules       string // Content of RULES.md
 	WorkDir     string // Working directory
 
+	// Learnings
+	ConfirmedLearnings []learnings.Learning
+	RecentLearnings    []learnings.Learning
+
 	// Iteration info
-	Iteration   int
-	Model       string
-	IsRetry     bool
-	PrevFailure string // Output from previous failed attempt
+	Iteration      int
+	Model          string
+	IsRetry        bool
+	PrevFailure    string // Output from previous failed attempt
+	FailureContext string // Suggestion from failure analysis
 }
 
 // Renderer loads and renders prompt templates
 type Renderer struct {
-	templatesDir string
-	specsDir     string
-	claudeMDPath string
+	templatesDir  string
+	specsDir      string
+	claudeMDPath  string
+	rulesPath     string
+	learningsFile *learnings.File
 }
 
 // NewRenderer creates a new prompt renderer
-func NewRenderer(templatesDir, specsDir, claudeMDPath string) *Renderer {
+func NewRenderer(templatesDir, specsDir, claudeMDPath, ralphDir string) *Renderer {
+	lf := learnings.NewFile(ralphDir)
+	lf.Load() // Ignore error - learnings are optional
+
 	return &Renderer{
-		templatesDir: templatesDir,
-		specsDir:     specsDir,
-		claudeMDPath: claudeMDPath,
+		templatesDir:  templatesDir,
+		specsDir:      specsDir,
+		claudeMDPath:  claudeMDPath,
+		rulesPath:     filepath.Join(ralphDir, "RULES.md"),
+		learningsFile: lf,
 	}
+}
+
+// GetLearningsFile returns the learnings file for external use
+func (r *Renderer) GetLearningsFile() *learnings.File {
+	return r.learningsFile
 }
 
 // RenderBuild renders the build prompt for a bead
@@ -103,6 +122,19 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	}
 	ctx.ClaudeMD = claudeMD
 
+	// Load RULES.md
+	rules, err := r.LoadRules()
+	if err != nil {
+		return nil, err
+	}
+	ctx.Rules = rules
+
+	// Load learnings
+	if r.learningsFile != nil {
+		ctx.ConfirmedLearnings = r.learningsFile.GetConfirmed()
+		ctx.RecentLearnings = r.learningsFile.GetRecent(24) // Last 24 hours
+	}
+
 	// Get working directory
 	ctx.WorkDir, _ = os.Getwd()
 
@@ -122,6 +154,18 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	}
 
 	return ctx, nil
+}
+
+// LoadRules loads the RULES.md file
+func (r *Renderer) LoadRules() (string, error) {
+	content, err := os.ReadFile(r.rulesPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading RULES.md: %w", err)
+	}
+	return string(content), nil
 }
 
 func (r *Renderer) render(templateName string, ctx any) (string, error) {
@@ -160,6 +204,16 @@ func templateFuncs() template.FuncMap {
 				}
 			}
 			return strings.Join(lines, "\n")
+		},
+		"formatLearnings": func(ls []learnings.Learning) string {
+			if len(ls) == 0 {
+				return "*None*"
+			}
+			var sb strings.Builder
+			for _, l := range ls {
+				sb.WriteString(fmt.Sprintf("- **[%s]** %s\n", l.Category, l.Content))
+			}
+			return sb.String()
 		},
 	}
 }
