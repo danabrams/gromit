@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
+	"unicode"
 )
 
 // Bead represents an issue from the bd issue tracker
@@ -19,6 +21,84 @@ type Bead struct {
 	Status          string   `json:"status"`
 	Owner           string   `json:"owner"`
 	ExpectedOutputs []string `json:"expected_outputs,omitempty"`
+}
+
+// validBeadID matches alphanumeric characters, hyphens, and underscores.
+var validBeadID = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+// Maximum lengths for bead fields
+const (
+	maxIDLength          = 128
+	maxTitleLength       = 512
+	maxDescriptionLength = 16384
+	maxLabelLength       = 128
+	maxLabelCount        = 64
+)
+
+// Validate checks that bead fields are safe for use in prompts, commands, and logging.
+func (b *Bead) Validate() error {
+	// ID is used in shell commands (bd close, bd show) - must be strictly validated
+	if b.ID == "" {
+		return fmt.Errorf("bead has empty ID")
+	}
+	if len(b.ID) > maxIDLength {
+		return fmt.Errorf("bead ID exceeds max length (%d > %d)", len(b.ID), maxIDLength)
+	}
+	if !validBeadID.MatchString(b.ID) {
+		return fmt.Errorf("bead ID %q contains invalid characters (allowed: alphanumeric, hyphens, underscores)", b.ID)
+	}
+
+	// Title - enforce length limit and no control characters
+	if len(b.Title) > maxTitleLength {
+		return fmt.Errorf("bead title exceeds max length (%d > %d)", len(b.Title), maxTitleLength)
+	}
+	if err := rejectControlChars(b.Title, "title"); err != nil {
+		return err
+	}
+
+	// Description - enforce length limit and no control characters
+	if len(b.Description) > maxDescriptionLength {
+		return fmt.Errorf("bead description exceeds max length (%d > %d)", len(b.Description), maxDescriptionLength)
+	}
+	if err := rejectControlChars(b.Description, "description"); err != nil {
+		return err
+	}
+
+	// Labels
+	if len(b.Labels) > maxLabelCount {
+		return fmt.Errorf("bead has too many labels (%d > %d)", len(b.Labels), maxLabelCount)
+	}
+	for _, label := range b.Labels {
+		if len(label) > maxLabelLength {
+			return fmt.Errorf("bead label exceeds max length (%d > %d)", len(label), maxLabelLength)
+		}
+		if err := rejectControlChars(label, "label"); err != nil {
+			return err
+		}
+	}
+
+	// Parent ID - if set, must follow same rules as ID
+	if b.Parent != "" {
+		if len(b.Parent) > maxIDLength {
+			return fmt.Errorf("bead parent ID exceeds max length (%d > %d)", len(b.Parent), maxIDLength)
+		}
+		if !validBeadID.MatchString(b.Parent) {
+			return fmt.Errorf("bead parent ID %q contains invalid characters", b.Parent)
+		}
+	}
+
+	return nil
+}
+
+// rejectControlChars returns an error if the string contains control characters
+// (except newlines and tabs, which are valid in descriptions).
+func rejectControlChars(s, fieldName string) error {
+	for i, r := range s {
+		if unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t' {
+			return fmt.Errorf("bead %s contains control character at position %d", fieldName, i)
+		}
+	}
+	return nil
 }
 
 // Client wraps the bd CLI
@@ -52,6 +132,10 @@ func (c *Client) Ready() (*Bead, error) {
 		return nil, nil
 	}
 
+	if err := beads[0].Validate(); err != nil {
+		return nil, fmt.Errorf("invalid bead data: %w", err)
+	}
+
 	return &beads[0], nil
 }
 
@@ -75,22 +159,34 @@ func (c *Client) ReadyAny() (*Bead, error) {
 		return nil, nil
 	}
 
+	if err := beads[0].Validate(); err != nil {
+		return nil, fmt.Errorf("invalid bead data: %w", err)
+	}
+
 	return &beads[0], nil
 }
 
 // Show returns full details for a bead
 func (c *Client) Show(id string) (*Bead, error) {
+	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
+		return nil, fmt.Errorf("invalid bead ID %q", id)
+	}
+
 	out, err := c.run("show", id, "--json")
 	if err != nil {
 		return nil, fmt.Errorf("bd show %s: %w", id, err)
 	}
 
-	var bead Bead
-	if err := json.Unmarshal([]byte(out), &bead); err != nil {
+	var b Bead
+	if err := json.Unmarshal([]byte(out), &b); err != nil {
 		return nil, fmt.Errorf("parsing bd show output: %w", err)
 	}
 
-	return &bead, nil
+	if err := b.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid bead data: %w", err)
+	}
+
+	return &b, nil
 }
 
 // Create creates a new bead via the bd CLI and returns the created bead
@@ -110,16 +206,24 @@ func (c *Client) Create(title string, priority int, labels []string, expectedOut
 		return nil, fmt.Errorf("bd create: %w", err)
 	}
 
-	var bead Bead
-	if err := json.Unmarshal([]byte(out), &bead); err != nil {
+	var b Bead
+	if err := json.Unmarshal([]byte(out), &b); err != nil {
 		return nil, fmt.Errorf("parsing bd create output: %w", err)
 	}
 
-	return &bead, nil
+	if err := b.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid bead data: %w", err)
+	}
+
+	return &b, nil
 }
 
 // Close marks a bead as complete
 func (c *Client) Close(id string) error {
+	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
+		return fmt.Errorf("invalid bead ID %q", id)
+	}
+
 	_, err := c.run("close", id)
 	if err != nil {
 		return fmt.Errorf("bd close %s: %w", id, err)
@@ -138,6 +242,10 @@ func (c *Client) Sync() error {
 
 // AddComment adds a comment to a bead
 func (c *Client) AddComment(id, comment string) error {
+	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
+		return fmt.Errorf("invalid bead ID %q", id)
+	}
+
 	_, err := c.run("comments", "add", id, comment)
 	if err != nil {
 		return fmt.Errorf("bd comments add: %w", err)
