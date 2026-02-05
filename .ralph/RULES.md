@@ -27,3 +27,4 @@ These are non-negotiable constraints for ralph-runner development.
 - Run `go build ./cmd/ralph` before committing
 - Run `go test ./...` to verify tests pass
 - Follow existing patterns in the codebase
+- Distinguish environment failures from code failures — missing tools or runtime dependencies are environment issues, not code bugs
