@@ -165,6 +165,9 @@ Do not execute any other commands beyond the numbered list above.
 
 // IsValidationPassed checks if the result indicates validation passed
 func IsValidationPassed(result *Result) bool {
+	if result == nil {
+		return false
+	}
 	return result.Success && strings.Contains(result.Output, "VALIDATION_PASSED")
 }
 

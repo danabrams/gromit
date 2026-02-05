@@ -98,6 +98,11 @@ func TestIsValidationPassed(t *testing.T) {
 			result: &Result{Success: false, Output: "VALIDATION_PASSED"},
 			want:   false,
 		},
+		{
+			name:   "nil result",
+			result: nil,
+			want:   false,
+		},
 	}
 
 	for _, tt := range tests {

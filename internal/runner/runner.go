@@ -273,6 +273,8 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		analysis, err := r.analyzer.Analyze(ctx, b, claudeResult.Output)
 		if err != nil {
 			r.log("Warning: failure analysis failed: %v", err)
+		} else if analysis == nil {
+			r.log("Warning: failure analysis returned no result")
 		} else {
 			r.log("Analysis: category=%s, recoverable=%v", analysis.Category, analysis.Recoverable)
 			r.log("Root cause: %s", analysis.RootCause)
@@ -389,7 +391,7 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 			// Run analysis on validation failure with the actual output
 			r.log("Running failure analysis...")
 			analysis, err := r.analyzer.Analyze(ctx, b, valResult.Output)
-			if err == nil && analysis.Learning != nil {
+			if err == nil && analysis != nil && analysis.Learning != nil {
 				lf := r.renderer.GetLearningsFile()
 				if lf != nil {
 					lf.Add(b.ID, *analysis.Learning, analysis.LearningCategory())
