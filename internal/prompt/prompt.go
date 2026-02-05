@@ -94,9 +94,38 @@ func (r *Renderer) RenderValidate(ctx *Context, commands []string) (string, erro
 	return r.render("PROMPT_validate.md", vctx)
 }
 
+// ValidateSpecName checks that a spec name doesn't contain path traversal characters
+func ValidateSpecName(name string) error {
+	if name == "" {
+		return fmt.Errorf("empty spec name")
+	}
+	if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return fmt.Errorf("invalid spec name %q: contains path traversal characters", name)
+	}
+	return nil
+}
+
 // LoadSpec loads a spec file by name
 func (r *Renderer) LoadSpec(name string) (string, error) {
+	if err := ValidateSpecName(name); err != nil {
+		return "", err
+	}
+
 	path := filepath.Join(r.specsDir, name+".md")
+
+	// Belt-and-suspenders: verify resolved path stays within specsDir
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolving spec path: %w", err)
+	}
+	absSpecsDir, err := filepath.Abs(r.specsDir)
+	if err != nil {
+		return "", fmt.Errorf("resolving specs dir: %w", err)
+	}
+	if !strings.HasPrefix(absPath, absSpecsDir+string(filepath.Separator)) {
+		return "", fmt.Errorf("invalid spec name %q: resolves outside specs directory", name)
+	}
+
 	content, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
