@@ -1,0 +1,48 @@
+# Ralph Runner Configuration
+
+# Model selection based on priority
+models:
+  # Priority-based defaults (P0=critical, P1=normal, P2=low)
+  p0: opus
+  p1: sonnet
+  p2: haiku
+
+  # Validation always uses haiku for cost efficiency
+  validation: haiku
+
+  # Label overrides (take precedence over priority)
+  labels:
+    "complexity:high": opus
+    "complexity:low": haiku
+
+# Escalation chain on failure (left to right)
+escalation:
+  enabled: true
+  chain: [haiku, sonnet, opus]
+  max_retries_per_model: 1
+
+# Loop settings
+loop:
+  max_iterations: 0  # 0 = unlimited
+  stop_on_failure: false  # Continue to next bead on failure
+
+# Validation settings
+validation:
+  enabled: true
+  commands:
+    - "pnpm run test"
+    - "pnpm run lint:check"
+    - "pnpm run build"
+
+# Claude CLI settings
+claude:
+  binary: "claude"
+  timeout: 600  # seconds per invocation
+  flags:
+    - "--dangerously-skip-permissions"
+
+# Paths
+paths:
+  templates: "./templates"
+  specs: "./specs"
+  project_claude_md: "./CLAUDE.md"  # Project being worked on
