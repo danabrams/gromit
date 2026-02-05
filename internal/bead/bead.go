@@ -15,8 +15,9 @@ type Bead struct {
 	Priority    int      `json:"priority"`
 	Labels      []string `json:"labels"`
 	Parent      string   `json:"parent"`
-	Type        string   `json:"type"`
-	State       string   `json:"state"`
+	Type        string   `json:"issue_type"` // bd uses issue_type
+	Status      string   `json:"status"`
+	Owner       string   `json:"owner"`
 }
 
 // Client wraps the bd CLI
@@ -29,15 +30,39 @@ func NewClient() *Client {
 	return &Client{binary: "bd"}
 }
 
-// Ready returns the next unblocked bead ready for work
+// Ready returns the next unblocked bead ready for work (excludes epics)
 func (c *Client) Ready() (*Bead, error) {
-	out, err := c.run("ready", "--json", "--limit", "1")
+	// Use --type task to exclude epics - we want atomic work items
+	out, err := c.run("ready", "--json", "--limit", "1", "--type", "task")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
 
 	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
 		return nil, nil // No work available
+	}
+
+	var beads []Bead
+	if err := json.Unmarshal([]byte(out), &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd ready output: %w", err)
+	}
+
+	if len(beads) == 0 {
+		return nil, nil
+	}
+
+	return &beads[0], nil
+}
+
+// ReadyAny returns the next unblocked bead of any type (including epics)
+func (c *Client) ReadyAny() (*Bead, error) {
+	out, err := c.run("ready", "--json", "--limit", "1")
+	if err != nil {
+		return nil, fmt.Errorf("bd ready: %w", err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return nil, nil
 	}
 
 	var beads []Bead
