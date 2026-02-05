@@ -49,6 +49,7 @@ type ClaudeConfig struct {
 type PathsConfig struct {
 	Templates       string `yaml:"templates"`
 	Specs           string `yaml:"specs"`
+	Logs            string `yaml:"logs"`
 	ProjectClaudeMD string `yaml:"project_claude_md"`
 }
 
@@ -87,10 +88,16 @@ func (c *Config) setDefaults() {
 		c.Claude.Timeout = 600
 	}
 	if c.Paths.Templates == "" {
-		c.Paths.Templates = "./templates"
+		c.Paths.Templates = ".ralph/templates"
 	}
 	if c.Paths.Specs == "" {
-		c.Paths.Specs = "./specs"
+		c.Paths.Specs = ".ralph/specs"
+	}
+	if c.Paths.Logs == "" {
+		c.Paths.Logs = ".ralph/logs"
+	}
+	if c.Paths.ProjectClaudeMD == "" {
+		c.Paths.ProjectClaudeMD = "CLAUDE.md"
 	}
 	if len(c.Escalation.Chain) == 0 {
 		c.Escalation.Chain = []string{"haiku", "sonnet", "opus"}

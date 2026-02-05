@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/claude"
 	"github.com/danabrams/ralph-runner/internal/config"
+	"github.com/danabrams/ralph-runner/internal/logger"
 	"github.com/danabrams/ralph-runner/internal/prompt"
 )
 
@@ -19,11 +20,18 @@ type Runner struct {
 	beads    *bead.Client
 	claude   *claude.Client
 	renderer *prompt.Renderer
+	logger   *logger.Logger
 	output   io.Writer
 }
 
 // NewRunner creates a new runner
 func NewRunner(cfg *config.Config, output io.Writer) *Runner {
+	// Create logger (ignore error - logging is optional)
+	log, err := logger.NewLogger(cfg.Paths.Logs)
+	if err != nil {
+		fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
+	}
+
 	return &Runner{
 		cfg:    cfg,
 		beads:  bead.NewClient(),
@@ -33,6 +41,7 @@ func NewRunner(cfg *config.Config, output io.Writer) *Runner {
 			cfg.Paths.Specs,
 			cfg.Paths.ProjectClaudeMD,
 		),
+		logger: log,
 		output: output,
 	}
 }
@@ -53,9 +62,23 @@ type IterationResult struct {
 
 // Run executes the Ralph loop
 func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error {
+	// Ensure logger is closed when done
+	if r.logger != nil {
+		defer r.logger.Close()
+		r.log("Logging to: %s", r.logger.FilePath())
+	}
+
 	iteration := 0
 
 	for {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			r.log("Context cancelled, stopping")
+			return ctx.Err()
+		default:
+		}
+
 		// Check iteration limit
 		if maxIterations > 0 && iteration >= maxIterations {
 			r.log("Reached max iterations (%d), stopping", maxIterations)
@@ -85,8 +108,11 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 		// Process the bead
 		result := r.processBead(ctx, b, iteration)
 
-		// Log result
+		// Log result to console
 		r.logResult(result)
+
+		// Log result to file
+		r.writeIterationLog(iteration, result)
 
 		// Handle failure
 		if !result.Success {
@@ -110,6 +136,31 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 
 	r.log("\nRalph loop complete. Processed %d iterations.", iteration)
 	return nil
+}
+
+func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
+	if r.logger == nil {
+		return
+	}
+
+	errStr := ""
+	if result.Error != nil {
+		errStr = result.Error.Error()
+	}
+
+	r.logger.LogIteration(&logger.IterationLog{
+		Timestamp:   time.Now(),
+		Iteration:   iteration,
+		BeadID:      result.BeadID,
+		BeadTitle:   result.BeadTitle,
+		Model:       result.Model,
+		Success:     result.Success,
+		Validated:   result.Validated,
+		Escalated:   result.Escalated,
+		EscalatedTo: result.EscalatedTo,
+		DurationMs:  result.Duration.Milliseconds(),
+		Error:       errStr,
+	})
 }
 
 func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *IterationResult {

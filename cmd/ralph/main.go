@@ -57,7 +57,7 @@ var statusCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "config.yaml", "Path to config file")
+	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "ralph.yaml", "Path to config file")
 
 	runCmd.Flags().IntVarP(&maxIterations, "max-iterations", "n", 0, "Maximum iterations (0 = unlimited)")
 	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run without executing")
@@ -69,41 +69,9 @@ func init() {
 func loadConfig() (*config.Config, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		// Try to load from current directory if path doesn't exist
-		if os.IsNotExist(err) && configPath == "config.yaml" {
-			// Create default config
-			return &config.Config{
-				Models: config.ModelsConfig{
-					P0:         "opus",
-					P1:         "sonnet",
-					P2:         "haiku",
-					Validation: "haiku",
-					Labels:     map[string]string{},
-				},
-				Escalation: config.EscalationConfig{
-					Enabled:            true,
-					Chain:              []string{"haiku", "sonnet", "opus"},
-					MaxRetriesPerModel: 1,
-				},
-				Loop: config.LoopConfig{
-					MaxIterations: 0,
-					StopOnFailure: false,
-				},
-				Validation: config.ValidationConfig{
-					Enabled:  true,
-					Commands: []string{"pnpm run test", "pnpm run lint:check", "pnpm run build"},
-				},
-				Claude: config.ClaudeConfig{
-					Binary:  "claude",
-					Timeout: 600,
-					Flags:   []string{"--dangerously-skip-permissions"},
-				},
-				Paths: config.PathsConfig{
-					Templates:       "./templates",
-					Specs:           "./specs",
-					ProjectClaudeMD: "./CLAUDE.md",
-				},
-			}, nil
+		// If ralph.yaml doesn't exist, provide helpful error
+		if os.IsNotExist(err) && configPath == "ralph.yaml" {
+			return nil, fmt.Errorf("ralph.yaml not found - run 'ralph init' to set up this project")
 		}
 		return nil, err
 	}

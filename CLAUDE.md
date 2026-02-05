@@ -2,18 +2,60 @@
 
 A Go CLI tool that runs the Ralph Wiggum loop correctly - with fresh context on each iteration.
 
+## Installation
+
+```bash
+# From source
+go install github.com/danabrams/ralph-runner/cmd/ralph@latest
+
+# Or build locally
+cd ralph-runner
+go build -o ralph ./cmd/ralph
+```
+
+## Quick Start
+
+```bash
+# In your project directory
+ralph init                    # Creates ralph.yaml + .ralph/
+
+# Create beads (tasks) using bd
+bd create "Implement feature X" --priority 1
+
+# Run the loop
+ralph run                     # Run until no work
+ralph run -n 5                # Run max 5 iterations
+ralph run --dry-run           # Preview without executing
+ralph status                  # Show next bead + model
+```
+
 ## Architecture
 
 ```
-cmd/ralph/          # CLI entry point
+cmd/ralph/              # CLI entry point
+  main.go               # Root command + run/status
+  init.go               # Init command
 internal/
-  config/           # YAML configuration loading
-  bead/             # bd CLI integration (beads issue tracker)
-  runner/           # Core loop orchestration
-  prompt/           # Prompt template rendering
-  claude/           # Claude CLI invocation
-templates/          # Prompt templates (PROMPT_build.md, etc.)
-specs/              # Specification files referenced by beads
+  config/               # YAML configuration loading
+  bead/                 # bd CLI integration
+  runner/               # Core loop orchestration
+  prompt/               # Prompt template rendering
+  claude/               # Claude CLI invocation
+  logger/               # JSONL iteration logging
+```
+
+## Project Structure (after `ralph init`)
+
+```
+your-project/
+├── ralph.yaml              # Configuration
+├── CLAUDE.md               # Your project's Claude instructions
+└── .ralph/
+    ├── templates/
+    │   ├── PROMPT_build.md     # Build prompt template
+    │   └── PROMPT_validate.md  # Validation prompt template
+    ├── specs/                  # Spec files for complex features
+    └── logs/                   # Iteration logs (JSONL)
 ```
 
 ## Key Principles
@@ -31,15 +73,68 @@ specs/              # Specification files referenced by beads
 - `bd close <id>` - Mark bead complete
 - Labels: `complexity:high`, `complexity:low`, `spec:<name>`
 
-## Running
+## Model Selection
 
-```bash
-ralph run                    # Run loop until no work
-ralph run --max-iterations 5 # Limit iterations
-ralph run --dry-run          # Show what would run without executing
-ralph status                 # Show current queue state
+Priority-based:
+- P0 (critical) → opus
+- P1 (normal) → sonnet
+- P2 (low) → haiku
+
+Label overrides (higher precedence):
+- `complexity:high` → opus
+- `complexity:low` → haiku
+
+Validation always uses haiku for cost efficiency.
+
+## Spec Files
+
+For complex features, create a spec file in `.ralph/specs/`:
+
+```markdown
+# specs/auth.md
+## Acceptance Criteria
+- JWT-based authentication
+- Refresh token support
+...
 ```
 
-## Configuration
+Then reference it from beads via label:
+- Epic bead: `bd create "Auth system" --type epic --label spec:auth`
+- Child tasks: `bd create "Add JWT validation" --parent <epic-id>`
 
-See `config.yaml` for model selection rules and escalation settings.
+Child tasks inherit the spec from their parent epic.
+
+## Configuration (ralph.yaml)
+
+```yaml
+models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+  validation: haiku
+  labels:
+    "complexity:high": opus
+
+escalation:
+  enabled: true
+  chain: [haiku, sonnet, opus]
+
+validation:
+  enabled: true
+  commands:
+    - "pnpm run test"
+    - "pnpm run lint:check"
+
+claude:
+  timeout: 600
+  flags:
+    - "--dangerously-skip-permissions"
+```
+
+## Logs
+
+Iteration results are logged to `.ralph/logs/run-YYYYMMDD-HHMMSS.jsonl`:
+
+```json
+{"timestamp":"...","iteration":1,"bead_id":"abc-123","model":"sonnet","success":true,"duration_ms":45000}
+```
