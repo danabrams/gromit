@@ -119,6 +119,48 @@ func TestGenerateID(t *testing.T) {
 	}
 }
 
+func TestBacklogFileDelete(t *testing.T) {
+	tmpDir := t.TempDir()
+	bf := NewFile(tmpDir)
+
+	// Add three ideas
+	idea1 := &Idea{ID: "idea-1", Text: "First idea", Type: "feature", CreatedAt: time.Now()}
+	idea2 := &Idea{ID: "idea-2", Text: "Second idea", Type: "bug", CreatedAt: time.Now()}
+	idea3 := &Idea{ID: "idea-3", Text: "Third idea", Type: "chore", CreatedAt: time.Now()}
+
+	for _, idea := range []*Idea{idea1, idea2, idea3} {
+		if err := bf.Add(idea); err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+	}
+
+	// Delete middle idea
+	if err := bf.Delete("idea-2"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+
+	// Verify remaining ideas
+	ideas, err := bf.List()
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	if len(ideas) != 2 {
+		t.Fatalf("List() returned %d ideas, want 2", len(ideas))
+	}
+	if ideas[0].ID != "idea-1" {
+		t.Errorf("First idea ID = %q, want %q", ideas[0].ID, "idea-1")
+	}
+	if ideas[1].ID != "idea-3" {
+		t.Errorf("Second idea ID = %q, want %q", ideas[1].ID, "idea-3")
+	}
+
+	// Deleting non-existent idea should error
+	if err := bf.Delete("idea-999"); err == nil {
+		t.Error("Delete() on non-existent idea should return error")
+	}
+}
+
 func TestBacklogFileCreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	nestedPath := filepath.Join(tmpDir, "nested", "dir")

@@ -97,6 +97,49 @@ func GenerateID() string {
 	return fmt.Sprintf("idea-%d", time.Now().UnixNano()/1000000) // milliseconds
 }
 
+// Delete removes an idea from the backlog by rewriting the file without it
+func (f *File) Delete(id string) error {
+	// Load all ideas
+	ideas, err := f.List()
+	if err != nil {
+		return fmt.Errorf("loading backlog: %w", err)
+	}
+
+	// Filter out the idea to delete
+	var filtered []*Idea
+	found := false
+	for _, idea := range ideas {
+		if idea.ID == id {
+			found = true
+			continue
+		}
+		filtered = append(filtered, idea)
+	}
+
+	if !found {
+		return fmt.Errorf("idea not found: %s", id)
+	}
+
+	// Rewrite the file
+	file, err := os.OpenFile(f.path, os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("opening backlog file: %w", err)
+	}
+	defer file.Close()
+
+	for _, idea := range filtered {
+		data, err := json.Marshal(idea)
+		if err != nil {
+			return fmt.Errorf("marshaling idea: %w", err)
+		}
+		if _, err := file.Write(append(data, '\n')); err != nil {
+			return fmt.Errorf("writing to backlog: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // CategorizeIdea attempts to auto-categorize based on keywords
 func CategorizeIdea(text string) string {
 	lower := strings.ToLower(text)
