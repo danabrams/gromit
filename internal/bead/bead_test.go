@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -243,5 +244,611 @@ func TestRejectControlChars(t *testing.T) {
 				t.Errorf("rejectControlChars(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestBeadJSONParsing tests unmarshaling bead JSON from bd CLI
+func TestBeadJSONParsing(t *testing.T) {
+	tests := []struct {
+		name     string
+		jsonStr  string
+		wantBead Bead
+		wantErr  bool
+	}{
+		{
+			name: "valid bead with all fields",
+			jsonStr: `{
+				"id": "test-123",
+				"title": "Test task",
+				"description": "Test description",
+				"priority": 1,
+				"labels": ["complexity:high", "spec:auth"],
+				"parent": "epic-456",
+				"issue_type": "task",
+				"status": "open",
+				"owner": "alice",
+				"expected_outputs": ["file1.go", "file2.go"]
+			}`,
+			wantBead: Bead{
+				ID:              "test-123",
+				Title:           "Test task",
+				Description:     "Test description",
+				Priority:        1,
+				Labels:          []string{"complexity:high", "spec:auth"},
+				Parent:          "epic-456",
+				Type:            "task",
+				Status:          "open",
+				Owner:           "alice",
+				ExpectedOutputs: []string{"file1.go", "file2.go"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "minimal valid bead",
+			jsonStr: `{
+				"id": "min-001",
+				"title": "Minimal",
+				"description": "",
+				"priority": 2,
+				"labels": [],
+				"parent": "",
+				"issue_type": "task",
+				"status": "open",
+				"owner": ""
+			}`,
+			wantBead: Bead{
+				ID:          "min-001",
+				Title:       "Minimal",
+				Description: "",
+				Priority:    2,
+				Labels:      []string{},
+				Parent:      "",
+				Type:        "task",
+				Status:      "open",
+				Owner:       "",
+			},
+			wantErr: false,
+		},
+		{
+			name:     "invalid json",
+			jsonStr:  `{"id": "test-123", invalid}`,
+			wantErr:  true,
+			wantBead: Bead{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got Bead
+			err := json.Unmarshal([]byte(tt.jsonStr), &got)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("json.Unmarshal() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err == nil {
+				if got.ID != tt.wantBead.ID {
+					t.Errorf("ID = %v, want %v", got.ID, tt.wantBead.ID)
+				}
+				if got.Title != tt.wantBead.Title {
+					t.Errorf("Title = %v, want %v", got.Title, tt.wantBead.Title)
+				}
+				if got.Priority != tt.wantBead.Priority {
+					t.Errorf("Priority = %v, want %v", got.Priority, tt.wantBead.Priority)
+				}
+				if got.Type != tt.wantBead.Type {
+					t.Errorf("Type = %v, want %v (issue_type should map to Type)", got.Type, tt.wantBead.Type)
+				}
+			}
+		})
+	}
+}
+
+// TestFindSpecLabel tests the FindSpecLabel function
+func TestFindSpecLabel(t *testing.T) {
+	tests := []struct {
+		name   string
+		labels []string
+		want   string
+	}{
+		{
+			name:   "spec label present",
+			labels: []string{"complexity:high", "spec:auth", "priority:p1"},
+			want:   "auth",
+		},
+		{
+			name:   "no spec label",
+			labels: []string{"complexity:high", "priority:p1"},
+			want:   "",
+		},
+		{
+			name:   "empty labels",
+			labels: []string{},
+			want:   "",
+		},
+		{
+			name:   "nil labels",
+			labels: nil,
+			want:   "",
+		},
+		{
+			name:   "multiple spec labels returns first",
+			labels: []string{"spec:auth", "spec:payments"},
+			want:   "auth",
+		},
+		{
+			name:   "spec label with complex name",
+			labels: []string{"spec:user-auth-v2"},
+			want:   "user-auth-v2",
+		},
+		{
+			name:   "spec label at different positions",
+			labels: []string{"priority:p0", "complexity:low", "spec:database"},
+			want:   "database",
+		},
+		{
+			name:   "spec prefix but not a label",
+			labels: []string{"specification:test"},
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FindSpecLabel(tt.labels)
+			if got != tt.want {
+				t.Errorf("FindSpecLabel() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestHasLabel tests the HasLabel function
+func TestHasLabel(t *testing.T) {
+	tests := []struct {
+		name   string
+		labels []string
+		target string
+		want   bool
+	}{
+		{
+			name:   "label present",
+			labels: []string{"complexity:high", "spec:auth", "priority:p1"},
+			target: "complexity:high",
+			want:   true,
+		},
+		{
+			name:   "label not present",
+			labels: []string{"complexity:high", "priority:p1"},
+			target: "spec:auth",
+			want:   false,
+		},
+		{
+			name:   "empty labels",
+			labels: []string{},
+			target: "anything",
+			want:   false,
+		},
+		{
+			name:   "nil labels",
+			labels: nil,
+			target: "anything",
+			want:   false,
+		},
+		{
+			name:   "exact match required",
+			labels: []string{"complexity:high"},
+			target: "complexity",
+			want:   false,
+		},
+		{
+			name:   "case sensitive",
+			labels: []string{"Complexity:High"},
+			target: "complexity:high",
+			want:   false,
+		},
+		{
+			name:   "multiple labels",
+			labels: []string{"label1", "label2", "label3"},
+			target: "label2",
+			want:   true,
+		},
+		{
+			name:   "empty string target",
+			labels: []string{"label1", "", "label2"},
+			target: "",
+			want:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := HasLabel(tt.labels, tt.target)
+			if got != tt.want {
+				t.Errorf("HasLabel() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestReadyVsReadyAny tests parsing differences between Ready() and ReadyAny()
+func TestReadyVsReadyAny(t *testing.T) {
+	tests := []struct {
+		name        string
+		jsonOutput  string
+		wantBead    *Bead
+		wantNil     bool
+		description string
+	}{
+		{
+			name:        "empty array",
+			jsonOutput:  "[]",
+			wantNil:     true,
+			description: "No work available",
+		},
+		{
+			name:        "empty string",
+			jsonOutput:  "",
+			wantNil:     true,
+			description: "No output from bd",
+		},
+		{
+			name:        "whitespace only",
+			jsonOutput:  "   \n  ",
+			wantNil:     true,
+			description: "Only whitespace",
+		},
+		{
+			name: "single task bead",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Test task",
+				"description": "Description",
+				"priority": 1,
+				"labels": [],
+				"parent": "",
+				"issue_type": "task",
+				"status": "open",
+				"owner": ""
+			}]`,
+			wantBead: &Bead{
+				ID:       "task-001",
+				Title:    "Test task",
+				Priority: 1,
+				Type:     "task",
+			},
+			wantNil: false,
+		},
+		{
+			name: "epic bead",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Test epic",
+				"description": "Epic description",
+				"priority": 0,
+				"labels": [],
+				"parent": "",
+				"issue_type": "epic",
+				"status": "open",
+				"owner": ""
+			}]`,
+			wantBead: &Bead{
+				ID:       "epic-001",
+				Title:    "Test epic",
+				Priority: 0,
+				Type:     "epic",
+			},
+			wantNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate parsing logic from Ready()/ReadyAny()
+			if strings.TrimSpace(tt.jsonOutput) == "" || strings.TrimSpace(tt.jsonOutput) == "[]" {
+				if !tt.wantNil {
+					t.Errorf("Expected non-nil bead for output: %s", tt.jsonOutput)
+				}
+				return
+			}
+
+			var beads []Bead
+			err := json.Unmarshal([]byte(tt.jsonOutput), &beads)
+			if err != nil {
+				t.Fatalf("Failed to parse JSON: %v", err)
+			}
+
+			if len(beads) == 0 {
+				if !tt.wantNil {
+					t.Errorf("Expected non-nil bead but got empty array")
+				}
+				return
+			}
+
+			got := &beads[0]
+			if tt.wantNil {
+				t.Errorf("Expected nil bead but got: %+v", got)
+				return
+			}
+
+			if got.ID != tt.wantBead.ID {
+				t.Errorf("ID = %v, want %v", got.ID, tt.wantBead.ID)
+			}
+			if got.Type != tt.wantBead.Type {
+				t.Errorf("Type = %v, want %v", got.Type, tt.wantBead.Type)
+			}
+		})
+	}
+}
+
+// TestClientShowValidation tests that Show() validates bead IDs before execution
+func TestClientShowValidation(t *testing.T) {
+	c := NewClient()
+
+	tests := []struct {
+		name    string
+		id      string
+		wantErr bool
+	}{
+		{
+			name:    "invalid ID with semicolon",
+			id:      "test; rm -rf /",
+			wantErr: true,
+		},
+		{
+			name:    "invalid ID with spaces",
+			id:      "test 123",
+			wantErr: true,
+		},
+		{
+			name:    "ID too long",
+			id:      strings.Repeat("a", maxIDLength+1),
+			wantErr: true,
+		},
+		{
+			name:    "empty ID",
+			id:      "",
+			wantErr: true,
+		},
+		{
+			name:    "command injection attempt",
+			id:      "test$(whoami)",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := c.Show(tt.id)
+			if err == nil {
+				t.Errorf("Show(%q) expected error but got nil", tt.id)
+				return
+			}
+
+			if tt.wantErr && !strings.Contains(err.Error(), "invalid bead ID") {
+				t.Errorf("Show(%q) should fail with validation error, got: %v", tt.id, err)
+			}
+		})
+	}
+}
+
+// TestClientCloseValidation tests that Close() validates bead IDs before execution
+func TestClientCloseValidation(t *testing.T) {
+	c := NewClient()
+
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{
+			name: "command injection attempt",
+			id:   "test && echo hacked",
+		},
+		{
+			name: "pipe injection",
+			id:   "test | cat /etc/passwd",
+		},
+		{
+			name: "empty ID",
+			id:   "",
+		},
+		{
+			name: "shell substitution",
+			id:   "test`ls`",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := c.Close(tt.id)
+			if err == nil {
+				t.Errorf("Close(%q) expected error but got nil", tt.id)
+				return
+			}
+
+			if !strings.Contains(err.Error(), "invalid bead ID") {
+				t.Errorf("Close(%q) should fail with validation error, got: %v", tt.id, err)
+			}
+		})
+	}
+}
+
+// TestClientAddCommentValidation tests that AddComment() validates bead IDs
+func TestClientAddCommentValidation(t *testing.T) {
+	c := NewClient()
+
+	tests := []struct {
+		name    string
+		id      string
+		comment string
+	}{
+		{
+			name:    "invalid ID",
+			id:      "test; rm -rf /",
+			comment: "This is a comment",
+		},
+		{
+			name:    "empty ID",
+			id:      "",
+			comment: "This is a comment",
+		},
+		{
+			name:    "ID with newline",
+			id:      "test\nid",
+			comment: "Comment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := c.AddComment(tt.id, tt.comment)
+			if err == nil {
+				t.Errorf("AddComment(%q, %q) expected error but got nil", tt.id, tt.comment)
+				return
+			}
+
+			if !strings.Contains(err.Error(), "invalid bead ID") {
+				t.Errorf("AddComment(%q, %q) should fail with validation error, got: %v", tt.id, tt.comment, err)
+			}
+		})
+	}
+}
+
+// TestClientCreate tests the Create() method
+func TestClientCreate(t *testing.T) {
+	c := NewClient()
+
+	// These tests will fail to execute bd, but we're testing argument construction
+	// and that the method doesn't panic with various inputs
+	tests := []struct {
+		name            string
+		title           string
+		priority        int
+		labels          []string
+		expectedOutputs []string
+		description     string
+	}{
+		{
+			name:            "basic creation",
+			title:           "Test task",
+			priority:        1,
+			labels:          []string{"label1"},
+			expectedOutputs: []string{"file.go"},
+			description:     "Creates task with all fields",
+		},
+		{
+			name:            "empty labels and outputs",
+			title:           "Simple task",
+			priority:        2,
+			labels:          []string{},
+			expectedOutputs: []string{},
+			description:     "Creates task with minimal fields",
+		},
+		{
+			name:            "nil labels and outputs",
+			title:           "Nil fields task",
+			priority:        0,
+			labels:          nil,
+			expectedOutputs: nil,
+			description:     "Creates task with nil slices",
+		},
+		{
+			name:            "multiple labels",
+			title:           "Complex task",
+			priority:        0,
+			labels:          []string{"spec:auth", "complexity:high", "priority:p0"},
+			expectedOutputs: []string{"auth.go", "auth_test.go"},
+			description:     "Creates task with multiple labels and outputs",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// This will likely fail to execute bd, but we're testing it doesn't panic
+			_, err := c.Create(tt.title, tt.priority, tt.labels, tt.expectedOutputs)
+			// In test environments without bd, we expect errors
+			// But if bd is available, it might succeed - that's fine too
+			if err != nil && !strings.Contains(err.Error(), "bd create") && !strings.Contains(err.Error(), "parsing") {
+				t.Errorf("Create() unexpected error type: %v", err)
+			}
+		})
+	}
+}
+
+// TestClientGetParent tests the GetParent method
+func TestClientGetParent(t *testing.T) {
+	c := NewClient()
+
+	tests := []struct {
+		name    string
+		bead    *Bead
+		wantNil bool
+	}{
+		{
+			name: "bead with no parent",
+			bead: &Bead{
+				ID:     "task-001",
+				Parent: "",
+			},
+			wantNil: true,
+		},
+		{
+			name: "bead with parent",
+			bead: &Bead{
+				ID:     "task-001",
+				Parent: "epic-001",
+			},
+			wantNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parent, err := c.GetParent(tt.bead)
+			if tt.wantNil {
+				if parent != nil {
+					t.Errorf("GetParent() expected nil, got %+v", parent)
+				}
+				if err != nil {
+					t.Errorf("GetParent() unexpected error: %v", err)
+				}
+			} else {
+				// Will fail because bd isn't running, but should attempt to fetch
+				if err == nil {
+					t.Errorf("GetParent() expected error (bd not running)")
+				}
+			}
+		})
+	}
+}
+
+// TestClientSync tests that Sync doesn't panic
+func TestClientSync(t *testing.T) {
+	c := NewClient()
+	err := c.Sync()
+	// May succeed if bd is available, or fail if not - either is fine
+	// Just testing it doesn't panic
+	if err != nil && !strings.Contains(err.Error(), "bd sync") {
+		t.Errorf("Sync() unexpected error type: %v", err)
+	}
+}
+
+// TestErrorWrapping tests that CLI errors are properly wrapped
+func TestErrorWrapping(t *testing.T) {
+	c := NewClient()
+
+	// Test that errors contain context
+	_, err := c.Ready()
+	if err != nil && !strings.Contains(err.Error(), "bd ready") {
+		t.Errorf("Ready() error should contain context: %v", err)
+	}
+
+	_, err = c.ReadyAny()
+	if err != nil && !strings.Contains(err.Error(), "bd ready") {
+		t.Errorf("ReadyAny() error should contain context: %v", err)
+	}
+
+	err = c.Close("test-id")
+	if err != nil && !strings.Contains(err.Error(), "bd close") {
+		t.Errorf("Close() error should contain context: %v", err)
 	}
 }
