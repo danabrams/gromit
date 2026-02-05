@@ -93,6 +93,31 @@ func (c *Client) Show(id string) (*Bead, error) {
 	return &bead, nil
 }
 
+// Create creates a new bead via the bd CLI and returns the created bead
+func (c *Client) Create(title string, priority int, labels []string, expectedOutputs []string) (*Bead, error) {
+	args := []string{"create", title, "--priority", fmt.Sprintf("%d", priority), "--json"}
+
+	for _, label := range labels {
+		args = append(args, "--label", label)
+	}
+
+	for _, output := range expectedOutputs {
+		args = append(args, "--expected-output", output)
+	}
+
+	out, err := c.run(args...)
+	if err != nil {
+		return nil, fmt.Errorf("bd create: %w", err)
+	}
+
+	var bead Bead
+	if err := json.Unmarshal([]byte(out), &bead); err != nil {
+		return nil, fmt.Errorf("parsing bd create output: %w", err)
+	}
+
+	return &bead, nil
+}
+
 // Close marks a bead as complete
 func (c *Client) Close(id string) error {
 	_, err := c.run("close", id)

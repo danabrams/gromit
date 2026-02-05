@@ -161,6 +161,52 @@ func TestBacklogFileDelete(t *testing.T) {
 	}
 }
 
+func TestBacklogFileGet(t *testing.T) {
+	tmpDir := t.TempDir()
+	bf := NewFile(tmpDir)
+
+	// Add ideas
+	idea1 := &Idea{ID: "idea-1", Text: "First idea", Type: "feature", CreatedAt: time.Now()}
+	idea2 := &Idea{ID: "idea-2", Text: "Second idea", Type: "bug", CreatedAt: time.Now()}
+
+	for _, idea := range []*Idea{idea1, idea2} {
+		if err := bf.Add(idea); err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+	}
+
+	// Get existing idea
+	got, err := bf.Get("idea-1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("Get() returned nil for existing idea")
+	}
+	if got.Text != "First idea" {
+		t.Errorf("Get() text = %q, want %q", got.Text, "First idea")
+	}
+
+	// Get non-existent idea
+	got, err = bf.Get("idea-999")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got != nil {
+		t.Errorf("Get() returned non-nil for non-existent idea: %v", got)
+	}
+
+	// Get from empty backlog
+	emptyBf := NewFile(filepath.Join(tmpDir, "nonexistent"))
+	got, err = emptyBf.Get("idea-1")
+	if err != nil {
+		t.Fatalf("Get() on empty backlog error = %v", err)
+	}
+	if got != nil {
+		t.Errorf("Get() on empty backlog returned non-nil: %v", got)
+	}
+}
+
 func TestBacklogFileCreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	nestedPath := filepath.Join(tmpDir, "nested", "dir")

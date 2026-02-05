@@ -97,6 +97,22 @@ func GenerateID() string {
 	return fmt.Sprintf("idea-%d", time.Now().UnixNano()/1000000) // milliseconds
 }
 
+// Get returns a single idea by ID, or nil if not found
+func (f *File) Get(id string) (*Idea, error) {
+	ideas, err := f.List()
+	if err != nil {
+		return nil, fmt.Errorf("loading backlog: %w", err)
+	}
+
+	for _, idea := range ideas {
+		if idea.ID == id {
+			return idea, nil
+		}
+	}
+
+	return nil, nil
+}
+
 // Delete removes an idea from the backlog by rewriting the file without it
 func (f *File) Delete(id string) error {
 	// Load all ideas
