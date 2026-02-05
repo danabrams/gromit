@@ -18,7 +18,7 @@ var (
 var backlogCmd = &cobra.Command{
 	Use:   "backlog",
 	Short: "View and manage the idea backlog",
-	Long: `List ideas in the backlog that haven't been triaged into beads yet.
+	Long: `List ideas in the backlog that haven't been refined into beads yet.
 
 Examples:
   ralph backlog              # List all ideas
@@ -98,7 +98,7 @@ func runBacklog(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("Run 'ralph triage' to review and promote to tasks.")
+	fmt.Println("Run 'ralph refine' to review and promote to tasks.")
 
 	return nil
 }

@@ -12,23 +12,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var triageCmd = &cobra.Command{
-	Use:   "triage [idea-id]",
+var refineCmd = &cobra.Command{
+	Use:   "refine [idea-id]",
 	Short: "Review backlog ideas and promote to tasks",
 	Long: `Interactively review backlog ideas and promote them into real beads (tasks).
 
 Examples:
-  ralph triage              # Interactive triage session
-  ralph triage idea-123     # Triage a specific idea`,
+  ralph refine              # Interactive refine session
+  ralph refine idea-123     # Refine a specific idea`,
 	Args: cobra.MaximumNArgs(1),
-	RunE: runTriage,
+	RunE: runRefine,
 }
 
 func init() {
-	rootCmd.AddCommand(triageCmd)
+	rootCmd.AddCommand(refineCmd)
 }
 
-func runTriage(cmd *cobra.Command, args []string) error {
+func runRefine(cmd *cobra.Command, args []string) error {
 	// Get .ralph directory from config or default
 	ralphDir := ".ralph"
 	if cfg, err := loadConfig(); err == nil {
@@ -42,7 +42,7 @@ func runTriage(cmd *cobra.Command, args []string) error {
 	bf := backlog.NewFile(ralphDir)
 	reader := bufio.NewReader(os.Stdin)
 
-	// If a specific idea ID was given, triage just that one
+	// If a specific idea ID was given, refine just that one
 	if len(args) == 1 {
 		idea, err := bf.Get(args[0])
 		if err != nil {
@@ -51,7 +51,7 @@ func runTriage(cmd *cobra.Command, args []string) error {
 		if idea == nil {
 			return fmt.Errorf("idea not found: %s", args[0])
 		}
-		return triageIdea(bf, idea, reader)
+		return refineIdea(bf, idea, reader)
 	}
 
 	// Otherwise, interactive session over all ideas
@@ -65,10 +65,10 @@ func runTriage(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf("Starting triage session (%d ideas)\n\n", len(ideas))
+	fmt.Printf("Starting refine session (%d ideas)\n\n", len(ideas))
 
 	for _, idea := range ideas {
-		if err := triageIdea(bf, idea, reader); err != nil {
+		if err := refineIdea(bf, idea, reader); err != nil {
 			return err
 		}
 
@@ -79,20 +79,20 @@ func runTriage(cmd *cobra.Command, args []string) error {
 		}
 		answer = strings.TrimSpace(strings.ToLower(answer))
 		if answer != "y" && answer != "yes" {
-			fmt.Println("\nTriage session ended.")
+			fmt.Println("\nRefine session ended.")
 			return nil
 		}
 		fmt.Println()
 	}
 
-	fmt.Println("\nAll ideas triaged!")
+	fmt.Println("\nAll ideas refined!")
 	return nil
 }
 
-func triageIdea(bf *backlog.File, idea *backlog.Idea, reader *bufio.Reader) error {
+func refineIdea(bf *backlog.File, idea *backlog.Idea, reader *bufio.Reader) error {
 	// Display the idea
 	typeLabel := formatType(idea.Type)
-	fmt.Printf("Triaging: %s %s %s\n", idea.ID, typeLabel, idea.Text)
+	fmt.Printf("Refining: %s %s %s\n", idea.ID, typeLabel, idea.Text)
 	if idea.Context != "" {
 		fmt.Printf("  Context: %s\n", idea.Context)
 	}
