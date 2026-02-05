@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/retro"
 	"github.com/danabrams/ralph-runner/internal/runner"
+	"github.com/danabrams/ralph-runner/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -169,7 +170,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 
 	// Run retrospective
 	fmt.Println("Running retrospective analysis...")
-	fmt.Println("This may take a few minutes as it uses opus for quality analysis.\n")
+	fmt.Println("This may take a few minutes as it uses opus for quality analysis.")
 
 	r := retro.NewRetro(cfg, ralphDir)
 	result, err := r.Run(ctx, applyChanges)
@@ -179,6 +180,12 @@ func runRetro(cmd *cobra.Command, args []string) error {
 
 	if !result.Success {
 		return fmt.Errorf("retro analysis failed")
+	}
+
+	// Record retro time in state
+	sf := state.NewFile(ralphDir)
+	if err := sf.RecordRetro(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not record retro time: %v\n", err)
 	}
 
 	// Display results

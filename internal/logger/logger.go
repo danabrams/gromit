@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -85,4 +86,65 @@ func (l *Logger) FilePath() string {
 		return ""
 	}
 	return l.file.Name()
+}
+
+// RunStats holds aggregate statistics from log files
+type RunStats struct {
+	Total    int
+	Failed   int
+	Succeeded int
+}
+
+// FailureRate returns the failure rate as a float64 (0.0-1.0)
+func (s RunStats) FailureRate() float64 {
+	if s.Total == 0 {
+		return 0
+	}
+	return float64(s.Failed) / float64(s.Total)
+}
+
+// ReadAllLogs reads all JSONL log files in the directory and returns aggregate stats
+func ReadAllLogs(logsDir string) (RunStats, error) {
+	var stats RunStats
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		return stats, fmt.Errorf("globbing log files: %w", err)
+	}
+
+	for _, f := range files {
+		entries, err := readLogFile(f)
+		if err != nil {
+			continue // Skip unreadable files
+		}
+		for _, entry := range entries {
+			stats.Total++
+			if entry.Success {
+				stats.Succeeded++
+			} else {
+				stats.Failed++
+			}
+		}
+	}
+
+	return stats, nil
+}
+
+func readLogFile(path string) ([]IterationLog, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var entries []IterationLog
+	dec := json.NewDecoder(bytes.NewReader(data))
+	for dec.More() {
+		var entry IterationLog
+		if err := dec.Decode(&entry); err != nil {
+			break
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
 }

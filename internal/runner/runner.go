@@ -12,8 +12,10 @@ import (
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/claude"
 	"github.com/danabrams/ralph-runner/internal/config"
+	"github.com/danabrams/ralph-runner/internal/learnings"
 	"github.com/danabrams/ralph-runner/internal/logger"
 	"github.com/danabrams/ralph-runner/internal/prompt"
+	"github.com/danabrams/ralph-runner/internal/state"
 )
 
 // Runner orchestrates the Ralph loop
@@ -25,6 +27,7 @@ type Runner struct {
 	renderer *prompt.Renderer
 	logger   *logger.Logger
 	output   io.Writer
+	ralphDir string
 }
 
 // NewRunner creates a new runner
@@ -51,8 +54,9 @@ func NewRunner(cfg *config.Config, output io.Writer) *Runner {
 			cfg.Paths.ProjectClaudeMD,
 			ralphDir,
 		),
-		logger: log,
-		output: output,
+		logger:   log,
+		output:   output,
+		ralphDir: ralphDir,
 	}
 }
 
@@ -145,6 +149,10 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 	}
 
 	r.log("\nRalph loop complete. Processed %d iterations.", iteration)
+
+	// Check if retro should be suggested
+	r.checkRetroSuggestion()
+
 	return nil
 }
 
@@ -357,6 +365,36 @@ func (r *Runner) log(format string, args ...any) {
 		msg += "\n"
 	}
 	fmt.Fprint(r.output, msg)
+}
+
+// checkRetroSuggestion checks if a retro should be suggested and prints a message
+func (r *Runner) checkRetroSuggestion() {
+	// Load learnings
+	lf := learnings.NewFile(r.ralphDir)
+	if err := lf.Load(); err != nil {
+		return // Silently skip if learnings can't be loaded
+	}
+
+	// Load state for last retro time
+	sf := state.NewFile(r.ralphDir)
+	if err := sf.Load(); err != nil {
+		return // Silently skip if state can't be loaded
+	}
+
+	// Compute failure rate from logs
+	stats, err := logger.ReadAllLogs(r.cfg.Paths.Logs)
+	if err != nil {
+		stats = logger.RunStats{} // Use zero stats on error
+	}
+
+	should, reason := lf.ShouldSuggestRetro(sf.LastRetro(), stats.FailureRate())
+	if !should {
+		return
+	}
+
+	confirmedCount, provisionalCount := lf.Stats()
+	r.log("\nRetro suggested: %d provisional learnings, %d confirmed patterns (%s). Run: ralph retro",
+		provisionalCount, confirmedCount, reason)
 }
 
 // Status returns the current queue status
