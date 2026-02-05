@@ -43,17 +43,19 @@ func NewRunner(cfg *config.Config, output io.Writer) *Runner {
 	// Determine ralph directory (parent of templates dir)
 	ralphDir := filepath.Dir(cfg.Paths.Templates)
 
+	renderer := prompt.NewRenderer(
+		cfg.Paths.Templates,
+		cfg.Paths.Specs,
+		cfg.Paths.ProjectClaudeMD,
+		ralphDir,
+	)
+
 	return &Runner{
 		cfg:      cfg,
 		beads:    bead.NewClient(),
 		claude:   claudeClient,
-		analyzer: analyzer.NewAnalyzer(claudeClient, cfg.Models.Validation), // Use haiku for analysis
-		renderer: prompt.NewRenderer(
-			cfg.Paths.Templates,
-			cfg.Paths.Specs,
-			cfg.Paths.ProjectClaudeMD,
-			ralphDir,
-		),
+		analyzer: analyzer.NewAnalyzer(claudeClient, cfg.Models.Validation, renderer),
+		renderer: renderer,
 		logger:   log,
 		output:   output,
 		ralphDir: ralphDir,

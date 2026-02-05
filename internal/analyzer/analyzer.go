@@ -8,6 +8,7 @@ import (
 
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/claude"
+	"github.com/danabrams/ralph-runner/internal/prompt"
 )
 
 // Category represents the type of failure
@@ -47,23 +48,41 @@ func (a *Analysis) LearningCategory() string {
 
 // Analyzer performs failure analysis using Claude
 type Analyzer struct {
-	claude *claude.Client
-	model  string
+	claude   *claude.Client
+	model    string
+	renderer *prompt.Renderer
 }
 
 // NewAnalyzer creates a new analyzer
-func NewAnalyzer(claudeClient *claude.Client, model string) *Analyzer {
+func NewAnalyzer(claudeClient *claude.Client, model string, renderer *prompt.Renderer) *Analyzer {
 	return &Analyzer{
-		claude: claudeClient,
-		model:  model,
+		claude:   claudeClient,
+		model:    model,
+		renderer: renderer,
 	}
 }
 
 // Analyze analyzes a failure and returns structured insights
 func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput string) (*Analysis, error) {
-	prompt := buildAnalysisPrompt(b, failureOutput)
+	// Truncate failure output if too long
+	maxLen := 8000
+	if len(failureOutput) > maxLen {
+		failureOutput = failureOutput[:maxLen] + "\n\n[... truncated ...]"
+	}
 
-	result, err := a.claude.Run(ctx, prompt, a.model)
+	analyzeCtx := &prompt.AnalyzeContext{
+		BeadID:          b.ID,
+		BeadTitle:       b.Title,
+		BeadDescription: b.Description,
+		FailureOutput:   failureOutput,
+	}
+
+	analysisPrompt, err := a.renderer.RenderAnalyze(analyzeCtx)
+	if err != nil {
+		return nil, fmt.Errorf("rendering analysis prompt: %w", err)
+	}
+
+	result, err := a.claude.Run(ctx, analysisPrompt, a.model)
 	if err != nil {
 		return nil, fmt.Errorf("running analysis: %w", err)
 	}
@@ -91,58 +110,6 @@ func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput stri
 	}
 
 	return analysis, nil
-}
-
-func buildAnalysisPrompt(b *bead.Bead, failureOutput string) string {
-	// Truncate failure output if too long
-	maxLen := 8000
-	if len(failureOutput) > maxLen {
-		failureOutput = failureOutput[:maxLen] + "\n\n[... truncated ...]"
-	}
-
-	return fmt.Sprintf(`# Failure Analysis
-
-A task just failed. Analyze what went wrong and extract any learnings.
-
-## Task
-
-**ID:** %s
-**Title:** %s
-
-%s
-
-## Error Output
-
-%s
-
-## Your Job
-
-1. **Categorize** the failure:
-   - syntax: Typo, missing import, wrong API usage
-   - logic: Algorithm wrong, edge case missed
-   - environment: Wrong tool version, missing dependency, config issue
-   - unclear_spec: The specification is ambiguous or contradictory
-   - missing_context: Didn't know about existing code/patterns in the codebase
-   - test_flake: Non-deterministic test failure (timing, random, external)
-
-2. **Determine if recoverable** without escalating to a stronger model:
-   - true: Can fix with more context or a simple retry
-   - false: Needs deeper reasoning or human intervention
-
-3. **Extract a learning** if this insight would help future tasks:
-   - Should be generalizable (not specific to this one task)
-   - Should be actionable (tells what to do or avoid)
-   - Should be concise (1-2 sentences)
-   - Set to null if no generalizable learning
-
-4. **Suggest** what to try next
-
-## Output Format
-
-Respond with ONLY a JSON object (no markdown, no explanation):
-
-{"category": "missing_context", "recoverable": true, "root_cause": "Brief description", "learning": "The insight or null", "suggestion": "What to try next"}
-`, b.ID, b.Title, b.Description, failureOutput)
 }
 
 func parseAnalysisOutput(output string) (*Analysis, error) {

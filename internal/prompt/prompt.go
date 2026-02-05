@@ -37,6 +37,14 @@ type Context struct {
 	FailureContext string // Suggestion from failure analysis
 }
 
+// AnalyzeContext holds data for failure analysis prompt template
+type AnalyzeContext struct {
+	BeadID          string
+	BeadTitle       string
+	BeadDescription string
+	FailureOutput   string
+}
+
 // Renderer loads and renders prompt templates
 type Renderer struct {
 	templatesDir  string
@@ -68,6 +76,11 @@ func (r *Renderer) GetLearningsFile() *learnings.File {
 // RenderBuild renders the build prompt for a bead
 func (r *Renderer) RenderBuild(ctx *Context) (string, error) {
 	return r.render("PROMPT_build.md", ctx)
+}
+
+// RenderAnalyze renders the failure analysis prompt
+func (r *Renderer) RenderAnalyze(ctx *AnalyzeContext) (string, error) {
+	return r.render("PROMPT_analyze.md", ctx)
 }
 
 // RenderValidate renders the validation prompt
