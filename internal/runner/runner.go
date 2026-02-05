@@ -320,8 +320,20 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		}
 
 		if !claude.IsValidationPassed(valResult) {
-			// Run analysis on validation failure too
-			r.log("Validation failed, running failure analysis...")
+			// Display validation output in the terminal
+			r.log("\nValidation failed. Output:")
+			r.log("%s", valResult.Output)
+
+			// Save full output to a dedicated validation log file
+			logPath, err := logger.WriteValidationLog(r.cfg.Paths.Logs, valResult.Output)
+			if err != nil {
+				r.log("Warning: could not save validation log: %v", err)
+			} else {
+				r.log("\nFull output saved to: %s", logPath)
+			}
+
+			// Run analysis on validation failure with the actual output
+			r.log("Running failure analysis...")
 			analysis, err := r.analyzer.Analyze(ctx, b, valResult.Output)
 			if err == nil && analysis.Learning != nil {
 				lf := r.renderer.GetLearningsFile()

@@ -130,6 +130,23 @@ func ReadAllLogs(logsDir string) (RunStats, error) {
 	return stats, nil
 }
 
+// WriteValidationLog saves full validation output to a dedicated log file.
+// Returns the path to the written log file.
+func WriteValidationLog(logsDir string, output string) (string, error) {
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		return "", fmt.Errorf("creating logs directory: %w", err)
+	}
+
+	timestamp := time.Now().Format("20060102-150405")
+	filename := filepath.Join(logsDir, fmt.Sprintf("validation-%s.log", timestamp))
+
+	if err := os.WriteFile(filename, []byte(output), 0644); err != nil {
+		return "", fmt.Errorf("writing validation log: %w", err)
+	}
+
+	return filename, nil
+}
+
 func readLogFile(path string) ([]IterationLog, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

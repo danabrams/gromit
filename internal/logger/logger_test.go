@@ -81,6 +81,52 @@ func TestReadAllLogsMultipleFiles(t *testing.T) {
 	}
 }
 
+func TestWriteValidationLog(t *testing.T) {
+	dir := t.TempDir()
+	output := "internal/foo/bar.go:42:15: undefined: SomeFunction\ninternal/foo/bar.go:58:3: too many arguments\n"
+
+	path, err := WriteValidationLog(dir, output)
+	if err != nil {
+		t.Fatalf("writing validation log: %v", err)
+	}
+
+	// Verify file was created with correct prefix
+	base := filepath.Base(path)
+	if len(base) < len("validation-") || base[:len("validation-")] != "validation-" {
+		t.Errorf("expected filename starting with 'validation-', got %s", base)
+	}
+	if filepath.Ext(path) != ".log" {
+		t.Errorf("expected .log extension, got %s", filepath.Ext(path))
+	}
+
+	// Verify content
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading validation log: %v", err)
+	}
+	if string(content) != output {
+		t.Errorf("expected output %q, got %q", output, string(content))
+	}
+}
+
+func TestWriteValidationLogCreatesDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nested", "logs")
+	output := "some error output"
+
+	path, err := WriteValidationLog(dir, output)
+	if err != nil {
+		t.Fatalf("writing validation log: %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading validation log: %v", err)
+	}
+	if string(content) != output {
+		t.Errorf("expected output %q, got %q", output, string(content))
+	}
+}
+
 func TestRunStatsFailureRate(t *testing.T) {
 	tests := []struct {
 		name     string
