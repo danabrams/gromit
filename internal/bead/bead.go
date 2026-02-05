@@ -9,15 +9,16 @@ import (
 
 // Bead represents an issue from the bd issue tracker
 type Bead struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Priority    int      `json:"priority"`
-	Labels      []string `json:"labels"`
-	Parent      string   `json:"parent"`
-	Type        string   `json:"issue_type"` // bd uses issue_type
-	Status      string   `json:"status"`
-	Owner       string   `json:"owner"`
+	ID              string   `json:"id"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	Priority        int      `json:"priority"`
+	Labels          []string `json:"labels"`
+	Parent          string   `json:"parent"`
+	Type            string   `json:"issue_type"` // bd uses issue_type
+	Status          string   `json:"status"`
+	Owner           string   `json:"owner"`
+	ExpectedOutputs []string `json:"expected_outputs,omitempty"`
 }
 
 // Client wraps the bd CLI

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -203,6 +205,13 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 	start := time.Now()
 	defer func() { result.Duration = time.Since(start) }()
 
+	// Capture git HEAD before starting work (for partial progress detection)
+	startCommit, err := getGitHead()
+	if err != nil {
+		r.log("Warning: could not capture git HEAD: %v", err)
+		startCommit = "" // Continue anyway
+	}
+
 	// Get parent bead if exists
 	parent, err := r.beads.GetParent(b)
 	if err != nil {
@@ -307,6 +316,9 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		nextModel := r.cfg.NextEscalationModel(model)
 		if nextModel == "" {
 			r.log("Build failed, no more models to escalate to")
+			if startCommit != "" {
+				r.showPartialProgress(b, startCommit)
+			}
 			result.Error = fmt.Errorf("build failed with all models")
 			return result
 		}
@@ -355,6 +367,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 				r.log("Warning: could not save validation log: %v", err)
 			} else {
 				r.log("\nFull output saved to: %s", logPath)
+			}
+
+			// Show partial progress (git diff + expected outputs)
+			if startCommit != "" {
+				r.showPartialProgress(b, startCommit)
 			}
 
 			// Run analysis on validation failure with the actual output
@@ -476,4 +493,68 @@ func (r *Runner) Status() error {
 	r.log("  Model: %s", r.selectModel(b))
 
 	return nil
+}
+
+// getGitHead returns the current git HEAD commit
+func getGitHead() (string, error) {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// getGitDiffStat returns the git diff --stat output from a given commit to the
+// current working tree state (including both committed and uncommitted changes).
+func getGitDiffStat(fromCommit string) (string, error) {
+	cmd := exec.Command("git", "diff", "--stat", fromCommit)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git diff --stat: %w", err)
+	}
+	return string(out), nil
+}
+
+// checkExpectedOutputs checks if expected files exist and returns a summary
+func checkExpectedOutputs(expectedOutputs []string) string {
+	if len(expectedOutputs) == 0 {
+		return ""
+	}
+
+	var lines []string
+	lines = append(lines, "\nExpected outputs:")
+
+	for _, path := range expectedOutputs {
+		_, err := os.Stat(path)
+		if err == nil {
+			lines = append(lines, fmt.Sprintf("  ✓ %s (exists)", path))
+		} else if os.IsNotExist(err) {
+			lines = append(lines, fmt.Sprintf("  ✗ %s (not found)", path))
+		} else {
+			lines = append(lines, fmt.Sprintf("  ? %s (error: %v)", path, err))
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// showPartialProgress displays git diff and expected outputs on failure
+func (r *Runner) showPartialProgress(b *bead.Bead, startCommit string) {
+	// Always show git diff summary
+	diffStat, err := getGitDiffStat(startCommit)
+	if err != nil {
+		r.log("Warning: could not get git diff: %v", err)
+	} else if strings.TrimSpace(diffStat) != "" {
+		r.log("\nChanges detected:")
+		r.log("%s", diffStat)
+	} else {
+		r.log("\nNo git changes detected - Claude may not have completed any work.")
+	}
+
+	// Show expected outputs if specified
+	if len(b.ExpectedOutputs) > 0 {
+		summary := checkExpectedOutputs(b.ExpectedOutputs)
+		r.log("%s", summary)
+	}
 }
