@@ -20,14 +20,15 @@ import (
 
 // Runner orchestrates the Ralph loop
 type Runner struct {
-	cfg      *config.Config
-	beads    *bead.Client
-	claude   *claude.Client
-	analyzer *analyzer.Analyzer
-	renderer *prompt.Renderer
-	logger   *logger.Logger
-	output   io.Writer
-	ralphDir string
+	cfg          *config.Config
+	beads        *bead.Client
+	claude       *claude.Client
+	analyzer     *analyzer.Analyzer
+	renderer     *prompt.Renderer
+	logger       *logger.Logger
+	streamLogger *logger.StreamLogger
+	output       io.Writer
+	ralphDir     string
 }
 
 // NewRunner creates a new runner
@@ -82,6 +83,16 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 	if r.logger != nil {
 		defer r.logger.Close()
 		r.log("Logging to: %s", r.logger.FilePath())
+	}
+
+	// Create stream logger for firehose streaming
+	sl, err := logger.NewStreamLogger(r.cfg.Paths.Logs)
+	if err != nil {
+		r.log("Warning: could not create stream logger: %v", err)
+	} else {
+		r.streamLogger = sl
+		defer sl.Close()
+		r.log("Streaming to: %s (tail -f to watch)", sl.Path())
 	}
 
 	iteration := 0
@@ -221,7 +232,21 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 	for {
 		r.log("Running Claude with model: %s", model)
 
-		claudeResult, err = r.claude.StreamRun(ctx, buildPrompt, model, r.output)
+		// Set up stream stats and heartbeat for this invocation
+		stats := logger.NewStreamStats()
+		stopHeartbeat := r.startHeartbeat(stats)
+
+		// Build event handler for firehose streaming
+		var handler claude.EventHandler
+		if r.streamLogger != nil {
+			sl := r.streamLogger
+			handler = func(line []byte) {
+				logger.ParseAndLogEvent(sl, stats, line)
+			}
+		}
+
+		claudeResult, err = r.claude.StreamRun(ctx, buildPrompt, model, r.output, handler)
+		stopHeartbeat()
 		if err != nil {
 			result.Error = fmt.Errorf("claude invocation: %w", err)
 			return result
@@ -379,6 +404,28 @@ func (r *Runner) log(format string, args ...any) {
 		msg += "\n"
 	}
 	fmt.Fprint(r.output, msg)
+}
+
+// startHeartbeat launches a goroutine that prints periodic status updates.
+// Returns a function to stop the heartbeat.
+func (r *Runner) startHeartbeat(stats *logger.StreamStats) func() {
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				toolCalls, filesModified, elapsed := stats.Snapshot()
+				minutes := int(elapsed.Minutes())
+				r.log("[%dm elapsed] Still working. %d files modified, %d tool calls.",
+					minutes, filesModified, toolCalls)
+			}
+		}
+	}()
+	return func() { close(done) }
 }
 
 // checkRetroSuggestion checks if a retro should be suggested and prints a message

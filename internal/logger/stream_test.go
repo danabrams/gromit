@@ -1,0 +1,269 @@
+package logger
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestNewStreamLogger(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	defer sl.Close()
+
+	// Verify file was created with correct prefix
+	base := filepath.Base(sl.Path())
+	if !strings.HasPrefix(base, "stream-") {
+		t.Errorf("expected filename starting with 'stream-', got %s", base)
+	}
+	if filepath.Ext(sl.Path()) != ".log" {
+		t.Errorf("expected .log extension, got %s", filepath.Ext(sl.Path()))
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(sl.Path()); err != nil {
+		t.Errorf("stream log file does not exist: %v", err)
+	}
+}
+
+func TestNewStreamLoggerCreatesDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nested", "logs")
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	defer sl.Close()
+
+	if _, err := os.Stat(sl.Path()); err != nil {
+		t.Errorf("stream log file does not exist: %v", err)
+	}
+}
+
+func TestStreamLoggerLogEvent(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+
+	sl.LogEvent("TOOL_CALL: %s %s", "Read", "/some/file.go")
+	sl.LogEvent("TOOL_RESULT: %d lines read", 42)
+	sl.Close()
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d", len(lines))
+	}
+
+	if !strings.Contains(lines[0], "TOOL_CALL: Read /some/file.go") {
+		t.Errorf("line 0 missing expected content: %s", lines[0])
+	}
+	if !strings.Contains(lines[1], "TOOL_RESULT: 42 lines read") {
+		t.Errorf("line 1 missing expected content: %s", lines[1])
+	}
+
+	// Check timestamp format [HH:MM:SS]
+	if !strings.HasPrefix(lines[0], "[") {
+		t.Errorf("expected line to start with timestamp bracket: %s", lines[0])
+	}
+}
+
+func TestStreamLoggerNilSafe(t *testing.T) {
+	var sl *StreamLogger
+	// These should not panic
+	sl.LogEvent("test %s", "message")
+	sl.Close()
+	if sl.Path() != "" {
+		t.Errorf("expected empty path for nil logger, got %s", sl.Path())
+	}
+}
+
+func TestStreamStats(t *testing.T) {
+	stats := NewStreamStats()
+
+	stats.RecordToolCall("Read", "/foo/bar.go")
+	stats.RecordToolCall("Edit", "/foo/bar.go")
+	stats.RecordToolCall("Write", "/foo/baz.go")
+	stats.RecordToolCall("Bash", "")
+
+	toolCalls, filesModified, elapsed := stats.Snapshot()
+	if toolCalls != 4 {
+		t.Errorf("expected 4 tool calls, got %d", toolCalls)
+	}
+	if filesModified != 2 {
+		t.Errorf("expected 2 files modified, got %d", filesModified)
+	}
+	if elapsed < 0 {
+		t.Errorf("elapsed time should be non-negative")
+	}
+}
+
+func TestStreamStatsOnlyCountsWriteTools(t *testing.T) {
+	stats := NewStreamStats()
+
+	// Read and Bash should not count as file modifications
+	stats.RecordToolCall("Read", "/foo/bar.go")
+	stats.RecordToolCall("Bash", "")
+	stats.RecordToolCall("Grep", "/foo/")
+
+	_, filesModified, _ := stats.Snapshot()
+	if filesModified != 0 {
+		t.Errorf("expected 0 files modified for read-only tools, got %d", filesModified)
+	}
+}
+
+func TestStreamStatsStartTime(t *testing.T) {
+	before := time.Now()
+	stats := NewStreamStats()
+	after := time.Now()
+
+	if stats.StartTime.Before(before) || stats.StartTime.After(after) {
+		t.Errorf("StartTime should be between before and after")
+	}
+}
+
+func TestParseAndLogEventToolCall(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats := NewStreamStats()
+
+	// Simulate an assistant message with a tool_use
+	line := []byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/internal/runner/runner.go"}}]}}`)
+	ParseAndLogEvent(sl, stats, line)
+	sl.Close()
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+
+	if !strings.Contains(string(content), "TOOL_CALL: Read /internal/runner/runner.go") {
+		t.Errorf("expected TOOL_CALL log entry, got: %s", string(content))
+	}
+
+	toolCalls, _, _ := stats.Snapshot()
+	if toolCalls != 1 {
+		t.Errorf("expected 1 tool call, got %d", toolCalls)
+	}
+}
+
+func TestParseAndLogEventToolResult(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats := NewStreamStats()
+
+	line := []byte(`{"type":"user","tool_use_result":{"type":"text","file":{"filePath":"/foo/bar.go","numLines":42}}}`)
+	ParseAndLogEvent(sl, stats, line)
+	sl.Close()
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+
+	if !strings.Contains(string(content), "TOOL_RESULT: 42 lines read from /foo/bar.go") {
+		t.Errorf("expected TOOL_RESULT log entry, got: %s", string(content))
+	}
+}
+
+func TestParseAndLogEventResult(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats := NewStreamStats()
+
+	line := []byte(`{"type":"result","subtype":"success","total_cost_usd":0.0123}`)
+	ParseAndLogEvent(sl, stats, line)
+	sl.Close()
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+
+	if !strings.Contains(string(content), "RESULT: subtype=success, cost=$0.0123") {
+		t.Errorf("expected RESULT log entry, got: %s", string(content))
+	}
+}
+
+func TestParseAndLogEventEditTracksModifiedFiles(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats := NewStreamStats()
+
+	line := []byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/foo/bar.go","old_string":"x","new_string":"y"}}]}}`)
+	ParseAndLogEvent(sl, stats, line)
+	sl.Close()
+
+	_, filesModified, _ := stats.Snapshot()
+	if filesModified != 1 {
+		t.Errorf("expected 1 file modified, got %d", filesModified)
+	}
+}
+
+func TestParseAndLogEventInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats := NewStreamStats()
+
+	// Should not panic on invalid JSON
+	ParseAndLogEvent(sl, stats, []byte("not json"))
+	sl.Close()
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+	// File should be empty - invalid JSON is skipped
+	if len(strings.TrimSpace(string(content))) != 0 {
+		t.Errorf("expected empty file for invalid JSON, got: %s", string(content))
+	}
+}
+
+func TestParseAndLogEventTextTruncation(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats := NewStreamStats()
+
+	// Create a long text block
+	longText := strings.Repeat("a", 200)
+	line := []byte(`{"type":"assistant","message":{"content":[{"type":"text","text":"` + longText + `"}]}}`)
+	ParseAndLogEvent(sl, stats, line)
+	sl.Close()
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+
+	if !strings.Contains(string(content), "...") {
+		t.Errorf("expected truncated text with '...', got: %s", string(content))
+	}
+}

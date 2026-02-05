@@ -1,7 +1,9 @@
 package claude
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -127,14 +129,27 @@ func IsValidationPassed(result *Result) bool {
 	return result.Success && strings.Contains(result.Output, "VALIDATION_PASSED")
 }
 
-// StreamRun invokes Claude and streams output to the provided writer
-func (c *Client) StreamRun(ctx context.Context, prompt string, model string, output io.Writer) (*Result, error) {
+// EventHandler is called for each line of stream-json output from Claude CLI.
+// The raw JSON line is passed for external parsing and logging.
+type EventHandler func(line []byte)
+
+// StreamRun invokes Claude and streams output to the provided writer.
+// If an EventHandler is provided, it uses --output-format stream-json --verbose
+// to get structured events for firehose logging, and extracts the text result
+// from the JSON stream. Otherwise it streams raw text output.
+func (c *Client) StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler) (*Result, error) {
 	start := time.Now()
 
 	args := []string{
 		"-p",
 		"--model", model,
 	}
+
+	useStreamJSON := handler != nil
+	if useStreamJSON {
+		args = append(args, "--output-format", "stream-json", "--verbose")
+	}
+
 	args = append(args, c.flags...)
 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
@@ -147,9 +162,11 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 		return nil, fmt.Errorf("creating stdin pipe: %w", err)
 	}
 
-	// Stream to both output writer and capture buffer
-	var captured strings.Builder
-	cmd.Stdout = io.MultiWriter(output, &captured)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("creating stdout pipe: %w", err)
+	}
+
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Start(); err != nil {
@@ -161,11 +178,21 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 		io.WriteString(stdin, prompt)
 	}()
 
+	// Read and process stdout
+	var resultText string
+	if useStreamJSON {
+		resultText = c.processStreamJSON(stdout, output, handler)
+	} else {
+		var captured strings.Builder
+		io.Copy(io.MultiWriter(output, &captured), stdout)
+		resultText = captured.String()
+	}
+
 	err = cmd.Wait()
 	duration := time.Since(start)
 
 	result := &Result{
-		Output:   captured.String(),
+		Output:   resultText,
 		Duration: duration,
 		Model:    model,
 	}
@@ -182,4 +209,57 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	result.Success = true
 	result.ExitCode = 0
 	return result, nil
+}
+
+// processStreamJSON reads stream-json lines, calls the handler for each,
+// and extracts the final result text.
+func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler EventHandler) string {
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large events
+
+	var resultText string
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		// Call the handler for firehose logging
+		lineCopy := make([]byte, len(line))
+		copy(lineCopy, line)
+		handler(lineCopy)
+
+		// Extract text content from assistant messages for terminal output
+		var event struct {
+			Type    string `json:"type"`
+			Subtype string `json:"subtype,omitempty"`
+			Message *struct {
+				Content []struct {
+					Type string `json:"type"`
+					Text string `json:"text,omitempty"`
+				} `json:"content"`
+			} `json:"message,omitempty"`
+			Result string `json:"result,omitempty"`
+		}
+		if err := json.Unmarshal(line, &event); err != nil {
+			continue
+		}
+
+		// Stream assistant text to terminal output
+		if event.Type == "assistant" && event.Message != nil {
+			for _, block := range event.Message.Content {
+				if block.Type == "text" && block.Text != "" {
+					fmt.Fprint(output, block.Text)
+				}
+			}
+		}
+
+		// Capture the final result text
+		if event.Type == "result" {
+			resultText = event.Result
+		}
+	}
+
+	return resultText
 }
