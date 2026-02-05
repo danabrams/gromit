@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/learnings"
 	"github.com/danabrams/ralph-runner/internal/logger"
+	"github.com/danabrams/ralph-runner/internal/preflight"
 	"github.com/danabrams/ralph-runner/internal/prompt"
 	"github.com/danabrams/ralph-runner/internal/state"
 )
@@ -343,6 +344,17 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 	// Run validation if enabled
 	if r.cfg.Validation.Enabled {
+		// Pre-flight check: verify required tools are available
+		checker := preflight.NewChecker(r.cfg.Preflight, r.output)
+		if err := checker.Check(r.cfg.Validation.Commands); err != nil {
+			// If tools are missing and user chooses to skip, continue without validation
+			r.log("Warning: %v", err)
+			// Don't mark as error - skip validation and continue
+			result.Success = true
+			result.Validated = false
+			return result
+		}
+
 		r.log("Running validation with model: %s", r.cfg.Models.Validation)
 
 		valResult, err := r.claude.RunValidation(

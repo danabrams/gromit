@@ -34,6 +34,17 @@ validation:
     - "mise exec -- go test ./..."
     - "mise exec -- go build ./cmd/ralph"
 
+# Pre-flight checks - verify required tools before validation
+preflight:
+  # auto_install: ask (default) - ask user if tools are missing
+  #               always - automatically install missing tools
+  #               never - fail with error message
+  auto_install: ask
+  # Optional: explicitly specify required tools (auto-detected from validation.commands if not set)
+  # tools:
+  #   - go
+  #   - mise
+
 # Claude CLI settings
 claude:
   binary: "claude"

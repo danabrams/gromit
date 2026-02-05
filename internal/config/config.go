@@ -12,6 +12,7 @@ type Config struct {
 	Escalation EscalationConfig `yaml:"escalation"`
 	Loop       LoopConfig       `yaml:"loop"`
 	Validation ValidationConfig `yaml:"validation"`
+	Preflight  PreflightConfig  `yaml:"preflight"`
 	Claude     ClaudeConfig     `yaml:"claude"`
 	Paths      PathsConfig      `yaml:"paths"`
 }
@@ -38,6 +39,11 @@ type LoopConfig struct {
 type ValidationConfig struct {
 	Enabled  bool     `yaml:"enabled"`
 	Commands []string `yaml:"commands"`
+}
+
+type PreflightConfig struct {
+	AutoInstall string   `yaml:"auto_install"` // ask | always | never
+	Tools       []string `yaml:"tools"`        // optional explicit list
 }
 
 type ClaudeConfig struct {
@@ -108,6 +114,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.Escalation.MaxRetriesPerModel == 0 {
 		c.Escalation.MaxRetriesPerModel = 1
+	}
+	if c.Preflight.AutoInstall == "" {
+		c.Preflight.AutoInstall = "ask"
 	}
 }
 
