@@ -4,10 +4,10 @@ These are non-negotiable constraints for this project. Ralph will always follow 
 
 ## Code Style
 
-<!-- Add project-specific rules here, for example: -->
-<!-- - Always use TypeScript strict mode -->
-<!-- - Never use 'any' type - use 'unknown' and narrow -->
-<!-- - Use pnpm, never npm or yarn -->
+- Use `go fmt` standard formatting
+- Use `error` return values, not panics, for recoverable failures
+- Config struct fields must have sensible zero-value defaults or explicit defaults in `setDefaults()`
+- Keep packages focused: one package should not reach into another package's internal types
 
 ## Safety
 
@@ -18,3 +18,5 @@ These are non-negotiable constraints for this project. Ralph will always follow 
 
 - Always run tests before committing
 - Follow existing patterns in the codebase
+- When adding config fields, always provide a default value and test that the default is applied when the field is omitted from YAML
+- Beads that touch more than 2 files should be split before attempting
