@@ -595,6 +595,9 @@ func (r *Runner) log(format string, args ...any) {
 	fmt.Fprint(r.output, msg)
 }
 
+// heartbeatInterval is the interval at which Claude's progress is checked and heartbeat status is printed.
+const heartbeatInterval = 30 * time.Second
+
 // heartbeatConfig holds timing parameters for the heartbeat goroutine.
 type heartbeatConfig struct {
 	InitialDelay   time.Duration
@@ -604,7 +607,7 @@ type heartbeatConfig struct {
 
 var defaultHeartbeatConfig = heartbeatConfig{
 	InitialDelay:   15 * time.Second,
-	HeartbeatRate:  30 * time.Second,
+	HeartbeatRate:  heartbeatInterval,
 	StallCheckRate: 10 * time.Second,
 }
 
