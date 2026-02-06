@@ -427,6 +427,26 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 			// Handle task too complex - skip this bead
 			if analysis.Category == analyzer.CategoryTaskTooComplex {
+				// Add comment to bead explaining it needs decomposition
+				comment := fmt.Sprintf("Task too complex: %s\n\nThis task needs to be broken down into smaller, more manageable pieces.", analysis.RootCause)
+				if err := r.beads.AddComment(b.ID, comment); err != nil {
+					r.log("Warning: failed to add comment to bead: %v", err)
+				}
+
+				// Extract and save learning if present
+				if analysis.Learning != nil {
+					r.log("Learning extracted: %s", *analysis.Learning)
+					lf := r.renderer.GetLearningsFile()
+					if lf != nil {
+						learning, err := lf.Add(b.ID, *analysis.Learning, analysis.LearningCategory())
+						if err != nil {
+							r.log("Warning: failed to add learning: %v", err)
+						} else if learning != nil {
+							r.log("Learning added to LEARNINGS.md")
+						}
+					}
+				}
+
 				result.Error = fmt.Errorf("task too complex: %s - needs breakdown", analysis.RootCause)
 				return result
 			}
