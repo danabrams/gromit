@@ -603,11 +603,13 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 		return func() {}
 	}
 	done := make(chan struct{})
+	usedOverwrite := make(chan bool)
 	lastHeartbeatLine := "" // Track last printed line for overwriting
 	go func() {
 		// First heartbeat sooner so hangs are visible quickly
 		select {
 		case <-done:
+			usedOverwrite <- false
 			return
 		case <-time.After(cfg.InitialDelay):
 		}
@@ -623,13 +625,16 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 			defer stallTicker.Stop()
 		}
 
+		wasOverwritten := false
 		for {
 			if stallTicker != nil {
 				select {
 				case <-done:
+					usedOverwrite <- wasOverwritten
 					return
 				case <-heartbeatTicker.C:
 					lastHeartbeatLine = r.printHeartbeat(stats)
+					wasOverwritten = false
 				case <-stallTicker.C:
 					// Only check for stalls after the first stream event arrives.
 					// Before that, Claude CLI is still starting up — the startup
@@ -653,21 +658,32 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 				case <-toolCallEvents:
 					// On tool call event, update heartbeat line in place
 					lastHeartbeatLine = r.overwriteHeartbeat(stats, lastHeartbeatLine)
+					wasOverwritten = true
 				}
 			} else {
 				select {
 				case <-done:
+					usedOverwrite <- wasOverwritten
 					return
 				case <-heartbeatTicker.C:
 					lastHeartbeatLine = r.printHeartbeat(stats)
+					wasOverwritten = false
 				case <-toolCallEvents:
 					// On tool call event, update heartbeat line in place
 					lastHeartbeatLine = r.overwriteHeartbeat(stats, lastHeartbeatLine)
+					wasOverwritten = true
 				}
 			}
 		}
 	}()
-	return func() { close(done) }
+	return func() {
+		close(done)
+		// Wait for the goroutine to signal whether it used overwrite mode
+		// If it did, write a newline to ensure the next output starts on a fresh line
+		if <-usedOverwrite {
+			fmt.Fprint(r.output, "\n")
+		}
+	}
 }
 
 func (r *Runner) printHeartbeat(stats *logger.StreamStats) string {
