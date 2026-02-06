@@ -88,6 +88,10 @@ func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result,
 	}
 
 	if err != nil {
+		// If the context was canceled (Ctrl+C or timeout), propagate as an error
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("running claude: %w", ctx.Err())
+		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
 			result.Success = false
@@ -199,6 +203,10 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 
 	cmd := exec.CommandContext(ctx, c.binary, args...)
 
+	// Log the exact command for debugging
+	fmt.Fprintf(output, "  cmd: %s %s\n", c.binary, strings.Join(args, " "))
+	fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("creating stdin pipe: %w", err)
@@ -220,13 +228,16 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 		io.WriteString(stdin, prompt)
 	}()
 
+	// Wrap stdout with a monitor that warns if no data arrives within 30s
+	monitoredStdout := newStartupMonitor(stdout, 30*time.Second, output)
+
 	// Read and process stdout
 	var resultText string
 	if useStreamJSON {
-		resultText = c.processStreamJSON(stdout, output, handler)
+		resultText = c.processStreamJSON(monitoredStdout, output, handler)
 	} else {
 		var captured strings.Builder
-		io.Copy(io.MultiWriter(output, &captured), stdout)
+		io.Copy(io.MultiWriter(output, &captured), monitoredStdout)
 		resultText = captured.String()
 	}
 
@@ -240,6 +251,11 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	}
 
 	if err != nil {
+		// If the context was canceled (Ctrl+C or timeout), propagate as an error
+		// so the caller stops instead of treating it as a retryable failure.
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("running claude: %w", ctx.Err())
+		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
 			result.Success = false
@@ -251,6 +267,49 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	result.Success = true
 	result.ExitCode = 0
 	return result, nil
+}
+
+// startupMonitor wraps an io.Reader and warns if no data arrives within a timeout.
+type startupMonitor struct {
+	reader    io.Reader
+	warned    bool
+	firstRead bool
+	timeout   time.Duration
+	output    io.Writer
+}
+
+func newStartupMonitor(r io.Reader, timeout time.Duration, output io.Writer) *startupMonitor {
+	return &startupMonitor{
+		reader:  r,
+		timeout: timeout,
+		output:  output,
+	}
+}
+
+func (m *startupMonitor) Read(p []byte) (int, error) {
+	if !m.firstRead {
+		m.firstRead = true
+		// Start a goroutine that warns if this first read takes too long
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-done:
+			case <-time.After(m.timeout):
+				if !m.warned {
+					m.warned = true
+					fmt.Fprintf(m.output, "\n  WARNING: No output from Claude CLI after %v. Possible causes:\n", m.timeout)
+					fmt.Fprintf(m.output, "    - Rate limiting (API quota exhausted)\n")
+					fmt.Fprintf(m.output, "    - Authentication issue (run 'claude' manually to check)\n")
+					fmt.Fprintf(m.output, "    - Network connectivity problem\n")
+					fmt.Fprintf(m.output, "    - Claude CLI waiting for input (check stderr above)\n")
+				}
+			}
+		}()
+		n, err := m.reader.Read(p)
+		close(done)
+		return n, err
+	}
+	return m.reader.Read(p)
 }
 
 // processStreamJSON reads stream-json lines, calls the handler for each,

@@ -248,7 +248,18 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 	// Execute with analysis and escalation on failure
 	var claudeResult *claude.Result
+	retriesThisModel := 0
+	maxRetries := r.cfg.Escalation.MaxRetriesPerModel
 	for {
+		// Check for context cancellation before each invocation
+		select {
+		case <-ctx.Done():
+			r.log("Context cancelled, stopping")
+			result.Error = ctx.Err()
+			return result
+		default:
+		}
+
 		r.log("Running Claude with model: %s", model)
 
 		// Set up stream stats and heartbeat for this invocation
@@ -275,6 +286,15 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 		if claudeResult.Success {
 			break // Success, no need to analyze or escalate
+		}
+
+		// Check for context cancellation before analysis
+		select {
+		case <-ctx.Done():
+			r.log("Context cancelled, stopping")
+			result.Error = ctx.Err()
+			return result
+		default:
 		}
 
 		// Run failure analysis
@@ -308,9 +328,10 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 				return result
 			}
 
-			// If recoverable, retry with context (same model)
-			if analysis.Recoverable {
-				r.log("Failure is recoverable, retrying with context...")
+			// If recoverable and under retry limit, retry with context (same model)
+			if analysis.Recoverable && retriesThisModel < maxRetries {
+				retriesThisModel++
+				r.log("Failure is recoverable, retrying with context (attempt %d/%d)...", retriesThisModel, maxRetries)
 				promptCtx.IsRetry = true
 				promptCtx.PrevFailure = claudeResult.Output
 				promptCtx.FailureContext = analysis.Suggestion
@@ -322,9 +343,13 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 				}
 				continue // Retry with same model
 			}
+
+			if analysis.Recoverable {
+				r.log("Retry limit reached for model %s (%d attempts)", model, retriesThisModel)
+			}
 		}
 
-		// Not recoverable - try escalation
+		// Not recoverable or retries exhausted - try escalation
 		nextModel := r.cfg.NextEscalationModel(model)
 		if nextModel == "" {
 			r.log("Build failed, no more models to escalate to")
@@ -339,6 +364,7 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		result.Escalated = true
 		result.EscalatedTo = nextModel
 		model = nextModel
+		retriesThisModel = 0 // Reset retry counter for new model
 		result.Model = model
 
 		// Update prompt context with failure info for escalation
@@ -453,25 +479,42 @@ func (r *Runner) log(format string, args ...any) {
 }
 
 // startHeartbeat launches a goroutine that prints periodic status updates.
+// First heartbeat fires at 15s, then every 30s thereafter.
 // Returns a function to stop the heartbeat.
 func (r *Runner) startHeartbeat(stats *logger.StreamStats) func() {
 	done := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(60 * time.Second)
+		// First heartbeat sooner so hangs are visible quickly
+		select {
+		case <-done:
+			return
+		case <-time.After(15 * time.Second):
+		}
+		r.printHeartbeat(stats)
+
+		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-done:
 				return
 			case <-ticker.C:
-				toolCalls, filesModified, elapsed := stats.Snapshot()
-				minutes := int(elapsed.Minutes())
-				r.log("[%dm elapsed] Still working. %d files modified, %d tool calls.",
-					minutes, filesModified, toolCalls)
+				r.printHeartbeat(stats)
 			}
 		}
 	}()
 	return func() { close(done) }
+}
+
+func (r *Runner) printHeartbeat(stats *logger.StreamStats) {
+	toolCalls, filesModified, elapsed := stats.Snapshot()
+	minutes := int(elapsed.Minutes())
+	seconds := int(elapsed.Seconds()) % 60
+	if toolCalls == 0 {
+		r.log("[%dm%02ds] Waiting for Claude to respond (may be thinking)...", minutes, seconds)
+	} else {
+		r.log("[%dm%02ds] %d tool calls, %d files modified", minutes, seconds, toolCalls, filesModified)
+	}
 }
 
 // checkRetroSuggestion checks if a retro should be suggested and prints a message
