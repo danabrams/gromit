@@ -868,3 +868,588 @@ func TestNextEscalationModelEmptyStringModel(t *testing.T) {
 		t.Errorf("expected empty string for empty current model, got %q", result)
 	}
 }
+
+// Comprehensive tests for config.Load() default values and YAML edge cases
+
+func TestLoadEmptyFile(t *testing.T) {
+	// Test loading an empty YAML file - should apply all defaults
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading empty config: %v", err)
+	}
+
+	// Check all defaults
+	if cfg.Models.P0 != "opus" {
+		t.Errorf("expected P0='opus', got %q", cfg.Models.P0)
+	}
+	if cfg.Models.P1 != "sonnet" {
+		t.Errorf("expected P1='sonnet', got %q", cfg.Models.P1)
+	}
+	if cfg.Models.P2 != "haiku" {
+		t.Errorf("expected P2='haiku', got %q", cfg.Models.P2)
+	}
+	if cfg.Models.Validation != "haiku" {
+		t.Errorf("expected Validation='haiku', got %q", cfg.Models.Validation)
+	}
+	if cfg.Claude.Binary != "claude" {
+		t.Errorf("expected Binary='claude', got %q", cfg.Claude.Binary)
+	}
+	if cfg.Claude.Timeout != 600 {
+		t.Errorf("expected Timeout=600, got %d", cfg.Claude.Timeout)
+	}
+	if cfg.Claude.StallTimeout != 120 {
+		t.Errorf("expected StallTimeout=120, got %d", cfg.Claude.StallTimeout)
+	}
+	if cfg.Claude.StallTimeoutActive != 300 {
+		t.Errorf("expected StallTimeoutActive=300, got %d", cfg.Claude.StallTimeoutActive)
+	}
+	if cfg.Claude.BeadTimeout != 1200 {
+		t.Errorf("expected BeadTimeout=1200, got %d", cfg.Claude.BeadTimeout)
+	}
+	if cfg.Claude.AnalysisTimeout != 120 {
+		t.Errorf("expected AnalysisTimeout=120, got %d", cfg.Claude.AnalysisTimeout)
+	}
+	if cfg.Paths.RalphDir != ".ralph" {
+		t.Errorf("expected RalphDir='.ralph', got %q", cfg.Paths.RalphDir)
+	}
+	if cfg.Paths.Templates != ".ralph/templates" {
+		t.Errorf("expected Templates='.ralph/templates', got %q", cfg.Paths.Templates)
+	}
+	if cfg.Paths.Specs != ".ralph/specs" {
+		t.Errorf("expected Specs='.ralph/specs', got %q", cfg.Paths.Specs)
+	}
+	if cfg.Paths.Logs != ".ralph/logs" {
+		t.Errorf("expected Logs='.ralph/logs', got %q", cfg.Paths.Logs)
+	}
+	if cfg.Paths.ProjectClaudeMD != "CLAUDE.md" {
+		t.Errorf("expected ProjectClaudeMD='CLAUDE.md', got %q", cfg.Paths.ProjectClaudeMD)
+	}
+	if len(cfg.Escalation.Chain) != 3 || cfg.Escalation.Chain[0] != "haiku" {
+		t.Errorf("expected default Chain, got %v", cfg.Escalation.Chain)
+	}
+	if cfg.Escalation.MaxRetriesPerModel != 1 {
+		t.Errorf("expected MaxRetriesPerModel=1, got %d", cfg.Escalation.MaxRetriesPerModel)
+	}
+	if cfg.Escalation.MaxRetriesPerBead != 10 {
+		t.Errorf("expected MaxRetriesPerBead=10, got %d", cfg.Escalation.MaxRetriesPerBead)
+	}
+	if cfg.Preflight.AutoInstall != "ask" {
+		t.Errorf("expected AutoInstall='ask', got %q", cfg.Preflight.AutoInstall)
+	}
+	if cfg.Models.Labels == nil {
+		t.Error("expected Models.Labels to be initialized")
+	}
+}
+
+func TestLoadPartialYAML(t *testing.T) {
+	// Test that defaults apply only to missing fields
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `models:
+  p0: custom-opus
+  p1: custom-sonnet
+claude:
+  timeout: 300
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Custom values should be preserved
+	if cfg.Models.P0 != "custom-opus" {
+		t.Errorf("expected P0='custom-opus', got %q", cfg.Models.P0)
+	}
+	if cfg.Models.P1 != "custom-sonnet" {
+		t.Errorf("expected P1='custom-sonnet', got %q", cfg.Models.P1)
+	}
+	if cfg.Claude.Timeout != 300 {
+		t.Errorf("expected Timeout=300, got %d", cfg.Claude.Timeout)
+	}
+
+	// Missing fields should get defaults
+	if cfg.Models.P2 != "haiku" {
+		t.Errorf("expected P2='haiku', got %q", cfg.Models.P2)
+	}
+	if cfg.Claude.Binary != "claude" {
+		t.Errorf("expected Binary='claude', got %q", cfg.Claude.Binary)
+	}
+	if cfg.Claude.StallTimeout != 120 {
+		t.Errorf("expected StallTimeout=120, got %d", cfg.Claude.StallTimeout)
+	}
+}
+
+func TestLoadWithAllFields(t *testing.T) {
+	// Test that all custom values are preserved when provided
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `models:
+  p0: ultra
+  p1: standard
+  p2: light
+  validation: light
+  labels:
+    "spec:auth": ultra
+    "complexity:high": ultra
+escalation:
+  enabled: true
+  chain: ["light", "standard", "ultra"]
+  max_retries_per_model: 2
+  max_retries_per_bead: 5
+loop:
+  max_iterations: 20
+  stop_on_failure: true
+validation:
+  enabled: true
+  commands:
+    - "test"
+    - "lint"
+preflight:
+  auto_install: always
+  tools: ["git", "go"]
+claude:
+  binary: /usr/local/bin/claude
+  timeout: 900
+  stall_timeout: 60
+  stall_timeout_active: 180
+  bead_timeout: 2400
+  analysis_timeout: 300
+  flags:
+    - "--dangerously-skip-permissions"
+paths:
+  ralph_dir: .custom-ralph
+  templates: .custom-ralph/templates
+  specs: .custom-ralph/specs
+  logs: .custom-ralph/logs
+  project_claude_md: CUSTOM.md
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Verify all custom values are preserved
+	if cfg.Models.P0 != "ultra" {
+		t.Errorf("expected P0='ultra', got %q", cfg.Models.P0)
+	}
+	if cfg.Models.P1 != "standard" {
+		t.Errorf("expected P1='standard', got %q", cfg.Models.P1)
+	}
+	if cfg.Models.P2 != "light" {
+		t.Errorf("expected P2='light', got %q", cfg.Models.P2)
+	}
+	if cfg.Models.Validation != "light" {
+		t.Errorf("expected Validation='light', got %q", cfg.Models.Validation)
+	}
+	if len(cfg.Models.Labels) != 2 {
+		t.Errorf("expected 2 labels, got %d", len(cfg.Models.Labels))
+	}
+	if cfg.Models.Labels["spec:auth"] != "ultra" {
+		t.Errorf("expected Labels[spec:auth]='ultra', got %q", cfg.Models.Labels["spec:auth"])
+	}
+
+	if cfg.Escalation.MaxRetriesPerModel != 2 {
+		t.Errorf("expected MaxRetriesPerModel=2, got %d", cfg.Escalation.MaxRetriesPerModel)
+	}
+	if cfg.Escalation.MaxRetriesPerBead != 5 {
+		t.Errorf("expected MaxRetriesPerBead=5, got %d", cfg.Escalation.MaxRetriesPerBead)
+	}
+
+	if cfg.Loop.MaxIterations != 20 {
+		t.Errorf("expected MaxIterations=20, got %d", cfg.Loop.MaxIterations)
+	}
+	if !cfg.Loop.StopOnFailure {
+		t.Errorf("expected StopOnFailure=true, got false")
+	}
+
+	if !cfg.Validation.Enabled {
+		t.Errorf("expected Validation.Enabled=true, got false")
+	}
+	if len(cfg.Validation.Commands) != 2 {
+		t.Errorf("expected 2 validation commands, got %d", len(cfg.Validation.Commands))
+	}
+
+	if cfg.Preflight.AutoInstall != "always" {
+		t.Errorf("expected AutoInstall='always', got %q", cfg.Preflight.AutoInstall)
+	}
+	if len(cfg.Preflight.Tools) != 2 {
+		t.Errorf("expected 2 tools, got %d", len(cfg.Preflight.Tools))
+	}
+
+	if cfg.Claude.Binary != "/usr/local/bin/claude" {
+		t.Errorf("expected Binary='/usr/local/bin/claude', got %q", cfg.Claude.Binary)
+	}
+	if cfg.Claude.Timeout != 900 {
+		t.Errorf("expected Timeout=900, got %d", cfg.Claude.Timeout)
+	}
+	if cfg.Claude.StallTimeout != 60 {
+		t.Errorf("expected StallTimeout=60, got %d", cfg.Claude.StallTimeout)
+	}
+	if cfg.Claude.StallTimeoutActive != 180 {
+		t.Errorf("expected StallTimeoutActive=180, got %d", cfg.Claude.StallTimeoutActive)
+	}
+	if cfg.Claude.BeadTimeout != 2400 {
+		t.Errorf("expected BeadTimeout=2400, got %d", cfg.Claude.BeadTimeout)
+	}
+	if cfg.Claude.AnalysisTimeout != 300 {
+		t.Errorf("expected AnalysisTimeout=300, got %d", cfg.Claude.AnalysisTimeout)
+	}
+	if len(cfg.Claude.Flags) != 1 {
+		t.Errorf("expected 1 flag, got %d", len(cfg.Claude.Flags))
+	}
+
+	if cfg.Paths.RalphDir != ".custom-ralph" {
+		t.Errorf("expected RalphDir='.custom-ralph', got %q", cfg.Paths.RalphDir)
+	}
+	if cfg.Paths.Templates != ".custom-ralph/templates" {
+		t.Errorf("expected Templates='.custom-ralph/templates', got %q", cfg.Paths.Templates)
+	}
+	if cfg.Paths.Specs != ".custom-ralph/specs" {
+		t.Errorf("expected Specs='.custom-ralph/specs', got %q", cfg.Paths.Specs)
+	}
+	if cfg.Paths.Logs != ".custom-ralph/logs" {
+		t.Errorf("expected Logs='.custom-ralph/logs', got %q", cfg.Paths.Logs)
+	}
+	if cfg.Paths.ProjectClaudeMD != "CUSTOM.md" {
+		t.Errorf("expected ProjectClaudeMD='CUSTOM.md', got %q", cfg.Paths.ProjectClaudeMD)
+	}
+}
+
+func TestLoadFileNotFound(t *testing.T) {
+	// Test error handling for missing file
+	_, err := Load("/nonexistent/path/to/config.yaml")
+	if err == nil {
+		t.Error("expected error for missing file")
+	}
+	if !contains(err.Error(), "reading config file") {
+		t.Errorf("expected 'reading config file' in error, got: %v", err)
+	}
+}
+
+func TestLoadInvalidYAMLSyntax(t *testing.T) {
+	// Test error handling for invalid YAML syntax
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte("invalid: [yaml: {broken"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Error("expected error for invalid YAML")
+	}
+	if !contains(err.Error(), "parsing config file") {
+		t.Errorf("expected 'parsing config file' in error, got: %v", err)
+	}
+}
+
+func TestLoadZeroTimeouts(t *testing.T) {
+	// Test that zero timeouts are replaced with defaults
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `claude:
+  timeout: 0
+  stall_timeout: 0
+  stall_timeout_active: 0
+  bead_timeout: 0
+  analysis_timeout: 0
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Zero values should be replaced with defaults
+	if cfg.Claude.Timeout != 600 {
+		t.Errorf("expected Timeout=600, got %d", cfg.Claude.Timeout)
+	}
+	if cfg.Claude.StallTimeout != 120 {
+		t.Errorf("expected StallTimeout=120, got %d", cfg.Claude.StallTimeout)
+	}
+	if cfg.Claude.StallTimeoutActive != 300 {
+		t.Errorf("expected StallTimeoutActive=300, got %d", cfg.Claude.StallTimeoutActive)
+	}
+	if cfg.Claude.BeadTimeout != 1200 {
+		t.Errorf("expected BeadTimeout=1200, got %d", cfg.Claude.BeadTimeout)
+	}
+	if cfg.Claude.AnalysisTimeout != 120 {
+		t.Errorf("expected AnalysisTimeout=120, got %d", cfg.Claude.AnalysisTimeout)
+	}
+}
+
+func TestLoadEmptyStrings(t *testing.T) {
+	// Test that empty string fields are replaced with defaults
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `models:
+  p0: ""
+  p1: ""
+  p2: ""
+  validation: ""
+claude:
+  binary: ""
+paths:
+  ralph_dir: ""
+  templates: ""
+  specs: ""
+  logs: ""
+  project_claude_md: ""
+preflight:
+  auto_install: ""
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Empty strings should be replaced with defaults
+	if cfg.Models.P0 != "opus" {
+		t.Errorf("expected P0='opus', got %q", cfg.Models.P0)
+	}
+	if cfg.Models.P1 != "sonnet" {
+		t.Errorf("expected P1='sonnet', got %q", cfg.Models.P1)
+	}
+	if cfg.Models.P2 != "haiku" {
+		t.Errorf("expected P2='haiku', got %q", cfg.Models.P2)
+	}
+	if cfg.Models.Validation != "haiku" {
+		t.Errorf("expected Validation='haiku', got %q", cfg.Models.Validation)
+	}
+	if cfg.Claude.Binary != "claude" {
+		t.Errorf("expected Binary='claude', got %q", cfg.Claude.Binary)
+	}
+	if cfg.Paths.RalphDir != ".ralph" {
+		t.Errorf("expected RalphDir='.ralph', got %q", cfg.Paths.RalphDir)
+	}
+	if cfg.Paths.Templates != ".ralph/templates" {
+		t.Errorf("expected Templates='.ralph/templates', got %q", cfg.Paths.Templates)
+	}
+	if cfg.Paths.Specs != ".ralph/specs" {
+		t.Errorf("expected Specs='.ralph/specs', got %q", cfg.Paths.Specs)
+	}
+	if cfg.Paths.Logs != ".ralph/logs" {
+		t.Errorf("expected Logs='.ralph/logs', got %q", cfg.Paths.Logs)
+	}
+	if cfg.Paths.ProjectClaudeMD != "CLAUDE.md" {
+		t.Errorf("expected ProjectClaudeMD='CLAUDE.md', got %q", cfg.Paths.ProjectClaudeMD)
+	}
+	if cfg.Preflight.AutoInstall != "ask" {
+		t.Errorf("expected AutoInstall='ask', got %q", cfg.Preflight.AutoInstall)
+	}
+}
+
+func TestLoadNilEscalationChain(t *testing.T) {
+	// Test that nil escalation chain is replaced with default
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Escalation.Chain == nil {
+		t.Error("expected Escalation.Chain to be initialized, got nil")
+	}
+	if len(cfg.Escalation.Chain) != 3 {
+		t.Errorf("expected 3 models in default chain, got %d", len(cfg.Escalation.Chain))
+	}
+	if cfg.Escalation.Chain[0] != "haiku" || cfg.Escalation.Chain[1] != "sonnet" || cfg.Escalation.Chain[2] != "opus" {
+		t.Errorf("expected default chain [haiku, sonnet, opus], got %v", cfg.Escalation.Chain)
+	}
+}
+
+func TestLoadZeroEscalationRetries(t *testing.T) {
+	// Test that zero escalation retry values are replaced with defaults
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `escalation:
+  max_retries_per_model: 0
+  max_retries_per_bead: 0
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Zero values should be replaced with defaults
+	if cfg.Escalation.MaxRetriesPerModel != 1 {
+		t.Errorf("expected MaxRetriesPerModel=1, got %d", cfg.Escalation.MaxRetriesPerModel)
+	}
+	if cfg.Escalation.MaxRetriesPerBead != 10 {
+		t.Errorf("expected MaxRetriesPerBead=10, got %d", cfg.Escalation.MaxRetriesPerBead)
+	}
+}
+
+func TestLoadPreservesNonZeroRetries(t *testing.T) {
+	// Test that non-zero retry values are preserved
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `escalation:
+  max_retries_per_model: 3
+  max_retries_per_bead: 15
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Escalation.MaxRetriesPerModel != 3 {
+		t.Errorf("expected MaxRetriesPerModel=3, got %d", cfg.Escalation.MaxRetriesPerModel)
+	}
+	if cfg.Escalation.MaxRetriesPerBead != 15 {
+		t.Errorf("expected MaxRetriesPerBead=15, got %d", cfg.Escalation.MaxRetriesPerBead)
+	}
+}
+
+func TestLoadEmptyEscalationChain(t *testing.T) {
+	// Test that empty escalation chain is replaced with default
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `escalation:
+  chain: []
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if len(cfg.Escalation.Chain) != 3 {
+		t.Errorf("expected 3 models in default chain, got %d", len(cfg.Escalation.Chain))
+	}
+	if cfg.Escalation.Chain[0] != "haiku" || cfg.Escalation.Chain[1] != "sonnet" || cfg.Escalation.Chain[2] != "opus" {
+		t.Errorf("expected default chain [haiku, sonnet, opus], got %v", cfg.Escalation.Chain)
+	}
+}
+
+func TestLoadCustomEscalationChain(t *testing.T) {
+	// Test that custom escalation chain is preserved
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `escalation:
+  chain: ["model-a", "model-b", "model-c"]
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if len(cfg.Escalation.Chain) != 3 {
+		t.Errorf("expected 3 models in chain, got %d", len(cfg.Escalation.Chain))
+	}
+	if cfg.Escalation.Chain[0] != "model-a" || cfg.Escalation.Chain[1] != "model-b" || cfg.Escalation.Chain[2] != "model-c" {
+		t.Errorf("expected custom chain, got %v", cfg.Escalation.Chain)
+	}
+}
+
+func TestLoadNilLabelsMap(t *testing.T) {
+	// Test that nil labels map is initialized as empty
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Models.Labels == nil {
+		t.Error("expected Models.Labels to be initialized, got nil")
+	}
+	if len(cfg.Models.Labels) != 0 {
+		t.Errorf("expected empty Labels map, got %v", cfg.Models.Labels)
+	}
+
+	// Ensure we can write to the map without panic
+	cfg.Models.Labels["test"] = "value"
+	if cfg.Models.Labels["test"] != "value" {
+		t.Errorf("expected 'value', got %q", cfg.Models.Labels["test"])
+	}
+}
+
+func TestLoadPreservesLabels(t *testing.T) {
+	// Test that existing labels are preserved and defaults apply to missing fields
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `models:
+  labels:
+    "complexity:high": "opus"
+    "complexity:low": "haiku"
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Models.Labels["complexity:high"] != "opus" {
+		t.Errorf("expected 'opus', got %q", cfg.Models.Labels["complexity:high"])
+	}
+	if cfg.Models.Labels["complexity:low"] != "haiku" {
+		t.Errorf("expected 'haiku', got %q", cfg.Models.Labels["complexity:low"])
+	}
+
+	// Defaults should still apply to missing fields
+	if cfg.Models.P0 != "opus" {
+		t.Errorf("expected P0='opus', got %q", cfg.Models.P0)
+	}
+	if cfg.Claude.Binary != "claude" {
+		t.Errorf("expected Binary='claude', got %q", cfg.Claude.Binary)
+	}
+}
+
+// Helper function to check if string contains substring
+func contains(s, substr string) bool {
+	for i := 0; i < len(s)-len(substr)+1; i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
