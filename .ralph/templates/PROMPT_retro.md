@@ -23,14 +23,14 @@ You are analyzing accumulated learnings from ralph-runner iterations to identify
 {{- end }}
 
 {{- if .BeadStats }}
-### Problem Beads (2+ failures)
+### Stuck Beads (2+ failures)
 | Bead ID | Title | Total Runs | Failures | Failure Rate |
 |---------|-------|-----------|----------|--------------|
 {{- range $id, $stats := .BeadStats }}
 | {{ $stats.BeadID }} | {{ $stats.BeadTitle }} | {{ $stats.TotalRuns }} | {{ $stats.Failures }} | {{ printf "%.1f%%" (mul $stats.FailureRate 100) }} |
 {{- end }}
 {{- else if .RunStats.Total }}
-*No problematic beads identified (fewer than 2 failures each).*
+*No stuck beads identified (fewer than 2 failures each).*
 {{- end }}
 
 ## Task
@@ -41,6 +41,14 @@ Analyze the learnings above and provide:
 2. **Patterns Worth Promoting**: Suggest learnings that should become rules in RULES.md
 3. **Stale Learnings**: Identify learnings that may no longer be relevant
 4. **Rule Updates**: Propose specific changes to RULES.md
+
+{{- if .BeadStats }}
+
+5. **Stuck Beads Analysis**: For each stuck bead (with 2+ failures) above, suggest:
+   - Root cause hypothesis (based on the failures and learnings)
+   - Recommended decomposition strategy (how to break it into smaller tasks)
+   - Specific next steps to unblock it
+{{- end }}
 
 ## Output Format
 
