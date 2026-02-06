@@ -72,9 +72,9 @@ The retro command:
 3. Identifies duplicate or related learnings
 4. Proposes promoting patterns to RULES.md
 5. Suggests archiving stale learnings
-6. Interactively reviews proposals and applies accepted changes
+6. Launches Claude Code for interactive review and application
 
-Use --non-interactive to skip the review and write proposals to .ralph/RETRO_PROPOSED_CHANGES.md instead.`,
+Use --non-interactive to skip Claude Code and write analysis to .ralph/RETRO_PROPOSED_CHANGES.md instead.`,
 	RunE: runRetro,
 }
 
@@ -84,7 +84,7 @@ func init() {
 	runCmd.Flags().IntVarP(&maxIterations, "max-iterations", "n", 0, "Maximum iterations (0 = unlimited)")
 	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run without executing")
 
-	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip interactive review and write proposals to .ralph/RETRO_PROPOSED_CHANGES.md")
+	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip Claude Code and write analysis to .ralph/RETRO_PROPOSED_CHANGES.md")
 
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(statusCmd)
@@ -206,12 +206,12 @@ func runRetro(cmd *cobra.Command, args []string) error {
 
 	// If --non-interactive flag is set, write to file and exit
 	if nonInteractive {
-		proposalsPath := filepath.Join(ralphDir, "RETRO_PROPOSED_CHANGES.md")
-		if writeErr := os.WriteFile(proposalsPath, []byte(result.Analysis), 0644); writeErr != nil {
-			return fmt.Errorf("writing proposals file: %w", writeErr)
+		analysisPath := filepath.Join(ralphDir, "RETRO_PROPOSED_CHANGES.md")
+		if writeErr := os.WriteFile(analysisPath, []byte(result.Analysis), 0644); writeErr != nil {
+			return fmt.Errorf("writing analysis file: %w", writeErr)
 		}
 
-		fmt.Printf("\nProposed changes written to %s\n", proposalsPath)
+		fmt.Printf("\nAnalysis written to %s\n", analysisPath)
 		fmt.Println("Review and apply manually.")
 		return nil
 	}
