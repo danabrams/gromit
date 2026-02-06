@@ -420,6 +420,24 @@ func TestGetGitDiffStatSameCommit(t *testing.T) {
 	_ = stat
 }
 
+func TestGetGitDiff(t *testing.T) {
+	// This test requires a git repo, so skip in CI if needed
+	// Use the project's own repo for testing
+	head, err := getGitHead()
+	if err != nil {
+		t.Skip("not in a git repo")
+	}
+
+	// Get diff from HEAD to HEAD (should be empty for committed state)
+	diff, err := getGitDiff(head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// diff may or may not be empty depending on working tree state
+	// just verify it doesn't error
+	_ = diff
+}
+
 func TestRetryCounterBehavior(t *testing.T) {
 	// This test documents the retry counter behavior:
 	// - totalRetriesThisBead tracks the total number of retry attempts

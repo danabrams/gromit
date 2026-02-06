@@ -796,6 +796,16 @@ func getGitDiffStat(fromCommit string) (string, error) {
 	return string(out), nil
 }
 
+// getGitDiff returns the full diff from fromCommit to the current working tree
+func getGitDiff(fromCommit string) (string, error) {
+	cmd := exec.Command("git", "diff", fromCommit)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git diff: %w", err)
+	}
+	return string(out), nil
+}
+
 // checkExpectedOutputs checks if expected files exist and returns a summary
 func checkExpectedOutputs(expectedOutputs []string) string {
 	if len(expectedOutputs) == 0 {
