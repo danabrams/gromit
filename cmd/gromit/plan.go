@@ -1,42 +1,130 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/spf13/cobra"
 )
 
+var (
+	planForce bool
+)
+
 var planCmd = &cobra.Command{
-	Use:   "plan <feature>",
-	Short: "Launch Claude Code session for feature planning",
-	Long: `Start an interactive Claude Code session with feature context pre-loaded.
+	Use:   "plan [spec-name]",
+	Short: "Create an implementation plan from a spec",
+	Long: `Start an interactive Claude Code session to create an implementation plan from a spec.
+
+Two input modes:
+  gromit plan                    # Interactive picker for available specs
+  gromit plan <spec-name>        # Plan a specific spec
 
 The command launches Claude with:
-- Feature description as context
+- Full spec content as context
+- Plans directory path for output
+- Spec name for naming the plan file
 - Open beads (current tasks) as project context
-- References the ralph-plan skill for feature decomposition
+- References the gromit-plan skill for architecture and test planning
 
-Example:
-  ralph plan "Add tmux integration"
-  ralph plan "Implement OAuth authentication"`,
-	Args: cobra.ExactArgs(1),
+Plan refuses to run if a plan already exists for that spec unless --force is passed.`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runPlan,
 }
 
 func init() {
+	planCmd.Flags().BoolVar(&planForce, "force", false, "Regenerate plan even if it already exists")
 	rootCmd.AddCommand(planCmd)
 }
 
 func runPlan(cmd *cobra.Command, args []string) error {
-	featureDescription := args[0]
+	// Get config and directories
+	cfg, err := loadConfig()
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("loading config: %w", err)
+		}
+		cfg = nil
+	}
 
-	// Verify config exists (ralph must be initialized)
-	if _, err := loadConfig(); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("loading config: %w", err)
+	specsDir := resolveSpecsDir(cfg)
+	plansDir := resolvePlansDir(cfg)
+
+	// Ensure plans directory exists
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		return fmt.Errorf("creating plans directory: %w", err)
+	}
+
+	// Determine input mode and get spec name
+	var specName string
+	if len(args) == 0 {
+		// Mode 1: Interactive picker for available specs
+		specs, err := getSpecFiles(specsDir)
+		if err != nil {
+			return fmt.Errorf("scanning specs directory: %w", err)
+		}
+
+		if len(specs) == 0 {
+			fmt.Println("No specs found in", specsDir)
+			fmt.Println("\nUse 'gromit refine' to create a spec first.")
+			return nil
+		}
+
+		// Display picker
+		fmt.Println("Select a spec to plan:")
+		fmt.Println()
+		specNames := []string{}
+		for i, specPath := range specs {
+			name := strings.TrimSuffix(filepath.Base(specPath), ".md")
+			specNames = append(specNames, name)
+			fmt.Printf("  %d. %s\n", i+1, name)
+		}
+
+		fmt.Print("\nChoice [1-", len(specs), "]: ")
+		reader := bufio.NewReader(os.Stdin)
+		choiceStr, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("reading choice: %w", err)
+		}
+
+		var choice int
+		if _, err := fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choice); err != nil || choice < 1 || choice > len(specs) {
+			return fmt.Errorf("invalid choice")
+		}
+
+		specName = specNames[choice-1]
+		fmt.Printf("\nPlanning: %s\n\n", specName)
+
+	} else {
+		// Mode 2: Specific spec name
+		specName = args[0]
+		// Remove .md suffix if provided
+		specName = strings.TrimSuffix(specName, ".md")
+	}
+
+	// Check if spec file exists
+	specPath := filepath.Join(specsDir, specName+".md")
+	if _, err := os.Stat(specPath); os.IsNotExist(err) {
+		return fmt.Errorf("spec not found: %s\nLooking for: %s", specName, specPath)
+	}
+
+	// Check if plan already exists
+	planPath := filepath.Join(plansDir, specName+".md")
+	if _, err := os.Stat(planPath); err == nil && !planForce {
+		return fmt.Errorf("plan already exists: %s\nUse --force to regenerate", planPath)
+	}
+
+	// Load spec content
+	_, specBody, err := frontmatter.ReadFile(specPath)
+	if err != nil {
+		return fmt.Errorf("reading spec file: %w", err)
 	}
 
 	// Gather context from beads
@@ -69,18 +157,39 @@ func runPlan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build system prompt with feature and context
-	systemPrompt := fmt.Sprintf(`Feature to plan: %s
+	// Build system prompt with spec content
+	systemPrompt := fmt.Sprintf(`# Spec to Plan
+
+Spec name: %s
+
+## Spec Content
 
 %s
 
+## Context
+
+%s
+
+Plans directory: %s
+
 ## Instructions
-Use the ralph-plan skill to help decompose this feature into properly-sized beads (tasks).
-The ralph-plan skill is designed for feature decomposition and will guide you through:
-- Breaking down the feature into atomic work items
-- Creating beads with proper acceptance criteria
-- Considering dependencies and complexity
-- Sizing beads appropriately for the Ralph loop`, featureDescription, contextBuilder.String())
+
+Use the gromit-plan skill to help create an implementation plan for this spec.
+The gromit-plan skill will guide you through:
+- Reading the spec and exploring the codebase
+- Proposing architecture (how the feature fits into existing code)
+- Human review checkpoint for architecture
+- Proposing test strategy (what to test, what level, what mocks)
+- Human review checkpoint for test plan
+- Breaking the work into logical tasks with files, dependencies, and acceptance criteria
+- Writing the plan to %s
+
+The plan format is natural and flexible — structured enough for human readability, but not rigidly templated. Each task must include:
+- Files affected
+- Acceptance criteria
+- Dependencies
+
+An LLM will consume this plan during the decompose phase.`, specName, specBody, contextBuilder.String(), plansDir, planPath)
 
 	// Launch Claude Code with system prompt
 	claudeCmd := exec.Command("claude", "--append-system-prompt", systemPrompt)
@@ -97,5 +206,18 @@ The ralph-plan skill is designed for feature decomposition and will guide you th
 		return fmt.Errorf("launching Claude Code: %w", err)
 	}
 
+	// Check if plan was created
+	if _, err := os.Stat(planPath); err == nil {
+		fmt.Printf("\n✓ Plan created: %s\n", planPath)
+	}
+
 	return nil
+}
+
+// resolvePlansDir returns the plans directory path from config or default
+func resolvePlansDir(cfg *config.Config) string {
+	if cfg != nil && cfg.Paths.Plans != "" {
+		return cfg.Paths.Plans
+	}
+	return ".gromit/plans"
 }
