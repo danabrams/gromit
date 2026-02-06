@@ -146,10 +146,11 @@ func (r *Retro) formatLearnings() string {
 		sb.WriteString("*No confirmed learnings yet.*\n\n")
 	} else {
 		for _, l := range confirmed {
-			sb.WriteString(fmt.Sprintf("**%s | %s | %s**\n",
+			sb.WriteString(fmt.Sprintf("**%s | %s | %s | Hash: `%s`**\n",
 				l.Date.Format("2006-01-02"),
 				l.BeadID,
 				l.Category,
+				l.Hash,
 			))
 			if l.RelatedTo != "" {
 				sb.WriteString(fmt.Sprintf("*Related to: %s*\n", l.RelatedTo))
@@ -164,10 +165,11 @@ func (r *Retro) formatLearnings() string {
 		sb.WriteString("*No provisional learnings.*\n\n")
 	} else {
 		for _, l := range provisional {
-			sb.WriteString(fmt.Sprintf("**%s | %s | %s**\n",
+			sb.WriteString(fmt.Sprintf("**%s | %s | %s | Hash: `%s`**\n",
 				l.Date.Format("2006-01-02"),
 				l.BeadID,
 				l.Category,
+				l.Hash,
 			))
 			if l.RelatedTo != "" {
 				sb.WriteString(fmt.Sprintf("*Related to: %s*\n", l.RelatedTo))
@@ -187,7 +189,9 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 		return "", fmt.Errorf("reading template: %w", err)
 	}
 
-	tmpl, err := template.New("retro").Parse(string(tmplContent))
+	tmpl, err := template.New("retro").Funcs(template.FuncMap{
+		"mul": func(a, b float64) float64 { return a * b },
+	}).Parse(string(tmplContent))
 	if err != nil {
 		return "", fmt.Errorf("parsing template: %w", err)
 	}

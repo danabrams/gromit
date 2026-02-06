@@ -44,35 +44,46 @@ Analyze the learnings above and provide:
 
 ## Output Format
 
-Use the following format:
+Provide your analysis in two parts:
 
-### Consolidation
+1. **Freeform Analysis**: Write a narrative summary of your findings, patterns you've noticed, and reasoning behind your recommendations. Use markdown formatting.
 
-For each set of related learnings:
-- **Learnings to merge**: [List dates/IDs]
-- **Consolidated version**: [Single clear statement]
-- **Rationale**: [Why these should be merged]
+2. **Structured Proposals**: After your analysis, include a JSON code block with structured proposals using this schema:
 
-### Promote to Rules
+```json
+{
+  "consolidations": [
+    {
+      "learning_hashes": ["hash1", "hash2"],
+      "consolidated_text": "Merged learning content",
+      "rationale": "Why these should be merged"
+    }
+  ],
+  "promotions": [
+    {
+      "learning_hash": "hash",
+      "proposed_rule": "How it should appear in RULES.md",
+      "section": "Code Style | Architecture | Safety | Process",
+      "rationale": "Why this should be a rule"
+    }
+  ],
+  "archives": [
+    {
+      "learning_hash": "hash",
+      "rationale": "Why this is no longer relevant"
+    }
+  ],
+  "rule_changes": [
+    {
+      "current_rule": "Exact text from RULES.md",
+      "proposed_rule": "New text",
+      "rationale": "Why this change is needed"
+    }
+  ]
+}
+```
 
-For learnings that should become rules:
-- **Learning**: [Date | ID | Content]
-- **Proposed rule**: [How it should appear in RULES.md]
-- **Section**: [Which section of RULES.md: Code Style, Architecture, Safety, or Process]
-- **Rationale**: [Why this should be a rule]
-
-### Archive
-
-For stale or obsolete learnings:
-- **Learning**: [Date | ID | Content]
-- **Rationale**: [Why this is no longer relevant]
-
-### Rule Changes
-
-For direct updates to existing rules:
-- **Current rule**: [Exact text from RULES.md]
-- **Proposed change**: [New text]
-- **Rationale**: [Why this change is needed]
+**Important**: Use the learning hashes (shown as `Hash: xxxx` in the learnings above) to reference specific learnings in your proposals. This ensures the correct learnings are updated.
 
 ## Guidelines
 
@@ -80,3 +91,4 @@ For direct updates to existing rules:
 - Focus on actionable, specific rules
 - Ensure proposed rules align with Go idioms and project goals
 - Consider whether a learning is truly a "rule" (constraint) or just good advice
+- Use the learning hashes from above to reference learnings in your JSON proposals
