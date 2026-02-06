@@ -118,6 +118,24 @@ func (s RunStats) FailureRate() float64 {
 	return float64(s.Failed) / float64(s.Total)
 }
 
+// BeadStats holds per-bead statistics
+type BeadStats struct {
+	BeadID      string
+	BeadTitle   string
+	TotalRuns   int
+	Failures    int
+	Successes   int
+	LastAttempt time.Time
+}
+
+// FailureRate returns the failure rate for this bead as a float64 (0.0-1.0)
+func (s BeadStats) FailureRate() float64 {
+	if s.TotalRuns == 0 {
+		return 0
+	}
+	return float64(s.Failures) / float64(s.TotalRuns)
+}
+
 // ReadAllLogs reads all JSONL log files in the directory and returns aggregate stats
 func ReadAllLogs(logsDir string) (RunStats, error) {
 	var stats RunStats
@@ -143,6 +161,48 @@ func ReadAllLogs(logsDir string) (RunStats, error) {
 	}
 
 	return stats, nil
+}
+
+// ReadPerBeadStats reads all JSONL log files and returns per-bead statistics
+func ReadPerBeadStats(logsDir string) (map[string]BeadStats, error) {
+	beadMap := make(map[string]BeadStats)
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		return beadMap, fmt.Errorf("globbing log files: %w", err)
+	}
+
+	for _, f := range files {
+		entries, err := readLogFile(f)
+		if err != nil {
+			continue // Skip unreadable files
+		}
+		for _, entry := range entries {
+			stats := beadMap[entry.BeadID]
+
+			// Initialize with bead ID and title if this is the first time we see it
+			if stats.BeadID == "" {
+				stats.BeadID = entry.BeadID
+				stats.BeadTitle = entry.BeadTitle
+			}
+
+			stats.TotalRuns++
+			if entry.Success {
+				stats.Successes++
+			} else {
+				stats.Failures++
+			}
+
+			// Update last attempt time if this entry is more recent
+			if entry.Timestamp.After(stats.LastAttempt) {
+				stats.LastAttempt = entry.Timestamp
+			}
+
+			beadMap[entry.BeadID] = stats
+		}
+	}
+
+	return beadMap, nil
 }
 
 // WriteValidationLog saves full validation output to a dedicated log file.

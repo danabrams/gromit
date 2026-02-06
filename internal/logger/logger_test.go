@@ -148,3 +148,153 @@ func TestRunStatsFailureRate(t *testing.T) {
 		})
 	}
 }
+
+func TestReadPerBeadStatsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading empty logs dir: %v", err)
+	}
+	if len(stats) != 0 {
+		t.Errorf("expected 0 beads, got %d", len(stats))
+	}
+}
+
+func TestReadPerBeadStatsWithEntries(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a log file with multiple attempts for same and different beads
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":2000,"error":"build failed"}
+{"timestamp":"2026-02-05T12:02:00Z","iteration":3,"bead_id":"b1","bead_title":"Task 1","model":"opus","success":false,"validated":false,"escalated":true,"escalated_to":"opus","duration_ms":3000,"error":"validation failed"}
+{"timestamp":"2026-02-05T12:03:00Z","iteration":4,"bead_id":"b3","bead_title":"Task 3","model":"haiku","success":true,"validated":true,"escalated":false,"duration_ms":500}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	if len(stats) != 3 {
+		t.Errorf("expected 3 beads, got %d", len(stats))
+	}
+
+	// Check b1 - attempted twice (1 success, 1 failure)
+	b1 := stats["b1"]
+	if b1.BeadID != "b1" {
+		t.Errorf("expected bead ID 'b1', got %q", b1.BeadID)
+	}
+	if b1.BeadTitle != "Task 1" {
+		t.Errorf("expected bead title 'Task 1', got %q", b1.BeadTitle)
+	}
+	if b1.TotalRuns != 2 {
+		t.Errorf("expected b1 total runs 2, got %d", b1.TotalRuns)
+	}
+	if b1.Successes != 1 {
+		t.Errorf("expected b1 successes 1, got %d", b1.Successes)
+	}
+	if b1.Failures != 1 {
+		t.Errorf("expected b1 failures 1, got %d", b1.Failures)
+	}
+	if b1.FailureRate() != 0.5 {
+		t.Errorf("expected b1 failure rate 0.5, got %.3f", b1.FailureRate())
+	}
+
+	// Check b2 - attempted once (failed)
+	b2 := stats["b2"]
+	if b2.TotalRuns != 1 {
+		t.Errorf("expected b2 total runs 1, got %d", b2.TotalRuns)
+	}
+	if b2.Failures != 1 {
+		t.Errorf("expected b2 failures 1, got %d", b2.Failures)
+	}
+	if b2.FailureRate() != 1.0 {
+		t.Errorf("expected b2 failure rate 1.0, got %.3f", b2.FailureRate())
+	}
+
+	// Check b3 - attempted once (succeeded)
+	b3 := stats["b3"]
+	if b3.TotalRuns != 1 {
+		t.Errorf("expected b3 total runs 1, got %d", b3.TotalRuns)
+	}
+	if b3.Successes != 1 {
+		t.Errorf("expected b3 successes 1, got %d", b3.Successes)
+	}
+	if b3.FailureRate() != 0.0 {
+		t.Errorf("expected b3 failure rate 0.0, got %.3f", b3.FailureRate())
+	}
+}
+
+func TestReadPerBeadStatsMultipleFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	// First run - b1 fails
+	log1 := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Fix bug","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":1000,"error":"build failed"}
+`
+	// Second run - b1 succeeds, b2 fails
+	log2 := `{"timestamp":"2026-02-05T13:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Fix bug","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":2000}
+{"timestamp":"2026-02-05T13:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Add feature","model":"opus","success":false,"validated":false,"escalated":false,"duration_ms":3000,"error":"tests failed"}
+`
+
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(log1), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-130000.jsonl"), []byte(log2), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	if len(stats) != 2 {
+		t.Errorf("expected 2 beads, got %d", len(stats))
+	}
+
+	// b1 should have 2 total runs (1 failure, 1 success)
+	b1 := stats["b1"]
+	if b1.TotalRuns != 2 {
+		t.Errorf("expected b1 total runs 2, got %d", b1.TotalRuns)
+	}
+	if b1.Failures != 1 {
+		t.Errorf("expected b1 failures 1, got %d", b1.Failures)
+	}
+	if b1.Successes != 1 {
+		t.Errorf("expected b1 successes 1, got %d", b1.Successes)
+	}
+
+	// b2 should have 1 total run (1 failure)
+	b2 := stats["b2"]
+	if b2.TotalRuns != 1 {
+		t.Errorf("expected b2 total runs 1, got %d", b2.TotalRuns)
+	}
+	if b2.Failures != 1 {
+		t.Errorf("expected b2 failures 1, got %d", b2.Failures)
+	}
+}
+
+func TestBeadStatsFailureRate(t *testing.T) {
+	tests := []struct {
+		name     string
+		stats    BeadStats
+		expected float64
+	}{
+		{"empty", BeadStats{}, 0},
+		{"all success", BeadStats{TotalRuns: 5, Successes: 5, Failures: 0}, 0},
+		{"all failed", BeadStats{TotalRuns: 3, Successes: 0, Failures: 3}, 1.0},
+		{"mixed", BeadStats{TotalRuns: 10, Successes: 6, Failures: 4}, 0.4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.stats.FailureRate()
+			if diff := got - tt.expected; diff > 0.001 || diff < -0.001 {
+				t.Errorf("expected failure rate %.3f, got %.3f", tt.expected, got)
+			}
+		})
+	}
+}
