@@ -84,6 +84,7 @@ type IterationResult struct {
 	Error        error
 	Escalated    bool
 	EscalatedTo  string
+	Decomposed   bool
 	Output       string
 }
 
@@ -388,7 +389,25 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 				// Try escalation
 				nextModel := r.cfg.NextEscalationModel(model)
 				if nextModel == "" {
-					result.Error = fmt.Errorf("stall timeout: exhausted all models")
+					r.log("Stall timeout, no more models to escalate to - attempting decomposition")
+
+					// Try to decompose the task instead of failing
+					subTasks, err := r.DecomposeTask(ctx, b)
+					if err != nil {
+						r.log("Decomposition failed: %v, falling back to error", err)
+						result.Error = fmt.Errorf("stall timeout: exhausted all models and decomposition failed: %w", err)
+						return result
+					}
+
+					// Create sub-beads from decomposition
+					if err := r.CreateSubBeads(ctx, b, subTasks); err != nil {
+						r.log("Failed to create sub-beads: %v", err)
+						result.Error = fmt.Errorf("stall timeout decomposition succeeded but failed to create sub-beads: %w", err)
+						return result
+					}
+
+					r.log("Task successfully decomposed into %d sub-tasks after stall timeout", len(subTasks))
+					result.Decomposed = true
 					return result
 				}
 				r.log("Escalating from %s to %s after stall", model, nextModel)
@@ -537,11 +556,31 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		// Not recoverable or retries exhausted - try escalation
 		nextModel := r.cfg.NextEscalationModel(model)
 		if nextModel == "" {
-			r.log("Build failed, no more models to escalate to")
-			if startCommit != "" {
-				r.showPartialProgress(b, startCommit)
+			r.log("Build failed, no more models to escalate to - attempting decomposition")
+
+			// Try to decompose the task instead of failing
+			subTasks, err := r.DecomposeTask(ctx, b)
+			if err != nil {
+				r.log("Decomposition failed: %v, falling back to error", err)
+				if startCommit != "" {
+					r.showPartialProgress(b, startCommit)
+				}
+				result.Error = fmt.Errorf("build failed with all models and decomposition failed: %w", err)
+				return result
 			}
-			result.Error = fmt.Errorf("build failed with all models")
+
+			// Create sub-beads from decomposition
+			if err := r.CreateSubBeads(ctx, b, subTasks); err != nil {
+				r.log("Failed to create sub-beads: %v", err)
+				if startCommit != "" {
+					r.showPartialProgress(b, startCommit)
+				}
+				result.Error = fmt.Errorf("decomposition succeeded but failed to create sub-beads: %w", err)
+				return result
+			}
+
+			r.log("Task successfully decomposed into %d sub-tasks", len(subTasks))
+			result.Decomposed = true
 			return result
 		}
 
