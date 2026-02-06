@@ -346,6 +346,59 @@ func (c *Client) List() ([]*Bead, error) {
 	return result, nil
 }
 
+// ListAll returns all beads (both open and closed), grouped by status
+func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
+	if c == nil {
+		return nil, nil, fmt.Errorf("bead client is nil")
+	}
+
+	// Get open beads
+	out, err := c.run("list", "--json", "--status", "open")
+	if err != nil {
+		return nil, nil, fmt.Errorf("bd list open: %w", err)
+	}
+
+	if strings.TrimSpace(out) != "" && strings.TrimSpace(out) != "[]" {
+		var beads []Bead
+		if err := json.Unmarshal([]byte(out), &beads); err != nil {
+			return nil, nil, fmt.Errorf("parsing bd list open output: %w", err)
+		}
+
+		open = make([]*Bead, len(beads))
+		for i := range beads {
+			beads[i].normalizeNilFields()
+			if err := beads[i].Validate(); err != nil {
+				return nil, nil, fmt.Errorf("invalid open bead data at index %d: %w", i, err)
+			}
+			open[i] = &beads[i]
+		}
+	}
+
+	// Get closed beads
+	out, err = c.run("list", "--json", "--status", "closed")
+	if err != nil {
+		return nil, nil, fmt.Errorf("bd list closed: %w", err)
+	}
+
+	if strings.TrimSpace(out) != "" && strings.TrimSpace(out) != "[]" {
+		var beads []Bead
+		if err := json.Unmarshal([]byte(out), &beads); err != nil {
+			return nil, nil, fmt.Errorf("parsing bd list closed output: %w", err)
+		}
+
+		closed = make([]*Bead, len(beads))
+		for i := range beads {
+			beads[i].normalizeNilFields()
+			if err := beads[i].Validate(); err != nil {
+				return nil, nil, fmt.Errorf("invalid closed bead data at index %d: %w", i, err)
+			}
+			closed[i] = &beads[i]
+		}
+	}
+
+	return open, closed, nil
+}
+
 // UpdatePriority changes the priority of a bead
 func (c *Client) UpdatePriority(id string, priority int) error {
 	if c == nil {
