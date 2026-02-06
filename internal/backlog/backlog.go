@@ -73,13 +73,13 @@ func (f *File) List() ([]*Idea, error) {
 	file, err := os.Open(f.path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil // Empty backlog
+			return []*Idea{}, nil // Empty backlog
 		}
 		return nil, fmt.Errorf("opening backlog file: %w", err)
 	}
 	defer file.Close()
 
-	var ideas []*Idea
+	ideas := []*Idea{}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())

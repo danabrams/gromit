@@ -387,6 +387,10 @@ func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
 		return nil, nil, fmt.Errorf("bead client is nil")
 	}
 
+	// Initialize to empty slices to avoid nil returns
+	open = []*Bead{}
+	closed = []*Bead{}
+
 	// Get open beads
 	out, err := c.run("list", "--json", "--status", "open")
 	if err != nil {

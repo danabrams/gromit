@@ -94,14 +94,17 @@ func TestBacklogFile(t *testing.T) {
 		t.Errorf("First idea type = %q, want %q", ideas[0].Type, idea1.Type)
 	}
 
-	// Test list on non-existent file
+	// Test list on non-existent file returns empty slice (not nil)
 	emptyBf := NewFile(filepath.Join(tmpDir, "nonexistent"))
 	emptyIdeas, err := emptyBf.List()
 	if err != nil {
 		t.Fatalf("List() on non-existent file error = %v", err)
 	}
-	if emptyIdeas != nil {
-		t.Errorf("List() on non-existent file = %v, want nil", emptyIdeas)
+	if emptyIdeas == nil {
+		t.Error("List() on non-existent file returned nil, want empty slice")
+	}
+	if len(emptyIdeas) != 0 {
+		t.Errorf("List() on non-existent file returned %d ideas, want 0", len(emptyIdeas))
 	}
 }
 
@@ -204,6 +207,29 @@ func TestBacklogFileGet(t *testing.T) {
 	}
 	if got != nil {
 		t.Errorf("Get() on empty backlog returned non-nil: %v", got)
+	}
+}
+
+func TestBacklogFileListEmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	bf := NewFile(tmpDir)
+
+	// Create an empty backlog file
+	emptyFile := filepath.Join(tmpDir, "backlog.jsonl")
+	if err := os.WriteFile(emptyFile, []byte(""), 0644); err != nil {
+		t.Fatalf("creating empty file: %v", err)
+	}
+
+	// List should return empty slice, not nil
+	ideas, err := bf.List()
+	if err != nil {
+		t.Fatalf("List() on empty file error = %v", err)
+	}
+	if ideas == nil {
+		t.Error("List() on empty file returned nil, want empty slice")
+	}
+	if len(ideas) != 0 {
+		t.Errorf("List() on empty file returned %d ideas, want 0", len(ideas))
 	}
 }
 
