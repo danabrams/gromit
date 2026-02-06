@@ -147,10 +147,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 
 		// Check if bead is stuck (too many cross-run failures)
 		if r.isStuckBeadWithStats(b, beadStats) {
+			stats := beadStats[b.ID]
 			r.log("Bead %s marked as stuck (exceeded failure threshold), skipping", b.ID)
-			// Mark as complete to remove from queue
-			if err := r.beads.Close(b.ID); err != nil {
-				r.log("Warning: failed to close stuck bead: %v", err)
+			// Add comment explaining why we're skipping this bead (do NOT close it)
+			comment := fmt.Sprintf("Skipped after %d failures (exceeded threshold of %d). Please review and break down into smaller tasks if needed.", stats.Failures, r.cfg.Loop.StuckBeadThreshold)
+			if err := r.beads.AddComment(b.ID, comment); err != nil {
+				r.log("Warning: failed to add comment to stuck bead: %v", err)
 			}
 			if err := r.beads.Sync(); err != nil {
 				r.log("Warning: failed to sync beads: %v", err)
