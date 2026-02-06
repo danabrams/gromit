@@ -255,3 +255,171 @@ func TestBacklogFileCreatesDirectory(t *testing.T) {
 		t.Error("Add() did not create nested directory")
 	}
 }
+
+func TestBacklogFileUpdate(t *testing.T) {
+	tmpDir := t.TempDir()
+	bf, _ := NewFile(tmpDir)
+
+	// Add test ideas
+	idea1 := &Idea{ID: "idea-1", Text: "First idea", Type: "feature", CreatedAt: time.Now()}
+	idea2 := &Idea{ID: "idea-2", Text: "Second idea", Type: "bug", CreatedAt: time.Now()}
+
+	for _, idea := range []*Idea{idea1, idea2} {
+		if err := bf.Add(idea); err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+	}
+
+	// Update first idea with status and spec name
+	err := bf.Update("idea-1", func(idea *Idea) {
+		idea.Status = "refined"
+		idea.SpecName = "auth-system"
+	})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	// Verify update
+	updated, err := bf.Get("idea-1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if updated.Status != "refined" {
+		t.Errorf("Updated idea status = %q, want %q", updated.Status, "refined")
+	}
+	if updated.SpecName != "auth-system" {
+		t.Errorf("Updated idea spec_name = %q, want %q", updated.SpecName, "auth-system")
+	}
+
+	// Verify other idea unchanged
+	unchanged, err := bf.Get("idea-2")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if unchanged.Status != "" {
+		t.Errorf("Unchanged idea status = %q, want empty", unchanged.Status)
+	}
+
+	// Update non-existent idea should error
+	err = bf.Update("idea-999", func(idea *Idea) {
+		idea.Status = "refined"
+	})
+	if err == nil {
+		t.Error("Update() on non-existent idea should return error")
+	}
+}
+
+func TestIdeaFieldsRoundtrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	bf, _ := NewFile(tmpDir)
+
+	// Create idea with new fields
+	original := &Idea{
+		ID:        "idea-1",
+		Text:      "Test idea",
+		Type:      "feature",
+		Context:   "Some context",
+		CreatedAt: time.Now().Truncate(time.Second), // Truncate for comparison
+		Status:    "refined",
+		SpecName:  "test-spec",
+	}
+
+	if err := bf.Add(original); err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+
+	// Read back
+	retrieved, err := bf.Get("idea-1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	// Verify all fields roundtrip correctly
+	if retrieved.ID != original.ID {
+		t.Errorf("ID = %q, want %q", retrieved.ID, original.ID)
+	}
+	if retrieved.Text != original.Text {
+		t.Errorf("Text = %q, want %q", retrieved.Text, original.Text)
+	}
+	if retrieved.Type != original.Type {
+		t.Errorf("Type = %q, want %q", retrieved.Type, original.Type)
+	}
+	if retrieved.Context != original.Context {
+		t.Errorf("Context = %q, want %q", retrieved.Context, original.Context)
+	}
+	if !retrieved.CreatedAt.Equal(original.CreatedAt) {
+		t.Errorf("CreatedAt = %v, want %v", retrieved.CreatedAt, original.CreatedAt)
+	}
+	if retrieved.Status != original.Status {
+		t.Errorf("Status = %q, want %q", retrieved.Status, original.Status)
+	}
+	if retrieved.SpecName != original.SpecName {
+		t.Errorf("SpecName = %q, want %q", retrieved.SpecName, original.SpecName)
+	}
+}
+
+func TestBackwardsCompatibilityWithExistingEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+	bf, _ := NewFile(tmpDir)
+
+	// Manually write an old-format entry without Status/SpecName fields
+	oldFormatJSON := `{"id":"idea-old","text":"Old format idea","type":"feature","context":"","created_at":"2026-01-01T00:00:00Z"}` + "\n"
+	backlogPath := filepath.Join(tmpDir, "backlog.jsonl")
+	if err := os.WriteFile(backlogPath, []byte(oldFormatJSON), 0644); err != nil {
+		t.Fatalf("writing old format entry: %v", err)
+	}
+
+	// Read it back - should not error
+	ideas, err := bf.List()
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	if len(ideas) != 1 {
+		t.Fatalf("List() returned %d ideas, want 1", len(ideas))
+	}
+
+	// Verify old fields present, new fields empty
+	idea := ideas[0]
+	if idea.ID != "idea-old" {
+		t.Errorf("ID = %q, want %q", idea.ID, "idea-old")
+	}
+	if idea.Text != "Old format idea" {
+		t.Errorf("Text = %q, want %q", idea.Text, "Old format idea")
+	}
+	if idea.Status != "" {
+		t.Errorf("Status = %q, want empty string", idea.Status)
+	}
+	if idea.SpecName != "" {
+		t.Errorf("SpecName = %q, want empty string", idea.SpecName)
+	}
+
+	// Add a new entry with new fields - should coexist
+	newIdea := &Idea{
+		ID:        "idea-new",
+		Text:      "New format idea",
+		Type:      "feature",
+		CreatedAt: time.Now(),
+		Status:    "refined",
+		SpecName:  "my-spec",
+	}
+
+	if err := bf.Add(newIdea); err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+
+	// List both
+	allIdeas, err := bf.List()
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	if len(allIdeas) != 2 {
+		t.Fatalf("List() returned %d ideas, want 2", len(allIdeas))
+	}
+
+	// Verify both entries are valid
+	if allIdeas[0].ID != "idea-old" || allIdeas[1].ID != "idea-new" {
+		t.Error("Mixed format entries not preserved correctly")
+	}
+}

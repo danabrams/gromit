@@ -14,9 +14,11 @@ import (
 type Idea struct {
 	ID        string    `json:"id"`
 	Text      string    `json:"text"`
-	Type      string    `json:"type"`      // feature, bug, chore, unknown
-	Context   string    `json:"context"`   // optional additional context
+	Type      string    `json:"type"`    // feature, bug, chore, unknown
+	Context   string    `json:"context"` // optional additional context
 	CreatedAt time.Time `json:"created_at"`
+	Status    string    `json:"status,omitempty"`    // e.g., "refined"
+	SpecName  string    `json:"spec_name,omitempty"` // linked spec name
 }
 
 // File manages the backlog JSONL file
@@ -25,9 +27,9 @@ type File struct {
 }
 
 // NewFile creates a new backlog file manager
-func NewFile(ralphDir string) (*File, error) {
+func NewFile(gromitDir string) (*File, error) {
 	return &File{
-		path: filepath.Join(ralphDir, "backlog.jsonl"),
+		path: filepath.Join(gromitDir, "backlog.jsonl"),
 	}, nil
 }
 
@@ -39,7 +41,7 @@ func (f *File) Add(idea *Idea) error {
 	if idea == nil {
 		return fmt.Errorf("idea is nil")
 	}
-	// Ensure .ralph directory exists
+	// Ensure .gromit directory exists
 	dir := filepath.Dir(f.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("creating directory: %w", err)
@@ -159,6 +161,51 @@ func (f *File) Delete(id string) error {
 	defer file.Close()
 
 	for _, idea := range filtered {
+		data, err := json.Marshal(idea)
+		if err != nil {
+			return fmt.Errorf("marshaling idea: %w", err)
+		}
+		if _, err := file.Write(append(data, '\n')); err != nil {
+			return fmt.Errorf("writing to backlog: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Update modifies an idea in place by applying a function to it
+func (f *File) Update(id string, fn func(*Idea)) error {
+	if f == nil {
+		return fmt.Errorf("backlog file is nil")
+	}
+	// Load all ideas
+	ideas, err := f.List()
+	if err != nil {
+		return fmt.Errorf("loading backlog: %w", err)
+	}
+
+	// Find and update the idea
+	found := false
+	for _, idea := range ideas {
+		if idea.ID == id {
+			fn(idea)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("idea not found: %s", id)
+	}
+
+	// Rewrite the file
+	file, err := os.OpenFile(f.path, os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("opening backlog file: %w", err)
+	}
+	defer file.Close()
+
+	for _, idea := range ideas {
 		data, err := json.Marshal(idea)
 		if err != nil {
 			return fmt.Errorf("marshaling idea: %w", err)
