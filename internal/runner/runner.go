@@ -138,6 +138,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 		beadStats = make(map[string]logger.BeadStats) // Use empty stats on error
 	}
 
+	// Track skipped bead IDs to avoid infinite loops
+	skippedBeads := make(map[string]bool)
+
 	for {
 		// Check for context cancellation
 		select {
@@ -166,6 +169,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 
 		// Check if bead is stuck (too many cross-run failures)
 		if r.isStuckBeadWithStats(b, beadStats) {
+			// If we've already skipped this bead in this run, don't skip again - all ready beads are stuck
+			if skippedBeads[b.ID] {
+				r.log("All ready beads are stuck and have been skipped. Stopping loop.")
+				break
+			}
+
 			stats := beadStats[b.ID]
 			r.log("Bead %s marked as stuck (exceeded failure threshold), skipping", b.ID)
 			// Add comment explaining why we're skipping this bead (do NOT close it)
@@ -176,6 +185,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 			if err := r.beads.Sync(); err != nil {
 				r.log("Warning: failed to sync beads: %v", err)
 			}
+
+			// Mark this bead as skipped in this run to avoid infinite loop
+			skippedBeads[b.ID] = true
 			continue
 		}
 
