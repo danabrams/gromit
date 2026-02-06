@@ -261,3 +261,92 @@ func TestMaxRetriesPerBeadFromYAML(t *testing.T) {
 		t.Errorf("expected MaxRetriesPerBead=5, got %d", cfg.Escalation.MaxRetriesPerBead)
 	}
 }
+
+func TestSelectModelPriorityWithEmptyLabels(t *testing.T) {
+	// Test priority-based selection with empty labels array
+	cfg := &Config{}
+	cfg.setDefaults()
+
+	tests := []struct {
+		priority int
+		want     string
+	}{
+		{0, "opus"},
+		{1, "sonnet"},
+		{2, "haiku"},
+	}
+
+	for _, tt := range tests {
+		result := cfg.SelectModel(tt.priority, []string{})
+		if result != tt.want {
+			t.Errorf("SelectModel(%d, []) = %q, want %q", tt.priority, result, tt.want)
+		}
+	}
+}
+
+func TestSelectModelPriorityWithCustomModels(t *testing.T) {
+	// Test priority-based selection with custom model values
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0: "custom-p0",
+			P1: "custom-p1",
+			P2: "custom-p2",
+		},
+	}
+
+	tests := []struct {
+		priority int
+		want     string
+	}{
+		{0, "custom-p0"},
+		{1, "custom-p1"},
+		{2, "custom-p2"},
+	}
+
+	for _, tt := range tests {
+		result := cfg.SelectModel(tt.priority, nil)
+		if result != tt.want {
+			t.Errorf("SelectModel(%d) with custom models = %q, want %q", tt.priority, result, tt.want)
+		}
+	}
+}
+
+func TestSelectModelPriorityIgnoresNonMatchingLabels(t *testing.T) {
+	// Test that when no labels match, priority-based selection is used
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{"complexity:high": "opus"},
+		},
+	}
+
+	// These labels don't exist in the config, so should fall back to priority
+	result := cfg.SelectModel(1, []string{"nonexistent", "another-nonexistent"})
+	if result != "sonnet" {
+		t.Errorf("SelectModel(1) with non-matching labels = %q, want 'sonnet'", result)
+	}
+}
+
+func TestSelectModelPriorityDefaultWhenUnknown(t *testing.T) {
+	// Test that unknown priority defaults to P1
+	cfg := &Config{}
+	cfg.setDefaults()
+
+	tests := []struct {
+		priority int
+		want     string
+	}{
+		{99, "sonnet"},
+		{-1, "sonnet"},
+		{100, "sonnet"},
+	}
+
+	for _, tt := range tests {
+		result := cfg.SelectModel(tt.priority, nil)
+		if result != tt.want {
+			t.Errorf("SelectModel(%d) = %q, want %q", tt.priority, result, tt.want)
+		}
+	}
+}
