@@ -20,6 +20,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/preflight"
 	"github.com/danabrams/ralph-runner/internal/prompt"
 	"github.com/danabrams/ralph-runner/internal/state"
+	"github.com/danabrams/ralph-runner/internal/tmux"
 )
 
 // Runner orchestrates the Ralph loop
@@ -123,6 +124,11 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 	if r.claude == nil {
 		return fmt.Errorf("runner claude client is nil")
 	}
+
+	// Set up tmux title management (no-op if not in tmux)
+	tmuxMgr := tmux.NewManager()
+	defer tmuxMgr.RestoreTitle()
+
 	// Ensure logger is closed when done
 	if r.logger != nil {
 		defer r.logger.Close()
@@ -205,8 +211,15 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 		r.log("\n=== Iteration %d ===", iteration)
 		r.log("Bead: %s - %s", b.ID, b.Title)
 
+		// Update tmux pane title with iteration info
+		model := r.selectModel(b)
+		if err := tmuxMgr.SetTitle(tmux.FormatIterationTitle(iteration, b.ID, model)); err != nil {
+			// Log but don't fail on tmux error
+			r.log("Warning: failed to set tmux title: %v", err)
+		}
+
 		if dryRun {
-			r.log("[DRY RUN] Would process bead %s with model %s", b.ID, r.selectModel(b))
+			r.log("[DRY RUN] Would process bead %s with model %s", b.ID, model)
 			continue
 		}
 
