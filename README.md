@@ -74,16 +74,21 @@ This creates:
 
 ```
 your-project/
-├── gromit.yaml                  # Configuration
+├── gromit.yaml                     # Configuration
 └── .gromit/
-    ├── templates/              # Prompt templates (customizable)
-    │   ├── PROMPT_build.md     # Main task execution prompt
-    │   ├── PROMPT_validate.md  # Validation runner prompt
-    │   ├── PROMPT_analyze.md   # Failure analysis prompt
-    │   └── PROMPT_retro.md     # Retrospective analysis prompt
-    ├── specs/                  # Spec files for complex features
-    ├── RULES.md                # Project constraints (non-negotiable)
-    └── LEARNINGS.md            # Accumulated knowledge
+    ├── templates/                  # Prompt templates (customizable)
+    │   ├── PROMPT_build.md         # Main task execution prompt
+    │   ├── PROMPT_validate.md      # Validation runner prompt
+    │   ├── PROMPT_analyze.md       # Failure analysis prompt
+    │   ├── PROMPT_scope.md         # Scope/complexity estimation prompt
+    │   ├── PROMPT_decompose.md     # Task decomposition prompt
+    │   ├── PROMPT_review.md        # Light code review prompt
+    │   ├── PROMPT_thorough_review.md  # Thorough code review prompt
+    │   └── PROMPT_retro.md         # Retrospective analysis prompt
+    ├── specs/                      # Spec files for complex features
+    ├── RULES.md                    # Project constraints (non-negotiable)
+    ├── LEARNINGS.md                # Accumulated knowledge
+    └── logs/                       # Iteration logs (JSONL + streaming)
 ```
 
 ### Create Tasks
