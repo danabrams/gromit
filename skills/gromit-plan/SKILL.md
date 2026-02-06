@@ -1,130 +1,265 @@
 ---
-name: ralph-plan
-description: Use when the user wants to plan a feature by breaking it into bite-sized beads. Helps decompose features into properly-sized Ralph tasks with acceptance criteria, proposing approaches and creating beads via bd.
-version: 1.0.0
+name: gromit-plan
+description: Use when planning implementation for a specification. Reads specs, proposes architecture and test strategy with human review checkpoints, then writes a flexible implementation plan.
+version: 2.0.0
 ---
 
-# Ralph Plan Skill
+# Gromit Plan Skill
 
-Guides conversational feature decomposition into properly-sized beads following Ralph Runner principles.
+Guides conversational planning from specifications to implementation plans. Proposes architecture and test strategies with human review checkpoints, then breaks work into logical tasks ready for decomposition into beads.
 
 ## When to Use This Skill
 
 Use this skill when:
-- The user describes a new feature or large task that needs decomposition
-- They want to break down work into Ralph beads
-- They ask "how should I structure this" or "help me plan this feature"
-- They mention needing properly-sized tasks for the Ralph loop
+- You have a spec file that needs an implementation plan
+- You need to design how a feature fits into existing code
+- You want to plan architecture and testing before writing code
+- You're ready to move from "what to build" (spec) to "how to build it" (plan)
 
 ## Methodology
 
-This skill follows a structured conversation flow:
+This skill follows a structured conversation flow with mandatory human review checkpoints:
 
-### 1. Understand the Feature (Ask Questions)
-Start by understanding the feature deeply. Ask one question at a time:
-- What problem does this feature solve?
-- Who are the users/consumers?
-- What are the key workflows or happy paths?
-- Are there important edge cases or constraints?
-- What are the success criteria?
+### 1. Read the Spec and Explore the Codebase
 
-Listen carefully to responses and ask follow-up questions to clarify ambiguous areas.
+When the skill starts:
+- Read the spec file provided as input (from `.gromit/specs/<name>.md`)
+- Acknowledge what you're planning: "I'll help you plan the implementation of [spec name]. Let me explore the codebase to understand how this fits with existing patterns..."
+- Use Glob to find relevant files (components, packages, modules)
+- Use Grep to search for related functionality
+- Read key files to understand current implementation patterns
+- Identify where the new feature integrates with existing code
 
-### 2. Propose Approaches
-Once you understand the feature, propose 2-3 different implementation approaches with tradeoffs:
-- **Approach A**: [Description] - Pros: [list], Cons: [list]
-- **Approach B**: [Description] - Pros: [list], Cons: [list]
-- **Approach C**: [Description] - Pros: [list], Cons: [list]
+Share your findings:
+- "I've explored the codebase and found..."
+- "Similar functionality exists in..."
+- "The current architecture uses..."
 
-Recommend one approach based on complexity, maintainability, and alignment with Ralph principles.
+This exploration informs your architecture proposal.
 
-### 3. Decompose into Beads
-Break the feature into properly-sized beads following Ralph Wiggum loop principles:
+### 2. Propose Architecture (CHECKPOINT)
 
-**Bead Sizing Rules:**
-- **One concern per bead** - A single file or two tightly coupled files
-- **1-3 acceptance criteria** - Concrete, testable criteria only; split if more than 3
-- **Self-contained** - Understandable without reading other beads
-- **No ambiguity** - Implementation clear without design decisions
-- **Max 2 files touched** - If more, reconsider the split
-- **Clear definition of done** - Each criterion has an obvious pass/fail test
+Based on the spec and codebase exploration, propose the high-level architecture:
 
-For each bead, provide:
-1. **Title**: Clear, specific description of the single concern
-2. **Acceptance Criteria**: 1-3 concrete, testable criteria
-3. **Files Involved**: 1-2 files that will be touched
-4. **Dependencies**: Any beads that must complete first
-
-**Example Bead:**
+**Format:**
 ```
-Title: Add JWT token validation endpoint
-Acceptance Criteria:
-1. POST /api/validate-token endpoint accepts JWT token
-2. Returns 200 with decoded claims if valid
-3. Returns 401 with error message if invalid or expired
-Files: internal/auth/validator.go, cmd/ralph/main.go
-Dependencies: (none, or references to other bead IDs)
-```
+## Architecture Proposal
 
-### 4. Present Bead List for Approval
-Show the user the complete bead list in a clear format:
-- List all beads in dependency order
-- Show the title and acceptance criteria for each
-- Include estimated priority/complexity
-- Ask for feedback: "Does this decomposition look good? Any changes or additions?"
+**Overview:**
+[1-2 sentence summary of the approach]
 
-### 5. Create Beads
-Once the user approves, create beads using `bd create`:
+**Key Components:**
+1. **[Component/Package Name]**: [What it does and why]
+2. **[Component/Package Name]**: [What it does and why]
+...
 
-```bash
-bd create "Add JWT token validation endpoint" \
-  --priority 1 \
-  --acceptance-criteria "POST /api/validate-token endpoint accepts JWT token" \
-  --acceptance-criteria "Returns 200 with decoded claims if valid" \
-  --acceptance-criteria "Returns 401 with error message if invalid or expired"
+**Integration Points:**
+- [How this fits with existing code]
+- [What existing components will be modified]
+- [What new components will be created]
+
+**Data Flow:**
+[Describe how data moves through the system for key workflows]
+
+**Files to Modify:**
+- `path/to/file1.go` - [What changes]
+- `path/to/file2.go` - [What changes]
+
+**Files to Create:**
+- `path/to/newfile.go` - [Purpose]
+
+**Tradeoffs:**
+- [Key decision 1]: Chose [X] over [Y] because [reason]
+- [Key decision 2]: Chose [X] over [Y] because [reason]
 ```
 
-For subsequent beads with dependencies:
-```bash
-bd create "Add token refresh endpoint" \
-  --priority 1 \
-  --parent <parent-bead-id>
+**CHECKPOINT**: Present the architecture and ask: "Does this architecture approach look good? Any concerns or adjustments before I move on to the test strategy?"
+
+Wait for user approval before proceeding. If the user wants changes, iterate on the architecture until approved.
+
+### 3. Propose Test Strategy (CHECKPOINT)
+
+Once architecture is approved, propose the testing approach:
+
+**Format:**
 ```
+## Test Strategy
+
+**Test Levels:**
+1. **Unit Tests**: [What units to test, key behaviors to cover]
+2. **Integration Tests**: [What integrations to test, scenarios to cover]
+3. **Manual Testing**: [What to verify manually, if applicable]
+
+**Key Test Cases:**
+- [Test case 1]: [What it verifies]
+- [Test case 2]: [What it verifies]
+...
+
+**Mocking Strategy:**
+- [What to mock and why]
+- [What to test with real implementations and why]
+
+**Coverage Goals:**
+- [Critical paths that must be tested]
+- [Edge cases to handle]
+
+**Test Organization:**
+- [Where test files will live]
+- [Naming conventions to follow]
+```
+
+**CHECKPOINT**: Present the test strategy and ask: "Does this testing approach cover what we need? Any additional test cases or changes before I break this into tasks?"
+
+Wait for user approval before proceeding. If the user wants changes, iterate on the test strategy until approved.
+
+### 4. Break Work into Logical Tasks
+
+Once both checkpoints pass, decompose the work into tasks. Each task should be:
+- **Logically cohesive**: Related changes grouped together
+- **Properly scoped**: Not too large (max 2-3 files) or too small
+- **Well-specified**: Files affected, acceptance criteria, and dependencies clear
+- **Ready for bead mapping**: An LLM should be able to turn this into 1-3 beads during decompose
+
+**Task Format (flexible structure):**
+```
+### Task N: [Title]
+
+**Files:**
+- Modify: `path/to/file.go`
+- Create: `path/to/newfile.go`
+- Test: `path/to/file_test.go`
+
+**What to Do:**
+[Clear description of the work — what changes, what gets added, what behavior to implement]
+
+**Acceptance Criteria:**
+- [Concrete, testable criterion 1]
+- [Concrete, testable criterion 2]
+- [Concrete, testable criterion 3]
+
+**Dependencies:**
+- Task N-1 (must complete first)
+- Task N-2 (provides needed types/functions)
+
+**Notes:**
+[Any implementation hints, tricky areas, or things to watch out for]
+```
+
+**Guidelines for Task Breakdown:**
+- Start with foundational tasks (types, interfaces, core logic)
+- Group tightly coupled code together
+- Keep test tasks paired with implementation tasks when logical
+- Make dependencies explicit — don't assume sequential execution
+- Include 1-3 acceptance criteria per task (concrete and testable)
+- Aim for tasks that could map to 1-3 beads during decompose
+
+### 5. Write the Plan
+
+Create the plan file at `.gromit/plans/<name>.md` with the following structure:
+
+```markdown
+---
+id: <plan-name>
+source_spec: <spec-name>
+created: <YYYY-MM-DD>
+decomposed: false
+---
+
+# <Title> Implementation Plan
+
+**Goal:** [1-sentence summary of what we're building]
+
+**Architecture:** [1-2 sentence summary of the approach]
+
+**Tech Stack:** [Languages, frameworks, libraries involved]
+
+**Spec:** `.gromit/specs/<spec-name>.md`
+
+---
+
+## Architecture
+
+[The approved architecture proposal from checkpoint 1]
+
+## Test Strategy
+
+[The approved test strategy from checkpoint 2]
+
+## Implementation Tasks
+
+[The task breakdown with all tasks in dependency order]
+
+---
+
+## Notes
+
+[Any additional context, warnings, or reminders for whoever implements this]
+```
+
+**Key Guidelines:**
+- **Frontmatter**: `id` matches spec name, `source_spec` links back, `decomposed: false` gates the decompose stage
+- **Natural structure**: Not rigidly templated — adapt sections as needed for the feature
+- **LLM-consumable**: An LLM will read this during `gromit decompose`, so be clear and complete
+- **Human-readable**: This gets reviewed before decompose, so make it scannable
+
+### 6. Confirm and Finalize
+
+After writing the plan:
+- Use the Write tool to create the file at `.gromit/plans/<name>.md`
+- Show the user the path and summarize what was created
+- Confirm: "I've created the implementation plan at `.gromit/plans/<name>.md`. It includes [X] tasks covering [high-level summary]. Ready to run `gromit decompose <name>` to create beads, or would you like any adjustments?"
 
 ## Key Principles
 
-1. **One concern per bead** - Don't mix unrelated changes
-2. **No ambiguity** - Claude should implement without asking design questions
-3. **Testable criteria** - Each criterion has a clear pass/fail
-4. **Dependency order** - Present beads in creation order
-5. **Right-sized chunks** - 1-2 hours of work per bead
+1. **Spec-driven** - Start from the spec, not a vague description
+2. **Codebase-aware** - Explore existing code to inform architecture
+3. **Human checkpoints** - Get approval on architecture and tests before task breakdown
+4. **Flexible format** - Natural structure, not rigid templates
+5. **Decompose-ready** - Tasks must have files, acceptance criteria, and dependencies for LLM consumption
+6. **One conversation** - Complete the full plan in one interactive session
 
-## Tips
+## Preventing Duplication
 
-- **Too many criteria?** Split the bead - usually a sign it's too large
-- **Crossing file boundaries?** Make sure there's a tight coupling reason
-- **Unclear acceptance criteria?** Rephrase as a concrete behavior
-- **Missing dependencies?** Ask the user about build/test requirements
+Before writing the plan, check if a plan already exists:
+- The CLI command (`gromit plan`) will prevent duplicate plans unless `--force` is used
+- If you encounter a situation where a plan exists, inform the user: "A plan already exists at `.gromit/plans/<name>.md`. Please use `gromit plan <name> --force` if you want to regenerate it."
+
+## Task Sizing Hints for Decompose
+
+During task breakdown, keep in mind that each task will become 1-3 beads during decompose. Use these hints to size tasks appropriately:
+
+**Bead Sizing Rules (for decompose reference):**
+- **One concern per bead** - A single file or two tightly coupled files
+- **1-3 acceptance criteria** - Concrete, testable criteria only; split if more than 3
+- **Max 2 files touched** - If more, the task should be split
+- **Self-contained** - Understandable without reading other beads
+- **No ambiguity** - Implementation clear without design decisions
+
+If a task has more than 3 acceptance criteria or touches more than 2-3 files, consider splitting it into multiple tasks.
+
+## Model and Complexity
+
+This skill uses **opus** for best results on architecture design, codebase analysis, and complex planning decisions. The checkpoint-based flow ensures human oversight at critical decision points.
 
 ## Example Interaction Flow
 
-1. **User**: "I want to add user authentication"
-2. **You**: "Great! Let me understand this better. What authentication mechanism were you thinking - JWT, sessions, OAuth, or are you open to suggestions?"
-3. **User**: "JWT would be good"
-4. **You**: "Understood. A few more questions: Where will tokens be stored on the client? And do you need refresh tokens or just access tokens?"
-5. **User**: "Client-side storage, and we need refresh tokens for session persistence"
-6. **You**: [Propose 2-3 approaches with tradeoffs, recommend one]
-7. **User**: "Approach B looks good"
-8. **You**: [Decompose into bite-sized beads]
-9. **User**: "This looks great, let's create them"
-10. **You**: [Run bd create commands for each bead]
+1. **You**: "I'll help you plan the implementation of `user-authentication`. Let me explore the codebase to understand how this fits with existing patterns..."
+2. **You**: [Read spec, explore codebase with Glob/Grep/Read]
+3. **You**: "I found that the current app uses a simple token in localStorage. Based on the spec requirements for JWT and refresh tokens, here's my architecture proposal: [detailed architecture]. Does this approach look good?"
+4. **User**: "Yes, but can we store refresh tokens in httpOnly cookies instead of localStorage?"
+5. **You**: "Good point for security. I'll update the architecture to use httpOnly cookies for refresh tokens. [Updated architecture]. Better?"
+6. **User**: "Perfect"
+7. **You**: "Great! Now for testing: [detailed test strategy]. Does this testing approach cover what we need?"
+8. **User**: "Looks good"
+9. **You**: "Excellent! I'll break this into tasks..." [Writes plan with task breakdown]
+10. **You**: "I've created the implementation plan at `.gromit/plans/user-authentication.md`. It includes 8 tasks covering the auth middleware, token generation, refresh flow, and tests. Ready to run `gromit decompose user-authentication` to create beads?"
 
-## Integration with Ralph Runner
+## Integration with Gromit Pipeline
 
-These beads integrate seamlessly with Ralph Runner's loop:
-- Each bead gets a fresh Claude context (`ralph run`)
-- Model selection by priority/complexity
-- Bead closure with `bd close <id>` after successful implementation
-- Validation runs separately for cost efficiency
+This skill is the **Plan** stage in Gromit's four-stage pipeline:
+1. **Capture** (`gromit add`) - Raw ideas → backlog entries
+2. **Refine** (`gromit refine`) - Backlog items or ad-hoc ideas → specs
+3. **Plan** (`gromit plan`) - Specs → implementation plans (THIS SKILL)
+4. **Decompose** (`gromit decompose`) - Plans → bd beads
 
-Beads created follow the structure expected by `.ralph/templates/` for prompt injection during runs.
+The plan you produce becomes the input to `gromit decompose`, which will automatically create beads following the task breakdown and bead sizing rules.
