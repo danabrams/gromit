@@ -317,7 +317,8 @@ preflight:
 # Claude CLI settings
 claude:
   binary: "claude"
-  timeout: 600                 # Seconds per invocation
+  timeout: 600                 # Seconds per invocation (global max)
+  stall_timeout: 120           # Seconds of silence before auto-retry (0 = disable)
   flags:
     - "--dangerously-skip-permissions"
 
@@ -388,11 +389,23 @@ When validation fails, Ralph saves the full output to `.ralph/logs/validation-YY
 During long-running Claude invocations, Ralph provides visibility:
 
 - **Streaming log** — all Claude events written to `.ralph/logs/stream-*.log` in real time. Watch with `tail -f`.
-- **Heartbeat** — every 60 seconds, prints progress: elapsed time, files modified, tool calls made.
+- **Heartbeat** — every 30 seconds, prints progress: elapsed time, files modified, tool calls made.
 
 ```
-[2m elapsed] Still working. 7 files modified, 28 tool calls.
+[2m00s] 7 files modified, 28 tool calls
 ```
+
+### Stall Detection
+
+If Claude goes silent (no stream events for a configurable period), Ralph automatically kills the stalled process and retries or escalates — no manual Ctrl+C needed.
+
+```yaml
+claude:
+  timeout: 600        # Global max per invocation (seconds)
+  stall_timeout: 120  # Kill after this many seconds of silence (0 = disable)
+```
+
+Stall retries count against `max_retries_per_model`. Once exhausted, Ralph escalates to the next model in the chain. This prevents a single hung invocation from burning your entire timeout budget.
 
 ### Partial Progress Detection
 
@@ -423,6 +436,7 @@ Every failure gets analyzed by a separate Claude call that categorizes it:
 | `unclear_spec` | Ambiguous specification | Skip bead for human |
 | `missing_context` | Didn't know about existing code | Retry with hint |
 | `test_flake` | Non-deterministic failure | Retry |
+| `task_too_complex` | Scope too large for one iteration | Skip bead for human |
 
 The analysis determines whether to retry (same model), escalate (stronger model), or skip (needs human attention). Extractable learnings are added to LEARNINGS.md.
 

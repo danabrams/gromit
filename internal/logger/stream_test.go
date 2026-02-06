@@ -132,6 +132,53 @@ func TestStreamStatsStartTime(t *testing.T) {
 	}
 }
 
+func TestStreamStatsRecordEvent(t *testing.T) {
+	stats := NewStreamStats()
+	time.Sleep(50 * time.Millisecond)
+	stats.RecordEvent()
+
+	since := stats.TimeSinceLastEvent()
+	if since > 50*time.Millisecond {
+		t.Errorf("TimeSinceLastEvent should be < 50ms after RecordEvent, got %v", since)
+	}
+}
+
+func TestStreamStatsTimeSinceLastEventInitial(t *testing.T) {
+	stats := NewStreamStats()
+	time.Sleep(100 * time.Millisecond)
+
+	since := stats.TimeSinceLastEvent()
+	if since < 100*time.Millisecond {
+		t.Errorf("TimeSinceLastEvent should be >= 100ms, got %v", since)
+	}
+}
+
+func TestParseAndLogEventUpdatesLastEventTime(t *testing.T) {
+	stats := NewStreamStats()
+	time.Sleep(50 * time.Millisecond)
+
+	line := []byte(`{"type":"system","subtype":"init"}`)
+	ParseAndLogEvent(nil, stats, line)
+
+	since := stats.TimeSinceLastEvent()
+	if since > 50*time.Millisecond {
+		t.Errorf("Expected LastEventTime updated by ParseAndLogEvent, got since=%v", since)
+	}
+}
+
+func TestParseAndLogEventInvalidJSONNoUpdate(t *testing.T) {
+	stats := NewStreamStats()
+	time.Sleep(50 * time.Millisecond)
+
+	// Invalid JSON should not update LastEventTime
+	ParseAndLogEvent(nil, stats, []byte("not json"))
+
+	since := stats.TimeSinceLastEvent()
+	if since < 50*time.Millisecond {
+		t.Errorf("Invalid JSON should not update LastEventTime, got since=%v", since)
+	}
+}
+
 func TestParseAndLogEventToolCall(t *testing.T) {
 	dir := t.TempDir()
 	sl, err := NewStreamLogger(dir)

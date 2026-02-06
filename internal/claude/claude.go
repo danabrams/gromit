@@ -183,6 +183,46 @@ func IsValidationPassed(result *Result) bool {
 	return result.Success && strings.Contains(result.Output, "VALIDATION_PASSED")
 }
 
+// IsScopeTooLarge checks if the result indicates the task scope is too large.
+// Returns true and the explanation text if SCOPE_TOO_LARGE: prefix is found.
+func IsScopeTooLarge(result *Result) (bool, string) {
+	if result == nil {
+		return false, ""
+	}
+
+	// Look for the SCOPE_TOO_LARGE: marker
+	const marker = "SCOPE_TOO_LARGE:"
+	if !strings.Contains(result.Output, marker) {
+		return false, ""
+	}
+
+	// Extract the explanation text after the marker
+	idx := strings.Index(result.Output, marker)
+	remaining := result.Output[idx+len(marker):]
+
+	// Trim leading/trailing whitespace and extract the explanation
+	explanation := strings.TrimSpace(remaining)
+
+	// Extract the explanation up to the first double newline (paragraph break)
+	// or the end of the remaining text
+	if paragraphEnd := strings.Index(explanation, "\n\n"); paragraphEnd != -1 {
+		explanation = explanation[:paragraphEnd]
+	}
+
+	// Normalize whitespace: collapse internal newlines to spaces
+	lines := strings.Split(explanation, "\n")
+	var explanationLines []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			explanationLines = append(explanationLines, trimmed)
+		}
+	}
+
+	explanation = strings.Join(explanationLines, " ")
+	return true, explanation
+}
+
 // EventHandler is called for each line of stream-json output from Claude CLI.
 // The raw JSON line is passed for external parsing and logging.
 type EventHandler func(line []byte)
