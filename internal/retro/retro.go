@@ -54,7 +54,13 @@ func (r *Retro) Run(ctx context.Context, apply bool) (*Result, error) {
 	if r == nil {
 		return nil, fmt.Errorf("retro is nil")
 	}
+	if r.claude == nil {
+		return nil, fmt.Errorf("claude client is nil")
+	}
 	// Load learnings
+	if r.learningsFile == nil {
+		return nil, fmt.Errorf("learnings file is nil")
+	}
 	if err := r.learningsFile.Load(); err != nil {
 		return nil, fmt.Errorf("loading learnings: %w", err)
 	}

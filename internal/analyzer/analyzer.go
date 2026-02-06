@@ -74,6 +74,12 @@ func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput stri
 	if b == nil {
 		return nil, fmt.Errorf("bead is nil")
 	}
+	if a.claude == nil {
+		return nil, fmt.Errorf("claude client is nil")
+	}
+	if a.renderer == nil {
+		return nil, fmt.Errorf("renderer is nil")
+	}
 	// Truncate failure output if too long
 	maxLen := 8000
 	if len(failureOutput) > maxLen {
@@ -95,6 +101,15 @@ func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput stri
 	result, err := a.claude.Run(ctx, analysisPrompt, a.model)
 	if err != nil {
 		return nil, fmt.Errorf("running analysis: %w", err)
+	}
+
+	if result == nil {
+		return &Analysis{
+			Category:    CategoryLogic,
+			Recoverable: false,
+			RootCause:   "Analysis returned no result",
+			Suggestion:  "Escalate to stronger model",
+		}, nil
 	}
 
 	if !result.Success {

@@ -110,6 +110,9 @@ func ValidateSpecName(name string) error {
 
 // LoadSpec loads a spec file by name
 func (r *Renderer) LoadSpec(name string) (string, error) {
+	if r == nil {
+		return "", fmt.Errorf("renderer is nil")
+	}
 	if err := ValidateSpecName(name); err != nil {
 		return "", err
 	}
@@ -141,6 +144,9 @@ func (r *Renderer) LoadSpec(name string) (string, error) {
 
 // LoadClaudeMD loads the project's CLAUDE.md
 func (r *Renderer) LoadClaudeMD() (string, error) {
+	if r == nil {
+		return "", fmt.Errorf("renderer is nil")
+	}
 	content, err := os.ReadFile(r.claudeMDPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -209,6 +215,9 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 
 // LoadRules loads the RULES.md file
 func (r *Renderer) LoadRules() (string, error) {
+	if r == nil {
+		return "", fmt.Errorf("renderer is nil")
+	}
 	content, err := os.ReadFile(r.rulesPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -220,6 +229,9 @@ func (r *Renderer) LoadRules() (string, error) {
 }
 
 func (r *Renderer) render(templateName string, ctx any) (string, error) {
+	if r == nil {
+		return "", fmt.Errorf("renderer is nil")
+	}
 	path := filepath.Join(r.templatesDir, templateName)
 	content, err := os.ReadFile(path)
 	if err != nil {

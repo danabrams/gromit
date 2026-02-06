@@ -3,6 +3,10 @@ package analyzer
 import (
 	"context"
 	"testing"
+
+	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/ralph-runner/internal/claude"
+	"github.com/danabrams/ralph-runner/internal/prompt"
 )
 
 // TestParseAnalysisOutputValidJSON tests parsing valid JSON output
@@ -431,5 +435,25 @@ func TestAnalyzeNilBead(t *testing.T) {
 	_, err := a.Analyze(context.Background(), nil, "output")
 	if err == nil {
 		t.Error("expected error for nil bead")
+	}
+}
+
+// TestAnalyzeNilClaudeClient tests that Analyze handles nil claude field
+func TestAnalyzeNilClaudeClient(t *testing.T) {
+	a := &Analyzer{renderer: &prompt.Renderer{}}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	_, err := a.Analyze(context.Background(), b, "output")
+	if err == nil {
+		t.Error("expected error for nil claude client")
+	}
+}
+
+// TestAnalyzeNilRenderer tests that Analyze handles nil renderer field
+func TestAnalyzeNilRenderer(t *testing.T) {
+	a := &Analyzer{claude: claude.NewClient("claude", nil, 60)}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	_, err := a.Analyze(context.Background(), b, "output")
+	if err == nil {
+		t.Error("expected error for nil renderer")
 	}
 }

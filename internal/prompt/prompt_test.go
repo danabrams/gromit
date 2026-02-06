@@ -106,3 +106,39 @@ func TestBuildContextNilBead(t *testing.T) {
 		t.Error("expected error for nil bead")
 	}
 }
+
+func TestRenderNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.RenderBuild(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderBuild")
+	}
+	_, err = r.RenderAnalyze(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderAnalyze")
+	}
+}
+
+func TestLoadClaudeMDNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.LoadClaudeMD()
+	if err == nil {
+		t.Error("expected error for nil renderer in LoadClaudeMD")
+	}
+}
+
+func TestLoadRulesNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.LoadRules()
+	if err == nil {
+		t.Error("expected error for nil renderer in LoadRules")
+	}
+}
+
+func TestLoadSpecNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.LoadSpec("test")
+	if err == nil {
+		t.Error("expected error for nil renderer in LoadSpec")
+	}
+}

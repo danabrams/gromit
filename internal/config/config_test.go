@@ -196,6 +196,46 @@ func TestLoadInvalidYAML(t *testing.T) {
 	}
 }
 
+func TestSetDefaultsInitializesLabelsMap(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+	if cfg.Models.Labels == nil {
+		t.Error("expected Models.Labels to be initialized, got nil")
+	}
+	// Ensure we can write to the map without panic
+	cfg.Models.Labels["test"] = "value"
+	if cfg.Models.Labels["test"] != "value" {
+		t.Errorf("expected 'value', got %q", cfg.Models.Labels["test"])
+	}
+}
+
+func TestSetDefaultsPreservesExistingLabels(t *testing.T) {
+	cfg := &Config{
+		Models: ModelsConfig{
+			Labels: map[string]string{"complexity:high": "opus"},
+		},
+	}
+	cfg.setDefaults()
+	if cfg.Models.Labels["complexity:high"] != "opus" {
+		t.Errorf("expected existing label preserved, got %q", cfg.Models.Labels["complexity:high"])
+	}
+}
+
+func TestSelectModelNilLabelsMap(t *testing.T) {
+	// Config with nil Labels map should not panic
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0: "opus",
+			P1: "sonnet",
+		},
+	}
+	// Don't call setDefaults - test with nil Labels
+	result := cfg.SelectModel(1, []string{"complexity:high"})
+	if result != "sonnet" {
+		t.Errorf("expected 'sonnet' (fallback to priority), got %q", result)
+	}
+}
+
 func TestMaxRetriesPerBeadDefault(t *testing.T) {
 	cfg := &Config{}
 	cfg.setDefaults()

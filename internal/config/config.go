@@ -138,6 +138,9 @@ func (c *Config) setDefaults() {
 	if c.Preflight.AutoInstall == "" {
 		c.Preflight.AutoInstall = "ask"
 	}
+	if c.Models.Labels == nil {
+		c.Models.Labels = make(map[string]string)
+	}
 }
 
 // SelectModel determines the appropriate model for a bead based on priority and labels
