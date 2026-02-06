@@ -393,6 +393,12 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 				return result
 			}
 
+			// Handle task too complex - skip this bead
+			if analysis.Category == analyzer.CategoryTaskTooComplex {
+				result.Error = fmt.Errorf("task too complex: %s - needs breakdown", analysis.RootCause)
+				return result
+			}
+
 			// If recoverable and under retry limit, retry with context (same model)
 			if analysis.Recoverable && retriesThisModel < maxRetries {
 				retriesThisModel++

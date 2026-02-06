@@ -223,6 +223,7 @@ func TestParseAnalysisOutputAllCategories(t *testing.T) {
 		CategoryUnclearSpec,
 		CategoryMissingContext,
 		CategoryTestFlake,
+		CategoryTaskTooComplex,
 	}
 
 	for _, category := range categories {
@@ -318,6 +319,18 @@ func TestLearningCategoryTestFlake(t *testing.T) {
 	learningCategory := analysis.LearningCategory()
 	if learningCategory != "gotchas" {
 		t.Errorf("expected 'gotchas' as default for CategoryTestFlake, got %q", learningCategory)
+	}
+}
+
+// TestLearningCategoryTaskTooComplex tests LearningCategory() for task_too_complex (default)
+func TestLearningCategoryTaskTooComplex(t *testing.T) {
+	analysis := &Analysis{
+		Category: CategoryTaskTooComplex,
+	}
+
+	learningCategory := analysis.LearningCategory()
+	if learningCategory != "gotchas" {
+		t.Errorf("expected 'gotchas' as default for CategoryTaskTooComplex, got %q", learningCategory)
 	}
 }
 
