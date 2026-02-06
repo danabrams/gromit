@@ -16,6 +16,7 @@ type Config struct {
 	Preflight  PreflightConfig  `yaml:"preflight"`
 	Claude     ClaudeConfig     `yaml:"claude"`
 	Paths      PathsConfig      `yaml:"paths"`
+	Review     ReviewConfig     `yaml:"review"`
 }
 
 type ModelsConfig struct {
@@ -70,6 +71,22 @@ type PathsConfig struct {
 	Specs           string `yaml:"specs"`
 	Logs            string `yaml:"logs"`
 	ProjectClaudeMD string `yaml:"project_claude_md"`
+}
+
+type ReviewConfig struct {
+	Enabled         bool                  `yaml:"enabled"`
+	Model           string                `yaml:"model"`
+	MatchBuildModel *bool                 `yaml:"match_build_model"`
+	Timeout         int                   `yaml:"timeout"`
+	Thorough        ThoroughReviewConfig  `yaml:"thorough"`
+}
+
+type ThoroughReviewConfig struct {
+	Enabled          bool   `yaml:"enabled"`
+	EveryNIterations int    `yaml:"every_n_iterations"`
+	OnEpicComplete   *bool  `yaml:"on_epic_complete"`
+	Model            string `yaml:"model"`
+	Timeout          int    `yaml:"timeout"`
 }
 
 func Load(path string) (*Config, error) {
@@ -176,6 +193,29 @@ func (c *Config) setDefaults() {
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
 	}
+	if c.Review.Model == "" {
+		c.Review.Model = "sonnet"
+	}
+	if c.Review.MatchBuildModel == nil {
+		t := true
+		c.Review.MatchBuildModel = &t
+	}
+	if c.Review.Timeout == 0 {
+		c.Review.Timeout = 120
+	}
+	if c.Review.Thorough.Model == "" {
+		c.Review.Thorough.Model = "opus"
+	}
+	if c.Review.Thorough.EveryNIterations == 0 {
+		c.Review.Thorough.EveryNIterations = 5
+	}
+	if c.Review.Thorough.OnEpicComplete == nil {
+		t := true
+		c.Review.Thorough.OnEpicComplete = &t
+	}
+	if c.Review.Thorough.Timeout == 0 {
+		c.Review.Thorough.Timeout = 900
+	}
 }
 
 // SelectModel determines the appropriate model for a bead based on priority and labels
@@ -218,4 +258,20 @@ func (c *Config) NextEscalationModel(currentModel string) string {
 		}
 	}
 	return ""
+}
+
+// ShouldMatchBuildModel returns whether review should use the same model as build (opus only)
+func (r ReviewConfig) ShouldMatchBuildModel() bool {
+	if r.MatchBuildModel == nil {
+		return true
+	}
+	return *r.MatchBuildModel
+}
+
+// ShouldRunOnEpicComplete returns whether thorough review should run when an epic completes
+func (t ThoroughReviewConfig) ShouldRunOnEpicComplete() bool {
+	if t.OnEpicComplete == nil {
+		return true
+	}
+	return *t.OnEpicComplete
 }

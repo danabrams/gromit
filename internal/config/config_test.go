@@ -1617,3 +1617,418 @@ func contains(s, substr string) bool {
 	}
 	return false
 }
+
+// Tests for ReviewConfig
+
+func TestReviewConfigDefaults(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `models:
+  p0: opus
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Review.Model != "sonnet" {
+		t.Errorf("expected default review model 'sonnet', got %q", cfg.Review.Model)
+	}
+	if !cfg.Review.ShouldMatchBuildModel() {
+		t.Errorf("expected match_build_model default true")
+	}
+	if cfg.Review.Timeout != 120 {
+		t.Errorf("expected default review timeout 120, got %d", cfg.Review.Timeout)
+	}
+	if cfg.Review.Thorough.Model != "opus" {
+		t.Errorf("expected default thorough model 'opus', got %q", cfg.Review.Thorough.Model)
+	}
+	if cfg.Review.Thorough.EveryNIterations != 5 {
+		t.Errorf("expected default every_n_iterations 5, got %d", cfg.Review.Thorough.EveryNIterations)
+	}
+	if !cfg.Review.Thorough.ShouldRunOnEpicComplete() {
+		t.Errorf("expected on_epic_complete default true")
+	}
+	if cfg.Review.Thorough.Timeout != 900 {
+		t.Errorf("expected default thorough timeout 900, got %d", cfg.Review.Thorough.Timeout)
+	}
+}
+
+func TestReviewConfigExplicit(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `review:
+  enabled: true
+  model: opus
+  match_build_model: false
+  timeout: 200
+  thorough:
+    enabled: true
+    every_n_iterations: 10
+    on_epic_complete: false
+    model: sonnet
+    timeout: 600
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if !cfg.Review.Enabled {
+		t.Errorf("expected review enabled true")
+	}
+	if cfg.Review.Model != "opus" {
+		t.Errorf("expected review model 'opus', got %q", cfg.Review.Model)
+	}
+	if cfg.Review.ShouldMatchBuildModel() {
+		t.Errorf("expected match_build_model false, got true")
+	}
+	if cfg.Review.Timeout != 200 {
+		t.Errorf("expected review timeout 200, got %d", cfg.Review.Timeout)
+	}
+	if !cfg.Review.Thorough.Enabled {
+		t.Errorf("expected thorough enabled true")
+	}
+	if cfg.Review.Thorough.EveryNIterations != 10 {
+		t.Errorf("expected every_n_iterations 10, got %d", cfg.Review.Thorough.EveryNIterations)
+	}
+	if cfg.Review.Thorough.ShouldRunOnEpicComplete() {
+		t.Errorf("expected on_epic_complete false, got true")
+	}
+	if cfg.Review.Thorough.Model != "sonnet" {
+		t.Errorf("expected thorough model 'sonnet', got %q", cfg.Review.Thorough.Model)
+	}
+	if cfg.Review.Thorough.Timeout != 600 {
+		t.Errorf("expected thorough timeout 600, got %d", cfg.Review.Thorough.Timeout)
+	}
+}
+
+func TestReviewConfigPartialExplicit(t *testing.T) {
+	// Test that explicit false values are preserved while unset values get defaults
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `review:
+  enabled: false
+  match_build_model: false
+  thorough:
+    enabled: false
+    on_epic_complete: false
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Explicit false values should be preserved
+	if cfg.Review.Enabled {
+		t.Errorf("expected review enabled false")
+	}
+	if cfg.Review.ShouldMatchBuildModel() {
+		t.Errorf("expected match_build_model false, got true")
+	}
+	if cfg.Review.Thorough.Enabled {
+		t.Errorf("expected thorough enabled false")
+	}
+	if cfg.Review.Thorough.ShouldRunOnEpicComplete() {
+		t.Errorf("expected on_epic_complete false, got true")
+	}
+
+	// Unset values should still get defaults
+	if cfg.Review.Model != "sonnet" {
+		t.Errorf("expected default model 'sonnet', got %q", cfg.Review.Model)
+	}
+	if cfg.Review.Timeout != 120 {
+		t.Errorf("expected default timeout 120, got %d", cfg.Review.Timeout)
+	}
+}
+
+func TestReviewConfigZeroTimeouts(t *testing.T) {
+	// Test that zero timeout values are replaced with defaults
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `review:
+  timeout: 0
+  thorough:
+    timeout: 0
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Review.Timeout != 120 {
+		t.Errorf("expected default timeout 120, got %d", cfg.Review.Timeout)
+	}
+	if cfg.Review.Thorough.Timeout != 900 {
+		t.Errorf("expected default thorough timeout 900, got %d", cfg.Review.Thorough.Timeout)
+	}
+}
+
+func TestReviewConfigZeroIterations(t *testing.T) {
+	// Test that zero every_n_iterations is replaced with default
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `review:
+  thorough:
+    every_n_iterations: 0
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Review.Thorough.EveryNIterations != 5 {
+		t.Errorf("expected default every_n_iterations 5, got %d", cfg.Review.Thorough.EveryNIterations)
+	}
+}
+
+func TestReviewConfigEmptyStrings(t *testing.T) {
+	// Test that empty string models are replaced with defaults
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `review:
+  model: ""
+  thorough:
+    model: ""
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Review.Model != "sonnet" {
+		t.Errorf("expected default model 'sonnet', got %q", cfg.Review.Model)
+	}
+	if cfg.Review.Thorough.Model != "opus" {
+		t.Errorf("expected default thorough model 'opus', got %q", cfg.Review.Thorough.Model)
+	}
+}
+
+func TestReviewConfigCustomModels(t *testing.T) {
+	// Test that custom model values are preserved
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `review:
+  model: custom-review-model
+  thorough:
+    model: custom-thorough-model
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Review.Model != "custom-review-model" {
+		t.Errorf("expected custom model 'custom-review-model', got %q", cfg.Review.Model)
+	}
+	if cfg.Review.Thorough.Model != "custom-thorough-model" {
+		t.Errorf("expected custom thorough model 'custom-thorough-model', got %q", cfg.Review.Thorough.Model)
+	}
+}
+
+func TestReviewConfigCustomTimeouts(t *testing.T) {
+	// Test that custom timeout values are preserved
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `review:
+  timeout: 300
+  thorough:
+    timeout: 1800
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Review.Timeout != 300 {
+		t.Errorf("expected custom timeout 300, got %d", cfg.Review.Timeout)
+	}
+	if cfg.Review.Thorough.Timeout != 1800 {
+		t.Errorf("expected custom thorough timeout 1800, got %d", cfg.Review.Thorough.Timeout)
+	}
+}
+
+func TestReviewConfigCustomIterations(t *testing.T) {
+	// Test that custom every_n_iterations value is preserved
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `review:
+  thorough:
+    every_n_iterations: 15
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Review.Thorough.EveryNIterations != 15 {
+		t.Errorf("expected custom every_n_iterations 15, got %d", cfg.Review.Thorough.EveryNIterations)
+	}
+}
+
+func TestShouldMatchBuildModelNilPointer(t *testing.T) {
+	// Test that nil pointer returns true (default)
+	cfg := ReviewConfig{}
+	if !cfg.ShouldMatchBuildModel() {
+		t.Errorf("expected ShouldMatchBuildModel() to return true for nil pointer")
+	}
+}
+
+func TestShouldMatchBuildModelExplicitTrue(t *testing.T) {
+	// Test that explicit true value is preserved
+	trueVal := true
+	cfg := ReviewConfig{MatchBuildModel: &trueVal}
+	if !cfg.ShouldMatchBuildModel() {
+		t.Errorf("expected ShouldMatchBuildModel() to return true for explicit true")
+	}
+}
+
+func TestShouldMatchBuildModelExplicitFalse(t *testing.T) {
+	// Test that explicit false value is preserved
+	falseVal := false
+	cfg := ReviewConfig{MatchBuildModel: &falseVal}
+	if cfg.ShouldMatchBuildModel() {
+		t.Errorf("expected ShouldMatchBuildModel() to return false for explicit false")
+	}
+}
+
+func TestShouldRunOnEpicCompleteNilPointer(t *testing.T) {
+	// Test that nil pointer returns true (default)
+	cfg := ThoroughReviewConfig{}
+	if !cfg.ShouldRunOnEpicComplete() {
+		t.Errorf("expected ShouldRunOnEpicComplete() to return true for nil pointer")
+	}
+}
+
+func TestShouldRunOnEpicCompleteExplicitTrue(t *testing.T) {
+	// Test that explicit true value is preserved
+	trueVal := true
+	cfg := ThoroughReviewConfig{OnEpicComplete: &trueVal}
+	if !cfg.ShouldRunOnEpicComplete() {
+		t.Errorf("expected ShouldRunOnEpicComplete() to return true for explicit true")
+	}
+}
+
+func TestShouldRunOnEpicCompleteExplicitFalse(t *testing.T) {
+	// Test that explicit false value is preserved
+	falseVal := false
+	cfg := ThoroughReviewConfig{OnEpicComplete: &falseVal}
+	if cfg.ShouldRunOnEpicComplete() {
+		t.Errorf("expected ShouldRunOnEpicComplete() to return false for explicit false")
+	}
+}
+
+func TestReviewConfigInFullConfig(t *testing.T) {
+	// Test that review config works alongside all other config sections
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+escalation:
+  enabled: true
+  chain: ["haiku", "sonnet", "opus"]
+loop:
+  max_iterations: 10
+validation:
+  enabled: true
+  commands: ["go test ./..."]
+review:
+  enabled: true
+  model: sonnet
+  match_build_model: true
+  timeout: 150
+  thorough:
+    enabled: true
+    every_n_iterations: 7
+    on_epic_complete: true
+    model: opus
+    timeout: 1000
+claude:
+  timeout: 600
+paths:
+  ralph_dir: .ralph
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Check other sections still work
+	if cfg.Models.P0 != "opus" {
+		t.Errorf("expected P0='opus', got %q", cfg.Models.P0)
+	}
+	if cfg.Loop.MaxIterations != 10 {
+		t.Errorf("expected MaxIterations=10, got %d", cfg.Loop.MaxIterations)
+	}
+
+	// Check review section
+	if !cfg.Review.Enabled {
+		t.Errorf("expected review enabled true")
+	}
+	if cfg.Review.Model != "sonnet" {
+		t.Errorf("expected review model 'sonnet', got %q", cfg.Review.Model)
+	}
+	if !cfg.Review.ShouldMatchBuildModel() {
+		t.Errorf("expected match_build_model true")
+	}
+	if cfg.Review.Timeout != 150 {
+		t.Errorf("expected review timeout 150, got %d", cfg.Review.Timeout)
+	}
+	if !cfg.Review.Thorough.Enabled {
+		t.Errorf("expected thorough enabled true")
+	}
+	if cfg.Review.Thorough.EveryNIterations != 7 {
+		t.Errorf("expected every_n_iterations 7, got %d", cfg.Review.Thorough.EveryNIterations)
+	}
+	if !cfg.Review.Thorough.ShouldRunOnEpicComplete() {
+		t.Errorf("expected on_epic_complete true")
+	}
+	if cfg.Review.Thorough.Model != "opus" {
+		t.Errorf("expected thorough model 'opus', got %q", cfg.Review.Thorough.Model)
+	}
+	if cfg.Review.Thorough.Timeout != 1000 {
+		t.Errorf("expected thorough timeout 1000, got %d", cfg.Review.Thorough.Timeout)
+	}
+}
