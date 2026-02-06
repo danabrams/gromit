@@ -350,3 +350,247 @@ func TestSelectModelPriorityDefaultWhenUnknown(t *testing.T) {
 		}
 	}
 }
+
+// Comprehensive tests for label overrides
+func TestSelectModelLabelOverrideHighPriority(t *testing.T) {
+	// Label override should take precedence over P0 (opus)
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{"complexity:low": "haiku"},
+		},
+	}
+	result := cfg.SelectModel(0, []string{"complexity:low"})
+	if result != "haiku" {
+		t.Errorf("label override should beat P0: expected 'haiku', got %q", result)
+	}
+}
+
+func TestSelectModelLabelOverrideLowPriority(t *testing.T) {
+	// Label override should take precedence over P2 (haiku)
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{"complexity:high": "opus"},
+		},
+	}
+	result := cfg.SelectModel(2, []string{"complexity:high"})
+	if result != "opus" {
+		t.Errorf("label override should beat P2: expected 'opus', got %q", result)
+	}
+}
+
+func TestSelectModelMultipleLabelsFirstMatches(t *testing.T) {
+	// When multiple labels are provided, should use first matching label
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{
+				"complexity:high": "opus",
+				"complexity:low":  "haiku",
+				"spec:auth":       "sonnet",
+			},
+		},
+	}
+	// First label matches
+	result := cfg.SelectModel(1, []string{"complexity:high", "complexity:low"})
+	if result != "opus" {
+		t.Errorf("expected first matching label 'opus', got %q", result)
+	}
+}
+
+func TestSelectModelMultipleLabelsSecondMatches(t *testing.T) {
+	// When multiple labels are provided, should use first matching label
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{
+				"complexity:high": "opus",
+				"complexity:low":  "haiku",
+			},
+		},
+	}
+	// Second label matches (first doesn't)
+	result := cfg.SelectModel(1, []string{"nonexistent", "complexity:low"})
+	if result != "haiku" {
+		t.Errorf("expected second matching label 'haiku', got %q", result)
+	}
+}
+
+func TestSelectModelLabelOverrideWithCustomModels(t *testing.T) {
+	// Label override should work with custom model names
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "custom-opus",
+			P1:     "custom-sonnet",
+			P2:     "custom-haiku",
+			Labels: map[string]string{"priority:critical": "custom-opus"},
+		},
+	}
+	result := cfg.SelectModel(2, []string{"priority:critical"})
+	if result != "custom-opus" {
+		t.Errorf("label override with custom models: expected 'custom-opus', got %q", result)
+	}
+}
+
+func TestSelectModelLabelOverrideIgnoresPriority(t *testing.T) {
+	// Demonstrates that label overrides completely ignore priority parameter
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{"complexity:low": "haiku"},
+		},
+	}
+
+	// Same label, different priorities should all return the label's model
+	tests := []struct {
+		priority int
+		want     string
+	}{
+		{0, "haiku"},
+		{1, "haiku"},
+		{2, "haiku"},
+		{99, "haiku"},
+	}
+
+	for _, tt := range tests {
+		result := cfg.SelectModel(tt.priority, []string{"complexity:low"})
+		if result != tt.want {
+			t.Errorf("SelectModel(%d) with complexity:low label = %q, want %q", tt.priority, result, tt.want)
+		}
+	}
+}
+
+func TestSelectModelMultipleLabelsDifferentModels(t *testing.T) {
+	// When multiple labels are provided and multiple match, first wins
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{
+				"spec:auth":  "opus",
+				"spec:ui":    "haiku",
+				"spec:data":  "sonnet",
+			},
+		},
+	}
+	// All three labels match; should use first
+	result := cfg.SelectModel(1, []string{"spec:auth", "spec:ui", "spec:data"})
+	if result != "opus" {
+		t.Errorf("expected first matching label 'opus', got %q", result)
+	}
+}
+
+func TestSelectModelComplexityHighLabel(t *testing.T) {
+	// Test the standard complexity:high label override from documentation
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{"complexity:high": "opus"},
+		},
+	}
+
+	tests := []struct {
+		priority int
+		labels   []string
+		want     string
+	}{
+		{0, []string{"complexity:high"}, "opus"},  // P0 + label: should be opus
+		{1, []string{"complexity:high"}, "opus"},  // P1 + label: should be opus
+		{2, []string{"complexity:high"}, "opus"},  // P2 + label: should be opus
+	}
+
+	for _, tt := range tests {
+		result := cfg.SelectModel(tt.priority, tt.labels)
+		if result != tt.want {
+			t.Errorf("SelectModel(%d, %v) = %q, want %q", tt.priority, tt.labels, result, tt.want)
+		}
+	}
+}
+
+func TestSelectModelComplexityLowLabel(t *testing.T) {
+	// Test the standard complexity:low label override from documentation
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{"complexity:low": "haiku"},
+		},
+	}
+
+	tests := []struct {
+		priority int
+		labels   []string
+		want     string
+	}{
+		{0, []string{"complexity:low"}, "haiku"},  // P0 + low complexity: should be haiku
+		{1, []string{"complexity:low"}, "haiku"},  // P1 + low complexity: should be haiku
+		{2, []string{"complexity:low"}, "haiku"},  // P2 + low complexity: should be haiku
+	}
+
+	for _, tt := range tests {
+		result := cfg.SelectModel(tt.priority, tt.labels)
+		if result != tt.want {
+			t.Errorf("SelectModel(%d, %v) = %q, want %q", tt.priority, tt.labels, result, tt.want)
+		}
+	}
+}
+
+func TestSelectModelLabelOverrideEmptyConfig(t *testing.T) {
+	// Label override with empty config should not panic
+	cfg := &Config{
+		Models: ModelsConfig{
+			Labels: map[string]string{"custom": "haiku"},
+		},
+	}
+	result := cfg.SelectModel(1, []string{"custom"})
+	if result != "haiku" {
+		t.Errorf("expected 'haiku' from label override, got %q", result)
+	}
+}
+
+func TestSelectModelLabelNotFoundFallsBackToPriority(t *testing.T) {
+	// If label doesn't exist in config, should fall back to priority
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{"existing:label": "opus"},
+		},
+	}
+	result := cfg.SelectModel(1, []string{"nonexistent:label"})
+	if result != "sonnet" {
+		t.Errorf("expected fallback to P1 'sonnet', got %q", result)
+	}
+}
+
+func TestSelectModelSpecLabel(t *testing.T) {
+	// Test spec labels work with overrides
+	cfg := &Config{
+		Models: ModelsConfig{
+			P0:     "opus",
+			P1:     "sonnet",
+			P2:     "haiku",
+			Labels: map[string]string{"spec:database": "opus"},
+		},
+	}
+	result := cfg.SelectModel(2, []string{"spec:database"})
+	if result != "opus" {
+		t.Errorf("expected spec label override to 'opus', got %q", result)
+	}
+}
