@@ -12,6 +12,7 @@ type Config struct {
 	Escalation EscalationConfig `yaml:"escalation"`
 	Loop       LoopConfig       `yaml:"loop"`
 	Validation ValidationConfig `yaml:"validation"`
+	ScopeCheck ScopeCheckConfig `yaml:"scope_check"`
 	Preflight  PreflightConfig  `yaml:"preflight"`
 	Claude     ClaudeConfig     `yaml:"claude"`
 	Paths      PathsConfig      `yaml:"paths"`
@@ -41,6 +42,11 @@ type LoopConfig struct {
 type ValidationConfig struct {
 	Enabled  bool     `yaml:"enabled"`
 	Commands []string `yaml:"commands"`
+}
+
+type ScopeCheckConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Model   string `yaml:"model"`
 }
 
 type PreflightConfig struct {
@@ -141,6 +147,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.Models.Labels == nil {
 		c.Models.Labels = make(map[string]string)
+	}
+	if c.ScopeCheck.Model == "" {
+		c.ScopeCheck.Model = "haiku"
 	}
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
