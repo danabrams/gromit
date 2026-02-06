@@ -594,3 +594,277 @@ func TestSelectModelSpecLabel(t *testing.T) {
 		t.Errorf("expected spec label override to 'opus', got %q", result)
 	}
 }
+
+// Comprehensive tests for NextEscalationModel chain traversal
+
+func TestNextEscalationModelStartOfChain(t *testing.T) {
+	// Test starting at the beginning of escalation chain
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+	result := cfg.NextEscalationModel("haiku")
+	if result != "sonnet" {
+		t.Errorf("expected escalation from haiku to sonnet, got %q", result)
+	}
+}
+
+func TestNextEscalationModelMiddleOfChain(t *testing.T) {
+	// Test in the middle of escalation chain
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+	result := cfg.NextEscalationModel("sonnet")
+	if result != "opus" {
+		t.Errorf("expected escalation from sonnet to opus, got %q", result)
+	}
+}
+
+func TestNextEscalationModelEndOfChain(t *testing.T) {
+	// Test at the end of escalation chain
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+	result := cfg.NextEscalationModel("opus")
+	if result != "" {
+		t.Errorf("expected empty string at end of chain, got %q", result)
+	}
+}
+
+func TestNextEscalationModelNotInChain(t *testing.T) {
+	// Test model not in escalation chain
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+	result := cfg.NextEscalationModel("unknown-model")
+	if result != "" {
+		t.Errorf("expected empty string for model not in chain, got %q", result)
+	}
+}
+
+func TestNextEscalationModelCustomChain(t *testing.T) {
+	// Test with custom escalation chain
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"model-a", "model-b", "model-c", "model-d"},
+		},
+	}
+
+	tests := []struct {
+		current string
+		want    string
+	}{
+		{"model-a", "model-b"},
+		{"model-b", "model-c"},
+		{"model-c", "model-d"},
+		{"model-d", ""},
+	}
+
+	for _, tt := range tests {
+		result := cfg.NextEscalationModel(tt.current)
+		if result != tt.want {
+			t.Errorf("NextEscalationModel(%q) = %q, want %q", tt.current, result, tt.want)
+		}
+	}
+}
+
+func TestNextEscalationModelSingleModelChain(t *testing.T) {
+	// Test with chain containing only one model
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"only-model"},
+		},
+	}
+	result := cfg.NextEscalationModel("only-model")
+	if result != "" {
+		t.Errorf("expected empty string for single-model chain, got %q", result)
+	}
+}
+
+func TestNextEscalationModelTwoModelChain(t *testing.T) {
+	// Test with chain containing two models
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"model-a", "model-b"},
+		},
+	}
+
+	tests := []struct {
+		current string
+		want    string
+	}{
+		{"model-a", "model-b"},
+		{"model-b", ""},
+	}
+
+	for _, tt := range tests {
+		result := cfg.NextEscalationModel(tt.current)
+		if result != tt.want {
+			t.Errorf("NextEscalationModel(%q) = %q, want %q", tt.current, result, tt.want)
+		}
+	}
+}
+
+func TestNextEscalationModelEmptyChain(t *testing.T) {
+	// Test with empty escalation chain
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{},
+		},
+	}
+	result := cfg.NextEscalationModel("any-model")
+	if result != "" {
+		t.Errorf("expected empty string for empty chain, got %q", result)
+	}
+}
+
+func TestNextEscalationModelCaseInsensitive(t *testing.T) {
+	// Test that model matching is case-sensitive
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+	// Different case should not match
+	result := cfg.NextEscalationModel("Haiku")
+	if result != "" {
+		t.Errorf("expected empty string for case-mismatched model, got %q", result)
+	}
+}
+
+func TestNextEscalationModelWithWhitespace(t *testing.T) {
+	// Test that whitespace in model names is not trimmed
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+	// Leading/trailing whitespace should not match
+	result := cfg.NextEscalationModel(" haiku")
+	if result != "" {
+		t.Errorf("expected empty string for model with leading space, got %q", result)
+	}
+
+	result = cfg.NextEscalationModel("haiku ")
+	if result != "" {
+		t.Errorf("expected empty string for model with trailing space, got %q", result)
+	}
+}
+
+func TestNextEscalationModelDefaultChain(t *testing.T) {
+	// Test with default chain after setDefaults()
+	cfg := &Config{}
+	cfg.setDefaults()
+	cfg.Escalation.Enabled = true
+
+	result := cfg.NextEscalationModel("haiku")
+	if result != "sonnet" {
+		t.Errorf("expected 'sonnet' with default chain, got %q", result)
+	}
+}
+
+func TestNextEscalationModelLongChain(t *testing.T) {
+	// Test with longer escalation chain
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"model-1", "model-2", "model-3", "model-4", "model-5"},
+		},
+	}
+
+	tests := []struct {
+		current string
+		want    string
+	}{
+		{"model-1", "model-2"},
+		{"model-2", "model-3"},
+		{"model-3", "model-4"},
+		{"model-4", "model-5"},
+		{"model-5", ""},
+	}
+
+	for _, tt := range tests {
+		result := cfg.NextEscalationModel(tt.current)
+		if result != tt.want {
+			t.Errorf("NextEscalationModel(%q) = %q, want %q", tt.current, result, tt.want)
+		}
+	}
+}
+
+func TestNextEscalationModelDisabledWithChain(t *testing.T) {
+	// Verify escalation disabled prevents any escalation even with chain
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: false,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+
+	tests := []struct {
+		current string
+	}{
+		{"haiku"},
+		{"sonnet"},
+		{"opus"},
+	}
+
+	for _, tt := range tests {
+		result := cfg.NextEscalationModel(tt.current)
+		if result != "" {
+			t.Errorf("NextEscalationModel(%q) with disabled escalation = %q, want empty", tt.current, result)
+		}
+	}
+}
+
+func TestNextEscalationModelDuplicateModelsInChain(t *testing.T) {
+	// Test behavior with duplicate models in chain (edge case)
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "haiku", "opus"},
+		},
+	}
+
+	// Should match the first occurrence
+	result := cfg.NextEscalationModel("haiku")
+	if result != "sonnet" {
+		t.Errorf("expected escalation to sonnet (first haiku match), got %q", result)
+	}
+
+	// Should match the second occurrence of haiku
+	result = cfg.NextEscalationModel("sonnet")
+	if result != "haiku" {
+		t.Errorf("expected escalation to haiku (second in chain), got %q", result)
+	}
+}
+
+func TestNextEscalationModelEmptyStringModel(t *testing.T) {
+	// Test with empty string as current model
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+	result := cfg.NextEscalationModel("")
+	if result != "" {
+		t.Errorf("expected empty string for empty current model, got %q", result)
+	}
+}
