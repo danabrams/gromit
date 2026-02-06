@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/retro"
@@ -17,10 +18,12 @@ import (
 )
 
 var (
-	configPath      string
-	maxIterations   int
-	dryRun          bool
-	nonInteractive  bool
+	configPath          string
+	maxIterations       int
+	dryRun              bool
+	nonInteractive      bool
+	timeBudgetMinutes   int
+	timeBudgetHours     int
 )
 
 func main() {
@@ -83,6 +86,8 @@ func init() {
 
 	runCmd.Flags().IntVarP(&maxIterations, "max-iterations", "n", 0, "Maximum iterations (0 = unlimited)")
 	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run without executing")
+	runCmd.Flags().IntVarP(&timeBudgetMinutes, "time-budget", "t", 0, "Time budget in minutes (0 = unlimited)")
+	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
 
 	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip Claude Code and write analysis to .ralph/RETRO_PROPOSED_CHANGES.md")
 
@@ -124,6 +129,14 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	// Override max iterations from flag if set
 	if maxIterations > 0 {
 		cfg.Loop.MaxIterations = maxIterations
+	}
+
+	// Compute deadline from time budget flags (additive: total = minutes + hours*60)
+	if timeBudgetMinutes > 0 || timeBudgetHours > 0 {
+		totalMinutes := timeBudgetMinutes + timeBudgetHours*60
+		deadline := time.Now().Add(time.Duration(totalMinutes) * time.Minute)
+		ctx, cancel = context.WithDeadline(ctx, deadline)
+		defer cancel()
 	}
 
 	r, err := runner.NewRunner(cfg, os.Stdout)
