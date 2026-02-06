@@ -2,3 +2,8 @@
 {"id":"idea-1770328797874","text":"Fix the auth bug","type":"bug","context":"","created_at":"2026-02-05T16:59:57.87478247-05:00"}
 {"id":"idea-1770328797876","text":"Update dependencies","type":"chore","context":"","created_at":"2026-02-05T16:59:57.876692435-05:00"}
 {"id":"idea-1770328797878","text":"What if we had a web dashboard?","type":"feature","context":"","created_at":"2026-02-05T16:59:57.878250566-05:00"}
+{"id":"idea-1770347572727","text":"add two new lines after each stream output; add several new limes and before each new claude run; add a line before a bew iteration","type":"feature","context":"","created_at":"2026-02-05T22:12:52.727787075-05:00"}
+{"id":"idea-1770347599689","text":"investigate if we can stream the tool output","type":"feature","context":"","created_at":"2026-02-05T22:13:19.689911789-05:00"}
+{"id":"idea-1770347709237","text":"list of beads and count of open beads","type":"feature","context":"","created_at":"2026-02-05T22:15:09.237131329-05:00"}
+{"id":"idea-1770347763954","text":"some sort of visualization of the tasks and backlog)\n","type":"feature","context":"","created_at":"2026-02-05T22:16:03.954304176-05:00"}
+{"id":"idea-1770347934963","text":"our cli should show iteration in tmux if present","type":"feature","context":"","created_at":"2026-02-05T22:18:54.963235059-05:00"}

@@ -22,6 +22,11 @@ const (
 	CategoryMissingContext Category = "missing_context"  // Didn't know about existing code
 	CategoryTestFlake      Category = "test_flake"       // Non-deterministic test failure
 	CategoryTaskTooComplex Category = "task_too_complex" // Task scope too large for single iteration
+
+	// maxFailureOutputLen is the maximum length of failure output to analyze.
+	// Claude's context is large enough to handle this without performance issues,
+	// but we truncate to avoid excessive token usage for extremely long outputs.
+	maxFailureOutputLen = 8000
 )
 
 // Analysis represents the result of analyzing a failure
@@ -84,9 +89,8 @@ func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput stri
 		return nil, fmt.Errorf("renderer is nil")
 	}
 	// Truncate failure output if too long
-	maxLen := 8000
-	if len(failureOutput) > maxLen {
-		failureOutput = failureOutput[:maxLen] + "\n\n[... truncated ...]"
+	if len(failureOutput) > maxFailureOutputLen {
+		failureOutput = failureOutput[:maxFailureOutputLen] + "\n\n[... truncated ...]"
 	}
 
 	analyzeCtx := &prompt.AnalyzeContext{
