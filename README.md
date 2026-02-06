@@ -99,10 +99,12 @@ bd create "Fix typo in footer" --priority 2          # P2 → uses haiku
 ### Run
 
 ```bash
-ralph run                  # Process all beads until queue is empty
-ralph run -n 5             # Process at most 5 beads
-ralph run --dry-run        # Preview what would run, without executing
-ralph status               # Show the next bead and which model it would use
+ralph run                           # Process all beads until queue is empty
+ralph run -n 5                      # Process at most 5 beads
+ralph run --time-budget 30          # Run for at most 30 minutes
+ralph run --time-budget-hours 2     # Run for at most 2 hours (flags are additive)
+ralph run --dry-run                 # Preview what would run, without executing
+ralph status                        # Show the next bead and which model it would use
 ```
 
 ### Example Output
@@ -184,6 +186,40 @@ escalation:
   chain: [haiku, sonnet, opus]
   max_retries_per_model: 1
 ```
+
+### Review and Refinement
+
+After validation succeeds, Ralph can optionally run a **light review** to examine the completed work and suggest refinements or follow-up tasks. This is separate from validation — it's a code review step that looks for quality, consistency, and opportunities for improvement.
+
+Configure light review in `ralph.yaml`:
+
+```yaml
+review:
+  enabled: true                  # Enable light review after each bead
+  model: sonnet                  # Which model reviews (sonnet is good for quality)
+  match_build_model: true        # Or use the same model that built (opus if build used opus)
+  timeout: 120                   # Seconds per review invocation
+```
+
+When enabled, after each successful validation:
+
+1. **Light review** runs — examines the changes and provides feedback
+2. **Review findings** are extracted — any suggested beads are created automatically
+3. **Chain continues** — next bead is processed immediately
+
+For periodic deep analysis, enable **thorough review**:
+
+```yaml
+review:
+  thorough:
+    enabled: true                # Periodic thorough code review
+    every_n_iterations: 5        # After every N completed beads
+    on_epic_complete: true       # Also review when epic tasks complete
+    model: opus                  # Use strongest model for thorough review
+    timeout: 900                 # Thorough reviews take longer
+```
+
+Thorough reviews are more comprehensive and generate multiple follow-up tasks. They're triggered either periodically (every N iterations) or when epic-level tasks complete.
 
 ### Fresh Context
 
@@ -300,6 +336,12 @@ escalation:
 loop:
   max_iterations: 0            # 0 = unlimited
   stop_on_failure: false       # true = stop on first failure
+  stuck_bead_threshold: 3      # Skip bead if it fails this many times
+
+# Scope checking - estimate task complexity before work
+scope_check:
+  enabled: true
+  model: haiku                 # haiku is fast and cheap for estimation
 
 # Validation commands
 validation:
@@ -309,6 +351,20 @@ validation:
     - "pnpm run lint:check"
     - "pnpm run build"
 
+# Post-work review and refinement
+review:
+  enabled: false               # Enable light review after each bead
+  model: sonnet                # Review model (or match_build_model: true)
+  match_build_model: true      # Use opus if build used opus
+  timeout: 120                 # Seconds per review
+
+  thorough:
+    enabled: false             # Periodic thorough reviews
+    every_n_iterations: 5      # After every N completed beads
+    on_epic_complete: true     # Also on epic task completion
+    model: opus
+    timeout: 900
+
 # Pre-flight environment checks
 preflight:
   auto_install: ask            # ask | always | never
@@ -317,8 +373,11 @@ preflight:
 # Claude CLI settings
 claude:
   binary: "claude"
-  timeout: 600                 # Seconds per invocation (global max)
-  stall_timeout: 120           # Seconds of silence before auto-retry (0 = disable)
+  timeout: 600                 # Seconds per invocation
+  stall_timeout: 120           # Seconds of silence before auto-retry (initial)
+  stall_timeout_active: 300    # Seconds of silence after tool activity (allows thinking)
+  bead_timeout: 1200           # Seconds max per bead (all retries + analysis + validation)
+  analysis_timeout: 120        # Seconds max per failure analysis
   flags:
     - "--dangerously-skip-permissions"
 
@@ -406,6 +465,32 @@ claude:
 ```
 
 Stall retries count against `max_retries_per_model`. Once exhausted, Ralph escalates to the next model in the chain. This prevents a single hung invocation from burning your entire timeout budget.
+
+### Time Budgets
+
+Run Ralph with a time limit to prevent runaway sessions:
+
+```bash
+# Run for at most 30 minutes
+ralph run --time-budget 30
+
+# Run for at most 2 hours
+ralph run --time-budget-hours 2
+
+# Combine: 30 minutes + 2 hours = 150 minutes
+ralph run -t 30 -H 2
+```
+
+When the deadline approaches, Ralph checks it between iterations. If the deadline has passed, it:
+
+1. Stops accepting new beads
+2. Completes the current bead
+3. Exits gracefully
+
+Time budgets are useful for:
+- **CI/CD pipelines** — prevent run jobs from timing out
+- **Development sessions** — "run Ralph for the next 2 hours, then switch to code review"
+- **Cost control** — limit how many expensive (opus) invocations happen in one run
 
 ### Partial Progress Detection
 
@@ -526,10 +611,13 @@ Decision (human)          →  review RETRO_PROPOSED_CHANGES.md
 | `ralph init --force` | Overwrite existing configuration |
 | `ralph run` | Process beads until queue is empty |
 | `ralph run -n 5` | Process at most 5 beads |
+| `ralph run -t 30` | Process with 30-minute time budget |
+| `ralph run -H 2` | Process with 2-hour time budget (flags stack) |
 | `ralph run --dry-run` | Preview without executing |
 | `ralph run -c path/to/config.yaml` | Use alternate config file |
 | `ralph status` | Show next bead and selected model |
 | `ralph retro` | Run retrospective analysis |
+| `ralph retro --non-interactive` | Write analysis to file without launching editor |
 | `ralph add` | Capture ideas to backlog |
 | `ralph backlog` | View/manage backlog |
 | `ralph refine` | Turn ideas into tasks |
