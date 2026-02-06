@@ -138,6 +138,44 @@ func TestGetGitHead(t *testing.T) {
 	}
 }
 
+func TestNewRunnerNilConfig(t *testing.T) {
+	r := NewRunner(nil, os.Stdout)
+	if r != nil {
+		t.Error("expected nil Runner for nil config")
+	}
+}
+
+func TestRunNilRunner(t *testing.T) {
+	var r *Runner
+	err := r.Run(nil, 0, false)
+	if err == nil {
+		t.Error("expected error for nil runner")
+	}
+}
+
+func TestStatusNilRunner(t *testing.T) {
+	var r *Runner
+	err := r.Status()
+	if err == nil {
+		t.Error("expected error for nil runner")
+	}
+}
+
+func TestSelectModelNilBead(t *testing.T) {
+	r := &Runner{}
+	result := r.selectModel(nil)
+	if result != "sonnet" {
+		t.Errorf("expected 'sonnet' for nil bead, got %q", result)
+	}
+}
+
+func TestShowPartialProgressNilBead(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{output: &buf}
+	// Should not panic with nil bead
+	r.showPartialProgress(nil, "abc123")
+}
+
 func TestGetGitDiffStatSameCommit(t *testing.T) {
 	// Diffing a commit against itself should produce empty output
 	head, err := getGitHead()

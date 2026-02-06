@@ -67,6 +67,12 @@ func NewAnalyzer(claudeClient *claude.Client, model string, renderer *prompt.Ren
 
 // Analyze analyzes a failure and returns structured insights
 func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput string) (*Analysis, error) {
+	if a == nil {
+		return nil, fmt.Errorf("analyzer is nil")
+	}
+	if b == nil {
+		return nil, fmt.Errorf("bead is nil")
+	}
 	// Truncate failure output if too long
 	maxLen := 8000
 	if len(failureOutput) > maxLen {

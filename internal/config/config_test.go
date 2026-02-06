@@ -1,0 +1,151 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestSelectModelNilReceiver(t *testing.T) {
+	var cfg *Config
+	result := cfg.SelectModel(1, nil)
+	if result != "sonnet" {
+		t.Errorf("expected 'sonnet' for nil Config, got %q", result)
+	}
+}
+
+func TestSelectModelNilLabels(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+	result := cfg.SelectModel(0, nil)
+	if result != "opus" {
+		t.Errorf("expected 'opus' for P0, got %q", result)
+	}
+}
+
+func TestSelectModelPriority(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+
+	tests := []struct {
+		priority int
+		want     string
+	}{
+		{0, "opus"},
+		{1, "sonnet"},
+		{2, "haiku"},
+		{99, "sonnet"}, // Unknown defaults to sonnet
+	}
+
+	for _, tt := range tests {
+		result := cfg.SelectModel(tt.priority, nil)
+		if result != tt.want {
+			t.Errorf("SelectModel(%d) = %q, want %q", tt.priority, result, tt.want)
+		}
+	}
+}
+
+func TestSelectModelLabelOverride(t *testing.T) {
+	cfg := &Config{
+		Models: ModelsConfig{
+			P1:     "sonnet",
+			Labels: map[string]string{"complexity:high": "opus"},
+		},
+	}
+	result := cfg.SelectModel(1, []string{"complexity:high"})
+	if result != "opus" {
+		t.Errorf("expected label override to 'opus', got %q", result)
+	}
+}
+
+func TestNextEscalationModelNilReceiver(t *testing.T) {
+	var cfg *Config
+	result := cfg.NextEscalationModel("haiku")
+	if result != "" {
+		t.Errorf("expected empty string for nil Config, got %q", result)
+	}
+}
+
+func TestNextEscalationModelDisabled(t *testing.T) {
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: false,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+	result := cfg.NextEscalationModel("haiku")
+	if result != "" {
+		t.Errorf("expected empty string when escalation disabled, got %q", result)
+	}
+}
+
+func TestNextEscalationModelChain(t *testing.T) {
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "opus"},
+		},
+	}
+
+	tests := []struct {
+		current string
+		want    string
+	}{
+		{"haiku", "sonnet"},
+		{"sonnet", "opus"},
+		{"opus", ""},   // End of chain
+		{"unknown", ""}, // Not in chain
+	}
+
+	for _, tt := range tests {
+		result := cfg.NextEscalationModel(tt.current)
+		if result != tt.want {
+			t.Errorf("NextEscalationModel(%q) = %q, want %q", tt.current, result, tt.want)
+		}
+	}
+}
+
+func TestLoadAndDefaults(t *testing.T) {
+	// Create a minimal config file
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte("models:\n  p0: opus\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Check defaults were applied
+	if cfg.Models.P1 != "sonnet" {
+		t.Errorf("expected default P1='sonnet', got %q", cfg.Models.P1)
+	}
+	if cfg.Claude.Binary != "claude" {
+		t.Errorf("expected default binary='claude', got %q", cfg.Claude.Binary)
+	}
+	if cfg.Paths.RalphDir != ".ralph" {
+		t.Errorf("expected default RalphDir='.ralph', got %q", cfg.Paths.RalphDir)
+	}
+}
+
+func TestLoadMissingFile(t *testing.T) {
+	_, err := Load("/nonexistent/path/ralph.yaml")
+	if err == nil {
+		t.Error("expected error for missing file")
+	}
+}
+
+func TestLoadInvalidYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte("invalid: [yaml: {broken"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Error("expected error for invalid YAML")
+	}
+}

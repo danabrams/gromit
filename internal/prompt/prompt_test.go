@@ -82,3 +82,27 @@ func TestLoadSpec_PathTraversal(t *testing.T) {
 		t.Errorf("LoadSpec(nonexistent) = %q, want empty", content)
 	}
 }
+
+func TestGetLearningsFileNilReceiver(t *testing.T) {
+	var r *Renderer
+	result := r.GetLearningsFile()
+	if result != nil {
+		t.Errorf("expected nil for nil Renderer, got %v", result)
+	}
+}
+
+func TestBuildContextNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.BuildContext(nil, nil, 1, "sonnet")
+	if err == nil {
+		t.Error("expected error for nil renderer")
+	}
+}
+
+func TestBuildContextNilBead(t *testing.T) {
+	r := &Renderer{}
+	_, err := r.BuildContext(nil, nil, 1, "sonnet")
+	if err == nil {
+		t.Error("expected error for nil bead")
+	}
+}

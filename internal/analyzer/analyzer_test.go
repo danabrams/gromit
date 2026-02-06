@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"context"
 	"testing"
 )
 
@@ -399,5 +400,23 @@ func TestParseAnalysisOutputTrimWhitespace(t *testing.T) {
 	}
 	if analysis.Category != CategoryLogic {
 		t.Errorf("expected CategoryLogic, got %q", analysis.Category)
+	}
+}
+
+// TestAnalyzeNilReceiver tests that Analyze handles nil Analyzer receiver
+func TestAnalyzeNilReceiver(t *testing.T) {
+	var a *Analyzer
+	_, err := a.Analyze(context.Background(), nil, "output")
+	if err == nil {
+		t.Error("expected error for nil analyzer")
+	}
+}
+
+// TestAnalyzeNilBead tests that Analyze handles nil bead
+func TestAnalyzeNilBead(t *testing.T) {
+	a := &Analyzer{}
+	_, err := a.Analyze(context.Background(), nil, "output")
+	if err == nil {
+		t.Error("expected error for nil bead")
 	}
 }

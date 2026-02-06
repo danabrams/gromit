@@ -36,6 +36,12 @@ type Runner struct {
 
 // NewRunner creates a new runner
 func NewRunner(cfg *config.Config, output io.Writer) *Runner {
+	if cfg == nil {
+		return nil
+	}
+	if output == nil {
+		output = os.Stdout
+	}
 	// Create logger (ignore error - logging is optional)
 	log, err := logger.NewLogger(cfg.Paths.Logs)
 	if err != nil {
@@ -82,6 +88,9 @@ type IterationResult struct {
 
 // Run executes the Ralph loop
 func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error {
+	if r == nil {
+		return fmt.Errorf("runner is nil")
+	}
 	// Ensure logger is closed when done
 	if r.logger != nil {
 		defer r.logger.Close()
@@ -412,6 +421,9 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 }
 
 func (r *Runner) selectModel(b *bead.Bead) string {
+	if b == nil {
+		return "sonnet"
+	}
 	return r.cfg.SelectModel(b.Priority, b.Labels)
 }
 
@@ -494,6 +506,9 @@ func (r *Runner) checkRetroSuggestion() {
 
 // Status returns the current queue status
 func (r *Runner) Status() error {
+	if r == nil {
+		return fmt.Errorf("runner is nil")
+	}
 	b, err := r.beads.Ready()
 	if err != nil {
 		return fmt.Errorf("getting ready beads: %w", err)
@@ -558,6 +573,9 @@ func checkExpectedOutputs(expectedOutputs []string) string {
 
 // showPartialProgress displays git diff and expected outputs on failure
 func (r *Runner) showPartialProgress(b *bead.Bead, startCommit string) {
+	if b == nil {
+		return
+	}
 	// Always show git diff summary
 	diffStat, err := getGitDiffStat(startCommit)
 	if err != nil {

@@ -37,6 +37,9 @@ type Result struct {
 
 // NewRetro creates a new retrospective analyzer
 func NewRetro(cfg *config.Config, ralphDir string) *Retro {
+	if cfg == nil {
+		return nil
+	}
 	return &Retro{
 		cfg:           cfg,
 		claude:        claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout),
@@ -48,6 +51,9 @@ func NewRetro(cfg *config.Config, ralphDir string) *Retro {
 
 // Run executes the retrospective analysis
 func (r *Retro) Run(ctx context.Context, apply bool) (*Result, error) {
+	if r == nil {
+		return nil, fmt.Errorf("retro is nil")
+	}
 	// Load learnings
 	if err := r.learningsFile.Load(); err != nil {
 		return nil, fmt.Errorf("loading learnings: %w", err)

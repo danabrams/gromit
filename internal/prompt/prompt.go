@@ -70,6 +70,9 @@ func NewRenderer(templatesDir, specsDir, claudeMDPath, ralphDir string) *Rendere
 
 // GetLearningsFile returns the learnings file for external use
 func (r *Renderer) GetLearningsFile() *learnings.File {
+	if r == nil {
+		return nil
+	}
 	return r.learningsFile
 }
 
@@ -150,6 +153,12 @@ func (r *Renderer) LoadClaudeMD() (string, error) {
 
 // BuildContext builds a complete prompt context for a bead
 func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*Context, error) {
+	if r == nil {
+		return nil, fmt.Errorf("renderer is nil")
+	}
+	if b == nil {
+		return nil, fmt.Errorf("bead is nil")
+	}
 	ctx := &Context{
 		Bead:       b,
 		ParentBead: parent,

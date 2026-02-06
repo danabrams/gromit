@@ -122,6 +122,9 @@ func (c *Config) setDefaults() {
 
 // SelectModel determines the appropriate model for a bead based on priority and labels
 func (c *Config) SelectModel(priority int, labels []string) string {
+	if c == nil {
+		return "sonnet"
+	}
 	// Check label overrides first (higher precedence)
 	for _, label := range labels {
 		if model, ok := c.Models.Labels[label]; ok {
@@ -144,6 +147,9 @@ func (c *Config) SelectModel(priority int, labels []string) string {
 
 // NextEscalationModel returns the next model in the escalation chain, or empty if at end
 func (c *Config) NextEscalationModel(currentModel string) string {
+	if c == nil {
+		return ""
+	}
 	if !c.Escalation.Enabled {
 		return ""
 	}
