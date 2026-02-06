@@ -93,6 +93,9 @@ func (r *Retro) Run(ctx context.Context, apply bool) (*Result, error) {
 		}
 	}
 
+	// Enrich bead stats with status, close reason, and comments from bd
+	r.enrichBeadStats(ctx, filteredBeadStats)
+
 	// Render prompt
 	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats)
 	if err != nil {
@@ -440,7 +443,7 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 		comments, err := client.GetComments(beadID)
 		if err != nil {
 			log.Printf("Warning: failed to get comments for bead %s: %v", beadID, err)
-			// Continue with status/close_reason populated
+			stats.Comments = []string{}
 		} else {
 			// Extract comment text into a slice
 			commentTexts := make([]string, len(comments))

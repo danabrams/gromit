@@ -528,6 +528,62 @@ func TestReadPerBeadStatsBeadTitleUpdate(t *testing.T) {
 	}
 }
 
+func TestBeadStatsNormalizeNilFields(t *testing.T) {
+	// Test that nil Comments slice is normalized to empty slice
+	stats := BeadStats{
+		BeadID: "b1",
+	}
+	if stats.Comments != nil {
+		t.Error("expected Comments to start as nil")
+	}
+
+	stats.normalizeNilFields()
+	if stats.Comments == nil {
+		t.Error("expected Comments to be non-nil after normalization")
+	}
+	if len(stats.Comments) != 0 {
+		t.Errorf("expected empty Comments, got %d items", len(stats.Comments))
+	}
+}
+
+func TestBeadStatsNormalizeNilFieldsNilReceiver(t *testing.T) {
+	var stats *BeadStats
+	// Should not panic
+	stats.normalizeNilFields()
+}
+
+func TestBeadStatsNormalizeNilFieldsPreservesExisting(t *testing.T) {
+	stats := BeadStats{
+		BeadID:   "b1",
+		Comments: []string{"comment1", "comment2"},
+	}
+
+	stats.normalizeNilFields()
+	if len(stats.Comments) != 2 {
+		t.Errorf("expected 2 comments preserved, got %d", len(stats.Comments))
+	}
+}
+
+func TestReadPerBeadStatsCommentsNotNil(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	b1 := stats["b1"]
+	if b1.Comments == nil {
+		t.Error("expected Comments to be non-nil (empty slice) after ReadPerBeadStats")
+	}
+}
+
 func TestReadPerBeadStatsIgnoreNonLogFiles(t *testing.T) {
 	dir := t.TempDir()
 

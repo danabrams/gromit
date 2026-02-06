@@ -131,6 +131,16 @@ type BeadStats struct {
 	Comments    []string
 }
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+func (s *BeadStats) normalizeNilFields() {
+	if s == nil {
+		return
+	}
+	if s.Comments == nil {
+		s.Comments = []string{}
+	}
+}
+
 // FailureRate returns the failure rate for this bead as a float64 (0.0-1.0)
 func (s BeadStats) FailureRate() float64 {
 	if s.TotalRuns == 0 {
@@ -201,6 +211,7 @@ func ReadPerBeadStats(logsDir string) (map[string]BeadStats, error) {
 				stats.LastAttempt = entry.Timestamp
 			}
 
+			stats.normalizeNilFields()
 			beadMap[entry.BeadID] = stats
 		}
 	}
