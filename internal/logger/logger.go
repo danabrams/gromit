@@ -24,15 +24,19 @@ type IterationLog struct {
 	Error       string    `json:"error,omitempty"`
 }
 
-// Logger writes iteration logs to a file
+// Logger writes iteration logs to a file.
+// The log file is created lazily on the first LogIteration call to avoid
+// leaving empty 0-byte files when runs fail before processing any bead.
 type Logger struct {
-	dir     string
-	file    *os.File
-	encoder *json.Encoder
-	runID   string
+	dir      string
+	filePath string
+	file     *os.File
+	encoder  *json.Encoder
+	runID    string
 }
 
-// NewLogger creates a new logger that writes to the specified directory
+// NewLogger creates a new logger that writes to the specified directory.
+// The log file is not created until the first iteration is logged.
 func NewLogger(logsDir string) (*Logger, error) {
 	// Create logs directory if needed
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
@@ -41,25 +45,36 @@ func NewLogger(logsDir string) (*Logger, error) {
 
 	// Generate run ID based on timestamp
 	runID := time.Now().Format("20060102-150405")
-	filename := filepath.Join(logsDir, fmt.Sprintf("run-%s.jsonl", runID))
-
-	file, err := os.Create(filename)
-	if err != nil {
-		return nil, fmt.Errorf("creating log file: %w", err)
-	}
+	filePath := filepath.Join(logsDir, fmt.Sprintf("run-%s.jsonl", runID))
 
 	return &Logger{
-		dir:     logsDir,
-		file:    file,
-		encoder: json.NewEncoder(file),
-		runID:   runID,
+		dir:      logsDir,
+		filePath: filePath,
+		runID:    runID,
 	}, nil
+}
+
+// ensureFile creates the log file on first use
+func (l *Logger) ensureFile() error {
+	if l.file != nil {
+		return nil
+	}
+	file, err := os.Create(l.filePath)
+	if err != nil {
+		return fmt.Errorf("creating log file: %w", err)
+	}
+	l.file = file
+	l.encoder = json.NewEncoder(file)
+	return nil
 }
 
 // LogIteration writes an iteration result to the log
 func (l *Logger) LogIteration(log *IterationLog) error {
-	if l == nil || l.file == nil {
+	if l == nil {
 		return nil
+	}
+	if err := l.ensureFile(); err != nil {
+		return err
 	}
 	return l.encoder.Encode(log)
 }
@@ -82,10 +97,10 @@ func (l *Logger) RunID() string {
 
 // FilePath returns the path to the current log file
 func (l *Logger) FilePath() string {
-	if l == nil || l.file == nil {
+	if l == nil {
 		return ""
 	}
-	return l.file.Name()
+	return l.filePath
 }
 
 // RunStats holds aggregate statistics from log files

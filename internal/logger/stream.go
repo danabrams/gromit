@@ -53,17 +53,21 @@ type ToolResultFile struct {
 
 // StreamStats tracks activity during a Claude run
 type StreamStats struct {
-	mu            sync.Mutex
-	ToolCalls     int
-	FilesModified map[string]bool
-	StartTime     time.Time
+	mu                 sync.Mutex
+	ToolCalls          int
+	FilesModified      map[string]bool
+	StartTime          time.Time
+	LastEventTime      time.Time
+	firstEventReceived bool
 }
 
 // NewStreamStats creates a new StreamStats
 func NewStreamStats() *StreamStats {
+	now := time.Now()
 	return &StreamStats{
 		FilesModified: make(map[string]bool),
-		StartTime:     time.Now(),
+		StartTime:     now,
+		LastEventTime: now,
 	}
 }
 
@@ -82,6 +86,28 @@ func (s *StreamStats) Snapshot() (toolCalls int, filesModified int, elapsed time
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.ToolCalls, len(s.FilesModified), time.Since(s.StartTime)
+}
+
+// RecordEvent updates the last event timestamp. Called on every stream event.
+func (s *StreamStats) RecordEvent() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.LastEventTime = time.Now()
+	s.firstEventReceived = true
+}
+
+// TimeSinceLastEvent returns the duration since the last stream event was received.
+func (s *StreamStats) TimeSinceLastEvent() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return time.Since(s.LastEventTime)
+}
+
+// HasReceivedEvent returns true if at least one stream event has been recorded.
+func (s *StreamStats) HasReceivedEvent() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.firstEventReceived
 }
 
 // StreamLogger writes firehose stream events to a log file
@@ -142,6 +168,10 @@ func ParseAndLogEvent(sl *StreamLogger, stats *StreamStats, line []byte) {
 	var event StreamEvent
 	if err := json.Unmarshal(line, &event); err != nil {
 		return // Skip unparseable lines
+	}
+
+	if stats != nil {
+		stats.RecordEvent()
 	}
 
 	switch event.Type {

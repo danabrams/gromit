@@ -49,8 +49,10 @@ preflight:
 # Claude CLI settings
 claude:
   binary: "claude"
-  timeout: 600        # seconds per invocation (global max)
-  stall_timeout: 120  # seconds with no stream events before auto-retry
+  timeout: 600           # seconds per Claude invocation
+  stall_timeout: 120     # seconds with no stream events before auto-retry
+  bead_timeout: 1200     # seconds max per bead (all retries + analysis + validation)
+  analysis_timeout: 120  # seconds max per failure analysis invocation
   flags:
     - "--dangerously-skip-permissions"
 

@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/ralph-runner/internal/logger"
 )
 
 func TestCheckExpectedOutputs(t *testing.T) {
@@ -174,6 +176,141 @@ func TestShowPartialProgressNilBead(t *testing.T) {
 	r := &Runner{output: &buf}
 	// Should not panic with nil bead
 	r.showPartialProgress(nil, "abc123")
+}
+
+func TestStartHeartbeatStallDetection(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{output: &buf}
+
+	stats := logger.NewStreamStats()
+	// Record one event so stall detection becomes active, then let it stall
+	stats.RecordEvent()
+
+	stallFired := make(chan struct{})
+	onStall := func() {
+		close(stallFired)
+	}
+
+	// Use very short intervals for testing
+	cfg := heartbeatConfig{
+		InitialDelay:   10 * time.Millisecond,
+		HeartbeatRate:  50 * time.Millisecond,
+		StallCheckRate: 10 * time.Millisecond,
+	}
+
+	stop := r.startHeartbeatWithConfig(stats, 50*time.Millisecond, onStall, cfg)
+	defer stop()
+
+	select {
+	case <-stallFired:
+		// Good — stall was detected
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stall was not detected within timeout")
+	}
+
+	if !strings.Contains(buf.String(), "STALL DETECTED") {
+		t.Errorf("Expected 'STALL DETECTED' in output, got: %s", buf.String())
+	}
+}
+
+func TestStartHeartbeatNoStallBeforeFirstEvent(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{output: &buf}
+
+	stats := logger.NewStreamStats()
+	// Don't record any events — stall detection should NOT fire during startup
+
+	stallFired := false
+	onStall := func() {
+		stallFired = true
+	}
+
+	cfg := heartbeatConfig{
+		InitialDelay:   10 * time.Millisecond,
+		HeartbeatRate:  20 * time.Millisecond,
+		StallCheckRate: 10 * time.Millisecond,
+	}
+
+	// Stall timeout is very short (30ms), but should not fire because no events recorded
+	stop := r.startHeartbeatWithConfig(stats, 30*time.Millisecond, onStall, cfg)
+	time.Sleep(150 * time.Millisecond)
+	stop()
+
+	if stallFired {
+		t.Fatal("Stall should not fire before first stream event is received")
+	}
+}
+
+func TestStartHeartbeatNoStallWhenEventsFlow(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{output: &buf}
+
+	stats := logger.NewStreamStats()
+
+	stallFired := make(chan struct{})
+	onStall := func() {
+		close(stallFired)
+	}
+
+	cfg := heartbeatConfig{
+		InitialDelay:   10 * time.Millisecond,
+		HeartbeatRate:  50 * time.Millisecond,
+		StallCheckRate: 20 * time.Millisecond,
+	}
+
+	stop := r.startHeartbeatWithConfig(stats, 100*time.Millisecond, onStall, cfg)
+
+	// Keep recording events to prevent stall
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(10 * time.Millisecond):
+				stats.RecordEvent()
+			}
+		}
+	}()
+
+	// Wait long enough that a stall would have fired if events weren't flowing
+	time.Sleep(200 * time.Millisecond)
+	close(done)
+	stop()
+
+	select {
+	case <-stallFired:
+		t.Fatal("Stall should not fire when events are flowing")
+	default:
+		// Good — no stall
+	}
+}
+
+func TestStartHeartbeatStallDisabledWhenZero(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{output: &buf}
+
+	stats := logger.NewStreamStats()
+
+	stallFired := false
+	onStall := func() {
+		stallFired = true
+	}
+
+	cfg := heartbeatConfig{
+		InitialDelay:   10 * time.Millisecond,
+		HeartbeatRate:  20 * time.Millisecond,
+		StallCheckRate: 10 * time.Millisecond,
+	}
+
+	// stallTimeout=0 should disable stall detection
+	stop := r.startHeartbeatWithConfig(stats, 0, onStall, cfg)
+	time.Sleep(100 * time.Millisecond)
+	stop()
+
+	if stallFired {
+		t.Fatal("Stall should not fire when stallTimeout is 0")
+	}
 }
 
 func TestGetGitDiffStatSameCommit(t *testing.T) {

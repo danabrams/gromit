@@ -215,6 +215,13 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 	start := time.Now()
 	defer func() { result.Duration = time.Since(start) }()
 
+	// Apply per-bead timeout to prevent unbounded accumulation of retries/analysis/validation
+	beadTimeout := time.Duration(r.cfg.Claude.BeadTimeout) * time.Second
+	parentCtx := ctx // Keep reference to detect bead timeout vs user Ctrl+C
+	beadCtx, beadCancel := context.WithTimeout(ctx, beadTimeout)
+	defer beadCancel()
+	ctx = beadCtx
+
 	// Capture git HEAD before starting work (for partial progress detection)
 	startCommit, err := getGitHead()
 	if err != nil {
@@ -328,8 +335,12 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 				}
 				continue
 			}
-			// User Ctrl+C or global timeout — abort
-			result.Error = fmt.Errorf("claude invocation: %w", err)
+			// Distinguish bead timeout from user Ctrl+C
+			if ctx.Err() != nil && parentCtx.Err() == nil {
+				result.Error = fmt.Errorf("bead timeout: exceeded %v total processing time", beadTimeout)
+			} else {
+				result.Error = fmt.Errorf("claude invocation: %w", err)
+			}
 			return result
 		}
 
@@ -348,9 +359,12 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		default:
 		}
 
-		// Run failure analysis
+		// Run failure analysis with capped timeout (diagnostic, not productive work)
 		r.log("Build failed, running failure analysis...")
-		analysis, err := r.analyzer.Analyze(ctx, b, claudeResult.Output)
+		analysisTimeout := time.Duration(r.cfg.Claude.AnalysisTimeout) * time.Second
+		analysisCtx, analysisCancel := context.WithTimeout(ctx, analysisTimeout)
+		analysis, err := r.analyzer.Analyze(analysisCtx, b, claudeResult.Output)
+		analysisCancel()
 		if err != nil {
 			r.log("Warning: failure analysis failed: %v", err)
 		} else if analysis == nil {
@@ -491,9 +505,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 				r.showPartialProgress(b, startCommit)
 			}
 
-			// Run analysis on validation failure with the actual output
+			// Run analysis on validation failure with capped timeout
 			r.log("Running failure analysis...")
-			analysis, err := r.analyzer.Analyze(ctx, b, valResult.Output)
+			valAnalysisCtx, valAnalysisCancel := context.WithTimeout(ctx, time.Duration(r.cfg.Claude.AnalysisTimeout)*time.Second)
+			analysis, err := r.analyzer.Analyze(valAnalysisCtx, b, valResult.Output)
+			valAnalysisCancel()
 			if err == nil && analysis != nil && analysis.Learning != nil {
 				lf := r.renderer.GetLearningsFile()
 				if lf != nil {
@@ -597,7 +613,10 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 				case <-heartbeatTicker.C:
 					r.printHeartbeat(stats)
 				case <-stallTicker.C:
-					if stats.TimeSinceLastEvent() >= stallTimeout {
+					// Only check for stalls after the first stream event arrives.
+					// Before that, Claude CLI is still starting up — the startup
+					// monitor in claude.go handles that phase separately.
+					if stats.HasReceivedEvent() && stats.TimeSinceLastEvent() >= stallTimeout {
 						r.log("STALL DETECTED: No output from Claude for %v (threshold: %v)",
 							stats.TimeSinceLastEvent().Round(time.Second), stallTimeout)
 						onStall()

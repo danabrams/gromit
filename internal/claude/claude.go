@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,10 @@ import (
 	"strings"
 	"time"
 )
+
+// ErrStallTimeout is returned when Claude CLI produces no output for longer than
+// the configured stall timeout. This is a recoverable error that should trigger a retry.
+var ErrStallTimeout = errors.New("stall timeout: no output from Claude CLI")
 
 // Result represents the outcome of a Claude invocation
 type Result struct {
@@ -90,7 +95,10 @@ func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result,
 	if err != nil {
 		// If the context was canceled (Ctrl+C or timeout), propagate as an error
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("running claude: %w", ctx.Err())
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, fmt.Errorf("running claude: invocation timed out after %v", c.timeout)
+			}
+			return nil, fmt.Errorf("running claude: interrupted (%w)", ctx.Err())
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
@@ -254,7 +262,10 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 		// If the context was canceled (Ctrl+C or timeout), propagate as an error
 		// so the caller stops instead of treating it as a retryable failure.
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("running claude: %w", ctx.Err())
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, fmt.Errorf("running claude: invocation timed out after %v", c.timeout)
+			}
+			return nil, fmt.Errorf("running claude: interrupted (%w)", ctx.Err())
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
