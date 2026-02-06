@@ -45,6 +45,12 @@ type AnalyzeContext struct {
 	FailureOutput   string
 }
 
+// DecomposeContext holds data for task decomposition prompt template
+type DecomposeContext struct {
+	Bead       *bead.Bead
+	ParentBead *bead.Bead
+}
+
 // Renderer loads and renders prompt templates
 type Renderer struct {
 	templatesDir  string
