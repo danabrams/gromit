@@ -346,6 +346,12 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 		result.Output = claudeResult.Output
 
+		// Check if scope is too large before checking success
+		if isTooLarge, explanation := claude.IsScopeTooLarge(claudeResult); isTooLarge {
+			result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
+			return result
+		}
+
 		if claudeResult.Success {
 			break // Success, no need to analyze or escalate
 		}
