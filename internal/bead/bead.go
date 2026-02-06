@@ -23,8 +23,8 @@ type Bead struct {
 	ExpectedOutputs []string `json:"expected_outputs,omitempty"`
 }
 
-// validBeadID matches alphanumeric characters, hyphens, and underscores.
-var validBeadID = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+// validBeadID matches alphanumeric characters, hyphens, underscores, and dots.
+var validBeadID = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // Maximum lengths for bead fields
 const (
@@ -64,7 +64,7 @@ func (b *Bead) Validate() error {
 		return fmt.Errorf("bead ID exceeds max length (%d > %d)", len(b.ID), maxIDLength)
 	}
 	if !validBeadID.MatchString(b.ID) {
-		return fmt.Errorf("bead ID %q contains invalid characters (allowed: alphanumeric, hyphens, underscores)", b.ID)
+		return fmt.Errorf("bead ID %q contains invalid characters (allowed: alphanumeric, hyphens, underscores, dots)", b.ID)
 	}
 
 	// Title - enforce length limit and no control characters
@@ -310,6 +310,57 @@ func (c *Client) AddComment(id, comment string) error {
 	_, err := c.run("comments", "add", id, comment)
 	if err != nil {
 		return fmt.Errorf("bd comments add: %w", err)
+	}
+	return nil
+}
+
+// List returns all open beads, sorted by priority (P0 first)
+func (c *Client) List() ([]*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
+	out, err := c.run("list", "--json", "--status", "open", "--sort", "priority")
+	if err != nil {
+		return nil, fmt.Errorf("bd list: %w", err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return []*Bead{}, nil
+	}
+
+	var beads []Bead
+	if err := json.Unmarshal([]byte(out), &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd list output: %w", err)
+	}
+
+	// Convert to pointers and normalize
+	result := make([]*Bead, len(beads))
+	for i := range beads {
+		beads[i].normalizeNilFields()
+		if err := beads[i].Validate(); err != nil {
+			return nil, fmt.Errorf("invalid bead data at index %d: %w", i, err)
+		}
+		result[i] = &beads[i]
+	}
+
+	return result, nil
+}
+
+// UpdatePriority changes the priority of a bead
+func (c *Client) UpdatePriority(id string, priority int) error {
+	if c == nil {
+		return fmt.Errorf("bead client is nil")
+	}
+	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
+		return fmt.Errorf("invalid bead ID %q", id)
+	}
+	if priority < 0 || priority > 4 {
+		return fmt.Errorf("invalid priority %d (must be 0-4)", priority)
+	}
+
+	_, err := c.run("update", id, "--priority", fmt.Sprintf("%d", priority))
+	if err != nil {
+		return fmt.Errorf("bd update priority: %w", err)
 	}
 	return nil
 }
