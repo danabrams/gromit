@@ -35,6 +35,13 @@ const (
 	CategoryPatterns    = "patterns"
 )
 
+// FuzzyMatchThreshold is the similarity threshold for promoting provisional learnings
+// to confirmed status when a fuzzy match is detected. Learnings are fuzzy matched
+// using trigram-based Jaccard similarity. A score above this threshold indicates
+// the new learning is similar enough to an existing one to be considered a duplicate
+// pattern (promoting from provisional to confirmed).
+const FuzzyMatchThreshold = 0.7
+
 // NewFile creates a new learnings file manager
 func NewFile(dir string) *File {
 	return &File{
@@ -89,7 +96,7 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 
 	// Check for fuzzy match in provisional (might promote to confirmed)
 	for i, existing := range f.provisional {
-		if similarity(existing.Content, content) > 0.7 {
+		if similarity(existing.Content, content) > FuzzyMatchThreshold {
 			// Similar learning exists - promote to confirmed
 			f.provisional = append(f.provisional[:i], f.provisional[i+1:]...)
 			learning.RelatedTo = existing.BeadID
@@ -100,7 +107,7 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 
 	// Check for fuzzy match in confirmed (mark as related)
 	for _, existing := range f.confirmed {
-		if similarity(existing.Content, content) > 0.7 {
+		if similarity(existing.Content, content) > FuzzyMatchThreshold {
 			learning.RelatedTo = existing.BeadID
 			break
 		}
