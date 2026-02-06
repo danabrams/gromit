@@ -15,12 +15,13 @@ import (
 type Category string
 
 const (
-	CategorySyntax         Category = "syntax"          // Typo, missing import, wrong API
-	CategoryLogic          Category = "logic"           // Algorithm wrong, edge case missed
-	CategoryEnvironment    Category = "environment"     // Wrong tool version, missing dep
-	CategoryUnclearSpec    Category = "unclear_spec"    // Spec is ambiguous
-	CategoryMissingContext Category = "missing_context" // Didn't know about existing code
-	CategoryTestFlake      Category = "test_flake"      // Non-deterministic test failure
+	CategorySyntax         Category = "syntax"           // Typo, missing import, wrong API
+	CategoryLogic          Category = "logic"            // Algorithm wrong, edge case missed
+	CategoryEnvironment    Category = "environment"      // Wrong tool version, missing dep
+	CategoryUnclearSpec    Category = "unclear_spec"     // Spec is ambiguous
+	CategoryMissingContext Category = "missing_context"  // Didn't know about existing code
+	CategoryTestFlake      Category = "test_flake"       // Non-deterministic test failure
+	CategoryTaskTooComplex Category = "task_too_complex" // Task scope too large for single iteration
 )
 
 // Analysis represents the result of analyzing a failure
@@ -143,7 +144,8 @@ func parseAnalysisOutput(output string) (*Analysis, error) {
 	// Validate category
 	switch analysis.Category {
 	case CategorySyntax, CategoryLogic, CategoryEnvironment,
-		CategoryUnclearSpec, CategoryMissingContext, CategoryTestFlake:
+		CategoryUnclearSpec, CategoryMissingContext, CategoryTestFlake,
+		CategoryTaskTooComplex:
 		// Valid
 	default:
 		analysis.Category = CategoryLogic // Default
