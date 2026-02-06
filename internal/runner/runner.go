@@ -1163,7 +1163,7 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 // checkScope calls haiku with scope prompt and returns ScopeEstimate.
 // If scope check fails, logs a warning and continues (non-blocking).
 func (r *Runner) checkScope(ctx context.Context, b *bead.Bead) *prompt.ScopeEstimate {
-	if r == nil || b == nil || r.renderer == nil || r.claude == nil {
+	if r == nil || b == nil || r.cfg == nil || r.renderer == nil || r.claude == nil {
 		return nil
 	}
 

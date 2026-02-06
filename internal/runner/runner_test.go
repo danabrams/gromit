@@ -1121,3 +1121,62 @@ func TestShowPartialProgressNilRunner(t *testing.T) {
 	// Should not panic
 	r.showPartialProgress(b, "abc123")
 }
+
+func TestCheckScopeNilRunner(t *testing.T) {
+	var r *Runner
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	// Should not panic, should return nil
+	result := r.checkScope(nil, b)
+	if result != nil {
+		t.Errorf("expected nil for nil runner, got %v", result)
+	}
+}
+
+func TestCheckScopeNilConfig(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	// Should not panic, should return nil
+	result := r.checkScope(nil, b)
+	if result != nil {
+		t.Errorf("expected nil for nil config, got %v", result)
+	}
+}
+
+func TestCheckScopeNilBead(t *testing.T) {
+	r := &Runner{
+		cfg:    &config.Config{},
+		output: os.Stdout,
+	}
+	// Should not panic, should return nil
+	result := r.checkScope(nil, nil)
+	if result != nil {
+		t.Errorf("expected nil for nil bead, got %v", result)
+	}
+}
+
+func TestCheckScopeNilRenderer(t *testing.T) {
+	r := &Runner{
+		cfg:    &config.Config{},
+		output: os.Stdout,
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	// Should not panic, should return nil
+	result := r.checkScope(nil, b)
+	if result != nil {
+		t.Errorf("expected nil for nil renderer, got %v", result)
+	}
+}
+
+func TestCheckScopeNilClaude(t *testing.T) {
+	r := &Runner{
+		cfg:      &config.Config{},
+		renderer: &prompt.Renderer{},
+		output:   os.Stdout,
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	// Should not panic, should return nil
+	result := r.checkScope(nil, b)
+	if result != nil {
+		t.Errorf("expected nil for nil claude client, got %v", result)
+	}
+}
