@@ -24,25 +24,10 @@ You are analyzing accumulated learnings from ralph-runner iterations to identify
 
 {{- if .BeadStats }}
 ### Stuck Beads (2+ failures)
-| Bead ID | Title | Status | Total Runs | Failures | Failure Rate |
-|---------|-------|--------|-----------|----------|--------------|
+| Bead ID | Title | Total Runs | Failures | Failure Rate |
+|---------|-------|-----------|----------|--------------|
 {{- range $id, $stats := .BeadStats }}
-{{- if ne $stats.Status "closed" }}
-| {{ $stats.BeadID }} | {{ $stats.BeadTitle }} | {{ $stats.Status }} | {{ $stats.TotalRuns }} | {{ $stats.Failures }} | {{ printf "%.1f%%" (mul $stats.FailureRate 100) }} |
-{{- end }}
-{{- end }}
-
-{{- range $id, $stats := .BeadStats }}
-{{- if ne $stats.Status "closed" }}
-{{- if $stats.Comments }}
-
-#### {{ $stats.BeadID }}: {{ $stats.BeadTitle }}
-**Comments:**
-{{- range $stats.Comments }}
-- {{ . }}
-{{- end }}
-{{- end }}
-{{- end }}
+| {{ $stats.BeadID }} | {{ $stats.BeadTitle }} | {{ $stats.TotalRuns }} | {{ $stats.Failures }} | {{ printf "%.1f%%" (mul $stats.FailureRate 100) }} |
 {{- end }}
 {{- else if .RunStats.Total }}
 *No stuck beads identified (fewer than 2 failures each).*

@@ -155,13 +155,17 @@ func (m *mockFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, failure
 }
 
 type mockPromptRenderer struct {
-	BuildContextFn    func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
-	RenderBuildFn     func(ctx *prompt.Context) (string, error)
-	RenderAnalyzeFn   func(ctx *prompt.AnalyzeContext) (string, error)
-	RenderDecomposeFn func(ctx *prompt.DecomposeContext) (string, error)
-	RenderScopeFn     func(ctx *prompt.ScopeContext) (string, error)
-	LoadSpecFn        func(name string) (string, error)
-	LearningsFile     *learnings.File
+	BuildContextFn         func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
+	RenderBuildFn          func(ctx *prompt.Context) (string, error)
+	RenderAnalyzeFn        func(ctx *prompt.AnalyzeContext) (string, error)
+	RenderDecomposeFn      func(ctx *prompt.DecomposeContext) (string, error)
+	RenderScopeFn          func(ctx *prompt.ScopeContext) (string, error)
+	RenderReviewFn         func(ctx *prompt.ReviewContext) (string, error)
+	RenderThoroughReviewFn func(ctx *prompt.ThoroughReviewContext) (string, error)
+	LoadSpecFn             func(name string) (string, error)
+	LoadClaudeMDFn         func() (string, error)
+	LoadRulesFn            func() (string, error)
+	LearningsFile          *learnings.File
 }
 
 func (m *mockPromptRenderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
@@ -209,6 +213,34 @@ func (m *mockPromptRenderer) RenderScope(ctx *prompt.ScopeContext) (string, erro
 func (m *mockPromptRenderer) LoadSpec(name string) (string, error) {
 	if m.LoadSpecFn != nil {
 		return m.LoadSpecFn(name)
+	}
+	return "", nil
+}
+
+func (m *mockPromptRenderer) RenderReview(ctx *prompt.ReviewContext) (string, error) {
+	if m.RenderReviewFn != nil {
+		return m.RenderReviewFn(ctx)
+	}
+	return "mock review prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error) {
+	if m.RenderThoroughReviewFn != nil {
+		return m.RenderThoroughReviewFn(ctx)
+	}
+	return "mock thorough review prompt", nil
+}
+
+func (m *mockPromptRenderer) LoadClaudeMD() (string, error) {
+	if m.LoadClaudeMDFn != nil {
+		return m.LoadClaudeMDFn()
+	}
+	return "", nil
+}
+
+func (m *mockPromptRenderer) LoadRules() (string, error) {
+	if m.LoadRulesFn != nil {
+		return m.LoadRulesFn()
 	}
 	return "", nil
 }
@@ -268,6 +300,22 @@ func (m *mockRenderer) RenderScope(ctx *prompt.ScopeContext) (string, error) {
 }
 
 func (m *mockRenderer) LoadSpec(name string) (string, error) {
+	return "", nil
+}
+
+func (m *mockRenderer) RenderReview(ctx *prompt.ReviewContext) (string, error) {
+	return "mock review prompt", nil
+}
+
+func (m *mockRenderer) RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error) {
+	return "mock thorough review prompt", nil
+}
+
+func (m *mockRenderer) LoadClaudeMD() (string, error) {
+	return "", nil
+}
+
+func (m *mockRenderer) LoadRules() (string, error) {
 	return "", nil
 }
 

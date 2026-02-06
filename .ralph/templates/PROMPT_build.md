@@ -76,16 +76,10 @@ Please analyze the failure and try a different approach.
 
 ## Instructions
 
-1. **Assess task scope** - Before starting work, evaluate whether this task can be completed in a single iteration. If the task requires significant architectural changes, involves multiple complex subsystems, or would take multiple hours to implement properly, output exactly this marker:
-   ```
-   SCOPE_TOO_LARGE: [Brief explanation of why this task should be broken down]
-   ```
-   Then stop. Do not attempt the implementation.
-
-2. **Study the codebase** before making changes - don't assume code is missing
-3. **Implement the task** following existing patterns in the codebase
-4. **Write tests** if the task involves new functionality
-5. **Commit your changes** with a clear commit message
+1. **Study the codebase** before making changes - don't assume code is missing
+2. **Implement the task** following existing patterns in the codebase
+3. **Write tests** if the task involves new functionality
+4. **Commit your changes** with a clear commit message
 
 ## Completion
 

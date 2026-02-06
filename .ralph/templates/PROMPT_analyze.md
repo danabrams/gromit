@@ -22,7 +22,6 @@ A task just failed. Analyze what went wrong and extract any learnings.
    - unclear_spec: The specification is ambiguous or contradictory
    - missing_context: Didn't know about existing code/patterns in the codebase
    - test_flake: Non-deterministic test failure (timing, random, external)
-   - task_too_complex: Task scope too large for single iteration
 
 2. **Determine if recoverable** without escalating to a stronger model:
    - true: Can fix with more context or a simple retry

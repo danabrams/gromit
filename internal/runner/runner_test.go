@@ -1468,3 +1468,43 @@ Done.`
 		t.Error("AcceptanceCriteria should not be nil after parseDecomposeOutput with surrounding text")
 	}
 }
+
+func TestSelectReviewModel(t *testing.T) {
+	tests := []struct {
+		name          string
+		buildModel    string
+		matchBuild    bool
+		configModel   string
+		expectedModel string
+	}{
+		{"default sonnet", "sonnet", true, "sonnet", "sonnet"},
+		{"match opus build", "opus", true, "sonnet", "opus"},
+		{"no match, use config", "opus", false, "sonnet", "sonnet"},
+		{"haiku build, match enabled", "haiku", true, "sonnet", "sonnet"}, // only match opus
+		{"sonnet build stays sonnet", "sonnet", true, "sonnet", "sonnet"},
+		{"opus config without match", "haiku", true, "opus", "opus"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matchBool := tt.matchBuild
+			cfg := &config.Config{
+				Review: config.ReviewConfig{
+					Model:           tt.configModel,
+					MatchBuildModel: &matchBool,
+				},
+			}
+			got := selectReviewModel(cfg, tt.buildModel)
+			if got != tt.expectedModel {
+				t.Errorf("expected %q, got %q", tt.expectedModel, got)
+			}
+		})
+	}
+}
+
+func TestSelectReviewModelNilConfig(t *testing.T) {
+	got := selectReviewModel(nil, "opus")
+	if got != "sonnet" {
+		t.Errorf("expected default 'sonnet' for nil config, got %q", got)
+	}
+}

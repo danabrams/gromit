@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/learnings"
 	"github.com/danabrams/ralph-runner/internal/logger"
 	"github.com/danabrams/ralph-runner/internal/prompt"
+	"github.com/danabrams/ralph-runner/internal/review"
 	"github.com/danabrams/ralph-runner/internal/state"
 	"github.com/danabrams/ralph-runner/internal/tmux"
 )
@@ -1072,4 +1073,102 @@ func (r *Runner) checkScope(ctx context.Context, b *bead.Bead) *prompt.ScopeEsti
 	}
 
 	return estimate
+}
+
+// selectReviewModel determines which model to use for code review.
+// If match_build_model is true and build used opus, review uses opus.
+// Otherwise, uses the configured review.model (default: sonnet).
+func selectReviewModel(cfg *config.Config, buildModel string) string {
+	if cfg == nil {
+		return "sonnet"
+	}
+	if cfg.Review.ShouldMatchBuildModel() && buildModel == "opus" {
+		return "opus"
+	}
+	return cfg.Review.Model
+}
+
+// runLightReview runs a post-iteration code review.
+// Gets diff from startCommit, builds ReviewContext, renders prompt, calls Claude, parses result.
+func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.Bead, startCommit string, buildModel string, iteration int) (*review.ReviewResult, error) {
+	if r == nil {
+		return nil, fmt.Errorf("runner is nil")
+	}
+	if r.cfg == nil {
+		return nil, fmt.Errorf("runner config is nil")
+	}
+	if r.renderer == nil {
+		return nil, fmt.Errorf("runner renderer is nil")
+	}
+	if r.claude == nil {
+		return nil, fmt.Errorf("runner claude client is nil")
+	}
+	if b == nil {
+		return nil, fmt.Errorf("bead is nil")
+	}
+
+	// Get diff from start commit to current state
+	diff, err := getGitDiff(startCommit)
+	if err != nil {
+		return nil, fmt.Errorf("getting git diff for review: %w", err)
+	}
+	if strings.TrimSpace(diff) == "" {
+		return nil, nil // No changes to review
+	}
+
+	// Build review context
+	reviewCtx := &prompt.ReviewContext{
+		Bead:       b,
+		ParentBead: parent,
+		Diff:       diff,
+		Model:      selectReviewModel(r.cfg, buildModel),
+	}
+
+	// Load CLAUDE.md and rules
+	reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
+	reviewCtx.Rules, _ = r.renderer.LoadRules()
+
+	// Load spec if present
+	specName := bead.FindSpecLabel(b.Labels)
+	if specName == "" && parent != nil {
+		specName = bead.FindSpecLabel(parent.Labels)
+	}
+	if specName != "" {
+		reviewCtx.Spec, _ = r.renderer.LoadSpec(specName)
+	}
+
+	// Add validation commands to context
+	if r.cfg.Validation.Enabled {
+		reviewCtx.ValidationCommands = r.cfg.Validation.Commands
+	}
+
+	// Render review prompt
+	reviewPrompt, err := r.renderer.RenderReview(reviewCtx)
+	if err != nil {
+		return nil, fmt.Errorf("rendering review prompt: %w", err)
+	}
+
+	// Select model for review
+	model := selectReviewModel(r.cfg, buildModel)
+
+	// Call Claude with timeout
+	timeout := time.Duration(r.cfg.Review.Timeout) * time.Second
+	reviewTimeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	claudeResult, err := r.claude.Run(reviewTimeoutCtx, reviewPrompt, model)
+	if err != nil {
+		return nil, fmt.Errorf("review invocation: %w", err)
+	}
+	if claudeResult == nil {
+		return nil, fmt.Errorf("review returned nil result")
+	}
+
+	// Parse review result
+	result, err := review.ParseReviewResult(claudeResult.Output)
+	if err != nil {
+		return nil, fmt.Errorf("parsing review result: %w", err)
+	}
+
+	return result, nil
 }

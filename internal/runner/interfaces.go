@@ -52,7 +52,11 @@ type PromptRenderer interface {
 	RenderAnalyze(ctx *prompt.AnalyzeContext) (string, error)
 	RenderDecompose(ctx *prompt.DecomposeContext) (string, error)
 	RenderScope(ctx *prompt.ScopeContext) (string, error)
+	RenderReview(ctx *prompt.ReviewContext) (string, error)
+	RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error)
 	LoadSpec(name string) (string, error)
+	LoadClaudeMD() (string, error)
+	LoadRules() (string, error)
 	GetLearningsFile() *learnings.File
 }
 

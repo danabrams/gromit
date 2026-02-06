@@ -20,31 +20,30 @@ models:
 escalation:
   enabled: true
   chain: [haiku, sonnet, opus]
-  max_retries_per_model: 1  # Retries per model before escalating
-  max_retries_per_bead: 10   # Total retries across all models for a single bead
+  max_retries_per_model: 1
 
 # Loop settings
 loop:
   max_iterations: 0  # 0 = unlimited
   stop_on_failure: false  # Continue to next bead on failure
+  stuck_bead_threshold: 3  # Skip bead if it fails this many times across runs
+
+# Scope checking - estimate task complexity before work
+scope_check:
+  enabled: true
+  model: haiku  # haiku is fast and cheap for estimation
 
 # Validation settings - customize for your project
 validation:
   enabled: true
   commands:
-    - "mise exec -- go test ./..."
-    - "mise exec -- go build ./cmd/ralph"
+    - "pnpm run test"
+    - "pnpm run lint:check"
+    - "pnpm run build"
 
 # Pre-flight checks - verify required tools before validation
 preflight:
-  # auto_install: ask (default) - ask user if tools are missing
-  #               always - automatically install missing tools
-  #               never - fail with error message
-  auto_install: ask
-  # Optional: explicitly specify required tools (auto-detected from validation.commands if not set)
-  # tools:
-  #   - go
-  #   - mise
+  auto_install: ask  # ask | always | never
 
 # Claude CLI settings
 claude:
