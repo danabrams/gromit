@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/claude"
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/learnings"
@@ -408,4 +409,48 @@ func (r *Retro) applyRuleChange(rc RuleChangeProposal) error {
 	}
 
 	return nil
+}
+
+// enrichBeadStats populates Status, CloseReason, and Comments fields on BeadStats
+// by calling bd show for each bead. Errors are logged as warnings and do not stop enrichment.
+func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger.BeadStats) {
+	if r == nil || beadStats == nil {
+		return
+	}
+
+	client := bead.NewClient()
+	if client == nil {
+		log.Printf("Warning: failed to create bead client for enrichment")
+		return
+	}
+
+	for beadID, stats := range beadStats {
+		// Get full bead details
+		b, err := client.Show(beadID)
+		if err != nil {
+			log.Printf("Warning: failed to get details for bead %s: %v", beadID, err)
+			continue
+		}
+
+		// Populate status and close reason
+		stats.Status = b.Status
+		stats.CloseReason = b.CloseReason
+
+		// Get comments
+		comments, err := client.GetComments(beadID)
+		if err != nil {
+			log.Printf("Warning: failed to get comments for bead %s: %v", beadID, err)
+			// Continue with status/close_reason populated
+		} else {
+			// Extract comment text into a slice
+			commentTexts := make([]string, len(comments))
+			for i, c := range comments {
+				commentTexts[i] = c.Text
+			}
+			stats.Comments = commentTexts
+		}
+
+		// Update the map entry
+		beadStats[beadID] = stats
+	}
 }

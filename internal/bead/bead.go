@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -19,6 +20,7 @@ type Bead struct {
 	Parent          string   `json:"parent"`
 	Type            string   `json:"issue_type"` // bd uses issue_type
 	Status          string   `json:"status"`
+	CloseReason     string   `json:"close_reason,omitempty"`
 	Owner           string   `json:"owner"`
 	ExpectedOutputs []string `json:"expected_outputs,omitempty"`
 }
@@ -312,6 +314,39 @@ func (c *Client) AddComment(id, comment string) error {
 		return fmt.Errorf("bd comments add: %w", err)
 	}
 	return nil
+}
+
+// Comment represents a comment on a bead
+type Comment struct {
+	Text      string    `json:"text"`
+	Author    string    `json:"author"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// GetComments retrieves all comments for a bead
+func (c *Client) GetComments(id string) ([]Comment, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
+	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
+		return nil, fmt.Errorf("invalid bead ID %q", id)
+	}
+
+	out, err := c.run("comments", id, "--json")
+	if err != nil {
+		return nil, fmt.Errorf("bd comments %s: %w", id, err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return []Comment{}, nil
+	}
+
+	var comments []Comment
+	if err := json.Unmarshal([]byte(out), &comments); err != nil {
+		return nil, fmt.Errorf("parsing bd comments output: %w", err)
+	}
+
+	return comments, nil
 }
 
 // List returns all open beads, sorted by priority (P0 first)

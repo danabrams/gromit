@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/danabrams/ralph-runner/internal/claude"
+	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/learnings"
+	"github.com/danabrams/ralph-runner/internal/logger"
 	"github.com/danabrams/ralph-runner/internal/rules"
 )
 
@@ -530,5 +532,40 @@ func TestApplyRuleChangeMissingFields(t *testing.T) {
 				t.Error("expected error for missing field")
 			}
 		})
+	}
+}
+
+func TestEnrichBeadStatsNilReceiver(t *testing.T) {
+	var r *Retro
+	beadStats := make(map[string]logger.BeadStats)
+	// Should not panic
+	r.enrichBeadStats(context.Background(), beadStats)
+}
+
+func TestEnrichBeadStatsNilMap(t *testing.T) {
+	tmpDir := t.TempDir()
+	r := NewRetro(&config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 60,
+		},
+	}, tmpDir)
+	// Should not panic
+	r.enrichBeadStats(context.Background(), nil)
+}
+
+func TestEnrichBeadStatsEmptyMap(t *testing.T) {
+	tmpDir := t.TempDir()
+	r := NewRetro(&config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 60,
+		},
+	}, tmpDir)
+	beadStats := make(map[string]logger.BeadStats)
+	// Should not panic and return immediately
+	r.enrichBeadStats(context.Background(), beadStats)
+	if len(beadStats) != 0 {
+		t.Error("expected empty map to remain empty")
 	}
 }
