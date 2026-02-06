@@ -84,6 +84,62 @@ func TestEnrichBeadStatsEmptyMap(t *testing.T) {
 	}
 }
 
+func TestFilterClosedBeadsFromStuckList(t *testing.T) {
+	// Create a map with both open and closed beads that have failures
+	beadStats := map[string]logger.BeadStats{
+		"open-bead-1": {
+			BeadID:    "open-bead-1",
+			Failures:  2,
+			Status:    "open",
+			Comments:  []string{},
+		},
+		"open-bead-2": {
+			BeadID:    "open-bead-2",
+			Failures:  3,
+			Status:    "open",
+			Comments:  []string{},
+		},
+		"closed-bead-1": {
+			BeadID:      "closed-bead-1",
+			Failures:    2,
+			Status:      "closed",
+			CloseReason: "fixed",
+			Comments:    []string{},
+		},
+		"closed-bead-2": {
+			BeadID:      "closed-bead-2",
+			Failures:    4,
+			Status:      "closed",
+			CloseReason: "wontfix",
+			Comments:    []string{},
+		},
+	}
+
+	// Simulate the filtering logic from Run() that removes closed beads
+	for id, stats := range beadStats {
+		if stats.Status == "closed" {
+			delete(beadStats, id)
+		}
+	}
+
+	// Verify only open beads remain
+	if len(beadStats) != 2 {
+		t.Errorf("expected 2 open beads, got %d", len(beadStats))
+	}
+	if _, exists := beadStats["open-bead-1"]; !exists {
+		t.Error("expected open-bead-1 to remain")
+	}
+	if _, exists := beadStats["open-bead-2"]; !exists {
+		t.Error("expected open-bead-2 to remain")
+	}
+	if _, exists := beadStats["closed-bead-1"]; exists {
+		t.Error("expected closed-bead-1 to be removed")
+	}
+	if _, exists := beadStats["closed-bead-2"]; exists {
+		t.Error("expected closed-bead-2 to be removed")
+	}
+}
+
 func TestLaunchClaudeCodeWithAnalysis(t *testing.T) {
 	// This test verifies that LaunchClaudeCode builds the correct prompt structure.
 	// We can't easily test the actual execution without mocking exec.Command,

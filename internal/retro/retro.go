@@ -103,6 +103,13 @@ func (r *Retro) Run(ctx context.Context, apply bool) (*Result, error) {
 	// Enrich bead stats with status, close reason, and comments from bd
 	r.enrichBeadStats(ctx, filteredBeadStats)
 
+	// Filter out closed beads from the stuck list
+	for id, stats := range filteredBeadStats {
+		if stats.Status == "closed" {
+			delete(filteredBeadStats, id)
+		}
+	}
+
 	// Render prompt
 	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats)
 	if err != nil {
