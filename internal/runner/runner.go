@@ -103,6 +103,15 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 	if r.cfg == nil {
 		return fmt.Errorf("runner config is nil")
 	}
+	if r.beads == nil {
+		return fmt.Errorf("runner beads client is nil")
+	}
+	if r.renderer == nil {
+		return fmt.Errorf("runner renderer is nil")
+	}
+	if r.claude == nil {
+		return fmt.Errorf("runner claude client is nil")
+	}
 	// Ensure logger is closed when done
 	if r.logger != nil {
 		defer r.logger.Close()
@@ -251,6 +260,18 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 	if r.cfg == nil {
 		result.Error = fmt.Errorf("runner config is nil")
+		return result
+	}
+	if r.beads == nil {
+		result.Error = fmt.Errorf("runner beads client is nil")
+		return result
+	}
+	if r.renderer == nil {
+		result.Error = fmt.Errorf("runner renderer is nil")
+		return result
+	}
+	if r.claude == nil {
+		result.Error = fmt.Errorf("runner claude client is nil")
 		return result
 	}
 
@@ -632,6 +653,9 @@ func (r *Runner) selectModel(b *bead.Bead) string {
 	if b == nil {
 		return "sonnet"
 	}
+	if r.cfg == nil {
+		return "sonnet"
+	}
 	return r.cfg.SelectModel(b.Priority, b.Labels)
 }
 
@@ -764,6 +788,9 @@ func (r *Runner) printHeartbeat(stats *logger.StreamStats) {
 
 // checkRetroSuggestion checks if a retro should be suggested and prints a message
 func (r *Runner) checkRetroSuggestion() {
+	if r.cfg == nil {
+		return
+	}
 	// Load learnings
 	lf := learnings.NewFile(r.ralphDir)
 	if err := lf.Load(); err != nil {
@@ -847,6 +874,9 @@ func (r *Runner) isStuckBead(b *bead.Bead) bool {
 func (r *Runner) Status() error {
 	if r == nil {
 		return fmt.Errorf("runner is nil")
+	}
+	if r.beads == nil {
+		return fmt.Errorf("runner beads client is nil")
 	}
 	b, err := r.beads.Ready()
 	if err != nil {
@@ -942,6 +972,15 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 	if b == nil {
 		return nil, fmt.Errorf("bead is nil")
 	}
+	if r.beads == nil {
+		return nil, fmt.Errorf("runner beads client is nil")
+	}
+	if r.renderer == nil {
+		return nil, fmt.Errorf("runner renderer is nil")
+	}
+	if r.claude == nil {
+		return nil, fmt.Errorf("runner claude client is nil")
+	}
 
 	// Get parent bead if exists
 	parent, err := r.beads.GetParent(b)
@@ -1010,6 +1049,9 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 	}
 	if len(subTasks) == 0 {
 		return fmt.Errorf("no sub-tasks to create")
+	}
+	if r.beads == nil {
+		return fmt.Errorf("runner beads client is nil")
 	}
 
 	// Create beads for each sub-task

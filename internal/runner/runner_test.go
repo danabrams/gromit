@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/logger"
+	"github.com/danabrams/ralph-runner/internal/prompt"
 )
 
 func TestCheckExpectedOutputs(t *testing.T) {
@@ -887,5 +888,175 @@ func TestCreateSubBeads_NoSubTasks(t *testing.T) {
 	err := r.CreateSubBeads(nil, b, subTasks)
 	if err == nil || !strings.Contains(err.Error(), "no sub-tasks") {
 		t.Errorf("expected error for no sub-tasks, got: %v", err)
+	}
+}
+
+func TestProcessBeadNilBeads(t *testing.T) {
+	r := &Runner{
+		cfg:    &config.Config{},
+		output: os.Stdout,
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.processBead(nil, b, 1)
+	if result.Error == nil {
+		t.Error("expected error for nil beads client")
+	}
+	if !strings.Contains(result.Error.Error(), "beads client is nil") {
+		t.Errorf("expected 'beads client is nil' in error, got %q", result.Error.Error())
+	}
+}
+
+func TestProcessBeadNilRenderer(t *testing.T) {
+	r := &Runner{
+		cfg:    &config.Config{},
+		beads:  bead.NewClient(),
+		output: os.Stdout,
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.processBead(nil, b, 1)
+	if result.Error == nil {
+		t.Error("expected error for nil renderer")
+	}
+	if !strings.Contains(result.Error.Error(), "renderer is nil") {
+		t.Errorf("expected 'renderer is nil' in error, got %q", result.Error.Error())
+	}
+}
+
+func TestProcessBeadNilClaude(t *testing.T) {
+	r := &Runner{
+		cfg:      &config.Config{},
+		beads:    bead.NewClient(),
+		renderer: &prompt.Renderer{},
+		output:   os.Stdout,
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.processBead(nil, b, 1)
+	if result.Error == nil {
+		t.Error("expected error for nil claude client")
+	}
+	if !strings.Contains(result.Error.Error(), "claude client is nil") {
+		t.Errorf("expected 'claude client is nil' in error, got %q", result.Error.Error())
+	}
+}
+
+func TestRunNilBeads(t *testing.T) {
+	r := &Runner{
+		cfg:    &config.Config{},
+		output: os.Stdout,
+	}
+	err := r.Run(nil, 0, false)
+	if err == nil {
+		t.Error("expected error for nil beads client")
+	}
+	if !strings.Contains(err.Error(), "beads client is nil") {
+		t.Errorf("expected 'beads client is nil' in error, got %q", err.Error())
+	}
+}
+
+func TestRunNilRenderer(t *testing.T) {
+	r := &Runner{
+		cfg:    &config.Config{},
+		beads:  bead.NewClient(),
+		output: os.Stdout,
+	}
+	err := r.Run(nil, 0, false)
+	if err == nil {
+		t.Error("expected error for nil renderer")
+	}
+	if !strings.Contains(err.Error(), "renderer is nil") {
+		t.Errorf("expected 'renderer is nil' in error, got %q", err.Error())
+	}
+}
+
+func TestRunNilClaude(t *testing.T) {
+	r := &Runner{
+		cfg:      &config.Config{},
+		beads:    bead.NewClient(),
+		renderer: &prompt.Renderer{},
+		output:   os.Stdout,
+	}
+	err := r.Run(nil, 0, false)
+	if err == nil {
+		t.Error("expected error for nil claude client")
+	}
+	if !strings.Contains(err.Error(), "claude client is nil") {
+		t.Errorf("expected 'claude client is nil' in error, got %q", err.Error())
+	}
+}
+
+func TestStatusNilBeads(t *testing.T) {
+	r := &Runner{
+		cfg:    &config.Config{},
+		output: os.Stdout,
+	}
+	err := r.Status()
+	if err == nil {
+		t.Error("expected error for nil beads client")
+	}
+	if !strings.Contains(err.Error(), "beads client is nil") {
+		t.Errorf("expected 'beads client is nil' in error, got %q", err.Error())
+	}
+}
+
+func TestSelectModelNilConfig(t *testing.T) {
+	r := &Runner{}
+	b := &bead.Bead{ID: "test-1", Title: "Test", Priority: 1}
+	result := r.selectModel(b)
+	if result != "sonnet" {
+		t.Errorf("expected 'sonnet' for nil config, got %q", result)
+	}
+}
+
+func TestDecomposeTaskNilBeads(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	_, err := r.DecomposeTask(nil, b)
+	if err == nil {
+		t.Error("expected error for nil beads client")
+	}
+	if !strings.Contains(err.Error(), "beads client is nil") {
+		t.Errorf("expected 'beads client is nil' in error, got %q", err.Error())
+	}
+}
+
+func TestDecomposeTaskNilRenderer(t *testing.T) {
+	r := &Runner{
+		beads:  bead.NewClient(),
+		output: os.Stdout,
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	_, err := r.DecomposeTask(nil, b)
+	if err == nil {
+		t.Error("expected error for nil renderer")
+	}
+	if !strings.Contains(err.Error(), "renderer is nil") {
+		t.Errorf("expected 'renderer is nil' in error, got %q", err.Error())
+	}
+}
+
+func TestDecomposeTaskNilClaude(t *testing.T) {
+	r := &Runner{
+		beads:    bead.NewClient(),
+		renderer: &prompt.Renderer{},
+		output:   os.Stdout,
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	_, err := r.DecomposeTask(nil, b)
+	if err == nil {
+		t.Error("expected error for nil claude client")
+	}
+	if !strings.Contains(err.Error(), "claude client is nil") {
+		t.Errorf("expected 'claude client is nil' in error, got %q", err.Error())
+	}
+}
+
+func TestCreateSubBeads_NilBeadsClient(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	b := &bead.Bead{ID: "test-1"}
+	subTasks := []SubTask{{Title: "Task 1"}}
+
+	err := r.CreateSubBeads(nil, b, subTasks)
+	if err == nil || !strings.Contains(err.Error(), "beads client is nil") {
+		t.Errorf("expected error for nil beads client, got: %v", err)
 	}
 }
