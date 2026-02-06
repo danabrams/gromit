@@ -311,16 +311,18 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		return result
 	}
 
-	// Check scope and auto-escalate to opus if large
-	scopeEstimate := r.checkScope(ctx, b)
-	if scopeEstimate != nil {
-		if scopeEstimate.Complexity == "large" {
-			r.log("Scope check: complexity=large, auto-escalating to opus")
-			model = "opus"
-			result.Model = model
-			promptCtx.Model = model
-		} else {
-			r.log("Scope check: complexity=%s", scopeEstimate.Complexity)
+	// Check scope and auto-escalate to opus if high (gated by ScopeCheck.Enabled)
+	if r.cfg.ScopeCheck.Enabled {
+		scopeEstimate := r.checkScope(ctx, b)
+		if scopeEstimate != nil {
+			if scopeEstimate.Complexity == "high" {
+				r.log("Scope check: complexity=high, auto-escalating to opus")
+				model = "opus"
+				result.Model = model
+				promptCtx.Model = model
+			} else {
+				r.log("Scope check: complexity=%s", scopeEstimate.Complexity)
+			}
 		}
 	}
 
