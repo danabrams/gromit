@@ -17,7 +17,6 @@ import (
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/learnings"
 	"github.com/danabrams/ralph-runner/internal/logger"
-	"github.com/danabrams/ralph-runner/internal/preflight"
 	"github.com/danabrams/ralph-runner/internal/prompt"
 	"github.com/danabrams/ralph-runner/internal/state"
 	"github.com/danabrams/ralph-runner/internal/tmux"
@@ -305,474 +304,115 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 }
 
 func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *IterationResult {
-	result := &IterationResult{
-		BeadID:    b.ID,
-		BeadTitle: b.Title,
-	}
-
 	start := time.Now()
-	defer func() { result.Duration = time.Since(start) }()
 
-	if r.cfg == nil {
-		result.Error = fmt.Errorf("runner config is nil")
-		return result
-	}
-	if r.beads == nil {
-		result.Error = fmt.Errorf("runner beads client is nil")
-		return result
-	}
-	if r.renderer == nil {
-		result.Error = fmt.Errorf("runner renderer is nil")
-		return result
-	}
-	if r.claude == nil {
-		result.Error = fmt.Errorf("runner claude client is nil")
-		return result
-	}
-
-	// Apply per-bead timeout to prevent unbounded accumulation of retries/analysis/validation
-	beadTimeout := time.Duration(r.cfg.Claude.BeadTimeout) * time.Second
-	parentCtx := ctx // Keep reference to detect bead timeout vs user Ctrl+C
-	beadCtx, beadCancel := context.WithTimeout(ctx, beadTimeout)
-	defer beadCancel()
-	ctx = beadCtx
-
-	// Capture git HEAD before starting work (for partial progress detection)
-	startCommit, err := getGitHead()
+	// Set up bead context: validate state, timeouts, git capture, model selection
+	bc, beadCtx, beadCancel, err := r.setupBeadContext(ctx, b, iteration)
 	if err != nil {
-		r.log("Warning: could not capture git HEAD: %v", err)
-		startCommit = "" // Continue anyway
-	}
-
-	// Get parent bead if exists
-	parent, err := r.beads.GetParent(b)
-	if err != nil {
-		r.log("Warning: failed to get parent bead: %v", err)
-	}
-
-	// Select initial model
-	model := r.selectModel(b)
-	result.Model = model
-
-	// Build prompt context
-	promptCtx, err := r.renderer.BuildContext(b, parent, iteration, model)
-	if err != nil {
-		result.Error = fmt.Errorf("building prompt context: %w", err)
-		return result
-	}
-	if promptCtx == nil {
-		result.Error = fmt.Errorf("building prompt context: returned nil")
-		return result
-	}
-
-	// Check scope and auto-escalate to opus if high (gated by ScopeCheck.Enabled)
-	if r.cfg.ScopeCheck.Enabled {
-		scopeEstimate := r.checkScope(ctx, b)
-		if scopeEstimate != nil {
-			if scopeEstimate.Complexity == "high" {
-				r.log("Scope check: complexity=high, auto-escalating to opus")
-				model = "opus"
-				result.Model = model
-				promptCtx.Model = model
-			} else {
-				r.log("Scope check: complexity=%s", scopeEstimate.Complexity)
-			}
+		return &IterationResult{
+			BeadID:    b.ID,
+			BeadTitle: b.Title,
+			Error:     err,
+			Duration:  time.Since(start),
 		}
 	}
+	defer beadCancel()
+	defer func() { bc.result.Duration = time.Since(start) }()
+	ctx = beadCtx
 
-	// Render build prompt
-	buildPrompt, err := r.renderer.RenderBuild(promptCtx)
-	if err != nil {
-		result.Error = fmt.Errorf("rendering build prompt: %w", err)
-		return result
+	// Build prompt (with optional scope check)
+	if err := r.buildPromptForBead(ctx, bc, iteration); err != nil {
+		bc.result.Error = err
+		return bc.result
 	}
 
-	// Execute with analysis and escalation on failure
-	var claudeResult *claude.Result
-	retriesThisModel := 0
-	totalRetriesThisBead := 0
-	maxRetries := r.cfg.Escalation.MaxRetriesPerModel
-	maxRetriesPerBead := r.cfg.Escalation.MaxRetriesPerBead
+	// Main execution loop with retry and escalation
+	if !r.executeWithRetry(ctx, bc) {
+		return bc.result
+	}
+
+	// Run validation if enabled
+	if err := r.runValidation(ctx, bc); err != nil {
+		bc.result.Error = err
+		return bc.result
+	}
+
+	bc.result.Success = true
+	return bc.result
+}
+
+// executeWithRetry runs the main Claude execution loop with retry, escalation,
+// and decomposition logic. Returns true if the build succeeded, false if
+// processBead should return bc.result immediately.
+func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 	for {
-		// Log attempt number when retry counter is active
-		if retriesThisModel > 0 || totalRetriesThisBead > 0 {
-			r.log("Attempt %d/%d...", totalRetriesThisBead+1, maxRetriesPerBead)
+		if bc.retriesThisModel > 0 || bc.totalRetriesThisBead > 0 {
+			r.log("Attempt %d/%d...", bc.totalRetriesThisBead+1, bc.maxRetriesPerBead)
 		}
 
 		// Check for context cancellation before each invocation
 		select {
 		case <-ctx.Done():
 			r.log("Context cancelled, stopping")
-			result.Error = ctx.Err()
-			return result
+			bc.result.Error = ctx.Err()
+			return false
 		default:
 		}
 
-		r.log("Running Claude with model: %s", model)
+		r.log("Running Claude with model: %s", bc.model)
 
-		// Set up stream stats and heartbeat for this invocation
-		stats := logger.NewStreamStats()
+		claudeResult, stallFired, err := r.executeClaudeInvocation(ctx, bc)
 
-		// Create child context so stall cancel doesn't kill the parent
-		childCtx, childCancel := context.WithCancel(ctx)
-		stallFired := false
-
-		stallTimeout := time.Duration(r.cfg.Claude.StallTimeout) * time.Second
-		stallTimeoutActive := time.Duration(r.cfg.Claude.StallTimeoutActive) * time.Second
-
-		// Create a channel for tool call events to feed the heartbeat
-		toolCallEvents := make(chan claude.ToolEvent, 10)
-
-		stopHeartbeat := r.startHeartbeat(stats, stallTimeout, stallTimeoutActive, func() {
-			stallFired = true
-			childCancel()
-		}, toolCallEvents)
-
-		// Build event handler for firehose streaming
-		var handler claude.EventHandler
-		if r.streamLogger != nil {
-			sl := r.streamLogger
-			handler = func(line []byte) {
-				logger.ParseAndLogEvent(sl, stats, line)
-			}
-		}
-
-		// Build tool call handler to feed events to heartbeat
-		onToolCall := func(event claude.ToolEvent) {
-			select {
-			case toolCallEvents <- event:
-			default:
-				// Buffer full, skip to avoid blocking
-			}
-		}
-
-		claudeResult, err = r.claude.StreamRun(childCtx, buildPrompt, model, r.output, handler, onToolCall)
-		stopHeartbeat()
-		childCancel() // Ensure cleanup
-
+		// Handle invocation error (stall, timeout, or other failure)
 		if err != nil {
 			if stallFired && ctx.Err() == nil {
-				// Stall timeout — recoverable, retry or escalate
-				retriesThisModel++
-				totalRetriesThisBead++
-
-				// Check global bead retry limit first
-				if totalRetriesThisBead > maxRetriesPerBead {
-					r.log("Max retries per bead exceeded (%d/%d)", totalRetriesThisBead, maxRetriesPerBead)
-					result.Error = fmt.Errorf("stall timeout: exceeded max retries per bead (%d)", maxRetriesPerBead)
-					return result
-				}
-
-				if retriesThisModel <= maxRetries {
-					r.log("Stall timeout, retrying with same model (%d/%d)...", retriesThisModel, maxRetries)
+				if r.handleStallTimeout(ctx, bc) {
 					continue
 				}
-				r.log("Stall timeout, retries exhausted for %s", model)
-				// Try escalation
-				nextModel := r.cfg.NextEscalationModel(model)
-				if nextModel == "" {
-					r.log("Stall timeout, no more models to escalate to - attempting decomposition")
-
-					// Try to decompose the task instead of failing
-					subTasks, err := r.DecomposeTask(ctx, b)
-					if err != nil {
-						r.log("Decomposition failed: %v, falling back to error", err)
-						result.Error = fmt.Errorf("stall timeout: exhausted all models and decomposition failed: %w", err)
-						return result
-					}
-
-					// Create sub-beads from decomposition
-					if err := r.CreateSubBeads(ctx, b, subTasks); err != nil {
-						r.log("Failed to create sub-beads: %v", err)
-						result.Error = fmt.Errorf("stall timeout decomposition succeeded but failed to create sub-beads: %w", err)
-						return result
-					}
-
-					r.log("Task successfully decomposed into %d sub-tasks after stall timeout", len(subTasks))
-					result.Decomposed = true
-					return result
-				}
-				r.log("Escalating from %s to %s after stall", model, nextModel)
-				result.Escalated = true
-				result.EscalatedTo = nextModel
-				model = nextModel
-				retriesThisModel = 0
-				result.Model = model
-				promptCtx.Model = model
-				buildPrompt, err = r.renderer.RenderBuild(promptCtx)
-				if err != nil {
-					result.Error = fmt.Errorf("rendering retry prompt: %w", err)
-					return result
-				}
-				continue
+				return false
 			}
 			// Distinguish bead timeout from user Ctrl+C
-			if ctx.Err() != nil && parentCtx.Err() == nil {
-				result.Error = fmt.Errorf("bead timeout: exceeded %v total processing time", beadTimeout)
+			if ctx.Err() != nil && bc.parentCtx.Err() == nil {
+				bc.result.Error = fmt.Errorf("bead timeout: exceeded %v total processing time", bc.beadTimeout)
 			} else {
-				result.Error = fmt.Errorf("claude invocation: %w", err)
+				bc.result.Error = fmt.Errorf("claude invocation: %w", err)
 			}
-			return result
+			return false
 		}
 
 		if claudeResult == nil {
-			result.Error = fmt.Errorf("claude returned nil result")
-			return result
+			bc.result.Error = fmt.Errorf("claude returned nil result")
+			return false
 		}
 
-		result.Output = claudeResult.Output
+		bc.result.Output = claudeResult.Output
 
-		// Check if scope is too large before checking success
+		// Check if scope is too large
 		if isTooLarge, explanation := claude.IsScopeTooLarge(claudeResult); isTooLarge {
-			// Add comment to bead with the full breakdown suggestion from Claude
-			breakdown := claude.GetScopeTooLargeBreakdown(claudeResult)
-			if breakdown == "" {
-				breakdown = explanation
-			}
-			comment := fmt.Sprintf("Scope too large: %s\n\nThis task needs to be broken down into smaller, more manageable pieces.", breakdown)
-			if err := r.beads.AddComment(b.ID, comment); err != nil {
-				r.log("Warning: failed to add comment to bead: %v", err)
-			}
-			result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
-			return result
+			r.handleScopeTooLarge(bc, claudeResult, explanation)
+			return false
 		}
 
+		// Success — exit the retry loop
 		if claudeResult.Success {
-			break // Success, no need to analyze or escalate
+			return true
 		}
 
 		// Check for context cancellation before analysis
 		select {
 		case <-ctx.Done():
 			r.log("Context cancelled, stopping")
-			result.Error = ctx.Err()
-			return result
+			bc.result.Error = ctx.Err()
+			return false
 		default:
 		}
 
-		// Run failure analysis with capped timeout (diagnostic, not productive work)
-		r.log("Build failed, running failure analysis...")
-		analysisTimeout := time.Duration(r.cfg.Claude.AnalysisTimeout) * time.Second
-		analysisCtx, analysisCancel := context.WithTimeout(ctx, analysisTimeout)
-		analysis, err := r.analyzer.Analyze(analysisCtx, b, claudeResult.Output)
-		analysisCancel()
-		if err != nil {
-			r.log("Warning: failure analysis failed: %v", err)
-		} else if analysis == nil {
-			r.log("Warning: failure analysis returned no result")
-		} else {
-			r.log("Analysis: category=%s, recoverable=%v", analysis.Category, analysis.Recoverable)
-			r.log("Root cause: %s", analysis.RootCause)
-
-			// Add learning if extracted
-			if analysis.Learning != nil {
-				r.log("Learning extracted: %s", *analysis.Learning)
-				lf := r.renderer.GetLearningsFile()
-				if lf != nil {
-					learning, err := lf.Add(b.ID, *analysis.Learning, analysis.LearningCategory())
-					if err != nil {
-						r.log("Warning: failed to add learning: %v", err)
-					} else if learning != nil {
-						r.log("Learning added to LEARNINGS.md")
-					}
-				}
-			}
-
-			// Handle unclear spec - skip this bead
-			if analysis.Category == analyzer.CategoryUnclearSpec {
-				result.Error = fmt.Errorf("spec unclear: %s - needs human review", analysis.RootCause)
-				return result
-			}
-
-			// Handle task too complex - skip this bead
-			if analysis.Category == analyzer.CategoryTaskTooComplex {
-				// Add comment to bead explaining it needs decomposition
-				comment := fmt.Sprintf("Task too complex: %s\n\nThis task needs to be broken down into smaller, more manageable pieces.", analysis.RootCause)
-				if err := r.beads.AddComment(b.ID, comment); err != nil {
-					r.log("Warning: failed to add comment to bead: %v", err)
-				}
-
-				// Extract and save learning if present
-				if analysis.Learning != nil {
-					r.log("Learning extracted: %s", *analysis.Learning)
-					lf := r.renderer.GetLearningsFile()
-					if lf != nil {
-						learning, err := lf.Add(b.ID, *analysis.Learning, analysis.LearningCategory())
-						if err != nil {
-							r.log("Warning: failed to add learning: %v", err)
-						} else if learning != nil {
-							r.log("Learning added to LEARNINGS.md")
-						}
-					}
-				}
-
-				result.Error = fmt.Errorf("task too complex: %s - needs breakdown", analysis.RootCause)
-				return result
-			}
-
-			// If recoverable and under retry limit, retry with context (same model)
-			if analysis.Recoverable && retriesThisModel < maxRetries {
-				retriesThisModel++
-				totalRetriesThisBead++
-
-				// Check global bead retry limit
-				if totalRetriesThisBead > maxRetriesPerBead {
-					r.log("Max retries per bead exceeded (%d/%d)", totalRetriesThisBead, maxRetriesPerBead)
-					result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", maxRetriesPerBead)
-					return result
-				}
-
-				r.log("Failure is recoverable, retrying with context (attempt %d/%d)...", retriesThisModel, maxRetries)
-				promptCtx.IsRetry = true
-				promptCtx.PrevFailure = claudeResult.Output
-				promptCtx.FailureContext = analysis.Suggestion
-
-				buildPrompt, err = r.renderer.RenderBuild(promptCtx)
-				if err != nil {
-					result.Error = fmt.Errorf("rendering retry prompt: %w", err)
-					return result
-				}
-				continue // Retry with same model
-			}
-
-			if analysis.Recoverable {
-				r.log("Retry limit reached for model %s (%d attempts)", model, retriesThisModel)
-			}
+		// Analyze failure and decide: retry, escalate, or stop
+		if r.analyzeAndHandleFailure(ctx, bc, claudeResult) {
+			continue
 		}
-
-		// Not recoverable or retries exhausted - try escalation
-		nextModel := r.cfg.NextEscalationModel(model)
-		if nextModel == "" {
-			r.log("Build failed, no more models to escalate to - attempting decomposition")
-
-			// Try to decompose the task instead of failing
-			subTasks, err := r.DecomposeTask(ctx, b)
-			if err != nil {
-				r.log("Decomposition failed: %v, falling back to error", err)
-				if startCommit != "" {
-					r.showPartialProgress(b, startCommit)
-				}
-				result.Error = fmt.Errorf("build failed with all models and decomposition failed: %w", err)
-				return result
-			}
-
-			// Create sub-beads from decomposition
-			if err := r.CreateSubBeads(ctx, b, subTasks); err != nil {
-				r.log("Failed to create sub-beads: %v", err)
-				if startCommit != "" {
-					r.showPartialProgress(b, startCommit)
-				}
-				result.Error = fmt.Errorf("decomposition succeeded but failed to create sub-beads: %w", err)
-				return result
-			}
-
-			r.log("Task successfully decomposed into %d sub-tasks", len(subTasks))
-			result.Decomposed = true
-			return result
-		}
-
-		// Check if we can escalate without exceeding bead limit
-		// (Escalation itself doesn't count as a retry, but will likely trigger retries)
-		if totalRetriesThisBead >= maxRetriesPerBead {
-			r.log("Cannot escalate: max retries per bead reached (%d/%d)", totalRetriesThisBead, maxRetriesPerBead)
-			if startCommit != "" {
-				r.showPartialProgress(b, startCommit)
-			}
-			result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", maxRetriesPerBead)
-			return result
-		}
-
-		r.log("Escalating from %s to %s", model, nextModel)
-		result.Escalated = true
-		result.EscalatedTo = nextModel
-		model = nextModel
-		retriesThisModel = 0 // Reset retry counter for new model
-		result.Model = model
-
-		// Update prompt context with failure info for escalation
-		promptCtx.IsRetry = true
-		promptCtx.PrevFailure = claudeResult.Output
-		promptCtx.Model = model
-
-		buildPrompt, err = r.renderer.RenderBuild(promptCtx)
-		if err != nil {
-			result.Error = fmt.Errorf("rendering retry prompt: %w", err)
-			return result
-		}
+		return false
 	}
-
-	// Run validation if enabled
-	if r.cfg.Validation.Enabled {
-		// Pre-flight check: verify required tools are available
-		checker := preflight.NewChecker(r.cfg.Preflight, r.output)
-		if err := checker.Check(r.cfg.Validation.Commands); err != nil {
-			// If tools are missing and user chooses to skip, continue without validation
-			r.log("Warning: %v", err)
-			// Don't mark as error - skip validation and continue
-			result.Success = true
-			result.Validated = false
-			return result
-		}
-
-		r.log("Running validation with model: %s", r.cfg.Models.Validation)
-
-		valResult, err := r.claude.RunValidation(
-			ctx,
-			r.cfg.Validation.Commands,
-			r.cfg.Models.Validation,
-			promptCtx.WorkDir,
-		)
-		if err != nil {
-			result.Error = fmt.Errorf("validation invocation: %w", err)
-			return result
-		}
-
-		if valResult == nil {
-			result.Error = fmt.Errorf("validation returned no result")
-			return result
-		}
-
-		if !claude.IsValidationPassed(valResult) {
-			// Display validation output in the terminal
-			r.log("\nValidation failed. Output:")
-			r.log("%s", valResult.Output)
-
-			// Save full output to a dedicated validation log file
-			logPath, err := logger.WriteValidationLog(r.cfg.Paths.Logs, valResult.Output)
-			if err != nil {
-				r.log("Warning: could not save validation log: %v", err)
-			} else {
-				r.log("\nFull output saved to: %s", logPath)
-			}
-
-			// Show partial progress (git diff + expected outputs)
-			if startCommit != "" {
-				r.showPartialProgress(b, startCommit)
-			}
-
-			// Run analysis on validation failure with capped timeout
-			r.log("Running failure analysis...")
-			valAnalysisCtx, valAnalysisCancel := context.WithTimeout(ctx, time.Duration(r.cfg.Claude.AnalysisTimeout)*time.Second)
-			analysis, err := r.analyzer.Analyze(valAnalysisCtx, b, valResult.Output)
-			valAnalysisCancel()
-			if err == nil && analysis != nil && analysis.Learning != nil {
-				lf := r.renderer.GetLearningsFile()
-				if lf != nil {
-					lf.Add(b.ID, *analysis.Learning, analysis.LearningCategory())
-				}
-			}
-
-			result.Error = fmt.Errorf("validation failed")
-			result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + valResult.Output
-			return result
-		}
-
-		result.Validated = true
-		r.log("Validation passed")
-	}
-
-	result.Success = true
-	return result
 }
 
 func (r *Runner) selectModel(b *bead.Bead) string {
