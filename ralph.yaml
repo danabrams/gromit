@@ -37,9 +37,9 @@ scope_check:
 validation:
   enabled: true
   commands:
-    - "pnpm run test"
-    - "pnpm run lint:check"
-    - "pnpm run build"
+    - "go test ./..."
+    - "go vet ./..."
+    - "go build ./..."
 
 # Pre-flight checks - verify required tools before validation
 preflight:
