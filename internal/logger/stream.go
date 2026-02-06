@@ -110,6 +110,14 @@ func (s *StreamStats) HasReceivedEvent() bool {
 	return s.firstEventReceived
 }
 
+// HasToolActivity returns true if Claude has made at least one tool call,
+// indicating it has started actively working (not just connected).
+func (s *StreamStats) HasToolActivity() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ToolCalls > 0
+}
+
 // StreamLogger writes firehose stream events to a log file
 type StreamLogger struct {
 	file *os.File

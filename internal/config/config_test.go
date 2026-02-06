@@ -138,6 +138,29 @@ func TestStallTimeoutDefault(t *testing.T) {
 	}
 }
 
+func TestStallTimeoutActiveDefault(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+	if cfg.Claude.StallTimeoutActive != 300 {
+		t.Errorf("expected default StallTimeoutActive=300, got %d", cfg.Claude.StallTimeoutActive)
+	}
+}
+
+func TestStallTimeoutActiveFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte("claude:\n  stall_timeout_active: 180\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Claude.StallTimeoutActive != 180 {
+		t.Errorf("expected StallTimeoutActive=180, got %d", cfg.Claude.StallTimeoutActive)
+	}
+}
+
 func TestStallTimeoutFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "ralph.yaml")

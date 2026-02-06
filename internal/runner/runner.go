@@ -279,7 +279,8 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		stallFired := false
 
 		stallTimeout := time.Duration(r.cfg.Claude.StallTimeout) * time.Second
-		stopHeartbeat := r.startHeartbeat(stats, stallTimeout, func() {
+		stallTimeoutActive := time.Duration(r.cfg.Claude.StallTimeoutActive) * time.Second
+		stopHeartbeat := r.startHeartbeat(stats, stallTimeout, stallTimeoutActive, func() {
 			stallFired = true
 			childCancel()
 		})
@@ -588,15 +589,16 @@ var defaultHeartbeatConfig = heartbeatConfig{
 }
 
 // startHeartbeat launches a goroutine that prints periodic status updates
-// and optionally detects stalls. When stallTimeout > 0 and onStall is non-nil,
-// the goroutine checks every 10s whether the last stream event exceeds the
-// threshold, and calls onStall() once if so.
+// and optionally detects stalls using two-tier timeouts:
+//   - stallTimeout: used before Claude has made any tool calls (detecting true hangs)
+//   - stallTimeoutActive: used after tool activity (longer, allows thinking pauses)
+//
 // Returns a function to stop the heartbeat.
-func (r *Runner) startHeartbeat(stats *logger.StreamStats, stallTimeout time.Duration, onStall func()) func() {
-	return r.startHeartbeatWithConfig(stats, stallTimeout, onStall, defaultHeartbeatConfig)
+func (r *Runner) startHeartbeat(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func()) func() {
+	return r.startHeartbeatWithConfig(stats, stallTimeout, stallTimeoutActive, onStall, defaultHeartbeatConfig)
 }
 
-func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout time.Duration, onStall func(), cfg heartbeatConfig) func() {
+func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), cfg heartbeatConfig) func() {
 	done := make(chan struct{})
 	go func() {
 		// First heartbeat sooner so hangs are visible quickly
@@ -628,11 +630,21 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 					// Only check for stalls after the first stream event arrives.
 					// Before that, Claude CLI is still starting up — the startup
 					// monitor in claude.go handles that phase separately.
-					if stats.HasReceivedEvent() && stats.TimeSinceLastEvent() >= stallTimeout {
-						r.log("STALL DETECTED: No output from Claude for %v (threshold: %v)",
-							stats.TimeSinceLastEvent().Round(time.Second), stallTimeout)
-						onStall()
-						return
+					if stats.HasReceivedEvent() {
+						// Two-tier timeout: use longer timeout once Claude has
+						// started making tool calls (reading files, editing, etc.)
+						threshold := stallTimeout
+						tier := "initial"
+						if stats.HasToolActivity() && stallTimeoutActive > 0 {
+							threshold = stallTimeoutActive
+							tier = "active"
+						}
+						if stats.TimeSinceLastEvent() >= threshold {
+							r.log("STALL DETECTED (%s): No output from Claude for %v (threshold: %v)",
+								tier, stats.TimeSinceLastEvent().Round(time.Second), threshold)
+							onStall()
+							return
+						}
 					}
 				}
 			} else {

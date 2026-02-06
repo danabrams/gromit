@@ -198,7 +198,8 @@ func TestStartHeartbeatStallDetection(t *testing.T) {
 		StallCheckRate: 10 * time.Millisecond,
 	}
 
-	stop := r.startHeartbeatWithConfig(stats, 50*time.Millisecond, onStall, cfg)
+	// No tool activity, so initial timeout (50ms) should be used
+	stop := r.startHeartbeatWithConfig(stats, 50*time.Millisecond, 200*time.Millisecond, onStall, cfg)
 	defer stop()
 
 	select {
@@ -208,8 +209,64 @@ func TestStartHeartbeatStallDetection(t *testing.T) {
 		t.Fatal("Stall was not detected within timeout")
 	}
 
-	if !strings.Contains(buf.String(), "STALL DETECTED") {
-		t.Errorf("Expected 'STALL DETECTED' in output, got: %s", buf.String())
+	output := buf.String()
+	if !strings.Contains(output, "STALL DETECTED") {
+		t.Errorf("Expected 'STALL DETECTED' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "initial") {
+		t.Errorf("Expected 'initial' tier in stall message, got: %s", output)
+	}
+}
+
+func TestStartHeartbeatActiveStallTimeout(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{output: &buf}
+
+	stats := logger.NewStreamStats()
+	// Record an event and a tool call so HasToolActivity() returns true
+	stats.RecordEvent()
+	stats.RecordToolCall("Read", "/some/file.go")
+
+	stallFired := make(chan struct{})
+	onStall := func() {
+		close(stallFired)
+	}
+
+	cfg := heartbeatConfig{
+		InitialDelay:   10 * time.Millisecond,
+		HeartbeatRate:  50 * time.Millisecond,
+		StallCheckRate: 10 * time.Millisecond,
+	}
+
+	// Initial timeout is very short (20ms) but should NOT fire because tool
+	// activity has occurred — the active timeout (150ms) should be used instead.
+	stop := r.startHeartbeatWithConfig(stats, 20*time.Millisecond, 150*time.Millisecond, onStall, cfg)
+	defer stop()
+
+	// Wait long enough for initial timeout but not active timeout
+	time.Sleep(80 * time.Millisecond)
+
+	select {
+	case <-stallFired:
+		t.Fatal("Stall should not fire before active timeout; initial timeout should be ignored after tool activity")
+	default:
+		// Good — not fired yet
+	}
+
+	// Now wait for active timeout to fire
+	select {
+	case <-stallFired:
+		// Good — stall was detected with active timeout
+	case <-time.After(2 * time.Second):
+		t.Fatal("Active stall timeout was not detected")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "STALL DETECTED") {
+		t.Errorf("Expected 'STALL DETECTED' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "active") {
+		t.Errorf("Expected 'active' tier in stall message, got: %s", output)
 	}
 }
 
@@ -232,7 +289,7 @@ func TestStartHeartbeatNoStallBeforeFirstEvent(t *testing.T) {
 	}
 
 	// Stall timeout is very short (30ms), but should not fire because no events recorded
-	stop := r.startHeartbeatWithConfig(stats, 30*time.Millisecond, onStall, cfg)
+	stop := r.startHeartbeatWithConfig(stats, 30*time.Millisecond, 60*time.Millisecond, onStall, cfg)
 	time.Sleep(150 * time.Millisecond)
 	stop()
 
@@ -258,7 +315,7 @@ func TestStartHeartbeatNoStallWhenEventsFlow(t *testing.T) {
 		StallCheckRate: 20 * time.Millisecond,
 	}
 
-	stop := r.startHeartbeatWithConfig(stats, 100*time.Millisecond, onStall, cfg)
+	stop := r.startHeartbeatWithConfig(stats, 100*time.Millisecond, 200*time.Millisecond, onStall, cfg)
 
 	// Keep recording events to prevent stall
 	done := make(chan struct{})
@@ -304,7 +361,7 @@ func TestStartHeartbeatStallDisabledWhenZero(t *testing.T) {
 	}
 
 	// stallTimeout=0 should disable stall detection
-	stop := r.startHeartbeatWithConfig(stats, 0, onStall, cfg)
+	stop := r.startHeartbeatWithConfig(stats, 0, 0, onStall, cfg)
 	time.Sleep(100 * time.Millisecond)
 	stop()
 

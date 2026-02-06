@@ -48,12 +48,13 @@ type PreflightConfig struct {
 }
 
 type ClaudeConfig struct {
-	Binary          string   `yaml:"binary"`
-	Timeout         int      `yaml:"timeout"`
-	StallTimeout    int      `yaml:"stall_timeout"`
-	BeadTimeout     int      `yaml:"bead_timeout"`
-	AnalysisTimeout int      `yaml:"analysis_timeout"`
-	Flags           []string `yaml:"flags"`
+	Binary             string   `yaml:"binary"`
+	Timeout            int      `yaml:"timeout"`
+	StallTimeout       int      `yaml:"stall_timeout"`
+	StallTimeoutActive int      `yaml:"stall_timeout_active"`
+	BeadTimeout        int      `yaml:"bead_timeout"`
+	AnalysisTimeout    int      `yaml:"analysis_timeout"`
+	Flags              []string `yaml:"flags"`
 }
 
 type PathsConfig struct {
@@ -100,6 +101,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.Claude.StallTimeout == 0 {
 		c.Claude.StallTimeout = 120
+	}
+	if c.Claude.StallTimeoutActive == 0 {
+		c.Claude.StallTimeoutActive = 300
 	}
 	if c.Claude.BeadTimeout == 0 {
 		c.Claude.BeadTimeout = 1200 // 20 minutes max per bead
