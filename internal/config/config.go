@@ -33,8 +33,9 @@ type EscalationConfig struct {
 }
 
 type LoopConfig struct {
-	MaxIterations int  `yaml:"max_iterations"`
-	StopOnFailure bool `yaml:"stop_on_failure"`
+	MaxIterations     int `yaml:"max_iterations"`
+	StopOnFailure     bool `yaml:"stop_on_failure"`
+	StuckBeadThreshold int `yaml:"stuck_bead_threshold"`
 }
 
 type ValidationConfig struct {
@@ -140,6 +141,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.Models.Labels == nil {
 		c.Models.Labels = make(map[string]string)
+	}
+	if c.Loop.StuckBeadThreshold == 0 {
+		c.Loop.StuckBeadThreshold = 3
 	}
 }
 

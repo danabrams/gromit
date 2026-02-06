@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/logger"
 )
 
@@ -439,4 +440,274 @@ func TestRetryCounterBehavior(t *testing.T) {
 	//
 	// This test is documentary - the actual logic is in processBead()
 	t.Log("Retry counter behavior documented")
+}
+
+func TestIsStuckBeadNilRunner(t *testing.T) {
+	var r *Runner
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.isStuckBead(b)
+	if result {
+		t.Error("expected isStuckBead to return false for nil runner")
+	}
+}
+
+func TestIsStuckBeadNilBead(t *testing.T) {
+	tmpDir := t.TempDir()
+	r := &Runner{
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
+		},
+	}
+	result := r.isStuckBead(nil)
+	if result {
+		t.Error("expected isStuckBead to return false for nil bead")
+	}
+}
+
+func TestIsStuckBeadDisabledThreshold(t *testing.T) {
+	tmpDir := t.TempDir()
+	r := &Runner{
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+			Loop:  config.LoopConfig{StuckBeadThreshold: 0},
+		},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.isStuckBead(b)
+	if result {
+		t.Error("expected isStuckBead to return false when threshold is 0 (disabled)")
+	}
+}
+
+func TestIsStuckBeadNegativeThreshold(t *testing.T) {
+	tmpDir := t.TempDir()
+	r := &Runner{
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+			Loop:  config.LoopConfig{StuckBeadThreshold: -1},
+		},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.isStuckBead(b)
+	if result {
+		t.Error("expected isStuckBead to return false when threshold is negative (disabled)")
+	}
+}
+
+func TestIsStuckBeadNoHistory(t *testing.T) {
+	tmpDir := t.TempDir()
+	r := &Runner{
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
+		},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.isStuckBead(b)
+	if result {
+		t.Error("expected isStuckBead to return false for bead with no history")
+	}
+}
+
+func TestIsStuckBeadBelowThreshold(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a log entry with 2 failures (below threshold of 3)
+	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
+	entries := []logger.IterationLog{
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+	}
+
+	f, err := os.Create(logFile)
+	if err != nil {
+		t.Fatalf("creating log file: %v", err)
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	for _, entry := range entries {
+		if err := enc.Encode(entry); err != nil {
+			t.Fatalf("encoding entry: %v", err)
+		}
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
+		},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.isStuckBead(b)
+	if result {
+		t.Error("expected isStuckBead to return false when failures < threshold")
+	}
+}
+
+func TestIsStuckBeadAtThreshold(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a log entry with exactly 3 failures (at threshold)
+	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
+	entries := []logger.IterationLog{
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+	}
+
+	f, err := os.Create(logFile)
+	if err != nil {
+		t.Fatalf("creating log file: %v", err)
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	for _, entry := range entries {
+		if err := enc.Encode(entry); err != nil {
+			t.Fatalf("encoding entry: %v", err)
+		}
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
+		},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.isStuckBead(b)
+	if !result {
+		t.Error("expected isStuckBead to return true when failures >= threshold")
+	}
+}
+
+func TestIsStuckBeadAboveThreshold(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a log entry with 5 failures (above threshold of 3)
+	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
+	entries := []logger.IterationLog{
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+	}
+
+	f, err := os.Create(logFile)
+	if err != nil {
+		t.Fatalf("creating log file: %v", err)
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	for _, entry := range entries {
+		if err := enc.Encode(entry); err != nil {
+			t.Fatalf("encoding entry: %v", err)
+		}
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
+		},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.isStuckBead(b)
+	if !result {
+		t.Error("expected isStuckBead to return true when failures > threshold")
+	}
+}
+
+func TestIsStuckBeadWithSuccesses(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a log with 3 failures and 1 success
+	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
+	entries := []logger.IterationLog{
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: true},
+	}
+
+	f, err := os.Create(logFile)
+	if err != nil {
+		t.Fatalf("creating log file: %v", err)
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	for _, entry := range entries {
+		if err := enc.Encode(entry); err != nil {
+			t.Fatalf("encoding entry: %v", err)
+		}
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
+		},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.isStuckBead(b)
+	if !result {
+		t.Error("expected isStuckBead to return true when failures >= threshold (regardless of successes)")
+	}
+}
+
+func TestIsStuckBeadMultipleBeads(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a log with multiple beads, only one stuck
+	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
+	entries := []logger.IterationLog{
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-1", Success: false},
+		{BeadID: "test-2", Success: false},
+		{BeadID: "test-3", Success: true},
+	}
+
+	f, err := os.Create(logFile)
+	if err != nil {
+		t.Fatalf("creating log file: %v", err)
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	for _, entry := range entries {
+		if err := enc.Encode(entry); err != nil {
+			t.Fatalf("encoding entry: %v", err)
+		}
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
+		},
+	}
+
+	// test-1 is stuck (3 failures)
+	result := r.isStuckBead(&bead.Bead{ID: "test-1"})
+	if !result {
+		t.Error("expected test-1 to be stuck")
+	}
+
+	// test-2 is not stuck (1 failure)
+	result = r.isStuckBead(&bead.Bead{ID: "test-2"})
+	if result {
+		t.Error("expected test-2 to not be stuck")
+	}
+
+	// test-3 is not stuck (0 failures)
+	result = r.isStuckBead(&bead.Bead{ID: "test-3"})
+	if result {
+		t.Error("expected test-3 to not be stuck")
+	}
 }

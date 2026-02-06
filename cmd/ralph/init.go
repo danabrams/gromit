@@ -187,6 +187,7 @@ escalation:
 loop:
   max_iterations: 0  # 0 = unlimited
   stop_on_failure: false  # Continue to next bead on failure
+  stuck_bead_threshold: 3  # Skip bead if it fails this many times across runs
 
 # Validation settings - customize for your project
 validation:

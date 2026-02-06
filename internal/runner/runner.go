@@ -138,6 +138,19 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 			break
 		}
 
+		// Check if bead is stuck (too many cross-run failures)
+		if r.isStuckBead(b) {
+			r.log("Bead %s marked as stuck (exceeded failure threshold), skipping", b.ID)
+			// Mark as complete to remove from queue
+			if err := r.beads.Close(b.ID); err != nil {
+				r.log("Warning: failed to close stuck bead: %v", err)
+			}
+			if err := r.beads.Sync(); err != nil {
+				r.log("Warning: failed to sync beads: %v", err)
+			}
+			continue
+		}
+
 		iteration++
 		r.log("\n=== Iteration %d ===", iteration)
 		r.log("Bead: %s - %s", b.ID, b.Title)
@@ -722,6 +735,34 @@ func (r *Runner) checkRetroSuggestion() {
 	confirmedCount, provisionalCount := lf.Stats()
 	r.log("\nRetro suggested: %d provisional learnings, %d confirmed patterns (%s). Run: ralph retro",
 		provisionalCount, confirmedCount, reason)
+}
+
+// isStuckBead checks if a bead has failed too many times across runs
+func (r *Runner) isStuckBead(b *bead.Bead) bool {
+	if r == nil || b == nil || r.cfg == nil {
+		return false
+	}
+
+	// If threshold is 0 or negative, stuck-bead detection is disabled
+	if r.cfg.Loop.StuckBeadThreshold <= 0 {
+		return false
+	}
+
+	// Read per-bead statistics from logs
+	beadStats, err := logger.ReadPerBeadStats(r.cfg.Paths.Logs)
+	if err != nil {
+		// If we can't read stats, don't mark as stuck
+		return false
+	}
+
+	stats, exists := beadStats[b.ID]
+	if !exists {
+		// No history for this bead, not stuck
+		return false
+	}
+
+	// Mark as stuck if failures >= threshold
+	return stats.Failures >= r.cfg.Loop.StuckBeadThreshold
 }
 
 // Status returns the current queue status

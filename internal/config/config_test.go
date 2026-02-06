@@ -1444,6 +1444,88 @@ func TestLoadPreservesLabels(t *testing.T) {
 	}
 }
 
+// Tests for stuck-bead threshold configuration
+
+func TestStuckBeadThresholdDefault(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+	if cfg.Loop.StuckBeadThreshold != 3 {
+		t.Errorf("expected default StuckBeadThreshold=3, got %d", cfg.Loop.StuckBeadThreshold)
+	}
+}
+
+func TestStuckBeadThresholdFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte("loop:\n  stuck_bead_threshold: 5\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Loop.StuckBeadThreshold != 5 {
+		t.Errorf("expected StuckBeadThreshold=5, got %d", cfg.Loop.StuckBeadThreshold)
+	}
+}
+
+func TestStuckBeadThresholdZeroGetsDefault(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte("loop:\n  stuck_bead_threshold: 0\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Loop.StuckBeadThreshold != 3 {
+		t.Errorf("expected StuckBeadThreshold=3 (default), got %d", cfg.Loop.StuckBeadThreshold)
+	}
+}
+
+func TestStuckBeadThresholdPreserved(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte("loop:\n  stuck_bead_threshold: 10\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Loop.StuckBeadThreshold != 10 {
+		t.Errorf("expected StuckBeadThreshold=10, got %d", cfg.Loop.StuckBeadThreshold)
+	}
+}
+
+func TestStuckBeadThresholdInFullConfig(t *testing.T) {
+	// Test that stuck_bead_threshold works alongside other loop settings
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `loop:
+  max_iterations: 20
+  stop_on_failure: true
+  stuck_bead_threshold: 7
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Loop.MaxIterations != 20 {
+		t.Errorf("expected MaxIterations=20, got %d", cfg.Loop.MaxIterations)
+	}
+	if !cfg.Loop.StopOnFailure {
+		t.Errorf("expected StopOnFailure=true, got false")
+	}
+	if cfg.Loop.StuckBeadThreshold != 7 {
+		t.Errorf("expected StuckBeadThreshold=7, got %d", cfg.Loop.StuckBeadThreshold)
+	}
+}
+
 // Helper function to check if string contains substring
 func contains(s, substr string) bool {
 	for i := 0; i < len(s)-len(substr)+1; i++ {
