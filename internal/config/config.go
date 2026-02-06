@@ -73,9 +73,10 @@ type ClaudeConfig struct {
 }
 
 type PathsConfig struct {
-	RalphDir        string `yaml:"ralph_dir"`
+	GromitDir       string `yaml:"gromit_dir"`
 	Templates       string `yaml:"templates"`
 	Specs           string `yaml:"specs"`
+	Plans           string `yaml:"plans"`
 	Logs            string `yaml:"logs"`
 	ProjectClaudeMD string `yaml:"project_claude_md"`
 }
@@ -164,17 +165,20 @@ func (c *Config) setDefaults() {
 	if c.Claude.AnalysisTimeout == 0 {
 		c.Claude.AnalysisTimeout = 120 // 2 minutes for failure analysis
 	}
-	if c.Paths.RalphDir == "" {
-		c.Paths.RalphDir = ".ralph"
+	if c.Paths.GromitDir == "" {
+		c.Paths.GromitDir = ".gromit"
 	}
 	if c.Paths.Templates == "" {
-		c.Paths.Templates = ".ralph/templates"
+		c.Paths.Templates = ".gromit/templates"
 	}
 	if c.Paths.Specs == "" {
-		c.Paths.Specs = ".ralph/specs"
+		c.Paths.Specs = ".gromit/specs"
+	}
+	if c.Paths.Plans == "" {
+		c.Paths.Plans = ".gromit/plans"
 	}
 	if c.Paths.Logs == "" {
-		c.Paths.Logs = ".ralph/logs"
+		c.Paths.Logs = ".gromit/logs"
 	}
 	if c.Paths.ProjectClaudeMD == "" {
 		c.Paths.ProjectClaudeMD = "CLAUDE.md"

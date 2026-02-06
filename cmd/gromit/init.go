@@ -10,12 +10,12 @@ import (
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize ralph in the current project",
-	Long: `Bootstrap ralph configuration and templates in the current directory.
+	Short: "Initialize gromit in the current project",
+	Long: `Bootstrap gromit configuration and templates in the current directory.
 
 Creates:
-  ralph.yaml           - Configuration file
-  .ralph/
+  gromit.yaml           - Configuration file
+  .gromit/
     templates/         - Prompt templates
       PROMPT_build.md
       PROMPT_validate.md
@@ -25,7 +25,8 @@ Creates:
       PROMPT_decompose.md
       PROMPT_review.md
       PROMPT_thorough_review.md
-    specs/             - Specification files (empty)`,
+    specs/             - Specification files (empty)
+    plans/             - Plan files (empty)`,
 	RunE: runInit,
 }
 
@@ -42,12 +43,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("getting working directory: %w", err)
 	}
 
-	fmt.Printf("Initializing ralph in %s\n", cwd)
+	fmt.Printf("Initializing gromit in %s\n", cwd)
 
-	// Create .ralph directory structure
+	// Create .gromit directory structure
 	dirs := []string{
-		".ralph/templates",
-		".ralph/specs",
+		".gromit/templates",
+		".gromit/specs",
+		".gromit/plans",
 	}
 
 	for _, dir := range dirs {
@@ -59,60 +61,60 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Write config file
-	configPath := filepath.Join(cwd, "ralph.yaml")
+	configPath := filepath.Join(cwd, "gromit.yaml")
 	if err := writeFileIfNotExists(configPath, defaultConfig, forceInit); err != nil {
 		return err
 	}
 
 	// Write templates
-	buildPath := filepath.Join(cwd, ".ralph/templates/PROMPT_build.md")
+	buildPath := filepath.Join(cwd, ".gromit/templates/PROMPT_build.md")
 	if err := writeFileIfNotExists(buildPath, defaultBuildTemplate, forceInit); err != nil {
 		return err
 	}
 
-	validatePath := filepath.Join(cwd, ".ralph/templates/PROMPT_validate.md")
+	validatePath := filepath.Join(cwd, ".gromit/templates/PROMPT_validate.md")
 	if err := writeFileIfNotExists(validatePath, defaultValidateTemplate, forceInit); err != nil {
 		return err
 	}
 
-	retroPath := filepath.Join(cwd, ".ralph/templates/PROMPT_retro.md")
+	retroPath := filepath.Join(cwd, ".gromit/templates/PROMPT_retro.md")
 	if err := writeFileIfNotExists(retroPath, defaultRetroTemplate, forceInit); err != nil {
 		return err
 	}
 
-	analyzePath := filepath.Join(cwd, ".ralph/templates/PROMPT_analyze.md")
+	analyzePath := filepath.Join(cwd, ".gromit/templates/PROMPT_analyze.md")
 	if err := writeFileIfNotExists(analyzePath, defaultAnalyzeTemplate, forceInit); err != nil {
 		return err
 	}
 
-	scopePath := filepath.Join(cwd, ".ralph/templates/PROMPT_scope.md")
+	scopePath := filepath.Join(cwd, ".gromit/templates/PROMPT_scope.md")
 	if err := writeFileIfNotExists(scopePath, defaultScopeTemplate, forceInit); err != nil {
 		return err
 	}
 
-	decomposePath := filepath.Join(cwd, ".ralph/templates/PROMPT_decompose.md")
+	decomposePath := filepath.Join(cwd, ".gromit/templates/PROMPT_decompose.md")
 	if err := writeFileIfNotExists(decomposePath, defaultDecomposeTemplate, forceInit); err != nil {
 		return err
 	}
 
-	reviewPath := filepath.Join(cwd, ".ralph/templates/PROMPT_review.md")
+	reviewPath := filepath.Join(cwd, ".gromit/templates/PROMPT_review.md")
 	if err := writeFileIfNotExists(reviewPath, defaultReviewTemplate, forceInit); err != nil {
 		return err
 	}
 
-	thoroughReviewPath := filepath.Join(cwd, ".ralph/templates/PROMPT_thorough_review.md")
+	thoroughReviewPath := filepath.Join(cwd, ".gromit/templates/PROMPT_thorough_review.md")
 	if err := writeFileIfNotExists(thoroughReviewPath, defaultThoroughReviewTemplate, forceInit); err != nil {
 		return err
 	}
 
 	// Write RULES.md
-	rulesPath := filepath.Join(cwd, ".ralph/RULES.md")
+	rulesPath := filepath.Join(cwd, ".gromit/RULES.md")
 	if err := writeFileIfNotExists(rulesPath, defaultRules, forceInit); err != nil {
 		return err
 	}
 
 	// Write LEARNINGS.md
-	learningsPath := filepath.Join(cwd, ".ralph/LEARNINGS.md")
+	learningsPath := filepath.Join(cwd, ".gromit/LEARNINGS.md")
 	if err := writeFileIfNotExists(learningsPath, defaultLearnings, forceInit); err != nil {
 		return err
 	}
@@ -124,12 +126,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("\nDone! Next steps:")
-	fmt.Println("  1. Edit ralph.yaml to customize validation commands")
-	fmt.Println("  2. Edit .ralph/RULES.md to add project-specific rules")
-	fmt.Println("  3. Create specs in .ralph/specs/ for complex features")
+	fmt.Println("  1. Edit gromit.yaml to customize validation commands")
+	fmt.Println("  2. Edit .gromit/RULES.md to add project-specific rules")
+	fmt.Println("  3. Create specs in .gromit/specs/ and plans in .gromit/plans/")
 	fmt.Println("  4. Create beads with: bd create \"Task title\" --priority 1")
-	fmt.Println("  5. Run: ralph run --dry-run")
-	fmt.Println("\nPeriodically run 'ralph retro' to analyze and consolidate learnings.")
+	fmt.Println("  5. Run: gromit run --dry-run")
+	fmt.Println("\nPeriodically run 'gromit retro' to analyze and consolidate learnings.")
 
 	return nil
 }
@@ -155,8 +157,8 @@ func appendToGitignore(path string) {
 		return
 	}
 
-	// Check if already has ralph entries
-	if contains(string(content), ".ralph/logs") {
+	// Check if already has gromit entries
+	if contains(string(content), ".gromit/logs") {
 		return
 	}
 
@@ -166,7 +168,7 @@ func appendToGitignore(path string) {
 	}
 	defer f.Close()
 
-	f.WriteString("\n# Ralph runner\n.ralph/logs/\n")
+	f.WriteString("\n# Gromit runner\n.gromit/logs/\n")
 	fmt.Println("  Updated .gitignore")
 }
 
@@ -183,8 +185,8 @@ func containsString(s, substr string) bool {
 	return false
 }
 
-const defaultConfig = `# Ralph Runner Configuration
-# See: https://github.com/danabrams/ralph-runner
+const defaultConfig = `# Gromit Configuration
+# See: https://github.com/danabrams/gromit
 
 # Model selection based on bead priority
 models:
@@ -257,9 +259,9 @@ claude:
 
 # Paths (relative to project root)
 paths:
-  templates: ".ralph/templates"
-  specs: ".ralph/specs"
-  logs: ".ralph/logs"
+  templates: ".gromit/templates"
+  specs: ".gromit/specs"
+  logs: ".gromit/logs"
   project_claude_md: "CLAUDE.md"  # Your project's CLAUDE.md
 `
 
@@ -358,7 +360,7 @@ Do NOT output any special completion markers - just complete the task and exit.
 
 const defaultRules = `# Rules
 
-These are non-negotiable constraints for this project. Ralph will always follow these.
+These are non-negotiable constraints for this project. Gromit will always follow these.
 
 ## Code Style
 
@@ -380,8 +382,8 @@ These are non-negotiable constraints for this project. Ralph will always follow 
 
 const defaultLearnings = `# Learnings
 
-Accumulated operational knowledge from Ralph iterations.
-This file is automatically updated. Review periodically with ` + "`ralph retro`" + `.
+Accumulated operational knowledge from Gromit iterations.
+This file is automatically updated. Review periodically with ` + "`gromit retro`" + `.
 
 ---
 
@@ -425,7 +427,7 @@ Do not make any code changes during validation - only run the commands and repor
 
 const defaultRetroTemplate = `# Retrospective Analysis
 
-You are analyzing accumulated learnings from ralph-runner iterations to identify patterns, consolidate knowledge, and recommend updates to project rules.
+You are analyzing accumulated learnings from gromit iterations to identify patterns, consolidate knowledge, and recommend updates to project rules.
 
 ## Current Rules
 
@@ -656,7 +658,7 @@ This is part of: **{{.ParentBead.Title}}**
 Break this task into 2-4 smaller sub-tasks that:
 - Each can be completed independently (or with minimal ordering constraints)
 - Are smaller in scope but maintain the original goal
-- Can be executed sequentially through the Ralph loop
+- Can be executed sequentially through the Gromit loop
 - Each have clear acceptance criteria
 
 ## Output Format

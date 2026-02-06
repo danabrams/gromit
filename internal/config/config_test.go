@@ -9,53 +9,53 @@ import (
 
 func TestSelectModelBasics(t *testing.T) {
 	tests := []struct {
-		name    string
-		cfg     *Config
+		name     string
+		cfg      *Config
 		priority int
 		labels   []string
-		want    string
+		want     string
 	}{
 		{
-			name:    "NilReceiver",
-			cfg:     nil,
+			name:     "NilReceiver",
+			cfg:      nil,
 			priority: 1,
 			labels:   nil,
-			want:    "sonnet",
+			want:     "sonnet",
 		},
 		{
-			name: "NilLabels",
-			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			name:     "NilLabels",
+			cfg:      &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
 			priority: 0,
 			labels:   nil,
-			want:    "opus",
+			want:     "opus",
 		},
 		{
-			name: "P0",
-			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			name:     "P0",
+			cfg:      &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
 			priority: 0,
 			labels:   nil,
-			want:    "opus",
+			want:     "opus",
 		},
 		{
-			name: "P1",
-			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			name:     "P1",
+			cfg:      &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
 			priority: 1,
 			labels:   nil,
-			want:    "sonnet",
+			want:     "sonnet",
 		},
 		{
-			name: "P2",
-			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			name:     "P2",
+			cfg:      &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
 			priority: 2,
 			labels:   nil,
-			want:    "haiku",
+			want:     "haiku",
 		},
 		{
-			name: "UnknownPriority",
-			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			name:     "UnknownPriority",
+			cfg:      &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
 			priority: 99,
 			labels:   nil,
-			want:    "sonnet",
+			want:     "sonnet",
 		},
 		{
 			name: "LabelOverride",
@@ -65,7 +65,7 @@ func TestSelectModelBasics(t *testing.T) {
 			}},
 			priority: 1,
 			labels:   []string{"complexity:high"},
-			want:    "opus",
+			want:     "opus",
 		},
 	}
 
@@ -160,7 +160,7 @@ func TestNextEscalationModelBasics(t *testing.T) {
 func TestLoadAndDefaults(t *testing.T) {
 	// Create a minimal config file
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte("models:\n  p0: opus\n"), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -177,8 +177,8 @@ func TestLoadAndDefaults(t *testing.T) {
 	if cfg.Claude.Binary != "claude" {
 		t.Errorf("expected default binary='claude', got %q", cfg.Claude.Binary)
 	}
-	if cfg.Paths.RalphDir != ".ralph" {
-		t.Errorf("expected default RalphDir='.ralph', got %q", cfg.Paths.RalphDir)
+	if cfg.Paths.GromitDir != ".gromit" {
+		t.Errorf("expected default GromitDir='.gromit', got %q", cfg.Paths.GromitDir)
 	}
 }
 
@@ -200,7 +200,7 @@ func TestStallTimeoutActiveDefault(t *testing.T) {
 
 func TestStallTimeoutActiveFromYAML(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte("claude:\n  stall_timeout_active: 180\n"), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestStallTimeoutActiveFromYAML(t *testing.T) {
 
 func TestStallTimeoutFromYAML(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte("claude:\n  stall_timeout: 60\n"), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestStallTimeoutFromYAML(t *testing.T) {
 }
 
 func TestLoadMissingFile(t *testing.T) {
-	_, err := Load("/nonexistent/path/ralph.yaml")
+	_, err := Load("/nonexistent/path/gromit.yaml")
 	if err == nil {
 		t.Error("expected error for missing file")
 	}
@@ -237,7 +237,7 @@ func TestLoadMissingFile(t *testing.T) {
 
 func TestLoadInvalidYAML(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte("invalid: [yaml: {broken"), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestMaxRetriesPerBeadDefault(t *testing.T) {
 
 func TestMaxRetriesPerBeadFromYAML(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `escalation:
   max_retries_per_bead: 5
 `
@@ -926,7 +926,7 @@ func TestNextEscalationModelEmptyStringModel(t *testing.T) {
 func TestLoadEmptyFile(t *testing.T) {
 	// Test loading an empty YAML file - should apply all defaults
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -967,17 +967,20 @@ func TestLoadEmptyFile(t *testing.T) {
 	if cfg.Claude.AnalysisTimeout != 120 {
 		t.Errorf("expected AnalysisTimeout=120, got %d", cfg.Claude.AnalysisTimeout)
 	}
-	if cfg.Paths.RalphDir != ".ralph" {
-		t.Errorf("expected RalphDir='.ralph', got %q", cfg.Paths.RalphDir)
+	if cfg.Paths.GromitDir != ".gromit" {
+		t.Errorf("expected GromitDir='.gromit', got %q", cfg.Paths.GromitDir)
 	}
-	if cfg.Paths.Templates != ".ralph/templates" {
-		t.Errorf("expected Templates='.ralph/templates', got %q", cfg.Paths.Templates)
+	if cfg.Paths.Templates != ".gromit/templates" {
+		t.Errorf("expected Templates='.gromit/templates', got %q", cfg.Paths.Templates)
 	}
-	if cfg.Paths.Specs != ".ralph/specs" {
-		t.Errorf("expected Specs='.ralph/specs', got %q", cfg.Paths.Specs)
+	if cfg.Paths.Specs != ".gromit/specs" {
+		t.Errorf("expected Specs='.gromit/specs', got %q", cfg.Paths.Specs)
 	}
-	if cfg.Paths.Logs != ".ralph/logs" {
-		t.Errorf("expected Logs='.ralph/logs', got %q", cfg.Paths.Logs)
+	if cfg.Paths.Plans != ".gromit/plans" {
+		t.Errorf("expected Plans='.gromit/plans', got %q", cfg.Paths.Plans)
+	}
+	if cfg.Paths.Logs != ".gromit/logs" {
+		t.Errorf("expected Logs='.gromit/logs', got %q", cfg.Paths.Logs)
 	}
 	if cfg.Paths.ProjectClaudeMD != "CLAUDE.md" {
 		t.Errorf("expected ProjectClaudeMD='CLAUDE.md', got %q", cfg.Paths.ProjectClaudeMD)
@@ -1002,7 +1005,7 @@ func TestLoadEmptyFile(t *testing.T) {
 func TestLoadPartialYAML(t *testing.T) {
 	// Test that defaults apply only to missing fields
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `models:
   p0: custom-opus
   p1: custom-sonnet
@@ -1044,7 +1047,7 @@ claude:
 func TestLoadWithAllFields(t *testing.T) {
 	// Test that all custom values are preserved when provided
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `models:
   p0: ultra
   p1: standard
@@ -1079,10 +1082,11 @@ claude:
   flags:
     - "--dangerously-skip-permissions"
 paths:
-  ralph_dir: .custom-ralph
-  templates: .custom-ralph/templates
-  specs: .custom-ralph/specs
-  logs: .custom-ralph/logs
+  gromit_dir: .custom-gromit
+  templates: .custom-gromit/templates
+  specs: .custom-gromit/specs
+  plans: .custom-gromit/plans
+  logs: .custom-gromit/logs
   project_claude_md: CUSTOM.md
 `
 	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
@@ -1164,17 +1168,20 @@ paths:
 		t.Errorf("expected 1 flag, got %d", len(cfg.Claude.Flags))
 	}
 
-	if cfg.Paths.RalphDir != ".custom-ralph" {
-		t.Errorf("expected RalphDir='.custom-ralph', got %q", cfg.Paths.RalphDir)
+	if cfg.Paths.GromitDir != ".custom-gromit" {
+		t.Errorf("expected GromitDir='.custom-gromit', got %q", cfg.Paths.GromitDir)
 	}
-	if cfg.Paths.Templates != ".custom-ralph/templates" {
-		t.Errorf("expected Templates='.custom-ralph/templates', got %q", cfg.Paths.Templates)
+	if cfg.Paths.Templates != ".custom-gromit/templates" {
+		t.Errorf("expected Templates='.custom-gromit/templates', got %q", cfg.Paths.Templates)
 	}
-	if cfg.Paths.Specs != ".custom-ralph/specs" {
-		t.Errorf("expected Specs='.custom-ralph/specs', got %q", cfg.Paths.Specs)
+	if cfg.Paths.Specs != ".custom-gromit/specs" {
+		t.Errorf("expected Specs='.custom-gromit/specs', got %q", cfg.Paths.Specs)
 	}
-	if cfg.Paths.Logs != ".custom-ralph/logs" {
-		t.Errorf("expected Logs='.custom-ralph/logs', got %q", cfg.Paths.Logs)
+	if cfg.Paths.Plans != ".custom-gromit/plans" {
+		t.Errorf("expected Plans='.custom-gromit/plans', got %q", cfg.Paths.Plans)
+	}
+	if cfg.Paths.Logs != ".custom-gromit/logs" {
+		t.Errorf("expected Logs='.custom-gromit/logs', got %q", cfg.Paths.Logs)
 	}
 	if cfg.Paths.ProjectClaudeMD != "CUSTOM.md" {
 		t.Errorf("expected ProjectClaudeMD='CUSTOM.md', got %q", cfg.Paths.ProjectClaudeMD)
@@ -1195,7 +1202,7 @@ func TestLoadFileNotFound(t *testing.T) {
 func TestLoadInvalidYAMLSyntax(t *testing.T) {
 	// Test error handling for invalid YAML syntax
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte("invalid: [yaml: {broken"), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -1212,7 +1219,7 @@ func TestLoadInvalidYAMLSyntax(t *testing.T) {
 func TestLoadZeroTimeouts(t *testing.T) {
 	// Test that zero timeouts are replaced with defaults
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `claude:
   timeout: 0
   stall_timeout: 0
@@ -1250,7 +1257,7 @@ func TestLoadZeroTimeouts(t *testing.T) {
 func TestLoadEmptyStrings(t *testing.T) {
 	// Test that empty string fields are replaced with defaults
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `models:
   p0: ""
   p1: ""
@@ -1259,9 +1266,10 @@ func TestLoadEmptyStrings(t *testing.T) {
 claude:
   binary: ""
 paths:
-  ralph_dir: ""
+  gromit_dir: ""
   templates: ""
   specs: ""
+  plans: ""
   logs: ""
   project_claude_md: ""
 preflight:
@@ -1292,17 +1300,20 @@ preflight:
 	if cfg.Claude.Binary != "claude" {
 		t.Errorf("expected Binary='claude', got %q", cfg.Claude.Binary)
 	}
-	if cfg.Paths.RalphDir != ".ralph" {
-		t.Errorf("expected RalphDir='.ralph', got %q", cfg.Paths.RalphDir)
+	if cfg.Paths.GromitDir != ".gromit" {
+		t.Errorf("expected GromitDir='.gromit', got %q", cfg.Paths.GromitDir)
 	}
-	if cfg.Paths.Templates != ".ralph/templates" {
-		t.Errorf("expected Templates='.ralph/templates', got %q", cfg.Paths.Templates)
+	if cfg.Paths.Templates != ".gromit/templates" {
+		t.Errorf("expected Templates='.gromit/templates', got %q", cfg.Paths.Templates)
 	}
-	if cfg.Paths.Specs != ".ralph/specs" {
-		t.Errorf("expected Specs='.ralph/specs', got %q", cfg.Paths.Specs)
+	if cfg.Paths.Specs != ".gromit/specs" {
+		t.Errorf("expected Specs='.gromit/specs', got %q", cfg.Paths.Specs)
 	}
-	if cfg.Paths.Logs != ".ralph/logs" {
-		t.Errorf("expected Logs='.ralph/logs', got %q", cfg.Paths.Logs)
+	if cfg.Paths.Plans != ".gromit/plans" {
+		t.Errorf("expected Plans='.gromit/plans', got %q", cfg.Paths.Plans)
+	}
+	if cfg.Paths.Logs != ".gromit/logs" {
+		t.Errorf("expected Logs='.gromit/logs', got %q", cfg.Paths.Logs)
 	}
 	if cfg.Paths.ProjectClaudeMD != "CLAUDE.md" {
 		t.Errorf("expected ProjectClaudeMD='CLAUDE.md', got %q", cfg.Paths.ProjectClaudeMD)
@@ -1315,7 +1326,7 @@ preflight:
 func TestLoadNilEscalationChain(t *testing.T) {
 	// Test that nil escalation chain is replaced with default
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -1339,7 +1350,7 @@ func TestLoadNilEscalationChain(t *testing.T) {
 func TestLoadZeroEscalationRetries(t *testing.T) {
 	// Test that zero escalation retry values are replaced with defaults
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `escalation:
   max_retries_per_model: 0
   max_retries_per_bead: 0
@@ -1365,7 +1376,7 @@ func TestLoadZeroEscalationRetries(t *testing.T) {
 func TestLoadPreservesNonZeroRetries(t *testing.T) {
 	// Test that non-zero retry values are preserved
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `escalation:
   max_retries_per_model: 3
   max_retries_per_bead: 15
@@ -1390,7 +1401,7 @@ func TestLoadPreservesNonZeroRetries(t *testing.T) {
 func TestLoadEmptyEscalationChain(t *testing.T) {
 	// Test that empty escalation chain is replaced with default
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `escalation:
   chain: []
 `
@@ -1414,7 +1425,7 @@ func TestLoadEmptyEscalationChain(t *testing.T) {
 func TestLoadCustomEscalationChain(t *testing.T) {
 	// Test that custom escalation chain is preserved
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `escalation:
   chain: ["model-a", "model-b", "model-c"]
 `
@@ -1438,7 +1449,7 @@ func TestLoadCustomEscalationChain(t *testing.T) {
 func TestLoadNilLabelsMap(t *testing.T) {
 	// Test that nil labels map is initialized as empty
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -1465,7 +1476,7 @@ func TestLoadNilLabelsMap(t *testing.T) {
 func TestLoadPreservesLabels(t *testing.T) {
 	// Test that existing labels are preserved and defaults apply to missing fields
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `models:
   labels:
     "complexity:high": "opus"
@@ -1508,7 +1519,7 @@ func TestStuckBeadThresholdDefault(t *testing.T) {
 
 func TestStuckBeadThresholdFromYAML(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte("loop:\n  stuck_bead_threshold: 5\n"), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -1523,7 +1534,7 @@ func TestStuckBeadThresholdFromYAML(t *testing.T) {
 
 func TestStuckBeadThresholdZeroGetsDefault(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte("loop:\n  stuck_bead_threshold: 0\n"), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -1538,7 +1549,7 @@ func TestStuckBeadThresholdZeroGetsDefault(t *testing.T) {
 
 func TestStuckBeadThresholdPreserved(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte("loop:\n  stuck_bead_threshold: 10\n"), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -1554,7 +1565,7 @@ func TestStuckBeadThresholdPreserved(t *testing.T) {
 func TestStuckBeadThresholdInFullConfig(t *testing.T) {
 	// Test that stuck_bead_threshold works alongside other loop settings
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `loop:
   max_iterations: 20
   stop_on_failure: true
@@ -1639,7 +1650,7 @@ func TestNormalizeNilFieldsPreservesExisting(t *testing.T) {
 func TestLoadNormalizesNilSliceFields(t *testing.T) {
 	// Loading a minimal config should produce non-nil slices for all fields
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
@@ -1665,7 +1676,7 @@ func TestLoadNormalizesNilSliceFields(t *testing.T) {
 
 func TestReviewConfigDefaults(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `models:
   p0: opus
 `
@@ -1703,7 +1714,7 @@ func TestReviewConfigDefaults(t *testing.T) {
 
 func TestReviewConfigExplicit(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `review:
   enabled: true
   model: opus
@@ -1757,7 +1768,7 @@ func TestReviewConfigExplicit(t *testing.T) {
 func TestReviewConfigPartialExplicit(t *testing.T) {
 	// Test that explicit false values are preserved while unset values get defaults
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `review:
   enabled: false
   match_build_model: false
@@ -1800,7 +1811,7 @@ func TestReviewConfigPartialExplicit(t *testing.T) {
 func TestReviewConfigZeroTimeouts(t *testing.T) {
 	// Test that zero timeout values are replaced with defaults
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `review:
   timeout: 0
   thorough:
@@ -1826,7 +1837,7 @@ func TestReviewConfigZeroTimeouts(t *testing.T) {
 func TestReviewConfigZeroIterations(t *testing.T) {
 	// Test that zero every_n_iterations is replaced with default
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `review:
   thorough:
     every_n_iterations: 0
@@ -1848,7 +1859,7 @@ func TestReviewConfigZeroIterations(t *testing.T) {
 func TestReviewConfigEmptyStrings(t *testing.T) {
 	// Test that empty string models are replaced with defaults
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `review:
   model: ""
   thorough:
@@ -1874,7 +1885,7 @@ func TestReviewConfigEmptyStrings(t *testing.T) {
 func TestReviewConfigCustomModels(t *testing.T) {
 	// Test that custom model values are preserved
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `review:
   model: custom-review-model
   thorough:
@@ -1900,7 +1911,7 @@ func TestReviewConfigCustomModels(t *testing.T) {
 func TestReviewConfigCustomTimeouts(t *testing.T) {
 	// Test that custom timeout values are preserved
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `review:
   timeout: 300
   thorough:
@@ -1926,7 +1937,7 @@ func TestReviewConfigCustomTimeouts(t *testing.T) {
 func TestReviewConfigCustomIterations(t *testing.T) {
 	// Test that custom every_n_iterations value is preserved
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `review:
   thorough:
     every_n_iterations: 15
@@ -2000,7 +2011,7 @@ func TestShouldRunOnEpicCompleteExplicitFalse(t *testing.T) {
 func TestReviewConfigInFullConfig(t *testing.T) {
 	// Test that review config works alongside all other config sections
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "ralph.yaml")
+	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `models:
   p0: opus
   p1: sonnet
@@ -2027,7 +2038,7 @@ review:
 claude:
   timeout: 600
 paths:
-  ralph_dir: .ralph
+  gromit_dir: .gromit
 `
 	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
