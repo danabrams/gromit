@@ -1196,7 +1196,10 @@ func buildBacklogLabels() []string {
 // BacklogItems entries are created as P2 with both "from-review" and "backlog" labels.
 // Returns the count of beads created and backlog items created.
 func (r *Runner) applyReviewResult(result *review.ReviewResult) (beadsCreated int, backlogCreated int) {
-	if r == nil || result == nil || r.beads == nil {
+	if r == nil {
+		return 0, 0
+	}
+	if result == nil || r.beads == nil {
 		return 0, 0
 	}
 
