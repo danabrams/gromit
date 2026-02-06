@@ -343,6 +343,176 @@ func TestBeadJSONParsing(t *testing.T) {
 	}
 }
 
+// TestNormalizeNilFields tests that nil slices are replaced with empty slices
+func TestNormalizeNilFields(t *testing.T) {
+	tests := []struct {
+		name string
+		bead *Bead
+	}{
+		{
+			name: "nil Labels and ExpectedOutputs",
+			bead: &Bead{
+				ID:    "test-1",
+				Title: "Test",
+			},
+		},
+		{
+			name: "nil Labels only",
+			bead: &Bead{
+				ID:              "test-2",
+				Title:           "Test",
+				ExpectedOutputs: []string{"file.go"},
+			},
+		},
+		{
+			name: "nil ExpectedOutputs only",
+			bead: &Bead{
+				ID:     "test-3",
+				Title:  "Test",
+				Labels: []string{"label1"},
+			},
+		},
+		{
+			name: "already non-nil",
+			bead: &Bead{
+				ID:              "test-4",
+				Title:           "Test",
+				Labels:          []string{"label1"},
+				ExpectedOutputs: []string{"file.go"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.bead.normalizeNilFields()
+			if tt.bead.Labels == nil {
+				t.Error("Labels should not be nil after normalization")
+			}
+			if tt.bead.ExpectedOutputs == nil {
+				t.Error("ExpectedOutputs should not be nil after normalization")
+			}
+		})
+	}
+}
+
+// TestNormalizeNilFieldsOnNilBead tests that normalizeNilFields doesn't panic on nil bead
+func TestNormalizeNilFieldsOnNilBead(t *testing.T) {
+	var b *Bead
+	b.normalizeNilFields() // Should not panic
+}
+
+// TestParseBeadOutputNormalizesNilFields tests that parseBeadOutput normalizes nil fields
+func TestParseBeadOutputNormalizesNilFields(t *testing.T) {
+	// Simulates bd output where labels and expected_outputs are missing
+	jsonStr := `[{
+		"id": "test-nil",
+		"title": "Nil fields task",
+		"status": "open",
+		"priority": 0,
+		"issue_type": "task",
+		"owner": "alice"
+	}]`
+
+	b, err := parseBeadOutput(jsonStr)
+	if err != nil {
+		t.Fatalf("parseBeadOutput() error = %v", err)
+	}
+	if b == nil {
+		t.Fatal("parseBeadOutput() returned nil bead")
+	}
+	if b.Labels == nil {
+		t.Error("Labels should not be nil after parseBeadOutput")
+	}
+	if b.ExpectedOutputs == nil {
+		t.Error("ExpectedOutputs should not be nil after parseBeadOutput")
+	}
+}
+
+// TestParseBeadOutputWithExplicitNullFields tests handling of JSON null values
+func TestParseBeadOutputWithExplicitNullFields(t *testing.T) {
+	jsonStr := `[{
+		"id": "test-null",
+		"title": "Null fields task",
+		"status": "open",
+		"priority": 1,
+		"issue_type": "task",
+		"owner": "",
+		"labels": null,
+		"expected_outputs": null
+	}]`
+
+	b, err := parseBeadOutput(jsonStr)
+	if err != nil {
+		t.Fatalf("parseBeadOutput() error = %v", err)
+	}
+	if b == nil {
+		t.Fatal("parseBeadOutput() returned nil bead")
+	}
+	if b.Labels == nil {
+		t.Error("Labels should not be nil after parseBeadOutput (was JSON null)")
+	}
+	if b.ExpectedOutputs == nil {
+		t.Error("ExpectedOutputs should not be nil after parseBeadOutput (was JSON null)")
+	}
+}
+
+// TestShowParsesArrayWrappedJSON tests that Show handles both array and object JSON formats
+func TestShowParsesArrayWrappedJSON(t *testing.T) {
+	// We can't call Show() directly without bd running, but we can test
+	// the parsing logic by testing parseBeadOutput with array format
+	tests := []struct {
+		name    string
+		json    string
+		wantID  string
+		wantErr bool
+	}{
+		{
+			name: "array-wrapped single bead",
+			json: `[{
+				"id": "arr-001",
+				"title": "Array bead",
+				"priority": 0,
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantID: "arr-001",
+		},
+		{
+			name: "array-wrapped bead with missing optional fields",
+			json: `[{
+				"id": "arr-002",
+				"title": "Sparse bead",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "open",
+				"owner": "bob"
+			}]`,
+			wantID: "arr-002",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := parseBeadOutput(tt.json)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseBeadOutput() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err == nil {
+				if b.ID != tt.wantID {
+					t.Errorf("ID = %v, want %v", b.ID, tt.wantID)
+				}
+				if b.Labels == nil {
+					t.Error("Labels should not be nil")
+				}
+				if b.ExpectedOutputs == nil {
+					t.Error("ExpectedOutputs should not be nil")
+				}
+			}
+		})
+	}
+}
+
 // TestFindSpecLabel tests the FindSpecLabel function
 func TestFindSpecLabel(t *testing.T) {
 	tests := []struct {

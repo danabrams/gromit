@@ -35,6 +35,22 @@ const (
 	maxLabelCount        = 64
 )
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+// This prevents issues with downstream code that may range over nil slices
+// (which is safe) vs code that checks len() or marshals to JSON (nil → "null"
+// vs [] → "[]").
+func (b *Bead) normalizeNilFields() {
+	if b == nil {
+		return
+	}
+	if b.Labels == nil {
+		b.Labels = []string{}
+	}
+	if b.ExpectedOutputs == nil {
+		b.ExpectedOutputs = []string{}
+	}
+}
+
 // Validate checks that bead fields are safe for use in prompts, commands, and logging.
 func (b *Bead) Validate() error {
 	if b == nil {
@@ -130,6 +146,8 @@ func parseBeadOutput(out string) (*Bead, error) {
 		return nil, nil
 	}
 
+	beads[0].normalizeNilFields()
+
 	if err := beads[0].Validate(); err != nil {
 		return nil, fmt.Errorf("invalid bead data: %w", err)
 	}
@@ -178,10 +196,25 @@ func (c *Client) Show(id string) (*Bead, error) {
 		return nil, fmt.Errorf("bd show %s: %w", id, err)
 	}
 
+	// bd show returns an array-wrapped JSON object; try array first, fall back to single object
+	trimmed := strings.TrimSpace(out)
 	var b Bead
-	if err := json.Unmarshal([]byte(out), &b); err != nil {
-		return nil, fmt.Errorf("parsing bd show output: %w", err)
+	if strings.HasPrefix(trimmed, "[") {
+		var beads []Bead
+		if err := json.Unmarshal([]byte(trimmed), &beads); err != nil {
+			return nil, fmt.Errorf("parsing bd show output: %w", err)
+		}
+		if len(beads) == 0 {
+			return nil, fmt.Errorf("bd show %s: empty result", id)
+		}
+		b = beads[0]
+	} else {
+		if err := json.Unmarshal([]byte(trimmed), &b); err != nil {
+			return nil, fmt.Errorf("parsing bd show output: %w", err)
+		}
 	}
+
+	b.normalizeNilFields()
 
 	if err := b.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid bead data: %w", err)
@@ -227,6 +260,8 @@ func (c *Client) CreateWithParent(title string, priority int, labels []string, e
 	if err := json.Unmarshal([]byte(out), &b); err != nil {
 		return nil, fmt.Errorf("parsing bd create output: %w", err)
 	}
+
+	b.normalizeNilFields()
 
 	if err := b.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid bead data: %w", err)
