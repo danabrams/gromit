@@ -229,11 +229,16 @@ func (c *Client) Show(id string) (*Bead, error) {
 
 // Create creates a new bead via the bd CLI and returns the created bead
 func (c *Client) Create(title string, priority int, labels []string, expectedOutputs []string) (*Bead, error) {
-	return c.CreateWithParent(title, priority, labels, expectedOutputs, "")
+	return c.CreateWithParentAndDescription(title, priority, labels, expectedOutputs, "", "")
 }
 
-// CreateWithParent creates a new bead with an optional parent via the bd CLI
+// CreateWithParent creates a new bead with an optional parent and description via the bd CLI
 func (c *Client) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*Bead, error) {
+	return c.CreateWithParentAndDescription(title, priority, labels, expectedOutputs, parentID, "")
+}
+
+// CreateWithParentAndDescription creates a new bead with an optional parent and description via the bd CLI
+func (c *Client) CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -253,6 +258,11 @@ func (c *Client) CreateWithParent(title string, priority int, labels []string, e
 			return nil, fmt.Errorf("invalid parent ID %q", parentID)
 		}
 		args = append(args, "--parent", parentID)
+	}
+
+	// Add description if specified
+	if description != "" {
+		args = append(args, "--description", description)
 	}
 
 	out, err := c.run(args...)

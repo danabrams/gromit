@@ -20,13 +20,14 @@ import (
 // --- Mock implementations ---
 
 type mockBeadClient struct {
-	ReadyFn            func() (*bead.Bead, error)
-	ShowFn             func(id string) (*bead.Bead, error)
-	CloseFn            func(id string) error
-	SyncFn             func() error
-	AddCommentFn       func(id, comment string) error
-	GetParentFn        func(b *bead.Bead) (*bead.Bead, error)
-	CreateWithParentFn func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+	ReadyFn                         func() (*bead.Bead, error)
+	ShowFn                          func(id string) (*bead.Bead, error)
+	CloseFn                         func(id string) error
+	SyncFn                          func() error
+	AddCommentFn                    func(id, comment string) error
+	GetParentFn                     func(b *bead.Bead) (*bead.Bead, error)
+	CreateWithParentFn              func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+	CreateWithParentAndDescriptionFn func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
 
 	ClosedIDs []string
 	SyncCalls int
@@ -88,6 +89,13 @@ func (m *mockBeadClient) CreateWithParent(title string, priority int, labels []s
 		return m.CreateWithParentFn(title, priority, labels, expectedOutputs, parentID)
 	}
 	return &bead.Bead{ID: "mock-sub-1", Title: title, Labels: []string{}, ExpectedOutputs: []string{}}, nil
+}
+
+func (m *mockBeadClient) CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+	if m.CreateWithParentAndDescriptionFn != nil {
+		return m.CreateWithParentAndDescriptionFn(title, priority, labels, expectedOutputs, parentID, description)
+	}
+	return &bead.Bead{ID: "mock-sub-1", Title: title, Description: description, Labels: []string{}, ExpectedOutputs: []string{}}, nil
 }
 
 type mockClaudeClient struct {
@@ -410,11 +418,13 @@ func TestStatusWithMocks_NoWork(t *testing.T) {
 
 func TestCreateSubBeadsWithMocks(t *testing.T) {
 	created := []string{}
+	createdDescriptions := map[string]string{}
 	beads := &mockBeadClient{
-		CreateWithParentFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+		CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
 			id := fmt.Sprintf("sub-%d", len(created)+1)
 			created = append(created, id)
-			return &bead.Bead{ID: id, Title: title, Priority: priority, Labels: labels, ExpectedOutputs: []string{}}, nil
+			createdDescriptions[id] = description
+			return &bead.Bead{ID: id, Title: title, Description: description, Priority: priority, Labels: labels, ExpectedOutputs: []string{}}, nil
 		},
 	}
 
@@ -443,6 +453,20 @@ func TestCreateSubBeadsWithMocks(t *testing.T) {
 	}
 	if beads.SyncCalls != 1 {
 		t.Errorf("expected 1 sync call, got %d", beads.SyncCalls)
+	}
+
+	// Verify descriptions were preserved
+	if !strings.Contains(createdDescriptions["sub-1"], "Do A") {
+		t.Errorf("expected description to contain 'Do A', got %q", createdDescriptions["sub-1"])
+	}
+	if !strings.Contains(createdDescriptions["sub-1"], "A done") {
+		t.Errorf("expected description to contain acceptance criteria 'A done', got %q", createdDescriptions["sub-1"])
+	}
+	if !strings.Contains(createdDescriptions["sub-2"], "Do B") {
+		t.Errorf("expected description to contain 'Do B', got %q", createdDescriptions["sub-2"])
+	}
+	if !strings.Contains(createdDescriptions["sub-2"], "B done") {
+		t.Errorf("expected description to contain acceptance criteria 'B done', got %q", createdDescriptions["sub-2"])
 	}
 }
 

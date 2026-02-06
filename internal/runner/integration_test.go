@@ -331,10 +331,10 @@ func TestIntegration_DecompositionOnExhaustedEscalation(t *testing.T) {
 	}
 
 	created := []string{}
-	beads.CreateWithParentFn = func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+	beads.CreateWithParentAndDescriptionFn = func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
 		id := fmt.Sprintf("sub-%d", len(created)+1)
 		created = append(created, id)
-		return &bead.Bead{ID: id, Title: title, Priority: priority, Labels: labels, ExpectedOutputs: []string{}}, nil
+		return &bead.Bead{ID: id, Title: title, Description: description, Priority: priority, Labels: labels, ExpectedOutputs: []string{}}, nil
 	}
 
 	mockLog := &mockIterationLogger{}

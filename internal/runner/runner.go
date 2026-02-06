@@ -946,12 +946,25 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 	for i, subTask := range subTasks {
 		r.log("Creating sub-bead %d/%d: %s", i+1, len(subTasks), subTask.Title)
 
-		createdBead, err := r.beads.CreateWithParent(
+		// Build description from description and acceptance criteria
+		var description string
+		if subTask.Description != "" {
+			description = subTask.Description
+			if len(subTask.AcceptanceCriteria) > 0 {
+				description += "\n\nAcceptance criteria:\n"
+				for _, ac := range subTask.AcceptanceCriteria {
+					description += "- " + ac + "\n"
+				}
+			}
+		}
+
+		createdBead, err := r.beads.CreateWithParentAndDescription(
 			subTask.Title,
 			b.Priority, // Inherit priority from parent
 			b.Labels,   // Inherit labels from parent
 			nil,        // No expected outputs
 			b.ID,       // Set parent to original bead
+			description,
 		)
 		if err != nil {
 			r.log("Warning: failed to create sub-bead: %v", err)
@@ -960,6 +973,11 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 
 		createdIDs = append(createdIDs, createdBead.ID)
 		r.log("Created sub-bead: %s", createdBead.ID)
+
+		// Log warning about DependsOn not yet supported
+		if subTask.DependsOn != nil {
+			r.log("Warning: DependsOn field not yet supported for sub-task %d (index %d)", *subTask.DependsOn, i)
+		}
 	}
 
 	if len(createdIDs) == 0 {
