@@ -77,8 +77,21 @@ func (r *Retro) Run(ctx context.Context, apply bool) (*Result, error) {
 	// Format learnings for prompt
 	learningsText := r.formatLearnings()
 
+	// Load run stats and per-bead stats
+	logsDir := filepath.Join(filepath.Dir(r.rulesPath), "logs")
+	runStats, _ := logger.ReadAllLogs(logsDir)
+	allBeadStats, _ := logger.ReadPerBeadStats(logsDir)
+
+	// Filter per-bead stats to only include beads with >= 2 failures
+	filteredBeadStats := make(map[string]logger.BeadStats)
+	for id, stats := range allBeadStats {
+		if stats.Failures >= 2 {
+			filteredBeadStats[id] = stats
+		}
+	}
+
 	// Render prompt
-	prompt, err := r.renderPrompt(rules, learningsText)
+	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats)
 	if err != nil {
 		return nil, fmt.Errorf("rendering prompt: %w", err)
 	}
@@ -168,7 +181,7 @@ func (r *Retro) formatLearnings() string {
 }
 
 // renderPrompt renders the retro prompt template
-func (r *Retro) renderPrompt(rules, learnings string) (string, error) {
+func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, beadStats map[string]logger.BeadStats) (string, error) {
 	tmplContent, err := os.ReadFile(r.templatePath)
 	if err != nil {
 		return "", fmt.Errorf("reading template: %w", err)
@@ -178,11 +191,6 @@ func (r *Retro) renderPrompt(rules, learnings string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parsing template: %w", err)
 	}
-
-	// Load run stats
-	logsDir := filepath.Join(filepath.Dir(r.rulesPath), "logs")
-	runStats, _ := logger.ReadAllLogs(logsDir)
-	beadStats, _ := logger.ReadPerBeadStats(logsDir)
 
 	ctx := TemplateContext{
 		Rules:     rules,
