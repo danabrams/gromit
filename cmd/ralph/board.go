@@ -22,7 +22,10 @@ func init() {
 }
 
 func runBoard(cmd *cobra.Command, args []string) error {
-	client := bead.NewClient()
+	client, err := bead.NewClient()
+	if err != nil {
+		return fmt.Errorf("creating bead client: %w", err)
+	}
 	open, closed, err := client.ListAll()
 	if err != nil {
 		return fmt.Errorf("listing beads: %w", err)

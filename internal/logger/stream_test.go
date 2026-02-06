@@ -89,7 +89,7 @@ func TestStreamLoggerNilSafe(t *testing.T) {
 }
 
 func TestStreamStats(t *testing.T) {
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 
 	stats.RecordToolCall("Read", "/foo/bar.go")
 	stats.RecordToolCall("Edit", "/foo/bar.go")
@@ -109,7 +109,7 @@ func TestStreamStats(t *testing.T) {
 }
 
 func TestStreamStatsOnlyCountsWriteTools(t *testing.T) {
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 
 	// Read and Bash should not count as file modifications
 	stats.RecordToolCall("Read", "/foo/bar.go")
@@ -124,7 +124,7 @@ func TestStreamStatsOnlyCountsWriteTools(t *testing.T) {
 
 func TestStreamStatsStartTime(t *testing.T) {
 	before := time.Now()
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 	after := time.Now()
 
 	if stats.StartTime.Before(before) || stats.StartTime.After(after) {
@@ -133,7 +133,7 @@ func TestStreamStatsStartTime(t *testing.T) {
 }
 
 func TestStreamStatsRecordEvent(t *testing.T) {
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 	time.Sleep(50 * time.Millisecond)
 	stats.RecordEvent()
 
@@ -144,7 +144,7 @@ func TestStreamStatsRecordEvent(t *testing.T) {
 }
 
 func TestStreamStatsTimeSinceLastEventInitial(t *testing.T) {
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 	time.Sleep(100 * time.Millisecond)
 
 	since := stats.TimeSinceLastEvent()
@@ -154,7 +154,7 @@ func TestStreamStatsTimeSinceLastEventInitial(t *testing.T) {
 }
 
 func TestParseAndLogEventUpdatesLastEventTime(t *testing.T) {
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 	time.Sleep(50 * time.Millisecond)
 
 	line := []byte(`{"type":"system","subtype":"init"}`)
@@ -167,7 +167,7 @@ func TestParseAndLogEventUpdatesLastEventTime(t *testing.T) {
 }
 
 func TestParseAndLogEventInvalidJSONNoUpdate(t *testing.T) {
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 	time.Sleep(50 * time.Millisecond)
 
 	// Invalid JSON should not update LastEventTime
@@ -185,7 +185,7 @@ func TestParseAndLogEventToolCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating stream logger: %v", err)
 	}
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 
 	// Simulate an assistant message with a tool_use
 	line := []byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/internal/runner/runner.go"}}]}}`)
@@ -213,7 +213,7 @@ func TestParseAndLogEventToolResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating stream logger: %v", err)
 	}
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 
 	line := []byte(`{"type":"user","tool_use_result":{"type":"text","file":{"filePath":"/foo/bar.go","numLines":42}}}`)
 	ParseAndLogEvent(sl, stats, line)
@@ -235,7 +235,7 @@ func TestParseAndLogEventResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating stream logger: %v", err)
 	}
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 
 	line := []byte(`{"type":"result","subtype":"success","total_cost_usd":0.0123}`)
 	ParseAndLogEvent(sl, stats, line)
@@ -257,7 +257,7 @@ func TestParseAndLogEventEditTracksModifiedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating stream logger: %v", err)
 	}
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 
 	line := []byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/foo/bar.go","old_string":"x","new_string":"y"}}]}}`)
 	ParseAndLogEvent(sl, stats, line)
@@ -275,7 +275,7 @@ func TestParseAndLogEventInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating stream logger: %v", err)
 	}
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 
 	// Should not panic on invalid JSON
 	ParseAndLogEvent(sl, stats, []byte("not json"))
@@ -352,7 +352,7 @@ func TestStreamMessageNormalizeNilFieldsOnNilReceiver(t *testing.T) {
 }
 
 func TestParseAndLogEventNormalizesMessageContent(t *testing.T) {
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 
 	// JSON with message but null content
 	line := []byte(`{"type":"assistant","message":{"content":null}}`)
@@ -363,7 +363,7 @@ func TestParseAndLogEventNormalizesMessageContent(t *testing.T) {
 
 func TestParseAndLogEventNilLoggerUpdatesStats(t *testing.T) {
 	// When logger is nil, stats should still be updated
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 	time.Sleep(50 * time.Millisecond)
 
 	line := []byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/foo.go"}}]}}`)
@@ -384,7 +384,7 @@ func TestParseAndLogEventTextTruncation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating stream logger: %v", err)
 	}
-	stats := NewStreamStats()
+	stats, _ := NewStreamStats()
 
 	// Create a long text block
 	longText := strings.Repeat("a", 200)

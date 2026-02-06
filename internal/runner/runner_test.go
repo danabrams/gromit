@@ -143,9 +143,12 @@ func TestGetGitHead(t *testing.T) {
 }
 
 func TestNewRunnerNilConfig(t *testing.T) {
-	r := NewRunner(nil, os.Stdout)
+	r, err := NewRunner(nil, os.Stdout)
 	if r != nil {
 		t.Error("expected nil Runner for nil config")
+	}
+	if err == nil {
+		t.Error("expected error for nil config")
 	}
 }
 
@@ -213,7 +216,7 @@ func TestStartHeartbeatStallDetection(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{output: &buf}
 
-	stats := logger.NewStreamStats()
+	stats, _ := logger.NewStreamStats()
 	// Record one event so stall detection becomes active, then let it stall
 	stats.RecordEvent()
 
@@ -253,7 +256,7 @@ func TestStartHeartbeatActiveStallTimeout(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{output: &buf}
 
-	stats := logger.NewStreamStats()
+	stats, _ := logger.NewStreamStats()
 	// Record an event and a tool call so HasToolActivity() returns true
 	stats.RecordEvent()
 	stats.RecordToolCall("Read", "/some/file.go")
@@ -305,7 +308,7 @@ func TestStartHeartbeatNoStallBeforeFirstEvent(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{output: &buf}
 
-	stats := logger.NewStreamStats()
+	stats, _ := logger.NewStreamStats()
 	// Don't record any events — stall detection should NOT fire during startup
 
 	stallFired := false
@@ -333,7 +336,7 @@ func TestStartHeartbeatNoStallWhenEventsFlow(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{output: &buf}
 
-	stats := logger.NewStreamStats()
+	stats, _ := logger.NewStreamStats()
 
 	stallFired := make(chan struct{})
 	onStall := func() {
@@ -378,7 +381,7 @@ func TestStartHeartbeatStallDisabledWhenZero(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{output: &buf}
 
-	stats := logger.NewStreamStats()
+	stats, _ := logger.NewStreamStats()
 
 	stallFired := false
 	onStall := func() {
@@ -825,7 +828,7 @@ func TestCreateSubBeads_VerifyLogging(t *testing.T) {
 
 	buf := &strings.Builder{}
 	r := &Runner{
-		beads:  bead.NewClient(),
+		beads:  func() *bead.Client { b, _ := bead.NewClient(); return b }(),
 		output: buf, // Capture logging output
 	}
 
@@ -871,7 +874,8 @@ func TestCreateSubBeads_NilRunner(t *testing.T) {
 }
 
 func TestCreateSubBeads_NilBead(t *testing.T) {
-	r := &Runner{beads: bead.NewClient(), output: os.Stderr}
+	beadsClient, _ := bead.NewClient()
+	r := &Runner{beads: beadsClient, output: os.Stderr}
 	subTasks := []SubTask{{Title: "Task 1"}}
 
 	err := r.CreateSubBeads(nil, nil, subTasks)
@@ -881,7 +885,8 @@ func TestCreateSubBeads_NilBead(t *testing.T) {
 }
 
 func TestCreateSubBeads_NoSubTasks(t *testing.T) {
-	r := &Runner{beads: bead.NewClient(), output: os.Stderr}
+	beadsClient, _ := bead.NewClient()
+	r := &Runner{beads: beadsClient, output: os.Stderr}
 	b := &bead.Bead{ID: "test-1"}
 	var subTasks []SubTask
 
@@ -909,7 +914,7 @@ func TestProcessBeadNilBeads(t *testing.T) {
 func TestProcessBeadNilRenderer(t *testing.T) {
 	r := &Runner{
 		cfg:    &config.Config{},
-		beads:  bead.NewClient(),
+		beads:  func() *bead.Client { b, _ := bead.NewClient(); return b }(),
 		output: os.Stdout,
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -925,7 +930,7 @@ func TestProcessBeadNilRenderer(t *testing.T) {
 func TestProcessBeadNilClaude(t *testing.T) {
 	r := &Runner{
 		cfg:      &config.Config{},
-		beads:    bead.NewClient(),
+		beads:    func() *bead.Client { b, _ := bead.NewClient(); return b }(),
 		renderer: &prompt.Renderer{},
 		output:   os.Stdout,
 	}
@@ -956,7 +961,7 @@ func TestRunNilBeads(t *testing.T) {
 func TestRunNilRenderer(t *testing.T) {
 	r := &Runner{
 		cfg:    &config.Config{},
-		beads:  bead.NewClient(),
+		beads:  func() *bead.Client { b, _ := bead.NewClient(); return b }(),
 		output: os.Stdout,
 	}
 	err := r.Run(nil, 0, false)
@@ -971,7 +976,7 @@ func TestRunNilRenderer(t *testing.T) {
 func TestRunNilClaude(t *testing.T) {
 	r := &Runner{
 		cfg:      &config.Config{},
-		beads:    bead.NewClient(),
+		beads:    func() *bead.Client { b, _ := bead.NewClient(); return b }(),
 		renderer: &prompt.Renderer{},
 		output:   os.Stdout,
 	}
@@ -1021,7 +1026,7 @@ func TestDecomposeTaskNilBeads(t *testing.T) {
 
 func TestDecomposeTaskNilRenderer(t *testing.T) {
 	r := &Runner{
-		beads:  bead.NewClient(),
+		beads:  func() *bead.Client { b, _ := bead.NewClient(); return b }(),
 		output: os.Stdout,
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -1036,7 +1041,7 @@ func TestDecomposeTaskNilRenderer(t *testing.T) {
 
 func TestDecomposeTaskNilClaude(t *testing.T) {
 	r := &Runner{
-		beads:    bead.NewClient(),
+		beads:    func() *bead.Client { b, _ := bead.NewClient(); return b }(),
 		renderer: &prompt.Renderer{},
 		output:   os.Stdout,
 	}
@@ -1089,7 +1094,7 @@ func TestLogResultNilResult(t *testing.T) {
 
 func TestPrintHeartbeatNilRunner(t *testing.T) {
 	var r *Runner
-	stats := logger.NewStreamStats()
+	stats, _ := logger.NewStreamStats()
 	// Should not panic
 	r.printHeartbeat(stats)
 }
@@ -1102,7 +1107,7 @@ func TestPrintHeartbeatNilStats(t *testing.T) {
 
 func TestStartHeartbeatNilRunner(t *testing.T) {
 	var r *Runner
-	stats := logger.NewStreamStats()
+	stats, _ := logger.NewStreamStats()
 	stop := r.startHeartbeatWithConfig(stats, 0, 0, nil, defaultHeartbeatConfig, nil)
 	// Should return a no-op function
 	stop()

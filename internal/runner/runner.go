@@ -36,9 +36,9 @@ type Runner struct {
 }
 
 // NewRunner creates a new runner
-func NewRunner(cfg *config.Config, output io.Writer) *Runner {
+func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	if cfg == nil {
-		return nil
+		return nil, fmt.Errorf("config is nil")
 	}
 	if output == nil {
 		output = os.Stdout
@@ -49,28 +49,44 @@ func NewRunner(cfg *config.Config, output io.Writer) *Runner {
 		fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
 	}
 
-	claudeClient := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	if err != nil {
+		return nil, err
+	}
 
 	// Determine ralph directory (parent of templates dir)
 	ralphDir := filepath.Dir(cfg.Paths.Templates)
 
-	renderer := prompt.NewRenderer(
+	renderer, err := prompt.NewRenderer(
 		cfg.Paths.Templates,
 		cfg.Paths.Specs,
 		cfg.Paths.ProjectClaudeMD,
 		ralphDir,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	beadsClient, err := bead.NewClient()
+	if err != nil {
+		return nil, err
+	}
+
+	analyzerObj, err := analyzer.NewAnalyzer(claudeClient, cfg.Models.Validation, renderer)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Runner{
 		cfg:      cfg,
-		beads:    bead.NewClient(),
+		beads:    beadsClient,
 		claude:   claudeClient,
-		analyzer: analyzer.NewAnalyzer(claudeClient, cfg.Models.Validation, renderer),
+		analyzer: analyzerObj,
 		renderer: renderer,
 		logger:   log,
 		output:   output,
 		ralphDir: ralphDir,
-	}
+	}, nil
 }
 
 // IterationResult captures the outcome of one loop iteration
@@ -125,12 +141,22 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 	}
 
 	// Set up tmux title management (no-op if not in tmux)
-	tmuxMgr := tmux.NewManager()
-	defer tmuxMgr.RestoreTitle()
+	tmuxMgr, err := tmux.NewManager()
+	if err != nil {
+		r.log("Warning: could not create tmux manager: %v", err)
+	}
+	if tmuxMgr != nil {
+		defer tmuxMgr.RestoreTitle()
+	}
 
 	// Set up status file management
-	statusWriter := NewStatusWriter(r.ralphDir)
-	defer statusWriter.Delete()
+	statusWriter, err := NewStatusWriter(r.ralphDir)
+	if err != nil {
+		r.log("Warning: could not create status writer: %v", err)
+	}
+	if statusWriter != nil {
+		defer statusWriter.Delete()
+	}
 
 	// Ensure logger is closed when done
 	if r.logger != nil {
@@ -221,14 +247,18 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 
 		// Update tmux pane title with iteration info
 		model := r.selectModel(b)
-		if err := tmuxMgr.SetTitle(tmux.FormatIterationTitle(iteration, b.ID, model)); err != nil {
-			// Log but don't fail on tmux error
-			r.log("Warning: failed to set tmux title: %v", err)
+		if tmuxMgr != nil {
+			if err := tmuxMgr.SetTitle(tmux.FormatIterationTitle(iteration, b.ID, model)); err != nil {
+				// Log but don't fail on tmux error
+				r.log("Warning: failed to set tmux title: %v", err)
+			}
 		}
 
 		// Write status.json at iteration start
-		if err := statusWriter.Write(iteration, b.ID, b.Title, model, true); err != nil {
-			r.log("Warning: failed to write status.json: %v", err)
+		if statusWriter != nil {
+			if err := statusWriter.Write(iteration, b.ID, b.Title, model, true); err != nil {
+				r.log("Warning: failed to write status.json: %v", err)
+			}
 		}
 
 		if dryRun {
@@ -265,8 +295,10 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 		}
 
 		// Update status.json after completion
-		if err := statusWriter.Write(iteration, b.ID, b.Title, result.Model, true); err != nil {
-			r.log("Warning: failed to write status.json: %v", err)
+		if statusWriter != nil {
+			if err := statusWriter.Write(iteration, b.ID, b.Title, result.Model, true); err != nil {
+				r.log("Warning: failed to write status.json: %v", err)
+			}
 		}
 	}
 
@@ -603,13 +635,19 @@ func (r *Runner) checkRetroSuggestion() {
 		return
 	}
 	// Load learnings
-	lf := learnings.NewFile(r.ralphDir)
+	lf, err := learnings.NewFile(r.ralphDir)
+	if err != nil {
+		return // Silently skip if learnings can't be created
+	}
 	if err := lf.Load(); err != nil {
 		return // Silently skip if learnings can't be loaded
 	}
 
 	// Load state for last retro time
-	sf := state.NewFile(r.ralphDir)
+	sf, err := state.NewFile(r.ralphDir)
+	if err != nil {
+		return // Silently skip if state can't be created
+	}
 	if err := sf.Load(); err != nil {
 		return // Silently skip if state can't be loaded
 	}

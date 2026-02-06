@@ -41,12 +41,12 @@ type Client struct {
 }
 
 // NewClient creates a new Claude CLI client
-func NewClient(binary string, flags []string, timeoutSecs int) *Client {
+func NewClient(binary string, flags []string, timeoutSecs int) (*Client, error) {
 	return &Client{
 		binary:  binary,
 		flags:   flags,
 		timeout: time.Duration(timeoutSecs) * time.Second,
-	}
+	}, nil
 }
 
 // Run invokes Claude with the given prompt and model

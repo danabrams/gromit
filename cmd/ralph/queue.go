@@ -26,9 +26,9 @@ func showQueue(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	bc := bead.NewClient()
-	if bc == nil {
-		return fmt.Errorf("failed to create bead client")
+	bc, err := bead.NewClient()
+	if err != nil {
+		return fmt.Errorf("creating bead client: %w", err)
 	}
 
 	// Get ready beads (unblocked, type=task to exclude epics)
@@ -99,7 +99,7 @@ func getReadyBeads(bc *bead.Client) ([]*bead.Bead, error) {
 		return nil, fmt.Errorf("getting all open beads: %w", err)
 	}
 
-	var readyBeads []*bead.Bead
+	readyBeads := []*bead.Bead{}
 	parentMap := make(map[string]bool)
 
 	// Build a map of beads that are parents (not yet closed)
@@ -142,7 +142,7 @@ func findBlockedBeads(readyBeads, allBeads []*bead.Bead) []*bead.Bead {
 		readyMap[b.ID] = true
 	}
 
-	var blocked []*bead.Bead
+	blocked := []*bead.Bead{}
 	for _, b := range allBeads {
 		if !readyMap[b.ID] {
 			blocked = append(blocked, b)

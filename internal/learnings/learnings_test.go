@@ -11,7 +11,7 @@ import (
 // TestAddNewLearning tests adding a new learning to an empty file
 func TestAddNewLearning(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	learning, err := f.Add("bead-123", "Always check error returns", CategoryPatterns)
 	if err != nil {
@@ -40,7 +40,7 @@ func TestAddNewLearning(t *testing.T) {
 // TestAddExactDuplicate tests that exact duplicates are skipped
 func TestAddExactDuplicate(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	content := "Always check error returns"
 
@@ -71,7 +71,7 @@ func TestAddExactDuplicate(t *testing.T) {
 // TestAddExactDuplicateNormalized tests that normalized duplicates are caught
 func TestAddExactDuplicateNormalized(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	// These should hash to the same value after normalization
 	content1 := "Always  check   error   returns"
@@ -97,7 +97,7 @@ func TestAddExactDuplicateNormalized(t *testing.T) {
 // TestAddFuzzyMatchPromotion tests that fuzzy matches promote provisional to confirmed
 func TestAddFuzzyMatchPromotion(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	// Use very similar content to trigger > 0.7 similarity
 	content1 := "Always check error returns are handled properly"
@@ -150,7 +150,7 @@ func TestAddFuzzyMatchPromotion(t *testing.T) {
 // TestAddFuzzyMatchNonPromotion tests that fuzzy matches to confirmed mark as related
 func TestAddFuzzyMatchNonPromotion(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	content1 := "Always check error returns are handled properly"
 	content2 := "Always check error returns are handled very properly" // Very similar
@@ -196,7 +196,7 @@ func TestLoadAndSaveRoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create and save
-	f1 := NewFile(tmpDir)
+	f1, _ := NewFile(tmpDir)
 	l1, _ := f1.Add("bead-1", "First learning", CategoryPatterns)
 	l2, _ := f1.Add("bead-2", "Second learning", CategoryConventions)
 
@@ -206,7 +206,7 @@ func TestLoadAndSaveRoundTrip(t *testing.T) {
 	}
 
 	// Create new file instance and load
-	f2 := NewFile(tmpDir)
+	f2, _ := NewFile(tmpDir)
 	err := f2.Load()
 	if err != nil {
 		t.Fatalf("load failed: %v", err)
@@ -417,7 +417,7 @@ Accumulated operational knowledge.
 // TestLoadMissingFile tests that Load handles missing files gracefully
 func TestLoadMissingFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	// File doesn't exist yet
 	err := f.Load()
@@ -438,7 +438,7 @@ func TestLoadMissingFile(t *testing.T) {
 func TestLoadAndSaveCreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	nestedDir := filepath.Join(tmpDir, "nested", "path", ".ralph")
-	f := NewFile(nestedDir)
+	f, _ := NewFile(nestedDir)
 
 	// Directory doesn't exist
 	if _, err := os.Stat(nestedDir); !os.IsNotExist(err) {
@@ -610,7 +610,7 @@ func TestGetByHash(t *testing.T) {
 // TestRemove tests removing learnings by hash
 func TestRemove(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	// Add learnings to different sections
 	l1, _ := f.Add("bead-1", "Learning one", CategoryPatterns)
@@ -667,7 +667,7 @@ func TestRemove(t *testing.T) {
 // TestArchive tests archiving learnings
 func TestArchive(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	// Add a provisional learning
 	l1, _ := f.Add("bead-1", "Learning to archive", CategoryPatterns)
@@ -715,7 +715,7 @@ func TestArchive(t *testing.T) {
 // TestArchiveFromConfirmed tests archiving from confirmed section
 func TestArchiveFromConfirmed(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	// Manually add to confirmed
 	l1 := Learning{
@@ -751,7 +751,7 @@ func TestArchiveFromConfirmed(t *testing.T) {
 // TestReplace tests replacing multiple learnings with a new one
 func TestReplace(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	// Add multiple learnings
 	l1, _ := f.Add("bead-1", "First learning", CategoryPatterns)
@@ -805,7 +805,7 @@ func TestReplace(t *testing.T) {
 // TestReplaceNoHashes tests that Replace fails with no hashes
 func TestReplaceNoHashes(t *testing.T) {
 	tmpDir := t.TempDir()
-	f := NewFile(tmpDir)
+	f, _ := NewFile(tmpDir)
 
 	err := f.Replace([]string{}, "New content", CategoryPatterns)
 	if err == nil {
@@ -867,7 +867,7 @@ Archived learning content
 
 // TestNewFileSlicesNotNil tests that NewFile initializes slices to non-nil
 func TestNewFileSlicesNotNil(t *testing.T) {
-	f := NewFile(t.TempDir())
+	f, _ := NewFile(t.TempDir())
 	if f.confirmed == nil {
 		t.Error("expected confirmed to be non-nil after NewFile")
 	}
@@ -881,7 +881,7 @@ func TestNewFileSlicesNotNil(t *testing.T) {
 
 // TestLoadMissingFileSlicesNotNil tests that Load on missing file keeps slices non-nil
 func TestLoadMissingFileSlicesNotNil(t *testing.T) {
-	f := NewFile(t.TempDir())
+	f, _ := NewFile(t.TempDir())
 	if err := f.Load(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -899,7 +899,7 @@ func TestLoadMissingFileSlicesNotNil(t *testing.T) {
 // TestLoadEmptyFileSlicesNotNil tests that Load on empty file keeps slices non-nil
 func TestLoadEmptyFileSlicesNotNil(t *testing.T) {
 	dir := t.TempDir()
-	f := NewFile(dir)
+	f, _ := NewFile(dir)
 	// Create an empty LEARNINGS.md
 	if err := os.WriteFile(filepath.Join(dir, "LEARNINGS.md"), []byte(""), 0644); err != nil {
 		t.Fatal(err)
@@ -956,7 +956,7 @@ func TestGetRecentNilReceiver(t *testing.T) {
 
 // TestGetRecentNoMatchesReturnsEmptySlice tests that GetRecent returns empty slice (not nil) when no matches
 func TestGetRecentNoMatchesReturnsEmptySlice(t *testing.T) {
-	f := NewFile(t.TempDir())
+	f, _ := NewFile(t.TempDir())
 	// Add an old learning
 	f.provisional = append(f.provisional, Learning{
 		Date:    time.Now().Add(-48 * time.Hour),
@@ -978,7 +978,7 @@ func TestLoadAndSaveWithArchived(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create and populate
-	f1 := NewFile(tmpDir)
+	f1, _ := NewFile(tmpDir)
 	l1, _ := f1.Add("bead-1", "Test learning", CategoryPatterns)
 	if l1 == nil {
 		t.Fatal("failed to add learning")
@@ -991,7 +991,7 @@ func TestLoadAndSaveWithArchived(t *testing.T) {
 	}
 
 	// Load in new instance
-	f2 := NewFile(tmpDir)
+	f2, _ := NewFile(tmpDir)
 	err = f2.Load()
 	if err != nil {
 		t.Fatalf("failed to load: %v", err)

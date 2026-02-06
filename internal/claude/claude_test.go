@@ -423,7 +423,7 @@ func TestNewClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := NewClient(tt.binary, tt.flags, tt.timeoutSecs)
+			client, _ := NewClient(tt.binary, tt.flags, tt.timeoutSecs)
 			if client.binary != tt.binary {
 				t.Errorf("binary = %v, want %v", client.binary, tt.binary)
 			}
@@ -701,7 +701,7 @@ func TestRunValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := NewClient("nonexistent-binary", nil, 1)
+			client, _ := NewClient("nonexistent-binary", nil, 1)
 			ctx := context.Background()
 			_, err := client.RunValidation(ctx, tt.commands, "haiku", "/tmp")
 
@@ -773,7 +773,7 @@ func TestErrStallTimeout(t *testing.T) {
 
 func TestContextCancellation(t *testing.T) {
 	// Test that context cancellation is detected
-	client := NewClient("nonexistent-command-that-will-fail", nil, 60)
+	client, _ := NewClient("nonexistent-command-that-will-fail", nil, 60)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -889,7 +889,7 @@ func TestClientTimeout(t *testing.T) {
 	timeouts := []int{0, 1, 60, 600, 3600}
 
 	for _, timeout := range timeouts {
-		client := NewClient("claude", nil, timeout)
+		client, _ := NewClient("claude", nil, timeout)
 		expected := time.Duration(timeout) * time.Second
 		if client.timeout != expected {
 			t.Errorf("NewClient(%d) timeout = %v, want %v", timeout, client.timeout, expected)
@@ -942,7 +942,7 @@ func TestValidateCommandEdgeCases(t *testing.T) {
 
 func TestRunWithValidCommand(t *testing.T) {
 	// Test Run() with a command that exists and succeeds
-	client := NewClient("echo", nil, 5)
+	client, _ := NewClient("echo", nil, 5)
 	ctx := context.Background()
 
 	result, err := client.Run(ctx, "test prompt", "sonnet")
@@ -975,7 +975,7 @@ func TestRunWithValidCommand(t *testing.T) {
 func TestRunWithFailingCommand(t *testing.T) {
 	// Test Run() with a command that exits with non-zero
 	// Use false command which exits with 1
-	client := NewClient("false", nil, 5)
+	client, _ := NewClient("false", nil, 5)
 	ctx := context.Background()
 
 	result, err := client.Run(ctx, "test", "haiku")
@@ -1001,7 +1001,7 @@ func TestRunWithFailingCommand(t *testing.T) {
 func TestRunWithStderr(t *testing.T) {
 	// Test that stderr is captured when command fails
 	// Use a script that writes to stderr and exits with error
-	client := NewClient("/bin/bash", nil, 5)
+	client, _ := NewClient("/bin/bash", nil, 5)
 	ctx := context.Background()
 
 	// Pass the script as the prompt (stdin), then run sh -c to execute it
@@ -1035,7 +1035,7 @@ func TestRunWithTimeout(t *testing.T) {
 
 func TestRunWithCommandArgs(t *testing.T) {
 	// Test that command args and flags are passed correctly
-	client := NewClient("echo", []string{"-n"}, 5)
+	client, _ := NewClient("echo", []string{"-n"}, 5)
 	ctx := context.Background()
 
 	result, err := client.Run(ctx, "hello", "opus")
@@ -1058,7 +1058,7 @@ func TestRunWithCommandArgs(t *testing.T) {
 
 func TestRunWithNonexistentBinary(t *testing.T) {
 	// Test that nonexistent binary returns an error
-	client := NewClient("this-command-does-not-exist-123456789", nil, 5)
+	client, _ := NewClient("this-command-does-not-exist-123456789", nil, 5)
 	ctx := context.Background()
 
 	_, err := client.Run(ctx, "test", "sonnet")
@@ -1075,7 +1075,7 @@ func TestRunWithNonexistentBinary(t *testing.T) {
 
 func TestStreamRunWithNilHandler(t *testing.T) {
 	// Test StreamRun without handler (raw text mode)
-	client := NewClient("echo", []string{"-n", "test output"}, 5)
+	client, _ := NewClient("echo", []string{"-n", "test output"}, 5)
 	ctx := context.Background()
 
 	var output strings.Builder
@@ -1107,7 +1107,7 @@ func TestStreamRunWithHandler(t *testing.T) {
 	// This test verifies the StreamRun method integrates correctly with a handler
 
 	// Use a simple command that outputs to stdout
-	client := NewClient("echo", nil, 5)
+	client, _ := NewClient("echo", nil, 5)
 	ctx := context.Background()
 
 	var output strings.Builder
@@ -1138,7 +1138,7 @@ func TestStreamRunWithHandler(t *testing.T) {
 
 func TestStreamRunFailure(t *testing.T) {
 	// Test StreamRun with failing command
-	client := NewClient("false", nil, 5)
+	client, _ := NewClient("false", nil, 5)
 	ctx := context.Background()
 
 	var output strings.Builder
@@ -1167,7 +1167,7 @@ func TestRunValidationPromptStructure(t *testing.T) {
 	// Test that RunValidation builds the correct prompt structure
 	// We can't easily test the actual prompt without mocking, but we can
 	// verify the validation logic works
-	client := NewClient("echo", nil, 5)
+	client, _ := NewClient("echo", nil, 5)
 	ctx := context.Background()
 
 	commands := []string{"npm test", "npm run lint"}
@@ -1187,7 +1187,7 @@ func TestRunValidationPromptStructure(t *testing.T) {
 func TestRunValidationWithInvalidCommands(t *testing.T) {
 	// Already covered in TestRunValidation, but let's ensure
 	// it returns error before executing anything
-	client := NewClient("echo", nil, 5)
+	client, _ := NewClient("echo", nil, 5)
 	ctx := context.Background()
 
 	invalidCommands := []string{"valid command", "invalid\ncommand"}
@@ -1213,7 +1213,7 @@ func TestRunValidationWithInvalidCommands(t *testing.T) {
 func TestClientFlagsPassedToCommand(t *testing.T) {
 	// Test that client flags are included in command invocation
 	// We'll use a command that echoes its arguments to verify
-	client := NewClient("echo", []string{"-n", "flag1", "flag2"}, 5)
+	client, _ := NewClient("echo", []string{"-n", "flag1", "flag2"}, 5)
 
 	// Verify flags are stored
 	if len(client.flags) != 3 {
@@ -1226,7 +1226,7 @@ func TestClientFlagsPassedToCommand(t *testing.T) {
 
 func TestResultOutputIncludesStdout(t *testing.T) {
 	// Test that stdout is captured in result
-	client := NewClient("echo", []string{"-n", "stdout content"}, 5)
+	client, _ := NewClient("echo", []string{"-n", "stdout content"}, 5)
 	ctx := context.Background()
 
 	result, err := client.Run(ctx, "test", "sonnet")
@@ -1242,7 +1242,7 @@ func TestResultOutputIncludesStdout(t *testing.T) {
 
 func TestStreamRunNilOutput(t *testing.T) {
 	// StreamRun should default to os.Stdout when output is nil, not panic
-	client := NewClient("echo", []string{"-n", "test"}, 5)
+	client, _ := NewClient("echo", []string{"-n", "test"}, 5)
 	ctx := context.Background()
 
 	result, err := client.StreamRun(ctx, "prompt", "sonnet", nil, nil, nil)

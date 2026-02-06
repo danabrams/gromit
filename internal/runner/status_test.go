@@ -12,7 +12,7 @@ func TestStatusWriter_Write(t *testing.T) {
 	// Create a temporary directory
 	tmpDir := t.TempDir()
 
-	sw := NewStatusWriter(tmpDir)
+	sw, _ := NewStatusWriter(tmpDir)
 	if sw == nil {
 		t.Fatal("NewStatusWriter returned nil")
 	}
@@ -59,7 +59,7 @@ func TestStatusWriter_Write(t *testing.T) {
 func TestStatusWriter_Delete(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	sw := NewStatusWriter(tmpDir)
+	sw, _ := NewStatusWriter(tmpDir)
 	statusPath := filepath.Join(tmpDir, "status.json")
 
 	// Write status
@@ -90,7 +90,7 @@ func TestStatusWriter_Delete(t *testing.T) {
 func TestStatusWriter_Delete_NonExistent(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	sw := NewStatusWriter(tmpDir)
+	sw, _ := NewStatusWriter(tmpDir)
 
 	// Delete without creating - should not fail
 	err := sw.Delete()
@@ -117,7 +117,7 @@ func TestStatusWriter_NilWriter(t *testing.T) {
 func TestStatusWriter_ElapsedTime(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	sw := NewStatusWriter(tmpDir)
+	sw, _ := NewStatusWriter(tmpDir)
 
 	// Wait a bit
 	time.Sleep(100 * time.Millisecond)

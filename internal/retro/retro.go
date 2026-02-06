@@ -42,17 +42,25 @@ type Result struct {
 }
 
 // NewRetro creates a new retrospective analyzer
-func NewRetro(cfg *config.Config, ralphDir string) *Retro {
+func NewRetro(cfg *config.Config, ralphDir string) (*Retro, error) {
 	if cfg == nil {
-		return nil
+		return nil, fmt.Errorf("config is nil")
+	}
+	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	learningsFile, err := learnings.NewFile(ralphDir)
+	if err != nil {
+		return nil, err
 	}
 	return &Retro{
 		cfg:           cfg,
-		claude:        claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout),
-		learningsFile: learnings.NewFile(ralphDir),
+		claude:        claudeClient,
+		learningsFile: learningsFile,
 		rulesPath:     filepath.Join(ralphDir, "RULES.md"),
 		templatePath:  filepath.Join(ralphDir, "templates", "PROMPT_retro.md"),
-	}
+	}, nil
 }
 
 // Run executes the retrospective analysis
@@ -235,9 +243,9 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 		return
 	}
 
-	client := bead.NewClient()
-	if client == nil {
-		log.Printf("Warning: failed to create bead client for enrichment")
+	client, err := bead.NewClient()
+	if err != nil {
+		log.Printf("Warning: failed to create bead client for enrichment: %v", err)
 		return
 	}
 

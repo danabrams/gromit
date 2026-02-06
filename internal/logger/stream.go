@@ -74,13 +74,13 @@ type StreamStats struct {
 }
 
 // NewStreamStats creates a new StreamStats
-func NewStreamStats() *StreamStats {
+func NewStreamStats() (*StreamStats, error) {
 	now := time.Now()
 	return &StreamStats{
 		FilesModified: make(map[string]bool),
 		StartTime:     now,
 		LastEventTime: now,
-	}
+	}, nil
 }
 
 // RecordToolCall increments the tool call counter

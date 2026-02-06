@@ -55,7 +55,10 @@ func runBacklog(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load backlog
-	bf := backlog.NewFile(ralphDir)
+	bf, err := backlog.NewFile(ralphDir)
+	if err != nil {
+		return fmt.Errorf("creating backlog file: %w", err)
+	}
 	ideas, err := bf.List()
 	if err != nil {
 		return fmt.Errorf("loading backlog: %w", err)
@@ -117,7 +120,10 @@ func runBacklogDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Delete idea
-	bf := backlog.NewFile(ralphDir)
+	bf, err := backlog.NewFile(ralphDir)
+	if err != nil {
+		return fmt.Errorf("creating backlog file: %w", err)
+	}
 	if err := bf.Delete(ideaID); err != nil {
 		return fmt.Errorf("deleting idea: %w", err)
 	}
@@ -127,7 +133,7 @@ func runBacklogDelete(cmd *cobra.Command, args []string) error {
 }
 
 func filterIdeas(ideas []*backlog.Idea, typeFilter string, recentDays int) []*backlog.Idea {
-	var filtered []*backlog.Idea
+	filtered := []*backlog.Idea{}
 
 	cutoff := time.Time{}
 	if recentDays > 0 {

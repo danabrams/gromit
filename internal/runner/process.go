@@ -119,7 +119,10 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iterat
 // executeClaudeInvocation runs a single Claude invocation with streaming, heartbeat,
 // and stall detection. Returns the Claude result, whether a stall was detected, and any error.
 func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (*claude.Result, bool, error) {
-	stats := logger.NewStreamStats()
+	stats, err := logger.NewStreamStats()
+	if err != nil {
+		return nil, false, err
+	}
 
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
@@ -372,7 +375,10 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 		return nil
 	}
 
-	checker := preflight.NewChecker(r.cfg.Preflight, r.output)
+	checker, err := preflight.NewChecker(r.cfg.Preflight, r.output)
+	if err != nil {
+		return fmt.Errorf("creating preflight checker: %w", err)
+	}
 	if err := checker.Check(r.cfg.Validation.Commands); err != nil {
 		r.log("Warning: %v", err)
 		bc.result.Validated = false
@@ -413,11 +419,8 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 		valAnalysisCtx, valAnalysisCancel := context.WithTimeout(ctx, time.Duration(r.cfg.Claude.AnalysisTimeout)*time.Second)
 		analysis, err := r.analyzer.Analyze(valAnalysisCtx, bc.bead, valResult.Output)
 		valAnalysisCancel()
-		if err == nil && analysis != nil && analysis.Learning != nil {
-			lf := r.renderer.GetLearningsFile()
-			if lf != nil {
-				lf.Add(bc.bead.ID, *analysis.Learning, analysis.LearningCategory())
-			}
+		if err == nil && analysis != nil {
+			r.extractLearning(bc, analysis)
 		}
 
 		bc.result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + valResult.Output

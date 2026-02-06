@@ -2,6 +2,7 @@ package bead
 
 import (
 	"encoding/json"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -752,7 +753,7 @@ func TestReadyVsReadyAny(t *testing.T) {
 
 // TestClientShowValidation tests that Show() validates bead IDs before execution
 func TestClientShowValidation(t *testing.T) {
-	c := NewClient()
+	c, _ := NewClient()
 
 	tests := []struct {
 		name    string
@@ -803,7 +804,7 @@ func TestClientShowValidation(t *testing.T) {
 
 // TestClientCloseValidation tests that Close() validates bead IDs before execution
 func TestClientCloseValidation(t *testing.T) {
-	c := NewClient()
+	c, _ := NewClient()
 
 	tests := []struct {
 		name string
@@ -844,7 +845,7 @@ func TestClientCloseValidation(t *testing.T) {
 
 // TestClientAddCommentValidation tests that AddComment() validates bead IDs
 func TestClientAddCommentValidation(t *testing.T) {
-	c := NewClient()
+	c, _ := NewClient()
 
 	tests := []struct {
 		name    string
@@ -883,12 +884,23 @@ func TestClientAddCommentValidation(t *testing.T) {
 	}
 }
 
+// newIsolatedClient creates a bd client that operates in a temp directory
+// so tests don't pollute the real project's beads database.
+func newIsolatedClient(t *testing.T) *Client {
+	t.Helper()
+	dir := t.TempDir()
+	cmd := exec.Command("bd", "init")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("bd init not available: %v: %s", err, out)
+	}
+	return &Client{binary: "bd", Dir: dir}
+}
+
 // TestClientCreate tests the Create() method
 func TestClientCreate(t *testing.T) {
-	c := NewClient()
+	c := newIsolatedClient(t)
 
-	// These tests will fail to execute bd, but we're testing argument construction
-	// and that the method doesn't panic with various inputs
 	tests := []struct {
 		name            string
 		title           string
@@ -933,10 +945,9 @@ func TestClientCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// This will likely fail to execute bd, but we're testing it doesn't panic
 			_, err := c.Create(tt.title, tt.priority, tt.labels, tt.expectedOutputs)
-			// In test environments without bd, we expect errors
-			// But if bd is available, it might succeed - that's fine too
+			// bd may reject unknown flags (e.g. --expected-output); that's a
+			// separate issue. We only fail on truly unexpected errors.
 			if err != nil && !strings.Contains(err.Error(), "bd create") && !strings.Contains(err.Error(), "parsing") {
 				t.Errorf("Create() unexpected error type: %v", err)
 			}
@@ -946,7 +957,7 @@ func TestClientCreate(t *testing.T) {
 
 // TestClientGetParent tests the GetParent method
 func TestClientGetParent(t *testing.T) {
-	c := NewClient()
+	c, _ := NewClient()
 
 	tests := []struct {
 		name    string
@@ -998,7 +1009,7 @@ func TestClientGetParent(t *testing.T) {
 
 // TestClientSync tests that Sync doesn't panic
 func TestClientSync(t *testing.T) {
-	c := NewClient()
+	c, _ := NewClient()
 	err := c.Sync()
 	// May succeed if bd is available, or fail if not - either is fine
 	// Just testing it doesn't panic
@@ -1009,7 +1020,7 @@ func TestClientSync(t *testing.T) {
 
 // TestErrorWrapping tests that CLI errors are properly wrapped
 func TestErrorWrapping(t *testing.T) {
-	c := NewClient()
+	c, _ := NewClient()
 
 	// Test that errors contain context
 	_, err := c.Ready()
@@ -1030,7 +1041,7 @@ func TestErrorWrapping(t *testing.T) {
 
 // TestClientCreateWithParent tests the CreateWithParent() method
 func TestClientCreateWithParent(t *testing.T) {
-	c := NewClient()
+	c := newIsolatedClient(t)
 
 	tests := []struct {
 		name             string
@@ -1113,7 +1124,7 @@ func TestClientCreateWithParent(t *testing.T) {
 
 // TestClientCreateWithParentInheritance tests that Create() delegates to CreateWithParent
 func TestClientCreateInheritsCreateWithParent(t *testing.T) {
-	c := NewClient()
+	c := newIsolatedClient(t)
 
 	// Create() should call CreateWithParent with empty parentID
 	_, err1 := c.Create("Test", 1, []string{}, []string{})

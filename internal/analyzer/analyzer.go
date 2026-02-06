@@ -62,16 +62,19 @@ type Analyzer struct {
 	renderer *prompt.Renderer
 }
 
-// NewAnalyzer creates a new analyzer. Returns nil if claudeClient or renderer is nil.
-func NewAnalyzer(claudeClient *claude.Client, model string, renderer *prompt.Renderer) *Analyzer {
-	if claudeClient == nil || renderer == nil {
-		return nil
+// NewAnalyzer creates a new analyzer. Returns an error if claudeClient or renderer is nil.
+func NewAnalyzer(claudeClient *claude.Client, model string, renderer *prompt.Renderer) (*Analyzer, error) {
+	if claudeClient == nil {
+		return nil, fmt.Errorf("claude client is nil")
+	}
+	if renderer == nil {
+		return nil, fmt.Errorf("renderer is nil")
 	}
 	return &Analyzer{
 		claude:   claudeClient,
 		model:    model,
 		renderer: renderer,
-	}
+	}, nil
 }
 
 // Analyze analyzes a failure and returns structured insights

@@ -90,7 +90,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save to backlog
-	bf := backlog.NewFile(ralphDir)
+	bf, err := backlog.NewFile(ralphDir)
+	if err != nil {
+		return fmt.Errorf("creating backlog file: %w", err)
+	}
 	if err := bf.Add(idea); err != nil {
 		return fmt.Errorf("saving to backlog: %w", err)
 	}

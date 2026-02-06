@@ -126,9 +126,9 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		cfg.Loop.MaxIterations = maxIterations
 	}
 
-	r := runner.NewRunner(cfg, os.Stdout)
-	if r == nil {
-		return fmt.Errorf("failed to create runner")
+	r, err := runner.NewRunner(cfg, os.Stdout)
+	if err != nil {
+		return fmt.Errorf("failed to create runner: %w", err)
 	}
 	return r.Run(ctx, cfg.Loop.MaxIterations, dryRun)
 }
@@ -139,9 +139,9 @@ func showStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	r := runner.NewRunner(cfg, os.Stdout)
-	if r == nil {
-		return fmt.Errorf("failed to create runner")
+	r, err := runner.NewRunner(cfg, os.Stdout)
+	if err != nil {
+		return fmt.Errorf("failed to create runner: %w", err)
 	}
 	return r.Status()
 }
@@ -179,9 +179,9 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println("Running retrospective analysis...")
 	fmt.Println("This may take a few minutes as it uses opus for quality analysis.")
 
-	r := retro.NewRetro(cfg, ralphDir)
-	if r == nil {
-		return fmt.Errorf("failed to create retro analyzer")
+	r, err := retro.NewRetro(cfg, ralphDir)
+	if err != nil {
+		return fmt.Errorf("failed to create retro analyzer: %w", err)
 	}
 
 	// Don't apply changes automatically - we'll handle that after review
@@ -223,7 +223,11 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	}
 
 	// Record retro time in state
-	sf := state.NewFile(ralphDir)
+	sf, err := state.NewFile(ralphDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not create state file: %v\n", err)
+		return nil
+	}
 	if err := sf.RecordRetro(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not record retro time: %v\n", err)
 	}

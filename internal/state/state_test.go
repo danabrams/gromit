@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewFile(t *testing.T) {
-	f := NewFile("/tmp/test-ralph")
+	f, _ := NewFile("/tmp/test-ralph")
 	if f.path != "/tmp/test-ralph/state.json" {
 		t.Errorf("expected path /tmp/test-ralph/state.json, got %s", f.path)
 	}
@@ -16,7 +16,7 @@ func TestNewFile(t *testing.T) {
 
 func TestLoadNonExistent(t *testing.T) {
 	dir := t.TempDir()
-	f := NewFile(dir)
+	f, _ := NewFile(dir)
 
 	if err := f.Load(); err != nil {
 		t.Errorf("loading non-existent state should not error: %v", err)
@@ -29,7 +29,7 @@ func TestLoadNonExistent(t *testing.T) {
 
 func TestRecordRetroAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	f := NewFile(dir)
+	f, _ := NewFile(dir)
 
 	before := time.Now()
 	if err := f.RecordRetro(); err != nil {
@@ -48,7 +48,7 @@ func TestRecordRetroAndLoad(t *testing.T) {
 	}
 
 	// Load in a new File and verify persistence
-	f2 := NewFile(dir)
+	f2, _ := NewFile(dir)
 	if err := f2.Load(); err != nil {
 		t.Fatalf("loading state: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestLoadCorruptFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f := NewFile(dir)
+	f, _ := NewFile(dir)
 	if err := f.Load(); err == nil {
 		t.Error("loading corrupt state should return error")
 	}

@@ -242,7 +242,7 @@ func readLogFile(path string) ([]IterationLog, error) {
 		return nil, err
 	}
 
-	var entries []IterationLog
+	entries := []IterationLog{}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	for dec.More() {
 		var entry IterationLog

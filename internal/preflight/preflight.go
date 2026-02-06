@@ -19,14 +19,14 @@ type Checker struct {
 }
 
 // NewChecker creates a new preflight checker
-func NewChecker(cfg config.PreflightConfig, output io.Writer) *Checker {
+func NewChecker(cfg config.PreflightConfig, output io.Writer) (*Checker, error) {
 	if output == nil {
 		output = os.Stdout
 	}
 	return &Checker{
 		cfg: cfg,
 		out: output,
-	}
+	}, nil
 }
 
 // Check verifies required tools are available and attempts installation if missing
@@ -89,7 +89,7 @@ func (c *Checker) extractTools(commands []string) map[string]bool {
 
 // checkAvailability returns list of missing tools
 func (c *Checker) checkAvailability(tools map[string]bool) []string {
-	var missing []string
+	missing := []string{}
 
 	for tool := range tools {
 		if !c.toolExists(tool) {

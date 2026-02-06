@@ -1,0 +1,366 @@
+package runner
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/danabrams/ralph-runner/internal/analyzer"
+	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/ralph-runner/internal/claude"
+	"github.com/danabrams/ralph-runner/internal/config"
+	"github.com/danabrams/ralph-runner/internal/prompt"
+)
+
+func TestSetupBeadContext_NilConfig(t *testing.T) {
+	r := &Runner{output: &strings.Builder{}}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	_, _, _, err := r.setupBeadContext(context.Background(), b, 1)
+	if err == nil || !strings.Contains(err.Error(), "config is nil") {
+		t.Errorf("expected 'config is nil' error, got: %v", err)
+	}
+}
+
+func TestSetupBeadContext_NilBeads(t *testing.T) {
+	r := &Runner{cfg: &config.Config{}, output: &strings.Builder{}}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	_, _, _, err := r.setupBeadContext(context.Background(), b, 1)
+	if err == nil || !strings.Contains(err.Error(), "beads client is nil") {
+		t.Errorf("expected 'beads client is nil' error, got: %v", err)
+	}
+}
+
+func TestSetupBeadContext_NilRenderer(t *testing.T) {
+	beadsClient, _ := bead.NewClient()
+	r := &Runner{
+		cfg:    &config.Config{},
+		beads:  beadsClient,
+		output: &strings.Builder{},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	_, _, _, err := r.setupBeadContext(context.Background(), b, 1)
+	if err == nil || !strings.Contains(err.Error(), "renderer is nil") {
+		t.Errorf("expected 'renderer is nil' error, got: %v", err)
+	}
+}
+
+func TestSetupBeadContext_NilClaude(t *testing.T) {
+	beadsClient, _ := bead.NewClient()
+	r := &Runner{
+		cfg:      &config.Config{},
+		beads:    beadsClient,
+		renderer: &prompt.Renderer{},
+		output:   &strings.Builder{},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	_, _, _, err := r.setupBeadContext(context.Background(), b, 1)
+	if err == nil || !strings.Contains(err.Error(), "claude client is nil") {
+		t.Errorf("expected 'claude client is nil' error, got: %v", err)
+	}
+}
+
+func TestSetupBeadContext_SetsFields(t *testing.T) {
+	beadsClient, _ := bead.NewClient()
+	claudeClient, _ := claude.NewClient("echo", nil, 60)
+	r := &Runner{
+		cfg: &config.Config{
+			Escalation: config.EscalationConfig{
+				MaxRetriesPerModel: 2,
+				MaxRetriesPerBead:  5,
+			},
+			Claude: config.ClaudeConfig{
+				BeadTimeout: 300,
+			},
+		},
+		beads:    beadsClient,
+		renderer: &prompt.Renderer{},
+		claude:   claudeClient,
+		output:   &strings.Builder{},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test", Priority: 1}
+
+	bc, beadCtx, cancel, err := r.setupBeadContext(context.Background(), b, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer cancel()
+
+	if bc.bead != b {
+		t.Error("beadContext.bead should reference the input bead")
+	}
+	if bc.result == nil {
+		t.Fatal("beadContext.result should not be nil")
+	}
+	if bc.result.BeadID != "test-1" {
+		t.Errorf("expected BeadID 'test-1', got %q", bc.result.BeadID)
+	}
+	if bc.maxRetries != 2 {
+		t.Errorf("expected maxRetries=2, got %d", bc.maxRetries)
+	}
+	if bc.maxRetriesPerBead != 5 {
+		t.Errorf("expected maxRetriesPerBead=5, got %d", bc.maxRetriesPerBead)
+	}
+	if bc.beadTimeout != 300*time.Second {
+		t.Errorf("expected beadTimeout=300s, got %v", bc.beadTimeout)
+	}
+	if beadCtx == nil {
+		t.Error("beadCtx should not be nil")
+	}
+}
+
+func TestEscalateModel(t *testing.T) {
+	r := &Runner{output: &strings.Builder{}}
+	bc := &beadContext{
+		model:    "haiku",
+		result:   &IterationResult{Model: "haiku"},
+		promptCtx: &prompt.Context{Model: "haiku"},
+	}
+
+	r.escalateModel(bc, "sonnet")
+
+	if bc.model != "sonnet" {
+		t.Errorf("expected model 'sonnet', got %q", bc.model)
+	}
+	if bc.result.Model != "sonnet" {
+		t.Errorf("expected result.Model 'sonnet', got %q", bc.result.Model)
+	}
+	if bc.result.Escalated != true {
+		t.Error("expected result.Escalated to be true")
+	}
+	if bc.result.EscalatedTo != "sonnet" {
+		t.Errorf("expected result.EscalatedTo 'sonnet', got %q", bc.result.EscalatedTo)
+	}
+	if bc.retriesThisModel != 0 {
+		t.Errorf("expected retriesThisModel=0, got %d", bc.retriesThisModel)
+	}
+	if bc.promptCtx.Model != "sonnet" {
+		t.Errorf("expected promptCtx.Model 'sonnet', got %q", bc.promptCtx.Model)
+	}
+}
+
+func TestHandleScopeTooLarge(t *testing.T) {
+	var buf strings.Builder
+	beadsClient, _ := bead.NewClient()
+	r := &Runner{
+		beads:  beadsClient,
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		result: &IterationResult{},
+	}
+
+	result := &claude.Result{
+		Output: "SCOPE_TOO_LARGE: This task is too big\nBreakdown suggestion here",
+	}
+
+	r.handleScopeTooLarge(bc, result, "This task is too big")
+
+	if bc.result.Error == nil {
+		t.Fatal("expected error to be set")
+	}
+	if !strings.Contains(bc.result.Error.Error(), "scope too large") {
+		t.Errorf("expected 'scope too large' in error, got %q", bc.result.Error.Error())
+	}
+}
+
+func TestExtractLearning_NilLearning(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		renderer: &prompt.Renderer{},
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead: &bead.Bead{ID: "test-1"},
+	}
+
+	analysis := &analyzer.Analysis{
+		Category:    analyzer.CategorySyntax,
+		Recoverable: true,
+		RootCause:   "some bug",
+		Learning:    nil, // No learning
+	}
+
+	// Should not panic
+	r.extractLearning(bc, analysis)
+
+	if strings.Contains(buf.String(), "Learning") {
+		t.Error("should not log anything when Learning is nil")
+	}
+}
+
+func TestExtractLearning_WithLearning(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		renderer: &prompt.Renderer{},
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead: &bead.Bead{ID: "test-1"},
+	}
+
+	learning := "Always check for nil before dereferencing"
+	analysis := &analyzer.Analysis{
+		Category:    analyzer.CategoryLogic,
+		Recoverable: true,
+		RootCause:   "some bug",
+		Learning:    &learning,
+	}
+
+	// Should not panic even though GetLearningsFile returns nil
+	r.extractLearning(bc, analysis)
+
+	if !strings.Contains(buf.String(), "Learning extracted") {
+		t.Error("expected 'Learning extracted' in log output")
+	}
+}
+
+func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg:    &config.Config{},
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead:                 &bead.Bead{ID: "test-1"},
+		result:               &IterationResult{},
+		retriesThisModel:     0,
+		totalRetriesThisBead: 5,
+		maxRetries:           2,
+		maxRetriesPerBead:    5,
+	}
+
+	continueLoop := r.handleStallTimeout(context.Background(), bc)
+
+	if continueLoop {
+		t.Error("expected false when max retries per bead exceeded")
+	}
+	if bc.result.Error == nil {
+		t.Fatal("expected error to be set")
+	}
+	if !strings.Contains(bc.result.Error.Error(), "exceeded max retries per bead") {
+		t.Errorf("expected 'exceeded max retries per bead' in error, got %q", bc.result.Error.Error())
+	}
+}
+
+func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg:    &config.Config{},
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead:                 &bead.Bead{ID: "test-1"},
+		result:               &IterationResult{},
+		model:                "haiku",
+		retriesThisModel:     0,
+		totalRetriesThisBead: 0,
+		maxRetries:           2,
+		maxRetriesPerBead:    5,
+	}
+
+	continueLoop := r.handleStallTimeout(context.Background(), bc)
+
+	if !continueLoop {
+		t.Error("expected true when retries available")
+	}
+	if bc.retriesThisModel != 1 {
+		t.Errorf("expected retriesThisModel=1, got %d", bc.retriesThisModel)
+	}
+	if bc.totalRetriesThisBead != 1 {
+		t.Errorf("expected totalRetriesThisBead=1, got %d", bc.totalRetriesThisBead)
+	}
+}
+
+func TestHandleStallTimeout_Escalates(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg: &config.Config{
+			Escalation: config.EscalationConfig{
+				Enabled: true,
+				Chain:   []string{"haiku", "sonnet", "opus"},
+			},
+		},
+		renderer: &prompt.Renderer{},
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:                 &bead.Bead{ID: "test-1"},
+		result:               &IterationResult{},
+		model:                "haiku",
+		promptCtx:            &prompt.Context{Model: "haiku"},
+		retriesThisModel:     2,
+		totalRetriesThisBead: 2,
+		maxRetries:           2,
+		maxRetriesPerBead:    10,
+	}
+
+	// handleStallTimeout will increment retries, then see retries > maxRetries,
+	// then try escalation. RenderBuild will fail because renderer has no templates,
+	// but we can check escalation was applied.
+	continueLoop := r.handleStallTimeout(context.Background(), bc)
+
+	// Even though render fails, escalation should have been applied
+	if continueLoop {
+		// If it returns true, escalation + render worked (shouldn't with empty renderer)
+		// If it returns false, check that it's the render error
+		if bc.result.Error != nil && strings.Contains(bc.result.Error.Error(), "rendering retry prompt") {
+			// Expected - renderer can't render without templates
+			return
+		}
+	}
+
+	// Verify escalation was at least attempted
+	if bc.model != "sonnet" {
+		t.Errorf("expected model to be escalated to 'sonnet', got %q", bc.model)
+	}
+}
+
+func TestBeadContextRetryCounters(t *testing.T) {
+	bc := &beadContext{
+		retriesThisModel:     0,
+		totalRetriesThisBead: 0,
+		maxRetries:           3,
+		maxRetriesPerBead:    6,
+	}
+
+	// Verify initial state
+	if bc.retriesThisModel != 0 {
+		t.Errorf("initial retriesThisModel should be 0, got %d", bc.retriesThisModel)
+	}
+	if bc.totalRetriesThisBead != 0 {
+		t.Errorf("initial totalRetriesThisBead should be 0, got %d", bc.totalRetriesThisBead)
+	}
+
+	// Simulate a retry
+	bc.retriesThisModel++
+	bc.totalRetriesThisBead++
+
+	if bc.retriesThisModel != 1 {
+		t.Errorf("after retry retriesThisModel should be 1, got %d", bc.retriesThisModel)
+	}
+
+	// Simulate escalation
+	bc.retriesThisModel = 0 // Reset on escalation
+	if bc.totalRetriesThisBead != 1 {
+		t.Errorf("after escalation totalRetriesThisBead should still be 1, got %d", bc.totalRetriesThisBead)
+	}
+}
+
+func TestProcessBead_DurationIsSetOnSetupFailure(t *testing.T) {
+	r := &Runner{output: &strings.Builder{}}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+
+	result := r.processBead(context.Background(), b, 1)
+
+	if result.Error == nil {
+		t.Fatal("expected error for nil config")
+	}
+	if result.Duration == 0 {
+		t.Error("expected Duration to be set even on setup failure")
+	}
+	if result.BeadID != "test-1" {
+		t.Errorf("expected BeadID 'test-1', got %q", result.BeadID)
+	}
+}

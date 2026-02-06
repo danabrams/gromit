@@ -125,11 +125,12 @@ func rejectControlChars(s, fieldName string) error {
 // Client wraps the bd CLI
 type Client struct {
 	binary string
+	Dir    string // working directory for bd commands; if empty, uses current directory
 }
 
 // NewClient creates a new bd client
-func NewClient() *Client {
-	return &Client{binary: "bd"}
+func NewClient() (*Client, error) {
+	return &Client{binary: "bd"}, nil
 }
 
 // parseBeadOutput parses JSON output from a bd command that returns a bead array
@@ -490,6 +491,9 @@ func HasLabel(labels []string, target string) bool {
 
 func (c *Client) run(args ...string) (string, error) {
 	cmd := exec.Command(c.binary, args...)
+	if c.Dir != "" {
+		cmd.Dir = c.Dir
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {

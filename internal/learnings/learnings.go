@@ -44,13 +44,13 @@ const (
 const FuzzyMatchThreshold = 0.7
 
 // NewFile creates a new learnings file manager
-func NewFile(dir string) *File {
+func NewFile(dir string) (*File, error) {
 	return &File{
 		path:        filepath.Join(dir, "LEARNINGS.md"),
 		confirmed:   []Learning{},
 		provisional: []Learning{},
 		archived:    []Learning{},
-	}
+	}, nil
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.

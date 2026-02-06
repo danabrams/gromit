@@ -20,10 +20,10 @@ type File struct {
 }
 
 // NewFile creates a new state file manager
-func NewFile(ralphDir string) *File {
+func NewFile(ralphDir string) (*File, error) {
 	return &File{
 		path: filepath.Join(ralphDir, "state.json"),
-	}
+	}, nil
 }
 
 // Load reads the state from disk

@@ -420,35 +420,49 @@ func TestParseAnalysisOutputTrimWhitespace(t *testing.T) {
 	}
 }
 
-// TestNewAnalyzerNilClient tests that NewAnalyzer returns nil when claude client is nil
+// TestNewAnalyzerNilClient tests that NewAnalyzer returns error when claude client is nil
 func TestNewAnalyzerNilClient(t *testing.T) {
-	a := NewAnalyzer(nil, "sonnet", &prompt.Renderer{})
+	a, err := NewAnalyzer(nil, "sonnet", &prompt.Renderer{})
 	if a != nil {
 		t.Error("expected nil Analyzer when claude client is nil")
 	}
-}
-
-// TestNewAnalyzerNilRenderer tests that NewAnalyzer returns nil when renderer is nil
-func TestNewAnalyzerNilRenderer(t *testing.T) {
-	a := NewAnalyzer(claude.NewClient("claude", nil, 60), "sonnet", nil)
-	if a != nil {
-		t.Error("expected nil Analyzer when renderer is nil")
+	if err == nil {
+		t.Error("expected error when claude client is nil")
 	}
 }
 
-// TestNewAnalyzerBothNil tests that NewAnalyzer returns nil when both params are nil
+// TestNewAnalyzerNilRenderer tests that NewAnalyzer returns error when renderer is nil
+func TestNewAnalyzerNilRenderer(t *testing.T) {
+	claudeClient, _ := claude.NewClient("claude", nil, 60)
+	a, err := NewAnalyzer(claudeClient, "sonnet", nil)
+	if a != nil {
+		t.Error("expected nil Analyzer when renderer is nil")
+	}
+	if err == nil {
+		t.Error("expected error when renderer is nil")
+	}
+}
+
+// TestNewAnalyzerBothNil tests that NewAnalyzer returns error when both params are nil
 func TestNewAnalyzerBothNil(t *testing.T) {
-	a := NewAnalyzer(nil, "sonnet", nil)
+	a, err := NewAnalyzer(nil, "sonnet", nil)
 	if a != nil {
 		t.Error("expected nil Analyzer when both client and renderer are nil")
+	}
+	if err == nil {
+		t.Error("expected error when both are nil")
 	}
 }
 
 // TestNewAnalyzerValidParams tests that NewAnalyzer returns non-nil with valid params
 func TestNewAnalyzerValidParams(t *testing.T) {
-	a := NewAnalyzer(claude.NewClient("claude", nil, 60), "sonnet", &prompt.Renderer{})
+	claudeClient, _ := claude.NewClient("claude", nil, 60)
+	a, err := NewAnalyzer(claudeClient, "sonnet", &prompt.Renderer{})
 	if a == nil {
 		t.Error("expected non-nil Analyzer with valid params")
+	}
+	if err != nil {
+		t.Errorf("expected no error with valid params, got: %v", err)
 	}
 }
 
@@ -482,7 +496,8 @@ func TestAnalyzeNilClaudeClient(t *testing.T) {
 
 // TestAnalyzeNilRenderer tests that Analyze handles nil renderer field
 func TestAnalyzeNilRenderer(t *testing.T) {
-	a := &Analyzer{claude: claude.NewClient("claude", nil, 60)}
+	claudeClient, _ := claude.NewClient("claude", nil, 60)
+	a := &Analyzer{claude: claudeClient}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
 	_, err := a.Analyze(context.Background(), b, "output")
 	if err == nil {

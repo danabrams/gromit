@@ -26,11 +26,11 @@ type StatusWriter struct {
 }
 
 // NewStatusWriter creates a new status writer for the given ralph directory
-func NewStatusWriter(ralphDir string) *StatusWriter {
+func NewStatusWriter(ralphDir string) (*StatusWriter, error) {
 	return &StatusWriter{
 		path:      filepath.Join(ralphDir, "status.json"),
 		startTime: time.Now(),
-	}
+	}, nil
 }
 
 // Write writes the current status to status.json

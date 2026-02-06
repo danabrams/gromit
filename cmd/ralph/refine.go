@@ -41,7 +41,10 @@ func runRefine(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load backlog items
-	bf := backlog.NewFile(ralphDir)
+	bf, err := backlog.NewFile(ralphDir)
+	if err != nil {
+		return fmt.Errorf("creating backlog file: %w", err)
+	}
 	ideas, err := bf.List()
 	if err != nil {
 		return fmt.Errorf("loading backlog: %w", err)

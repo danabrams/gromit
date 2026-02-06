@@ -134,7 +134,7 @@ func TestCheckNilReceiver(t *testing.T) {
 }
 
 func TestNewCheckerNilOutput(t *testing.T) {
-	c := NewChecker(config.PreflightConfig{}, nil)
+	c, _ := NewChecker(config.PreflightConfig{}, nil)
 	if c == nil {
 		t.Fatal("expected non-nil checker")
 	}

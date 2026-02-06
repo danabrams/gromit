@@ -10,9 +10,12 @@ import (
 )
 
 func TestNewRetroNilConfig(t *testing.T) {
-	r := NewRetro(nil, ".ralph")
+	r, err := NewRetro(nil, ".ralph")
 	if r != nil {
 		t.Error("expected nil Retro for nil config")
+	}
+	if err == nil {
+		t.Error("expected error for nil config")
 	}
 }
 
@@ -35,8 +38,9 @@ func TestRunNilClaudeClient(t *testing.T) {
 }
 
 func TestRunNilLearningsFile(t *testing.T) {
+	claudeClient, _ := claude.NewClient("claude", nil, 60)
 	r := &Retro{
-		claude:        claude.NewClient("claude", nil, 60),
+		claude:        claudeClient,
 		learningsFile: nil,
 	}
 	_, err := r.Run(context.Background(), false)
@@ -54,7 +58,7 @@ func TestEnrichBeadStatsNilReceiver(t *testing.T) {
 
 func TestEnrichBeadStatsNilMap(t *testing.T) {
 	tmpDir := t.TempDir()
-	r := NewRetro(&config.Config{
+	r, _ := NewRetro(&config.Config{
 		Claude: config.ClaudeConfig{
 			Binary:  "claude",
 			Timeout: 60,
@@ -66,7 +70,7 @@ func TestEnrichBeadStatsNilMap(t *testing.T) {
 
 func TestEnrichBeadStatsEmptyMap(t *testing.T) {
 	tmpDir := t.TempDir()
-	r := NewRetro(&config.Config{
+	r, _ := NewRetro(&config.Config{
 		Claude: config.ClaudeConfig{
 			Binary:  "claude",
 			Timeout: 60,

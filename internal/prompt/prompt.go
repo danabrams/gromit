@@ -100,8 +100,11 @@ type Renderer struct {
 }
 
 // NewRenderer creates a new prompt renderer
-func NewRenderer(templatesDir, specsDir, claudeMDPath, ralphDir string) *Renderer {
-	lf := learnings.NewFile(ralphDir)
+func NewRenderer(templatesDir, specsDir, claudeMDPath, ralphDir string) (*Renderer, error) {
+	lf, err := learnings.NewFile(ralphDir)
+	if err != nil {
+		return nil, err
+	}
 	lf.Load() // Ignore error - learnings are optional
 
 	return &Renderer{
@@ -110,7 +113,7 @@ func NewRenderer(templatesDir, specsDir, claudeMDPath, ralphDir string) *Rendere
 		claudeMDPath:  claudeMDPath,
 		rulesPath:     filepath.Join(ralphDir, "RULES.md"),
 		learningsFile: lf,
-	}
+	}, nil
 }
 
 // GetLearningsFile returns the learnings file for external use

@@ -40,7 +40,10 @@ func runPlan(cmd *cobra.Command, args []string) error {
 	}
 
 	// Gather context from beads
-	beadClient := bead.NewClient()
+	beadClient, err := bead.NewClient()
+	if err != nil {
+		return fmt.Errorf("creating bead client: %w", err)
+	}
 	openBeads, err := beadClient.List()
 	if err != nil {
 		return fmt.Errorf("listing open beads: %w", err)

@@ -14,7 +14,7 @@ type Manager struct {
 }
 
 // NewManager creates a new tmux manager and saves the current pane title if in tmux
-func NewManager() *Manager {
+func NewManager() (*Manager, error) {
 	m := &Manager{
 		inTmux: InTmux(),
 	}
@@ -23,7 +23,7 @@ func NewManager() *Manager {
 		m.originalTitle = getOriginalTitle()
 	}
 
-	return m
+	return m, nil
 }
 
 // InTmux returns true if running inside a tmux session

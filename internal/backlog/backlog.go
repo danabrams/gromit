@@ -25,10 +25,10 @@ type File struct {
 }
 
 // NewFile creates a new backlog file manager
-func NewFile(ralphDir string) *File {
+func NewFile(ralphDir string) (*File, error) {
 	return &File{
 		path: filepath.Join(ralphDir, "backlog.jsonl"),
-	}
+	}, nil
 }
 
 // Add appends a new idea to the backlog
@@ -137,7 +137,7 @@ func (f *File) Delete(id string) error {
 	}
 
 	// Filter out the idea to delete
-	var filtered []*Idea
+	filtered := []*Idea{}
 	found := false
 	for _, idea := range ideas {
 		if idea.ID == id {

@@ -49,7 +49,7 @@ func TestBacklogFile(t *testing.T) {
 	// Create temp directory
 	tmpDir := t.TempDir()
 
-	bf := NewFile(tmpDir)
+	bf, _ := NewFile(tmpDir)
 
 	// Test adding ideas
 	idea1 := &Idea{
@@ -95,7 +95,7 @@ func TestBacklogFile(t *testing.T) {
 	}
 
 	// Test list on non-existent file returns empty slice (not nil)
-	emptyBf := NewFile(filepath.Join(tmpDir, "nonexistent"))
+	emptyBf, _ := NewFile(filepath.Join(tmpDir, "nonexistent"))
 	emptyIdeas, err := emptyBf.List()
 	if err != nil {
 		t.Fatalf("List() on non-existent file error = %v", err)
@@ -124,7 +124,7 @@ func TestGenerateID(t *testing.T) {
 
 func TestBacklogFileDelete(t *testing.T) {
 	tmpDir := t.TempDir()
-	bf := NewFile(tmpDir)
+	bf, _ := NewFile(tmpDir)
 
 	// Add three ideas
 	idea1 := &Idea{ID: "idea-1", Text: "First idea", Type: "feature", CreatedAt: time.Now()}
@@ -166,7 +166,7 @@ func TestBacklogFileDelete(t *testing.T) {
 
 func TestBacklogFileGet(t *testing.T) {
 	tmpDir := t.TempDir()
-	bf := NewFile(tmpDir)
+	bf, _ := NewFile(tmpDir)
 
 	// Add ideas
 	idea1 := &Idea{ID: "idea-1", Text: "First idea", Type: "feature", CreatedAt: time.Now()}
@@ -200,7 +200,7 @@ func TestBacklogFileGet(t *testing.T) {
 	}
 
 	// Get from empty backlog
-	emptyBf := NewFile(filepath.Join(tmpDir, "nonexistent"))
+	emptyBf, _ := NewFile(filepath.Join(tmpDir, "nonexistent"))
 	got, err = emptyBf.Get("idea-1")
 	if err != nil {
 		t.Fatalf("Get() on empty backlog error = %v", err)
@@ -212,7 +212,7 @@ func TestBacklogFileGet(t *testing.T) {
 
 func TestBacklogFileListEmptyFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	bf := NewFile(tmpDir)
+	bf, _ := NewFile(tmpDir)
 
 	// Create an empty backlog file
 	emptyFile := filepath.Join(tmpDir, "backlog.jsonl")
@@ -237,7 +237,7 @@ func TestBacklogFileCreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	nestedPath := filepath.Join(tmpDir, "nested", "dir")
 
-	bf := NewFile(nestedPath)
+	bf, _ := NewFile(nestedPath)
 
 	idea := &Idea{
 		ID:        GenerateID(),

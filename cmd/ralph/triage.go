@@ -33,7 +33,10 @@ func init() {
 }
 
 func runTriage(cmd *cobra.Command, args []string) error {
-	client := bead.NewClient()
+	client, err := bead.NewClient()
+	if err != nil {
+		return fmt.Errorf("creating bead client: %w", err)
+	}
 
 	// List all open beads in priority order
 	beads, err := client.List()
