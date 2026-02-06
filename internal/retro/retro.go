@@ -3,6 +3,7 @@ package retro
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/learnings"
 	"github.com/danabrams/ralph-runner/internal/logger"
+	"github.com/danabrams/ralph-runner/internal/rules"
 )
 
 // Retro manages retrospective analysis
@@ -213,21 +215,197 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 
 // applyChanges parses the analysis output and applies changes to RULES.md
 func (r *Retro) applyChanges(analysis string) error {
-	// For now, this is a placeholder
-	// In a full implementation, we would:
-	// 1. Parse the analysis output to extract proposed changes
-	// 2. Apply them to RULES.md
-	// 3. Update LEARNINGS.md to remove archived items
-	//
-	// This requires more sophisticated parsing logic which
-	// would be better handled by having Claude output structured
-	// data (e.g., JSON) or by doing interactive confirmation
-
-	// Write the analysis to a file for manual review
-	analysisPath := filepath.Join(filepath.Dir(r.rulesPath), "RETRO_PROPOSED_CHANGES.md")
-	if err := os.WriteFile(analysisPath, []byte(analysis), 0644); err != nil {
-		return fmt.Errorf("writing proposed changes: %w", err)
+	// Parse proposals from the analysis output
+	proposals, err := ParseProposals(analysis)
+	if err != nil {
+		// Write the analysis to a file for manual review if parsing fails
+		analysisPath := filepath.Join(filepath.Dir(r.rulesPath), "RETRO_PROPOSED_CHANGES.md")
+		if writeErr := os.WriteFile(analysisPath, []byte(analysis), 0644); writeErr != nil {
+			return fmt.Errorf("parsing proposals failed: %w; additionally failed to write analysis: %v", err, writeErr)
+		}
+		return fmt.Errorf("parsing proposals: %w (analysis written to %s for manual review)", err, analysisPath)
 	}
 
-	return fmt.Errorf("auto-apply not yet implemented - review %s and apply manually", analysisPath)
+	// Convert Proposals to AcceptedProposals (all proposals are accepted in auto-apply mode)
+	accepted := &AcceptedProposals{
+		Consolidations: proposals.Consolidations,
+		Promotions:     proposals.Promotions,
+		Archives:       proposals.Archives,
+		RuleChanges:    proposals.RuleChanges,
+	}
+
+	// Apply accepted proposals
+	return r.applyAccepted(accepted)
+}
+
+// applyAccepted executes all changes in the accepted proposals
+// Each operation is independent; failures are logged as warnings and do not stop execution
+func (r *Retro) applyAccepted(accepted *AcceptedProposals) error {
+	if accepted == nil {
+		return fmt.Errorf("accepted proposals is nil")
+	}
+
+	var errors []string
+
+	// Apply consolidations
+	for i, c := range accepted.Consolidations {
+		if err := r.applyConsolidation(c); err != nil {
+			log.Printf("Warning: consolidation %d/%d failed: %v", i+1, len(accepted.Consolidations), err)
+			errors = append(errors, fmt.Sprintf("consolidation %d: %v", i+1, err))
+		}
+	}
+
+	// Apply archives
+	for i, a := range accepted.Archives {
+		if err := r.applyArchive(a); err != nil {
+			log.Printf("Warning: archive %d/%d failed: %v", i+1, len(accepted.Archives), err)
+			errors = append(errors, fmt.Sprintf("archive %d: %v", i+1, err))
+		}
+	}
+
+	// Apply promotions
+	for i, p := range accepted.Promotions {
+		if err := r.applyPromotion(p); err != nil {
+			log.Printf("Warning: promotion %d/%d failed: %v", i+1, len(accepted.Promotions), err)
+			errors = append(errors, fmt.Sprintf("promotion %d: %v", i+1, err))
+		}
+	}
+
+	// Apply rule changes
+	for i, rc := range accepted.RuleChanges {
+		if err := r.applyRuleChange(rc); err != nil {
+			log.Printf("Warning: rule change %d/%d failed: %v", i+1, len(accepted.RuleChanges), err)
+			errors = append(errors, fmt.Sprintf("rule change %d: %v", i+1, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("some operations failed:\n  - %s", strings.Join(errors, "\n  - "))
+	}
+
+	return nil
+}
+
+// applyConsolidation merges multiple learnings into one
+func (r *Retro) applyConsolidation(c ConsolidationProposal) error {
+	if len(c.LearningHashes) == 0 {
+		return fmt.Errorf("no learning hashes provided")
+	}
+	if c.ConsolidatedText == "" {
+		return fmt.Errorf("no consolidated text provided")
+	}
+
+	// Determine category from the first learning
+	var category string
+	for _, hash := range c.LearningHashes {
+		learning := r.learningsFile.GetByHash(hash)
+		if learning != nil {
+			category = learning.Category
+			break
+		}
+	}
+	if category == "" {
+		category = learnings.CategoryPatterns // Default fallback
+	}
+
+	// Replace old learnings with consolidated version
+	if err := r.learningsFile.Replace(c.LearningHashes, c.ConsolidatedText, category); err != nil {
+		return fmt.Errorf("replacing learnings: %w", err)
+	}
+
+	return nil
+}
+
+// applyArchive moves a learning to the archived section
+func (r *Retro) applyArchive(a ArchiveProposal) error {
+	if a.LearningHash == "" {
+		return fmt.Errorf("no learning hash provided")
+	}
+
+	if err := r.learningsFile.Archive(a.LearningHash, a.Rationale); err != nil {
+		return fmt.Errorf("archiving learning: %w", err)
+	}
+
+	return nil
+}
+
+// applyPromotion promotes a learning to a rule
+func (r *Retro) applyPromotion(p PromotionProposal) error {
+	if p.LearningHash == "" {
+		return fmt.Errorf("no learning hash provided")
+	}
+	if p.ProposedRule == "" {
+		return fmt.Errorf("no proposed rule text provided")
+	}
+	if p.Section == "" {
+		return fmt.Errorf("no section specified")
+	}
+
+	// Load current rules
+	rulesData, err := rules.Load(r.rulesPath)
+	if err != nil {
+		return fmt.Errorf("loading rules: %w", err)
+	}
+
+	// Add the new rule to the specified section
+	rulesData.AddRule(p.Section, p.ProposedRule)
+
+	// Save updated rules
+	if err := rulesData.Save(r.rulesPath); err != nil {
+		return fmt.Errorf("saving rules: %w", err)
+	}
+
+	// Archive the promoted learning
+	learning := r.learningsFile.GetByHash(p.LearningHash)
+	if learning != nil {
+		reason := fmt.Sprintf("promoted to rule in section %s", p.Section)
+		if err := r.learningsFile.Archive(p.LearningHash, reason); err != nil {
+			// Log warning but don't fail - the rule was already added
+			log.Printf("Warning: failed to archive promoted learning %s: %v", p.LearningHash, err)
+		}
+	}
+
+	return nil
+}
+
+// applyRuleChange modifies an existing rule
+func (r *Retro) applyRuleChange(rc RuleChangeProposal) error {
+	if rc.CurrentRule == "" {
+		return fmt.Errorf("no current rule text provided")
+	}
+	if rc.ProposedRule == "" {
+		return fmt.Errorf("no proposed rule text provided")
+	}
+
+	// Load current rules
+	rulesData, err := rules.Load(r.rulesPath)
+	if err != nil {
+		return fmt.Errorf("loading rules: %w", err)
+	}
+
+	// Try to find and modify the rule in each section
+	var modified bool
+	var lastErr error
+	for _, section := range rulesData.Sections {
+		if err := rulesData.ModifyRule(section.Name, rc.CurrentRule, rc.ProposedRule); err == nil {
+			modified = true
+			break
+		} else {
+			lastErr = err
+		}
+	}
+
+	if !modified {
+		if lastErr != nil {
+			return fmt.Errorf("rule not found in any section: %w", lastErr)
+		}
+		return fmt.Errorf("rule not found: %q", rc.CurrentRule)
+	}
+
+	// Save updated rules
+	if err := rulesData.Save(r.rulesPath); err != nil {
+		return fmt.Errorf("saving rules: %w", err)
+	}
+
+	return nil
 }
