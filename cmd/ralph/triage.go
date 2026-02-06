@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/spf13/cobra"
@@ -194,23 +193,4 @@ func promptCloseReason(reader *bufio.Reader) (string, error) {
 	}
 
 	return strings.TrimSpace(input), nil
-}
-
-func formatTimeAgo(t time.Time) string {
-	if t.IsZero() {
-		return "unknown"
-	}
-
-	duration := time.Since(t)
-
-	switch {
-	case duration < time.Hour:
-		return fmt.Sprintf("%d minutes ago", int(duration.Minutes()))
-	case duration < 24*time.Hour:
-		return fmt.Sprintf("%d hours ago", int(duration.Hours()))
-	case duration < 7*24*time.Hour:
-		return fmt.Sprintf("%d days ago", int(duration.Hours()/24))
-	default:
-		return fmt.Sprintf("%d weeks ago", int(duration.Hours()/(24*7)))
-	}
 }
