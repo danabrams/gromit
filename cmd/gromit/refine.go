@@ -1,27 +1,35 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/spf13/cobra"
 )
 
 var refineCmd = &cobra.Command{
-	Use:   "refine",
-	Short: "Launch Claude Code session for backlog refinement",
-	Long: `Start an interactive Claude Code session with backlog context pre-loaded.
+	Use:   "refine [backlog-id or idea text]",
+	Short: "Refine ideas into structured specs",
+	Long: `Start an interactive Claude Code session to refine ideas into structured specifications.
+
+Three input modes:
+  gromit refine                    # Interactive picker for unrefined backlog items
+  gromit refine <backlog-id>       # Refine a specific backlog item
+  gromit refine "some idea text"   # Refine an ad-hoc idea (not in backlog)
 
 The command launches Claude with:
-- Backlog ideas as context for refinement
-- References the gromit-refine skill for brainstorming and breaking down ideas
+- The idea text as context
+- Specs directory path for output
+- References the gromit-refine skill for conversational refinement
 
-Example:
-  gromit refine`,
-	Args: cobra.NoArgs,
+After Claude exits, scans for new spec files and marks backlog items as refined.`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runRefine,
 }
 
@@ -30,7 +38,7 @@ func init() {
 }
 
 func runRefine(cmd *cobra.Command, args []string) error {
-	// Get .gromit directory from config or default
+	// Get config and directories
 	cfg, err := loadConfig()
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -39,45 +47,133 @@ func runRefine(cmd *cobra.Command, args []string) error {
 		cfg = nil
 	}
 	gromitDir := resolveGromitDir(cfg)
+	specsDir := resolveSpecsDir(cfg)
 
-	// Load backlog items
+	// Load backlog
 	bf, err := backlog.NewFile(gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating backlog file: %w", err)
 	}
-	ideas, err := bf.List()
-	if err != nil {
-		return fmt.Errorf("loading backlog: %w", err)
-	}
 
-	// Build context string with backlog items
-	var contextBuilder strings.Builder
-	contextBuilder.WriteString("## Backlog Items to Refine\n")
-	if len(ideas) == 0 {
-		contextBuilder.WriteString("(Backlog is empty)\n")
-	} else {
+	// Determine input mode and get idea text
+	var ideaText string
+	var backlogID string
+	var fromBacklog bool
+
+	if len(args) == 0 {
+		// Mode 1: Interactive picker for unrefined backlog items
+		ideas, err := bf.List()
+		if err != nil {
+			return fmt.Errorf("loading backlog: %w", err)
+		}
+
+		// Filter to unrefined items
+		unrefined := []*backlog.Idea{}
 		for _, idea := range ideas {
-			typeLabel := idea.Type
-			contextBuilder.WriteString(fmt.Sprintf("- [%s] %s (%s)\n", typeLabel, idea.Text, idea.ID))
-			if idea.Context != "" {
-				contextBuilder.WriteString(fmt.Sprintf("  Context: %s\n", idea.Context))
+			if idea.Status != "refined" {
+				unrefined = append(unrefined, idea)
 			}
+		}
+
+		if len(unrefined) == 0 {
+			fmt.Println("No unrefined backlog items found.")
+			fmt.Println("\nUse 'gromit add <idea>' to add new ideas, or")
+			fmt.Println("use 'gromit refine \"idea text\"' to refine an ad-hoc idea.")
+			return nil
+		}
+
+		// Display picker
+		fmt.Println("Select an idea to refine:")
+		fmt.Println()
+		for i, idea := range unrefined {
+			typeLabel := formatTypeLabel(idea.Type)
+			fmt.Printf("  %d. %s %s\n", i+1, typeLabel, idea.Text)
+			if idea.Context != "" {
+				fmt.Printf("     Context: %s\n", idea.Context)
+			}
+		}
+
+		fmt.Print("\nChoice [1-", len(unrefined), "]: ")
+		reader := bufio.NewReader(os.Stdin)
+		choiceStr, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("reading choice: %w", err)
+		}
+
+		var choice int
+		if _, err := fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choice); err != nil || choice < 1 || choice > len(unrefined) {
+			return fmt.Errorf("invalid choice")
+		}
+
+		selectedIdea := unrefined[choice-1]
+		ideaText = selectedIdea.Text
+		if selectedIdea.Context != "" {
+			ideaText = fmt.Sprintf("%s\n\nContext: %s", selectedIdea.Text, selectedIdea.Context)
+		}
+		backlogID = selectedIdea.ID
+		fromBacklog = true
+
+		fmt.Printf("\nRefining: %s\n\n", selectedIdea.Text)
+
+	} else {
+		// Check if arg is a backlog ID or ad-hoc text
+		arg := args[0]
+		if strings.HasPrefix(arg, "idea-") {
+			// Mode 2: Specific backlog ID
+			idea, err := bf.Get(arg)
+			if err != nil {
+				return fmt.Errorf("loading backlog item: %w", err)
+			}
+			if idea == nil {
+				return fmt.Errorf("backlog item not found: %s", arg)
+			}
+
+			ideaText = idea.Text
+			if idea.Context != "" {
+				ideaText = fmt.Sprintf("%s\n\nContext: %s", idea.Text, idea.Context)
+			}
+			backlogID = idea.ID
+			fromBacklog = true
+
+		} else {
+			// Mode 3: Ad-hoc idea text
+			ideaText = arg
+			fromBacklog = false
 		}
 	}
 
-	// Build system prompt with backlog and instructions
-	systemPrompt := fmt.Sprintf(`Backlog to refine: %d items
+	// Record existing spec files before running Claude
+	existingSpecs, err := getSpecFiles(specsDir)
+	if err != nil {
+		return fmt.Errorf("scanning specs directory: %w", err)
+	}
+
+	// Build system prompt
+	systemPrompt := fmt.Sprintf(`Idea to refine:
 
 %s
 
+## Context
+
+Specs directory: %s
+
 ## Instructions
-Use the gromit-refine skill to help brainstorm and refine these backlog items into properly-sized beads (tasks).
-The gromit-refine skill is designed for backlog refinement and will guide you through:
-- Clarifying vague or ambiguous ideas
-- Breaking down large ideas into smaller tasks
-- Creating acceptance criteria
-- Determining dependencies and complexity
-- Promoting ideas to beads with bd create`, len(ideas), contextBuilder.String())
+
+Use the gromit-refine skill to help transform this idea into a structured specification.
+The gromit-refine skill will guide you through:
+- Exploring the codebase to understand existing patterns
+- Asking clarifying questions one at a time
+- Discussing approaches with tradeoffs
+- Collaboratively choosing a spec name
+- Writing the spec to .gromit/specs/<name>.md
+
+The spec should follow the Gromit spec format with frontmatter (id, source_ideas, created) and four sections:
+1. Specification - What the feature is and how it works
+2. Acceptance Criteria - Concrete, testable criteria
+3. Decisions - Key choices and rationale
+4. Research & Context - Supporting information for planning
+
+After writing the spec, the command will detect the new file and update the backlog if needed.`, ideaText, specsDir)
 
 	// Launch Claude Code with system prompt
 	claudeCmd := exec.Command("claude", "--append-system-prompt", systemPrompt)
@@ -94,5 +190,100 @@ The gromit-refine skill is designed for backlog refinement and will guide you th
 		return fmt.Errorf("launching Claude Code: %w", err)
 	}
 
+	// Scan for new spec files
+	newSpecs, err := getSpecFiles(specsDir)
+	if err != nil {
+		return fmt.Errorf("scanning specs directory after Claude: %w", err)
+	}
+
+	// Find newly created spec(s)
+	createdSpecs := []string{}
+	for _, spec := range newSpecs {
+		if !containsSpec(existingSpecs, spec) {
+			createdSpecs = append(createdSpecs, spec)
+		}
+	}
+
+	// If from backlog and a spec was created, mark as refined
+	if fromBacklog && len(createdSpecs) > 0 {
+		// Use the first new spec (should typically be only one)
+		specPath := createdSpecs[0]
+		specName := strings.TrimSuffix(filepath.Base(specPath), ".md")
+
+		// Update backlog item status
+		err := bf.Update(backlogID, func(idea *backlog.Idea) {
+			idea.Status = "refined"
+			idea.SpecName = specName
+		})
+		if err != nil {
+			// Don't fail the whole command if update fails
+			fmt.Fprintf(os.Stderr, "Warning: failed to update backlog item status: %v\n", err)
+		} else {
+			fmt.Printf("\n✓ Marked backlog item %s as refined (spec: %s)\n", backlogID, specName)
+		}
+	}
+
+	if len(createdSpecs) > 0 {
+		fmt.Printf("\nSpec files created:\n")
+		for _, spec := range createdSpecs {
+			fmt.Printf("  - %s\n", spec)
+		}
+	}
+
 	return nil
+}
+
+// getSpecFiles returns a list of .md files in the specs directory
+func getSpecFiles(specsDir string) ([]string, error) {
+	// Ensure directory exists
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(specsDir)
+	if err != nil {
+		return nil, err
+	}
+
+	specs := []string{}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+			specs = append(specs, filepath.Join(specsDir, entry.Name()))
+		}
+	}
+
+	return specs, nil
+}
+
+// containsSpec checks if a string slice contains a value
+func containsSpec(slice []string, value string) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+// formatTypeLabel formats type as colored label
+func formatTypeLabel(ideaType string) string {
+	typeMap := map[string]string{
+		"feature": "[feature]",
+		"bug":     "[bug]    ",
+		"chore":   "[chore]  ",
+		"unknown": "[unknown]",
+	}
+
+	if label, ok := typeMap[ideaType]; ok {
+		return label
+	}
+	return fmt.Sprintf("[%-7s]", ideaType)
+}
+
+// resolveSpecsDir returns the specs directory path from config or default
+func resolveSpecsDir(cfg *config.Config) string {
+	if cfg != nil && cfg.Paths.Specs != "" {
+		return cfg.Paths.Specs
+	}
+	return ".gromit/specs"
 }
