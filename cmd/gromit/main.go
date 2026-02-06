@@ -94,6 +94,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(retroCmd)
+	rootCmd.AddCommand(decomposeCmd)
 }
 
 func loadConfig() (*config.Config, error) {
