@@ -1,8 +1,8 @@
-# Ralph Runner
+# Gromit
 
 **Autonomous task execution for Claude Code, with built-in learning.**
 
-Ralph Runner takes a queue of tasks (beads), hands them to Claude one at a time with fresh context, validates the results, and escalates on failure. Along the way, it builds a persistent knowledge base of what works and what doesn't — so each iteration gets smarter than the last.
+Gromit takes a queue of tasks (beads), hands them to Claude one at a time with fresh context, validates the results, and escalates on failure. Along the way, it builds a persistent knowledge base of what works and what doesn't — so each iteration gets smarter than the last.
 
 ```
                          ┌─────────────┐
@@ -33,49 +33,49 @@ Ralph Runner takes a queue of tasks (beads), hands them to Claude one at a time 
                                     └─────────────┘
 ```
 
-## Why Ralph?
+## Why Gromit?
 
 AI coding agents lose context between sessions. They make the same mistakes. They can't learn from experience.
 
-Ralph fixes this:
+Gromit fixes this:
 
 - **Fresh context every iteration** — no stale state, no confused models
-- **Automatic failure analysis** — when something breaks, Ralph figures out why
+- **Automatic failure analysis** — when something breaks, Gromit figures out why
 - **Persistent learnings** — mistakes become knowledge that feeds into future prompts
 - **Model escalation** — starts cheap, upgrades only when needed
 - **Separate validation** — tests and lints run in isolation, not by the build model
 
-The name comes from [Ralph Wiggum](https://simpsons.fandom.com/wiki/Ralph_Wiggum) — the original "I'm in danger" loop. Except this loop actually gets smarter.
+Named after [Gromit](https://en.wikipedia.org/wiki/Wallace_and_Gromit) — the silent, competent one who actually makes everything work while Wallace tinkers with the grand designs. You bring the ideas, Gromit makes sure they don't end up like one of Wallace's contraptions.
 
 ## Quick Start
 
 ### Install
 
 ```bash
-go install github.com/danabrams/ralph-runner/cmd/ralph@latest
+go install github.com/danabrams/gromit/cmd/gromit@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/danabrams/ralph-runner.git
-cd ralph-runner
-go build -o ralph ./cmd/ralph
+git clone https://github.com/danabrams/gromit.git
+cd gromit
+go build -o gromit ./cmd/gromit
 ```
 
 ### Set Up Your Project
 
 ```bash
 cd your-project
-ralph init
+gromit init
 ```
 
 This creates:
 
 ```
 your-project/
-├── ralph.yaml                  # Configuration
-└── .ralph/
+├── gromit.yaml                  # Configuration
+└── .gromit/
     ├── templates/              # Prompt templates (customizable)
     │   ├── PROMPT_build.md     # Main task execution prompt
     │   ├── PROMPT_validate.md  # Validation runner prompt
@@ -88,7 +88,7 @@ your-project/
 
 ### Create Tasks
 
-Ralph uses [Beads](https://github.com/steveyegge/beads) (`bd`) for task tracking:
+Gromit uses [Beads](https://github.com/steveyegge/beads) (`bd`) for task tracking:
 
 ```bash
 bd create "Add user authentication" --priority 0    # P0 → uses opus
@@ -99,20 +99,20 @@ bd create "Fix typo in footer" --priority 2          # P2 → uses haiku
 ### Run
 
 ```bash
-ralph run                           # Process all beads until queue is empty
-ralph run -n 5                      # Process at most 5 beads
-ralph run --time-budget 30          # Run for at most 30 minutes
-ralph run --time-budget-hours 2     # Run for at most 2 hours (flags are additive)
-ralph run --dry-run                 # Preview what would run, without executing
-ralph status                        # Show the next bead and which model it would use
+gromit run                           # Process all beads until queue is empty
+gromit run -n 5                      # Process at most 5 beads
+gromit run --time-budget 30          # Run for at most 30 minutes
+gromit run --time-budget-hours 2     # Run for at most 2 hours (flags are additive)
+gromit run --dry-run                 # Preview what would run, without executing
+gromit status                        # Show the next bead and which model it would use
 ```
 
 ### Example Output
 
 ```
-Ralph Runner v0.1
-  Config: ralph.yaml
-  Streaming log: .ralph/logs/stream-20260205-143022.log
+Gromit v0.1
+  Config: gromit.yaml
+  Streaming log: .gromit/logs/stream-20260205-143022.log
 
 [1] Processing: Add user authentication (abc-123)
   Model: opus (P0)
@@ -170,7 +170,7 @@ Validation always uses haiku for cost efficiency.
 
 ### Escalation
 
-When a task fails and the failure isn't recoverable with the current model, Ralph escalates:
+When a task fails and the failure isn't recoverable with the current model, Gromit escalates:
 
 ```
 haiku (failed) → sonnet (retry) → opus (retry) → give up
@@ -178,7 +178,7 @@ haiku (failed) → sonnet (retry) → opus (retry) → give up
 
 The prompt for retries includes the previous failure output and analysis, so the stronger model knows what went wrong and can try a different approach.
 
-Configure the chain in `ralph.yaml`:
+Configure the chain in `gromit.yaml`:
 
 ```yaml
 escalation:
@@ -189,9 +189,9 @@ escalation:
 
 ### Review and Refinement
 
-After validation succeeds, Ralph can optionally run a **light review** to examine the completed work and suggest refinements or follow-up tasks. This is separate from validation — it's a code review step that looks for quality, consistency, and opportunities for improvement.
+After validation succeeds, Gromit can optionally run a **light review** to examine the completed work and suggest refinements or follow-up tasks. This is separate from validation — it's a code review step that looks for quality, consistency, and opportunities for improvement.
 
-Configure light review in `ralph.yaml`:
+Configure light review in `gromit.yaml`:
 
 ```yaml
 review:
@@ -236,11 +236,11 @@ The prompt template assembles everything Claude needs to know for each task, fro
 
 ## Self-Improvement System
 
-Ralph doesn't just execute tasks — it learns from them.
+Gromit doesn't just execute tasks — it learns from them.
 
 ### Learnings
 
-When a task fails, Ralph runs failure analysis (via a separate Claude call) and extracts generalizable insights. These go into `.ralph/LEARNINGS.md` with two tiers:
+When a task fails, Gromit runs failure analysis (via a separate Claude call) and extracts generalizable insights. These go into `.gromit/LEARNINGS.md` with two tiers:
 
 **Provisional** — seen once, might be specific to one task:
 ```markdown
@@ -260,7 +260,7 @@ When a new learning is similar (>70% match) to an existing provisional one, it g
 
 ### Rules
 
-`.ralph/RULES.md` contains non-negotiable project constraints — things that should never be violated. Rules are always included at the top of every prompt.
+`.gromit/RULES.md` contains non-negotiable project constraints — things that should never be violated. Rules are always included at the top of every prompt.
 
 ```markdown
 # Rules
@@ -274,7 +274,7 @@ When a new learning is similar (>70% match) to an existing provisional one, it g
 - Always handle errors - no silent failures
 
 ## Process
-- Run `go build ./cmd/ralph` before committing
+- Run `go build ./cmd/gromit` before committing
 - Run `go test ./...` to verify tests pass
 ```
 
@@ -283,7 +283,7 @@ When a new learning is similar (>70% match) to an existing provisional one, it g
 Periodically, run a retrospective to consolidate knowledge:
 
 ```bash
-ralph retro
+gromit retro
 ```
 
 This invokes opus to analyze all accumulated learnings and:
@@ -293,11 +293,11 @@ This invokes opus to analyze all accumulated learnings and:
 - **Archive** stale or obsolete learnings
 - **Suggest** rule changes
 
-Proposed changes are written to `.ralph/RETRO_PROPOSED_CHANGES.md` for human review.
+By default, retro runs interactively — it launches Claude Code with the analysis so you can discuss and apply changes together. Use `gromit retro --non-interactive` to write proposals to `.gromit/RETRO_PROPOSED_CHANGES.md` instead.
 
 ### Smart Retro Suggestions
 
-Ralph tells you when it's time for a retro. At the end of each run, it checks:
+Gromit tells you when it's time for a retro. At the end of each run, it checks:
 
 - More than 10 provisional learnings accumulated
 - More than 7 days since last retro
@@ -308,12 +308,12 @@ If any trigger fires, you'll see:
 
 ```
 Retro suggested: 14 provisional learnings, 3 confirmed patterns
-  (many unreviewed provisional learnings). Run: ralph retro
+  (many unreviewed provisional learnings). Run: gromit retro
 ```
 
 ## Configuration
 
-### ralph.yaml Reference
+### gromit.yaml Reference
 
 ```yaml
 # Model selection
@@ -383,9 +383,9 @@ claude:
 
 # File paths (relative to project root)
 paths:
-  templates: ".ralph/templates"
-  specs: ".ralph/specs"
-  logs: ".ralph/logs"
+  templates: ".gromit/templates"
+  specs: ".gromit/specs"
+  logs: ".gromit/logs"
   project_claude_md: "CLAUDE.md"
 ```
 
@@ -418,7 +418,7 @@ validation:
 
 ### Pre-flight Checks
 
-Before running validation, Ralph checks that all required tools are available (e.g., `pnpm`, `go`, `pytest`). This catches environment issues before they look like code failures.
+Before running validation, Gromit checks that all required tools are available (e.g., `pnpm`, `go`, `pytest`). This catches environment issues before they look like code failures.
 
 ```yaml
 preflight:
@@ -441,13 +441,13 @@ Choice [2]:
 
 ### Validation Output Capture
 
-When validation fails, Ralph saves the full output to `.ralph/logs/validation-YYYYMMDD-HHMMSS.log` and displays it in the terminal. No more guessing why tests failed.
+When validation fails, Gromit saves the full output to `.gromit/logs/validation-YYYYMMDD-HHMMSS.log` and displays it in the terminal. No more guessing why tests failed.
 
 ### Streaming and Heartbeat
 
-During long-running Claude invocations, Ralph provides visibility:
+During long-running Claude invocations, Gromit provides visibility:
 
-- **Streaming log** — all Claude events written to `.ralph/logs/stream-*.log` in real time. Watch with `tail -f`.
+- **Streaming log** — all Claude events written to `.gromit/logs/stream-*.log` in real time. Watch with `tail -f`.
 - **Heartbeat** — every 30 seconds, prints progress: elapsed time, files modified, tool calls made.
 
 ```
@@ -456,7 +456,7 @@ During long-running Claude invocations, Ralph provides visibility:
 
 ### Stall Detection
 
-If Claude goes silent (no stream events for a configurable period), Ralph automatically kills the stalled process and retries or escalates — no manual Ctrl+C needed.
+If Claude goes silent (no stream events for a configurable period), Gromit automatically kills the stalled process and retries or escalates — no manual Ctrl+C needed.
 
 ```yaml
 claude:
@@ -464,24 +464,24 @@ claude:
   stall_timeout: 120  # Kill after this many seconds of silence (0 = disable)
 ```
 
-Stall retries count against `max_retries_per_model`. Once exhausted, Ralph escalates to the next model in the chain. This prevents a single hung invocation from burning your entire timeout budget.
+Stall retries count against `max_retries_per_model`. Once exhausted, Gromit escalates to the next model in the chain. This prevents a single hung invocation from burning your entire timeout budget.
 
 ### Time Budgets
 
-Run Ralph with a time limit to prevent runaway sessions:
+Run Gromit with a time limit to prevent runaway sessions:
 
 ```bash
 # Run for at most 30 minutes
-ralph run --time-budget 30
+gromit run --time-budget 30
 
 # Run for at most 2 hours
-ralph run --time-budget-hours 2
+gromit run --time-budget-hours 2
 
 # Combine: 30 minutes + 2 hours = 150 minutes
-ralph run -t 30 -H 2
+gromit run -t 30 -H 2
 ```
 
-When the deadline approaches, Ralph checks it between iterations. If the deadline has passed, it:
+When the deadline approaches, Gromit checks it between iterations. If the deadline has passed, it:
 
 1. Stops accepting new beads
 2. Completes the current bead
@@ -489,12 +489,12 @@ When the deadline approaches, Ralph checks it between iterations. If the deadlin
 
 Time budgets are useful for:
 - **CI/CD pipelines** — prevent run jobs from timing out
-- **Development sessions** — "run Ralph for the next 2 hours, then switch to code review"
+- **Development sessions** — "run Gromit for the next 2 hours, then switch to code review"
 - **Cost control** — limit how many expensive (opus) invocations happen in one run
 
 ### Partial Progress Detection
 
-When a task fails, Ralph shows what was accomplished before the failure:
+When a task fails, Gromit shows what was accomplished before the failure:
 
 ```
 Changes detected (partial progress):
@@ -527,9 +527,9 @@ The analysis determines whether to retry (same model), escalate (stronger model)
 
 ## Integration with Beads
 
-Ralph uses [Beads](https://github.com/steveyegge/beads) for task management. Beads is git-native issue tracking — tasks live in your repo as data, not on a web UI.
+Gromit uses [Beads](https://github.com/steveyegge/beads) for task management. Beads is git-native issue tracking — tasks live in your repo as data, not on a web UI.
 
-### Creating Tasks for Ralph
+### Creating Tasks for Gromit
 
 ```bash
 # Simple tasks
@@ -544,7 +544,7 @@ bd create "Add refresh token support" --parent <epic-id> --priority 1
 
 ### Spec Files
 
-For complex features, write a spec in `.ralph/specs/`:
+For complex features, write a spec in `.gromit/specs/`:
 
 ```markdown
 # specs/auth.md
@@ -563,7 +563,7 @@ Link it to an epic with the `spec:auth` label. All child tasks inherit the spec 
 
 ### Expected Outputs
 
-If a bead has an `expected_outputs` field, Ralph uses it for partial progress tracking on failure:
+If a bead has an `expected_outputs` field, Gromit uses it for partial progress tracking on failure:
 
 ```bash
 bd create "Add auth middleware" --priority 1 \
@@ -578,7 +578,7 @@ Labels control model selection and spec loading:
 |-------|--------|
 | `complexity:high` | Forces opus regardless of priority |
 | `complexity:low` | Forces haiku regardless of priority |
-| `spec:<name>` | Loads `.ralph/specs/<name>.md` into the prompt |
+| `spec:<name>` | Loads `.gromit/specs/<name>.md` into the prompt |
 
 ## Philosophy
 
@@ -586,7 +586,7 @@ Labels control model selection and spec loading:
 
 Long-running agent sessions accumulate stale assumptions. A model that's been "thinking" for 20 iterations has a context window full of old diffs, abandoned approaches, and resolved errors. It makes worse decisions, not better ones.
 
-Ralph throws all of that away. Each task gets a fresh Claude process with exactly the context it needs: rules, learnings, the spec, and (if retrying) what went wrong last time. Nothing else.
+Gromit throws all of that away. Each task gets a fresh Claude process with exactly the context it needs: rules, learnings, the spec, and (if retrying) what went wrong last time. Nothing else.
 
 ### Why Learnings Beat Fine-Tuning
 
@@ -594,33 +594,42 @@ Fine-tuning is expensive, slow, and hard to inspect. Learnings are a markdown fi
 
 ### The Human-in-the-Loop Retro
 
-Ralph automates execution, but humans still drive strategy. The retro is where you review what Ralph has learned, decide what becomes a rule, and course-correct. It's the supervisory layer that keeps the loop aligned with your actual goals.
+Gromit automates execution, but humans still drive strategy. The retro is where you review what Gromit has learned, decide what becomes a rule, and course-correct. It's the supervisory layer that keeps the loop aligned with your actual goals.
 
 ```
-Execution (automated)     →  ralph run
+Execution (automated)     →  gromit run
 Learning (automated)      →  failure analysis + LEARNINGS.md
-Consolidation (assisted)  →  ralph retro
-Decision (human)          →  review RETRO_PROPOSED_CHANGES.md
+Consolidation (assisted)  →  gromit retro
+Decision (human)          →  interactive review during gromit retro
 ```
 
 ## Commands Reference
 
 | Command | Description |
 |---------|-------------|
-| `ralph init` | Bootstrap ralph.yaml and .ralph/ directory |
-| `ralph init --force` | Overwrite existing configuration |
-| `ralph run` | Process beads until queue is empty |
-| `ralph run -n 5` | Process at most 5 beads |
-| `ralph run -t 30` | Process with 30-minute time budget |
-| `ralph run -H 2` | Process with 2-hour time budget (flags stack) |
-| `ralph run --dry-run` | Preview without executing |
-| `ralph run -c path/to/config.yaml` | Use alternate config file |
-| `ralph status` | Show next bead and selected model |
-| `ralph retro` | Run retrospective analysis |
-| `ralph retro --non-interactive` | Write analysis to file without launching editor |
-| `ralph add` | Capture ideas to backlog |
-| `ralph backlog` | View/manage backlog |
-| `ralph refine` | Turn ideas into tasks |
+| `gromit init` | Bootstrap gromit.yaml and .gromit/ directory |
+| `gromit init --force` | Overwrite existing configuration |
+| `gromit run` | Process beads until queue is empty |
+| `gromit run -n 5` | Process at most 5 beads |
+| `gromit run -t 30` | Process with 30-minute time budget |
+| `gromit run -H 2` | Process with 2-hour time budget (flags stack) |
+| `gromit run --dry-run` | Preview without executing |
+| `gromit run -c path/to/config.yaml` | Use alternate config file |
+| `gromit status` | Show next bead and selected model |
+| `gromit board` | Show all beads grouped by status (open/closed) |
+| `gromit queue` | Display processing queue with model assignments |
+| `gromit triage` | Interactively triage open beads |
+| `gromit plan <feature>` | Launch Claude Code session for feature planning |
+| `gromit review` | Run a thorough code review |
+| `gromit review --non-interactive` | Run review autonomously without interactive session |
+| `gromit review --since <commit>` | Review from a specific commit |
+| `gromit review --epic <id>` | Review changes from an epic's child beads |
+| `gromit review --dry-run` | Preview what would be reviewed |
+| `gromit retro` | Run retrospective analysis |
+| `gromit retro --non-interactive` | Write analysis to file without launching editor |
+| `gromit add` | Capture ideas to backlog |
+| `gromit backlog` | View/manage backlog |
+| `gromit refine` | Turn ideas into tasks |
 
 ## License
 
