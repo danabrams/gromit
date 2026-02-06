@@ -126,6 +126,9 @@ type BeadStats struct {
 	Failures    int
 	Successes   int
 	LastAttempt time.Time
+	Status      string
+	CloseReason string
+	Comments    []string
 }
 
 // FailureRate returns the failure rate for this bead as a float64 (0.0-1.0)
