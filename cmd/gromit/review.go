@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/claude"
-	"github.com/danabrams/ralph-runner/internal/config"
-	"github.com/danabrams/ralph-runner/internal/logger"
-	"github.com/danabrams/ralph-runner/internal/prompt"
-	"github.com/danabrams/ralph-runner/internal/review"
-	"github.com/danabrams/ralph-runner/internal/state"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -104,16 +104,16 @@ func determineReviewScope(cfg *config.Config) (string, error) {
 	}
 
 	// Default: use last review commit from state
-	ralphDir := cfg.Paths.RalphDir
-	if ralphDir == "" {
+	gromitDir := cfg.Paths.GromitDir
+	if gromitDir == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return "", fmt.Errorf("getting working directory: %w", err)
 		}
-		ralphDir = filepath.Join(cwd, ".ralph")
+		gromitDir = filepath.Join(cwd, ".gromit")
 	}
 
-	sf, err := state.NewFile(ralphDir)
+	sf, err := state.NewFile(gromitDir)
 	if err != nil {
 		return "", fmt.Errorf("creating state file: %w", err)
 	}
@@ -156,20 +156,20 @@ func getGitDiffStatForReview(fromCommit string) (string, error) {
 
 func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) error {
 	// Build and render prompt
-	ralphDir := cfg.Paths.RalphDir
-	if ralphDir == "" {
+	gromitDir := cfg.Paths.GromitDir
+	if gromitDir == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("getting working directory: %w", err)
 		}
-		ralphDir = filepath.Join(cwd, ".ralph")
+		gromitDir = filepath.Join(cwd, ".gromit")
 	}
 
 	renderer, err := prompt.NewRenderer(
 		cfg.Paths.Templates,
 		cfg.Paths.Specs,
 		cfg.Paths.ProjectClaudeMD,
-		ralphDir,
+		gromitDir,
 	)
 	if err != nil {
 		return fmt.Errorf("creating renderer: %w", err)
@@ -179,31 +179,49 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 		Diff:  diff,
 		Model: cfg.Review.Thorough.Model,
 	}
-	reviewCtx.ClaudeMD, _ = renderer.LoadClaudeMD()
-	reviewCtx.Rules, _ = renderer.LoadRules()
+	reviewCtx.ClaudeMD, err = renderer.LoadClaudeMD()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not load CLAUDE.md: %v\n", err)
+	}
+	reviewCtx.Rules, err = renderer.LoadRules()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not load rules: %v\n", err)
+	}
 
 	renderedPrompt, err := renderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
 		return fmt.Errorf("rendering review prompt: %w", err)
 	}
 
-	// Write prompt to temp file
-	tmpFile, err := os.CreateTemp("", "ralph-review-*.md")
+	// Write prompt to a temp file to avoid "argument list too long" errors
+	// when the diff is large
+	tmpDir := filepath.Join(gromitDir, "tmp")
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		return fmt.Errorf("creating tmp dir: %w", err)
+	}
+
+	promptFile, err := os.CreateTemp(tmpDir, "review-prompt-*.md")
 	if err != nil {
-		return fmt.Errorf("creating temp file: %w", err)
+		return fmt.Errorf("creating temp prompt file: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	promptPath := promptFile.Name()
+	defer os.Remove(promptPath)
 
-	if _, err := tmpFile.WriteString(renderedPrompt); err != nil {
-		return fmt.Errorf("writing prompt: %w", err)
+	if _, err := promptFile.WriteString(renderedPrompt); err != nil {
+		promptFile.Close()
+		return fmt.Errorf("writing prompt file: %w", err)
 	}
-	tmpFile.Close()
+	promptFile.Close()
 
-	// Launch interactive Claude session
+	// Launch interactive Claude session with a short initial prompt
+	// that references the temp file (avoids ARG_MAX limit)
 	fmt.Printf("Launching interactive review session (from commit %s)...\n", shortCommit(fromCommit))
 
-	args := []string{"--prompt-file", tmpFile.Name()}
+	initialPrompt := fmt.Sprintf("Read and follow the review instructions in %s", promptPath)
+
+	args := make([]string, 0, len(cfg.Claude.Flags)+2)
 	args = append(args, cfg.Claude.Flags...)
+	args = append(args, initialPrompt)
 
 	cmd := exec.Command(cfg.Claude.Binary, args...)
 	cmd.Stdin = os.Stdin
@@ -217,20 +235,20 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	fmt.Printf("Running autonomous thorough review (from commit %s)...\n", shortCommit(fromCommit))
 
 	// Build context
-	ralphDir := cfg.Paths.RalphDir
-	if ralphDir == "" {
+	gromitDir := cfg.Paths.GromitDir
+	if gromitDir == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("getting working directory: %w", err)
 		}
-		ralphDir = filepath.Join(cwd, ".ralph")
+		gromitDir = filepath.Join(cwd, ".gromit")
 	}
 
 	renderer, err := prompt.NewRenderer(
 		cfg.Paths.Templates,
 		cfg.Paths.Specs,
 		cfg.Paths.ProjectClaudeMD,
-		ralphDir,
+		gromitDir,
 	)
 	if err != nil {
 		return fmt.Errorf("creating renderer: %w", err)
@@ -240,8 +258,14 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		Diff:  diff,
 		Model: cfg.Review.Thorough.Model,
 	}
-	reviewCtx.ClaudeMD, _ = renderer.LoadClaudeMD()
-	reviewCtx.Rules, _ = renderer.LoadRules()
+	reviewCtx.ClaudeMD, err = renderer.LoadClaudeMD()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not load CLAUDE.md: %v\n", err)
+	}
+	reviewCtx.Rules, err = renderer.LoadRules()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not load rules: %v\n", err)
+	}
 
 	renderedPrompt, err := renderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
@@ -317,7 +341,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	}
 
 	// Update state
-	sf, err := state.NewFile(ralphDir)
+	sf, err := state.NewFile(gromitDir)
 	if err == nil {
 		sf.Load()
 		currentCommit, err := getGitHeadForReview()
