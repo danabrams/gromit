@@ -190,20 +190,22 @@ func IsValidationPassed(result *Result) bool {
 }
 
 // IsScopeTooLarge checks if the result indicates the task scope is too large.
-// Returns true and the explanation text if SCOPE_TOO_LARGE: prefix is found.
+// Returns true and the explanation text if SCOPE_TOO_LARGE: appears at the
+// start of a line. This avoids false positives when Claude discusses the marker
+// inline (e.g., in code blocks or prose about the scope detection feature).
 func IsScopeTooLarge(result *Result) (bool, string) {
 	if result == nil {
 		return false, ""
 	}
 
-	// Look for the SCOPE_TOO_LARGE: marker
-	const marker = "SCOPE_TOO_LARGE:"
-	if !strings.Contains(result.Output, marker) {
+	// Find SCOPE_TOO_LARGE: at the start of a line
+	idx := findStartOfLineMarker(result.Output)
+	if idx == -1 {
 		return false, ""
 	}
 
 	// Extract the explanation text after the marker
-	idx := strings.Index(result.Output, marker)
+	const marker = "SCOPE_TOO_LARGE:"
 	remaining := result.Output[idx+len(marker):]
 
 	// Trim leading/trailing whitespace and extract the explanation
@@ -230,27 +232,48 @@ func IsScopeTooLarge(result *Result) (bool, string) {
 }
 
 // GetScopeTooLargeBreakdown extracts the full breakdown content after SCOPE_TOO_LARGE marker.
-// Returns the full content up to the first paragraph break or end of output, or empty string if not found.
+// Returns the full content after the marker, or empty string if not found.
+// Only matches SCOPE_TOO_LARGE: at the start of a line to avoid false positives.
 // This is useful for adding detailed comments to beads about how to decompose the task.
 func GetScopeTooLargeBreakdown(result *Result) string {
 	if result == nil {
 		return ""
 	}
 
-	// Look for the SCOPE_TOO_LARGE: marker
-	const marker = "SCOPE_TOO_LARGE:"
-	if !strings.Contains(result.Output, marker) {
+	// Find SCOPE_TOO_LARGE: at the start of a line
+	idx := findStartOfLineMarker(result.Output)
+	if idx == -1 {
 		return ""
 	}
 
 	// Extract everything after the marker
-	idx := strings.Index(result.Output, marker)
+	const marker = "SCOPE_TOO_LARGE:"
 	remaining := result.Output[idx+len(marker):]
 
 	// Trim leading/trailing whitespace
 	breakdown := strings.TrimSpace(remaining)
 
 	return breakdown
+}
+
+// findStartOfLineMarker returns the index of "SCOPE_TOO_LARGE:" in s if it
+// appears at the very start of the string or immediately after a newline.
+// Returns -1 if no start-of-line match is found.
+func findStartOfLineMarker(s string) int {
+	const marker = "SCOPE_TOO_LARGE:"
+	start := 0
+	for {
+		idx := strings.Index(s[start:], marker)
+		if idx == -1 {
+			return -1
+		}
+		abs := start + idx
+		// Match if at the very start of the string or preceded by a newline
+		if abs == 0 || s[abs-1] == '\n' {
+			return abs
+		}
+		start = abs + len(marker)
+	}
 }
 
 // EventHandler is called for each line of stream-json output from Claude CLI.

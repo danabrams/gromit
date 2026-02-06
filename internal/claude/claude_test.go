@@ -230,6 +230,42 @@ Additional context follows here.`,
 			wantTooLarge:    true,
 			wantExplanation: "requires changes to 15+ files",
 		},
+		{
+			name: "marker inline in prose is not matched",
+			result: &Result{
+				Success: true,
+				Output:  "The function checks for the SCOPE_TOO_LARGE: marker in the output.",
+			},
+			wantTooLarge:    false,
+			wantExplanation: "",
+		},
+		{
+			name: "marker in code block is not matched",
+			result: &Result{
+				Success: true,
+				Output:  "Here is the code:\n  const marker = \"SCOPE_TOO_LARGE: explanation\"\n  return marker",
+			},
+			wantTooLarge:    false,
+			wantExplanation: "",
+		},
+		{
+			name: "marker indented with spaces is not matched",
+			result: &Result{
+				Success: true,
+				Output:  "Example:\n    SCOPE_TOO_LARGE: this is indented\nEnd.",
+			},
+			wantTooLarge:    false,
+			wantExplanation: "",
+		},
+		{
+			name: "marker after prefix text on same line is not matched",
+			result: &Result{
+				Success: true,
+				Output:  "Output exactly this: SCOPE_TOO_LARGE: reason here",
+			},
+			wantTooLarge:    false,
+			wantExplanation: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -325,6 +361,22 @@ SCOPE_TOO_LARGE: This needs decomposition into:
 			wantBreakdown: `This needs decomposition into:
 1. Authentication layer
 2. Database layer`,
+		},
+		{
+			name: "marker inline in prose is not matched",
+			result: &Result{
+				Success: true,
+				Output: "Look for the SCOPE_TOO_LARGE: marker in output",
+			},
+			wantBreakdown: "",
+		},
+		{
+			name: "marker indented is not matched",
+			result: &Result{
+				Success: true,
+				Output: "Example:\n   SCOPE_TOO_LARGE: indented marker\nEnd.",
+			},
+			wantBreakdown: "",
 		},
 	}
 
