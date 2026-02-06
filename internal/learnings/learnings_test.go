@@ -3,6 +3,7 @@ package learnings
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -337,7 +338,7 @@ Second provisional learning
 
 `
 
-	confirmed, provisional := parseLearnings(content)
+	confirmed, provisional, archived := parseLearnings(content)
 
 	// The parser will parse until it hits "## Provisional"
 	// At that point, it saves the confirmed ones
@@ -348,6 +349,7 @@ Second provisional learning
 	if len(provisional) < 1 {
 		t.Errorf("expected at least 1 provisional learning, got %d", len(provisional))
 	}
+	_ = archived // Ignore for this test
 
 	// Check that bead-1 is in confirmed
 	var foundBead1 bool
@@ -399,13 +401,16 @@ Accumulated operational knowledge.
 *No provisional learnings.*
 `
 
-	confirmed, provisional := parseLearnings(content)
+	confirmed, provisional, archived := parseLearnings(content)
 
 	if len(confirmed) != 0 {
 		t.Errorf("expected 0 confirmed, got %d", len(confirmed))
 	}
 	if len(provisional) != 0 {
 		t.Errorf("expected 0 provisional, got %d", len(provisional))
+	}
+	if len(archived) != 0 {
+		t.Errorf("expected 0 archived, got %d", len(archived))
 	}
 }
 
@@ -534,5 +539,364 @@ func TestShouldSuggestRetro_ZeroTime(t *testing.T) {
 	should, _ := f.ShouldSuggestRetro(time.Time{}, 0)
 	if !should {
 		t.Error("should suggest retro when retro was never run (zero time)")
+	}
+}
+
+// TestGetByHash tests retrieving learnings by hash
+func TestGetByHash(t *testing.T) {
+	f := &File{}
+
+	// Add learnings to different sections
+	confirmedLearning := Learning{
+		Date:     time.Now(),
+		BeadID:   "bead-1",
+		Content:  "Confirmed learning",
+		Category: CategoryPatterns,
+		Hash:     hashContent("Confirmed learning"),
+	}
+	provisionalLearning := Learning{
+		Date:     time.Now(),
+		BeadID:   "bead-2",
+		Content:  "Provisional learning",
+		Category: CategoryConventions,
+		Hash:     hashContent("Provisional learning"),
+	}
+	archivedLearning := Learning{
+		Date:     time.Now(),
+		BeadID:   "bead-3",
+		Content:  "Archived learning",
+		Category: CategoryGotchas,
+		Hash:     hashContent("Archived learning"),
+	}
+
+	f.confirmed = append(f.confirmed, confirmedLearning)
+	f.provisional = append(f.provisional, provisionalLearning)
+	f.archived = append(f.archived, archivedLearning)
+
+	// Test finding in confirmed
+	result := f.GetByHash(confirmedLearning.Hash)
+	if result == nil {
+		t.Fatal("expected to find confirmed learning")
+	}
+	if result.BeadID != "bead-1" {
+		t.Errorf("expected BeadID 'bead-1', got %q", result.BeadID)
+	}
+
+	// Test finding in provisional
+	result = f.GetByHash(provisionalLearning.Hash)
+	if result == nil {
+		t.Fatal("expected to find provisional learning")
+	}
+	if result.BeadID != "bead-2" {
+		t.Errorf("expected BeadID 'bead-2', got %q", result.BeadID)
+	}
+
+	// Test finding in archived
+	result = f.GetByHash(archivedLearning.Hash)
+	if result == nil {
+		t.Fatal("expected to find archived learning")
+	}
+	if result.BeadID != "bead-3" {
+		t.Errorf("expected BeadID 'bead-3', got %q", result.BeadID)
+	}
+
+	// Test not found
+	result = f.GetByHash("nonexistent-hash")
+	if result != nil {
+		t.Error("expected nil for nonexistent hash")
+	}
+}
+
+// TestRemove tests removing learnings by hash
+func TestRemove(t *testing.T) {
+	tmpDir := t.TempDir()
+	f := NewFile(tmpDir)
+
+	// Add learnings to different sections
+	l1, _ := f.Add("bead-1", "Learning one", CategoryPatterns)
+	if l1 == nil {
+		t.Fatal("failed to add learning 1")
+	}
+
+	// Manually add to confirmed for testing
+	l2 := Learning{
+		Date:     time.Now(),
+		BeadID:   "bead-2",
+		Content:  "Learning two",
+		Category: CategoryConventions,
+		Hash:     hashContent("Learning two"),
+	}
+	f.confirmed = append(f.confirmed, l2)
+	if err := f.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	// Verify we have learnings
+	if len(f.provisional) != 1 {
+		t.Errorf("expected 1 provisional, got %d", len(f.provisional))
+	}
+	if len(f.confirmed) != 1 {
+		t.Errorf("expected 1 confirmed, got %d", len(f.confirmed))
+	}
+
+	// Remove from provisional
+	err := f.Remove(l1.Hash)
+	if err != nil {
+		t.Fatalf("failed to remove from provisional: %v", err)
+	}
+	if len(f.provisional) != 0 {
+		t.Errorf("expected 0 provisional after removal, got %d", len(f.provisional))
+	}
+
+	// Remove from confirmed
+	err = f.Remove(l2.Hash)
+	if err != nil {
+		t.Fatalf("failed to remove from confirmed: %v", err)
+	}
+	if len(f.confirmed) != 0 {
+		t.Errorf("expected 0 confirmed after removal, got %d", len(f.confirmed))
+	}
+
+	// Try removing nonexistent
+	err = f.Remove("nonexistent-hash")
+	if err == nil {
+		t.Error("expected error when removing nonexistent hash")
+	}
+}
+
+// TestArchive tests archiving learnings
+func TestArchive(t *testing.T) {
+	tmpDir := t.TempDir()
+	f := NewFile(tmpDir)
+
+	// Add a provisional learning
+	l1, _ := f.Add("bead-1", "Learning to archive", CategoryPatterns)
+	if l1 == nil {
+		t.Fatal("failed to add learning")
+	}
+
+	// Verify it's in provisional
+	if len(f.provisional) != 1 {
+		t.Errorf("expected 1 provisional, got %d", len(f.provisional))
+	}
+	if len(f.archived) != 0 {
+		t.Errorf("expected 0 archived, got %d", len(f.archived))
+	}
+
+	// Archive it with reason
+	err := f.Archive(l1.Hash, "no longer relevant")
+	if err != nil {
+		t.Fatalf("failed to archive: %v", err)
+	}
+
+	// Verify it moved to archived
+	if len(f.provisional) != 0 {
+		t.Errorf("expected 0 provisional after archive, got %d", len(f.provisional))
+	}
+	if len(f.archived) != 1 {
+		t.Errorf("expected 1 archived after archive, got %d", len(f.archived))
+	}
+
+	// Check that reason was added to content
+	if !strings.Contains(f.archived[0].Content, "no longer relevant") {
+		t.Error("expected archived learning to contain reason")
+	}
+	if !strings.Contains(f.archived[0].Content, "Archived from provisional") {
+		t.Error("expected archived learning to indicate source section")
+	}
+
+	// Try archiving nonexistent
+	err = f.Archive("nonexistent-hash", "test")
+	if err == nil {
+		t.Error("expected error when archiving nonexistent hash")
+	}
+}
+
+// TestArchiveFromConfirmed tests archiving from confirmed section
+func TestArchiveFromConfirmed(t *testing.T) {
+	tmpDir := t.TempDir()
+	f := NewFile(tmpDir)
+
+	// Manually add to confirmed
+	l1 := Learning{
+		Date:     time.Now(),
+		BeadID:   "bead-1",
+		Content:  "Confirmed learning",
+		Category: CategoryPatterns,
+		Hash:     hashContent("Confirmed learning"),
+	}
+	f.confirmed = append(f.confirmed, l1)
+	if err := f.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	// Archive it without reason
+	err := f.Archive(l1.Hash, "")
+	if err != nil {
+		t.Fatalf("failed to archive: %v", err)
+	}
+
+	// Verify it moved from confirmed to archived
+	if len(f.confirmed) != 0 {
+		t.Errorf("expected 0 confirmed after archive, got %d", len(f.confirmed))
+	}
+	if len(f.archived) != 1 {
+		t.Errorf("expected 1 archived after archive, got %d", len(f.archived))
+	}
+	if !strings.Contains(f.archived[0].Content, "Archived from confirmed") {
+		t.Error("expected archived learning to indicate confirmed source")
+	}
+}
+
+// TestReplace tests replacing multiple learnings with a new one
+func TestReplace(t *testing.T) {
+	tmpDir := t.TempDir()
+	f := NewFile(tmpDir)
+
+	// Add multiple learnings
+	l1, _ := f.Add("bead-1", "First learning", CategoryPatterns)
+	l2, _ := f.Add("bead-2", "Second learning", CategoryPatterns)
+	if l1 == nil || l2 == nil {
+		t.Fatal("failed to add learnings")
+	}
+
+	// Verify initial state
+	if len(f.provisional) != 2 {
+		t.Errorf("expected 2 provisional, got %d", len(f.provisional))
+	}
+	if len(f.confirmed) != 0 {
+		t.Errorf("expected 0 confirmed, got %d", len(f.confirmed))
+	}
+
+	// Replace with consolidated learning
+	newContent := "Consolidated learning that replaces both"
+	err := f.Replace([]string{l1.Hash, l2.Hash}, newContent, CategoryPatterns)
+	if err != nil {
+		t.Fatalf("failed to replace: %v", err)
+	}
+
+	// Verify old learnings are removed
+	if len(f.provisional) != 0 {
+		t.Errorf("expected 0 provisional after replace, got %d", len(f.provisional))
+	}
+
+	// Verify new learning is in confirmed
+	if len(f.confirmed) != 1 {
+		t.Errorf("expected 1 confirmed after replace, got %d", len(f.confirmed))
+	}
+
+	// Check new learning properties
+	newLearning := f.confirmed[0]
+	if newLearning.Content != newContent {
+		t.Errorf("expected content %q, got %q", newContent, newLearning.Content)
+	}
+	if newLearning.BeadID != "retro" {
+		t.Errorf("expected BeadID 'retro', got %q", newLearning.BeadID)
+	}
+	if newLearning.Category != CategoryPatterns {
+		t.Errorf("expected category %q, got %q", CategoryPatterns, newLearning.Category)
+	}
+	// Should have reference to old bead IDs
+	if !strings.Contains(newLearning.RelatedTo, "bead-1") || !strings.Contains(newLearning.RelatedTo, "bead-2") {
+		t.Errorf("expected RelatedTo to contain both bead IDs, got %q", newLearning.RelatedTo)
+	}
+}
+
+// TestReplaceNoHashes tests that Replace fails with no hashes
+func TestReplaceNoHashes(t *testing.T) {
+	tmpDir := t.TempDir()
+	f := NewFile(tmpDir)
+
+	err := f.Replace([]string{}, "New content", CategoryPatterns)
+	if err == nil {
+		t.Error("expected error when replacing with no hashes")
+	}
+}
+
+// TestParseArchivedSection tests parsing archived section from file
+func TestParseArchivedSection(t *testing.T) {
+	content := `# Learnings
+
+---
+
+## Confirmed
+
+### 2026-02-01 | bead-1 | patterns
+Confirmed learning
+
+---
+
+## Provisional
+
+### 2026-02-02 | bead-2 | conventions
+Provisional learning
+
+---
+
+## Archived
+
+### 2026-02-03 | bead-3 | gotchas
+Archived learning content
+
+*Archived from provisional: no longer relevant*
+`
+
+	confirmed, provisional, archived := parseLearnings(content)
+
+	if len(confirmed) != 1 {
+		t.Errorf("expected 1 confirmed, got %d", len(confirmed))
+	}
+	if len(provisional) != 1 {
+		t.Errorf("expected 1 provisional, got %d", len(provisional))
+	}
+	if len(archived) != 1 {
+		t.Errorf("expected 1 archived, got %d", len(archived))
+	}
+
+	// Check archived learning details
+	if archived[0].BeadID != "bead-3" {
+		t.Errorf("expected BeadID 'bead-3', got %q", archived[0].BeadID)
+	}
+	if archived[0].Category != "gotchas" {
+		t.Errorf("expected category 'gotchas', got %q", archived[0].Category)
+	}
+	if !strings.Contains(archived[0].Content, "Archived learning content") {
+		t.Error("archived content should contain original text")
+	}
+}
+
+// TestLoadAndSaveWithArchived tests round-trip with archived section
+func TestLoadAndSaveWithArchived(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create and populate
+	f1 := NewFile(tmpDir)
+	l1, _ := f1.Add("bead-1", "Test learning", CategoryPatterns)
+	if l1 == nil {
+		t.Fatal("failed to add learning")
+	}
+
+	// Archive it
+	err := f1.Archive(l1.Hash, "test archive")
+	if err != nil {
+		t.Fatalf("failed to archive: %v", err)
+	}
+
+	// Load in new instance
+	f2 := NewFile(tmpDir)
+	err = f2.Load()
+	if err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+
+	// Verify archived section persisted
+	if len(f2.archived) != 1 {
+		t.Errorf("expected 1 archived after load, got %d", len(f2.archived))
+	}
+	if len(f2.provisional) != 0 {
+		t.Errorf("expected 0 provisional after load, got %d", len(f2.provisional))
+	}
+	if !strings.Contains(f2.archived[0].Content, "test archive") {
+		t.Error("archived reason should persist across save/load")
 	}
 }

@@ -26,6 +26,7 @@ type File struct {
 	path       string
 	confirmed  []Learning
 	provisional []Learning
+	archived   []Learning
 }
 
 // Category constants
@@ -63,7 +64,7 @@ func (f *File) Load() error {
 		return fmt.Errorf("reading learnings file: %w", err)
 	}
 
-	f.confirmed, f.provisional = parseLearnings(string(content))
+	f.confirmed, f.provisional, f.archived = parseLearnings(string(content))
 	return nil
 }
 
@@ -156,6 +157,17 @@ func (f *File) Save() error {
 		}
 	}
 
+	// Write archived learnings
+	sb.WriteString("---\n\n## Archived\n\n")
+	sb.WriteString("*No longer relevant or superseded.*\n\n")
+	if len(f.archived) == 0 {
+		sb.WriteString("*No archived learnings.*\n\n")
+	} else {
+		for _, l := range f.archived {
+			writeLearning(&sb, l)
+		}
+	}
+
 	return os.WriteFile(f.path, []byte(sb.String()), 0644)
 }
 
@@ -197,6 +209,189 @@ func (f *File) Stats() (confirmed, provisional int) {
 		return 0, 0
 	}
 	return len(f.confirmed), len(f.provisional)
+}
+
+// GetByHash returns a learning by its hash, searching all sections
+func (f *File) GetByHash(hash string) *Learning {
+	if f == nil {
+		return nil
+	}
+	// Search confirmed
+	for i := range f.confirmed {
+		if f.confirmed[i].Hash == hash {
+			return &f.confirmed[i]
+		}
+	}
+	// Search provisional
+	for i := range f.provisional {
+		if f.provisional[i].Hash == hash {
+			return &f.provisional[i]
+		}
+	}
+	// Search archived
+	for i := range f.archived {
+		if f.archived[i].Hash == hash {
+			return &f.archived[i]
+		}
+	}
+	return nil
+}
+
+// Remove removes a learning by hash from all sections
+func (f *File) Remove(hash string) error {
+	if f == nil {
+		return fmt.Errorf("learnings file is nil")
+	}
+
+	removed := false
+
+	// Remove from confirmed
+	for i := range f.confirmed {
+		if f.confirmed[i].Hash == hash {
+			f.confirmed = append(f.confirmed[:i], f.confirmed[i+1:]...)
+			removed = true
+			break
+		}
+	}
+
+	// Remove from provisional if not found in confirmed
+	if !removed {
+		for i := range f.provisional {
+			if f.provisional[i].Hash == hash {
+				f.provisional = append(f.provisional[:i], f.provisional[i+1:]...)
+				removed = true
+				break
+			}
+		}
+	}
+
+	// Remove from archived if not found elsewhere
+	if !removed {
+		for i := range f.archived {
+			if f.archived[i].Hash == hash {
+				f.archived = append(f.archived[:i], f.archived[i+1:]...)
+				removed = true
+				break
+			}
+		}
+	}
+
+	if !removed {
+		return fmt.Errorf("learning with hash %s not found", hash)
+	}
+
+	return f.Save()
+}
+
+// Archive moves a learning to the archived section with an optional reason
+func (f *File) Archive(hash, reason string) error {
+	if f == nil {
+		return fmt.Errorf("learnings file is nil")
+	}
+
+	var learning *Learning
+	var fromSection string
+
+	// Find and remove from confirmed
+	for i := range f.confirmed {
+		if f.confirmed[i].Hash == hash {
+			learning = &f.confirmed[i]
+			f.confirmed = append(f.confirmed[:i], f.confirmed[i+1:]...)
+			fromSection = "confirmed"
+			break
+		}
+	}
+
+	// Find and remove from provisional if not in confirmed
+	if learning == nil {
+		for i := range f.provisional {
+			if f.provisional[i].Hash == hash {
+				learning = &f.provisional[i]
+				f.provisional = append(f.provisional[:i], f.provisional[i+1:]...)
+				fromSection = "provisional"
+				break
+			}
+		}
+	}
+
+	if learning == nil {
+		return fmt.Errorf("learning with hash %s not found", hash)
+	}
+
+	// Add reason to content if provided
+	if reason != "" {
+		learning.Content = fmt.Sprintf("%s\n\n*Archived from %s: %s*", learning.Content, fromSection, reason)
+	} else {
+		learning.Content = fmt.Sprintf("%s\n\n*Archived from %s*", learning.Content, fromSection)
+	}
+
+	// Add to archived
+	f.archived = append(f.archived, *learning)
+
+	return f.Save()
+}
+
+// Replace replaces one or more old learnings with a new consolidated learning
+func (f *File) Replace(oldHashes []string, newContent, category string) error {
+	if f == nil {
+		return fmt.Errorf("learnings file is nil")
+	}
+	if len(oldHashes) == 0 {
+		return fmt.Errorf("no old hashes provided")
+	}
+
+	// Collect old learning IDs for reference
+	var oldBeadIDs []string
+	for _, hash := range oldHashes {
+		learning := f.GetByHash(hash)
+		if learning != nil {
+			oldBeadIDs = append(oldBeadIDs, learning.BeadID)
+		}
+	}
+
+	// Remove all old learnings
+	for _, hash := range oldHashes {
+		// Try to remove, but don't fail if not found
+		// (some might already be removed by previous iterations)
+		for i := range f.confirmed {
+			if f.confirmed[i].Hash == hash {
+				f.confirmed = append(f.confirmed[:i], f.confirmed[i+1:]...)
+				break
+			}
+		}
+		for i := range f.provisional {
+			if f.provisional[i].Hash == hash {
+				f.provisional = append(f.provisional[:i], f.provisional[i+1:]...)
+				break
+			}
+		}
+		for i := range f.archived {
+			if f.archived[i].Hash == hash {
+				f.archived = append(f.archived[:i], f.archived[i+1:]...)
+				break
+			}
+		}
+	}
+
+	// Create new learning
+	hash := hashContent(newContent)
+	newLearning := Learning{
+		Date:     time.Now(),
+		BeadID:   "retro", // Special bead ID for retro-created learnings
+		Content:  newContent,
+		Category: category,
+		Hash:     hash,
+	}
+
+	// Add reference to replaced learnings
+	if len(oldBeadIDs) > 0 {
+		newLearning.RelatedTo = strings.Join(oldBeadIDs, ", ")
+	}
+
+	// Add to confirmed (replacement learnings are confirmed by default)
+	f.confirmed = append(f.confirmed, newLearning)
+
+	return f.Save()
 }
 
 // ShouldSuggestRetro returns true if conditions suggest running a retro
@@ -291,38 +486,62 @@ func trigrams(s string) map[string]bool {
 }
 
 // parseLearnings parses the LEARNINGS.md file content
-func parseLearnings(content string) (confirmed, provisional []Learning) {
-	// Simple parser - looks for ### headers in Confirmed/Provisional sections
+func parseLearnings(content string) (confirmed, provisional, archived []Learning) {
+	// Simple parser - looks for ### headers in Confirmed/Provisional/Archived sections
 	lines := strings.Split(content, "\n")
 
 	inConfirmed := false
 	inProvisional := false
+	inArchived := false
 	var current *Learning
 	var contentLines []string
 
+	saveCurrent := func() {
+		if current != nil && len(contentLines) > 0 {
+			current.Content = strings.TrimSpace(strings.Join(contentLines, "\n"))
+			current.Hash = hashContent(current.Content)
+			if inConfirmed {
+				confirmed = append(confirmed, *current)
+			} else if inProvisional {
+				provisional = append(provisional, *current)
+			} else if inArchived {
+				archived = append(archived, *current)
+			}
+		}
+	}
+
 	for _, line := range lines {
 		if strings.HasPrefix(line, "## Confirmed") {
+			saveCurrent()
+			current = nil
+			contentLines = nil
 			inConfirmed = true
 			inProvisional = false
+			inArchived = false
 			continue
 		}
 		if strings.HasPrefix(line, "## Provisional") {
+			saveCurrent()
+			current = nil
+			contentLines = nil
 			inConfirmed = false
 			inProvisional = true
+			inArchived = false
+			continue
+		}
+		if strings.HasPrefix(line, "## Archived") {
+			saveCurrent()
+			current = nil
+			contentLines = nil
+			inConfirmed = false
+			inProvisional = false
+			inArchived = true
 			continue
 		}
 
 		if strings.HasPrefix(line, "### ") {
 			// Save previous learning
-			if current != nil {
-				current.Content = strings.TrimSpace(strings.Join(contentLines, "\n"))
-				current.Hash = hashContent(current.Content)
-				if inConfirmed {
-					confirmed = append(confirmed, *current)
-				} else if inProvisional {
-					provisional = append(provisional, *current)
-				}
-			}
+			saveCurrent()
 
 			// Parse header: ### 2026-02-05 | bead-id | category
 			parts := strings.Split(strings.TrimPrefix(line, "### "), " | ")
@@ -350,20 +569,18 @@ func parseLearnings(content string) (confirmed, provisional []Learning) {
 				}
 				continue
 			}
+			// Skip section dividers
+			if strings.TrimSpace(line) == "---" {
+				continue
+			}
+			// Include everything else, including *Archived from* lines
+			// (those are part of the content, not metadata like RelatedTo)
 			contentLines = append(contentLines, line)
 		}
 	}
 
 	// Don't forget the last learning
-	if current != nil && len(contentLines) > 0 {
-		current.Content = strings.TrimSpace(strings.Join(contentLines, "\n"))
-		current.Hash = hashContent(current.Content)
-		if inConfirmed {
-			confirmed = append(confirmed, *current)
-		} else if inProvisional {
-			provisional = append(provisional, *current)
-		}
-	}
+	saveCurrent()
 
-	return confirmed, provisional
+	return confirmed, provisional, archived
 }
