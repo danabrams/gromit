@@ -533,7 +533,7 @@ func TestProcessStreamJSON(t *testing.T) {
 
 			// Process stream
 			client := &Client{}
-			resultText := client.processStreamJSON(input, &output, handler)
+			resultText := client.processStreamJSON(input, &output, handler, nil)
 
 			if resultText != tt.wantResultText {
 				t.Errorf("processStreamJSON() resultText = %q, want %q", resultText, tt.wantResultText)
@@ -572,7 +572,7 @@ func TestProcessStreamJSONLargeEvent(t *testing.T) {
 	handler := func(line []byte) {}
 
 	client := &Client{}
-	resultText := client.processStreamJSON(input, &output, handler)
+	resultText := client.processStreamJSON(input, &output, handler, nil)
 
 	if output.String() != largeText {
 		t.Errorf("processStreamJSON() failed to handle large event, got length %d, want %d", len(output.String()), len(largeText))
@@ -597,7 +597,7 @@ func TestProcessStreamJSONHandlerCopy(t *testing.T) {
 	}
 
 	client := &Client{}
-	client.processStreamJSON(input, &output, handler)
+	client.processStreamJSON(input, &output, handler, nil)
 
 	// Modify savedLine and verify it doesn't affect the original
 	if len(savedLine) > 0 {
@@ -834,7 +834,7 @@ func TestStreamJSONEventTypes(t *testing.T) {
 			handler := func(line []byte) {}
 
 			client := &Client{}
-			result := client.processStreamJSON(input, &output, handler)
+			result := client.processStreamJSON(input, &output, handler, nil)
 
 			hasOutput := output.Len() > 0
 			if hasOutput != tt.wantOutput {
@@ -856,7 +856,7 @@ func TestStreamJSONEmptyTextBlocks(t *testing.T) {
 	handler := func(line []byte) {}
 
 	client := &Client{}
-	client.processStreamJSON(input, &output, handler)
+	client.processStreamJSON(input, &output, handler, nil)
 
 	if output.Len() > 0 {
 		t.Errorf("processStreamJSON() should not output empty text blocks, got %q", output.String())
@@ -876,7 +876,7 @@ func TestStreamJSONMixedContent(t *testing.T) {
 	handler := func(line []byte) {}
 
 	client := &Client{}
-	client.processStreamJSON(input, &output, handler)
+	client.processStreamJSON(input, &output, handler, nil)
 
 	expected := "Hello World"
 	if output.String() != expected {
@@ -1079,7 +1079,7 @@ func TestStreamRunWithNilHandler(t *testing.T) {
 	ctx := context.Background()
 
 	var output strings.Builder
-	result, err := client.StreamRun(ctx, "prompt", "sonnet", &output, nil)
+	result, err := client.StreamRun(ctx, "prompt", "sonnet", &output, nil, nil)
 
 	if err != nil {
 		t.Fatalf("StreamRun() error: %v", err)
@@ -1117,7 +1117,7 @@ func TestStreamRunWithHandler(t *testing.T) {
 	}
 
 	// Pass JSON as prompt to stdin, which echo will ignore
-	result, err := client.StreamRun(ctx, "", "haiku", &output, handler)
+	result, err := client.StreamRun(ctx, "", "haiku", &output, handler, nil)
 
 	if err != nil {
 		t.Fatalf("StreamRun() error: %v", err)
@@ -1142,7 +1142,7 @@ func TestStreamRunFailure(t *testing.T) {
 	ctx := context.Background()
 
 	var output strings.Builder
-	result, err := client.StreamRun(ctx, "prompt", "opus", &output, nil)
+	result, err := client.StreamRun(ctx, "prompt", "opus", &output, nil, nil)
 
 	if err != nil {
 		t.Fatalf("StreamRun() should not error on command failure: %v", err)
@@ -1245,7 +1245,7 @@ func TestStreamRunNilOutput(t *testing.T) {
 	client := NewClient("echo", []string{"-n", "test"}, 5)
 	ctx := context.Background()
 
-	result, err := client.StreamRun(ctx, "prompt", "sonnet", nil, nil)
+	result, err := client.StreamRun(ctx, "prompt", "sonnet", nil, nil, nil)
 
 	if err != nil {
 		t.Fatalf("StreamRun() with nil output should not error: %v", err)
@@ -1266,7 +1266,7 @@ func TestRunNilReceiver(t *testing.T) {
 
 func TestStreamRunNilReceiver(t *testing.T) {
 	var c *Client
-	_, err := c.StreamRun(context.Background(), "test", "sonnet", nil, nil)
+	_, err := c.StreamRun(context.Background(), "test", "sonnet", nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for nil client")
 	}
@@ -1276,4 +1276,96 @@ func TestMultipleContextLayers(t *testing.T) {
 	t.Skip("Timeout test requires a command that hangs indefinitely - skipping for CI compatibility")
 	// Test that both client timeout and external context work together
 	// This test is inherently flaky in CI environments where timing is unpredictable
+}
+
+func TestProcessStreamJSONToolCall(t *testing.T) {
+	// Test that tool_use events trigger the onToolCall callback
+	inputJSON := []string{
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"bash","path":"/tmp/script.sh"}]}}`,
+		`{"type":"result","result":"Done"}`,
+	}
+	input := strings.NewReader(strings.Join(inputJSON, "\n"))
+	var output strings.Builder
+
+	var capturedEvents []ToolEvent
+	handler := func(line []byte) {}
+	onToolCall := func(event ToolEvent) {
+		capturedEvents = append(capturedEvents, event)
+	}
+
+	client := &Client{}
+	resultText := client.processStreamJSON(input, &output, handler, onToolCall)
+
+	if len(capturedEvents) != 1 {
+		t.Fatalf("onToolCall should be called once, got %d calls", len(capturedEvents))
+	}
+
+	event := capturedEvents[0]
+	if event.ToolName != "bash" {
+		t.Errorf("ToolName = %q, want %q", event.ToolName, "bash")
+	}
+	if event.FilePath != "/tmp/script.sh" {
+		t.Errorf("FilePath = %q, want %q", event.FilePath, "/tmp/script.sh")
+	}
+	if event.Timestamp.IsZero() {
+		t.Error("Timestamp should not be zero")
+	}
+
+	if resultText != "Done" {
+		t.Errorf("resultText = %q, want %q", resultText, "Done")
+	}
+}
+
+func TestProcessStreamJSONToolCallWithoutCallback(t *testing.T) {
+	// Test that tool_use events are ignored when onToolCall is nil
+	inputJSON := []string{
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"bash"}]}}`,
+		`{"type":"result","result":"Done"}`,
+	}
+	input := strings.NewReader(strings.Join(inputJSON, "\n"))
+	var output strings.Builder
+
+	handler := func(line []byte) {}
+
+	client := &Client{}
+	resultText := client.processStreamJSON(input, &output, handler, nil)
+
+	if resultText != "Done" {
+		t.Errorf("resultText = %q, want %q", resultText, "Done")
+	}
+}
+
+func TestProcessStreamJSONMultipleToolCalls(t *testing.T) {
+	// Test that multiple tool_use events are all captured
+	inputJSON := []string{
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"bash","path":"/tmp/script1.sh"}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"python","path":"/tmp/script2.py"}]}}`,
+		`{"type":"result","result":"Complete"}`,
+	}
+	input := strings.NewReader(strings.Join(inputJSON, "\n"))
+	var output strings.Builder
+
+	var capturedEvents []ToolEvent
+	handler := func(line []byte) {}
+	onToolCall := func(event ToolEvent) {
+		capturedEvents = append(capturedEvents, event)
+	}
+
+	client := &Client{}
+	resultText := client.processStreamJSON(input, &output, handler, onToolCall)
+
+	if len(capturedEvents) != 2 {
+		t.Fatalf("onToolCall should be called twice, got %d calls", len(capturedEvents))
+	}
+
+	if capturedEvents[0].ToolName != "bash" {
+		t.Errorf("first event ToolName = %q, want %q", capturedEvents[0].ToolName, "bash")
+	}
+	if capturedEvents[1].ToolName != "python" {
+		t.Errorf("second event ToolName = %q, want %q", capturedEvents[1].ToolName, "python")
+	}
+
+	if resultText != "Complete" {
+		t.Errorf("resultText = %q, want %q", resultText, "Complete")
+	}
 }

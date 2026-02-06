@@ -428,7 +428,7 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 			}
 		}
 
-		claudeResult, err = r.claude.StreamRun(childCtx, buildPrompt, model, r.output, handler)
+		claudeResult, err = r.claude.StreamRun(childCtx, buildPrompt, model, r.output, handler, nil)
 		stopHeartbeat()
 		childCancel() // Ensure cleanup
 

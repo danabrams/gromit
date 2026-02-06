@@ -26,6 +26,13 @@ type Result struct {
 	Model    string
 }
 
+// ToolEvent represents a tool call event with metadata
+type ToolEvent struct {
+	ToolName string
+	FilePath string
+	Timestamp time.Time
+}
+
 // Client wraps the Claude CLI
 type Client struct {
 	binary  string
@@ -280,11 +287,15 @@ func findStartOfLineMarker(s string) int {
 // The raw JSON line is passed for external parsing and logging.
 type EventHandler func(line []byte)
 
+// ToolCallHandler is called when a tool call event is detected in the stream.
+type ToolCallHandler func(event ToolEvent)
+
 // StreamRun invokes Claude and streams output to the provided writer.
 // If an EventHandler is provided, it uses --output-format stream-json --verbose
 // to get structured events for firehose logging, and extracts the text result
 // from the JSON stream. Otherwise it streams raw text output.
-func (c *Client) StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler) (*Result, error) {
+// The optional onToolCall callback is invoked whenever a tool call event is detected.
+func (c *Client) StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	if c == nil {
 		return nil, fmt.Errorf("claude client is nil")
 	}
@@ -341,7 +352,7 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	// Read and process stdout
 	var resultText string
 	if useStreamJSON {
-		resultText = c.processStreamJSON(monitoredStdout, output, handler)
+		resultText = c.processStreamJSON(monitoredStdout, output, handler, onToolCall)
 	} else {
 		var captured strings.Builder
 		io.Copy(io.MultiWriter(output, &captured), monitoredStdout)
@@ -423,8 +434,8 @@ func (m *startupMonitor) Read(p []byte) (int, error) {
 }
 
 // processStreamJSON reads stream-json lines, calls the handler for each,
-// and extracts the final result text.
-func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler EventHandler) string {
+// extracts the final result text, and invokes onToolCall for tool events.
+func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) string {
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large events
 
@@ -449,6 +460,8 @@ func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler E
 				Content []struct {
 					Type string `json:"type"`
 					Text string `json:"text,omitempty"`
+					Name string `json:"name,omitempty"`
+					Path string `json:"path,omitempty"`
 				} `json:"content"`
 			} `json:"message,omitempty"`
 			Result string `json:"result,omitempty"`
@@ -462,6 +475,14 @@ func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler E
 			for _, block := range event.Message.Content {
 				if block.Type == "text" && block.Text != "" {
 					fmt.Fprint(output, block.Text)
+				}
+				// Invoke tool call callback for tool_use blocks
+				if block.Type == "tool_use" && onToolCall != nil {
+					onToolCall(ToolEvent{
+						ToolName:  block.Name,
+						FilePath:  block.Path,
+						Timestamp: time.Now(),
+					})
 				}
 			}
 		}
