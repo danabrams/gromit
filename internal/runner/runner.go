@@ -285,6 +285,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 	maxRetries := r.cfg.Escalation.MaxRetriesPerModel
 	maxRetriesPerBead := r.cfg.Escalation.MaxRetriesPerBead
 	for {
+		// Log attempt number when retry counter is active
+		if retriesThisModel > 0 || totalRetriesThisBead > 0 {
+			r.log("Attempt %d/%d...", totalRetriesThisBead+1, maxRetriesPerBead)
+		}
+
 		// Check for context cancellation before each invocation
 		select {
 		case <-ctx.Done():
@@ -505,6 +510,9 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		// (Escalation itself doesn't count as a retry, but will likely trigger retries)
 		if totalRetriesThisBead >= maxRetriesPerBead {
 			r.log("Cannot escalate: max retries per bead reached (%d/%d)", totalRetriesThisBead, maxRetriesPerBead)
+			if startCommit != "" {
+				r.showPartialProgress(b, startCommit)
+			}
 			result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", maxRetriesPerBead)
 			return result
 		}
