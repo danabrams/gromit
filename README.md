@@ -140,6 +140,31 @@ Gromit v0.1
 No more beads ready. 2 iterations completed.
 ```
 
+## Architecture
+
+### Directory Structure
+
+CLI commands live in `cmd/gromit/` — one file per subcommand. Run `gromit --help` for the full list.
+
+Internal packages live in `internal/` — each directory is a focused package:
+
+- `runner/` — core loop orchestration and iteration management
+- `config/` — YAML config loading and validation
+- `bead/` — bd CLI integration and task retrieval
+- `claude/` — Claude CLI invocation and subprocess management
+- `prompt/` — prompt template rendering and context assembly
+- `analyzer/` — failure analysis and categorization
+- `review/` — post-build code review (light and thorough)
+- `learnings/` — accumulated knowledge base management
+- `rules/` — non-negotiable project constraints
+- `retro/` — retrospective analysis and learning consolidation
+- `preflight/` — environment checks before validation
+- `state/` — persistent state across runs
+- `logger/` — JSONL iteration logging and streaming
+- `backlog/` — backlog management (ideas to tasks)
+- `jsonutil/` — JSON utilities and helpers
+- `tmux/` — tmux integration for interactive sessions
+
 ## How It Works
 
 ### The Loop
