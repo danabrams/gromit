@@ -497,6 +497,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 			return result
 		}
 
+		if claudeResult == nil {
+			result.Error = fmt.Errorf("claude returned nil result")
+			return result
+		}
+
 		result.Output = claudeResult.Output
 
 		// Check if scope is too large before checking success
@@ -1115,6 +1120,9 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 	if err != nil {
 		return nil, fmt.Errorf("claude decomposition: %w", err)
 	}
+	if claudeResult == nil {
+		return nil, fmt.Errorf("claude decomposition returned nil result")
+	}
 
 	if !claudeResult.Success {
 		return nil, fmt.Errorf("claude decomposition failed with exit code %d", claudeResult.ExitCode)
@@ -1312,6 +1320,10 @@ func (r *Runner) checkScope(ctx context.Context, b *bead.Bead) *prompt.ScopeEsti
 	claudeResult, err := r.claude.Run(ctx, scopePrompt, scopeCheckModel)
 	if err != nil {
 		r.log("Warning: scope check invocation failed: %v", err)
+		return nil
+	}
+	if claudeResult == nil {
+		r.log("Warning: scope check returned nil result")
 		return nil
 	}
 
