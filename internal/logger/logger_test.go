@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestReadAllLogsEmpty(t *testing.T) {
@@ -296,5 +297,261 @@ func TestBeadStatsFailureRate(t *testing.T) {
 				t.Errorf("expected failure rate %.3f, got %.3f", tt.expected, got)
 			}
 		})
+	}
+}
+
+func TestReadPerBeadStatsLastAttemptTime(t *testing.T) {
+	dir := t.TempDir()
+
+	// Single file with multiple attempts at different times
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T13:00:00Z","iteration":2,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":2000}
+{"timestamp":"2026-02-05T14:00:00Z","iteration":3,"bead_id":"b1","bead_title":"Task 1","model":"opus","success":true,"validated":true,"escalated":false,"duration_ms":3000}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	b1 := stats["b1"]
+	expectedTime, _ := time.Parse(time.RFC3339, "2026-02-05T14:00:00Z")
+	if !b1.LastAttempt.Equal(expectedTime) {
+		t.Errorf("expected last attempt %v, got %v", expectedTime, b1.LastAttempt)
+	}
+}
+
+func TestReadPerBeadStatsLastAttemptTimeAcrossFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	// First file - b1 at 12:00
+	log1 := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+`
+	// Second file - b1 at 11:00 (earlier)
+	log2 := `{"timestamp":"2026-02-05T11:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":2000}
+`
+
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(log1), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-110000.jsonl"), []byte(log2), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	b1 := stats["b1"]
+	expectedTime, _ := time.Parse(time.RFC3339, "2026-02-05T12:00:00Z")
+	if !b1.LastAttempt.Equal(expectedTime) {
+		t.Errorf("expected last attempt %v (from 12:00), got %v", expectedTime, b1.LastAttempt)
+	}
+}
+
+func TestReadPerBeadStatsInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+
+	// Log file with partial invalid JSON (some valid, some invalid)
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+this is not json
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":2000}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	// Should read the first valid entry, stop at invalid JSON
+	if len(stats) == 0 {
+		t.Error("expected to parse at least one valid entry before error")
+	}
+	if _, exists := stats["b1"]; !exists {
+		t.Error("expected b1 to be in stats")
+	}
+}
+
+func TestReadPerBeadStatsEmptyLogFile(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create an empty log file
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	if len(stats) != 0 {
+		t.Errorf("expected 0 beads from empty file, got %d", len(stats))
+	}
+}
+
+func TestReadPerBeadStatsNonexistentDirectory(t *testing.T) {
+	dir := "/nonexistent/path/that/does/not/exist"
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading nonexistent directory: %v", err)
+	}
+
+	// Should return empty map without error
+	if len(stats) != 0 {
+		t.Errorf("expected 0 beads from nonexistent dir, got %d", len(stats))
+	}
+}
+
+func TestReadPerBeadStatsSingleEntry(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Single Task","model":"haiku","success":true,"validated":true,"escalated":false,"duration_ms":500}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	if len(stats) != 1 {
+		t.Errorf("expected 1 bead, got %d", len(stats))
+	}
+
+	b1 := stats["b1"]
+	if b1.TotalRuns != 1 {
+		t.Errorf("expected 1 total run, got %d", b1.TotalRuns)
+	}
+	if b1.Successes != 1 {
+		t.Errorf("expected 1 success, got %d", b1.Successes)
+	}
+	if b1.Failures != 0 {
+		t.Errorf("expected 0 failures, got %d", b1.Failures)
+	}
+	if b1.FailureRate() != 0.0 {
+		t.Errorf("expected failure rate 0.0, got %f", b1.FailureRate())
+	}
+}
+
+func TestReadPerBeadStatsMultipleBeadsMultipleAttempts(t *testing.T) {
+	dir := t.TempDir()
+
+	// Complex scenario: multiple beads with varying attempts
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T12:02:00Z","iteration":3,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T12:03:00Z","iteration":4,"bead_id":"b2","bead_title":"Task 2","model":"opus","success":false,"validated":false,"escalated":false,"duration_ms":2000}
+{"timestamp":"2026-02-05T12:04:00Z","iteration":5,"bead_id":"b2","bead_title":"Task 2","model":"opus","success":false,"validated":false,"escalated":false,"duration_ms":2000}
+{"timestamp":"2026-02-05T12:05:00Z","iteration":6,"bead_id":"b2","bead_title":"Task 2","model":"opus","success":true,"validated":true,"escalated":false,"duration_ms":2000}
+{"timestamp":"2026-02-05T12:06:00Z","iteration":7,"bead_id":"b3","bead_title":"Task 3","model":"haiku","success":true,"validated":true,"escalated":false,"duration_ms":500}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	if len(stats) != 3 {
+		t.Errorf("expected 3 beads, got %d", len(stats))
+	}
+
+	// b1: 3 attempts (2 success, 1 failure)
+	b1 := stats["b1"]
+	if b1.TotalRuns != 3 {
+		t.Errorf("b1: expected 3 total runs, got %d", b1.TotalRuns)
+	}
+	if b1.Successes != 2 {
+		t.Errorf("b1: expected 2 successes, got %d", b1.Successes)
+	}
+	if b1.Failures != 1 {
+		t.Errorf("b1: expected 1 failure, got %d", b1.Failures)
+	}
+
+	// b2: 3 attempts (1 success, 2 failures)
+	b2 := stats["b2"]
+	if b2.TotalRuns != 3 {
+		t.Errorf("b2: expected 3 total runs, got %d", b2.TotalRuns)
+	}
+	if b2.Successes != 1 {
+		t.Errorf("b2: expected 1 success, got %d", b2.Successes)
+	}
+	if b2.Failures != 2 {
+		t.Errorf("b2: expected 2 failures, got %d", b2.Failures)
+	}
+
+	// b3: 1 attempt (1 success)
+	b3 := stats["b3"]
+	if b3.TotalRuns != 1 {
+		t.Errorf("b3: expected 1 total run, got %d", b3.TotalRuns)
+	}
+	if b3.Successes != 1 {
+		t.Errorf("b3: expected 1 success, got %d", b3.Successes)
+	}
+	if b3.Failures != 0 {
+		t.Errorf("b3: expected 0 failures, got %d", b3.Failures)
+	}
+}
+
+func TestReadPerBeadStatsBeadTitleUpdate(t *testing.T) {
+	dir := t.TempDir()
+
+	// Same bead with different titles (should keep first title seen)
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Original Title","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b1","bead_title":"Updated Title","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":2000}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	b1 := stats["b1"]
+	if b1.BeadTitle != "Original Title" {
+		t.Errorf("expected title 'Original Title', got %q", b1.BeadTitle)
+	}
+}
+
+func TestReadPerBeadStatsIgnoreNonLogFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a file that doesn't match the pattern
+	if err := os.WriteFile(filepath.Join(dir, "other-file.txt"), []byte("some content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	// Should only read the .jsonl file
+	if len(stats) != 1 {
+		t.Errorf("expected 1 bead, got %d", len(stats))
+	}
+	if _, exists := stats["b1"]; !exists {
+		t.Error("expected b1 in stats")
 	}
 }
