@@ -43,6 +43,41 @@ type Proposals struct {
 	RuleChanges    []RuleChangeProposal    `json:"rule_changes,omitempty"`
 }
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+// This prevents issues with downstream code that marshals to JSON (nil → "null"
+// vs [] → "[]") and ensures consistent behavior.
+func (p *Proposals) normalizeNilFields() {
+	if p == nil {
+		return
+	}
+	if p.Consolidations == nil {
+		p.Consolidations = []ConsolidationProposal{}
+	}
+	if p.Promotions == nil {
+		p.Promotions = []PromotionProposal{}
+	}
+	if p.Archives == nil {
+		p.Archives = []ArchiveProposal{}
+	}
+	if p.RuleChanges == nil {
+		p.RuleChanges = []RuleChangeProposal{}
+	}
+	// Normalize nested slice fields in each ConsolidationProposal
+	for i := range p.Consolidations {
+		p.Consolidations[i].normalizeNilFields()
+	}
+}
+
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+func (c *ConsolidationProposal) normalizeNilFields() {
+	if c == nil {
+		return
+	}
+	if c.LearningHashes == nil {
+		c.LearningHashes = []string{}
+	}
+}
+
 // ParseProposals extracts structured proposals from Claude's analysis output.
 // It looks for a JSON code block in the output and unmarshals it into Proposals.
 func ParseProposals(output string) (*Proposals, error) {
@@ -56,6 +91,8 @@ func ParseProposals(output string) (*Proposals, error) {
 	if err := json.Unmarshal([]byte(jsonStr), &proposals); err != nil {
 		return nil, fmt.Errorf("parsing JSON proposals: %w", err)
 	}
+
+	proposals.normalizeNilFields()
 
 	return &proposals, nil
 }

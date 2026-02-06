@@ -315,3 +315,132 @@ func TestProposalsJSONRoundtrip(t *testing.T) {
 		}
 	}
 }
+
+func TestProposalsNormalizeNilFields(t *testing.T) {
+	p := &Proposals{}
+	p.normalizeNilFields()
+
+	if p.Consolidations == nil {
+		t.Error("Expected Consolidations to be non-nil after normalization")
+	}
+	if p.Promotions == nil {
+		t.Error("Expected Promotions to be non-nil after normalization")
+	}
+	if p.Archives == nil {
+		t.Error("Expected Archives to be non-nil after normalization")
+	}
+	if p.RuleChanges == nil {
+		t.Error("Expected RuleChanges to be non-nil after normalization")
+	}
+
+	// Verify already non-nil slices are preserved
+	p2 := &Proposals{
+		Consolidations: []ConsolidationProposal{{LearningHashes: []string{"a"}, ConsolidatedText: "t", Rationale: "r"}},
+		Promotions:     []PromotionProposal{{LearningHash: "a"}},
+		Archives:       []ArchiveProposal{{LearningHash: "a"}},
+		RuleChanges:    []RuleChangeProposal{{CurrentRule: "r"}},
+	}
+	p2.normalizeNilFields()
+
+	if len(p2.Consolidations) != 1 {
+		t.Errorf("Expected 1 consolidation, got %d", len(p2.Consolidations))
+	}
+	if len(p2.Promotions) != 1 {
+		t.Errorf("Expected 1 promotion, got %d", len(p2.Promotions))
+	}
+	if len(p2.Archives) != 1 {
+		t.Errorf("Expected 1 archive, got %d", len(p2.Archives))
+	}
+	if len(p2.RuleChanges) != 1 {
+		t.Errorf("Expected 1 rule change, got %d", len(p2.RuleChanges))
+	}
+}
+
+func TestProposalsNormalizeNilFieldsOnNilProposals(t *testing.T) {
+	var p *Proposals
+	p.normalizeNilFields() // should not panic
+}
+
+func TestConsolidationProposalNormalizeNilFields(t *testing.T) {
+	c := &ConsolidationProposal{}
+	c.normalizeNilFields()
+
+	if c.LearningHashes == nil {
+		t.Error("Expected LearningHashes to be non-nil after normalization")
+	}
+
+	// Verify already non-nil slices are preserved
+	c2 := &ConsolidationProposal{LearningHashes: []string{"hash1"}}
+	c2.normalizeNilFields()
+
+	if len(c2.LearningHashes) != 1 {
+		t.Errorf("Expected 1 learning hash, got %d", len(c2.LearningHashes))
+	}
+}
+
+func TestConsolidationProposalNormalizeNilFieldsOnNilReceiver(t *testing.T) {
+	var c *ConsolidationProposal
+	c.normalizeNilFields() // should not panic
+}
+
+func TestParseProposalsNormalizesNilFields(t *testing.T) {
+	// JSON with missing fields — they should be normalized to empty slices
+	output := "```json\n{}\n```"
+
+	proposals, err := ParseProposals(output)
+	if err != nil {
+		t.Fatalf("ParseProposals() error = %v", err)
+	}
+
+	if proposals.Consolidations == nil {
+		t.Error("Expected Consolidations to be non-nil after parsing empty JSON")
+	}
+	if proposals.Promotions == nil {
+		t.Error("Expected Promotions to be non-nil after parsing empty JSON")
+	}
+	if proposals.Archives == nil {
+		t.Error("Expected Archives to be non-nil after parsing empty JSON")
+	}
+	if proposals.RuleChanges == nil {
+		t.Error("Expected RuleChanges to be non-nil after parsing empty JSON")
+	}
+}
+
+func TestParseProposalsNormalizesExplicitNull(t *testing.T) {
+	output := "```json\n{\"consolidations\": null, \"promotions\": null, \"archives\": null, \"rule_changes\": null}\n```"
+
+	proposals, err := ParseProposals(output)
+	if err != nil {
+		t.Fatalf("ParseProposals() error = %v", err)
+	}
+
+	if proposals.Consolidations == nil {
+		t.Error("Expected Consolidations to be non-nil after parsing explicit null")
+	}
+	if proposals.Promotions == nil {
+		t.Error("Expected Promotions to be non-nil after parsing explicit null")
+	}
+	if proposals.Archives == nil {
+		t.Error("Expected Archives to be non-nil after parsing explicit null")
+	}
+	if proposals.RuleChanges == nil {
+		t.Error("Expected RuleChanges to be non-nil after parsing explicit null")
+	}
+}
+
+func TestParseProposalsNormalizesNestedConsolidationHashes(t *testing.T) {
+	// ConsolidationProposal with missing learning_hashes should be normalized
+	output := "```json\n{\"consolidations\": [{\"consolidated_text\": \"test\", \"rationale\": \"test\"}]}\n```"
+
+	proposals, err := ParseProposals(output)
+	if err != nil {
+		t.Fatalf("ParseProposals() error = %v", err)
+	}
+
+	if len(proposals.Consolidations) != 1 {
+		t.Fatalf("Expected 1 consolidation, got %d", len(proposals.Consolidations))
+	}
+	if proposals.Consolidations[0].LearningHashes == nil {
+		t.Error("Expected LearningHashes to be non-nil after parsing")
+	}
+}
