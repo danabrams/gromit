@@ -158,3 +158,111 @@ func TestRenderScopeNilRenderer(t *testing.T) {
 		t.Error("expected error for nil renderer in RenderScope")
 	}
 }
+
+func TestParseScopeEstimate(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+		checks  func(*ScopeEstimate) bool
+	}{
+		{
+			name: "valid scope estimate",
+			input: `{
+  "complexity": "medium",
+  "estimated_iterations": 2,
+  "rationale": "Changes to 3-5 files with moderate testing",
+  "can_complete_in_single_iteration": false,
+  "blockers": ["Need to refactor auth system", "Database schema changes required"]
+}`,
+			wantErr: false,
+			checks: func(est *ScopeEstimate) bool {
+				return est.Complexity == "medium" &&
+					est.EstimatedIterations == 2 &&
+					est.Rationale == "Changes to 3-5 files with moderate testing" &&
+					!est.CanCompleteInSingleIteration &&
+					len(est.Blockers) == 2
+			},
+		},
+		{
+			name: "low complexity single iteration",
+			input: `{
+  "complexity": "low",
+  "estimated_iterations": 1,
+  "rationale": "Straightforward changes",
+  "can_complete_in_single_iteration": true,
+  "blockers": []
+}`,
+			wantErr: false,
+			checks: func(est *ScopeEstimate) bool {
+				return est.Complexity == "low" &&
+					est.EstimatedIterations == 1 &&
+					est.CanCompleteInSingleIteration &&
+					len(est.Blockers) == 0
+			},
+		},
+		{
+			name: "high complexity with multiple blockers",
+			input: `{
+  "complexity": "high",
+  "estimated_iterations": 4,
+  "rationale": "Complex architecture changes across multiple systems",
+  "can_complete_in_single_iteration": false,
+  "blockers": ["Unclear requirements", "Cross-system dependencies", "Performance implications"]
+}`,
+			wantErr: false,
+			checks: func(est *ScopeEstimate) bool {
+				return est.Complexity == "high" &&
+					est.EstimatedIterations == 4 &&
+					len(est.Blockers) == 3
+			},
+		},
+		{
+			name:    "empty output",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "no JSON in output",
+			input:   "This is just plain text with no JSON",
+			wantErr: true,
+		},
+		{
+			name:    "invalid JSON",
+			input:   `{ "complexity": "low", invalid json }`,
+			wantErr: true,
+		},
+		{
+			name: "JSON with surrounding text",
+			input: `Here is the scope estimate:
+{
+  "complexity": "low",
+  "estimated_iterations": 1,
+  "rationale": "Simple task",
+  "can_complete_in_single_iteration": true,
+  "blockers": []
+}
+Additional explanation follows...`,
+			wantErr: false,
+			checks: func(est *ScopeEstimate) bool {
+				return est.Complexity == "low" &&
+					est.EstimatedIterations == 1
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			est, err := ParseScopeEstimate(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseScopeEstimate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && tt.checks != nil {
+				if !tt.checks(est) {
+					t.Errorf("ParseScopeEstimate() returned unexpected values: %+v", est)
+				}
+			}
+		})
+	}
+}

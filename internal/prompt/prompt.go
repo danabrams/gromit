@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,6 +56,15 @@ type DecomposeContext struct {
 type ScopeContext struct {
 	Bead       *bead.Bead
 	ParentBead *bead.Bead
+}
+
+// ScopeEstimate represents the result of scope estimation
+type ScopeEstimate struct {
+	Complexity                      string   `json:"complexity"`
+	EstimatedIterations             int      `json:"estimated_iterations"`
+	Rationale                       string   `json:"rationale"`
+	CanCompleteInSingleIteration    bool     `json:"can_complete_in_single_iteration"`
+	Blockers                        []string `json:"blockers"`
 }
 
 // Renderer loads and renders prompt templates
@@ -301,4 +311,30 @@ func templateFuncs() template.FuncMap {
 			return sb.String()
 		},
 	}
+}
+
+// ParseScopeEstimate parses Claude's JSON scope estimate output into a ScopeEstimate struct
+func ParseScopeEstimate(output string) (*ScopeEstimate, error) {
+	if output == "" {
+		return nil, fmt.Errorf("scope estimate output is empty")
+	}
+
+	output = strings.TrimSpace(output)
+
+	// Look for JSON object
+	start := strings.Index(output, "{")
+	end := strings.LastIndex(output, "}")
+
+	if start == -1 || end == -1 || end <= start {
+		return nil, fmt.Errorf("no JSON found in output")
+	}
+
+	jsonStr := output[start : end+1]
+
+	var estimate ScopeEstimate
+	if err := json.Unmarshal([]byte(jsonStr), &estimate); err != nil {
+		return nil, fmt.Errorf("parsing scope estimate JSON: %w", err)
+	}
+
+	return &estimate, nil
 }
