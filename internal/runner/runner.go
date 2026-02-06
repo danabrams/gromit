@@ -1146,3 +1146,56 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 	r.log("Successfully created %d sub-beads", len(createdIDs))
 	return nil
 }
+
+// checkScope calls haiku with scope prompt and returns ScopeEstimate.
+// If scope check fails, logs a warning and continues (non-blocking).
+func (r *Runner) checkScope(ctx context.Context, b *bead.Bead) *prompt.ScopeEstimate {
+	if r == nil || b == nil || r.renderer == nil || r.claude == nil {
+		return nil
+	}
+
+	// Get parent bead if exists
+	parent, err := r.beads.GetParent(b)
+	if err != nil {
+		r.log("Warning: failed to get parent bead for scope check: %v", err)
+	}
+
+	// Build scope context
+	scopeCtx := &prompt.ScopeContext{
+		Bead:       b,
+		ParentBead: parent,
+	}
+
+	// Render scope prompt
+	scopePrompt, err := r.renderer.RenderScope(scopeCtx)
+	if err != nil {
+		r.log("Warning: failed to render scope prompt: %v", err)
+		return nil
+	}
+
+	// Call Claude with haiku model
+	scopeCheckModel := r.cfg.ScopeCheck.Model
+	if scopeCheckModel == "" {
+		scopeCheckModel = "haiku"
+	}
+
+	claudeResult, err := r.claude.Run(ctx, scopePrompt, scopeCheckModel)
+	if err != nil {
+		r.log("Warning: scope check invocation failed: %v", err)
+		return nil
+	}
+
+	if !claudeResult.Success {
+		r.log("Warning: scope check failed with exit code %d", claudeResult.ExitCode)
+		return nil
+	}
+
+	// Parse the scope estimate
+	estimate, err := prompt.ParseScopeEstimate(claudeResult.Output)
+	if err != nil {
+		r.log("Warning: failed to parse scope estimate: %v", err)
+		return nil
+	}
+
+	return estimate
+}
