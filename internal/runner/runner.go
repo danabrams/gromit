@@ -777,33 +777,6 @@ func (r *Runner) isStuckBeadWithStats(b *bead.Bead, beadStats map[string]logger.
 
 // isStuckBead checks if a bead has failed too many times across runs
 // (deprecated: use isStuckBeadWithStats with pre-loaded stats for better efficiency)
-func (r *Runner) isStuckBead(b *bead.Bead) bool {
-	if r == nil || b == nil || r.cfg == nil {
-		return false
-	}
-
-	// If threshold is 0 or negative, stuck-bead detection is disabled
-	if r.cfg.Loop.StuckBeadThreshold <= 0 {
-		return false
-	}
-
-	// Read per-bead statistics from logs
-	beadStats, err := logger.ReadPerBeadStats(r.cfg.Paths.Logs)
-	if err != nil {
-		// If we can't read stats, don't mark as stuck
-		return false
-	}
-
-	stats, exists := beadStats[b.ID]
-	if !exists {
-		// No history for this bead, not stuck
-		return false
-	}
-
-	// Mark as stuck if failures >= threshold
-	return stats.Failures >= r.cfg.Loop.StuckBeadThreshold
-}
-
 // Status returns the current queue status
 func (r *Runner) Status() error {
 	if r == nil {

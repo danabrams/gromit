@@ -11,6 +11,13 @@ import (
 	"time"
 )
 
+var (
+	// Regex for normalizing whitespace in content hashing
+	whitespaceRegex = regexp.MustCompile(`\s+`)
+	// Regex for parsing *Related to:* lines
+	relatedToRegex = regexp.MustCompile(`\*Related to: (.+)\*`)
+)
+
 // Learning represents a single learning entry
 type Learning struct {
 	Date      time.Time
@@ -23,10 +30,10 @@ type Learning struct {
 
 // File manages the LEARNINGS.md file
 type File struct {
-	path       string
-	confirmed  []Learning
+	path        string
+	confirmed   []Learning
 	provisional []Learning
-	archived   []Learning
+	archived    []Learning
 }
 
 // Category constants
@@ -456,7 +463,7 @@ func writeLearning(sb *strings.Builder, l Learning) {
 func hashContent(content string) string {
 	// Normalize: lowercase, remove extra whitespace
 	normalized := strings.ToLower(strings.TrimSpace(content))
-	normalized = regexp.MustCompile(`\s+`).ReplaceAllString(normalized, " ")
+	normalized = whitespaceRegex.ReplaceAllString(normalized, " ")
 
 	hash := sha256.Sum256([]byte(normalized))
 	return hex.EncodeToString(hash[:8]) // First 8 bytes is enough
@@ -583,8 +590,7 @@ func parseLearnings(content string) (confirmed, provisional, archived []Learning
 		if current != nil {
 			// Check for related-to line
 			if strings.HasPrefix(line, "*Related to:") {
-				re := regexp.MustCompile(`\*Related to: (.+)\*`)
-				if matches := re.FindStringSubmatch(line); len(matches) > 1 {
+				if matches := relatedToRegex.FindStringSubmatch(line); len(matches) > 1 {
 					current.RelatedTo = matches[1]
 				}
 				continue

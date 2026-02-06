@@ -3,7 +3,6 @@ package retro
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,10 +27,10 @@ type Retro struct {
 
 // TemplateContext holds data for retro prompt template
 type TemplateContext struct {
-	Rules       string
-	Learnings   string
-	RunStats    logger.RunStats
-	BeadStats   map[string]logger.BeadStats
+	Rules     string
+	Learnings string
+	RunStats  logger.RunStats
+	BeadStats map[string]logger.BeadStats
 }
 
 // Result represents the outcome of a retro analysis
@@ -245,7 +244,7 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 
 	client, err := bead.NewClient()
 	if err != nil {
-		log.Printf("Warning: failed to create bead client for enrichment: %v", err)
+		fmt.Fprintf(os.Stderr, "Warning: failed to create bead client for enrichment: %v\n", err)
 		return
 	}
 
@@ -253,7 +252,7 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 		// Get full bead details
 		b, err := client.Show(beadID)
 		if err != nil {
-			log.Printf("Warning: failed to get details for bead %s: %v", beadID, err)
+			fmt.Fprintf(os.Stderr, "Warning: failed to get details for bead %s: %v\n", beadID, err)
 			continue
 		}
 
@@ -264,7 +263,7 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 		// Get comments
 		comments, err := client.GetComments(beadID)
 		if err != nil {
-			log.Printf("Warning: failed to get comments for bead %s: %v", beadID, err)
+			fmt.Fprintf(os.Stderr, "Warning: failed to get comments for bead %s: %v\n", beadID, err)
 			stats.Comments = []string{}
 		} else {
 			// Extract comment text into a slice

@@ -7,6 +7,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Model name constants
+const (
+	ModelOpus   = "opus"
+	ModelSonnet = "sonnet"
+	ModelHaiku  = "haiku"
+)
+
 type Config struct {
 	Models     ModelsConfig     `yaml:"models"`
 	Escalation EscalationConfig `yaml:"escalation"`
@@ -35,9 +42,9 @@ type EscalationConfig struct {
 }
 
 type LoopConfig struct {
-	MaxIterations     int `yaml:"max_iterations"`
-	StopOnFailure     bool `yaml:"stop_on_failure"`
-	StuckBeadThreshold int `yaml:"stuck_bead_threshold"`
+	MaxIterations      int  `yaml:"max_iterations"`
+	StopOnFailure      bool `yaml:"stop_on_failure"`
+	StuckBeadThreshold int  `yaml:"stuck_bead_threshold"`
 }
 
 type ValidationConfig struct {
@@ -74,11 +81,11 @@ type PathsConfig struct {
 }
 
 type ReviewConfig struct {
-	Enabled         bool                  `yaml:"enabled"`
-	Model           string                `yaml:"model"`
-	MatchBuildModel *bool                 `yaml:"match_build_model"`
-	Timeout         int                   `yaml:"timeout"`
-	Thorough        ThoroughReviewConfig  `yaml:"thorough"`
+	Enabled         bool                 `yaml:"enabled"`
+	Model           string               `yaml:"model"`
+	MatchBuildModel *bool                `yaml:"match_build_model"`
+	Timeout         int                  `yaml:"timeout"`
+	Thorough        ThoroughReviewConfig `yaml:"thorough"`
 }
 
 type ThoroughReviewConfig struct {
@@ -128,16 +135,16 @@ func (c *Config) normalizeNilFields() {
 
 func (c *Config) setDefaults() {
 	if c.Models.P0 == "" {
-		c.Models.P0 = "opus"
+		c.Models.P0 = ModelOpus
 	}
 	if c.Models.P1 == "" {
-		c.Models.P1 = "sonnet"
+		c.Models.P1 = ModelSonnet
 	}
 	if c.Models.P2 == "" {
-		c.Models.P2 = "haiku"
+		c.Models.P2 = ModelHaiku
 	}
 	if c.Models.Validation == "" {
-		c.Models.Validation = "haiku"
+		c.Models.Validation = ModelHaiku
 	}
 	if c.Claude.Binary == "" {
 		c.Claude.Binary = "claude"
@@ -173,7 +180,7 @@ func (c *Config) setDefaults() {
 		c.Paths.ProjectClaudeMD = "CLAUDE.md"
 	}
 	if len(c.Escalation.Chain) == 0 {
-		c.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
+		c.Escalation.Chain = []string{ModelHaiku, ModelSonnet, ModelOpus}
 	}
 	if c.Escalation.MaxRetriesPerModel == 0 {
 		c.Escalation.MaxRetriesPerModel = 1
@@ -188,13 +195,13 @@ func (c *Config) setDefaults() {
 		c.Models.Labels = make(map[string]string)
 	}
 	if c.ScopeCheck.Model == "" {
-		c.ScopeCheck.Model = "haiku"
+		c.ScopeCheck.Model = ModelHaiku
 	}
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
 	}
 	if c.Review.Model == "" {
-		c.Review.Model = "sonnet"
+		c.Review.Model = ModelSonnet
 	}
 	if c.Review.MatchBuildModel == nil {
 		t := true
@@ -204,7 +211,7 @@ func (c *Config) setDefaults() {
 		c.Review.Timeout = 120
 	}
 	if c.Review.Thorough.Model == "" {
-		c.Review.Thorough.Model = "opus"
+		c.Review.Thorough.Model = ModelOpus
 	}
 	if c.Review.Thorough.EveryNIterations == 0 {
 		c.Review.Thorough.EveryNIterations = 5
@@ -221,7 +228,7 @@ func (c *Config) setDefaults() {
 // SelectModel determines the appropriate model for a bead based on priority and labels
 func (c *Config) SelectModel(priority int, labels []string) string {
 	if c == nil {
-		return "sonnet"
+		return ModelSonnet
 	}
 	// Check label overrides first (higher precedence)
 	for _, label := range labels {

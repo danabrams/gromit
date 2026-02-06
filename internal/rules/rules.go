@@ -9,6 +9,7 @@ import (
 
 // Rules represents a parsed rules file with sections and rules
 type Rules struct {
+	Preamble string    // Original header/preamble text
 	Sections []Section
 }
 
@@ -34,12 +35,15 @@ func Parse(content string) (*Rules, error) {
 	scanner := bufio.NewScanner(strings.NewReader(content))
 
 	var currentSection *Section
+	var preambleLines []string
+	seenFirstSection := false
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		// Check for section header (## Section Name)
 		if strings.HasPrefix(line, "## ") {
+			seenFirstSection = true
 			sectionName := strings.TrimPrefix(line, "## ")
 			currentSection = &Section{
 				Name:  sectionName,
@@ -58,8 +62,14 @@ func Parse(content string) (*Rules, error) {
 			continue
 		}
 
-		// Ignore other lines (comments, blank lines, etc.)
+		// Capture preamble lines before first section
+		if !seenFirstSection {
+			preambleLines = append(preambleLines, line)
+		}
 	}
+
+	// Store preamble, trimming trailing empty lines
+	rules.Preamble = strings.TrimRight(strings.Join(preambleLines, "\n"), "\n")
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scanning rules file: %w", err)
@@ -72,9 +82,14 @@ func Parse(content string) (*Rules, error) {
 func (r *Rules) Save(path string) error {
 	var builder strings.Builder
 
-	// Write title/header if first section isn't named
-	builder.WriteString("# Rules\n\n")
-	builder.WriteString("These are non-negotiable constraints for ralph-runner development.\n\n")
+	// Write preserved preamble, or use default header if empty
+	if r.Preamble != "" {
+		builder.WriteString(r.Preamble)
+		builder.WriteString("\n\n")
+	} else {
+		builder.WriteString("# Rules\n\n")
+		builder.WriteString("These are non-negotiable constraints for this project.\n\n")
+	}
 
 	for i, section := range r.Sections {
 		// Write section header
