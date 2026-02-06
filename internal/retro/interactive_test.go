@@ -174,7 +174,19 @@ func TestReviewProposals_EmptyProposals(t *testing.T) {
 		t.Fatalf("ReviewProposals() error = %v", err)
 	}
 
-	// Should return empty accepted lists
+	// Should return empty accepted lists (not nil)
+	if accepted.Consolidations == nil {
+		t.Error("Expected non-nil Consolidations for empty proposals")
+	}
+	if accepted.Promotions == nil {
+		t.Error("Expected non-nil Promotions for empty proposals")
+	}
+	if accepted.Archives == nil {
+		t.Error("Expected non-nil Archives for empty proposals")
+	}
+	if accepted.RuleChanges == nil {
+		t.Error("Expected non-nil RuleChanges for empty proposals")
+	}
 	if len(accepted.Consolidations) != 0 {
 		t.Error("Expected no consolidations for empty proposals")
 	}
@@ -299,6 +311,53 @@ func TestReviewProposals_DisplaysDetails(t *testing.T) {
 	}
 	if !strings.Contains(outputStr, "Unique rationale for testing") {
 		t.Error("Output should contain rationale")
+	}
+}
+
+func TestAcceptedProposalsNormalizeNilFields(t *testing.T) {
+	ap := &AcceptedProposals{}
+	if ap.Consolidations != nil || ap.Promotions != nil || ap.Archives != nil || ap.RuleChanges != nil {
+		t.Error("expected all fields to start as nil")
+	}
+
+	ap.normalizeNilFields()
+	if ap.Consolidations == nil {
+		t.Error("expected Consolidations to be non-nil after normalization")
+	}
+	if ap.Promotions == nil {
+		t.Error("expected Promotions to be non-nil after normalization")
+	}
+	if ap.Archives == nil {
+		t.Error("expected Archives to be non-nil after normalization")
+	}
+	if ap.RuleChanges == nil {
+		t.Error("expected RuleChanges to be non-nil after normalization")
+	}
+}
+
+func TestAcceptedProposalsNormalizeNilFieldsNilReceiver(t *testing.T) {
+	var ap *AcceptedProposals
+	ap.normalizeNilFields() // Should not panic
+}
+
+func TestAcceptedProposalsNormalizeNilFieldsPreservesExisting(t *testing.T) {
+	ap := &AcceptedProposals{
+		Consolidations: []ConsolidationProposal{{ConsolidatedText: "test"}},
+		Promotions:     []PromotionProposal{{ProposedRule: "rule"}},
+	}
+
+	ap.normalizeNilFields()
+	if len(ap.Consolidations) != 1 {
+		t.Errorf("expected 1 consolidation preserved, got %d", len(ap.Consolidations))
+	}
+	if len(ap.Promotions) != 1 {
+		t.Errorf("expected 1 promotion preserved, got %d", len(ap.Promotions))
+	}
+	if ap.Archives == nil {
+		t.Error("expected Archives to be non-nil after normalization")
+	}
+	if ap.RuleChanges == nil {
+		t.Error("expected RuleChanges to be non-nil after normalization")
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/danabrams/ralph-runner/internal/learnings"
 )
 
 func TestValidateSpecName(t *testing.T) {
@@ -264,6 +266,54 @@ Additional explanation follows...`,
 				}
 			}
 		})
+	}
+}
+
+func TestContextNormalizeNilFields(t *testing.T) {
+	// Test that nil learning slices are normalized to empty slices
+	ctx := &Context{
+		Iteration: 1,
+		Model:     "sonnet",
+	}
+	if ctx.ConfirmedLearnings != nil {
+		t.Error("expected ConfirmedLearnings to start as nil")
+	}
+	if ctx.RecentLearnings != nil {
+		t.Error("expected RecentLearnings to start as nil")
+	}
+
+	ctx.normalizeNilFields()
+	if ctx.ConfirmedLearnings == nil {
+		t.Error("expected ConfirmedLearnings to be non-nil after normalization")
+	}
+	if ctx.RecentLearnings == nil {
+		t.Error("expected RecentLearnings to be non-nil after normalization")
+	}
+	if len(ctx.ConfirmedLearnings) != 0 {
+		t.Errorf("expected empty ConfirmedLearnings, got %d items", len(ctx.ConfirmedLearnings))
+	}
+	if len(ctx.RecentLearnings) != 0 {
+		t.Errorf("expected empty RecentLearnings, got %d items", len(ctx.RecentLearnings))
+	}
+}
+
+func TestContextNormalizeNilFieldsNilReceiver(t *testing.T) {
+	var ctx *Context
+	ctx.normalizeNilFields() // Should not panic
+}
+
+func TestContextNormalizeNilFieldsPreservesExisting(t *testing.T) {
+	ctx := &Context{
+		ConfirmedLearnings: []learnings.Learning{{Content: "a"}},
+		RecentLearnings:    []learnings.Learning{{Content: "b"}, {Content: "c"}},
+	}
+
+	ctx.normalizeNilFields()
+	if len(ctx.ConfirmedLearnings) != 1 {
+		t.Errorf("expected 1 confirmed learning preserved, got %d", len(ctx.ConfirmedLearnings))
+	}
+	if len(ctx.RecentLearnings) != 2 {
+		t.Errorf("expected 2 recent learnings preserved, got %d", len(ctx.RecentLearnings))
 	}
 }
 

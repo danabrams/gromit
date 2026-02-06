@@ -15,6 +15,25 @@ type AcceptedProposals struct {
 	RuleChanges    []RuleChangeProposal
 }
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+func (a *AcceptedProposals) normalizeNilFields() {
+	if a == nil {
+		return
+	}
+	if a.Consolidations == nil {
+		a.Consolidations = []ConsolidationProposal{}
+	}
+	if a.Promotions == nil {
+		a.Promotions = []PromotionProposal{}
+	}
+	if a.Archives == nil {
+		a.Archives = []ArchiveProposal{}
+	}
+	if a.RuleChanges == nil {
+		a.RuleChanges = []RuleChangeProposal{}
+	}
+}
+
 // ReviewProposals walks through proposals interactively and collects accepted ones
 func ReviewProposals(proposals *Proposals, reader io.Reader, writer io.Writer) (*AcceptedProposals, error) {
 	if proposals == nil {
@@ -96,6 +115,7 @@ func ReviewProposals(proposals *Proposals, reader io.Reader, writer io.Writer) (
 		}
 	}
 
+	accepted.normalizeNilFields()
 	return accepted, nil
 }
 

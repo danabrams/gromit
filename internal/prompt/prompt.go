@@ -38,6 +38,19 @@ type Context struct {
 	FailureContext string // Suggestion from failure analysis
 }
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+func (c *Context) normalizeNilFields() {
+	if c == nil {
+		return
+	}
+	if c.ConfirmedLearnings == nil {
+		c.ConfirmedLearnings = []learnings.Learning{}
+	}
+	if c.RecentLearnings == nil {
+		c.RecentLearnings = []learnings.Learning{}
+	}
+}
+
 // AnalyzeContext holds data for failure analysis prompt template
 type AnalyzeContext struct {
 	BeadID          string
@@ -252,6 +265,7 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 		ctx.SpecName = specName
 	}
 
+	ctx.normalizeNilFields()
 	return ctx, nil
 }
 
