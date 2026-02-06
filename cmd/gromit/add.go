@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/ralph-runner/internal/backlog"
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/spf13/cobra"
 )
 
@@ -17,9 +17,9 @@ var addCmd = &cobra.Command{
 	Long: `Quickly capture ideas to the backlog without creating beads yet.
 
 Examples:
-  ralph add "Add cost tracking"
-  ralph add "Fix the auth bug"
-  ralph add "What if we had a web dashboard?"
+  gromit add "Add cost tracking"
+  gromit add "Fix the auth bug"
+  gromit add "What if we had a web dashboard?"
 
 The command will auto-categorize ideas when obvious (feature/bug/chore)
 or ask for clarification when needed.`,
@@ -34,17 +34,17 @@ func init() {
 func runAdd(cmd *cobra.Command, args []string) error {
 	ideaText := args[0]
 
-	// Get .ralph directory from config or default
-	ralphDir := ".ralph"
-	if cfg, err := loadConfig(); err == nil {
-		if cfg.Paths.RalphDir != "" {
-			ralphDir = cfg.Paths.RalphDir
+	// Get .gromit directory from config or default
+	cfg, err := loadConfig()
+	if err != nil {
+		if !os.IsNotExist(err) {
+			// If config exists but can't be loaded, show error
+			return fmt.Errorf("loading config: %w", err)
 		}
-	} else if !os.IsNotExist(err) {
-		// If config exists but can't be loaded, show error
-		return fmt.Errorf("loading config: %w", err)
+		// If config doesn't exist, use default .gromit
+		cfg = nil
 	}
-	// If config doesn't exist, use default .ralph
+	gromitDir := resolveGromitDir(cfg)
 
 	// Auto-categorize
 	ideaType := backlog.CategorizeIdea(ideaText)
@@ -90,7 +90,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save to backlog
-	bf, err := backlog.NewFile(ralphDir)
+	bf, err := backlog.NewFile(gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating backlog file: %w", err)
 	}
@@ -103,7 +103,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	if context != "" {
 		fmt.Printf("  Context: %s\n", context)
 	}
-	fmt.Printf("  Saved to: %s\n", filepath.Join(ralphDir, "backlog.jsonl"))
+	fmt.Printf("  Saved to: %s\n", filepath.Join(gromitDir, "backlog.jsonl"))
 
 	return nil
 }

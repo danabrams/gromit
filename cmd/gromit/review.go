@@ -104,14 +104,7 @@ func determineReviewScope(cfg *config.Config) (string, error) {
 	}
 
 	// Default: use last review commit from state
-	gromitDir := cfg.Paths.GromitDir
-	if gromitDir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("getting working directory: %w", err)
-		}
-		gromitDir = filepath.Join(cwd, ".gromit")
-	}
+	gromitDir := resolveGromitDir(cfg)
 
 	sf, err := state.NewFile(gromitDir)
 	if err != nil {
@@ -262,14 +255,7 @@ func getGitDiffStatForReview(fromCommit string) (string, error) {
 
 func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) error {
 	// Build and render prompt
-	gromitDir := cfg.Paths.GromitDir
-	if gromitDir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("getting working directory: %w", err)
-		}
-		gromitDir = filepath.Join(cwd, ".gromit")
-	}
+	gromitDir := resolveGromitDir(cfg)
 
 	renderer, err := prompt.NewRenderer(
 		cfg.Paths.Templates,
@@ -341,14 +327,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	fmt.Printf("Running autonomous thorough review (from commit %s)...\n", shortCommit(fromCommit))
 
 	// Build context
-	gromitDir := cfg.Paths.GromitDir
-	if gromitDir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("getting working directory: %w", err)
-		}
-		gromitDir = filepath.Join(cwd, ".gromit")
-	}
+	gromitDir := resolveGromitDir(cfg)
 
 	renderer, err := prompt.NewRenderer(
 		cfg.Paths.Templates,

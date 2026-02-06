@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/danabrams/ralph-runner/internal/backlog"
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/spf13/cobra"
 )
 
@@ -17,10 +17,10 @@ var refineCmd = &cobra.Command{
 
 The command launches Claude with:
 - Backlog ideas as context for refinement
-- References the ralph-refine skill for brainstorming and breaking down ideas
+- References the gromit-refine skill for brainstorming and breaking down ideas
 
 Example:
-  ralph refine`,
+  gromit refine`,
 	Args: cobra.NoArgs,
 	RunE: runRefine,
 }
@@ -30,18 +30,18 @@ func init() {
 }
 
 func runRefine(cmd *cobra.Command, args []string) error {
-	// Get .ralph directory from config or default
-	ralphDir := ".ralph"
-	if cfg, err := loadConfig(); err == nil {
-		if cfg.Paths.RalphDir != "" {
-			ralphDir = cfg.Paths.RalphDir
+	// Get .gromit directory from config or default
+	cfg, err := loadConfig()
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("loading config: %w", err)
 		}
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("loading config: %w", err)
+		cfg = nil
 	}
+	gromitDir := resolveGromitDir(cfg)
 
 	// Load backlog items
-	bf, err := backlog.NewFile(ralphDir)
+	bf, err := backlog.NewFile(gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating backlog file: %w", err)
 	}
@@ -71,8 +71,8 @@ func runRefine(cmd *cobra.Command, args []string) error {
 %s
 
 ## Instructions
-Use the ralph-refine skill to help brainstorm and refine these backlog items into properly-sized beads (tasks).
-The ralph-refine skill is designed for backlog refinement and will guide you through:
+Use the gromit-refine skill to help brainstorm and refine these backlog items into properly-sized beads (tasks).
+The gromit-refine skill is designed for backlog refinement and will guide you through:
 - Clarifying vague or ambiguous ideas
 - Breaking down large ideas into smaller tasks
 - Creating acceptance criteria

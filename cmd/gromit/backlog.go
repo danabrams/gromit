@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/danabrams/ralph-runner/internal/backlog"
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/spf13/cobra"
 )
 
@@ -21,10 +21,10 @@ var backlogCmd = &cobra.Command{
 	Long: `List ideas in the backlog that haven't been refined into beads yet.
 
 Examples:
-  ralph backlog              # List all ideas
-  ralph backlog --type bug   # Filter by type
-  ralph backlog --recent 7   # Ideas from last 7 days
-  ralph backlog delete <id>  # Remove an idea`,
+  gromit backlog              # List all ideas
+  gromit backlog --type bug   # Filter by type
+  gromit backlog --recent 7   # Ideas from last 7 days
+  gromit backlog delete <id>  # Remove an idea`,
 	RunE: runBacklog,
 }
 
@@ -44,18 +44,18 @@ func init() {
 }
 
 func runBacklog(cmd *cobra.Command, args []string) error {
-	// Get .ralph directory from config or default
-	ralphDir := ".ralph"
-	if cfg, err := loadConfig(); err == nil {
-		if cfg.Paths.RalphDir != "" {
-			ralphDir = cfg.Paths.RalphDir
+	// Get .gromit directory from config or default
+	cfg, err := loadConfig()
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("loading config: %w", err)
 		}
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("loading config: %w", err)
+		cfg = nil
 	}
+	gromitDir := resolveGromitDir(cfg)
 
 	// Load backlog
-	bf, err := backlog.NewFile(ralphDir)
+	bf, err := backlog.NewFile(gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating backlog file: %w", err)
 	}
@@ -66,7 +66,7 @@ func runBacklog(cmd *cobra.Command, args []string) error {
 
 	if len(ideas) == 0 {
 		fmt.Println("Backlog is empty.")
-		fmt.Println("\nUse 'ralph add <idea>' to capture ideas quickly.")
+		fmt.Println("\nUse 'gromit add <idea>' to capture ideas quickly.")
 		return nil
 	}
 
@@ -101,7 +101,7 @@ func runBacklog(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("Run 'ralph refine' to review and promote to tasks.")
+	fmt.Println("Run 'gromit refine' to review and promote to tasks.")
 
 	return nil
 }
@@ -109,18 +109,18 @@ func runBacklog(cmd *cobra.Command, args []string) error {
 func runBacklogDelete(cmd *cobra.Command, args []string) error {
 	ideaID := args[0]
 
-	// Get .ralph directory from config or default
-	ralphDir := ".ralph"
-	if cfg, err := loadConfig(); err == nil {
-		if cfg.Paths.RalphDir != "" {
-			ralphDir = cfg.Paths.RalphDir
+	// Get .gromit directory from config or default
+	cfg, err := loadConfig()
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("loading config: %w", err)
 		}
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("loading config: %w", err)
+		cfg = nil
 	}
+	gromitDir := resolveGromitDir(cfg)
 
 	// Delete idea
-	bf, err := backlog.NewFile(ralphDir)
+	bf, err := backlog.NewFile(gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating backlog file: %w", err)
 	}

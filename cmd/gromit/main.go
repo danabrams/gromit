@@ -10,20 +10,20 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/danabrams/ralph-runner/internal/config"
-	"github.com/danabrams/ralph-runner/internal/retro"
-	"github.com/danabrams/ralph-runner/internal/runner"
-	"github.com/danabrams/ralph-runner/internal/state"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/retro"
+	"github.com/danabrams/gromit/internal/runner"
+	"github.com/danabrams/gromit/internal/state"
 	"github.com/spf13/cobra"
 )
 
 var (
-	configPath          string
-	maxIterations       int
-	dryRun              bool
-	nonInteractive      bool
-	timeBudgetMinutes   int
-	timeBudgetHours     int
+	configPath        string
+	maxIterations     int
+	dryRun            bool
+	nonInteractive    bool
+	timeBudgetMinutes int
+	timeBudgetHours   int
 )
 
 func main() {
@@ -34,9 +34,9 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "ralph",
-	Short: "Ralph Runner - Execute the Ralph Wiggum loop correctly",
-	Long: `Ralph Runner executes AI coding tasks with fresh context on each iteration.
+	Use:   "gromit",
+	Short: "Gromit - Execute the Gromit loop correctly",
+	Long: `Gromit executes AI coding tasks with fresh context on each iteration.
 
 It integrates with bd (beads) for task management and uses model escalation
 for handling failures efficiently.`,
@@ -44,8 +44,8 @@ for handling failures efficiently.`,
 
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "Run the Ralph loop",
-	Long: `Execute the Ralph loop, processing beads one at a time with fresh context.
+	Short: "Run the Gromit loop",
+	Long: `Execute the Gromit loop, processing beads one at a time with fresh context.
 
 Each iteration:
 1. Gets the next unblocked bead from bd
@@ -77,19 +77,19 @@ The retro command:
 5. Suggests archiving stale learnings
 6. Launches Claude Code for interactive review and application
 
-Use --non-interactive to skip Claude Code and write analysis to .ralph/RETRO_PROPOSED_CHANGES.md instead.`,
+Use --non-interactive to skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md instead.`,
 	RunE: runRetro,
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "ralph.yaml", "Path to config file")
+	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "gromit.yaml", "Path to config file")
 
 	runCmd.Flags().IntVarP(&maxIterations, "max-iterations", "n", 0, "Maximum iterations (0 = unlimited)")
 	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run without executing")
 	runCmd.Flags().IntVarP(&timeBudgetMinutes, "time-budget", "t", 0, "Time budget in minutes (0 = unlimited)")
 	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
 
-	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip Claude Code and write analysis to .ralph/RETRO_PROPOSED_CHANGES.md")
+	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md")
 
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(statusCmd)
@@ -99,13 +99,21 @@ func init() {
 func loadConfig() (*config.Config, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		// If ralph.yaml doesn't exist, provide helpful error
-		if os.IsNotExist(err) && configPath == "ralph.yaml" {
-			return nil, fmt.Errorf("ralph.yaml not found - run 'ralph init' to set up this project")
+		// If gromit.yaml doesn't exist, provide helpful error
+		if os.IsNotExist(err) && configPath == "gromit.yaml" {
+			return nil, fmt.Errorf("gromit.yaml not found - run 'gromit init' to set up this project")
 		}
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func resolveGromitDir(cfg *config.Config) string {
+	if cfg != nil && cfg.Paths.GromitDir != "" {
+		return cfg.Paths.GromitDir
+	}
+	// Default to .gromit in current directory
+	return ".gromit"
 }
 
 func runLoop(cmd *cobra.Command, args []string) error {
@@ -166,16 +174,8 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	// Determine .ralph directory from config
-	ralphDir := cfg.Paths.RalphDir
-	if ralphDir == "" {
-		// Default to .ralph in current directory
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("getting working directory: %w", err)
-		}
-		ralphDir = filepath.Join(cwd, ".ralph")
-	}
+	// Determine .gromit directory from config
+	gromitDir := resolveGromitDir(cfg)
 
 	// Set up context with signal handling
 	ctx, cancel := context.WithCancel(context.Background())
@@ -193,7 +193,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println("Running retrospective analysis...")
 	fmt.Println("This may take a few minutes as it uses opus for quality analysis.")
 
-	r, err := retro.NewRetro(cfg, ralphDir)
+	r, err := retro.NewRetro(cfg, gromitDir)
 	if err != nil {
 		return fmt.Errorf("failed to create retro analyzer: %w", err)
 	}
@@ -217,10 +217,9 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("=" + "=" + strings.Repeat("=", 78))
 
-
 	// If --non-interactive flag is set, write to file and exit
 	if nonInteractive {
-		analysisPath := filepath.Join(ralphDir, "RETRO_PROPOSED_CHANGES.md")
+		analysisPath := filepath.Join(gromitDir, "RETRO_PROPOSED_CHANGES.md")
 		if writeErr := os.WriteFile(analysisPath, []byte(result.Analysis), 0644); writeErr != nil {
 			return fmt.Errorf("writing analysis file: %w", writeErr)
 		}
@@ -237,7 +236,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	}
 
 	// Record retro time in state
-	sf, err := state.NewFile(ralphDir)
+	sf, err := state.NewFile(gromitDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not create state file: %v\n", err)
 		return nil
