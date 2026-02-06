@@ -386,3 +386,28 @@ func TestGetGitDiffStatSameCommit(t *testing.T) {
 	// but at minimum, the function should not error
 	_ = stat
 }
+
+func TestRetryCounterBehavior(t *testing.T) {
+	// This test documents the retry counter behavior:
+	// - totalRetriesThisBead tracks the total number of retry attempts
+	// - It is incremented on stall retries (line ~305)
+	// - It is incremented on recoverable retries (line ~412)
+	// - Escalation itself does NOT increment the counter (it's a model switch, not a retry)
+	// - The counter is checked against MaxRetriesPerBead limit after each increment
+	// - Before escalating, we check if the limit has been reached (line ~452)
+	//
+	// This ensures that:
+	// 1. We don't retry the same operation infinitely
+	// 2. We don't escalate if we've already exhausted our retry budget
+	// 3. Escalation gives the new model a chance to try (with its own retry budget)
+	//
+	// Example flow with MaxRetriesPerBead=3:
+	// - haiku fails, retry 1 (counter=1)
+	// - haiku fails, retry 2 (counter=2)
+	// - haiku exhausted, escalate to sonnet (counter=2, not incremented)
+	// - sonnet fails, retry 1 (counter=3)
+	// - counter >= 3, cannot escalate further
+	//
+	// This test is documentary - the actual logic is in processBead()
+	t.Log("Retry counter behavior documented")
+}
