@@ -230,6 +230,20 @@ validation:
 preflight:
   auto_install: ask  # ask | always | never
 
+# Review settings - post-iteration and thorough reviews
+review:
+  enabled: false               # set to true to enable post-iteration review
+  model: sonnet
+  match_build_model: true      # use opus if build used opus
+  timeout: 120
+
+  thorough:
+    enabled: false             # set to true to enable periodic thorough reviews
+    every_n_iterations: 5
+    on_epic_complete: true
+    model: opus
+    timeout: 900
+
 # Claude CLI settings
 claude:
   binary: "claude"
