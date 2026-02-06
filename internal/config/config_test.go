@@ -1526,6 +1526,88 @@ func TestStuckBeadThresholdInFullConfig(t *testing.T) {
 	}
 }
 
+func TestNormalizeNilFields(t *testing.T) {
+	cfg := &Config{}
+	cfg.normalizeNilFields()
+
+	if cfg.Escalation.Chain == nil {
+		t.Error("Expected Escalation.Chain to be non-nil after normalization")
+	}
+	if cfg.Validation.Commands == nil {
+		t.Error("Expected Validation.Commands to be non-nil after normalization")
+	}
+	if cfg.Preflight.Tools == nil {
+		t.Error("Expected Preflight.Tools to be non-nil after normalization")
+	}
+	if cfg.Claude.Flags == nil {
+		t.Error("Expected Claude.Flags to be non-nil after normalization")
+	}
+	if cfg.Models.Labels == nil {
+		t.Error("Expected Models.Labels to be non-nil after normalization")
+	}
+}
+
+func TestNormalizeNilFieldsPreservesExisting(t *testing.T) {
+	cfg := &Config{
+		Escalation: EscalationConfig{
+			Chain: []string{"haiku", "sonnet"},
+		},
+		Validation: ValidationConfig{
+			Commands: []string{"go test ./..."},
+		},
+		Preflight: PreflightConfig{
+			Tools: []string{"go"},
+		},
+		Claude: ClaudeConfig{
+			Flags: []string{"--dangerously-skip-permissions"},
+		},
+		Models: ModelsConfig{
+			Labels: map[string]string{"complexity:high": "opus"},
+		},
+	}
+	cfg.normalizeNilFields()
+
+	if len(cfg.Escalation.Chain) != 2 {
+		t.Errorf("Expected 2 chain entries, got %d", len(cfg.Escalation.Chain))
+	}
+	if len(cfg.Validation.Commands) != 1 {
+		t.Errorf("Expected 1 command, got %d", len(cfg.Validation.Commands))
+	}
+	if len(cfg.Preflight.Tools) != 1 {
+		t.Errorf("Expected 1 tool, got %d", len(cfg.Preflight.Tools))
+	}
+	if len(cfg.Claude.Flags) != 1 {
+		t.Errorf("Expected 1 flag, got %d", len(cfg.Claude.Flags))
+	}
+	if cfg.Models.Labels["complexity:high"] != "opus" {
+		t.Errorf("Expected 'opus', got %q", cfg.Models.Labels["complexity:high"])
+	}
+}
+
+func TestLoadNormalizesNilSliceFields(t *testing.T) {
+	// Loading a minimal config should produce non-nil slices for all fields
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Validation.Commands == nil {
+		t.Error("Expected Validation.Commands to be non-nil after Load")
+	}
+	if cfg.Preflight.Tools == nil {
+		t.Error("Expected Preflight.Tools to be non-nil after Load")
+	}
+	if cfg.Claude.Flags == nil {
+		t.Error("Expected Claude.Flags to be non-nil after Load")
+	}
+}
+
 // Helper function to check if string contains substring
 func contains(s, substr string) bool {
 	for i := 0; i < len(s)-len(substr)+1; i++ {

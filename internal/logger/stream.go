@@ -31,6 +31,18 @@ type StreamMessage struct {
 	Content []ContentBlock `json:"content"`
 }
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+// This prevents issues with downstream code that marshals to JSON (nil → "null"
+// vs [] → "[]") and ensures consistent behavior.
+func (m *StreamMessage) normalizeNilFields() {
+	if m == nil {
+		return
+	}
+	if m.Content == nil {
+		m.Content = []ContentBlock{}
+	}
+}
+
 // ContentBlock is a single block in a message's content array
 type ContentBlock struct {
 	Type  string          `json:"type"`
@@ -194,6 +206,9 @@ func ParseAndLogEvent(sl *StreamLogger, stats *StreamStats, line []byte) {
 	var event StreamEvent
 	if err := json.Unmarshal(line, &event); err != nil {
 		return // Skip unparseable lines
+	}
+	if event.Message != nil {
+		event.Message.normalizeNilFields()
 	}
 
 	if stats != nil {

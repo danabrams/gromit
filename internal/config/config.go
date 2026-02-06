@@ -84,7 +84,29 @@ func Load(path string) (*Config, error) {
 	}
 
 	cfg.setDefaults()
+	cfg.normalizeNilFields()
 	return &cfg, nil
+}
+
+// normalizeNilFields ensures nil slices and maps are replaced with empty
+// instances. This prevents issues with downstream code that marshals to JSON
+// (nil → "null" vs [] → "[]") and ensures consistent behavior.
+func (c *Config) normalizeNilFields() {
+	if c.Escalation.Chain == nil {
+		c.Escalation.Chain = []string{}
+	}
+	if c.Validation.Commands == nil {
+		c.Validation.Commands = []string{}
+	}
+	if c.Preflight.Tools == nil {
+		c.Preflight.Tools = []string{}
+	}
+	if c.Claude.Flags == nil {
+		c.Claude.Flags = []string{}
+	}
+	if c.Models.Labels == nil {
+		c.Models.Labels = make(map[string]string)
+	}
 }
 
 func (c *Config) setDefaults() {

@@ -320,6 +320,47 @@ func TestParseAndLogEventNilStatsAndLogger(t *testing.T) {
 	ParseAndLogEvent(nil, nil, line)
 }
 
+func TestStreamMessageNormalizeNilFields(t *testing.T) {
+	m := &StreamMessage{}
+	m.normalizeNilFields()
+
+	if m.Content == nil {
+		t.Error("Expected Content to be non-nil after normalization")
+	}
+	if len(m.Content) != 0 {
+		t.Errorf("Expected empty Content, got %d", len(m.Content))
+	}
+}
+
+func TestStreamMessageNormalizeNilFieldsPreservesExisting(t *testing.T) {
+	m := &StreamMessage{
+		Content: []ContentBlock{{Type: "text", Text: "hello"}},
+	}
+	m.normalizeNilFields()
+
+	if len(m.Content) != 1 {
+		t.Errorf("Expected 1 content block, got %d", len(m.Content))
+	}
+	if m.Content[0].Text != "hello" {
+		t.Errorf("Expected 'hello', got %q", m.Content[0].Text)
+	}
+}
+
+func TestStreamMessageNormalizeNilFieldsOnNilReceiver(t *testing.T) {
+	var m *StreamMessage
+	m.normalizeNilFields() // should not panic
+}
+
+func TestParseAndLogEventNormalizesMessageContent(t *testing.T) {
+	stats := NewStreamStats()
+
+	// JSON with message but null content
+	line := []byte(`{"type":"assistant","message":{"content":null}}`)
+	ParseAndLogEvent(nil, stats, line)
+
+	// Should not panic - the nil Content is normalized before iteration
+}
+
 func TestParseAndLogEventNilLoggerUpdatesStats(t *testing.T) {
 	// When logger is nil, stats should still be updated
 	stats := NewStreamStats()
