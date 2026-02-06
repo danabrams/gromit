@@ -933,6 +933,54 @@ func (r *Runner) showPartialProgress(b *bead.Bead, startCommit string) {
 	}
 }
 
+// DecomposeTask calls Claude (opus) to decompose a task and returns parsed sub-tasks
+// Does NOT create beads - just gets the decomposition
+func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, error) {
+	if r == nil {
+		return nil, fmt.Errorf("runner is nil")
+	}
+	if b == nil {
+		return nil, fmt.Errorf("bead is nil")
+	}
+
+	// Get parent bead if exists
+	parent, err := r.beads.GetParent(b)
+	if err != nil {
+		// Log warning but continue - decomposition can work without parent
+		r.log("Warning: failed to get parent bead: %v", err)
+	}
+
+	// Build decompose context
+	decomposeCtx := &prompt.DecomposeContext{
+		Bead:       b,
+		ParentBead: parent,
+	}
+
+	// Render decompose prompt
+	decomposedPrompt, err := r.renderer.RenderDecompose(decomposeCtx)
+	if err != nil {
+		return nil, fmt.Errorf("rendering decompose prompt: %w", err)
+	}
+
+	// Call Claude with opus model
+	claudeResult, err := r.claude.Run(ctx, decomposedPrompt, "opus")
+	if err != nil {
+		return nil, fmt.Errorf("claude decomposition: %w", err)
+	}
+
+	if !claudeResult.Success {
+		return nil, fmt.Errorf("claude decomposition failed with exit code %d", claudeResult.ExitCode)
+	}
+
+	// Parse the output
+	subTasks, err := parseDecomposeOutput(claudeResult.Output)
+	if err != nil {
+		return nil, fmt.Errorf("parsing decomposition: %w", err)
+	}
+
+	return subTasks, nil
+}
+
 // parseDecomposeOutput parses Claude's JSON array decompose output into []SubTask
 func parseDecomposeOutput(output string) ([]SubTask, error) {
 	if output == "" {
