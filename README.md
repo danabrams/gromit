@@ -516,6 +516,9 @@ Decision (human)          →  review RETRO_PROPOSED_CHANGES.md
 | `ralph run -c path/to/config.yaml` | Use alternate config file |
 | `ralph status` | Show next bead and selected model |
 | `ralph retro` | Run retrospective analysis |
+| `ralph add` | Capture ideas to backlog |
+| `ralph backlog` | View/manage backlog |
+| `ralph refine` | Turn ideas into tasks |
 
 ## License
 
