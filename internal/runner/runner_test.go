@@ -2,6 +2,7 @@ package runner
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/logger"
+	"github.com/danabrams/ralph-runner/internal/review"
 )
 
 func TestCheckExpectedOutputs(t *testing.T) {
@@ -1506,5 +1508,258 @@ func TestSelectReviewModelNilConfig(t *testing.T) {
 	got := selectReviewModel(nil, "opus")
 	if got != "sonnet" {
 		t.Errorf("expected default 'sonnet' for nil config, got %q", got)
+	}
+}
+
+func TestBuildReviewBeadLabels(t *testing.T) {
+	tests := []struct {
+		name           string
+		proposalLabels []string
+		wantLabels     []string
+	}{
+		{
+			name:           "empty proposal labels",
+			proposalLabels: []string{},
+			wantLabels:     []string{"from-review"},
+		},
+		{
+			name:           "single custom label",
+			proposalLabels: []string{"security"},
+			wantLabels:     []string{"from-review", "security"},
+		},
+		{
+			name:           "multiple custom labels",
+			proposalLabels: []string{"security", "bug"},
+			wantLabels:     []string{"from-review", "security", "bug"},
+		},
+		{
+			name:           "proposal already has from-review",
+			proposalLabels: []string{"from-review", "bug"},
+			wantLabels:     []string{"from-review", "bug"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			labels := buildReviewBeadLabels(tt.proposalLabels)
+			if len(labels) != len(tt.wantLabels) {
+				t.Errorf("expected %d labels, got %d", len(tt.wantLabels), len(labels))
+			}
+			for _, want := range tt.wantLabels {
+				if !bead.HasLabel(labels, want) {
+					t.Errorf("missing expected label %q in %v", want, labels)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildBacklogLabels(t *testing.T) {
+	labels := buildBacklogLabels()
+	if len(labels) != 2 {
+		t.Errorf("expected 2 labels, got %d", len(labels))
+	}
+	if !bead.HasLabel(labels, "from-review") {
+		t.Error("missing from-review label")
+	}
+	if !bead.HasLabel(labels, "backlog") {
+		t.Error("missing backlog label")
+	}
+}
+
+func TestApplyReviewResultNilRunner(t *testing.T) {
+	var r *Runner
+	result := &review.ReviewResult{}
+	beadsCreated, backlogCreated := r.applyReviewResult(result)
+	if beadsCreated != 0 || backlogCreated != 0 {
+		t.Errorf("expected 0,0 for nil runner, got %d,%d", beadsCreated, backlogCreated)
+	}
+}
+
+func TestApplyReviewResultNilResult(t *testing.T) {
+	r := &Runner{beads: &mockBeadClient{}, output: os.Stdout}
+	beadsCreated, backlogCreated := r.applyReviewResult(nil)
+	if beadsCreated != 0 || backlogCreated != 0 {
+		t.Errorf("expected 0,0 for nil result, got %d,%d", beadsCreated, backlogCreated)
+	}
+}
+
+func TestApplyReviewResultNilBeads(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	result := &review.ReviewResult{
+		BeadsToCreate: []review.BeadProposal{{Title: "Test"}},
+	}
+	beadsCreated, backlogCreated := r.applyReviewResult(result)
+	if beadsCreated != 0 || backlogCreated != 0 {
+		t.Errorf("expected 0,0 for nil beads client, got %d,%d", beadsCreated, backlogCreated)
+	}
+}
+
+func TestApplyReviewResultCreatesBeads(t *testing.T) {
+	created := []string{}
+	beadLabels := map[string][]string{}
+	beadPriorities := map[string]int{}
+	beadDescriptions := map[string]string{}
+
+	beads := &mockBeadClient{
+		CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+			id := fmt.Sprintf("bead-%d", len(created)+1)
+			created = append(created, id)
+			beadLabels[id] = labels
+			beadPriorities[id] = priority
+			beadDescriptions[id] = description
+			return &bead.Bead{ID: id, Title: title, Priority: priority, Labels: labels, Description: description}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r := &Runner{beads: beads, output: &buf}
+
+	result := &review.ReviewResult{
+		BeadsToCreate: []review.BeadProposal{
+			{Title: "Fix security issue", Description: "Add validation", Priority: 0, Labels: []string{"security"}},
+			{Title: "Add tests", Description: "Test coverage", Priority: 1, Labels: []string{}},
+		},
+	}
+
+	beadsCreated, backlogCreated := r.applyReviewResult(result)
+
+	if beadsCreated != 2 {
+		t.Errorf("expected 2 beads created, got %d", beadsCreated)
+	}
+	if backlogCreated != 0 {
+		t.Errorf("expected 0 backlog items created, got %d", backlogCreated)
+	}
+	if len(created) != 2 {
+		t.Errorf("expected 2 beads in created list, got %d", len(created))
+	}
+
+	// Verify first bead
+	if !bead.HasLabel(beadLabels["bead-1"], "from-review") {
+		t.Error("first bead missing from-review label")
+	}
+	if !bead.HasLabel(beadLabels["bead-1"], "security") {
+		t.Error("first bead missing security label")
+	}
+	if beadPriorities["bead-1"] != 0 {
+		t.Errorf("expected P0, got P%d", beadPriorities["bead-1"])
+	}
+	if beadDescriptions["bead-1"] != "Add validation" {
+		t.Errorf("expected description 'Add validation', got %q", beadDescriptions["bead-1"])
+	}
+
+	// Verify second bead
+	if !bead.HasLabel(beadLabels["bead-2"], "from-review") {
+		t.Error("second bead missing from-review label")
+	}
+	if beadPriorities["bead-2"] != 1 {
+		t.Errorf("expected P1, got P%d", beadPriorities["bead-2"])
+	}
+
+	// Verify logging
+	output := buf.String()
+	if !strings.Contains(output, "Fix security issue") {
+		t.Errorf("expected 'Fix security issue' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Add tests") {
+		t.Errorf("expected 'Add tests' in output, got: %s", output)
+	}
+}
+
+func TestApplyReviewResultCreatesBacklogItems(t *testing.T) {
+	created := []string{}
+	beadLabels := map[string][]string{}
+	beadPriorities := map[string]int{}
+	beadDescriptions := map[string]string{}
+
+	beads := &mockBeadClient{
+		CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+			id := fmt.Sprintf("backlog-%d", len(created)+1)
+			created = append(created, id)
+			beadLabels[id] = labels
+			beadPriorities[id] = priority
+			beadDescriptions[id] = description
+			return &bead.Bead{ID: id, Title: title, Priority: priority, Labels: labels, Description: description}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r := &Runner{beads: beads, output: &buf}
+
+	result := &review.ReviewResult{
+		BacklogItems: []review.BacklogItem{
+			{Title: "Refactor auth system", Description: "Large undertaking", Reason: "needs product owner approval"},
+		},
+	}
+
+	beadsCreated, backlogCreated := r.applyReviewResult(result)
+
+	if beadsCreated != 0 {
+		t.Errorf("expected 0 beads created, got %d", beadsCreated)
+	}
+	if backlogCreated != 1 {
+		t.Errorf("expected 1 backlog item created, got %d", backlogCreated)
+	}
+
+	// Verify backlog item
+	if !bead.HasLabel(beadLabels["backlog-1"], "from-review") {
+		t.Error("backlog item missing from-review label")
+	}
+	if !bead.HasLabel(beadLabels["backlog-1"], "backlog") {
+		t.Error("backlog item missing backlog label")
+	}
+	if beadPriorities["backlog-1"] != 2 {
+		t.Errorf("expected P2 for backlog item, got P%d", beadPriorities["backlog-1"])
+	}
+	if !strings.Contains(beadDescriptions["backlog-1"], "Large undertaking") {
+		t.Errorf("expected description to contain 'Large undertaking', got %q", beadDescriptions["backlog-1"])
+	}
+	if !strings.Contains(beadDescriptions["backlog-1"], "needs product owner approval") {
+		t.Errorf("expected description to contain reason, got %q", beadDescriptions["backlog-1"])
+	}
+
+	// Verify logging
+	output := buf.String()
+	if !strings.Contains(output, "Refactor auth system") {
+		t.Errorf("expected 'Refactor auth system' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "needs product owner approval") {
+		t.Errorf("expected reason in output, got: %s", output)
+	}
+}
+
+func TestApplyReviewResultHandlesCreateErrors(t *testing.T) {
+	beads := &mockBeadClient{
+		CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+			return nil, fmt.Errorf("bd create failed")
+		},
+	}
+
+	var buf strings.Builder
+	r := &Runner{beads: beads, output: &buf}
+
+	result := &review.ReviewResult{
+		BeadsToCreate: []review.BeadProposal{
+			{Title: "Should fail", Priority: 1, Labels: []string{}},
+		},
+		BacklogItems: []review.BacklogItem{
+			{Title: "Also fails", Description: "desc", Reason: "reason"},
+		},
+	}
+
+	beadsCreated, backlogCreated := r.applyReviewResult(result)
+
+	// Should not panic, just log warnings
+	if beadsCreated != 0 {
+		t.Errorf("expected 0 beads created on error, got %d", beadsCreated)
+	}
+	if backlogCreated != 0 {
+		t.Errorf("expected 0 backlog items created on error, got %d", backlogCreated)
+	}
+
+	// Verify warning was logged
+	output := buf.String()
+	if !strings.Contains(output, "Warning") && !strings.Contains(output, "failed") {
+		t.Errorf("expected warning in output, got: %s", output)
 	}
 }

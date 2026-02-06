@@ -1172,3 +1172,79 @@ func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.
 
 	return result, nil
 }
+
+// buildReviewBeadLabels constructs the label list for a bead created from a review proposal.
+// It always includes "from-review" and adds any additional labels from the proposal (avoiding duplicates).
+func buildReviewBeadLabels(proposalLabels []string) []string {
+	labels := []string{"from-review"}
+	for _, l := range proposalLabels {
+		if l != "from-review" { // avoid duplication
+			labels = append(labels, l)
+		}
+	}
+	return labels
+}
+
+// buildBacklogLabels constructs the label list for a backlog item created from a review.
+// Backlog items always get both "from-review" and "backlog" labels.
+func buildBacklogLabels() []string {
+	return []string{"from-review", "backlog"}
+}
+
+// applyReviewResult creates beads from review findings.
+// BeadsToCreate entries are created with their specified priority and labels (plus "from-review").
+// BacklogItems entries are created as P2 with both "from-review" and "backlog" labels.
+// Returns the count of beads created and backlog items created.
+func (r *Runner) applyReviewResult(result *review.ReviewResult) (beadsCreated int, backlogCreated int) {
+	if r == nil || result == nil || r.beads == nil {
+		return 0, 0
+	}
+
+	// Create regular beads from review proposals
+	for _, bp := range result.BeadsToCreate {
+		labels := buildReviewBeadLabels(bp.Labels)
+		_, err := r.beads.CreateWithParentAndDescription(
+			bp.Title,
+			bp.Priority,
+			labels,
+			nil, // no expected outputs
+			"",  // no parent
+			bp.Description,
+		)
+		if err != nil {
+			r.log("Warning: failed to create review bead: %v", err)
+			continue
+		}
+		beadsCreated++
+		r.log("Created review bead: %s (P%d)", bp.Title, bp.Priority)
+	}
+
+	// Create backlog items as P2 beads
+	for _, bi := range result.BacklogItems {
+		labels := buildBacklogLabels()
+		// Build description from description + reason
+		description := bi.Description
+		if bi.Reason != "" {
+			if description != "" {
+				description += "\n\n"
+			}
+			description += "Reason for backlog: " + bi.Reason
+		}
+		_, err := r.beads.CreateWithParentAndDescription(
+			bi.Title,
+			2, // P2 for backlog
+			labels,
+			nil, // no expected outputs
+			"",  // no parent
+			description,
+		)
+		if err != nil {
+			r.log("Warning: failed to create backlog bead: %v", err)
+			continue
+		}
+		backlogCreated++
+		r.log("Created backlog bead: %s (reason: %s)", bi.Title, bi.Reason)
+	}
+
+	return beadsCreated, backlogCreated
+}
