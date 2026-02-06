@@ -19,9 +19,9 @@ type Manager struct {
 type titleMethod int
 
 const (
-	methodUnknown  titleMethod = iota // Not yet determined
-	methodSetOpt                      // tmux set-option (3.0+)
-	methodSelectPane                  // tmux select-pane -T (2.6+)
+	methodUnknown    titleMethod = iota // Not yet determined
+	methodSetOpt                        // tmux set-option (3.0+)
+	methodSelectPane                    // tmux select-pane -T (2.6+)
 )
 
 // NewManager creates a new tmux manager and saves the current pane title if in tmux
@@ -58,8 +58,8 @@ func (m *Manager) SetTitle(title string) error {
 
 // RestoreTitle restores the original pane title
 func (m *Manager) RestoreTitle() error {
-	if !m.inTmux || m.originalTitle == "" {
-		return nil // No-op if not in tmux or no original title saved
+	if !m.inTmux || m.disabled || m.originalTitle == "" {
+		return nil // No-op if not in tmux, disabled, or no original title saved
 	}
 
 	return m.setTmuxTitle(m.originalTitle)

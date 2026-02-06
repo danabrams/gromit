@@ -146,3 +146,17 @@ func TestSetTmuxTitle_TriesSetOptFirst(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+func TestRestoreTitle_NoOpWhenDisabled(t *testing.T) {
+	m := &Manager{
+		inTmux:        true,
+		originalTitle: "original-title",
+		disabled:      true,
+	}
+
+	// Should return nil when disabled, even with original title saved
+	err := m.RestoreTitle()
+	if err != nil {
+		t.Errorf("expected RestoreTitle to return nil when disabled, got %v", err)
+	}
+}
