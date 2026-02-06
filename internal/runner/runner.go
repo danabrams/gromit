@@ -217,6 +217,27 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 	// Track skipped bead IDs to avoid infinite loops
 	skippedBeads := make(map[string]bool)
 
+	// Load state for review tracking
+	sf, err := state.NewFile(r.ralphDir)
+	if err != nil {
+		r.log("Warning: could not create state file: %v", err)
+		sf = nil
+	} else if err := sf.Load(); err != nil {
+		r.log("Warning: could not load state: %v", err)
+	}
+
+	// Initialize review baseline if not set
+	if sf != nil && sf.LastReviewCommit() == "" {
+		currentCommit, err := getGitHead()
+		if err == nil && currentCommit != "" {
+			if err := sf.RecordReview(currentCommit, 0); err != nil {
+				r.log("Warning: could not initialize review baseline: %v", err)
+			} else {
+				r.log("Initialized review baseline at commit %s", currentCommit[:8])
+			}
+		}
+	}
+
 	for {
 		// Check for context cancellation
 		select {
@@ -329,6 +350,20 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 		if statusWriter != nil {
 			if err := statusWriter.Write(iteration, b.ID, b.Title, result.Model, true); err != nil {
 				r.log("Warning: failed to write status.json: %v", err)
+			}
+		}
+
+		// Increment iterations since last review
+		if sf != nil {
+			sf.IncrementIterationsSinceReview()
+			if err := sf.Save(); err != nil {
+				r.log("Warning: could not save state: %v", err)
+			}
+
+			// Check thorough review trigger
+			if r.cfg.Review.Thorough.Enabled && sf.IterationsSinceReview() >= r.cfg.Review.Thorough.EveryNIterations {
+				r.log("\n=== Thorough Review (every %d iterations) ===", r.cfg.Review.Thorough.EveryNIterations)
+				r.runThoroughReview(ctx, sf, iteration)
 			}
 		}
 	}
@@ -1270,4 +1305,112 @@ func (r *Runner) writeReviewLog(iteration int, beadID string, model string, resu
 		BacklogCreated: backlogCreated,
 		DurationMs:     duration.Milliseconds(),
 	})
+}
+
+// runThoroughReview runs a periodic thorough review of all changes since the last review
+func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteration int) {
+	start := time.Now()
+
+	// Get diff since last review
+	fromCommit := sf.LastReviewCommit()
+	if fromCommit == "" {
+		// No previous review — use a reasonable default
+		r.log("No previous review commit found, skipping thorough review scope detection")
+		return
+	}
+
+	diff, err := getGitDiff(fromCommit)
+	if err != nil {
+		r.log("Warning: could not get diff for thorough review: %v", err)
+		return
+	}
+	if strings.TrimSpace(diff) == "" {
+		r.log("No changes since last thorough review, skipping")
+		return
+	}
+
+	// Build context
+	reviewCtx := &prompt.ThoroughReviewContext{
+		Diff:  diff,
+		Model: r.cfg.Review.Thorough.Model,
+	}
+	reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
+	reviewCtx.Rules, _ = r.renderer.LoadRules()
+
+	// TODO: populate CompletedBeads from iteration logs
+	// For now, leave empty - the review can still work from the diff
+
+	// Render prompt
+	reviewPrompt, err := r.renderer.RenderThoroughReview(reviewCtx)
+	if err != nil {
+		r.log("Warning: could not render thorough review prompt: %v", err)
+		return
+	}
+
+	// Call Claude with opus
+	timeout := time.Duration(r.cfg.Review.Thorough.Timeout) * time.Second
+	reviewCtxTimeout, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	model := r.cfg.Review.Thorough.Model
+	r.log("Running thorough review with model: %s", model)
+	claudeResult, err := r.claude.Run(reviewCtxTimeout, reviewPrompt, model)
+	if err != nil {
+		r.log("Warning: thorough review failed: %v", err)
+		return
+	}
+	if claudeResult == nil {
+		r.log("Warning: thorough review returned nil result")
+		return
+	}
+
+	// Parse and apply
+	result, err := review.ParseReviewResult(claudeResult.Output)
+	if err != nil {
+		r.log("Warning: could not parse thorough review result: %v", err)
+		return
+	}
+
+	r.log("Thorough review: %s", result.Summary)
+	beadsCreated, backlogCreated := r.applyReviewResult(result)
+
+	// If fixes applied, re-validate
+	if len(result.FixesApplied) > 0 && r.cfg.Validation.Enabled {
+		r.log("Thorough review applied %d fixes, re-validating...", len(result.FixesApplied))
+		workDir, _ := os.Getwd()
+		valResult, err := r.claude.RunValidation(ctx, r.cfg.Validation.Commands, r.cfg.Models.Validation, workDir)
+		if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
+			r.log("Warning: thorough review fixes broke validation")
+		} else {
+			r.log("Re-validation passed")
+		}
+	}
+
+	// Log review
+	if r.logger != nil {
+		r.logger.LogReview(&logger.ReviewLog{
+			Timestamp:      time.Now(),
+			Type:           "review",
+			ReviewType:     "thorough",
+			Iteration:      iteration,
+			Model:          model,
+			Passed:         result.Passed,
+			FixesApplied:   len(result.FixesApplied),
+			BeadsCreated:   beadsCreated,
+			BacklogCreated: backlogCreated,
+			DurationMs:     time.Since(start).Milliseconds(),
+		})
+	}
+
+	// Update state
+	currentCommit, err := getGitHead()
+	if err != nil {
+		r.log("Warning: could not get current commit: %v", err)
+	} else {
+		if err := sf.RecordReview(currentCommit, iteration); err != nil {
+			r.log("Warning: could not record review state: %v", err)
+		} else {
+			r.log("Recorded thorough review at commit %s", currentCommit[:8])
+		}
+	}
 }

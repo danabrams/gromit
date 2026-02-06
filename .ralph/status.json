@@ -1,9 +1,9 @@
 {
   "running": true,
-  "iteration": 19,
-  "bead_id": "ralph-runner-csr.11",
-  "bead_title": "Integrate light review into processBead after validation",
+  "iteration": 31,
+  "bead_id": "ralph-runner-csr.12",
+  "bead_title": "Add thorough review trigger every N iterations",
   "model": "sonnet",
-  "started_at": "2026-02-06T09:55:54.952967655-05:00",
-  "elapsed_s": 3954
+  "started_at": "2026-02-06T09:32:12.486974179-05:00",
+  "elapsed_s": 5653
 }
