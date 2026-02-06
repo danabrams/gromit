@@ -132,9 +132,10 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	}
 
 	// Compute deadline from time budget flags (additive: total = minutes + hours*60)
+	var deadline time.Time
 	if timeBudgetMinutes > 0 || timeBudgetHours > 0 {
 		totalMinutes := timeBudgetMinutes + timeBudgetHours*60
-		deadline := time.Now().Add(time.Duration(totalMinutes) * time.Minute)
+		deadline = time.Now().Add(time.Duration(totalMinutes) * time.Minute)
 		ctx, cancel = context.WithDeadline(ctx, deadline)
 		defer cancel()
 	}
@@ -143,7 +144,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create runner: %w", err)
 	}
-	return r.Run(ctx, cfg.Loop.MaxIterations, dryRun)
+	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, dryRun)
 }
 
 func showStatus(cmd *cobra.Command, args []string) error {

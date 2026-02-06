@@ -386,7 +386,7 @@ func TestRunWithMocks_DryRun(t *testing.T) {
 		Deps{Beads: beads, Claude: &mockClaudeClient{}, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}},
 	)
 
-	err := r.Run(context.Background(), 5, true)
+	err := r.Run(context.Background(), 5, time.Time{}, true)
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestRunWithMocks_NoWork(t *testing.T) {
 	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
 		Deps{Beads: beads, Claude: &mockClaudeClient{}, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	err := r.Run(context.Background(), 0, false)
+	err := r.Run(context.Background(), 0, time.Time{}, false)
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
@@ -427,7 +427,7 @@ func TestRunWithMocks_MaxIterations(t *testing.T) {
 	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
 		Deps{Beads: beads, Claude: &mockClaudeClient{}, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	err := r.Run(context.Background(), 2, true)
+	err := r.Run(context.Background(), 2, time.Time{}, true)
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
@@ -618,7 +618,7 @@ func TestRunWithMocks_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := r.Run(ctx, 0, false)
+	err := r.Run(ctx, 0, time.Time{}, false)
 	if err == nil {
 		t.Fatal("expected error from cancelled context")
 	}
@@ -652,7 +652,7 @@ func TestIterationLogWithMocks(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	if err := r.Run(context.Background(), 1, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -807,7 +807,7 @@ func TestRunWithMocks_BeadReadyError(t *testing.T) {
 	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
 		Deps{Beads: beads, Claude: &mockClaudeClient{}, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	err := r.Run(context.Background(), 1, false)
+	err := r.Run(context.Background(), 1, time.Time{}, false)
 	if err == nil || !strings.Contains(err.Error(), "getting next bead") {
 		t.Errorf("expected 'getting next bead' error, got: %v", err)
 	}
@@ -967,7 +967,7 @@ func TestRunWithMocks_ClosesBeadOnSuccess(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	if err := r.Run(context.Background(), 1, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "close-test" {

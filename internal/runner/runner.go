@@ -154,7 +154,7 @@ func (s *SubTask) normalizeNilFields() {
 }
 
 // Run executes the Ralph loop
-func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error {
+func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time, dryRun bool) error {
 	if r == nil {
 		return fmt.Errorf("runner is nil")
 	}
@@ -250,6 +250,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 		// Check iteration limit
 		if maxIterations > 0 && iteration >= maxIterations {
 			r.log("Reached max iterations (%d), stopping", maxIterations)
+			break
+		}
+
+		// Check deadline
+		if !deadline.IsZero() && time.Now().After(deadline) {
+			r.log("Time budget expired, stopping")
 			break
 		}
 

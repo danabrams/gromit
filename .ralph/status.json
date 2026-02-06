@@ -1,9 +1,9 @@
 {
   "running": true,
-  "iteration": 34,
-  "bead_id": "ralph-runner-csr.15",
-  "bead_title": "Initialize review state baseline on first run",
-  "model": "sonnet",
+  "iteration": 37,
+  "bead_id": "ralph-runner-eww",
+  "bead_title": "Add deadline check to runner loop",
+  "model": "haiku",
   "started_at": "2026-02-06T09:32:12.486974179-05:00",
-  "elapsed_s": 6362
+  "elapsed_s": 6608
 }

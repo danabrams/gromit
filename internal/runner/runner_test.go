@@ -155,7 +155,7 @@ func TestNewRunnerNilConfig(t *testing.T) {
 
 func TestRunNilRunner(t *testing.T) {
 	var r *Runner
-	err := r.Run(nil, 0, false)
+	err := r.Run(nil, 0, time.Time{}, false)
 	if err == nil {
 		t.Error("expected error for nil runner")
 	}
@@ -171,7 +171,7 @@ func TestStatusNilRunner(t *testing.T) {
 
 func TestRunNilConfig(t *testing.T) {
 	r := &Runner{output: os.Stdout}
-	err := r.Run(nil, 0, false)
+	err := r.Run(nil, 0, time.Time{}, false)
 	if err == nil {
 		t.Error("expected error for nil config")
 	}
@@ -963,7 +963,7 @@ func TestRunNilBeads(t *testing.T) {
 		cfg:    &config.Config{},
 		output: os.Stdout,
 	}
-	err := r.Run(nil, 0, false)
+	err := r.Run(nil, 0, time.Time{}, false)
 	if err == nil {
 		t.Error("expected error for nil beads client")
 	}
@@ -978,7 +978,7 @@ func TestRunNilRenderer(t *testing.T) {
 		beads:  &mockBeadClient{},
 		output: os.Stdout,
 	}
-	err := r.Run(nil, 0, false)
+	err := r.Run(nil, 0, time.Time{}, false)
 	if err == nil {
 		t.Error("expected error for nil renderer")
 	}
@@ -994,7 +994,7 @@ func TestRunNilClaude(t *testing.T) {
 		renderer: &mockRenderer{},
 		output:   os.Stdout,
 	}
-	err := r.Run(nil, 0, false)
+	err := r.Run(nil, 0, time.Time{}, false)
 	if err == nil {
 		t.Error("expected error for nil claude client")
 	}
