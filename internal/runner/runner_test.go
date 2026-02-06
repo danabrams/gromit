@@ -816,3 +816,76 @@ func TestIsStuckBeadMultipleBeads(t *testing.T) {
 		t.Error("expected test-3 to not be stuck")
 	}
 }
+
+func TestCreateSubBeads_VerifyLogging(t *testing.T) {
+	// Test that CreateSubBeads logs appropriately during processing
+	// This test verifies the method's logging behavior by checking that
+	// it attempts to create beads from sub-tasks
+
+	buf := &strings.Builder{}
+	r := &Runner{
+		beads:  bead.NewClient(),
+		output: buf, // Capture logging output
+	}
+
+	b := &bead.Bead{
+		ID:       "parent-123",
+		Title:    "Parent Task",
+		Priority: 1,
+		Labels:   []string{"complexity:high"},
+	}
+
+	subTasks := []SubTask{
+		{
+			Title:       "Sub-task 1",
+			Description: "First sub-task",
+		},
+	}
+
+	// This will fail because the parent bead doesn't exist in bd,
+	// but we can verify the method attempts to create it
+	err := r.CreateSubBeads(nil, b, subTasks)
+
+	// Should error because bd operations fail (parent doesn't exist)
+	if err == nil {
+		t.Fatal("expected error when bd is not properly configured")
+	}
+
+	// Check that appropriate log messages were generated
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "Creating sub-bead") {
+		t.Errorf("expected log message about creating sub-bead, got: %s", logOutput)
+	}
+}
+
+func TestCreateSubBeads_NilRunner(t *testing.T) {
+	var r *Runner
+	b := &bead.Bead{ID: "test-1"}
+	subTasks := []SubTask{{Title: "Task 1"}}
+
+	err := r.CreateSubBeads(nil, b, subTasks)
+	if err == nil || !strings.Contains(err.Error(), "runner is nil") {
+		t.Errorf("expected error for nil runner, got: %v", err)
+	}
+}
+
+func TestCreateSubBeads_NilBead(t *testing.T) {
+	r := &Runner{beads: bead.NewClient(), output: os.Stderr}
+	subTasks := []SubTask{{Title: "Task 1"}}
+
+	err := r.CreateSubBeads(nil, nil, subTasks)
+	if err == nil || !strings.Contains(err.Error(), "bead is nil") {
+		t.Errorf("expected error for nil bead, got: %v", err)
+	}
+}
+
+func TestCreateSubBeads_NoSubTasks(t *testing.T) {
+	r := &Runner{beads: bead.NewClient(), output: os.Stderr}
+	b := &bead.Bead{ID: "test-1"}
+	var subTasks []SubTask
+
+	err := r.CreateSubBeads(nil, b, subTasks)
+	if err == nil || !strings.Contains(err.Error(), "no sub-tasks") {
+		t.Errorf("expected error for no sub-tasks, got: %v", err)
+	}
+}

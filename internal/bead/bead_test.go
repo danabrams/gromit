@@ -857,3 +857,103 @@ func TestErrorWrapping(t *testing.T) {
 		t.Errorf("Close() error should contain context: %v", err)
 	}
 }
+
+// TestClientCreateWithParent tests the CreateWithParent() method
+func TestClientCreateWithParent(t *testing.T) {
+	c := NewClient()
+
+	tests := []struct {
+		name             string
+		title            string
+		priority         int
+		labels           []string
+		expectedOutputs  []string
+		parentID         string
+		shouldValidateFail bool
+		description      string
+	}{
+		{
+			name:            "create with valid parent",
+			title:           "Sub-task",
+			priority:        1,
+			labels:          []string{"label1"},
+			expectedOutputs: []string{},
+			parentID:        "parent-123",
+			description:     "Creates child bead with valid parent ID",
+		},
+		{
+			name:            "create with empty parent",
+			title:           "Standalone task",
+			priority:        1,
+			labels:          []string{},
+			expectedOutputs: []string{},
+			parentID:        "",
+			description:     "Creates bead with no parent (empty string)",
+		},
+		{
+			name:              "invalid parent ID with spaces",
+			title:             "Task",
+			priority:          1,
+			parentID:          "parent 123",
+			shouldValidateFail: true,
+			description:       "Should reject parent ID with spaces",
+		},
+		{
+			name:              "invalid parent ID with shell chars",
+			title:             "Task",
+			priority:          1,
+			parentID:          "parent; rm -rf /",
+			shouldValidateFail: true,
+			description:       "Should reject parent ID with shell metacharacters",
+		},
+		{
+			name:              "parent ID too long",
+			title:             "Task",
+			priority:          1,
+			parentID:          strings.Repeat("a", maxIDLength+1),
+			shouldValidateFail: true,
+			description:       "Should reject overly long parent ID",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := c.CreateWithParent(tt.title, tt.priority, tt.labels, tt.expectedOutputs, tt.parentID)
+
+			if tt.shouldValidateFail {
+				if err == nil {
+					t.Errorf("CreateWithParent() expected validation error for %q", tt.parentID)
+				}
+				if !strings.Contains(err.Error(), "invalid parent ID") {
+					t.Errorf("CreateWithParent() expected 'invalid parent ID' error, got: %v", err)
+				}
+				return
+			}
+
+			// For valid inputs, errors are expected if bd isn't running,
+			// but the method should build arguments correctly
+			if err != nil {
+				if !strings.Contains(err.Error(), "bd create") {
+					t.Errorf("CreateWithParent() unexpected error type: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestClientCreateWithParentInheritance tests that Create() delegates to CreateWithParent
+func TestClientCreateInheritsCreateWithParent(t *testing.T) {
+	c := NewClient()
+
+	// Create() should call CreateWithParent with empty parentID
+	_, err1 := c.Create("Test", 1, []string{}, []string{})
+	_, err2 := c.CreateWithParent("Test", 1, []string{}, []string{}, "")
+
+	// Both should have the same error behavior (or lack thereof)
+	hasErr1 := err1 != nil
+	hasErr2 := err2 != nil
+
+	if hasErr1 != hasErr2 {
+		t.Errorf("Create() and CreateWithParent(\"\") should behave identically: Create err=%v, CreateWithParent err=%v", err1, err2)
+	}
+}

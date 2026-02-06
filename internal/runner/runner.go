@@ -998,3 +998,64 @@ func parseDecomposeOutput(output string) ([]SubTask, error) {
 
 	return subTasks, nil
 }
+
+// CreateSubBeads creates child beads from decomposed sub-tasks, comments on the original
+// bead with the new sub-bead IDs, and closes the original bead.
+func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []SubTask) error {
+	if r == nil {
+		return fmt.Errorf("runner is nil")
+	}
+	if b == nil {
+		return fmt.Errorf("bead is nil")
+	}
+	if len(subTasks) == 0 {
+		return fmt.Errorf("no sub-tasks to create")
+	}
+
+	// Create beads for each sub-task
+	var createdIDs []string
+	for i, subTask := range subTasks {
+		r.log("Creating sub-bead %d/%d: %s", i+1, len(subTasks), subTask.Title)
+
+		createdBead, err := r.beads.CreateWithParent(
+			subTask.Title,
+			b.Priority, // Inherit priority from parent
+			b.Labels,   // Inherit labels from parent
+			nil,        // No expected outputs
+			b.ID,       // Set parent to original bead
+		)
+		if err != nil {
+			r.log("Warning: failed to create sub-bead: %v", err)
+			continue
+		}
+
+		createdIDs = append(createdIDs, createdBead.ID)
+		r.log("Created sub-bead: %s", createdBead.ID)
+	}
+
+	if len(createdIDs) == 0 {
+		return fmt.Errorf("failed to create any sub-beads")
+	}
+
+	// Comment on original bead listing the new sub-bead IDs
+	comment := fmt.Sprintf("Decomposed into %d sub-beads:\n", len(createdIDs))
+	for i, id := range createdIDs {
+		comment += fmt.Sprintf("%d. %s\n", i+1, id)
+	}
+	if err := r.beads.AddComment(b.ID, comment); err != nil {
+		r.log("Warning: failed to add comment to bead: %v", err)
+	}
+
+	// Close the original bead
+	if err := r.beads.Close(b.ID); err != nil {
+		r.log("Warning: failed to close bead: %v", err)
+	}
+
+	// Sync bd state
+	if err := r.beads.Sync(); err != nil {
+		r.log("Warning: failed to sync beads: %v", err)
+	}
+
+	r.log("Successfully created %d sub-beads", len(createdIDs))
+	return nil
+}
