@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/danabrams/ralph-runner/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/jsonutil"
 )
 
 // Bead represents an issue from the bd issue tracker
@@ -164,13 +164,35 @@ func (c *Client) Ready() (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	// Use --type task to exclude epics - we want atomic work items
-	out, err := c.run("ready", "--json", "--limit", "1", "--type", "task")
+	// Get ready beads without type filter, then exclude epics in Go
+	// This ensures we get all atomic work types (task, bug, feature, etc.)
+	out, err := c.run("ready", "--json", "--limit", "10")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
 
-	return parseBeadOutput(out)
+	// Parse all beads
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return nil, nil // No work available
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd output: %w", err)
+	}
+
+	// Find first non-epic bead
+	for i := range beads {
+		if beads[i].Type != "epic" {
+			beads[i].normalizeNilFields()
+			if err := beads[i].Validate(); err != nil {
+				return nil, fmt.Errorf("invalid bead data: %w", err)
+			}
+			return &beads[i], nil
+		}
+	}
+
+	return nil, nil // Only epics available
 }
 
 // ReadyAny returns the next unblocked bead of any type (including epics)

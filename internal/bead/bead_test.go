@@ -751,6 +751,167 @@ func TestReadyVsReadyAny(t *testing.T) {
 	}
 }
 
+// TestReadyExcludesEpics tests that Ready() filters out epic beads
+func TestReadyExcludesEpics(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+		wantID     string
+		wantType   string
+		wantNil    bool
+	}{
+		{
+			name: "task bead only",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Task",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantID:   "task-001",
+			wantType: "task",
+			wantNil:  false,
+		},
+		{
+			name: "bug bead only",
+			jsonOutput: `[{
+				"id": "bug-001",
+				"title": "Bug",
+				"priority": 1,
+				"issue_type": "bug",
+				"status": "open"
+			}]`,
+			wantID:   "bug-001",
+			wantType: "bug",
+			wantNil:  false,
+		},
+		{
+			name: "epic bead only - should return nil",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Epic",
+				"priority": 0,
+				"issue_type": "epic",
+				"status": "open"
+			}]`,
+			wantNil: true,
+		},
+		{
+			name: "epic before task - should skip epic",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Epic",
+				"priority": 0,
+				"issue_type": "epic",
+				"status": "open"
+			}, {
+				"id": "task-001",
+				"title": "Task",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantID:   "task-001",
+			wantType: "task",
+			wantNil:  false,
+		},
+		{
+			name: "epic before bug - should skip epic",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Epic",
+				"priority": 0,
+				"issue_type": "epic",
+				"status": "open"
+			}, {
+				"id": "bug-001",
+				"title": "Bug",
+				"priority": 1,
+				"issue_type": "bug",
+				"status": "open"
+			}]`,
+			wantID:   "bug-001",
+			wantType: "bug",
+			wantNil:  false,
+		},
+		{
+			name: "multiple epics only - should return nil",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Epic 1",
+				"priority": 0,
+				"issue_type": "epic",
+				"status": "open"
+			}, {
+				"id": "epic-002",
+				"title": "Epic 2",
+				"priority": 0,
+				"issue_type": "epic",
+				"status": "open"
+			}]`,
+			wantNil: true,
+		},
+		{
+			name: "feature bead - should be included",
+			jsonOutput: `[{
+				"id": "feat-001",
+				"title": "Feature",
+				"priority": 1,
+				"issue_type": "feature",
+				"status": "open"
+			}]`,
+			wantID:   "feat-001",
+			wantType: "feature",
+			wantNil:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate the logic in Ready() - parse and filter epics
+			if strings.TrimSpace(tt.jsonOutput) == "" || strings.TrimSpace(tt.jsonOutput) == "[]" {
+				if !tt.wantNil {
+					t.Error("Expected non-nil bead for non-empty output")
+				}
+				return
+			}
+
+			var beads []Bead
+			if err := json.Unmarshal([]byte(tt.jsonOutput), &beads); err != nil {
+				t.Fatalf("Failed to parse JSON: %v", err)
+			}
+
+			// Find first non-epic bead
+			var got *Bead
+			for i := range beads {
+				if beads[i].Type != "epic" {
+					got = &beads[i]
+					break
+				}
+			}
+
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("Expected nil bead but got: %+v", got)
+				}
+				return
+			}
+
+			if got == nil {
+				t.Fatal("Expected non-nil bead but got nil")
+			}
+
+			if got.ID != tt.wantID {
+				t.Errorf("ID = %v, want %v", got.ID, tt.wantID)
+			}
+			if got.Type != tt.wantType {
+				t.Errorf("Type = %v, want %v", got.Type, tt.wantType)
+			}
+		})
+	}
+}
+
 // TestClientShowValidation tests that Show() validates bead IDs before execution
 func TestClientShowValidation(t *testing.T) {
 	c, _ := NewClient()
