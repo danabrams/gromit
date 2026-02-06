@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/config"
-	"github.com/danabrams/ralph-runner/internal/logger"
-	"github.com/danabrams/ralph-runner/internal/review"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 func TestCheckExpectedOutputs(t *testing.T) {
@@ -117,7 +118,7 @@ func TestBeadExpectedOutputsJSONOmitted(t *testing.T) {
 }
 
 func TestGetGitHead(t *testing.T) {
-	// This test runs in the ralph-runner repo, so git HEAD should be available
+	// This test runs in the gromit repo, so git HEAD should be available
 	head, err := getGitHead()
 	if err != nil {
 		t.Fatalf("getGitHead() failed: %v", err)
@@ -180,7 +181,7 @@ func TestNilGuards(t *testing.T) {
 			fn: func() error {
 				r := &Runner{output: os.Stdout}
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1)
+				result := r.processBead(nil, b, 1, time.Time{})
 				if result.Error == nil {
 					return fmt.Errorf("expected error for nil config in processBead")
 				}
@@ -663,7 +664,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			method: func(r *Runner) error {
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1)
+				result := r.processBead(nil, b, 1, time.Time{})
 				return result.Error
 			},
 			expectedError: "beads client is nil",
@@ -677,7 +678,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			method: func(r *Runner) error {
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1)
+				result := r.processBead(nil, b, 1, time.Time{})
 				return result.Error
 			},
 			expectedError: "renderer is nil",
@@ -692,7 +693,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			method: func(r *Runner) error {
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1)
+				result := r.processBead(nil, b, 1, time.Time{})
 				return result.Error
 			},
 			expectedError: "claude client is nil",
@@ -1518,5 +1519,117 @@ func TestApplyReviewResultHandlesCreateErrors(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "Warning") && !strings.Contains(output, "failed") {
 		t.Errorf("expected warning in output, got: %s", output)
+	}
+}
+
+func TestRunLightReviewSkipsWhenDeadlineExpired(t *testing.T) {
+	mockClaude := &mockClaudeClient{}
+	var buf strings.Builder
+
+	r := &Runner{
+		cfg:      &config.Config{Review: config.ReviewConfig{Timeout: 30}},
+		claude:   mockClaude,
+		renderer: &mockRenderer{},
+		beads:    &mockBeadClient{},
+		output:   &buf,
+	}
+
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+
+	// Deadline already expired
+	expiredDeadline := time.Now().Add(-1 * time.Second)
+
+	result, err := r.runLightReview(nil, b, nil, "abc123", "sonnet", 1, expiredDeadline)
+
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if result != nil {
+		t.Error("expected nil result when deadline expired")
+	}
+	if !strings.Contains(buf.String(), "Time budget expired") {
+		t.Errorf("expected 'Time budget expired' message, got: %s", buf.String())
+	}
+}
+
+func TestRunLightReviewSkipsWhenInsufficientTime(t *testing.T) {
+	mockClaude := &mockClaudeClient{}
+	var buf strings.Builder
+
+	r := &Runner{
+		cfg:      &config.Config{Review: config.ReviewConfig{Timeout: 300}}, // 300 second timeout
+		claude:   mockClaude,
+		renderer: &mockRenderer{},
+		beads:    &mockBeadClient{},
+		output:   &buf,
+	}
+
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+
+	// Deadline in 60 seconds, but review needs 300
+	deadline := time.Now().Add(60 * time.Second)
+
+	result, err := r.runLightReview(nil, b, nil, "abc123", "sonnet", 1, deadline)
+
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if result != nil {
+		t.Error("expected nil result when insufficient time")
+	}
+	if !strings.Contains(buf.String(), "Insufficient time remaining") {
+		t.Errorf("expected 'Insufficient time remaining' message, got: %s", buf.String())
+	}
+}
+
+func TestRunThoroughReviewSkipsWhenDeadlineExpired(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a minimal state file
+	stateFile := filepath.Join(tmpDir, "state.json")
+	if err := os.WriteFile(stateFile, []byte(`{}`), 0644); err != nil {
+		t.Fatalf("Failed to create state file: %v", err)
+	}
+
+	var buf strings.Builder
+	r := &Runner{
+		cfg:       &config.Config{Review: config.ReviewConfig{Thorough: config.ThoroughReviewConfig{Timeout: 30}}},
+		output:    &buf,
+		gromitDir: tmpDir,
+	}
+
+	// Deadline already expired
+	expiredDeadline := time.Now().Add(-1 * time.Second)
+
+	r.runThoroughReview(nil, (*state.File)(nil), 1, expiredDeadline)
+
+	if !strings.Contains(buf.String(), "Time budget expired") {
+		t.Errorf("expected 'Time budget expired' message, got: %s", buf.String())
+	}
+}
+
+func TestRunThoroughReviewSkipsWhenInsufficientTime(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a minimal state file
+	stateFile := filepath.Join(tmpDir, "state.json")
+	if err := os.WriteFile(stateFile, []byte(`{}`), 0644); err != nil {
+		t.Fatalf("Failed to create state file: %v", err)
+	}
+
+	var buf strings.Builder
+	r := &Runner{
+		cfg:       &config.Config{Review: config.ReviewConfig{Thorough: config.ThoroughReviewConfig{Timeout: 300}}},
+		output:    &buf,
+		gromitDir: tmpDir,
+	}
+
+	// Deadline in 60 seconds, but review needs 300
+	deadline := time.Now().Add(60 * time.Second)
+
+	r.runThoroughReview(nil, (*state.File)(nil), 1, deadline)
+
+	if !strings.Contains(buf.String(), "Insufficient time remaining") {
+		t.Errorf("expected 'Insufficient time remaining' message, got: %s", buf.String())
 	}
 }

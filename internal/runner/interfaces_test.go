@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danabrams/ralph-runner/internal/analyzer"
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/claude"
-	"github.com/danabrams/ralph-runner/internal/config"
-	"github.com/danabrams/ralph-runner/internal/learnings"
-	"github.com/danabrams/ralph-runner/internal/logger"
-	"github.com/danabrams/ralph-runner/internal/prompt"
+	"github.com/danabrams/gromit/internal/analyzer"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // --- Mock implementations ---
@@ -336,13 +336,42 @@ func (m *mockRenderer) GetLearningsFile() *learnings.File {
 	return nil
 }
 
+type mockStateFile struct{}
+
+func (m *mockStateFile) LastReviewCommit() string {
+	return "abc123"
+}
+
+func (m *mockStateFile) IterationsSinceReview() int {
+	return 0
+}
+
+func (m *mockStateFile) IncrementIterationsSinceReview() {
+}
+
+func (m *mockStateFile) RecordReview(commit string, iteration int) error {
+	return nil
+}
+
+func (m *mockStateFile) Save() error {
+	return nil
+}
+
+func (m *mockStateFile) Load() error {
+	return nil
+}
+
+func (m *mockStateFile) LastRetro() time.Time {
+	return time.Time{}
+}
+
 // --- Tests ---
 
 func TestNewRunnerWithDeps(t *testing.T) {
 	cfg := &config.Config{}
 	var buf strings.Builder
 
-	r, err := NewRunnerWithDeps(cfg, &buf, "/tmp/ralph", Deps{
+	r, err := NewRunnerWithDeps(cfg, &buf, "/tmp/gromit", Deps{
 		Beads:    &mockBeadClient{},
 		Claude:   &mockClaudeClient{},
 		Analyzer: &mockFailureAnalyzer{},
@@ -733,7 +762,7 @@ func TestProcessBeadWithMocks_SuccessfulBuild(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "build-test", Title: "Build Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1)
+	result := r.processBead(context.Background(), b, 1, time.Time{})
 
 	if !result.Success {
 		t.Errorf("expected success, got error: %v", result.Error)
@@ -765,7 +794,7 @@ func TestProcessBeadWithMocks_BuildFailure(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "fail-test", Title: "Fail Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1)
+	result := r.processBead(context.Background(), b, 1, time.Time{})
 
 	if result.Success {
 		t.Error("expected failure")
@@ -834,7 +863,7 @@ func TestProcessBeadWithMocks_ValidationEnabled(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "val-test", Title: "Validation Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1)
+	result := r.processBead(context.Background(), b, 1, time.Time{})
 
 	if !result.Success {
 		t.Errorf("expected success, got error: %v", result.Error)
@@ -875,7 +904,7 @@ func TestEscalationWithMocks(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "escalate-test", Title: "Escalation Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1)
+	result := r.processBead(context.Background(), b, 1, time.Time{})
 
 	if !result.Success {
 		t.Errorf("expected success after escalation, got error: %v", result.Error)
@@ -934,7 +963,7 @@ func TestProcessBeadWithMocks_UnclearSpec(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "unclear-test", Title: "Unclear Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1)
+	result := r.processBead(context.Background(), b, 1, time.Time{})
 
 	if result.Success {
 		t.Error("expected failure for unclear spec")

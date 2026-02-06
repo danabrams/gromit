@@ -10,20 +10,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/ralph-runner/internal/analyzer"
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/claude"
-	"github.com/danabrams/ralph-runner/internal/config"
-	"github.com/danabrams/ralph-runner/internal/jsonutil"
-	"github.com/danabrams/ralph-runner/internal/learnings"
-	"github.com/danabrams/ralph-runner/internal/logger"
-	"github.com/danabrams/ralph-runner/internal/prompt"
-	"github.com/danabrams/ralph-runner/internal/review"
-	"github.com/danabrams/ralph-runner/internal/state"
-	"github.com/danabrams/ralph-runner/internal/tmux"
+	"github.com/danabrams/gromit/internal/analyzer"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/state"
+	"github.com/danabrams/gromit/internal/tmux"
 )
 
-// Runner orchestrates the Ralph loop
+// Runner orchestrates the Gromit loop
 type Runner struct {
 	cfg          *config.Config
 	beads        BeadClient
@@ -33,7 +33,7 @@ type Runner struct {
 	logger       IterationLogger
 	streamLogger *logger.StreamLogger
 	output       io.Writer
-	ralphDir     string
+	gromitDir     string
 }
 
 // NewRunner creates a new runner
@@ -55,14 +55,14 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		return nil, err
 	}
 
-	// Determine ralph directory (parent of templates dir)
-	ralphDir := filepath.Dir(cfg.Paths.Templates)
+	// Determine gromit directory (parent of templates dir)
+	gromitDir := filepath.Dir(cfg.Paths.Templates)
 
 	renderer, err := prompt.NewRenderer(
 		cfg.Paths.Templates,
 		cfg.Paths.Specs,
 		cfg.Paths.ProjectClaudeMD,
-		ralphDir,
+		gromitDir,
 	)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		renderer: renderer,
 		logger:   log,
 		output:   output,
-		ralphDir: ralphDir,
+		gromitDir: gromitDir,
 	}, nil
 }
 
@@ -101,7 +101,7 @@ type Deps struct {
 
 // NewRunnerWithDeps creates a runner with explicitly provided dependencies.
 // This is primarily intended for testing, where you want to inject mocks.
-func NewRunnerWithDeps(cfg *config.Config, output io.Writer, ralphDir string, deps Deps) (*Runner, error) {
+func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, deps Deps) (*Runner, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -116,7 +116,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, ralphDir string, de
 		renderer: deps.Renderer,
 		logger:   deps.Logger,
 		output:   output,
-		ralphDir: ralphDir,
+		gromitDir: gromitDir,
 	}, nil
 }
 
@@ -153,7 +153,7 @@ func (s *SubTask) normalizeNilFields() {
 	}
 }
 
-// Run executes the Ralph loop
+// Run executes the Gromit loop
 func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time, dryRun bool) error {
 	if r == nil {
 		return fmt.Errorf("runner is nil")
@@ -181,7 +181,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	// Set up status file management
-	statusWriter, err := NewStatusWriter(r.ralphDir)
+	statusWriter, err := NewStatusWriter(r.gromitDir)
 	if err != nil {
 		r.log("Warning: could not create status writer: %v", err)
 	}
@@ -218,7 +218,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	skippedBeads := make(map[string]bool)
 
 	// Load state for review tracking
-	sf, err := state.NewFile(r.ralphDir)
+	sf, err := state.NewFile(r.gromitDir)
 	if err != nil {
 		r.log("Warning: could not create state file: %v", err)
 		sf = nil
@@ -325,7 +325,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 
 		// Process the bead
-		result := r.processBead(ctx, b, iteration)
+		result := r.processBead(ctx, b, iteration, deadline)
 
 		// Log result to console
 		r.logResult(result)
@@ -367,7 +367,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			} else if !hasChildren {
 				r.log("\n=== Thorough Review (epic %s complete) ===", b.Parent)
 				if sf != nil {
-					r.runThoroughReview(ctx, sf, iteration)
+					r.runThoroughReview(ctx, sf, iteration, deadline)
 				}
 			}
 		}
@@ -382,12 +382,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			// Check thorough review trigger
 			if r.cfg.Review.Thorough.Enabled && sf.IterationsSinceReview() >= r.cfg.Review.Thorough.EveryNIterations {
 				r.log("\n=== Thorough Review (every %d iterations) ===", r.cfg.Review.Thorough.EveryNIterations)
-				r.runThoroughReview(ctx, sf, iteration)
+				r.runThoroughReview(ctx, sf, iteration, deadline)
 			}
 		}
 	}
 
-	r.log("\nRalph loop complete. Processed %d iterations.", iteration)
+	r.log("\nGromit loop complete. Processed %d iterations.", iteration)
 
 	// Check if retro should be suggested
 	r.checkRetroSuggestion()
@@ -420,11 +420,11 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 	})
 }
 
-func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *IterationResult {
+func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, deadline time.Time) *IterationResult {
 	start := time.Now()
 
 	// Set up bead context: validate state, timeouts, git capture, model selection
-	bc, beadCtx, beadCancel, err := r.setupBeadContext(ctx, b, iteration)
+	bc, beadCtx, beadCancel, err := r.setupBeadContext(ctx, b, iteration, deadline)
 	if err != nil {
 		return &IterationResult{
 			BeadID:    b.ID,
@@ -720,7 +720,7 @@ func (r *Runner) checkRetroSuggestion() {
 		return
 	}
 	// Load learnings
-	lf, err := learnings.NewFile(r.ralphDir)
+	lf, err := learnings.NewFile(r.gromitDir)
 	if err != nil {
 		return // Silently skip if learnings can't be created
 	}
@@ -729,7 +729,7 @@ func (r *Runner) checkRetroSuggestion() {
 	}
 
 	// Load state for last retro time
-	sf, err := state.NewFile(r.ralphDir)
+	sf, err := state.NewFile(r.gromitDir)
 	if err != nil {
 		return // Silently skip if state can't be created
 	}
@@ -749,7 +749,7 @@ func (r *Runner) checkRetroSuggestion() {
 	}
 
 	confirmedCount, provisionalCount := lf.Stats()
-	r.log("\nRetro suggested: %d provisional learnings, %d confirmed patterns (%s). Run: ralph retro",
+	r.log("\nRetro suggested: %d provisional learnings, %d confirmed patterns (%s). Run: gromit retro",
 		provisionalCount, confirmedCount, reason)
 }
 
@@ -1117,7 +1117,8 @@ func selectReviewModel(cfg *config.Config, buildModel string) string {
 
 // runLightReview runs a post-iteration code review.
 // Gets diff from startCommit, builds ReviewContext, renders prompt, calls Claude, parses result.
-func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.Bead, startCommit string, buildModel string, iteration int) (*review.ReviewResult, error) {
+// If deadline is set and approaching, may reduce timeout or skip the review.
+func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.Bead, startCommit string, buildModel string, iteration int, deadline time.Time) (*review.ReviewResult, error) {
 	if r == nil {
 		return nil, fmt.Errorf("runner is nil")
 	}
@@ -1132,6 +1133,20 @@ func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.
 	}
 	if b == nil {
 		return nil, fmt.Errorf("bead is nil")
+	}
+
+	// Check if we have time for a review
+	reviewTimeout := time.Duration(r.cfg.Review.Timeout) * time.Second
+	if !deadline.IsZero() {
+		timeRemaining := time.Until(deadline)
+		if timeRemaining <= 0 {
+			r.log("Time budget expired, skipping light review")
+			return nil, nil
+		}
+		if timeRemaining < reviewTimeout {
+			r.log("Insufficient time remaining for light review (need %v, have %v), skipping", reviewTimeout, timeRemaining)
+			return nil, nil
+		}
 	}
 
 	// Get diff from start commit to current state
@@ -1300,8 +1315,23 @@ func (r *Runner) writeReviewLog(iteration int, beadID string, model string, resu
 }
 
 // runThoroughReview runs a periodic thorough review of all changes since the last review
-func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteration int) {
+// If deadline is set and approaching, may reduce timeout or skip the review
+func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteration int, deadline time.Time) {
 	start := time.Now()
+
+	// Check if we have time for a review
+	if !deadline.IsZero() {
+		timeRemaining := time.Until(deadline)
+		minReviewTime := time.Duration(r.cfg.Review.Thorough.Timeout) * time.Second
+		if timeRemaining <= 0 {
+			r.log("Time budget expired, skipping thorough review")
+			return
+		}
+		if timeRemaining < minReviewTime {
+			r.log("Insufficient time remaining for thorough review (need %v, have %v), skipping", minReviewTime, timeRemaining)
+			return
+		}
+	}
 
 	// Get diff since last review
 	fromCommit := sf.LastReviewCommit()

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/danabrams/ralph-runner/internal/analyzer"
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/claude"
-	"github.com/danabrams/ralph-runner/internal/logger"
-	"github.com/danabrams/ralph-runner/internal/preflight"
-	"github.com/danabrams/ralph-runner/internal/prompt"
+	"github.com/danabrams/gromit/internal/analyzer"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/preflight"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // beadContext holds the shared state for processing a single bead.
@@ -34,11 +34,12 @@ type beadContext struct {
 	// Context management
 	parentCtx   context.Context // original context (to distinguish bead timeout from Ctrl+C)
 	beadTimeout time.Duration
+	runDeadline time.Time      // run deadline for time-budget awareness
 }
 
 // setupBeadContext validates runner state, sets up timeouts, captures git state,
 // fetches parent bead, and selects the initial model.
-func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration int) (*beadContext, context.Context, context.CancelFunc, error) {
+func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration int, runDeadline time.Time) (*beadContext, context.Context, context.CancelFunc, error) {
 	if r.cfg == nil {
 		return nil, nil, nil, fmt.Errorf("runner config is nil")
 	}
@@ -79,6 +80,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		maxRetriesPerBead: r.cfg.Escalation.MaxRetriesPerBead,
 		parentCtx:         ctx,
 		beadTimeout:       beadTimeout,
+		runDeadline:       runDeadline,
 	}
 
 	return bc, beadCtx, beadCancel, nil
@@ -437,7 +439,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 		reviewStart := time.Now()
 		r.log("Running post-iteration review with model: %s", selectReviewModel(r.cfg, bc.model))
 
-		reviewResult, err := r.runLightReview(ctx, bc.bead, bc.parent, bc.startCommit, bc.model, bc.iteration)
+		reviewResult, err := r.runLightReview(ctx, bc.bead, bc.parent, bc.startCommit, bc.model, bc.iteration, bc.runDeadline)
 		if err != nil {
 			r.log("Warning: review failed: %v", err)
 			// Review failure is non-blocking — continue
