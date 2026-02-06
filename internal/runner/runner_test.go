@@ -230,7 +230,7 @@ func TestStartHeartbeatStallDetection(t *testing.T) {
 	}
 
 	// No tool activity, so initial timeout (50ms) should be used
-	stop := r.startHeartbeatWithConfig(stats, 50*time.Millisecond, 200*time.Millisecond, onStall, cfg)
+	stop := r.startHeartbeatWithConfig(stats, 50*time.Millisecond, 200*time.Millisecond, onStall, cfg, nil)
 	defer stop()
 
 	select {
@@ -271,7 +271,7 @@ func TestStartHeartbeatActiveStallTimeout(t *testing.T) {
 
 	// Initial timeout is very short (20ms) but should NOT fire because tool
 	// activity has occurred — the active timeout (150ms) should be used instead.
-	stop := r.startHeartbeatWithConfig(stats, 20*time.Millisecond, 150*time.Millisecond, onStall, cfg)
+	stop := r.startHeartbeatWithConfig(stats, 20*time.Millisecond, 150*time.Millisecond, onStall, cfg, nil)
 	defer stop()
 
 	// Wait long enough for initial timeout but not active timeout
@@ -320,7 +320,7 @@ func TestStartHeartbeatNoStallBeforeFirstEvent(t *testing.T) {
 	}
 
 	// Stall timeout is very short (30ms), but should not fire because no events recorded
-	stop := r.startHeartbeatWithConfig(stats, 30*time.Millisecond, 60*time.Millisecond, onStall, cfg)
+	stop := r.startHeartbeatWithConfig(stats, 30*time.Millisecond, 60*time.Millisecond, onStall, cfg, nil)
 	time.Sleep(150 * time.Millisecond)
 	stop()
 
@@ -346,7 +346,7 @@ func TestStartHeartbeatNoStallWhenEventsFlow(t *testing.T) {
 		StallCheckRate: 20 * time.Millisecond,
 	}
 
-	stop := r.startHeartbeatWithConfig(stats, 100*time.Millisecond, 200*time.Millisecond, onStall, cfg)
+	stop := r.startHeartbeatWithConfig(stats, 100*time.Millisecond, 200*time.Millisecond, onStall, cfg, nil)
 
 	// Keep recording events to prevent stall
 	done := make(chan struct{})
@@ -392,7 +392,7 @@ func TestStartHeartbeatStallDisabledWhenZero(t *testing.T) {
 	}
 
 	// stallTimeout=0 should disable stall detection
-	stop := r.startHeartbeatWithConfig(stats, 0, 0, onStall, cfg)
+	stop := r.startHeartbeatWithConfig(stats, 0, 0, onStall, cfg, nil)
 	time.Sleep(100 * time.Millisecond)
 	stop()
 
@@ -1103,14 +1103,14 @@ func TestPrintHeartbeatNilStats(t *testing.T) {
 func TestStartHeartbeatNilRunner(t *testing.T) {
 	var r *Runner
 	stats := logger.NewStreamStats()
-	stop := r.startHeartbeatWithConfig(stats, 0, 0, nil, defaultHeartbeatConfig)
+	stop := r.startHeartbeatWithConfig(stats, 0, 0, nil, defaultHeartbeatConfig, nil)
 	// Should return a no-op function
 	stop()
 }
 
 func TestStartHeartbeatNilStats(t *testing.T) {
 	r := &Runner{output: os.Stdout}
-	stop := r.startHeartbeatWithConfig(nil, 0, 0, nil, defaultHeartbeatConfig)
+	stop := r.startHeartbeatWithConfig(nil, 0, 0, nil, defaultHeartbeatConfig, nil)
 	// Should return a no-op function
 	stop()
 }

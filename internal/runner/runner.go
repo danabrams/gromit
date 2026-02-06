@@ -414,10 +414,14 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 		stallTimeout := time.Duration(r.cfg.Claude.StallTimeout) * time.Second
 		stallTimeoutActive := time.Duration(r.cfg.Claude.StallTimeoutActive) * time.Second
+
+		// Create a channel for tool call events to feed the heartbeat
+		toolCallEvents := make(chan claude.ToolEvent, 10)
+
 		stopHeartbeat := r.startHeartbeat(stats, stallTimeout, stallTimeoutActive, func() {
 			stallFired = true
 			childCancel()
-		})
+		}, toolCallEvents)
 
 		// Build event handler for firehose streaming
 		var handler claude.EventHandler
@@ -428,7 +432,16 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 			}
 		}
 
-		claudeResult, err = r.claude.StreamRun(childCtx, buildPrompt, model, r.output, handler, nil)
+		// Build tool call handler to feed events to heartbeat
+		onToolCall := func(event claude.ToolEvent) {
+			select {
+			case toolCallEvents <- event:
+			default:
+				// Buffer full, skip to avoid blocking
+			}
+		}
+
+		claudeResult, err = r.claude.StreamRun(childCtx, buildPrompt, model, r.output, handler, onToolCall)
 		stopHeartbeat()
 		childCancel() // Ensure cleanup
 
@@ -811,21 +824,24 @@ var defaultHeartbeatConfig = heartbeatConfig{
 	StallCheckRate: 10 * time.Second,
 }
 
-// startHeartbeat launches a goroutine that prints periodic status updates
-// and optionally detects stalls using two-tier timeouts:
+// startHeartbeat launches a goroutine that prints periodic status updates and listens
+// for tool call events to update the display in real-time. It also optionally detects
+// stalls using two-tier timeouts:
 //   - stallTimeout: used before Claude has made any tool calls (detecting true hangs)
 //   - stallTimeoutActive: used after tool activity (longer, allows thinking pauses)
 //
+// The toolCallEvents channel (optional, can be nil) feeds real-time tool call notifications.
 // Returns a function to stop the heartbeat.
-func (r *Runner) startHeartbeat(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func()) func() {
-	return r.startHeartbeatWithConfig(stats, stallTimeout, stallTimeoutActive, onStall, defaultHeartbeatConfig)
+func (r *Runner) startHeartbeat(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), toolCallEvents <-chan claude.ToolEvent) func() {
+	return r.startHeartbeatWithConfig(stats, stallTimeout, stallTimeoutActive, onStall, defaultHeartbeatConfig, toolCallEvents)
 }
 
-func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), cfg heartbeatConfig) func() {
+func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), cfg heartbeatConfig, toolCallEvents <-chan claude.ToolEvent) func() {
 	if r == nil || stats == nil {
 		return func() {}
 	}
 	done := make(chan struct{})
+	lastHeartbeatLine := "" // Track last printed line for overwriting
 	go func() {
 		// First heartbeat sooner so hangs are visible quickly
 		select {
@@ -833,7 +849,7 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 			return
 		case <-time.After(cfg.InitialDelay):
 		}
-		r.printHeartbeat(stats)
+		lastHeartbeatLine = r.printHeartbeat(stats)
 
 		heartbeatTicker := time.NewTicker(cfg.HeartbeatRate)
 		defer heartbeatTicker.Stop()
@@ -851,7 +867,7 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 				case <-done:
 					return
 				case <-heartbeatTicker.C:
-					r.printHeartbeat(stats)
+					lastHeartbeatLine = r.printHeartbeat(stats)
 				case <-stallTicker.C:
 					// Only check for stalls after the first stream event arrives.
 					// Before that, Claude CLI is still starting up — the startup
@@ -872,13 +888,19 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 							return
 						}
 					}
+				case <-toolCallEvents:
+					// On tool call event, update heartbeat line in place
+					lastHeartbeatLine = r.overwriteHeartbeat(stats, lastHeartbeatLine)
 				}
 			} else {
 				select {
 				case <-done:
 					return
 				case <-heartbeatTicker.C:
-					r.printHeartbeat(stats)
+					lastHeartbeatLine = r.printHeartbeat(stats)
+				case <-toolCallEvents:
+					// On tool call event, update heartbeat line in place
+					lastHeartbeatLine = r.overwriteHeartbeat(stats, lastHeartbeatLine)
 				}
 			}
 		}
@@ -886,18 +908,48 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 	return func() { close(done) }
 }
 
-func (r *Runner) printHeartbeat(stats *logger.StreamStats) {
+func (r *Runner) printHeartbeat(stats *logger.StreamStats) string {
 	if r == nil || stats == nil {
-		return
+		return ""
 	}
 	toolCalls, filesModified, elapsed := stats.Snapshot()
 	minutes := int(elapsed.Minutes())
 	seconds := int(elapsed.Seconds()) % 60
+	var line string
 	if toolCalls == 0 {
-		r.log("[%dm%02ds] Waiting for Claude to respond (may be thinking)...", minutes, seconds)
+		line = fmt.Sprintf("[%dm%02ds] Waiting for Claude to respond (may be thinking)...", minutes, seconds)
 	} else {
-		r.log("[%dm%02ds] %d tool calls, %d files modified", minutes, seconds, toolCalls, filesModified)
+		line = fmt.Sprintf("[%dm%02ds] %d tool calls, %d files modified", minutes, seconds, toolCalls, filesModified)
 	}
+	r.log("%s", line)
+	return line
+}
+
+// overwriteHeartbeat updates the heartbeat line in place using carriage return and padding.
+// lastLine is the previously printed line (for padding calculation).
+// Returns the new line that was printed.
+func (r *Runner) overwriteHeartbeat(stats *logger.StreamStats, lastLine string) string {
+	if r == nil || r.output == nil || stats == nil {
+		return ""
+	}
+	toolCalls, filesModified, elapsed := stats.Snapshot()
+	minutes := int(elapsed.Minutes())
+	seconds := int(elapsed.Seconds()) % 60
+	var newLine string
+	if toolCalls == 0 {
+		newLine = fmt.Sprintf("[%dm%02ds] Waiting for Claude to respond (may be thinking)...", minutes, seconds)
+	} else {
+		newLine = fmt.Sprintf("[%dm%02ds] %d tool calls, %d files modified", minutes, seconds, toolCalls, filesModified)
+	}
+
+	// Use carriage return to overwrite the line, pad to clear old content
+	padding := ""
+	if len(lastLine) > len(newLine) {
+		padding = strings.Repeat(" ", len(lastLine)-len(newLine))
+	}
+	fmt.Fprintf(r.output, "\r%s%s", newLine, padding)
+
+	return newLine
 }
 
 // checkRetroSuggestion checks if a retro should be suggested and prints a message
