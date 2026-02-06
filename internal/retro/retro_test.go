@@ -334,8 +334,8 @@ func TestApplyAcceptedWithAllOperations(t *testing.T) {
 		t.Fatalf("expected at least 3 learnings, got %d", len(allLearnings))
 	}
 
-	// Create accepted proposals with all operation types
-	accepted := &AcceptedProposals{
+	// Create proposals with all operation types
+	proposals := &Proposals{
 		Consolidations: []ConsolidationProposal{
 			{
 				LearningHashes:   []string{allLearnings[0].Hash, allLearnings[1].Hash},
@@ -367,7 +367,7 @@ func TestApplyAcceptedWithAllOperations(t *testing.T) {
 	}
 
 	// Apply all operations
-	err := r.ApplyAccepted(accepted)
+	err := r.ApplyAccepted(proposals)
 
 	// We expect some operations to succeed and some to fail (e.g., promotion of already consolidated learning)
 	// The function should continue and report errors
@@ -571,7 +571,7 @@ func TestEnrichBeadStatsEmptyMap(t *testing.T) {
 }
 
 func TestLaunchClaudeCodeWithAnalysis(t *testing.T) {
-	// This test verifies that launchClaudeCode builds the correct prompt structure.
+	// This test verifies that LaunchClaudeCode builds the correct prompt structure.
 	// We can't easily test the actual execution without mocking exec.Command,
 	// but we can verify the function signature and basic behavior.
 
@@ -583,9 +583,9 @@ func TestLaunchClaudeCodeWithAnalysis(t *testing.T) {
 	// the command execution. For now, we just verify the function exists and
 	// accepts the correct parameters.
 
-	// The function signature is: launchClaudeCode(analysis string) error
+	// The function signature is: LaunchClaudeCode(analysis string) error
 	// This is a compile-time check that the function exists with the right signature.
-	var _ func(string) error = launchClaudeCode
+	var _ func(string) error = LaunchClaudeCode
 
 	// Test that the function accepts a non-empty analysis
 	analysis = "Test analysis results"

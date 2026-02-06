@@ -203,23 +203,6 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("=" + "=" + strings.Repeat("=", 78))
 
-	// Parse proposals from JSON output
-	proposals, err := retro.ParseProposals(result.Analysis)
-
-	if err != nil {
-		// Fallback: JSON parse failed, use --non-interactive behavior
-		fmt.Fprintf(os.Stderr, "\nWarning: Could not parse structured proposals: %v\n", err)
-		fmt.Println("Falling back to non-interactive mode...")
-
-		proposalsPath := filepath.Join(ralphDir, "RETRO_PROPOSED_CHANGES.md")
-		if writeErr := os.WriteFile(proposalsPath, []byte(result.Analysis), 0644); writeErr != nil {
-			return fmt.Errorf("writing proposals file: %w", writeErr)
-		}
-
-		fmt.Printf("\nAnalysis written to %s\n", proposalsPath)
-		fmt.Println("Review and apply changes manually.")
-		return nil
-	}
 
 	// If --non-interactive flag is set, write to file and exit
 	if nonInteractive {
@@ -233,32 +216,11 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Default: Interactive review
-	fmt.Println("\n=== INTERACTIVE REVIEW ===")
-	fmt.Println("Review each proposal and decide whether to accept it.")
-	fmt.Println()
-
-	accepted, err := retro.ReviewProposals(proposals, os.Stdin, os.Stdout)
-	if err != nil {
-		return fmt.Errorf("reviewing proposals: %w", err)
+	// Default: Launch Claude Code for interactive review and application
+	fmt.Println("\nLaunching Claude Code for interactive review...")
+	if err := retro.LaunchClaudeCode(result.Analysis); err != nil {
+		return fmt.Errorf("launching Claude Code: %w", err)
 	}
-
-	// Check if any proposals were accepted
-	totalAccepted := len(accepted.Consolidations) + len(accepted.Promotions) +
-		len(accepted.Archives) + len(accepted.RuleChanges)
-
-	if totalAccepted == 0 {
-		fmt.Println("\nNo proposals accepted. No changes made.")
-		return nil
-	}
-
-	// Apply accepted proposals
-	fmt.Printf("\nApplying %d accepted proposals...\n", totalAccepted)
-	if err := r.ApplyAccepted(accepted); err != nil {
-		return fmt.Errorf("applying accepted proposals: %w", err)
-	}
-
-	fmt.Println("\nChanges applied successfully!")
 
 	// Record retro time in state
 	sf := state.NewFile(ralphDir)

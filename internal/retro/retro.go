@@ -231,55 +231,47 @@ func (r *Retro) applyChanges(analysis string) error {
 		return fmt.Errorf("parsing proposals: %w (analysis written to %s for manual review)", err, analysisPath)
 	}
 
-	// Convert Proposals to AcceptedProposals (all proposals are accepted in auto-apply mode)
-	accepted := &AcceptedProposals{
-		Consolidations: proposals.Consolidations,
-		Promotions:     proposals.Promotions,
-		Archives:       proposals.Archives,
-		RuleChanges:    proposals.RuleChanges,
-	}
-
-	// Apply accepted proposals
-	return r.ApplyAccepted(accepted)
+	// Apply proposals (all proposals are accepted in auto-apply mode)
+	return r.ApplyAccepted(proposals)
 }
 
-// ApplyAccepted executes all changes in the accepted proposals
+// ApplyAccepted executes all changes in the proposals
 // Each operation is independent; failures are logged as warnings and do not stop execution
-func (r *Retro) ApplyAccepted(accepted *AcceptedProposals) error {
-	if accepted == nil {
-		return fmt.Errorf("accepted proposals is nil")
+func (r *Retro) ApplyAccepted(proposals *Proposals) error {
+	if proposals == nil {
+		return fmt.Errorf("proposals is nil")
 	}
 
 	var errors []string
 
 	// Apply consolidations
-	for i, c := range accepted.Consolidations {
+	for i, c := range proposals.Consolidations {
 		if err := r.applyConsolidation(c); err != nil {
-			log.Printf("Warning: consolidation %d/%d failed: %v", i+1, len(accepted.Consolidations), err)
+			log.Printf("Warning: consolidation %d/%d failed: %v", i+1, len(proposals.Consolidations), err)
 			errors = append(errors, fmt.Sprintf("consolidation %d: %v", i+1, err))
 		}
 	}
 
 	// Apply archives
-	for i, a := range accepted.Archives {
+	for i, a := range proposals.Archives {
 		if err := r.applyArchive(a); err != nil {
-			log.Printf("Warning: archive %d/%d failed: %v", i+1, len(accepted.Archives), err)
+			log.Printf("Warning: archive %d/%d failed: %v", i+1, len(proposals.Archives), err)
 			errors = append(errors, fmt.Sprintf("archive %d: %v", i+1, err))
 		}
 	}
 
 	// Apply promotions
-	for i, p := range accepted.Promotions {
+	for i, p := range proposals.Promotions {
 		if err := r.applyPromotion(p); err != nil {
-			log.Printf("Warning: promotion %d/%d failed: %v", i+1, len(accepted.Promotions), err)
+			log.Printf("Warning: promotion %d/%d failed: %v", i+1, len(proposals.Promotions), err)
 			errors = append(errors, fmt.Sprintf("promotion %d: %v", i+1, err))
 		}
 	}
 
 	// Apply rule changes
-	for i, rc := range accepted.RuleChanges {
+	for i, rc := range proposals.RuleChanges {
 		if err := r.applyRuleChange(rc); err != nil {
-			log.Printf("Warning: rule change %d/%d failed: %v", i+1, len(accepted.RuleChanges), err)
+			log.Printf("Warning: rule change %d/%d failed: %v", i+1, len(proposals.RuleChanges), err)
 			errors = append(errors, fmt.Sprintf("rule change %d: %v", i+1, err))
 		}
 	}
@@ -459,13 +451,13 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 	}
 }
 
-// launchClaudeCode launches Claude Code in interactive mode with the analysis results.
+// LaunchClaudeCode launches Claude Code in interactive mode with the analysis results.
 // The prompt instructs Claude Code on what actions it can take:
 // - Edit RULES.md
 // - Edit LEARNINGS.md
 // - Run bd commands
 // - Create specs
-func launchClaudeCode(analysis string) error {
+func LaunchClaudeCode(analysis string) error {
 	// Build the prompt with analysis and instructions
 	prompt := fmt.Sprintf(`# Retrospective Analysis Results
 
