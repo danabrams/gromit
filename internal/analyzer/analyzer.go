@@ -2,12 +2,11 @@ package analyzer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/claude"
+	"github.com/danabrams/ralph-runner/internal/jsonutil"
 	"github.com/danabrams/ralph-runner/internal/prompt"
 )
 
@@ -148,22 +147,9 @@ func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput stri
 }
 
 func parseAnalysisOutput(output string) (*Analysis, error) {
-	// Try to find JSON in the output
-	output = strings.TrimSpace(output)
-
-	// Look for JSON object
-	start := strings.Index(output, "{")
-	end := strings.LastIndex(output, "}")
-
-	if start == -1 || end == -1 || end <= start {
-		return nil, fmt.Errorf("no JSON found in output")
-	}
-
-	jsonStr := output[start : end+1]
-
 	var analysis Analysis
-	if err := json.Unmarshal([]byte(jsonStr), &analysis); err != nil {
-		return nil, fmt.Errorf("parsing JSON: %w", err)
+	if err := jsonutil.ExtractObject(output, &analysis); err != nil {
+		return nil, fmt.Errorf("parsing analysis output: %w", err)
 	}
 
 	// Validate category

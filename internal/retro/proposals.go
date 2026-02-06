@@ -1,10 +1,9 @@
 package retro
 
 import (
-	"encoding/json"
 	"fmt"
-	"regexp"
-	"strings"
+
+	"github.com/danabrams/ralph-runner/internal/jsonutil"
 )
 
 // ConsolidationProposal represents a proposal to merge related learnings
@@ -79,31 +78,14 @@ func (c *ConsolidationProposal) normalizeNilFields() {
 }
 
 // ParseProposals extracts structured proposals from Claude's analysis output.
-// It looks for a JSON code block in the output and unmarshals it into Proposals.
+// It looks for JSON in the output and unmarshals it into Proposals.
 func ParseProposals(output string) (*Proposals, error) {
-	// Extract JSON from fenced code block
-	jsonStr := extractJSONBlock(output)
-	if jsonStr == "" {
-		return nil, fmt.Errorf("no JSON code block found in output")
-	}
-
 	var proposals Proposals
-	if err := json.Unmarshal([]byte(jsonStr), &proposals); err != nil {
-		return nil, fmt.Errorf("parsing JSON proposals: %w", err)
+	if err := jsonutil.ExtractJSON(output, &proposals); err != nil {
+		return nil, fmt.Errorf("parsing proposals: %w", err)
 	}
 
 	proposals.normalizeNilFields()
 
 	return &proposals, nil
-}
-
-// extractJSONBlock finds and extracts content from a ```json code block
-func extractJSONBlock(output string) string {
-	// Match ```json...``` or ```...``` blocks
-	re := regexp.MustCompile("(?s)```(?:json)?\\s*\\n(.*?)\\n```")
-	matches := re.FindStringSubmatch(output)
-	if len(matches) < 2 {
-		return ""
-	}
-	return strings.TrimSpace(matches[1])
 }

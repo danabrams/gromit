@@ -2,7 +2,6 @@ package prompt
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/ralph-runner/internal/jsonutil"
 	"github.com/danabrams/ralph-runner/internal/learnings"
 )
 
@@ -346,20 +346,8 @@ func ParseScopeEstimate(output string) (*ScopeEstimate, error) {
 		return nil, fmt.Errorf("scope estimate output is empty")
 	}
 
-	output = strings.TrimSpace(output)
-
-	// Look for JSON object
-	start := strings.Index(output, "{")
-	end := strings.LastIndex(output, "}")
-
-	if start == -1 || end == -1 || end <= start {
-		return nil, fmt.Errorf("no JSON found in output")
-	}
-
-	jsonStr := output[start : end+1]
-
 	var estimate ScopeEstimate
-	if err := json.Unmarshal([]byte(jsonStr), &estimate); err != nil {
+	if err := jsonutil.ExtractObject(output, &estimate); err != nil {
 		return nil, fmt.Errorf("parsing scope estimate JSON: %w", err)
 	}
 

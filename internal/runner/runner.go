@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/claude"
 	"github.com/danabrams/ralph-runner/internal/config"
+	"github.com/danabrams/ralph-runner/internal/jsonutil"
 	"github.com/danabrams/ralph-runner/internal/learnings"
 	"github.com/danabrams/ralph-runner/internal/logger"
 	"github.com/danabrams/ralph-runner/internal/prompt"
@@ -909,69 +909,8 @@ func parseDecomposeOutput(output string) ([]SubTask, error) {
 		return nil, fmt.Errorf("decompose output is empty")
 	}
 
-	// Try direct parsing first (pure JSON case)
 	var subTasks []SubTask
-	if err := json.Unmarshal([]byte(output), &subTasks); err == nil && len(subTasks) > 0 {
-		for i := range subTasks {
-			subTasks[i].normalizeNilFields()
-		}
-		return subTasks, nil
-	}
-
-	// If direct parsing fails, try to extract JSON array from surrounding text
-	// Look for [ ... ] pattern
-	jsonStart := strings.Index(output, "[")
-	if jsonStart == -1 {
-		return nil, fmt.Errorf("parsing decompose output: no JSON array found")
-	}
-
-	// Find the matching closing bracket
-	// Count brackets to handle nested structures
-	bracketCount := 0
-	jsonEnd := -1
-	inString := false
-	escapeNext := false
-
-	for i := jsonStart; i < len(output); i++ {
-		char := output[i]
-
-		if escapeNext {
-			escapeNext = false
-			continue
-		}
-
-		if char == '\\' {
-			escapeNext = true
-			continue
-		}
-
-		if char == '"' && (i == 0 || output[i-1] != '\\') {
-			inString = !inString
-			continue
-		}
-
-		if !inString {
-			if char == '[' {
-				bracketCount++
-			} else if char == ']' {
-				bracketCount--
-				if bracketCount == 0 {
-					jsonEnd = i + 1
-					break
-				}
-			}
-		}
-	}
-
-	if jsonEnd == -1 {
-		return nil, fmt.Errorf("parsing decompose output: malformed JSON array (missing closing bracket)")
-	}
-
-	// Extract the JSON portion
-	jsonStr := output[jsonStart:jsonEnd]
-
-	// Try to unmarshal the extracted JSON
-	if err := json.Unmarshal([]byte(jsonStr), &subTasks); err != nil {
+	if err := jsonutil.ExtractArray(output, &subTasks); err != nil {
 		return nil, fmt.Errorf("parsing decompose output: %w", err)
 	}
 

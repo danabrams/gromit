@@ -1,13 +1,14 @@
 package bead
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/danabrams/ralph-runner/internal/jsonutil"
 )
 
 // Bead represents an issue from the bd issue tracker
@@ -141,7 +142,7 @@ func parseBeadOutput(out string) (*Bead, error) {
 	}
 
 	var beads []Bead
-	if err := json.Unmarshal([]byte(out), &beads); err != nil {
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
 		return nil, fmt.Errorf("parsing bd output: %w", err)
 	}
 
@@ -204,7 +205,7 @@ func (c *Client) Show(id string) (*Bead, error) {
 	var b Bead
 	if strings.HasPrefix(trimmed, "[") {
 		var beads []Bead
-		if err := json.Unmarshal([]byte(trimmed), &beads); err != nil {
+		if err := jsonutil.ExtractArray(trimmed, &beads); err != nil {
 			return nil, fmt.Errorf("parsing bd show output: %w", err)
 		}
 		if len(beads) == 0 {
@@ -212,7 +213,7 @@ func (c *Client) Show(id string) (*Bead, error) {
 		}
 		b = beads[0]
 	} else {
-		if err := json.Unmarshal([]byte(trimmed), &b); err != nil {
+		if err := jsonutil.ExtractObject(trimmed, &b); err != nil {
 			return nil, fmt.Errorf("parsing bd show output: %w", err)
 		}
 	}
@@ -260,7 +261,7 @@ func (c *Client) CreateWithParent(title string, priority int, labels []string, e
 	}
 
 	var b Bead
-	if err := json.Unmarshal([]byte(out), &b); err != nil {
+	if err := jsonutil.ExtractObject(out, &b); err != nil {
 		return nil, fmt.Errorf("parsing bd create output: %w", err)
 	}
 
@@ -343,7 +344,7 @@ func (c *Client) GetComments(id string) ([]Comment, error) {
 	}
 
 	var comments []Comment
-	if err := json.Unmarshal([]byte(out), &comments); err != nil {
+	if err := jsonutil.ExtractArray(out, &comments); err != nil {
 		return nil, fmt.Errorf("parsing bd comments output: %w", err)
 	}
 
@@ -365,7 +366,7 @@ func (c *Client) List() ([]*Bead, error) {
 	}
 
 	var beads []Bead
-	if err := json.Unmarshal([]byte(out), &beads); err != nil {
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
 		return nil, fmt.Errorf("parsing bd list output: %w", err)
 	}
 
@@ -400,7 +401,7 @@ func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
 
 	if strings.TrimSpace(out) != "" && strings.TrimSpace(out) != "[]" {
 		var beads []Bead
-		if err := json.Unmarshal([]byte(out), &beads); err != nil {
+		if err := jsonutil.ExtractArray(out, &beads); err != nil {
 			return nil, nil, fmt.Errorf("parsing bd list open output: %w", err)
 		}
 
@@ -422,7 +423,7 @@ func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
 
 	if strings.TrimSpace(out) != "" && strings.TrimSpace(out) != "[]" {
 		var beads []Bead
-		if err := json.Unmarshal([]byte(out), &beads); err != nil {
+		if err := jsonutil.ExtractArray(out, &beads); err != nil {
 			return nil, nil, fmt.Errorf("parsing bd list closed output: %w", err)
 		}
 
