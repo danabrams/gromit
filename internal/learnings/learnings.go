@@ -46,7 +46,26 @@ const FuzzyMatchThreshold = 0.7
 // NewFile creates a new learnings file manager
 func NewFile(dir string) *File {
 	return &File{
-		path: filepath.Join(dir, "LEARNINGS.md"),
+		path:        filepath.Join(dir, "LEARNINGS.md"),
+		confirmed:   []Learning{},
+		provisional: []Learning{},
+		archived:    []Learning{},
+	}
+}
+
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+func (f *File) normalizeNilFields() {
+	if f == nil {
+		return
+	}
+	if f.confirmed == nil {
+		f.confirmed = []Learning{}
+	}
+	if f.provisional == nil {
+		f.provisional = []Learning{}
+	}
+	if f.archived == nil {
+		f.archived = []Learning{}
 	}
 }
 
@@ -65,6 +84,7 @@ func (f *File) Load() error {
 	}
 
 	f.confirmed, f.provisional, f.archived = parseLearnings(string(content))
+	f.normalizeNilFields()
 	return nil
 }
 
@@ -174,7 +194,7 @@ func (f *File) Save() error {
 // GetConfirmed returns all confirmed learnings
 func (f *File) GetConfirmed() []Learning {
 	if f == nil {
-		return nil
+		return []Learning{}
 	}
 	return f.confirmed
 }
@@ -182,7 +202,7 @@ func (f *File) GetConfirmed() []Learning {
 // GetProvisional returns all provisional learnings
 func (f *File) GetProvisional() []Learning {
 	if f == nil {
-		return nil
+		return []Learning{}
 	}
 	return f.provisional
 }
@@ -191,10 +211,10 @@ func (f *File) GetProvisional() []Learning {
 // Since we don't track iteration numbers, we use time-based (last N hours)
 func (f *File) GetRecent(hours int) []Learning {
 	if f == nil {
-		return nil
+		return []Learning{}
 	}
 	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
-	var recent []Learning
+	recent := []Learning{}
 	for _, l := range f.provisional {
 		if l.Date.After(cutoff) {
 			recent = append(recent, l)

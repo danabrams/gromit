@@ -30,7 +30,7 @@ func Load(path string) (*Rules, error) {
 
 // Parse parses rules content from a string
 func Parse(content string) (*Rules, error) {
-	rules := &Rules{}
+	rules := &Rules{Sections: []Section{}}
 	scanner := bufio.NewScanner(strings.NewReader(content))
 
 	var currentSection *Section

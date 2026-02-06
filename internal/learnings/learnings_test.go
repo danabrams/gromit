@@ -865,6 +865,114 @@ Archived learning content
 	}
 }
 
+// TestNewFileSlicesNotNil tests that NewFile initializes slices to non-nil
+func TestNewFileSlicesNotNil(t *testing.T) {
+	f := NewFile(t.TempDir())
+	if f.confirmed == nil {
+		t.Error("expected confirmed to be non-nil after NewFile")
+	}
+	if f.provisional == nil {
+		t.Error("expected provisional to be non-nil after NewFile")
+	}
+	if f.archived == nil {
+		t.Error("expected archived to be non-nil after NewFile")
+	}
+}
+
+// TestLoadMissingFileSlicesNotNil tests that Load on missing file keeps slices non-nil
+func TestLoadMissingFileSlicesNotNil(t *testing.T) {
+	f := NewFile(t.TempDir())
+	if err := f.Load(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if f.confirmed == nil {
+		t.Error("expected confirmed to be non-nil after Load on missing file")
+	}
+	if f.provisional == nil {
+		t.Error("expected provisional to be non-nil after Load on missing file")
+	}
+	if f.archived == nil {
+		t.Error("expected archived to be non-nil after Load on missing file")
+	}
+}
+
+// TestLoadEmptyFileSlicesNotNil tests that Load on empty file keeps slices non-nil
+func TestLoadEmptyFileSlicesNotNil(t *testing.T) {
+	dir := t.TempDir()
+	f := NewFile(dir)
+	// Create an empty LEARNINGS.md
+	if err := os.WriteFile(filepath.Join(dir, "LEARNINGS.md"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Load(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if f.confirmed == nil {
+		t.Error("expected confirmed to be non-nil after Load on empty file")
+	}
+	if f.provisional == nil {
+		t.Error("expected provisional to be non-nil after Load on empty file")
+	}
+	if f.archived == nil {
+		t.Error("expected archived to be non-nil after Load on empty file")
+	}
+}
+
+// TestGetConfirmedNilReceiver tests that GetConfirmed returns empty slice on nil receiver
+func TestGetConfirmedNilReceiver(t *testing.T) {
+	var f *File
+	result := f.GetConfirmed()
+	if result == nil {
+		t.Error("expected non-nil empty slice from GetConfirmed on nil receiver")
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty slice, got %d items", len(result))
+	}
+}
+
+// TestGetProvisionalNilReceiver tests that GetProvisional returns empty slice on nil receiver
+func TestGetProvisionalNilReceiver(t *testing.T) {
+	var f *File
+	result := f.GetProvisional()
+	if result == nil {
+		t.Error("expected non-nil empty slice from GetProvisional on nil receiver")
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty slice, got %d items", len(result))
+	}
+}
+
+// TestGetRecentNilReceiver tests that GetRecent returns empty slice on nil receiver
+func TestGetRecentNilReceiver(t *testing.T) {
+	var f *File
+	result := f.GetRecent(1)
+	if result == nil {
+		t.Error("expected non-nil empty slice from GetRecent on nil receiver")
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty slice, got %d items", len(result))
+	}
+}
+
+// TestGetRecentNoMatchesReturnsEmptySlice tests that GetRecent returns empty slice (not nil) when no matches
+func TestGetRecentNoMatchesReturnsEmptySlice(t *testing.T) {
+	f := NewFile(t.TempDir())
+	// Add an old learning
+	f.provisional = append(f.provisional, Learning{
+		Date:    time.Now().Add(-48 * time.Hour),
+		BeadID:  "bead-1",
+		Content: "Old learning",
+	})
+
+	result := f.GetRecent(1)
+	if result == nil {
+		t.Error("expected non-nil empty slice from GetRecent with no matches")
+	}
+	if len(result) != 0 {
+		t.Errorf("expected 0 recent learnings, got %d", len(result))
+	}
+}
+
 // TestLoadAndSaveWithArchived tests round-trip with archived section
 func TestLoadAndSaveWithArchived(t *testing.T) {
 	tmpDir := t.TempDir()

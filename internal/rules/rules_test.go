@@ -62,6 +62,28 @@ func TestParseEmptyContent(t *testing.T) {
 	}
 }
 
+func TestParseEmptyContentSectionsNotNil(t *testing.T) {
+	r, err := Parse("")
+	if err != nil {
+		t.Fatalf("parsing empty content: %v", err)
+	}
+
+	if r.Sections == nil {
+		t.Error("expected Sections to be non-nil (empty slice) for empty content")
+	}
+}
+
+func TestParseWhitespaceContentSectionsNotNil(t *testing.T) {
+	r, err := Parse("  \n\n  \t\n")
+	if err != nil {
+		t.Fatalf("parsing whitespace content: %v", err)
+	}
+
+	if r.Sections == nil {
+		t.Error("expected Sections to be non-nil (empty slice) for whitespace content")
+	}
+}
+
 func TestParseSectionWithoutRules(t *testing.T) {
 	content := `## Empty Section
 
