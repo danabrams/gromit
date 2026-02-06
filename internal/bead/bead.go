@@ -37,6 +37,9 @@ const (
 
 // Validate checks that bead fields are safe for use in prompts, commands, and logging.
 func (b *Bead) Validate() error {
+	if b == nil {
+		return fmt.Errorf("bead is nil")
+	}
 	// ID is used in shell commands (bd close, bd show) - must be strictly validated
 	if b.ID == "" {
 		return fmt.Errorf("bead has empty ID")
@@ -136,6 +139,9 @@ func parseBeadOutput(out string) (*Bead, error) {
 
 // Ready returns the next unblocked bead ready for work (excludes epics)
 func (c *Client) Ready() (*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
 	// Use --type task to exclude epics - we want atomic work items
 	out, err := c.run("ready", "--json", "--limit", "1", "--type", "task")
 	if err != nil {
@@ -147,6 +153,9 @@ func (c *Client) Ready() (*Bead, error) {
 
 // ReadyAny returns the next unblocked bead of any type (including epics)
 func (c *Client) ReadyAny() (*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
 	out, err := c.run("ready", "--json", "--limit", "1")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
@@ -157,6 +166,9 @@ func (c *Client) ReadyAny() (*Bead, error) {
 
 // Show returns full details for a bead
 func (c *Client) Show(id string) (*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
 	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
 		return nil, fmt.Errorf("invalid bead ID %q", id)
 	}
@@ -180,6 +192,9 @@ func (c *Client) Show(id string) (*Bead, error) {
 
 // Create creates a new bead via the bd CLI and returns the created bead
 func (c *Client) Create(title string, priority int, labels []string, expectedOutputs []string) (*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
 	args := []string{"create", title, "--priority", fmt.Sprintf("%d", priority), "--json"}
 
 	for _, label := range labels {
@@ -209,6 +224,9 @@ func (c *Client) Create(title string, priority int, labels []string, expectedOut
 
 // Close marks a bead as complete
 func (c *Client) Close(id string) error {
+	if c == nil {
+		return fmt.Errorf("bead client is nil")
+	}
 	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
 		return fmt.Errorf("invalid bead ID %q", id)
 	}
@@ -222,6 +240,9 @@ func (c *Client) Close(id string) error {
 
 // Sync syncs the bd database with git
 func (c *Client) Sync() error {
+	if c == nil {
+		return fmt.Errorf("bead client is nil")
+	}
 	_, err := c.run("sync")
 	if err != nil {
 		return fmt.Errorf("bd sync: %w", err)
@@ -231,6 +252,9 @@ func (c *Client) Sync() error {
 
 // AddComment adds a comment to a bead
 func (c *Client) AddComment(id, comment string) error {
+	if c == nil {
+		return fmt.Errorf("bead client is nil")
+	}
 	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
 		return fmt.Errorf("invalid bead ID %q", id)
 	}
@@ -244,6 +268,9 @@ func (c *Client) AddComment(id, comment string) error {
 
 // GetParent returns the parent bead if one exists
 func (c *Client) GetParent(b *Bead) (*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
 	if b == nil || b.Parent == "" {
 		return nil, nil
 	}

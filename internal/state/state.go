@@ -28,6 +28,9 @@ func NewFile(ralphDir string) *File {
 
 // Load reads the state from disk
 func (f *File) Load() error {
+	if f == nil {
+		return fmt.Errorf("state file is nil")
+	}
 	data, err := os.ReadFile(f.path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -45,6 +48,9 @@ func (f *File) Load() error {
 
 // Save writes the state to disk
 func (f *File) Save() error {
+	if f == nil {
+		return fmt.Errorf("state file is nil")
+	}
 	dir := filepath.Dir(f.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("creating state directory: %w", err)
@@ -60,11 +66,17 @@ func (f *File) Save() error {
 
 // LastRetro returns the time of the last retrospective
 func (f *File) LastRetro() time.Time {
+	if f == nil {
+		return time.Time{}
+	}
 	return f.state.LastRetro
 }
 
 // RecordRetro updates the last retro time to now
 func (f *File) RecordRetro() error {
+	if f == nil {
+		return fmt.Errorf("state file is nil")
+	}
 	f.state.LastRetro = time.Now()
 	return f.Save()
 }

@@ -45,6 +45,9 @@ func NewClient(binary string, flags []string, timeoutSecs int) *Client {
 // Run invokes Claude with the given prompt and model
 // Each invocation is a fresh process - no context carried over
 func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result, error) {
+	if c == nil {
+		return nil, fmt.Errorf("claude client is nil")
+	}
 	start := time.Now()
 
 	// Build command args
@@ -146,6 +149,9 @@ func validateCommand(cmd string) error {
 // Commands are validated and formatted in a structured block to prevent
 // prompt injection via malicious ralph.yaml entries.
 func (c *Client) RunValidation(ctx context.Context, commands []string, model string, workDir string) (*Result, error) {
+	if c == nil {
+		return nil, fmt.Errorf("claude client is nil")
+	}
 	if err := ValidateCommands(commands); err != nil {
 		return nil, fmt.Errorf("invalid validation config: %w", err)
 	}
@@ -232,6 +238,9 @@ type EventHandler func(line []byte)
 // to get structured events for firehose logging, and extracts the text result
 // from the JSON stream. Otherwise it streams raw text output.
 func (c *Client) StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler) (*Result, error) {
+	if c == nil {
+		return nil, fmt.Errorf("claude client is nil")
+	}
 	start := time.Now()
 
 	args := []string{

@@ -33,6 +33,12 @@ func NewFile(ralphDir string) *File {
 
 // Add appends a new idea to the backlog
 func (f *File) Add(idea *Idea) error {
+	if f == nil {
+		return fmt.Errorf("backlog file is nil")
+	}
+	if idea == nil {
+		return fmt.Errorf("idea is nil")
+	}
 	// Ensure .ralph directory exists
 	dir := filepath.Dir(f.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -61,6 +67,9 @@ func (f *File) Add(idea *Idea) error {
 
 // List returns all ideas from the backlog
 func (f *File) List() ([]*Idea, error) {
+	if f == nil {
+		return nil, fmt.Errorf("backlog file is nil")
+	}
 	file, err := os.Open(f.path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -99,6 +108,9 @@ func GenerateID() string {
 
 // Get returns a single idea by ID, or nil if not found
 func (f *File) Get(id string) (*Idea, error) {
+	if f == nil {
+		return nil, fmt.Errorf("backlog file is nil")
+	}
 	ideas, err := f.List()
 	if err != nil {
 		return nil, fmt.Errorf("loading backlog: %w", err)
@@ -115,6 +127,9 @@ func (f *File) Get(id string) (*Idea, error) {
 
 // Delete removes an idea from the backlog by rewriting the file without it
 func (f *File) Delete(id string) error {
+	if f == nil {
+		return fmt.Errorf("backlog file is nil")
+	}
 	// Load all ideas
 	ideas, err := f.List()
 	if err != nil {

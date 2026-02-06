@@ -44,6 +44,9 @@ func NewFile(dir string) *File {
 
 // Load reads and parses the LEARNINGS.md file
 func (f *File) Load() error {
+	if f == nil {
+		return fmt.Errorf("learnings file is nil")
+	}
 	content, err := os.ReadFile(f.path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -59,6 +62,9 @@ func (f *File) Load() error {
 
 // Add adds a new learning, checking for duplicates
 func (f *File) Add(beadID, content, category string) (*Learning, error) {
+	if f == nil {
+		return nil, fmt.Errorf("learnings file is nil")
+	}
 	hash := hashContent(content)
 
 	// Check for exact duplicate
@@ -107,6 +113,9 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 
 // Save writes the learnings back to the file
 func (f *File) Save() error {
+	if f == nil {
+		return fmt.Errorf("learnings file is nil")
+	}
 	// Ensure directory exists
 	dir := filepath.Dir(f.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -145,17 +154,26 @@ func (f *File) Save() error {
 
 // GetConfirmed returns all confirmed learnings
 func (f *File) GetConfirmed() []Learning {
+	if f == nil {
+		return nil
+	}
 	return f.confirmed
 }
 
 // GetProvisional returns all provisional learnings
 func (f *File) GetProvisional() []Learning {
+	if f == nil {
+		return nil
+	}
 	return f.provisional
 }
 
 // GetRecent returns provisional learnings from the last N iterations
 // Since we don't track iteration numbers, we use time-based (last N hours)
 func (f *File) GetRecent(hours int) []Learning {
+	if f == nil {
+		return nil
+	}
 	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
 	var recent []Learning
 	for _, l := range f.provisional {
@@ -168,11 +186,17 @@ func (f *File) GetRecent(hours int) []Learning {
 
 // Stats returns statistics about learnings
 func (f *File) Stats() (confirmed, provisional int) {
+	if f == nil {
+		return 0, 0
+	}
 	return len(f.confirmed), len(f.provisional)
 }
 
 // ShouldSuggestRetro returns true if conditions suggest running a retro
 func (f *File) ShouldSuggestRetro(lastRetro time.Time, failureRate float64) (bool, string) {
+	if f == nil {
+		return false, ""
+	}
 	confirmedCount, provisionalCount := f.Stats()
 
 	if provisionalCount > 10 {

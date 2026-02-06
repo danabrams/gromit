@@ -245,6 +245,10 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		result.Error = fmt.Errorf("building prompt context: %w", err)
 		return result
 	}
+	if promptCtx == nil {
+		result.Error = fmt.Errorf("building prompt context: returned nil")
+		return result
+	}
 
 	// Render build prompt
 	buildPrompt, err := r.renderer.RenderBuild(promptCtx)
@@ -497,6 +501,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 		)
 		if err != nil {
 			result.Error = fmt.Errorf("validation invocation: %w", err)
+			return result
+		}
+
+		if valResult == nil {
+			result.Error = fmt.Errorf("validation returned no result")
 			return result
 		}
 

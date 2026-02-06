@@ -73,6 +73,9 @@ func NewStreamStats() *StreamStats {
 
 // RecordToolCall increments the tool call counter
 func (s *StreamStats) RecordToolCall(toolName string, filePath string) {
+	if s == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ToolCalls++
@@ -83,6 +86,9 @@ func (s *StreamStats) RecordToolCall(toolName string, filePath string) {
 
 // Snapshot returns a copy of the current stats
 func (s *StreamStats) Snapshot() (toolCalls int, filesModified int, elapsed time.Duration) {
+	if s == nil {
+		return 0, 0, 0
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.ToolCalls, len(s.FilesModified), time.Since(s.StartTime)
@@ -90,6 +96,9 @@ func (s *StreamStats) Snapshot() (toolCalls int, filesModified int, elapsed time
 
 // RecordEvent updates the last event timestamp. Called on every stream event.
 func (s *StreamStats) RecordEvent() {
+	if s == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.LastEventTime = time.Now()
@@ -98,6 +107,9 @@ func (s *StreamStats) RecordEvent() {
 
 // TimeSinceLastEvent returns the duration since the last stream event was received.
 func (s *StreamStats) TimeSinceLastEvent() time.Duration {
+	if s == nil {
+		return 0
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return time.Since(s.LastEventTime)
@@ -105,6 +117,9 @@ func (s *StreamStats) TimeSinceLastEvent() time.Duration {
 
 // HasReceivedEvent returns true if at least one stream event has been recorded.
 func (s *StreamStats) HasReceivedEvent() bool {
+	if s == nil {
+		return false
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.firstEventReceived
@@ -113,6 +128,9 @@ func (s *StreamStats) HasReceivedEvent() bool {
 // HasToolActivity returns true if Claude has made at least one tool call,
 // indicating it has started actively working (not just connected).
 func (s *StreamStats) HasToolActivity() bool {
+	if s == nil {
+		return false
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.ToolCalls > 0
