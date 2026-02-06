@@ -131,9 +131,114 @@ func determineReviewScope(cfg *config.Config) (string, error) {
 }
 
 func getEpicBaseCommit(epicID string) (string, error) {
-	// For now, return an error - epic tracking requires git log parsing
-	// This is a nice-to-have that can be implemented later
-	return "", fmt.Errorf("--epic flag not yet implemented - use --since instead")
+	// Get the epic bead to verify it exists
+	beadsClient, err := bead.NewClient()
+	if err != nil {
+		return "", fmt.Errorf("creating bead client: %w", err)
+	}
+
+	epicBead, err := beadsClient.Show(epicID)
+	if err != nil {
+		return "", fmt.Errorf("epic %q not found: %w", epicID, err)
+	}
+
+	if epicBead == nil {
+		return "", fmt.Errorf("epic %q not found", epicID)
+	}
+
+	// Get all child beads (both open and closed) of this epic
+	// We need to list all beads and filter by parent since bd list doesn't support
+	// querying across open+closed with --parent in one call
+	allOpen, allClosed, err := beadsClient.ListAll()
+	if err != nil {
+		return "", fmt.Errorf("listing beads: %w", err)
+	}
+
+	// Collect all child beads
+	childBeads := make([]*bead.Bead, 0)
+	for _, b := range allOpen {
+		if b.Parent == epicID {
+			childBeads = append(childBeads, b)
+		}
+	}
+	for _, b := range allClosed {
+		if b.Parent == epicID {
+			childBeads = append(childBeads, b)
+		}
+	}
+
+	if len(childBeads) == 0 {
+		// No child beads found - return the epic's creation commit or earliest commit
+		// by using the epic creation timestamp as a reference
+		return "", fmt.Errorf("epic %q has no child beads", epicID)
+	}
+
+	// Find the earliest commit that contains any of the child bead IDs in the message
+	// This assumes that when a bead is closed, the commit message references its ID
+	// We'll search git history for references to child bead IDs
+	earliestCommit := ""
+	for _, childBead := range childBeads {
+		// Search git log for commits mentioning this bead ID
+		commit, err := findFirstCommitForBead(childBead.ID)
+		if err != nil {
+			// Skip beads that don't have commits (might be newly created)
+			continue
+		}
+		if commit != "" {
+			if earliestCommit == "" {
+				earliestCommit = commit
+			} else {
+				// Get the commit timestamps to find the earliest
+				if isCommitEarlier(earliestCommit, commit) {
+					earliestCommit = commit
+				}
+			}
+		}
+	}
+
+	if earliestCommit != "" {
+		return earliestCommit, nil
+	}
+
+	// If no commits found for any child beads, return an error
+	// This is expected for newly created epics
+	return "", fmt.Errorf("no commits found for epic %q - try using --since to specify a commit", epicID)
+}
+
+func findFirstCommitForBead(beadID string) (string, error) {
+	// Search git log for the bead ID in commit messages
+	cmd := exec.Command("git", "log", "--all", "--format=%H", "--grep", beadID)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", nil // No commits found
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) > 0 && lines[0] != "" {
+		return lines[0], nil
+	}
+
+	return "", nil
+}
+
+func isCommitEarlier(commit1, commit2 string) bool {
+	// Compare commit timestamps to determine which is earlier
+	cmd1 := exec.Command("git", "log", "-1", "--format=%at", commit1)
+	out1, err1 := cmd1.Output()
+	if err1 != nil {
+		return false
+	}
+
+	cmd2 := exec.Command("git", "log", "-1", "--format=%at", commit2)
+	out2, err2 := cmd2.Output()
+	if err2 != nil {
+		return false
+	}
+
+	timestamp1 := strings.TrimSpace(string(out1))
+	timestamp2 := strings.TrimSpace(string(out2))
+
+	return timestamp1 < timestamp2
 }
 
 func getGitDiffForReview(fromCommit string) (string, error) {
