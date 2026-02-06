@@ -1251,3 +1251,23 @@ func (r *Runner) applyReviewResult(result *review.ReviewResult) (beadsCreated in
 
 	return beadsCreated, backlogCreated
 }
+
+// writeReviewLog writes a review result to the iteration log
+func (r *Runner) writeReviewLog(iteration int, beadID string, model string, result *review.ReviewResult, beadsCreated, backlogCreated int, duration time.Duration) {
+	if r == nil || r.logger == nil || result == nil {
+		return
+	}
+	r.logger.LogReview(&logger.ReviewLog{
+		Timestamp:      time.Now(),
+		Type:           "review",
+		ReviewType:     "light",
+		Iteration:      iteration,
+		BeadID:         beadID,
+		Model:          model,
+		Passed:         result.Passed,
+		FixesApplied:   len(result.FixesApplied),
+		BeadsCreated:   beadsCreated,
+		BacklogCreated: backlogCreated,
+		DurationMs:     duration.Milliseconds(),
+	})
+}

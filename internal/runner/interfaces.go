@@ -63,6 +63,7 @@ type PromptRenderer interface {
 // IterationLogger abstracts the iteration log writing used by the runner.
 type IterationLogger interface {
 	LogIteration(log *logger.IterationLog) error
+	LogReview(log *logger.ReviewLog) error
 	Close() error
 	FilePath() string
 }

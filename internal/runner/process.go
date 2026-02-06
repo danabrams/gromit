@@ -23,6 +23,7 @@ type beadContext struct {
 	promptCtx   *prompt.Context
 	buildPrompt string
 	startCommit string
+	iteration   int
 
 	// Retry tracking
 	retriesThisModel    int
@@ -73,6 +74,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		result:            &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model},
 		model:             model,
 		startCommit:       startCommit,
+		iteration:         iteration,
 		maxRetries:        r.cfg.Escalation.MaxRetriesPerModel,
 		maxRetriesPerBead: r.cfg.Escalation.MaxRetriesPerBead,
 		parentCtx:         ctx,
@@ -429,5 +431,47 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 
 	bc.result.Validated = true
 	r.log("Validation passed")
+
+	// Run light review if enabled
+	if r.cfg.Review.Enabled {
+		reviewStart := time.Now()
+		r.log("Running post-iteration review with model: %s", selectReviewModel(r.cfg, bc.model))
+
+		reviewResult, err := r.runLightReview(ctx, bc.bead, bc.parent, bc.startCommit, bc.model, bc.iteration)
+		if err != nil {
+			r.log("Warning: review failed: %v", err)
+			// Review failure is non-blocking — continue
+		} else if reviewResult != nil {
+			r.log("Review: %s", reviewResult.Summary)
+
+			// If fixes were applied, re-validate
+			if len(reviewResult.FixesApplied) > 0 {
+				r.log("Review applied %d fixes, re-validating...", len(reviewResult.FixesApplied))
+
+				if r.cfg.Validation.Enabled {
+					valResult, err := r.claude.RunValidation(ctx, r.cfg.Validation.Commands, r.cfg.Models.Validation, bc.promptCtx.WorkDir)
+					if err != nil {
+						return fmt.Errorf("review re-validation invocation: %w", err)
+					}
+					if valResult == nil || !claude.IsValidationPassed(valResult) {
+						bc.result.Output += "\n\n=== REVIEW RE-VALIDATION FAILED ===\n"
+						if valResult != nil {
+							bc.result.Output += valResult.Output
+						}
+						return fmt.Errorf("review fixes broke validation")
+					}
+					r.log("Re-validation passed")
+				}
+			}
+
+			// Create beads/backlog from review findings
+			beadsCreated, backlogCreated := r.applyReviewResult(reviewResult)
+
+			// Log review result
+			reviewDuration := time.Since(reviewStart)
+			r.writeReviewLog(bc.iteration, bc.bead.ID, selectReviewModel(r.cfg, bc.model), reviewResult, beadsCreated, backlogCreated, reviewDuration)
+		}
+	}
+
 	return nil
 }

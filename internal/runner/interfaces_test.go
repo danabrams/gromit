@@ -259,6 +259,11 @@ func (m *mockIterationLogger) LogIteration(log *logger.IterationLog) error {
 	return nil
 }
 
+func (m *mockIterationLogger) LogReview(log *logger.ReviewLog) error {
+	// Mock implementation - just return nil for now
+	return nil
+}
+
 func (m *mockIterationLogger) Close() error {
 	m.Closed = true
 	return nil
