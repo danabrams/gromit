@@ -652,6 +652,7 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 							r.log("STALL DETECTED (%s): No output from Claude for %v (threshold: %v)",
 								tier, stats.TimeSinceLastEvent().Round(time.Second), threshold)
 							onStall()
+							usedOverwrite <- wasOverwritten
 							return
 						}
 					}
