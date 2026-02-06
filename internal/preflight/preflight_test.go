@@ -125,6 +125,24 @@ func TestPrintStatus(t *testing.T) {
 	}
 }
 
+func TestCheckNilReceiver(t *testing.T) {
+	var c *Checker
+	err := c.Check([]string{"go test ./..."})
+	if err == nil {
+		t.Error("expected error for nil checker")
+	}
+}
+
+func TestNewCheckerNilOutput(t *testing.T) {
+	c := NewChecker(config.PreflightConfig{}, nil)
+	if c == nil {
+		t.Fatal("expected non-nil checker")
+	}
+	if c.out == nil {
+		t.Error("expected output to default to os.Stdout when nil")
+	}
+}
+
 func TestCheckNoMissingTools(t *testing.T) {
 	out := &bytes.Buffer{}
 	checker := &Checker{

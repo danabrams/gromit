@@ -1095,6 +1095,38 @@ func TestResultOutputIncludesStdout(t *testing.T) {
 	}
 }
 
+func TestStreamRunNilOutput(t *testing.T) {
+	// StreamRun should default to os.Stdout when output is nil, not panic
+	client := NewClient("echo", []string{"-n", "test"}, 5)
+	ctx := context.Background()
+
+	result, err := client.StreamRun(ctx, "prompt", "sonnet", nil, nil)
+
+	if err != nil {
+		t.Fatalf("StreamRun() with nil output should not error: %v", err)
+	}
+
+	if !result.Success {
+		t.Error("StreamRun() with nil output should succeed")
+	}
+}
+
+func TestRunNilReceiver(t *testing.T) {
+	var c *Client
+	_, err := c.Run(context.Background(), "test", "sonnet")
+	if err == nil {
+		t.Error("expected error for nil client")
+	}
+}
+
+func TestStreamRunNilReceiver(t *testing.T) {
+	var c *Client
+	_, err := c.StreamRun(context.Background(), "test", "sonnet", nil, nil)
+	if err == nil {
+		t.Error("expected error for nil client")
+	}
+}
+
 func TestMultipleContextLayers(t *testing.T) {
 	t.Skip("Timeout test requires a command that hangs indefinitely - skipping for CI compatibility")
 	// Test that both client timeout and external context work together

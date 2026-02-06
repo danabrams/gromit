@@ -163,6 +163,35 @@ func TestStatusNilRunner(t *testing.T) {
 	}
 }
 
+func TestRunNilConfig(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	err := r.Run(nil, 0, false)
+	if err == nil {
+		t.Error("expected error for nil config")
+	}
+	if !strings.Contains(err.Error(), "config is nil") {
+		t.Errorf("expected 'config is nil' in error, got %q", err.Error())
+	}
+}
+
+func TestProcessBeadNilConfig(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	b := &bead.Bead{ID: "test-1", Title: "Test"}
+	result := r.processBead(nil, b, 1)
+	if result.Error == nil {
+		t.Error("expected error for nil config in processBead")
+	}
+	if !strings.Contains(result.Error.Error(), "config is nil") {
+		t.Errorf("expected 'config is nil' in error, got %q", result.Error.Error())
+	}
+}
+
+func TestLogNilOutput(t *testing.T) {
+	r := &Runner{} // output is nil
+	// Should not panic
+	r.log("test message %s", "value")
+}
+
 func TestSelectModelNilBead(t *testing.T) {
 	r := &Runner{}
 	result := r.selectModel(nil)

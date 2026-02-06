@@ -241,6 +241,9 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	if c == nil {
 		return nil, fmt.Errorf("claude client is nil")
 	}
+	if output == nil {
+		output = os.Stdout
+	}
 	start := time.Now()
 
 	args := []string{

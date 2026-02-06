@@ -20,6 +20,9 @@ type Checker struct {
 
 // NewChecker creates a new preflight checker
 func NewChecker(cfg config.PreflightConfig, output io.Writer) *Checker {
+	if output == nil {
+		output = os.Stdout
+	}
 	return &Checker{
 		cfg: cfg,
 		out: output,
@@ -28,6 +31,9 @@ func NewChecker(cfg config.PreflightConfig, output io.Writer) *Checker {
 
 // Check verifies required tools are available and attempts installation if missing
 func (c *Checker) Check(commands []string) error {
+	if c == nil {
+		return fmt.Errorf("preflight checker is nil")
+	}
 	if len(commands) == 0 {
 		return nil // Nothing to validate
 	}

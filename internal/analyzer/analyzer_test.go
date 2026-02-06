@@ -420,6 +420,38 @@ func TestParseAnalysisOutputTrimWhitespace(t *testing.T) {
 	}
 }
 
+// TestNewAnalyzerNilClient tests that NewAnalyzer returns nil when claude client is nil
+func TestNewAnalyzerNilClient(t *testing.T) {
+	a := NewAnalyzer(nil, "sonnet", &prompt.Renderer{})
+	if a != nil {
+		t.Error("expected nil Analyzer when claude client is nil")
+	}
+}
+
+// TestNewAnalyzerNilRenderer tests that NewAnalyzer returns nil when renderer is nil
+func TestNewAnalyzerNilRenderer(t *testing.T) {
+	a := NewAnalyzer(claude.NewClient("claude", nil, 60), "sonnet", nil)
+	if a != nil {
+		t.Error("expected nil Analyzer when renderer is nil")
+	}
+}
+
+// TestNewAnalyzerBothNil tests that NewAnalyzer returns nil when both params are nil
+func TestNewAnalyzerBothNil(t *testing.T) {
+	a := NewAnalyzer(nil, "sonnet", nil)
+	if a != nil {
+		t.Error("expected nil Analyzer when both client and renderer are nil")
+	}
+}
+
+// TestNewAnalyzerValidParams tests that NewAnalyzer returns non-nil with valid params
+func TestNewAnalyzerValidParams(t *testing.T) {
+	a := NewAnalyzer(claude.NewClient("claude", nil, 60), "sonnet", &prompt.Renderer{})
+	if a == nil {
+		t.Error("expected non-nil Analyzer with valid params")
+	}
+}
+
 // TestAnalyzeNilReceiver tests that Analyze handles nil Analyzer receiver
 func TestAnalyzeNilReceiver(t *testing.T) {
 	var a *Analyzer

@@ -91,6 +91,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 	if r == nil {
 		return fmt.Errorf("runner is nil")
 	}
+	if r.cfg == nil {
+		return fmt.Errorf("runner config is nil")
+	}
 	// Ensure logger is closed when done
 	if r.logger != nil {
 		defer r.logger.Close()
@@ -214,6 +217,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 	start := time.Now()
 	defer func() { result.Duration = time.Since(start) }()
+
+	if r.cfg == nil {
+		result.Error = fmt.Errorf("runner config is nil")
+		return result
+	}
 
 	// Apply per-bead timeout to prevent unbounded accumulation of retries/analysis/validation
 	beadTimeout := time.Duration(r.cfg.Claude.BeadTimeout) * time.Second
@@ -577,6 +585,9 @@ func (r *Runner) logResult(result *IterationResult) {
 }
 
 func (r *Runner) log(format string, args ...any) {
+	if r.output == nil {
+		return
+	}
 	msg := fmt.Sprintf(format, args...)
 	if !strings.HasSuffix(msg, "\n") {
 		msg += "\n"

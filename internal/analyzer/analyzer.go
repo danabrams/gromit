@@ -57,8 +57,11 @@ type Analyzer struct {
 	renderer *prompt.Renderer
 }
 
-// NewAnalyzer creates a new analyzer
+// NewAnalyzer creates a new analyzer. Returns nil if claudeClient or renderer is nil.
 func NewAnalyzer(claudeClient *claude.Client, model string, renderer *prompt.Renderer) *Analyzer {
+	if claudeClient == nil || renderer == nil {
+		return nil
+	}
 	return &Analyzer{
 		claude:   claudeClient,
 		model:    model,
