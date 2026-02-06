@@ -29,6 +29,7 @@ type EscalationConfig struct {
 	Enabled            bool     `yaml:"enabled"`
 	Chain              []string `yaml:"chain"`
 	MaxRetriesPerModel int      `yaml:"max_retries_per_model"`
+	MaxRetriesPerBead  int      `yaml:"max_retries_per_bead"`
 }
 
 type LoopConfig struct {
@@ -47,9 +48,10 @@ type PreflightConfig struct {
 }
 
 type ClaudeConfig struct {
-	Binary  string   `yaml:"binary"`
-	Timeout int      `yaml:"timeout"`
-	Flags   []string `yaml:"flags"`
+	Binary       string   `yaml:"binary"`
+	Timeout      int      `yaml:"timeout"`
+	StallTimeout int      `yaml:"stall_timeout"`
+	Flags        []string `yaml:"flags"`
 }
 
 type PathsConfig struct {
@@ -94,6 +96,9 @@ func (c *Config) setDefaults() {
 	if c.Claude.Timeout == 0 {
 		c.Claude.Timeout = 600
 	}
+	if c.Claude.StallTimeout == 0 {
+		c.Claude.StallTimeout = 120
+	}
 	if c.Paths.RalphDir == "" {
 		c.Paths.RalphDir = ".ralph"
 	}
@@ -114,6 +119,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.Escalation.MaxRetriesPerModel == 0 {
 		c.Escalation.MaxRetriesPerModel = 1
+	}
+	if c.Escalation.MaxRetriesPerBead == 0 {
+		c.Escalation.MaxRetriesPerBead = 10
 	}
 	if c.Preflight.AutoInstall == "" {
 		c.Preflight.AutoInstall = "ask"

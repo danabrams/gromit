@@ -249,7 +249,9 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 	// Execute with analysis and escalation on failure
 	var claudeResult *claude.Result
 	retriesThisModel := 0
+	totalRetriesThisBead := 0
 	maxRetries := r.cfg.Escalation.MaxRetriesPerModel
+	maxRetriesPerBead := r.cfg.Escalation.MaxRetriesPerBead
 	for {
 		// Check for context cancellation before each invocation
 		select {
@@ -264,7 +266,16 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 		// Set up stream stats and heartbeat for this invocation
 		stats := logger.NewStreamStats()
-		stopHeartbeat := r.startHeartbeat(stats)
+
+		// Create child context so stall cancel doesn't kill the parent
+		childCtx, childCancel := context.WithCancel(ctx)
+		stallFired := false
+
+		stallTimeout := time.Duration(r.cfg.Claude.StallTimeout) * time.Second
+		stopHeartbeat := r.startHeartbeat(stats, stallTimeout, func() {
+			stallFired = true
+			childCancel()
+		})
 
 		// Build event handler for firehose streaming
 		var handler claude.EventHandler
@@ -275,9 +286,49 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 			}
 		}
 
-		claudeResult, err = r.claude.StreamRun(ctx, buildPrompt, model, r.output, handler)
+		claudeResult, err = r.claude.StreamRun(childCtx, buildPrompt, model, r.output, handler)
 		stopHeartbeat()
+		childCancel() // Ensure cleanup
+
 		if err != nil {
+			if stallFired && ctx.Err() == nil {
+				// Stall timeout — recoverable, retry or escalate
+				retriesThisModel++
+				totalRetriesThisBead++
+
+				// Check global bead retry limit first
+				if totalRetriesThisBead > maxRetriesPerBead {
+					r.log("Max retries per bead exceeded (%d/%d)", totalRetriesThisBead, maxRetriesPerBead)
+					result.Error = fmt.Errorf("stall timeout: exceeded max retries per bead (%d)", maxRetriesPerBead)
+					return result
+				}
+
+				if retriesThisModel <= maxRetries {
+					r.log("Stall timeout, retrying with same model (%d/%d)...", retriesThisModel, maxRetries)
+					continue
+				}
+				r.log("Stall timeout, retries exhausted for %s", model)
+				// Try escalation
+				nextModel := r.cfg.NextEscalationModel(model)
+				if nextModel == "" {
+					result.Error = fmt.Errorf("stall timeout: exhausted all models")
+					return result
+				}
+				r.log("Escalating from %s to %s after stall", model, nextModel)
+				result.Escalated = true
+				result.EscalatedTo = nextModel
+				model = nextModel
+				retriesThisModel = 0
+				result.Model = model
+				promptCtx.Model = model
+				buildPrompt, err = r.renderer.RenderBuild(promptCtx)
+				if err != nil {
+					result.Error = fmt.Errorf("rendering retry prompt: %w", err)
+					return result
+				}
+				continue
+			}
+			// User Ctrl+C or global timeout — abort
 			result.Error = fmt.Errorf("claude invocation: %w", err)
 			return result
 		}
@@ -331,6 +382,15 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 			// If recoverable and under retry limit, retry with context (same model)
 			if analysis.Recoverable && retriesThisModel < maxRetries {
 				retriesThisModel++
+				totalRetriesThisBead++
+
+				// Check global bead retry limit
+				if totalRetriesThisBead > maxRetriesPerBead {
+					r.log("Max retries per bead exceeded (%d/%d)", totalRetriesThisBead, maxRetriesPerBead)
+					result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", maxRetriesPerBead)
+					return result
+				}
+
 				r.log("Failure is recoverable, retrying with context (attempt %d/%d)...", retriesThisModel, maxRetries)
 				promptCtx.IsRetry = true
 				promptCtx.PrevFailure = claudeResult.Output
@@ -357,6 +417,14 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 				r.showPartialProgress(b, startCommit)
 			}
 			result.Error = fmt.Errorf("build failed with all models")
+			return result
+		}
+
+		// Check if we can escalate without exceeding bead limit
+		// (Escalation itself doesn't count as a retry, but will likely trigger retries)
+		if totalRetriesThisBead >= maxRetriesPerBead {
+			r.log("Cannot escalate: max retries per bead reached (%d/%d)", totalRetriesThisBead, maxRetriesPerBead)
+			result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", maxRetriesPerBead)
 			return result
 		}
 
@@ -478,28 +546,71 @@ func (r *Runner) log(format string, args ...any) {
 	fmt.Fprint(r.output, msg)
 }
 
-// startHeartbeat launches a goroutine that prints periodic status updates.
-// First heartbeat fires at 15s, then every 30s thereafter.
+// heartbeatConfig holds timing parameters for the heartbeat goroutine.
+type heartbeatConfig struct {
+	InitialDelay   time.Duration
+	HeartbeatRate  time.Duration
+	StallCheckRate time.Duration
+}
+
+var defaultHeartbeatConfig = heartbeatConfig{
+	InitialDelay:   15 * time.Second,
+	HeartbeatRate:  30 * time.Second,
+	StallCheckRate: 10 * time.Second,
+}
+
+// startHeartbeat launches a goroutine that prints periodic status updates
+// and optionally detects stalls. When stallTimeout > 0 and onStall is non-nil,
+// the goroutine checks every 10s whether the last stream event exceeds the
+// threshold, and calls onStall() once if so.
 // Returns a function to stop the heartbeat.
-func (r *Runner) startHeartbeat(stats *logger.StreamStats) func() {
+func (r *Runner) startHeartbeat(stats *logger.StreamStats, stallTimeout time.Duration, onStall func()) func() {
+	return r.startHeartbeatWithConfig(stats, stallTimeout, onStall, defaultHeartbeatConfig)
+}
+
+func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout time.Duration, onStall func(), cfg heartbeatConfig) func() {
 	done := make(chan struct{})
 	go func() {
 		// First heartbeat sooner so hangs are visible quickly
 		select {
 		case <-done:
 			return
-		case <-time.After(15 * time.Second):
+		case <-time.After(cfg.InitialDelay):
 		}
 		r.printHeartbeat(stats)
 
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
+		heartbeatTicker := time.NewTicker(cfg.HeartbeatRate)
+		defer heartbeatTicker.Stop()
+
+		// Stall check runs at shorter intervals for reasonable precision
+		var stallTicker *time.Ticker
+		if stallTimeout > 0 && onStall != nil {
+			stallTicker = time.NewTicker(cfg.StallCheckRate)
+			defer stallTicker.Stop()
+		}
+
 		for {
-			select {
-			case <-done:
-				return
-			case <-ticker.C:
-				r.printHeartbeat(stats)
+			if stallTicker != nil {
+				select {
+				case <-done:
+					return
+				case <-heartbeatTicker.C:
+					r.printHeartbeat(stats)
+				case <-stallTicker.C:
+					if stats.TimeSinceLastEvent() >= stallTimeout {
+						r.log("STALL DETECTED: No output from Claude for %v (threshold: %v)",
+							stats.TimeSinceLastEvent().Round(time.Second), stallTimeout)
+						onStall()
+						return
+					}
+				}
+			} else {
+				select {
+				case <-done:
+					return
+				case <-heartbeatTicker.C:
+					r.printHeartbeat(stats)
+				}
 			}
 		}
 	}()

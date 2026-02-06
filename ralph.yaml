@@ -20,7 +20,8 @@ models:
 escalation:
   enabled: true
   chain: [haiku, sonnet, opus]
-  max_retries_per_model: 1
+  max_retries_per_model: 1  # Retries per model before escalating
+  max_retries_per_bead: 10   # Total retries across all models for a single bead
 
 # Loop settings
 loop:
@@ -48,7 +49,8 @@ preflight:
 # Claude CLI settings
 claude:
   binary: "claude"
-  timeout: 600  # seconds per invocation
+  timeout: 600        # seconds per invocation (global max)
+  stall_timeout: 120  # seconds with no stream events before auto-retry
   flags:
     - "--dangerously-skip-permissions"
 

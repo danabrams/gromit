@@ -130,6 +130,29 @@ func TestLoadAndDefaults(t *testing.T) {
 	}
 }
 
+func TestStallTimeoutDefault(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+	if cfg.Claude.StallTimeout != 120 {
+		t.Errorf("expected default StallTimeout=120, got %d", cfg.Claude.StallTimeout)
+	}
+}
+
+func TestStallTimeoutFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	if err := os.WriteFile(cfgPath, []byte("claude:\n  stall_timeout: 60\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Claude.StallTimeout != 60 {
+		t.Errorf("expected StallTimeout=60, got %d", cfg.Claude.StallTimeout)
+	}
+}
+
 func TestLoadMissingFile(t *testing.T) {
 	_, err := Load("/nonexistent/path/ralph.yaml")
 	if err == nil {
@@ -147,5 +170,31 @@ func TestLoadInvalidYAML(t *testing.T) {
 	_, err := Load(cfgPath)
 	if err == nil {
 		t.Error("expected error for invalid YAML")
+	}
+}
+
+func TestMaxRetriesPerBeadDefault(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+	if cfg.Escalation.MaxRetriesPerBead != 10 {
+		t.Errorf("expected default MaxRetriesPerBead=10, got %d", cfg.Escalation.MaxRetriesPerBead)
+	}
+}
+
+func TestMaxRetriesPerBeadFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "ralph.yaml")
+	yaml := `escalation:
+  max_retries_per_bead: 5
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Escalation.MaxRetriesPerBead != 5 {
+		t.Errorf("expected MaxRetriesPerBead=5, got %d", cfg.Escalation.MaxRetriesPerBead)
 	}
 }
