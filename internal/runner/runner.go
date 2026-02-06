@@ -374,6 +374,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int) *
 
 		// Check if scope is too large before checking success
 		if isTooLarge, explanation := claude.IsScopeTooLarge(claudeResult); isTooLarge {
+			// Add comment to bead with the breakdown suggestion
+			comment := fmt.Sprintf("Scope too large: %s\n\nThis task needs to be broken down into smaller, more manageable pieces.", explanation)
+			if err := r.beads.AddComment(b.ID, comment); err != nil {
+				r.log("Warning: failed to add comment to bead: %v", err)
+			}
 			result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
 			return result
 		}
