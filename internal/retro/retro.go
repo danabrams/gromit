@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/claude"
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/learnings"
+	"github.com/danabrams/ralph-runner/internal/logger"
 )
 
 // Retro manages retrospective analysis
@@ -24,8 +25,10 @@ type Retro struct {
 
 // TemplateContext holds data for retro prompt template
 type TemplateContext struct {
-	Rules     string
-	Learnings string
+	Rules       string
+	Learnings   string
+	RunStats    logger.RunStats
+	BeadStats   map[string]logger.BeadStats
 }
 
 // Result represents the outcome of a retro analysis
@@ -176,9 +179,16 @@ func (r *Retro) renderPrompt(rules, learnings string) (string, error) {
 		return "", fmt.Errorf("parsing template: %w", err)
 	}
 
+	// Load run stats
+	logsDir := filepath.Join(filepath.Dir(r.rulesPath), "logs")
+	runStats, _ := logger.ReadAllLogs(logsDir)
+	beadStats, _ := logger.ReadPerBeadStats(logsDir)
+
 	ctx := TemplateContext{
 		Rules:     rules,
 		Learnings: learnings,
+		RunStats:  runStats,
+		BeadStats: beadStats,
 	}
 
 	var sb strings.Builder
