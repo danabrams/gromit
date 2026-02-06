@@ -189,7 +189,7 @@ func getEpicBaseCommit(epicID string) (string, error) {
 				earliestCommit = commit
 			} else {
 				// Get the commit timestamps to find the earliest
-				if isCommitEarlier(earliestCommit, commit) {
+				if isCommitEarlier(commit, earliestCommit) {
 					earliestCommit = commit
 				}
 			}
@@ -215,7 +215,8 @@ func findFirstCommitForBead(beadID string) (string, error) {
 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
-		return lines[0], nil
+		// git log returns newest first, so the last line is the earliest commit
+		return lines[len(lines)-1], nil
 	}
 
 	return "", nil
