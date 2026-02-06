@@ -480,6 +480,28 @@ func (c *Client) GetParent(b *Bead) (*Bead, error) {
 	return c.Show(b.Parent)
 }
 
+// HasOpenChildren checks if an epic has any remaining open child tasks
+func (c *Client) HasOpenChildren(parentID string) (bool, error) {
+	if c == nil {
+		return false, fmt.Errorf("bead client is nil")
+	}
+	if !validBeadID.MatchString(parentID) || len(parentID) > maxIDLength {
+		return false, fmt.Errorf("invalid parent ID %q", parentID)
+	}
+
+	// List all open beads and check if any have this parent
+	beads, err := c.List()
+	if err != nil {
+		return false, err
+	}
+	for _, b := range beads {
+		if b.Parent == parentID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // FindSpecLabel returns the spec name from labels (spec:<name>) or empty string
 func FindSpecLabel(labels []string) string {
 	for _, label := range labels {

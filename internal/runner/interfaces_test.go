@@ -28,6 +28,7 @@ type mockBeadClient struct {
 	GetParentFn                     func(b *bead.Bead) (*bead.Bead, error)
 	CreateWithParentFn              func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
 	CreateWithParentAndDescriptionFn func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
+	HasOpenChildrenFn               func(parentID string) (bool, error)
 
 	ClosedIDs []string
 	SyncCalls int
@@ -96,6 +97,13 @@ func (m *mockBeadClient) CreateWithParentAndDescription(title string, priority i
 		return m.CreateWithParentAndDescriptionFn(title, priority, labels, expectedOutputs, parentID, description)
 	}
 	return &bead.Bead{ID: "mock-sub-1", Title: title, Description: description, Labels: []string{}, ExpectedOutputs: []string{}}, nil
+}
+
+func (m *mockBeadClient) HasOpenChildren(parentID string) (bool, error) {
+	if m.HasOpenChildrenFn != nil {
+		return m.HasOpenChildrenFn(parentID)
+	}
+	return false, nil
 }
 
 type mockClaudeClient struct {

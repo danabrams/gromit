@@ -353,6 +353,19 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 			}
 		}
 
+		// Check epic completion trigger
+		if b.Parent != "" && r.cfg.Review.Thorough.Enabled && r.cfg.Review.Thorough.ShouldRunOnEpicComplete() {
+			hasChildren, err := r.beads.HasOpenChildren(b.Parent)
+			if err != nil {
+				r.log("Warning: could not check epic children: %v", err)
+			} else if !hasChildren {
+				r.log("\n=== Thorough Review (epic %s complete) ===", b.Parent)
+				if sf != nil {
+					r.runThoroughReview(ctx, sf, iteration)
+				}
+			}
+		}
+
 		// Increment iterations since last review
 		if sf != nil {
 			sf.IncrementIterationsSinceReview()

@@ -31,6 +31,7 @@ type BeadClient interface {
 	GetParent(b *bead.Bead) (*bead.Bead, error)
 	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
 	CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
+	HasOpenChildren(parentID string) (bool, error)
 }
 
 // ClaudeClient abstracts the Claude CLI operations used by the runner.

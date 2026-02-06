@@ -1138,3 +1138,54 @@ func TestClientCreateInheritsCreateWithParent(t *testing.T) {
 		t.Errorf("Create() and CreateWithParent(\"\") should behave identically: Create err=%v, CreateWithParent err=%v", err1, err2)
 	}
 }
+
+// TestClientHasOpenChildrenValidation tests that HasOpenChildren() validates parent IDs
+func TestClientHasOpenChildrenValidation(t *testing.T) {
+	c, _ := NewClient()
+
+	tests := []struct {
+		name     string
+		parentID string
+		wantErr  bool
+	}{
+		{
+			name:     "invalid parent ID with semicolon",
+			parentID: "epic; rm -rf /",
+			wantErr:  true,
+		},
+		{
+			name:     "invalid parent ID with spaces",
+			parentID: "epic 123",
+			wantErr:  true,
+		},
+		{
+			name:     "parent ID too long",
+			parentID: strings.Repeat("a", maxIDLength+1),
+			wantErr:  true,
+		},
+		{
+			name:     "empty parent ID",
+			parentID: "",
+			wantErr:  true,
+		},
+		{
+			name:     "command injection attempt",
+			parentID: "epic$(whoami)",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := c.HasOpenChildren(tt.parentID)
+			if err == nil {
+				t.Errorf("HasOpenChildren(%q) expected error but got nil", tt.parentID)
+				return
+			}
+
+			if tt.wantErr && !strings.Contains(err.Error(), "invalid parent ID") {
+				t.Errorf("HasOpenChildren(%q) should fail with validation error, got: %v", tt.parentID, err)
+			}
+		})
+	}
+}

@@ -1,9 +1,9 @@
 {
   "running": true,
-  "iteration": 31,
-  "bead_id": "ralph-runner-csr.12",
-  "bead_title": "Add thorough review trigger every N iterations",
+  "iteration": 32,
+  "bead_id": "ralph-runner-csr.13",
+  "bead_title": "Add epic completion trigger for thorough review",
   "model": "sonnet",
   "started_at": "2026-02-06T09:32:12.486974179-05:00",
-  "elapsed_s": 5653
+  "elapsed_s": 5861
 }
