@@ -164,35 +164,15 @@ func (c *Client) Ready() (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	// Get ready beads without type filter, then exclude epics in Go
-	// This ensures we get all atomic work types (task, bug, feature, etc.)
-	out, err := c.run("ready", "--json", "--limit", "10")
+	// Use -t to exclude epics server-side. This ensures we always find non-epic work
+	// even if there are more than 10 epics at the front of the queue.
+	// We request types: task, bug, feature, merge-request
+	out, err := c.run("ready", "--json", "--limit", "1", "-t", "task", "-t", "bug", "-t", "feature", "-t", "merge-request")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
 
-	// Parse all beads
-	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
-		return nil, nil // No work available
-	}
-
-	var beads []Bead
-	if err := jsonutil.ExtractArray(out, &beads); err != nil {
-		return nil, fmt.Errorf("parsing bd output: %w", err)
-	}
-
-	// Find first non-epic bead
-	for i := range beads {
-		if beads[i].Type != "epic" {
-			beads[i].normalizeNilFields()
-			if err := beads[i].Validate(); err != nil {
-				return nil, fmt.Errorf("invalid bead data: %w", err)
-			}
-			return &beads[i], nil
-		}
-	}
-
-	return nil, nil // Only epics available
+	return parseBeadOutput(out)
 }
 
 // ReadyAny returns the next unblocked bead of any type (including epics)
