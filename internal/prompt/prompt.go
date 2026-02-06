@@ -90,6 +90,34 @@ func (s *ScopeEstimate) normalizeNilFields() {
 	}
 }
 
+// ReviewContext holds data for light review prompt template
+type ReviewContext struct {
+	Bead               *bead.Bead
+	ParentBead         *bead.Bead
+	Spec               string
+	Diff               string
+	ClaudeMD           string
+	Rules              string
+	Model              string
+	ValidationCommands []string
+}
+
+// CompletedBeadSummary holds summary information about a completed bead for thorough reviews
+type CompletedBeadSummary struct {
+	ID          string
+	Title       string
+	Description string
+}
+
+// ThoroughReviewContext holds data for thorough review prompt template
+type ThoroughReviewContext struct {
+	Diff           string
+	CompletedBeads []CompletedBeadSummary
+	ClaudeMD       string
+	Rules          string
+	Model          string
+}
+
 // Renderer loads and renders prompt templates
 type Renderer struct {
 	templatesDir  string
@@ -153,6 +181,16 @@ func (r *Renderer) RenderDecompose(ctx *DecomposeContext) (string, error) {
 // RenderScope renders the scope estimation prompt
 func (r *Renderer) RenderScope(ctx *ScopeContext) (string, error) {
 	return r.render("PROMPT_scope.md", ctx)
+}
+
+// RenderReview renders the light review prompt
+func (r *Renderer) RenderReview(ctx *ReviewContext) (string, error) {
+	return r.render("PROMPT_review.md", ctx)
+}
+
+// RenderThoroughReview renders the thorough review prompt
+func (r *Renderer) RenderThoroughReview(ctx *ThoroughReviewContext) (string, error) {
+	return r.render("PROMPT_thorough_review.md", ctx)
 }
 
 // ValidateSpecName checks that a spec name doesn't contain path traversal characters

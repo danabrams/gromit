@@ -3,8 +3,10 @@ package prompt
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/learnings"
 )
 
@@ -380,5 +382,87 @@ func TestParseScopeEstimateNormalizesExplicitNullBlockers(t *testing.T) {
 	}
 	if est.Blockers == nil {
 		t.Error("Blockers should not be nil after ParseScopeEstimate (was JSON null)")
+	}
+}
+
+func TestRenderReviewNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.RenderReview(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderReview")
+	}
+}
+
+func TestRenderThoroughReviewNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.RenderThoroughReview(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderThoroughReview")
+	}
+}
+
+func TestRenderReview(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	// Write a simple review template
+	tmpl := `Review for: {{.Bead.Title}}
+Diff: {{.Diff}}
+Model: {{.Model}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_review.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := &ReviewContext{
+		Bead: &bead.Bead{
+			ID:              "test-1",
+			Title:           "Test bead",
+			Description:     "Test description",
+			Labels:          []string{},
+			ExpectedOutputs: []string{},
+		},
+		Diff:  "diff --git a/file.go\n+added line",
+		Model: "sonnet",
+	}
+
+	result, err := r.RenderReview(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result, "Test bead") {
+		t.Error("expected bead title in output")
+	}
+	if !strings.Contains(result, "added line") {
+		t.Error("expected diff in output")
+	}
+}
+
+func TestRenderThoroughReview(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Thorough review
+Beads completed: {{len .CompletedBeads}}
+Diff: {{.Diff}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_thorough_review.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := &ThoroughReviewContext{
+		Diff: "full diff here",
+		CompletedBeads: []CompletedBeadSummary{
+			{ID: "b-1", Title: "First task"},
+			{ID: "b-2", Title: "Second task"},
+		},
+	}
+
+	result, err := r.RenderThoroughReview(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result, "Beads completed: 2") {
+		t.Error("expected 2 completed beads")
 	}
 }
