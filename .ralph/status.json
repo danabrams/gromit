@@ -1,9 +1,9 @@
 {
   "running": true,
-  "iteration": 37,
-  "bead_id": "ralph-runner-eww",
-  "bead_title": "Add deadline check to runner loop",
+  "iteration": 3,
+  "bead_id": "ralph-runner-0o2",
+  "bead_title": "Simple task",
   "model": "haiku",
-  "started_at": "2026-02-06T09:32:12.486974179-05:00",
-  "elapsed_s": 6608
+  "started_at": "2026-02-06T11:28:18.539346001-05:00",
+  "elapsed_s": 365
 }
