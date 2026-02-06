@@ -20,3 +20,4 @@ These are non-negotiable constraints for this project. Ralph will always follow 
 - Follow existing patterns in the codebase
 - When adding config fields, always provide a default value and test that the default is applied when the field is omitted from YAML
 - Beads that touch more than 2 files should be split before attempting
+- Validation commands in ralph.yaml must match the project's build system. Verify against language markers (go.mod, package.json) before running. For this project: use `go test`, `go vet`, `go build` — never pnpm or npm

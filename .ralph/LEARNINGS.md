@@ -9,7 +9,8 @@ This file is automatically updated. Review periodically with `ralph retro`.
 
 *Patterns seen multiple times - high confidence.*
 
-*No confirmed learnings yet.*
+### 2026-02-06 | gotchas | consolidated from r3h, ehn, 0o2, rz1
+Validation commands in ralph.yaml must match the project's actual tech stack. Always verify configuration against language-specific markers (go.mod, package.json, requirements.txt). For Go projects, use `go test ./...`, `go vet ./...`, and `go build ./...` — never Node.js tools like pnpm. **Promoted to rule in RULES.md Process section.**
 
 ---
 
@@ -17,11 +18,7 @@ This file is automatically updated. Review periodically with `ralph retro`.
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-06 | ralph-runner-r3h | gotchas
-Validation commands in ralph.yaml must match the project's technology stack. For Go projects, use 'go test' and 'go fmt'/'golangci-lint' instead of Node.js tools. Always verify the validation config against the actual build system.
-
-### 2026-02-06 | ralph-runner-ehn | gotchas
-For Go projects, validation commands should use go test, go build, and golangci-lint instead of pnpm. Verify the validation commands in ralph.yaml match the project's actual build system before running validation.
+*No provisional learnings.*
 
 ---
 
@@ -29,5 +26,12 @@ For Go projects, validation commands should use go test, go build, and golangci-
 
 *No longer relevant or superseded.*
 
-*No archived learnings.*
+### 2026-02-06 | ralph-runner-ehn | gotchas
+Archived: duplicate of consolidated validation commands learning. Subsumed by promoted rule.
+
+### 2026-02-06 | ralph-runner-0o2 | gotchas
+Archived: duplicate of consolidated validation commands learning. Subsumed by promoted rule.
+
+### 2026-02-06 | ralph-runner-rz1 | gotchas
+Archived: duplicate of consolidated validation commands learning. Subsumed by promoted rule.
 
