@@ -1362,3 +1362,92 @@ These tasks should handle complex nesting scenarios.`
 		t.Errorf("expected DependsOn to be 0, got %v", subTasks[1].DependsOn)
 	}
 }
+
+func TestSubTaskNormalizeNilFields(t *testing.T) {
+	tests := []struct {
+		name    string
+		subTask *SubTask
+	}{
+		{
+			name:    "nil AcceptanceCriteria",
+			subTask: &SubTask{Title: "Test"},
+		},
+		{
+			name:    "already non-nil",
+			subTask: &SubTask{Title: "Test", AcceptanceCriteria: []string{"criteria1"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.subTask.normalizeNilFields()
+			if tt.subTask.AcceptanceCriteria == nil {
+				t.Error("AcceptanceCriteria should not be nil after normalization")
+			}
+		})
+	}
+}
+
+func TestSubTaskNormalizeNilFieldsOnNilSubTask(t *testing.T) {
+	var s *SubTask
+	s.normalizeNilFields() // Should not panic
+}
+
+func TestParseDecomposeOutputNormalizesNilFields(t *testing.T) {
+	// JSON where acceptance_criteria is missing
+	output := `[
+		{
+			"title": "Task without criteria",
+			"description": "No acceptance_criteria field",
+			"depends_on": null
+		}
+	]`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+	if subTasks[0].AcceptanceCriteria == nil {
+		t.Error("AcceptanceCriteria should not be nil after parseDecomposeOutput")
+	}
+}
+
+func TestParseDecomposeOutputNormalizesExplicitNull(t *testing.T) {
+	// JSON where acceptance_criteria is explicitly null
+	output := `[
+		{
+			"title": "Task with null criteria",
+			"description": "Explicit null",
+			"depends_on": null,
+			"acceptance_criteria": null
+		}
+	]`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+	if subTasks[0].AcceptanceCriteria == nil {
+		t.Error("AcceptanceCriteria should not be nil after parseDecomposeOutput (was JSON null)")
+	}
+}
+
+func TestParseDecomposeOutputWithSurroundingTextNormalizesNilFields(t *testing.T) {
+	output := `Here are the tasks:
+[
+	{
+		"title": "Extracted task",
+		"description": "From surrounding text",
+		"depends_on": null
+	}
+]
+Done.`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+	if subTasks[0].AcceptanceCriteria == nil {
+		t.Error("AcceptanceCriteria should not be nil after parseDecomposeOutput with surrounding text")
+	}
+}

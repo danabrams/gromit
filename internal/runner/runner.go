@@ -90,10 +90,20 @@ type IterationResult struct {
 
 // SubTask represents a single sub-task from task decomposition
 type SubTask struct {
-	Title                string   `json:"title"`
-	Description          string   `json:"description"`
-	DependsOn            *int     `json:"depends_on"`
-	AcceptanceCriteria   []string `json:"acceptance_criteria"`
+	Title              string   `json:"title"`
+	Description        string   `json:"description"`
+	DependsOn          *int     `json:"depends_on"`
+	AcceptanceCriteria []string `json:"acceptance_criteria"`
+}
+
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+func (s *SubTask) normalizeNilFields() {
+	if s == nil {
+		return
+	}
+	if s.AcceptanceCriteria == nil {
+		s.AcceptanceCriteria = []string{}
+	}
 }
 
 // Run executes the Ralph loop
@@ -1102,6 +1112,9 @@ func parseDecomposeOutput(output string) ([]SubTask, error) {
 	// Try direct parsing first (pure JSON case)
 	var subTasks []SubTask
 	if err := json.Unmarshal([]byte(output), &subTasks); err == nil && len(subTasks) > 0 {
+		for i := range subTasks {
+			subTasks[i].normalizeNilFields()
+		}
 		return subTasks, nil
 	}
 
@@ -1164,6 +1177,10 @@ func parseDecomposeOutput(output string) ([]SubTask, error) {
 
 	if len(subTasks) == 0 {
 		return nil, fmt.Errorf("decompose output contains no sub-tasks")
+	}
+
+	for i := range subTasks {
+		subTasks[i].normalizeNilFields()
 	}
 
 	return subTasks, nil

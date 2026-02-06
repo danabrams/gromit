@@ -60,11 +60,21 @@ type ScopeContext struct {
 
 // ScopeEstimate represents the result of scope estimation
 type ScopeEstimate struct {
-	Complexity                      string   `json:"complexity"`
-	EstimatedIterations             int      `json:"estimated_iterations"`
-	Rationale                       string   `json:"rationale"`
-	CanCompleteInSingleIteration    bool     `json:"can_complete_in_single_iteration"`
-	Blockers                        []string `json:"blockers"`
+	Complexity                   string   `json:"complexity"`
+	EstimatedIterations          int      `json:"estimated_iterations"`
+	Rationale                    string   `json:"rationale"`
+	CanCompleteInSingleIteration bool     `json:"can_complete_in_single_iteration"`
+	Blockers                     []string `json:"blockers"`
+}
+
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+func (s *ScopeEstimate) normalizeNilFields() {
+	if s == nil {
+		return
+	}
+	if s.Blockers == nil {
+		s.Blockers = []string{}
+	}
 }
 
 // Renderer loads and renders prompt templates
@@ -335,6 +345,8 @@ func ParseScopeEstimate(output string) (*ScopeEstimate, error) {
 	if err := json.Unmarshal([]byte(jsonStr), &estimate); err != nil {
 		return nil, fmt.Errorf("parsing scope estimate JSON: %w", err)
 	}
+
+	estimate.normalizeNilFields()
 
 	return &estimate, nil
 }

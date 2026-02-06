@@ -266,3 +266,69 @@ Additional explanation follows...`,
 		})
 	}
 }
+
+func TestScopeEstimateNormalizeNilFields(t *testing.T) {
+	tests := []struct {
+		name     string
+		estimate *ScopeEstimate
+	}{
+		{
+			name:     "nil Blockers",
+			estimate: &ScopeEstimate{Complexity: "low"},
+		},
+		{
+			name:     "already non-nil",
+			estimate: &ScopeEstimate{Complexity: "high", Blockers: []string{"blocker1"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.estimate.normalizeNilFields()
+			if tt.estimate.Blockers == nil {
+				t.Error("Blockers should not be nil after normalization")
+			}
+		})
+	}
+}
+
+func TestScopeEstimateNormalizeNilFieldsOnNilEstimate(t *testing.T) {
+	var s *ScopeEstimate
+	s.normalizeNilFields() // Should not panic
+}
+
+func TestParseScopeEstimateNormalizesNilBlockers(t *testing.T) {
+	// JSON where blockers field is missing
+	input := `{
+		"complexity": "low",
+		"estimated_iterations": 1,
+		"rationale": "Simple task",
+		"can_complete_in_single_iteration": true
+	}`
+
+	est, err := ParseScopeEstimate(input)
+	if err != nil {
+		t.Fatalf("ParseScopeEstimate() error = %v", err)
+	}
+	if est.Blockers == nil {
+		t.Error("Blockers should not be nil after ParseScopeEstimate (missing field)")
+	}
+}
+
+func TestParseScopeEstimateNormalizesExplicitNullBlockers(t *testing.T) {
+	input := `{
+		"complexity": "medium",
+		"estimated_iterations": 2,
+		"rationale": "Moderate task",
+		"can_complete_in_single_iteration": false,
+		"blockers": null
+	}`
+
+	est, err := ParseScopeEstimate(input)
+	if err != nil {
+		t.Fatalf("ParseScopeEstimate() error = %v", err)
+	}
+	if est.Blockers == nil {
+		t.Error("Blockers should not be nil after ParseScopeEstimate (was JSON null)")
+	}
+}
