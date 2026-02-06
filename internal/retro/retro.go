@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -456,4 +457,48 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 		// Update the map entry
 		beadStats[beadID] = stats
 	}
+}
+
+// launchClaudeCode launches Claude Code in interactive mode with the analysis results.
+// The prompt instructs Claude Code on what actions it can take:
+// - Edit RULES.md
+// - Edit LEARNINGS.md
+// - Run bd commands
+// - Create specs
+func launchClaudeCode(analysis string) error {
+	// Build the prompt with analysis and instructions
+	prompt := fmt.Sprintf(`# Retrospective Analysis Results
+
+%s
+
+# What You Can Do
+
+You are now in an interactive Claude Code session. Based on the analysis above, you can:
+
+1. **Edit RULES.md** - Update project rules based on learnings
+2. **Edit LEARNINGS.md** - Consolidate, archive, or promote learnings
+3. **Run bd commands** - Create new beads, update existing ones, or manage the backlog
+4. **Create specs** - Write detailed specifications in .ralph/specs/ for complex features
+
+Please review the analysis and take appropriate actions.
+`, analysis)
+
+	// Launch claude binary in interactive mode
+	// Note: We don't use -p flag here since we want interactive mode
+	cmd := exec.Command("claude")
+
+	// Connect stdin/stdout/stderr to the parent process for full interactivity
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Set the prompt as a positional argument
+	cmd.Args = append(cmd.Args, prompt)
+
+	// Run and wait for completion
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("running claude: %w", err)
+	}
+
+	return nil
 }
