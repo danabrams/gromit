@@ -611,3 +611,78 @@ func TestReadPerBeadStatsIgnoreNonLogFiles(t *testing.T) {
 		t.Error("expected b1 in stats")
 	}
 }
+
+func TestLogReview(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	review := &ReviewLog{
+		Timestamp:      time.Now(),
+		Type:           "review",
+		ReviewType:     "light",
+		Iteration:      5,
+		BeadID:         "abc-123",
+		Model:          "sonnet",
+		Passed:         true,
+		FixesApplied:   1,
+		BeadsCreated:   2,
+		BacklogCreated: 0,
+		DurationMs:     25000,
+	}
+	if err := l.LogReview(review); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read back and verify
+	data, err := os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !contains(content, `"type":"review"`) {
+		t.Errorf("log should contain type field")
+	}
+	if !contains(content, `"review_type":"light"`) {
+		t.Errorf("log should contain review_type field")
+	}
+	if !contains(content, `"fixes_applied":1`) {
+		t.Errorf("log should contain fixes_applied field")
+	}
+	if !contains(content, `"beads_created":2`) {
+		t.Errorf("log should contain beads_created field")
+	}
+}
+
+func TestLogReviewNilLogger(t *testing.T) {
+	var l *Logger
+	review := &ReviewLog{
+		Timestamp:  time.Now(),
+		Type:       "review",
+		ReviewType: "thorough",
+		Iteration:  10,
+		Model:      "opus",
+		Passed:     false,
+	}
+	// Should not panic
+	if err := l.LogReview(review); err != nil {
+		t.Error("expected nil logger to return nil error")
+	}
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsAt(s, substr))
+}
+
+func containsAt(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

@@ -24,6 +24,21 @@ type IterationLog struct {
 	Error       string    `json:"error,omitempty"`
 }
 
+// ReviewLog represents a review's outcome (light or thorough)
+type ReviewLog struct {
+	Timestamp      time.Time `json:"timestamp"`
+	Type           string    `json:"type"`
+	ReviewType     string    `json:"review_type"`
+	Iteration      int       `json:"iteration"`
+	BeadID         string    `json:"bead_id,omitempty"`
+	Model          string    `json:"model"`
+	Passed         bool      `json:"passed"`
+	FixesApplied   int       `json:"fixes_applied"`
+	BeadsCreated   int       `json:"beads_created"`
+	BacklogCreated int       `json:"backlog_created"`
+	DurationMs     int64     `json:"duration_ms"`
+}
+
 // Logger writes iteration logs to a file.
 // The log file is created lazily on the first LogIteration call to avoid
 // leaving empty 0-byte files when runs fail before processing any bead.
@@ -70,6 +85,17 @@ func (l *Logger) ensureFile() error {
 
 // LogIteration writes an iteration result to the log
 func (l *Logger) LogIteration(log *IterationLog) error {
+	if l == nil {
+		return nil
+	}
+	if err := l.ensureFile(); err != nil {
+		return err
+	}
+	return l.encoder.Encode(log)
+}
+
+// LogReview writes a review result to the log
+func (l *Logger) LogReview(log *ReviewLog) error {
 	if l == nil {
 		return nil
 	}
