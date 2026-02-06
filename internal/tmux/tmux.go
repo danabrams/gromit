@@ -9,8 +9,9 @@ import (
 
 // Manager handles tmux pane title management
 type Manager struct {
-	inTmux      bool
+	inTmux        bool
 	originalTitle string
+	disabled      bool
 }
 
 // NewManager creates a new tmux manager and saves the current pane title if in tmux
@@ -33,11 +34,16 @@ func InTmux() bool {
 
 // SetTitle sets the tmux pane title
 func (m *Manager) SetTitle(title string) error {
-	if !m.inTmux {
-		return nil // No-op if not in tmux
+	if !m.inTmux || m.disabled {
+		return nil // No-op if not in tmux or disabled
 	}
 
-	return setTmuxTitle(title)
+	if err := setTmuxTitle(title); err != nil {
+		m.disabled = true // Disable after first error
+		return err
+	}
+
+	return nil
 }
 
 // RestoreTitle restores the original pane title
@@ -67,5 +73,5 @@ func setTmuxTitle(title string) error {
 
 // FormatIterationTitle formats a title string with iteration info
 func FormatIterationTitle(iteration int, beadID string, model string) string {
-	return fmt.Sprintf("Ralph: iter %d - %s (%s)", iteration, beadID, model)
+	return fmt.Sprintf("Gromit: iter %d - %s (%s)", iteration, beadID, model)
 }
