@@ -235,12 +235,12 @@ func (r *Retro) applyChanges(analysis string) error {
 	}
 
 	// Apply accepted proposals
-	return r.applyAccepted(accepted)
+	return r.ApplyAccepted(accepted)
 }
 
-// applyAccepted executes all changes in the accepted proposals
+// ApplyAccepted executes all changes in the accepted proposals
 // Each operation is independent; failures are logged as warnings and do not stop execution
-func (r *Retro) applyAccepted(accepted *AcceptedProposals) error {
+func (r *Retro) ApplyAccepted(accepted *AcceptedProposals) error {
 	if accepted == nil {
 		return fmt.Errorf("accepted proposals is nil")
 	}

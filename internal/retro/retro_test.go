@@ -55,7 +55,7 @@ func TestApplyAcceptedNil(t *testing.T) {
 		rulesPath:     filepath.Join(tmpDir, "RULES.md"),
 	}
 
-	err := r.applyAccepted(nil)
+	err := r.ApplyAccepted(nil)
 	if err == nil {
 		t.Error("expected error for nil accepted proposals")
 	}
@@ -365,7 +365,7 @@ func TestApplyAcceptedWithAllOperations(t *testing.T) {
 	}
 
 	// Apply all operations
-	err := r.applyAccepted(accepted)
+	err := r.ApplyAccepted(accepted)
 
 	// We expect some operations to succeed and some to fail (e.g., promotion of already consolidated learning)
 	// The function should continue and report errors
