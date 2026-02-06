@@ -1180,3 +1180,185 @@ func TestCheckScopeNilClaude(t *testing.T) {
 		t.Errorf("expected nil for nil claude client, got %v", result)
 	}
 }
+
+func TestParseDecomposeOutputWithLeadingText(t *testing.T) {
+	output := `Here's the decomposed task:
+
+[
+	{
+		"title": "Set up database",
+		"description": "Create schema",
+		"depends_on": null,
+		"acceptance_criteria": ["Schema created"]
+	},
+	{
+		"title": "Implement user model",
+		"description": "Add User model",
+		"depends_on": 0,
+		"acceptance_criteria": ["Model created"]
+	}
+]`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+
+	if len(subTasks) != 2 {
+		t.Errorf("expected 2 sub-tasks, got %d", len(subTasks))
+	}
+
+	if subTasks[0].Title != "Set up database" {
+		t.Errorf("expected title 'Set up database', got %q", subTasks[0].Title)
+	}
+}
+
+func TestParseDecomposeOutputWithTrailingText(t *testing.T) {
+	output := `[
+	{
+		"title": "Task 1",
+		"description": "Do something",
+		"depends_on": null,
+		"acceptance_criteria": ["Done"]
+	}
+]
+
+This is the decomposition. Let me know if you'd like me to adjust it.`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+
+	if len(subTasks) != 1 {
+		t.Errorf("expected 1 sub-task, got %d", len(subTasks))
+	}
+
+	if subTasks[0].Title != "Task 1" {
+		t.Errorf("expected title 'Task 1', got %q", subTasks[0].Title)
+	}
+}
+
+func TestParseDecomposeOutputWithSurroundingText(t *testing.T) {
+	output := `Here are the sub-tasks:
+
+[
+	{
+		"title": "First",
+		"description": "First task",
+		"depends_on": null,
+		"acceptance_criteria": ["A"]
+	}
+]
+
+All done!`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+
+	if len(subTasks) != 1 {
+		t.Errorf("expected 1 sub-task, got %d", len(subTasks))
+	}
+
+	if subTasks[0].Title != "First" {
+		t.Errorf("expected title 'First', got %q", subTasks[0].Title)
+	}
+}
+
+func TestParseDecomposeOutputWithNestedQuotes(t *testing.T) {
+	output := `The tasks are:
+[
+	{
+		"title": "Fix bug in parser",
+		"description": "The parser has a known issue",
+		"depends_on": null,
+		"acceptance_criteria": ["Tests pass"]
+	}
+]`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+
+	if len(subTasks) != 1 {
+		t.Errorf("expected 1 sub-task, got %d", len(subTasks))
+	}
+
+	if subTasks[0].Title != "Fix bug in parser" {
+		t.Errorf("expected title 'Fix bug in parser', got %q", subTasks[0].Title)
+	}
+}
+
+func TestParseDecomposeOutputNoJSONArray(t *testing.T) {
+	output := `This is just plain text with no JSON array.
+It explains the tasks but doesn't provide JSON.`
+
+	_, err := parseDecomposeOutput(output)
+	if err == nil {
+		t.Error("expected error when no JSON array is found")
+	}
+	if !strings.Contains(err.Error(), "no JSON array found") {
+		t.Errorf("expected 'no JSON array found' in error, got %q", err.Error())
+	}
+}
+
+func TestParseDecomposeOutputMissingClosingBracket(t *testing.T) {
+	output := `Here's the data:
+[
+	{
+		"title": "Task 1",
+		"description": "Incomplete array`
+
+	_, err := parseDecomposeOutput(output)
+	if err == nil {
+		t.Error("expected error when closing bracket is missing")
+	}
+	if !strings.Contains(err.Error(), "malformed JSON array") {
+		t.Errorf("expected 'malformed JSON array' in error, got %q", err.Error())
+	}
+}
+
+func TestParseDecomposeOutputComplexNestedStructure(t *testing.T) {
+	output := `Here's the breakdown:
+
+[
+	{
+		"title": "Parse JSON arrays",
+		"description": "Handle nested braces and arrays properly",
+		"depends_on": null,
+		"acceptance_criteria": ["Handles braces", "Handles arrays", "Handles special characters"]
+	},
+	{
+		"title": "Test edge cases",
+		"description": "Test with various inputs",
+		"depends_on": 0,
+		"acceptance_criteria": ["Edge case 1", "Edge case 2"]
+	}
+]
+
+These tasks should handle complex nesting scenarios.`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+
+	if len(subTasks) != 2 {
+		t.Errorf("expected 2 sub-tasks, got %d", len(subTasks))
+	}
+
+	if subTasks[0].Title != "Parse JSON arrays" {
+		t.Errorf("expected title 'Parse JSON arrays', got %q", subTasks[0].Title)
+	}
+
+	if len(subTasks[0].AcceptanceCriteria) != 3 {
+		t.Errorf("expected 3 acceptance criteria, got %d", len(subTasks[0].AcceptanceCriteria))
+	}
+
+	if subTasks[1].DependsOn == nil || *subTasks[1].DependsOn != 0 {
+		t.Errorf("expected DependsOn to be 0, got %v", subTasks[1].DependsOn)
+	}
+}

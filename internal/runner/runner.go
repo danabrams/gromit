@@ -1093,13 +1093,72 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 }
 
 // parseDecomposeOutput parses Claude's JSON array decompose output into []SubTask
+// It's resilient to non-pure JSON output (e.g., explanatory text before/after the JSON)
 func parseDecomposeOutput(output string) ([]SubTask, error) {
 	if output == "" {
 		return nil, fmt.Errorf("decompose output is empty")
 	}
 
+	// Try direct parsing first (pure JSON case)
 	var subTasks []SubTask
-	if err := json.Unmarshal([]byte(output), &subTasks); err != nil {
+	if err := json.Unmarshal([]byte(output), &subTasks); err == nil && len(subTasks) > 0 {
+		return subTasks, nil
+	}
+
+	// If direct parsing fails, try to extract JSON array from surrounding text
+	// Look for [ ... ] pattern
+	jsonStart := strings.Index(output, "[")
+	if jsonStart == -1 {
+		return nil, fmt.Errorf("parsing decompose output: no JSON array found")
+	}
+
+	// Find the matching closing bracket
+	// Count brackets to handle nested structures
+	bracketCount := 0
+	jsonEnd := -1
+	inString := false
+	escapeNext := false
+
+	for i := jsonStart; i < len(output); i++ {
+		char := output[i]
+
+		if escapeNext {
+			escapeNext = false
+			continue
+		}
+
+		if char == '\\' {
+			escapeNext = true
+			continue
+		}
+
+		if char == '"' && (i == 0 || output[i-1] != '\\') {
+			inString = !inString
+			continue
+		}
+
+		if !inString {
+			if char == '[' {
+				bracketCount++
+			} else if char == ']' {
+				bracketCount--
+				if bracketCount == 0 {
+					jsonEnd = i + 1
+					break
+				}
+			}
+		}
+	}
+
+	if jsonEnd == -1 {
+		return nil, fmt.Errorf("parsing decompose output: malformed JSON array (missing closing bracket)")
+	}
+
+	// Extract the JSON portion
+	jsonStr := output[jsonStart:jsonEnd]
+
+	// Try to unmarshal the extracted JSON
+	if err := json.Unmarshal([]byte(jsonStr), &subTasks); err != nil {
 		return nil, fmt.Errorf("parsing decompose output: %w", err)
 	}
 
