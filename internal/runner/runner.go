@@ -129,6 +129,10 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 	tmuxMgr := tmux.NewManager()
 	defer tmuxMgr.RestoreTitle()
 
+	// Set up status file management
+	statusWriter := NewStatusWriter(r.ralphDir)
+	defer statusWriter.Delete()
+
 	// Ensure logger is closed when done
 	if r.logger != nil {
 		defer r.logger.Close()
@@ -218,6 +222,11 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 			r.log("Warning: failed to set tmux title: %v", err)
 		}
 
+		// Write status.json at iteration start
+		if err := statusWriter.Write(iteration, b.ID, b.Title, model, true); err != nil {
+			r.log("Warning: failed to write status.json: %v", err)
+		}
+
 		if dryRun {
 			r.log("[DRY RUN] Would process bead %s with model %s", b.ID, model)
 			continue
@@ -249,6 +258,11 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 		// Sync bd state
 		if err := r.beads.Sync(); err != nil {
 			r.log("Warning: failed to sync beads: %v", err)
+		}
+
+		// Update status.json after completion
+		if err := statusWriter.Write(iteration, b.ID, b.Title, result.Model, true); err != nil {
+			r.log("Warning: failed to write status.json: %v", err)
 		}
 	}
 
