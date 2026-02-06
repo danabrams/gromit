@@ -51,6 +51,12 @@ type DecomposeContext struct {
 	ParentBead *bead.Bead
 }
 
+// ScopeContext holds data for scope estimation prompt template
+type ScopeContext struct {
+	Bead       *bead.Bead
+	ParentBead *bead.Bead
+}
+
 // Renderer loads and renders prompt templates
 type Renderer struct {
 	templatesDir  string
@@ -106,6 +112,11 @@ func (r *Renderer) RenderValidate(ctx *Context, commands []string) (string, erro
 // RenderDecompose renders the task decomposition prompt
 func (r *Renderer) RenderDecompose(ctx *DecomposeContext) (string, error) {
 	return r.render("PROMPT_decompose.md", ctx)
+}
+
+// RenderScope renders the scope estimation prompt
+func (r *Renderer) RenderScope(ctx *ScopeContext) (string, error) {
+	return r.render("PROMPT_scope.md", ctx)
 }
 
 // ValidateSpecName checks that a spec name doesn't contain path traversal characters

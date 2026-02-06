@@ -150,3 +150,11 @@ func TestRenderDecomposeNilRenderer(t *testing.T) {
 		t.Error("expected error for nil renderer in RenderDecompose")
 	}
 }
+
+func TestRenderScopeNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.RenderScope(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderScope")
+	}
+}
