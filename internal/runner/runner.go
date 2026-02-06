@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -84,6 +85,14 @@ type IterationResult struct {
 	Escalated    bool
 	EscalatedTo  string
 	Output       string
+}
+
+// SubTask represents a single sub-task from task decomposition
+type SubTask struct {
+	Title                string   `json:"title"`
+	Description          string   `json:"description"`
+	DependsOn            *int     `json:"depends_on"`
+	AcceptanceCriteria   []string `json:"acceptance_criteria"`
 }
 
 // Run executes the Ralph loop
@@ -922,4 +931,22 @@ func (r *Runner) showPartialProgress(b *bead.Bead, startCommit string) {
 		summary := checkExpectedOutputs(b.ExpectedOutputs)
 		r.log("%s", summary)
 	}
+}
+
+// parseDecomposeOutput parses Claude's JSON array decompose output into []SubTask
+func parseDecomposeOutput(output string) ([]SubTask, error) {
+	if output == "" {
+		return nil, fmt.Errorf("decompose output is empty")
+	}
+
+	var subTasks []SubTask
+	if err := json.Unmarshal([]byte(output), &subTasks); err != nil {
+		return nil, fmt.Errorf("parsing decompose output: %w", err)
+	}
+
+	if len(subTasks) == 0 {
+		return nil, fmt.Errorf("decompose output contains no sub-tasks")
+	}
+
+	return subTasks, nil
 }

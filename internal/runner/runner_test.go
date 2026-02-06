@@ -442,6 +442,111 @@ func TestRetryCounterBehavior(t *testing.T) {
 	t.Log("Retry counter behavior documented")
 }
 
+func TestParseDecomposeOutputValidJSON(t *testing.T) {
+	output := `[
+		{
+			"title": "Set up database",
+			"description": "Create schema",
+			"depends_on": null,
+			"acceptance_criteria": ["Schema created", "Migrations run"]
+		},
+		{
+			"title": "Implement user model",
+			"description": "Add User model",
+			"depends_on": 0,
+			"acceptance_criteria": ["Model created", "Tests pass"]
+		}
+	]`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+
+	if len(subTasks) != 2 {
+		t.Errorf("expected 2 sub-tasks, got %d", len(subTasks))
+	}
+
+	// Check first task
+	if subTasks[0].Title != "Set up database" {
+		t.Errorf("expected title 'Set up database', got %q", subTasks[0].Title)
+	}
+	if subTasks[0].DependsOn != nil {
+		t.Errorf("expected DependsOn to be nil, got %v", subTasks[0].DependsOn)
+	}
+	if len(subTasks[0].AcceptanceCriteria) != 2 {
+		t.Errorf("expected 2 acceptance criteria, got %d", len(subTasks[0].AcceptanceCriteria))
+	}
+
+	// Check second task
+	if subTasks[1].Title != "Implement user model" {
+		t.Errorf("expected title 'Implement user model', got %q", subTasks[1].Title)
+	}
+	if subTasks[1].DependsOn == nil || *subTasks[1].DependsOn != 0 {
+		t.Errorf("expected DependsOn to be 0, got %v", subTasks[1].DependsOn)
+	}
+	if len(subTasks[1].AcceptanceCriteria) != 2 {
+		t.Errorf("expected 2 acceptance criteria, got %d", len(subTasks[1].AcceptanceCriteria))
+	}
+}
+
+func TestParseDecomposeOutputEmptyString(t *testing.T) {
+	_, err := parseDecomposeOutput("")
+	if err == nil {
+		t.Error("expected error for empty string")
+	}
+	if !strings.Contains(err.Error(), "empty") {
+		t.Errorf("expected 'empty' in error message, got %q", err.Error())
+	}
+}
+
+func TestParseDecomposeOutputInvalidJSON(t *testing.T) {
+	_, err := parseDecomposeOutput("not valid json")
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+	if !strings.Contains(err.Error(), "parsing") {
+		t.Errorf("expected 'parsing' in error message, got %q", err.Error())
+	}
+}
+
+func TestParseDecomposeOutputEmptyArray(t *testing.T) {
+	_, err := parseDecomposeOutput("[]")
+	if err == nil {
+		t.Error("expected error for empty array")
+	}
+	if !strings.Contains(err.Error(), "no sub-tasks") {
+		t.Errorf("expected 'no sub-tasks' in error message, got %q", err.Error())
+	}
+}
+
+func TestParseDecomposeOutputSingleTask(t *testing.T) {
+	output := `[
+		{
+			"title": "Single task",
+			"description": "Do one thing",
+			"depends_on": null,
+			"acceptance_criteria": ["Done"]
+		}
+	]`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+
+	if len(subTasks) != 1 {
+		t.Errorf("expected 1 sub-task, got %d", len(subTasks))
+	}
+
+	if subTasks[0].Title != "Single task" {
+		t.Errorf("expected title 'Single task', got %q", subTasks[0].Title)
+	}
+	if len(subTasks[0].AcceptanceCriteria) != 1 {
+		t.Errorf("expected 1 acceptance criterion, got %d", len(subTasks[0].AcceptanceCriteria))
+	}
+}
+
 func TestIsStuckBeadNilRunner(t *testing.T) {
 	var r *Runner
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
