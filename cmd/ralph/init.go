@@ -21,6 +21,8 @@ Creates:
       PROMPT_validate.md
       PROMPT_analyze.md
       PROMPT_retro.md
+      PROMPT_scope.md
+      PROMPT_decompose.md
     specs/             - Specification files (empty)`,
 	RunE: runInit,
 }
@@ -78,6 +80,16 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	analyzePath := filepath.Join(cwd, ".ralph/templates/PROMPT_analyze.md")
 	if err := writeFileIfNotExists(analyzePath, defaultAnalyzeTemplate, forceInit); err != nil {
+		return err
+	}
+
+	scopePath := filepath.Join(cwd, ".ralph/templates/PROMPT_scope.md")
+	if err := writeFileIfNotExists(scopePath, defaultScopeTemplate, forceInit); err != nil {
+		return err
+	}
+
+	decomposePath := filepath.Join(cwd, ".ralph/templates/PROMPT_decompose.md")
+	if err := writeFileIfNotExists(decomposePath, defaultDecomposeTemplate, forceInit); err != nil {
 		return err
 	}
 
@@ -189,6 +201,11 @@ loop:
   stop_on_failure: false  # Continue to next bead on failure
   stuck_bead_threshold: 3  # Skip bead if it fails this many times across runs
 
+# Scope checking - estimate task complexity before work
+scope_check:
+  enabled: true
+  model: haiku  # haiku is fast and cheap for estimation
+
 # Validation settings - customize for your project
 validation:
   enabled: true
@@ -197,10 +214,18 @@ validation:
     - "pnpm run lint:check"
     - "pnpm run build"
 
+# Pre-flight checks - verify required tools before validation
+preflight:
+  auto_install: ask  # ask | always | never
+
 # Claude CLI settings
 claude:
   binary: "claude"
-  timeout: 600  # seconds per invocation
+  timeout: 600           # seconds per Claude invocation
+  stall_timeout: 120     # seconds with no output before auto-retry (initial, pre-activity)
+  stall_timeout_active: 300  # seconds with no output after tool activity (longer, allows thinking)
+  bead_timeout: 1200     # seconds max per bead (all retries + analysis + validation)
+  analysis_timeout: 120  # seconds max per failure analysis invocation
   flags:
     - "--dangerously-skip-permissions"
 
@@ -384,6 +409,29 @@ You are analyzing accumulated learnings from ralph-runner iterations to identify
 
 {{.Learnings}}
 
+## Run Statistics
+
+{{- if .RunStats.Total }}
+### Aggregate Statistics
+- **Total iterations**: {{ .RunStats.Total }}
+- **Succeeded**: {{ .RunStats.Succeeded }}
+- **Failed**: {{ .RunStats.Failed }}
+- **Failure rate**: {{ printf "%.1f%%" (mul .RunStats.FailureRate 100) }}
+{{- else }}
+*No iteration data available yet.*
+{{- end }}
+
+{{- if .BeadStats }}
+### Stuck Beads (2+ failures)
+| Bead ID | Title | Total Runs | Failures | Failure Rate |
+|---------|-------|-----------|----------|--------------|
+{{- range $id, $stats := .BeadStats }}
+| {{ $stats.BeadID }} | {{ $stats.BeadTitle }} | {{ $stats.TotalRuns }} | {{ $stats.Failures }} | {{ printf "%.1f%%" (mul $stats.FailureRate 100) }} |
+{{- end }}
+{{- else if .RunStats.Total }}
+*No stuck beads identified (fewer than 2 failures each).*
+{{- end }}
+
 ## Task
 
 Analyze the learnings above and provide:
@@ -393,37 +441,56 @@ Analyze the learnings above and provide:
 3. **Stale Learnings**: Identify learnings that may no longer be relevant
 4. **Rule Updates**: Propose specific changes to RULES.md
 
+{{- if .BeadStats }}
+
+5. **Stuck Beads Analysis**: For each stuck bead (with 2+ failures) above, suggest:
+   - Root cause hypothesis (based on the failures and learnings)
+   - Recommended decomposition strategy (how to break it into smaller tasks)
+   - Specific next steps to unblock it
+{{- end }}
+
 ## Output Format
 
-Use the following format:
+Provide your analysis in two parts:
 
-### Consolidation
+1. **Freeform Analysis**: Write a narrative summary of your findings, patterns you've noticed, and reasoning behind your recommendations. Use markdown formatting.
 
-For each set of related learnings:
-- **Learnings to merge**: [List dates/IDs]
-- **Consolidated version**: [Single clear statement]
-- **Rationale**: [Why these should be merged]
+2. **Structured Proposals**: After your analysis, include a JSON code block with structured proposals using this schema:
 
-### Promote to Rules
+` + "```json" + `
+{
+  "consolidations": [
+    {
+      "learning_hashes": ["hash1", "hash2"],
+      "consolidated_text": "Merged learning content",
+      "rationale": "Why these should be merged"
+    }
+  ],
+  "promotions": [
+    {
+      "learning_hash": "hash",
+      "proposed_rule": "How it should appear in RULES.md",
+      "section": "Code Style | Architecture | Safety | Process",
+      "rationale": "Why this should be a rule"
+    }
+  ],
+  "archives": [
+    {
+      "learning_hash": "hash",
+      "rationale": "Why this is no longer relevant"
+    }
+  ],
+  "rule_changes": [
+    {
+      "current_rule": "Exact text from RULES.md",
+      "proposed_rule": "New text",
+      "rationale": "Why this change is needed"
+    }
+  ]
+}
+` + "```" + `
 
-For learnings that should become rules:
-- **Learning**: [Date | ID | Content]
-- **Proposed rule**: [How it should appear in RULES.md]
-- **Section**: [Which section of RULES.md: Code Style, Architecture, Safety, or Process]
-- **Rationale**: [Why this should be a rule]
-
-### Archive
-
-For stale or obsolete learnings:
-- **Learning**: [Date | ID | Content]
-- **Rationale**: [Why this is no longer relevant]
-
-### Rule Changes
-
-For direct updates to existing rules:
-- **Current rule**: [Exact text from RULES.md]
-- **Proposed change**: [New text]
-- **Rationale**: [Why this change is needed]
+**Important**: Use the learning hashes (shown as ` + "`Hash: xxxx`" + ` in the learnings above) to reference specific learnings in your proposals. This ensures the correct learnings are updated.
 
 ## Guidelines
 
@@ -431,6 +498,7 @@ For direct updates to existing rules:
 - Focus on actionable, specific rules
 - Ensure proposed rules align with Go idioms and project goals
 - Consider whether a learning is truly a "rule" (constraint) or just good advice
+- Use the learning hashes from above to reference learnings in your JSON proposals
 `
 
 const defaultAnalyzeTemplate = `# Failure Analysis
@@ -475,4 +543,129 @@ A task just failed. Analyze what went wrong and extract any learnings.
 Respond with ONLY a JSON object (no markdown, no explanation):
 
 {"category": "missing_context", "recoverable": true, "root_cause": "Brief description", "learning": "The insight or null", "suggestion": "What to try next"}
+`
+
+const defaultScopeTemplate = `# Task Scope Estimation
+
+You are reviewing a task to quickly estimate its complexity and whether it can be completed in a single iteration.
+
+## Task Details
+
+**ID:** {{.Bead.ID}}
+**Title:** {{.Bead.Title}}
+**Priority:** P{{.Bead.Priority}}
+
+{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+
+### Description
+
+{{.Bead.Description}}
+
+{{if .ParentBead}}## Parent Context
+
+This task is part of: **{{.ParentBead.Title}}**{{if .ParentBead.Description}}
+
+{{.ParentBead.Description}}{{end}}{{end}}
+
+## Your Job
+
+Estimate the scope of this task and determine if it can be completed in a single Claude iteration. Consider:
+
+1. **Codebase familiarity** - How much existing code needs to be understood?
+2. **Number of files** - How many files will likely need changes?
+3. **Complexity** - Are there intricate algorithms, architectural changes, or cross-system dependencies?
+4. **Testing** - How thorough must testing be to validate completion?
+5. **Unknowns** - Are there architectural decisions or dependencies that are unclear?
+
+## Output Format
+
+Respond with ONLY a JSON object (no markdown, no explanation):
+
+` + "```json" + `
+{
+  "complexity": "low|medium|high",
+  "estimated_iterations": 1,
+  "rationale": "Brief explanation of scope assessment",
+  "can_complete_in_single_iteration": true,
+  "blockers": ["List of", "potential blockers if any"]
+}
+` + "```" + `
+
+### Complexity Levels
+
+- **low**: Straightforward changes to 1-2 files, minimal testing, clear requirements
+- **medium**: Changes to 3-5 files, moderate testing, some architectural consideration
+- **high**: Changes to 6+ files, extensive testing, complex architecture, unclear requirements, or cross-system dependencies
+
+### Iteration Estimates
+
+- 1-2 iterations: Task is achievable with current context
+- 3+ iterations: Task likely too large and should be decomposed
+
+Tasks that cannot be completed in a single iteration should return ` + "`can_complete_in_single_iteration: false`" + ` and recommend breakdown in blockers.
+`
+
+const defaultDecomposeTemplate = `# Task Decomposition
+
+A task has been identified as too large or complex to complete in a single iteration. Your job is to break it down into 2-4 smaller, more manageable sub-tasks.
+
+## Original Task
+
+**ID:** {{.Bead.ID}}
+**Title:** {{.Bead.Title}}
+**Priority:** P{{.Bead.Priority}}
+
+### Description
+
+{{.Bead.Description}}
+
+{{if .ParentBead}}
+### Parent Context
+
+This is part of: **{{.ParentBead.Title}}**
+{{end}}
+
+## Your Job
+
+Break this task into 2-4 smaller sub-tasks that:
+- Each can be completed independently (or with minimal ordering constraints)
+- Are smaller in scope but maintain the original goal
+- Can be executed sequentially through the Ralph loop
+- Each have clear acceptance criteria
+
+## Output Format
+
+Respond with a JSON array containing your proposed sub-tasks. Each sub-task should have:
+- ` + "`title`" + `: Brief title (max 60 chars)
+- ` + "`description`" + `: What needs to be done
+- ` + "`depends_on`" + `: Index of previous task if dependent (null if independent)
+- ` + "`acceptance_criteria`" + `: 2-3 bullet points
+
+Example format:
+` + "```json" + `
+[
+  {
+    "title": "Set up database migrations",
+    "description": "Create the initial migration files and schema...",
+    "depends_on": null,
+    "acceptance_criteria": ["Migration files created", "Schema matches spec"]
+  },
+  {
+    "title": "Implement user model",
+    "description": "Add User model with validation...",
+    "depends_on": 0,
+    "acceptance_criteria": ["Model created", "Tests pass", "Validation works"]
+  }
+]
+` + "```" + `
+
+## Guidelines
+
+- Keep tasks focused on a single concern
+- If a task has a natural prerequisite, indicate the dependency
+- Avoid tasks that are just "refactoring" or "cleanup" - focus on functionality
+- Each task should be demonstrable with commits/tests
+- Consider what files will likely be touched by each task
+
+Respond with ONLY the JSON array (no markdown, no explanation).
 `
