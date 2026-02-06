@@ -126,6 +126,9 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	}
 
 	r := runner.NewRunner(cfg, os.Stdout)
+	if r == nil {
+		return fmt.Errorf("failed to create runner")
+	}
 	return r.Run(ctx, cfg.Loop.MaxIterations, dryRun)
 }
 
@@ -136,6 +139,9 @@ func showStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	r := runner.NewRunner(cfg, os.Stdout)
+	if r == nil {
+		return fmt.Errorf("failed to create runner")
+	}
 	return r.Status()
 }
 
@@ -173,6 +179,9 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println("This may take a few minutes as it uses opus for quality analysis.")
 
 	r := retro.NewRetro(cfg, ralphDir)
+	if r == nil {
+		return fmt.Errorf("failed to create retro analyzer")
+	}
 	result, err := r.Run(ctx, applyChanges)
 	if err != nil {
 		return fmt.Errorf("running retro: %w", err)

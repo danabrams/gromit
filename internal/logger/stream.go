@@ -171,7 +171,7 @@ func (sl *StreamLogger) Close() error {
 }
 
 // ParseAndLogEvent parses a JSON stream event and logs a human-readable summary.
-// It returns the parsed event and updates stats.
+// It updates stats and logs event details. Both sl and stats may be nil.
 func ParseAndLogEvent(sl *StreamLogger, stats *StreamStats, line []byte) {
 	var event StreamEvent
 	if err := json.Unmarshal(line, &event); err != nil {
@@ -180,6 +180,10 @@ func ParseAndLogEvent(sl *StreamLogger, stats *StreamStats, line []byte) {
 
 	if stats != nil {
 		stats.RecordEvent()
+	}
+
+	if sl == nil {
+		return
 	}
 
 	switch event.Type {

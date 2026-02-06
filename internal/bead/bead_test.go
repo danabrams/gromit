@@ -784,6 +784,11 @@ func TestClientGetParent(t *testing.T) {
 		wantNil bool
 	}{
 		{
+			name:    "nil bead",
+			bead:    nil,
+			wantNil: true,
+		},
+		{
 			name: "bead with no parent",
 			bead: &Bead{
 				ID:     "task-001",

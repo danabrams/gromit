@@ -244,7 +244,7 @@ func (c *Client) AddComment(id, comment string) error {
 
 // GetParent returns the parent bead if one exists
 func (c *Client) GetParent(b *Bead) (*Bead, error) {
-	if b.Parent == "" {
+	if b == nil || b.Parent == "" {
 		return nil, nil
 	}
 	return c.Show(b.Parent)

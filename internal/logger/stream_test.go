@@ -320,6 +320,23 @@ func TestParseAndLogEventNilStatsAndLogger(t *testing.T) {
 	ParseAndLogEvent(nil, nil, line)
 }
 
+func TestParseAndLogEventNilLoggerUpdatesStats(t *testing.T) {
+	// When logger is nil, stats should still be updated
+	stats := NewStreamStats()
+	time.Sleep(50 * time.Millisecond)
+
+	line := []byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/foo.go"}}]}}`)
+	ParseAndLogEvent(nil, stats, line)
+
+	if !stats.HasReceivedEvent() {
+		t.Error("expected stats to record event even with nil logger")
+	}
+	since := stats.TimeSinceLastEvent()
+	if since > 50*time.Millisecond {
+		t.Errorf("expected LastEventTime updated, got since=%v", since)
+	}
+}
+
 func TestParseAndLogEventTextTruncation(t *testing.T) {
 	dir := t.TempDir()
 	sl, err := NewStreamLogger(dir)
