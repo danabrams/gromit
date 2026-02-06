@@ -66,6 +66,17 @@ your-project/
 4. **Escalation on failure** - haiku→sonnet→opus retry chain
 5. **Separate validation** - Tests/lint run as separate haiku invocation
 
+## Bead Sizing
+
+Properly sized beads are the foundation of the Ralph Wiggum loop. Follow these rules:
+
+- **One concern per bead** - A single file or two tightly coupled files
+- **1-3 acceptance criteria** - Concrete, testable criteria only; split if more than 3
+- **Self-contained** - Understandable without reading other beads
+- **No ambiguity** - Claude implements without making design decisions
+- **Max 2 files touched** - If more, consider splitting the bead
+- **Clear definition of done** - Each criterion has an obvious pass/fail test
+
 ## bd Integration
 
 - `bd ready --json --limit 1` - Get next unblocked bead
