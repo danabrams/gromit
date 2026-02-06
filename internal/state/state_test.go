@@ -71,3 +71,66 @@ func TestLoadCorruptFile(t *testing.T) {
 		t.Error("loading corrupt state should return error")
 	}
 }
+
+func TestReviewState(t *testing.T) {
+	tmpDir := t.TempDir()
+	sf, _ := NewFile(tmpDir)
+
+	// Initial state has no review info
+	if err := sf.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if sf.LastReviewCommit() != "" {
+		t.Errorf("expected empty last review commit, got %q", sf.LastReviewCommit())
+	}
+	if sf.LastReviewIteration() != 0 {
+		t.Errorf("expected 0 last review iteration, got %d", sf.LastReviewIteration())
+	}
+	if sf.IterationsSinceReview() != 0 {
+		t.Errorf("expected 0 iterations since review, got %d", sf.IterationsSinceReview())
+	}
+
+	// Record a review
+	if err := sf.RecordReview("abc123", 5); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reload and check
+	sf2, _ := NewFile(tmpDir)
+	if err := sf2.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if sf2.LastReviewCommit() != "abc123" {
+		t.Errorf("expected 'abc123', got %q", sf2.LastReviewCommit())
+	}
+	if sf2.LastReviewIteration() != 5 {
+		t.Errorf("expected 5, got %d", sf2.LastReviewIteration())
+	}
+}
+
+func TestIncrementIterationsSinceReview(t *testing.T) {
+	tmpDir := t.TempDir()
+	sf, _ := NewFile(tmpDir)
+	if err := sf.Load(); err != nil {
+		t.Fatal(err)
+	}
+
+	sf.IncrementIterationsSinceReview()
+	if sf.IterationsSinceReview() != 1 {
+		t.Errorf("expected 1, got %d", sf.IterationsSinceReview())
+	}
+
+	sf.IncrementIterationsSinceReview()
+	sf.IncrementIterationsSinceReview()
+	if sf.IterationsSinceReview() != 3 {
+		t.Errorf("expected 3, got %d", sf.IterationsSinceReview())
+	}
+
+	// RecordReview resets counter
+	if err := sf.RecordReview("def456", 8); err != nil {
+		t.Fatal(err)
+	}
+	if sf.IterationsSinceReview() != 0 {
+		t.Errorf("expected 0 after RecordReview, got %d", sf.IterationsSinceReview())
+	}
+}

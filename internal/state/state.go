@@ -10,7 +10,10 @@ import (
 
 // State represents persistent state stored in .ralph/state.json
 type State struct {
-	LastRetro time.Time `json:"last_retro,omitempty"`
+	LastRetro             time.Time `json:"last_retro,omitempty"`
+	LastReviewCommit      string    `json:"last_review_commit,omitempty"`
+	LastReviewIteration   int       `json:"last_review_iteration,omitempty"`
+	IterationsSinceReview int       `json:"iterations_since_review,omitempty"`
 }
 
 // File manages the state.json file
@@ -78,5 +81,48 @@ func (f *File) RecordRetro() error {
 		return fmt.Errorf("state file is nil")
 	}
 	f.state.LastRetro = time.Now()
+	return f.Save()
+}
+
+// LastReviewCommit returns the commit hash of the last review
+func (f *File) LastReviewCommit() string {
+	if f == nil {
+		return ""
+	}
+	return f.state.LastReviewCommit
+}
+
+// LastReviewIteration returns the iteration number of the last review
+func (f *File) LastReviewIteration() int {
+	if f == nil {
+		return 0
+	}
+	return f.state.LastReviewIteration
+}
+
+// IterationsSinceReview returns the number of iterations since the last review
+func (f *File) IterationsSinceReview() int {
+	if f == nil {
+		return 0
+	}
+	return f.state.IterationsSinceReview
+}
+
+// IncrementIterationsSinceReview increments the counter of iterations since last review
+func (f *File) IncrementIterationsSinceReview() {
+	if f == nil {
+		return
+	}
+	f.state.IterationsSinceReview++
+}
+
+// RecordReview updates the last review commit and iteration, resets counter to 0, and saves
+func (f *File) RecordReview(commit string, iteration int) error {
+	if f == nil {
+		return fmt.Errorf("state file is nil")
+	}
+	f.state.LastReviewCommit = commit
+	f.state.LastReviewIteration = iteration
+	f.state.IterationsSinceReview = 0
 	return f.Save()
 }
