@@ -168,8 +168,8 @@ func TestExtractCodeBlock(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "multiline json in code block",
-			input: "Result:\n```json\n{\n  \"key\": \"value\",\n  \"nested\": {\n    \"inner\": \"data\"\n  }\n}\n```\n",
+			name:    "multiline json in code block",
+			input:   "Result:\n```json\n{\n  \"key\": \"value\",\n  \"nested\": {\n    \"inner\": \"data\"\n  }\n}\n```\n",
 			wantErr: false,
 		},
 		{
@@ -374,10 +374,10 @@ Hope this helps.`
 		output := "Here are the proposals:\n\n```json\n{\n  \"consolidations\": [],\n  \"promotions\": [\n    {\n      \"learning_hash\": \"abc123\",\n      \"proposed_rule\": \"Always check for nil\",\n      \"section\": \"Safety\",\n      \"rationale\": \"Prevents panics\"\n    }\n  ],\n  \"archives\": [],\n  \"rule_changes\": []\n}\n```\n\nThese are good ideas."
 
 		type PromotionProposal struct {
-			LearningHash  string `json:"learning_hash"`
-			ProposedRule  string `json:"proposed_rule"`
-			Section       string `json:"section"`
-			Rationale     string `json:"rationale"`
+			LearningHash string `json:"learning_hash"`
+			ProposedRule string `json:"proposed_rule"`
+			Section      string `json:"section"`
+			Rationale    string `json:"rationale"`
 		}
 
 		type Proposals struct {

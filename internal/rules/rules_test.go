@@ -3,6 +3,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -193,7 +194,7 @@ func TestLoadMissingFile(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for missing file")
 	}
-	if !contains(err.Error(), "reading rules file") {
+	if !strings.Contains(err.Error(), "reading rules file") {
 		t.Errorf("expected 'reading rules file' in error, got: %v", err)
 	}
 }
@@ -300,7 +301,7 @@ func TestModifyRuleSectionNotFound(t *testing.T) {
 		t.Error("expected error for nonexistent section")
 	}
 
-	if !contains(err.Error(), "section not found") {
+	if !strings.Contains(err.Error(), "section not found") {
 		t.Errorf("expected 'section not found' in error, got: %v", err)
 	}
 }
@@ -317,7 +318,7 @@ func TestModifyRuleNotFound(t *testing.T) {
 		t.Error("expected error for nonexistent rule")
 	}
 
-	if !contains(err.Error(), "rule not found") {
+	if !strings.Contains(err.Error(), "rule not found") {
 		t.Errorf("expected 'rule not found' in error, got: %v", err)
 	}
 }
@@ -397,7 +398,7 @@ func TestRemoveRuleSectionNotFound(t *testing.T) {
 		t.Error("expected error for nonexistent section")
 	}
 
-	if !contains(err.Error(), "section not found") {
+	if !strings.Contains(err.Error(), "section not found") {
 		t.Errorf("expected 'section not found' in error, got: %v", err)
 	}
 }
@@ -414,7 +415,7 @@ func TestRemoveRuleNotFound(t *testing.T) {
 		t.Error("expected error for nonexistent rule")
 	}
 
-	if !contains(err.Error(), "rule not found") {
+	if !strings.Contains(err.Error(), "rule not found") {
 		t.Errorf("expected 'rule not found' in error, got: %v", err)
 	}
 }
@@ -525,15 +526,15 @@ func TestParseRuleWithSpecialCharacters(t *testing.T) {
 		t.Errorf("expected 3 rules, got %d", len(r.Sections[0].Rules))
 	}
 
-	if !contains(r.Sections[0].Rules[0], "fmt.Errorf") {
+	if !strings.Contains(r.Sections[0].Rules[0], "fmt.Errorf") {
 		t.Errorf("expected backticks preserved, got: %q", r.Sections[0].Rules[0])
 	}
 
-	if !contains(r.Sections[0].Rules[1], "quotes") {
+	if !strings.Contains(r.Sections[0].Rules[1], "quotes") {
 		t.Errorf("expected quotes preserved, got: %q", r.Sections[0].Rules[1])
 	}
 
-	if !contains(r.Sections[0].Rules[2], "[brackets]") {
+	if !strings.Contains(r.Sections[0].Rules[2], "[brackets]") {
 		t.Errorf("expected brackets preserved, got: %q", r.Sections[0].Rules[2])
 	}
 }
@@ -699,14 +700,4 @@ func TestLoadRealRulesFile(t *testing.T) {
 	if len(r2.Sections) != len(r.Sections) {
 		t.Errorf("expected %d sections after reload, got %d", len(r.Sections), len(r2.Sections))
 	}
-}
-
-// Helper function to check if string contains substring
-func contains(s, substr string) bool {
-	for i := 0; i < len(s)-len(substr)+1; i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

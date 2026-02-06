@@ -1044,14 +1044,14 @@ func TestClientCreateWithParent(t *testing.T) {
 	c := newIsolatedClient(t)
 
 	tests := []struct {
-		name             string
-		title            string
-		priority         int
-		labels           []string
-		expectedOutputs  []string
-		parentID         string
+		name               string
+		title              string
+		priority           int
+		labels             []string
+		expectedOutputs    []string
+		parentID           string
 		shouldValidateFail bool
-		description      string
+		description        string
 	}{
 		{
 			name:            "create with valid parent",
@@ -1072,28 +1072,28 @@ func TestClientCreateWithParent(t *testing.T) {
 			description:     "Creates bead with no parent (empty string)",
 		},
 		{
-			name:              "invalid parent ID with spaces",
-			title:             "Task",
-			priority:          1,
-			parentID:          "parent 123",
+			name:               "invalid parent ID with spaces",
+			title:              "Task",
+			priority:           1,
+			parentID:           "parent 123",
 			shouldValidateFail: true,
-			description:       "Should reject parent ID with spaces",
+			description:        "Should reject parent ID with spaces",
 		},
 		{
-			name:              "invalid parent ID with shell chars",
-			title:             "Task",
-			priority:          1,
-			parentID:          "parent; rm -rf /",
+			name:               "invalid parent ID with shell chars",
+			title:              "Task",
+			priority:           1,
+			parentID:           "parent; rm -rf /",
 			shouldValidateFail: true,
-			description:       "Should reject parent ID with shell metacharacters",
+			description:        "Should reject parent ID with shell metacharacters",
 		},
 		{
-			name:              "parent ID too long",
-			title:             "Task",
-			priority:          1,
-			parentID:          strings.Repeat("a", maxIDLength+1),
+			name:               "parent ID too long",
+			title:              "Task",
+			priority:           1,
+			parentID:           strings.Repeat("a", maxIDLength+1),
 			shouldValidateFail: true,
-			description:       "Should reject overly long parent ID",
+			description:        "Should reject overly long parent ID",
 		},
 	}
 

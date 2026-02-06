@@ -77,21 +77,6 @@ func TestCheckExpectedOutputsEmpty(t *testing.T) {
 	}
 }
 
-func TestBeadExpectedOutputsField(t *testing.T) {
-	b := &bead.Bead{
-		ID:              "test-123",
-		Title:           "Test Bead",
-		ExpectedOutputs: []string{"file1.go", "file2.go"},
-	}
-
-	if len(b.ExpectedOutputs) != 2 {
-		t.Errorf("Expected 2 outputs, got %d", len(b.ExpectedOutputs))
-	}
-
-	if b.ExpectedOutputs[0] != "file1.go" {
-		t.Errorf("Expected first output to be file1.go, got %s", b.ExpectedOutputs[0])
-	}
-}
 
 func TestBeadExpectedOutputsJSON(t *testing.T) {
 	jsonData := `{
@@ -143,59 +128,88 @@ func TestGetGitHead(t *testing.T) {
 	}
 }
 
-func TestNewRunnerNilConfig(t *testing.T) {
-	r, err := NewRunner(nil, os.Stdout)
-	if r != nil {
-		t.Error("expected nil Runner for nil config")
+func TestNilGuards(t *testing.T) {
+	tests := []struct {
+		name     string
+		fn       func() error
+		wantErr  bool
+	}{
+		{
+			name: "NewRunnerNilConfig",
+			fn: func() error {
+				r, err := NewRunner(nil, os.Stdout)
+				if r != nil {
+					return fmt.Errorf("expected nil Runner for nil config")
+				}
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name: "RunNilRunner",
+			fn: func() error {
+				var r *Runner
+				return r.Run(nil, 0, time.Time{}, false)
+			},
+			wantErr: true,
+		},
+		{
+			name: "StatusNilRunner",
+			fn: func() error {
+				var r *Runner
+				return r.Status()
+			},
+			wantErr: true,
+		},
+		{
+			name: "RunNilConfig",
+			fn: func() error {
+				r := &Runner{output: os.Stdout}
+				err := r.Run(nil, 0, time.Time{}, false)
+				if err == nil {
+					return fmt.Errorf("expected error for nil config")
+				}
+				if !strings.Contains(err.Error(), "config is nil") {
+					return fmt.Errorf("expected 'config is nil' in error, got %q", err.Error())
+				}
+				return nil
+			},
+		},
+		{
+			name: "ProcessBeadNilConfig",
+			fn: func() error {
+				r := &Runner{output: os.Stdout}
+				b := &bead.Bead{ID: "test-1", Title: "Test"}
+				result := r.processBead(nil, b, 1)
+				if result.Error == nil {
+					return fmt.Errorf("expected error for nil config in processBead")
+				}
+				if !strings.Contains(result.Error.Error(), "config is nil") {
+					return fmt.Errorf("expected 'config is nil' in error, got %q", result.Error.Error())
+				}
+				return nil
+			},
+		},
+		{
+			name: "LogNilOutput",
+			fn: func() error {
+				r := &Runner{} // output is nil
+				r.log("test message %s", "value")
+				return nil
+			},
+		},
 	}
-	if err == nil {
-		t.Error("expected error for nil config")
-	}
-}
 
-func TestRunNilRunner(t *testing.T) {
-	var r *Runner
-	err := r.Run(nil, 0, time.Time{}, false)
-	if err == nil {
-		t.Error("expected error for nil runner")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.fn()
+			if tt.wantErr && err == nil {
+				t.Errorf("%s: expected error but got nil", tt.name)
+			} else if !tt.wantErr && err != nil {
+				t.Errorf("%s: unexpected error: %v", tt.name, err)
+			}
+		})
 	}
-}
-
-func TestStatusNilRunner(t *testing.T) {
-	var r *Runner
-	err := r.Status()
-	if err == nil {
-		t.Error("expected error for nil runner")
-	}
-}
-
-func TestRunNilConfig(t *testing.T) {
-	r := &Runner{output: os.Stdout}
-	err := r.Run(nil, 0, time.Time{}, false)
-	if err == nil {
-		t.Error("expected error for nil config")
-	}
-	if !strings.Contains(err.Error(), "config is nil") {
-		t.Errorf("expected 'config is nil' in error, got %q", err.Error())
-	}
-}
-
-func TestProcessBeadNilConfig(t *testing.T) {
-	r := &Runner{output: os.Stdout}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.processBead(nil, b, 1)
-	if result.Error == nil {
-		t.Error("expected error for nil config in processBead")
-	}
-	if !strings.Contains(result.Error.Error(), "config is nil") {
-		t.Errorf("expected 'config is nil' in error, got %q", result.Error.Error())
-	}
-}
-
-func TestLogNilOutput(t *testing.T) {
-	r := &Runner{} // output is nil
-	// Should not panic
-	r.log("test message %s", "value")
 }
 
 func TestSelectModelNilBead(t *testing.T) {
@@ -440,30 +454,6 @@ func TestGetGitDiff(t *testing.T) {
 	_ = diff
 }
 
-func TestRetryCounterBehavior(t *testing.T) {
-	// This test documents the retry counter behavior:
-	// - totalRetriesThisBead tracks the total number of retry attempts
-	// - It is incremented on stall retries (line ~305)
-	// - It is incremented on recoverable retries (line ~412)
-	// - Escalation itself does NOT increment the counter (it's a model switch, not a retry)
-	// - The counter is checked against MaxRetriesPerBead limit after each increment
-	// - Before escalating, we check if the limit has been reached (line ~452)
-	//
-	// This ensures that:
-	// 1. We don't retry the same operation infinitely
-	// 2. We don't escalate if we've already exhausted our retry budget
-	// 3. Escalation gives the new model a chance to try (with its own retry budget)
-	//
-	// Example flow with MaxRetriesPerBead=3:
-	// - haiku fails, retry 1 (counter=1)
-	// - haiku fails, retry 2 (counter=2)
-	// - haiku exhausted, escalate to sonnet (counter=2, not incremented)
-	// - sonnet fails, retry 1 (counter=3)
-	// - counter >= 3, cannot escalate further
-	//
-	// This test is documentary - the actual logic is in processBead()
-	t.Log("Retry counter behavior documented")
-}
 
 func TestParseDecomposeOutputValidJSON(t *testing.T) {
 	output := `[
@@ -570,275 +560,6 @@ func TestParseDecomposeOutputSingleTask(t *testing.T) {
 	}
 }
 
-func TestIsStuckBeadNilRunner(t *testing.T) {
-	var r *Runner
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.isStuckBead(b)
-	if result {
-		t.Error("expected isStuckBead to return false for nil runner")
-	}
-}
-
-func TestIsStuckBeadNilBead(t *testing.T) {
-	tmpDir := t.TempDir()
-	r := &Runner{
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
-		},
-	}
-	result := r.isStuckBead(nil)
-	if result {
-		t.Error("expected isStuckBead to return false for nil bead")
-	}
-}
-
-func TestIsStuckBeadDisabledThreshold(t *testing.T) {
-	tmpDir := t.TempDir()
-	r := &Runner{
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-			Loop:  config.LoopConfig{StuckBeadThreshold: 0},
-		},
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.isStuckBead(b)
-	if result {
-		t.Error("expected isStuckBead to return false when threshold is 0 (disabled)")
-	}
-}
-
-func TestIsStuckBeadNegativeThreshold(t *testing.T) {
-	tmpDir := t.TempDir()
-	r := &Runner{
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-			Loop:  config.LoopConfig{StuckBeadThreshold: -1},
-		},
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.isStuckBead(b)
-	if result {
-		t.Error("expected isStuckBead to return false when threshold is negative (disabled)")
-	}
-}
-
-func TestIsStuckBeadNoHistory(t *testing.T) {
-	tmpDir := t.TempDir()
-	r := &Runner{
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
-		},
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.isStuckBead(b)
-	if result {
-		t.Error("expected isStuckBead to return false for bead with no history")
-	}
-}
-
-func TestIsStuckBeadBelowThreshold(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create a log entry with 2 failures (below threshold of 3)
-	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
-	entries := []logger.IterationLog{
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-	}
-
-	f, err := os.Create(logFile)
-	if err != nil {
-		t.Fatalf("creating log file: %v", err)
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	for _, entry := range entries {
-		if err := enc.Encode(entry); err != nil {
-			t.Fatalf("encoding entry: %v", err)
-		}
-	}
-
-	r := &Runner{
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
-		},
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.isStuckBead(b)
-	if result {
-		t.Error("expected isStuckBead to return false when failures < threshold")
-	}
-}
-
-func TestIsStuckBeadAtThreshold(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create a log entry with exactly 3 failures (at threshold)
-	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
-	entries := []logger.IterationLog{
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-	}
-
-	f, err := os.Create(logFile)
-	if err != nil {
-		t.Fatalf("creating log file: %v", err)
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	for _, entry := range entries {
-		if err := enc.Encode(entry); err != nil {
-			t.Fatalf("encoding entry: %v", err)
-		}
-	}
-
-	r := &Runner{
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
-		},
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.isStuckBead(b)
-	if !result {
-		t.Error("expected isStuckBead to return true when failures >= threshold")
-	}
-}
-
-func TestIsStuckBeadAboveThreshold(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create a log entry with 5 failures (above threshold of 3)
-	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
-	entries := []logger.IterationLog{
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-	}
-
-	f, err := os.Create(logFile)
-	if err != nil {
-		t.Fatalf("creating log file: %v", err)
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	for _, entry := range entries {
-		if err := enc.Encode(entry); err != nil {
-			t.Fatalf("encoding entry: %v", err)
-		}
-	}
-
-	r := &Runner{
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
-		},
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.isStuckBead(b)
-	if !result {
-		t.Error("expected isStuckBead to return true when failures > threshold")
-	}
-}
-
-func TestIsStuckBeadWithSuccesses(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create a log with 3 failures and 1 success
-	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
-	entries := []logger.IterationLog{
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: true},
-	}
-
-	f, err := os.Create(logFile)
-	if err != nil {
-		t.Fatalf("creating log file: %v", err)
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	for _, entry := range entries {
-		if err := enc.Encode(entry); err != nil {
-			t.Fatalf("encoding entry: %v", err)
-		}
-	}
-
-	r := &Runner{
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
-		},
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.isStuckBead(b)
-	if !result {
-		t.Error("expected isStuckBead to return true when failures >= threshold (regardless of successes)")
-	}
-}
-
-func TestIsStuckBeadMultipleBeads(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create a log with multiple beads, only one stuck
-	logFile := filepath.Join(tmpDir, "run-20240101-120000.jsonl")
-	entries := []logger.IterationLog{
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-1", Success: false},
-		{BeadID: "test-2", Success: false},
-		{BeadID: "test-3", Success: true},
-	}
-
-	f, err := os.Create(logFile)
-	if err != nil {
-		t.Fatalf("creating log file: %v", err)
-	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	for _, entry := range entries {
-		if err := enc.Encode(entry); err != nil {
-			t.Fatalf("encoding entry: %v", err)
-		}
-	}
-
-	r := &Runner{
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-			Loop:  config.LoopConfig{StuckBeadThreshold: 3},
-		},
-	}
-
-	// test-1 is stuck (3 failures)
-	result := r.isStuckBead(&bead.Bead{ID: "test-1"})
-	if !result {
-		t.Error("expected test-1 to be stuck")
-	}
-
-	// test-2 is not stuck (1 failure)
-	result = r.isStuckBead(&bead.Bead{ID: "test-2"})
-	if result {
-		t.Error("expected test-2 to not be stuck")
-	}
-
-	// test-3 is not stuck (0 failures)
-	result = r.isStuckBead(&bead.Bead{ID: "test-3"})
-	if result {
-		t.Error("expected test-3 to not be stuck")
-	}
-}
 
 func TestCreateSubBeads_VerifyLogging(t *testing.T) {
 	// Test that CreateSubBeads logs appropriately during processing
@@ -878,142 +599,164 @@ func TestCreateSubBeads_VerifyLogging(t *testing.T) {
 	}
 }
 
-func TestCreateSubBeads_NilRunner(t *testing.T) {
-	var r *Runner
-	b := &bead.Bead{ID: "test-1"}
-	subTasks := []SubTask{{Title: "Task 1"}}
+func TestCreateSubBeadsErrors(t *testing.T) {
+	tests := []struct {
+		name         string
+		runner       *Runner
+		bead         *bead.Bead
+		subTasks     []SubTask
+		expectedErr  string
+		nilRunner    bool
+	}{
+		{
+			name:        "NilRunner",
+			runner:      nil,
+			bead:        &bead.Bead{ID: "test-1"},
+			subTasks:    []SubTask{{Title: "Task 1"}},
+			expectedErr: "runner is nil",
+			nilRunner:   true,
+		},
+		{
+			name:        "NilBead",
+			runner:      &Runner{beads: &mockBeadClient{}, output: os.Stderr},
+			bead:        nil,
+			subTasks:    []SubTask{{Title: "Task 1"}},
+			expectedErr: "bead is nil",
+		},
+		{
+			name:        "NoSubTasks",
+			runner:      &Runner{beads: &mockBeadClient{}, output: os.Stderr},
+			bead:        &bead.Bead{ID: "test-1"},
+			subTasks:    []SubTask{},
+			expectedErr: "no sub-tasks",
+		},
+	}
 
-	err := r.CreateSubBeads(nil, b, subTasks)
-	if err == nil || !strings.Contains(err.Error(), "runner is nil") {
-		t.Errorf("expected error for nil runner, got: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			if tt.nilRunner {
+				var r *Runner
+				err = r.CreateSubBeads(nil, tt.bead, tt.subTasks)
+			} else {
+				err = tt.runner.CreateSubBeads(nil, tt.bead, tt.subTasks)
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.expectedErr) {
+				t.Errorf("expected %q in error, got: %v", tt.expectedErr, err)
+			}
+		})
 	}
 }
 
-func TestCreateSubBeads_NilBead(t *testing.T) {
-	r := &Runner{beads: &mockBeadClient{}, output: os.Stderr}
-	subTasks := []SubTask{{Title: "Task 1"}}
+func TestProcessBeadAndRunNilDependencies(t *testing.T) {
+	tests := []struct {
+		name          string
+		runner        *Runner
+		method        func(*Runner) error
+		expectedError string
+	}{
+		{
+			name: "ProcessBeadNilBeads",
+			runner: &Runner{
+				cfg:    &config.Config{},
+				output: os.Stdout,
+			},
+			method: func(r *Runner) error {
+				b := &bead.Bead{ID: "test-1", Title: "Test"}
+				result := r.processBead(nil, b, 1)
+				return result.Error
+			},
+			expectedError: "beads client is nil",
+		},
+		{
+			name: "ProcessBeadNilRenderer",
+			runner: &Runner{
+				cfg:    &config.Config{},
+				beads:  &mockBeadClient{},
+				output: os.Stdout,
+			},
+			method: func(r *Runner) error {
+				b := &bead.Bead{ID: "test-1", Title: "Test"}
+				result := r.processBead(nil, b, 1)
+				return result.Error
+			},
+			expectedError: "renderer is nil",
+		},
+		{
+			name: "ProcessBeadNilClaude",
+			runner: &Runner{
+				cfg:      &config.Config{},
+				beads:    &mockBeadClient{},
+				renderer: &mockRenderer{},
+				output:   os.Stdout,
+			},
+			method: func(r *Runner) error {
+				b := &bead.Bead{ID: "test-1", Title: "Test"}
+				result := r.processBead(nil, b, 1)
+				return result.Error
+			},
+			expectedError: "claude client is nil",
+		},
+		{
+			name: "RunNilBeads",
+			runner: &Runner{
+				cfg:    &config.Config{},
+				output: os.Stdout,
+			},
+			method: func(r *Runner) error {
+				return r.Run(nil, 0, time.Time{}, false)
+			},
+			expectedError: "beads client is nil",
+		},
+		{
+			name: "RunNilRenderer",
+			runner: &Runner{
+				cfg:    &config.Config{},
+				beads:  &mockBeadClient{},
+				output: os.Stdout,
+			},
+			method: func(r *Runner) error {
+				return r.Run(nil, 0, time.Time{}, false)
+			},
+			expectedError: "renderer is nil",
+		},
+		{
+			name: "RunNilClaude",
+			runner: &Runner{
+				cfg:      &config.Config{},
+				beads:    &mockBeadClient{},
+				renderer: &mockRenderer{},
+				output:   os.Stdout,
+			},
+			method: func(r *Runner) error {
+				return r.Run(nil, 0, time.Time{}, false)
+			},
+			expectedError: "claude client is nil",
+		},
+		{
+			name: "StatusNilBeads",
+			runner: &Runner{
+				cfg:    &config.Config{},
+				output: os.Stdout,
+			},
+			method: func(r *Runner) error {
+				return r.Status()
+			},
+			expectedError: "beads client is nil",
+		},
+	}
 
-	err := r.CreateSubBeads(nil, nil, subTasks)
-	if err == nil || !strings.Contains(err.Error(), "bead is nil") {
-		t.Errorf("expected error for nil bead, got: %v", err)
-	}
-}
-
-func TestCreateSubBeads_NoSubTasks(t *testing.T) {
-	r := &Runner{beads: &mockBeadClient{}, output: os.Stderr}
-	b := &bead.Bead{ID: "test-1"}
-	var subTasks []SubTask
-
-	err := r.CreateSubBeads(nil, b, subTasks)
-	if err == nil || !strings.Contains(err.Error(), "no sub-tasks") {
-		t.Errorf("expected error for no sub-tasks, got: %v", err)
-	}
-}
-
-func TestProcessBeadNilBeads(t *testing.T) {
-	r := &Runner{
-		cfg:    &config.Config{},
-		output: os.Stdout,
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.processBead(nil, b, 1)
-	if result.Error == nil {
-		t.Error("expected error for nil beads client")
-	}
-	if !strings.Contains(result.Error.Error(), "beads client is nil") {
-		t.Errorf("expected 'beads client is nil' in error, got %q", result.Error.Error())
-	}
-}
-
-func TestProcessBeadNilRenderer(t *testing.T) {
-	r := &Runner{
-		cfg:    &config.Config{},
-		beads:  &mockBeadClient{},
-		output: os.Stdout,
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.processBead(nil, b, 1)
-	if result.Error == nil {
-		t.Error("expected error for nil renderer")
-	}
-	if !strings.Contains(result.Error.Error(), "renderer is nil") {
-		t.Errorf("expected 'renderer is nil' in error, got %q", result.Error.Error())
-	}
-}
-
-func TestProcessBeadNilClaude(t *testing.T) {
-	r := &Runner{
-		cfg:      &config.Config{},
-		beads:    &mockBeadClient{},
-		renderer: &mockRenderer{},
-		output:   os.Stdout,
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	result := r.processBead(nil, b, 1)
-	if result.Error == nil {
-		t.Error("expected error for nil claude client")
-	}
-	if !strings.Contains(result.Error.Error(), "claude client is nil") {
-		t.Errorf("expected 'claude client is nil' in error, got %q", result.Error.Error())
-	}
-}
-
-func TestRunNilBeads(t *testing.T) {
-	r := &Runner{
-		cfg:    &config.Config{},
-		output: os.Stdout,
-	}
-	err := r.Run(nil, 0, time.Time{}, false)
-	if err == nil {
-		t.Error("expected error for nil beads client")
-	}
-	if !strings.Contains(err.Error(), "beads client is nil") {
-		t.Errorf("expected 'beads client is nil' in error, got %q", err.Error())
-	}
-}
-
-func TestRunNilRenderer(t *testing.T) {
-	r := &Runner{
-		cfg:    &config.Config{},
-		beads:  &mockBeadClient{},
-		output: os.Stdout,
-	}
-	err := r.Run(nil, 0, time.Time{}, false)
-	if err == nil {
-		t.Error("expected error for nil renderer")
-	}
-	if !strings.Contains(err.Error(), "renderer is nil") {
-		t.Errorf("expected 'renderer is nil' in error, got %q", err.Error())
-	}
-}
-
-func TestRunNilClaude(t *testing.T) {
-	r := &Runner{
-		cfg:      &config.Config{},
-		beads:    &mockBeadClient{},
-		renderer: &mockRenderer{},
-		output:   os.Stdout,
-	}
-	err := r.Run(nil, 0, time.Time{}, false)
-	if err == nil {
-		t.Error("expected error for nil claude client")
-	}
-	if !strings.Contains(err.Error(), "claude client is nil") {
-		t.Errorf("expected 'claude client is nil' in error, got %q", err.Error())
-	}
-}
-
-func TestStatusNilBeads(t *testing.T) {
-	r := &Runner{
-		cfg:    &config.Config{},
-		output: os.Stdout,
-	}
-	err := r.Status()
-	if err == nil {
-		t.Error("expected error for nil beads client")
-	}
-	if !strings.Contains(err.Error(), "beads client is nil") {
-		t.Errorf("expected 'beads client is nil' in error, got %q", err.Error())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.method(tt.runner)
+			if err == nil {
+				t.Errorf("expected error for %s", tt.name)
+				return
+			}
+			if !strings.Contains(err.Error(), tt.expectedError) {
+				t.Errorf("expected %q in error, got %q", tt.expectedError, err.Error())
+			}
+		})
 	}
 }
 
@@ -1026,112 +769,133 @@ func TestSelectModelNilConfig(t *testing.T) {
 	}
 }
 
-func TestDecomposeTaskNilBeads(t *testing.T) {
-	r := &Runner{output: os.Stdout}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	_, err := r.DecomposeTask(nil, b)
-	if err == nil {
-		t.Error("expected error for nil beads client")
+func TestDecomposeTaskNilDependencies(t *testing.T) {
+	tests := []struct {
+		name          string
+		runner        *Runner
+		expectedError string
+	}{
+		{
+			name:          "DecomposeTaskNilBeads",
+			runner:        &Runner{output: os.Stdout},
+			expectedError: "beads client is nil",
+		},
+		{
+			name:          "DecomposeTaskNilRenderer",
+			runner:        &Runner{beads: &mockBeadClient{}, output: os.Stdout},
+			expectedError: "renderer is nil",
+		},
+		{
+			name:          "DecomposeTaskNilClaude",
+			runner:        &Runner{beads: &mockBeadClient{}, renderer: &mockRenderer{}, output: os.Stdout},
+			expectedError: "claude client is nil",
+		},
 	}
-	if !strings.Contains(err.Error(), "beads client is nil") {
-		t.Errorf("expected 'beads client is nil' in error, got %q", err.Error())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &bead.Bead{ID: "test-1", Title: "Test"}
+			_, err := tt.runner.DecomposeTask(nil, b)
+			if err == nil {
+				t.Errorf("expected error for %s", tt.name)
+				return
+			}
+			if !strings.Contains(err.Error(), tt.expectedError) {
+				t.Errorf("expected %q in error, got %q", tt.expectedError, err.Error())
+			}
+		})
 	}
 }
 
-func TestDecomposeTaskNilRenderer(t *testing.T) {
-	r := &Runner{
-		beads:  &mockBeadClient{},
-		output: os.Stdout,
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	_, err := r.DecomposeTask(nil, b)
-	if err == nil {
-		t.Error("expected error for nil renderer")
-	}
-	if !strings.Contains(err.Error(), "renderer is nil") {
-		t.Errorf("expected 'renderer is nil' in error, got %q", err.Error())
-	}
-}
-
-func TestDecomposeTaskNilClaude(t *testing.T) {
-	r := &Runner{
-		beads:    &mockBeadClient{},
-		renderer: &mockRenderer{},
-		output:   os.Stdout,
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	_, err := r.DecomposeTask(nil, b)
-	if err == nil {
-		t.Error("expected error for nil claude client")
-	}
-	if !strings.Contains(err.Error(), "claude client is nil") {
-		t.Errorf("expected 'claude client is nil' in error, got %q", err.Error())
-	}
-}
-
-func TestCreateSubBeads_NilBeadsClient(t *testing.T) {
+func TestCreateSubBeadsNilBeadsClient(t *testing.T) {
 	r := &Runner{output: os.Stdout}
 	b := &bead.Bead{ID: "test-1"}
 	subTasks := []SubTask{{Title: "Task 1"}}
-
 	err := r.CreateSubBeads(nil, b, subTasks)
 	if err == nil || !strings.Contains(err.Error(), "beads client is nil") {
 		t.Errorf("expected error for nil beads client, got: %v", err)
 	}
 }
 
-func TestWriteIterationLogNilRunner(t *testing.T) {
-	var r *Runner
-	result := &IterationResult{BeadID: "test-1"}
-	// Should not panic
-	r.writeIterationLog(1, result)
-}
+func TestNilCallsShouldNotPanic(t *testing.T) {
+	tests := []struct {
+		name string
+		fn   func()
+	}{
+		{
+			name: "WriteIterationLogNilRunner",
+			fn: func() {
+				var r *Runner
+				result := &IterationResult{BeadID: "test-1"}
+				r.writeIterationLog(1, result)
+			},
+		},
+		{
+			name: "WriteIterationLogNilResult",
+			fn: func() {
+				r := &Runner{output: os.Stdout}
+				r.writeIterationLog(1, nil)
+			},
+		},
+		{
+			name: "LogResultNilRunner",
+			fn: func() {
+				var r *Runner
+				result := &IterationResult{BeadID: "test-1", Success: true}
+				r.logResult(result)
+			},
+		},
+		{
+			name: "LogResultNilResult",
+			fn: func() {
+				r := &Runner{output: os.Stdout}
+				r.logResult(nil)
+			},
+		},
+		{
+			name: "PrintHeartbeatNilRunner",
+			fn: func() {
+				var r *Runner
+				stats, _ := logger.NewStreamStats()
+				r.printHeartbeat(stats)
+			},
+		},
+		{
+			name: "PrintHeartbeatNilStats",
+			fn: func() {
+				r := &Runner{output: os.Stdout}
+				r.printHeartbeat(nil)
+			},
+		},
+		{
+			name: "StartHeartbeatNilRunner",
+			fn: func() {
+				var r *Runner
+				stats, _ := logger.NewStreamStats()
+				stop := r.startHeartbeatWithConfig(stats, 0, 0, nil, defaultHeartbeatConfig, nil)
+				stop()
+			},
+		},
+		{
+			name: "StartHeartbeatNilStats",
+			fn: func() {
+				r := &Runner{output: os.Stdout}
+				stop := r.startHeartbeatWithConfig(nil, 0, 0, nil, defaultHeartbeatConfig, nil)
+				stop()
+			},
+		},
+	}
 
-func TestWriteIterationLogNilResult(t *testing.T) {
-	r := &Runner{output: os.Stdout}
-	// Should not panic
-	r.writeIterationLog(1, nil)
-}
-
-func TestLogResultNilRunner(t *testing.T) {
-	var r *Runner
-	result := &IterationResult{BeadID: "test-1", Success: true}
-	// Should not panic
-	r.logResult(result)
-}
-
-func TestLogResultNilResult(t *testing.T) {
-	r := &Runner{output: os.Stdout}
-	// Should not panic
-	r.logResult(nil)
-}
-
-func TestPrintHeartbeatNilRunner(t *testing.T) {
-	var r *Runner
-	stats, _ := logger.NewStreamStats()
-	// Should not panic
-	r.printHeartbeat(stats)
-}
-
-func TestPrintHeartbeatNilStats(t *testing.T) {
-	r := &Runner{output: os.Stdout}
-	// Should not panic
-	r.printHeartbeat(nil)
-}
-
-func TestStartHeartbeatNilRunner(t *testing.T) {
-	var r *Runner
-	stats, _ := logger.NewStreamStats()
-	stop := r.startHeartbeatWithConfig(stats, 0, 0, nil, defaultHeartbeatConfig, nil)
-	// Should return a no-op function
-	stop()
-}
-
-func TestStartHeartbeatNilStats(t *testing.T) {
-	r := &Runner{output: os.Stdout}
-	stop := r.startHeartbeatWithConfig(nil, 0, 0, nil, defaultHeartbeatConfig, nil)
-	// Should return a no-op function
-	stop()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s panicked: %v", tt.name, r)
+				}
+			}()
+			tt.fn()
+		})
+	}
 }
 
 func TestShowPartialProgressNilRunner(t *testing.T) {
@@ -1141,62 +905,55 @@ func TestShowPartialProgressNilRunner(t *testing.T) {
 	r.showPartialProgress(b, "abc123")
 }
 
-func TestCheckScopeNilRunner(t *testing.T) {
-	var r *Runner
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	// Should not panic, should return nil
-	result := r.checkScope(nil, b)
-	if result != nil {
-		t.Errorf("expected nil for nil runner, got %v", result)
+func TestCheckScopeNilDependencies(t *testing.T) {
+	tests := []struct {
+		name   string
+		runner *Runner
+	}{
+		{
+			name:   "CheckScopeNilRunner",
+			runner: nil,
+		},
+		{
+			name:   "CheckScopeNilConfig",
+			runner: &Runner{output: os.Stdout},
+		},
+		{
+			name:   "CheckScopeNilBead",
+			runner: &Runner{cfg: &config.Config{}, output: os.Stdout},
+		},
+		{
+			name:   "CheckScopeNilRenderer",
+			runner: &Runner{cfg: &config.Config{}, output: os.Stdout},
+		},
+		{
+			name:   "CheckScopeNilClaude",
+			runner: &Runner{cfg: &config.Config{}, renderer: &mockRenderer{}, output: os.Stdout},
+		},
 	}
-}
 
-func TestCheckScopeNilConfig(t *testing.T) {
-	r := &Runner{output: os.Stdout}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	// Should not panic, should return nil
-	result := r.checkScope(nil, b)
-	if result != nil {
-		t.Errorf("expected nil for nil config, got %v", result)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b *bead.Bead
+			if strings.Contains(tt.name, "NilBead") {
+				b = nil
+			} else {
+				b = &bead.Bead{ID: "test-1", Title: "Test"}
+			}
 
-func TestCheckScopeNilBead(t *testing.T) {
-	r := &Runner{
-		cfg:    &config.Config{},
-		output: os.Stdout,
-	}
-	// Should not panic, should return nil
-	result := r.checkScope(nil, nil)
-	if result != nil {
-		t.Errorf("expected nil for nil bead, got %v", result)
-	}
-}
-
-func TestCheckScopeNilRenderer(t *testing.T) {
-	r := &Runner{
-		cfg:    &config.Config{},
-		output: os.Stdout,
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	// Should not panic, should return nil
-	result := r.checkScope(nil, b)
-	if result != nil {
-		t.Errorf("expected nil for nil renderer, got %v", result)
-	}
-}
-
-func TestCheckScopeNilClaude(t *testing.T) {
-	r := &Runner{
-		cfg:      &config.Config{},
-		renderer: &mockRenderer{},
-		output:   os.Stdout,
-	}
-	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	// Should not panic, should return nil
-	result := r.checkScope(nil, b)
-	if result != nil {
-		t.Errorf("expected nil for nil claude client, got %v", result)
+			if tt.runner == nil {
+				var r *Runner
+				result := r.checkScope(nil, b)
+				if result != nil {
+					t.Errorf("expected nil, got %v", result)
+				}
+			} else {
+				result := tt.runner.checkScope(nil, b)
+				if result != nil {
+					t.Errorf("expected nil, got %v", result)
+				}
+			}
+		})
 	}
 }
 

@@ -3,105 +3,157 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestSelectModelNilReceiver(t *testing.T) {
-	var cfg *Config
-	result := cfg.SelectModel(1, nil)
-	if result != "sonnet" {
-		t.Errorf("expected 'sonnet' for nil Config, got %q", result)
-	}
-}
-
-func TestSelectModelNilLabels(t *testing.T) {
-	cfg := &Config{}
-	cfg.setDefaults()
-	result := cfg.SelectModel(0, nil)
-	if result != "opus" {
-		t.Errorf("expected 'opus' for P0, got %q", result)
-	}
-}
-
-func TestSelectModelPriority(t *testing.T) {
-	cfg := &Config{}
-	cfg.setDefaults()
-
+func TestSelectModelBasics(t *testing.T) {
 	tests := []struct {
+		name    string
+		cfg     *Config
 		priority int
-		want     string
+		labels   []string
+		want    string
 	}{
-		{0, "opus"},
-		{1, "sonnet"},
-		{2, "haiku"},
-		{99, "sonnet"}, // Unknown defaults to sonnet
+		{
+			name:    "NilReceiver",
+			cfg:     nil,
+			priority: 1,
+			labels:   nil,
+			want:    "sonnet",
+		},
+		{
+			name: "NilLabels",
+			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			priority: 0,
+			labels:   nil,
+			want:    "opus",
+		},
+		{
+			name: "P0",
+			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			priority: 0,
+			labels:   nil,
+			want:    "opus",
+		},
+		{
+			name: "P1",
+			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			priority: 1,
+			labels:   nil,
+			want:    "sonnet",
+		},
+		{
+			name: "P2",
+			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			priority: 2,
+			labels:   nil,
+			want:    "haiku",
+		},
+		{
+			name: "UnknownPriority",
+			cfg: &Config{Models: ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku"}},
+			priority: 99,
+			labels:   nil,
+			want:    "sonnet",
+		},
+		{
+			name: "LabelOverride",
+			cfg: &Config{Models: ModelsConfig{
+				P0: "opus", P1: "sonnet", P2: "haiku",
+				Labels: map[string]string{"complexity:high": "opus"},
+			}},
+			priority: 1,
+			labels:   []string{"complexity:high"},
+			want:    "opus",
+		},
 	}
 
 	for _, tt := range tests {
-		result := cfg.SelectModel(tt.priority, nil)
-		if result != tt.want {
-			t.Errorf("SelectModel(%d) = %q, want %q", tt.priority, result, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg *Config
+			if tt.cfg != nil {
+				cfg = tt.cfg
+			}
+			result := cfg.SelectModel(tt.priority, tt.labels)
+			if result != tt.want {
+				t.Errorf("SelectModel(%d, %v) = %q, want %q", tt.priority, tt.labels, result, tt.want)
+			}
+		})
 	}
 }
 
-func TestSelectModelLabelOverride(t *testing.T) {
-	cfg := &Config{
-		Models: ModelsConfig{
-			P1:     "sonnet",
-			Labels: map[string]string{"complexity:high": "opus"},
-		},
-	}
-	result := cfg.SelectModel(1, []string{"complexity:high"})
-	if result != "opus" {
-		t.Errorf("expected label override to 'opus', got %q", result)
-	}
-}
-
-func TestNextEscalationModelNilReceiver(t *testing.T) {
-	var cfg *Config
-	result := cfg.NextEscalationModel("haiku")
-	if result != "" {
-		t.Errorf("expected empty string for nil Config, got %q", result)
-	}
-}
-
-func TestNextEscalationModelDisabled(t *testing.T) {
-	cfg := &Config{
-		Escalation: EscalationConfig{
-			Enabled: false,
-			Chain:   []string{"haiku", "sonnet", "opus"},
-		},
-	}
-	result := cfg.NextEscalationModel("haiku")
-	if result != "" {
-		t.Errorf("expected empty string when escalation disabled, got %q", result)
-	}
-}
-
-func TestNextEscalationModelChain(t *testing.T) {
-	cfg := &Config{
-		Escalation: EscalationConfig{
-			Enabled: true,
-			Chain:   []string{"haiku", "sonnet", "opus"},
-		},
-	}
-
+func TestNextEscalationModelBasics(t *testing.T) {
 	tests := []struct {
+		name    string
+		cfg     *Config
 		current string
 		want    string
 	}{
-		{"haiku", "sonnet"},
-		{"sonnet", "opus"},
-		{"opus", ""},   // End of chain
-		{"unknown", ""}, // Not in chain
+		{
+			name:    "NilReceiver",
+			cfg:     nil,
+			current: "haiku",
+			want:    "",
+		},
+		{
+			name: "Disabled",
+			cfg: &Config{Escalation: EscalationConfig{
+				Enabled: false,
+				Chain:   []string{"haiku", "sonnet", "opus"},
+			}},
+			current: "haiku",
+			want:    "",
+		},
+		{
+			name: "StartOfChain",
+			cfg: &Config{Escalation: EscalationConfig{
+				Enabled: true,
+				Chain:   []string{"haiku", "sonnet", "opus"},
+			}},
+			current: "haiku",
+			want:    "sonnet",
+		},
+		{
+			name: "MiddleOfChain",
+			cfg: &Config{Escalation: EscalationConfig{
+				Enabled: true,
+				Chain:   []string{"haiku", "sonnet", "opus"},
+			}},
+			current: "sonnet",
+			want:    "opus",
+		},
+		{
+			name: "EndOfChain",
+			cfg: &Config{Escalation: EscalationConfig{
+				Enabled: true,
+				Chain:   []string{"haiku", "sonnet", "opus"},
+			}},
+			current: "opus",
+			want:    "",
+		},
+		{
+			name: "NotInChain",
+			cfg: &Config{Escalation: EscalationConfig{
+				Enabled: true,
+				Chain:   []string{"haiku", "sonnet", "opus"},
+			}},
+			current: "unknown",
+			want:    "",
+		},
 	}
 
 	for _, tt := range tests {
-		result := cfg.NextEscalationModel(tt.current)
-		if result != tt.want {
-			t.Errorf("NextEscalationModel(%q) = %q, want %q", tt.current, result, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg *Config
+			if tt.cfg != nil {
+				cfg = tt.cfg
+			}
+			result := cfg.NextEscalationModel(tt.current)
+			if result != tt.want {
+				t.Errorf("NextEscalationModel(%q) = %q, want %q", tt.current, result, tt.want)
+			}
+		})
 	}
 }
 
@@ -388,9 +440,9 @@ func TestSelectModelMultipleLabelsFirstMatches(t *testing.T) {
 	// When multiple labels are provided, should use first matching label
 	cfg := &Config{
 		Models: ModelsConfig{
-			P0:     "opus",
-			P1:     "sonnet",
-			P2:     "haiku",
+			P0: "opus",
+			P1: "sonnet",
+			P2: "haiku",
 			Labels: map[string]string{
 				"complexity:high": "opus",
 				"complexity:low":  "haiku",
@@ -409,9 +461,9 @@ func TestSelectModelMultipleLabelsSecondMatches(t *testing.T) {
 	// When multiple labels are provided, should use first matching label
 	cfg := &Config{
 		Models: ModelsConfig{
-			P0:     "opus",
-			P1:     "sonnet",
-			P2:     "haiku",
+			P0: "opus",
+			P1: "sonnet",
+			P2: "haiku",
 			Labels: map[string]string{
 				"complexity:high": "opus",
 				"complexity:low":  "haiku",
@@ -475,13 +527,13 @@ func TestSelectModelMultipleLabelsDifferentModels(t *testing.T) {
 	// When multiple labels are provided and multiple match, first wins
 	cfg := &Config{
 		Models: ModelsConfig{
-			P0:     "opus",
-			P1:     "sonnet",
-			P2:     "haiku",
+			P0: "opus",
+			P1: "sonnet",
+			P2: "haiku",
 			Labels: map[string]string{
-				"spec:auth":  "opus",
-				"spec:ui":    "haiku",
-				"spec:data":  "sonnet",
+				"spec:auth": "opus",
+				"spec:ui":   "haiku",
+				"spec:data": "sonnet",
 			},
 		},
 	}
@@ -508,9 +560,9 @@ func TestSelectModelComplexityHighLabel(t *testing.T) {
 		labels   []string
 		want     string
 	}{
-		{0, []string{"complexity:high"}, "opus"},  // P0 + label: should be opus
-		{1, []string{"complexity:high"}, "opus"},  // P1 + label: should be opus
-		{2, []string{"complexity:high"}, "opus"},  // P2 + label: should be opus
+		{0, []string{"complexity:high"}, "opus"}, // P0 + label: should be opus
+		{1, []string{"complexity:high"}, "opus"}, // P1 + label: should be opus
+		{2, []string{"complexity:high"}, "opus"}, // P2 + label: should be opus
 	}
 
 	for _, tt := range tests {
@@ -537,9 +589,9 @@ func TestSelectModelComplexityLowLabel(t *testing.T) {
 		labels   []string
 		want     string
 	}{
-		{0, []string{"complexity:low"}, "haiku"},  // P0 + low complexity: should be haiku
-		{1, []string{"complexity:low"}, "haiku"},  // P1 + low complexity: should be haiku
-		{2, []string{"complexity:low"}, "haiku"},  // P2 + low complexity: should be haiku
+		{0, []string{"complexity:low"}, "haiku"}, // P0 + low complexity: should be haiku
+		{1, []string{"complexity:low"}, "haiku"}, // P1 + low complexity: should be haiku
+		{2, []string{"complexity:low"}, "haiku"}, // P2 + low complexity: should be haiku
 	}
 
 	for _, tt := range tests {
@@ -1135,7 +1187,7 @@ func TestLoadFileNotFound(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for missing file")
 	}
-	if !contains(err.Error(), "reading config file") {
+	if !strings.Contains(err.Error(), "reading config file") {
 		t.Errorf("expected 'reading config file' in error, got: %v", err)
 	}
 }
@@ -1152,7 +1204,7 @@ func TestLoadInvalidYAMLSyntax(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for invalid YAML")
 	}
-	if !contains(err.Error(), "parsing config file") {
+	if !strings.Contains(err.Error(), "parsing config file") {
 		t.Errorf("expected 'parsing config file' in error, got: %v", err)
 	}
 }
@@ -1609,15 +1661,6 @@ func TestLoadNormalizesNilSliceFields(t *testing.T) {
 }
 
 // Helper function to check if string contains substring
-func contains(s, substr string) bool {
-	for i := 0; i < len(s)-len(substr)+1; i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
 // Tests for ReviewConfig
 
 func TestReviewConfigDefaults(t *testing.T) {

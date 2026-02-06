@@ -157,11 +157,11 @@ func TestAddFuzzyMatchNonPromotion(t *testing.T) {
 
 	// Manually add to confirmed (simulating a previously promoted learning)
 	f.confirmed = append(f.confirmed, Learning{
-		Date:    time.Now(),
-		BeadID:  "bead-1",
-		Content: content1,
+		Date:     time.Now(),
+		BeadID:   "bead-1",
+		Content:  content1,
 		Category: CategoryPatterns,
-		Hash:    hashContent(content1),
+		Hash:     hashContent(content1),
 	})
 
 	// Check similarity to verify it's actually > FuzzyMatchThreshold
@@ -268,9 +268,9 @@ func TestGetRecentTimeFiltering(t *testing.T) {
 // TestSimilarity tests the similarity function
 func TestSimilarity(t *testing.T) {
 	tests := []struct {
-		a    string
-		b    string
-		name string
+		a     string
+		b     string
+		name  string
 		check func(float64) bool
 	}{
 		{"hello world", "hello world", "identical", func(s float64) bool { return s == 1.0 }},

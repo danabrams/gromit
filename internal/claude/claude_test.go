@@ -283,9 +283,9 @@ Additional context follows here.`,
 
 func TestGetScopeTooLargeBreakdown(t *testing.T) {
 	tests := []struct {
-		name           string
-		result         *Result
-		wantBreakdown  string
+		name          string
+		result        *Result
+		wantBreakdown string
 	}{
 		{
 			name: "simple explanation only",
@@ -366,7 +366,7 @@ SCOPE_TOO_LARGE: This needs decomposition into:
 			name: "marker inline in prose is not matched",
 			result: &Result{
 				Success: true,
-				Output: "Look for the SCOPE_TOO_LARGE: marker in output",
+				Output:  "Look for the SCOPE_TOO_LARGE: marker in output",
 			},
 			wantBreakdown: "",
 		},
@@ -374,7 +374,7 @@ SCOPE_TOO_LARGE: This needs decomposition into:
 			name: "marker indented is not matched",
 			result: &Result{
 				Success: true,
-				Output: "Example:\n   SCOPE_TOO_LARGE: indented marker\nEnd.",
+				Output:  "Example:\n   SCOPE_TOO_LARGE: indented marker\nEnd.",
 			},
 			wantBreakdown: "",
 		},
@@ -612,65 +612,6 @@ func TestProcessStreamJSONHandlerCopy(t *testing.T) {
 	}
 }
 
-func TestResultStruct(t *testing.T) {
-	// Test Result struct fields
-	result := &Result{
-		Success:  true,
-		Output:   "test output",
-		ExitCode: 0,
-		Duration: 5 * time.Second,
-		Model:    "sonnet",
-	}
-
-	if !result.Success {
-		t.Error("Result.Success should be true")
-	}
-	if result.Output != "test output" {
-		t.Errorf("Result.Output = %q, want %q", result.Output, "test output")
-	}
-	if result.ExitCode != 0 {
-		t.Errorf("Result.ExitCode = %d, want 0", result.ExitCode)
-	}
-	if result.Duration != 5*time.Second {
-		t.Errorf("Result.Duration = %v, want %v", result.Duration, 5*time.Second)
-	}
-	if result.Model != "sonnet" {
-		t.Errorf("Result.Model = %q, want %q", result.Model, "sonnet")
-	}
-}
-
-func TestResultFailureWithExitCode(t *testing.T) {
-	// Test Result struct for failed execution
-	result := &Result{
-		Success:  false,
-		Output:   "error message\n\nSTDERR:\ndetailed error",
-		ExitCode: 1,
-		Duration: 2 * time.Second,
-		Model:    "haiku",
-	}
-
-	if result.Success {
-		t.Error("Result.Success should be false for failed execution")
-	}
-	if result.ExitCode != 1 {
-		t.Errorf("Result.ExitCode = %d, want 1", result.ExitCode)
-	}
-	if !strings.Contains(result.Output, "STDERR:") {
-		t.Error("Result.Output should contain stderr for failed execution")
-	}
-}
-
-func TestEventHandlerType(t *testing.T) {
-	// Test that EventHandler function type works correctly
-	var handler EventHandler = func(line []byte) {
-		// Simple handler
-	}
-
-	testLine := []byte(`{"type":"test"}`)
-	handler(testLine)
-
-	// If we get here without panic, the handler type works
-}
 
 func TestRunValidation(t *testing.T) {
 	tests := []struct {
