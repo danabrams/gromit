@@ -154,7 +154,7 @@ func validateCommand(cmd string) error {
 
 // RunValidation runs validation commands using Claude with haiku.
 // Commands are validated and formatted in a structured block to prevent
-// prompt injection via malicious ralph.yaml entries.
+// prompt injection via malicious gromit.yaml entries.
 func (c *Client) RunValidation(ctx context.Context, commands []string, model string, workDir string) (*Result, error) {
 	if c == nil {
 		return nil, fmt.Errorf("claude client is nil")
@@ -357,6 +357,10 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 		var captured strings.Builder
 		io.Copy(io.MultiWriter(output, &captured), monitoredStdout)
 		resultText = captured.String()
+		// Ensure output ends with a newline if any text was written
+		if len(resultText) > 0 && resultText[len(resultText)-1] != '\n' {
+			fmt.Fprintln(output)
+		}
 	}
 
 	err = cmd.Wait()
@@ -440,6 +444,7 @@ func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler E
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large events
 
 	var resultText string
+	var lastChar byte
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -475,6 +480,10 @@ func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler E
 			for _, block := range event.Message.Content {
 				if block.Type == "text" && block.Text != "" {
 					fmt.Fprint(output, block.Text)
+					// Track the last character written
+					if len(block.Text) > 0 {
+						lastChar = block.Text[len(block.Text)-1]
+					}
 				}
 				// Invoke tool call callback for tool_use blocks
 				if block.Type == "tool_use" && onToolCall != nil {
@@ -491,6 +500,11 @@ func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler E
 		if event.Type == "result" {
 			resultText = event.Result
 		}
+	}
+
+	// Ensure output ends with a newline if any text was written
+	if lastChar != 0 && lastChar != '\n' {
+		fmt.Fprintln(output)
 	}
 
 	return resultText

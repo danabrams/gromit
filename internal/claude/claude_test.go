@@ -452,7 +452,7 @@ func TestProcessStreamJSON(t *testing.T) {
 				`{"type":"result","result":"Final result"}`,
 			},
 			wantResultText: "Final result",
-			wantOutput:     "Hello",
+			wantOutput:     "Hello\n",
 			wantHandled:    2,
 		},
 		{
@@ -463,7 +463,7 @@ func TestProcessStreamJSON(t *testing.T) {
 				`{"type":"result","result":"Complete"}`,
 			},
 			wantResultText: "Complete",
-			wantOutput:     "Part 1 Part 2",
+			wantOutput:     "Part 1 Part 2\n",
 			wantHandled:    3,
 		},
 		{
@@ -491,7 +491,7 @@ func TestProcessStreamJSON(t *testing.T) {
 				`{"type":"result","result":"Final"}`,
 			},
 			wantResultText: "Final",
-			wantOutput:     "Valid",
+			wantOutput:     "Valid\n",
 			wantHandled:    3, // Handler still called for invalid JSON
 		},
 		{
@@ -502,7 +502,7 @@ func TestProcessStreamJSON(t *testing.T) {
 				`{"type":"result","result":"Done"}`,
 			},
 			wantResultText: "Done",
-			wantOutput:     "Text",
+			wantOutput:     "Text\n",
 			wantHandled:    2, // Empty lines not handled
 		},
 		{
@@ -512,7 +512,7 @@ func TestProcessStreamJSON(t *testing.T) {
 				`{"type":"result","result":"Done"}`,
 			},
 			wantResultText: "Done",
-			wantOutput:     "AB",
+			wantOutput:     "AB\n",
 			wantHandled:    2,
 		},
 	}
@@ -574,8 +574,10 @@ func TestProcessStreamJSONLargeEvent(t *testing.T) {
 	client := &Client{}
 	resultText := client.processStreamJSON(input, &output, handler, nil)
 
-	if output.String() != largeText {
-		t.Errorf("processStreamJSON() failed to handle large event, got length %d, want %d", len(output.String()), len(largeText))
+	// Output should be the large text plus a trailing newline
+	expectedOutput := largeText + "\n"
+	if output.String() != expectedOutput {
+		t.Errorf("processStreamJSON() failed to handle large event, got length %d, want %d", len(output.String()), len(expectedOutput))
 	}
 
 	if resultText != "" {
@@ -819,7 +821,7 @@ func TestStreamJSONMixedContent(t *testing.T) {
 	client := &Client{}
 	client.processStreamJSON(input, &output, handler, nil)
 
-	expected := "Hello World"
+	expected := "Hello World\n"
 	if output.String() != expected {
 		t.Errorf("processStreamJSON() output = %q, want %q", output.String(), expected)
 	}
@@ -1308,5 +1310,87 @@ func TestProcessStreamJSONMultipleToolCalls(t *testing.T) {
 
 	if resultText != "Complete" {
 		t.Errorf("resultText = %q, want %q", resultText, "Complete")
+	}
+}
+
+func TestProcessStreamJSONTrailingNewline(t *testing.T) {
+	tests := []struct {
+		name            string
+		inputJSON       []string
+		wantEndsWithNL  bool
+		wantResultText  string
+	}{
+		{
+			name: "text without trailing newline gets one added",
+			inputJSON: []string{
+				`{"type":"assistant","message":{"content":[{"type":"text","text":"No newline here"}]}}`,
+				`{"type":"result","result":"Done"}`,
+			},
+			wantEndsWithNL: true,
+			wantResultText: "Done",
+		},
+		{
+			name: "text with trailing newline keeps it",
+			inputJSON: []string{
+				`{"type":"assistant","message":{"content":[{"type":"text","text":"Has newline\n"}]}}`,
+				`{"type":"result","result":"Done"}`,
+			},
+			wantEndsWithNL: true,
+			wantResultText: "Done",
+		},
+		{
+			name: "multiple text blocks without trailing newline",
+			inputJSON: []string{
+				`{"type":"assistant","message":{"content":[{"type":"text","text":"Part 1"}]}}`,
+				`{"type":"assistant","message":{"content":[{"type":"text","text":" Part 2"}]}}`,
+				`{"type":"result","result":"Complete"}`,
+			},
+			wantEndsWithNL: true,
+			wantResultText: "Complete",
+		},
+		{
+			name: "no text output means no added newline",
+			inputJSON: []string{
+				`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"bash"}]}}`,
+				`{"type":"result","result":"Done"}`,
+			},
+			wantEndsWithNL: false,
+			wantResultText: "Done",
+		},
+		{
+			name: "empty text blocks don't affect trailing newline",
+			inputJSON: []string{
+				`{"type":"assistant","message":{"content":[{"type":"text","text":""}]}}`,
+				`{"type":"result","result":"Done"}`,
+			},
+			wantEndsWithNL: false,
+			wantResultText: "Done",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := strings.NewReader(strings.Join(tt.inputJSON, "\n"))
+			var output strings.Builder
+			handler := func(line []byte) {}
+
+			client := &Client{}
+			resultText := client.processStreamJSON(input, &output, handler, nil)
+
+			if resultText != tt.wantResultText {
+				t.Errorf("processStreamJSON() resultText = %q, want %q", resultText, tt.wantResultText)
+			}
+
+			outputStr := output.String()
+			endsWithNL := len(outputStr) > 0 && outputStr[len(outputStr)-1] == '\n'
+
+			if tt.wantEndsWithNL && !endsWithNL {
+				t.Errorf("processStreamJSON() output should end with newline, got %q", outputStr)
+			}
+
+			if !tt.wantEndsWithNL && endsWithNL {
+				t.Errorf("processStreamJSON() output should not end with newline, got %q", outputStr)
+			}
+		})
 	}
 }
