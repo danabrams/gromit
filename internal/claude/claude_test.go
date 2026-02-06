@@ -245,6 +245,99 @@ Additional context follows here.`,
 	}
 }
 
+func TestGetScopeTooLargeBreakdown(t *testing.T) {
+	tests := []struct {
+		name           string
+		result         *Result
+		wantBreakdown  string
+	}{
+		{
+			name: "simple explanation only",
+			result: &Result{
+				Success: true,
+				Output:  "SCOPE_TOO_LARGE: This task requires refactoring multiple subsystems",
+			},
+			wantBreakdown: "This task requires refactoring multiple subsystems",
+		},
+		{
+			name: "explanation with multiple paragraphs",
+			result: &Result{
+				Success: true,
+				Output: `SCOPE_TOO_LARGE: This feature requires architectural changes across authentication, database schema, and API layer which would take several hours to implement properly.
+
+Suggested breakdown:
+1. Implement new authentication flow
+2. Update database schema for new requirements
+3. Modify API endpoints`,
+			},
+			wantBreakdown: `This feature requires architectural changes across authentication, database schema, and API layer which would take several hours to implement properly.
+
+Suggested breakdown:
+1. Implement new authentication flow
+2. Update database schema for new requirements
+3. Modify API endpoints`,
+		},
+		{
+			name: "breakdown with bullet points",
+			result: &Result{
+				Success: true,
+				Output: `SCOPE_TOO_LARGE: The task involves:
+- Restructuring the entire authentication system
+- Migrating the database schema
+- Updating all API endpoints`,
+			},
+			wantBreakdown: `The task involves:
+- Restructuring the entire authentication system
+- Migrating the database schema
+- Updating all API endpoints`,
+		},
+		{
+			name: "no marker present",
+			result: &Result{
+				Success: true,
+				Output:  "Task completed successfully",
+			},
+			wantBreakdown: "",
+		},
+		{
+			name:          "nil result",
+			result:        nil,
+			wantBreakdown: "",
+		},
+		{
+			name: "marker with no explanation",
+			result: &Result{
+				Success: true,
+				Output:  "SCOPE_TOO_LARGE:",
+			},
+			wantBreakdown: "",
+		},
+		{
+			name: "marker with surrounding context",
+			result: &Result{
+				Success: true,
+				Output: `Before starting work, I need to assess the scope.
+
+SCOPE_TOO_LARGE: This needs decomposition into:
+1. Authentication layer
+2. Database layer`,
+			},
+			wantBreakdown: `This needs decomposition into:
+1. Authentication layer
+2. Database layer`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetScopeTooLargeBreakdown(tt.result)
+			if got != tt.wantBreakdown {
+				t.Errorf("GetScopeTooLargeBreakdown() = %q, want %q", got, tt.wantBreakdown)
+			}
+		})
+	}
+}
+
 func TestNewClient(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -229,6 +229,30 @@ func IsScopeTooLarge(result *Result) (bool, string) {
 	return true, explanation
 }
 
+// GetScopeTooLargeBreakdown extracts the full breakdown content after SCOPE_TOO_LARGE marker.
+// Returns the full content up to the first paragraph break or end of output, or empty string if not found.
+// This is useful for adding detailed comments to beads about how to decompose the task.
+func GetScopeTooLargeBreakdown(result *Result) string {
+	if result == nil {
+		return ""
+	}
+
+	// Look for the SCOPE_TOO_LARGE: marker
+	const marker = "SCOPE_TOO_LARGE:"
+	if !strings.Contains(result.Output, marker) {
+		return ""
+	}
+
+	// Extract everything after the marker
+	idx := strings.Index(result.Output, marker)
+	remaining := result.Output[idx+len(marker):]
+
+	// Trim leading/trailing whitespace
+	breakdown := strings.TrimSpace(remaining)
+
+	return breakdown
+}
+
 // EventHandler is called for each line of stream-json output from Claude CLI.
 // The raw JSON line is passed for external parsing and logging.
 type EventHandler func(line []byte)
