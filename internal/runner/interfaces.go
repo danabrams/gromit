@@ -1,0 +1,63 @@
+package runner
+
+import (
+	"context"
+	"io"
+
+	"github.com/danabrams/ralph-runner/internal/analyzer"
+	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/ralph-runner/internal/claude"
+	"github.com/danabrams/ralph-runner/internal/learnings"
+	"github.com/danabrams/ralph-runner/internal/logger"
+	"github.com/danabrams/ralph-runner/internal/prompt"
+)
+
+// Compile-time interface satisfaction checks.
+var (
+	_ BeadClient     = (*bead.Client)(nil)
+	_ ClaudeClient   = (*claude.Client)(nil)
+	_ FailureAnalyzer = (*analyzer.Analyzer)(nil)
+	_ PromptRenderer = (*prompt.Renderer)(nil)
+	_ IterationLogger = (*logger.Logger)(nil)
+)
+
+// BeadClient abstracts the bead (bd) CLI operations used by the runner.
+type BeadClient interface {
+	Ready() (*bead.Bead, error)
+	Show(id string) (*bead.Bead, error)
+	Close(id string) error
+	Sync() error
+	AddComment(id, comment string) error
+	GetParent(b *bead.Bead) (*bead.Bead, error)
+	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+}
+
+// ClaudeClient abstracts the Claude CLI operations used by the runner.
+type ClaudeClient interface {
+	Run(ctx context.Context, prompt string, model string) (*claude.Result, error)
+	StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error)
+	RunValidation(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error)
+}
+
+// FailureAnalyzer abstracts the failure analysis operations used by the runner.
+type FailureAnalyzer interface {
+	Analyze(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error)
+}
+
+// PromptRenderer abstracts the prompt rendering operations used by the runner.
+type PromptRenderer interface {
+	BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
+	RenderBuild(ctx *prompt.Context) (string, error)
+	RenderAnalyze(ctx *prompt.AnalyzeContext) (string, error)
+	RenderDecompose(ctx *prompt.DecomposeContext) (string, error)
+	RenderScope(ctx *prompt.ScopeContext) (string, error)
+	LoadSpec(name string) (string, error)
+	GetLearningsFile() *learnings.File
+}
+
+// IterationLogger abstracts the iteration log writing used by the runner.
+type IterationLogger interface {
+	LogIteration(log *logger.IterationLog) error
+	Close() error
+	FilePath() string
+}

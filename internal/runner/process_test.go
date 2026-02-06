@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/claude"
 	"github.com/danabrams/ralph-runner/internal/config"
+	"github.com/danabrams/ralph-runner/internal/learnings"
 	"github.com/danabrams/ralph-runner/internal/prompt"
 )
 
@@ -32,10 +33,9 @@ func TestSetupBeadContext_NilBeads(t *testing.T) {
 }
 
 func TestSetupBeadContext_NilRenderer(t *testing.T) {
-	beadsClient, _ := bead.NewClient()
 	r := &Runner{
 		cfg:    &config.Config{},
-		beads:  beadsClient,
+		beads:  &mockBeadClient{},
 		output: &strings.Builder{},
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -46,11 +46,10 @@ func TestSetupBeadContext_NilRenderer(t *testing.T) {
 }
 
 func TestSetupBeadContext_NilClaude(t *testing.T) {
-	beadsClient, _ := bead.NewClient()
 	r := &Runner{
 		cfg:      &config.Config{},
-		beads:    beadsClient,
-		renderer: &prompt.Renderer{},
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
 		output:   &strings.Builder{},
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -61,8 +60,6 @@ func TestSetupBeadContext_NilClaude(t *testing.T) {
 }
 
 func TestSetupBeadContext_SetsFields(t *testing.T) {
-	beadsClient, _ := bead.NewClient()
-	claudeClient, _ := claude.NewClient("echo", nil, 60)
 	r := &Runner{
 		cfg: &config.Config{
 			Escalation: config.EscalationConfig{
@@ -73,9 +70,9 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 				BeadTimeout: 300,
 			},
 		},
-		beads:    beadsClient,
-		renderer: &prompt.Renderer{},
-		claude:   claudeClient,
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
+		claude:   &mockClaudeClient{},
 		output:   &strings.Builder{},
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test", Priority: 1}
@@ -141,9 +138,8 @@ func TestEscalateModel(t *testing.T) {
 
 func TestHandleScopeTooLarge(t *testing.T) {
 	var buf strings.Builder
-	beadsClient, _ := bead.NewClient()
 	r := &Runner{
-		beads:  beadsClient,
+		beads:  &mockBeadClient{},
 		output: &buf,
 	}
 	bc := &beadContext{
@@ -168,7 +164,7 @@ func TestHandleScopeTooLarge(t *testing.T) {
 func TestExtractLearning_NilLearning(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{
-		renderer: &prompt.Renderer{},
+		renderer: &mockRenderer{},
 		output:   &buf,
 	}
 	bc := &beadContext{
@@ -193,7 +189,7 @@ func TestExtractLearning_NilLearning(t *testing.T) {
 func TestExtractLearning_WithLearning(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{
-		renderer: &prompt.Renderer{},
+		renderer: &mockRenderer{},
 		output:   &buf,
 	}
 	bc := &beadContext{
@@ -282,32 +278,32 @@ func TestHandleStallTimeout_Escalates(t *testing.T) {
 				Chain:   []string{"haiku", "sonnet", "opus"},
 			},
 		},
-		renderer: &prompt.Renderer{},
+		renderer: &mockRenderer{},
 		output:   &buf,
 	}
 	bc := &beadContext{
-		bead:                 &bead.Bead{ID: "test-1"},
-		result:               &IterationResult{},
-		model:                "haiku",
-		promptCtx:            &prompt.Context{Model: "haiku"},
+		bead:   &bead.Bead{ID: "test-1"},
+		result: &IterationResult{},
+		model:  "haiku",
+		promptCtx: &prompt.Context{
+			Model:              "haiku",
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
 		retriesThisModel:     2,
 		totalRetriesThisBead: 2,
 		maxRetries:           2,
 		maxRetriesPerBead:    10,
 	}
 
-	// handleStallTimeout will increment retries, then see retries > maxRetries,
-	// then try escalation. RenderBuild will fail because renderer has no templates,
-	// but we can check escalation was applied.
 	continueLoop := r.handleStallTimeout(context.Background(), bc)
 
-	// Even though render fails, escalation should have been applied
-	if continueLoop {
-		// If it returns true, escalation + render worked (shouldn't with empty renderer)
-		// If it returns false, check that it's the render error
+	// With mock renderer, RenderBuild succeeds, so escalation should work
+	if !continueLoop {
 		if bc.result.Error != nil && strings.Contains(bc.result.Error.Error(), "rendering retry prompt") {
-			// Expected - renderer can't render without templates
-			return
+			// Expected if mock renderer fails - still check escalation was attempted
+		} else {
+			t.Error("expected continueLoop=true after escalation")
 		}
 	}
 

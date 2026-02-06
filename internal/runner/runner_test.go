@@ -11,7 +11,6 @@ import (
 	"github.com/danabrams/ralph-runner/internal/bead"
 	"github.com/danabrams/ralph-runner/internal/config"
 	"github.com/danabrams/ralph-runner/internal/logger"
-	"github.com/danabrams/ralph-runner/internal/prompt"
 )
 
 func TestCheckExpectedOutputs(t *testing.T) {
@@ -828,15 +827,16 @@ func TestCreateSubBeads_VerifyLogging(t *testing.T) {
 
 	buf := &strings.Builder{}
 	r := &Runner{
-		beads:  func() *bead.Client { b, _ := bead.NewClient(); return b }(),
+		beads:  &mockBeadClient{},
 		output: buf, // Capture logging output
 	}
 
 	b := &bead.Bead{
-		ID:       "parent-123",
-		Title:    "Parent Task",
-		Priority: 1,
-		Labels:   []string{"complexity:high"},
+		ID:              "parent-123",
+		Title:           "Parent Task",
+		Priority:        1,
+		Labels:          []string{"complexity:high"},
+		ExpectedOutputs: []string{},
 	}
 
 	subTasks := []SubTask{
@@ -846,13 +846,9 @@ func TestCreateSubBeads_VerifyLogging(t *testing.T) {
 		},
 	}
 
-	// This will fail because the parent bead doesn't exist in bd,
-	// but we can verify the method attempts to create it
 	err := r.CreateSubBeads(nil, b, subTasks)
-
-	// Should error because bd operations fail (parent doesn't exist)
-	if err == nil {
-		t.Fatal("expected error when bd is not properly configured")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Check that appropriate log messages were generated
@@ -874,8 +870,7 @@ func TestCreateSubBeads_NilRunner(t *testing.T) {
 }
 
 func TestCreateSubBeads_NilBead(t *testing.T) {
-	beadsClient, _ := bead.NewClient()
-	r := &Runner{beads: beadsClient, output: os.Stderr}
+	r := &Runner{beads: &mockBeadClient{}, output: os.Stderr}
 	subTasks := []SubTask{{Title: "Task 1"}}
 
 	err := r.CreateSubBeads(nil, nil, subTasks)
@@ -885,8 +880,7 @@ func TestCreateSubBeads_NilBead(t *testing.T) {
 }
 
 func TestCreateSubBeads_NoSubTasks(t *testing.T) {
-	beadsClient, _ := bead.NewClient()
-	r := &Runner{beads: beadsClient, output: os.Stderr}
+	r := &Runner{beads: &mockBeadClient{}, output: os.Stderr}
 	b := &bead.Bead{ID: "test-1"}
 	var subTasks []SubTask
 
@@ -914,7 +908,7 @@ func TestProcessBeadNilBeads(t *testing.T) {
 func TestProcessBeadNilRenderer(t *testing.T) {
 	r := &Runner{
 		cfg:    &config.Config{},
-		beads:  func() *bead.Client { b, _ := bead.NewClient(); return b }(),
+		beads:  &mockBeadClient{},
 		output: os.Stdout,
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -930,8 +924,8 @@ func TestProcessBeadNilRenderer(t *testing.T) {
 func TestProcessBeadNilClaude(t *testing.T) {
 	r := &Runner{
 		cfg:      &config.Config{},
-		beads:    func() *bead.Client { b, _ := bead.NewClient(); return b }(),
-		renderer: &prompt.Renderer{},
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
 		output:   os.Stdout,
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -961,7 +955,7 @@ func TestRunNilBeads(t *testing.T) {
 func TestRunNilRenderer(t *testing.T) {
 	r := &Runner{
 		cfg:    &config.Config{},
-		beads:  func() *bead.Client { b, _ := bead.NewClient(); return b }(),
+		beads:  &mockBeadClient{},
 		output: os.Stdout,
 	}
 	err := r.Run(nil, 0, false)
@@ -976,8 +970,8 @@ func TestRunNilRenderer(t *testing.T) {
 func TestRunNilClaude(t *testing.T) {
 	r := &Runner{
 		cfg:      &config.Config{},
-		beads:    func() *bead.Client { b, _ := bead.NewClient(); return b }(),
-		renderer: &prompt.Renderer{},
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
 		output:   os.Stdout,
 	}
 	err := r.Run(nil, 0, false)
@@ -1026,7 +1020,7 @@ func TestDecomposeTaskNilBeads(t *testing.T) {
 
 func TestDecomposeTaskNilRenderer(t *testing.T) {
 	r := &Runner{
-		beads:  func() *bead.Client { b, _ := bead.NewClient(); return b }(),
+		beads:  &mockBeadClient{},
 		output: os.Stdout,
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -1041,8 +1035,8 @@ func TestDecomposeTaskNilRenderer(t *testing.T) {
 
 func TestDecomposeTaskNilClaude(t *testing.T) {
 	r := &Runner{
-		beads:    func() *bead.Client { b, _ := bead.NewClient(); return b }(),
-		renderer: &prompt.Renderer{},
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
 		output:   os.Stdout,
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -1175,7 +1169,7 @@ func TestCheckScopeNilRenderer(t *testing.T) {
 func TestCheckScopeNilClaude(t *testing.T) {
 	r := &Runner{
 		cfg:      &config.Config{},
-		renderer: &prompt.Renderer{},
+		renderer: &mockRenderer{},
 		output:   os.Stdout,
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}

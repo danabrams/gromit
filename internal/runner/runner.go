@@ -25,11 +25,11 @@ import (
 // Runner orchestrates the Ralph loop
 type Runner struct {
 	cfg          *config.Config
-	beads        *bead.Client
-	claude       *claude.Client
-	analyzer     *analyzer.Analyzer
-	renderer     *prompt.Renderer
-	logger       *logger.Logger
+	beads        BeadClient
+	claude       ClaudeClient
+	analyzer     FailureAnalyzer
+	renderer     PromptRenderer
+	logger       IterationLogger
 	streamLogger *logger.StreamLogger
 	output       io.Writer
 	ralphDir     string
@@ -84,6 +84,36 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		analyzer: analyzerObj,
 		renderer: renderer,
 		logger:   log,
+		output:   output,
+		ralphDir: ralphDir,
+	}, nil
+}
+
+// Deps holds injectable dependencies for a Runner, used for testing.
+type Deps struct {
+	Beads    BeadClient
+	Claude   ClaudeClient
+	Analyzer FailureAnalyzer
+	Renderer PromptRenderer
+	Logger   IterationLogger
+}
+
+// NewRunnerWithDeps creates a runner with explicitly provided dependencies.
+// This is primarily intended for testing, where you want to inject mocks.
+func NewRunnerWithDeps(cfg *config.Config, output io.Writer, ralphDir string, deps Deps) (*Runner, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	if output == nil {
+		output = os.Stdout
+	}
+	return &Runner{
+		cfg:      cfg,
+		beads:    deps.Beads,
+		claude:   deps.Claude,
+		analyzer: deps.Analyzer,
+		renderer: deps.Renderer,
+		logger:   deps.Logger,
 		output:   output,
 		ralphDir: ralphDir,
 	}, nil
