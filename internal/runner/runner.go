@@ -211,8 +211,13 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 			continue
 		}
 
+		// Print separator between iterations (not before first)
+		if iteration > 0 {
+			r.log("")
+		}
+
 		iteration++
-		r.log("\n=== Iteration %d ===", iteration)
+		r.log("=== Iteration %d ===", iteration)
 		r.log("Bead: %s - %s", b.ID, b.Title)
 
 		// Update tmux pane title with iteration info
