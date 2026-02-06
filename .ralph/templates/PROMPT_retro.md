@@ -10,6 +10,29 @@ You are analyzing accumulated learnings from ralph-runner iterations to identify
 
 {{.Learnings}}
 
+## Run Statistics
+
+{{- if .RunStats.Total }}
+### Aggregate Statistics
+- **Total iterations**: {{ .RunStats.Total }}
+- **Succeeded**: {{ .RunStats.Succeeded }}
+- **Failed**: {{ .RunStats.Failed }}
+- **Failure rate**: {{ printf "%.1f%%" (mul .RunStats.FailureRate 100) }}
+{{- else }}
+*No iteration data available yet.*
+{{- end }}
+
+{{- if .BeadStats }}
+### Problem Beads (2+ failures)
+| Bead ID | Title | Total Runs | Failures | Failure Rate |
+|---------|-------|-----------|----------|--------------|
+{{- range $id, $stats := .BeadStats }}
+| {{ $stats.BeadID }} | {{ $stats.BeadTitle }} | {{ $stats.TotalRuns }} | {{ $stats.Failures }} | {{ printf "%.1f%%" (mul $stats.FailureRate 100) }} |
+{{- end }}
+{{- else if .RunStats.Total }}
+*No problematic beads identified (fewer than 2 failures each).*
+{{- end }}
+
 ## Task
 
 Analyze the learnings above and provide:
