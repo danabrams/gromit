@@ -111,21 +111,16 @@ func NewClient() *Client {
 	return &Client{binary: "bd"}
 }
 
-// Ready returns the next unblocked bead ready for work (excludes epics)
-func (c *Client) Ready() (*Bead, error) {
-	// Use --type task to exclude epics - we want atomic work items
-	out, err := c.run("ready", "--json", "--limit", "1", "--type", "task")
-	if err != nil {
-		return nil, fmt.Errorf("bd ready: %w", err)
-	}
-
+// parseBeadOutput parses JSON output from a bd command that returns a bead array
+// and returns the first bead after validation, or nil if no beads are present.
+func parseBeadOutput(out string) (*Bead, error) {
 	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
 		return nil, nil // No work available
 	}
 
 	var beads []Bead
 	if err := json.Unmarshal([]byte(out), &beads); err != nil {
-		return nil, fmt.Errorf("parsing bd ready output: %w", err)
+		return nil, fmt.Errorf("parsing bd output: %w", err)
 	}
 
 	if len(beads) == 0 {
@@ -139,6 +134,17 @@ func (c *Client) Ready() (*Bead, error) {
 	return &beads[0], nil
 }
 
+// Ready returns the next unblocked bead ready for work (excludes epics)
+func (c *Client) Ready() (*Bead, error) {
+	// Use --type task to exclude epics - we want atomic work items
+	out, err := c.run("ready", "--json", "--limit", "1", "--type", "task")
+	if err != nil {
+		return nil, fmt.Errorf("bd ready: %w", err)
+	}
+
+	return parseBeadOutput(out)
+}
+
 // ReadyAny returns the next unblocked bead of any type (including epics)
 func (c *Client) ReadyAny() (*Bead, error) {
 	out, err := c.run("ready", "--json", "--limit", "1")
@@ -146,24 +152,7 @@ func (c *Client) ReadyAny() (*Bead, error) {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
 
-	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
-		return nil, nil
-	}
-
-	var beads []Bead
-	if err := json.Unmarshal([]byte(out), &beads); err != nil {
-		return nil, fmt.Errorf("parsing bd ready output: %w", err)
-	}
-
-	if len(beads) == 0 {
-		return nil, nil
-	}
-
-	if err := beads[0].Validate(); err != nil {
-		return nil, fmt.Errorf("invalid bead data: %w", err)
-	}
-
-	return &beads[0], nil
+	return parseBeadOutput(out)
 }
 
 // Show returns full details for a bead
