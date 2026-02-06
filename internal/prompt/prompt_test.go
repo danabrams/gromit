@@ -142,3 +142,11 @@ func TestLoadSpecNilRenderer(t *testing.T) {
 		t.Error("expected error for nil renderer in LoadSpec")
 	}
 }
+
+func TestRenderDecomposeNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.RenderDecompose(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderDecompose")
+	}
+}

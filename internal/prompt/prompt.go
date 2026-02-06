@@ -103,6 +103,11 @@ func (r *Renderer) RenderValidate(ctx *Context, commands []string) (string, erro
 	return r.render("PROMPT_validate.md", vctx)
 }
 
+// RenderDecompose renders the task decomposition prompt
+func (r *Renderer) RenderDecompose(ctx *DecomposeContext) (string, error) {
+	return r.render("PROMPT_decompose.md", ctx)
+}
+
 // ValidateSpecName checks that a spec name doesn't contain path traversal characters
 func ValidateSpecName(name string) error {
 	if name == "" {
