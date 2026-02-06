@@ -17,10 +17,10 @@ import (
 )
 
 var (
-	configPath    string
-	maxIterations int
-	dryRun        bool
-	applyChanges  bool
+	configPath      string
+	maxIterations   int
+	dryRun          bool
+	suggestChanges  bool
 )
 
 func main() {
@@ -73,7 +73,7 @@ The retro command:
 4. Proposes promoting patterns to RULES.md
 5. Suggests archiving stale learnings
 
-Use --apply to automatically apply changes (not yet implemented - outputs to file for review).`,
+Use --suggest to generate proposed changes and save them to .ralph/RETRO_PROPOSED_CHANGES.md for manual review.`,
 	RunE: runRetro,
 }
 
@@ -83,7 +83,7 @@ func init() {
 	runCmd.Flags().IntVarP(&maxIterations, "max-iterations", "n", 0, "Maximum iterations (0 = unlimited)")
 	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run without executing")
 
-	retroCmd.Flags().BoolVar(&applyChanges, "apply", false, "Apply proposed changes automatically")
+	retroCmd.Flags().BoolVar(&suggestChanges, "suggest", false, "Generate proposed changes to .ralph/RETRO_PROPOSED_CHANGES.md for manual review")
 
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(statusCmd)
@@ -182,7 +182,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	if r == nil {
 		return fmt.Errorf("failed to create retro analyzer")
 	}
-	result, err := r.Run(ctx, applyChanges)
+	result, err := r.Run(ctx, suggestChanges)
 	if err != nil {
 		return fmt.Errorf("running retro: %w", err)
 	}
@@ -206,11 +206,11 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("=" + "=" + strings.Repeat("=", 78))
 
-	if applyChanges {
+	if suggestChanges {
 		fmt.Println("\nProposed changes written to .ralph/RETRO_PROPOSED_CHANGES.md")
 		fmt.Println("Review and apply manually.")
 	} else {
-		fmt.Println("\nTo apply changes, run: ralph retro --apply")
+		fmt.Println("\nTo generate proposed changes, run: ralph retro --suggest")
 	}
 
 	return nil
