@@ -33,7 +33,7 @@ type Runner struct {
 	logger       IterationLogger
 	streamLogger *logger.StreamLogger
 	output       io.Writer
-	gromitDir     string
+	gromitDir    string
 }
 
 // NewRunner creates a new runner
@@ -79,13 +79,13 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	}
 
 	return &Runner{
-		cfg:      cfg,
-		beads:    beadsClient,
-		claude:   claudeClient,
-		analyzer: analyzerObj,
-		renderer: renderer,
-		logger:   log,
-		output:   output,
+		cfg:       cfg,
+		beads:     beadsClient,
+		claude:    claudeClient,
+		analyzer:  analyzerObj,
+		renderer:  renderer,
+		logger:    log,
+		output:    output,
 		gromitDir: gromitDir,
 	}, nil
 }
@@ -109,30 +109,30 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		output = os.Stdout
 	}
 	return &Runner{
-		cfg:      cfg,
-		beads:    deps.Beads,
-		claude:   deps.Claude,
-		analyzer: deps.Analyzer,
-		renderer: deps.Renderer,
-		logger:   deps.Logger,
-		output:   output,
+		cfg:       cfg,
+		beads:     deps.Beads,
+		claude:    deps.Claude,
+		analyzer:  deps.Analyzer,
+		renderer:  deps.Renderer,
+		logger:    deps.Logger,
+		output:    output,
 		gromitDir: gromitDir,
 	}, nil
 }
 
 // IterationResult captures the outcome of one loop iteration
 type IterationResult struct {
-	BeadID       string
-	BeadTitle    string
-	Model        string
-	Success      bool
-	Validated    bool
-	Duration     time.Duration
-	Error        error
-	Escalated    bool
-	EscalatedTo  string
-	Decomposed   bool
-	Output       string
+	BeadID      string
+	BeadTitle   string
+	Model       string
+	Success     bool
+	Validated   bool
+	Duration    time.Duration
+	Error       error
+	Escalated   bool
+	EscalatedTo string
+	Decomposed  bool
+	Output      string
 }
 
 // SubTask represents a single sub-task from task decomposition
@@ -1348,6 +1348,11 @@ func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteratio
 			r.log("Insufficient time remaining for thorough review (need %v, have %v), skipping", minReviewTime, timeRemaining)
 			return
 		}
+	}
+
+	// Guard against nil state file
+	if sf == nil {
+		return
 	}
 
 	// Get diff since last review
