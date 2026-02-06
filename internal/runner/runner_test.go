@@ -1060,3 +1060,64 @@ func TestCreateSubBeads_NilBeadsClient(t *testing.T) {
 		t.Errorf("expected error for nil beads client, got: %v", err)
 	}
 }
+
+func TestWriteIterationLogNilRunner(t *testing.T) {
+	var r *Runner
+	result := &IterationResult{BeadID: "test-1"}
+	// Should not panic
+	r.writeIterationLog(1, result)
+}
+
+func TestWriteIterationLogNilResult(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	// Should not panic
+	r.writeIterationLog(1, nil)
+}
+
+func TestLogResultNilRunner(t *testing.T) {
+	var r *Runner
+	result := &IterationResult{BeadID: "test-1", Success: true}
+	// Should not panic
+	r.logResult(result)
+}
+
+func TestLogResultNilResult(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	// Should not panic
+	r.logResult(nil)
+}
+
+func TestPrintHeartbeatNilRunner(t *testing.T) {
+	var r *Runner
+	stats := logger.NewStreamStats()
+	// Should not panic
+	r.printHeartbeat(stats)
+}
+
+func TestPrintHeartbeatNilStats(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	// Should not panic
+	r.printHeartbeat(nil)
+}
+
+func TestStartHeartbeatNilRunner(t *testing.T) {
+	var r *Runner
+	stats := logger.NewStreamStats()
+	stop := r.startHeartbeatWithConfig(stats, 0, 0, nil, defaultHeartbeatConfig)
+	// Should return a no-op function
+	stop()
+}
+
+func TestStartHeartbeatNilStats(t *testing.T) {
+	r := &Runner{output: os.Stdout}
+	stop := r.startHeartbeatWithConfig(nil, 0, 0, nil, defaultHeartbeatConfig)
+	// Should return a no-op function
+	stop()
+}
+
+func TestShowPartialProgressNilRunner(t *testing.T) {
+	var r *Runner
+	b := &bead.Bead{ID: "test-1"}
+	// Should not panic
+	r.showPartialProgress(b, "abc123")
+}

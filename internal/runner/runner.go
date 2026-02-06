@@ -226,7 +226,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, dryRun bool) error 
 }
 
 func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
-	if r.logger == nil || result == nil {
+	if r == nil || r.logger == nil || result == nil {
 		return
 	}
 
@@ -699,7 +699,7 @@ func (r *Runner) selectModel(b *bead.Bead) string {
 }
 
 func (r *Runner) logResult(result *IterationResult) {
-	if result == nil {
+	if r == nil || result == nil {
 		return
 	}
 	if result.Success {
@@ -753,6 +753,9 @@ func (r *Runner) startHeartbeat(stats *logger.StreamStats, stallTimeout, stallTi
 }
 
 func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), cfg heartbeatConfig) func() {
+	if r == nil || stats == nil {
+		return func() {}
+	}
 	done := make(chan struct{})
 	go func() {
 		// First heartbeat sooner so hangs are visible quickly
@@ -815,6 +818,9 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 }
 
 func (r *Runner) printHeartbeat(stats *logger.StreamStats) {
+	if r == nil || stats == nil {
+		return
+	}
 	toolCalls, filesModified, elapsed := stats.Snapshot()
 	minutes := int(elapsed.Minutes())
 	seconds := int(elapsed.Seconds()) % 60
@@ -981,7 +987,7 @@ func checkExpectedOutputs(expectedOutputs []string) string {
 
 // showPartialProgress displays git diff and expected outputs on failure
 func (r *Runner) showPartialProgress(b *bead.Bead, startCommit string) {
-	if b == nil {
+	if r == nil || b == nil {
 		return
 	}
 	// Always show git diff summary
