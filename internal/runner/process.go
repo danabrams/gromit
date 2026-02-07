@@ -449,6 +449,44 @@ func (r *Runner) escalateModel(bc *beadContext, nextModel string) {
 	bc.promptCtx.Model = bc.model
 }
 
+// runAcceptanceTestsWithRetry runs the acceptance test phase with retry and escalation logic.
+// Returns nil on success or error on failure.
+func (r *Runner) runAcceptanceTestsWithRetry(ctx context.Context, bc *beadContext) error {
+	retries := 0
+	maxRetries := r.cfg.Escalation.MaxRetriesPerModel
+	currentModel := bc.model
+
+	for {
+		if retries > 0 {
+			r.log("Retrying acceptance tests (attempt %d/%d)...", retries+1, maxRetries+1)
+		}
+
+		err := r.runAcceptanceTests(ctx, bc)
+		if err == nil {
+			return nil
+		}
+
+		// Retry with same model
+		if retries < maxRetries {
+			retries++
+			// Could add failure analysis here if needed
+			continue
+		}
+
+		// Escalate model
+		nextModel := r.cfg.NextEscalationModel(currentModel)
+		if nextModel == "" {
+			return fmt.Errorf("acceptance tests failed with all models: %w", err)
+		}
+
+		r.log("Escalating acceptance tests from %s to %s", currentModel, nextModel)
+		currentModel = nextModel
+		bc.model = nextModel
+		bc.promptCtx.Model = nextModel
+		retries = 0
+	}
+}
+
 // runAcceptanceTests runs the acceptance test phase for ATDD workflow.
 // Uses the same heartbeat/stall detection pattern as executeClaudeInvocation.
 // Returns nil on success or error on failure.
@@ -514,6 +552,47 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 	}
 
 	return nil
+}
+
+// verifyTestsFailWithRetry runs the verify-tests-fail phase with retry logic.
+// If tests pass (unexpected), retries once with analysis, then fails.
+func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *beadContext) error {
+	err := r.verifyTestsFail(ctx, bc)
+	if err == nil {
+		return nil // Tests failed as expected
+	}
+
+	// Tests passed before implementation - this is unexpected
+	// Run failure analysis to understand why
+	r.log("Unexpected: tests passed before implementation. Analyzing...")
+
+	analysisTimeout := time.Duration(r.cfg.Claude.AnalysisTimeout) * time.Second
+	analysisCtx, analysisCancel := context.WithTimeout(ctx, analysisTimeout)
+	analysis, analyzeErr := r.analyzer.Analyze(analysisCtx, bc.bead, err.Error())
+	analysisCancel()
+
+	if analyzeErr != nil {
+		r.log("Warning: failure analysis failed: %v", analyzeErr)
+		return fmt.Errorf("tests passed before implementation (analysis failed): %w", err)
+	}
+
+	// Retry acceptance tests once with analysis context
+	r.log("Retrying acceptance tests with analysis context...")
+	bc.promptCtx.IsRetry = true
+	bc.promptCtx.FailureContext = analysis.Suggestion
+
+	if retryErr := r.runAcceptanceTests(ctx, bc); retryErr != nil {
+		return fmt.Errorf("acceptance tests retry failed: %w", retryErr)
+	}
+
+	// Verify tests fail again
+	err = r.verifyTestsFail(ctx, bc)
+	if err == nil {
+		return nil // Tests now fail as expected
+	}
+
+	// Still passing - fail the bead
+	return fmt.Errorf("acceptance tests passed before implementation after retry - tests may not be covering new behavior")
 }
 
 // verifyTestsFail runs validation and returns nil when validation fails (expected)

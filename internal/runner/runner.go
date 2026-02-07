@@ -446,6 +446,35 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		return bc.result
 	}
 
+	// Check if ATDD is active for this bead
+	atddActive := bead.IsMethodologyActive(bc.bead.Labels, "atdd", r.cfg.Methodology.ATDD)
+
+	// ATDD Phase 1: Write acceptance tests (if ATDD active)
+	if atddActive {
+		r.log("ATDD enabled, writing acceptance tests first...")
+		if err := r.runAcceptanceTestsWithRetry(ctx, bc); err != nil {
+			bc.result.Error = fmt.Errorf("acceptance tests phase failed: %w", err)
+			return bc.result
+		}
+
+		// ATDD Phase 2: Verify tests fail (as expected before implementation)
+		if err := r.verifyTestsFailWithRetry(ctx, bc); err != nil {
+			bc.result.Error = err
+			return bc.result
+		}
+
+		// Update build prompt to indicate acceptance tests are ready
+		bc.promptCtx.IsRetry = false // Clear any retry flags
+		bc.promptCtx.PrevFailure = ""
+		bc.promptCtx.FailureContext = "Acceptance tests have been written and committed. Your job is to make them pass."
+		var err error
+		bc.buildPrompt, err = r.renderer.RenderBuild(bc.promptCtx)
+		if err != nil {
+			bc.result.Error = fmt.Errorf("rendering build prompt for ATDD: %w", err)
+			return bc.result
+		}
+	}
+
 	// Main execution loop with retry and escalation
 	if !r.executeWithRetry(ctx, bc) {
 		return bc.result
@@ -455,6 +484,24 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	if err := r.runValidation(ctx, bc); err != nil {
 		bc.result.Error = err
 		return bc.result
+	}
+
+	// ATDD/TDD Phase 3: Refactor (if either methodology is active)
+	tddActive := bead.IsMethodologyActive(bc.bead.Labels, "tdd", r.cfg.Methodology.TDD)
+	if atddActive || tddActive {
+		r.log("Running refactor phase...")
+		if err := r.runRefactorPhase(ctx, bc); err != nil {
+			// Refactor failures are non-blocking, just log
+			r.log("Warning: refactor phase encountered issues: %v", err)
+		}
+
+		// Re-validate after refactoring
+		if r.cfg.Validation.Enabled {
+			if err := r.runValidation(ctx, bc); err != nil {
+				bc.result.Error = fmt.Errorf("validation failed after refactoring: %w", err)
+				return bc.result
+			}
+		}
 	}
 
 	bc.result.Success = true
