@@ -181,3 +181,79 @@ func TestStatusWriter_Write_IncludesPID(t *testing.T) {
 		t.Errorf("Expected positive PID, got %d", status.PID)
 	}
 }
+
+func TestReadStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write a status file first
+	sw, _ := NewStatusWriter(tmpDir)
+	err := sw.Write(2, "bead-789", "Read Test Bead", "opus", true)
+	if err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Read the status
+	status, err := ReadStatus(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadStatus failed: %v", err)
+	}
+
+	if status == nil {
+		t.Fatal("Expected status, got nil")
+	}
+
+	// Verify fields
+	if status.Running != true {
+		t.Errorf("Expected running=true, got %v", status.Running)
+	}
+	if status.Iteration != 2 {
+		t.Errorf("Expected iteration=2, got %d", status.Iteration)
+	}
+	if status.BeadID != "bead-789" {
+		t.Errorf("Expected BeadID=bead-789, got %s", status.BeadID)
+	}
+	if status.BeadTitle != "Read Test Bead" {
+		t.Errorf("Expected BeadTitle=Read Test Bead, got %s", status.BeadTitle)
+	}
+	if status.Model != "opus" {
+		t.Errorf("Expected Model=opus, got %s", status.Model)
+	}
+	if status.PID != os.Getpid() {
+		t.Errorf("Expected PID=%d, got %d", os.Getpid(), status.PID)
+	}
+}
+
+func TestReadStatus_NonExistent(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Read from directory without status.json
+	status, err := ReadStatus(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadStatus should not error on non-existent file, got: %v", err)
+	}
+
+	if status != nil {
+		t.Errorf("Expected nil status for non-existent file, got: %v", status)
+	}
+}
+
+func TestReadStatus_InvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write invalid JSON
+	statusPath := filepath.Join(tmpDir, "status.json")
+	err := os.WriteFile(statusPath, []byte("not valid json"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write invalid JSON: %v", err)
+	}
+
+	// Read should return error
+	status, err := ReadStatus(tmpDir)
+	if err == nil {
+		t.Fatal("Expected error for invalid JSON, got nil")
+	}
+
+	if status != nil {
+		t.Errorf("Expected nil status for invalid JSON, got: %v", status)
+	}
+}

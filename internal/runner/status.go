@@ -77,3 +77,24 @@ func (sw *StatusWriter) Delete() error {
 
 	return nil
 }
+
+// ReadStatus reads and parses status.json from the gromit directory.
+// Returns nil, nil when the file doesn't exist (not an error).
+func ReadStatus(gromitDir string) (*Status, error) {
+	path := filepath.Join(gromitDir, "status.json")
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading status file: %w", err)
+	}
+
+	var status Status
+	if err := json.Unmarshal(data, &status); err != nil {
+		return nil, fmt.Errorf("unmarshaling status: %w", err)
+	}
+
+	return &status, nil
+}
