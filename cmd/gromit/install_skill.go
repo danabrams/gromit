@@ -48,11 +48,6 @@ type hookMatcher struct {
 	Hooks   []hookEntry `json:"hooks"`
 }
 
-// claudeSettings represents the structure of .claude/settings.json
-type claudeSettings struct {
-	Hooks map[string][]hookMatcher `json:"hooks,omitempty"`
-}
-
 var installSkillCmd = &cobra.Command{
 	Use:   "install-skill",
 	Short: "Install the Gromit orchestrator skill for Claude Code",
@@ -154,19 +149,22 @@ func writeExecutableFile(path, content string, force bool) error {
 
 // mergeHookSettings takes existing settings.json content (or empty slice if file doesn't exist)
 // and adds the SessionStart hook for pipeline-resume.sh without duplicating.
-// It preserves all existing settings and returns formatted JSON.
+// It preserves all existing settings fields and returns formatted JSON.
 func mergeHookSettings(existingJSON []byte) ([]byte, error) {
-	// Parse existing settings or start with empty object
-	var settings claudeSettings
+	// Parse existing settings into a generic map to preserve all fields
+	settings := make(map[string]json.RawMessage)
 	if len(existingJSON) > 0 {
 		if err := json.Unmarshal(existingJSON, &settings); err != nil {
 			return nil, fmt.Errorf("parsing existing settings.json: %w", err)
 		}
 	}
 
-	// Initialize hooks map if it doesn't exist
-	if settings.Hooks == nil {
-		settings.Hooks = make(map[string][]hookMatcher)
+	// Parse the hooks field (or start with empty map)
+	hooks := make(map[string][]hookMatcher)
+	if raw, exists := settings["hooks"]; exists {
+		if err := json.Unmarshal(raw, &hooks); err != nil {
+			return nil, fmt.Errorf("parsing hooks in settings.json: %w", err)
+		}
 	}
 
 	// Define the hook we want to add
@@ -176,7 +174,7 @@ func mergeHookSettings(existingJSON []byte) ([]byte, error) {
 	}
 
 	// Check if SessionStart hooks exist
-	sessionStartHooks := settings.Hooks["SessionStart"]
+	sessionStartHooks := hooks["SessionStart"]
 
 	// Find or create the "clear" matcher
 	var clearMatcher *hookMatcher
@@ -193,7 +191,7 @@ func mergeHookSettings(existingJSON []byte) ([]byte, error) {
 			Matcher: "clear",
 			Hooks:   []hookEntry{targetHook},
 		}
-		settings.Hooks["SessionStart"] = append(sessionStartHooks, newMatcher)
+		hooks["SessionStart"] = append(sessionStartHooks, newMatcher)
 	} else {
 		// "clear" matcher exists, check if our hook is already present
 		hookExists := false
@@ -210,7 +208,14 @@ func mergeHookSettings(existingJSON []byte) ([]byte, error) {
 		}
 	}
 
-	// Marshal back to formatted JSON
+	// Marshal hooks back into the settings map
+	hooksJSON, err := json.Marshal(hooks)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling hooks: %w", err)
+	}
+	settings["hooks"] = json.RawMessage(hooksJSON)
+
+	// Marshal the full settings back to formatted JSON
 	result, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshalling settings: %w", err)

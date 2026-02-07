@@ -11,6 +11,11 @@ import (
 	"github.com/danabrams/gromit/skills"
 )
 
+// testClaudeSettings is used in tests to parse mergeHookSettings output
+type testClaudeSettings struct {
+	Hooks map[string][]hookMatcher `json:"hooks,omitempty"`
+}
+
 func TestBuildSkillContent(t *testing.T) {
 	// Create a minimal orchestrator template with all three placeholders
 	template := `---
@@ -156,7 +161,7 @@ func TestMergeHookSettingsEmptyInput(t *testing.T) {
 	}
 
 	// Parse the result to verify structure
-	var settings claudeSettings
+	var settings testClaudeSettings
 	if err := json.Unmarshal(result, &settings); err != nil {
 		t.Fatalf("Failed to parse result: %v", err)
 	}
@@ -219,7 +224,7 @@ func TestMergeHookSettingsExistingHooksPreserved(t *testing.T) {
 	}
 
 	// Parse the result
-	var settings claudeSettings
+	var settings testClaudeSettings
 	if err := json.Unmarshal(result, &settings); err != nil {
 		t.Fatalf("Failed to parse result: %v", err)
 	}
@@ -286,7 +291,7 @@ func TestMergeHookSettingsIdempotent(t *testing.T) {
 	}
 
 	// Parse both results
-	var settings1, settings2 claudeSettings
+	var settings1, settings2 testClaudeSettings
 	if err := json.Unmarshal(result1, &settings1); err != nil {
 		t.Fatalf("Failed to parse result1: %v", err)
 	}
@@ -342,7 +347,7 @@ func TestMergeHookSettingsDifferentMatcher(t *testing.T) {
 	}
 
 	// Parse the result
-	var settings claudeSettings
+	var settings testClaudeSettings
 	if err := json.Unmarshal(result, &settings); err != nil {
 		t.Fatalf("Failed to parse result: %v", err)
 	}
@@ -414,7 +419,7 @@ func TestMergeHookSettingsOtherHookTypes(t *testing.T) {
 	}
 
 	// Parse the result
-	var settings claudeSettings
+	var settings testClaudeSettings
 	if err := json.Unmarshal(result, &settings); err != nil {
 		t.Fatalf("Failed to parse result: %v", err)
 	}
@@ -441,6 +446,88 @@ func TestMergeHookSettingsOtherHookTypes(t *testing.T) {
 	}
 	if len(sessionStart[0].Hooks) != 2 {
 		t.Fatalf("SessionStart hook count incorrect: expected 2, got %d", len(sessionStart[0].Hooks))
+	}
+}
+
+func TestMergeHookSettingsPreservesNonHookFields(t *testing.T) {
+	// Test that non-hook fields (permissions, allowedTools, model, etc.) are preserved
+	existingJSON := `{
+  "permissions": {
+    "allow": ["Read", "Write"],
+    "deny": ["Bash"]
+  },
+  "allowedTools": ["grep", "find"],
+  "model": "claude-sonnet-4-5-20250929",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "existing.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "customField": "custom-value"
+}`
+
+	result, err := mergeHookSettings([]byte(existingJSON))
+	if err != nil {
+		t.Fatalf("mergeHookSettings failed: %v", err)
+	}
+
+	// Parse the result as a generic map to check all fields
+	var resultMap map[string]json.RawMessage
+	if err := json.Unmarshal(result, &resultMap); err != nil {
+		t.Fatalf("Failed to parse result: %v", err)
+	}
+
+	// Verify non-hook fields are preserved
+	if _, exists := resultMap["permissions"]; !exists {
+		t.Error("permissions field was not preserved")
+	}
+	if _, exists := resultMap["allowedTools"]; !exists {
+		t.Error("allowedTools field was not preserved")
+	}
+	if _, exists := resultMap["model"]; !exists {
+		t.Error("model field was not preserved")
+	}
+	if _, exists := resultMap["customField"]; !exists {
+		t.Error("customField was not preserved")
+	}
+
+	// Verify the model value is correct
+	var model string
+	if err := json.Unmarshal(resultMap["model"], &model); err != nil {
+		t.Fatalf("Failed to parse model field: %v", err)
+	}
+	if model != "claude-sonnet-4-5-20250929" {
+		t.Errorf("model field changed: expected 'claude-sonnet-4-5-20250929', got %q", model)
+	}
+
+	// Verify permissions structure is preserved
+	var permissions map[string][]string
+	if err := json.Unmarshal(resultMap["permissions"], &permissions); err != nil {
+		t.Fatalf("Failed to parse permissions field: %v", err)
+	}
+	if len(permissions["allow"]) != 2 || permissions["allow"][0] != "Read" {
+		t.Error("permissions.allow was modified")
+	}
+
+	// Verify hooks were still updated correctly
+	var hooks map[string][]hookMatcher
+	if err := json.Unmarshal(resultMap["hooks"], &hooks); err != nil {
+		t.Fatalf("Failed to parse hooks field: %v", err)
+	}
+	sessionStart := hooks["SessionStart"]
+	if len(sessionStart) != 1 {
+		t.Fatalf("Expected 1 matcher, got %d", len(sessionStart))
+	}
+	if len(sessionStart[0].Hooks) != 2 {
+		t.Fatalf("Expected 2 hooks (existing + gromit), got %d", len(sessionStart[0].Hooks))
 	}
 }
 
@@ -474,7 +561,7 @@ func TestMergeHookSettingsJSONFormatting(t *testing.T) {
 	}
 
 	// Verify that it's valid JSON by parsing it
-	var settings claudeSettings
+	var settings testClaudeSettings
 	if err := json.Unmarshal(result, &settings); err != nil {
 		t.Errorf("Result is not valid JSON: %v", err)
 	}
@@ -578,7 +665,7 @@ func TestInstallSkillIntegrationFullCommand(t *testing.T) {
 		if err != nil {
 			t.Errorf("failed to read settings.json: %v", err)
 		} else {
-			var settings claudeSettings
+			var settings testClaudeSettings
 			if err := json.Unmarshal(settingsContent, &settings); err != nil {
 				t.Errorf("settings.json is not valid JSON: %v", err)
 			} else {
@@ -658,7 +745,7 @@ func TestInstallSkillIntegrationIdempotency(t *testing.T) {
 	}
 
 	// Parse first settings
-	var firstSettings claudeSettings
+	var firstSettings testClaudeSettings
 	if err := json.Unmarshal(settings1, &firstSettings); err != nil {
 		t.Fatalf("failed to parse first settings: %v", err)
 	}
@@ -717,7 +804,7 @@ func TestInstallSkillIntegrationIdempotency(t *testing.T) {
 	}
 
 	// Parse second settings
-	var secondSettings claudeSettings
+	var secondSettings testClaudeSettings
 	if err := json.Unmarshal(settings2, &secondSettings); err != nil {
 		t.Fatalf("failed to parse second settings: %v", err)
 	}
@@ -861,8 +948,14 @@ func TestInstallSkillIntegrationPreservesExistingHooks(t *testing.T) {
 		t.Fatalf("failed to create .claude dir: %v", err)
 	}
 
-	// Create settings.json with existing hooks
+	// Create settings.json with existing hooks AND non-hook fields
 	existingSettings := `{
+  "permissions": {
+    "allow": ["Read", "Write"],
+    "deny": ["Bash"]
+  },
+  "allowedTools": ["grep", "find"],
+  "model": "claude-sonnet-4-5-20250929",
   "hooks": {
     "SessionStart": [
       {
@@ -907,10 +1000,36 @@ func TestInstallSkillIntegrationPreservesExistingHooks(t *testing.T) {
 		t.Fatalf("failed to read settings.json: %v", err)
 	}
 
-	// Parse settings
-	var settings claudeSettings
-	if err := json.Unmarshal(settingsContent, &settings); err != nil {
+	// Parse settings as generic map to verify all fields
+	var rawSettings map[string]json.RawMessage
+	if err := json.Unmarshal(settingsContent, &rawSettings); err != nil {
 		t.Fatalf("failed to parse settings.json: %v", err)
+	}
+
+	// Verify non-hook fields are preserved
+	if _, exists := rawSettings["permissions"]; !exists {
+		t.Error("permissions field was not preserved")
+	}
+	if _, exists := rawSettings["allowedTools"]; !exists {
+		t.Error("allowedTools field was not preserved")
+	}
+	if _, exists := rawSettings["model"]; !exists {
+		t.Error("model field was not preserved")
+	}
+
+	// Verify model value
+	var model string
+	if err := json.Unmarshal(rawSettings["model"], &model); err != nil {
+		t.Fatalf("failed to parse model field: %v", err)
+	}
+	if model != "claude-sonnet-4-5-20250929" {
+		t.Errorf("model field changed: expected 'claude-sonnet-4-5-20250929', got %q", model)
+	}
+
+	// Parse hooks to verify hook-specific behavior
+	var settings testClaudeSettings
+	if err := json.Unmarshal(settingsContent, &settings); err != nil {
+		t.Fatalf("failed to parse settings.json into testClaudeSettings: %v", err)
 	}
 
 	// Verify PreCommand hooks are preserved
