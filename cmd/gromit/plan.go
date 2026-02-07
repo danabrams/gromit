@@ -15,7 +15,8 @@ import (
 )
 
 var (
-	planForce bool
+	planForce   bool
+	planNoChain bool
 )
 
 var planCmd = &cobra.Command{
@@ -41,6 +42,8 @@ Plan refuses to run if a plan already exists for that spec unless --force is pas
 
 func init() {
 	planCmd.Flags().BoolVar(&planForce, "force", false, "Regenerate plan even if it already exists")
+	planCmd.Flags().BoolVar(&planNoChain, "no-chain", false, "Skip offering to run next command in pipeline")
+	planCmd.Flags().MarkHidden("no-chain")
 	rootCmd.AddCommand(planCmd)
 }
 
@@ -208,8 +211,15 @@ Plan output path: %s
 	}
 
 	// Check if plan was created
+	planCreated := false
 	if _, err := os.Stat(planPath); err == nil {
 		fmt.Printf("\n✓ Plan created: %s\n", planPath)
+		planCreated = true
+	}
+
+	// Offer to chain to 'gromit decompose' if chaining is enabled and plan was created
+	if !planNoChain && planCreated {
+		chainAfterPlan(specName)
 	}
 
 	return nil
@@ -226,4 +236,16 @@ func filterUnplannedSpecs(specs []string, plansDir string) []string {
 		}
 	}
 	return unplanned
+}
+
+// chainAfterPlan offers to run 'gromit decompose' after plan is created.
+// Default is yes [Y/n] because decompose is a natural continuation of the pipeline.
+func chainAfterPlan(planName string) {
+	reader := bufio.NewReader(os.Stdin)
+	prompt := fmt.Sprintf("Run 'gromit decompose %s'?", planName)
+	if confirmPrompt(reader, prompt, true) {
+		if err := execGromit("decompose", planName); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to execute decompose: %v\n", err)
+		}
+	}
 }
