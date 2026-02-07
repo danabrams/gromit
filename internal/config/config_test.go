@@ -2086,3 +2086,154 @@ paths:
 		t.Errorf("expected thorough timeout 1000, got %d", cfg.Review.Thorough.Timeout)
 	}
 }
+
+// Tests for BetweenIterationsCommand configuration
+
+func TestBetweenIterationsCommandDefault(t *testing.T) {
+	// Test that BetweenIterationsCommand defaults to empty string when absent
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Loop.BetweenIterationsCommand != "" {
+		t.Errorf("expected default BetweenIterationsCommand='', got %q", cfg.Loop.BetweenIterationsCommand)
+	}
+}
+
+func TestBetweenIterationsCommandFromYAML(t *testing.T) {
+	// Test that BetweenIterationsCommand loads correctly from YAML
+	tests := []struct {
+		name     string
+		yaml     string
+		expected string
+	}{
+		{
+			name:     "Simple command",
+			yaml:     "loop:\n  between_iterations_command: \"make\"\n",
+			expected: "make",
+		},
+		{
+			name:     "Command with flags",
+			yaml:     "loop:\n  between_iterations_command: \"go build -o gromit\"\n",
+			expected: "go build -o gromit",
+		},
+		{
+			name:     "Command with shell operators",
+			yaml:     "loop:\n  between_iterations_command: \"make && go install\"\n",
+			expected: "make && go install",
+		},
+		{
+			name:     "Empty string",
+			yaml:     "loop:\n  between_iterations_command: \"\"\n",
+			expected: "",
+		},
+		{
+			name:     "Command with path",
+			yaml:     "loop:\n  between_iterations_command: \"./scripts/rebuild.sh\"\n",
+			expected: "./scripts/rebuild.sh",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			cfg, err := Load(cfgPath)
+			if err != nil {
+				t.Fatalf("loading config: %v", err)
+			}
+
+			if cfg.Loop.BetweenIterationsCommand != tt.expected {
+				t.Errorf("expected BetweenIterationsCommand=%q, got %q", tt.expected, cfg.Loop.BetweenIterationsCommand)
+			}
+		})
+	}
+}
+
+func TestBetweenIterationsCommandWithOtherLoopSettings(t *testing.T) {
+	// Test that between_iterations_command works alongside other loop settings
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `loop:
+  max_iterations: 20
+  stop_on_failure: true
+  stuck_bead_threshold: 5
+  between_iterations_command: "make"
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Check all loop settings
+	if cfg.Loop.MaxIterations != 20 {
+		t.Errorf("expected MaxIterations=20, got %d", cfg.Loop.MaxIterations)
+	}
+	if !cfg.Loop.StopOnFailure {
+		t.Errorf("expected StopOnFailure=true, got false")
+	}
+	if cfg.Loop.StuckBeadThreshold != 5 {
+		t.Errorf("expected StuckBeadThreshold=5, got %d", cfg.Loop.StuckBeadThreshold)
+	}
+	if cfg.Loop.BetweenIterationsCommand != "make" {
+		t.Errorf("expected BetweenIterationsCommand='make', got %q", cfg.Loop.BetweenIterationsCommand)
+	}
+}
+
+func TestBetweenIterationsCommandPreservedAcrossFullConfig(t *testing.T) {
+	// Test that between_iterations_command is preserved when loading a full config
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+escalation:
+  enabled: true
+  chain: ["haiku", "sonnet", "opus"]
+loop:
+  max_iterations: 10
+  between_iterations_command: "go build ./cmd/gromit"
+validation:
+  enabled: true
+  commands: ["go test ./..."]
+claude:
+  timeout: 600
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Check other sections still work
+	if cfg.Models.P0 != "opus" {
+		t.Errorf("expected P0='opus', got %q", cfg.Models.P0)
+	}
+	if cfg.Loop.MaxIterations != 10 {
+		t.Errorf("expected MaxIterations=10, got %d", cfg.Loop.MaxIterations)
+	}
+
+	// Check between_iterations_command
+	if cfg.Loop.BetweenIterationsCommand != "go build ./cmd/gromit" {
+		t.Errorf("expected BetweenIterationsCommand='go build ./cmd/gromit', got %q", cfg.Loop.BetweenIterationsCommand)
+	}
+}
