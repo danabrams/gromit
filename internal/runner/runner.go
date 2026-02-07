@@ -306,6 +306,38 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			continue
 		}
 
+		// Run precheck to see if acceptance criteria are already met
+		if r.runPrecheck(ctx, b) {
+			r.log("Pre-check: acceptance criteria already met, auto-closing bead %s", b.ID)
+
+			// Close the bead
+			if err := r.beads.Close(b.ID); err != nil {
+				r.log("Warning: failed to close bead: %v", err)
+			}
+
+			// Sync bd state
+			if err := r.beads.Sync(); err != nil {
+				r.log("Warning: failed to sync beads: %v", err)
+			}
+
+			// Write iteration log with precheck_skipped outcome
+			// Note: we don't increment iteration counter for skipped beads
+			if r.logger != nil {
+				r.logger.LogIteration(&logger.IterationLog{
+					Timestamp:  time.Now(),
+					Iteration:  iteration + 1,
+					BeadID:     b.ID,
+					BeadTitle:  b.Title,
+					Model:      "haiku",
+					Success:    true,
+					DurationMs: 0,
+					Outcome:    "precheck_skipped",
+				})
+			}
+
+			continue
+		}
+
 		// Print separator between iterations (not before first)
 		if iteration > 0 {
 			r.log("")
