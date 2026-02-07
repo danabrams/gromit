@@ -1089,3 +1089,92 @@ func TestRunWithMocks_ClosesBeadOnSuccess(t *testing.T) {
 		t.Errorf("expected 1 sync call, got %d", beads.SyncCalls)
 	}
 }
+
+func TestRunWithMocks_PrecheckPassed(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			if callCount > 1 {
+				return nil, nil
+			}
+			return &bead.Bead{
+				ID:              "precheck-test",
+				Title:           "Already completed",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature is implemented", "tests pass"},
+			}, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Precheck returns PRECHECK_PASSED
+			return &claude.Result{Success: true, Output: "PRECHECK_PASSED\n\nAll acceptance criteria are satisfied."}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Verify bead was closed
+	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "precheck-test" {
+		t.Errorf("expected bead 'precheck-test' to be closed, got: %v", beads.ClosedIDs)
+	}
+
+	// Verify bd sync was called
+	if beads.SyncCalls != 1 {
+		t.Errorf("expected 1 sync call, got %d", beads.SyncCalls)
+	}
+
+	// Verify iteration log was written with precheck_skipped outcome
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 iteration logged, got %d", len(mockLog.Logs))
+	}
+	log := mockLog.Logs[0]
+	if log.BeadID != "precheck-test" {
+		t.Errorf("expected BeadID 'precheck-test', got %q", log.BeadID)
+	}
+	if log.Outcome != "precheck_skipped" {
+		t.Errorf("expected Outcome 'precheck_skipped', got %q", log.Outcome)
+	}
+	if log.Model != "haiku" {
+		t.Errorf("expected Model 'haiku', got %q", log.Model)
+	}
+	if !log.Success {
+		t.Error("expected Success=true for precheck_skipped")
+	}
+
+	// Verify iteration counter was NOT incremented (should be 1, not 2)
+	// The iteration field in the log should be 1 (iteration + 1 where iteration starts at 0)
+	if log.Iteration != 1 {
+		t.Errorf("expected Iteration=1 (not incremented), got %d", log.Iteration)
+	}
+
+	// Verify console output mentions precheck
+	output := buf.String()
+	if !strings.Contains(output, "Pre-check: acceptance criteria already met") {
+		t.Errorf("expected precheck message in output, got: %s", output)
+	}
+	if !strings.Contains(output, "auto-closing bead precheck-test") {
+		t.Errorf("expected auto-closing message in output, got: %s", output)
+	}
+
+	// Verify Claude.Run was called (for precheck) but StreamRun was NOT called (no build)
+	if len(mockClaude.RunCalls) != 1 {
+		t.Errorf("expected 1 Claude.Run call (precheck), got %d", len(mockClaude.RunCalls))
+	}
+	if len(mockClaude.StreamRunCalls) != 0 {
+		t.Errorf("expected 0 Claude.StreamRun calls (no build), got %d", len(mockClaude.StreamRunCalls))
+	}
+}
