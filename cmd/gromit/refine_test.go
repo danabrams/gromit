@@ -1,0 +1,134 @@
+package main
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestExtractSpecTitle(t *testing.T) {
+	// Create a temp directory for test files
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name     string
+		content  string
+		want     string
+		filename string
+	}{
+		{
+			name: "simple heading",
+			content: `# My Spec Title
+
+This is the body.`,
+			want:     "My Spec Title",
+			filename: "simple.md",
+		},
+		{
+			name: "heading with frontmatter",
+			content: `---
+id: test-spec
+created: 2026-02-07
+---
+
+# Spec With Frontmatter
+
+Body text here.`,
+			want:     "Spec With Frontmatter",
+			filename: "with-frontmatter.md",
+		},
+		{
+			name: "heading with extra whitespace",
+			content: `#    Title With Spaces
+
+Body.`,
+			want:     "Title With Spaces",
+			filename: "whitespace.md",
+		},
+		{
+			name: "only level-2 heading",
+			content: `## Not Level One
+
+Body.`,
+			want:     "",
+			filename: "level2.md",
+		},
+		{
+			name:     "empty file",
+			content:  ``,
+			want:     "",
+			filename: "empty.md",
+		},
+		{
+			name: "no heading",
+			content: `This is just text.
+
+No heading here.`,
+			want:     "",
+			filename: "no-heading.md",
+		},
+		{
+			name: "heading after other content",
+			content: `Some intro text.
+
+# The Title
+
+Body.`,
+			want:     "The Title",
+			filename: "heading-after-text.md",
+		},
+		{
+			name: "multiple headings",
+			content: `# First Heading
+
+Content.
+
+# Second Heading
+
+More content.`,
+			want:     "First Heading",
+			filename: "multiple.md",
+		},
+		{
+			name: "frontmatter only",
+			content: `---
+id: test
+---`,
+			want:     "",
+			filename: "frontmatter-only.md",
+		},
+		{
+			name: "frontmatter with no closing",
+			content: `---
+id: test
+key: value
+
+# Title After Incomplete Frontmatter`,
+			want:     "",
+			filename: "bad-frontmatter.md",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Write test file
+			filePath := filepath.Join(tmpDir, tt.filename)
+			if err := os.WriteFile(filePath, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			got := extractSpecTitle(filePath)
+			if got != tt.want {
+				t.Errorf("extractSpecTitle() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	// Test missing file
+	t.Run("missing file", func(t *testing.T) {
+		got := extractSpecTitle(filepath.Join(tmpDir, "nonexistent.md"))
+		if got != "" {
+			t.Errorf("extractSpecTitle() for missing file = %q, want empty string", got)
+		}
+	})
+}

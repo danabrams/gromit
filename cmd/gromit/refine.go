@@ -287,3 +287,44 @@ func formatTypeLabel(ideaType string) string {
 	}
 	return fmt.Sprintf("[%-7s]", ideaType)
 }
+
+// extractSpecTitle reads a spec file and returns the first level-1 markdown heading text.
+// Returns empty string if file is missing, empty, or has no level-1 heading.
+// Handles frontmatter blocks (YAML between --- markers).
+func extractSpecTitle(path string) string {
+	file, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	inFrontmatter := false
+	firstLine := true
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Check for frontmatter start/end on first line or after frontmatter start
+		if firstLine && line == "---" {
+			inFrontmatter = true
+			firstLine = false
+			continue
+		}
+		firstLine = false
+
+		if inFrontmatter {
+			if line == "---" {
+				inFrontmatter = false
+			}
+			continue
+		}
+
+		// Look for level-1 heading
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "# "))
+		}
+	}
+
+	return ""
+}
