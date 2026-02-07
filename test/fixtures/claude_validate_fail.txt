@@ -1,0 +1,8 @@
+Running validation commands:
+
+1. go test ./...
+   FAIL    github.com/example/project      0.045s
+   --- FAIL: TestExample (0.00s)
+       example_test.go:15: expected 42, got 43
+
+VALIDATION_FAILED: Tests failed with 1 failing test.

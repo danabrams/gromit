@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Fake claude CLI for testing
+# Records invocations, reads and discards stdin, returns canned fixture output
+
+set -euo pipefail
+
+# Record invocation to call log if TEST_CALL_LOG is set
+if [[ -n "${TEST_CALL_LOG:-}" ]]; then
+    echo "claude $*" >> "$TEST_CALL_LOG"
+fi
+
+# Read and discard stdin (claude expects prompt on stdin)
+cat > /dev/null
+
+# Check for CLAUDE_FAIL error mode
+if [[ "${CLAUDE_FAIL:-0}" == "1" ]]; then
+    echo "claude: simulated failure" >&2
+    exit 1
+fi
+
+# Check if we're in stream-json mode
+stream_json=0
+for arg in "$@"; do
+    if [[ "$arg" == "stream-json" ]]; then
+        stream_json=1
+        break
+    fi
+done
+
+# Get fixture content from CLAUDE_FIXTURE env var
+if [[ -z "${CLAUDE_FIXTURE:-}" ]]; then
+    echo "claude: CLAUDE_FIXTURE env var not set" >&2
+    exit 1
+fi
+
+if [[ ! -f "$CLAUDE_FIXTURE" ]]; then
+    echo "claude: fixture file not found: $CLAUDE_FIXTURE" >&2
+    exit 1
+fi
+
+# Output fixture content based on mode
+if [[ $stream_json -eq 1 ]]; then
+    # In stream-json mode, wrap the fixture content in JSON events
+    # Read the fixture line by line and emit as stream-json events
+
+    # Emit an assistant message with the fixture content as text
+    content=$(cat "$CLAUDE_FIXTURE")
+
+    # Escape JSON special characters in content
+    escaped_content=$(echo "$content" | jq -Rs .)
+
+    # Emit assistant event with text content
+    echo "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":$escaped_content}]}}"
+
+    # Emit result event with the same content
+    echo "{\"type\":\"result\",\"result\":$escaped_content}"
+else
+    # Plain mode: just output the fixture content directly
+    cat "$CLAUDE_FIXTURE"
+fi
+
+exit 0
