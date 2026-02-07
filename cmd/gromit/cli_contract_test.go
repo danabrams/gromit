@@ -372,6 +372,234 @@ func parseFlagsFromHelp(helpText string) map[string]bool {
 	return flags
 }
 
+// TestCLIContract_DecomposePickerBehavior tests the interactive picker for decompose command
+func TestCLIContract_DecomposePickerBehavior(t *testing.T) {
+	t.Run("no plans directory shows helpful message", func(t *testing.T) {
+		// Create temp directory without .gromit/plans/
+		tmpDir, err := os.MkdirTemp("", "gromit-cli-decompose-test-*")
+		if err != nil {
+			t.Fatalf("failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		// Set up minimal gromit environment (but no plans directory)
+		gromitDir := filepath.Join(tmpDir, ".gromit")
+		if err := os.MkdirAll(gromitDir, 0755); err != nil {
+			t.Fatalf("failed to create .gromit dir: %v", err)
+		}
+
+		// Create minimal gromit.yaml
+		configContent := `paths:
+  gromit_dir: .gromit
+  plans_dir: .gromit/plans
+`
+		configPath := filepath.Join(tmpDir, "gromit.yaml")
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+
+		// Run gromit decompose with no arguments in this directory
+		cmd := exec.Command(binaryPath, "decompose")
+		cmd.Dir = tmpDir
+		outBuf, outErr := cmd.Output()
+		stdout := string(outBuf)
+		exitCode := 0
+		if outErr != nil {
+			if exitErr, ok := outErr.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			} else {
+				t.Fatalf("Failed to run gromit decompose: %v", outErr)
+			}
+		}
+
+		// Should exit 0
+		if exitCode != 0 {
+			t.Errorf("gromit decompose with no plans dir exited with code %d, want 0", exitCode)
+		}
+
+		// Should show helpful message
+		if !strings.Contains(stdout, "No undecomposed plans found") {
+			t.Errorf("expected helpful message about no plans, got: %s", stdout)
+		}
+		if !strings.Contains(stdout, "gromit plan") {
+			t.Errorf("expected mention of 'gromit plan' command, got: %s", stdout)
+		}
+	})
+
+	t.Run("with undecomposed plans shows picker", func(t *testing.T) {
+		// Create temp directory with .gromit/plans/ and plan fixtures
+		tmpDir, err := os.MkdirTemp("", "gromit-cli-decompose-test-*")
+		if err != nil {
+			t.Fatalf("failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		// Set up gromit environment
+		plansDir := filepath.Join(tmpDir, ".gromit", "plans")
+		if err := os.MkdirAll(plansDir, 0755); err != nil {
+			t.Fatalf("failed to create plans dir: %v", err)
+		}
+
+		// Create minimal gromit.yaml
+		configContent := `paths:
+  gromit_dir: .gromit
+  plans_dir: .gromit/plans
+`
+		configPath := filepath.Join(tmpDir, "gromit.yaml")
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+
+		// Create undecomposed plan fixtures
+		plan1 := `---
+decomposed: false
+---
+
+# Add User Authentication
+
+This is a plan for adding user authentication.
+`
+		plan1Path := filepath.Join(plansDir, "auth.md")
+		if err := os.WriteFile(plan1Path, []byte(plan1), 0644); err != nil {
+			t.Fatalf("failed to write plan1: %v", err)
+		}
+
+		plan2 := `---
+decomposed: false
+---
+
+# Implement API Endpoints
+
+This is a plan for implementing API endpoints.
+`
+		plan2Path := filepath.Join(plansDir, "api-endpoints.md")
+		if err := os.WriteFile(plan2Path, []byte(plan2), 0644); err != nil {
+			t.Fatalf("failed to write plan2: %v", err)
+		}
+
+		// Create already-decomposed plan (should not appear in picker without --force)
+		plan3 := `---
+decomposed: true
+decomposed_at: "2026-02-07T10:00:00Z"
+---
+
+# Database Migration
+
+This plan has already been decomposed.
+`
+		plan3Path := filepath.Join(plansDir, "database.md")
+		if err := os.WriteFile(plan3Path, []byte(plan3), 0644); err != nil {
+			t.Fatalf("failed to write plan3: %v", err)
+		}
+
+		// Run gromit decompose with no arguments and provide "1" as input (select first plan)
+		cmd := exec.Command(binaryPath, "decompose")
+		cmd.Dir = tmpDir
+		cmd.Stdin = strings.NewReader("1\n")
+		outBuf, outErr := cmd.Output()
+		stdout := string(outBuf)
+
+		// We expect this to fail because Claude/bd won't actually work in test env
+		// But we can verify the picker was shown correctly
+		if outErr != nil {
+			// This is expected - the test will fail when trying to actually decompose
+			// We just want to verify the picker output
+		}
+
+		// Verify picker was displayed
+		if !strings.Contains(stdout, "Select a plan to decompose:") {
+			t.Errorf("expected picker prompt, got: %s", stdout)
+		}
+
+		// Verify plan names are shown
+		if !strings.Contains(stdout, "api-endpoints") {
+			t.Errorf("expected 'api-endpoints' in picker, got: %s", stdout)
+		}
+		if !strings.Contains(stdout, "auth") {
+			t.Errorf("expected 'auth' in picker, got: %s", stdout)
+		}
+
+		// Verify plan titles are shown
+		if !strings.Contains(stdout, "Add User Authentication") {
+			t.Errorf("expected 'Add User Authentication' title in picker, got: %s", stdout)
+		}
+		if !strings.Contains(stdout, "Implement API Endpoints") {
+			t.Errorf("expected 'Implement API Endpoints' title in picker, got: %s", stdout)
+		}
+
+		// Verify already-decomposed plan is NOT shown (without --force)
+		if strings.Contains(stdout, "database") || strings.Contains(stdout, "Database Migration") {
+			t.Errorf("already-decomposed plan should not appear in picker without --force, got: %s", stdout)
+		}
+
+		// Verify "Decompose all" option is shown (since we have 2+ undecomposed plans)
+		if !strings.Contains(stdout, "Decompose all") {
+			t.Errorf("expected 'Decompose all' option with 2+ plans, got: %s", stdout)
+		}
+	})
+
+	t.Run("with single undecomposed plan shows picker without decompose all", func(t *testing.T) {
+		// Create temp directory with .gromit/plans/ and single plan fixture
+		tmpDir, err := os.MkdirTemp("", "gromit-cli-decompose-test-*")
+		if err != nil {
+			t.Fatalf("failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		// Set up gromit environment
+		plansDir := filepath.Join(tmpDir, ".gromit", "plans")
+		if err := os.MkdirAll(plansDir, 0755); err != nil {
+			t.Fatalf("failed to create plans dir: %v", err)
+		}
+
+		// Create minimal gromit.yaml
+		configContent := `paths:
+  gromit_dir: .gromit
+  plans_dir: .gromit/plans
+`
+		configPath := filepath.Join(tmpDir, "gromit.yaml")
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+
+		// Create single undecomposed plan fixture
+		plan := `---
+decomposed: false
+---
+
+# Add Logging
+
+This is a plan for adding logging.
+`
+		planPath := filepath.Join(plansDir, "logging.md")
+		if err := os.WriteFile(planPath, []byte(plan), 0644); err != nil {
+			t.Fatalf("failed to write plan: %v", err)
+		}
+
+		// Run gromit decompose with no arguments and provide "1" as input
+		cmd := exec.Command(binaryPath, "decompose")
+		cmd.Dir = tmpDir
+		cmd.Stdin = strings.NewReader("1\n")
+		outBuf, _ := cmd.Output()
+		stdout := string(outBuf)
+
+		// Verify picker was displayed
+		if !strings.Contains(stdout, "Select a plan to decompose:") {
+			t.Errorf("expected picker prompt, got: %s", stdout)
+		}
+
+		// Verify plan is shown
+		if !strings.Contains(stdout, "logging") {
+			t.Errorf("expected 'logging' in picker, got: %s", stdout)
+		}
+
+		// Verify "Decompose all" option is NOT shown (only 1 plan)
+		if strings.Contains(stdout, "Decompose all") {
+			t.Errorf("'Decompose all' should not appear with only 1 plan, got: %s", stdout)
+		}
+	})
+}
+
 // TestCLIContract_ExitCodes verifies exit codes for various error conditions
 func TestCLIContract_ExitCodes(t *testing.T) {
 	tests := []struct {
