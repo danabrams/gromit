@@ -25,7 +25,7 @@ var (
 )
 
 var decomposeCmd = &cobra.Command{
-	Use:   "decompose <plan-name>",
+	Use:   "decompose [plan-name]",
 	Short: "Decompose a plan into bd beads",
 	Long: `Decompose an implementation plan into bd beads automatically.
 
@@ -34,6 +34,7 @@ tasks and map them to beads following bead sizing rules, then creates the
 beads via bd create.
 
 Usage:
+  gromit decompose                       # Interactive picker for undecomposed plans
   gromit decompose <plan-name>           # Decompose plan fully automatically
   gromit decompose <plan-name> --review  # Show proposed beads before creating
   gromit decompose <plan-name> --force   # Re-decompose even if already done
@@ -47,7 +48,7 @@ Each bead is created with:
   - spec:<plan-name> label for traceability
   - Dependencies mapped from the plan's task dependencies
   - Priority and acceptance criteria from Claude's analysis`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runDecompose,
 }
 
@@ -76,17 +77,42 @@ type planInfo struct {
 }
 
 func runDecompose(cmd *cobra.Command, args []string) error {
-	planName := args[0]
-	// Remove .md suffix if provided
-	planName = strings.TrimSuffix(planName, ".md")
-
 	// Load config
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	return decomposeSinglePlan(planName, cfg)
+	// Dispatch based on number of arguments
+	if len(args) == 1 {
+		// Single plan specified - decompose it directly
+		planName := args[0]
+		// Remove .md suffix if provided
+		planName = strings.TrimSuffix(planName, ".md")
+		return decomposeSinglePlan(planName, cfg)
+	}
+
+	// No arguments - prepare for picker (to be implemented)
+	plansDir := resolvePlansDir(cfg)
+	plans, err := filterUndecomposedPlans(plansDir, decomposeForce)
+	if err != nil {
+		return fmt.Errorf("scanning plans directory: %w", err)
+	}
+
+	if len(plans) == 0 {
+		fmt.Println("No undecomposed plans found. Create one with 'gromit plan'.")
+		return nil
+	}
+
+	// TODO: Implement picker UI
+	// For now, just list the plans
+	fmt.Println("Undecomposed plans:")
+	for i, plan := range plans {
+		fmt.Printf("  %d. %s - %s\n", i+1, plan.Name, plan.Title)
+	}
+	fmt.Println("\nPicker UI coming soon. For now, run: gromit decompose <plan-name>")
+
+	return nil
 }
 
 // decomposeSinglePlan decomposes a single plan file into bd beads.

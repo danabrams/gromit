@@ -5,6 +5,7 @@ tasks and map them to beads following bead sizing rules, then creates the
 beads via bd create.
 
 Usage:
+  gromit decompose                       # Interactive picker for undecomposed plans
   gromit decompose <plan-name>           # Decompose plan fully automatically
   gromit decompose <plan-name> --review  # Show proposed beads before creating
   gromit decompose <plan-name> --force   # Re-decompose even if already done
@@ -20,7 +21,7 @@ Each bead is created with:
   - Priority and acceptance criteria from Claude's analysis
 
 Usage:
-  gromit decompose <plan-name> [flags]
+  gromit decompose [plan-name] [flags]
 
 Flags:
       --force    Re-decompose even if already done
