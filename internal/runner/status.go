@@ -11,16 +11,16 @@ import (
 
 // Status represents the current state of Gromit execution
 type Status struct {
-	Running            bool      `json:"running"`
-	Iteration          int       `json:"iteration"`
-	BeadID             string    `json:"bead_id"`
-	BeadTitle          string    `json:"bead_title"`
-	Model              string    `json:"model"`
-	StartedAt          time.Time `json:"started_at"`
-	ElapsedS           int       `json:"elapsed_s"`
-	PID                int       `json:"pid"`
-	MaxIterations      int       `json:"max_iterations,omitempty"`
-	TimeBudgetMinutes  int       `json:"time_budget_minutes,omitempty"`
+	Running           bool      `json:"running"`
+	Iteration         int       `json:"iteration"`
+	BeadID            string    `json:"bead_id"`
+	BeadTitle         string    `json:"bead_title"`
+	Model             string    `json:"model"`
+	StartedAt         time.Time `json:"started_at"`
+	ElapsedS          int       `json:"elapsed_s"`
+	PID               int       `json:"pid"`
+	MaxIterations     int       `json:"max_iterations,omitempty"`
+	TimeBudgetMinutes int       `json:"time_budget_minutes,omitempty"`
 }
 
 // StatusWriter manages writing status.json
@@ -78,6 +78,38 @@ func (sw *StatusWriter) Delete() error {
 	err := os.Remove(sw.path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("deleting status file: %w", err)
+	}
+
+	return nil
+}
+
+// WriteFinal writes a final status entry with running: false on clean exit.
+// The iteration parameter is the total number of completed iterations.
+func (sw *StatusWriter) WriteFinal(iteration int) error {
+	if sw == nil {
+		return nil // No-op if writer is nil
+	}
+
+	status := Status{
+		Running:   false,
+		Iteration: iteration,
+		BeadID:    "",
+		BeadTitle: "",
+		Model:     "",
+		StartedAt: sw.startTime,
+		ElapsedS:  int(time.Since(sw.startTime).Seconds()),
+		PID:       os.Getpid(),
+		// MaxIterations and TimeBudgetMinutes are omitted (zero values) on final write
+	}
+
+	data, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling final status: %w", err)
+	}
+
+	// Write with 0644 permissions
+	if err := os.WriteFile(sw.path, data, 0644); err != nil {
+		return fmt.Errorf("writing final status file: %w", err)
 	}
 
 	return nil

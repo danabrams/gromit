@@ -185,8 +185,13 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	if err != nil {
 		r.log("Warning: could not create status writer: %v", err)
 	}
+	var finalIteration *int
 	if statusWriter != nil {
-		defer statusWriter.Delete()
+		defer func() {
+			if finalIteration != nil {
+				_ = statusWriter.WriteFinal(*finalIteration)
+			}
+		}()
 	}
 
 	// Calculate time budget in minutes if deadline is set
@@ -397,6 +402,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	r.log("\nGromit loop complete. Processed %d iterations.", iteration)
+
+	// Set final iteration count for deferred status write
+	finalIteration = &iteration
 
 	// Check if retro should be suggested
 	r.checkRetroSuggestion()

@@ -547,6 +547,114 @@ func TestRunner_Status_DeadPID(t *testing.T) {
 	}
 }
 
+func TestStatusWriter_WriteFinal(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	sw, _ := NewStatusWriter(tmpDir)
+
+	// Write a running status first
+	err := sw.Write(5, "bead-123", "Test Bead", "sonnet", true, 50, 30)
+	if err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Wait a bit to ensure elapsed time is non-zero
+	time.Sleep(100 * time.Millisecond)
+
+	// Write final status
+	err = sw.WriteFinal(5)
+	if err != nil {
+		t.Fatalf("WriteFinal failed: %v", err)
+	}
+
+	// Read and verify
+	statusPath := filepath.Join(tmpDir, "status.json")
+	data, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatalf("Could not read status.json: %v", err)
+	}
+
+	var status Status
+	if err := json.Unmarshal(data, &status); err != nil {
+		t.Fatalf("Could not unmarshal status.json: %v", err)
+	}
+
+	// Verify final status characteristics
+	if status.Running != false {
+		t.Errorf("Expected running=false, got %v", status.Running)
+	}
+	if status.Iteration != 5 {
+		t.Errorf("Expected iteration=5, got %d", status.Iteration)
+	}
+	if status.BeadID != "" {
+		t.Errorf("Expected empty BeadID, got %s", status.BeadID)
+	}
+	if status.BeadTitle != "" {
+		t.Errorf("Expected empty BeadTitle, got %s", status.BeadTitle)
+	}
+	if status.Model != "" {
+		t.Errorf("Expected empty Model, got %s", status.Model)
+	}
+	if status.ElapsedS < 0 {
+		t.Errorf("Expected ElapsedS >= 0, got %d", status.ElapsedS)
+	}
+	if status.PID != os.Getpid() {
+		t.Errorf("Expected PID=%d, got %d", os.Getpid(), status.PID)
+	}
+	// MaxIterations and TimeBudgetMinutes should be zero (omitted from JSON)
+	if status.MaxIterations != 0 {
+		t.Errorf("Expected MaxIterations=0, got %d", status.MaxIterations)
+	}
+	if status.TimeBudgetMinutes != 0 {
+		t.Errorf("Expected TimeBudgetMinutes=0, got %d", status.TimeBudgetMinutes)
+	}
+}
+
+func TestStatusWriter_WriteFinal_NilWriter(t *testing.T) {
+	var sw *StatusWriter
+
+	// Should be no-op without crashing
+	err := sw.WriteFinal(10)
+	if err != nil {
+		t.Fatalf("WriteFinal on nil writer should be no-op: %v", err)
+	}
+}
+
+func TestStatusWriter_WriteFinal_PreservesElapsedTime(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	sw, _ := NewStatusWriter(tmpDir)
+
+	// Wait a bit before writing final
+	time.Sleep(100 * time.Millisecond)
+
+	// Write final status
+	err := sw.WriteFinal(3)
+	if err != nil {
+		t.Fatalf("WriteFinal failed: %v", err)
+	}
+
+	// Read and verify elapsed time is reasonable
+	statusPath := filepath.Join(tmpDir, "status.json")
+	data, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatalf("Could not read status.json: %v", err)
+	}
+
+	var status Status
+	if err := json.Unmarshal(data, &status); err != nil {
+		t.Fatalf("Could not unmarshal status.json: %v", err)
+	}
+
+	if status.ElapsedS < 0 {
+		t.Errorf("Expected ElapsedS >= 0, got %d", status.ElapsedS)
+	}
+	// Should have at least 0 seconds elapsed (100ms rounds to 0)
+	if status.ElapsedS < 0 {
+		t.Errorf("Expected non-negative elapsed time, got %d", status.ElapsedS)
+	}
+}
+
 // getDeadPID spawns a subprocess that exits immediately and returns its PID
 func getDeadPID(t *testing.T) int {
 	t.Helper()
