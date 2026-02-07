@@ -468,9 +468,21 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		bc.promptCtx.PrevFailure = ""
 		bc.promptCtx.FailureContext = "Acceptance tests have been written and committed. Your job is to make them pass."
 		var err error
-		bc.buildPrompt, err = r.renderer.RenderBuild(bc.promptCtx)
+		bc.buildPrompt, err = r.renderer.RenderATDDBuild(bc.promptCtx)
 		if err != nil {
-			bc.result.Error = fmt.Errorf("rendering build prompt for ATDD: %w", err)
+			bc.result.Error = fmt.Errorf("rendering ATDD build prompt: %w", err)
+			return bc.result
+		}
+	}
+
+	// Check if TDD is active for this bead (after ATDD check so TDD overrides when both are active)
+	tddActive := bead.IsMethodologyActive(bc.bead.Labels, "tdd", r.cfg.Methodology.TDD)
+	if tddActive {
+		r.log("TDD enabled, using TDD build prompt with red-green-refactor cycles...")
+		var err error
+		bc.buildPrompt, err = r.renderer.RenderTDDBuild(bc.promptCtx)
+		if err != nil {
+			bc.result.Error = fmt.Errorf("rendering TDD build prompt: %w", err)
 			return bc.result
 		}
 	}
@@ -487,7 +499,6 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	}
 
 	// ATDD/TDD Phase 3: Refactor (if either methodology is active)
-	tddActive := bead.IsMethodologyActive(bc.bead.Labels, "tdd", r.cfg.Methodology.TDD)
 	if atddActive || tddActive {
 		r.log("Running refactor phase...")
 		if err := r.runRefactorPhase(ctx, bc); err != nil {
