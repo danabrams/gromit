@@ -2,8 +2,8 @@
 # This file is not used directly - tests copy the scaffolded directory from gromit init
 
 models:
-  p0: opus
-  p1: sonnet
+  p0: haiku
+  p1: haiku
   p2: haiku
   validation: haiku
 
@@ -12,9 +12,7 @@ escalation:
   chain:
     - haiku
     - sonnet
-    - opus
   max_retries_per_model: 1
-  max_retries_per_bead: 10
 
 loop:
   max_iterations: 0
@@ -26,8 +24,6 @@ validation:
   enabled: true
   commands:
     - "go test ./..."
-    - "go vet ./..."
-    - "go build ./cmd/gromit"
 
 paths:
   templates: ".gromit/templates"
