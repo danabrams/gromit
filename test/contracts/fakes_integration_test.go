@@ -383,6 +383,55 @@ func TestFakes_ClaudeWriteFile_PathTraversal(t *testing.T) {
 	}
 }
 
+// TestFakes_ClaudeWriteFile_BackslashContent verifies content with literal backslash-n
+// is written without escape interpretation. Uses raw string literal for test input.
+func TestFakes_ClaudeWriteFile_BackslashContent(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Set up fixture file
+	fixtureContent := "Test output"
+	fixtureFile := filepath.Join(env.Dir, "test_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte(fixtureContent), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	targetFile := filepath.Join(env.Dir, "backslash_test.txt")
+	// Raw string literal containing literal backslash-n sequence
+	content := `hello\nworld`
+
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", content)
+
+	// Run fake claude
+	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
+	cmd.Dir = env.Dir
+	cmd.Env = env.Env
+	cmd.Stdin = strings.NewReader("test\n")
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("claude failed: %v\nOutput: %s", err, output)
+	}
+
+	// Verify file content contains literal backslash-n, not interpreted as newline
+	createdContent, err := os.ReadFile(targetFile)
+	if err != nil {
+		t.Fatalf("Failed to read created file: %v", err)
+	}
+
+	// printf '%s\n' adds a trailing newline
+	expectedContent := content + "\n"
+	if string(createdContent) != expectedContent {
+		t.Errorf("Content not written literally:\n  expected: %q\n  got:      %q", expectedContent, string(createdContent))
+	}
+
+	// Explicitly verify the backslash-n is literal, not a newline character
+	if strings.Contains(string(createdContent), "hello\nworld") {
+		t.Errorf("Content was incorrectly interpreted: backslash-n became actual newline")
+	}
+}
+
 // TestFakes_ClaudeWriteFile_ContentFidelity verifies content is written exactly as provided
 func TestFakes_ClaudeWriteFile_ContentFidelity(t *testing.T) {
 	env := setupTestEnv(t)
