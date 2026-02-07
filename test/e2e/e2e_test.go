@@ -443,3 +443,182 @@ func TestE2EInfrastructure(t *testing.T) {
 		t.Errorf("expected bead title 'Test bead', got %v", bead["title"])
 	}
 }
+
+// TestE2E_HappyPath tests the full happy path workflow:
+// - Creates 2 beads in the fake bd state
+// - Runs gromit with success fixtures
+// - Verifies both beads are closed with correct invocation sequences
+func TestE2E_HappyPath(t *testing.T) {
+	env := setupE2E(t)
+
+	// Create 2 beads in the fake bd state
+	if err := createBead(env, "test-bead-1", "First task", "Implement first feature", 1, []string{}); err != nil {
+		t.Fatalf("Failed to create bead 1: %v", err)
+	}
+	if err := createBead(env, "test-bead-2", "Second task", "Implement second feature", 1, []string{}); err != nil {
+		t.Fatalf("Failed to create bead 2: %v", err)
+	}
+
+	// Set up Claude fixtures to simulate successful build and validation
+	buildFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
+	validateFixture := filepath.Join(fixturesDir, "claude_validate_success.txt")
+
+	// Point CLAUDE_FIXTURE to the build fixture for build model
+	// The fake claude script will use this
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
+
+	// Run gromit with -n 2 to process exactly 2 beads
+	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "2")
+	if err != nil {
+		t.Fatalf("Failed to run gromit: %v", err)
+	}
+
+	t.Logf("Exit code: %d", exitCode)
+	t.Logf("Stdout:\n%s", stdout)
+	t.Logf("Stderr:\n%s", stderr)
+
+	// Verify gromit succeeded
+	if exitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", exitCode)
+	}
+
+	// Read call log to verify invocation sequences
+	callLogData, err := os.ReadFile(env.CallLog)
+	if err != nil {
+		t.Fatalf("Failed to read call log: %v", err)
+	}
+	calls := strings.Split(strings.TrimSpace(string(callLogData)), "\n")
+
+	t.Logf("Total calls recorded: %d", len(calls))
+	for i, call := range calls {
+		t.Logf("  %d: %s", i+1, call)
+	}
+
+	// Filter bd calls
+	var bdCalls []string
+	for _, call := range calls {
+		if strings.HasPrefix(call, "bd ") {
+			bdCalls = append(bdCalls, call)
+		}
+	}
+
+	// Filter claude calls
+	var claudeCalls []string
+	for _, call := range calls {
+		if strings.HasPrefix(call, "claude ") {
+			claudeCalls = append(claudeCalls, call)
+		}
+	}
+
+	t.Logf("BD calls: %d", len(bdCalls))
+	for i, call := range bdCalls {
+		t.Logf("  BD %d: %s", i+1, call)
+	}
+
+	t.Logf("Claude calls: %d", len(claudeCalls))
+	for i, call := range claudeCalls {
+		t.Logf("  Claude %d: %s", i+1, call)
+	}
+
+	// Verify expected bd call sequence:
+	// For each bead:
+	//   1. bd ready --json --limit 10 (fetch next bead)
+	//   2. bd close <id> (after successful build + validation)
+	//   3. bd sync (sync after close)
+	//
+	// Expected sequence for 2 beads (with -n 2):
+	// 1. bd ready (get bead 1)
+	// 2. bd close test-bead-1
+	// 3. bd sync
+	// 4. bd ready (get bead 2)
+	// 5. bd close test-bead-2
+	// 6. bd sync
+	// Note: No 7th bd ready because max iterations (2) is reached
+
+	expectedBDSequence := []string{
+		"bd ready --json --limit 10",
+		"bd close test-bead-1",
+		"bd sync",
+		"bd ready --json --limit 10",
+		"bd close test-bead-2",
+		"bd sync",
+	}
+
+	if len(bdCalls) < len(expectedBDSequence) {
+		t.Errorf("Expected at least %d bd calls, got %d", len(expectedBDSequence), len(bdCalls))
+	}
+
+	for i, expected := range expectedBDSequence {
+		if i >= len(bdCalls) {
+			t.Errorf("Missing expected bd call %d: %s", i+1, expected)
+			continue
+		}
+		if !strings.Contains(bdCalls[i], expected) {
+			t.Errorf("BD call %d: expected to contain %q, got %q", i+1, expected, bdCalls[i])
+		} else {
+			t.Logf("✓ BD call %d matches: %s", i+1, expected)
+		}
+	}
+
+	// Verify Claude was invoked for each bead
+	// Looking at the actual calls, each bead has 3 Claude invocations:
+	//   1. Scope estimation (haiku)
+	//   2. Build invocation (with build model - sonnet for P1)
+	//   3. Validation invocation (with haiku model)
+	//
+	// Expected: 6 Claude calls total (2 beads × 3 phases each)
+	expectedClaudeCalls := 6
+	if len(claudeCalls) != expectedClaudeCalls {
+		t.Errorf("Expected %d Claude calls, got %d", expectedClaudeCalls, len(claudeCalls))
+	} else {
+		t.Logf("✓ Claude called %d times (3 per bead: scope, build, validate)", len(claudeCalls))
+	}
+
+	// Verify both beads are closed in the bd state
+	state, err := readBDState(env)
+	if err != nil {
+		t.Fatalf("Failed to read bd state: %v", err)
+	}
+
+	beads, ok := state["beads"].([]interface{})
+	if !ok {
+		t.Fatal("beads field not found in state")
+	}
+
+	if len(beads) != 2 {
+		t.Fatalf("Expected 2 beads in state, got %d", len(beads))
+	}
+
+	// Verify both beads have status "closed"
+	for i, beadInterface := range beads {
+		bead, ok := beadInterface.(map[string]interface{})
+		if !ok {
+			t.Fatalf("Bead %d is not a map", i)
+		}
+
+		status, ok := bead["status"].(string)
+		if !ok {
+			t.Fatalf("Bead %d status is not a string", i)
+		}
+
+		if status != "closed" {
+			t.Errorf("Bead %d: expected status 'closed', got %q", i, status)
+		} else {
+			t.Logf("✓ Bead %s is closed", bead["id"])
+		}
+	}
+
+	// Verify iteration logs were written
+	logsDir := filepath.Join(env.Dir, ".gromit", "logs")
+	logEntries, err := os.ReadDir(logsDir)
+	if err != nil {
+		t.Fatalf("Failed to read logs directory: %v", err)
+	}
+
+	if len(logEntries) == 0 {
+		t.Error("Expected log files to be written, but logs directory is empty")
+	} else {
+		t.Logf("✓ Log files written: %d entries", len(logEntries))
+	}
+}
