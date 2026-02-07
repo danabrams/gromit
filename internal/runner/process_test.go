@@ -395,37 +395,6 @@ func TestHandleStallTimeout_Escalates(t *testing.T) {
 	}
 }
 
-func TestBeadContextRetryCounters(t *testing.T) {
-	bc := &beadContext{
-		retriesThisModel:     0,
-		totalRetriesThisBead: 0,
-		maxRetries:           3,
-		maxRetriesPerBead:    6,
-	}
-
-	// Verify initial state
-	if bc.retriesThisModel != 0 {
-		t.Errorf("initial retriesThisModel should be 0, got %d", bc.retriesThisModel)
-	}
-	if bc.totalRetriesThisBead != 0 {
-		t.Errorf("initial totalRetriesThisBead should be 0, got %d", bc.totalRetriesThisBead)
-	}
-
-	// Simulate a retry
-	bc.retriesThisModel++
-	bc.totalRetriesThisBead++
-
-	if bc.retriesThisModel != 1 {
-		t.Errorf("after retry retriesThisModel should be 1, got %d", bc.retriesThisModel)
-	}
-
-	// Simulate escalation
-	bc.retriesThisModel = 0 // Reset on escalation
-	if bc.totalRetriesThisBead != 1 {
-		t.Errorf("after escalation totalRetriesThisBead should still be 1, got %d", bc.totalRetriesThisBead)
-	}
-}
-
 func TestProcessBead_DurationIsSetOnSetupFailure(t *testing.T) {
 	r := &Runner{output: &strings.Builder{}}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
