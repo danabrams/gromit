@@ -219,7 +219,7 @@ Plan output path: %s
 
 	// Offer to chain to 'gromit decompose' if chaining is enabled and plan was created
 	if !planNoChain && planCreated {
-		chainAfterPlan(specName)
+		chainAfterPlan(specName, plansDir)
 	}
 
 	return nil
@@ -240,7 +240,10 @@ func filterUnplannedSpecs(specs []string, plansDir string) []string {
 
 // chainAfterPlan offers to run 'gromit decompose' after plan is created.
 // Default is yes [Y/n] because decompose is a natural continuation of the pipeline.
-func chainAfterPlan(planName string) {
+func chainAfterPlan(planName string, plansDir string) {
+	if isPlanDecomposed(plansDir, planName) {
+		return
+	}
 	reader := bufio.NewReader(os.Stdin)
 	prompt := fmt.Sprintf("Run 'gromit decompose %s'?", planName)
 	if confirmPrompt(reader, prompt, true) {
