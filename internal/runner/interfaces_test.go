@@ -1316,3 +1316,125 @@ func TestRunWithMocks_PrecheckError(t *testing.T) {
 		t.Error("expected normal outcome, not precheck_skipped")
 	}
 }
+
+func TestRunWithMocks_PrecheckDoesNotCountAsIteration(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			switch callCount {
+			case 1:
+				// First bead: precheck passes (should be skipped, not count as iteration)
+				return &bead.Bead{
+					ID:              "bead-1",
+					Title:           "Already completed",
+					Priority:        1,
+					Labels:          []string{},
+					ExpectedOutputs: []string{"feature is implemented"},
+				}, nil
+			case 2:
+				// Second bead: precheck fails, needs real work
+				return &bead.Bead{
+					ID:              "bead-2",
+					Title:           "Needs implementation",
+					Priority:        1,
+					Labels:          []string{},
+					ExpectedOutputs: []string{"feature is implemented"},
+				}, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+
+	claudeCallCount := 0
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			claudeCallCount++
+			if claudeCallCount == 1 {
+				// First precheck: PASSED
+				return &claude.Result{Success: true, Output: "PRECHECK_PASSED\n\nAll criteria met."}, nil
+			}
+			// Second precheck: NOT_MET
+			return &claude.Result{Success: true, Output: "PRECHECK_NOT_MET\n\nNeeds work."}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			// Build phase for second bead
+			return &claude.Result{Success: true, Output: "implemented the feature"}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	// Run with maxIterations=1. First bead passes precheck (skipped), second bead does real work.
+	// Both should complete because precheck skip doesn't count as an iteration.
+	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Verify both beads were closed
+	if len(beads.ClosedIDs) != 2 {
+		t.Errorf("expected 2 beads closed, got %d: %v", len(beads.ClosedIDs), beads.ClosedIDs)
+	}
+	if len(beads.ClosedIDs) >= 2 {
+		if beads.ClosedIDs[0] != "bead-1" {
+			t.Errorf("expected first closed bead to be 'bead-1', got %q", beads.ClosedIDs[0])
+		}
+		if beads.ClosedIDs[1] != "bead-2" {
+			t.Errorf("expected second closed bead to be 'bead-2', got %q", beads.ClosedIDs[1])
+		}
+	}
+
+	// Verify two iteration logs: one precheck_skipped, one normal
+	if len(mockLog.Logs) != 2 {
+		t.Fatalf("expected 2 iteration logs, got %d", len(mockLog.Logs))
+	}
+
+	// First log should be precheck_skipped for bead-1
+	if mockLog.Logs[0].BeadID != "bead-1" {
+		t.Errorf("expected first log BeadID 'bead-1', got %q", mockLog.Logs[0].BeadID)
+	}
+	if mockLog.Logs[0].Outcome != "precheck_skipped" {
+		t.Errorf("expected first log Outcome 'precheck_skipped', got %q", mockLog.Logs[0].Outcome)
+	}
+	if mockLog.Logs[0].Iteration != 1 {
+		t.Errorf("expected first log Iteration=1, got %d", mockLog.Logs[0].Iteration)
+	}
+
+	// Second log should be normal for bead-2
+	if mockLog.Logs[1].BeadID != "bead-2" {
+		t.Errorf("expected second log BeadID 'bead-2', got %q", mockLog.Logs[1].BeadID)
+	}
+	if mockLog.Logs[1].Outcome == "precheck_skipped" {
+		t.Errorf("expected second log to have normal outcome, got 'precheck_skipped'")
+	}
+	if mockLog.Logs[1].Iteration != 1 {
+		t.Errorf("expected second log Iteration=1 (not incremented from precheck skip), got %d", mockLog.Logs[1].Iteration)
+	}
+
+	// Verify console output mentions both beads
+	output := buf.String()
+	if !strings.Contains(output, "auto-closing bead bead-1") {
+		t.Errorf("expected auto-closing message for bead-1 in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Iteration 1") {
+		t.Errorf("expected 'Iteration 1' in output (for bead-2), got: %s", output)
+	}
+	if strings.Contains(output, "Iteration 2") {
+		t.Errorf("unexpected 'Iteration 2' in output (precheck should not count), got: %s", output)
+	}
+
+	// Verify 2 precheck calls and 1 build call
+	if len(mockClaude.RunCalls) != 2 {
+		t.Errorf("expected 2 Claude.Run calls (2 prechecks), got %d", len(mockClaude.RunCalls))
+	}
+	if len(mockClaude.StreamRunCalls) != 1 {
+		t.Errorf("expected 1 Claude.StreamRun call (1 build), got %d", len(mockClaude.StreamRunCalls))
+	}
+}
