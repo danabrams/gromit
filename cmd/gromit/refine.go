@@ -226,6 +226,16 @@ Specs directory: %s
 		for _, spec := range createdSpecs {
 			fmt.Printf("  - %s\n", spec)
 		}
+
+		// Extract spec names and chain to next stages
+		specNames := make([]string, 0, len(createdSpecs))
+		for _, specPath := range createdSpecs {
+			specName := strings.TrimSuffix(filepath.Base(specPath), ".md")
+			specNames = append(specNames, specName)
+		}
+
+		plansDir := resolvePlansDir(cfg)
+		chainAfterRefine(specNames, plansDir)
 	}
 
 	return nil
