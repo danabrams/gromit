@@ -315,8 +315,6 @@ func createBead(env *e2eEnv, id, title, description string, priority int, labels
 	return writeBDState(env, state)
 }
 
-// replaceOrAppend replaces an environment variable in the env slice,
-// or appends it if it doesn't exist.
 // TestE2EInfrastructure verifies that the E2E test infrastructure is set up correctly.
 func TestE2EInfrastructure(t *testing.T) {
 	env := setupE2E(t)
