@@ -151,6 +151,7 @@ func TestCLIContract_HelpText(t *testing.T) {
 		{"plan", []string{"plan", "--help"}},
 		{"review", []string{"review", "--help"}},
 		{"decompose", []string{"decompose", "--help"}},
+		{"install-skill", []string{"install-skill", "--help"}},
 	}
 
 	for _, tt := range tests {
@@ -284,6 +285,12 @@ func TestCLIContract_Flags(t *testing.T) {
 			flags: map[string]string{
 				"review": "bool", // --review
 				"force":  "bool", // --force
+			},
+		},
+		{
+			name: "install-skill",
+			flags: map[string]string{
+				"force": "bool", // -f, --force
 			},
 		},
 	}

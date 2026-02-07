@@ -1,0 +1,19 @@
+Install the /gromit orchestrator skill that provides pipeline management within Claude Code.
+
+This command:
+1. Creates .gromit/hooks/ directory and writes pipeline-resume.sh (executable)
+2. Writes the /gromit skill file to .claude/skills/gromit.md
+3. Merges the SessionStart hook into .claude/settings.json
+4. Prints confirmation and usage instructions
+
+The command is idempotent - running it again updates files without duplicating hooks.
+
+Usage:
+  gromit install-skill [flags]
+
+Flags:
+  -f, --force   Overwrite existing files
+  -h, --help    help for install-skill
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

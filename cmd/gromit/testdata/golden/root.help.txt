@@ -7,21 +7,22 @@ Usage:
   gromit [command]
 
 Available Commands:
-  add         Add an idea to the backlog
-  backlog     View and manage the idea backlog
-  board       Show all beads grouped by status
-  completion  Generate the autocompletion script for the specified shell
-  decompose   Decompose a plan into bd beads
-  help        Help about any command
-  init        Initialize gromit in the current project
-  plan        Create an implementation plan from a spec
-  queue       Show processing queue with model assignments
-  refine      Refine ideas into structured specs
-  retro       Run retrospective analysis
-  review      Run a thorough code review
-  run         Run the Gromit loop
-  status      Show current queue status
-  triage      Interactively triage open beads
+  add           Add an idea to the backlog
+  backlog       View and manage the idea backlog
+  board         Show all beads grouped by status
+  completion    Generate the autocompletion script for the specified shell
+  decompose     Decompose a plan into bd beads
+  help          Help about any command
+  init          Initialize gromit in the current project
+  install-skill Install the Gromit orchestrator skill for Claude Code
+  plan          Create an implementation plan from a spec
+  queue         Show processing queue with model assignments
+  refine        Refine ideas into structured specs
+  retro         Run retrospective analysis
+  review        Run a thorough code review
+  run           Run the Gromit loop
+  status        Show current queue status
+  triage        Interactively triage open beads
 
 Flags:
   -c, --config string   Path to config file (default "gromit.yaml")

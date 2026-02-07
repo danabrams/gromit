@@ -3,9 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/danabrams/gromit/skills"
+	"github.com/spf13/cobra"
 )
 
 // buildSkillContent takes the orchestrator skill template and inlines
@@ -48,6 +51,105 @@ type hookMatcher struct {
 // claudeSettings represents the structure of .claude/settings.json
 type claudeSettings struct {
 	Hooks map[string][]hookMatcher `json:"hooks,omitempty"`
+}
+
+var installSkillCmd = &cobra.Command{
+	Use:   "install-skill",
+	Short: "Install the Gromit orchestrator skill for Claude Code",
+	Long: `Install the /gromit orchestrator skill that provides pipeline management within Claude Code.
+
+This command:
+1. Creates .gromit/hooks/ directory and writes pipeline-resume.sh (executable)
+2. Writes the /gromit skill file to .claude/skills/gromit.md
+3. Merges the SessionStart hook into .claude/settings.json
+4. Prints confirmation and usage instructions
+
+The command is idempotent - running it again updates files without duplicating hooks.`,
+	RunE: runInstallSkill,
+}
+
+var forceInstallSkill bool
+
+func init() {
+	installSkillCmd.Flags().BoolVarP(&forceInstallSkill, "force", "f", false, "Overwrite existing files")
+	rootCmd.AddCommand(installSkillCmd)
+}
+
+func runInstallSkill(cmd *cobra.Command, args []string) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting working directory: %w", err)
+	}
+
+	fmt.Println("Installing Gromit orchestrator skill for Claude Code...")
+
+	// Step 1: Create .gromit/hooks/ directory and write pipeline-resume.sh
+	hooksDir := filepath.Join(cwd, ".gromit", "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		return fmt.Errorf("creating hooks directory: %w", err)
+	}
+	fmt.Printf("  Created %s/\n", hooksDir)
+
+	hookScriptPath := filepath.Join(hooksDir, "pipeline-resume.sh")
+	if err := writeExecutableFile(hookScriptPath, skills.PipelineResumeHook, forceInstallSkill); err != nil {
+		return err
+	}
+
+	// Step 2: Write the /gromit skill file to .claude/skills/gromit.md
+	claudeSkillsDir := filepath.Join(cwd, ".claude", "skills")
+	if err := os.MkdirAll(claudeSkillsDir, 0755); err != nil {
+		return fmt.Errorf("creating .claude/skills directory: %w", err)
+	}
+
+	skillContent := buildSkillContent(skills.OrchestratorSkill)
+	skillPath := filepath.Join(claudeSkillsDir, "gromit.md")
+	if err := writeFileIfNotExists(skillPath, skillContent, forceInstallSkill); err != nil {
+		return err
+	}
+
+	// Step 3: Merge the SessionStart hook into .claude/settings.json
+	settingsPath := filepath.Join(cwd, ".claude", "settings.json")
+	existingSettings := []byte{}
+	if data, err := os.ReadFile(settingsPath); err == nil {
+		existingSettings = data
+	}
+
+	mergedSettings, err := mergeHookSettings(existingSettings)
+	if err != nil {
+		return fmt.Errorf("merging hook settings: %w", err)
+	}
+
+	if err := os.WriteFile(settingsPath, mergedSettings, 0644); err != nil {
+		return fmt.Errorf("writing settings.json: %w", err)
+	}
+	fmt.Printf("  Updated %s\n", settingsPath)
+
+	// Step 4: Print confirmation and usage instructions
+	fmt.Println("\n✓ Installation complete!")
+	fmt.Println("\nUsage:")
+	fmt.Println("  In Claude Code, type /gromit to see pipeline status and orchestrate stages.")
+	fmt.Println("  The skill will guide you through refining ideas, planning specs, and decomposing plans.")
+	fmt.Println("\nNext steps:")
+	fmt.Println("  1. Add ideas to the backlog: gromit add \"your idea here\"")
+	fmt.Println("  2. Open Claude Code and type /gromit")
+	fmt.Println("  3. Follow the prompts to refine, plan, and decompose")
+
+	return nil
+}
+
+func writeExecutableFile(path, content string, force bool) error {
+	if !force {
+		if _, err := os.Stat(path); err == nil {
+			fmt.Printf("  Skipped %s (already exists, use --force to overwrite)\n", filepath.Base(path))
+			return nil
+		}
+	}
+
+	if err := os.WriteFile(path, []byte(content), 0755); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+	fmt.Printf("  Created %s (executable)\n", path)
+	return nil
 }
 
 // mergeHookSettings takes existing settings.json content (or empty slice if file doesn't exist)
