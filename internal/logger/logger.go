@@ -22,6 +22,7 @@ type IterationLog struct {
 	EscalatedTo string    `json:"escalated_to,omitempty"`
 	DurationMs  int64     `json:"duration_ms"`
 	Error       string    `json:"error,omitempty"`
+	Outcome     string    `json:"outcome,omitempty"`
 }
 
 // ReviewLog represents a review's outcome (light or thorough)

@@ -673,6 +673,116 @@ func TestLogReviewNilLogger(t *testing.T) {
 	}
 }
 
+func TestIterationLogOutcomeField(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a log file with and without outcome field
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"haiku","success":true,"validated":false,"escalated":false,"duration_ms":500,"outcome":"precheck_skipped"}
+{"timestamp":"2026-02-05T12:02:00Z","iteration":3,"bead_id":"b3","bead_title":"Task 3","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":2000,"error":"build failed","outcome":"build_failed"}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read back the entries
+	entries, err := readLogFile(filepath.Join(dir, "run-20260205-120000.jsonl"))
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(entries))
+	}
+
+	// First entry should have empty outcome (backward compatibility)
+	if entries[0].Outcome != "" {
+		t.Errorf("expected empty outcome for entry without field, got %q", entries[0].Outcome)
+	}
+
+	// Second entry should have precheck_skipped outcome
+	if entries[1].Outcome != "precheck_skipped" {
+		t.Errorf("expected 'precheck_skipped' outcome, got %q", entries[1].Outcome)
+	}
+
+	// Third entry should have build_failed outcome
+	if entries[2].Outcome != "build_failed" {
+		t.Errorf("expected 'build_failed' outcome, got %q", entries[2].Outcome)
+	}
+}
+
+func TestLogIterationWithOutcome(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	// Log an iteration with outcome field
+	log := &IterationLog{
+		Timestamp:  time.Now(),
+		Iteration:  1,
+		BeadID:     "b1",
+		BeadTitle:  "Test bead",
+		Model:      "haiku",
+		Success:    true,
+		Validated:  false,
+		Escalated:  false,
+		DurationMs: 500,
+		Outcome:    "precheck_skipped",
+	}
+	if err := l.LogIteration(log); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read back and verify
+	data, err := os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !contains(content, `"outcome":"precheck_skipped"`) {
+		t.Errorf("log should contain outcome field with value 'precheck_skipped'")
+	}
+}
+
+func TestLogIterationWithoutOutcome(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	// Log an iteration without outcome field (empty string)
+	log := &IterationLog{
+		Timestamp:  time.Now(),
+		Iteration:  1,
+		BeadID:     "b1",
+		BeadTitle:  "Test bead",
+		Model:      "sonnet",
+		Success:    true,
+		Validated:  true,
+		Escalated:  false,
+		DurationMs: 1000,
+		Outcome:    "", // Empty string should be omitted
+	}
+	if err := l.LogIteration(log); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read back and verify outcome field is omitted
+	data, err := os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if contains(content, `"outcome"`) {
+		t.Errorf("log should not contain outcome field when empty (omitempty)")
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsAt(s, substr))
