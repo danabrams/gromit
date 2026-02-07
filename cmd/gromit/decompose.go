@@ -314,7 +314,8 @@ func parsePriority(p string) int {
 	}
 }
 
-// promptReviewBeads displays proposed beads and asks for confirmation
+// promptReviewBeads displays proposed beads and asks for confirmation.
+// Uses confirmPrompt for consistent yes/no handling with injected reader for testability.
 func promptReviewBeads(beadDefs []beadDef) bool {
 	fmt.Println("Proposed beads:")
 	fmt.Println()
@@ -333,14 +334,8 @@ func promptReviewBeads(beadDefs []beadDef) bool {
 		fmt.Println()
 	}
 
-	fmt.Print("Create these beads? [y/N]: ")
 	reader := bufio.NewReader(os.Stdin)
-	response, err := reader.ReadString('\n')
-	if err != nil {
-		return false
-	}
-	response = strings.ToLower(strings.TrimSpace(response))
-	return response == "y" || response == "yes"
+	return confirmPrompt(reader, "Create these beads?", false)
 }
 
 // chainAfterDecompose offers to run 'gromit run' after beads are created.
