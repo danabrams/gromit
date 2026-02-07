@@ -19,6 +19,7 @@ type PipelineStatus struct {
 	UnplannedSpecs    []string // Names of specs without corresponding plans
 	UndecomposedPlans []string // Names of plans not yet decomposed
 	ReadyBeadCount    int      // Number of ready beads
+	ReadyBeads        []string // IDs of ready beads (up to 3 shown, rest summarized)
 	Recommendation    string   // Suggested next action
 }
 
@@ -88,14 +89,14 @@ func ReadStatus(gromitDir, specsDir, plansDir string) (*PipelineStatus, error) {
 	}
 	sort.Strings(status.UndecomposedPlans)
 
-	// Count ready beads (best-effort - handle bd not being available)
+	// Count ready beads and get their IDs (best-effort - handle bd not being available)
 	// Create a client with working directory set to parent of gromitDir
 	client, err := bead.NewClient()
 	if err == nil {
 		client.Dir = filepath.Dir(gromitDir)
-		status.ReadyBeadCount = countReadyBeads(client)
+		status.ReadyBeads, status.ReadyBeadCount = listReadyBeads(client)
 	}
-	// If client creation fails, ReadyBeadCount remains 0
+	// If client creation fails, ReadyBeadCount and ReadyBeads remain empty
 
 	// Generate recommendation based on priority
 	status.Recommendation = generateRecommendation(status)
@@ -121,19 +122,19 @@ func findMarkdownFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-// countReadyBeads returns the count of ready beads using the provided client
-func countReadyBeads(client *bead.Client) int {
+// listReadyBeads returns a list of ready bead IDs and the count
+func listReadyBeads(client *bead.Client) ([]string, int) {
 	if client == nil {
-		return 0
+		return []string{}, 0
 	}
 
-	// Try to get ready beads - if bd fails, return 0
-	count, err := client.CountReady()
+	// Get ready bead IDs
+	ids, err := client.ListReadyIDs()
 	if err != nil {
-		return 0
+		return []string{}, 0
 	}
 
-	return count
+	return ids, len(ids)
 }
 
 // generateRecommendation returns the recommended next action based on pipeline state

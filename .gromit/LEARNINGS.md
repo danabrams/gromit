@@ -9,23 +9,23 @@ This file is automatically updated. Review periodically with `gromit retro`.
 
 *Patterns seen multiple times - high confidence.*
 
-### Shell Safety | gotchas | consolidated from m7td, 6rao
+### 0001-01-01 | gotchas | consolidated from m7td, 6rao
 Shell scripts handling user content must use quoted <<'EOF' heredocs to prevent variable/command expansion, and pass dynamic values via arguments rather than string interpolation. Both heredoc quoting and argument-passing are required for injection safety.
 **Promoted to RULES.md Safety section.**
 
-### Test Helper Delegation | conventions | consolidated from rkub, ewqu, uucn, y0v3
+### 0001-01-01 | conventions | consolidated from rkub, ewqu, uucn, y0v3
 Test helpers delegate to shared testutil packages rather than duplicating logic. Use t.Fatalf for error handling when adapting function signatures with different return counts. Handle optional parameters using zero-value checks (empty string for dir, nil for environ) rather than pointers. E2E test files delegate to testutil package helpers (e.g., testutil.PickerStdin) rather than hardcoding raw strings.
 
-### Documentary Test Replacement | patterns | consolidated from dpk5, prk6, q2id, l0ka
+### 0001-01-01 | patterns | consolidated from dpk5, prk6, q2id, l0ka
 Replace documentary tests that manually simulate behavior with real tests using dependency injection of callbacks. Include structural property tests (e.g., unmarshal round-trips) to verify extraction fidelity. Integration tests that cover end-to-end flows make narrow documentary tests redundant.
 
-### Mock Implementation Patterns | patterns | consolidated from ge6j, atmb
+### 0001-01-01 | patterns | consolidated from ge6j, atmb
 Mock implementations use optional function pointer fields (FnField pattern) with nil-safe defaults. Tests set up only the behavior needed via tracking flags or injected callbacks, enabling focused verification of specific code paths without requiring full mock setup.
 
-### Status File Management | patterns | consolidated from nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2
+### 0001-01-01 | patterns | consolidated from nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2
 Status struct fields require backward-compatible changes (omitempty for new optional fields). Use ReadStatus()/IsProcessAlive() for state + liveness checks. Return nil,nil for missing optional files (not an error). StatusWriter handles both lifecycle states and preserves completed iteration count on shutdown. Round-trip tests verify serialization fidelity. Stale resource cleanup integrates into status reporting via process liveness checks. Process utilities (IsProcessAlive) are co-located with Status in status.go. Test file I/O uses t.TempDir() for isolation.
 
-### Output Formatting | patterns | consolidated from 5xbi, 88fk, 9ntm
+### 0001-01-01 | patterns | consolidated from 5xbi, 88fk, 9ntm
 Format functions build output via []string slice joined with newlines. Duration formatting composes by delegating to formatDuration() then appending context like " ago". Use strings.Contains() for multi-line output tests; exact equality for single-value formatters.
 
 ---
@@ -66,6 +66,27 @@ When passing large strings to Claude CLI, write to temp files instead of using C
 
 ### 2026-02-07 | ralph-runner-8ayf | conventions
 When helpers are consolidated into a shared package, verify that the refactored code doesn't change behavior of callers—the tests should catch regressions, but pre-existing test failures in a codebase can hide whether consolidation was successful.
+
+### 2026-02-07 | ralph-runner-nekg | conventions
+When adding fields to structs that are serialized/deserialized (especially JSON), verify that existing tests that depend on that struct's behavior still pass—including contract tests that exercise external tool integration.
+
+### 2026-02-07 | ralph-runner-nekg | conventions
+Use json:"field,omitempty" tags on struct fields to maintain backward compatibility when adding optional fields to types that are serialized to JSON
+
+### 2026-02-07 | ralph-runner-628c | patterns
+Context structs in the prompt package (ScopeContext, DecomposeContext, PrecheckContext, etc.) follow a minimal pattern with Bead and ParentBead fields. Each has a corresponding RenderXxx() method on the Renderer. New context types should follow this same structure.
+
+### 2026-02-07 | ralph-runner-nxdm | patterns
+Renderer methods that render templates follow a consistent pattern: accept a context struct as parameter, call r.tmpl.ExecuteTemplate with the context, and return (string, error). Use this pattern for all new template rendering methods.
+
+### 2026-02-07 | ralph-runner-5lk0 | conventions
+Template constants in cmd/gromit/init.go follow naming convention defaultXxxTemplate and contain complete prompt content with clear instructions for Claude
+
+### 2026-02-07 | ralph-runner-kjix | conventions
+Template registration in gromit init follows a consistent pattern: define a constant with the template content, then add it to the templates map in runInit() with the filename as key. New templates should follow this same approach without needing to update multiple locations.
+
+### 2026-02-07 | ralph-runner-tizz | conventions
+Interface mock implementations in *_test.go files require adding corresponding Fn fields and calling them in the mock method, mirroring the pattern of existing Render* methods
 
 ---
 
@@ -138,3 +159,4 @@ Archived: promoted to RULES.md Code Style section. bead.Client Ready()/CountRead
 
 ### 2026-02-07 | ralph-runner-ouh4 | gotchas
 Archived: one-off fallback syntax issue (jq vs python3). Not a recurring project pattern.
+

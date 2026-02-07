@@ -1213,6 +1213,65 @@ func (r *Runner) injectMethodologyLabels(parentLabels []string) []string {
 	return labels
 }
 
+// runPrecheck calls haiku with precheck prompt to check if acceptance criteria are already met.
+// Returns true if precheck passed (criteria already satisfied), false otherwise.
+// Non-blocking: logs warnings on errors and returns false.
+func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) bool {
+	if r == nil || b == nil || r.cfg == nil || r.renderer == nil || r.claude == nil {
+		return false
+	}
+
+	// Get parent bead if exists
+	parent, err := r.beads.GetParent(b)
+	if err != nil {
+		r.log("Warning: failed to get parent bead for precheck: %v", err)
+	}
+
+	// Build precheck context
+	precheckCtx := &prompt.PrecheckContext{
+		Bead:       b,
+		ParentBead: parent,
+	}
+
+	// Render precheck prompt
+	precheckPrompt, err := r.renderer.RenderPrecheck(precheckCtx)
+	if err != nil {
+		r.log("Warning: failed to render precheck prompt: %v", err)
+		return false
+	}
+
+	// Call Claude with haiku model and 30s timeout
+	precheckTimeout := 30 * time.Second
+	precheckCtx2, cancel := context.WithTimeout(ctx, precheckTimeout)
+	defer cancel()
+
+	claudeResult, err := r.claude.Run(precheckCtx2, precheckPrompt, "haiku")
+	if err != nil {
+		r.log("Warning: precheck invocation failed: %v", err)
+		return false
+	}
+	if claudeResult == nil {
+		r.log("Warning: precheck returned nil result")
+		return false
+	}
+
+	if !claudeResult.Success {
+		r.log("Warning: precheck failed with exit code %d", claudeResult.ExitCode)
+		return false
+	}
+
+	// Check for PRECHECK_PASSED signal
+	passed := strings.Contains(claudeResult.Output, "PRECHECK_PASSED")
+
+	if passed {
+		r.log("Pre-check: acceptance criteria already met")
+	} else {
+		r.log("Pre-check: acceptance criteria not yet met")
+	}
+
+	return passed
+}
+
 // checkScope calls haiku with scope prompt and returns ScopeEstimate.
 // If scope check fails, logs a warning and continues (non-blocking).
 func (r *Runner) checkScope(ctx context.Context, b *bead.Bead) *prompt.ScopeEstimate {

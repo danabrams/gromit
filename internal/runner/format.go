@@ -40,6 +40,7 @@ func formatPipeline(ps *pipeline.PipelineStatus) string {
 	// Beads
 	beadLine := fmt.Sprintf("  Beads:    %d ready", ps.ReadyBeadCount)
 	lines = append(lines, beadLine)
+	lines = append(lines, formatItems(ps.ReadyBeads, 3)...)
 
 	return strings.Join(lines, "\n")
 }
