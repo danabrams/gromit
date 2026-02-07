@@ -1,0 +1,422 @@
+#!/usr/bin/env bash
+# Fake bd CLI for testing
+# Routes subcommands and maintains state in $TEST_DIR/.fake_bd_state.json
+
+set -euo pipefail
+
+# Record invocation to call log if TEST_CALL_LOG is set
+if [[ -n "${TEST_CALL_LOG:-}" ]]; then
+    echo "bd $*" >> "$TEST_CALL_LOG"
+fi
+
+# Check for BD_FAIL error mode
+if [[ "${BD_FAIL:-0}" == "1" ]]; then
+    echo "bd: simulated failure" >&2
+    exit 1
+fi
+
+# Initialize state file if it doesn't exist
+STATE_FILE="${TEST_DIR:-.}/.fake_bd_state.json"
+if [[ ! -f "$STATE_FILE" ]]; then
+    echo '{"beads":[],"next_id":1}' > "$STATE_FILE"
+fi
+
+# Helper: Read state
+read_state() {
+    cat "$STATE_FILE"
+}
+
+# Helper: Write state
+write_state() {
+    echo "$1" > "$STATE_FILE"
+}
+
+# Helper: Get next ID and increment counter
+next_id() {
+    local state=$(read_state)
+    local next=$(echo "$state" | jq -r '.next_id')
+    echo "$next"
+}
+
+increment_id() {
+    local state=$(read_state)
+    local new_state=$(echo "$state" | jq ".next_id += 1")
+    write_state "$new_state"
+}
+
+# Helper: Find bead by ID
+find_bead() {
+    local id="$1"
+    local state=$(read_state)
+    echo "$state" | jq -c ".beads[] | select(.id == \"$id\")"
+}
+
+# Helper: Update bead in state
+update_bead() {
+    local id="$1"
+    local updated_bead="$2"
+    local state=$(read_state)
+    local new_state=$(echo "$state" | jq --argjson bead "$updated_bead" \
+        ".beads = [.beads[] | if .id == \"$id\" then \$bead else . end]")
+    write_state "$new_state"
+}
+
+# Helper: Add bead to state
+add_bead() {
+    local bead="$1"
+    local state=$(read_state)
+    local new_state=$(echo "$state" | jq --argjson bead "$bead" ".beads += [\$bead]")
+    write_state "$new_state"
+}
+
+# Subcommand: ready
+cmd_ready() {
+    local limit=1
+    local json_output=0
+
+    # Parse flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json)
+                json_output=1
+                shift
+                ;;
+            --limit)
+                limit="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    # Find ready beads (status=open, no blocking dependencies)
+    local state=$(read_state)
+    local ready_beads=$(echo "$state" | jq -c "[.beads[] | select(.status == \"open\")] | sort_by(.priority) | .[0:$limit]")
+
+    if [[ $json_output -eq 1 ]]; then
+        echo "$ready_beads"
+    else
+        echo "$ready_beads" | jq -r '.[] | "\(.id) \(.title)"'
+    fi
+}
+
+# Subcommand: show
+cmd_show() {
+    local id="$1"
+    local json_output=0
+
+    shift
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json)
+                json_output=1
+                shift
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    local bead=$(find_bead "$id")
+    if [[ -z "$bead" ]]; then
+        echo "bd: bead not found: $id" >&2
+        exit 1
+    fi
+
+    if [[ $json_output -eq 1 ]]; then
+        # bd show returns array-wrapped JSON
+        echo "[$bead]"
+    else
+        echo "$bead" | jq -r '"ID: \(.id)\nTitle: \(.title)\nStatus: \(.status)\nPriority: \(.priority)"'
+    fi
+}
+
+# Subcommand: close
+cmd_close() {
+    local id="$1"
+    local bead=$(find_bead "$id")
+
+    if [[ -z "$bead" ]]; then
+        echo "bd: bead not found: $id" >&2
+        exit 1
+    fi
+
+    # Update status to closed
+    local updated=$(echo "$bead" | jq '.status = "closed" | .close_reason = "completed"')
+    update_bead "$id" "$updated"
+}
+
+# Subcommand: create
+cmd_create() {
+    local title="$1"
+    shift
+
+    local priority=2
+    local labels=()
+    local acceptance=""
+    local parent=""
+    local description=""
+    local json_output=0
+    local deps=()
+
+    # Parse flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --priority)
+                priority="$2"
+                shift 2
+                ;;
+            --label)
+                labels+=("$2")
+                shift 2
+                ;;
+            --acceptance)
+                acceptance="$2"
+                shift 2
+                ;;
+            --parent)
+                parent="$2"
+                shift 2
+                ;;
+            --description)
+                description="$2"
+                shift 2
+                ;;
+            --deps)
+                IFS=',' read -ra deps <<< "$2"
+                shift 2
+                ;;
+            --json)
+                json_output=1
+                shift
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    # Generate new ID
+    local new_id="test-bead-$(next_id)"
+    increment_id
+
+    # Build expected_outputs from acceptance criteria
+    local expected_outputs="[]"
+    if [[ -n "$acceptance" ]]; then
+        # Split acceptance criteria by newlines and convert to JSON array
+        expected_outputs=$(echo "$acceptance" | jq -R -s 'split("\n") | map(select(length > 0))')
+    fi
+
+    # Build labels JSON array
+    local labels_json="[]"
+    if [[ ${#labels[@]} -gt 0 ]]; then
+        labels_json=$(printf '%s\n' "${labels[@]}" | jq -R . | jq -s .)
+    fi
+
+    # Create bead object
+    local bead=$(jq -n \
+        --arg id "$new_id" \
+        --arg title "$title" \
+        --arg description "$description" \
+        --arg parent "$parent" \
+        --arg priority "$priority" \
+        --argjson labels "$labels_json" \
+        --argjson expected_outputs "$expected_outputs" \
+        '{
+            id: $id,
+            title: $title,
+            description: $description,
+            priority: ($priority | tonumber),
+            labels: $labels,
+            parent: $parent,
+            issue_type: "task",
+            status: "open",
+            owner: "",
+            expected_outputs: $expected_outputs
+        }')
+
+    # Add to state
+    add_bead "$bead"
+
+    if [[ $json_output -eq 1 ]]; then
+        echo "$bead"
+    else
+        echo "Created bead: $new_id"
+    fi
+}
+
+# Subcommand: comments (add or list)
+cmd_comments() {
+    if [[ "$1" == "add" ]]; then
+        local id="$2"
+        local comment="$3"
+
+        local bead=$(find_bead "$id")
+        if [[ -z "$bead" ]]; then
+            echo "bd: bead not found: $id" >&2
+            exit 1
+        fi
+
+        # In a real implementation, we'd store comments separately
+        # For the fake, we just verify the bead exists
+        return 0
+    else
+        # List comments for a bead
+        local id="$1"
+        local json_output=0
+
+        shift
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --json)
+                    json_output=1
+                    shift
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
+        done
+
+        local bead=$(find_bead "$id")
+        if [[ -z "$bead" ]]; then
+            echo "bd: bead not found: $id" >&2
+            exit 1
+        fi
+
+        # Return empty comments array for the fake
+        if [[ $json_output -eq 1 ]]; then
+            echo "[]"
+        fi
+    fi
+}
+
+# Subcommand: list
+cmd_list() {
+    local json_output=0
+    local status="open"
+    local sort_by=""
+
+    # Parse flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json)
+                json_output=1
+                shift
+                ;;
+            --status)
+                status="$2"
+                shift 2
+                ;;
+            --sort)
+                sort_by="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    local state=$(read_state)
+    local beads
+
+    if [[ "$status" == "all" ]]; then
+        beads=$(echo "$state" | jq -c '[.beads[]]')
+    else
+        beads=$(echo "$state" | jq -c "[.beads[] | select(.status == \"$status\")]")
+    fi
+
+    # Apply sorting if requested
+    if [[ "$sort_by" == "priority" ]]; then
+        beads=$(echo "$beads" | jq -c 'sort_by(.priority)')
+    fi
+
+    if [[ $json_output -eq 1 ]]; then
+        echo "$beads"
+    else
+        echo "$beads" | jq -r '.[] | "\(.id) \(.title)"'
+    fi
+}
+
+# Subcommand: sync
+cmd_sync() {
+    # Sync does nothing in the fake - just succeed
+    return 0
+}
+
+# Subcommand: update
+cmd_update() {
+    local id="$1"
+    shift
+
+    local priority=""
+
+    # Parse flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --priority)
+                priority="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    local bead=$(find_bead "$id")
+    if [[ -z "$bead" ]]; then
+        echo "bd: bead not found: $id" >&2
+        exit 1
+    fi
+
+    # Update priority if specified
+    if [[ -n "$priority" ]]; then
+        local updated=$(echo "$bead" | jq --arg p "$priority" '.priority = ($p | tonumber)')
+        update_bead "$id" "$updated"
+    fi
+}
+
+# Route to subcommand
+if [[ $# -eq 0 ]]; then
+    echo "bd: no subcommand specified" >&2
+    exit 1
+fi
+
+subcommand="$1"
+shift
+
+case "$subcommand" in
+    ready)
+        cmd_ready "$@"
+        ;;
+    show)
+        cmd_show "$@"
+        ;;
+    close)
+        cmd_close "$@"
+        ;;
+    create)
+        cmd_create "$@"
+        ;;
+    comments)
+        cmd_comments "$@"
+        ;;
+    list)
+        cmd_list "$@"
+        ;;
+    sync)
+        cmd_sync "$@"
+        ;;
+    update)
+        cmd_update "$@"
+        ;;
+    *)
+        echo "bd: unknown subcommand: $subcommand" >&2
+        exit 1
+        ;;
+esac
