@@ -33,6 +33,20 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 *No stuck beads identified (fewer than 2 failures each).*
 {{- end }}
 
+{{- if .BeadStats }}
+
+### Bead Comments
+{{- range $id, $stats := .BeadStats }}
+{{- if $stats.Comments }}
+
+**{{ $stats.BeadID }}: {{ $stats.BeadTitle }}**
+{{- range $stats.Comments }}
+- {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 ## Task
 
 Analyze the learnings above and provide:
