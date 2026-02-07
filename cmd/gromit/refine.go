@@ -290,7 +290,10 @@ Specs directory: %s
 		}
 
 		plansDir := resolvePlansDir(cfg)
-		chainAfterRefine(specNames, plansDir)
+		reader := bufio.NewReader(os.Stdin)
+		chainAfterRefine(specNames, plansDir, func(prompt string, defaultYes bool) bool {
+			return confirmPrompt(reader, prompt, defaultYes)
+		}, execGromit)
 	}
 
 	return nil

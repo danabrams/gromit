@@ -102,24 +102,23 @@ func isPlanDecomposed(plansDir, planName string) bool {
 // Phase 2: Offer to decompose each successfully planned spec (with --no-chain), count successes.
 // Phase 3: If any specs were decomposed, offer to run gromit run (default: no).
 // Declining at any point skips remaining items in that phase and moves to the next phase.
-func chainAfterRefine(specNames []string, plansDir string) {
+// confirm is called for user confirmation, execute is called to run gromit commands.
+func chainAfterRefine(specNames []string, plansDir string, confirm func(string, bool) bool, execute func(...string) error) {
 	if len(specNames) == 0 {
 		return
 	}
-
-	reader := bufio.NewReader(os.Stdin)
 
 	// Phase 1: Planning (interactive, sequential)
 	plannedNames := []string{}
 	for _, specName := range specNames {
 		prompt := fmt.Sprintf("Run 'gromit plan %s'?", specName)
-		if !confirmPrompt(reader, prompt, true) {
+		if !confirm(prompt, true) {
 			// User declined, skip remaining plans
 			break
 		}
 
 		// Run plan with --no-chain
-		if err := execGromit("plan", specName, "--no-chain"); err != nil {
+		if err := execute("plan", specName, "--no-chain"); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to execute plan: %v\n", err)
 			// Don't break - continue offering remaining plans
 			continue
@@ -142,13 +141,13 @@ func chainAfterRefine(specNames []string, plansDir string) {
 		}
 
 		prompt := fmt.Sprintf("Run 'gromit decompose %s'?", planName)
-		if !confirmPrompt(reader, prompt, true) {
+		if !confirm(prompt, true) {
 			// User declined, skip remaining decomposes
 			break
 		}
 
 		// Run decompose with --no-chain
-		if err := execGromit("decompose", planName, "--no-chain"); err != nil {
+		if err := execute("decompose", planName, "--no-chain"); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to execute decompose: %v\n", err)
 			// Don't break - continue offering remaining decomposes
 			continue
@@ -162,8 +161,8 @@ func chainAfterRefine(specNames []string, plansDir string) {
 
 	// Phase 3: Run (only if at least one decompose succeeded)
 	if decomposedCount > 0 {
-		if confirmPrompt(reader, "Run 'gromit run'?", false) {
-			if err := execGromit("run"); err != nil {
+		if confirm("Run 'gromit run'?", false) {
+			if err := execute("run"); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to execute run: %v\n", err)
 			}
 		}

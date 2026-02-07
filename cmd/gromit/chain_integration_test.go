@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,218 +110,274 @@ func TestExecGromitLaunchFailure(t *testing.T) {
 func TestChainAfterRefineThreePhasesEmptyInput(t *testing.T) {
 	// Call the actual chainAfterRefine function with empty spec list
 	// It should return immediately without prompting
-	var buf bytes.Buffer
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	defer func() { os.Stdout = oldStdout }()
+	confirmCalled := false
+	executeCalled := false
 
-	chainAfterRefine([]string{}, t.TempDir())
+	confirm := func(prompt string, defaultYes bool) bool {
+		confirmCalled = true
+		return false
+	}
+	execute := func(args ...string) error {
+		executeCalled = true
+		return nil
+	}
 
-	w.Close()
-	_, _ = buf.ReadFrom(r)
+	chainAfterRefine([]string{}, t.TempDir(), confirm, execute)
 
-	// Should not prompt or do anything
-	output := buf.String()
-	if strings.Contains(output, "Run 'gromit") {
-		t.Errorf("expected no output for empty spec list, got: %s", output)
+	// Should not prompt or execute anything
+	if confirmCalled {
+		t.Error("expected no confirm calls for empty spec list")
+	}
+	if executeCalled {
+		t.Error("expected no execute calls for empty spec list")
 	}
 }
 
-// TestChainAfterRefinePhase1Planning is a documentary test that demonstrates
-// how Phase 1 of chainAfterRefine tracks successfully planned specs.
-// Full integration testing of the interactive flow requires complex stdin mocking.
+// TestChainAfterRefinePhase1Planning verifies Phase 1 tracks successfully planned specs
 func TestChainAfterRefinePhase1Planning(t *testing.T) {
-	// This test documents the logic of tracking successfully planned specs
-	// chainAfterRefine checks for plan file existence to track success
-
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
 	if err := os.MkdirAll(plansDir, 0755); err != nil {
 		t.Fatalf("failed to create plans dir: %v", err)
 	}
 
-	// Simulate Phase 1: checking if plan files exist
 	specNames := []string{"spec1", "spec2", "spec3"}
-	var plannedNames []string
+	var executeCalls []string
 
-	// Create plan files for spec1 and spec3 (simulating successful planning)
-	plan1 := filepath.Join(plansDir, "spec1.md")
-	plan3 := filepath.Join(plansDir, "spec3.md")
-	if err := os.WriteFile(plan1, []byte("# Plan 1"), 0644); err != nil {
-		t.Fatalf("failed to create plan1: %v", err)
-	}
-	if err := os.WriteFile(plan3, []byte("# Plan 3"), 0644); err != nil {
-		t.Fatalf("failed to create plan3: %v", err)
+	// Confirm always says yes
+	confirm := func(prompt string, defaultYes bool) bool {
+		return true
 	}
 
-	// Check which specs have plan files (this is what Phase 1 does)
-	for _, specName := range specNames {
-		planPath := filepath.Join(plansDir, specName+".md")
-		if _, err := os.Stat(planPath); err == nil {
-			plannedNames = append(plannedNames, specName)
+	// Execute creates plan files for spec1 and spec3, fails for spec2
+	execute := func(args ...string) error {
+		executeCalls = append(executeCalls, strings.Join(args, " "))
+		if len(args) >= 2 && args[0] == "plan" {
+			specName := args[1]
+			if specName == "spec1" || specName == "spec3" {
+				// Create plan file to simulate success
+				planPath := filepath.Join(plansDir, specName+".md")
+				return os.WriteFile(planPath, []byte("# Plan"), 0644)
+			}
+			// spec2 fails - no plan file created
+			return nil
+		}
+		return nil
+	}
+
+	chainAfterRefine(specNames, plansDir, confirm, execute)
+
+	// Verify: all 3 specs were offered for planning
+	if len(executeCalls) < 3 {
+		t.Errorf("expected at least 3 execute calls for planning, got %d", len(executeCalls))
+	}
+
+	// Verify: plan files exist for spec1 and spec3, not spec2
+	if _, err := os.Stat(filepath.Join(plansDir, "spec1.md")); err != nil {
+		t.Error("expected spec1 plan file to exist")
+	}
+	if _, err := os.Stat(filepath.Join(plansDir, "spec3.md")); err != nil {
+		t.Error("expected spec3 plan file to exist")
+	}
+	if _, err := os.Stat(filepath.Join(plansDir, "spec2.md")); err == nil {
+		t.Error("expected spec2 plan file to not exist")
+	}
+}
+
+// TestChainAfterRefinePhase2Decompose verifies Phase 2 offers decompose for planned specs
+func TestChainAfterRefinePhase2Decompose(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatalf("failed to create plans dir: %v", err)
+	}
+
+	specNames := []string{"spec1", "spec2"}
+	var decomposeOffered []string
+
+	// Confirm always says yes
+	confirm := func(prompt string, defaultYes bool) bool {
+		// Track which specs were offered for decompose
+		if strings.Contains(prompt, "decompose") {
+			for _, name := range specNames {
+				if strings.Contains(prompt, name) {
+					decomposeOffered = append(decomposeOffered, name)
+					break
+				}
+			}
+		}
+		return true
+	}
+
+	// Execute creates plan files in Phase 1
+	execute := func(args ...string) error {
+		if len(args) >= 2 && args[0] == "plan" {
+			specName := args[1]
+			planPath := filepath.Join(plansDir, specName+".md")
+			return os.WriteFile(planPath, []byte("# Plan"), 0644)
+		}
+		return nil
+	}
+
+	chainAfterRefine(specNames, plansDir, confirm, execute)
+
+	// Verify: decompose was offered for both planned specs
+	if len(decomposeOffered) != 2 {
+		t.Errorf("expected decompose offered for 2 specs, got %d: %v", len(decomposeOffered), decomposeOffered)
+	}
+	if !sliceContains(decomposeOffered, "spec1") || !sliceContains(decomposeOffered, "spec2") {
+		t.Errorf("expected decompose offered for spec1 and spec2, got %v", decomposeOffered)
+	}
+}
+
+func sliceContains(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
 		}
 	}
-
-	// Verify: spec1 and spec3 should be in plannedNames
-	if len(plannedNames) != 2 {
-		t.Errorf("expected 2 planned specs, got %d: %v", len(plannedNames), plannedNames)
-	}
-	if plannedNames[0] != "spec1" || plannedNames[1] != "spec3" {
-		t.Errorf("expected [spec1, spec3], got %v", plannedNames)
-	}
+	return false
 }
 
-// TestChainAfterRefinePhase2Decompose is a documentary test that demonstrates
-// how Phase 2 of chainAfterRefine proceeds after Phase 1 creates plan files.
-// Full integration testing requires a real gromit binary and complex stdin mocking.
-func TestChainAfterRefinePhase2Decompose(t *testing.T) {
-	// This test documents that Phase 2 proceeds based on plan file existence
-	// chainAfterRefine transitions to decompose phase for specs with plan files
-
-	tmpDir := t.TempDir()
-	plansDir := filepath.Join(tmpDir, "plans")
-	if err := os.MkdirAll(plansDir, 0755); err != nil {
-		t.Fatalf("failed to create plans dir: %v", err)
-	}
-
-	// Verify that a plan file's existence determines Phase 1 success
-	planFile := filepath.Join(plansDir, "spec1.md")
-
-	// Before plan exists
-	if _, err := os.Stat(planFile); err == nil {
-		t.Error("plan file should not exist yet")
-	}
-
-	// Create plan file
-	if err := os.WriteFile(planFile, []byte("# Plan for spec1"), 0644); err != nil {
-		t.Fatalf("failed to create plan file: %v", err)
-	}
-
-	// After plan exists
-	if _, err := os.Stat(planFile); err != nil {
-		t.Errorf("plan file should exist after creation: %v", err)
-	}
-}
-
-// TestChainAfterRefinePhase3RunOnlyIfDecomposed is a documentary test that demonstrates
-// the logic that Phase 3 only runs if decomposedCount > 0 in chainAfterRefine.
+// TestChainAfterRefinePhase3RunOnlyIfDecomposed verifies Phase 3 only prompts for run when specs decomposed
 func TestChainAfterRefinePhase3RunOnlyIfDecomposed(t *testing.T) {
-	// This test documents the conditional logic for Phase 3
-	// chainAfterRefine only prompts for 'gromit run' if at least one spec was decomposed
-
-	// Simulate different decomposedCount scenarios
 	testCases := []struct {
-		name            string
-		decomposedCount int
-		shouldPrompt    bool
+		name              string
+		createDecomposed  bool
+		expectRunPrompted bool
 	}{
-		{"no decomposed specs", 0, false},
-		{"one decomposed spec", 1, true},
-		{"multiple decomposed specs", 3, true},
+		{"no decomposed specs", false, false},
+		{"one decomposed spec", true, true},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// This is the logic from chainAfterRefine Phase 3
-			decomposedCount := tc.decomposedCount
-			shouldPromptForRun := decomposedCount > 0
+			tmpDir := t.TempDir()
+			plansDir := filepath.Join(tmpDir, "plans")
+			if err := os.MkdirAll(plansDir, 0755); err != nil {
+				t.Fatalf("failed to create plans dir: %v", err)
+			}
 
-			if shouldPromptForRun != tc.shouldPrompt {
-				t.Errorf("expected shouldPrompt=%v for decomposedCount=%d, got %v",
-					tc.shouldPrompt, decomposedCount, shouldPromptForRun)
+			specNames := []string{"spec1"}
+			runPrompted := false
+
+			confirm := func(prompt string, defaultYes bool) bool {
+				if strings.Contains(prompt, "gromit run") {
+					runPrompted = true
+				}
+				return true
+			}
+
+			execute := func(args ...string) error {
+				if len(args) >= 2 && args[0] == "plan" {
+					// Create plan file
+					specName := args[1]
+					planPath := filepath.Join(plansDir, specName+".md")
+					return os.WriteFile(planPath, []byte("# Plan"), 0644)
+				}
+				if len(args) >= 2 && args[0] == "decompose" && tc.createDecomposed {
+					// Mark plan as decomposed
+					specName := args[1]
+					planPath := filepath.Join(plansDir, specName+".md")
+					content := "---\ndecomposed: true\n---\n# Plan"
+					return os.WriteFile(planPath, []byte(content), 0644)
+				}
+				return nil
+			}
+
+			chainAfterRefine(specNames, plansDir, confirm, execute)
+
+			if runPrompted != tc.expectRunPrompted {
+				t.Errorf("expected runPrompted=%v, got %v", tc.expectRunPrompted, runPrompted)
 			}
 		})
 	}
 }
 
-// TestChainAfterRefineDecomposedCountIncrementsIncorrectly is a documentary test
-// that documents a potential issue: decomposedCount increments when execGromit
-// returns nil for exit failures (because execGromit treats ExitError as "handled").
-func TestChainAfterRefineDecomposedCountIncrementsIncorrectly(t *testing.T) {
-	// This test documents the current behavior:
-	// execGromit returns nil for *exec.ExitError (subprocess printed its own errors)
-	// So chainAfterRefine's Phase 2 increments decomposedCount even on non-zero exits
-
+// TestChainAfterRefineDecomposedCountWithExecuteReturningNil verifies behavior when execute returns nil for failures
+func TestChainAfterRefineDecomposedCountWithExecuteReturningNil(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
 	if err := os.MkdirAll(plansDir, 0755); err != nil {
 		t.Fatalf("failed to create plans dir: %v", err)
 	}
 
-	// Create a plan file
-	planFile := filepath.Join(plansDir, "spec1.md")
-	if err := os.WriteFile(planFile, []byte("# Plan"), 0644); err != nil {
-		t.Fatalf("failed to create plan file: %v", err)
-	}
+	specNames := []string{"spec1"}
+	runPrompted := false
 
-	// Simulate the buggy behavior in code
-	var decomposedCount int
-
-	// Simulate execGromit returning nil even for exit 1
-	tmpProg := filepath.Join(tmpDir, "fail.go")
-	code := `package main
-import "os"
-func main() {
-	os.Exit(1)
-}
-`
-	if err := os.WriteFile(tmpProg, []byte(code), 0644); err != nil {
-		t.Fatalf("failed to write test program: %v", err)
-	}
-
-	binary := filepath.Join(tmpDir, "testbin")
-	buildCmd := exec.Command("go", "build", "-o", binary, tmpProg)
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build test program: %v", err)
-	}
-
-	cmd := exec.Command(binary)
-	err := cmd.Run()
-
-	// Simulate execGromit's buggy logic
-	if _, ok := err.(*exec.ExitError); ok {
-		err = nil
-	}
-
-	// Bug: err is now nil even though subprocess failed
-	if err != nil {
-		// Don't increment
-	} else {
-		// BUG: This increments even on failure
-		decomposedCount++
-	}
-
-	// Verify the bug
-	if decomposedCount != 1 {
-		t.Errorf("expected decomposedCount=1 due to bug (nil error for exit 1), got %d", decomposedCount)
-	}
-}
-
-// TestChainAfterRefineBreakOnDecline is a documentary test that demonstrates
-// the break-on-decline behavior in chainAfterRefine phases.
-func TestChainAfterRefineBreakOnDecline(t *testing.T) {
-	// This test documents the logic that when a user declines a prompt,
-	// remaining items in that phase are skipped (the loop breaks in chainAfterRefine)
-
-	// Simulate the break logic from Phase 1
-	specNames := []string{"spec1", "spec2", "spec3"}
-	var processedSpecs []string
-
-	for _, specName := range specNames {
-		// Simulate user declining on spec2
-		if specName == "spec2" {
-			break // This is what happens when user declines
+	confirm := func(prompt string, defaultYes bool) bool {
+		if strings.Contains(prompt, "gromit run") {
+			runPrompted = true
 		}
-		processedSpecs = append(processedSpecs, specName)
+		return true
 	}
 
-	// Verify: only spec1 should be processed (spec2 declined, spec3 never reached)
-	if len(processedSpecs) != 1 {
-		t.Errorf("expected 1 processed spec after decline, got %d: %v", len(processedSpecs), processedSpecs)
+	// Execute creates plan file, but decompose fails (returns nil without updating frontmatter)
+	execute := func(args ...string) error {
+		if len(args) >= 2 && args[0] == "plan" {
+			specName := args[1]
+			planPath := filepath.Join(plansDir, specName+".md")
+			return os.WriteFile(planPath, []byte("# Plan"), 0644)
+		}
+		if len(args) >= 2 && args[0] == "decompose" {
+			// Return nil but don't mark as decomposed (simulating exit failure but nil error)
+			return nil
+		}
+		return nil
 	}
-	if processedSpecs[0] != "spec1" {
-		t.Errorf("expected spec1, got %s", processedSpecs[0])
+
+	chainAfterRefine(specNames, plansDir, confirm, execute)
+
+	// Verify: run should NOT be prompted because decompose didn't actually succeed
+	// (frontmatter not updated with decomposed: true)
+	if runPrompted {
+		t.Error("expected run NOT to be prompted when decompose fails to set decomposed flag")
+	}
+}
+
+// TestChainAfterRefineBreakOnDecline verifies that declining skips remaining items in phase
+func TestChainAfterRefineBreakOnDecline(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatalf("failed to create plans dir: %v", err)
+	}
+
+	specNames := []string{"spec1", "spec2", "spec3"}
+	var promptedSpecs []string
+	var executedSpecs []string
+
+	// Decline on spec2
+	confirm := func(prompt string, defaultYes bool) bool {
+		for _, name := range specNames {
+			if strings.Contains(prompt, name) {
+				promptedSpecs = append(promptedSpecs, name)
+				// Decline on spec2
+				if name == "spec2" {
+					return false
+				}
+				return true
+			}
+		}
+		return true
+	}
+
+	execute := func(args ...string) error {
+		if len(args) >= 2 && args[0] == "plan" {
+			specName := args[1]
+			executedSpecs = append(executedSpecs, specName)
+		}
+		return nil
+	}
+
+	chainAfterRefine(specNames, plansDir, confirm, execute)
+
+	// Verify: spec1 and spec2 were prompted, but only spec1 was executed
+	if len(promptedSpecs) != 2 {
+		t.Errorf("expected 2 specs prompted (spec1, spec2), got %d: %v", len(promptedSpecs), promptedSpecs)
+	}
+	if len(executedSpecs) != 1 || executedSpecs[0] != "spec1" {
+		t.Errorf("expected only spec1 executed, got %v", executedSpecs)
 	}
 }
 
