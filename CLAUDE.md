@@ -69,6 +69,10 @@ golangci-lint run ./...                 # Lint
 - **Max 2 files touched** — if more, consider splitting the bead
 - **Clear definition of done** — each criterion has an obvious pass/fail test
 
+## Capturing Ideas vs Creating Beads
+
+When asked to add something to the backlog, use `gromit add "<idea>"` — not `bd create`. The backlog is for rough ideas that flow through the refine → plan → decompose pipeline. Only use `bd create` when you have a fully scoped, ready-to-implement task with clear acceptance criteria.
+
 ## bd Integration
 
 - `bd ready --json --limit 1` — get next unblocked bead

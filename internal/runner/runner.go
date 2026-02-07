@@ -359,6 +359,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			}
 		}
 
+		// Run between-iterations command if configured
+		r.runBetweenIterationsCommand()
+
 		// Check epic completion trigger
 		if b.Parent != "" && r.cfg.Review.Thorough.Enabled && r.cfg.Review.Thorough.ShouldRunOnEpicComplete() {
 			hasChildren, err := r.beads.HasOpenChildren(b.Parent)
@@ -1329,6 +1332,28 @@ func (r *Runner) writeReviewLog(iteration int, beadID string, model string, resu
 		BacklogCreated: backlogCreated,
 		DurationMs:     duration.Milliseconds(),
 	})
+}
+
+// runBetweenIterationsCommand runs the user-configured command between iterations.
+// If the command is empty, does nothing. If the command fails, logs a warning but does not
+// stop the loop or return an error.
+func (r *Runner) runBetweenIterationsCommand() {
+	if r == nil || r.cfg == nil {
+		return
+	}
+	command := r.cfg.Loop.BetweenIterationsCommand
+	if command == "" {
+		return
+	}
+
+	r.log("Running between-iterations command: %s", command)
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Stdout = r.output
+	cmd.Stderr = r.output
+
+	if err := cmd.Run(); err != nil {
+		r.log("Warning: between-iterations command failed: %v", err)
+	}
 }
 
 // runThoroughReview runs a periodic thorough review of all changes since the last review

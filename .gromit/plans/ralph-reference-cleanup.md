@@ -1,8 +1,9 @@
 ---
+created: 2026-02-06T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-07T04:50:18-05:00"
 id: ralph-reference-cleanup
 source_spec: ralph-reference-cleanup
-created: 2026-02-06
-decomposed: false
 ---
 
 # Ralph Reference Cleanup Implementation Plan

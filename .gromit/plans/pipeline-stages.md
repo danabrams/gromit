@@ -1,3 +1,8 @@
+---
+decomposed: true
+decomposed_at: "2026-02-07T10:00:00-05:00"
+---
+
 # Pipeline Stages Implementation Plan
 
 ## Context

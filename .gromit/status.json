@@ -1,9 +1,9 @@
 {
   "running": true,
-  "iteration": 18,
-  "bead_id": "ralph-runner-cyg7.3",
-  "bead_title": "Verify compilation and run tests",
+  "iteration": 37,
+  "bead_id": "ralph-runner-mmw3",
+  "bead_title": "Implement runBetweenIterationsCommand method",
   "model": "sonnet",
-  "started_at": "2026-02-06T22:24:42.254637516-05:00",
-  "elapsed_s": 2096
+  "started_at": "2026-02-07T04:21:21.32503132-05:00",
+  "elapsed_s": 6301
 }

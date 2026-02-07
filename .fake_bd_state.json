@@ -1,0 +1,19 @@
+{
+  "beads": [
+    {
+      "id": "test-bead-1",
+      "title": "Test bead",
+      "description": "",
+      "priority": 1,
+      "labels": [
+        "test-label"
+      ],
+      "parent": "",
+      "issue_type": "task",
+      "status": "open",
+      "owner": "",
+      "expected_outputs": []
+    }
+  ],
+  "next_id": 2
+}
