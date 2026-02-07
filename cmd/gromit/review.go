@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -229,8 +230,18 @@ func isCommitEarlier(commit1, commit2 string) bool {
 		return false
 	}
 
-	timestamp1 := strings.TrimSpace(string(out1))
-	timestamp2 := strings.TrimSpace(string(out2))
+	timestamp1Str := strings.TrimSpace(string(out1))
+	timestamp2Str := strings.TrimSpace(string(out2))
+
+	timestamp1, err := strconv.ParseInt(timestamp1Str, 10, 64)
+	if err != nil {
+		return false
+	}
+
+	timestamp2, err := strconv.ParseInt(timestamp2Str, 10, 64)
+	if err != nil {
+		return false
+	}
 
 	return timestamp1 < timestamp2
 }
