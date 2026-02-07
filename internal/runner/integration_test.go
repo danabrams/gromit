@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1173,5 +1175,98 @@ func TestHeartbeatTrailingNewline(t *testing.T) {
 	// Check that bead was closed successfully
 	if len(beads.ClosedIDs) != 1 {
 		t.Errorf("expected 1 bead closed, got %d", len(beads.ClosedIDs))
+	}
+}
+
+// TestIntegration_BetweenIterationsCommand verifies that a configured
+// between-iterations command runs after successful bead completion and
+// does not run after failed bead.
+func TestIntegration_BetweenIterationsCommand(t *testing.T) {
+	// Create a temporary file to track command executions
+	tmpFile := filepath.Join(t.TempDir(), "command-log.txt")
+
+	beadQueue := []*bead.Bead{
+		{ID: "bead-1", Title: "First task (succeeds)", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}},
+		{ID: "bead-2", Title: "Second task (fails)", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}},
+		{ID: "bead-3", Title: "Third task (succeeds)", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}},
+	}
+	beadIdx := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			if beadIdx >= len(beadQueue) {
+				return nil, nil
+			}
+			b := beadQueue[beadIdx]
+			beadIdx++
+			return b, nil
+		},
+	}
+
+	// Mock Claude client: first bead succeeds, second fails, third succeeds
+	claudeCallCount := 0
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			claudeCallCount++
+			if claudeCallCount == 2 {
+				// Second bead fails
+				return &claude.Result{Success: false, Output: "build failed", ExitCode: 1}, nil
+			}
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+	var buf strings.Builder
+
+	// Configure between-iterations command that appends to the log file
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{BeadTimeout: 60},
+		Loop: config.LoopConfig{
+			BetweenIterationsCommand: fmt.Sprintf("echo 'command ran' >> %s", tmpFile),
+			StopOnFailure:            false, // Continue after failure
+		},
+	}
+
+	r, err := NewRunnerWithDeps(
+		cfg,
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog},
+	)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+
+	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Only beads 1 and 3 should be closed (2 failed)
+	if len(beads.ClosedIDs) != 2 {
+		t.Errorf("expected 2 beads closed, got %d: %v", len(beads.ClosedIDs), beads.ClosedIDs)
+	}
+
+	// Verify the command log file was created and contains exactly 2 lines
+	// (once after bead-1, once after bead-3, but NOT after bead-2 which failed)
+	data, err := os.ReadFile(tmpFile)
+	if err != nil {
+		t.Fatalf("failed to read command log file: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 {
+		t.Errorf("expected 2 command executions (after successful beads), got %d: %v", len(lines), lines)
+	}
+
+	for i, line := range lines {
+		if line != "command ran" {
+			t.Errorf("line %d: expected 'command ran', got %q", i, line)
+		}
+	}
+
+	// Verify the output contains the command execution messages
+	output := buf.String()
+	cmdMsgCount := strings.Count(output, "Running between-iterations command")
+	if cmdMsgCount != 2 {
+		t.Errorf("expected 2 'Running between-iterations command' messages in output, got %d", cmdMsgCount)
 	}
 }
