@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/test/testutil"
 )
 
 var (
@@ -52,21 +54,10 @@ func TestMain(m *testing.M) {
 func runGromit(t *testing.T, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 
-	cmd := exec.Command(binaryPath, args...)
-
-	outBuf, outErr := cmd.Output()
-	exitCode = 0
-
-	if outErr != nil {
-		if exitErr, ok := outErr.(*exec.ExitError); ok {
-			stderr = string(exitErr.Stderr)
-			exitCode = exitErr.ExitCode()
-		} else {
-			t.Fatalf("Failed to run gromit %v: %v", args, outErr)
-		}
+	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(binaryPath, "", nil, "", args...)
+	if err != nil {
+		t.Fatalf("Failed to run gromit %v: %v", args, err)
 	}
-
-	stdout = string(outBuf)
 
 	return stdout, stderr, exitCode
 }
@@ -76,22 +67,10 @@ func runGromit(t *testing.T, args ...string) (stdout, stderr string, exitCode in
 func runGromitWithStdin(t *testing.T, stdin string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 
-	cmd := exec.Command(binaryPath, args...)
-	cmd.Stdin = strings.NewReader(stdin)
-
-	outBuf, outErr := cmd.Output()
-	exitCode = 0
-
-	if outErr != nil {
-		if exitErr, ok := outErr.(*exec.ExitError); ok {
-			stderr = string(exitErr.Stderr)
-			exitCode = exitErr.ExitCode()
-		} else {
-			t.Fatalf("Failed to run gromit %v with stdin: %v", args, outErr)
-		}
+	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(binaryPath, "", nil, stdin, args...)
+	if err != nil {
+		t.Fatalf("Failed to run gromit %v with stdin: %v", args, err)
 	}
-
-	stdout = string(outBuf)
 
 	return stdout, stderr, exitCode
 }
