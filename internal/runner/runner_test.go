@@ -2040,3 +2040,168 @@ func TestTDDPromptSelection(t *testing.T) {
 		})
 	}
 }
+
+func TestRunnerStatusWithLiveRun(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupStatus    func(gromitDir string) error
+		expectedOutput []string
+		notExpected    []string
+		description    string
+	}{
+		{
+			name: "No status file - shows next bead",
+			setupStatus: func(gromitDir string) error {
+				// Don't create status.json
+				return nil
+			},
+			expectedOutput: []string{"Next bead:", "test-1", "Test bead"},
+			notExpected:    []string{"Run in progress:", "Warning: stale run"},
+			description:    "When status.json doesn't exist, should show normal status",
+		},
+		{
+			name: "Live run - shows run in progress",
+			setupStatus: func(gromitDir string) error {
+				// Create status file with current PID (which is alive)
+				sw, err := NewStatusWriter(gromitDir)
+				if err != nil {
+					return err
+				}
+				return sw.Write(1, "bead-123", "Building feature X", "sonnet", true)
+			},
+			expectedOutput: []string{"Run in progress:", "Iteration: 1", "Bead: bead-123 - Building feature X", "Model: sonnet", "Elapsed:"},
+			notExpected:    []string{"Warning: stale run"},
+			description:    "When status.json exists with alive PID, should show run in progress",
+		},
+		{
+			name: "Stale status file - warns and cleans up",
+			setupStatus: func(gromitDir string) error {
+				// Create status file with a fake PID that won't exist
+				status := Status{
+					Running:   true,
+					Iteration: 2,
+					BeadID:    "bead-456",
+					BeadTitle: "Old bead",
+					Model:     "haiku",
+					StartedAt: time.Now().Add(-1 * time.Hour),
+					ElapsedS:  3600,
+					PID:       999999, // PID that won't exist
+				}
+				data, err := json.MarshalIndent(status, "", "  ")
+				if err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644)
+			},
+			expectedOutput: []string{"Warning: stale run detected", "Bead: bead-456 - Old bead", "Removing stale status file", "Next bead:"},
+			notExpected:    []string{"Run in progress:"},
+			description:    "When status.json exists with dead PID, should warn and clean up",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			gromitDir := filepath.Join(tmpDir, ".gromit")
+			if err := os.MkdirAll(gromitDir, 0755); err != nil {
+				t.Fatalf("Failed to create gromit dir: %v", err)
+			}
+
+			// Setup status file
+			if err := tt.setupStatus(gromitDir); err != nil {
+				t.Fatalf("Failed to setup status: %v", err)
+			}
+
+			// Create mock bead client
+			mockBeads := &mockBeadClientForStatus{
+				ready: &bead.Bead{
+					ID:       "test-1",
+					Title:    "Test bead",
+					Priority: 1,
+					Labels:   []string{},
+				},
+			}
+
+			cfg := &config.Config{}
+			var buf strings.Builder
+			r := &Runner{
+				cfg:       cfg,
+				beads:     mockBeads,
+				output:    &buf,
+				gromitDir: gromitDir,
+			}
+
+			// Call Status
+			err := r.Status()
+			if err != nil {
+				t.Fatalf("Status() failed: %v", err)
+			}
+
+			output := buf.String()
+
+			// Check expected strings
+			for _, expected := range tt.expectedOutput {
+				if !strings.Contains(output, expected) {
+					t.Errorf("%s\nExpected output to contain %q\nGot:\n%s", tt.description, expected, output)
+				}
+			}
+
+			// Check strings that should not be present
+			for _, notExpected := range tt.notExpected {
+				if strings.Contains(output, notExpected) {
+					t.Errorf("%s\nExpected output NOT to contain %q\nGot:\n%s", tt.description, notExpected, output)
+				}
+			}
+
+			// For stale status test, verify file was deleted
+			if tt.name == "Stale status file - warns and cleans up" {
+				statusPath := filepath.Join(gromitDir, "status.json")
+				if _, err := os.Stat(statusPath); !os.IsNotExist(err) {
+					t.Errorf("Expected status.json to be deleted, but it still exists")
+				}
+			}
+		})
+	}
+}
+
+// mockBeadClientForStatus is a minimal mock for testing Status()
+type mockBeadClientForStatus struct {
+	ready *bead.Bead
+	err   error
+}
+
+func (m *mockBeadClientForStatus) Ready() (*bead.Bead, error) {
+	return m.ready, m.err
+}
+
+func (m *mockBeadClientForStatus) Show(id string) (*bead.Bead, error) {
+	return nil, nil
+}
+
+func (m *mockBeadClientForStatus) Close(id string) error {
+	return nil
+}
+
+func (m *mockBeadClientForStatus) Sync() error {
+	return nil
+}
+
+func (m *mockBeadClientForStatus) AddComment(id, comment string) error {
+	return nil
+}
+
+func (m *mockBeadClientForStatus) GetParent(b *bead.Bead) (*bead.Bead, error) {
+	return nil, nil
+}
+
+func (m *mockBeadClientForStatus) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+	return nil, nil
+}
+
+func (m *mockBeadClientForStatus) CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+	return nil, nil
+}
+
+func (m *mockBeadClientForStatus) HasOpenChildren(parentID string) (bool, error) {
+	return false, nil
+}

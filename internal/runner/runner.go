@@ -853,8 +853,6 @@ func (r *Runner) isStuckBeadWithStats(b *bead.Bead, beadStats map[string]logger.
 	return stats.Failures >= r.cfg.Loop.StuckBeadThreshold
 }
 
-// isStuckBead checks if a bead has failed too many times across runs
-// (deprecated: use isStuckBeadWithStats with pre-loaded stats for better efficiency)
 // Status returns the current queue status
 func (r *Runner) Status() error {
 	if r == nil {
@@ -863,6 +861,39 @@ func (r *Runner) Status() error {
 	if r.beads == nil {
 		return fmt.Errorf("runner beads client is nil")
 	}
+
+	// Check for a run in progress
+	status, err := ReadStatus(r.gromitDir)
+	if err != nil {
+		r.log("Warning: error reading status file: %v", err)
+	}
+	if status != nil {
+		if IsProcessAlive(status.PID) {
+			// Run is still active
+			r.log("Run in progress:")
+			r.log("  Iteration: %d", status.Iteration)
+			r.log("  Bead: %s - %s", status.BeadID, status.BeadTitle)
+			r.log("  Model: %s", status.Model)
+			r.log("  Elapsed: %ds", status.ElapsedS)
+			r.log("")
+		} else {
+			// Stale status file
+			elapsed := time.Since(status.StartedAt)
+			r.log("Warning: stale run detected from %s (%s ago)",
+				status.StartedAt.Format(time.RFC3339),
+				elapsed.Round(time.Second))
+			r.log("  Bead: %s - %s", status.BeadID, status.BeadTitle)
+			r.log("  Removing stale status file")
+
+			// Delete the stale file
+			sw, err := NewStatusWriter(r.gromitDir)
+			if err == nil {
+				_ = sw.Delete() // Ignore error - we'll proceed anyway
+			}
+			r.log("")
+		}
+	}
+
 	b, err := r.beads.Ready()
 	if err != nil {
 		return fmt.Errorf("getting ready beads: %w", err)
