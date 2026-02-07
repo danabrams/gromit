@@ -103,3 +103,66 @@ func TestCLIContractInfrastructure(t *testing.T) {
 		t.Errorf("goldenPath(test) = %s, want %s", path, expected)
 	}
 }
+
+// TestCLIContract_HelpText verifies help output for all commands matches golden files
+func TestCLIContract_HelpText(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"root", []string{"--help"}},
+		{"run", []string{"run", "--help"}},
+		{"init", []string{"init", "--help"}},
+		{"status", []string{"status", "--help"}},
+		{"retro", []string{"retro", "--help"}},
+		{"add", []string{"add", "--help"}},
+		{"backlog", []string{"backlog", "--help"}},
+		{"backlog-delete", []string{"backlog", "delete", "--help"}},
+		{"board", []string{"board", "--help"}},
+		{"queue", []string{"queue", "--help"}},
+		{"triage", []string{"triage", "--help"}},
+		{"refine", []string{"refine", "--help"}},
+		{"plan", []string{"plan", "--help"}},
+		{"review", []string{"review", "--help"}},
+		{"decompose", []string{"decompose", "--help"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, exitCode := runGromit(t, tt.args...)
+
+			// Help commands should exit with code 0
+			if exitCode != 0 {
+				t.Errorf("gromit %v exited with code %d, stderr: %s", tt.args, exitCode, stderr)
+			}
+
+			// Get golden file path
+			golden := goldenPath(tt.name)
+
+			// If -update flag is set, write the golden file
+			if *update {
+				dir := filepath.Dir(golden)
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					t.Fatalf("failed to create golden directory: %v", err)
+				}
+				if err := os.WriteFile(golden, []byte(stdout), 0644); err != nil {
+					t.Fatalf("failed to write golden file: %v", err)
+				}
+				t.Logf("Updated golden file: %s", golden)
+				return
+			}
+
+			// Read golden file
+			expected, err := os.ReadFile(golden)
+			if err != nil {
+				t.Fatalf("failed to read golden file %s: %v\nRun with -update flag to create it", golden, err)
+			}
+
+			// Compare output
+			if stdout != string(expected) {
+				t.Errorf("help output mismatch for %s\nRun with -update flag to update golden file\n\nGot:\n%s\n\nExpected:\n%s",
+					tt.name, stdout, string(expected))
+			}
+		})
+	}
+}

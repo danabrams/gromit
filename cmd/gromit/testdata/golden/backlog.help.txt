@@ -1,0 +1,24 @@
+List ideas in the backlog that haven't been refined into beads yet.
+
+Examples:
+  gromit backlog              # List all ideas
+  gromit backlog --type bug   # Filter by type
+  gromit backlog --recent 7   # Ideas from last 7 days
+  gromit backlog delete <id>  # Remove an idea
+
+Usage:
+  gromit backlog [flags]
+  gromit backlog [command]
+
+Available Commands:
+  delete      Delete an idea from the backlog
+
+Flags:
+  -h, --help          help for backlog
+      --recent int    Show only ideas from last N days
+      --type string   Filter by type (feature, bug, chore)
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")
+
+Use "gromit backlog [command] --help" for more information about a command.

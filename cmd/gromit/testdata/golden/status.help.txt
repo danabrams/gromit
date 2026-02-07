@@ -1,0 +1,10 @@
+Display information about the next bead in the queue and what model would be used.
+
+Usage:
+  gromit status [flags]
+
+Flags:
+  -h, --help   help for status
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

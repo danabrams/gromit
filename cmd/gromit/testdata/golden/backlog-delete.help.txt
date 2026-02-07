@@ -1,0 +1,10 @@
+Delete an idea from the backlog
+
+Usage:
+  gromit backlog delete <id> [flags]
+
+Flags:
+  -h, --help   help for delete
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

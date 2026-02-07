@@ -1,0 +1,24 @@
+Start an interactive Claude Code session to create an implementation plan from a spec.
+
+Two input modes:
+  gromit plan                    # Interactive picker for available specs
+  gromit plan <spec-name>        # Plan a specific spec
+
+The command launches Claude with:
+- Full spec content as context
+- Plans directory path for output
+- Spec name for naming the plan file
+- Open beads (current tasks) as project context
+- References the gromit-plan skill for architecture and test planning
+
+Plan refuses to run if a plan already exists for that spec unless --force is passed.
+
+Usage:
+  gromit plan [spec-name] [flags]
+
+Flags:
+      --force   Regenerate plan even if it already exists
+  -h, --help    help for plan
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

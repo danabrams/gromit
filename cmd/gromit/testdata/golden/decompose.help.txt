@@ -1,0 +1,31 @@
+Decompose an implementation plan into bd beads automatically.
+
+This command reads a plan file, invokes Claude non-interactively to extract
+tasks and map them to beads following bead sizing rules, then creates the
+beads via bd create.
+
+Usage:
+  gromit decompose <plan-name>           # Decompose plan fully automatically
+  gromit decompose <plan-name> --review  # Show proposed beads before creating
+  gromit decompose <plan-name> --force   # Re-decompose even if already done
+
+The plan must exist in the configured plans directory (.gromit/plans/ by default).
+After successful decomposition, the plan frontmatter is updated with:
+  - decomposed: true
+  - decomposed_at: <timestamp>
+
+Each bead is created with:
+  - spec:<plan-name> label for traceability
+  - Dependencies mapped from the plan's task dependencies
+  - Priority and acceptance criteria from Claude's analysis
+
+Usage:
+  gromit decompose <plan-name> [flags]
+
+Flags:
+      --force    Re-decompose even if already done
+  -h, --help     help for decompose
+      --review   Show proposed beads before creating
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

@@ -1,0 +1,22 @@
+Run a thorough review of recent changes.
+
+Interactive mode (default): Launches a Claude Code session for collaborative review.
+Non-interactive mode (--non-interactive): Runs autonomously, creates beads for issues found.
+
+Scope options:
+  --since <commit>   Review from a specific commit
+  --epic <id>        Review changes from an epic's child beads
+  (default)          Review since last thorough review
+
+Usage:
+  gromit review [flags]
+
+Flags:
+      --dry-run           Preview what would be reviewed
+      --epic string       Review changes from this epic's beads
+  -h, --help              help for review
+      --non-interactive   Run review autonomously without interactive session
+      --since string      Review from this commit
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

@@ -1,0 +1,26 @@
+Bootstrap gromit configuration and templates in the current directory.
+
+Creates:
+  gromit.yaml           - Configuration file
+  .gromit/
+    templates/         - Prompt templates
+      PROMPT_build.md
+      PROMPT_validate.md
+      PROMPT_analyze.md
+      PROMPT_retro.md
+      PROMPT_scope.md
+      PROMPT_decompose.md
+      PROMPT_review.md
+      PROMPT_thorough_review.md
+    specs/             - Specification files (empty)
+    plans/             - Plan files (empty)
+
+Usage:
+  gromit init [flags]
+
+Flags:
+  -f, --force   Overwrite existing files
+  -h, --help    help for init
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

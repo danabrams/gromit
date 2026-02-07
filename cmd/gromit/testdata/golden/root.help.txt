@@ -1,0 +1,30 @@
+Gromit executes AI coding tasks with fresh context on each iteration.
+
+It integrates with bd (beads) for task management and uses model escalation
+for handling failures efficiently.
+
+Usage:
+  gromit [command]
+
+Available Commands:
+  add         Add an idea to the backlog
+  backlog     View and manage the idea backlog
+  board       Show all beads grouped by status
+  completion  Generate the autocompletion script for the specified shell
+  decompose   Decompose a plan into bd beads
+  help        Help about any command
+  init        Initialize gromit in the current project
+  plan        Create an implementation plan from a spec
+  queue       Show processing queue with model assignments
+  refine      Refine ideas into structured specs
+  retro       Run retrospective analysis
+  review      Run a thorough code review
+  run         Run the Gromit loop
+  status      Show current queue status
+  triage      Interactively triage open beads
+
+Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")
+  -h, --help            help for gromit
+
+Use "gromit [command] --help" for more information about a command.

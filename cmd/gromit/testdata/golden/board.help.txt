@@ -1,0 +1,12 @@
+Display all beads organized by status (open vs closed) with priority and title.
+
+Open beads are sorted by priority (P0 first), while closed beads are listed without priority.
+
+Usage:
+  gromit board [flags]
+
+Flags:
+  -h, --help   help for board
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

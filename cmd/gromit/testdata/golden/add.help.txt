@@ -1,0 +1,18 @@
+Quickly capture ideas to the backlog without creating beads yet.
+
+Examples:
+  gromit add "Add cost tracking"
+  gromit add "Fix the auth bug"
+  gromit add "What if we had a web dashboard?"
+
+The command will auto-categorize ideas when obvious (feature/bug/chore)
+or ask for clarification when needed.
+
+Usage:
+  gromit add <idea> [flags]
+
+Flags:
+  -h, --help   help for add
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

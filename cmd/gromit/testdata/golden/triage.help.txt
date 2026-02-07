@@ -1,0 +1,19 @@
+Walk through open beads one at a time for quick triage decisions.
+
+For each bead, you can:
+  (k)eep       - No change, move to next
+  (r)eprioritize - Change priority (P0-P4)
+  (c)lose      - Mark as done/won't do
+  (s)kip       - Skip for now, continue to next
+  (q)uit       - Exit triage mode
+
+Beads are shown in priority order (P0 first).
+
+Usage:
+  gromit triage [flags]
+
+Flags:
+  -h, --help   help for triage
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

@@ -1,0 +1,12 @@
+Display the beads Gromit will process, in order, with their assigned models based on priority and labels.
+
+Also shows any blocked beads and the reason they can't be processed yet.
+
+Usage:
+  gromit queue [flags]
+
+Flags:
+  -h, --help   help for queue
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")

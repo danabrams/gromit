@@ -1,0 +1,21 @@
+Analyze accumulated learnings to identify patterns and recommend rule updates.
+
+The retro command:
+1. Reads LEARNINGS.md
+2. Uses opus to analyze patterns and consolidate learnings
+3. Identifies duplicate or related learnings
+4. Proposes promoting patterns to RULES.md
+5. Suggests archiving stale learnings
+6. Launches Claude Code for interactive review and application
+
+Use --non-interactive to skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md instead.
+
+Usage:
+  gromit retro [flags]
+
+Flags:
+  -h, --help              help for retro
+      --non-interactive   Skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md
+
+Global Flags:
+  -c, --config string   Path to config file (default "gromit.yaml")
