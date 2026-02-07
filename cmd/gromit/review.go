@@ -311,6 +311,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 
 	initialPrompt := fmt.Sprintf("Read and follow the review instructions in %s", promptPath)
 
+	// Build args with configured flags (including --dangerously-skip-permissions if set)
 	args := make([]string, 0, len(cfg.Claude.Flags)+2)
 	args = append(args, cfg.Claude.Flags...)
 	args = append(args, initialPrompt)
