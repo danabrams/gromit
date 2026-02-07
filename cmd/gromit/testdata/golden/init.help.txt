@@ -13,6 +13,9 @@ Creates:
       PROMPT_review.md
       PROMPT_thorough_review.md
       PROMPT_learn.md
+      PROMPT_acceptance_tests.md
+      PROMPT_atdd_build.md
+      PROMPT_refactor.md
     specs/             - Specification files (empty)
     plans/             - Plan files (empty)
 

@@ -26,6 +26,9 @@ Creates:
       PROMPT_review.md
       PROMPT_thorough_review.md
       PROMPT_learn.md
+      PROMPT_acceptance_tests.md
+      PROMPT_atdd_build.md
+      PROMPT_refactor.md
     specs/             - Specification files (empty)
     plans/             - Plan files (empty)`,
 	RunE: runInit,
@@ -110,6 +113,21 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	learnPath := filepath.Join(cwd, ".gromit/templates/PROMPT_learn.md")
 	if err := writeFileIfNotExists(learnPath, defaultLearnTemplate, forceInit); err != nil {
+		return err
+	}
+
+	acceptanceTestsPath := filepath.Join(cwd, ".gromit/templates/PROMPT_acceptance_tests.md")
+	if err := writeFileIfNotExists(acceptanceTestsPath, defaultAcceptanceTestsTemplate, forceInit); err != nil {
+		return err
+	}
+
+	atddBuildPath := filepath.Join(cwd, ".gromit/templates/PROMPT_atdd_build.md")
+	if err := writeFileIfNotExists(atddBuildPath, defaultAtddBuildTemplate, forceInit); err != nil {
+		return err
+	}
+
+	refactorPath := filepath.Join(cwd, ".gromit/templates/PROMPT_refactor.md")
+	if err := writeFileIfNotExists(refactorPath, defaultRefactorTemplate, forceInit); err != nil {
 		return err
 	}
 
@@ -237,6 +255,18 @@ validation:
 # Pre-flight checks - verify required tools before validation
 preflight:
   auto_install: ask  # ask | always | never
+
+# Methodology settings - ATDD workflow phases
+# Uncomment to enable Acceptance Test-Driven Development (ATDD) workflow phases:
+#   - acceptance_tests: Write tests before implementation
+#   - atdd_build: Implement to make tests pass
+#   - refactor: Improve code quality after tests pass
+# methodology:
+#   enabled: false
+#   phases:
+#     - acceptance_tests
+#     - atdd_build
+#     - refactor
 
 # Review settings - post-iteration and thorough reviews
 review:
@@ -1040,4 +1070,340 @@ Examples:
 - {"learning": "Config validation always happens in setDefaults() method, not in Load()", "category": "conventions"}
 - {"learning": "Test files use table-driven tests with t.Run for each case", "category": "patterns"}
 - {"learning": null, "category": "patterns"}
+`
+
+const defaultAcceptanceTestsTemplate = `# Acceptance Test Writing
+
+You are writing acceptance tests for a task before implementation begins. This is the ATDD (Acceptance Test-Driven Development) workflow.
+
+{{if .Rules}}
+## Rules (Non-Negotiable)
+
+{{.Rules}}
+{{end}}
+
+{{if .ConfirmedLearnings}}
+## Learnings (Confirmed Patterns)
+
+These patterns have been observed multiple times in this project:
+
+{{formatLearnings .ConfirmedLearnings}}
+{{end}}
+
+{{if .RecentLearnings}}
+## Recent Learnings
+
+Recent observations that may be relevant:
+
+{{formatLearnings .RecentLearnings}}
+{{end}}
+
+## Project Context
+
+{{if .ClaudeMD}}
+{{.ClaudeMD}}
+{{end}}
+
+## Current Task
+
+**ID:** {{.Bead.ID}}
+**Title:** {{.Bead.Title}}
+**Priority:** P{{.Bead.Priority}}
+{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+
+{{if .Bead.Description}}
+### Description
+{{.Bead.Description}}
+{{end}}
+
+{{if .Spec}}
+## Specification
+
+The following specification provides detailed requirements for this task:
+
+{{.Spec}}
+{{end}}
+
+{{if .ParentBead}}
+## Parent Context
+
+This task is part of: **{{.ParentBead.Title}}**
+{{if .ParentBead.Description}}
+{{.ParentBead.Description}}
+{{end}}
+{{end}}
+
+{{if .IsRetry}}
+## Previous Attempt Failed
+
+{{if .FailureContext}}
+Analysis suggests: {{.FailureContext}}
+{{end}}
+
+Previous output:
+` + "```" + `
+{{.PrevFailure}}
+` + "```" + `
+
+Please analyze the failure and try a different approach.
+{{end}}
+
+## Instructions
+
+Your job is to write acceptance tests that verify the acceptance criteria for this task. **You must NOT write any implementation code.** Only create or modify test files.
+
+1. **Explore the codebase** to understand:
+   - What test framework and conventions are used (e.g., Go's testing package, table-driven tests)
+   - Where test files are located (e.g., ` + "`*_test.go` files alongside implementation)" + `)
+   - How existing tests are structured and named
+   - What helper functions or test utilities exist
+
+2. **Write acceptance tests** that:
+   - Cover each acceptance criterion with at least one test
+   - Follow existing test patterns and naming conventions in the project
+   - Are integration/acceptance level tests, not unit tests (test behavior, not implementation details)
+   - Will fail until the feature is implemented (test for the new behavior)
+   - Are clear, readable, and maintainable
+
+3. **Only modify test files** - do not write any implementation code:
+   - Create new test files following the project's naming conventions
+   - Add test cases to existing test files if appropriate
+   - Do NOT modify implementation files (e.g., non-test .go files)
+   - Do NOT stub out implementations to make tests pass
+
+4. **Commit your changes** with a clear commit message like "test: add acceptance tests for [task title]"
+
+## Important Notes
+
+- These tests MUST fail when first run - they test behavior that doesn't exist yet
+- If you find the behavior already exists, note this clearly in your response
+- Focus on WHAT the system should do (acceptance criteria), not HOW it does it
+- Each acceptance criterion should map to at least one test case
+- Tests should be deterministic and not flaky
+- Follow the project's testing conventions (table-driven tests, helper functions, etc.)
+
+## Completion
+
+When complete:
+- Acceptance test files are created/modified
+- Each acceptance criterion is covered by at least one test
+- No implementation code has been written
+- All changes are committed
+
+Do NOT output any special completion markers - just complete the task and exit.
+`
+
+const defaultAtddBuildTemplate = `# Task Execution
+
+You are executing a single task from the work queue. Focus only on this task.
+
+{{if .Rules}}
+## Rules (Non-Negotiable)
+
+{{.Rules}}
+{{end}}
+
+{{if .ConfirmedLearnings}}
+## Learnings (Confirmed Patterns)
+
+These patterns have been observed multiple times in this project:
+
+{{formatLearnings .ConfirmedLearnings}}
+{{end}}
+
+{{if .RecentLearnings}}
+## Recent Learnings
+
+Recent observations that may be relevant:
+
+{{formatLearnings .RecentLearnings}}
+{{end}}
+
+## Project Context
+
+{{if .ClaudeMD}}
+{{.ClaudeMD}}
+{{end}}
+
+## Current Task
+
+**ID:** {{.Bead.ID}}
+**Title:** {{.Bead.Title}}
+**Priority:** P{{.Bead.Priority}}
+{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+
+{{if .Bead.Description}}
+### Description
+{{.Bead.Description}}
+{{end}}
+
+{{if .Spec}}
+## Specification
+
+The following specification provides detailed requirements for this task:
+
+{{.Spec}}
+{{end}}
+
+{{if .ParentBead}}
+## Parent Context
+
+This task is part of: **{{.ParentBead.Title}}**
+{{if .ParentBead.Description}}
+{{.ParentBead.Description}}
+{{end}}
+{{end}}
+
+{{if .IsRetry}}
+## Previous Attempt Failed
+
+{{if .FailureContext}}
+Analysis suggests: {{.FailureContext}}
+{{end}}
+
+Previous output:
+` + "```" + `
+{{.PrevFailure}}
+` + "```" + `
+
+Please analyze the failure and try a different approach.
+{{end}}
+
+## Instructions
+
+**Acceptance tests have been written and committed.** Your job is to make them pass.
+
+1. **Study the failing tests** - understand what behavior they're testing and why they fail
+2. **Study the codebase** - understand existing patterns and where your implementation should fit
+3. **Implement the functionality** - write the minimal code needed to make the tests pass
+4. **Do NOT modify the test files** - the tests define the behavioral contract; only change implementation code
+5. **Commit your changes** with a clear commit message
+
+## Completion
+
+When the task is complete:
+- All code changes are committed
+- The acceptance tests now pass
+- You have NOT modified any test files
+- The implementation matches the specification
+
+Do NOT output any special completion markers - just complete the task and exit.
+`
+
+const defaultRefactorTemplate = `# Refactoring Phase
+
+You are refactoring the implementation after tests pass. Your goal is to improve code quality without changing behavior.
+
+{{if .Rules}}
+## Rules (Non-Negotiable)
+
+{{.Rules}}
+{{end}}
+
+{{if .ConfirmedLearnings}}
+## Learnings (Confirmed Patterns)
+
+These patterns have been observed multiple times in this project:
+
+{{formatLearnings .ConfirmedLearnings}}
+{{end}}
+
+{{if .RecentLearnings}}
+## Recent Learnings
+
+Recent observations that may be relevant:
+
+{{formatLearnings .RecentLearnings}}
+{{end}}
+
+## Project Context
+
+{{if .ClaudeMD}}
+{{.ClaudeMD}}
+{{end}}
+
+## Current Task
+
+**ID:** {{.Bead.ID}}
+**Title:** {{.Bead.Title}}
+**Priority:** P{{.Bead.Priority}}
+{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+
+{{if .Bead.Description}}
+### Description
+{{.Bead.Description}}
+{{end}}
+
+{{if .Spec}}
+## Specification
+
+The following specification provides detailed requirements for this task:
+
+{{.Spec}}
+{{end}}
+
+{{if .ParentBead}}
+## Parent Context
+
+This task is part of: **{{.ParentBead.Title}}**
+{{if .ParentBead.Description}}
+{{.ParentBead.Description}}
+{{end}}
+{{end}}
+
+{{if .IsRetry}}
+## Previous Attempt Failed
+
+{{if .FailureContext}}
+Analysis suggests: {{.FailureContext}}
+{{end}}
+
+Previous output:
+` + "```" + `
+{{.PrevFailure}}
+` + "```" + `
+
+Please analyze the failure and try a different approach.
+{{end}}
+
+## Instructions
+
+**All tests are passing.** Your job is to review the implementation for quality improvements without changing behavior.
+
+1. **Review the implementation** looking for:
+   - Code duplication or unnecessary complexity
+   - Unclear variable or function names
+   - Missing or misleading comments/documentation
+   - Opportunities to follow established project patterns better
+   - Error handling that could be clearer
+   - Long functions that could be decomposed
+   - Magic numbers or strings that should be constants
+
+2. **Make refactoring changes** that:
+   - Improve readability and maintainability
+   - Do NOT change external behavior (tests must still pass)
+   - Follow existing project conventions and patterns
+   - Are small, focused improvements (not large rewrites)
+   - Make the code clearer, not just different
+
+3. **Do NOT refactor if the code is already clear and follows project conventions** - refactoring for its own sake adds no value
+
+4. **Commit your changes** with a clear commit message like "refactor: improve clarity in [component/function]" - keep refactoring commits separate from implementation commits
+
+## Important Notes
+
+- Refactoring must preserve all existing behavior - tests must still pass
+- Only refactor the code touched by this task, not the entire codebase
+- If the implementation is already clear and well-structured, say so and make no changes
+- Focus on readability and maintainability, not premature optimization
+- Follow the project's existing patterns - don't introduce new styles or conventions
+
+## Completion
+
+When complete:
+- Code quality improvements are committed (if any were needed)
+- All tests still pass (behavior unchanged)
+- Changes follow project conventions
+
+Do NOT output any special completion markers - just complete the task and exit.
 `
