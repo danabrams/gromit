@@ -20,12 +20,35 @@ cat > /dev/null
 # Check for CLAUDE_WRITE_FILE and CLAUDE_WRITE_CONTENT env vars
 # If both are set, create parent directories and write content to file
 if [[ -n "${CLAUDE_WRITE_FILE:-}" ]] && [[ -n "${CLAUDE_WRITE_CONTENT:-}" ]]; then
+    # Validate TEST_DIR is set
+    if [[ -z "${TEST_DIR:-}" ]]; then
+        echo "claude: CLAUDE_WRITE_FILE requires TEST_DIR to be set for path containment validation" >&2
+        exit 1
+    fi
+
+    # Validate CLAUDE_WRITE_FILE is an absolute path
+    if [[ "${CLAUDE_WRITE_FILE}" != /* ]]; then
+        echo "claude: CLAUDE_WRITE_FILE must be an absolute path, got: ${CLAUDE_WRITE_FILE}" >&2
+        exit 1
+    fi
+
+    # Validate path is within TEST_DIR using realpath -m (canonicalize without requiring existence)
+    resolved_test_dir=$(realpath -m "$TEST_DIR")
+    resolved_write_file=$(realpath -m "$CLAUDE_WRITE_FILE")
+
+    if [[ "${resolved_write_file}" != "${resolved_test_dir}"/* ]]; then
+        echo "claude: CLAUDE_WRITE_FILE resolves outside TEST_DIR (path traversal detected)" >&2
+        echo "claude:   TEST_DIR: ${resolved_test_dir}" >&2
+        echo "claude:   WRITE_FILE: ${resolved_write_file}" >&2
+        exit 1
+    fi
+
     # Create parent directories if they don't exist
     parent_dir=$(dirname "$CLAUDE_WRITE_FILE")
     mkdir -p "$parent_dir"
 
-    # Write content to file
-    echo "$CLAUDE_WRITE_CONTENT" > "$CLAUDE_WRITE_FILE"
+    # Write content to file using printf for exact content fidelity
+    printf '%s\n' "$CLAUDE_WRITE_CONTENT" > "$CLAUDE_WRITE_FILE"
 fi
 
 # Check for CLAUDE_FAIL error mode

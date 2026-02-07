@@ -272,3 +272,169 @@ func TestFakes_ClaudeWriteFile(t *testing.T) {
 		t.Errorf("Expected parent directory %s to be created, but it doesn't exist", parentDir)
 	}
 }
+
+// TestFakes_ClaudeWriteFile_MissingTestDir verifies validation when TEST_DIR is not set
+func TestFakes_ClaudeWriteFile_MissingTestDir(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Set up fixture file
+	fixtureContent := "Test output"
+	fixtureFile := filepath.Join(env.Dir, "test_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte(fixtureContent), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	targetFile := filepath.Join(env.Dir, "created_file.txt")
+
+	// Set CLAUDE_WRITE_FILE without TEST_DIR
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", "content")
+	// Remove TEST_DIR from environment
+	env.Env = removeEnvVar(env.Env, "TEST_DIR")
+
+	// Run fake claude - should fail
+	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
+	cmd.Dir = env.Dir
+	cmd.Env = env.Env
+	cmd.Stdin = strings.NewReader("test\n")
+
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Errorf("Expected claude to fail without TEST_DIR, but it succeeded. Output: %s", output)
+	}
+
+	// Verify error message mentions TEST_DIR
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "TEST_DIR") {
+		t.Errorf("Expected error message to mention TEST_DIR, got: %s", outputStr)
+	}
+}
+
+// TestFakes_ClaudeWriteFile_RelativePath verifies validation when path is relative
+func TestFakes_ClaudeWriteFile_RelativePath(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Set up fixture file
+	fixtureContent := "Test output"
+	fixtureFile := filepath.Join(env.Dir, "test_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte(fixtureContent), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	// Use a relative path
+	relativePath := "relative/path/file.txt"
+
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", relativePath)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", "content")
+
+	// Run fake claude - should fail
+	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
+	cmd.Dir = env.Dir
+	cmd.Env = env.Env
+	cmd.Stdin = strings.NewReader("test\n")
+
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Errorf("Expected claude to fail with relative path, but it succeeded. Output: %s", output)
+	}
+
+	// Verify error message mentions absolute path
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "absolute path") {
+		t.Errorf("Expected error message to mention 'absolute path', got: %s", outputStr)
+	}
+}
+
+// TestFakes_ClaudeWriteFile_PathTraversal verifies validation blocks path traversal
+func TestFakes_ClaudeWriteFile_PathTraversal(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Set up fixture file
+	fixtureContent := "Test output"
+	fixtureFile := filepath.Join(env.Dir, "test_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte(fixtureContent), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	// Try to escape TEST_DIR using ..
+	escapePath := filepath.Join(env.Dir, "..", "..", "etc", "passwd")
+
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", escapePath)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", "malicious content")
+
+	// Run fake claude - should fail
+	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
+	cmd.Dir = env.Dir
+	cmd.Env = env.Env
+	cmd.Stdin = strings.NewReader("test\n")
+
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Errorf("Expected claude to fail with path traversal, but it succeeded. Output: %s", output)
+	}
+
+	// Verify error message mentions path traversal or outside TEST_DIR
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "outside TEST_DIR") && !strings.Contains(outputStr, "path traversal") {
+		t.Errorf("Expected error message to mention path containment, got: %s", outputStr)
+	}
+}
+
+// TestFakes_ClaudeWriteFile_ContentFidelity verifies content is written exactly as provided
+func TestFakes_ClaudeWriteFile_ContentFidelity(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Set up fixture file
+	fixtureContent := "Test output"
+	fixtureFile := filepath.Join(env.Dir, "test_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte(fixtureContent), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	// Test content with backslashes and special characters that echo might interpret
+	testCases := []struct {
+		name    string
+		content string
+	}{
+		{"backslash-n", "hello\\nworld"},
+		{"backslash-t", "hello\\tworld"},
+		{"leading-hyphen", "-e test"},
+		{"multiple-backslashes", "path\\to\\file"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			targetFile := filepath.Join(env.Dir, tc.name+".txt")
+
+			env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+			env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
+			env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", tc.content)
+
+			// Run fake claude
+			cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
+			cmd.Dir = env.Dir
+			cmd.Env = env.Env
+			cmd.Stdin = strings.NewReader("test\n")
+
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("claude failed: %v\nOutput: %s", err, output)
+			}
+
+			// Verify file content is literal (not interpreted)
+			createdContent, err := os.ReadFile(targetFile)
+			if err != nil {
+				t.Fatalf("Failed to read created file: %v", err)
+			}
+
+			// printf '%s\n' adds a trailing newline
+			expectedContent := tc.content + "\n"
+			if string(createdContent) != expectedContent {
+				t.Errorf("Content not written literally:\n  expected: %q\n  got:      %q", expectedContent, string(createdContent))
+			}
+		})
+	}
+}

@@ -312,3 +312,15 @@ func replaceOrAppend(env []string, key, value string) []string {
 	}
 	return append(env, prefix+value)
 }
+
+// removeEnvVar removes an environment variable from the env slice.
+func removeEnvVar(env []string, key string) []string {
+	prefix := key + "="
+	result := make([]string, 0, len(env))
+	for _, e := range env {
+		if !strings.HasPrefix(e, prefix) {
+			result = append(result, e)
+		}
+	}
+	return result
+}
