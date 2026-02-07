@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -18,8 +19,9 @@ import (
 )
 
 var (
-	decomposeReview bool
-	decomposeForce  bool
+	decomposeReview  bool
+	decomposeForce   bool
+	decomposeNoChain bool
 )
 
 var decomposeCmd = &cobra.Command{
@@ -52,6 +54,8 @@ Each bead is created with:
 func init() {
 	decomposeCmd.Flags().BoolVar(&decomposeReview, "review", false, "Show proposed beads before creating")
 	decomposeCmd.Flags().BoolVar(&decomposeForce, "force", false, "Re-decompose even if already done")
+	decomposeCmd.Flags().BoolVar(&decomposeNoChain, "no-chain", false, "Skip offering to run next command in pipeline")
+	decomposeCmd.Flags().MarkHidden("no-chain")
 	rootCmd.AddCommand(decomposeCmd)
 }
 
@@ -192,6 +196,12 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\n✓ Created %d bead(s) from plan '%s'\n", len(createdBeads), planName)
+
+	// Offer to chain to 'gromit run' if chaining is enabled
+	if !decomposeNoChain && len(createdBeads) > 0 {
+		chainAfterDecompose()
+	}
+
 	return nil
 }
 
@@ -256,4 +266,15 @@ func promptReviewBeads(beadDefs []beadDef) bool {
 	fmt.Scanln(&response)
 	response = strings.ToLower(strings.TrimSpace(response))
 	return response == "y" || response == "yes"
+}
+
+// chainAfterDecompose offers to run 'gromit run' after beads are created.
+// Default is no [y/N] because the user may want to review beads first.
+func chainAfterDecompose() {
+	reader := bufio.NewReader(os.Stdin)
+	if confirmPrompt(reader, "Run 'gromit run'?", false) {
+		if err := execGromit("run"); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to execute run: %v\n", err)
+		}
+	}
 }
