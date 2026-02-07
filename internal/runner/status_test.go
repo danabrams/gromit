@@ -655,6 +655,135 @@ func TestStatusWriter_WriteFinal_PreservesElapsedTime(t *testing.T) {
 	}
 }
 
+func TestStatusWriter_RoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write a status with all fields populated
+	sw, _ := NewStatusWriter(tmpDir)
+	err := sw.Write(7, "bead-roundtrip-123", "Round Trip Test", "opus", true, 100, 45)
+	if err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Read it back
+	status, err := ReadStatus(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadStatus failed: %v", err)
+	}
+
+	if status == nil {
+		t.Fatal("Expected status, got nil")
+	}
+
+	// Verify all fields round-tripped correctly
+	if status.Running != true {
+		t.Errorf("Expected running=true, got %v", status.Running)
+	}
+	if status.Iteration != 7 {
+		t.Errorf("Expected iteration=7, got %d", status.Iteration)
+	}
+	if status.BeadID != "bead-roundtrip-123" {
+		t.Errorf("Expected BeadID=bead-roundtrip-123, got %s", status.BeadID)
+	}
+	if status.BeadTitle != "Round Trip Test" {
+		t.Errorf("Expected BeadTitle=Round Trip Test, got %s", status.BeadTitle)
+	}
+	if status.Model != "opus" {
+		t.Errorf("Expected Model=opus, got %s", status.Model)
+	}
+	if status.MaxIterations != 100 {
+		t.Errorf("Expected MaxIterations=100, got %d", status.MaxIterations)
+	}
+	if status.TimeBudgetMinutes != 45 {
+		t.Errorf("Expected TimeBudgetMinutes=45, got %d", status.TimeBudgetMinutes)
+	}
+	if status.PID != os.Getpid() {
+		t.Errorf("Expected PID=%d, got %d", os.Getpid(), status.PID)
+	}
+	if status.ElapsedS < 0 {
+		t.Errorf("Expected ElapsedS >= 0, got %d", status.ElapsedS)
+	}
+	if status.StartedAt.IsZero() {
+		t.Error("Expected StartedAt to be set")
+	}
+}
+
+func TestStatusWriter_RoundTrip_WithoutLimits(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write a status with no limits
+	sw, _ := NewStatusWriter(tmpDir)
+	err := sw.Write(3, "bead-nolimit-roundtrip", "No Limits Test", "haiku", true, 0, 0)
+	if err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Read it back
+	status, err := ReadStatus(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadStatus failed: %v", err)
+	}
+
+	if status == nil {
+		t.Fatal("Expected status, got nil")
+	}
+
+	// Verify zero values are preserved
+	if status.MaxIterations != 0 {
+		t.Errorf("Expected MaxIterations=0, got %d", status.MaxIterations)
+	}
+	if status.TimeBudgetMinutes != 0 {
+		t.Errorf("Expected TimeBudgetMinutes=0, got %d", status.TimeBudgetMinutes)
+	}
+	if status.Running != true {
+		t.Errorf("Expected running=true, got %v", status.Running)
+	}
+}
+
+func TestStatusWriter_RoundTrip_Final(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write a final status
+	sw, _ := NewStatusWriter(tmpDir)
+	err := sw.WriteFinal(12)
+	if err != nil {
+		t.Fatalf("WriteFinal failed: %v", err)
+	}
+
+	// Read it back
+	status, err := ReadStatus(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadStatus failed: %v", err)
+	}
+
+	if status == nil {
+		t.Fatal("Expected status, got nil")
+	}
+
+	// Verify final status fields
+	if status.Running != false {
+		t.Errorf("Expected running=false, got %v", status.Running)
+	}
+	if status.Iteration != 12 {
+		t.Errorf("Expected iteration=12, got %d", status.Iteration)
+	}
+	if status.BeadID != "" {
+		t.Errorf("Expected empty BeadID, got %s", status.BeadID)
+	}
+	if status.BeadTitle != "" {
+		t.Errorf("Expected empty BeadTitle, got %s", status.BeadTitle)
+	}
+	if status.Model != "" {
+		t.Errorf("Expected empty Model, got %s", status.Model)
+	}
+	if status.MaxIterations != 0 {
+		t.Errorf("Expected MaxIterations=0, got %d", status.MaxIterations)
+	}
+	if status.TimeBudgetMinutes != 0 {
+		t.Errorf("Expected TimeBudgetMinutes=0, got %d", status.TimeBudgetMinutes)
+	}
+}
+
 // getDeadPID spawns a subprocess that exits immediately and returns its PID
 func getDeadPID(t *testing.T) int {
 	t.Helper()
