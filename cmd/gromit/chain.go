@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/frontmatter"
 )
 
 // confirmPrompt prints a yes/no prompt and reads the user's response.
@@ -79,6 +81,20 @@ func execGromit(args ...string) error {
 	}
 
 	return nil
+}
+
+// isPlanDecomposed reads the plan frontmatter from <plansDir>/<planName>.md
+// and returns true only if the decomposed field is true.
+// Returns false if the file doesn't exist, has no frontmatter, or decomposed is not true.
+func isPlanDecomposed(plansDir, planName string) bool {
+	planPath := filepath.Join(plansDir, planName+".md")
+	fm, _, err := frontmatter.ReadFile(planPath)
+	if err != nil {
+		return false
+	}
+
+	decomposed, ok := fm["decomposed"].(bool)
+	return ok && decomposed
 }
 
 // chainAfterRefine orchestrates the three-phase multi-spec pipeline flow after refine.

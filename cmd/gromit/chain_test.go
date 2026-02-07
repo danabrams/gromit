@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -170,5 +171,96 @@ func TestExecGromitBinaryResolution(t *testing.T) {
 
 	if binary == "" {
 		t.Error("Binary resolution failed - both os.Executable() and os.Args[0] are empty")
+	}
+}
+
+func TestIsPlanDecomposed(t *testing.T) {
+	// Create temp directory for test files
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name     string
+		content  string
+		planName string
+		want     bool
+	}{
+		{
+			name:     "decomposed true",
+			planName: "test-plan-decomposed",
+			content: `---
+id: test-plan
+decomposed: true
+decomposed_at: "2026-02-07T10:00:00Z"
+---
+
+# Test Plan
+
+This plan has been decomposed.
+`,
+			want: true,
+		},
+		{
+			name:     "decomposed false",
+			planName: "test-plan-not-decomposed",
+			content: `---
+id: test-plan
+decomposed: false
+---
+
+# Test Plan
+
+This plan has not been decomposed yet.
+`,
+			want: false,
+		},
+		{
+			name:     "missing decomposed field",
+			planName: "test-plan-no-field",
+			content: `---
+id: test-plan
+created: "2026-02-07"
+---
+
+# Test Plan
+
+This plan has no decomposed field.
+`,
+			want: false,
+		},
+		{
+			name:     "no frontmatter",
+			planName: "test-plan-no-frontmatter",
+			content: `# Test Plan
+
+This plan has no frontmatter at all.
+`,
+			want: false,
+		},
+		{
+			name:     "missing file",
+			planName: "nonexistent-plan",
+			content:  "", // Won't be written
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Write test file if content is provided
+			if tt.content != "" {
+				planPath := filepath.Join(tmpDir, tt.planName+".md")
+				if err := os.WriteFile(planPath, []byte(tt.content), 0644); err != nil {
+					t.Fatalf("Failed to write test file: %v", err)
+				}
+			}
+
+			// Call isPlanDecomposed
+			got := isPlanDecomposed(tmpDir, tt.planName)
+
+			// Check result
+			if got != tt.want {
+				t.Errorf("isPlanDecomposed(%q, %q) = %v, want %v", tmpDir, tt.planName, got, tt.want)
+			}
+		})
 	}
 }
