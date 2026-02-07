@@ -24,7 +24,14 @@ parse_json() {
   if command -v jq >/dev/null 2>&1; then
     jq -r "$field" "$file"
   elif command -v python3 >/dev/null 2>&1; then
-    python3 -c "import json, sys; print(json.load(open('$file'))$field)"
+    python3 -c 'import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+path = sys.argv[2].lstrip(".").split(".")
+for key in path:
+    data = data[key]
+print(data)
+' "$file" "$field"
   else
     echo "Error: Neither jq nor python3 available for JSON parsing" >&2
     exit 1
@@ -93,7 +100,7 @@ build_context() {
       local idea_text=$(parse_json "$STATE_FILE" '.inputs.idea_text')
       local backlog_id=$(parse_json "$STATE_FILE" '.inputs.backlog_id')
 
-      cat <<EOF
+      cat <<'EOF'
 
 ---
 
@@ -101,10 +108,12 @@ build_context() {
 
 You are refining the following backlog item:
 
-**ID:** $backlog_id
-**Idea:** $idea_text
+EOF
+      printf '**ID:** %s\n' "$backlog_id"
+      printf '**Idea:** %s\n' "$idea_text"
+      cat <<'EOF'
 
-Please follow the refine methodology to transform this into a structured spec at \`.gromit/specs/\`.
+Please follow the refine methodology to transform this into a structured spec at `.gromit/specs/`.
 EOF
       ;;
     plan)
@@ -117,7 +126,7 @@ EOF
         open_beads="No open beads"
       fi
 
-      cat <<EOF
+      cat <<'EOF'
 
 ---
 
@@ -125,17 +134,12 @@ EOF
 
 You are planning implementation for the following spec:
 
-**Spec:** $spec_name
-**Path:** $spec_path
-
-**Spec Content:**
-$spec_content
-
-**Open Beads in Project:**
-$open_beads
-
-Please follow the plan methodology to create an implementation plan at \`.gromit/plans/$spec_name.md\`.
 EOF
+      printf '**Spec:** %s\n' "$spec_name"
+      printf '**Path:** %s\n' "$spec_path"
+      printf '\n**Spec Content:**\n%s\n' "$spec_content"
+      printf '\n**Open Beads in Project:**\n%s\n' "$open_beads"
+      printf '\nPlease follow the plan methodology to create an implementation plan at `.gromit/plans/%s.md`.\n' "$spec_name"
       ;;
     *)
       echo ""

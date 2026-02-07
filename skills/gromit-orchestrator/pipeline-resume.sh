@@ -24,13 +24,14 @@ parse_json() {
   if command -v jq >/dev/null 2>&1; then
     jq -r "$field" "$file"
   elif command -v python3 >/dev/null 2>&1; then
-    python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-for key in sys.argv[2].lstrip('.').split('.'):
+    python3 -c 'import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+path = sys.argv[2].lstrip(".").split(".")
+for key in path:
     data = data[key]
 print(data)
-" "$file" "$field"
+' "$file" "$field"
   else
     echo "Error: Neither jq nor python3 available for JSON parsing" >&2
     exit 1
