@@ -56,6 +56,10 @@ func (m *mockRendererWithLearn) RenderScope(ctx *prompt.ScopeContext) (string, e
 	return "mock scope prompt", nil
 }
 
+func (m *mockRendererWithLearn) RenderPrecheck(ctx *prompt.PrecheckContext) (string, error) {
+	return "mock precheck prompt", nil
+}
+
 func (m *mockRendererWithLearn) LoadSpec(name string) (string, error) {
 	return "", nil
 }

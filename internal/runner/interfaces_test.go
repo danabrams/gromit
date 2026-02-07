@@ -169,6 +169,7 @@ type mockPromptRenderer struct {
 	RenderLearnFn           func(ctx *prompt.LearnContext) (string, error)
 	RenderDecomposeFn       func(ctx *prompt.DecomposeContext) (string, error)
 	RenderScopeFn           func(ctx *prompt.ScopeContext) (string, error)
+	RenderPrecheckFn        func(ctx *prompt.PrecheckContext) (string, error)
 	RenderReviewFn          func(ctx *prompt.ReviewContext) (string, error)
 	RenderThoroughReviewFn  func(ctx *prompt.ThoroughReviewContext) (string, error)
 	RenderAcceptanceTestsFn func(ctx *prompt.Context) (string, error)
@@ -228,6 +229,13 @@ func (m *mockPromptRenderer) RenderScope(ctx *prompt.ScopeContext) (string, erro
 		return m.RenderScopeFn(ctx)
 	}
 	return "mock scope prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderPrecheck(ctx *prompt.PrecheckContext) (string, error) {
+	if m.RenderPrecheckFn != nil {
+		return m.RenderPrecheckFn(ctx)
+	}
+	return "mock precheck prompt", nil
 }
 
 func (m *mockPromptRenderer) LoadSpec(name string) (string, error) {
@@ -354,6 +362,10 @@ func (m *mockRenderer) RenderDecompose(ctx *prompt.DecomposeContext) (string, er
 
 func (m *mockRenderer) RenderScope(ctx *prompt.ScopeContext) (string, error) {
 	return "mock scope prompt", nil
+}
+
+func (m *mockRenderer) RenderPrecheck(ctx *prompt.PrecheckContext) (string, error) {
+	return "mock precheck prompt", nil
 }
 
 func (m *mockRenderer) LoadSpec(name string) (string, error) {
