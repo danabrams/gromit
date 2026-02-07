@@ -448,6 +448,73 @@ func (r *Runner) escalateModel(bc *beadContext, nextModel string) {
 	bc.promptCtx.Model = bc.model
 }
 
+// runAcceptanceTests runs the acceptance test phase for ATDD workflow.
+// Uses the same heartbeat/stall detection pattern as executeClaudeInvocation.
+// Returns nil on success or error on failure.
+func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error {
+	// Render acceptance tests prompt
+	acceptancePrompt, err := r.renderer.RenderAcceptanceTests(bc.promptCtx)
+	if err != nil {
+		return fmt.Errorf("rendering acceptance tests prompt: %w", err)
+	}
+
+	// Setup streaming stats and heartbeat monitoring
+	stats, err := logger.NewStreamStats()
+	if err != nil {
+		return err
+	}
+
+	childCtx, childCancel := context.WithCancel(ctx)
+	stallFired := false
+
+	stallTimeout := time.Duration(r.cfg.Claude.StallTimeout) * time.Second
+	stallTimeoutActive := time.Duration(r.cfg.Claude.StallTimeoutActive) * time.Second
+
+	toolCallEvents := make(chan claude.ToolEvent, 10)
+
+	stopHeartbeat := r.startHeartbeat(stats, stallTimeout, stallTimeoutActive, func() {
+		stallFired = true
+		childCancel()
+	}, toolCallEvents)
+
+	var handler claude.EventHandler
+	if r.streamLogger != nil {
+		sl := r.streamLogger
+		handler = func(line []byte) {
+			logger.ParseAndLogEvent(sl, stats, line)
+		}
+	}
+
+	onToolCall := func(event claude.ToolEvent) {
+		select {
+		case toolCallEvents <- event:
+		default:
+		}
+	}
+
+	// Call Claude with the acceptance tests prompt
+	claudeResult, err := r.claude.StreamRun(childCtx, acceptancePrompt, bc.model, r.output, handler, onToolCall)
+	stopHeartbeat()
+	childCancel()
+
+	// Handle stall timeout
+	if stallFired {
+		return fmt.Errorf("stall timeout during acceptance tests")
+	}
+
+	// Handle invocation errors
+	if err != nil {
+		return fmt.Errorf("acceptance tests invocation: %w", err)
+	}
+
+	// Check if Claude succeeded
+	if claudeResult == nil || !claudeResult.Success {
+		return fmt.Errorf("acceptance tests failed")
+	}
+
+	return nil
+}
+
 // runValidation runs the validation step (tests/lint) after a successful build.
 // Returns an error if validation fails or encounters an error.
 func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
