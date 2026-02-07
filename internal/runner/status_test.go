@@ -147,3 +147,37 @@ func TestStatusWriter_ElapsedTime(t *testing.T) {
 		t.Errorf("Expected ElapsedS >= 0, got %d", status.ElapsedS)
 	}
 }
+
+func TestStatusWriter_Write_IncludesPID(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	sw, _ := NewStatusWriter(tmpDir)
+
+	// Write status
+	err := sw.Write(1, "bead-456", "PID Test Bead", "haiku", true)
+	if err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Read status file
+	statusPath := filepath.Join(tmpDir, "status.json")
+	data, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatalf("Could not read status.json: %v", err)
+	}
+
+	// Unmarshal and validate PID
+	var status Status
+	if err := json.Unmarshal(data, &status); err != nil {
+		t.Fatalf("Could not unmarshal status.json: %v", err)
+	}
+
+	expectedPID := os.Getpid()
+	if status.PID != expectedPID {
+		t.Errorf("Expected PID=%d, got %d", expectedPID, status.PID)
+	}
+
+	if status.PID <= 0 {
+		t.Errorf("Expected positive PID, got %d", status.PID)
+	}
+}
