@@ -21,7 +21,7 @@ func TestNewRetroNilConfig(t *testing.T) {
 
 func TestRunNilReceiver(t *testing.T) {
 	var r *Retro
-	_, err := r.Run(context.Background(), false)
+	_, err := r.Run(context.Background())
 	if err == nil {
 		t.Error("expected error for nil retro")
 	}
@@ -31,7 +31,7 @@ func TestRunNilClaudeClient(t *testing.T) {
 	r := &Retro{
 		claude: nil,
 	}
-	_, err := r.Run(context.Background(), false)
+	_, err := r.Run(context.Background())
 	if err == nil {
 		t.Error("expected error for nil claude client")
 	}
@@ -43,7 +43,7 @@ func TestRunNilLearningsFile(t *testing.T) {
 		claude:        claudeClient,
 		learningsFile: nil,
 	}
-	_, err := r.Run(context.Background(), false)
+	_, err := r.Run(context.Background())
 	if err == nil {
 		t.Error("expected error for nil learnings file")
 	}

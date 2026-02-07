@@ -190,8 +190,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create retro analyzer: %w", err)
 	}
 
-	// Don't apply changes automatically - we'll handle that after review
-	result, err := r.Run(ctx, false)
+	result, err := r.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("running retro: %w", err)
 	}

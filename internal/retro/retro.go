@@ -63,7 +63,7 @@ func NewRetro(cfg *config.Config, gromitDir string) (*Retro, error) {
 }
 
 // Run executes the retrospective analysis
-func (r *Retro) Run(ctx context.Context, apply bool) (*Result, error) {
+func (r *Retro) Run(ctx context.Context) (*Result, error) {
 	if r == nil {
 		return nil, fmt.Errorf("retro is nil")
 	}
@@ -130,13 +130,6 @@ func (r *Retro) Run(ctx context.Context, apply bool) (*Result, error) {
 	result := &Result{
 		Analysis: claudeResult.Output,
 		Success:  claudeResult.Success,
-	}
-
-	// If apply flag is set, extract and apply changes
-	if apply && claudeResult.Success {
-		if err := r.applyChanges(claudeResult.Output); err != nil {
-			return nil, fmt.Errorf("applying changes: %w", err)
-		}
 	}
 
 	return result, nil
@@ -229,17 +222,6 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 
 	return sb.String(), nil
-}
-
-// applyChanges writes the analysis output to a file for manual review
-// Claude Code will handle the actual file edits directly
-func (r *Retro) applyChanges(analysis string) error {
-	// Write the analysis to a file for manual review
-	analysisPath := filepath.Join(filepath.Dir(r.rulesPath), "RETRO_PROPOSED_CHANGES.md")
-	if err := os.WriteFile(analysisPath, []byte(analysis), 0644); err != nil {
-		return fmt.Errorf("writing analysis: %w", err)
-	}
-	return nil
 }
 
 // enrichBeadStats populates Status, CloseReason, and Comments fields on BeadStats
