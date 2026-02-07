@@ -1,151 +1,89 @@
-# Ralph Runner
+# Gromit
 
-A Go CLI tool that runs the Ralph Wiggum loop correctly - with fresh context on each iteration.
-
-## Installation
-
-```bash
-# From source
-go install github.com/danabrams/ralph-runner/cmd/ralph@latest
-
-# Or build locally
-cd ralph-runner
-go build -o ralph ./cmd/ralph
-```
+A Go CLI tool that runs the Gromit loop correctly - with fresh context on each iteration.
 
 ## Quick Start
 
 ```bash
-# In your project directory
-ralph init                    # Creates ralph.yaml + .ralph/
-
-# Create beads (tasks) using bd
+gromit init                        # Creates gromit.yaml + .gromit/
 bd create "Implement feature X" --priority 1
-
-# Run the loop
-ralph run                     # Run until no work
-ralph run -n 5                # Run max 5 iterations
-ralph run --dry-run           # Preview without executing
-ralph status                  # Show next bead + model
+gromit run                         # Run until no work
+gromit run -n 5 --time-budget 30   # Max 5 beads, 30-min budget
+gromit status                      # Show next bead + model
 ```
 
 ## Architecture
 
-```
-cmd/ralph/              # CLI entry point
-  main.go               # Root command + run/status
-  init.go               # Init command
-internal/
-  config/               # YAML configuration loading
-  bead/                 # bd CLI integration
-  runner/               # Core loop orchestration
-  prompt/               # Prompt template rendering
-  claude/               # Claude CLI invocation
-  logger/               # JSONL iteration logging
-```
+CLI commands live in `cmd/gromit/` — one file per subcommand. Run `gromit --help` for the full list.
 
-## Project Structure (after `ralph init`)
+Internal packages live in `internal/` — each directory is a focused package. Key ones:
+- `runner/` — core loop orchestration
+- `config/` — YAML config loading
+- `bead/` — bd CLI integration
+- `claude/` — Claude CLI invocation
+- `prompt/` — prompt template rendering
+- `analyzer/` — failure analysis
+- `review/` — post-build code review
+- `learnings/`, `rules/`, `retro/` — self-improvement system
+- `preflight/` — environment checks before validation
+- `state/` — persistent state across runs
+- `logger/` — JSONL iteration logging
+
+## Project Structure (after `gromit init`)
 
 ```
 your-project/
-├── ralph.yaml              # Configuration
-├── CLAUDE.md               # Your project's Claude instructions
-└── .ralph/
-    ├── templates/
-    │   ├── PROMPT_build.md     # Build prompt template
-    │   └── PROMPT_validate.md  # Validation prompt template
-    ├── specs/                  # Spec files for complex features
-    └── logs/                   # Iteration logs (JSONL)
+├── gromit.yaml              # Configuration (see gromit.yaml in repo for full reference)
+└── .gromit/
+    ├── templates/           # Prompt templates (PROMPT_*.md) — one per phase
+    ├── specs/               # Spec files for complex features
+    ├── RULES.md             # Project constraints (non-negotiable)
+    ├── LEARNINGS.md         # Accumulated knowledge
+    └── logs/                # Iteration logs (JSONL + streaming)
+```
+
+Templates are created by `gromit init` and cover: build, validate, analyze, retro, scope, decompose, review, and thorough review.
+
+## Development Commands
+
+```bash
+go fmt ./... && go build ./cmd/gromit   # Format + build
+go test ./...                           # Test
+golangci-lint run ./...                 # Lint
 ```
 
 ## Key Principles
 
-1. **Fresh context each iteration** - Each Claude invocation is a new process
-2. **State in files, not memory** - bd beads + git commits are the memory
-3. **Model selection by complexity** - P0→opus, P1→sonnet, P2→haiku
-4. **Escalation on failure** - haiku→sonnet→opus retry chain
-5. **Separate validation** - Tests/lint run as separate haiku invocation
+1. **Fresh context each iteration** — each Claude invocation is a new process
+2. **State in files, not memory** — bd beads + git commits are the memory
+3. **Model selection by complexity** — P0→opus, P1→sonnet, P2→haiku
+4. **Escalation on failure** — haiku→sonnet→opus retry chain
+5. **Separate validation** — tests/lint run as separate haiku invocation
 
 ## Bead Sizing
 
-Properly sized beads are the foundation of the Ralph Wiggum loop. Follow these rules:
-
-- **One concern per bead** - A single file or two tightly coupled files
-- **1-3 acceptance criteria** - Concrete, testable criteria only; split if more than 3
-- **Self-contained** - Understandable without reading other beads
-- **No ambiguity** - Claude implements without making design decisions
-- **Max 2 files touched** - If more, consider splitting the bead
-- **Clear definition of done** - Each criterion has an obvious pass/fail test
+- **One concern per bead** — a single file or two tightly coupled files
+- **1-3 acceptance criteria** — concrete, testable criteria only; split if more than 3
+- **Self-contained** — understandable without reading other beads
+- **No ambiguity** — Claude implements without making design decisions
+- **Max 2 files touched** — if more, consider splitting the bead
+- **Clear definition of done** — each criterion has an obvious pass/fail test
 
 ## bd Integration
 
-- `bd ready --json --limit 1` - Get next unblocked bead
-- `bd show <id> --json` - Get bead details + parent info
-- `bd close <id>` - Mark bead complete
+- `bd ready --json --limit 1` — get next unblocked bead
+- `bd show <id> --json` — get bead details + parent info
+- `bd close <id>` — mark bead complete
 - Labels: `complexity:high`, `complexity:low`, `spec:<name>`
 
 ## Model Selection
 
-Priority-based:
-- P0 (critical) → opus
-- P1 (normal) → sonnet
-- P2 (low) → haiku
+Priority-based: P0→opus, P1→sonnet, P2→haiku. Label overrides beat priority (`complexity:high`→opus, `complexity:low`→haiku). Validation always uses haiku.
 
-Label overrides (higher precedence):
-- `complexity:high` → opus
-- `complexity:low` → haiku
+## Configuration
 
-Validation always uses haiku for cost efficiency.
+See `gromit.yaml` in the repo root for the full annotated config reference. Key sections: `models`, `escalation`, `loop`, `scope_check`, `validation`, `review`, `preflight`, `claude`, `paths`.
 
-## Spec Files
+## Keeping Docs Current
 
-For complex features, create a spec file in `.ralph/specs/`:
-
-```markdown
-# specs/auth.md
-## Acceptance Criteria
-- JWT-based authentication
-- Refresh token support
-...
-```
-
-Then reference it from beads via label:
-- Epic bead: `bd create "Auth system" --type epic --label spec:auth`
-- Child tasks: `bd create "Add JWT validation" --parent <epic-id>`
-
-Child tasks inherit the spec from their parent epic.
-
-## Configuration (ralph.yaml)
-
-```yaml
-models:
-  p0: opus
-  p1: sonnet
-  p2: haiku
-  validation: haiku
-  labels:
-    "complexity:high": opus
-
-escalation:
-  enabled: true
-  chain: [haiku, sonnet, opus]
-
-validation:
-  enabled: true
-  commands:
-    - "pnpm run test"
-    - "pnpm run lint:check"
-
-claude:
-  timeout: 600
-  flags:
-    - "--dangerously-skip-permissions"
-```
-
-## Logs
-
-Iteration results are logged to `.ralph/logs/run-YYYYMMDD-HHMMSS.jsonl`:
-
-```json
-{"timestamp":"...","iteration":1,"bead_id":"abc-123","model":"sonnet","success":true,"duration_ms":45000}
-```
+CLAUDE.md describes patterns and conventions, not exhaustive file lists. When adding new commands or packages, the architecture section above should stay accurate without edits — it points to directories, not individual files. Update this file only when the project's *principles* or *conventions* change, not when files are added.

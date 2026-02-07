@@ -68,7 +68,7 @@ All review-created beads get a `from-review` label for traceability.
 
 1. **Every N iterations** -- Configurable (default: 5). Counter tracked in `state.json`.
 2. **After epic completion** -- When the last child bead of an epic closes.
-3. **Manual** -- `ralph review` command.
+3. **Manual** -- `gromit review` command.
 
 ### Scope
 
@@ -99,7 +99,7 @@ Beyond the light review dimensions:
 - Cross-cutting concern analysis (are the beads coherent together?)
 - Pattern detection across multiple changes
 
-## `ralph review` Command
+## `gromit review` Command
 
 ### Interactive Mode (Default)
 
@@ -118,11 +118,11 @@ Same as automated thorough review -- opus runs autonomously, fixes minor issues,
 ### Flags
 
 ```
-ralph review                          # interactive, since last review
-ralph review --non-interactive        # automated, since last review
-ralph review --epic abc-123           # scoped to epic
-ralph review --since a1b2c3d          # from specific commit
-ralph review --dry-run                # preview scope
+gromit review                          # interactive, since last review
+gromit review --non-interactive        # automated, since last review
+gromit review --epic abc-123           # scoped to epic
+gromit review --since a1b2c3d          # from specific commit
+gromit review --dry-run                # preview scope
 ```
 
 ## Configuration
@@ -144,7 +144,7 @@ review:
 
 ## State
 
-Additions to `.ralph/state.json`:
+Additions to `.gromit/state.json`:
 
 ```json
 {
@@ -181,12 +181,12 @@ Review results logged to the run JSONL log:
 - **Review fixes break validation**: Treat as build failure, enter retry/escalation. Retry prompt includes context that the review's fix caused the failure.
 - **No review-of-review loops**: One pass only. Issues the reviewer can't fix trivially become beads.
 - **Empty diff**: Skip the review step, log as skipped.
-- **Thorough review creates P0 beads during `ralph run`**: They get picked up next by normal `bd ready` priority ordering.
+- **Thorough review creates P0 beads during `gromit run`**: They get picked up next by normal `bd ready` priority ordering.
 - **Disabling**: Both review types independently toggleable.
 
 ## Templates
 
-Two new templates in `.ralph/templates/`:
+Two new templates in `.gromit/templates/`:
 
 - `PROMPT_review.md` -- Light post-iteration review
 - `PROMPT_thorough_review.md` -- Thorough periodic review
@@ -201,6 +201,6 @@ New package: `internal/review/`
 Integration points:
 - `internal/runner/runner.go` -- Add review step after validation, add thorough review triggers
 - `internal/state/` -- Track review state (last commit, iteration counter)
-- `cmd/ralph/main.go` -- Add `review` subcommand
+- `cmd/gromit/main.go` -- Add `review` subcommand
 
 Single-agent execution for both review types. No parallel subagents -- cross-cutting context matters more than parallelism. Revisit if thorough reviews hit quality or timeout issues.

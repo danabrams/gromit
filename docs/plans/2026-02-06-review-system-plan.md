@@ -4,7 +4,7 @@
 
 **Goal:** Add a two-layer review system — light post-iteration reviews and thorough periodic reviews — that catches issues early and prevents quality debt from accumulating across iterations.
 
-**Architecture:** New `internal/review/` package with `ReviewResult` struct and JSON parsing. Config gets `ReviewConfig` and `ThoroughReviewConfig` types. State gets review tracking fields. Runner integrates light review after validation. New `ralph review` CLI command handles interactive and non-interactive thorough reviews.
+**Architecture:** New `internal/review/` package with `ReviewResult` struct and JSON parsing. Config gets `ReviewConfig` and `ThoroughReviewConfig` types. State gets review tracking fields. Runner integrates light review after validation. New `gromit review` CLI command handles interactive and non-interactive thorough reviews.
 
 **Tech Stack:** Go, cobra CLI, Go text/template, bd CLI, Claude CLI, git diff
 
@@ -92,7 +92,7 @@ Note: `loadFromString` is a test helper. If it doesn't exist already in config_t
 func loadFromString(t *testing.T, yamlStr string) *Config {
 	t.Helper()
 	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "ralph.yaml")
+	path := filepath.Join(tmpDir, "gromit.yaml")
 	if err := os.WriteFile(path, []byte(yamlStr), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -763,7 +763,7 @@ git commit -m "feat: add ReviewContext, ThoroughReviewContext, and render method
 ### Task 6: Create PROMPT_review.md default template
 
 **Files:**
-- Modify: `cmd/ralph/init.go` (add default template constant and write it during init)
+- Modify: `cmd/gromit/init.go` (add default template constant and write it during init)
 
 **Step 1: Write the template**
 
@@ -773,7 +773,7 @@ Add to `init.go` a `defaultReviewTemplate` constant with the full light review p
 
 Add alongside the other template writes:
 ```go
-reviewPath := filepath.Join(cwd, ".ralph/templates/PROMPT_review.md")
+reviewPath := filepath.Join(cwd, ".gromit/templates/PROMPT_review.md")
 if err := writeFileIfNotExists(reviewPath, defaultReviewTemplate, forceInit); err != nil {
 	return err
 }
@@ -781,13 +781,13 @@ if err := writeFileIfNotExists(reviewPath, defaultReviewTemplate, forceInit); er
 
 **Step 3: Run tests**
 
-Run: `go build ./cmd/ralph/`
+Run: `go build ./cmd/gromit/`
 Expected: Compiles without errors
 
 **Step 4: Commit**
 
 ```bash
-git add cmd/ralph/init.go
+git add cmd/gromit/init.go
 git commit -m "feat: add default PROMPT_review.md template to init"
 ```
 
@@ -796,7 +796,7 @@ git commit -m "feat: add default PROMPT_review.md template to init"
 ### Task 7: Create PROMPT_thorough_review.md default template
 
 **Files:**
-- Modify: `cmd/ralph/init.go`
+- Modify: `cmd/gromit/init.go`
 
 Same pattern as Task 6 but for the thorough review template. This template includes additional dimensions (architectural assessment, cross-cutting concerns, pattern detection) and takes `ThoroughReviewContext` variables.
 
@@ -805,7 +805,7 @@ Same pattern as Task 6 but for the thorough review template. This template inclu
 **Step 5: Commit**
 
 ```bash
-git add cmd/ralph/init.go
+git add cmd/gromit/init.go
 git commit -m "feat: add default PROMPT_thorough_review.md template to init"
 ```
 
@@ -1236,7 +1236,7 @@ Add state tracking to the `Run` method. Load state at the start, increment count
 
 ```go
 // At start of Run(), load state
-sf := state.NewFile(r.ralphDir)
+sf := state.NewFile(r.gromitDir)
 if err := sf.Load(); err != nil {
 	r.log("Warning: could not load state: %v", err)
 }
@@ -1426,10 +1426,10 @@ git commit -m "feat: add epic completion trigger for thorough review"
 
 ---
 
-### Task 14: Add `ralph review` CLI command
+### Task 14: Add `gromit review` CLI command
 
 **Files:**
-- Create: `cmd/ralph/review.go`
+- Create: `cmd/gromit/review.go`
 
 **Step 1: Write the command**
 
@@ -1445,9 +1445,9 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/danabrams/ralph-runner/internal/config"
-	"github.com/danabrams/ralph-runner/internal/runner"
-	"github.com/danabrams/ralph-runner/internal/state"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/runner"
+	"github.com/danabrams/gromit/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -1504,7 +1504,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string) error {
 	// ... (use renderer to build ThoroughReviewContext and render)
 
 	// Write prompt to temp file
-	tmpFile, err := os.CreateTemp("", "ralph-review-*.md")
+	tmpFile, err := os.CreateTemp("", "gromit-review-*.md")
 	if err != nil {
 		return fmt.Errorf("creating temp file: %w", err)
 	}
@@ -1530,13 +1530,13 @@ func runReviewInteractive(cfg *config.Config, fromCommit string) error {
 
 **Step 3: Verify compilation**
 
-Run: `go build ./cmd/ralph/`
+Run: `go build ./cmd/gromit/`
 
 **Step 4: Commit**
 
 ```bash
-git add cmd/ralph/review.go
-git commit -m "feat: add ralph review command with interactive and non-interactive modes"
+git add cmd/gromit/review.go
+git commit -m "feat: add gromit review command with interactive and non-interactive modes"
 ```
 
 ---
@@ -1576,10 +1576,10 @@ git commit -m "feat: initialize review baseline commit on first run"
 
 ---
 
-### Task 16: Update default ralph.yaml config with review section
+### Task 16: Update default gromit.yaml config with review section
 
 **Files:**
-- Modify: `cmd/ralph/init.go`
+- Modify: `cmd/gromit/init.go`
 
 Add the review config section to `defaultConfig`:
 
@@ -1604,13 +1604,13 @@ Default to disabled so existing users aren't surprised by new behavior.
 
 **Step 2: Verify compilation**
 
-Run: `go build ./cmd/ralph/`
+Run: `go build ./cmd/gromit/`
 
 **Step 3: Commit**
 
 ```bash
-git add cmd/ralph/init.go
-git commit -m "feat: add review config section to default ralph.yaml"
+git add cmd/gromit/init.go
+git commit -m "feat: add review config section to default gromit.yaml"
 ```
 
 ---
@@ -1620,7 +1620,7 @@ git commit -m "feat: add review config section to default ralph.yaml"
 **Files:**
 - Modify: `internal/runner/runner.go`
 
-Make sure the import for `"github.com/danabrams/ralph-runner/internal/review"` is present. This may have been needed earlier but is called out explicitly in case it was missed.
+Make sure the import for `"github.com/danabrams/gromit/internal/review"` is present. This may have been needed earlier but is called out explicitly in case it was missed.
 
 Run: `go build ./...`
 
@@ -1630,12 +1630,12 @@ Run: `go build ./...`
 
 Not a code task — manual verification steps:
 
-1. Run `ralph init --force` in a test project to get new templates
-2. Enable `review.enabled: true` in `ralph.yaml`
-3. Run `ralph run -n 1` and verify the review step runs after validation
-4. Run `ralph review --dry-run` to verify scope detection
-5. Run `ralph review` to verify interactive mode launches
-6. Run `ralph review --non-interactive` to verify autonomous mode
+1. Run `gromit init --force` in a test project to get new templates
+2. Enable `review.enabled: true` in `gromit.yaml`
+3. Run `gromit run -n 1` and verify the review step runs after validation
+4. Run `gromit review --dry-run` to verify scope detection
+5. Run `gromit review` to verify interactive mode launches
+6. Run `gromit review --non-interactive` to verify autonomous mode
 
 ---
 
@@ -1659,7 +1659,7 @@ Task 8 (git diff helper) ─────────────────┼�
                                             │       │               │
                                             │       │               └── Task 13 (epic trigger)
                                             │
-                                            └────── Task 14 (ralph review CLI)
+                                            └────── Task 14 (gromit review CLI)
                                                         │
                                                         └── Task 15 (init baseline)
 

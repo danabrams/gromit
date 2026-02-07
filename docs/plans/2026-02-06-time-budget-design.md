@@ -1,6 +1,6 @@
 # Time Budget Flag Design
 
-Run as many iterations as possible within a time limit, so you can leave ralph running while you step away.
+Run as many iterations as possible within a time limit, so you can leave gromit running while you step away.
 
 ## Problem
 
@@ -8,22 +8,22 @@ The `-n` flag caps iterations by count, but often the real constraint is time: "
 
 ## Interface
 
-Two new flags on `ralph run`:
+Two new flags on `gromit run`:
 
 ```
-ralph run -t 30                  # ~30 minutes
-ralph run -H 1                   # ~1 hour
-ralph run --time-budget 30       # same as -t 30
-ralph run --time-budget-hours 1  # same as -H 1
-ralph run -t 30 -H 1             # 90 minutes (additive)
-ralph run -n 10 -t 30            # whichever limit hits first
+gromit run -t 30                  # ~30 minutes
+gromit run -H 1                   # ~1 hour
+gromit run --time-budget 30       # same as -t 30
+gromit run --time-budget-hours 1  # same as -H 1
+gromit run -t 30 -H 1             # 90 minutes (additive)
+gromit run -n 10 -t 30            # whichever limit hits first
 ```
 
 - `-t` / `--time-budget`: integer, minutes
 - `-H` / `--time-budget-hours`: integer, hours
 - When both `-t` and `-H` are specified, they add together.
 - When combined with `-n`, whichever limit hits first stops the loop.
-- Runtime-only flags. No `ralph.yaml` schema changes.
+- Runtime-only flags. No `gromit.yaml` schema changes.
 
 ## Loop Behavior
 
@@ -47,7 +47,7 @@ This means the flag means "about X minutes," not "exactly X minutes." A run with
 
 ## Files Changed
 
-1. **`cmd/ralph/main.go`** -- Two new vars (`timeBudgetMinutes`, `timeBudgetHours`), two flag registrations, compute `deadline` in `runLoop()`, pass to `r.Run()`.
+1. **`cmd/gromit/main.go`** -- Two new vars (`timeBudgetMinutes`, `timeBudgetHours`), two flag registrations, compute `deadline` in `runLoop()`, pass to `r.Run()`.
 2. **`internal/runner/runner.go`** -- Add `deadline time.Time` parameter to `Run()`, add one `if` check at the top of the loop.
 
 No new packages. No new files. No config schema changes.
