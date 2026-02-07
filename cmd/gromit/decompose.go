@@ -86,6 +86,14 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
+	return decomposeSinglePlan(planName, cfg)
+}
+
+// decomposeSinglePlan decomposes a single plan file into bd beads.
+// It reads the plan file, checks if already decomposed (unless force flag is set),
+// invokes Claude to extract beads, creates them via bd, and updates the plan frontmatter.
+// Respects package-level flags: decomposeReview, decomposeForce, decomposeNoChain.
+func decomposeSinglePlan(planName string, cfg *config.Config) error {
 	plansDir := resolvePlansDir(cfg)
 
 	// Check if plan file exists
