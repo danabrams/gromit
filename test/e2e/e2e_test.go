@@ -875,3 +875,111 @@ func TestE2E_Escalation(t *testing.T) {
 		t.Logf("✓ Bead was closed after successful escalation")
 	}
 }
+
+// TestE2E_ValidationFailure tests that gromit correctly handles validation failures
+// by keeping the bead open when build succeeds but validation fails:
+// - Creates a single bead
+// - Configures build to succeed and validation to fail
+// - Runs gromit run
+// - Verifies bead status remains "open" (not closed)
+// - Verifies bd close was not called
+func TestE2E_ValidationFailure(t *testing.T) {
+	env := setupE2E(t)
+
+	// Create a single bead
+	if err := createBead(env, "test-validation-fail", "Task with validation failure", "Build succeeds but validation fails", 1, []string{}); err != nil {
+		t.Fatalf("Failed to create bead: %v", err)
+	}
+
+	// Set up Claude fixtures:
+	// - Build succeeds
+	// - Validation fails
+	buildSuccessFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
+	validateFailFixture := filepath.Join(fixturesDir, "claude_validate_fail.txt")
+
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildSuccessFixture)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFailFixture)
+
+	// Run gromit with -n 1 to process exactly 1 bead
+	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "1")
+	if err != nil {
+		t.Fatalf("Failed to run gromit: %v", err)
+	}
+
+	t.Logf("Exit code: %d", exitCode)
+	t.Logf("Stdout:\n%s", stdout)
+	t.Logf("Stderr:\n%s", stderr)
+
+	// Verify gromit reports the validation failure in output
+	if !strings.Contains(stdout, "Validation failed") && !strings.Contains(stdout, "VALIDATION_FAILED") {
+		t.Errorf("Expected stdout to mention validation failure, got:\n%s", stdout)
+	} else {
+		t.Logf("✓ Validation failure reported in output")
+	}
+
+	// Read call log to verify bd close was not called
+	callLogData, err := os.ReadFile(env.CallLog)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			t.Fatalf("Failed to read call log: %v", err)
+		}
+		// If call log doesn't exist, that's acceptable
+		t.Logf("✓ No call log file created")
+	} else {
+		calls := strings.Split(strings.TrimSpace(string(callLogData)), "\n")
+
+		t.Logf("Total calls recorded: %d", len(calls))
+		for i, call := range calls {
+			t.Logf("  %d: %s", i+1, call)
+		}
+
+		// Filter bd calls
+		var bdCloseCalls []string
+		for _, call := range calls {
+			if strings.HasPrefix(call, "bd close") {
+				bdCloseCalls = append(bdCloseCalls, call)
+			}
+		}
+
+		// Verify bd close was NOT called
+		if len(bdCloseCalls) > 0 {
+			t.Errorf("Expected 0 'bd close' calls after validation failure, got %d:", len(bdCloseCalls))
+			for i, call := range bdCloseCalls {
+				t.Errorf("  Unexpected bd close call %d: %s", i+1, call)
+			}
+		} else {
+			t.Logf("✓ No 'bd close' calls (bead stays open)")
+		}
+	}
+
+	// Verify bead status is still "open" (not closed)
+	state, err := readBDState(env)
+	if err != nil {
+		t.Fatalf("Failed to read bd state: %v", err)
+	}
+
+	beads, ok := state["beads"].([]interface{})
+	if !ok {
+		t.Fatal("beads field not found in state")
+	}
+
+	if len(beads) != 1 {
+		t.Fatalf("Expected 1 bead in state, got %d", len(beads))
+	}
+
+	bead, ok := beads[0].(map[string]interface{})
+	if !ok {
+		t.Fatal("Bead is not a map")
+	}
+
+	status, ok := bead["status"].(string)
+	if !ok {
+		t.Fatalf("Bead status is not a string")
+	}
+
+	if status != "open" {
+		t.Errorf("Expected bead status 'open' after validation failure, got %q", status)
+	} else {
+		t.Logf("✓ Bead status remains 'open' after validation failure")
+	}
+}
