@@ -133,7 +133,7 @@ func TestFormatRun(t *testing.T) {
 			status: &Status{
 				Running:           true,
 				Iteration:         12,
-				BeadID:            "gromit-2pm",
+				BeadID:            "gromit-ja5m",
 				BeadTitle:         "Add validation tests",
 				Model:             "sonnet",
 				StartedAt:         now.Add(-18 * time.Minute),
@@ -143,7 +143,7 @@ func TestFormatRun(t *testing.T) {
 			},
 			want: []string{
 				"Run: iteration 12/50, 18m of 30m elapsed",
-				"  Current:  gromit-2pm — \"Add validation tests\"",
+				"  Current:  gromit-ja5m — \"Add validation tests\"",
 				"  Model:    sonnet",
 			},
 		},
