@@ -132,3 +132,66 @@ key: value
 		}
 	})
 }
+
+func TestFormatTypeLabel(t *testing.T) {
+	tests := []struct {
+		name     string
+		ideaType string
+		want     string
+	}{
+		{
+			name:     "feature type",
+			ideaType: "feature",
+			want:     "[feature]",
+		},
+		{
+			name:     "bug type",
+			ideaType: "bug",
+			want:     "[bug]    ",
+		},
+		{
+			name:     "chore type",
+			ideaType: "chore",
+			want:     "[chore]  ",
+		},
+		{
+			name:     "unknown type",
+			ideaType: "unknown",
+			want:     "[unknown]",
+		},
+		{
+			name:     "custom type - short",
+			ideaType: "docs",
+			want:     "[docs   ]",
+		},
+		{
+			name:     "custom type - exactly 7 chars",
+			ideaType: "hotfix",
+			want:     "[hotfix ]",
+		},
+		{
+			name:     "custom type - longer than 7 chars",
+			ideaType: "enhancement",
+			want:     "[enhancement]",
+		},
+		{
+			name:     "custom type - single char",
+			ideaType: "x",
+			want:     "[x      ]",
+		},
+		{
+			name:     "empty type",
+			ideaType: "",
+			want:     "[       ]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatTypeLabel(tt.ideaType)
+			if got != tt.want {
+				t.Errorf("formatTypeLabel(%q) = %q, want %q", tt.ideaType, got, tt.want)
+			}
+		})
+	}
+}
