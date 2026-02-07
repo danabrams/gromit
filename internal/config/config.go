@@ -42,10 +42,11 @@ type EscalationConfig struct {
 }
 
 type LoopConfig struct {
-	MaxIterations      int   `yaml:"max_iterations"`
-	StopOnFailure      bool  `yaml:"stop_on_failure"`
-	StuckBeadThreshold int   `yaml:"stuck_bead_threshold"`
-	LearnFromSuccess   *bool `yaml:"learn_from_success"`
+	MaxIterations            int    `yaml:"max_iterations"`
+	StopOnFailure            bool   `yaml:"stop_on_failure"`
+	StuckBeadThreshold       int    `yaml:"stuck_bead_threshold"`
+	LearnFromSuccess         *bool  `yaml:"learn_from_success"`
+	BetweenIterationsCommand string `yaml:"between_iterations_command"`
 }
 
 type ValidationConfig struct {
