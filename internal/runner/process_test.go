@@ -224,12 +224,23 @@ func TestEscalateModel(t *testing.T) {
 
 func TestHandleScopeTooLarge(t *testing.T) {
 	var buf strings.Builder
+	tempDir := t.TempDir()
+
+	lf, err := learnings.NewFile(tempDir)
+	if err != nil {
+		t.Fatalf("creating learnings file: %v", err)
+	}
+
+	mockRend := &mockRendererWithLearn{learningsFile: lf}
+
 	r := &Runner{
-		beads:  &mockBeadClient{},
-		output: &buf,
+		beads:    &mockBeadClient{},
+		renderer: mockRend,
+		output:   &buf,
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		model:  "haiku",
 		result: &IterationResult{},
 	}
 
@@ -244,6 +255,85 @@ func TestHandleScopeTooLarge(t *testing.T) {
 	}
 	if !strings.Contains(bc.result.Error.Error(), "scope too large") {
 		t.Errorf("expected 'scope too large' in error, got %q", bc.result.Error.Error())
+	}
+	// Verify that synthetic learning was extracted
+	if !strings.Contains(buf.String(), "Synthetic learning extracted") {
+		t.Error("expected synthetic learning to be extracted")
+	}
+}
+
+func TestExtractScopeTooLargeLearning(t *testing.T) {
+	var buf strings.Builder
+	tempDir := t.TempDir()
+
+	lf, err := learnings.NewFile(tempDir)
+	if err != nil {
+		t.Fatalf("creating learnings file: %v", err)
+	}
+
+	mockRend := &mockRendererWithLearn{learningsFile: lf}
+
+	r := &Runner{
+		renderer: mockRend,
+		output:   &buf,
+	}
+
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Complex Feature"},
+		model:  "haiku",
+		result: &IterationResult{},
+	}
+
+	r.extractScopeTooLargeLearning(bc, "too many acceptance criteria")
+
+	// Check that learning was added
+	if !strings.Contains(buf.String(), "Synthetic learning extracted") {
+		t.Error("expected 'Synthetic learning extracted' in log output")
+	}
+	if !strings.Contains(buf.String(), "Complex Feature") {
+		t.Error("expected bead title in learning")
+	}
+	if !strings.Contains(buf.String(), "haiku") {
+		t.Error("expected model name in learning")
+	}
+}
+
+func TestExtractTimeoutLearning(t *testing.T) {
+	var buf strings.Builder
+	tempDir := t.TempDir()
+
+	lf, err := learnings.NewFile(tempDir)
+	if err != nil {
+		t.Fatalf("creating learnings file: %v", err)
+	}
+
+	mockRend := &mockRendererWithLearn{learningsFile: lf}
+
+	r := &Runner{
+		renderer: mockRend,
+		output:   &buf,
+	}
+
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Slow Task"},
+		model:  "sonnet",
+		result: &IterationResult{},
+	}
+
+	r.extractTimeoutLearning(bc)
+
+	// Check that learning was added
+	if !strings.Contains(buf.String(), "Synthetic learning extracted") {
+		t.Error("expected 'Synthetic learning extracted' in log output")
+	}
+	if !strings.Contains(buf.String(), "Slow Task") {
+		t.Error("expected bead title in learning")
+	}
+	if !strings.Contains(buf.String(), "timed out") {
+		t.Error("expected 'timed out' in learning")
+	}
+	if !strings.Contains(buf.String(), "sonnet") {
+		t.Error("expected model name in learning")
 	}
 }
 

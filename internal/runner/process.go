@@ -212,6 +212,10 @@ func (r *Runner) handleScopeTooLarge(bc *beadContext, claudeResult *claude.Resul
 	if err := r.beads.AddComment(bc.bead.ID, comment); err != nil {
 		r.log("Warning: failed to add comment to bead: %v", err)
 	}
+
+	// Extract synthetic learning for scope-too-large
+	r.extractScopeTooLargeLearning(bc, explanation)
+
 	bc.result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
 }
 
@@ -230,6 +234,50 @@ func (r *Runner) extractLearning(bc *beadContext, analysis *analyzer.Analysis) {
 		r.log("Warning: failed to add learning: %v", err)
 	} else if learning != nil {
 		r.log("Learning added to LEARNINGS.md")
+	}
+}
+
+// extractScopeTooLargeLearning saves a synthetic learning for scope-too-large failures.
+func (r *Runner) extractScopeTooLargeLearning(bc *beadContext, explanation string) {
+	if bc == nil || bc.bead == nil {
+		return
+	}
+	lf := r.renderer.GetLearningsFile()
+	if lf == nil {
+		return
+	}
+
+	// Generate synthetic learning message
+	learning := fmt.Sprintf("Bead '%s' was too large for %s — consider splitting beads with more than 3 acceptance criteria", bc.bead.Title, bc.model)
+	r.log("Synthetic learning extracted: %s", learning)
+
+	_, err := lf.Add(bc.bead.ID, learning, "patterns")
+	if err != nil {
+		r.log("Warning: failed to add synthetic learning: %v", err)
+	} else {
+		r.log("Synthetic learning added to LEARNINGS.md")
+	}
+}
+
+// extractTimeoutLearning saves a synthetic learning for timeout failures.
+func (r *Runner) extractTimeoutLearning(bc *beadContext) {
+	if bc == nil || bc.bead == nil {
+		return
+	}
+	lf := r.renderer.GetLearningsFile()
+	if lf == nil {
+		return
+	}
+
+	// Generate synthetic learning message
+	learning := fmt.Sprintf("Bead '%s' timed out on %s — may need simpler scope or higher model tier", bc.bead.Title, bc.model)
+	r.log("Synthetic learning extracted: %s", learning)
+
+	_, err := lf.Add(bc.bead.ID, learning, "patterns")
+	if err != nil {
+		r.log("Warning: failed to add synthetic learning: %v", err)
+	} else {
+		r.log("Synthetic learning added to LEARNINGS.md")
 	}
 }
 

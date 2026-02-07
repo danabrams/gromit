@@ -611,7 +611,12 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 			}
 			// Distinguish bead timeout from user Ctrl+C
 			if ctx.Err() != nil && bc.parentCtx.Err() == nil {
+				// Extract synthetic learning for timeout failure
+				r.extractTimeoutLearning(bc)
 				bc.result.Error = fmt.Errorf("bead timeout: exceeded %v total processing time", bc.beadTimeout)
+			} else if bc.parentCtx.Err() != nil {
+				// User-initiated cancellation (Ctrl+C) - don't extract learning
+				bc.result.Error = fmt.Errorf("context cancelled: %w", bc.parentCtx.Err())
 			} else {
 				bc.result.Error = fmt.Errorf("claude invocation: %w", err)
 			}
