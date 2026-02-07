@@ -262,8 +262,11 @@ func promptReviewBeads(beadDefs []beadDef) bool {
 	}
 
 	fmt.Print("Create these beads? [y/N]: ")
-	var response string
-	fmt.Scanln(&response)
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
 	response = strings.ToLower(strings.TrimSpace(response))
 	return response == "y" || response == "yes"
 }
