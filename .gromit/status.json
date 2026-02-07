@@ -1,0 +1,9 @@
+{
+  "running": true,
+  "iteration": 7718,
+  "bead_id": "ralph-runner-f039",
+  "bead_title": "Handle multiple depends_on_index values in decompose command",
+  "model": "sonnet",
+  "started_at": "2026-02-06T22:20:35.819473361-05:00",
+  "elapsed_s": 169
+}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -148,7 +149,7 @@ func runRefine(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("scanning specs directory: %w", err)
 	}
 
-	// Build system prompt
+	// Build system prompt with embedded skill content
 	systemPrompt := fmt.Sprintf(`Idea to refine:
 
 %s
@@ -159,24 +160,10 @@ Specs directory: %s
 
 ## Instructions
 
-Use the gromit-refine skill to help transform this idea into a structured specification.
-The gromit-refine skill will guide you through:
-- Exploring the codebase to understand existing patterns
-- Asking clarifying questions one at a time
-- Discussing approaches with tradeoffs
-- Collaboratively choosing a spec name
-- Writing the spec to .gromit/specs/<name>.md
+%s`, ideaText, specsDir, skills.RefineSkill)
 
-The spec should follow the Gromit spec format with frontmatter (id, source_ideas, created) and four sections:
-1. Specification - What the feature is and how it works
-2. Acceptance Criteria - Concrete, testable criteria
-3. Decisions - Key choices and rationale
-4. Research & Context - Supporting information for planning
-
-After writing the spec, the command will detect the new file and update the backlog if needed.`, ideaText, specsDir)
-
-	// Launch Claude Code with system prompt
-	claudeCmd := exec.Command("claude", "--append-system-prompt", systemPrompt)
+	// Launch Claude Code with system prompt and initial message
+	claudeCmd := exec.Command("claude", "--append-system-prompt", systemPrompt, "Begin refining this idea into a structured spec following the instructions above.")
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout
 	claudeCmd.Stderr = os.Stderr

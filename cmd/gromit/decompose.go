@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -93,15 +94,8 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("plan already decomposed: %s\nUse --force to re-decompose", planName)
 	}
 
-	// Load decompose skill
-	skillPath := "skills/gromit-decompose/SKILL.md"
-	skillContent, err := os.ReadFile(skillPath)
-	if err != nil {
-		return fmt.Errorf("reading decompose skill: %w", err)
-	}
-
-	// Build prompt
-	prompt := buildDecomposePrompt(planName, planBody, string(skillContent))
+	// Build prompt with embedded skill content
+	prompt := buildDecomposePrompt(planName, planBody, skills.DecomposeSkill)
 
 	// Create Claude client
 	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)

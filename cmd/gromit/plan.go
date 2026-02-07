@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
+	"github.com/danabrams/gromit/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -157,7 +158,7 @@ func runPlan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build system prompt with spec content
+	// Build system prompt with spec content and embedded skill
 	systemPrompt := fmt.Sprintf(`# Spec to Plan
 
 Spec name: %s
@@ -171,28 +172,14 @@ Spec name: %s
 %s
 
 Plans directory: %s
+Plan output path: %s
 
 ## Instructions
 
-Use the gromit-plan skill to help create an implementation plan for this spec.
-The gromit-plan skill will guide you through:
-- Reading the spec and exploring the codebase
-- Proposing architecture (how the feature fits into existing code)
-- Human review checkpoint for architecture
-- Proposing test strategy (what to test, what level, what mocks)
-- Human review checkpoint for test plan
-- Breaking the work into logical tasks with files, dependencies, and acceptance criteria
-- Writing the plan to %s
+%s`, specName, specBody, contextBuilder.String(), plansDir, planPath, skills.PlanSkill)
 
-The plan format is natural and flexible — structured enough for human readability, but not rigidly templated. Each task must include:
-- Files affected
-- Acceptance criteria
-- Dependencies
-
-An LLM will consume this plan during the decompose phase.`, specName, specBody, contextBuilder.String(), plansDir, planPath)
-
-	// Launch Claude Code with system prompt
-	claudeCmd := exec.Command("claude", "--append-system-prompt", systemPrompt)
+	// Launch Claude Code with system prompt and initial message
+	claudeCmd := exec.Command("claude", "--append-system-prompt", systemPrompt, "Begin creating an implementation plan for this spec following the instructions above.")
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout
 	claudeCmd.Stderr = os.Stderr
