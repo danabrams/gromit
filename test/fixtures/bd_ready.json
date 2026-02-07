@@ -1,0 +1,18 @@
+[
+  {
+    "id": "test-bead-001",
+    "title": "Implement user authentication",
+    "description": "Add JWT-based authentication to the API endpoints.\n\nImplement the following:\n- Token generation on login\n- Token validation middleware\n- Refresh token logic",
+    "priority": 1,
+    "labels": ["backend", "security"],
+    "parent": "",
+    "issue_type": "task",
+    "status": "open",
+    "owner": "",
+    "expected_outputs": [
+      "Login endpoint returns valid JWT token",
+      "Protected endpoints reject requests without valid token",
+      "Refresh endpoint generates new token from valid refresh token"
+    ]
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "test-bead-002",
+    "title": "Add database migration system",
+    "description": "Implement a versioned migration system for database schema changes.\n\nRequirements:\n- Support both up and down migrations\n- Track applied migrations in a migrations table\n- CLI command to run pending migrations",
+    "priority": 1,
+    "labels": ["database", "spec:migrations"],
+    "parent": "test-epic-001",
+    "issue_type": "task",
+    "status": "open",
+    "owner": "",
+    "expected_outputs": [
+      "Migrations can be applied with 'migrate up' command",
+      "Migrations can be rolled back with 'migrate down' command",
+      "Database tracks which migrations have been applied"
+    ]
+  }
+]

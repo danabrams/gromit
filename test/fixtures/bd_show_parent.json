@@ -1,0 +1,19 @@
+[
+  {
+    "id": "test-epic-001",
+    "title": "Database infrastructure improvements",
+    "description": "Comprehensive improvements to database layer including:\n- Migration system\n- Connection pooling\n- Query performance monitoring\n- Backup/restore automation",
+    "priority": 0,
+    "labels": ["database", "epic", "complexity:high"],
+    "parent": "",
+    "issue_type": "epic",
+    "status": "open",
+    "owner": "",
+    "expected_outputs": [
+      "All database operations use connection pool",
+      "Migration system is in place and documented",
+      "Automated backups run daily",
+      "Query performance metrics are logged"
+    ]
+  }
+]
