@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -558,5 +560,181 @@ func TestExtractSuccessLearning_WithLearning(t *testing.T) {
 	// Should log "Success learning extracted"
 	if !strings.Contains(buf.String(), "Success learning extracted") {
 		t.Error("expected 'Success learning extracted' in log output")
+	}
+}
+
+func TestRunAcceptanceTests_Success(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "Acceptance tests written successfully",
+			}, nil
+		},
+	}
+	mockRend := &mockRendererWithLearn{
+		learningsFile: nil,
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Claude: config.ClaudeConfig{
+				StallTimeout:       30,
+				StallTimeoutActive: 10,
+			},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		model:  "sonnet",
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			Model:              "sonnet",
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+	}
+
+	err := r.runAcceptanceTests(context.Background(), bc)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+}
+
+func TestRunAcceptanceTests_ClaudeFailed(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{
+				Success: false,
+				Output:  "Failed to write tests",
+			}, nil
+		},
+	}
+	mockRend := &mockRendererWithLearn{
+		learningsFile: nil,
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Claude: config.ClaudeConfig{
+				StallTimeout:       30,
+				StallTimeoutActive: 10,
+			},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		model:  "sonnet",
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			Model:              "sonnet",
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+	}
+
+	err := r.runAcceptanceTests(context.Background(), bc)
+	if err == nil {
+		t.Error("expected error when Claude fails")
+	}
+	if !strings.Contains(err.Error(), "acceptance tests failed") {
+		t.Errorf("expected 'acceptance tests failed' in error, got: %v", err)
+	}
+}
+
+func TestRunAcceptanceTests_InvocationError(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return nil, fmt.Errorf("network error")
+		},
+	}
+	mockRend := &mockRendererWithLearn{
+		learningsFile: nil,
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Claude: config.ClaudeConfig{
+				StallTimeout:       30,
+				StallTimeoutActive: 10,
+			},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		model:  "sonnet",
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			Model:              "sonnet",
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+	}
+
+	err := r.runAcceptanceTests(context.Background(), bc)
+	if err == nil {
+		t.Error("expected error when invocation fails")
+	}
+	if !strings.Contains(err.Error(), "acceptance tests invocation") {
+		t.Errorf("expected 'acceptance tests invocation' in error, got: %v", err)
+	}
+}
+
+func TestRunAcceptanceTests_UsesSameModel(t *testing.T) {
+	var buf strings.Builder
+	var capturedModel string
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			capturedModel = model
+			return &claude.Result{
+				Success: true,
+				Output:  "Tests written",
+			}, nil
+		},
+	}
+	mockRend := &mockRendererWithLearn{
+		learningsFile: nil,
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Claude: config.ClaudeConfig{
+				StallTimeout:       30,
+				StallTimeoutActive: 10,
+			},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		model:  "opus", // Using opus for this test
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			Model:              "opus",
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+	}
+
+	err := r.runAcceptanceTests(context.Background(), bc)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if capturedModel != "opus" {
+		t.Errorf("expected model 'opus', got %q", capturedModel)
 	}
 }
