@@ -159,20 +159,45 @@ func parseBeadOutput(out string) (*Bead, error) {
 	return &beads[0], nil
 }
 
+// parseBeadOutputExcluding parses JSON output and returns the first bead whose
+// Type does not match excludeType, or nil if no matching beads are present.
+func parseBeadOutputExcluding(out string, excludeType string) (*Bead, error) {
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return nil, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd output: %w", err)
+	}
+
+	for i := range beads {
+		if beads[i].Type == excludeType {
+			continue
+		}
+		beads[i].normalizeNilFields()
+		if err := beads[i].Validate(); err != nil {
+			return nil, fmt.Errorf("invalid bead data: %w", err)
+		}
+		return &beads[i], nil
+	}
+
+	return nil, nil
+}
+
 // Ready returns the next unblocked bead ready for work (excludes epics)
 func (c *Client) Ready() (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	// Use -t to exclude epics server-side. This ensures we always find non-epic work
-	// even if there are more than 10 epics at the front of the queue.
-	// We request types: task, bug, feature, merge-request
-	out, err := c.run("ready", "--json", "--limit", "1", "-t", "task", "-t", "bug", "-t", "feature", "-t", "merge-request")
+	// Fetch a batch and filter out epics client-side.
+	// bd doesn't handle multiple -t flags correctly, so we can't exclude epics server-side.
+	out, err := c.run("ready", "--json", "--limit", "10")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
 
-	return parseBeadOutput(out)
+	return parseBeadOutputExcluding(out, "epic")
 }
 
 // ReadyAny returns the next unblocked bead of any type (including epics)
@@ -250,8 +275,8 @@ func (c *Client) CreateWithParentAndDescription(title string, priority int, labe
 		args = append(args, "--label", label)
 	}
 
-	for _, output := range expectedOutputs {
-		args = append(args, "--expected-output", output)
+	if len(expectedOutputs) > 0 {
+		args = append(args, "--acceptance", strings.Join(expectedOutputs, "\n"))
 	}
 
 	// Add parent if specified
