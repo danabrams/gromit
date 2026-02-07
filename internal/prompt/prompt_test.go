@@ -179,6 +179,14 @@ func TestRenderScopeNilRenderer(t *testing.T) {
 	}
 }
 
+func TestRenderPrecheckNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.RenderPrecheck(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderPrecheck")
+	}
+}
+
 func TestParseScopeEstimate(t *testing.T) {
 	tests := []struct {
 		name    string

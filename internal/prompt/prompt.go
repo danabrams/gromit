@@ -208,6 +208,11 @@ func (r *Renderer) RenderScope(ctx *ScopeContext) (string, error) {
 	return r.render("PROMPT_scope.md", ctx)
 }
 
+// RenderPrecheck renders the precheck prompt
+func (r *Renderer) RenderPrecheck(ctx *PrecheckContext) (string, error) {
+	return r.render("PROMPT_precheck.md", ctx)
+}
+
 // RenderReview renders the light review prompt
 func (r *Renderer) RenderReview(ctx *ReviewContext) (string, error) {
 	return r.render("PROMPT_review.md", ctx)
