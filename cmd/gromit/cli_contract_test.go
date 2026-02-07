@@ -339,3 +339,130 @@ func parseFlagsFromHelp(helpText string) map[string]bool {
 
 	return flags
 }
+
+// TestCLIContract_ExitCodes verifies exit codes for various error conditions
+func TestCLIContract_ExitCodes(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		wantExit   int
+		wantStderr string // substring that should appear in stderr
+	}{
+		// Help commands should exit 0
+		{
+			name:     "root help",
+			args:     []string{"--help"},
+			wantExit: 0,
+		},
+		{
+			name:     "run help",
+			args:     []string{"run", "--help"},
+			wantExit: 0,
+		},
+		{
+			name:     "init help",
+			args:     []string{"init", "--help"},
+			wantExit: 0,
+		},
+
+		// Missing required arguments
+		{
+			name:       "add missing argument",
+			args:       []string{"add"},
+			wantExit:   1,
+			wantStderr: "accepts 1 arg(s), received 0",
+		},
+		{
+			name:       "backlog delete missing argument",
+			args:       []string{"backlog", "delete"},
+			wantExit:   1,
+			wantStderr: "accepts 1 arg(s), received 0",
+		},
+
+		// Invalid flag values
+		{
+			name:       "run invalid max-iterations",
+			args:       []string{"run", "--max-iterations=invalid"},
+			wantExit:   1,
+			wantStderr: "invalid argument",
+		},
+		{
+			name:       "run invalid time-budget",
+			args:       []string{"run", "--time-budget=invalid"},
+			wantExit:   1,
+			wantStderr: "invalid argument",
+		},
+		{
+			name:       "run invalid time-budget-hours",
+			args:       []string{"run", "--time-budget-hours=invalid"},
+			wantExit:   1,
+			wantStderr: "invalid argument",
+		},
+		{
+			name:       "backlog invalid recent",
+			args:       []string{"backlog", "--recent=invalid"},
+			wantExit:   1,
+			wantStderr: "invalid argument",
+		},
+
+		// Unknown commands
+		{
+			name:       "unknown command",
+			args:       []string{"nonexistent"},
+			wantExit:   1,
+			wantStderr: "unknown command",
+		},
+
+		// Unknown flags
+		{
+			name:       "unknown flag",
+			args:       []string{"--nonexistent"},
+			wantExit:   1,
+			wantStderr: "unknown flag",
+		},
+		{
+			name:       "run unknown flag",
+			args:       []string{"run", "--nonexistent"},
+			wantExit:   1,
+			wantStderr: "unknown flag",
+		},
+		{
+			name:       "init unknown flag",
+			args:       []string{"init", "--nonexistent"},
+			wantExit:   1,
+			wantStderr: "unknown flag",
+		},
+
+		// Short flag variations
+		{
+			name:     "run short max-iterations help",
+			args:     []string{"run", "-h"},
+			wantExit: 0,
+		},
+		{
+			name:     "init short force help",
+			args:     []string{"init", "-h"},
+			wantExit: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, exitCode := runGromit(t, tt.args...)
+
+			// Check exit code
+			if exitCode != tt.wantExit {
+				t.Errorf("gromit %v exited with code %d, want %d\nstdout: %s\nstderr: %s",
+					tt.args, exitCode, tt.wantExit, stdout, stderr)
+			}
+
+			// Check stderr content if specified
+			if tt.wantStderr != "" {
+				if !strings.Contains(stderr, tt.wantStderr) && !strings.Contains(stdout, tt.wantStderr) {
+					t.Errorf("gromit %v output missing expected text %q\nstdout: %s\nstderr: %s",
+						tt.args, tt.wantStderr, stdout, stderr)
+				}
+			}
+		})
+	}
+}
