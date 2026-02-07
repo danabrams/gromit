@@ -85,6 +85,12 @@ type ScopeContext struct {
 	ParentBead *bead.Bead
 }
 
+// PrecheckContext holds data for precheck prompt template
+type PrecheckContext struct {
+	Bead       *bead.Bead
+	ParentBead *bead.Bead
+}
+
 // ScopeEstimate represents the result of scope estimation
 type ScopeEstimate struct {
 	Complexity                   string   `json:"complexity"`
