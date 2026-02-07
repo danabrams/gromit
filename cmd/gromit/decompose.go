@@ -150,25 +150,22 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 		// Build labels: always include spec:<name>
 		labels := []string{fmt.Sprintf("spec:%s", planName)}
 
-		// Resolve parent ID from depends_on_index
-		var parentID string
-		if len(def.DependsOnIndex) > 0 {
-			// Use the first dependency as the parent
-			// bd supports single parent, so we pick the first one
-			depIdx := def.DependsOnIndex[0]
+		// Resolve dependencies from depends_on_index
+		var dependencies []string
+		for _, depIdx := range def.DependsOnIndex {
 			if depIdx < 0 || depIdx >= len(createdBeads) {
 				return fmt.Errorf("invalid dependency index %d in bead %d (%s)", depIdx, i, def.Title)
 			}
-			parentID = createdBeads[depIdx]
+			dependencies = append(dependencies, createdBeads[depIdx])
 		}
 
 		// Create bead
-		createdBead, err := beadClient.CreateWithParentAndDescription(
+		createdBead, err := beadClient.CreateWithDepsAndDescription(
 			def.Title,
 			priority,
 			labels,
 			def.AcceptanceCriteria,
-			parentID,
+			dependencies,
 			def.Description,
 		)
 		if err != nil {

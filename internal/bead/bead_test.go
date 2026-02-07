@@ -1300,6 +1300,102 @@ func TestClientCreateInheritsCreateWithParent(t *testing.T) {
 	}
 }
 
+// TestClientCreateWithDeps tests CreateWithDepsAndDescription with multiple dependencies
+func TestClientCreateWithDeps(t *testing.T) {
+	c := newIsolatedClient(t)
+
+	tests := []struct {
+		name               string
+		title              string
+		priority           int
+		labels             []string
+		expectedOutputs    []string
+		dependencies       []string
+		description        string
+		shouldValidateFail bool
+		expectedErrMsg     string
+	}{
+		{
+			name:            "create with no dependencies",
+			title:           "Root task",
+			priority:        1,
+			labels:          []string{"label1"},
+			expectedOutputs: []string{},
+			dependencies:    []string{},
+			description:     "Creates bead with no dependencies",
+		},
+		{
+			name:            "create with single dependency",
+			title:           "Sub-task",
+			priority:        1,
+			labels:          []string{},
+			expectedOutputs: []string{},
+			dependencies:    []string{"dep-1"},
+			description:     "Creates bead with one dependency",
+		},
+		{
+			name:            "create with multiple dependencies",
+			title:           "Dependent task",
+			priority:        1,
+			labels:          []string{},
+			expectedOutputs: []string{},
+			dependencies:    []string{"dep-1", "dep-2", "dep-3"},
+			description:     "Creates bead with multiple dependencies",
+		},
+		{
+			name:               "invalid dependency ID with spaces",
+			title:              "Task",
+			priority:           1,
+			dependencies:       []string{"dep 1"},
+			shouldValidateFail: true,
+			expectedErrMsg:     "invalid dependency ID",
+			description:        "Should reject dependency ID with spaces",
+		},
+		{
+			name:               "invalid dependency ID with shell chars",
+			title:              "Task",
+			priority:           1,
+			dependencies:       []string{"dep-1", "dep; rm -rf /"},
+			shouldValidateFail: true,
+			expectedErrMsg:     "invalid dependency ID",
+			description:        "Should reject dependency ID with shell metacharacters",
+		},
+		{
+			name:               "dependency ID too long",
+			title:              "Task",
+			priority:           1,
+			dependencies:       []string{strings.Repeat("a", maxIDLength+1)},
+			shouldValidateFail: true,
+			expectedErrMsg:     "invalid dependency ID",
+			description:        "Should reject overly long dependency ID",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := c.CreateWithDepsAndDescription(tt.title, tt.priority, tt.labels, tt.expectedOutputs, tt.dependencies, tt.description)
+
+			if tt.shouldValidateFail {
+				if err == nil {
+					t.Errorf("CreateWithDepsAndDescription() expected validation error")
+				}
+				if !strings.Contains(err.Error(), tt.expectedErrMsg) {
+					t.Errorf("CreateWithDepsAndDescription() expected error containing %q, got: %v", tt.expectedErrMsg, err)
+				}
+				return
+			}
+
+			// For valid inputs, errors are expected if bd isn't running,
+			// but the method should build arguments correctly
+			if err != nil {
+				if !strings.Contains(err.Error(), "bd create") {
+					t.Errorf("CreateWithDepsAndDescription() unexpected error type: %v", err)
+				}
+			}
+		})
+	}
+}
+
 // TestClientHasOpenChildrenValidation tests that HasOpenChildren() validates parent IDs
 func TestClientHasOpenChildrenValidation(t *testing.T) {
 	c, _ := NewClient()

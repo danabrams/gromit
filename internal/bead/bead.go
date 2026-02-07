@@ -311,6 +311,57 @@ func (c *Client) CreateWithParentAndDescription(title string, priority int, labe
 	return &b, nil
 }
 
+// CreateWithDepsAndDescription creates a new bead with dependencies and description via the bd CLI
+func (c *Client) CreateWithDepsAndDescription(title string, priority int, labels []string, expectedOutputs []string, dependencies []string, description string) (*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
+	args := []string{"create", title, "--priority", fmt.Sprintf("%d", priority), "--json"}
+
+	for _, label := range labels {
+		args = append(args, "--label", label)
+	}
+
+	if len(expectedOutputs) > 0 {
+		args = append(args, "--acceptance", strings.Join(expectedOutputs, "\n"))
+	}
+
+	// Add dependencies if specified
+	if len(dependencies) > 0 {
+		// Validate all dependency IDs
+		for _, depID := range dependencies {
+			if !validBeadID.MatchString(depID) || len(depID) > maxIDLength {
+				return nil, fmt.Errorf("invalid dependency ID %q", depID)
+			}
+		}
+		// bd --deps accepts comma-separated list or multiple IDs
+		args = append(args, "--deps", strings.Join(dependencies, ","))
+	}
+
+	// Add description if specified
+	if description != "" {
+		args = append(args, "--description", description)
+	}
+
+	out, err := c.run(args...)
+	if err != nil {
+		return nil, fmt.Errorf("bd create: %w", err)
+	}
+
+	var b Bead
+	if err := jsonutil.ExtractObject(out, &b); err != nil {
+		return nil, fmt.Errorf("parsing bd create output: %w", err)
+	}
+
+	b.normalizeNilFields()
+
+	if err := b.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid bead data: %w", err)
+	}
+
+	return &b, nil
+}
+
 // Close marks a bead as complete
 func (c *Client) Close(id string) error {
 	if c == nil {
