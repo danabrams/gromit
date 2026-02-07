@@ -515,6 +515,49 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 	return nil
 }
 
+// verifyTestsFail runs validation and returns nil when validation fails (expected)
+// or an error when validation passes (unexpected - tests should fail before implementation).
+// This is used in the ATDD workflow to verify that acceptance tests fail before implementation.
+func (r *Runner) verifyTestsFail(ctx context.Context, bc *beadContext) error {
+	if !r.cfg.Validation.Enabled {
+		return fmt.Errorf("validation is not enabled - cannot verify tests fail")
+	}
+
+	checker, err := preflight.NewChecker(r.cfg.Preflight, r.output)
+	if err != nil {
+		return fmt.Errorf("creating preflight checker: %w", err)
+	}
+	if err := checker.Check(r.cfg.Validation.Commands); err != nil {
+		r.log("Warning: %v", err)
+		return fmt.Errorf("preflight check failed: %w", err)
+	}
+
+	r.log("Verifying acceptance tests fail (as expected)...")
+
+	valResult, err := r.claude.RunValidation(
+		ctx,
+		r.cfg.Validation.Commands,
+		r.cfg.Models.Validation,
+		bc.promptCtx.WorkDir,
+	)
+	if err != nil {
+		return fmt.Errorf("validation invocation: %w", err)
+	}
+	if valResult == nil {
+		return fmt.Errorf("validation returned no result")
+	}
+
+	// In ATDD, we expect tests to FAIL before implementation
+	if claude.IsValidationPassed(valResult) {
+		r.log("\nUnexpected: acceptance tests passed before implementation")
+		r.log("Tests should fail until implementation makes them pass")
+		return fmt.Errorf("acceptance tests passed before implementation - tests may not be covering new behavior")
+	}
+
+	r.log("Acceptance tests failed as expected")
+	return nil
+}
+
 // runValidation runs the validation step (tests/lint) after a successful build.
 // Returns an error if validation fails or encounters an error.
 func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {

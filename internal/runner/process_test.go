@@ -738,3 +738,195 @@ func TestRunAcceptanceTests_UsesSameModel(t *testing.T) {
 		t.Errorf("expected model 'opus', got %q", capturedModel)
 	}
 }
+
+func TestVerifyTestsFail_ValidationDisabled(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg: &config.Config{
+			Validation: config.ValidationConfig{
+				Enabled: false,
+			},
+		},
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir: "/test/dir",
+		},
+	}
+
+	err := r.verifyTestsFail(context.Background(), bc)
+	if err == nil {
+		t.Error("expected error when validation is disabled")
+	}
+	if !strings.Contains(err.Error(), "validation is not enabled") {
+		t.Errorf("expected 'validation is not enabled' in error, got: %v", err)
+	}
+}
+
+func TestVerifyTestsFail_TestsFailAsExpected(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "Tests failed as expected\nVALIDATION_FAILED",
+			}, nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Models: config.ModelsConfig{
+				Validation: "haiku",
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude: mockClaude,
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir: "/test/dir",
+		},
+	}
+
+	err := r.verifyTestsFail(context.Background(), bc)
+	if err != nil {
+		t.Errorf("expected no error when tests fail as expected, got: %v", err)
+	}
+	if !strings.Contains(buf.String(), "Acceptance tests failed as expected") {
+		t.Error("expected success message in output")
+	}
+}
+
+func TestVerifyTestsFail_TestsPassUnexpectedly(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "All tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Models: config.ModelsConfig{
+				Validation: "haiku",
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude: mockClaude,
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir: "/test/dir",
+		},
+	}
+
+	err := r.verifyTestsFail(context.Background(), bc)
+	if err == nil {
+		t.Error("expected error when tests pass unexpectedly")
+	}
+	if !strings.Contains(err.Error(), "acceptance tests passed before implementation") {
+		t.Errorf("expected 'acceptance tests passed before implementation' in error, got: %v", err)
+	}
+	if !strings.Contains(buf.String(), "Unexpected: acceptance tests passed before implementation") {
+		t.Error("expected warning message in output")
+	}
+}
+
+func TestVerifyTestsFail_InvocationError(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return nil, fmt.Errorf("network error")
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Models: config.ModelsConfig{
+				Validation: "haiku",
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude: mockClaude,
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir: "/test/dir",
+		},
+	}
+
+	err := r.verifyTestsFail(context.Background(), bc)
+	if err == nil {
+		t.Error("expected error when invocation fails")
+	}
+	if !strings.Contains(err.Error(), "validation invocation") {
+		t.Errorf("expected 'validation invocation' in error, got: %v", err)
+	}
+}
+
+func TestVerifyTestsFail_NilResult(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return nil, nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Models: config.ModelsConfig{
+				Validation: "haiku",
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude: mockClaude,
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir: "/test/dir",
+		},
+	}
+
+	err := r.verifyTestsFail(context.Background(), bc)
+	if err == nil {
+		t.Error("expected error when validation returns nil result")
+	}
+	if !strings.Contains(err.Error(), "validation returned no result") {
+		t.Errorf("expected 'validation returned no result' in error, got: %v", err)
+	}
+}
