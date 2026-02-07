@@ -68,6 +68,13 @@ type beadDef struct {
 	DependsOnIndex     []int    `json:"depends_on_index"`
 }
 
+// planInfo holds metadata for a plan file used in the picker
+type planInfo struct {
+	Name  string
+	Title string
+	Path  string
+}
+
 func runDecompose(cmd *cobra.Command, args []string) error {
 	planName := args[0]
 	// Remove .md suffix if provided
@@ -280,4 +287,67 @@ func chainAfterDecompose() {
 			fmt.Fprintf(os.Stderr, "Warning: failed to execute run: %v\n", err)
 		}
 	}
+}
+
+// filterUndecomposedPlans scans the plans directory for plan files and returns
+// those that haven't been decomposed yet (or all plans if force is true).
+// Returns a sorted slice of planInfo structs with name, title, and path.
+func filterUndecomposedPlans(plansDir string, force bool) ([]planInfo, error) {
+	// Read directory
+	entries, err := os.ReadDir(plansDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []planInfo{}, nil
+		}
+		return nil, fmt.Errorf("reading plans directory: %w", err)
+	}
+
+	var plans []planInfo
+	for _, entry := range entries {
+		// Skip directories and non-.md files
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		planPath := filepath.Join(plansDir, entry.Name())
+		planName := strings.TrimSuffix(entry.Name(), ".md")
+
+		// Read frontmatter to check decomposed status
+		planFrontmatter, _, err := frontmatter.ReadFile(planPath)
+		if err != nil {
+			// Skip files that can't be read
+			continue
+		}
+
+		// Filter by decomposed status (unless force is true)
+		if !force {
+			if decomposed, ok := planFrontmatter["decomposed"].(bool); ok && decomposed {
+				continue
+			}
+		}
+
+		// Extract title from plan file
+		title := extractSpecTitle(planPath)
+		if title == "" {
+			title = planName // Fallback to name if no title found
+		}
+
+		plans = append(plans, planInfo{
+			Name:  planName,
+			Title: title,
+			Path:  planPath,
+		})
+	}
+
+	// Sort by name for consistent ordering
+	// Using a simple bubble sort since we expect few plans
+	for i := 0; i < len(plans); i++ {
+		for j := i + 1; j < len(plans); j++ {
+			if plans[i].Name > plans[j].Name {
+				plans[i], plans[j] = plans[j], plans[i]
+			}
+		}
+	}
+
+	return plans, nil
 }
