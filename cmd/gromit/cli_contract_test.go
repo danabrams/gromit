@@ -396,6 +396,11 @@ func TestCLIContract_ExitCodes(t *testing.T) {
 			args:     []string{"init", "--help"},
 			wantExit: 0,
 		},
+		{
+			name:     "install-skill help",
+			args:     []string{"install-skill", "--help"},
+			wantExit: 0,
+		},
 
 		// Missing required arguments
 		{
@@ -464,6 +469,12 @@ func TestCLIContract_ExitCodes(t *testing.T) {
 			wantExit:   1,
 			wantStderr: "unknown flag",
 		},
+		{
+			name:       "install-skill unknown flag",
+			args:       []string{"install-skill", "--nonexistent"},
+			wantExit:   1,
+			wantStderr: "unknown flag",
+		},
 
 		// Short flag variations
 		{
@@ -474,6 +485,11 @@ func TestCLIContract_ExitCodes(t *testing.T) {
 		{
 			name:     "init short force help",
 			args:     []string{"init", "-h"},
+			wantExit: 0,
+		},
+		{
+			name:     "install-skill short help",
+			args:     []string{"install-skill", "-h"},
 			wantExit: 0,
 		},
 	}
