@@ -9,7 +9,7 @@
 - **bd** on PATH (`bd --version` works)
 - **gromit** built:
   ```bash
-  cd /path/to/ralph-runner && go build -o ralph ./cmd/gromit
+  cd /path/to/gromit && go build -o gromit ./cmd/gromit
   ```
 - A valid Claude API key (or Claude Code configured)
 

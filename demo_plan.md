@@ -6,7 +6,7 @@ We need a reusable demo script that creates a fresh project, installs gromit, an
 
 ## What We'll Create
 
-Three files in `/home/danabrams/ralph-runner/demo/`:
+Three files in the `demo/` directory:
 
 ### 1. `demo.sh` — The main demo script
 
@@ -157,7 +157,7 @@ Quick code review session, then retrospective analysis of learnings.
 
 ## Implementation Steps
 
-1. Create `demo/` directory in the ralph-runner repo
+1. Create `demo/` directory in the gromit repo
 2. Write `demo/demo-content.sh` with all heredoc content (starter project + fallback spec/plan/learnings)
 3. Write `demo/demo.sh` with all `demo_*` functions
 4. Write `demo/RECORDING.md` with recording instructions
