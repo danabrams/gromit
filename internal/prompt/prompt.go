@@ -59,6 +59,20 @@ type AnalyzeContext struct {
 	FailureOutput   string
 }
 
+// LearnContext holds data for success learning extraction prompt template
+type LearnContext struct {
+	BeadID          string
+	BeadTitle       string
+	BeadDescription string
+	Summary         string // Brief summary of work done
+}
+
+// SuccessLearning represents the result of extracting a learning from success
+type SuccessLearning struct {
+	Learning *string `json:"learning"` // nil if no learning extracted
+	Category string  `json:"category"`
+}
+
 // DecomposeContext holds data for task decomposition prompt template
 type DecomposeContext struct {
 	Bead       *bead.Bead
@@ -160,6 +174,11 @@ func (r *Renderer) RenderBuild(ctx *Context) (string, error) {
 // RenderAnalyze renders the failure analysis prompt
 func (r *Renderer) RenderAnalyze(ctx *AnalyzeContext) (string, error) {
 	return r.render("PROMPT_analyze.md", ctx)
+}
+
+// RenderLearn renders the success learning extraction prompt
+func (r *Renderer) RenderLearn(ctx *LearnContext) (string, error) {
+	return r.render("PROMPT_learn.md", ctx)
 }
 
 // RenderValidate renders the validation prompt
@@ -392,4 +411,26 @@ func ParseScopeEstimate(output string) (*ScopeEstimate, error) {
 	estimate.normalizeNilFields()
 
 	return &estimate, nil
+}
+
+// ParseSuccessLearning parses Claude's JSON success learning output into a SuccessLearning struct
+func ParseSuccessLearning(output string) (*SuccessLearning, error) {
+	if output == "" {
+		return nil, fmt.Errorf("success learning output is empty")
+	}
+
+	var learning SuccessLearning
+	if err := jsonutil.ExtractObject(output, &learning); err != nil {
+		return nil, fmt.Errorf("parsing success learning JSON: %w", err)
+	}
+
+	// Validate category
+	switch learning.Category {
+	case "conventions", "gotchas", "patterns":
+		// Valid
+	default:
+		learning.Category = "gotchas" // Default
+	}
+
+	return &learning, nil
 }

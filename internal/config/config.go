@@ -42,9 +42,10 @@ type EscalationConfig struct {
 }
 
 type LoopConfig struct {
-	MaxIterations      int  `yaml:"max_iterations"`
-	StopOnFailure      bool `yaml:"stop_on_failure"`
-	StuckBeadThreshold int  `yaml:"stuck_bead_threshold"`
+	MaxIterations      int   `yaml:"max_iterations"`
+	StopOnFailure      bool  `yaml:"stop_on_failure"`
+	StuckBeadThreshold int   `yaml:"stuck_bead_threshold"`
+	LearnFromSuccess   *bool `yaml:"learn_from_success"`
 }
 
 type ValidationConfig struct {
@@ -204,6 +205,10 @@ func (c *Config) setDefaults() {
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
 	}
+	if c.Loop.LearnFromSuccess == nil {
+		t := true
+		c.Loop.LearnFromSuccess = &t
+	}
 	if c.Review.Model == "" {
 		c.Review.Model = ModelSonnet
 	}
@@ -285,4 +290,12 @@ func (t ThoroughReviewConfig) ShouldRunOnEpicComplete() bool {
 		return true
 	}
 	return *t.OnEpicComplete
+}
+
+// ShouldLearnFromSuccess returns whether to extract learnings from successful iterations
+func (l LoopConfig) ShouldLearnFromSuccess() bool {
+	if l.LearnFromSuccess == nil {
+		return true
+	}
+	return *l.LearnFromSuccess
 }

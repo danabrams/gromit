@@ -166,6 +166,7 @@ type mockPromptRenderer struct {
 	BuildContextFn         func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
 	RenderBuildFn          func(ctx *prompt.Context) (string, error)
 	RenderAnalyzeFn        func(ctx *prompt.AnalyzeContext) (string, error)
+	RenderLearnFn          func(ctx *prompt.LearnContext) (string, error)
 	RenderDecomposeFn      func(ctx *prompt.DecomposeContext) (string, error)
 	RenderScopeFn          func(ctx *prompt.ScopeContext) (string, error)
 	RenderReviewFn         func(ctx *prompt.ReviewContext) (string, error)
@@ -202,6 +203,13 @@ func (m *mockPromptRenderer) RenderAnalyze(ctx *prompt.AnalyzeContext) (string, 
 		return m.RenderAnalyzeFn(ctx)
 	}
 	return "mock analyze prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderLearn(ctx *prompt.LearnContext) (string, error) {
+	if m.RenderLearnFn != nil {
+		return m.RenderLearnFn(ctx)
+	}
+	return "mock learn prompt", nil
 }
 
 func (m *mockPromptRenderer) RenderDecompose(ctx *prompt.DecomposeContext) (string, error) {
@@ -302,6 +310,10 @@ func (m *mockRenderer) RenderBuild(ctx *prompt.Context) (string, error) {
 
 func (m *mockRenderer) RenderAnalyze(ctx *prompt.AnalyzeContext) (string, error) {
 	return "mock analyze prompt", nil
+}
+
+func (m *mockRenderer) RenderLearn(ctx *prompt.LearnContext) (string, error) {
+	return "mock learn prompt", nil
 }
 
 func (m *mockRenderer) RenderDecompose(ctx *prompt.DecomposeContext) (string, error) {

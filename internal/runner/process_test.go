@@ -14,6 +14,70 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 )
 
+// mockRendererWithLearn is a mock renderer that supports RenderLearn with customizable output
+type mockRendererWithLearn struct {
+	learningsFile     *learnings.File
+	renderLearnResult string
+}
+
+func (m *mockRendererWithLearn) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+	return &prompt.Context{
+		Bead:               b,
+		ParentBead:         parent,
+		Iteration:          iteration,
+		Model:              model,
+		ConfirmedLearnings: []learnings.Learning{},
+		RecentLearnings:    []learnings.Learning{},
+	}, nil
+}
+
+func (m *mockRendererWithLearn) RenderBuild(ctx *prompt.Context) (string, error) {
+	return "mock build prompt", nil
+}
+
+func (m *mockRendererWithLearn) RenderAnalyze(ctx *prompt.AnalyzeContext) (string, error) {
+	return "mock analyze prompt", nil
+}
+
+func (m *mockRendererWithLearn) RenderLearn(ctx *prompt.LearnContext) (string, error) {
+	if m.renderLearnResult != "" {
+		return m.renderLearnResult, nil
+	}
+	return "mock learn prompt", nil
+}
+
+func (m *mockRendererWithLearn) RenderDecompose(ctx *prompt.DecomposeContext) (string, error) {
+	return "mock decompose prompt", nil
+}
+
+func (m *mockRendererWithLearn) RenderScope(ctx *prompt.ScopeContext) (string, error) {
+	return "mock scope prompt", nil
+}
+
+func (m *mockRendererWithLearn) LoadSpec(name string) (string, error) {
+	return "", nil
+}
+
+func (m *mockRendererWithLearn) RenderReview(ctx *prompt.ReviewContext) (string, error) {
+	return "mock review prompt", nil
+}
+
+func (m *mockRendererWithLearn) RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error) {
+	return "mock thorough review prompt", nil
+}
+
+func (m *mockRendererWithLearn) LoadClaudeMD() (string, error) {
+	return "", nil
+}
+
+func (m *mockRendererWithLearn) LoadRules() (string, error) {
+	return "", nil
+}
+
+func (m *mockRendererWithLearn) GetLearningsFile() *learnings.File {
+	return m.learningsFile
+}
+
 func TestSetupBeadContext_NilConfig(t *testing.T) {
 	r := &Runner{output: &strings.Builder{}}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -358,5 +422,125 @@ func TestProcessBead_DurationIsSetOnSetupFailure(t *testing.T) {
 	}
 	if result.BeadID != "test-1" {
 		t.Errorf("expected BeadID 'test-1', got %q", result.BeadID)
+	}
+}
+
+func TestExtractSuccessLearning_NilRunner(t *testing.T) {
+	var r *Runner
+	bc := &beadContext{
+		bead: &bead.Bead{ID: "test-1"},
+	}
+	// Should not panic
+	r.extractSuccessLearning(context.Background(), bc)
+}
+
+func TestExtractSuccessLearning_NilBeadContext(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{output: &buf}
+	// Should not panic
+	r.extractSuccessLearning(context.Background(), nil)
+}
+
+func TestExtractSuccessLearning_FeatureDisabled(t *testing.T) {
+	var buf strings.Builder
+	learnFromSuccessDisabled := false
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessDisabled,
+			},
+		},
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead: &bead.Bead{ID: "test-1", Title: "Test"},
+	}
+
+	r.extractSuccessLearning(context.Background(), bc)
+
+	if strings.Contains(buf.String(), "Success learning") {
+		t.Error("should not extract learning when feature is disabled")
+	}
+}
+
+func TestExtractSuccessLearning_NilLearning(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		runResult: &claude.Result{
+			Success: true,
+			Output:  `{"learning": null, "category": "patterns"}`,
+		},
+	}
+	lf, _ := learnings.NewFile(".")
+	mockRend := &mockRendererWithLearn{
+		learningsFile:     lf,
+		renderLearnResult: "learning prompt",
+	}
+
+	learnFromSuccessEnabled := true
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessEnabled,
+			},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:          "test-1",
+			Title:       "Test",
+			Description: "Test description",
+		},
+	}
+
+	r.extractSuccessLearning(context.Background(), bc)
+
+	// Should not log "Success learning extracted" when learning is null
+	if strings.Contains(buf.String(), "Success learning extracted") {
+		t.Error("should not log when learning is null")
+	}
+}
+
+func TestExtractSuccessLearning_WithLearning(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		runResult: &claude.Result{
+			Success: true,
+			Output:  `{"learning": "Use setDefaults() for config validation", "category": "conventions"}`,
+		},
+	}
+	lf, _ := learnings.NewFile(".")
+	mockRend := &mockRendererWithLearn{
+		learningsFile:     lf,
+		renderLearnResult: "learning prompt",
+	}
+
+	learnFromSuccessEnabled := true
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessEnabled,
+			},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:          "test-1",
+			Title:       "Test",
+			Description: "Test description",
+		},
+	}
+
+	r.extractSuccessLearning(context.Background(), bc)
+
+	// Should log "Success learning extracted"
+	if !strings.Contains(buf.String(), "Success learning extracted") {
+		t.Error("expected 'Success learning extracted' in log output")
 	}
 }

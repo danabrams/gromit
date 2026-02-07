@@ -51,6 +51,7 @@ type PromptRenderer interface {
 	BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
 	RenderBuild(ctx *prompt.Context) (string, error)
 	RenderAnalyze(ctx *prompt.AnalyzeContext) (string, error)
+	RenderLearn(ctx *prompt.LearnContext) (string, error)
 	RenderDecompose(ctx *prompt.DecomposeContext) (string, error)
 	RenderScope(ctx *prompt.ScopeContext) (string, error)
 	RenderReview(ctx *prompt.ReviewContext) (string, error)

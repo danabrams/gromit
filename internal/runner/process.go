@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
@@ -231,6 +232,81 @@ func (r *Runner) extractLearning(bc *beadContext, analysis *analyzer.Analysis) {
 	}
 }
 
+// extractSuccessLearning calls Claude to extract a learning from a successful iteration.
+// Uses haiku with a lightweight prompt asking what codebase pattern/convention/gotcha was encountered.
+func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
+	if r == nil || bc == nil {
+		return
+	}
+	if r.cfg == nil || !r.cfg.Loop.ShouldLearnFromSuccess() {
+		return
+	}
+	if r.claude == nil || r.renderer == nil {
+		return
+	}
+
+	// Build a brief summary of what was done (use bead title + first line of description)
+	summary := bc.bead.Title
+	if bc.bead.Description != "" {
+		// Take first line only
+		lines := strings.Split(bc.bead.Description, "\n")
+		if len(lines) > 0 && lines[0] != "" {
+			summary = bc.bead.Title + ": " + lines[0]
+		}
+	}
+
+	learnCtx := &prompt.LearnContext{
+		BeadID:          bc.bead.ID,
+		BeadTitle:       bc.bead.Title,
+		BeadDescription: bc.bead.Description,
+		Summary:         summary,
+	}
+
+	learnPrompt, err := r.renderer.RenderLearn(learnCtx)
+	if err != nil {
+		r.log("Warning: failed to render learning prompt: %v", err)
+		return
+	}
+
+	// Call Claude with haiku (lightweight, fast)
+	// Use a short timeout - learning extraction should be quick
+	learnTimeout := 30 * time.Second
+	learnCtxTimeout, cancel := context.WithTimeout(ctx, learnTimeout)
+	defer cancel()
+
+	claudeResult, err := r.claude.Run(learnCtxTimeout, learnPrompt, "haiku")
+	if err != nil {
+		// Learning extraction is optional - don't fail the iteration
+		return
+	}
+	if claudeResult == nil || !claudeResult.Success {
+		return
+	}
+
+	// Parse the result
+	successLearning, err := prompt.ParseSuccessLearning(claudeResult.Output)
+	if err != nil {
+		return
+	}
+
+	if successLearning.Learning == nil {
+		return
+	}
+
+	r.log("Success learning extracted: %s", *successLearning.Learning)
+	lf := r.renderer.GetLearningsFile()
+	if lf == nil {
+		return
+	}
+
+	learning, err := lf.Add(bc.bead.ID, *successLearning.Learning, successLearning.Category)
+	if err != nil {
+		r.log("Warning: failed to add success learning: %v", err)
+	} else if learning != nil {
+		r.log("Success learning added to LEARNINGS.md")
+	}
+}
+
 // analyzeAndHandleFailure runs failure analysis and decides whether to retry, escalate, or stop.
 // Returns true if the retry loop should continue, false if processBead should return.
 func (r *Runner) analyzeAndHandleFailure(ctx context.Context, bc *beadContext, claudeResult *claude.Result) (continueLoop bool) {
@@ -433,6 +509,9 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 
 	bc.result.Validated = true
 	r.log("Validation passed")
+
+	// Extract success learning if enabled
+	r.extractSuccessLearning(ctx, bc)
 
 	// Run light review if enabled
 	if r.cfg.Review.Enabled {
