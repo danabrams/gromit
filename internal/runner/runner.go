@@ -34,6 +34,7 @@ type Runner struct {
 	logger       IterationLogger
 	streamLogger *logger.StreamLogger
 	output       io.Writer
+	syncOut      *syncWriter // concrete type for WriteOverwrite access
 	gromitDir    string
 }
 
@@ -79,6 +80,9 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		return nil, err
 	}
 
+	// Wrap output in synchronized writer for thread-safe writes
+	syncOut := newSyncWriter(output)
+
 	return &Runner{
 		cfg:       cfg,
 		beads:     beadsClient,
@@ -86,7 +90,8 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		analyzer:  analyzerObj,
 		renderer:  renderer,
 		logger:    log,
-		output:    output,
+		output:    syncOut,
+		syncOut:   syncOut,
 		gromitDir: gromitDir,
 	}, nil
 }
@@ -109,6 +114,9 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	if output == nil {
 		output = os.Stdout
 	}
+	// Wrap output in synchronized writer for thread-safe writes
+	syncOut := newSyncWriter(output)
+
 	return &Runner{
 		cfg:       cfg,
 		beads:     deps.Beads,
@@ -116,7 +124,8 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		analyzer:  deps.Analyzer,
 		renderer:  deps.Renderer,
 		logger:    deps.Logger,
-		output:    output,
+		output:    syncOut,
+		syncOut:   syncOut,
 		gromitDir: gromitDir,
 	}, nil
 }
