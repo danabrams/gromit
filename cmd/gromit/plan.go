@@ -57,6 +57,7 @@ func runPlan(cmd *cobra.Command, args []string) error {
 		cfg = nil
 	}
 
+	gromitDir := resolveGromitDir(cfg)
 	specsDir := resolveSpecsDir(cfg)
 	plansDir := resolvePlansDir(cfg)
 
@@ -191,11 +192,33 @@ Plan output path: %s
 		claudeFlags = cfg.Claude.Flags
 	}
 
-	// Build command args: flags + --append-system-prompt + system prompt + initial message
-	cmdArgs := append([]string{}, claudeFlags...)
-	cmdArgs = append(cmdArgs, "--append-system-prompt", systemPrompt, "Begin creating an implementation plan for this spec following the instructions above.")
+	// Write system prompt to a temp file to avoid "argument list too long" errors
+	// when the spec or open beads list is large
+	tmpDir := filepath.Join(gromitDir, "tmp")
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		return fmt.Errorf("creating tmp dir: %w", err)
+	}
 
-	// Launch Claude Code with system prompt and initial message
+	promptFile, err := os.CreateTemp(tmpDir, "plan-prompt-*.md")
+	if err != nil {
+		return fmt.Errorf("creating temp prompt file: %w", err)
+	}
+	promptPath := promptFile.Name()
+	defer os.Remove(promptPath)
+
+	if _, err := promptFile.WriteString(systemPrompt); err != nil {
+		promptFile.Close()
+		return fmt.Errorf("writing prompt file: %w", err)
+	}
+	promptFile.Close()
+
+	// Launch Claude Code with a short initial prompt that references the temp file
+	initialPrompt := fmt.Sprintf("Read and follow the planning instructions in %s", promptPath)
+
+	// Build command args: flags + initial message
+	cmdArgs := append([]string{}, claudeFlags...)
+	cmdArgs = append(cmdArgs, initialPrompt)
+
 	claudeCmd := exec.Command(claudeBinary, cmdArgs...)
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout

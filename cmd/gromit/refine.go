@@ -193,11 +193,33 @@ Specs directory: %s
 		claudeFlags = cfg.Claude.Flags
 	}
 
-	// Build command args: flags + --append-system-prompt + system prompt + initial message
-	cmdArgs := append([]string{}, claudeFlags...)
-	cmdArgs = append(cmdArgs, "--append-system-prompt", systemPrompt, "Begin refining this idea into a structured spec following the instructions above.")
+	// Write system prompt to a temp file to avoid "argument list too long" errors
+	// when the idea text or context is large
+	tmpDir := filepath.Join(gromitDir, "tmp")
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		return fmt.Errorf("creating tmp dir: %w", err)
+	}
 
-	// Launch Claude Code with system prompt and initial message
+	promptFile, err := os.CreateTemp(tmpDir, "refine-prompt-*.md")
+	if err != nil {
+		return fmt.Errorf("creating temp prompt file: %w", err)
+	}
+	promptPath := promptFile.Name()
+	defer os.Remove(promptPath)
+
+	if _, err := promptFile.WriteString(systemPrompt); err != nil {
+		promptFile.Close()
+		return fmt.Errorf("writing prompt file: %w", err)
+	}
+	promptFile.Close()
+
+	// Launch Claude Code with a short initial prompt that references the temp file
+	initialPrompt := fmt.Sprintf("Read and follow the refinement instructions in %s", promptPath)
+
+	// Build command args: flags + initial message
+	cmdArgs := append([]string{}, claudeFlags...)
+	cmdArgs = append(cmdArgs, initialPrompt)
+
 	claudeCmd := exec.Command(claudeBinary, cmdArgs...)
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout
