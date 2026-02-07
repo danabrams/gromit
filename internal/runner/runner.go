@@ -1063,10 +1063,13 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 			}
 		}
 
+		// Inherit labels from parent and inject methodology labels if needed
+		labels := r.injectMethodologyLabels(b.Labels)
+
 		createdBead, err := r.beads.CreateWithParentAndDescription(
 			subTask.Title,
 			b.Priority, // Inherit priority from parent
-			b.Labels,   // Inherit labels from parent
+			labels,     // Inherit labels from parent with methodology injection
 			nil,        // No expected outputs
 			b.ID,       // Set parent to original bead
 			description,
@@ -1110,6 +1113,49 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 
 	r.log("Successfully created %d sub-beads", len(createdIDs))
 	return nil
+}
+
+// injectMethodologyLabels takes parent labels and adds methodology labels when
+// the methodology is globally active but not already present in the parent's labels.
+// This ensures sub-beads inherit methodology even when set globally rather than via labels.
+func (r *Runner) injectMethodologyLabels(parentLabels []string) []string {
+	if r == nil || r.cfg == nil {
+		return parentLabels
+	}
+
+	// Start with a copy of parent labels
+	labels := make([]string, len(parentLabels))
+	copy(labels, parentLabels)
+
+	// Check if ATDD label should be added
+	if r.cfg.Methodology.ATDD {
+		hasATDDLabel := false
+		for _, label := range labels {
+			if label == "atdd:true" || label == "atdd:false" {
+				hasATDDLabel = true
+				break
+			}
+		}
+		if !hasATDDLabel {
+			labels = append(labels, "atdd:true")
+		}
+	}
+
+	// Check if TDD label should be added
+	if r.cfg.Methodology.TDD {
+		hasTDDLabel := false
+		for _, label := range labels {
+			if label == "tdd:true" || label == "tdd:false" {
+				hasTDDLabel = true
+				break
+			}
+		}
+		if !hasTDDLabel {
+			labels = append(labels, "tdd:true")
+		}
+	}
+
+	return labels
 }
 
 // checkScope calls haiku with scope prompt and returns ScopeEstimate.

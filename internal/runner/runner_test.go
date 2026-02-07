@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -879,6 +880,157 @@ func TestCreateSubBeadsNilBeadsClient(t *testing.T) {
 	err := r.CreateSubBeads(nil, b, subTasks)
 	if err == nil || !strings.Contains(err.Error(), "beads client is nil") {
 		t.Errorf("expected error for nil beads client, got: %v", err)
+	}
+}
+
+func TestCreateSubBeads_MethodologyInheritance(t *testing.T) {
+	tests := []struct {
+		name           string
+		globalATDD     bool
+		globalTDD      bool
+		parentLabels   []string
+		expectedLabels []string
+		description    string
+	}{
+		{
+			name:           "Global ATDD true, no parent label - adds atdd:true",
+			globalATDD:     true,
+			globalTDD:      false,
+			parentLabels:   []string{"spec:auth"},
+			expectedLabels: []string{"spec:auth", "atdd:true"},
+			description:    "When global ATDD is enabled and parent has no atdd label, sub-bead should get atdd:true",
+		},
+		{
+			name:           "Global TDD true, no parent label - adds tdd:true",
+			globalATDD:     false,
+			globalTDD:      true,
+			parentLabels:   []string{"spec:auth"},
+			expectedLabels: []string{"spec:auth", "tdd:true"},
+			description:    "When global TDD is enabled and parent has no tdd label, sub-bead should get tdd:true",
+		},
+		{
+			name:           "Both methodologies true, no parent labels - adds both",
+			globalATDD:     true,
+			globalTDD:      true,
+			parentLabels:   []string{"spec:auth"},
+			expectedLabels: []string{"spec:auth", "atdd:true", "tdd:true"},
+			description:    "When both methodologies are globally enabled, sub-bead should get both labels",
+		},
+		{
+			name:           "Parent has atdd:true - no duplicate",
+			globalATDD:     true,
+			globalTDD:      false,
+			parentLabels:   []string{"spec:auth", "atdd:true"},
+			expectedLabels: []string{"spec:auth", "atdd:true"},
+			description:    "When parent already has atdd:true, should not add duplicate",
+		},
+		{
+			name:           "Parent has atdd:false - not overridden",
+			globalATDD:     true,
+			globalTDD:      false,
+			parentLabels:   []string{"spec:auth", "atdd:false"},
+			expectedLabels: []string{"spec:auth", "atdd:false"},
+			description:    "When parent has explicit atdd:false, should preserve it even if global is true",
+		},
+		{
+			name:           "Parent has tdd:false - not overridden",
+			globalATDD:     false,
+			globalTDD:      true,
+			parentLabels:   []string{"spec:auth", "tdd:false"},
+			expectedLabels: []string{"spec:auth", "tdd:false"},
+			description:    "When parent has explicit tdd:false, should preserve it even if global is true",
+		},
+		{
+			name:           "Global false, no parent labels - no additions",
+			globalATDD:     false,
+			globalTDD:      false,
+			parentLabels:   []string{"spec:auth"},
+			expectedLabels: []string{"spec:auth"},
+			description:    "When methodologies are globally disabled, no labels should be added",
+		},
+		{
+			name:           "Mixed: parent has atdd:true, global TDD true - adds tdd:true",
+			globalATDD:     false,
+			globalTDD:      true,
+			parentLabels:   []string{"spec:auth", "atdd:true"},
+			expectedLabels: []string{"spec:auth", "atdd:true", "tdd:true"},
+			description:    "Should add tdd:true when global TDD is true and parent doesn't have tdd label",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedLabels []string
+			mockBeads := &mockBeadClient{
+				CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+					capturedLabels = labels
+					return &bead.Bead{
+						ID:              "sub-1",
+						Title:           title,
+						Priority:        priority,
+						Labels:          labels,
+						ExpectedOutputs: []string{},
+					}, nil
+				},
+			}
+
+			cfg := &config.Config{
+				Methodology: config.MethodologyConfig{
+					ATDD: tt.globalATDD,
+					TDD:  tt.globalTDD,
+				},
+			}
+
+			var buf strings.Builder
+			r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+				Deps{
+					Beads:    mockBeads,
+					Claude:   &mockClaudeClient{},
+					Analyzer: &mockFailureAnalyzer{},
+					Renderer: &mockPromptRenderer{},
+					Logger:   &mockIterationLogger{},
+				})
+			if err != nil {
+				t.Fatalf("Failed to create runner: %v", err)
+			}
+
+			parent := &bead.Bead{
+				ID:              "parent-1",
+				Title:           "Parent task",
+				Priority:        1,
+				Labels:          tt.parentLabels,
+				ExpectedOutputs: []string{},
+			}
+
+			subTasks := []SubTask{
+				{Title: "Sub-task 1", Description: "Do something"},
+			}
+
+			if err := r.CreateSubBeads(context.Background(), parent, subTasks); err != nil {
+				t.Fatalf("CreateSubBeads() failed: %v", err)
+			}
+
+			// Check that labels match expected
+			if len(capturedLabels) != len(tt.expectedLabels) {
+				t.Errorf("%s\nExpected %d labels, got %d\nExpected: %v\nGot: %v",
+					tt.description, len(tt.expectedLabels), len(capturedLabels), tt.expectedLabels, capturedLabels)
+				return
+			}
+
+			// Check each expected label is present
+			for _, expected := range tt.expectedLabels {
+				found := false
+				for _, actual := range capturedLabels {
+					if actual == expected {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("%s\nMissing expected label: %s\nGot: %v", tt.description, expected, capturedLabels)
+				}
+			}
+		})
 	}
 }
 
