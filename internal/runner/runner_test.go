@@ -1697,3 +1697,87 @@ func TestRunThoroughReviewSkipsWhenInsufficientTime(t *testing.T) {
 		t.Errorf("expected 'Insufficient time remaining' message, got: %s", buf.String())
 	}
 }
+
+func TestRunBetweenIterationsCommandEmptyNoOp(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg:    &config.Config{},
+		output: &buf,
+	}
+
+	// No command configured, should be no-op
+	r.runBetweenIterationsCommand()
+
+	output := buf.String()
+	if output != "" {
+		t.Errorf("expected no output for empty command, got: %s", output)
+	}
+}
+
+func TestRunBetweenIterationsCommandSuccessful(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				BetweenIterationsCommand: "echo 'test output'",
+			},
+		},
+		output: &buf,
+	}
+
+	r.runBetweenIterationsCommand()
+
+	output := buf.String()
+	if !strings.Contains(output, "Running between-iterations command") {
+		t.Errorf("expected 'Running between-iterations command' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "test output") {
+		t.Errorf("expected command output 'test output' to be visible, got: %s", output)
+	}
+}
+
+func TestRunBetweenIterationsCommandFailedWarning(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				BetweenIterationsCommand: "exit 1",
+			},
+		},
+		output: &buf,
+	}
+
+	r.runBetweenIterationsCommand()
+
+	output := buf.String()
+	if !strings.Contains(output, "Running between-iterations command") {
+		t.Errorf("expected 'Running between-iterations command' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Warning") {
+		t.Errorf("expected warning for failed command, got: %s", output)
+	}
+	if !strings.Contains(output, "between-iterations command failed") {
+		t.Errorf("expected 'between-iterations command failed' in warning, got: %s", output)
+	}
+}
+
+func TestRunBetweenIterationsCommandNilRunner(t *testing.T) {
+	var r *Runner
+	// Should not panic
+	r.runBetweenIterationsCommand()
+}
+
+func TestRunBetweenIterationsCommandNilConfig(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		output: &buf,
+	}
+
+	// Should not panic
+	r.runBetweenIterationsCommand()
+
+	output := buf.String()
+	if output != "" {
+		t.Errorf("expected no output for nil config, got: %s", output)
+	}
+}
