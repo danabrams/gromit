@@ -10,3 +10,9 @@ var PlanSkill string
 
 //go:embed gromit-decompose/SKILL.md
 var DecomposeSkill string
+
+//go:embed gromit-orchestrator/SKILL.md
+var OrchestratorSkill string
+
+//go:embed gromit-orchestrator/pipeline-resume.sh
+var PipelineResumeHook string
