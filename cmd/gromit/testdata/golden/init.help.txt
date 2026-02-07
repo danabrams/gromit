@@ -17,6 +17,7 @@ Creates:
       PROMPT_atdd_build.md
       PROMPT_tdd_build.md
       PROMPT_refactor.md
+      PROMPT_precheck.md
     specs/             - Specification files (empty)
     plans/             - Plan files (empty)
 

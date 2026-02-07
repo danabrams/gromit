@@ -124,9 +124,9 @@ func TestTimestampComparison(t *testing.T) {
 		},
 		{
 			name:       "large vs small with string comparison issue",
-			timestamp1: "999999999", // 9 digits
+			timestamp1: "999999999",  // 9 digits
 			timestamp2: "1000000000", // 10 digits (epoch start)
-			want:       true, // numerically correct (but string compare would be false)
+			want:       true,         // numerically correct (but string compare would be false)
 		},
 	}
 
