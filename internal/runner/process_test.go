@@ -466,9 +466,11 @@ func TestExtractSuccessLearning_FeatureDisabled(t *testing.T) {
 func TestExtractSuccessLearning_NilLearning(t *testing.T) {
 	var buf strings.Builder
 	mockClaude := &mockClaudeClient{
-		runResult: &claude.Result{
-			Success: true,
-			Output:  `{"learning": null, "category": "patterns"}`,
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  `{"learning": null, "category": "patterns"}`,
+			}, nil
 		},
 	}
 	lf, _ := learnings.NewFile(".")
@@ -507,9 +509,11 @@ func TestExtractSuccessLearning_NilLearning(t *testing.T) {
 func TestExtractSuccessLearning_WithLearning(t *testing.T) {
 	var buf strings.Builder
 	mockClaude := &mockClaudeClient{
-		runResult: &claude.Result{
-			Success: true,
-			Output:  `{"learning": "Use setDefaults() for config validation", "category": "conventions"}`,
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  `{"learning": "Use setDefaults() for config validation", "category": "conventions"}`,
+			}, nil
 		},
 	}
 	lf, _ := learnings.NewFile(".")
