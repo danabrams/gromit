@@ -600,6 +600,25 @@ func HasLabel(labels []string, target string) bool {
 	return false
 }
 
+// IsMethodologyActive checks if a methodology (e.g., "atdd", "tdd") is active for a bead.
+// It checks for a label like "atdd:true" or "atdd:false" and returns that value if present.
+// If no matching label is found, it falls back to the globalDefault value.
+func IsMethodologyActive(labels []string, methodologyName string, globalDefault bool) bool {
+	trueLabel := methodologyName + ":true"
+	falseLabel := methodologyName + ":false"
+
+	for _, label := range labels {
+		if label == trueLabel {
+			return true
+		}
+		if label == falseLabel {
+			return false
+		}
+	}
+
+	return globalDefault
+}
+
 func (c *Client) run(args ...string) (string, error) {
 	cmd := exec.Command(c.binary, args...)
 	if c.Dir != "" {

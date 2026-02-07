@@ -1396,6 +1396,174 @@ func TestClientCreateWithDeps(t *testing.T) {
 	}
 }
 
+// TestIsMethodologyActive tests the IsMethodologyActive function
+func TestIsMethodologyActive(t *testing.T) {
+	tests := []struct {
+		name            string
+		labels          []string
+		methodologyName string
+		globalDefault   bool
+		want            bool
+	}{
+		{
+			name:            "atdd:true label with false global",
+			labels:          []string{"atdd:true", "spec:auth"},
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            true,
+		},
+		{
+			name:            "atdd:false label with true global",
+			labels:          []string{"atdd:false", "priority:p1"},
+			methodologyName: "atdd",
+			globalDefault:   true,
+			want:            false,
+		},
+		{
+			name:            "no matching label falls back to global true",
+			labels:          []string{"spec:auth", "complexity:high"},
+			methodologyName: "atdd",
+			globalDefault:   true,
+			want:            true,
+		},
+		{
+			name:            "no matching label falls back to global false",
+			labels:          []string{"spec:auth", "complexity:high"},
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            false,
+		},
+		{
+			name:            "tdd:true label with false global",
+			labels:          []string{"tdd:true"},
+			methodologyName: "tdd",
+			globalDefault:   false,
+			want:            true,
+		},
+		{
+			name:            "tdd:false label with true global",
+			labels:          []string{"tdd:false"},
+			methodologyName: "tdd",
+			globalDefault:   true,
+			want:            false,
+		},
+		{
+			name:            "empty labels falls back to global true",
+			labels:          []string{},
+			methodologyName: "atdd",
+			globalDefault:   true,
+			want:            true,
+		},
+		{
+			name:            "empty labels falls back to global false",
+			labels:          []string{},
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            false,
+		},
+		{
+			name:            "nil labels falls back to global true",
+			labels:          nil,
+			methodologyName: "atdd",
+			globalDefault:   true,
+			want:            true,
+		},
+		{
+			name:            "nil labels falls back to global false",
+			labels:          nil,
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            false,
+		},
+		{
+			name:            "atdd label with tdd methodology name doesn't match",
+			labels:          []string{"atdd:true"},
+			methodologyName: "tdd",
+			globalDefault:   false,
+			want:            false,
+		},
+		{
+			name:            "tdd label with atdd methodology name doesn't match",
+			labels:          []string{"tdd:true"},
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            false,
+		},
+		{
+			name:            "custom methodology name with true label",
+			labels:          []string{"custom:true"},
+			methodologyName: "custom",
+			globalDefault:   false,
+			want:            true,
+		},
+		{
+			name:            "custom methodology name with false label",
+			labels:          []string{"custom:false"},
+			methodologyName: "custom",
+			globalDefault:   true,
+			want:            false,
+		},
+		{
+			name:            "multiple methodology labels - true takes precedence",
+			labels:          []string{"atdd:true", "tdd:false"},
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            true,
+		},
+		{
+			name:            "multiple methodology labels - false takes precedence",
+			labels:          []string{"tdd:false", "atdd:true"},
+			methodologyName: "tdd",
+			globalDefault:   true,
+			want:            false,
+		},
+		{
+			name:            "label with similar prefix but not exact match",
+			labels:          []string{"atdd-enabled:true"},
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            false,
+		},
+		{
+			name:            "case sensitive methodology name",
+			labels:          []string{"ATDD:true"},
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            false,
+		},
+		{
+			name:            "exact match required for label",
+			labels:          []string{"atdd:TRUE"},
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            false,
+		},
+		{
+			name:            "methodology label appears after other labels",
+			labels:          []string{"spec:auth", "complexity:high", "atdd:true", "priority:p1"},
+			methodologyName: "atdd",
+			globalDefault:   false,
+			want:            true,
+		},
+		{
+			name:            "methodology label appears first",
+			labels:          []string{"tdd:false", "spec:auth", "complexity:high"},
+			methodologyName: "tdd",
+			globalDefault:   true,
+			want:            false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsMethodologyActive(tt.labels, tt.methodologyName, tt.globalDefault)
+			if got != tt.want {
+				t.Errorf("IsMethodologyActive() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestClientHasOpenChildrenValidation tests that HasOpenChildren() validates parent IDs
 func TestClientHasOpenChildrenValidation(t *testing.T) {
 	c, _ := NewClient()
