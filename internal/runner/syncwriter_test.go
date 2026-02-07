@@ -2,6 +2,7 @@ package runner
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
 	"testing"
 )
@@ -152,8 +153,63 @@ func TestSyncWriter_StateReset(t *testing.T) {
 	}
 }
 
+func TestSyncWriter_WriteError(t *testing.T) {
+	// Test error handling when the underlying writer fails
+	t.Run("error on normal write", func(t *testing.T) {
+		ew := &errorWriter{failAfter: 0}
+		sw := newSyncWriter(ew)
+
+		_, err := sw.Write([]byte("test"))
+		if err == nil {
+			t.Error("expected error from failing writer")
+		}
+	})
+
+	t.Run("error on overwrite", func(t *testing.T) {
+		ew := &errorWriter{failAfter: 0}
+		sw := newSyncWriter(ew)
+
+		_, err := sw.WriteOverwrite([]byte("test"))
+		if err == nil {
+			t.Error("expected error from failing writer")
+		}
+	})
+
+	t.Run("error on newline prepend after overwrite", func(t *testing.T) {
+		// Allow the overwrite to succeed, but fail on the prepended newline
+		ew := &errorWriter{failAfter: 1}
+		sw := newSyncWriter(ew)
+
+		// First write succeeds (overwrite)
+		_, err := sw.WriteOverwrite([]byte("overwrite"))
+		if err != nil {
+			t.Fatalf("overwrite should succeed: %v", err)
+		}
+
+		// Second write should fail when trying to prepend newline
+		_, err = sw.Write([]byte("text"))
+		if err == nil {
+			t.Error("expected error when prepending newline")
+		}
+	})
+}
+
 // writeOp represents a write operation for testing
 type writeOp struct {
 	data        []byte
 	isOverwrite bool
+}
+
+// errorWriter is a test helper that fails after a specified number of writes
+type errorWriter struct {
+	count     int
+	failAfter int
+}
+
+func (ew *errorWriter) Write(p []byte) (n int, err error) {
+	if ew.count >= ew.failAfter {
+		return 0, fmt.Errorf("intentional write error")
+	}
+	ew.count++
+	return len(p), nil
 }
