@@ -1,6 +1,6 @@
 # Retrospective Analysis
 
-You are analyzing accumulated learnings from ralph-runner iterations to identify patterns, consolidate knowledge, and recommend updates to project rules.
+You are analyzing accumulated learnings from gromit iterations to identify patterns, consolidate knowledge, and recommend updates to project rules.
 
 ## Current Rules
 

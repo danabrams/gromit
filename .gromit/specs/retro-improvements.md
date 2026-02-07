@@ -2,7 +2,7 @@
 
 ## Problem
 
-The `ralph retro` command has two issues:
+The `gromit retro` command has two issues:
 
 1. **Blind analysis** — stuck bead data only includes failure counts, not current status or comments. This causes wrong root cause hypotheses (e.g., analyzing closed beads as stuck, hypothesizing about missing features that exist).
 
@@ -33,7 +33,7 @@ The `--non-interactive` flag keeps its current behavior (write proposals to file
 
 - `internal/retro/interactive.go` — deleted entirely
 - `ApplyAccepted()` and all `apply*()` methods in `retro.go` — Claude Code edits files directly
-- Proposal parsing from the default (interactive) path in `cmd/ralph/main.go`
+- Proposal parsing from the default (interactive) path in `cmd/gromit/main.go`
 
 ### What Stays
 
@@ -47,5 +47,5 @@ The `--non-interactive` flag keeps its current behavior (write proposals to file
 - `internal/retro/interactive.go` — delete
 - `internal/retro/proposals.go` — keep, no changes
 - `internal/logger/logger.go` — extend BeadStats struct
-- `.ralph/templates/PROMPT_retro.md` — filter closed beads, show comments
-- `cmd/ralph/main.go` — simplify runRetro()
+- `.gromit/templates/PROMPT_retro.md` — filter closed beads, show comments
+- `cmd/gromit/main.go` — simplify runRetro()

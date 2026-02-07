@@ -23,7 +23,7 @@ This is part of: **{{.ParentBead.Title}}**
 Break this task into 2-4 smaller sub-tasks that:
 - Each can be completed independently (or with minimal ordering constraints)
 - Are smaller in scope but maintain the original goal
-- Can be executed sequentially through the Ralph loop
+- Can be executed sequentially through the Gromit loop
 - Each have clear acceptance criteria
 
 ## Output Format
