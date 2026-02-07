@@ -259,6 +259,8 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 	}
 
+	r.log("")
+
 	for {
 		// Check for context cancellation
 		select {
@@ -379,6 +381,8 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 		// Process the bead
 		result := r.processBead(ctx, b, iteration, deadline)
+
+		r.log("")
 
 		// Log result to console
 		r.logResult(result)
