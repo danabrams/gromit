@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -78,4 +79,69 @@ func execGromit(args ...string) error {
 	}
 
 	return nil
+}
+
+// chainAfterRefine orchestrates the three-phase multi-spec pipeline flow after refine.
+// Phase 1: Offer to plan each spec (with --no-chain), track which plans were created.
+// Phase 2: Offer to decompose each successfully planned spec (with --no-chain), count successes.
+// Phase 3: If any specs were decomposed, offer to run gromit run (default: no).
+// Declining at any point skips remaining items in that phase and moves to the next phase.
+func chainAfterRefine(specNames []string, plansDir string) {
+	if len(specNames) == 0 {
+		return
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+
+	// Phase 1: Planning (interactive, sequential)
+	plannedNames := []string{}
+	for _, specName := range specNames {
+		prompt := fmt.Sprintf("Run 'gromit plan %s'?", specName)
+		if !confirmPrompt(reader, prompt, true) {
+			// User declined, skip remaining plans
+			break
+		}
+
+		// Run plan with --no-chain
+		if err := execGromit("plan", specName, "--no-chain"); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to execute plan: %v\n", err)
+			// Don't break - continue offering remaining plans
+			continue
+		}
+
+		// Check if plan file was created
+		planPath := filepath.Join(plansDir, specName+".md")
+		if _, err := os.Stat(planPath); err == nil {
+			plannedNames = append(plannedNames, specName)
+		}
+	}
+
+	// Phase 2: Decomposition (non-interactive, sequential)
+	decomposedCount := 0
+	for _, planName := range plannedNames {
+		prompt := fmt.Sprintf("Run 'gromit decompose %s'?", planName)
+		if !confirmPrompt(reader, prompt, true) {
+			// User declined, skip remaining decomposes
+			break
+		}
+
+		// Run decompose with --no-chain
+		if err := execGromit("decompose", planName, "--no-chain"); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to execute decompose: %v\n", err)
+			// Don't break - continue offering remaining decomposes
+			continue
+		}
+
+		// Decompose succeeded if execGromit returned nil (exit 0 or graceful exit)
+		decomposedCount++
+	}
+
+	// Phase 3: Run (only if at least one decompose succeeded)
+	if decomposedCount > 0 {
+		if confirmPrompt(reader, "Run 'gromit run'?", false) {
+			if err := execGromit("run"); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to execute run: %v\n", err)
+			}
+		}
+	}
 }
