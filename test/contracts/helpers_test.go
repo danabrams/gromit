@@ -32,14 +32,13 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "Failed to create temp dir: %v\n", err)
 		os.Exit(1)
 	}
-	defer os.RemoveAll(tmpDir)
-
 	gromitBinary = filepath.Join(tmpDir, "gromit")
 	buildCmd := exec.Command("go", "build", "-o", gromitBinary, "../../cmd/gromit")
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
 	if err := buildCmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to build gromit binary: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
@@ -48,6 +47,7 @@ func TestMain(m *testing.M) {
 	realGitPath = findRealGit()
 	if realGitPath == "" {
 		fmt.Fprintf(os.Stderr, "Failed to find real git binary\n")
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
@@ -55,6 +55,7 @@ func TestMain(m *testing.M) {
 	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get working directory: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 	fakesDir = filepath.Join(wd, "..", "fakes")
@@ -62,6 +63,9 @@ func TestMain(m *testing.M) {
 
 	// Run the tests
 	exitCode := m.Run()
+
+	// Clean up before exit (os.Exit doesn't run defers)
+	os.RemoveAll(tmpDir)
 	os.Exit(exitCode)
 }
 

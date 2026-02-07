@@ -29,8 +29,6 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "Failed to create temp dir: %v\n", err)
 		os.Exit(1)
 	}
-	defer os.RemoveAll(tmpDir)
-
 	// Build the gromit binary
 	binaryPath = filepath.Join(tmpDir, "gromit")
 	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
@@ -38,13 +36,15 @@ func TestMain(m *testing.M) {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to build gromit binary: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
 	// Run the tests
 	exitCode := m.Run()
 
-	// Exit with the test result code
+	// Clean up before exit (os.Exit doesn't run defers)
+	os.RemoveAll(tmpDir)
 	os.Exit(exitCode)
 }
 
