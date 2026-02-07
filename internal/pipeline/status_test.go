@@ -401,3 +401,245 @@ func TestGenerateRecommendation(t *testing.T) {
 		})
 	}
 }
+
+func TestReadStatus_ErrorHandling(t *testing.T) {
+	t.Run("corrupt backlog file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		gromitDir := filepath.Join(tmpDir, ".gromit")
+		specsDir := filepath.Join(gromitDir, "specs")
+		plansDir := filepath.Join(gromitDir, "plans")
+
+		os.MkdirAll(gromitDir, 0755)
+		os.MkdirAll(specsDir, 0755)
+		os.MkdirAll(plansDir, 0755)
+
+		// Write corrupt JSON to backlog
+		backlogPath := filepath.Join(gromitDir, "backlog.jsonl")
+		os.WriteFile(backlogPath, []byte("{invalid json\n"), 0644)
+
+		// ReadStatus should return an error
+		_, err := ReadStatus(gromitDir, specsDir, plansDir)
+		if err == nil {
+			t.Fatal("expected error with corrupt backlog file, got nil")
+		}
+	})
+
+	t.Run("corrupt plan frontmatter", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		gromitDir := filepath.Join(tmpDir, ".gromit")
+		specsDir := filepath.Join(gromitDir, "specs")
+		plansDir := filepath.Join(gromitDir, "plans")
+
+		os.MkdirAll(gromitDir, 0755)
+		os.MkdirAll(specsDir, 0755)
+		os.MkdirAll(plansDir, 0755)
+
+		// Create plan with malformed frontmatter
+		planPath := filepath.Join(plansDir, "bad-plan.md")
+		os.WriteFile(planPath, []byte("---\nthis is not valid yaml: {[\n---\n# Plan"), 0644)
+
+		// ReadStatus should return an error
+		_, err := ReadStatus(gromitDir, specsDir, plansDir)
+		if err == nil {
+			t.Fatal("expected error with corrupt plan frontmatter, got nil")
+		}
+	})
+
+	t.Run("permission error on specs directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		gromitDir := filepath.Join(tmpDir, ".gromit")
+		specsDir := filepath.Join(gromitDir, "specs")
+		plansDir := filepath.Join(gromitDir, "plans")
+
+		os.MkdirAll(gromitDir, 0755)
+		os.MkdirAll(specsDir, 0000) // no permissions
+		os.MkdirAll(plansDir, 0755)
+
+		// ReadStatus should return an error
+		_, err := ReadStatus(gromitDir, specsDir, plansDir)
+		if err == nil {
+			// Clean up permission issue before test framework tries to delete it
+			os.Chmod(specsDir, 0755)
+			t.Fatal("expected error with unreadable specs directory, got nil")
+		}
+
+		// Clean up permission issue
+		os.Chmod(specsDir, 0755)
+	})
+
+	t.Run("permission error on plans directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		gromitDir := filepath.Join(tmpDir, ".gromit")
+		specsDir := filepath.Join(gromitDir, "specs")
+		plansDir := filepath.Join(gromitDir, "plans")
+
+		os.MkdirAll(gromitDir, 0755)
+		os.MkdirAll(specsDir, 0755)
+		os.MkdirAll(plansDir, 0000) // no permissions
+
+		// ReadStatus should return an error
+		_, err := ReadStatus(gromitDir, specsDir, plansDir)
+		if err == nil {
+			// Clean up permission issue before test framework tries to delete it
+			os.Chmod(plansDir, 0755)
+			t.Fatal("expected error with unreadable plans directory, got nil")
+		}
+
+		// Clean up permission issue
+		os.Chmod(plansDir, 0755)
+	})
+}
+
+func TestReadStatus_CountingAccuracy(t *testing.T) {
+	t.Run("multiple items in each category", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		gromitDir := filepath.Join(tmpDir, ".gromit")
+		specsDir := filepath.Join(gromitDir, "specs")
+		plansDir := filepath.Join(gromitDir, "plans")
+
+		os.MkdirAll(gromitDir, 0755)
+		os.MkdirAll(specsDir, 0755)
+		os.MkdirAll(plansDir, 0755)
+
+		// Add multiple unrefined ideas
+		bf, _ := backlog.NewFile(gromitDir)
+		bf.Add(&backlog.Idea{ID: "idea-1", Text: "Idea one", Status: ""})
+		bf.Add(&backlog.Idea{ID: "idea-2", Text: "Idea two", Status: ""})
+		bf.Add(&backlog.Idea{ID: "idea-3", Text: "Idea three", Status: "refined"})
+		bf.Add(&backlog.Idea{ID: "idea-4", Text: "Idea four", Status: ""})
+
+		// Add multiple specs (some with plans, some without)
+		os.WriteFile(filepath.Join(specsDir, "spec-a.md"), []byte("# Spec A"), 0644)
+		os.WriteFile(filepath.Join(specsDir, "spec-b.md"), []byte("# Spec B"), 0644)
+		os.WriteFile(filepath.Join(specsDir, "spec-c.md"), []byte("# Spec C"), 0644)
+
+		// Create plans for some specs
+		os.WriteFile(filepath.Join(plansDir, "spec-a.md"), []byte("---\ndecomposed: false\n---\n# Plan A"), 0644)
+		os.WriteFile(filepath.Join(plansDir, "spec-b.md"), []byte("---\ndecomposed: true\n---\n# Plan B"), 0644)
+		// spec-c has no plan
+
+		// spec-a should be counted as undecomposed
+		// spec-b should not be counted (decomposed: true)
+		// spec-c should be counted as unplanned
+
+		status, err := ReadStatus(gromitDir, specsDir, plansDir)
+		if err != nil {
+			t.Fatalf("ReadStatus() error = %v", err)
+		}
+
+		if status.UnrefinedCount != 3 {
+			t.Errorf("UnrefinedCount = %d, want 3", status.UnrefinedCount)
+		}
+
+		if len(status.UnrefinedIdeas) != 3 {
+			t.Errorf("len(UnrefinedIdeas) = %d, want 3", len(status.UnrefinedIdeas))
+		}
+
+		if len(status.UnplannedSpecs) != 1 {
+			t.Errorf("len(UnplannedSpecs) = %d, want 1 (spec-c)", len(status.UnplannedSpecs))
+		}
+
+		if len(status.UndecomposedPlans) != 1 {
+			t.Errorf("len(UndecomposedPlans) = %d, want 1 (spec-a)", len(status.UndecomposedPlans))
+		}
+	})
+
+	t.Run("empty backlog with work in other stages", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		gromitDir := filepath.Join(tmpDir, ".gromit")
+		specsDir := filepath.Join(gromitDir, "specs")
+		plansDir := filepath.Join(gromitDir, "plans")
+
+		os.MkdirAll(gromitDir, 0755)
+		os.MkdirAll(specsDir, 0755)
+		os.MkdirAll(plansDir, 0755)
+
+		// No backlog items
+		// Add specs and plans
+		os.WriteFile(filepath.Join(specsDir, "feature.md"), []byte("# Feature"), 0644)
+		os.WriteFile(filepath.Join(plansDir, "api.md"), []byte("---\ndecomposed: false\n---\n# API Plan"), 0644)
+
+		status, err := ReadStatus(gromitDir, specsDir, plansDir)
+		if err != nil {
+			t.Fatalf("ReadStatus() error = %v", err)
+		}
+
+		if status.UnrefinedCount != 0 {
+			t.Errorf("UnrefinedCount = %d, want 0", status.UnrefinedCount)
+		}
+
+		if len(status.UnplannedSpecs) != 1 {
+			t.Errorf("len(UnplannedSpecs) = %d, want 1", len(status.UnplannedSpecs))
+		}
+
+		if len(status.UndecomposedPlans) != 1 {
+			t.Errorf("len(UndecomposedPlans) = %d, want 1", len(status.UndecomposedPlans))
+		}
+	})
+}
+
+func TestReadStatus_SpecNamesSorted(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+
+	os.MkdirAll(gromitDir, 0755)
+	os.MkdirAll(specsDir, 0755)
+	os.MkdirAll(plansDir, 0755)
+
+	// Create specs in non-alphabetical order
+	os.WriteFile(filepath.Join(specsDir, "zebra.md"), []byte("# Zebra"), 0644)
+	os.WriteFile(filepath.Join(specsDir, "apple.md"), []byte("# Apple"), 0644)
+	os.WriteFile(filepath.Join(specsDir, "mango.md"), []byte("# Mango"), 0644)
+
+	status, err := ReadStatus(gromitDir, specsDir, plansDir)
+	if err != nil {
+		t.Fatalf("ReadStatus() error = %v", err)
+	}
+
+	// Check that specs are sorted
+	expected := []string{"apple", "mango", "zebra"}
+	if len(status.UnplannedSpecs) != len(expected) {
+		t.Fatalf("len(UnplannedSpecs) = %d, want %d", len(status.UnplannedSpecs), len(expected))
+	}
+
+	for i, want := range expected {
+		if status.UnplannedSpecs[i] != want {
+			t.Errorf("UnplannedSpecs[%d] = %q, want %q", i, status.UnplannedSpecs[i], want)
+		}
+	}
+}
+
+func TestReadStatus_PlanNamesSorted(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+
+	os.MkdirAll(gromitDir, 0755)
+	os.MkdirAll(specsDir, 0755)
+	os.MkdirAll(plansDir, 0755)
+
+	// Create plans in non-alphabetical order (all undecomposed)
+	os.WriteFile(filepath.Join(plansDir, "zebra.md"), []byte("---\ndecomposed: false\n---\n# Zebra"), 0644)
+	os.WriteFile(filepath.Join(plansDir, "apple.md"), []byte("# Apple (no frontmatter)"), 0644)
+	os.WriteFile(filepath.Join(plansDir, "mango.md"), []byte("---\ndecomposed: false\n---\n# Mango"), 0644)
+
+	status, err := ReadStatus(gromitDir, specsDir, plansDir)
+	if err != nil {
+		t.Fatalf("ReadStatus() error = %v", err)
+	}
+
+	// Check that plans are sorted
+	expected := []string{"apple", "mango", "zebra"}
+	if len(status.UndecomposedPlans) != len(expected) {
+		t.Fatalf("len(UndecomposedPlans) = %d, want %d", len(status.UndecomposedPlans), len(expected))
+	}
+
+	for i, want := range expected {
+		if status.UndecomposedPlans[i] != want {
+			t.Errorf("UndecomposedPlans[%d] = %q, want %q", i, status.UndecomposedPlans[i], want)
+		}
+	}
+}
