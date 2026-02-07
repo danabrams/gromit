@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/skills"
 	"github.com/spf13/cobra"
@@ -199,12 +198,4 @@ Plan output path: %s
 	}
 
 	return nil
-}
-
-// resolvePlansDir returns the plans directory path from config or default
-func resolvePlansDir(cfg *config.Config) string {
-	if cfg != nil && cfg.Paths.Plans != "" {
-		return cfg.Paths.Plans
-	}
-	return ".gromit/plans"
 }

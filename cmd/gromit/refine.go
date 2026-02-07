@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/backlog"
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/skills"
 	"github.com/spf13/cobra"
 )
@@ -265,12 +264,4 @@ func formatTypeLabel(ideaType string) string {
 		return label
 	}
 	return fmt.Sprintf("[%-7s]", ideaType)
-}
-
-// resolveSpecsDir returns the specs directory path from config or default
-func resolveSpecsDir(cfg *config.Config) string {
-	if cfg != nil && cfg.Paths.Specs != "" {
-		return cfg.Paths.Specs
-	}
-	return ".gromit/specs"
 }

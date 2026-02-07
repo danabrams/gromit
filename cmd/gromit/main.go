@@ -108,14 +108,6 @@ func loadConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
-func resolveGromitDir(cfg *config.Config) string {
-	if cfg != nil && cfg.Paths.GromitDir != "" {
-		return cfg.Paths.GromitDir
-	}
-	// Default to .gromit in current directory
-	return ".gromit"
-}
-
 func runLoop(cmd *cobra.Command, args []string) error {
 	cfg, err := loadConfig()
 	if err != nil {
