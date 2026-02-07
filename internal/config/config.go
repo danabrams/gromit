@@ -15,15 +15,16 @@ const (
 )
 
 type Config struct {
-	Models     ModelsConfig     `yaml:"models"`
-	Escalation EscalationConfig `yaml:"escalation"`
-	Loop       LoopConfig       `yaml:"loop"`
-	Validation ValidationConfig `yaml:"validation"`
-	ScopeCheck ScopeCheckConfig `yaml:"scope_check"`
-	Preflight  PreflightConfig  `yaml:"preflight"`
-	Claude     ClaudeConfig     `yaml:"claude"`
-	Paths      PathsConfig      `yaml:"paths"`
-	Review     ReviewConfig     `yaml:"review"`
+	Models      ModelsConfig       `yaml:"models"`
+	Escalation  EscalationConfig   `yaml:"escalation"`
+	Loop        LoopConfig         `yaml:"loop"`
+	Validation  ValidationConfig   `yaml:"validation"`
+	ScopeCheck  ScopeCheckConfig   `yaml:"scope_check"`
+	Preflight   PreflightConfig    `yaml:"preflight"`
+	Claude      ClaudeConfig       `yaml:"claude"`
+	Paths       PathsConfig        `yaml:"paths"`
+	Review      ReviewConfig       `yaml:"review"`
+	Methodology MethodologyConfig  `yaml:"methodology"`
 }
 
 type ModelsConfig struct {
@@ -97,6 +98,11 @@ type ThoroughReviewConfig struct {
 	OnEpicComplete   *bool  `yaml:"on_epic_complete"`
 	Model            string `yaml:"model"`
 	Timeout          int    `yaml:"timeout"`
+}
+
+type MethodologyConfig struct {
+	ATDD bool `yaml:"atdd"`
+	TDD  bool `yaml:"tdd"`
 }
 
 func Load(path string) (*Config, error) {

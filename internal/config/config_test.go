@@ -2237,3 +2237,117 @@ claude:
 		t.Errorf("expected BetweenIterationsCommand='go build ./cmd/gromit', got %q", cfg.Loop.BetweenIterationsCommand)
 	}
 }
+
+// Tests for MethodologyConfig parsing
+func TestMethodologyConfigParsing(t *testing.T) {
+	tests := []struct {
+		name         string
+		yaml         string
+		expectATDD   bool
+		expectTDD    bool
+	}{
+		{
+			name: "ATDD present true",
+			yaml: `methodology:
+  atdd: true
+`,
+			expectATDD: true,
+			expectTDD:  false,
+		},
+		{
+			name: "ATDD present false",
+			yaml: `methodology:
+  atdd: false
+`,
+			expectATDD: false,
+			expectTDD:  false,
+		},
+		{
+			name: "ATDD absent defaults false",
+			yaml: `methodology:
+  tdd: false
+`,
+			expectATDD: false,
+			expectTDD:  false,
+		},
+		{
+			name: "TDD present true",
+			yaml: `methodology:
+  tdd: true
+`,
+			expectATDD: false,
+			expectTDD:  true,
+		},
+		{
+			name: "TDD present false",
+			yaml: `methodology:
+  tdd: false
+`,
+			expectATDD: false,
+			expectTDD:  false,
+		},
+		{
+			name: "TDD absent defaults false",
+			yaml: `methodology:
+  atdd: false
+`,
+			expectATDD: false,
+			expectTDD:  false,
+		},
+		{
+			name:       "Methodology section absent",
+			yaml:       `models:
+  p0: opus
+`,
+			expectATDD: false,
+			expectTDD:  false,
+		},
+		{
+			name: "Both ATDD and TDD true",
+			yaml: `methodology:
+  atdd: true
+  tdd: true
+`,
+			expectATDD: true,
+			expectTDD:  true,
+		},
+		{
+			name: "Both ATDD and TDD false",
+			yaml: `methodology:
+  atdd: false
+  tdd: false
+`,
+			expectATDD: false,
+			expectTDD:  false,
+		},
+		{
+			name: "Empty methodology section",
+			yaml: `methodology:
+`,
+			expectATDD: false,
+			expectTDD:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			cfg, err := Load(cfgPath)
+			if err != nil {
+				t.Fatalf("loading config: %v", err)
+			}
+
+			if cfg.Methodology.ATDD != tt.expectATDD {
+				t.Errorf("expected ATDD=%v, got %v", tt.expectATDD, cfg.Methodology.ATDD)
+			}
+			if cfg.Methodology.TDD != tt.expectTDD {
+				t.Errorf("expected TDD=%v, got %v", tt.expectTDD, cfg.Methodology.TDD)
+			}
+		})
+	}
+}
