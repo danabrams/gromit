@@ -2,9 +2,13 @@
 id: ralph-reference-cleanup
 source_ideas: [idea-1770402840071]
 created: 2026-02-06
+superseded_by: gromit-prefix-migration
+superseded_at: 2026-02-07
 ---
 
 # Ralph Reference Cleanup
+
+> **⚠️ SUPERSEDED:** This spec has been superseded by `gromit-prefix-migration`. Decision #2 in this spec was made without knowledge of `bd rename-prefix`. The prefix migration was completed using `bd rename-prefix --repair`, which safely migrated all beads from `ralph-runner-*` and `ralph-*` prefixes to `gromit-*`.
 
 ## Specification
 

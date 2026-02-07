@@ -4,9 +4,13 @@ decomposed: true
 decomposed_at: "2026-02-07T04:50:18-05:00"
 id: ralph-reference-cleanup
 source_spec: ralph-reference-cleanup
+superseded_by: gromit-prefix-migration
+superseded_at: 2026-02-07
 ---
 
 # Ralph Reference Cleanup Implementation Plan
+
+> **⚠️ SUPERSEDED:** This plan has been superseded by `gromit-prefix-migration`. The original spec's Decision #2 was made without knowledge of `bd rename-prefix`. The prefix migration was completed using `bd rename-prefix --repair`, which safely migrated all beads from `ralph-runner-*` and `ralph-*` prefixes to `gromit-*`.
 
 **Goal:** Remove the last three stale "ralph" / "ralph-runner" references from demo documentation files.
 
