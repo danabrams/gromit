@@ -80,7 +80,16 @@ if [[ -n "$model" ]]; then
 
     # Check if we're in fail-once mode and have already failed
     fail_once_var="CLAUDE_FAIL_${model_upper}_ONCE"
-    state_file="${TEST_DIR:-/tmp}/.claude_fail_${model}_once_state"
+
+    if [[ "${!fail_once_var:-0}" == "1" ]]; then
+        # Require TEST_DIR for fail-once mode to prevent state file leaks
+        if [[ -z "${TEST_DIR:-}" ]]; then
+            echo "claude: CLAUDE_FAIL_${model_upper}_ONCE requires TEST_DIR to be set for proper cleanup" >&2
+            exit 1
+        fi
+    fi
+
+    state_file="${TEST_DIR}/.claude_fail_${model}_once_state"
 
     if [[ "${!fail_once_var:-0}" == "1" ]] && [[ -f "$state_file" ]]; then
         # We've already failed once - use success fixture if available
@@ -120,7 +129,8 @@ if [[ -n "$model" ]]; then
     if [[ "${!fail_once_var:-0}" == "1" ]] && [[ $stream_json -eq 1 ]]; then
         # Only fail on stream-json invocations (build phase, not validation or analysis)
         # Use a state file to track if we've already failed once
-        state_file="${TEST_DIR:-/tmp}/.claude_fail_${model}_once_state"
+        # TEST_DIR is required and already validated above
+        state_file="${TEST_DIR}/.claude_fail_${model}_once_state"
 
         if [[ ! -f "$state_file" ]]; then
             # First invocation - fail it

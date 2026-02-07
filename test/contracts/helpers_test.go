@@ -89,6 +89,18 @@ type testEnv struct {
 	Env []string
 }
 
+// cleanupClaudeFailOnceStateFiles removes any claude fail-once state files from a test directory.
+// These files are created by CLAUDE_FAIL_<MODEL>_ONCE mode to track first-time failures
+// and should be cleaned up to prevent state leaks between test runs.
+func cleanupClaudeFailOnceStateFiles(testDir string) {
+	models := []string{"haiku", "sonnet", "opus"}
+	for _, model := range models {
+		stateFile := filepath.Join(testDir, ".claude_fail_"+model+"_once_state")
+		// Ignore errors - file may not exist, which is fine
+		os.Remove(stateFile)
+	}
+}
+
 // setupTestEnv creates a temporary test environment with:
 // - A git repository initialized in a temp directory
 // - Fake CLIs prepended to PATH
@@ -102,7 +114,11 @@ func setupTestEnv(t *testing.T) *testEnv {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	t.Cleanup(func() { os.RemoveAll(tmpDir) })
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir)
+		// Also clean up any claude fail-once state files that may have been created
+		cleanupClaudeFailOnceStateFiles(tmpDir)
+	})
 
 	// Initialize git repo in temp dir
 	gitInit := exec.Command(realGitPath, "init")

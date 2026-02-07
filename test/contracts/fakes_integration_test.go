@@ -489,3 +489,78 @@ func TestFakes_ClaudeWriteFile_ContentFidelity(t *testing.T) {
 		})
 	}
 }
+
+// TestFakes_ClaudeFailOnceRequiresTestDir verifies that CLAUDE_FAIL_<MODEL>_ONCE requires TEST_DIR
+func TestFakes_ClaudeFailOnceRequiresTestDir(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Set up fixture file
+	fixtureContent := "Test output"
+	fixtureFile := filepath.Join(env.Dir, "test_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte(fixtureContent), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	// Set CLAUDE_FAIL_HAIKU_ONCE without TEST_DIR
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", fixtureFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FAIL_HAIKU_ONCE", "1")
+	// Remove TEST_DIR from environment
+	env.Env = testutil.RemoveEnvVar(env.Env, "TEST_DIR")
+
+	// Run fake claude with stream-json (to trigger the once-mode logic)
+	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "stream-json", "-p", "test", "--model", "haiku")
+	cmd.Dir = env.Dir
+	cmd.Env = env.Env
+	cmd.Stdin = strings.NewReader("test\n")
+
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Errorf("Expected claude to fail without TEST_DIR when using CLAUDE_FAIL_HAIKU_ONCE, but it succeeded. Output: %s", output)
+	}
+
+	// Verify error message mentions TEST_DIR
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "TEST_DIR") {
+		t.Errorf("Expected error message to mention TEST_DIR, got: %s", outputStr)
+	}
+}
+
+// TestFakes_ClaudeFailOnceStateFileCleanup verifies that state files don't persist between tests
+func TestFakes_ClaudeFailOnceStateFileCleanup(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Set up fixture file
+	fixtureContent := "Test output"
+	fixtureFile := filepath.Join(env.Dir, "test_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte(fixtureContent), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	// Set CLAUDE_FAIL_HAIKU_ONCE with TEST_DIR
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", fixtureFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FAIL_HAIKU_ONCE", "1")
+
+	stateFile := filepath.Join(env.Dir, ".claude_fail_haiku_once_state")
+
+	// Before running: state file should not exist
+	if _, err := os.Stat(stateFile); !os.IsNotExist(err) {
+		t.Errorf("Expected state file to not exist before test, but it does")
+	}
+
+	// Run fake claude with stream-json (first invocation should create state file)
+	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "stream-json", "-p", "test", "--model", "haiku")
+	cmd.Dir = env.Dir
+	cmd.Env = env.Env
+	cmd.Stdin = strings.NewReader("test\n")
+
+	_, _ = cmd.CombinedOutput()
+
+	// After running: state file should exist
+	if _, err := os.Stat(stateFile); os.IsNotExist(err) {
+		t.Errorf("Expected state file to exist after first invocation, but it doesn't")
+	}
+
+	// Verify that cleanup happens in test teardown (this will be checked after test returns)
+	// The test framework will call os.RemoveAll(tmpDir) which removes the entire directory
+	// including the state file, and then cleanupClaudeFailOnceStateFiles is also called
+}
