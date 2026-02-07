@@ -89,9 +89,13 @@ func ReadStatus(gromitDir, specsDir, plansDir string) (*PipelineStatus, error) {
 	sort.Strings(status.UndecomposedPlans)
 
 	// Count ready beads (best-effort - handle bd not being available)
-	// Pass the parent directory of gromitDir as the working directory for bd
-	workDir := filepath.Dir(gromitDir)
-	status.ReadyBeadCount = countReadyBeads(workDir)
+	// Create a client with working directory set to parent of gromitDir
+	client, err := bead.NewClient()
+	if err == nil {
+		client.Dir = filepath.Dir(gromitDir)
+		status.ReadyBeadCount = countReadyBeads(client)
+	}
+	// If client creation fails, ReadyBeadCount remains 0
 
 	// Generate recommendation based on priority
 	status.Recommendation = generateRecommendation(status)
@@ -117,23 +121,19 @@ func findMarkdownFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-// countReadyBeads returns the count of ready beads, or 0 if bd is unavailable
-func countReadyBeads(workDir string) int {
-	client, err := bead.NewClient()
-	if err != nil {
+// countReadyBeads returns the count of ready beads using the provided client
+func countReadyBeads(client *bead.Client) int {
+	if client == nil {
 		return 0
 	}
-
-	// Set the working directory for bd commands
-	client.Dir = workDir
 
 	// Try to get ready beads - if bd fails, return 0
-	beads, err := client.List()
+	count, err := client.CountReady()
 	if err != nil {
 		return 0
 	}
 
-	return len(beads)
+	return count
 }
 
 // generateRecommendation returns the recommended next action based on pipeline state

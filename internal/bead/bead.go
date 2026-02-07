@@ -213,6 +213,29 @@ func (c *Client) ReadyAny() (*Bead, error) {
 	return parseBeadOutput(out)
 }
 
+// CountReady returns the count of ready (unblocked) beads
+func (c *Client) CountReady() (int, error) {
+	if c == nil {
+		return 0, fmt.Errorf("bead client is nil")
+	}
+	// Fetch all ready beads (limit 0 = no limit)
+	out, err := c.run("ready", "--json", "--limit", "0")
+	if err != nil {
+		return 0, fmt.Errorf("bd ready: %w", err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return 0, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return 0, fmt.Errorf("parsing bd ready output: %w", err)
+	}
+
+	return len(beads), nil
+}
+
 // Show returns full details for a bead
 func (c *Client) Show(id string) (*Bead, error) {
 	if c == nil {
