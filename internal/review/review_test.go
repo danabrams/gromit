@@ -14,6 +14,7 @@ func TestParseReviewResult(t *testing.T) {
 		"backlog_items": [
 			{"title": "Redesign auth flow", "description": "...", "reason": "needs product owner"}
 		],
+		"learnings": ["error handling pattern is consistent"],
 		"summary": "Implementation matches spec"
 	}`
 
@@ -35,6 +36,9 @@ func TestParseReviewResult(t *testing.T) {
 	}
 	if len(result.BacklogItems) != 1 {
 		t.Errorf("expected 1 backlog item, got %d", len(result.BacklogItems))
+	}
+	if len(result.Learnings) != 1 {
+		t.Errorf("expected 1 learning, got %d", len(result.Learnings))
 	}
 	if result.Summary != "Implementation matches spec" {
 		t.Errorf("unexpected summary: %q", result.Summary)
@@ -127,5 +131,23 @@ func TestParseReviewResultNormalizeLabels(t *testing.T) {
 	}
 	if result.BeadsToCreate[0].Labels == nil {
 		t.Error("BeadProposal.Labels should be normalized to empty slice, not nil")
+	}
+}
+
+func TestParseReviewResultNormalizeLearnings(t *testing.T) {
+	input := `{
+		"passed": true,
+		"fixes_applied": [],
+		"beads_to_create": [],
+		"backlog_items": [],
+		"summary": "ok"
+	}`
+
+	result, err := ParseReviewResult(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Learnings == nil {
+		t.Error("Learnings should be normalized to empty slice, not nil")
 	}
 }

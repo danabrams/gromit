@@ -13,6 +13,7 @@ type ReviewResult struct {
 	BeadsToCreate []BeadProposal `json:"beads_to_create"`
 	BacklogItems  []BacklogItem  `json:"backlog_items"`
 	Summary       string         `json:"summary"`
+	Learnings     []string       `json:"learnings,omitempty"`
 }
 
 // BeadProposal represents a new bead that should be created based on review findings
@@ -45,6 +46,9 @@ func (r *ReviewResult) normalizeNilFields() {
 	}
 	if r.BacklogItems == nil {
 		r.BacklogItems = []BacklogItem{}
+	}
+	if r.Learnings == nil {
+		r.Learnings = []string{}
 	}
 	// Normalize labels within each bead proposal
 	for i := range r.BeadsToCreate {

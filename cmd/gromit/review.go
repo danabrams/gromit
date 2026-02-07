@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/review"
@@ -425,6 +426,18 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		fmt.Printf("Created %d backlog items\n", backlogCreated)
 	}
 
+	// Persist learnings
+	if len(result.Learnings) > 0 {
+		learningsFile, err := learnings.NewFile(gromitDir)
+		if err == nil {
+			if err := learningsFile.Load(); err == nil {
+				for _, learning := range result.Learnings {
+					learningsFile.Add("review", learning, learnings.CategoryPatterns)
+				}
+			}
+		}
+	}
+
 	// Log the review
 	log, err := logger.NewLogger(cfg.Paths.Logs)
 	if err == nil {
@@ -488,6 +501,22 @@ func applyReviewResultCLI(result *review.ReviewResult) (beadsCreated int, backlo
 		}
 		backlogCreated++
 		fmt.Printf("Created backlog: %s (reason: %s)\n", bi.Title, bi.Reason)
+	}
+
+	// Persist learnings
+	if len(result.Learnings) > 0 {
+		cfg, err := loadConfig()
+		if err == nil {
+			gromitDir := resolveGromitDir(cfg)
+			learningsFile, err := learnings.NewFile(gromitDir)
+			if err == nil {
+				if err := learningsFile.Load(); err == nil {
+					for _, learning := range result.Learnings {
+						learningsFile.Add("review", learning, learnings.CategoryPatterns)
+					}
+				}
+			}
+		}
 	}
 
 	return beadsCreated, backlogCreated

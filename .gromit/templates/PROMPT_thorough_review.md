@@ -126,6 +126,10 @@ Return a JSON object with this exact structure:
       "reason": "Needs architectural discussion and product owner buy-in"
     }
   ],
+  "learnings": [
+    "Middleware pattern established in handlers A and C should be applied consistently",
+    "Error wrapping convention with context-specific messages is working well across all beads"
+  ],
   "summary": "Architecture is sound. Found opportunities for extracting shared patterns and identified minor security gap."
 }
 ```
@@ -135,6 +139,7 @@ Return a JSON object with this exact structure:
 - `fixes_applied`: List of fixes you made directly (empty array if none)
 - `beads_to_create`: Issues that need dedicated work (empty array if none)
 - `backlog_items`: Issues needing discussion/decision (empty array if none)
+- `learnings`: Codebase patterns, conventions, or gotchas observed during review (empty array if none)
 - `summary`: 1-2 sentence summary of your review
 
 **Important:**

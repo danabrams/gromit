@@ -120,6 +120,10 @@ Return a JSON object with this exact structure:
       "reason": "Needs infra decision on rate limit backend (Redis vs in-memory)"
     }
   ],
+  "learnings": [
+    "Error handling pattern in service.go is cleaner than older code in handler.go",
+    "Test naming convention followed consistently across new test cases"
+  ],
   "summary": "Implementation matches spec. Fixed 2 minor issues. Created 1 bead for validation gap."
 }
 ```
@@ -129,6 +133,7 @@ Return a JSON object with this exact structure:
 - `fixes_applied`: List of fixes you made directly (empty array if none)
 - `beads_to_create`: Issues that need dedicated work (empty array if none)
 - `backlog_items`: Issues needing discussion/decision (empty array if none)
+- `learnings`: Codebase patterns, conventions, or gotchas observed during review (empty array if none)
 - `summary`: 1-2 sentence summary of your review
 
 **Important:**
