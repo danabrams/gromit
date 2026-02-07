@@ -444,7 +444,7 @@ func (c *Client) List() ([]*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	out, err := c.run("list", "--json", "--status", "open", "--sort", "priority")
+	out, err := c.run("list", "--json", "--status", "open", "--sort", "priority", "--limit", "0")
 	if err != nil {
 		return nil, fmt.Errorf("bd list: %w", err)
 	}
