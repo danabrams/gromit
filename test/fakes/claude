@@ -18,24 +18,60 @@ if [[ "${CLAUDE_FAIL:-0}" == "1" ]]; then
     exit 1
 fi
 
-# Check if we're in stream-json mode
+# Check if we're in stream-json mode and extract model
 stream_json=0
-for arg in "$@"; do
+model=""
+for ((i=1; i<=$#; i++)); do
+    arg="${!i}"
     if [[ "$arg" == "stream-json" ]]; then
         stream_json=1
-        break
+    fi
+    if [[ "$arg" == "--model" ]]; then
+        j=$((i+1))
+        model="${!j}"
     fi
 done
 
+# Select fixture based on model if model-specific fixtures are provided
+# CLAUDE_FIXTURE_<MODEL> overrides CLAUDE_FIXTURE
+fixture_var="CLAUDE_FIXTURE"
+if [[ -n "$model" ]]; then
+    model_upper=$(echo "$model" | tr '[:lower:]' '[:upper:]')
+    model_fixture_var="CLAUDE_FIXTURE_${model_upper}"
+    if [[ -n "${!model_fixture_var:-}" ]]; then
+        fixture_var="$model_fixture_var"
+    fi
+fi
+
+fixture_file="${!fixture_var}"
+
 # Get fixture content from CLAUDE_FIXTURE env var
-if [[ -z "${CLAUDE_FIXTURE:-}" ]]; then
+if [[ -z "$fixture_file" ]]; then
     echo "claude: CLAUDE_FIXTURE env var not set" >&2
     exit 1
 fi
 
-if [[ ! -f "$CLAUDE_FIXTURE" ]]; then
-    echo "claude: fixture file not found: $CLAUDE_FIXTURE" >&2
+if [[ ! -f "$fixture_file" ]]; then
+    echo "claude: fixture file not found: $fixture_file" >&2
     exit 1
+fi
+
+# Check if this model should fail (CLAUDE_FAIL_<MODEL>=1)
+if [[ -n "$model" ]]; then
+    model_upper=$(echo "$model" | tr '[:lower:]' '[:upper:]')
+    fail_var="CLAUDE_FAIL_${model_upper}"
+    if [[ "${!fail_var:-0}" == "1" ]]; then
+        # Output the fixture (which should contain error text) then exit with error code
+        if [[ $stream_json -eq 1 ]]; then
+            content=$(cat "$fixture_file")
+            escaped_content=$(echo "$content" | jq -Rs .)
+            echo "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":$escaped_content}]}}"
+            echo "{\"type\":\"result\",\"result\":$escaped_content}"
+        else
+            cat "$fixture_file"
+        fi
+        exit 1
+    fi
 fi
 
 # Output fixture content based on mode
@@ -44,7 +80,7 @@ if [[ $stream_json -eq 1 ]]; then
     # Read the fixture line by line and emit as stream-json events
 
     # Emit an assistant message with the fixture content as text
-    content=$(cat "$CLAUDE_FIXTURE")
+    content=$(cat "$fixture_file")
 
     # Escape JSON special characters in content
     escaped_content=$(echo "$content" | jq -Rs .)
@@ -56,7 +92,7 @@ if [[ $stream_json -eq 1 ]]; then
     echo "{\"type\":\"result\",\"result\":$escaped_content}"
 else
     # Plain mode: just output the fixture content directly
-    cat "$CLAUDE_FIXTURE"
+    cat "$fixture_file"
 fi
 
 exit 0
