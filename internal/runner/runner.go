@@ -796,11 +796,9 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 	}()
 	return func() {
 		close(done)
-		// Wait for the goroutine to signal whether it used overwrite mode
-		// If it did, write a newline to ensure the next output starts on a fresh line
-		if <-usedOverwrite {
-			fmt.Fprint(r.output, "\n")
-		}
+		// Wait for the goroutine to signal completion
+		// syncWriter handles newline transition automatically
+		<-usedOverwrite
 	}
 }
 
@@ -825,7 +823,7 @@ func (r *Runner) printHeartbeat(stats *logger.StreamStats) string {
 // lastLine is the previously printed line (for padding calculation).
 // Returns the new line that was printed.
 func (r *Runner) overwriteHeartbeat(stats *logger.StreamStats, lastLine string) string {
-	if r == nil || r.output == nil || stats == nil {
+	if r == nil || r.syncOut == nil || stats == nil {
 		return ""
 	}
 	toolCalls, filesModified, elapsed := stats.Snapshot()
@@ -843,7 +841,7 @@ func (r *Runner) overwriteHeartbeat(stats *logger.StreamStats, lastLine string) 
 	if len(lastLine) > len(newLine) {
 		padding = strings.Repeat(" ", len(lastLine)-len(newLine))
 	}
-	fmt.Fprintf(r.output, "\r%s%s", newLine, padding)
+	r.syncOut.WriteOverwrite([]byte(fmt.Sprintf("\r%s%s", newLine, padding)))
 
 	return newLine
 }
