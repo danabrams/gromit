@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/test/testutil"
 )
 
 // TestRunGromitWithStdinExample demonstrates usage of the runGromitWithStdin helper
@@ -11,7 +13,7 @@ func TestRunGromitWithStdinExample(t *testing.T) {
 
 	// Example: Test the refine command with "Something new" selection
 	// The stdin input simulates user typing "3\n" to select the third option
-	stdin := "3\n"
+	stdin := testutil.PickerStdin("refine", "something_new", 2)
 	stdout, stderr, exitCode := runGromitWithStdin(t, stdin, "refine")
 
 	if exitCode != 0 {
