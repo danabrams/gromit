@@ -378,16 +378,19 @@ func TestRunner_Status_NoStatusFile(t *testing.T) {
 		t.Fatalf("Status() failed: %v", err)
 	}
 
-	// Verify - should show normal status, no run-in-progress message
+	// Verify - should show pipeline status with "Run: not running"
 	output := buf.String()
-	if strings.Contains(output, "Run in progress") {
-		t.Errorf("Expected no 'Run in progress' message when status file doesn't exist, got: %s", output)
+	if !strings.Contains(output, "Pipeline:") {
+		t.Errorf("Expected 'Pipeline:' section in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Run: not running") {
+		t.Errorf("Expected 'Run: not running' when status file doesn't exist, got: %s", output)
+	}
+	if !strings.Contains(output, "Health:") {
+		t.Errorf("Expected 'Health:' section in output, got: %s", output)
 	}
 	if strings.Contains(output, "stale run") {
 		t.Errorf("Expected no 'stale run' message when status file doesn't exist, got: %s", output)
-	}
-	if !strings.Contains(output, "Next bead: test-123") {
-		t.Errorf("Expected normal status output with next bead, got: %s", output)
 	}
 }
 
@@ -432,13 +435,10 @@ func TestRunner_Status_LivePID(t *testing.T) {
 		t.Fatalf("Status() failed: %v", err)
 	}
 
-	// Verify - should show run-in-progress info
+	// Verify - should show run-in-progress info in new format
 	output := buf.String()
-	if !strings.Contains(output, "Run in progress") {
-		t.Errorf("Expected 'Run in progress' message for live PID, got: %s", output)
-	}
-	if !strings.Contains(output, "Iteration: 3") {
-		t.Errorf("Expected iteration info, got: %s", output)
+	if !strings.Contains(output, "Run: iteration 3") {
+		t.Errorf("Expected 'Run: iteration 3' message for live PID, got: %s", output)
 	}
 	if !strings.Contains(output, "running-bead-789") {
 		t.Errorf("Expected bead ID in output, got: %s", output)
@@ -446,16 +446,19 @@ func TestRunner_Status_LivePID(t *testing.T) {
 	if !strings.Contains(output, "Running Bead Title") {
 		t.Errorf("Expected bead title in output, got: %s", output)
 	}
-	if !strings.Contains(output, "Model: opus") {
+	if !strings.Contains(output, "Model:    opus") {
 		t.Errorf("Expected model in output, got: %s", output)
 	}
 	if strings.Contains(output, "stale run") {
 		t.Errorf("Should not show stale run message for live PID, got: %s", output)
 	}
 
-	// Should still show normal status after run-in-progress info
-	if !strings.Contains(output, "Next bead: test-456") {
-		t.Errorf("Expected normal status after run-in-progress info, got: %s", output)
+	// Should show pipeline and health sections
+	if !strings.Contains(output, "Pipeline:") {
+		t.Errorf("Expected Pipeline section in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Health:") {
+		t.Errorf("Expected Health section in output, got: %s", output)
 	}
 
 	// Verify status file still exists (not deleted for live run)
@@ -534,9 +537,12 @@ func TestRunner_Status_DeadPID(t *testing.T) {
 		t.Errorf("Expected file removal message, got: %s", output)
 	}
 
-	// Should show normal status after warning
-	if !strings.Contains(output, "Next bead: test-999") {
-		t.Errorf("Expected normal status after stale run warning, got: %s", output)
+	// Should show pipeline status after warning
+	if !strings.Contains(output, "Pipeline:") {
+		t.Errorf("Expected Pipeline section after stale run warning, got: %s", output)
+	}
+	if !strings.Contains(output, "Run: not running") {
+		t.Errorf("Expected 'Run: not running' after cleaning stale status, got: %s", output)
 	}
 
 	// Verify status file was deleted

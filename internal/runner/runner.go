@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/state"
@@ -872,56 +873,54 @@ func (r *Runner) Status() error {
 	if r == nil {
 		return fmt.Errorf("runner is nil")
 	}
-	if r.beads == nil {
-		return fmt.Errorf("runner beads client is nil")
-	}
 
-	// Check for a run in progress
+	// Read status.json
 	status, err := ReadStatus(r.gromitDir)
 	if err != nil {
-		r.log("Warning: error reading status file: %v", err)
+		return fmt.Errorf("reading status: %w", err)
 	}
-	if status != nil {
-		if IsProcessAlive(status.PID) {
-			// Run is still active
-			r.log("Run in progress:")
-			r.log("  Iteration: %d", status.Iteration)
-			r.log("  Bead: %s - %s", status.BeadID, status.BeadTitle)
-			r.log("  Model: %s", status.Model)
-			r.log("  Elapsed: %ds", status.ElapsedS)
-			r.log("")
-		} else {
-			// Stale status file
-			elapsed := time.Since(status.StartedAt)
-			r.log("Warning: stale run detected from %s (%s ago)",
-				status.StartedAt.Format(time.RFC3339),
-				elapsed.Round(time.Second))
-			r.log("  Bead: %s - %s", status.BeadID, status.BeadTitle)
-			r.log("  Removing stale status file")
 
-			// Delete the stale file
-			sw, err := NewStatusWriter(r.gromitDir)
-			if err == nil {
-				_ = sw.Delete() // Ignore error - we'll proceed anyway
-			}
-			r.log("")
+	// Check if status is stale (process not alive)
+	if status != nil && status.Running && !IsProcessAlive(status.PID) {
+		elapsed := time.Since(status.StartedAt)
+		r.log("Warning: stale run detected from %s (%s ago)",
+			status.StartedAt.Format(time.RFC3339),
+			elapsed.Round(time.Second))
+		r.log("  Bead: %s - %s", status.BeadID, status.BeadTitle)
+		r.log("  Removing stale status file")
+
+		// Delete the stale file
+		sw, err := NewStatusWriter(r.gromitDir)
+		if err == nil {
+			_ = sw.Delete() // Ignore error - we'll proceed anyway
 		}
+		r.log("")
+		status = nil // Treat as if no status exists
 	}
 
-	b, err := r.beads.Ready()
+	// Read pipeline status
+	pipelineStatus, err := pipeline.ReadStatus(r.gromitDir, r.cfg.Paths.Specs, r.cfg.Paths.Plans)
 	if err != nil {
-		return fmt.Errorf("getting ready beads: %w", err)
+		return fmt.Errorf("reading pipeline status: %w", err)
 	}
 
-	if b == nil {
-		r.log("No beads ready for work")
-		return nil
+	// Load state file for health data
+	stateFile, err := state.NewFile(r.gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating state file: %w", err)
+	}
+	if err := stateFile.Load(); err != nil {
+		return fmt.Errorf("loading state file: %w", err)
 	}
 
-	r.log("Next bead: %s - %s", b.ID, b.Title)
-	r.log("  Priority: P%d", b.Priority)
-	r.log("  Labels: %s", strings.Join(b.Labels, ", "))
-	r.log("  Model: %s", r.selectModel(b))
+	// Format and print all sections
+	r.log("%s", formatPipeline(pipelineStatus))
+	r.log("")
+	r.log("%s", formatRun(status))
+	r.log("")
+	r.log("%s", formatHealth(stateFile.LastRetro(), stateFile.IterationsSinceReview()))
+	r.log("")
+	r.log("%s", formatRecommendation(pipelineStatus.Recommendation))
 
 	return nil
 }

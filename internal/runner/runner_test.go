@@ -801,17 +801,6 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			expectedError: "claude client is nil",
 		},
-		{
-			name: "StatusNilBeads",
-			runner: &Runner{
-				cfg:    &config.Config{},
-				output: os.Stdout,
-			},
-			method: func(r *Runner) error {
-				return r.Status()
-			},
-			expectedError: "beads client is nil",
-		},
 	}
 
 	for _, tt := range tests {
@@ -2050,14 +2039,14 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 		description    string
 	}{
 		{
-			name: "No status file - shows next bead",
+			name: "No status file - shows pipeline status",
 			setupStatus: func(gromitDir string) error {
 				// Don't create status.json
 				return nil
 			},
-			expectedOutput: []string{"Next bead:", "test-1", "Test bead"},
-			notExpected:    []string{"Run in progress:", "Warning: stale run"},
-			description:    "When status.json doesn't exist, should show normal status",
+			expectedOutput: []string{"Pipeline:", "Run: not running", "Health:", "Next action:"},
+			notExpected:    []string{"Warning: stale run"},
+			description:    "When status.json doesn't exist, should show pipeline, run, health, and recommendation",
 		},
 		{
 			name: "Live run - shows run in progress",
@@ -2069,7 +2058,7 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 				}
 				return sw.Write(1, "bead-123", "Building feature X", "sonnet", true, 0, 0)
 			},
-			expectedOutput: []string{"Run in progress:", "Iteration: 1", "Bead: bead-123 - Building feature X", "Model: sonnet", "Elapsed:"},
+			expectedOutput: []string{"Pipeline:", "Run: iteration 1", "bead-123", "Building feature X", "Model:    sonnet", "Health:"},
 			notExpected:    []string{"Warning: stale run"},
 			description:    "When status.json exists with alive PID, should show run in progress",
 		},
@@ -2093,8 +2082,8 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 				}
 				return os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644)
 			},
-			expectedOutput: []string{"Warning: stale run detected", "Bead: bead-456 - Old bead", "Removing stale status file", "Next bead:"},
-			notExpected:    []string{"Run in progress:"},
+			expectedOutput: []string{"Warning: stale run detected", "Bead: bead-456 - Old bead", "Removing stale status file", "Pipeline:", "Run: not running"},
+			notExpected:    []string{"Run: iteration"},
 			description:    "When status.json exists with dead PID, should warn and clean up",
 		},
 	}
@@ -2123,6 +2112,8 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 			}
 
 			cfg := &config.Config{}
+			cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+			cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
 			var buf strings.Builder
 			r := &Runner{
 				cfg:       cfg,

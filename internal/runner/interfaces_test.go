@@ -533,8 +533,11 @@ func TestStatusWithMocks(t *testing.T) {
 	}
 
 	var buf strings.Builder
+	cfg := &config.Config{Models: config.ModelsConfig{P0: "opus", Labels: map[string]string{"complexity:high": "opus"}}}
+	cfg.Paths.Specs = ".gromit/specs"
+	cfg.Paths.Plans = ".gromit/plans"
 	r, _ := NewRunnerWithDeps(
-		&config.Config{Models: config.ModelsConfig{P0: "opus", Labels: map[string]string{"complexity:high": "opus"}}},
+		cfg,
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: &mockClaudeClient{}, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
@@ -543,11 +546,15 @@ func TestStatusWithMocks(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "bead-42") {
-		t.Errorf("expected bead ID in output, got: %s", output)
+	// New status shows pipeline, run, health, and recommendation sections
+	if !strings.Contains(output, "Pipeline:") {
+		t.Errorf("expected 'Pipeline:' in output, got: %s", output)
 	}
-	if !strings.Contains(output, "opus") {
-		t.Errorf("expected model 'opus' in output, got: %s", output)
+	if !strings.Contains(output, "Run:") {
+		t.Errorf("expected 'Run:' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Health:") {
+		t.Errorf("expected 'Health:' in output, got: %s", output)
 	}
 }
 
@@ -555,14 +562,18 @@ func TestStatusWithMocks_NoWork(t *testing.T) {
 	beads := &mockBeadClient{ReadyFn: func() (*bead.Bead, error) { return nil, nil }}
 
 	var buf strings.Builder
-	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
+	cfg := &config.Config{}
+	cfg.Paths.Specs = ".gromit/specs"
+	cfg.Paths.Plans = ".gromit/plans"
+	r, _ := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{Beads: beads, Claude: &mockClaudeClient{}, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	if err := r.Status(); err != nil {
 		t.Fatalf("Status() failed: %v", err)
 	}
-	if !strings.Contains(buf.String(), "No beads ready") {
-		t.Errorf("expected 'No beads ready' in output, got: %s", buf.String())
+	// New status shows pipeline, run, health sections with "No work in pipeline" recommendation
+	if !strings.Contains(buf.String(), "No work in pipeline") {
+		t.Errorf("expected 'No work in pipeline' in output, got: %s", buf.String())
 	}
 }
 
