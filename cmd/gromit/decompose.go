@@ -92,7 +92,7 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 		return decomposeSinglePlan(planName, cfg)
 	}
 
-	// No arguments - prepare for picker (to be implemented)
+	// No arguments - show picker
 	plansDir := resolvePlansDir(cfg)
 	plans, err := filterUndecomposedPlans(plansDir, decomposeForce)
 	if err != nil {
@@ -104,15 +104,46 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// TODO: Implement picker UI
-	// For now, just list the plans
-	fmt.Println("Undecomposed plans:")
+	// Display picker
+	fmt.Println("Select a plan to decompose:")
+	fmt.Println()
 	for i, plan := range plans {
 		fmt.Printf("  %d. %s - %s\n", i+1, plan.Name, plan.Title)
 	}
-	fmt.Println("\nPicker UI coming soon. For now, run: gromit decompose <plan-name>")
 
-	return nil
+	// Add "Decompose all" option if 2+ plans
+	decomposeAllOption := -1
+	if len(plans) >= 2 {
+		decomposeAllOption = len(plans) + 1
+		fmt.Printf("  %d. Decompose all\n", decomposeAllOption)
+	}
+
+	// Prompt for choice
+	maxChoice := len(plans)
+	if decomposeAllOption != -1 {
+		maxChoice = decomposeAllOption
+	}
+	fmt.Printf("\nChoice [1-%d]: ", maxChoice)
+	reader := bufio.NewReader(os.Stdin)
+	choiceStr, err := reader.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("reading choice: %w", err)
+	}
+
+	var choice int
+	if _, err := fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choice); err != nil || choice < 1 || choice > maxChoice {
+		return fmt.Errorf("invalid choice")
+	}
+
+	// Handle "Decompose all" selection
+	if decomposeAllOption != -1 && choice == decomposeAllOption {
+		return decomposeAll(plans, cfg)
+	}
+
+	// Single plan selected
+	selectedPlan := plans[choice-1]
+	fmt.Printf("\nDecomposing: %s\n\n", selectedPlan.Name)
+	return decomposeSinglePlan(selectedPlan.Name, cfg)
 }
 
 // decomposeSinglePlan decomposes a single plan file into bd beads.
@@ -321,6 +352,53 @@ func chainAfterDecompose() {
 			fmt.Fprintf(os.Stderr, "Warning: failed to execute run: %v\n", err)
 		}
 	}
+}
+
+// decomposeAll processes all undecomposed plans sequentially.
+// Shows progress for each plan, continues on errors, and summarizes results.
+// Respects the --review flag for each individual plan.
+func decomposeAll(plans []planInfo, cfg *config.Config) error {
+	if len(plans) == 0 {
+		return nil
+	}
+
+	fmt.Printf("\nDecomposing %d plan(s)...\n\n", len(plans))
+
+	successCount := 0
+	failedPlans := []string{}
+
+	for i, plan := range plans {
+		fmt.Printf("[%d/%d] Decomposing %s...\n", i+1, len(plans), plan.Name)
+
+		err := decomposeSinglePlan(plan.Name, cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			failedPlans = append(failedPlans, plan.Name)
+		} else {
+			successCount++
+		}
+
+		// Add spacing between plans (but not after last one)
+		if i < len(plans)-1 {
+			fmt.Println()
+		}
+	}
+
+	// Summary
+	fmt.Printf("\n✓ Decomposed %d/%d plan(s) successfully.\n", successCount, len(plans))
+	if len(failedPlans) > 0 {
+		fmt.Println("\nFailed plans:")
+		for _, name := range failedPlans {
+			fmt.Printf("  - %s\n", name)
+		}
+	}
+
+	// Offer to chain to 'gromit run' if chaining is enabled and at least one plan succeeded
+	if !decomposeNoChain && successCount > 0 {
+		chainAfterDecompose()
+	}
+
+	return nil
 }
 
 // filterUndecomposedPlans scans the plans directory for plan files and returns
