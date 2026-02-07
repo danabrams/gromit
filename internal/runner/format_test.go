@@ -220,6 +220,32 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
+func TestFormatTimeAgo(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{"seconds ago", now.Add(-45 * time.Second), "45s ago"},
+		{"one minute ago", now.Add(-1 * time.Minute), "1m ago"},
+		{"minutes ago", now.Add(-18 * time.Minute), "18m ago"},
+		{"hours and minutes ago", now.Add(-3*time.Hour - 30*time.Minute), "3h 30m ago"},
+		{"exact hours ago", now.Add(-2 * time.Hour), "2h 0m ago"},
+		{"days ago (shown as hours)", now.Add(-3 * 24 * time.Hour), "72h 0m ago"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatTimeAgo(tt.t)
+			if got != tt.want {
+				t.Errorf("formatTimeAgo(%v) = %q, want %q", tt.t, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatItems(t *testing.T) {
 	tests := []struct {
 		name    string
