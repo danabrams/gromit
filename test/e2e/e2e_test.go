@@ -983,3 +983,118 @@ func TestE2E_ValidationFailure(t *testing.T) {
 		t.Logf("✓ Bead status remains 'open' after validation failure")
 	}
 }
+
+// TestE2E_TimeBudget tests that gromit respects the time budget and stops gracefully
+// when the budget is exceeded:
+// - Creates 5 beads
+// - Configures claude fake with 5s delay per invocation
+// - Runs gromit with 1-minute time budget
+// - Verifies fewer than 5 beads were processed
+func TestE2E_TimeBudget(t *testing.T) {
+	env := setupE2E(t)
+
+	// Create 5 beads
+	for i := 1; i <= 5; i++ {
+		id := fmt.Sprintf("test-budget-%d", i)
+		title := fmt.Sprintf("Task %d", i)
+		description := fmt.Sprintf("Task %d for time budget test", i)
+		if err := createBead(env, id, title, description, 1, []string{}); err != nil {
+			t.Fatalf("Failed to create bead %d: %v", i, err)
+		}
+	}
+
+	// Set up Claude fixtures for success
+	buildFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
+	validateFixture := filepath.Join(fixturesDir, "claude_validate_success.txt")
+
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
+
+	// Configure claude fake with 2-second delay per invocation
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_DELAY", "2")
+
+	// Run gromit with 1-minute time budget
+	// With 2s delay per Claude call and 3 calls per bead (scope, build, validate),
+	// each bead takes ~6 seconds. With 60-second budget, we should process 10 beads max.
+	// But we only have 5 beads, so we expect fewer than 5 to complete if time checking works.
+	// Actually, let's use a larger delay to ensure we can't complete all 5 in 1 minute.
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_DELAY", "5")
+
+	// With 5s delay per Claude call and 3 calls per bead, each bead takes ~15 seconds.
+	// In 60 seconds, we should process 4 beads max.
+	stdout, stderr, exitCode, err := runGromit(env, "run", "--time-budget", "1")
+	if err != nil {
+		t.Fatalf("Failed to run gromit: %v", err)
+	}
+
+	t.Logf("Exit code: %d", exitCode)
+	t.Logf("Stdout:\n%s", stdout)
+	t.Logf("Stderr:\n%s", stderr)
+
+	// When time budget is exceeded, gromit may exit with code 1 due to context cancellation
+	// This is acceptable - the important thing is that it stopped processing
+	if exitCode != 0 && exitCode != 1 {
+		t.Errorf("Expected exit code 0 or 1, got %d", exitCode)
+	} else {
+		t.Logf("✓ Gromit stopped with exit code %d", exitCode)
+	}
+
+	// Read bd state to count how many beads were closed
+	state, err := readBDState(env)
+	if err != nil {
+		t.Fatalf("Failed to read bd state: %v", err)
+	}
+
+	beads, ok := state["beads"].([]interface{})
+	if !ok {
+		t.Fatal("beads field not found in state")
+	}
+
+	if len(beads) != 5 {
+		t.Fatalf("Expected 5 beads in state, got %d", len(beads))
+	}
+
+	// Count closed beads
+	closedCount := 0
+	for i, beadInterface := range beads {
+		bead, ok := beadInterface.(map[string]interface{})
+		if !ok {
+			t.Fatalf("Bead %d is not a map", i)
+		}
+
+		status, ok := bead["status"].(string)
+		if !ok {
+			t.Fatalf("Bead %d status is not a string", i)
+		}
+
+		if status == "closed" {
+			closedCount++
+			t.Logf("✓ Bead %s is closed", bead["id"])
+		}
+	}
+
+	t.Logf("Processed %d out of 5 beads within time budget", closedCount)
+
+	// Verify that fewer than 5 beads were processed
+	// With 5s delay per Claude invocation and ~3 invocations per bead (scope, build, validate),
+	// that's roughly 15 seconds per bead. In 60 seconds, we should process 4 beads max.
+	if closedCount >= 5 {
+		t.Errorf("Expected fewer than 5 beads to be processed within 1-minute budget, but %d were closed", closedCount)
+	} else {
+		t.Logf("✓ Time budget respected: only %d/5 beads processed", closedCount)
+	}
+
+	// Verify that at least one bead was processed (time budget wasn't too restrictive)
+	if closedCount == 0 {
+		t.Error("Expected at least 1 bead to be processed, but none were closed")
+	}
+
+	// Verify output mentions time budget or context cancellation
+	if strings.Contains(stdout, "Time budget") || strings.Contains(stdout, "time budget") {
+		t.Logf("✓ Output mentions time budget")
+	} else if strings.Contains(stdout, "Context cancelled") || strings.Contains(stderr, "context deadline exceeded") {
+		t.Logf("✓ Output indicates context cancellation due to time budget")
+	} else {
+		t.Logf("Warning: Expected output to mention time budget or context cancellation")
+	}
+}

@@ -9,6 +9,11 @@ if [[ -n "${TEST_CALL_LOG:-}" ]]; then
     echo "claude $*" >> "$TEST_CALL_LOG"
 fi
 
+# Add delay if CLAUDE_DELAY is set (for time budget testing)
+if [[ -n "${CLAUDE_DELAY:-}" ]]; then
+    sleep "${CLAUDE_DELAY}"
+fi
+
 # Read and discard stdin (claude expects prompt on stdin)
 cat > /dev/null
 
