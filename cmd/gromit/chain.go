@@ -132,9 +132,15 @@ func chainAfterRefine(specNames []string, plansDir string) {
 		}
 	}
 
-	// Phase 2: Decomposition (non-interactive, sequential)
+	// Phase 2: Decomposition (interactive, sequential)
 	decomposedCount := 0
 	for _, planName := range plannedNames {
+		// Skip if plan is already decomposed
+		if isPlanDecomposed(plansDir, planName) {
+			decomposedCount++
+			continue
+		}
+
 		prompt := fmt.Sprintf("Run 'gromit decompose %s'?", planName)
 		if !confirmPrompt(reader, prompt, true) {
 			// User declined, skip remaining decomposes
