@@ -1,7 +1,7 @@
 # Learnings
 
-Accumulated operational knowledge from Ralph iterations.
-This file is automatically updated. Review periodically with `ralph retro`.
+Accumulated operational knowledge from Gromit iterations.
+This file is automatically updated. Review periodically with `gromit retro`.
 
 ---
 
@@ -9,8 +9,7 @@ This file is automatically updated. Review periodically with `ralph retro`.
 
 *Patterns seen multiple times - high confidence.*
 
-### 2026-02-06 | gotchas | consolidated from r3h, ehn, 0o2, rz1
-Validation commands in ralph.yaml must match the project's actual tech stack. Always verify configuration against language-specific markers (go.mod, package.json, requirements.txt). For Go projects, use `go test ./...`, `go vet ./...`, and `go build ./...` — never Node.js tools like pnpm. **Promoted to rule in RULES.md Process section.**
+*No confirmed learnings.*
 
 ---
 
@@ -26,12 +25,15 @@ Validation commands in ralph.yaml must match the project's actual tech stack. Al
 
 *No longer relevant or superseded.*
 
-### 2026-02-06 | ralph-runner-ehn | gotchas
+### 2026-02-06 | gromit-ehn | gotchas
 Archived: duplicate of consolidated validation commands learning. Subsumed by promoted rule.
 
-### 2026-02-06 | ralph-runner-0o2 | gotchas
+### 2026-02-06 | gromit-0o2 | gotchas
 Archived: duplicate of consolidated validation commands learning. Subsumed by promoted rule.
 
-### 2026-02-06 | ralph-runner-rz1 | gotchas
+### 2026-02-06 | gromit-rz1 | gotchas
 Archived: duplicate of consolidated validation commands learning. Subsumed by promoted rule.
+
+### 2026-02-06 | gotchas | consolidated from r3h, ehn, 0o2, rz1
+Archived: already promoted to rule in RULES.md Process section. Rule is the source of truth.
 
