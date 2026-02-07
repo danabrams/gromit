@@ -54,6 +54,9 @@ func TestStatusWriter_Write(t *testing.T) {
 	if status.ElapsedS < 0 {
 		t.Errorf("Expected ElapsedS >= 0, got %d", status.ElapsedS)
 	}
+	if status.PID != os.Getpid() {
+		t.Errorf("Expected PID=%d, got %d", os.Getpid(), status.PID)
+	}
 }
 
 func TestStatusWriter_Delete(t *testing.T) {

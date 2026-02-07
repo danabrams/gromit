@@ -17,6 +17,7 @@ type Status struct {
 	Model     string    `json:"model"`
 	StartedAt time.Time `json:"started_at"`
 	ElapsedS  int       `json:"elapsed_s"`
+	PID       int       `json:"pid"`
 }
 
 // StatusWriter manages writing status.json
@@ -47,6 +48,7 @@ func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, ru
 		Model:     model,
 		StartedAt: sw.startTime,
 		ElapsedS:  int(time.Since(sw.startTime).Seconds()),
+		PID:       os.Getpid(),
 	}
 
 	data, err := json.MarshalIndent(status, "", "  ")
