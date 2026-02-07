@@ -2241,10 +2241,10 @@ claude:
 // Tests for MethodologyConfig parsing
 func TestMethodologyConfigParsing(t *testing.T) {
 	tests := []struct {
-		name         string
-		yaml         string
-		expectATDD   bool
-		expectTDD    bool
+		name       string
+		yaml       string
+		expectATDD bool
+		expectTDD  bool
 	}{
 		{
 			name: "ATDD present true",
@@ -2295,8 +2295,8 @@ func TestMethodologyConfigParsing(t *testing.T) {
 			expectTDD:  false,
 		},
 		{
-			name:       "Methodology section absent",
-			yaml:       `models:
+			name: "Methodology section absent",
+			yaml: `models:
   p0: opus
 `,
 			expectATDD: false,

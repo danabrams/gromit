@@ -163,18 +163,21 @@ func (m *mockFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, failure
 }
 
 type mockPromptRenderer struct {
-	BuildContextFn         func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
-	RenderBuildFn          func(ctx *prompt.Context) (string, error)
-	RenderAnalyzeFn        func(ctx *prompt.AnalyzeContext) (string, error)
-	RenderLearnFn          func(ctx *prompt.LearnContext) (string, error)
-	RenderDecomposeFn      func(ctx *prompt.DecomposeContext) (string, error)
-	RenderScopeFn          func(ctx *prompt.ScopeContext) (string, error)
-	RenderReviewFn         func(ctx *prompt.ReviewContext) (string, error)
-	RenderThoroughReviewFn func(ctx *prompt.ThoroughReviewContext) (string, error)
-	LoadSpecFn             func(name string) (string, error)
-	LoadClaudeMDFn         func() (string, error)
-	LoadRulesFn            func() (string, error)
-	LearningsFile          *learnings.File
+	BuildContextFn          func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
+	RenderBuildFn           func(ctx *prompt.Context) (string, error)
+	RenderAnalyzeFn         func(ctx *prompt.AnalyzeContext) (string, error)
+	RenderLearnFn           func(ctx *prompt.LearnContext) (string, error)
+	RenderDecomposeFn       func(ctx *prompt.DecomposeContext) (string, error)
+	RenderScopeFn           func(ctx *prompt.ScopeContext) (string, error)
+	RenderReviewFn          func(ctx *prompt.ReviewContext) (string, error)
+	RenderThoroughReviewFn  func(ctx *prompt.ThoroughReviewContext) (string, error)
+	RenderAcceptanceTestsFn func(ctx *prompt.Context) (string, error)
+	RenderATDDBuildFn       func(ctx *prompt.Context) (string, error)
+	RenderRefactorFn        func(ctx *prompt.Context) (string, error)
+	LoadSpecFn              func(name string) (string, error)
+	LoadClaudeMDFn          func() (string, error)
+	LoadRulesFn             func() (string, error)
+	LearningsFile           *learnings.File
 }
 
 func (m *mockPromptRenderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
@@ -265,6 +268,27 @@ func (m *mockPromptRenderer) GetLearningsFile() *learnings.File {
 	return m.LearningsFile
 }
 
+func (m *mockPromptRenderer) RenderAcceptanceTests(ctx *prompt.Context) (string, error) {
+	if m.RenderAcceptanceTestsFn != nil {
+		return m.RenderAcceptanceTestsFn(ctx)
+	}
+	return "mock acceptance tests prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderATDDBuild(ctx *prompt.Context) (string, error) {
+	if m.RenderATDDBuildFn != nil {
+		return m.RenderATDDBuildFn(ctx)
+	}
+	return "mock atdd build prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderRefactor(ctx *prompt.Context) (string, error) {
+	if m.RenderRefactorFn != nil {
+		return m.RenderRefactorFn(ctx)
+	}
+	return "mock refactor prompt", nil
+}
+
 type mockIterationLogger struct {
 	Logs   []*logger.IterationLog
 	Closed bool
@@ -346,6 +370,18 @@ func (m *mockRenderer) LoadRules() (string, error) {
 
 func (m *mockRenderer) GetLearningsFile() *learnings.File {
 	return nil
+}
+
+func (m *mockRenderer) RenderAcceptanceTests(ctx *prompt.Context) (string, error) {
+	return "mock acceptance tests prompt", nil
+}
+
+func (m *mockRenderer) RenderATDDBuild(ctx *prompt.Context) (string, error) {
+	return "mock atdd build prompt", nil
+}
+
+func (m *mockRenderer) RenderRefactor(ctx *prompt.Context) (string, error) {
+	return "mock refactor prompt", nil
 }
 
 type mockStateFile struct{}

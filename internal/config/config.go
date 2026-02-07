@@ -15,16 +15,16 @@ const (
 )
 
 type Config struct {
-	Models      ModelsConfig       `yaml:"models"`
-	Escalation  EscalationConfig   `yaml:"escalation"`
-	Loop        LoopConfig         `yaml:"loop"`
-	Validation  ValidationConfig   `yaml:"validation"`
-	ScopeCheck  ScopeCheckConfig   `yaml:"scope_check"`
-	Preflight   PreflightConfig    `yaml:"preflight"`
-	Claude      ClaudeConfig       `yaml:"claude"`
-	Paths       PathsConfig        `yaml:"paths"`
-	Review      ReviewConfig       `yaml:"review"`
-	Methodology MethodologyConfig  `yaml:"methodology"`
+	Models      ModelsConfig      `yaml:"models"`
+	Escalation  EscalationConfig  `yaml:"escalation"`
+	Loop        LoopConfig        `yaml:"loop"`
+	Validation  ValidationConfig  `yaml:"validation"`
+	ScopeCheck  ScopeCheckConfig  `yaml:"scope_check"`
+	Preflight   PreflightConfig   `yaml:"preflight"`
+	Claude      ClaudeConfig      `yaml:"claude"`
+	Paths       PathsConfig       `yaml:"paths"`
+	Review      ReviewConfig      `yaml:"review"`
+	Methodology MethodologyConfig `yaml:"methodology"`
 }
 
 type ModelsConfig struct {

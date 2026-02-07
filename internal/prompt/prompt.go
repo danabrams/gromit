@@ -212,6 +212,21 @@ func (r *Renderer) RenderThoroughReview(ctx *ThoroughReviewContext) (string, err
 	return r.render("PROMPT_thorough_review.md", ctx)
 }
 
+// RenderAcceptanceTests renders the acceptance tests prompt for ATDD workflow
+func (r *Renderer) RenderAcceptanceTests(ctx *Context) (string, error) {
+	return r.render("PROMPT_acceptance_tests.md", ctx)
+}
+
+// RenderATDDBuild renders the ATDD-aware build prompt
+func (r *Renderer) RenderATDDBuild(ctx *Context) (string, error) {
+	return r.render("PROMPT_atdd_build.md", ctx)
+}
+
+// RenderRefactor renders the refactor prompt for code quality improvements
+func (r *Renderer) RenderRefactor(ctx *Context) (string, error) {
+	return r.render("PROMPT_refactor.md", ctx)
+}
+
 // ValidateSpecName checks that a spec name doesn't contain path traversal characters
 func ValidateSpecName(name string) error {
 	if name == "" {

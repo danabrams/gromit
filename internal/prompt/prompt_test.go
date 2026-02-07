@@ -121,6 +121,18 @@ func TestRenderNilRenderer(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for nil renderer in RenderAnalyze")
 	}
+	_, err = r.RenderAcceptanceTests(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderAcceptanceTests")
+	}
+	_, err = r.RenderATDDBuild(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderATDDBuild")
+	}
+	_, err = r.RenderRefactor(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderRefactor")
+	}
 }
 
 func TestLoadClaudeMDNilRenderer(t *testing.T) {
@@ -464,5 +476,133 @@ Diff: {{.Diff}}`
 	}
 	if !strings.Contains(result, "Beads completed: 2") {
 		t.Error("expected 2 completed beads")
+	}
+}
+
+func TestRenderAcceptanceTests(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Write acceptance tests for: {{.Bead.Title}}
+Description: {{.Bead.Description}}
+Model: {{.Model}}
+Iteration: {{.Iteration}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_acceptance_tests.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := &Context{
+		Bead: &bead.Bead{
+			ID:              "test-1",
+			Title:           "Test feature",
+			Description:     "Implement test feature",
+			Labels:          []string{},
+			ExpectedOutputs: []string{},
+		},
+		Model:     "sonnet",
+		Iteration: 1,
+	}
+
+	result, err := r.RenderAcceptanceTests(ctx)
+	if err != nil {
+		t.Fatalf("RenderAcceptanceTests() error = %v", err)
+	}
+	if result == "" {
+		t.Error("expected non-empty output")
+	}
+	if !strings.Contains(result, "Test feature") {
+		t.Error("expected bead title in output")
+	}
+	if !strings.Contains(result, "Implement test feature") {
+		t.Error("expected bead description in output")
+	}
+	if !strings.Contains(result, "sonnet") {
+		t.Error("expected model in output")
+	}
+}
+
+func TestRenderATDDBuild(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `ATDD Build for: {{.Bead.Title}}
+Acceptance tests have been written.
+Make them pass.
+Model: {{.Model}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_atdd_build.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := &Context{
+		Bead: &bead.Bead{
+			ID:              "test-1",
+			Title:           "Test feature",
+			Description:     "Implement test feature",
+			Labels:          []string{},
+			ExpectedOutputs: []string{},
+		},
+		Model:     "opus",
+		Iteration: 1,
+	}
+
+	result, err := r.RenderATDDBuild(ctx)
+	if err != nil {
+		t.Fatalf("RenderATDDBuild() error = %v", err)
+	}
+	if result == "" {
+		t.Error("expected non-empty output")
+	}
+	if !strings.Contains(result, "Test feature") {
+		t.Error("expected bead title in output")
+	}
+	if !strings.Contains(result, "Acceptance tests have been written") {
+		t.Error("expected ATDD instruction in output")
+	}
+	if !strings.Contains(result, "opus") {
+		t.Error("expected model in output")
+	}
+}
+
+func TestRenderRefactor(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Refactor code for: {{.Bead.Title}}
+Review for code quality improvements.
+Do not change behavior.
+Iteration: {{.Iteration}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_refactor.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := &Context{
+		Bead: &bead.Bead{
+			ID:              "test-1",
+			Title:           "Refactor authentication",
+			Description:     "Clean up auth code",
+			Labels:          []string{},
+			ExpectedOutputs: []string{},
+		},
+		Iteration: 2,
+	}
+
+	result, err := r.RenderRefactor(ctx)
+	if err != nil {
+		t.Fatalf("RenderRefactor() error = %v", err)
+	}
+	if result == "" {
+		t.Error("expected non-empty output")
+	}
+	if !strings.Contains(result, "Refactor authentication") {
+		t.Error("expected bead title in output")
+	}
+	if !strings.Contains(result, "Do not change behavior") {
+		t.Error("expected refactor instruction in output")
+	}
+	if !strings.Contains(result, "Iteration: 2") {
+		t.Error("expected iteration in output")
 	}
 }

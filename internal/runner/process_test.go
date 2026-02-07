@@ -78,6 +78,18 @@ func (m *mockRendererWithLearn) GetLearningsFile() *learnings.File {
 	return m.learningsFile
 }
 
+func (m *mockRendererWithLearn) RenderAcceptanceTests(ctx *prompt.Context) (string, error) {
+	return "mock acceptance tests prompt", nil
+}
+
+func (m *mockRendererWithLearn) RenderATDDBuild(ctx *prompt.Context) (string, error) {
+	return "mock atdd build prompt", nil
+}
+
+func (m *mockRendererWithLearn) RenderRefactor(ctx *prompt.Context) (string, error) {
+	return "mock refactor prompt", nil
+}
+
 func TestSetupBeadContext_NilConfig(t *testing.T) {
 	r := &Runner{output: &strings.Builder{}}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
