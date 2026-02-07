@@ -267,3 +267,130 @@ func TestFormatItems(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatHealth(t *testing.T) {
+	now := time.Now()
+	twoHoursAgo := now.Add(-2 * time.Hour)
+
+	tests := []struct {
+		name                  string
+		lastRetro             time.Time
+		iterationsSinceReview int
+		want                  []string
+	}{
+		{
+			name:                  "never had retro or review",
+			lastRetro:             time.Time{},
+			iterationsSinceReview: 0,
+			want: []string{
+				"Health:",
+				"  Last retro:  never",
+				"  Last review: never",
+			},
+		},
+		{
+			name:                  "retro done, review never",
+			lastRetro:             twoHoursAgo,
+			iterationsSinceReview: 0,
+			want: []string{
+				"Health:",
+				"  Last retro:  2h 0m ago",
+				"  Last review: never",
+			},
+		},
+		{
+			name:                  "retro never, review done",
+			lastRetro:             time.Time{},
+			iterationsSinceReview: 5,
+			want: []string{
+				"Health:",
+				"  Last retro:  never",
+				"  Last review: 5 iterations ago",
+			},
+		},
+		{
+			name:                  "both done, singular iteration",
+			lastRetro:             twoHoursAgo,
+			iterationsSinceReview: 1,
+			want: []string{
+				"Health:",
+				"  Last retro:  2h 0m ago",
+				"  Last review: 1 iteration ago",
+			},
+		},
+		{
+			name:                  "both done, multiple iterations",
+			lastRetro:             twoHoursAgo,
+			iterationsSinceReview: 12,
+			want: []string{
+				"Health:",
+				"  Last retro:  2h 0m ago",
+				"  Last review: 12 iterations ago",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatHealth(tt.lastRetro, tt.iterationsSinceReview)
+			for _, want := range tt.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("formatHealth() missing expected line:\n  want: %q\n  got:\n%s", want, got)
+				}
+			}
+		})
+	}
+}
+
+func TestFormatRecommendation(t *testing.T) {
+	tests := []struct {
+		name string
+		rec  string
+		want string
+	}{
+		{
+			name: "empty recommendation",
+			rec:  "",
+			want: "",
+		},
+		{
+			name: "refine recommendation",
+			rec:  "Refine backlog ideas",
+			want: "Next action: Refine backlog ideas (gromit refine)",
+		},
+		{
+			name: "refine with specific idea",
+			rec:  "Refine idea: Add rate limiting to API",
+			want: "Next action: Refine idea: Add rate limiting to API (gromit refine)",
+		},
+		{
+			name: "plan recommendation",
+			rec:  "Plan spec \"user-profiles\"",
+			want: "Next action: Plan spec \"user-profiles\" (gromit plan)",
+		},
+		{
+			name: "decompose recommendation",
+			rec:  "Decompose plan \"status-json-staleness\"",
+			want: "Next action: Decompose plan \"status-json-staleness\" (gromit decompose)",
+		},
+		{
+			name: "run recommendation",
+			rec:  "Run 4 ready bead(s)",
+			want: "Next action: Run 4 ready bead(s) (gromit run)",
+		},
+		{
+			name: "no work recommendation",
+			rec:  "No work in pipeline",
+			want: "Next action: No work in pipeline",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatRecommendation(tt.rec)
+			if got != tt.want {
+				t.Errorf("formatRecommendation(%q) = %q, want %q", tt.rec, got, tt.want)
+			}
+		})
+	}
+}

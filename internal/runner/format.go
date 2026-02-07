@@ -134,3 +134,53 @@ func formatDuration(d time.Duration) string {
 	}
 	return fmt.Sprintf("%dm", minutes)
 }
+
+// formatHealth formats health status for display
+func formatHealth(lastRetro time.Time, iterationsSinceReview int) string {
+	var lines []string
+	lines = append(lines, "Health:")
+
+	// Last retro line
+	if lastRetro.IsZero() {
+		lines = append(lines, "  Last retro:  never")
+	} else {
+		elapsed := time.Since(lastRetro)
+		lines = append(lines, fmt.Sprintf("  Last retro:  %s ago", formatDuration(elapsed)))
+	}
+
+	// Last review line
+	if iterationsSinceReview == 0 {
+		lines = append(lines, "  Last review: never")
+	} else {
+		iterLine := fmt.Sprintf("  Last review: %d iteration", iterationsSinceReview)
+		if iterationsSinceReview != 1 {
+			iterLine += "s"
+		}
+		iterLine += " ago"
+		lines = append(lines, iterLine)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// formatRecommendation formats the recommendation for display
+func formatRecommendation(rec string) string {
+	if rec == "" {
+		return ""
+	}
+
+	// Build the command hint based on recommendation content
+	var hint string
+	switch {
+	case strings.Contains(rec, "Refine"):
+		hint = " (gromit refine)"
+	case strings.Contains(rec, "Plan"):
+		hint = " (gromit plan)"
+	case strings.Contains(rec, "Decompose"):
+		hint = " (gromit decompose)"
+	case strings.Contains(rec, "Run"):
+		hint = " (gromit run)"
+	}
+
+	return fmt.Sprintf("Next action: %s%s", rec, hint)
+}
