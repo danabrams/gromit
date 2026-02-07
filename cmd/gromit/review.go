@@ -253,6 +253,14 @@ func getGitDiffStatForReview(fromCommit string) (string, error) {
 	return string(out), nil
 }
 
+// buildReviewArgs combines flags and prompt into an args array for claude CLI.
+func buildReviewArgs(flags []string, initialPrompt string) []string {
+	args := make([]string, 0, len(flags)+1)
+	args = append(args, flags...)
+	args = append(args, initialPrompt)
+	return args
+}
+
 func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) error {
 	// Build and render prompt
 	gromitDir := resolveGromitDir(cfg)
@@ -312,9 +320,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 	initialPrompt := fmt.Sprintf("Read and follow the review instructions in %s", promptPath)
 
 	// Build args with configured flags (including --dangerously-skip-permissions if set)
-	args := make([]string, 0, len(cfg.Claude.Flags)+2)
-	args = append(args, cfg.Claude.Flags...)
-	args = append(args, initialPrompt)
+	args := buildReviewArgs(cfg.Claude.Flags, initialPrompt)
 
 	cmd := exec.Command(cfg.Claude.Binary, args...)
 	cmd.Stdin = os.Stdin

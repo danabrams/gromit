@@ -2,83 +2,47 @@ package main
 
 import (
 	"testing"
-
-	"github.com/danabrams/gromit/internal/config"
 )
 
-// TestReviewPassesClaudeFlags verifies that gromit review respects claude.flags
-// from gromit.yaml, specifically the --dangerously-skip-permissions flag.
-// Both interactive and non-interactive modes should pass through configured flags.
+// TestReviewPassesClaudeFlags verifies that buildReviewArgs correctly combines
+// flags and prompt into an args array for the claude CLI.
 func TestReviewPassesClaudeFlags(t *testing.T) {
-	// Test config with --dangerously-skip-permissions flag
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Flags:   []string{"--dangerously-skip-permissions", "--some-other-flag"},
-			Timeout: 600,
-		},
-		Review: config.ReviewConfig{
-			Thorough: config.ThoroughReviewConfig{
-				Model:   "opus",
-				Timeout: 900,
-			},
-		},
-		Paths: config.PathsConfig{
-			GromitDir:       ".gromit",
-			Templates:       ".gromit/templates",
-			Specs:           ".gromit/specs",
-			ProjectClaudeMD: "CLAUDE.md",
-			Logs:            ".gromit/logs",
-		},
+	flags := []string{"--dangerously-skip-permissions", "--some-other-flag"}
+	prompt := "Review this code"
+
+	args := buildReviewArgs(flags, prompt)
+
+	// Verify all flags are included in order
+	if len(args) != 3 {
+		t.Fatalf("Expected 3 args, got %d", len(args))
 	}
 
-	// Verify flags are properly configured
-	if len(cfg.Claude.Flags) != 2 {
-		t.Errorf("Expected 2 flags, got %d", len(cfg.Claude.Flags))
+	if args[0] != "--dangerously-skip-permissions" {
+		t.Errorf("Expected first arg to be --dangerously-skip-permissions, got %s", args[0])
 	}
 
-	if cfg.Claude.Flags[0] != "--dangerously-skip-permissions" {
-		t.Errorf("Expected first flag to be --dangerously-skip-permissions, got %s", cfg.Claude.Flags[0])
+	if args[1] != "--some-other-flag" {
+		t.Errorf("Expected second arg to be --some-other-flag, got %s", args[1])
 	}
 
-	// NOTE: Both runReviewInteractive and runReviewNonInteractive use cfg.Claude.Flags:
-	// - Interactive mode: lines 314-316 in review.go build args from cfg.Claude.Flags
-	// - Non-interactive mode: line 361 passes cfg.Claude.Flags to claude.NewClient
-	//
-	// This test documents the expected behavior. Actual execution testing would
-	// require mocking exec.Command, which is complex for this verification.
+	if args[2] != prompt {
+		t.Errorf("Expected third arg to be %q, got %s", prompt, args[2])
+	}
 }
 
-// TestReviewWithoutFlags verifies that review works when no flags are configured
+// TestReviewWithoutFlags verifies that buildReviewArgs works when no flags are provided
 func TestReviewWithoutFlags(t *testing.T) {
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Flags:   []string{}, // No flags configured
-			Timeout: 600,
-		},
-		Review: config.ReviewConfig{
-			Thorough: config.ThoroughReviewConfig{
-				Model:   "opus",
-				Timeout: 900,
-			},
-		},
-		Paths: config.PathsConfig{
-			GromitDir:       ".gromit",
-			Templates:       ".gromit/templates",
-			Specs:           ".gromit/specs",
-			ProjectClaudeMD: "CLAUDE.md",
-			Logs:            ".gromit/logs",
-		},
+	flags := []string{} // No flags configured
+	prompt := "Review this code"
+
+	args := buildReviewArgs(flags, prompt)
+
+	// With no flags, should only have the prompt
+	if len(args) != 1 {
+		t.Fatalf("Expected 1 arg, got %d", len(args))
 	}
 
-	// Verify empty flags are properly configured
-	if len(cfg.Claude.Flags) != 0 {
-		t.Errorf("Expected 0 flags, got %d", len(cfg.Claude.Flags))
+	if args[0] != prompt {
+		t.Errorf("Expected arg to be %q, got %s", prompt, args[0])
 	}
-
-	// With no flags, review should still work (with permission prompts)
-	// Both modes correctly handle empty flags slice:
-	// - Interactive: append empty slice is a no-op, only adds initial prompt
-	// - Non-interactive: claude.NewClient accepts empty flags slice
 }
