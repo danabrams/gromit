@@ -29,7 +29,7 @@ No changes to `.beads/issues.jsonl` — the `ralph-runner-*` bead ID prefix is h
 
 1. **Clean break, no migration tooling** There are no external users and no existing projects using the old `.ralph/` naming. Migration support is unnecessary.
 
-2. **Leave `.beads/issues.jsonl` alone** Bead IDs with the `ralph-runner-*` prefix are historical records managed by bd. Changing them would break bd's data integrity.
+2. **~~Leave `.beads/issues.jsonl` alone~~ SUPERSEDED** ~~Bead IDs with the `ralph-runner-*` prefix are historical records managed by bd. Changing them would break bd's data integrity.~~ This decision was made without knowledge of `bd rename-prefix`. The prefix migration was subsequently completed in the `gromit-prefix-migration` spec using `bd rename-prefix --repair`, which safely migrated all 400 beads from `ralph-runner-*` and `ralph-*` prefixes to `gromit-*`.
 
 ## Research & Context
 

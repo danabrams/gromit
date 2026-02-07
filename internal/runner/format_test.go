@@ -116,7 +116,7 @@ func TestFormatRun(t *testing.T) {
 			status: &Status{
 				Running:   true,
 				Iteration: 68,
-				BeadID:    "ralph-runner-abc123",
+				BeadID:    "gromit-abc123",
 				BeadTitle: "Create PROMPT_refactor.md template",
 				Model:     "sonnet",
 				StartedAt: now.Add(-210 * time.Minute), // 3h 30m ago
@@ -124,7 +124,7 @@ func TestFormatRun(t *testing.T) {
 			},
 			want: []string{
 				"Run: iteration 68, 3h 30m elapsed",
-				"  Current:  ralph-runner-abc123 — \"Create PROMPT_refactor.md template\"",
+				"  Current:  gromit-abc123 — \"Create PROMPT_refactor.md template\"",
 				"  Model:    sonnet",
 			},
 		},
@@ -133,7 +133,7 @@ func TestFormatRun(t *testing.T) {
 			status: &Status{
 				Running:           true,
 				Iteration:         12,
-				BeadID:            "ralph-runner-ja5m",
+				BeadID:            "gromit-2pm",
 				BeadTitle:         "Add validation tests",
 				Model:             "sonnet",
 				StartedAt:         now.Add(-18 * time.Minute),
@@ -143,7 +143,7 @@ func TestFormatRun(t *testing.T) {
 			},
 			want: []string{
 				"Run: iteration 12/50, 18m of 30m elapsed",
-				"  Current:  ralph-runner-ja5m — \"Add validation tests\"",
+				"  Current:  gromit-2pm — \"Add validation tests\"",
 				"  Model:    sonnet",
 			},
 		},
