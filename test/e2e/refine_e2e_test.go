@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/test/testutil"
 )
 
 // TestE2E_RefineEmptyBacklog tests that gromit refine with no unrefined backlog items
@@ -245,7 +247,7 @@ This spec was created from "Something new" picker option.
 	//   1. [feature] Add user authentication
 	//   2. [bug]     Fix login page crash
 	//   3. [new]     Something new...
-	stdin := "3\n"
+	stdin := testutil.PickerStdin("refine", "something_new", 2)
 	stdout, stderr, exitCode, err := runGromitWithStdin(env, stdin, "refine")
 	if err != nil {
 		t.Fatalf("Failed to run gromit refine: %v", err)
@@ -434,7 +436,7 @@ This spec describes OAuth and JWT authentication.
 	//      Context: OAuth and JWT support
 	//   2. [bug]     Fix login page crash
 	//   3. [new]     Something new...
-	stdin := "1\n"
+	stdin := testutil.PickerStdin("refine", "item", 2, 1)
 	stdout, stderr, exitCode, err := runGromitWithStdin(env, stdin, "refine")
 	if err != nil {
 		t.Fatalf("Failed to run gromit refine: %v", err)
