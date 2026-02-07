@@ -714,31 +714,20 @@ func TestReadyVsReadyAny(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Simulate parsing logic from Ready()/ReadyAny()
-			if strings.TrimSpace(tt.jsonOutput) == "" || strings.TrimSpace(tt.jsonOutput) == "[]" {
-				if !tt.wantNil {
-					t.Errorf("Expected non-nil bead for output: %s", tt.jsonOutput)
-				}
-				return
-			}
-
-			var beads []Bead
-			err := json.Unmarshal([]byte(tt.jsonOutput), &beads)
+			got, err := parseBeadOutput(tt.jsonOutput)
 			if err != nil {
-				t.Fatalf("Failed to parse JSON: %v", err)
+				t.Fatalf("parseBeadOutput() error = %v", err)
 			}
 
-			if len(beads) == 0 {
-				if !tt.wantNil {
-					t.Errorf("Expected non-nil bead but got empty array")
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("Expected nil bead but got: %+v", got)
 				}
 				return
 			}
 
-			got := &beads[0]
-			if tt.wantNil {
-				t.Errorf("Expected nil bead but got: %+v", got)
-				return
+			if got == nil {
+				t.Fatal("Expected non-nil bead but got nil")
 			}
 
 			if got.ID != tt.wantBead.ID {
@@ -869,26 +858,9 @@ func TestReadyExcludesEpics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Simulate the logic in Ready() - parse and filter epics
-			if strings.TrimSpace(tt.jsonOutput) == "" || strings.TrimSpace(tt.jsonOutput) == "[]" {
-				if !tt.wantNil {
-					t.Error("Expected non-nil bead for non-empty output")
-				}
-				return
-			}
-
-			var beads []Bead
-			if err := json.Unmarshal([]byte(tt.jsonOutput), &beads); err != nil {
-				t.Fatalf("Failed to parse JSON: %v", err)
-			}
-
-			// Find first non-epic bead
-			var got *Bead
-			for i := range beads {
-				if beads[i].Type != "epic" {
-					got = &beads[i]
-					break
-				}
+			got, err := parseBeadOutputExcluding(tt.jsonOutput, "epic")
+			if err != nil {
+				t.Fatalf("parseBeadOutputExcluding() error = %v", err)
 			}
 
 			if tt.wantNil {
