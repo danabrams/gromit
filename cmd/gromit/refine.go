@@ -161,8 +161,20 @@ Specs directory: %s
 
 %s`, ideaText, specsDir, skills.RefineSkill)
 
+	// Determine binary and flags from config
+	claudeBinary := "claude"
+	var claudeFlags []string
+	if cfg != nil {
+		claudeBinary = cfg.Claude.Binary
+		claudeFlags = cfg.Claude.Flags
+	}
+
+	// Build command args: flags + --append-system-prompt + system prompt + initial message
+	cmdArgs := append([]string{}, claudeFlags...)
+	cmdArgs = append(cmdArgs, "--append-system-prompt", systemPrompt, "Begin refining this idea into a structured spec following the instructions above.")
+
 	// Launch Claude Code with system prompt and initial message
-	claudeCmd := exec.Command("claude", "--append-system-prompt", systemPrompt, "Begin refining this idea into a structured spec following the instructions above.")
+	claudeCmd := exec.Command(claudeBinary, cmdArgs...)
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout
 	claudeCmd.Stderr = os.Stderr
