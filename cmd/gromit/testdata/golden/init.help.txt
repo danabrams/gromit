@@ -12,6 +12,7 @@ Creates:
       PROMPT_decompose.md
       PROMPT_review.md
       PROMPT_thorough_review.md
+      PROMPT_learn.md
     specs/             - Specification files (empty)
     plans/             - Plan files (empty)
 
