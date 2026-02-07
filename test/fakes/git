@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Fake git CLI for testing
+# Records all git invocations to $TEST_CALL_LOG then passes through to real git
+
+set -euo pipefail
+
+# Record invocation to call log if TEST_CALL_LOG is set
+if [[ -n "${TEST_CALL_LOG:-}" ]]; then
+    echo "git $*" >> "$TEST_CALL_LOG"
+fi
+
+# Check for GIT_FAIL error mode
+if [[ "${GIT_FAIL:-0}" == "1" ]]; then
+    echo "git: simulated failure" >&2
+    exit 1
+fi
+
+# Get the real git path (defaults to /usr/bin/git if not set)
+REAL_GIT="${REAL_GIT:-/usr/bin/git}"
+
+# If REAL_GIT doesn't exist, try the system git
+if [[ ! -f "$REAL_GIT" ]]; then
+    REAL_GIT=$(command -v git || true)
+    if [[ -z "$REAL_GIT" ]]; then
+        echo "git: unable to find real git binary" >&2
+        exit 1
+    fi
+fi
+
+# Pass through to real git, preserving exit code
+"$REAL_GIT" "$@"
