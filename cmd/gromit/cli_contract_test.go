@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -165,4 +166,176 @@ func TestCLIContract_HelpText(t *testing.T) {
 			}
 		})
 	}
+}
+
+// flagContract defines the expected flags for a command
+type flagContract struct {
+	name  string            // command name
+	flags map[string]string // flag name -> flag type (bool, string, int, etc.)
+}
+
+// TestCLIContract_Flags verifies that commands have expected flags
+func TestCLIContract_Flags(t *testing.T) {
+	contracts := []flagContract{
+		{
+			name: "root",
+			flags: map[string]string{
+				"config": "string", // -c, --config
+			},
+		},
+		{
+			name: "run",
+			flags: map[string]string{
+				"max-iterations":    "int",  // -n, --max-iterations
+				"dry-run":           "bool", // --dry-run
+				"time-budget":       "int",  // -t, --time-budget
+				"time-budget-hours": "int",  // -H, --time-budget-hours
+			},
+		},
+		{
+			name: "init",
+			flags: map[string]string{
+				"force": "bool", // -f, --force
+			},
+		},
+		{
+			name:  "status",
+			flags: map[string]string{},
+		},
+		{
+			name: "retro",
+			flags: map[string]string{
+				"non-interactive": "bool", // --non-interactive
+			},
+		},
+		{
+			name:  "add",
+			flags: map[string]string{},
+		},
+		{
+			name: "backlog",
+			flags: map[string]string{
+				"type":   "string", // --type
+				"recent": "int",    // --recent
+			},
+		},
+		{
+			name:  "backlog-delete",
+			flags: map[string]string{},
+		},
+		{
+			name:  "board",
+			flags: map[string]string{},
+		},
+		{
+			name:  "queue",
+			flags: map[string]string{},
+		},
+		{
+			name:  "triage",
+			flags: map[string]string{},
+		},
+		{
+			name:  "refine",
+			flags: map[string]string{},
+		},
+		{
+			name: "plan",
+			flags: map[string]string{
+				"force": "bool", // --force
+			},
+		},
+		{
+			name: "review",
+			flags: map[string]string{
+				"non-interactive": "bool",   // --non-interactive
+				"since":           "string", // --since
+				"epic":            "string", // --epic
+				"dry-run":         "bool",   // --dry-run
+			},
+		},
+		{
+			name: "decompose",
+			flags: map[string]string{
+				"review": "bool", // --review
+				"force":  "bool", // --force
+			},
+		},
+	}
+
+	for _, contract := range contracts {
+		t.Run(contract.name, func(t *testing.T) {
+			// Build args based on command name
+			var args []string
+			if contract.name == "root" {
+				args = []string{"--help"}
+			} else if contract.name == "backlog-delete" {
+				args = []string{"backlog", "delete", "--help"}
+			} else {
+				args = []string{contract.name, "--help"}
+			}
+
+			stdout, stderr, exitCode := runGromit(t, args...)
+
+			// Help commands should exit with code 0
+			if exitCode != 0 {
+				t.Errorf("gromit %v exited with code %d, stderr: %s", args, exitCode, stderr)
+			}
+
+			// Parse help output for flags
+			actualFlags := parseFlagsFromHelp(stdout)
+
+			// Check for missing flags
+			for expectedFlag := range contract.flags {
+				if !actualFlags[expectedFlag] {
+					t.Errorf("Expected flag --%s is missing from %s command", expectedFlag, contract.name)
+				}
+			}
+
+			// Check for unexpected flags (excluding global flags like help)
+			for actualFlag := range actualFlags {
+				// Skip global flags that appear on all commands
+				if actualFlag == "help" {
+					continue
+				}
+				// Skip the persistent config flag inherited from root
+				if actualFlag == "config" && contract.name != "root" {
+					continue
+				}
+				if _, expected := contract.flags[actualFlag]; !expected {
+					t.Errorf("Unexpected flag --%s found in %s command (if this is intentional, update the contract)",
+						actualFlag, contract.name)
+				}
+			}
+		})
+	}
+}
+
+// parseFlagsFromHelp extracts flag names from help output
+func parseFlagsFromHelp(helpText string) map[string]bool {
+	flags := make(map[string]bool)
+
+	// Look for lines containing flags (e.g., "  -f, --force")
+	// Flags are typically formatted as "  -x, --long-name" or "  --long-name"
+	lines := strings.Split(helpText, "\n")
+	for _, line := range lines {
+		// Skip lines that don't look like flag definitions
+		if !strings.Contains(line, "--") {
+			continue
+		}
+
+		// Extract the long flag name (after --)
+		// Format: "  -x, --flag-name type    description" or "      --flag-name type    description"
+		parts := strings.Fields(line)
+		for _, part := range parts {
+			if strings.HasPrefix(part, "--") {
+				// Remove leading -- and any trailing punctuation
+				flagName := strings.TrimPrefix(part, "--")
+				flagName = strings.TrimRight(flagName, ",:;.\"'")
+				flags[flagName] = true
+			}
+		}
+	}
+
+	return flags
 }
