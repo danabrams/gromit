@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -555,6 +556,133 @@ func (r *Runner) verifyTestsFail(ctx context.Context, bc *beadContext) error {
 	}
 
 	r.log("Acceptance tests failed as expected")
+	return nil
+}
+
+// runRefactorPhase runs the refactoring phase after validation passes.
+// Returns nil on success or if refactoring is skipped. Does not return an error
+// if refactoring fails - it logs a warning and continues (working code without
+// refactoring is better than broken code).
+func (r *Runner) runRefactorPhase(ctx context.Context, bc *beadContext) error {
+	// Check if there are any changes to refactor
+	diff, err := getGitDiff(bc.startCommit)
+	if err != nil {
+		r.log("Warning: could not get git diff: %v", err)
+		return nil // Skip refactoring, not an error
+	}
+	if diff == "" {
+		r.log("No changes to refactor, skipping refactor phase")
+		return nil
+	}
+
+	// Capture pre-refactor commit for potential revert
+	preRefactorCommit, err := getGitHead()
+	if err != nil {
+		r.log("Warning: could not capture pre-refactor commit: %v", err)
+		return nil // Skip refactoring, not an error
+	}
+
+	// Render refactor prompt
+	refactorPrompt, err := r.renderer.RenderRefactor(bc.promptCtx)
+	if err != nil {
+		r.log("Warning: could not render refactor prompt: %v", err)
+		return nil // Skip refactoring, not an error
+	}
+
+	r.log("Running refactor phase with model: %s", bc.model)
+
+	// Call Claude with refactor prompt (use Run, not StreamRun - refactoring is typically simpler)
+	claudeResult, err := r.claude.Run(ctx, refactorPrompt, bc.model)
+	if err != nil {
+		r.log("Warning: refactor invocation failed: %v", err)
+		return nil // Skip refactoring, not an error
+	}
+	if claudeResult == nil || !claudeResult.Success {
+		r.log("Warning: refactor phase failed")
+		return nil // Skip refactoring, not an error
+	}
+
+	r.log("Refactor phase complete, re-validating...")
+
+	// Re-validate after refactoring
+	if !r.cfg.Validation.Enabled {
+		r.log("Validation not enabled, cannot verify refactoring")
+		return nil
+	}
+
+	valResult, err := r.claude.RunValidation(
+		ctx,
+		r.cfg.Validation.Commands,
+		r.cfg.Models.Validation,
+		bc.promptCtx.WorkDir,
+	)
+	if err != nil {
+		r.log("Warning: refactor re-validation invocation failed: %v", err)
+		return r.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "re-validation invocation failed")
+	}
+	if valResult == nil || !claude.IsValidationPassed(valResult) {
+		return r.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "tests failed after refactoring")
+	}
+
+	r.log("Refactor re-validation passed")
+	return nil
+}
+
+// handleRefactorValidationFailure reverts the refactor changes and retries once.
+// Returns nil (not an error) after handling - refactor failures are non-blocking.
+func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *beadContext, preRefactorCommit string, reason string) error {
+	r.log("Refactor validation failed: %s", reason)
+	r.log("Reverting to pre-refactor state: %s", preRefactorCommit)
+
+	// Revert to pre-refactor commit
+	revertCmd := exec.Command("git", "reset", "--hard", preRefactorCommit)
+	if err := revertCmd.Run(); err != nil {
+		r.log("Warning: could not revert refactor changes: %v", err)
+		return nil // Can't revert, but don't fail the bead
+	}
+
+	r.log("Reverted to pre-refactor state, retrying refactor once...")
+
+	// Retry refactor with analysis context
+	bc.promptCtx.IsRetry = true
+	bc.promptCtx.FailureContext = fmt.Sprintf("Previous refactoring broke tests: %s. Be more conservative this time.", reason)
+
+	refactorPrompt, err := r.renderer.RenderRefactor(bc.promptCtx)
+	if err != nil {
+		r.log("Warning: could not render retry refactor prompt: %v", err)
+		return nil // Skip refactoring, not an error
+	}
+
+	claudeResult, err := r.claude.Run(ctx, refactorPrompt, bc.model)
+	if err != nil {
+		r.log("Warning: retry refactor invocation failed: %v - skipping refactoring", err)
+		return nil
+	}
+	if claudeResult == nil || !claudeResult.Success {
+		r.log("Warning: retry refactor failed - skipping refactoring")
+		return nil
+	}
+
+	r.log("Retry refactor complete, re-validating...")
+
+	// Re-validate after retry refactor
+	valResult, err := r.claude.RunValidation(
+		ctx,
+		r.cfg.Validation.Commands,
+		r.cfg.Models.Validation,
+		bc.promptCtx.WorkDir,
+	)
+	if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
+		r.log("Warning: retry refactor also failed validation - skipping refactoring")
+		// Revert again
+		revertCmd := exec.Command("git", "reset", "--hard", preRefactorCommit)
+		if err := revertCmd.Run(); err != nil {
+			r.log("Warning: could not revert retry refactor changes: %v", err)
+		}
+		return nil
+	}
+
+	r.log("Retry refactor re-validation passed")
 	return nil
 }
 
