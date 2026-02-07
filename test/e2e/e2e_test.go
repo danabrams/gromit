@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// Resolve real git path
-	realGitPath = findRealGit()
+	realGitPath = testutil.FindRealGit()
 	if realGitPath == "" {
 		fmt.Fprintf(os.Stderr, "Failed to find real git binary\n")
 		os.Exit(1)
@@ -111,30 +111,6 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-// findRealGit searches for the real git binary in common locations.
-func findRealGit() string {
-	// First, try to find git in the current PATH
-	gitPath, err := exec.LookPath("git")
-	if err == nil && gitPath != "" {
-		return gitPath
-	}
-
-	// Fall back to common locations
-	commonPaths := []string{
-		"/usr/bin/git",
-		"/usr/local/bin/git",
-		"/opt/homebrew/bin/git",
-	}
-
-	for _, path := range commonPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return ""
-}
-
 // e2eEnv holds the E2E test environment configuration
 type e2eEnv struct {
 	// Dir is the test directory (temporary, cleaned up after test)
@@ -185,10 +161,10 @@ func setupE2E(t *testing.T) *e2eEnv {
 
 	// Build environment
 	env := os.Environ()
-	env = replaceOrAppend(env, "PATH", modifiedPath)
-	env = replaceOrAppend(env, "TEST_DIR", tmpDir)
-	env = replaceOrAppend(env, "TEST_CALL_LOG", callLog)
-	env = replaceOrAppend(env, "REAL_GIT", realGitPath)
+	env = testutil.ReplaceOrAppend(env, "PATH", modifiedPath)
+	env = testutil.ReplaceOrAppend(env, "TEST_DIR", tmpDir)
+	env = testutil.ReplaceOrAppend(env, "TEST_CALL_LOG", callLog)
+	env = testutil.ReplaceOrAppend(env, "REAL_GIT", realGitPath)
 
 	return &e2eEnv{
 		Dir:         tmpDir,
@@ -341,17 +317,6 @@ func createBead(env *e2eEnv, id, title, description string, priority int, labels
 
 // replaceOrAppend replaces an environment variable in the env slice,
 // or appends it if it doesn't exist.
-func replaceOrAppend(env []string, key, value string) []string {
-	prefix := key + "="
-	for i, e := range env {
-		if strings.HasPrefix(e, prefix) {
-			env[i] = prefix + value
-			return env
-		}
-	}
-	return append(env, prefix+value)
-}
-
 // TestE2EInfrastructure verifies that the E2E test infrastructure is set up correctly.
 func TestE2EInfrastructure(t *testing.T) {
 	env := setupE2E(t)
@@ -447,8 +412,8 @@ func TestE2E_HappyPath(t *testing.T) {
 
 	// Point CLAUDE_FIXTURE to the build fixture for build model
 	// The fake claude script will use this
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
 
 	// Run gromit with -n 2 to process exactly 2 beads
 	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "2")
@@ -731,13 +696,13 @@ func TestE2E_Escalation(t *testing.T) {
 	//
 	// This allows the first build to fail (triggering escalation), while scope check,
 	// analysis, and validation all succeed.
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", buildFailFixture)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU_SUCCESS", validateSuccessFixture)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_SONNET", buildSuccessFixture)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", validateSuccessFixture) // Default fallback
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", buildFailFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU_SUCCESS", validateSuccessFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_SONNET", buildSuccessFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", validateSuccessFixture) // Default fallback
 
 	// Configure haiku to fail only on first stream-json invocation (build phase)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FAIL_HAIKU_ONCE", "1")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FAIL_HAIKU_ONCE", "1")
 
 	// Run gromit with -n 1 to process exactly 1 bead
 	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "1")
@@ -879,8 +844,8 @@ func TestE2E_ValidationFailure(t *testing.T) {
 	buildSuccessFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
 	validateFailFixture := filepath.Join(fixturesDir, "claude_validate_fail.txt")
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildSuccessFixture)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFailFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildSuccessFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFailFixture)
 
 	// Run gromit with -n 1 to process exactly 1 bead
 	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "1")
@@ -989,18 +954,18 @@ func TestE2E_TimeBudget(t *testing.T) {
 	buildFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
 	validateFixture := filepath.Join(fixturesDir, "claude_validate_success.txt")
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
 
 	// Configure claude fake with 2-second delay per invocation
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_DELAY", "2")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_DELAY", "2")
 
 	// Run gromit with 1-minute time budget
 	// With 2s delay per Claude call and 3 calls per bead (scope, build, validate),
 	// each bead takes ~6 seconds. With 60-second budget, we should process 10 beads max.
 	// But we only have 5 beads, so we expect fewer than 5 to complete if time checking works.
 	// Actually, let's use a larger delay to ensure we can't complete all 5 in 1 minute.
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_DELAY", "5")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_DELAY", "5")
 
 	// With 5s delay per Claude call and 3 calls per bead, each bead takes ~15 seconds.
 	// In 60 seconds, we should process 4 beads max.

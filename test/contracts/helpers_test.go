@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 
 	// Resolve real git path by looking in common locations
 	// We need to find git before we manipulate PATH to include the fake
-	realGitPath = findRealGit()
+	realGitPath = testutil.FindRealGit()
 	if realGitPath == "" {
 		fmt.Fprintf(os.Stderr, "Failed to find real git binary\n")
 		os.RemoveAll(tmpDir)
@@ -69,31 +69,6 @@ func TestMain(m *testing.M) {
 	// Clean up before exit (os.Exit doesn't run defers)
 	os.RemoveAll(tmpDir)
 	os.Exit(exitCode)
-}
-
-// findRealGit searches for the real git binary in common locations.
-// It checks PATH first, then falls back to standard locations.
-func findRealGit() string {
-	// First, try to find git in the current PATH
-	gitPath, err := exec.LookPath("git")
-	if err == nil && gitPath != "" {
-		return gitPath
-	}
-
-	// Fall back to common locations
-	commonPaths := []string{
-		"/usr/bin/git",
-		"/usr/local/bin/git",
-		"/opt/homebrew/bin/git",
-	}
-
-	for _, path := range commonPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return ""
 }
 
 // testEnv holds the test environment configuration
@@ -161,10 +136,10 @@ func setupTestEnv(t *testing.T) *testEnv {
 
 	// Build environment
 	env := os.Environ()
-	env = replaceOrAppend(env, "PATH", modifiedPath)
-	env = replaceOrAppend(env, "TEST_DIR", tmpDir)
-	env = replaceOrAppend(env, "TEST_CALL_LOG", callLog)
-	env = replaceOrAppend(env, "REAL_GIT", realGitPath)
+	env = testutil.ReplaceOrAppend(env, "PATH", modifiedPath)
+	env = testutil.ReplaceOrAppend(env, "TEST_DIR", tmpDir)
+	env = testutil.ReplaceOrAppend(env, "TEST_CALL_LOG", callLog)
+	env = testutil.ReplaceOrAppend(env, "REAL_GIT", realGitPath)
 
 	return &testEnv{
 		Dir:         tmpDir,
@@ -228,29 +203,4 @@ func filterCalls(env *testEnv, prefix string) ([]string, error) {
 	}
 
 	return filtered, nil
-}
-
-// replaceOrAppend replaces an environment variable in the env slice,
-// or appends it if it doesn't exist.
-func replaceOrAppend(env []string, key, value string) []string {
-	prefix := key + "="
-	for i, e := range env {
-		if strings.HasPrefix(e, prefix) {
-			env[i] = prefix + value
-			return env
-		}
-	}
-	return append(env, prefix+value)
-}
-
-// removeEnvVar removes an environment variable from the env slice.
-func removeEnvVar(env []string, key string) []string {
-	prefix := key + "="
-	result := make([]string, 0, len(env))
-	for _, e := range env {
-		if !strings.HasPrefix(e, prefix) {
-			result = append(result, e)
-		}
-	}
-	return result
 }

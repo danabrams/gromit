@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/test/testutil"
 )
 
 // TestClaudeContract_BuildInvocation verifies that gromit passes correct arguments
@@ -120,7 +122,7 @@ Create a test file and commit it.
 		t.Fatalf("Failed to write Claude fixture: %v", err)
 	}
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
 
 	// Run gromit with -n 1
 	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1")
@@ -274,7 +276,7 @@ Create a test file and commit it.
 		t.Fatalf("Failed to write Claude fixture: %v", err)
 	}
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
 
 	// Run gromit with -n 1
 	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1")
@@ -462,12 +464,12 @@ The implementation needs corrections.
 	}
 
 	// Set CLAUDE_FIXTURE_HAIKU to the fail fixture - haiku will fail
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", claudeFailFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", claudeFailFixture)
 	// Set CLAUDE_FAIL_HAIKU=1 to make haiku return exit code 1
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FAIL_HAIKU", "1")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FAIL_HAIKU", "1")
 
 	// Set CLAUDE_FIXTURE_SONNET to the success fixture for sonnet calls
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_SONNET", claudeSuccessFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_SONNET", claudeSuccessFixture)
 
 	// Set a default CLAUDE_FIXTURE for the analyze phase (uses validation model = haiku)
 	analyzeFixture := filepath.Join(env.Dir, "claude_analyze.txt")
@@ -475,7 +477,7 @@ The implementation needs corrections.
 	if err := os.WriteFile(analyzeFixture, []byte(analyzeOutput), 0644); err != nil {
 		t.Fatalf("Failed to write Claude analyze fixture: %v", err)
 	}
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", analyzeFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", analyzeFixture)
 
 	// Run gromit with -n 1
 	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1")
@@ -643,7 +645,7 @@ Create a test file and commit it.
 		t.Fatalf("Failed to write Claude fixture: %v", err)
 	}
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
 
 	// Run gromit with -n 1
 	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1")

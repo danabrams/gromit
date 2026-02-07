@@ -48,12 +48,12 @@ This is a spec created from a blank refinement session.
 	specPath := filepath.Join(specsDir, "test-blank-spec.md")
 
 	// Configure fake claude to create the spec file
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", specPath)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", specContent)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", specPath)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", specContent)
 
 	// Use a simple success fixture
 	successFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", successFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", successFixture)
 
 	// Run gromit refine with no arguments and no stdin (simulating direct blank session)
 	// Since there are no unrefined items, the picker should be skipped
@@ -235,12 +235,12 @@ This spec was created from "Something new" picker option.
 	specPath := filepath.Join(specsDir, "something-new-spec.md")
 
 	// Configure fake claude to create the spec file
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", specPath)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", specContent)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", specPath)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", specContent)
 
 	// Use a simple success fixture
 	successFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", successFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", successFixture)
 
 	// Run gromit refine with stdin selecting option 3 (Something new)
 	// The picker will show:
@@ -423,12 +423,12 @@ This spec describes OAuth and JWT authentication.
 	specPath := filepath.Join(specsDir, "user-auth-spec.md")
 
 	// Configure fake claude to create the spec file
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", specPath)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", specContent)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", specPath)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", specContent)
 
 	// Use a simple success fixture
 	successFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", successFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", successFixture)
 
 	// Run gromit refine with stdin selecting option 1 (first item)
 	// The picker will show:

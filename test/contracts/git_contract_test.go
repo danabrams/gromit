@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/test/testutil"
 )
 
 // TestGitContract_RevParseBeforeBuild verifies that gromit runs "git rev-parse HEAD"
@@ -138,7 +140,7 @@ Create a test file and commit it.
 		t.Fatalf("Failed to write Claude fixture: %v", err)
 	}
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
 
 	// Run gromit with -n 1
 	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1")
@@ -296,8 +298,8 @@ ERROR: Could not complete the task successfully.
 	}
 
 	// Set CLAUDE_FAIL=1 to make claude return exit code 1
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FAIL", "1")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FAIL", "1")
 
 	// Run gromit with -n 1 (will fail)
 	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1")
@@ -454,8 +456,8 @@ ERROR: Could not complete the task successfully.
 	}
 
 	// Set CLAUDE_FAIL=1 to make claude return exit code 1
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FAIL", "1")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FAIL", "1")
 
 	// Run gromit with -n 1 (will fail)
 	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1")

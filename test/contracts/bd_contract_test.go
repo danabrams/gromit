@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/test/testutil"
 )
 
 // TestBDContract_SingleBeadRun verifies that gromit passes the correct arguments
@@ -187,7 +189,7 @@ Run each command and report results.
 
 	// Set environment variable to control which Claude fixture to use
 	// For simplicity, we'll use a single fixture that simulates success
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
 
 	// Create a dummy go.mod so go commands don't fail
 	goMod := "module testproject\n\ngo 1.21\n"
@@ -564,7 +566,7 @@ Create a test file and commit it.
 		t.Fatalf("Failed to write Claude fixture: %v", err)
 	}
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", claudeFixture)
 
 	// Run gromit with -n 1
 	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1")

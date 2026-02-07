@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/test/testutil"
 )
 
 // TestFakes_GitPassthrough verifies that the fake git script records calls
@@ -128,7 +130,7 @@ func TestFakes_ClaudeFixture(t *testing.T) {
 	}
 
 	// Add CLAUDE_FIXTURE to environment
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
 
 	// Run fake claude (need to provide stdin)
 	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test-prompt", "--model", "sonnet")
@@ -167,7 +169,7 @@ func TestFakes_ErrorModes(t *testing.T) {
 	env := setupTestEnv(t)
 
 	// Test BD_FAIL error mode
-	env.Env = replaceOrAppend(env.Env, "BD_FAIL", "1")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "BD_FAIL", "1")
 
 	cmd := exec.Command(filepath.Join(fakesDir, "bd"), "ready", "--json", "--limit", "1")
 	cmd.Dir = env.Dir
@@ -179,8 +181,8 @@ func TestFakes_ErrorModes(t *testing.T) {
 	}
 
 	// Test GIT_FAIL error mode
-	env.Env = replaceOrAppend(env.Env, "BD_FAIL", "0")
-	env.Env = replaceOrAppend(env.Env, "GIT_FAIL", "1")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "BD_FAIL", "0")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "GIT_FAIL", "1")
 
 	cmd = exec.Command(filepath.Join(fakesDir, "git"), "status")
 	cmd.Dir = env.Dir
@@ -197,9 +199,9 @@ func TestFakes_ErrorModes(t *testing.T) {
 		t.Fatalf("Failed to write fixture file: %v", err)
 	}
 
-	env.Env = replaceOrAppend(env.Env, "GIT_FAIL", "0")
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FAIL", "1")
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "GIT_FAIL", "0")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FAIL", "1")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
 
 	cmd = exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
 	cmd.Dir = env.Dir
@@ -228,9 +230,9 @@ func TestFakes_ClaudeWriteFile(t *testing.T) {
 	fileContent := "This is the file content"
 
 	// Add environment variables
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", fileContent)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", fileContent)
 
 	// Run fake claude
 	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test-prompt")
@@ -287,11 +289,11 @@ func TestFakes_ClaudeWriteFile_MissingTestDir(t *testing.T) {
 	targetFile := filepath.Join(env.Dir, "created_file.txt")
 
 	// Set CLAUDE_WRITE_FILE without TEST_DIR
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", "content")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", "content")
 	// Remove TEST_DIR from environment
-	env.Env = removeEnvVar(env.Env, "TEST_DIR")
+	env.Env = testutil.RemoveEnvVar(env.Env, "TEST_DIR")
 
 	// Run fake claude - should fail
 	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
@@ -325,9 +327,9 @@ func TestFakes_ClaudeWriteFile_RelativePath(t *testing.T) {
 	// Use a relative path
 	relativePath := "relative/path/file.txt"
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", relativePath)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", "content")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", relativePath)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", "content")
 
 	// Run fake claude - should fail
 	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
@@ -361,9 +363,9 @@ func TestFakes_ClaudeWriteFile_PathTraversal(t *testing.T) {
 	// Try to escape TEST_DIR using ..
 	escapePath := filepath.Join(env.Dir, "..", "..", "etc", "passwd")
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", escapePath)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", "malicious content")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", escapePath)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", "malicious content")
 
 	// Run fake claude - should fail
 	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
@@ -399,9 +401,9 @@ func TestFakes_ClaudeWriteFile_BackslashContent(t *testing.T) {
 	// Raw string literal containing literal backslash-n sequence
 	content := `hello\nworld`
 
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
-	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", content)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", content)
 
 	// Run fake claude
 	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
@@ -458,9 +460,9 @@ func TestFakes_ClaudeWriteFile_ContentFidelity(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			targetFile := filepath.Join(env.Dir, tc.name+".txt")
 
-			env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
-			env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
-			env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", tc.content)
+			env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+			env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
+			env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", tc.content)
 
 			// Run fake claude
 			cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test")
