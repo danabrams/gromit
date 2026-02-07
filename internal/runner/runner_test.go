@@ -13,7 +13,9 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/state"
 )
@@ -1931,5 +1933,110 @@ func TestRunBetweenIterationsCommandNilConfig(t *testing.T) {
 	output := buf.String()
 	if output != "" {
 		t.Errorf("expected no output for nil config, got: %s", output)
+	}
+}
+
+func TestTDDPromptSelection(t *testing.T) {
+	tests := []struct {
+		name                 string
+		globalTDD            bool
+		beadLabels           []string
+		expectTDDBuildCalled bool
+		description          string
+	}{
+		{
+			name:                 "TDD active via global config - RenderTDDBuild called",
+			globalTDD:            true,
+			beadLabels:           []string{},
+			expectTDDBuildCalled: true,
+			description:          "When global TDD is true and bead has no tdd label, RenderTDDBuild should be called",
+		},
+		{
+			name:                 "TDD active via bead label - RenderTDDBuild called",
+			globalTDD:            false,
+			beadLabels:           []string{"tdd:true"},
+			expectTDDBuildCalled: true,
+			description:          "When bead has tdd:true label, RenderTDDBuild should be called regardless of global config",
+		},
+		{
+			name:                 "TDD inactive globally, no label - RenderTDDBuild not called",
+			globalTDD:            false,
+			beadLabels:           []string{},
+			expectTDDBuildCalled: false,
+			description:          "When TDD is not active, RenderTDDBuild should not be called",
+		},
+		{
+			name:                 "TDD disabled via label overriding global - RenderTDDBuild not called",
+			globalTDD:            true,
+			beadLabels:           []string{"tdd:false"},
+			expectTDDBuildCalled: false,
+			description:          "When bead has tdd:false label, RenderTDDBuild should not be called even if global TDD is true",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tddBuildCalled := false
+
+			mockRenderer := &mockPromptRenderer{
+				BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+					return &prompt.Context{
+						Bead:               b,
+						ParentBead:         parent,
+						Iteration:          iteration,
+						Model:              model,
+						ConfirmedLearnings: []learnings.Learning{},
+						RecentLearnings:    []learnings.Learning{},
+					}, nil
+				},
+				RenderBuildFn: func(ctx *prompt.Context) (string, error) {
+					return "standard build prompt", nil
+				},
+				RenderTDDBuildFn: func(ctx *prompt.Context) (string, error) {
+					tddBuildCalled = true
+					return "tdd build prompt", nil
+				},
+			}
+
+			cfg := &config.Config{
+				Methodology: config.MethodologyConfig{
+					TDD: tt.globalTDD,
+				},
+				Validation: config.ValidationConfig{
+					Enabled: false, // Disable validation to isolate prompt selection
+				},
+			}
+
+			var buf strings.Builder
+			r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+				Deps{
+					Beads:    &mockBeadClient{},
+					Claude:   &mockClaudeClient{},
+					Analyzer: &mockFailureAnalyzer{},
+					Renderer: mockRenderer,
+					Logger:   &mockIterationLogger{},
+				})
+			if err != nil {
+				t.Fatalf("Failed to create runner: %v", err)
+			}
+
+			testBead := &bead.Bead{
+				ID:       "test-bead-1",
+				Title:    "Test bead",
+				Priority: 1,
+				Labels:   tt.beadLabels,
+			}
+
+			// Call processBead - we don't care about the result, just whether RenderTDDBuild was called
+			_ = r.processBead(context.Background(), testBead, 1, time.Time{})
+
+			// Verify expectations
+			if tt.expectTDDBuildCalled && !tddBuildCalled {
+				t.Errorf("%s: Expected RenderTDDBuild to be called but it wasn't", tt.description)
+			}
+			if !tt.expectTDDBuildCalled && tddBuildCalled {
+				t.Errorf("%s: Expected RenderTDDBuild NOT to be called but it was", tt.description)
+			}
+		})
 	}
 }
