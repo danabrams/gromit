@@ -1,9 +1,9 @@
 {
   "running": true,
-  "iteration": 47,
-  "bead_id": "ralph-runner-dx2k",
-  "bead_title": "Implement picker UI for plan selection",
+  "iteration": 51,
+  "bead_id": "ralph-runner-8wqa",
+  "bead_title": "Fix decomposedCount accuracy in chainAfterRefine Phase 2",
   "model": "sonnet",
   "started_at": "2026-02-07T04:21:21.32503132-05:00",
-  "elapsed_s": 9719
+  "elapsed_s": 10379
 }

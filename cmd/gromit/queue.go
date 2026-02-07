@@ -177,5 +177,8 @@ func truncateTitle(title string, maxLen int) string {
 	if len(title) <= maxLen {
 		return title
 	}
+	if maxLen <= 3 {
+		return title[:maxLen]
+	}
 	return title[:maxLen-3] + "..."
 }

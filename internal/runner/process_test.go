@@ -473,7 +473,7 @@ func TestExtractSuccessLearning_NilLearning(t *testing.T) {
 			}, nil
 		},
 	}
-	lf, _ := learnings.NewFile(".")
+	lf, _ := learnings.NewFile(t.TempDir())
 	mockRend := &mockRendererWithLearn{
 		learningsFile:     lf,
 		renderLearnResult: "learning prompt",
@@ -516,7 +516,7 @@ func TestExtractSuccessLearning_WithLearning(t *testing.T) {
 			}, nil
 		},
 	}
-	lf, _ := learnings.NewFile(".")
+	lf, _ := learnings.NewFile(t.TempDir())
 	mockRend := &mockRendererWithLearn{
 		learningsFile:     lf,
 		renderLearnResult: "learning prompt",

@@ -154,8 +154,10 @@ func chainAfterRefine(specNames []string, plansDir string) {
 			continue
 		}
 
-		// Decompose succeeded if execGromit returned nil (exit 0 or graceful exit)
-		decomposedCount++
+		// Verify decompose actually succeeded by checking the frontmatter
+		if isPlanDecomposed(plansDir, planName) {
+			decomposedCount++
+		}
 	}
 
 	// Phase 3: Run (only if at least one decompose succeeded)
