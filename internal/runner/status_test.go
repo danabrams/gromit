@@ -257,3 +257,20 @@ func TestReadStatus_InvalidJSON(t *testing.T) {
 		t.Errorf("Expected nil status for invalid JSON, got: %v", status)
 	}
 }
+
+func TestIsProcessAlive_CurrentProcess(t *testing.T) {
+	// Current process should be alive
+	if !IsProcessAlive(os.Getpid()) {
+		t.Error("Expected current process to be alive")
+	}
+}
+
+func TestIsProcessAlive_NonExistentProcess(t *testing.T) {
+	// PID 0 is never a valid user process on Unix systems
+	// On most systems, it's the kernel scheduler
+	// We use a very high PID that's unlikely to exist
+	nonExistentPID := 999999
+	if IsProcessAlive(nonExistentPID) {
+		t.Errorf("Expected PID %d to not be alive", nonExistentPID)
+	}
+}

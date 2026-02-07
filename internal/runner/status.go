@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -97,4 +98,17 @@ func ReadStatus(gromitDir string) (*Status, error) {
 	}
 
 	return &status, nil
+}
+
+// IsProcessAlive checks if a process with the given PID is still running.
+// Returns false if the process doesn't exist or signal fails.
+func IsProcessAlive(pid int) bool {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+
+	// Send signal 0 to check if the process exists
+	err = process.Signal(syscall.Signal(0))
+	return err == nil
 }
