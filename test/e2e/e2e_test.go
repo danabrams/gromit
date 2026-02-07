@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/test/testutil"
 )
 
 var (
@@ -262,85 +264,13 @@ func copyFile(src, dst string) error {
 
 // runGromit runs the gromit binary with the given arguments in the test environment.
 func runGromit(env *e2eEnv, args ...string) (stdout, stderr string, exitCode int, err error) {
-	cmd := exec.Command(gromitBinary, args...)
-	cmd.Dir = env.Dir
-	cmd.Env = env.Env
-
-	var outBuf, errBuf strings.Builder
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-
-	runErr := cmd.Run()
-	stdout = outBuf.String()
-	stderr = errBuf.String()
-
-	if runErr != nil {
-		// Check if it's an ExitError (non-zero exit code)
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-			err = nil // Not an error - just a non-zero exit code
-		} else {
-			// Some other error (e.g., command not found)
-			err = runErr
-			exitCode = -1
-		}
-	} else {
-		exitCode = 0
-	}
-
-	return stdout, stderr, exitCode, err
+	return testutil.RunGromitWithStdin(gromitBinary, env.Dir, env.Env, "", args...)
 }
 
 // runGromitWithStdin runs the gromit binary with the given arguments and stdin input in the test environment.
 // The stdin parameter is piped to the command's standard input for testing interactive commands.
 func runGromitWithStdin(env *e2eEnv, stdin string, args ...string) (stdout, stderr string, exitCode int, err error) {
-	cmd := exec.Command(gromitBinary, args...)
-	cmd.Dir = env.Dir
-	cmd.Env = env.Env
-
-	var outBuf, errBuf strings.Builder
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-
-	// Set up stdin pipe
-	stdinPipe, pipeErr := cmd.StdinPipe()
-	if pipeErr != nil {
-		return "", "", -1, fmt.Errorf("creating stdin pipe: %w", pipeErr)
-	}
-
-	// Start the command
-	if startErr := cmd.Start(); startErr != nil {
-		return "", "", -1, fmt.Errorf("starting command: %w", startErr)
-	}
-
-	// Write stdin data
-	if _, writeErr := stdinPipe.Write([]byte(stdin)); writeErr != nil {
-		stdinPipe.Close()
-		cmd.Wait()
-		return "", "", -1, fmt.Errorf("writing to stdin: %w", writeErr)
-	}
-	stdinPipe.Close()
-
-	// Wait for command to complete
-	runErr := cmd.Wait()
-	stdout = outBuf.String()
-	stderr = errBuf.String()
-
-	if runErr != nil {
-		// Check if it's an ExitError (non-zero exit code)
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-			err = nil // Not an error - just a non-zero exit code
-		} else {
-			// Some other error (e.g., command not found)
-			err = runErr
-			exitCode = -1
-		}
-	} else {
-		exitCode = 0
-	}
-
-	return stdout, stderr, exitCode, err
+	return testutil.RunGromitWithStdin(gromitBinary, env.Dir, env.Env, stdin, args...)
 }
 
 // readBDState reads the fake bd state file and returns the parsed state.
