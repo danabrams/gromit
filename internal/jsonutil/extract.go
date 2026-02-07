@@ -77,13 +77,16 @@ func ExtractArray(text string, target any) error {
 
 // ExtractCodeBlock extracts JSON from a ```json code block.
 // Matches patterns like:
-//   ```json
-//   {...}
-//   ```
+//
+//	```json
+//	{...}
+//	```
+//
 // or
-//   ```
-//   {...}
-//   ```
+//
+//	```
+//	{...}
+//	```
 func ExtractCodeBlock(text string, target any) error {
 	if text == "" {
 		return fmt.Errorf("extract code block: input is empty")

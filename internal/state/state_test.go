@@ -8,9 +8,9 @@ import (
 )
 
 func TestNewFile(t *testing.T) {
-	f, _ := NewFile("/tmp/test-ralph")
-	if f.path != "/tmp/test-ralph/state.json" {
-		t.Errorf("expected path /tmp/test-ralph/state.json, got %s", f.path)
+	f, _ := NewFile("/tmp/test-gromit")
+	if f.path != "/tmp/test-gromit/state.json" {
+		t.Errorf("expected path /tmp/test-gromit/state.json, got %s", f.path)
 	}
 }
 

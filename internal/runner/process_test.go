@@ -109,8 +109,8 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 func TestEscalateModel(t *testing.T) {
 	r := &Runner{output: &strings.Builder{}}
 	bc := &beadContext{
-		model:    "haiku",
-		result:   &IterationResult{Model: "haiku"},
+		model:     "haiku",
+		result:    &IterationResult{Model: "haiku"},
 		promptCtx: &prompt.Context{Model: "haiku"},
 	}
 

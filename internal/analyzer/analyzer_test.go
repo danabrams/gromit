@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/claude"
-	"github.com/danabrams/ralph-runner/internal/prompt"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // TestParseAnalysisOutputValidJSON tests parsing valid JSON output

@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/danabrams/ralph-runner/internal/config"
+	"github.com/danabrams/gromit/internal/config"
 )
 
 // Checker handles tool availability checks and installation

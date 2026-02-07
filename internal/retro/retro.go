@@ -9,11 +9,11 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/claude"
-	"github.com/danabrams/ralph-runner/internal/config"
-	"github.com/danabrams/ralph-runner/internal/learnings"
-	"github.com/danabrams/ralph-runner/internal/logger"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/logger"
 )
 
 // Retro manages retrospective analysis
@@ -41,7 +41,7 @@ type Result struct {
 }
 
 // NewRetro creates a new retrospective analyzer
-func NewRetro(cfg *config.Config, ralphDir string) (*Retro, error) {
+func NewRetro(cfg *config.Config, gromitDir string) (*Retro, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -49,7 +49,7 @@ func NewRetro(cfg *config.Config, ralphDir string) (*Retro, error) {
 	if err != nil {
 		return nil, err
 	}
-	learningsFile, err := learnings.NewFile(ralphDir)
+	learningsFile, err := learnings.NewFile(gromitDir)
 	if err != nil {
 		return nil, err
 	}
@@ -57,8 +57,8 @@ func NewRetro(cfg *config.Config, ralphDir string) (*Retro, error) {
 		cfg:           cfg,
 		claude:        claudeClient,
 		learningsFile: learningsFile,
-		rulesPath:     filepath.Join(ralphDir, "RULES.md"),
-		templatePath:  filepath.Join(ralphDir, "templates", "PROMPT_retro.md"),
+		rulesPath:     filepath.Join(gromitDir, "RULES.md"),
+		templatePath:  filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
 	}, nil
 }
 
@@ -305,7 +305,7 @@ You are now in an interactive Claude Code session. Based on the analysis above, 
 1. **Edit RULES.md** - Update project rules based on learnings
 2. **Edit LEARNINGS.md** - Consolidate, archive, or promote learnings
 3. **Run bd commands** - Create new beads, update existing ones, or manage the backlog
-4. **Create specs** - Write detailed specifications in .ralph/specs/ for complex features
+4. **Create specs** - Write detailed specifications in .gromit/specs/ for complex features
 
 Please review the analysis and take appropriate actions.
 `, analysis)

@@ -131,8 +131,8 @@ func (l *Logger) FilePath() string {
 
 // RunStats holds aggregate statistics from log files
 type RunStats struct {
-	Total    int
-	Failed   int
+	Total     int
+	Failed    int
 	Succeeded int
 }
 

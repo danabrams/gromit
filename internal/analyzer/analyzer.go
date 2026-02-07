@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/claude"
-	"github.com/danabrams/ralph-runner/internal/jsonutil"
-	"github.com/danabrams/ralph-runner/internal/prompt"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // Category represents the type of failure

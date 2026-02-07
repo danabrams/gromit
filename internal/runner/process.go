@@ -26,15 +26,15 @@ type beadContext struct {
 	iteration   int
 
 	// Retry tracking
-	retriesThisModel    int
+	retriesThisModel     int
 	totalRetriesThisBead int
-	maxRetries          int
-	maxRetriesPerBead   int
+	maxRetries           int
+	maxRetriesPerBead    int
 
 	// Context management
 	parentCtx   context.Context // original context (to distinguish bead timeout from Ctrl+C)
 	beadTimeout time.Duration
-	runDeadline time.Time      // run deadline for time-budget awareness
+	runDeadline time.Time // run deadline for time-budget awareness
 }
 
 // setupBeadContext validates runner state, sets up timeouts, captures git state,

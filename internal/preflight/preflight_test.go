@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/danabrams/ralph-runner/internal/config"
+	"github.com/danabrams/gromit/internal/config"
 )
 
 func TestExtractTools(t *testing.T) {
@@ -22,7 +22,7 @@ func TestExtractTools(t *testing.T) {
 			name: "go test command",
 			commands: []string{
 				"go test ./...",
-				"go build ./cmd/ralph",
+				"go build ./cmd/gromit",
 			},
 			expected: map[string]bool{"go": true},
 		},

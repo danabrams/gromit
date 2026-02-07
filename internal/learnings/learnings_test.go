@@ -308,7 +308,7 @@ func TestSimilaritySymmetric(t *testing.T) {
 func TestParseLearnings(t *testing.T) {
 	content := `# Learnings
 
-Accumulated operational knowledge from Ralph iterations.
+Accumulated operational knowledge from Gromit iterations.
 
 ---
 
@@ -437,7 +437,7 @@ func TestLoadMissingFile(t *testing.T) {
 // TestLoadAndSaveCreatesDirectory tests that Save creates needed directories
 func TestLoadAndSaveCreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
-	nestedDir := filepath.Join(tmpDir, "nested", "path", ".ralph")
+	nestedDir := filepath.Join(tmpDir, "nested", "path", ".gromit")
 	f, _ := NewFile(nestedDir)
 
 	// Directory doesn't exist

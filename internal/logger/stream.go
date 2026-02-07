@@ -274,10 +274,10 @@ func extractFilePath(input json.RawMessage) string {
 		return ""
 	}
 	var params struct {
-		FilePath    string `json:"file_path"`
-		Path        string `json:"path"`
+		FilePath     string `json:"file_path"`
+		Path         string `json:"path"`
 		NotebookPath string `json:"notebook_path"`
-		Command     string `json:"command"`
+		Command      string `json:"command"`
 	}
 	if err := json.Unmarshal(input, &params); err != nil {
 		return ""

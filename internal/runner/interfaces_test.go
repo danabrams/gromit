@@ -20,15 +20,15 @@ import (
 // --- Mock implementations ---
 
 type mockBeadClient struct {
-	ReadyFn                         func() (*bead.Bead, error)
-	ShowFn                          func(id string) (*bead.Bead, error)
-	CloseFn                         func(id string) error
-	SyncFn                          func() error
-	AddCommentFn                    func(id, comment string) error
-	GetParentFn                     func(b *bead.Bead) (*bead.Bead, error)
-	CreateWithParentFn              func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+	ReadyFn                          func() (*bead.Bead, error)
+	ShowFn                           func(id string) (*bead.Bead, error)
+	CloseFn                          func(id string) error
+	SyncFn                           func() error
+	AddCommentFn                     func(id, comment string) error
+	GetParentFn                      func(b *bead.Bead) (*bead.Bead, error)
+	CreateWithParentFn               func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
 	CreateWithParentAndDescriptionFn func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
-	HasOpenChildrenFn               func(parentID string) (bool, error)
+	HasOpenChildrenFn                func(parentID string) (bool, error)
 
 	ClosedIDs []string
 	SyncCalls int

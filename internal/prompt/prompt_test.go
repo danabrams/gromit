@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/learnings"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/learnings"
 )
 
 func TestValidateSpecName(t *testing.T) {

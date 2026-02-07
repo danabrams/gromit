@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/danabrams/ralph-runner/internal/rules"
+	"github.com/danabrams/gromit/internal/rules"
 )
 
 func ExampleLoad() {
 	// Load a rules file
-	r, err := rules.Load(".ralph/RULES.md")
+	r, err := rules.Load(".gromit/RULES.md")
 	if err != nil {
 		log.Fatal(err)
 	}

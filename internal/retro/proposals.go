@@ -3,22 +3,22 @@ package retro
 import (
 	"fmt"
 
-	"github.com/danabrams/ralph-runner/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/jsonutil"
 )
 
 // ConsolidationProposal represents a proposal to merge related learnings
 type ConsolidationProposal struct {
-	LearningHashes     []string `json:"learning_hashes"`     // Hashes of learnings to merge
-	ConsolidatedText   string   `json:"consolidated_text"`   // The merged learning text
-	Rationale          string   `json:"rationale"`           // Why these should be merged
+	LearningHashes   []string `json:"learning_hashes"`   // Hashes of learnings to merge
+	ConsolidatedText string   `json:"consolidated_text"` // The merged learning text
+	Rationale        string   `json:"rationale"`         // Why these should be merged
 }
 
 // PromotionProposal represents a proposal to promote a learning to a rule
 type PromotionProposal struct {
-	LearningHash  string `json:"learning_hash"`  // Hash of the learning to promote
-	ProposedRule  string `json:"proposed_rule"`  // How it should appear in RULES.md
-	Section       string `json:"section"`        // Target section (Code Style, Architecture, Safety, Process)
-	Rationale     string `json:"rationale"`      // Why this should be a rule
+	LearningHash string `json:"learning_hash"` // Hash of the learning to promote
+	ProposedRule string `json:"proposed_rule"` // How it should appear in RULES.md
+	Section      string `json:"section"`       // Target section (Code Style, Architecture, Safety, Process)
+	Rationale    string `json:"rationale"`     // Why this should be a rule
 }
 
 // ArchiveProposal represents a proposal to archive a stale learning
@@ -29,9 +29,9 @@ type ArchiveProposal struct {
 
 // RuleChangeProposal represents a proposal to modify an existing rule
 type RuleChangeProposal struct {
-	CurrentRule   string `json:"current_rule"`   // Exact text from RULES.md
-	ProposedRule  string `json:"proposed_rule"`  // New text
-	Rationale     string `json:"rationale"`      // Why this change is needed
+	CurrentRule  string `json:"current_rule"`  // Exact text from RULES.md
+	ProposedRule string `json:"proposed_rule"` // New text
+	Rationale    string `json:"rationale"`     // Why this change is needed
 }
 
 // Proposals represents all proposals from a retro analysis

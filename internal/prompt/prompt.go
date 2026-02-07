@@ -8,23 +8,23 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/jsonutil"
-	"github.com/danabrams/ralph-runner/internal/learnings"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/learnings"
 )
 
 // Context holds all data available to prompt templates
 type Context struct {
 	// Current task
-	Bead        *bead.Bead
-	ParentBead  *bead.Bead
-	Spec        string // Content of spec file if referenced
-	SpecName    string // Name of spec file
+	Bead       *bead.Bead
+	ParentBead *bead.Bead
+	Spec       string // Content of spec file if referenced
+	SpecName   string // Name of spec file
 
 	// Project context
-	ClaudeMD    string // Content of project's CLAUDE.md
-	Rules       string // Content of RULES.md
-	WorkDir     string // Working directory
+	ClaudeMD string // Content of project's CLAUDE.md
+	Rules    string // Content of RULES.md
+	WorkDir  string // Working directory
 
 	// Learnings
 	ConfirmedLearnings []learnings.Learning
@@ -128,8 +128,8 @@ type Renderer struct {
 }
 
 // NewRenderer creates a new prompt renderer
-func NewRenderer(templatesDir, specsDir, claudeMDPath, ralphDir string) (*Renderer, error) {
-	lf, err := learnings.NewFile(ralphDir)
+func NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir string) (*Renderer, error) {
+	lf, err := learnings.NewFile(gromitDir)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func NewRenderer(templatesDir, specsDir, claudeMDPath, ralphDir string) (*Render
 		templatesDir:  templatesDir,
 		specsDir:      specsDir,
 		claudeMDPath:  claudeMDPath,
-		rulesPath:     filepath.Join(ralphDir, "RULES.md"),
+		rulesPath:     filepath.Join(gromitDir, "RULES.md"),
 		learningsFile: lf,
 	}, nil
 }

@@ -9,7 +9,7 @@ import (
 
 // Rules represents a parsed rules file with sections and rules
 type Rules struct {
-	Preamble string    // Original header/preamble text
+	Preamble string // Original header/preamble text
 	Sections []Section
 }
 

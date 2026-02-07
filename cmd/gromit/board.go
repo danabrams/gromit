@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/spf13/cobra"
 )
 

@@ -1,4 +1,4 @@
-module github.com/danabrams/ralph-runner
+module github.com/danabrams/gromit
 
 go 1.25.7
 

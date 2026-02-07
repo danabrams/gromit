@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/spf13/cobra"
 )
 

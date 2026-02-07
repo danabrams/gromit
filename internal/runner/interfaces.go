@@ -4,20 +4,20 @@ import (
 	"context"
 	"io"
 
-	"github.com/danabrams/ralph-runner/internal/analyzer"
-	"github.com/danabrams/ralph-runner/internal/bead"
-	"github.com/danabrams/ralph-runner/internal/claude"
-	"github.com/danabrams/ralph-runner/internal/learnings"
-	"github.com/danabrams/ralph-runner/internal/logger"
-	"github.com/danabrams/ralph-runner/internal/prompt"
+	"github.com/danabrams/gromit/internal/analyzer"
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // Compile-time interface satisfaction checks.
 var (
-	_ BeadClient     = (*bead.Client)(nil)
-	_ ClaudeClient   = (*claude.Client)(nil)
+	_ BeadClient      = (*bead.Client)(nil)
+	_ ClaudeClient    = (*claude.Client)(nil)
 	_ FailureAnalyzer = (*analyzer.Analyzer)(nil)
-	_ PromptRenderer = (*prompt.Renderer)(nil)
+	_ PromptRenderer  = (*prompt.Renderer)(nil)
 	_ IterationLogger = (*logger.Logger)(nil)
 )
 

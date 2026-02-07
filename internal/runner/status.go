@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Status represents the current state of Ralph execution
+// Status represents the current state of Gromit execution
 type Status struct {
 	Running   bool      `json:"running"`
 	Iteration int       `json:"iteration"`
@@ -25,10 +25,10 @@ type StatusWriter struct {
 	startTime time.Time
 }
 
-// NewStatusWriter creates a new status writer for the given ralph directory
-func NewStatusWriter(ralphDir string) (*StatusWriter, error) {
+// NewStatusWriter creates a new status writer for the given gromit directory
+func NewStatusWriter(gromitDir string) (*StatusWriter, error) {
 	return &StatusWriter{
-		path:      filepath.Join(ralphDir, "status.json"),
+		path:      filepath.Join(gromitDir, "status.json"),
 		startTime: time.Now(),
 	}, nil
 }

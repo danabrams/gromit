@@ -28,8 +28,8 @@ type Result struct {
 
 // ToolEvent represents a tool call event with metadata
 type ToolEvent struct {
-	ToolName string
-	FilePath string
+	ToolName  string
+	FilePath  string
 	Timestamp time.Time
 }
 

@@ -1,5 +1,5 @@
 # Binary (in root directory only)
-/ralph
+/gromit
 
 # IDE
 .idea/
@@ -14,5 +14,6 @@ Thumbs.db
 # Test coverage
 coverage.out
 
-# Ralph runner
-.ralph/logs/
+# Gromit runner
+.gromit/logs/
+.gromit/tmp/

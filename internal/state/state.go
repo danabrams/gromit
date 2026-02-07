@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// State represents persistent state stored in .ralph/state.json
+// State represents persistent state stored in .gromit/state.json
 type State struct {
 	LastRetro             time.Time `json:"last_retro,omitempty"`
 	LastReviewCommit      string    `json:"last_review_commit,omitempty"`
@@ -23,9 +23,9 @@ type File struct {
 }
 
 // NewFile creates a new state file manager
-func NewFile(ralphDir string) (*File, error) {
+func NewFile(gromitDir string) (*File, error) {
 	return &File{
-		path: filepath.Join(ralphDir, "state.json"),
+		path: filepath.Join(gromitDir, "state.json"),
 	}, nil
 }
 

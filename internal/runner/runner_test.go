@@ -79,7 +79,6 @@ func TestCheckExpectedOutputsEmpty(t *testing.T) {
 	}
 }
 
-
 func TestBeadExpectedOutputsJSON(t *testing.T) {
 	jsonData := `{
 		"id": "abc-123",
@@ -132,9 +131,9 @@ func TestGetGitHead(t *testing.T) {
 
 func TestNilGuards(t *testing.T) {
 	tests := []struct {
-		name     string
-		fn       func() error
-		wantErr  bool
+		name    string
+		fn      func() error
+		wantErr bool
 	}{
 		{
 			name: "NewRunnerNilConfig",
@@ -522,7 +521,6 @@ func TestGetGitDiff(t *testing.T) {
 	_ = diff
 }
 
-
 func TestParseDecomposeOutputValidJSON(t *testing.T) {
 	output := `[
 		{
@@ -628,7 +626,6 @@ func TestParseDecomposeOutputSingleTask(t *testing.T) {
 	}
 }
 
-
 func TestCreateSubBeads_VerifyLogging(t *testing.T) {
 	// Test that CreateSubBeads logs appropriately during processing
 	// This test verifies the method's logging behavior by checking that
@@ -669,12 +666,12 @@ func TestCreateSubBeads_VerifyLogging(t *testing.T) {
 
 func TestCreateSubBeadsErrors(t *testing.T) {
 	tests := []struct {
-		name         string
-		runner       *Runner
-		bead         *bead.Bead
-		subTasks     []SubTask
-		expectedErr  string
-		nilRunner    bool
+		name        string
+		runner      *Runner
+		bead        *bead.Bead
+		subTasks    []SubTask
+		expectedErr string
+		nilRunner   bool
 	}{
 		{
 			name:        "NilRunner",

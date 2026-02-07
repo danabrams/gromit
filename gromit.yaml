@@ -1,5 +1,5 @@
-# Ralph Runner Configuration
-# See: https://github.com/danabrams/ralph-runner
+# Gromit Configuration
+# See: https://github.com/danabrams/gromit
 
 # Model selection based on bead priority
 models:
@@ -58,7 +58,7 @@ claude:
 
 # Paths (relative to project root)
 paths:
-  templates: ".ralph/templates"
-  specs: ".ralph/specs"
-  logs: ".ralph/logs"
+  templates: ".gromit/templates"
+  specs: ".gromit/specs"
+  logs: ".gromit/logs"
   project_claude_md: "CLAUDE.md"  # Your project's CLAUDE.md

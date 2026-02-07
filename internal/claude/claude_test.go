@@ -614,7 +614,6 @@ func TestProcessStreamJSONHandlerCopy(t *testing.T) {
 	}
 }
 
-
 func TestRunValidation(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1315,10 +1314,10 @@ func TestProcessStreamJSONMultipleToolCalls(t *testing.T) {
 
 func TestProcessStreamJSONTrailingNewline(t *testing.T) {
 	tests := []struct {
-		name            string
-		inputJSON       []string
-		wantEndsWithNL  bool
-		wantResultText  string
+		name           string
+		inputJSON      []string
+		wantEndsWithNL bool
+		wantResultText string
 	}{
 		{
 			name: "text without trailing newline gets one added",

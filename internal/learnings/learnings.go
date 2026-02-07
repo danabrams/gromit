@@ -159,8 +159,8 @@ func (f *File) Save() error {
 
 	var sb strings.Builder
 	sb.WriteString("# Learnings\n\n")
-	sb.WriteString("Accumulated operational knowledge from Ralph iterations.\n")
-	sb.WriteString("This file is automatically updated. Review periodically with `ralph retro`.\n\n")
+	sb.WriteString("Accumulated operational knowledge from Gromit iterations.\n")
+	sb.WriteString("This file is automatically updated. Review periodically with `gromit retro`.\n\n")
 
 	// Write confirmed learnings
 	sb.WriteString("---\n\n## Confirmed\n\n")

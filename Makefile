@@ -1,9 +1,9 @@
 .PHONY: build install
 build:
-	go build -o ralph ./cmd/ralph
-	go install ./cmd/ralph
+	go build -o gromit ./cmd/gromit
+	go install ./cmd/gromit
 
 install:
-	go install ./cmd/ralph
+	go install ./cmd/gromit
 
 

@@ -3,14 +3,14 @@ package main
 import (
 	"fmt"
 
-	"github.com/danabrams/ralph-runner/internal/bead"
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/spf13/cobra"
 )
 
 var queueCmd = &cobra.Command{
 	Use:   "queue",
 	Short: "Show processing queue with model assignments",
-	Long: `Display the beads Ralph will process, in order, with their assigned models based on priority and labels.
+	Long: `Display the beads Gromit will process, in order, with their assigned models based on priority and labels.
 
 Also shows any blocked beads and the reason they can't be processed yet.`,
 	RunE: showQueue,

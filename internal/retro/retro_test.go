@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/danabrams/ralph-runner/internal/claude"
-	"github.com/danabrams/ralph-runner/internal/config"
-	"github.com/danabrams/ralph-runner/internal/logger"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 )
 
 func TestNewRetroNilConfig(t *testing.T) {
-	r, err := NewRetro(nil, ".ralph")
+	r, err := NewRetro(nil, ".gromit")
 	if r != nil {
 		t.Error("expected nil Retro for nil config")
 	}
@@ -88,16 +88,16 @@ func TestFilterClosedBeadsFromStuckList(t *testing.T) {
 	// Create a map with both open and closed beads that have failures
 	beadStats := map[string]logger.BeadStats{
 		"open-bead-1": {
-			BeadID:    "open-bead-1",
-			Failures:  2,
-			Status:    "open",
-			Comments:  []string{},
+			BeadID:   "open-bead-1",
+			Failures: 2,
+			Status:   "open",
+			Comments: []string{},
 		},
 		"open-bead-2": {
-			BeadID:    "open-bead-2",
-			Failures:  3,
-			Status:    "open",
-			Comments:  []string{},
+			BeadID:   "open-bead-2",
+			Failures: 3,
+			Status:   "open",
+			Comments: []string{},
 		},
 		"closed-bead-1": {
 			BeadID:      "closed-bead-1",

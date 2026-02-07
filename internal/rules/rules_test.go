@@ -10,7 +10,7 @@ import (
 func TestParseBasicRules(t *testing.T) {
 	content := `# Rules
 
-These are non-negotiable constraints for ralph-runner development.
+These are non-negotiable constraints for gromit development.
 
 ## Code Style
 
@@ -19,7 +19,7 @@ These are non-negotiable constraints for ralph-runner development.
 
 ## Architecture
 
-- CLI commands go in cmd/ralph/
+- CLI commands go in cmd/gromit/
 - Internal packages go in internal/
 `
 
@@ -141,7 +141,7 @@ func TestLoadAndSave(t *testing.T) {
 	// Create original file
 	originalContent := `# Rules
 
-These are non-negotiable constraints for ralph-runner development.
+These are non-negotiable constraints for gromit development.
 
 ## Code Style
 
@@ -661,7 +661,7 @@ func TestEmptyRuleText(t *testing.T) {
 
 func TestLoadRealRulesFile(t *testing.T) {
 	// Test loading the actual RULES.md file from the project
-	r, err := Load("../../.ralph/RULES.md")
+	r, err := Load("../../.gromit/RULES.md")
 	if err != nil {
 		t.Skipf("skipping test, RULES.md not found: %v", err)
 	}
