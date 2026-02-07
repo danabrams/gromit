@@ -227,6 +227,11 @@ func (r *Renderer) RenderRefactor(ctx *Context) (string, error) {
 	return r.render("PROMPT_refactor.md", ctx)
 }
 
+// RenderTDDBuild renders the TDD-aware build prompt
+func (r *Renderer) RenderTDDBuild(ctx *Context) (string, error) {
+	return r.render("PROMPT_tdd_build.md", ctx)
+}
+
 // ValidateSpecName checks that a spec name doesn't contain path traversal characters
 func ValidateSpecName(name string) error {
 	if name == "" {

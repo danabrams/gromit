@@ -133,6 +133,10 @@ func TestRenderNilRenderer(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for nil renderer in RenderRefactor")
 	}
+	_, err = r.RenderTDDBuild(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderTDDBuild")
+	}
 }
 
 func TestLoadClaudeMDNilRenderer(t *testing.T) {
@@ -604,5 +608,48 @@ Iteration: {{.Iteration}}`
 	}
 	if !strings.Contains(result, "Iteration: 2") {
 		t.Error("expected iteration in output")
+	}
+}
+
+func TestRenderTDDBuild(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `TDD Build for: {{.Bead.Title}}
+Follow red-green-refactor cycle.
+Write ONE test at a time.
+Model: {{.Model}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_tdd_build.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := &Context{
+		Bead: &bead.Bead{
+			ID:              "test-1",
+			Title:           "Implement feature",
+			Description:     "Build with TDD",
+			Labels:          []string{},
+			ExpectedOutputs: []string{},
+		},
+		Model:     "sonnet",
+		Iteration: 1,
+	}
+
+	result, err := r.RenderTDDBuild(ctx)
+	if err != nil {
+		t.Fatalf("RenderTDDBuild() error = %v", err)
+	}
+	if result == "" {
+		t.Error("expected non-empty output")
+	}
+	if !strings.Contains(result, "Implement feature") {
+		t.Error("expected bead title in output")
+	}
+	if !strings.Contains(result, "red-green-refactor") {
+		t.Error("expected TDD instruction in output")
+	}
+	if !strings.Contains(result, "sonnet") {
+		t.Error("expected model in output")
 	}
 }
