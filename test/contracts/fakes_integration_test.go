@@ -211,3 +211,64 @@ func TestFakes_ErrorModes(t *testing.T) {
 		t.Errorf("Expected claude to fail with CLAUDE_FAIL=1, but it succeeded. Output: %s", output)
 	}
 }
+
+// TestFakes_ClaudeWriteFile verifies that the fake claude creates files via CLAUDE_WRITE_FILE
+func TestFakes_ClaudeWriteFile(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Set up fixture file
+	fixtureContent := "Test output from Claude"
+	fixtureFile := filepath.Join(env.Dir, "test_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte(fixtureContent), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	// Set up file to be created
+	targetFile := filepath.Join(env.Dir, "nested", "dir", "created_file.txt")
+	fileContent := "This is the file content"
+
+	// Add environment variables
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", fixtureFile)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_FILE", targetFile)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_WRITE_CONTENT", fileContent)
+
+	// Run fake claude
+	cmd := exec.Command(filepath.Join(fakesDir, "claude"), "-p", "test-prompt")
+	cmd.Dir = env.Dir
+	cmd.Env = env.Env
+	cmd.Stdin = strings.NewReader("test prompt content\n")
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("claude failed: %v\nOutput: %s", err, output)
+	}
+
+	// Verify fixture output
+	outputStr := string(output)
+	if !strings.Contains(outputStr, fixtureContent) {
+		t.Errorf("Expected fixture content %q in output, got: %s", fixtureContent, outputStr)
+	}
+
+	// Verify file was created
+	if _, err := os.Stat(targetFile); os.IsNotExist(err) {
+		t.Errorf("Expected file %s to be created, but it doesn't exist", targetFile)
+	}
+
+	// Verify file content
+	createdContent, err := os.ReadFile(targetFile)
+	if err != nil {
+		t.Fatalf("Failed to read created file: %v", err)
+	}
+
+	// Note: echo adds a newline, so we need to account for that
+	expectedContent := fileContent + "\n"
+	if string(createdContent) != expectedContent {
+		t.Errorf("Expected file content %q, got %q", expectedContent, string(createdContent))
+	}
+
+	// Verify parent directories were created
+	parentDir := filepath.Dir(targetFile)
+	if _, err := os.Stat(parentDir); os.IsNotExist(err) {
+		t.Errorf("Expected parent directory %s to be created, but it doesn't exist", parentDir)
+	}
+}

@@ -17,6 +17,17 @@ fi
 # Read and discard stdin (claude expects prompt on stdin)
 cat > /dev/null
 
+# Check for CLAUDE_WRITE_FILE and CLAUDE_WRITE_CONTENT env vars
+# If both are set, create parent directories and write content to file
+if [[ -n "${CLAUDE_WRITE_FILE:-}" ]] && [[ -n "${CLAUDE_WRITE_CONTENT:-}" ]]; then
+    # Create parent directories if they don't exist
+    parent_dir=$(dirname "$CLAUDE_WRITE_FILE")
+    mkdir -p "$parent_dir"
+
+    # Write content to file
+    echo "$CLAUDE_WRITE_CONTENT" > "$CLAUDE_WRITE_FILE"
+fi
+
 # Check for CLAUDE_FAIL error mode
 if [[ "${CLAUDE_FAIL:-0}" == "1" ]]; then
     echo "claude: simulated failure" >&2
