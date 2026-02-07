@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/skills"
@@ -59,6 +60,7 @@ func runRefine(cmd *cobra.Command, args []string) error {
 	var ideaText string
 	var backlogID string
 	var fromBacklog bool
+	var isBlankSession bool
 
 	if len(args) == 0 {
 		// Mode 1: Interactive picker for unrefined backlog items
@@ -76,44 +78,53 @@ func runRefine(cmd *cobra.Command, args []string) error {
 		}
 
 		if len(unrefined) == 0 {
-			fmt.Println("No unrefined backlog items found.")
-			fmt.Println("\nUse 'gromit add <idea>' to add new ideas, or")
-			fmt.Println("use 'gromit refine \"idea text\"' to refine an ad-hoc idea.")
-			return nil
-		}
+			// Empty backlog - skip picker and launch blank session
+			fmt.Println("No unrefined backlog items. Starting a blank refinement session...")
+			fmt.Println()
+			isBlankSession = true
+		} else {
+			// Display picker with "Something new..." option
+			fmt.Println("Select an idea to refine:")
+			fmt.Println()
+			for i, idea := range unrefined {
+				typeLabel := formatTypeLabel(idea.Type)
+				fmt.Printf("  %d. %s %s\n", i+1, typeLabel, idea.Text)
+				if idea.Context != "" {
+					fmt.Printf("     Context: %s\n", idea.Context)
+				}
+			}
+			fmt.Printf("  %d. [new]     Something new...\n", len(unrefined)+1)
 
-		// Display picker
-		fmt.Println("Select an idea to refine:")
-		fmt.Println()
-		for i, idea := range unrefined {
-			typeLabel := formatTypeLabel(idea.Type)
-			fmt.Printf("  %d. %s %s\n", i+1, typeLabel, idea.Text)
-			if idea.Context != "" {
-				fmt.Printf("     Context: %s\n", idea.Context)
+			fmt.Printf("\nChoice [1-%d]: ", len(unrefined)+1)
+			reader := bufio.NewReader(os.Stdin)
+			choiceStr, err := reader.ReadString('\n')
+			if err != nil {
+				return fmt.Errorf("reading choice: %w", err)
+			}
+
+			var choice int
+			if _, err := fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choice); err != nil || choice < 1 || choice > len(unrefined)+1 {
+				return fmt.Errorf("invalid choice")
+			}
+
+			if choice == len(unrefined)+1 {
+				// User selected "Something new..."
+				fmt.Println("\nStarting a blank refinement session...")
+				fmt.Println()
+				isBlankSession = true
+			} else {
+				// User selected an existing unrefined item
+				selectedIdea := unrefined[choice-1]
+				ideaText = selectedIdea.Text
+				if selectedIdea.Context != "" {
+					ideaText = fmt.Sprintf("%s\n\nContext: %s", selectedIdea.Text, selectedIdea.Context)
+				}
+				backlogID = selectedIdea.ID
+				fromBacklog = true
+
+				fmt.Printf("\nRefining: %s\n\n", selectedIdea.Text)
 			}
 		}
-
-		fmt.Print("\nChoice [1-", len(unrefined), "]: ")
-		reader := bufio.NewReader(os.Stdin)
-		choiceStr, err := reader.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("reading choice: %w", err)
-		}
-
-		var choice int
-		if _, err := fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choice); err != nil || choice < 1 || choice > len(unrefined) {
-			return fmt.Errorf("invalid choice")
-		}
-
-		selectedIdea := unrefined[choice-1]
-		ideaText = selectedIdea.Text
-		if selectedIdea.Context != "" {
-			ideaText = fmt.Sprintf("%s\n\nContext: %s", selectedIdea.Text, selectedIdea.Context)
-		}
-		backlogID = selectedIdea.ID
-		fromBacklog = true
-
-		fmt.Printf("\nRefining: %s\n\n", selectedIdea.Text)
 
 	} else {
 		// Check if arg is a backlog ID or ad-hoc text
@@ -149,7 +160,19 @@ func runRefine(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build system prompt with embedded skill content
-	systemPrompt := fmt.Sprintf(`Idea to refine:
+	var systemPrompt string
+	if isBlankSession {
+		// Blank session - no pre-set idea text
+		systemPrompt = fmt.Sprintf(`## Context
+
+Specs directory: %s
+
+## Instructions
+
+%s`, specsDir, skills.RefineSkill)
+	} else {
+		// Normal session with pre-set idea text
+		systemPrompt = fmt.Sprintf(`Idea to refine:
 
 %s
 
@@ -160,6 +183,7 @@ Specs directory: %s
 ## Instructions
 
 %s`, ideaText, specsDir, skills.RefineSkill)
+	}
 
 	// Determine binary and flags from config
 	claudeBinary := "claude"
@@ -218,6 +242,37 @@ Specs directory: %s
 			fmt.Fprintf(os.Stderr, "Warning: failed to update backlog item status: %v\n", err)
 		} else {
 			fmt.Printf("\n✓ Marked backlog item %s as refined (spec: %s)\n", backlogID, specName)
+		}
+	}
+
+	// If blank session and a spec was created, auto-create a backlog item
+	if isBlankSession && len(createdSpecs) > 0 {
+		// Use the first new spec (should typically be only one)
+		specPath := createdSpecs[0]
+		specName := strings.TrimSuffix(filepath.Base(specPath), ".md")
+
+		// Extract title from spec file
+		specTitle := extractSpecTitle(specPath)
+		if specTitle == "" {
+			specTitle = specName // Fallback to filename if no title found
+		}
+
+		// Create backlog item
+		idea := &backlog.Idea{
+			ID:        backlog.GenerateID(),
+			Text:      specTitle,
+			Type:      "feature",
+			Status:    "refined",
+			SpecName:  specName,
+			CreatedAt: time.Now(),
+		}
+
+		err := bf.Add(idea)
+		if err != nil {
+			// Don't fail the whole command if adding fails
+			fmt.Fprintf(os.Stderr, "Warning: failed to create backlog item: %v\n", err)
+		} else {
+			fmt.Printf("\n✓ Created backlog item %s: %s (spec: %s)\n", idea.ID, specTitle, specName)
 		}
 	}
 
