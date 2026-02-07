@@ -173,6 +173,7 @@ type mockPromptRenderer struct {
 	RenderThoroughReviewFn  func(ctx *prompt.ThoroughReviewContext) (string, error)
 	RenderAcceptanceTestsFn func(ctx *prompt.Context) (string, error)
 	RenderATDDBuildFn       func(ctx *prompt.Context) (string, error)
+	RenderTDDBuildFn        func(ctx *prompt.Context) (string, error)
 	RenderRefactorFn        func(ctx *prompt.Context) (string, error)
 	LoadSpecFn              func(name string) (string, error)
 	LoadClaudeMDFn          func() (string, error)
@@ -282,6 +283,13 @@ func (m *mockPromptRenderer) RenderATDDBuild(ctx *prompt.Context) (string, error
 	return "mock atdd build prompt", nil
 }
 
+func (m *mockPromptRenderer) RenderTDDBuild(ctx *prompt.Context) (string, error) {
+	if m.RenderTDDBuildFn != nil {
+		return m.RenderTDDBuildFn(ctx)
+	}
+	return "mock tdd build prompt", nil
+}
+
 func (m *mockPromptRenderer) RenderRefactor(ctx *prompt.Context) (string, error) {
 	if m.RenderRefactorFn != nil {
 		return m.RenderRefactorFn(ctx)
@@ -378,6 +386,10 @@ func (m *mockRenderer) RenderAcceptanceTests(ctx *prompt.Context) (string, error
 
 func (m *mockRenderer) RenderATDDBuild(ctx *prompt.Context) (string, error) {
 	return "mock atdd build prompt", nil
+}
+
+func (m *mockRenderer) RenderTDDBuild(ctx *prompt.Context) (string, error) {
+	return "mock tdd build prompt", nil
 }
 
 func (m *mockRenderer) RenderRefactor(ctx *prompt.Context) (string, error) {

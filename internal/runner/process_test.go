@@ -88,6 +88,10 @@ func (m *mockRendererWithLearn) RenderATDDBuild(ctx *prompt.Context) (string, er
 	return "mock atdd build prompt", nil
 }
 
+func (m *mockRendererWithLearn) RenderTDDBuild(ctx *prompt.Context) (string, error) {
+	return "mock tdd build prompt", nil
+}
+
 func (m *mockRendererWithLearn) RenderRefactor(ctx *prompt.Context) (string, error) {
 	return "mock refactor prompt", nil
 }
