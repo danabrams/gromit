@@ -71,6 +71,31 @@ func runGromit(t *testing.T, args ...string) (stdout, stderr string, exitCode in
 	return stdout, stderr, exitCode
 }
 
+// runGromitWithStdin executes the gromit binary with the given arguments and stdin input,
+// returning stdout, stderr, and exit code. This is useful for testing interactive commands.
+func runGromitWithStdin(t *testing.T, stdin string, args ...string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+
+	cmd := exec.Command(binaryPath, args...)
+	cmd.Stdin = strings.NewReader(stdin)
+
+	outBuf, outErr := cmd.Output()
+	exitCode = 0
+
+	if outErr != nil {
+		if exitErr, ok := outErr.(*exec.ExitError); ok {
+			stderr = string(exitErr.Stderr)
+			exitCode = exitErr.ExitCode()
+		} else {
+			t.Fatalf("Failed to run gromit %v with stdin: %v", args, outErr)
+		}
+	}
+
+	stdout = string(outBuf)
+
+	return stdout, stderr, exitCode
+}
+
 // goldenPath returns the path to a golden file for the given command
 func goldenPath(command string) string {
 	return filepath.Join("testdata", "golden", fmt.Sprintf("%s.help.txt", command))
