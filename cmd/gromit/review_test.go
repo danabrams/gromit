@@ -6,43 +6,83 @@ import (
 
 // TestReviewPassesClaudeFlags verifies that buildReviewArgs correctly combines
 // flags and prompt into an args array for the claude CLI.
+// Validates extraction fidelity against inline reconstruction.
 func TestReviewPassesClaudeFlags(t *testing.T) {
 	flags := []string{"--dangerously-skip-permissions", "--some-other-flag"}
 	prompt := "Review this code"
 
+	// Call extracted function
 	args := buildReviewArgs(flags, prompt)
 
-	// Verify all flags are included in order
-	if len(args) != 3 {
-		t.Fatalf("Expected 3 args, got %d", len(args))
+	// Verify against inline reconstruction (what runReviewInteractive did at lines 314-316)
+	// Original inline code was:
+	//   args := make([]string, 0, len(cfg.Claude.Flags)+1)
+	//   args = append(args, cfg.Claude.Flags...)
+	//   args = append(args, initialPrompt)
+	expected := make([]string, 0, len(flags)+1)
+	expected = append(expected, flags...)
+	expected = append(expected, prompt)
+
+	// Verify structural properties
+	if len(args) != len(expected) {
+		t.Fatalf("Expected %d args, got %d", len(expected), len(args))
 	}
 
-	if args[0] != "--dangerously-skip-permissions" {
-		t.Errorf("Expected first arg to be --dangerously-skip-permissions, got %s", args[0])
-	}
-
-	if args[1] != "--some-other-flag" {
-		t.Errorf("Expected second arg to be --some-other-flag, got %s", args[1])
-	}
-
-	if args[2] != prompt {
-		t.Errorf("Expected third arg to be %q, got %s", prompt, args[2])
+	for i, arg := range expected {
+		if args[i] != arg {
+			t.Errorf("Expected args[%d] to be %q, got %q", i, arg, args[i])
+		}
 	}
 }
 
-// TestReviewWithoutFlags verifies that buildReviewArgs works when no flags are provided
+// TestReviewWithoutFlags verifies that buildReviewArgs works when no flags are provided.
+// Validates extraction fidelity against inline reconstruction.
 func TestReviewWithoutFlags(t *testing.T) {
 	flags := []string{} // No flags configured
 	prompt := "Review this code"
 
+	// Call extracted function
 	args := buildReviewArgs(flags, prompt)
 
-	// With no flags, should only have the prompt
-	if len(args) != 1 {
-		t.Fatalf("Expected 1 arg, got %d", len(args))
+	// Verify against inline reconstruction
+	expected := make([]string, 0, len(flags)+1)
+	expected = append(expected, flags...)
+	expected = append(expected, prompt)
+
+	// Verify structural properties
+	if len(args) != len(expected) {
+		t.Fatalf("Expected %d args, got %d", len(expected), len(args))
 	}
 
-	if args[0] != prompt {
-		t.Errorf("Expected arg to be %q, got %s", prompt, args[0])
+	for i, arg := range expected {
+		if args[i] != arg {
+			t.Errorf("Expected args[%d] to be %q, got %q", i, arg, args[i])
+		}
+	}
+}
+
+// TestReviewWithNilFlags verifies that buildReviewArgs works when flags is nil.
+// Validates extraction fidelity against inline reconstruction.
+func TestReviewWithNilFlags(t *testing.T) {
+	var flags []string // nil slice
+	prompt := "Review this code"
+
+	// Call extracted function
+	args := buildReviewArgs(flags, prompt)
+
+	// Verify against inline reconstruction (nil slice behavior matches empty slice)
+	expected := make([]string, 0, len(flags)+1)
+	expected = append(expected, flags...)
+	expected = append(expected, prompt)
+
+	// Verify structural properties
+	if len(args) != len(expected) {
+		t.Fatalf("Expected %d args, got %d", len(expected), len(args))
+	}
+
+	for i, arg := range expected {
+		if args[i] != arg {
+			t.Errorf("Expected args[%d] to be %q, got %q", i, arg, args[i])
+		}
 	}
 }
