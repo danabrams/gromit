@@ -719,3 +719,159 @@ func TestE2E_EmptyQueue(t *testing.T) {
 		t.Logf("✓ Stdout indicates no work available")
 	}
 }
+
+// TestE2E_Escalation tests that gromit correctly escalates from haiku to sonnet
+// when the first build invocation fails:
+// - Creates a P2 bead (which uses haiku by default)
+// - Configures claude fake to fail first invocation (haiku) and succeed second (sonnet)
+// - Runs gromit run
+// - Verifies call log shows haiku→sonnet escalation
+func TestE2E_Escalation(t *testing.T) {
+	env := setupE2E(t)
+
+	// Create a P2 bead (priority 2 → haiku model by default)
+	if err := createBead(env, "test-escalate-1", "Task requiring escalation", "This task will fail on haiku and succeed on sonnet", 2, []string{}); err != nil {
+		t.Fatalf("Failed to create bead: %v", err)
+	}
+
+	// Set up Claude fixtures:
+	// - Haiku uses success fixtures (for scope, analysis, validation)
+	// - Sonnet uses success fixture (for build after escalation)
+	// - CLAUDE_FAIL_HAIKU_ONCE=1 will make the first haiku stream-json invocation
+	//   fail with exit code 1 (triggering escalation), but output the fail fixture text
+	buildFailFixture := filepath.Join(fixturesDir, "claude_build_fail.txt")
+	buildSuccessFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
+	validateSuccessFixture := filepath.Join(fixturesDir, "claude_validate_success.txt")
+
+	// The CLAUDE_FAIL_HAIKU_ONCE mode in the fake claude script will:
+	// 1. On first stream-json invocation with haiku: use CLAUDE_FIXTURE_HAIKU (fail), exit 1
+	// 2. On subsequent invocations: use CLAUDE_FIXTURE_HAIKU_SUCCESS (success), exit 0
+	//
+	// This allows the first build to fail (triggering escalation), while scope check,
+	// analysis, and validation all succeed.
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", buildFailFixture)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU_SUCCESS", validateSuccessFixture)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE_SONNET", buildSuccessFixture)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FIXTURE", validateSuccessFixture) // Default fallback
+
+	// Configure haiku to fail only on first stream-json invocation (build phase)
+	env.Env = replaceOrAppend(env.Env, "CLAUDE_FAIL_HAIKU_ONCE", "1")
+
+	// Run gromit with -n 1 to process exactly 1 bead
+	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "1")
+	if err != nil {
+		t.Fatalf("Failed to run gromit: %v", err)
+	}
+
+	t.Logf("Exit code: %d", exitCode)
+	t.Logf("Stdout:\n%s", stdout)
+	t.Logf("Stderr:\n%s", stderr)
+
+	// Verify gromit succeeded (escalation worked)
+	if exitCode != 0 {
+		t.Errorf("Expected exit code 0 after escalation, got %d", exitCode)
+	}
+
+	// Read call log to verify escalation sequence
+	callLogData, err := os.ReadFile(env.CallLog)
+	if err != nil {
+		t.Fatalf("Failed to read call log: %v", err)
+	}
+	calls := strings.Split(strings.TrimSpace(string(callLogData)), "\n")
+
+	t.Logf("Total calls recorded: %d", len(calls))
+	for i, call := range calls {
+		t.Logf("  %d: %s", i+1, call)
+	}
+
+	// Filter claude calls
+	var claudeCalls []string
+	for _, call := range calls {
+		if strings.HasPrefix(call, "claude ") {
+			claudeCalls = append(claudeCalls, call)
+		}
+	}
+
+	t.Logf("Claude calls: %d", len(claudeCalls))
+	for i, call := range claudeCalls {
+		t.Logf("  Claude %d: %s", i+1, call)
+	}
+
+	// Expected Claude call sequence:
+	// 1. Scope check with haiku (succeeds)
+	// 2. Build with haiku (fails, triggers escalation)
+	// 3. Build with sonnet (succeeds)
+	// 4. Validation with haiku (succeeds)
+	//
+	// So we expect at least 4 Claude calls, with haiku failing and sonnet succeeding
+
+	if len(claudeCalls) < 4 {
+		t.Errorf("Expected at least 4 Claude calls (scope, failed haiku build, sonnet build, validate), got %d", len(claudeCalls))
+	}
+
+	// Verify that we have calls to both haiku and sonnet
+	var haikuCalls []string
+	var sonnetCalls []string
+	for _, call := range claudeCalls {
+		if strings.Contains(call, "--model haiku") {
+			haikuCalls = append(haikuCalls, call)
+		}
+		if strings.Contains(call, "--model sonnet") {
+			sonnetCalls = append(sonnetCalls, call)
+		}
+	}
+
+	t.Logf("Haiku calls: %d", len(haikuCalls))
+	for i, call := range haikuCalls {
+		t.Logf("  Haiku %d: %s", i+1, call)
+	}
+
+	t.Logf("Sonnet calls: %d", len(sonnetCalls))
+	for i, call := range sonnetCalls {
+		t.Logf("  Sonnet %d: %s", i+1, call)
+	}
+
+	// Verify escalation happened: at least one haiku call and at least one sonnet call
+	if len(haikuCalls) == 0 {
+		t.Error("Expected at least one call to haiku model (initial attempt)")
+	} else {
+		t.Logf("✓ Haiku was invoked initially")
+	}
+
+	if len(sonnetCalls) == 0 {
+		t.Error("Expected at least one call to sonnet model (after escalation)")
+	} else {
+		t.Logf("✓ Sonnet was invoked after escalation")
+	}
+
+	// Verify the bead was closed (escalation succeeded)
+	state, err := readBDState(env)
+	if err != nil {
+		t.Fatalf("Failed to read bd state: %v", err)
+	}
+
+	beads, ok := state["beads"].([]interface{})
+	if !ok {
+		t.Fatal("beads field not found in state")
+	}
+
+	if len(beads) != 1 {
+		t.Fatalf("Expected 1 bead in state, got %d", len(beads))
+	}
+
+	bead, ok := beads[0].(map[string]interface{})
+	if !ok {
+		t.Fatal("Bead is not a map")
+	}
+
+	status, ok := bead["status"].(string)
+	if !ok {
+		t.Fatal("Bead status is not a string")
+	}
+
+	if status != "closed" {
+		t.Errorf("Expected bead status 'closed' after successful escalation, got %q", status)
+	} else {
+		t.Logf("✓ Bead was closed after successful escalation")
+	}
+}
