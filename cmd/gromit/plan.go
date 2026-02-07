@@ -71,9 +71,12 @@ func runPlan(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("scanning specs directory: %w", err)
 		}
 
+		// Filter to unplanned specs
+		specs = filterUnplannedSpecs(specs, plansDir)
+
 		if len(specs) == 0 {
-			fmt.Println("No specs found in", specsDir)
-			fmt.Println("\nUse 'gromit refine' to create a spec first.")
+			fmt.Println("No unplanned specs found.")
+			fmt.Println("\nAll specs already have plans. Use 'gromit plan <spec-name> --force' to re-plan an existing spec.")
 			return nil
 		}
 
@@ -198,4 +201,17 @@ Plan output path: %s
 	}
 
 	return nil
+}
+
+// filterUnplannedSpecs returns only specs that don't have a corresponding plan file
+func filterUnplannedSpecs(specs []string, plansDir string) []string {
+	unplanned := []string{}
+	for _, specPath := range specs {
+		specName := strings.TrimSuffix(filepath.Base(specPath), ".md")
+		planPath := filepath.Join(plansDir, specName+".md")
+		if _, err := os.Stat(planPath); os.IsNotExist(err) {
+			unplanned = append(unplanned, specPath)
+		}
+	}
+	return unplanned
 }
