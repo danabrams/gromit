@@ -622,3 +622,100 @@ func TestE2E_HappyPath(t *testing.T) {
 		t.Logf("✓ Log files written: %d entries", len(logEntries))
 	}
 }
+
+// TestE2E_EmptyQueue tests that gromit run exits cleanly when there are no ready beads:
+// - Creates empty fake bd state (no beads)
+// - Runs gromit run
+// - Verifies clean exit (code 0) with no claude invocations
+func TestE2E_EmptyQueue(t *testing.T) {
+	env := setupE2E(t)
+
+	// Create empty bd state explicitly
+	emptyState := map[string]interface{}{
+		"beads":   []interface{}{},
+		"next_id": 1,
+	}
+	if err := writeBDState(env, emptyState); err != nil {
+		t.Fatalf("Failed to write empty bd state: %v", err)
+	}
+
+	// Run gromit run with no beads
+	stdout, stderr, exitCode, err := runGromit(env, "run")
+	if err != nil {
+		t.Fatalf("Failed to run gromit: %v", err)
+	}
+
+	t.Logf("Exit code: %d", exitCode)
+	t.Logf("Stdout:\n%s", stdout)
+	t.Logf("Stderr:\n%s", stderr)
+
+	// Verify gromit succeeded with clean exit
+	if exitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", exitCode)
+	}
+
+	// Read call log to verify no claude invocations occurred
+	callLogData, err := os.ReadFile(env.CallLog)
+	if err != nil {
+		// If call log doesn't exist, that's acceptable for empty queue
+		if !os.IsNotExist(err) {
+			t.Fatalf("Failed to read call log: %v", err)
+		}
+		t.Logf("✓ No call log file created (no external tool calls)")
+		return
+	}
+
+	calls := strings.Split(strings.TrimSpace(string(callLogData)), "\n")
+
+	// Filter out empty lines
+	var nonEmptyCalls []string
+	for _, call := range calls {
+		if strings.TrimSpace(call) != "" {
+			nonEmptyCalls = append(nonEmptyCalls, call)
+		}
+	}
+
+	t.Logf("Total calls recorded: %d", len(nonEmptyCalls))
+	for i, call := range nonEmptyCalls {
+		t.Logf("  %d: %s", i+1, call)
+	}
+
+	// Filter claude calls
+	var claudeCalls []string
+	for _, call := range nonEmptyCalls {
+		if strings.HasPrefix(call, "claude ") {
+			claudeCalls = append(claudeCalls, call)
+		}
+	}
+
+	// Verify no Claude invocations occurred
+	if len(claudeCalls) > 0 {
+		t.Errorf("Expected 0 Claude calls for empty queue, got %d:", len(claudeCalls))
+		for i, call := range claudeCalls {
+			t.Errorf("  Unexpected Claude call %d: %s", i+1, call)
+		}
+	} else {
+		t.Logf("✓ No Claude invocations (as expected for empty queue)")
+	}
+
+	// Verify bd ready was called at least once to check for work
+	var bdReadyCalls []string
+	for _, call := range nonEmptyCalls {
+		if strings.HasPrefix(call, "bd ready") {
+			bdReadyCalls = append(bdReadyCalls, call)
+		}
+	}
+
+	if len(bdReadyCalls) == 0 {
+		t.Errorf("Expected at least one 'bd ready' call to check for work, but found none")
+	} else {
+		t.Logf("✓ bd ready called %d time(s) to check for work", len(bdReadyCalls))
+	}
+
+	// Verify stdout contains appropriate message about no work
+	if !strings.Contains(stdout, "No more work available") {
+		t.Errorf("Expected stdout to contain 'No more work available', got:\n%s", stdout)
+	} else {
+		t.Logf("✓ Stdout indicates no work available")
+	}
+}
