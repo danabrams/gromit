@@ -1178,3 +1178,141 @@ func TestRunWithMocks_PrecheckPassed(t *testing.T) {
 		t.Errorf("expected 0 Claude.StreamRun calls (no build), got %d", len(mockClaude.StreamRunCalls))
 	}
 }
+
+func TestRunWithMocks_PrecheckNotMet(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			if callCount > 1 {
+				return nil, nil
+			}
+			return &bead.Bead{
+				ID:              "precheck-notmet",
+				Title:           "Not completed yet",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature is implemented", "tests pass"},
+			}, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Precheck returns PRECHECK_NOT_MET
+			return &claude.Result{Success: true, Output: "PRECHECK_NOT_MET\n\nCriteria not satisfied yet."}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			// Build phase succeeds
+			return &claude.Result{Success: true, Output: "implemented the feature"}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Verify precheck ran
+	if len(mockClaude.RunCalls) != 1 {
+		t.Errorf("expected 1 Claude.Run call (precheck), got %d", len(mockClaude.RunCalls))
+	}
+
+	// Verify processBead ran (StreamRun was called)
+	if len(mockClaude.StreamRunCalls) != 1 {
+		t.Errorf("expected 1 Claude.StreamRun call (build), got %d", len(mockClaude.StreamRunCalls))
+	}
+
+	// Verify bead was closed after successful build
+	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "precheck-notmet" {
+		t.Errorf("expected bead 'precheck-notmet' to be closed, got: %v", beads.ClosedIDs)
+	}
+
+	// Verify normal iteration log (not precheck_skipped)
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 iteration logged, got %d", len(mockLog.Logs))
+	}
+	log := mockLog.Logs[0]
+	if log.Outcome == "precheck_skipped" {
+		t.Error("expected normal outcome, not precheck_skipped")
+	}
+}
+
+func TestRunWithMocks_PrecheckError(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			if callCount > 1 {
+				return nil, nil
+			}
+			return &bead.Bead{
+				ID:              "precheck-error",
+				Title:           "Precheck fails",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature is implemented"},
+			}, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Precheck returns an error
+			return nil, fmt.Errorf("Claude API error")
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			// Build phase succeeds
+			return &claude.Result{Success: true, Output: "implemented despite precheck error"}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Verify precheck was attempted
+	if len(mockClaude.RunCalls) != 1 {
+		t.Errorf("expected 1 Claude.Run call (precheck), got %d", len(mockClaude.RunCalls))
+	}
+
+	// Verify processBead ran despite precheck error (StreamRun was called)
+	if len(mockClaude.StreamRunCalls) != 1 {
+		t.Errorf("expected 1 Claude.StreamRun call (build), got %d", len(mockClaude.StreamRunCalls))
+	}
+
+	// Verify bead was closed after successful build
+	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "precheck-error" {
+		t.Errorf("expected bead 'precheck-error' to be closed, got: %v", beads.ClosedIDs)
+	}
+
+	// Verify warning was logged
+	output := buf.String()
+	if !strings.Contains(output, "precheck invocation failed") {
+		t.Errorf("expected precheck warning in output, got: %s", output)
+	}
+
+	// Verify normal iteration log (not precheck_skipped)
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 iteration logged, got %d", len(mockLog.Logs))
+	}
+	log := mockLog.Logs[0]
+	if log.Outcome == "precheck_skipped" {
+		t.Error("expected normal outcome, not precheck_skipped")
+	}
+}
