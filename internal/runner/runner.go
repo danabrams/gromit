@@ -189,6 +189,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		defer statusWriter.Delete()
 	}
 
+	// Calculate time budget in minutes if deadline is set
+	var timeBudgetMinutes int
+	if !deadline.IsZero() {
+		timeBudgetMinutes = int(time.Until(deadline).Minutes())
+	}
+
 	// Ensure logger is closed when done
 	if r.logger != nil {
 		defer r.logger.Close()
@@ -314,7 +320,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 		// Write status.json at iteration start
 		if statusWriter != nil {
-			if err := statusWriter.Write(iteration, b.ID, b.Title, model, true); err != nil {
+			if err := statusWriter.Write(iteration, b.ID, b.Title, model, true, maxIterations, timeBudgetMinutes); err != nil {
 				r.log("Warning: failed to write status.json: %v", err)
 			}
 		}
@@ -354,7 +360,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 		// Update status.json after completion
 		if statusWriter != nil {
-			if err := statusWriter.Write(iteration, b.ID, b.Title, result.Model, true); err != nil {
+			if err := statusWriter.Write(iteration, b.ID, b.Title, result.Model, true, maxIterations, timeBudgetMinutes); err != nil {
 				r.log("Warning: failed to write status.json: %v", err)
 			}
 		}

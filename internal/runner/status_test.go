@@ -24,7 +24,7 @@ func TestStatusWriter_Write(t *testing.T) {
 	}
 
 	// Write status
-	err := sw.Write(1, "bead-123", "Test Bead", "sonnet", true)
+	err := sw.Write(1, "bead-123", "Test Bead", "sonnet", true, 0, 0)
 	if err != nil {
 		t.Fatalf("Write failed: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestStatusWriter_Delete(t *testing.T) {
 	statusPath := filepath.Join(tmpDir, "status.json")
 
 	// Write status
-	err := sw.Write(1, "bead-123", "Test Bead", "sonnet", true)
+	err := sw.Write(1, "bead-123", "Test Bead", "sonnet", true, 0, 0)
 	if err != nil {
 		t.Fatalf("Write failed: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestStatusWriter_NilWriter(t *testing.T) {
 	var sw *StatusWriter
 
 	// Should be no-op without crashing
-	err := sw.Write(1, "bead-123", "Test Bead", "sonnet", true)
+	err := sw.Write(1, "bead-123", "Test Bead", "sonnet", true, 0, 0)
 	if err != nil {
 		t.Fatalf("Write on nil writer should be no-op: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestStatusWriter_ElapsedTime(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Write status
-	err := sw.Write(1, "bead-123", "Test Bead", "sonnet", true)
+	err := sw.Write(1, "bead-123", "Test Bead", "sonnet", true, 0, 0)
 	if err != nil {
 		t.Fatalf("Write failed: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestStatusWriter_Write_IncludesPID(t *testing.T) {
 	sw, _ := NewStatusWriter(tmpDir)
 
 	// Write status
-	err := sw.Write(1, "bead-456", "PID Test Bead", "haiku", true)
+	err := sw.Write(1, "bead-456", "PID Test Bead", "haiku", true, 0, 0)
 	if err != nil {
 		t.Fatalf("Write failed: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestReadStatus(t *testing.T) {
 
 	// Write a status file first
 	sw, _ := NewStatusWriter(tmpDir)
-	err := sw.Write(2, "bead-789", "Read Test Bead", "opus", true)
+	err := sw.Write(2, "bead-789", "Read Test Bead", "opus", true, 0, 0)
 	if err != nil {
 		t.Fatalf("Write failed: %v", err)
 	}
@@ -261,6 +261,69 @@ func TestReadStatus_InvalidJSON(t *testing.T) {
 
 	if status != nil {
 		t.Errorf("Expected nil status for invalid JSON, got: %v", status)
+	}
+}
+
+func TestStatusWriter_Write_WithLimits(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	sw, _ := NewStatusWriter(tmpDir)
+
+	// Write status with max iterations and time budget
+	err := sw.Write(5, "bead-limit-123", "Limited Bead", "sonnet", true, 50, 30)
+	if err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Read and verify
+	statusPath := filepath.Join(tmpDir, "status.json")
+	data, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatalf("Could not read status.json: %v", err)
+	}
+
+	var status Status
+	if err := json.Unmarshal(data, &status); err != nil {
+		t.Fatalf("Could not unmarshal status.json: %v", err)
+	}
+
+	if status.MaxIterations != 50 {
+		t.Errorf("Expected MaxIterations=50, got %d", status.MaxIterations)
+	}
+	if status.TimeBudgetMinutes != 30 {
+		t.Errorf("Expected TimeBudgetMinutes=30, got %d", status.TimeBudgetMinutes)
+	}
+}
+
+func TestStatusWriter_Write_WithoutLimits(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	sw, _ := NewStatusWriter(tmpDir)
+
+	// Write status without limits (zero values)
+	err := sw.Write(1, "bead-nolimit-456", "Unlimited Bead", "haiku", true, 0, 0)
+	if err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Read and verify
+	statusPath := filepath.Join(tmpDir, "status.json")
+	data, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatalf("Could not read status.json: %v", err)
+	}
+
+	var status Status
+	if err := json.Unmarshal(data, &status); err != nil {
+		t.Fatalf("Could not unmarshal status.json: %v", err)
+	}
+
+	// With omitempty, these fields should be zero but still parseable
+	if status.MaxIterations != 0 {
+		t.Errorf("Expected MaxIterations=0, got %d", status.MaxIterations)
+	}
+	if status.TimeBudgetMinutes != 0 {
+		t.Errorf("Expected TimeBudgetMinutes=0, got %d", status.TimeBudgetMinutes)
 	}
 }
 
@@ -358,7 +421,7 @@ func TestRunner_Status_LivePID(t *testing.T) {
 
 	// Write a status file with live PID (current process)
 	sw, _ := NewStatusWriter(tmpDir)
-	err = sw.Write(3, "running-bead-789", "Running Bead Title", "opus", true)
+	err = sw.Write(3, "running-bead-789", "Running Bead Title", "opus", true, 0, 0)
 	if err != nil {
 		t.Fatalf("Failed to write status file: %v", err)
 	}

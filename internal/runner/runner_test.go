@@ -2067,7 +2067,7 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				return sw.Write(1, "bead-123", "Building feature X", "sonnet", true)
+				return sw.Write(1, "bead-123", "Building feature X", "sonnet", true, 0, 0)
 			},
 			expectedOutput: []string{"Run in progress:", "Iteration: 1", "Bead: bead-123 - Building feature X", "Model: sonnet", "Elapsed:"},
 			notExpected:    []string{"Warning: stale run"},

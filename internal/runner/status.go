@@ -11,14 +11,16 @@ import (
 
 // Status represents the current state of Gromit execution
 type Status struct {
-	Running   bool      `json:"running"`
-	Iteration int       `json:"iteration"`
-	BeadID    string    `json:"bead_id"`
-	BeadTitle string    `json:"bead_title"`
-	Model     string    `json:"model"`
-	StartedAt time.Time `json:"started_at"`
-	ElapsedS  int       `json:"elapsed_s"`
-	PID       int       `json:"pid"`
+	Running            bool      `json:"running"`
+	Iteration          int       `json:"iteration"`
+	BeadID             string    `json:"bead_id"`
+	BeadTitle          string    `json:"bead_title"`
+	Model              string    `json:"model"`
+	StartedAt          time.Time `json:"started_at"`
+	ElapsedS           int       `json:"elapsed_s"`
+	PID                int       `json:"pid"`
+	MaxIterations      int       `json:"max_iterations,omitempty"`
+	TimeBudgetMinutes  int       `json:"time_budget_minutes,omitempty"`
 }
 
 // StatusWriter manages writing status.json
@@ -36,20 +38,22 @@ func NewStatusWriter(gromitDir string) (*StatusWriter, error) {
 }
 
 // Write writes the current status to status.json
-func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, running bool) error {
+func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, running bool, maxIterations, timeBudgetMinutes int) error {
 	if sw == nil {
 		return nil // No-op if writer is nil
 	}
 
 	status := Status{
-		Running:   running,
-		Iteration: iteration,
-		BeadID:    beadID,
-		BeadTitle: beadTitle,
-		Model:     model,
-		StartedAt: sw.startTime,
-		ElapsedS:  int(time.Since(sw.startTime).Seconds()),
-		PID:       os.Getpid(),
+		Running:           running,
+		Iteration:         iteration,
+		BeadID:            beadID,
+		BeadTitle:         beadTitle,
+		Model:             model,
+		StartedAt:         sw.startTime,
+		ElapsedS:          int(time.Since(sw.startTime).Seconds()),
+		PID:               os.Getpid(),
+		MaxIterations:     maxIterations,
+		TimeBudgetMinutes: timeBudgetMinutes,
 	}
 
 	data, err := json.MarshalIndent(status, "", "  ")
