@@ -9,24 +9,36 @@ This file is automatically updated. Review periodically with `gromit retro`.
 
 *Patterns seen multiple times - high confidence.*
 
-### 0001-01-01 | gotchas | consolidated from m7td, 6rao
+### 2026-02-07 | Shell Safety | gotchas
 Shell scripts handling user content must use quoted <<'EOF' heredocs to prevent variable/command expansion, and pass dynamic values via arguments rather than string interpolation. Both heredoc quoting and argument-passing are required for injection safety.
 **Promoted to RULES.md Safety section.**
 
-### 0001-01-01 | conventions | consolidated from rkub, ewqu, uucn, y0v3
-Test helpers delegate to shared testutil packages rather than duplicating logic. Use t.Fatalf for error handling when adapting function signatures with different return counts. Handle optional parameters using zero-value checks (empty string for dir, nil for environ) rather than pointers. E2E test files delegate to testutil package helpers (e.g., testutil.PickerStdin) rather than hardcoding raw strings.
+*Related to: m7td, 6rao*
 
-### 0001-01-01 | patterns | consolidated from dpk5, prk6, q2id, l0ka
-Replace documentary tests that manually simulate behavior with real tests using dependency injection of callbacks. Include structural property tests (e.g., unmarshal round-trips) to verify extraction fidelity. Integration tests that cover end-to-end flows make narrow documentary tests redundant.
+### 2026-02-07 | Documentary Test Replacement | conventions
+Replace documentary tests that manually simulate behavior with real tests using dependency injection of callbacks. Include structural property tests (e.g., unmarshal round-trips) to verify extraction fidelity. Integration tests that cover end-to-end flows make narrow documentary tests redundant. Test helpers delegate to shared testutil packages rather than duplicating logic. Use t.Fatalf for error handling when adapting function signatures with different return counts. Handle optional parameters using zero-value checks (empty string for dir, nil for environ) rather than pointers. E2E test files delegate to testutil package helpers (e.g., testutil.PickerStdin) rather than hardcoding raw strings.
 
-### 0001-01-01 | patterns | consolidated from ge6j, atmb
+*Related to: dpk5, prk6, q2id, l0ka, rkub, ewqu, uucn, y0v3*
+
+### 2026-02-07 | Mock Implementation Patterns | patterns
 Mock implementations use optional function pointer fields (FnField pattern) with nil-safe defaults. Tests set up only the behavior needed via tracking flags or injected callbacks, enabling focused verification of specific code paths without requiring full mock setup.
 
-### 0001-01-01 | patterns | consolidated from nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2
+*Related to: ge6j, atmb*
+
+### 2026-02-07 | Status File Management | patterns
 Status struct fields require backward-compatible changes (omitempty for new optional fields). Use ReadStatus()/IsProcessAlive() for state + liveness checks. Return nil,nil for missing optional files (not an error). StatusWriter handles both lifecycle states and preserves completed iteration count on shutdown. Round-trip tests verify serialization fidelity. Stale resource cleanup integrates into status reporting via process liveness checks. Process utilities (IsProcessAlive) are co-located with Status in status.go. Test file I/O uses t.TempDir() for isolation.
 
-### 0001-01-01 | patterns | consolidated from 5xbi, 88fk, 9ntm
+*Related to: nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2*
+
+### 2026-02-07 | Output Formatting | patterns
 Format functions build output via []string slice joined with newlines. Duration formatting composes by delegating to formatDuration() then appending context like " ago". Use strings.Contains() for multi-line output tests; exact equality for single-value formatters.
+
+*Related to: 5xbi, 88fk, 9ntm*
+
+### 2026-02-07 | LEARNINGS.md Format Validation | conventions
+When working with LEARNINGS.md, understand its structure and format requirements. Each confirmed learning entry must have: (1) valid date timestamps (not zero values), (2) a BeadID field with a descriptive learning title (not category names), (3) a Category field, and (4) a RelatedTo field listing consolidated source bead IDs in a separate '*Related to: id1, id2*' line. The learnings file is validated by integration tests that strictly enforce this format, so malformed entries will cause test failures. Always verify that file format modifications maintain expected field positions and required metadata before committing.
+
+*Related to: gromit-ie2*
 
 ### 2026-02-07 | gromit-ie2 | conventions
 *Related to: gromit-ie2*
@@ -215,6 +227,12 @@ When reviewing test failures during validation, check if the broken test is rela
 
 ### 2026-02-07 | gromit-knc | conventions
 LEARNINGS.md entries must have: (1) valid date timestamps (not zero/empty), (2) BeadID matching the full bead identifier (not shortened names like 'gotchas'), and (3) non-empty RelatedTo fields. The TestLoadActualLearningsFile test validates this structure and will fail if any learning entry has malformed metadata.
+
+### 2026-02-07 | gromit-3fqu | conventions
+LEARNINGS.md consolidation must follow strict pipe-delimited format (### YYYY-MM-DD | DESCRIPTIVE_TITLE | CATEGORY_NAME) with RelatedTo as a separate line. When consolidated learnings are created, ensure BeadID contains the full learning title, use current dates, and record source IDs in a '*Related to: id1, id2*' line, not in the header. Integration tests validate this format and will catch corruption.
+
+### 2026-02-07 | gromit-3ibd | conventions
+When implementing features that write to LEARNINGS.md (or similar structured data files), ensure all required fields are populated with valid values before tests run. Zero dates and empty BeadID fields indicate incomplete writes that bypass normal validation.
 
 ---
 
