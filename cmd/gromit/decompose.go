@@ -229,8 +229,13 @@ func decomposeSinglePlan(planName string, cfg *config.Config) error {
 		// Resolve dependencies from depends_on_index
 		var dependencies []string
 		for _, depIdx := range def.DependsOnIndex {
+			if depIdx == i {
+				fmt.Fprintf(os.Stderr, "  Warning: bead %d (%s) has self-dependency, skipping\n", i, def.Title)
+				continue
+			}
 			if depIdx < 0 || depIdx >= len(createdBeads) {
-				return fmt.Errorf("invalid dependency index %d in bead %d (%s)", depIdx, i, def.Title)
+				fmt.Fprintf(os.Stderr, "  Warning: bead %d (%s) references unresolvable dependency index %d, skipping\n", i, def.Title, depIdx)
+				continue
 			}
 			dependencies = append(dependencies, createdBeads[depIdx])
 		}

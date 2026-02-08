@@ -7,15 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/preflight"
 	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/review"
 )
 
 // beadContext holds the shared state for processing a single bead.
@@ -868,90 +865,16 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 	bc.result.Validated = true
 	r.log("Validation passed")
 
-	// Determine which post-success stages to run
+	// Run post-success stages sequentially
 	learningEnabled := r.cfg != nil && r.cfg.Loop.ShouldLearnFromSuccess()
 	reviewEnabled := r.cfg != nil && r.cfg.Review.Enabled
 
-	// If both stages are enabled, run them concurrently
-	if learningEnabled && reviewEnabled {
-		return r.runPostSuccessParallel(ctx, bc)
-	}
-
-	// Otherwise, run enabled stages inline
 	if learningEnabled {
 		r.extractSuccessLearning(ctx, bc)
 	}
 
 	if reviewEnabled {
 		return r.runPostSuccessReview(ctx, bc)
-	}
-
-	return nil
-}
-
-// runPostSuccessParallel runs learning extraction and review concurrently using errgroup.
-func (r *Runner) runPostSuccessParallel(ctx context.Context, bc *beadContext) error {
-	var g errgroup.Group
-	var reviewResult *review.ReviewResult
-	var reviewErr error
-	var reviewStart time.Time
-
-	// Run learning extraction in a goroutine
-	g.Go(func() error {
-		r.extractSuccessLearning(ctx, bc)
-		return nil // Learning extraction failures are silently ignored
-	})
-
-	// Run review in a goroutine
-	g.Go(func() error {
-		reviewStart = time.Now()
-		r.log("Running post-iteration review with model: %s", selectReviewModel(r.cfg, bc.model))
-
-		result, err := r.runLightReview(ctx, bc.bead, bc.parent, bc.startCommit, bc.model, bc.iteration, bc.runDeadline)
-		reviewResult = result
-		reviewErr = err
-		return nil // We'll handle review errors after Wait()
-	})
-
-	// Wait for both goroutines to complete
-	_ = g.Wait() // errgroup.Wait always returns nil since both goroutines return nil
-
-	// Handle review results
-	if reviewErr != nil {
-		r.log("Warning: review failed: %v", reviewErr)
-		return nil // Review failure is non-blocking
-	}
-
-	if reviewResult != nil {
-		r.log("Review: %s", reviewResult.Summary)
-
-		// If fixes were applied, re-validate
-		if len(reviewResult.FixesApplied) > 0 {
-			r.log("Review applied %d fixes, re-validating...", len(reviewResult.FixesApplied))
-
-			if r.cfg.Validation.Enabled {
-				valResult, err := r.claude.RunValidation(ctx, r.cfg.Validation.Commands, r.cfg.Models.Validation, bc.promptCtx.WorkDir)
-				if err != nil {
-					return fmt.Errorf("review re-validation invocation: %w", err)
-				}
-				if valResult == nil || !claude.IsValidationPassed(valResult) {
-					bc.result.Output += "\n\n=== REVIEW RE-VALIDATION FAILED ===\n"
-					if valResult != nil {
-						bc.result.Output += valResult.Output
-					}
-					bc.result.ReviewBrokeValidation = true
-					return fmt.Errorf("review fixes broke validation")
-				}
-				r.log("Re-validation passed")
-			}
-		}
-
-		// Create beads/backlog from review findings
-		beadsCreated, backlogCreated := r.applyReviewResult(reviewResult)
-
-		// Log review result
-		reviewDuration := time.Since(reviewStart)
-		r.writeReviewLog(bc.iteration, bc.bead.ID, selectReviewModel(r.cfg, bc.model), reviewResult, beadsCreated, backlogCreated, reviewDuration)
 	}
 
 	return nil

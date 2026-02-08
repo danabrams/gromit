@@ -3,11 +3,11 @@ package contracts
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/test/testutil"
 )
 
@@ -696,57 +696,29 @@ func TestBDContract_ReadyWithLabel(t *testing.T) {
 		t.Fatalf("Failed to write bd state file: %v", err)
 	}
 
-	// Create a simple Go program that calls ReadyWithLabel
-	testProgram := `package main
+	// Set env vars so the bead client's subprocess finds the fake bd
+	t.Setenv("PATH", env.PATH)
+	t.Setenv("TEST_DIR", env.Dir)
+	t.Setenv("TEST_CALL_LOG", env.CallLog)
 
-import (
-	"fmt"
-	"os"
-	"github.com/danabrams/gromit/internal/bead"
-)
-
-func main() {
+	// Call ReadyWithLabel directly
 	client, err := bead.NewClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create client: %v\n", err)
-		os.Exit(1)
+		t.Fatalf("Failed to create bead client: %v", err)
 	}
+	client.Dir = env.Dir
 
-	// Set the working directory if provided
-	if dir := os.Getenv("TEST_DIR"); dir != "" {
-		client.Dir = dir
-	}
-
-	// Call ReadyWithLabel with spec:auth
 	b, err := client.ReadyWithLabel("spec:auth")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ReadyWithLabel error: %v\n", err)
-		os.Exit(1)
+		t.Fatalf("ReadyWithLabel error: %v", err)
 	}
 
+	var output string
 	if b == nil {
-		fmt.Println("No bead found")
-		os.Exit(0)
+		output = "No bead found"
+	} else {
+		output = "Found bead: " + b.ID + " (" + b.Type + ")"
 	}
-
-	fmt.Printf("Found bead: %s (%s)\n", b.ID, b.Type)
-}
-`
-	testProgramPath := filepath.Join(env.Dir, "test_ready_with_label.go")
-	if err := os.WriteFile(testProgramPath, []byte(testProgram), 0644); err != nil {
-		t.Fatalf("Failed to write test program: %v", err)
-	}
-
-	// Run the test program
-	cmd := exec.Command("go", "run", testProgramPath)
-	cmd.Dir = env.Dir
-	cmd.Env = env.Env
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Logf("Program output: %s", output)
-		t.Fatalf("Failed to run test program: %v", err)
-	}
-
 	t.Logf("Program output: %s", output)
 
 	// Read bd calls

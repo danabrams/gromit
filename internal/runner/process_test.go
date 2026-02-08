@@ -1613,13 +1613,12 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 	}
 }
 
-func TestPostSuccess_BothStagesEnabled_ExecuteConcurrently(t *testing.T) {
+func TestPostSuccess_BothStagesEnabled_RunSequentially(t *testing.T) {
 	// Verifies that when both learning and review are enabled,
-	// they execute concurrently and wall-clock time is approximately max(learning, review)
-	// rather than sum(learning, review).
+	// both stages run and complete successfully.
 
 	var buf strings.Builder
-	var learningStartTime, reviewStartTime, learningEndTime, reviewEndTime time.Time
+	var learningCalled, reviewCalled bool
 	var mu sync.Mutex
 
 	mockClaude := &mockClaudeClient{
@@ -1627,32 +1626,18 @@ func TestPostSuccess_BothStagesEnabled_ExecuteConcurrently(t *testing.T) {
 			// Learning extraction uses haiku model
 			if model == "haiku" {
 				mu.Lock()
-				learningStartTime = time.Now()
-				mu.Unlock()
-
-				// Simulate work with a sleep
-				time.Sleep(100 * time.Millisecond)
-
-				mu.Lock()
-				learningEndTime = time.Now()
+				learningCalled = true
 				mu.Unlock()
 
 				return &claude.Result{
 					Success: true,
-					Output:  `{"learning": "Test concurrent learning", "category": "patterns"}`,
+					Output:  `{"learning": "Test learning", "category": "patterns"}`,
 				}, nil
 			}
 
 			// Review stage uses sonnet/opus
 			mu.Lock()
-			reviewStartTime = time.Now()
-			mu.Unlock()
-
-			// Simulate work with a sleep
-			time.Sleep(150 * time.Millisecond)
-
-			mu.Lock()
-			reviewEndTime = time.Now()
+			reviewCalled = true
 			mu.Unlock()
 
 			return &claude.Result{
@@ -1713,9 +1698,9 @@ func TestPostSuccess_BothStagesEnabled_ExecuteConcurrently(t *testing.T) {
 
 	bc := &beadContext{
 		bead: &bead.Bead{
-			ID:          "test-concurrent-stages",
-			Title:       "Test Concurrent Post-Success Execution",
-			Description: "Verify learning and review run concurrently",
+			ID:          "test-both-stages",
+			Title:       "Test Both Post-Success Stages",
+			Description: "Verify learning and review both run",
 		},
 		model:       "sonnet",
 		result:      &IterationResult{Validated: true},
@@ -1727,9 +1712,7 @@ func TestPostSuccess_BothStagesEnabled_ExecuteConcurrently(t *testing.T) {
 		},
 	}
 
-	start := time.Now()
 	err := r.runValidation(context.Background(), bc)
-	elapsed := time.Since(start)
 
 	if err != nil {
 		t.Errorf("expected no error, got: %v", err)
@@ -1739,39 +1722,11 @@ func TestPostSuccess_BothStagesEnabled_ExecuteConcurrently(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	if learningStartTime.IsZero() {
+	if !learningCalled {
 		t.Error("learning should have been called")
 	}
-	if reviewStartTime.IsZero() {
+	if !reviewCalled {
 		t.Error("review should have been called")
-	}
-
-	// Key assertion: verify concurrent execution
-	// If stages run concurrently, they should overlap in time
-	// Learning takes ~100ms, review takes ~150ms
-	// Sequential: ~250ms total
-	// Concurrent: ~150ms total (max of the two)
-	// Allow some overhead (50ms buffer)
-	maxExpected := 200 * time.Millisecond
-	minExpected := 140 * time.Millisecond
-
-	if elapsed < minExpected {
-		t.Errorf("execution too fast: expected at least %v, got %v (stages may not have actually run)", minExpected, elapsed)
-	}
-
-	if elapsed > maxExpected {
-		t.Errorf("execution too slow: expected at most %v, got %v (stages may be running sequentially)", maxExpected, elapsed)
-	}
-
-	// Verify stages actually overlapped in time
-	// Learning: [learningStartTime, learningEndTime]
-	// Review: [reviewStartTime, reviewEndTime]
-	// They overlap if: learningStartTime < reviewEndTime && reviewStartTime < learningEndTime
-	if !learningStartTime.IsZero() && !reviewStartTime.IsZero() {
-		if learningStartTime.After(reviewEndTime) || reviewStartTime.After(learningEndTime) {
-			t.Errorf("stages did not overlap in time - likely sequential execution. Learning: %v-%v, Review: %v-%v",
-				learningStartTime, learningEndTime, reviewStartTime, reviewEndTime)
-		}
 	}
 
 	// Verify both stages completed successfully
@@ -1784,9 +1739,9 @@ func TestPostSuccess_BothStagesEnabled_ExecuteConcurrently(t *testing.T) {
 	}
 }
 
-func TestPostSuccess_ConcurrentExecution_LearningFailureDoesNotBlockReview(t *testing.T) {
-	// Verifies that when both stages run concurrently, a failure in learning
-	// does not prevent or delay the review stage from completing.
+func TestPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
+	// Verifies that a failure in learning does not prevent
+	// the review stage from completing.
 
 	var buf strings.Builder
 	var learningCalled, reviewCalled bool
@@ -1888,7 +1843,7 @@ func TestPostSuccess_ConcurrentExecution_LearningFailureDoesNotBlockReview(t *te
 
 	// The method should not return an error (learning failures are silently ignored)
 	if err != nil {
-		t.Errorf("expected no error when learning fails in concurrent execution, got: %v", err)
+		t.Errorf("expected no error when learning fails, got: %v", err)
 	}
 
 	// Verify both stages were called

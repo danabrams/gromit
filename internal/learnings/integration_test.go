@@ -20,18 +20,17 @@ func TestLoadActualLearningsFile(t *testing.T) {
 	}
 
 	confirmed := f.GetConfirmed()
-	if len(confirmed) < 6 {
-		t.Errorf("Expected at least 6 confirmed learnings, got %d", len(confirmed))
+	if len(confirmed) < 5 {
+		t.Errorf("Expected at least 5 confirmed learnings, got %d", len(confirmed))
 	}
 
 	// Verify the first few confirmed learnings have proper structure
 	expectedTitles := []string{
-		"Shell Safety",
 		"Mock Implementation Patterns",
 		"Status File Management",
-		"LEARNINGS.md Format Validation",
-		"Test Helper Delegation",
 		"Prompt and Template Infrastructure",
+		"Methodology Label Activation",
+		"Runner Method Pattern",
 	}
 
 	for i, expected := range expectedTitles {

@@ -1,8 +1,9 @@
 ---
+created: 2026-02-08T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-08T17:00:33-05:00"
 id: epic-scoped-execution
 source_spec: epic-scoped-execution
-created: 2026-02-08
-decomposed: false
 ---
 
 # Epic-Scoped Execution Implementation Plan

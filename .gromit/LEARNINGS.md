@@ -9,12 +9,6 @@ This file is automatically updated. Review periodically with `gromit retro`.
 
 *Patterns seen multiple times - high confidence.*
 
-### 2026-02-07 | Shell Safety | gotchas
-*Related to: m7td, 6rao*
-
-Shell scripts handling user content must use quoted <<'EOF' heredocs to prevent variable/command expansion, and pass dynamic values via arguments rather than string interpolation. Both heredoc quoting and argument-passing are required for injection safety.
-**Promoted to RULES.md Safety section.**
-
 ### 2026-02-07 | Mock Implementation Patterns | patterns
 *Related to: ge6j, atmb*
 
@@ -25,17 +19,6 @@ Mock implementations use optional function pointer fields (FnField pattern) with
 
 Status struct fields require backward-compatible changes (omitempty for new optional fields). Use ReadStatus()/IsProcessAlive() for state + liveness checks. Return nil,nil for missing optional files (not an error). StatusWriter handles both lifecycle states and preserves completed iteration count on shutdown. Round-trip tests verify serialization fidelity. Stale resource cleanup integrates into status reporting via process liveness checks. Process utilities (IsProcessAlive) are co-located with Status in status.go. Test file I/O uses t.TempDir() for isolation.
 
-### 2026-02-07 | LEARNINGS.md Format Validation | conventions
-*Related to: gromit-8a52, gromit-i0wm, gromit-wgtu, gromit-2v5n, gromit-49dg, gromit-8et, gromit-3gb, gromit-kim, gromit-due, gromit-1u7, gromit-evq, gromit-w3x, gromit-ltg, gromit-knc, gromit-3fqu, gromit-3ibd, gromit-hvbu, gromit-fntb, gromit-7e5o, gromit-2qf1, gromit-yew, gromit-ie2*
-
-LEARNINGS.md requires strict pipe-delimited header format: `### YYYY-MM-DD | DESCRIPTIVE_TITLE | CATEGORY_NAME`. Rules: (1) Date must be a valid current/past date, never 0001-01-01. (2) BeadID field must contain the full descriptive learning title, not category names. (3) Category must be one of: gotchas, conventions, patterns. (4) Consolidated entries must include source bead IDs in a separate `*Related to: id1, id2*` line in the content body, not in the header. (5) Integration test TestLoadActualLearningsFile validates this format strictly — malformed headers silently produce zero-value dates that are hard to debug. (6) When consolidating learnings, validate output format before persisting. (7) Data files tested by integration tests must conform to the validated schema — test fixtures and actual data files must stay in sync. When prefix renames or ID migrations occur, update both code references and documentation/metadata files.
-**Promoted to RULES.md Process section.**
-
-### 2026-02-07 | Test Helper Delegation | conventions
-*Related to: rkub, ewqu, uucn, y0v3*
-
-Test helpers delegate to shared testutil packages rather than duplicating logic. Use t.Fatalf for error handling when adapting function signatures with different return counts. Handle optional parameters using zero-value checks (empty string for dir, nil for environ) rather than pointers. E2E test files delegate to testutil package helpers (e.g., testutil.PickerStdin) rather than hardcoding raw strings.
-
 ### 2026-02-08 | Prompt and Template Infrastructure | conventions
 *Related to: ralph-runner-utv8, ralph-runner-yx7b, ralph-runner-5lk0, ralph-runner-kjix, ralph-runner-628c, ralph-runner-nxdm, gromit-s7tm, gromit-avbc*
 
@@ -45,28 +28,6 @@ Prompt/template infrastructure follows a load-populate-render pattern with consi
 *Related to: ralph-runner-4a3f, ralph-runner-nzue*
 
 Methodologies use label-based activation ("methodology:true"/"false") with global config fallback via bead.IsMethodologyActive(). When active, replace the build prompt with a specialized RenderXXXBuild method. Check parent labels before adding globally-active methodology labels to sub-beads to avoid duplicates. Order methodology checks carefully for precedence when multiple methodologies are active.
-
-### 2026-02-07 | Dependency Injection for Testability | patterns
-*Related to: ralph-runner-tizz, ralph-runner-tsf4*
-
-Mock implementations in *_test.go require adding Fn fields and calling them in mock methods, mirroring existing Render* patterns. CLI functions with user prompts or subprocess calls should accept these as injected function parameters for testability. When adding new interface methods, add corresponding mock fields and verify against existing mock patterns.
-**Promoted to RULES.md Code Style section.**
-
-### 2026-02-07 | syncWriter Thread Safety | patterns
-*Related to: ralph-runner-qcoc, ralph-runner-t13e, ralph-runner-z6li*
-
-Wrapper types around io.Writer use sync.Mutex for thread safety and track state (like lastWasOverwrite) for mode transitions. Store concrete wrapper types as struct fields (not just interfaces) when wrapper-specific methods are needed. syncWriter.WriteOverwrite() handles newline transitions automatically — don't manually add newlines around calls.
-
-### 2026-02-08 | JSON Serialization Conventions | conventions
-*Related to: gromit-s73k, gromit-0xbs, gromit-goaz, gromit-zxxs*
-
-JSON struct tags in this codebase use snake_case field names (input_tokens, cost_usd). All serialized fields must have explicit JSON tags — omitting tags causes fields to be excluded from output. Use `omitempty` only for optional fields; omit it when the field should always be present in output.
-**Promoted to RULES.md Code Style section.**
-
-### 2026-02-08 | Config Defaults Pattern | conventions
-*Related to: gromit-9ckj, gromit-w971*
-
-Config defaults use zero-value checking in setDefaults(): `if field == 0` means 'not configured'. Nested structs in YAML configs use `yaml:"field_name"` tags, and defaults for nested fields are set in the parent's setDefaults() after the struct is populated. Zero is the sentinel for 'not configured' for int fields.
 
 ### 2026-02-08 | Runner Method Pattern | patterns
 *Related to: gromit-5pvp, gromit-82qx, gromit-vabo*
@@ -79,23 +40,8 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-08 | gromit-j5x0 | patterns
-Filter must be set on learnings.File via SetFilter() immediately after NewFile() and before Load() or Add(), to ensure filtering applies to all subsequent operations
-
-### 2026-02-08 | gromit-t5x0 | patterns
-Skills are embedded as package-level variables using go:embed with filesystem patterns like //go:embed gromit-*/SKILL.md, paired with exported string variables like SkillName to make them accessible to the rest of the codebase
-
-### 2026-02-08 | gromit-x9bq | conventions
-When modifying bead client interfaces and methods (internal/bead/bead.go and internal/runner/interfaces.go), audit all callers in internal/runner/ that fetch beads - particularly parallel execution logic in parallel_post_success.go. Concurrent tests are timing-sensitive and small changes to how/when beads are fetched can break timing assumptions. Always check that bead fetching remains non-blocking in parallel contexts.
-
-### 2026-02-08 | gromit-o2vl | conventions
-When adding methods to interfaces used by the runner package (especially BeadClient), verify that changes integrate correctly with concurrent execution paths. The parallel post-success flow has strict timing expectations—tests use timing assertions to catch serialization bugs. Always run the full test suite including test/contracts before submitting, as module resolution issues in contracts tests indicate incomplete implementation context.
-
-### 2026-02-08 | gromit-sliw | conventions
-When modifying state.File or other shared state structures, verify that changes don't introduce race conditions or affect the runner's parallel post-success execution flow. The parallel execution tests are sensitive to timing and state mutation patterns—changes to state management can cascade into seemingly unrelated test failures in concurrent execution paths.
-
-### 2026-02-08 | gromit-uwyu | conventions
-When validation fails with multiple unrelated test failures across different packages, investigate whether the failures are caused by the current changes or are pre-existing issues in the test suite. The parallel execution timing tests in internal/runner appear flaky and may need adjustment to timing thresholds or concurrent execution synchronization.
+### 2026-02-08 | gromit-qnlq | gotchas
+Timing-based concurrency tests in the runner package are sensitive to system load and require either barrier-based synchronization patterns (as mentioned in recent commits using barrier pattern) or more lenient time budgets. Avoid relying solely on wall-clock duration checks; use synchronization primitives like WaitGroup barriers or channels to verify concurrency semantically rather than temporally.
 
 ---
 
@@ -430,6 +376,84 @@ When using errgroup for concurrent task execution in Go, ensure the tasks themse
 
 ### 2026-02-08 | gromit-x9bq | conventions
 When adding new methods to interfaces (BeadClient in this case), ensure that: (1) all implementations of that interface are updated, not just the interface definition; (2) run the full test suite before considering a task complete, as interface changes can have cascading effects on mock implementations and tests; (3) parallel execution and timing-sensitive tests are brittle and failures may indicate the new code wasn't properly integrated into the concurrent execution paths.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-leha | conventions
+When adding new configuration structs (like AgentsConfig), ensure that all code that depends on that configuration is updated to read and use it. Configuration changes often require coordinated updates across multiple packages. Test failures in different areas (runner tests + contract tests) suggest incomplete propagation of the new config fields.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-j5x0 | patterns
+Archived: describes standard API usage ordering (call SetFilter before Load/Add). Generic 'call init before use' advice — obvious from function signatures and not a surprising gotcha.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-t5x0 | patterns
+Archived: describes standard go:embed usage with filesystem patterns. One-time implementation detail obvious from reading the code.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | Parallel Post-Success Execution Fragility | conventions
+Archived: parallel post-success execution removed entirely. Sequential execution is simpler and eliminates race condition risks.
+
+*Archived from confirmed: feature removed*
+
+### 2026-02-08 | syncWriter Thread Safety | patterns
+Archived: parallel post-success execution removed. syncWriter remains but parallel-writes context no longer applies.
+
+*Archived from confirmed: feature removed*
+
+### 2026-02-08 | parallel post-success originals | conventions
+Archived: gromit-x9bq, gromit-o2vl, gromit-sliw consolidated into Confirmed "Parallel Post-Success Execution Fragility" entry.
+
+### 2026-02-08 | gromit-uwyu | conventions
+Archived: temporal observation about parallel tests appearing flaky. Root causes fixed in commits d11a43b (barrier patterns) and cc053dd (syncWriter races). Substantive content captured in consolidated parallel post-success learning.
+
+*Archived from provisional: filtered: stale observation*
+
+### 2026-02-08 | gromit-kcdt | gotchas
+When generating and compiling Go code in temporary/subdirectories during tests, either: (1) copy go.mod/go.sum to the temp directory, (2) use GOPATH mode, or (3) compile from the parent module root with proper -C or working directory flags. bd contract tests need module context for generated programs to resolve internal imports.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | Shell Safety | gotchas
+Archived: already promoted to RULES.md Safety section. Rule is the source of truth.
+
+*Archived from confirmed: promoted to rules*
+
+### 2026-02-08 | LEARNINGS.md Format Validation | conventions
+Archived: already promoted to RULES.md Process section. Rule is the source of truth.
+
+*Archived from confirmed: promoted to rules*
+
+### 2026-02-08 | Test Helper Delegation | conventions
+Archived: generic DRY advice (delegate to shared testutil packages). Standard software engineering practice.
+
+*Archived from confirmed: filtered: generic engineering advice*
+
+### 2026-02-08 | Dependency Injection for Testability | patterns
+Archived: already promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from confirmed: promoted to rules*
+
+### 2026-02-08 | JSON Serialization Conventions | conventions
+Archived: already promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from confirmed: promoted to rules*
+
+### 2026-02-08 | Config Defaults Pattern | conventions
+Archived: already covered by RULES.md Process section (config defaults with setDefaults() and zero-value sentinels). Redundant with rule.
+
+*Archived from confirmed: promoted to rules*
+
+### 2026-02-08 | gromit-qnlq | conventions
+When testing concurrent execution with errgroup in Go, ensure that goroutines are actually spawned and executed in parallel. Sequential execution can occur if goroutines block on synchronization primitives, if stages are not properly spawned in separate goroutines, or if the errgroup is not correctly configured to run tasks concurrently. Tests should use barriers or sync points rather than timing-based assertions to verify concurrency.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-qnlq | gotchas
+Timing-based concurrency assertions in tests are inherently flaky. Use synchronization primitives (barriers, channels, mutexes, or atomic operations) to verify concurrent execution rather than measuring elapsed time. The concurrent execution may be correct but still fail due to system variance.
 
 *Archived from new: filtered: generic engineering advice*
 
