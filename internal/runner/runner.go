@@ -175,20 +175,21 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 
 // IterationResult captures the outcome of one loop iteration
 type IterationResult struct {
-	BeadID       string
-	BeadTitle    string
-	Model        string
-	Success      bool
-	Validated    bool
-	Duration     time.Duration
-	Error        error
-	Escalated    bool
-	EscalatedTo  string
-	Decomposed   bool
-	Output       string
-	CostUSD      float64
-	InputTokens  int
-	OutputTokens int
+	BeadID               string
+	BeadTitle            string
+	Model                string
+	Success              bool
+	Validated            bool
+	Duration             time.Duration
+	Error                error
+	Escalated            bool
+	EscalatedTo          string
+	Decomposed           bool
+	Output               string
+	CostUSD              float64
+	InputTokens          int
+	OutputTokens         int
+	ReviewBrokeValidation bool // true when review fixes broke previously-passing validation
 }
 
 // SubTask represents a single sub-task from task decomposition
@@ -474,6 +475,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			stats.TotalRuns++
 			stats.LastAttempt = time.Now()
 			beadStats[b.ID] = stats
+
+			// Review re-validation failures are always critical: the working tree
+			// is in a broken state after the review applied bad fixes.
+			if result.ReviewBrokeValidation {
+				return fmt.Errorf("bead %s failed: %v", b.ID, result.Error)
+			}
 
 			if r.cfg.Loop.StopOnFailure {
 				return fmt.Errorf("bead %s failed: %v", b.ID, result.Error)

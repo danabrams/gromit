@@ -683,7 +683,9 @@ func TestParallelPostSuccess_NeitherEnabled(t *testing.T) {
 }
 
 // TestParallelPostSuccess_ReviewRevalidationErrorPropagates verifies that when
-// the review applies fixes and re-validation fails, the error propagates correctly.
+// the review applies fixes and re-validation fails, Run() returns an error and
+// the bead is NOT closed. Review re-validation failures are critical because
+// the working tree is left in a broken state.
 func TestParallelPostSuccess_ReviewRevalidationErrorPropagates(t *testing.T) {
 	validationCallCount := 0
 
@@ -760,20 +762,24 @@ func TestParallelPostSuccess_ReviewRevalidationErrorPropagates(t *testing.T) {
 		return "diff --git a/file.go b/file.go\n+some change", nil
 	}
 
-	// When review re-validation fails, the error should prevent bead closure
-	_ = r.Run(context.Background(), 1, time.Time{}, false)
+	// Run() must return an error when review re-validation fails
+	err := r.Run(context.Background(), 1, time.Time{}, false)
+
+	if err == nil {
+		t.Fatal("Expected Run() to return error when review re-validation fails, but got nil")
+	}
+	if !strings.Contains(err.Error(), "review fixes broke validation") {
+		t.Errorf("Expected error to mention 'review fixes broke validation', got: %v", err)
+	}
 
 	// Verify validation was called twice (initial + re-validation)
 	if validationCallCount != 2 {
 		t.Errorf("expected 2 validation calls (initial + re-validation), got %d", validationCallCount)
 	}
 
-	// Bead should NOT be closed if re-validation failed
-	// Note: Current implementation may vary - this test documents expected behavior
-	output := buf.String()
-	if strings.Contains(output, "review fixes broke validation") || strings.Contains(output, "RE-VALIDATION") {
-		// Expected - re-validation failure was detected
-		t.Logf("Re-validation failure properly detected")
+	// Bead should NOT be closed when re-validation fails
+	if len(beads.ClosedIDs) != 0 {
+		t.Errorf("expected bead NOT to be closed when re-validation fails, got closed: %v", beads.ClosedIDs)
 	}
 }
 

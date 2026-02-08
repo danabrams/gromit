@@ -939,6 +939,7 @@ func (r *Runner) runPostSuccessParallel(ctx context.Context, bc *beadContext) er
 					if valResult != nil {
 						bc.result.Output += valResult.Output
 					}
+					bc.result.ReviewBrokeValidation = true
 					return fmt.Errorf("review fixes broke validation")
 				}
 				r.log("Re-validation passed")
@@ -984,6 +985,7 @@ func (r *Runner) runPostSuccessReview(ctx context.Context, bc *beadContext) erro
 					if valResult != nil {
 						bc.result.Output += valResult.Output
 					}
+					bc.result.ReviewBrokeValidation = true
 					return fmt.Errorf("review fixes broke validation")
 				}
 				r.log("Re-validation passed")
