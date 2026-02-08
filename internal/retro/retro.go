@@ -19,11 +19,12 @@ import (
 
 // Retro manages retrospective analysis
 type Retro struct {
-	cfg           *config.Config
-	claude        *claude.Client
-	learningsFile *learnings.File
-	rulesPath     string
-	templatePath  string
+	cfg            *config.Config
+	claude         *claude.Client
+	learningsFile  *learnings.File
+	rulesPath      string
+	templatePath   string
+	experimentPath string
 }
 
 // TemplateContext holds data for retro prompt template
@@ -33,6 +34,7 @@ type TemplateContext struct {
 	RunStats   logger.RunStats
 	BeadStats  map[string]logger.BeadStats
 	Efficiency *logger.EfficiencyReport
+	Experiment *Experiment
 }
 
 // Result represents the outcome of a retro analysis
@@ -56,11 +58,12 @@ func NewRetro(cfg *config.Config, gromitDir string) (*Retro, error) {
 		return nil, err
 	}
 	return &Retro{
-		cfg:           cfg,
-		claude:        claudeClient,
-		learningsFile: learningsFile,
-		rulesPath:     filepath.Join(gromitDir, "RULES.md"),
-		templatePath:  filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
+		cfg:            cfg,
+		claude:         claudeClient,
+		learningsFile:  learningsFile,
+		rulesPath:      filepath.Join(gromitDir, "RULES.md"),
+		templatePath:   filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
+		experimentPath: filepath.Join(gromitDir, "experiment.json"),
 	}, nil
 }
 
@@ -97,6 +100,9 @@ func (r *Retro) Run(ctx context.Context) (*Result, error) {
 	// Load efficiency report (current run is empty string, all runs are historical)
 	efficiencyReport, _ := logger.ReadEfficiencyReport(logsDir, "")
 
+	// Load active experiment (if any)
+	experiment, _ := LoadExperiment(r.experimentPath)
+
 	// Filter per-bead stats to only include beads with >= 2 failures
 	filteredBeadStats := make(map[string]logger.BeadStats)
 	for id, stats := range allBeadStats {
@@ -116,7 +122,7 @@ func (r *Retro) Run(ctx context.Context) (*Result, error) {
 	}
 
 	// Render prompt
-	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats, efficiencyReport)
+	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats, efficiencyReport, experiment)
 	if err != nil {
 		return nil, fmt.Errorf("rendering prompt: %w", err)
 	}
@@ -201,7 +207,7 @@ func (r *Retro) formatLearnings() string {
 }
 
 // renderPrompt renders the retro prompt template
-func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, beadStats map[string]logger.BeadStats, efficiency *logger.EfficiencyReport) (string, error) {
+func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, beadStats map[string]logger.BeadStats, efficiency *logger.EfficiencyReport, experiment *Experiment) (string, error) {
 	tmplContent, err := os.ReadFile(r.templatePath)
 	if err != nil {
 		return "", fmt.Errorf("reading template: %w", err)
@@ -230,6 +236,7 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 		RunStats:   runStats,
 		BeadStats:  beadStats,
 		Efficiency: efficiency,
+		Experiment: experiment,
 	}
 
 	var sb strings.Builder
@@ -290,6 +297,7 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 // - Edit LEARNINGS.md
 // - Run bd commands
 // - Create specs
+// - Select and persist experiments
 func LaunchClaudeCode(analysis string) error {
 	// Build the prompt with analysis and instructions
 	prompt := fmt.Sprintf(`# Retrospective Analysis Results
@@ -304,6 +312,12 @@ You are now in an interactive Claude Code session. Based on the analysis above, 
 2. **Edit LEARNINGS.md** - Consolidate, archive, or promote learnings
 3. **Run bd commands** - Create new beads, update existing ones, or manage the backlog
 4. **Create specs** - Write detailed specifications in .gromit/specs/ for complex features
+5. **Select an experiment** - If efficiency analysis included experiment recommendations, you can select at most ONE experiment to run. Use the retro package functions to persist the selected experiment to .gromit/experiment.json. If an active experiment was evaluated, you can keep it (no action needed), revert it (delete experiment.json and undo changes), or extend it (keep experiment.json).
+
+**Important constraints:**
+- Only select ONE experiment at a time (never multiple)
+- When selecting an experiment, populate baseline metrics using ComputeBaselineMetrics from the retro package
+- Experiment recommendations should focus on concrete, testable process changes
 
 Please review the analysis and take appropriate actions.
 `, analysis)

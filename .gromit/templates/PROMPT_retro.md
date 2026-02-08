@@ -119,6 +119,45 @@ The following iterations exceeded 80% of their model's context window:
 
 {{- end }}
 
+{{- if .Experiment }}
+
+## Active Experiment Evaluation
+
+An experiment is currently active. Evaluate its results against the baseline metrics.
+
+**Experiment Details:**
+- **Name**: {{ .Experiment.Name }}
+- **Hypothesis**: {{ .Experiment.Hypothesis }}
+- **Change**: {{ .Experiment.Change }}
+- **Measurement**: {{ .Experiment.Measurement }}
+- **Risk**: {{ .Experiment.Risk }}
+- **Started**: {{ .Experiment.StartedAt.Format "2006-01-02" }}
+
+**Baseline Metrics (at experiment start):**
+- Avg cost per bead: ${{ printf "%.4f" .Experiment.BaselineMetrics.AvgCostPerBead }}
+- Avg duration per bead: {{ .Experiment.BaselineMetrics.AvgDurationMs }}ms
+- Avg input tokens: {{ printf "%.0f" .Experiment.BaselineMetrics.AvgInputTokens }}
+- Avg output tokens: {{ printf "%.0f" .Experiment.BaselineMetrics.AvgOutputTokens }}
+- Failure rate: {{ printf "%.1f%%" (mul .Experiment.BaselineMetrics.FailureRate 100) }}
+
+**Current Metrics (since experiment started):**
+{{- if .Efficiency }}
+- Avg cost per bead: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }} ({{ if gt .Efficiency.CurrentAvgCostPerBead .Experiment.BaselineMetrics.AvgCostPerBead }}↑ +{{ printf "%.1f%%" (mul (div (sub .Efficiency.CurrentAvgCostPerBead .Experiment.BaselineMetrics.AvgCostPerBead) .Experiment.BaselineMetrics.AvgCostPerBead) 100) }}{{ else if lt .Efficiency.CurrentAvgCostPerBead .Experiment.BaselineMetrics.AvgCostPerBead }}↓ {{ printf "%.1f%%" (mul (div (sub .Efficiency.CurrentAvgCostPerBead .Experiment.BaselineMetrics.AvgCostPerBead) .Experiment.BaselineMetrics.AvgCostPerBead) 100) }}{{ else }}→ no change{{ end }})
+- Avg duration per bead: {{ .Efficiency.CurrentAvgDurationPerBead }} ({{ if gt (durationMs .Efficiency.CurrentAvgDurationPerBead) (div .Experiment.BaselineMetrics.AvgDurationMs 1.0) }}↑ +{{ printf "%.1f%%" (mul (div (sub (durationMs .Efficiency.CurrentAvgDurationPerBead) .Experiment.BaselineMetrics.AvgDurationMs) .Experiment.BaselineMetrics.AvgDurationMs) 100) }}{{ else if lt (durationMs .Efficiency.CurrentAvgDurationPerBead) (div .Experiment.BaselineMetrics.AvgDurationMs 1.0) }}↓ {{ printf "%.1f%%" (mul (div (sub (durationMs .Efficiency.CurrentAvgDurationPerBead) .Experiment.BaselineMetrics.AvgDurationMs) .Experiment.BaselineMetrics.AvgDurationMs) 100) }}{{ else }}→ no change{{ end }})
+{{- end }}
+{{- if .RunStats.Total }}
+- Failure rate: {{ printf "%.1f%%" (mul .RunStats.FailureRate 100) }} ({{ if gt .RunStats.FailureRate .Experiment.BaselineMetrics.FailureRate }}↑ +{{ printf "%.1f%%" (mul (div (sub .RunStats.FailureRate .Experiment.BaselineMetrics.FailureRate) .Experiment.BaselineMetrics.FailureRate) 100) }}{{ else if lt .RunStats.FailureRate .Experiment.BaselineMetrics.FailureRate }}↓ {{ printf "%.1f%%" (mul (div (sub .RunStats.FailureRate .Experiment.BaselineMetrics.FailureRate) .Experiment.BaselineMetrics.FailureRate) 100) }}{{ else }}→ no change{{ end }})
+{{- end }}
+
+**Your Task for this Experiment:**
+
+Analyze the metrics comparison above and provide:
+1. **Observations**: What changed? Did the hypothesis hold? Were there unexpected side effects?
+2. **Analysis**: Apply Five Whys if anomalies occurred. What patterns emerged?
+3. **Recommendation**: Should we keep the change (integrate it as standard practice), revert it (undo the experiment), or extend the experiment (gather more data)?
+
+{{- end }}
+
 ## Task
 
 Analyze the learnings above and provide:
@@ -139,6 +178,13 @@ Analyze the learnings above and provide:
 {{- if .Efficiency }}
 
 6. **Efficiency Analysis**: Identify cost or time anomalies in the Current Run Efficiency data above. When anomalies are found, apply Five Whys analysis to trace surface symptoms (e.g., "this bead cost $3") to root causes (e.g., "the acceptance criteria were ambiguous, causing opus escalation"). Produce efficiency-related learnings that identify patterns to avoid or improve.
+
+7. **Experiment Recommendations**: Based on the efficiency analysis, generate 2-4 concrete experiment recommendations. Each experiment should have:
+   - **Name**: Short descriptive label (e.g., "Use haiku for test-only beads")
+   - **Hypothesis**: What you expect to happen (e.g., "Beads that only modify test files can succeed with haiku, reducing cost by ~60% for those beads")
+   - **Change**: What to do differently (e.g., "Add label `complexity:low` to beads whose title contains 'test'")
+   - **Measurement**: How to evaluate success (e.g., "Compare success rate and cost of test-only beads before vs after")
+   - **Risk**: What could go wrong (e.g., "Test-only beads may fail more on haiku, increasing retries")
 {{- end }}
 
 ## Output Format
@@ -178,6 +224,15 @@ Provide your analysis in two parts:
       "proposed_rule": "New text",
       "rationale": "Why this change is needed"
     }
+  ],
+  "experiments": [
+    {
+      "name": "Short descriptive label",
+      "hypothesis": "What you expect to happen",
+      "change": "What to do differently",
+      "measurement": "How to evaluate success",
+      "risk": "What could go wrong"
+    }
   ]
 }
 ```
@@ -191,3 +246,8 @@ Provide your analysis in two parts:
 - Ensure proposed rules align with Go idioms and project goals
 - Consider whether a learning is truly a "rule" (constraint) or just good advice
 - Use the learning hashes from above to reference learnings in your JSON proposals
+{{- if .Efficiency }}
+- Generate 2-4 experiment recommendations based on efficiency data (not more, not less)
+- Each experiment must be concrete, testable, and have clear measurement criteria
+- During interactive review, the user will select at most one experiment to run (never multiple)
+{{- end }}
