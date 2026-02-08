@@ -64,6 +64,11 @@ claude:
   flags:
     - "--dangerously-skip-permissions"
 
+# Git settings
+git:
+  auto_push: true  # Push to remote after each successful bead (default: true)
+  push_failure: "warn"  # What to do when push fails: "warn" | "stop" (default: "warn")
+
 # Paths (relative to project root)
 paths:
   templates: ".gromit/templates"
