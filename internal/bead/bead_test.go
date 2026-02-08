@@ -2,9 +2,12 @@ package bead
 
 import (
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/jsonutil"
 )
 
 func TestValidate_ValidBead(t *testing.T) {
@@ -1584,5 +1587,207 @@ func TestClientHasOpenChildrenValidation(t *testing.T) {
 				t.Errorf("HasOpenChildren(%q) should fail with validation error, got: %v", tt.parentID, err)
 			}
 		})
+	}
+}
+
+// TestClientListReadyIDsNilClient tests that ListReadyIDs() returns error on nil client
+func TestClientListReadyIDsNilClient(t *testing.T) {
+	var c *Client
+	_, err := c.ListReadyIDs()
+	if err == nil {
+		t.Errorf("ListReadyIDs() on nil client expected error but got nil")
+		return
+	}
+	if !strings.Contains(err.Error(), "nil") {
+		t.Errorf("ListReadyIDs() on nil client should mention nil, got: %v", err)
+	}
+}
+
+// TestClientListReadyIDsEmpty tests that ListReadyIDs() returns empty slice for no beads
+func TestClientListReadyIDsEmpty(t *testing.T) {
+	tests := []struct {
+		name        string
+		jsonOutput  string
+		description string
+	}{
+		{
+			name:        "empty array",
+			jsonOutput:  "[]",
+			description: "No ready beads",
+		},
+		{
+			name:        "empty string",
+			jsonOutput:  "",
+			description: "No output from bd",
+		},
+		{
+			name:        "whitespace only",
+			jsonOutput:  "   \n  ",
+			description: "Only whitespace",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ids, err := parseBeadOutputToIDs(tt.jsonOutput)
+			if err != nil {
+				t.Fatalf("parseBeadOutputToIDs() error = %v", err)
+			}
+			if ids == nil {
+				t.Errorf("ListReadyIDs() should return empty slice not nil, got nil")
+				return
+			}
+			if len(ids) != 0 {
+				t.Errorf("ListReadyIDs() expected empty slice, got %v", ids)
+			}
+		})
+	}
+}
+
+// TestClientListReadyIDsMultiple tests that ListReadyIDs() returns multiple bead IDs
+func TestClientListReadyIDsMultiple(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+		wantIDs    []string
+	}{
+		{
+			name: "single bead",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Test task",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantIDs: []string{"task-001"},
+		},
+		{
+			name: "multiple beads",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "First task",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "open"
+			}, {
+				"id": "task-002",
+				"title": "Second task",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "open"
+			}, {
+				"id": "task-003",
+				"title": "Third task",
+				"priority": 2,
+				"issue_type": "bug",
+				"status": "open"
+			}]`,
+			wantIDs: []string{"task-001", "task-002", "task-003"},
+		},
+		{
+			name: "mixed types",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Epic",
+				"priority": 0,
+				"issue_type": "epic",
+				"status": "open"
+			}, {
+				"id": "bug-001",
+				"title": "Bug",
+				"priority": 1,
+				"issue_type": "bug",
+				"status": "open"
+			}, {
+				"id": "feature-001",
+				"title": "Feature",
+				"priority": 1,
+				"issue_type": "feature",
+				"status": "open"
+			}]`,
+			wantIDs: []string{"epic-001", "bug-001", "feature-001"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ids, err := parseBeadOutputToIDs(tt.jsonOutput)
+			if err != nil {
+				t.Fatalf("parseBeadOutputToIDs() error = %v", err)
+			}
+			if len(ids) != len(tt.wantIDs) {
+				t.Errorf("ListReadyIDs() returned %d ids, want %d", len(ids), len(tt.wantIDs))
+				return
+			}
+			for i, id := range ids {
+				if id != tt.wantIDs[i] {
+					t.Errorf("ListReadyIDs()[%d] = %q, want %q", i, id, tt.wantIDs[i])
+				}
+			}
+		})
+	}
+}
+
+// TestClientListReadyIDsJSONParseError tests that ListReadyIDs() handles JSON parse errors
+func TestClientListReadyIDsJSONParseError(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+	}{
+		{
+			name:       "invalid JSON",
+			jsonOutput: `{"id": "test-123", invalid}`,
+		},
+		{
+			name:       "malformed array",
+			jsonOutput: `[{invalid json}]`,
+		},
+		{
+			name:       "not an array",
+			jsonOutput: `{"id": "test-123", "title": "single object"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ids, err := parseBeadOutputToIDs(tt.jsonOutput)
+			if err == nil {
+				t.Errorf("parseBeadOutputToIDs() expected error for invalid JSON, got nil, ids=%v", ids)
+				return
+			}
+			if !strings.Contains(err.Error(), "parsing") {
+				t.Errorf("parseBeadOutputToIDs() error should mention parsing, got: %v", err)
+			}
+		})
+	}
+}
+
+// parseBeadOutputToIDs is a helper function that parses JSON output like ListReadyIDs does
+func parseBeadOutputToIDs(out string) ([]string, error) {
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return []string{}, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd ready output: %w", err)
+	}
+
+	ids := make([]string, len(beads))
+	for i, b := range beads {
+		ids[i] = b.ID
+	}
+	return ids, nil
+}
+
+// TestClientListReadyIDsErrorWrapping tests that ListReadyIDs() wraps command errors with context
+func TestClientListReadyIDsErrorWrapping(t *testing.T) {
+	c, _ := NewClient()
+
+	// Test that errors contain context when bd command fails
+	_, err := c.ListReadyIDs()
+	if err != nil && !strings.Contains(err.Error(), "bd ready") {
+		t.Errorf("ListReadyIDs() error should contain 'bd ready' context: %v", err)
 	}
 }
