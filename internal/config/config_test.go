@@ -2688,3 +2688,47 @@ validation:
 		t.Errorf("expected git push_failure='stop', got %q", cfg.Git.PushFailure)
 	}
 }
+
+func TestStateStaleThresholdDefault(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+	if cfg.State.StaleThreshold != 60 {
+		t.Errorf("expected default StaleThreshold=60, got %d", cfg.State.StaleThreshold)
+	}
+}
+
+func TestStateStaleThresholdFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `state:
+  stale_threshold: 120
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.State.StaleThreshold != 120 {
+		t.Errorf("expected StaleThreshold=120, got %d", cfg.State.StaleThreshold)
+	}
+}
+
+func TestStateStaleThresholdMissingInYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `loop:
+  max_iterations: 10
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.State.StaleThreshold != 60 {
+		t.Errorf("expected default StaleThreshold=60 when omitted, got %d", cfg.State.StaleThreshold)
+	}
+}

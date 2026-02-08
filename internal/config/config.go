@@ -27,6 +27,7 @@ type Config struct {
 	Review      ReviewConfig      `yaml:"review"`
 	Methodology MethodologyConfig `yaml:"methodology"`
 	Git         GitConfig         `yaml:"git"`
+	State       StateConfig       `yaml:"state"`
 }
 
 type ModelsConfig struct {
@@ -116,6 +117,10 @@ type MethodologyConfig struct {
 type GitConfig struct {
 	AutoPush    *bool  `yaml:"auto_push"`
 	PushFailure string `yaml:"push_failure"`
+}
+
+type StateConfig struct {
+	StaleThreshold int `yaml:"stale_threshold"`
 }
 
 func Load(path string) (*Config, error) {
@@ -268,6 +273,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.Git.PushFailure == "" {
 		c.Git.PushFailure = "warn"
+	}
+	if c.State.StaleThreshold == 0 {
+		c.State.StaleThreshold = 60
 	}
 }
 
