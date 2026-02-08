@@ -39,7 +39,6 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "Failed to create temp dir: %v\n", err)
 		os.Exit(1)
 	}
-	defer os.RemoveAll(tmpDir)
 
 	gromitBinary = filepath.Join(tmpDir, "gromit")
 	buildCmd := exec.Command("go", "build", "-o", gromitBinary, "../../cmd/gromit")
@@ -47,6 +46,7 @@ func TestMain(m *testing.M) {
 	buildCmd.Stderr = os.Stderr
 	if err := buildCmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to build gromit binary: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
@@ -54,6 +54,7 @@ func TestMain(m *testing.M) {
 	realGitPath = testutil.FindRealGit()
 	if realGitPath == "" {
 		fmt.Fprintf(os.Stderr, "Failed to find real git binary\n")
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
@@ -61,6 +62,7 @@ func TestMain(m *testing.M) {
 	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get working directory: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 	fakesDir = filepath.Join(wd, "..", "fakes")
@@ -70,6 +72,7 @@ func TestMain(m *testing.M) {
 	scaffoldDir = filepath.Join(tmpDir, "scaffold")
 	if err := os.MkdirAll(scaffoldDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create scaffold dir: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
@@ -78,6 +81,7 @@ func TestMain(m *testing.M) {
 	gitInit.Dir = scaffoldDir
 	if err := gitInit.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize git repo in scaffold dir: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
@@ -86,6 +90,7 @@ func TestMain(m *testing.M) {
 	gitConfig.Dir = scaffoldDir
 	if err := gitConfig.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to configure git user.email: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
@@ -93,6 +98,7 @@ func TestMain(m *testing.M) {
 	gitConfig.Dir = scaffoldDir
 	if err := gitConfig.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to configure git user.name: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
@@ -103,11 +109,15 @@ func TestMain(m *testing.M) {
 	initCmd.Stderr = os.Stderr
 	if err := initCmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to run gromit init in scaffold dir: %v\n", err)
+		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
 
 	// Run the tests
 	exitCode := m.Run()
+
+	// Clean up before exit (os.Exit doesn't run defers)
+	os.RemoveAll(tmpDir)
 	os.Exit(exitCode)
 }
 
