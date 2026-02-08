@@ -434,7 +434,7 @@ func (r *Runner) handleEscalation(ctx context.Context, bc *beadContext, claudeRe
 		return r.attemptDecomposition(ctx, bc, "build failed with all models")
 	}
 
-	if bc.totalRetriesThisBead >= bc.maxRetriesPerBead {
+	if bc.totalRetriesThisBead > bc.maxRetriesPerBead {
 		r.log("Cannot escalate: max retries per bead reached (%d/%d)", bc.totalRetriesThisBead, bc.maxRetriesPerBead)
 		if bc.startCommit != "" {
 			r.showPartialProgress(bc.bead, bc.startCommit)
