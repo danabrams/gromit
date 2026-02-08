@@ -1,10 +1,10 @@
 {
   "running": true,
-  "iteration": 10,
-  "bead_id": "gromit-ieh",
-  "bead_title": "Run bd rename-prefix to migrate database",
+  "iteration": 18,
+  "bead_id": "gromit-8a52",
+  "bead_title": "Fix LEARNINGS.md confirmed entries showing 0001-01-01 instead of descriptive titles",
   "model": "sonnet",
   "started_at": "2026-02-07T17:55:49.916265308-05:00",
-  "elapsed_s": 2008,
+  "elapsed_s": 4204,
   "pid": 2391058
 }
