@@ -318,8 +318,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 
 		// Run precheck to see if acceptance criteria are already met
-		if r.runPrecheck(ctx, b) {
-			r.log("Pre-check: acceptance criteria already met, auto-closing bead %s", b.ID)
+		passed, precheckDuration := r.runPrecheck(ctx, b)
+		if passed {
+			r.log("auto-closing bead %s", b.ID)
 
 			// Close the bead
 			if err := r.beads.Close(b.ID); err != nil {
@@ -341,7 +342,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 					BeadTitle:  b.Title,
 					Model:      "haiku",
 					Success:    true,
-					DurationMs: 0,
+					DurationMs: precheckDuration.Milliseconds(),
 					Outcome:    "precheck_skipped",
 				})
 			}
@@ -1262,16 +1263,18 @@ func (r *Runner) injectMethodologyLabels(parentLabels []string) []string {
 }
 
 // runPrecheck calls configured model with precheck prompt to check if acceptance criteria are already met.
-// Returns true if precheck passed (criteria already satisfied), false otherwise.
+// Returns true if precheck passed (criteria already satisfied), and the duration it took.
 // Non-blocking: logs warnings on errors and returns false.
-func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) bool {
+func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Duration) {
+	start := time.Now()
+
 	if r == nil || b == nil || r.cfg == nil || r.renderer == nil || r.claude == nil {
-		return false
+		return false, 0
 	}
 
 	// Check if precheck is enabled
 	if !r.cfg.Precheck.IsEnabled() {
-		return false
+		return false, 0
 	}
 
 	// Get parent bead if exists
@@ -1290,7 +1293,7 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) bool {
 	precheckPrompt, err := r.renderer.RenderPrecheck(precheckCtx)
 	if err != nil {
 		r.log("Warning: failed to render precheck prompt: %v", err)
-		return false
+		return false, time.Since(start)
 	}
 
 	// Call Claude with configured model and timeout
@@ -1301,16 +1304,16 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) bool {
 	claudeResult, err := r.claude.Run(precheckCtx2, precheckPrompt, r.cfg.Precheck.Model)
 	if err != nil {
 		r.log("Warning: precheck invocation failed: %v", err)
-		return false
+		return false, time.Since(start)
 	}
 	if claudeResult == nil {
 		r.log("Warning: precheck returned nil result")
-		return false
+		return false, time.Since(start)
 	}
 
 	if !claudeResult.Success {
 		r.log("Warning: precheck failed with exit code %d", claudeResult.ExitCode)
-		return false
+		return false, time.Since(start)
 	}
 
 	// Check for PRECHECK_PASSED signal
@@ -1322,7 +1325,7 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) bool {
 		r.log("Pre-check: acceptance criteria not yet met")
 	}
 
-	return passed
+	return passed, time.Since(start)
 }
 
 // checkScope calls haiku with scope prompt and returns ScopeEstimate.
