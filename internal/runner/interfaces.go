@@ -25,6 +25,7 @@ var (
 type BeadClient interface {
 	Ready() (*bead.Bead, error)
 	ReadyWithLabel(label string) (*bead.Bead, error)
+	ListWithLabel(label string) ([]*bead.Bead, error)
 	Show(id string) (*bead.Bead, error)
 	Close(id string) error
 	Sync() error

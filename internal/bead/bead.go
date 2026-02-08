@@ -600,6 +600,46 @@ func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
 	return open, closed, nil
 }
 
+// ListWithLabel returns all beads with the specified label
+func (c *Client) ListWithLabel(label string) ([]*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
+	if label == "" {
+		return nil, fmt.Errorf("label cannot be empty")
+	}
+	// Validate label doesn't contain shell metacharacters
+	if strings.ContainsAny(label, ";\n|$`&<>(){}[]'\"\\") {
+		return nil, fmt.Errorf("invalid label: contains shell metacharacters")
+	}
+
+	out, err := c.run("list", "--json", "--label", label)
+	if err != nil {
+		return nil, fmt.Errorf("bd list: %w", err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return []*Bead{}, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd list output: %w", err)
+	}
+
+	// Convert to pointers and normalize
+	result := make([]*Bead, len(beads))
+	for i := range beads {
+		beads[i].normalizeNilFields()
+		if err := beads[i].Validate(); err != nil {
+			return nil, fmt.Errorf("invalid bead data at index %d: %w", i, err)
+		}
+		result[i] = &beads[i]
+	}
+
+	return result, nil
+}
+
 // UpdatePriority changes the priority of a bead
 func (c *Client) UpdatePriority(id string, priority int) error {
 	if c == nil {

@@ -2300,6 +2300,10 @@ func (m *mockBeadClientForStatus) ReadyWithLabel(label string) (*bead.Bead, erro
 	return nil, nil
 }
 
+func (m *mockBeadClientForStatus) ListWithLabel(label string) ([]*bead.Bead, error) {
+	return []*bead.Bead{}, nil
+}
+
 func (m *mockBeadClientForStatus) Show(id string) (*bead.Bead, error) {
 	return nil, nil
 }

@@ -45,6 +45,7 @@ func TestBeadClient_InterfaceSatisfaction(t *testing.T) {
 type MockBeadClientWithLabel struct {
 	ReadyFunc             func() (*bead.Bead, error)
 	ReadyWithLabelFunc    func(label string) (*bead.Bead, error)
+	ListWithLabelFunc     func(label string) ([]*bead.Bead, error)
 	ShowFunc              func(id string) (*bead.Bead, error)
 	CloseFunc             func(id string) error
 	SyncFunc              func() error
@@ -67,6 +68,13 @@ func (m *MockBeadClientWithLabel) ReadyWithLabel(label string) (*bead.Bead, erro
 		return m.ReadyWithLabelFunc(label)
 	}
 	return nil, nil
+}
+
+func (m *MockBeadClientWithLabel) ListWithLabel(label string) ([]*bead.Bead, error) {
+	if m.ListWithLabelFunc != nil {
+		return m.ListWithLabelFunc(label)
+	}
+	return []*bead.Bead{}, nil
 }
 
 func (m *MockBeadClientWithLabel) Show(id string) (*bead.Bead, error) {
