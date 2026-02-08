@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -386,5 +388,475 @@ func TestResolvePreservesFlagsOrder(t *testing.T) {
 		if ca.flags[i] != expected {
 			t.Errorf("flags[%d] = %q, want %q", i, ca.flags[i], expected)
 		}
+	}
+}
+
+// ========================================================================
+// Acceptance tests for the new Resolve function with priority resolution
+// ========================================================================
+
+// TestResolveWithPriorityFlagOverride verifies flag override takes highest priority
+func TestResolveWithPriorityFlagOverride(t *testing.T) {
+	tests := []struct {
+		name         string
+		cfg          *config.Config
+		phase        string
+		flagOverride string
+		wantName     string
+		wantErr      bool
+	}{
+		{
+			name: "flag override beats phase config",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Phases: config.PhasesConfig{
+						Refine: "claude",
+					},
+				},
+			},
+			phase:        "refine",
+			flagOverride: "codex",
+			wantName:     "codex",
+			wantErr:      false,
+		},
+		{
+			name: "flag override beats default",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Phases: config.PhasesConfig{},
+				},
+			},
+			phase:        "refine",
+			flagOverride: "gemini",
+			wantName:     "gemini",
+			wantErr:      false,
+		},
+		{
+			name: "flag override with custom agent",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Definitions: map[string]config.AgentDefinition{
+						"my-agent": {
+							Binary: "my-cli",
+							Flags:  []string{"--custom"},
+						},
+					},
+				},
+			},
+			phase:        "plan",
+			flagOverride: "my-agent",
+			wantName:     "my-agent",
+			wantErr:      false,
+		},
+		{
+			name:         "flag override with unknown agent returns error",
+			cfg:          &config.Config{},
+			phase:        "refine",
+			flagOverride: "nonexistent",
+			wantName:     "",
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.cfg != nil {
+				tt.cfg.SetDefaults()
+				tt.cfg.NormalizeNilFields()
+			}
+
+			agent, err := Resolve(tt.cfg, tt.phase, tt.flagOverride, false, nil, nil)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Resolve() error = nil, want error")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Resolve() error = %v, want nil", err)
+			}
+
+			if agent == nil {
+				t.Fatal("Resolve() returned nil agent")
+			}
+
+			if agent.Name() != tt.wantName {
+				t.Errorf("Agent.Name() = %q, want %q", agent.Name(), tt.wantName)
+			}
+		})
+	}
+}
+
+// TestResolveWithPhaseConfigPriority verifies phase config is used when no flag override
+func TestResolveWithPhaseConfigPriority(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *config.Config
+		phase    string
+		wantName string
+	}{
+		{
+			name: "refine phase uses configured agent",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Phases: config.PhasesConfig{
+						Refine: "codex",
+					},
+				},
+			},
+			phase:    "refine",
+			wantName: "codex",
+		},
+		{
+			name: "plan phase uses configured agent",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Phases: config.PhasesConfig{
+						Plan: "gemini",
+					},
+				},
+			},
+			phase:    "plan",
+			wantName: "gemini",
+		},
+		{
+			name: "review phase uses configured agent",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Phases: config.PhasesConfig{
+						Review: "codex",
+					},
+				},
+			},
+			phase:    "review",
+			wantName: "codex",
+		},
+		{
+			name: "explore phase uses configured agent",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Phases: config.PhasesConfig{
+						Explore: "gemini",
+					},
+				},
+			},
+			phase:    "explore",
+			wantName: "gemini",
+		},
+		{
+			name: "phase config uses custom agent definition",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Definitions: map[string]config.AgentDefinition{
+						"my-tool": {
+							Binary: "my-binary",
+							Flags:  []string{"--flag"},
+						},
+					},
+					Phases: config.PhasesConfig{
+						Refine: "my-tool",
+					},
+				},
+			},
+			phase:    "refine",
+			wantName: "my-tool",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.cfg.SetDefaults()
+			tt.cfg.NormalizeNilFields()
+
+			agent, err := Resolve(tt.cfg, tt.phase, "", false, nil, nil)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v, want nil", err)
+			}
+
+			if agent == nil {
+				t.Fatal("Resolve() returned nil agent")
+			}
+
+			if agent.Name() != tt.wantName {
+				t.Errorf("Agent.Name() = %q, want %q", agent.Name(), tt.wantName)
+			}
+		})
+	}
+}
+
+// TestResolveDefaultsToClaudeWhenNoConfig verifies "claude" is the default
+func TestResolveDefaultsToClaudeWhenNoConfig(t *testing.T) {
+	tests := []struct {
+		name  string
+		cfg   *config.Config
+		phase string
+	}{
+		{
+			name:  "refine defaults to claude",
+			cfg:   &config.Config{},
+			phase: "refine",
+		},
+		{
+			name:  "plan defaults to claude",
+			cfg:   &config.Config{},
+			phase: "plan",
+		},
+		{
+			name:  "review defaults to claude",
+			cfg:   &config.Config{},
+			phase: "review",
+		},
+		{
+			name:  "explore defaults to claude",
+			cfg:   &config.Config{},
+			phase: "explore",
+		},
+		{
+			name:  "nil config defaults to claude",
+			cfg:   nil,
+			phase: "refine",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.cfg != nil {
+				tt.cfg.SetDefaults()
+				tt.cfg.NormalizeNilFields()
+			}
+
+			agent, err := Resolve(tt.cfg, tt.phase, "", false, nil, nil)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v, want nil", err)
+			}
+
+			if agent == nil {
+				t.Fatal("Resolve() returned nil agent")
+			}
+
+			if agent.Name() != "claude" {
+				t.Errorf("Agent.Name() = %q, want %q", agent.Name(), "claude")
+			}
+		})
+	}
+}
+
+// TestResolveCompletePriorityChain verifies the full priority order
+func TestResolveCompletePriorityChain(t *testing.T) {
+	t.Run("priority chain: flag > phase > default", func(t *testing.T) {
+		cfg := &config.Config{
+			Agents: config.AgentsConfig{
+				Definitions: map[string]config.AgentDefinition{
+					"custom1": {Binary: "bin1"},
+					"custom2": {Binary: "bin2"},
+				},
+				Phases: config.PhasesConfig{
+					Refine: "custom1",
+				},
+			},
+		}
+		cfg.SetDefaults()
+		cfg.NormalizeNilFields()
+
+		// Test 1: Flag override beats everything
+		agent, err := Resolve(cfg, "refine", "custom2", false, nil, nil)
+		if err != nil {
+			t.Fatalf("Resolve() with flag override error = %v", err)
+		}
+		if agent.Name() != "custom2" {
+			t.Errorf("With flag override: got %q, want %q", agent.Name(), "custom2")
+		}
+
+		// Test 2: Phase config used when no flag override
+		agent, err = Resolve(cfg, "refine", "", false, nil, nil)
+		if err != nil {
+			t.Fatalf("Resolve() with phase config error = %v", err)
+		}
+		if agent.Name() != "custom1" {
+			t.Errorf("With phase config: got %q, want %q", agent.Name(), "custom1")
+		}
+
+		// Test 3: Default when phase not configured
+		agent, err = Resolve(cfg, "plan", "", false, nil, nil)
+		if err != nil {
+			t.Fatalf("Resolve() with default error = %v", err)
+		}
+		if agent.Name() != "claude" {
+			t.Errorf("With default: got %q, want %q", agent.Name(), "claude")
+		}
+	})
+}
+
+// TestResolveInvalidPhaseConfigAgent verifies error when phase config references unknown agent
+func TestResolveInvalidPhaseConfigAgent(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Phases: config.PhasesConfig{
+				Refine: "nonexistent-agent",
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	agent, err := Resolve(cfg, "refine", "", false, nil, nil)
+	if err == nil {
+		t.Error("Resolve() with invalid phase config: error = nil, want error")
+	}
+
+	if agent != nil {
+		t.Errorf("Resolve() with error should return nil agent, got %v", agent)
+	}
+}
+
+// TestResolveBuiltinPresetsWorkWithoutDefinition verifies built-in presets work without explicit definition
+func TestResolveBuiltinPresetsWorkWithoutDefinition(t *testing.T) {
+	tests := []struct {
+		name      string
+		agentName string
+	}{
+		{
+			name:      "claude preset works without definition",
+			agentName: "claude",
+		},
+		{
+			name:      "codex preset works without definition",
+			agentName: "codex",
+		},
+		{
+			name:      "gemini preset works without definition",
+			agentName: "gemini",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Config has no agent definitions, but built-in presets should still work
+			cfg := &config.Config{}
+			cfg.SetDefaults()
+			cfg.NormalizeNilFields()
+
+			agent, err := Resolve(cfg, "refine", tt.agentName, false, nil, nil)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v, want nil for built-in preset %q", err, tt.agentName)
+			}
+
+			if agent == nil {
+				t.Fatal("Resolve() returned nil agent")
+			}
+
+			if agent.Name() != tt.agentName {
+				t.Errorf("Agent.Name() = %q, want %q", agent.Name(), tt.agentName)
+			}
+		})
+	}
+}
+
+// TestResolveCustomDefinitionOverridesPreset verifies custom definitions override presets
+func TestResolveCustomDefinitionOverridesPreset(t *testing.T) {
+	tests := []struct {
+		name            string
+		cfg             *config.Config
+		agentName       string
+		wantBinaryField string
+	}{
+		{
+			name: "custom claude definition overrides built-in preset",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Definitions: map[string]config.AgentDefinition{
+						"claude": {
+							Binary: "custom-claude",
+							Flags:  []string{"--custom-flag"},
+						},
+					},
+				},
+			},
+			agentName:       "claude",
+			wantBinaryField: "custom-claude",
+		},
+		{
+			name: "custom codex definition overrides built-in preset",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Definitions: map[string]config.AgentDefinition{
+						"codex": {
+							Binary: "my-codex-wrapper",
+							Flags:  []string{"--wrapper-flag"},
+						},
+					},
+				},
+			},
+			agentName:       "codex",
+			wantBinaryField: "my-codex-wrapper",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.cfg.SetDefaults()
+			tt.cfg.NormalizeNilFields()
+
+			agent, err := Resolve(tt.cfg, "refine", tt.agentName, false, nil, nil)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v, want nil", err)
+			}
+
+			if agent == nil {
+				t.Fatal("Resolve() returned nil agent")
+			}
+
+			// Verify custom definition was used by checking internal field
+			if ca, ok := agent.(*cliAgent); ok {
+				if ca.binary != tt.wantBinaryField {
+					t.Errorf("agent.binary = %q, want %q (custom definition should override preset)",
+						ca.binary, tt.wantBinaryField)
+				}
+			} else {
+				t.Error("Expected *cliAgent type")
+			}
+		})
+	}
+}
+
+// TestResolveClaudePresetUsesClaudeConfig verifies claude preset uses cfg.Claude values
+func TestResolveClaudePresetUsesClaudeConfig(t *testing.T) {
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Binary: "custom-claude-path",
+			Flags:  []string{"--custom-flag", "--another-flag"},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	agent, err := Resolve(cfg, "refine", "claude", false, nil, nil)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+
+	if agent == nil {
+		t.Fatal("Resolve() returned nil agent")
+	}
+
+	// Verify the claude preset uses the ClaudeConfig values
+	if ca, ok := agent.(*cliAgent); ok {
+		if ca.binary != "custom-claude-path" {
+			t.Errorf("claude preset binary = %q, want %q (from cfg.Claude.Binary)",
+				ca.binary, "custom-claude-path")
+		}
+
+		if len(ca.flags) != 2 || ca.flags[0] != "--custom-flag" || ca.flags[1] != "--another-flag" {
+			t.Errorf("claude preset flags = %v, want [--custom-flag --another-flag] (from cfg.Claude.Flags)",
+				ca.flags)
+		}
+
+		if ca.promptDelivery != FileRef {
+			t.Errorf("claude preset should use FileRef delivery, got %v", ca.promptDelivery)
+		}
+	} else {
+		t.Error("Expected *cliAgent type")
 	}
 }
