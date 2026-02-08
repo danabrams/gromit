@@ -221,6 +221,9 @@ func (r *Runner) handleScopeTooLarge(bc *beadContext, claudeResult *claude.Resul
 
 // extractLearning saves a learning from failure analysis to the LEARNINGS.md file.
 func (r *Runner) extractLearning(bc *beadContext, analysis *analyzer.Analysis) {
+	if bc == nil || bc.bead == nil {
+		return
+	}
 	if analysis.Learning == nil {
 		return
 	}
@@ -237,8 +240,8 @@ func (r *Runner) extractLearning(bc *beadContext, analysis *analyzer.Analysis) {
 	}
 }
 
-// extractScopeTooLargeLearning saves a synthetic learning for scope-too-large failures.
-func (r *Runner) extractScopeTooLargeLearning(bc *beadContext, explanation string) {
+// extractSyntheticLearning saves a synthetic learning from a custom message.
+func (r *Runner) extractSyntheticLearning(bc *beadContext, message string) {
 	if bc == nil || bc.bead == nil {
 		return
 	}
@@ -247,11 +250,8 @@ func (r *Runner) extractScopeTooLargeLearning(bc *beadContext, explanation strin
 		return
 	}
 
-	// Generate synthetic learning message
-	learning := fmt.Sprintf("Bead '%s' was too large for %s — consider splitting beads with more than 3 acceptance criteria", bc.bead.Title, bc.model)
-	r.log("Synthetic learning extracted: %s", learning)
-
-	_, err := lf.Add(bc.bead.ID, learning, "patterns")
+	r.log("Synthetic learning extracted: %s", message)
+	_, err := lf.Add(bc.bead.ID, message, "patterns")
 	if err != nil {
 		r.log("Warning: failed to add synthetic learning: %v", err)
 	} else {
@@ -259,26 +259,16 @@ func (r *Runner) extractScopeTooLargeLearning(bc *beadContext, explanation strin
 	}
 }
 
+// extractScopeTooLargeLearning saves a synthetic learning for scope-too-large failures.
+func (r *Runner) extractScopeTooLargeLearning(bc *beadContext, explanation string) {
+	learning := fmt.Sprintf("Bead '%s' was too large for %s — consider splitting beads with more than 3 acceptance criteria", bc.bead.Title, bc.model)
+	r.extractSyntheticLearning(bc, learning)
+}
+
 // extractTimeoutLearning saves a synthetic learning for timeout failures.
 func (r *Runner) extractTimeoutLearning(bc *beadContext) {
-	if bc == nil || bc.bead == nil {
-		return
-	}
-	lf := r.renderer.GetLearningsFile()
-	if lf == nil {
-		return
-	}
-
-	// Generate synthetic learning message
 	learning := fmt.Sprintf("Bead '%s' timed out on %s — may need simpler scope or higher model tier", bc.bead.Title, bc.model)
-	r.log("Synthetic learning extracted: %s", learning)
-
-	_, err := lf.Add(bc.bead.ID, learning, "patterns")
-	if err != nil {
-		r.log("Warning: failed to add synthetic learning: %v", err)
-	} else {
-		r.log("Synthetic learning added to LEARNINGS.md")
-	}
+	r.extractSyntheticLearning(bc, learning)
 }
 
 // extractSuccessLearning calls Claude to extract a learning from a successful iteration.
