@@ -18,6 +18,8 @@ const (
 	Stdin PromptDelivery = "stdin"
 )
 
+const fileRefMessageFormat = "Read and follow instructions in %s"
+
 // Agent represents an AI agent that can be launched with a prompt
 type Agent interface {
 	// Name returns the agent's name
@@ -67,14 +69,14 @@ func (a *cliAgent) Launch(promptPath string) error {
 	switch a.promptDelivery {
 	case FileRef:
 		// Add the file reference message as a positional argument
-		args = append(args, fmt.Sprintf("Read and follow instructions in %s", promptPath))
+		args = append(args, fmt.Sprintf(fileRefMessageFormat, promptPath))
 	case PromptFileArg:
 		// Add the prompt flag and file path
 		if a.promptFlag != "" {
 			args = append(args, a.promptFlag, promptPath)
 		}
 	case Stdin:
-		// No additional args needed - we'll pipe stdin below
+		// No additional args needed - prompt will be piped to stdin
 	}
 
 	args = append(args, a.extraArgs...)
@@ -90,8 +92,6 @@ func (a *cliAgent) Launch(promptPath string) error {
 		if err != nil {
 			return fmt.Errorf("failed to read prompt file: %w", err)
 		}
-		cmd.Stdin = nil // Will be handled by StdinPipe or direct assignment
-		// Use a simpler approach - write to stdin directly
 		r, w, err := os.Pipe()
 		if err != nil {
 			return fmt.Errorf("failed to create pipe: %w", err)
@@ -99,7 +99,7 @@ func (a *cliAgent) Launch(promptPath string) error {
 		cmd.Stdin = r
 		go func() {
 			defer w.Close()
-			w.Write(content)
+			_, _ = w.Write(content) // Best-effort write; command will fail if it can't read
 		}()
 	} else {
 		cmd.Stdin = os.Stdin
@@ -109,8 +109,7 @@ func (a *cliAgent) Launch(promptPath string) error {
 	err := cmd.Run()
 
 	// Treat exec.ExitError as graceful exit (agent returned non-zero)
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		_ = exitErr // Agent exited with non-zero, but this is normal
+	if _, ok := err.(*exec.ExitError); ok {
 		return nil
 	}
 
