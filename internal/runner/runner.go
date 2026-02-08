@@ -639,7 +639,7 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 
 		r.log("Running Claude with model: %s", bc.model)
 
-		claudeResult, stallFired, err := r.executeClaudeInvocation(ctx, bc)
+		claudeResult, _, stallFired, err := r.executeClaudeInvocation(ctx, bc)
 
 		// Handle invocation error (stall, timeout, or other failure)
 		if err != nil {

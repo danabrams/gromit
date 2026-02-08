@@ -123,11 +123,11 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iterat
 }
 
 // executeClaudeInvocation runs a single Claude invocation with streaming, heartbeat,
-// and stall detection. Returns the Claude result, whether a stall was detected, and any error.
-func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (*claude.Result, bool, error) {
+// and stall detection. Returns the Claude result, stream stats, whether a stall was detected, and any error.
+func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (*claude.Result, *logger.StreamStats, bool, error) {
 	stats, err := logger.NewStreamStats()
 	if err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
 
 	childCtx, childCancel := context.WithCancel(ctx)
@@ -162,7 +162,7 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 	stopHeartbeat()
 	childCancel()
 
-	return claudeResult, stallFired, err
+	return claudeResult, stats, stallFired, err
 }
 
 // handleStallTimeout handles the case where a stall timeout was detected during execution.
