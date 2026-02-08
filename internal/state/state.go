@@ -131,3 +131,46 @@ func (f *File) RecordReview(commit string, iteration int) error {
 	f.state.IterationsSinceReview = 0
 	return f.Save()
 }
+
+// SetCleanExit sets the clean exit flag
+func (f *File) SetCleanExit(cleanExit bool) {
+	if f == nil {
+		return
+	}
+	f.state.CleanExit = cleanExit
+}
+
+// CheckStaleness detects whether state is stale due to crash or old timestamp.
+// Returns (isStale, reason) where reason explains what triggered staleness detection.
+func (f *File) CheckStaleness(thresholdMinutes int) (bool, string) {
+	if f == nil {
+		return false, ""
+	}
+
+	// Primary signal: clean exit flag
+	if !f.state.CleanExit {
+		return true, "previous run did not exit cleanly (crash detected)"
+	}
+
+	// Secondary signal: timestamp age
+	if !f.state.UpdatedAt.IsZero() {
+		age := time.Since(f.state.UpdatedAt)
+		threshold := time.Duration(thresholdMinutes) * time.Minute
+		if age > threshold {
+			return true, fmt.Sprintf("state file is stale (last updated %v ago, threshold is %v)", age.Round(time.Second), threshold)
+		}
+	}
+
+	return false, ""
+}
+
+// AutoHeal resets unreliable counter fields while preserving git anchors and historical timestamps.
+// This should be called when staleness is detected via CheckStaleness.
+func (f *File) AutoHeal() {
+	if f == nil {
+		return
+	}
+	f.state.IterationsSinceReview = 0
+	f.state.LastReviewIteration = 0
+	// Preserve: LastReviewCommit, LastRetro
+}

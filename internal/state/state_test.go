@@ -198,3 +198,169 @@ func TestCleanExitPersistence(t *testing.T) {
 		t.Error("CleanExit should be false after load")
 	}
 }
+
+func TestSetCleanExit(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Default state should have CleanExit as false (zero value)
+	if f.state.CleanExit {
+		t.Error("CleanExit should default to false")
+	}
+
+	// Set to true
+	f.SetCleanExit(true)
+	if !f.state.CleanExit {
+		t.Error("CleanExit should be true after SetCleanExit(true)")
+	}
+
+	// Set to false
+	f.SetCleanExit(false)
+	if f.state.CleanExit {
+		t.Error("CleanExit should be false after SetCleanExit(false)")
+	}
+}
+
+func TestSetCleanExitNilSafe(t *testing.T) {
+	var f *File
+	// Should not panic
+	f.SetCleanExit(true)
+}
+
+func TestCheckStaleness(t *testing.T) {
+	tests := []struct {
+		name              string
+		cleanExit         bool
+		updatedAt         time.Time
+		thresholdMinutes  int
+		expectStale       bool
+		expectReasonMatch string
+	}{
+		{
+			name:              "clean exit with recent timestamp",
+			cleanExit:         true,
+			updatedAt:         time.Now().Add(-5 * time.Minute),
+			thresholdMinutes:  60,
+			expectStale:       false,
+			expectReasonMatch: "",
+		},
+		{
+			name:              "crash detected (cleanExit false)",
+			cleanExit:         false,
+			updatedAt:         time.Now().Add(-5 * time.Minute),
+			thresholdMinutes:  60,
+			expectStale:       true,
+			expectReasonMatch: "crash detected",
+		},
+		{
+			name:              "stale timestamp exceeds threshold",
+			cleanExit:         true,
+			updatedAt:         time.Now().Add(-90 * time.Minute),
+			thresholdMinutes:  60,
+			expectStale:       true,
+			expectReasonMatch: "stale",
+		},
+		{
+			name:              "zero timestamp with cleanExit true",
+			cleanExit:         true,
+			updatedAt:         time.Time{},
+			thresholdMinutes:  60,
+			expectStale:       false,
+			expectReasonMatch: "",
+		},
+		{
+			name:              "crash with zero timestamp",
+			cleanExit:         false,
+			updatedAt:         time.Time{},
+			thresholdMinutes:  60,
+			expectStale:       true,
+			expectReasonMatch: "crash detected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			f, _ := NewFile(dir)
+			f.state.CleanExit = tt.cleanExit
+			f.state.UpdatedAt = tt.updatedAt
+
+			isStale, reason := f.CheckStaleness(tt.thresholdMinutes)
+
+			if isStale != tt.expectStale {
+				t.Errorf("expected isStale=%v, got %v (reason: %s)", tt.expectStale, isStale, reason)
+			}
+
+			if tt.expectReasonMatch != "" {
+				if reason == "" {
+					t.Errorf("expected reason to contain %q, got empty string", tt.expectReasonMatch)
+				} else if !contains(reason, tt.expectReasonMatch) {
+					t.Errorf("expected reason to contain %q, got %q", tt.expectReasonMatch, reason)
+				}
+			} else if reason != "" {
+				t.Errorf("expected empty reason, got %q", reason)
+			}
+		})
+	}
+}
+
+func TestCheckStalenessNilSafe(t *testing.T) {
+	var f *File
+	isStale, reason := f.CheckStaleness(60)
+	if isStale {
+		t.Error("nil File should not be stale")
+	}
+	if reason != "" {
+		t.Errorf("nil File should return empty reason, got %q", reason)
+	}
+}
+
+func TestAutoHeal(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Set up state with all fields populated
+	f.state.IterationsSinceReview = 5
+	f.state.LastReviewIteration = 10
+	f.state.LastReviewCommit = "abc123"
+	f.state.LastRetro = time.Now().Add(-24 * time.Hour)
+
+	// Call AutoHeal
+	f.AutoHeal()
+
+	// Check that counters were reset
+	if f.state.IterationsSinceReview != 0 {
+		t.Errorf("IterationsSinceReview should be reset to 0, got %d", f.state.IterationsSinceReview)
+	}
+	if f.state.LastReviewIteration != 0 {
+		t.Errorf("LastReviewIteration should be reset to 0, got %d", f.state.LastReviewIteration)
+	}
+
+	// Check that git anchors and timestamps were preserved
+	if f.state.LastReviewCommit != "abc123" {
+		t.Errorf("LastReviewCommit should be preserved, got %q", f.state.LastReviewCommit)
+	}
+	if f.state.LastRetro.IsZero() {
+		t.Error("LastRetro should be preserved")
+	}
+}
+
+func TestAutoHealNilSafe(t *testing.T) {
+	var f *File
+	// Should not panic
+	f.AutoHeal()
+}
+
+// Helper function for substring matching
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
