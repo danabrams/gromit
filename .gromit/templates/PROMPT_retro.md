@@ -75,6 +75,23 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 | {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} | {{ $stats.AvgDuration }} | {{ printf "%.0f" $stats.AvgInputTokens }} | {{ printf "%.0f" $stats.AvgOutputTokens }} |
 {{- end }}
 
+**Per-Model Deltas (Current vs Historical)**
+{{- range $model, $currentStats := .Efficiency.CurrentModels }}
+{{- if index $.Efficiency.HistoricalModels $model }}
+{{- $historicalStats := index $.Efficiency.HistoricalModels $model }}
+{{- $costDelta := sub $currentStats.AvgCostUSD $historicalStats.AvgCostUSD }}
+{{- $durationDelta := sub (durationMs $currentStats.AvgDuration) (durationMs $historicalStats.AvgDuration) }}
+{{- $inputDelta := sub $currentStats.AvgInputTokens $historicalStats.AvgInputTokens }}
+{{- $outputDelta := sub $currentStats.AvgOutputTokens $historicalStats.AvgOutputTokens }}
+
+*{{ $model }}:*
+- Cost: ${{ printf "%.4f" $currentStats.AvgCostUSD }} vs ${{ printf "%.4f" $historicalStats.AvgCostUSD }} ({{ if gt $costDelta 0.0 }}↑ +{{ printf "%.1f%%" (mul (div $costDelta $historicalStats.AvgCostUSD) 100) }}{{ else if lt $costDelta 0.0 }}↓ {{ printf "%.1f%%" (mul (div $costDelta $historicalStats.AvgCostUSD) 100) }}{{ else }}→ no change{{ end }})
+- Duration: {{ $currentStats.AvgDuration }} vs {{ $historicalStats.AvgDuration }} ({{ if gt $durationDelta 0.0 }}↑ +{{ printf "%.1f%%" (mul (div $durationDelta (durationMs $historicalStats.AvgDuration)) 100) }}{{ else if lt $durationDelta 0.0 }}↓ {{ printf "%.1f%%" (mul (div $durationDelta (durationMs $historicalStats.AvgDuration)) 100) }}{{ else }}→ no change{{ end }})
+- Input tokens: {{ printf "%.0f" $currentStats.AvgInputTokens }} vs {{ printf "%.0f" $historicalStats.AvgInputTokens }} ({{ if gt $inputDelta 0.0 }}↑ +{{ printf "%.1f%%" (mul (div $inputDelta $historicalStats.AvgInputTokens) 100) }}{{ else if lt $inputDelta 0.0 }}↓ {{ printf "%.1f%%" (mul (div $inputDelta $historicalStats.AvgInputTokens) 100) }}{{ else }}→ no change{{ end }})
+- Output tokens: {{ printf "%.0f" $currentStats.AvgOutputTokens }} vs {{ printf "%.0f" $historicalStats.AvgOutputTokens }} ({{ if gt $outputDelta 0.0 }}↑ +{{ printf "%.1f%%" (mul (div $outputDelta $historicalStats.AvgOutputTokens) 100) }}{{ else if lt $outputDelta 0.0 }}↓ {{ printf "%.1f%%" (mul (div $outputDelta $historicalStats.AvgOutputTokens) 100) }}{{ else }}→ no change{{ end }})
+{{- end }}
+{{- end }}
+
 **Overall Metrics**
 - Current avg cost per bead: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }}
 - Historical avg cost per bead: ${{ printf "%.4f" .Efficiency.HistoricalAvgCostPerBead }}

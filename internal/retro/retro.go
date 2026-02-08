@@ -215,6 +215,7 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 			}
 			return a / b
 		},
+		"sub": func(a, b float64) float64 { return a - b },
 		"durationMs": func(d time.Duration) float64 {
 			return float64(d.Milliseconds())
 		},

@@ -170,6 +170,18 @@ IterationLog struct fields require JSON tags (cost_usd, input_tokens, output_tok
 ### 2026-02-08 | gromit-plww | patterns
 Thread new return values through function signatures first using blank identifier (_), then add consumers in follow-up tasks. This separates infrastructure changes from behavioral changes.
 
+### 2026-02-08 | gromit-a9yc | patterns
+Extract values from intermediate results using dedicated methods (like stats.CostData()) and assign them directly to destination struct fields, rather than passing the intermediate object through the chain. This simplifies dependency flow and makes data transformation points explicit.
+
+### 2026-02-08 | gromit-md3w | conventions
+Struct field naming in this codebase uses CamelCase with explicit types (e.g., TotalTokens, TotalCost, ContextWindowReached bool) rather than abbreviated names; this makes JSON marshaling/unmarshaling work seamlessly without custom tags
+
+### 2026-02-08 | gromit-6x11 | patterns
+Use intermediate accumulator helper types for multi-level aggregations—collect raw totals during iteration, then convert via dedicated methods. This separates accumulation from final calculations and makes weighted averages (like cost/duration per bead across models) testable and less error-prone.
+
+### 2026-02-08 | gromit-0xbs | conventions
+JSON struct tags consistently use snake_case naming convention across the codebase (e.g., avg_cost_per_bead, started_at); follow this pattern for all new structs intended for JSON serialization
+
 ---
 
 ## Archived
