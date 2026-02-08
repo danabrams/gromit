@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -76,9 +77,11 @@ func runAdd(cmd *cobra.Command, args []string) error {
 
 	// Ask for optional context
 	fmt.Print("\nAny additional context? (optional, press Enter to skip): ")
+	scanner := bufio.NewScanner(os.Stdin)
 	var context string
-	fmt.Scanln(&context)
-	context = strings.TrimSpace(context)
+	if scanner.Scan() {
+		context = strings.TrimSpace(scanner.Text())
+	}
 
 	// Create idea
 	idea := &backlog.Idea{
