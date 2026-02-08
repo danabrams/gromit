@@ -1442,3 +1442,77 @@ func TestRunWithMocks_PrecheckDoesNotCountAsIteration(t *testing.T) {
 		t.Errorf("expected 1 Claude.StreamRun call (1 build), got %d", len(mockClaude.StreamRunCalls))
 	}
 }
+
+func TestRunWithMocks_PrecheckPassedCloseFailsLoopTerminates(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			// Always return the same bead (simulating Close() not working)
+			return &bead.Bead{
+				ID:              "stuck-bead",
+				Title:           "Already completed but Close fails",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature is implemented"},
+			}, nil
+		},
+		CloseFn: func(id string) error {
+			// Close always fails
+			return fmt.Errorf("bd close failed: permission denied")
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Precheck always passes
+			return &claude.Result{Success: true, Output: "PRECHECK_PASSED\n\nAll criteria met."}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+
+	precheckEnabled := true
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}, Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30}},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	// Run should terminate after the second loop iteration (first iteration adds to skippedBeads, second detects it)
+	if err := r.Run(context.Background(), 10, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Verify that Ready was called twice (once for first attempt, once for second attempt that detects stuck)
+	if callCount != 2 {
+		t.Errorf("expected Ready called 2 times, got %d", callCount)
+	}
+
+	// Verify Close was attempted once (first iteration)
+	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "stuck-bead" {
+		t.Errorf("expected Close attempted once for 'stuck-bead', got: %v", beads.ClosedIDs)
+	}
+
+	// Verify the loop terminated with the "all ready beads are stuck" message
+	output := buf.String()
+	if !strings.Contains(output, "All ready beads are stuck and have been skipped") {
+		t.Errorf("expected 'All ready beads are stuck' message in output, got: %s", output)
+	}
+
+	// Verify warning about Close failure was logged
+	if !strings.Contains(output, "failed to close bead") {
+		t.Errorf("expected 'failed to close bead' warning in output, got: %s", output)
+	}
+
+	// Verify one precheck_skipped log was written (for the first iteration)
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 iteration log, got %d", len(mockLog.Logs))
+	}
+	if mockLog.Logs[0].Outcome != "precheck_skipped" {
+		t.Errorf("expected Outcome 'precheck_skipped', got %q", mockLog.Logs[0].Outcome)
+	}
+	if mockLog.Logs[0].BeadID != "stuck-bead" {
+		t.Errorf("expected BeadID 'stuck-bead', got %q", mockLog.Logs[0].BeadID)
+	}
+}

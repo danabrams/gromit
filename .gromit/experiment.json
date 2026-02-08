@@ -1,0 +1,15 @@
+{
+  "name": "Reduce stuck bead retry ceiling",
+  "hypothesis": "Beads like ralph-runner-jje (6 failures) consume iterations without succeeding. Capping retries at 2 and auto-skipping with a decomposition comment will save 4+ wasted iterations per stuck bead",
+  "change": "Set MaxConsecutiveSkips to 2 in gromit.yaml and ensure the skip handler adds a bd comment suggesting the bead be decomposed",
+  "measurement": "Compare total wasted iterations on stuck beads before vs after. Target: reduce from current average of 3.5 failures per stuck bead to max 2",
+  "risk": "Some beads may succeed on attempt 3 with escalation. The MaxConsecutiveSkips config already exists, so this is a tuning change rather than new code",
+  "started_at": "2026-02-08T05:29:15.201307102-05:00",
+  "baseline_metrics": {
+    "avg_cost_per_bead": 0,
+    "avg_duration_ms": 210885,
+    "avg_input_tokens": 0,
+    "avg_output_tokens": 0,
+    "failure_rate": 0.13636363636363635
+  }
+}

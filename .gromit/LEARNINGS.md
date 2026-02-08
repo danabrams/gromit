@@ -92,6 +92,26 @@ Extract small, focused helper functions for reusability and testability. When a 
 
 Wrapper types around io.Writer use sync.Mutex for thread safety and track state (like lastWasOverwrite) for mode transitions. Store concrete wrapper types as struct fields (not just interfaces) when wrapper-specific methods are needed. syncWriter.WriteOverwrite() handles newline transitions automatically — don't manually add newlines around calls.
 
+### 2026-02-08 | JSON Serialization Conventions | conventions
+*Related to: gromit-s73k, gromit-0xbs, gromit-goaz, gromit-zxxs*
+
+JSON struct tags in this codebase use snake_case field names (input_tokens, cost_usd). All serialized fields must have explicit JSON tags — omitting tags causes fields to be excluded from output. Use `omitempty` only for optional fields; omit it when the field should always be present in output.
+
+### 2026-02-08 | Config Defaults Pattern | conventions
+*Related to: gromit-9ckj, gromit-w971*
+
+Config defaults use zero-value checking in setDefaults(): `if field == 0` means 'not configured'. Nested structs in YAML configs use `yaml:"field_name"` tags, and defaults for nested fields are set in the parent's setDefaults() after the struct is populated. Zero is the sentinel for 'not configured' for int fields.
+
+### 2026-02-08 | Template Infrastructure | patterns
+*Related to: gromit-s7tm, gromit-avbc*
+
+Template infrastructure follows a load-populate-render pattern: TemplateContext struct fields are populated from data sources via dedicated load/read methods, then passed to template rendering. FuncMap functions (sub, mul, div) enable templates to compute deltas and percentages inline without pre-computed values in the data context.
+
+### 2026-02-08 | Runner Method Pattern | patterns
+*Related to: gromit-5pvp, gromit-82qx, gromit-vabo*
+
+Runner methods follow a consistent pattern: nil-safe receiver/config checks, feature-flag gating (e.g., IsAutoPushEnabled()), context.WithTimeout for subprocess calls, and failure handling via mode field (warn vs stop) or skippedBeads map rather than inline error handling. The Run() method follows a clear sequencing: validate -> execute work -> persist state -> run between-iteration hooks -> continue loop. Log warnings on timeout errors rather than returning early.
+
 ---
 
 ## Provisional
@@ -107,12 +127,6 @@ When helpers are consolidated into a shared package, verify that the refactored 
 ### 2026-02-07 | ralph-runner-nekg | conventions
 When adding fields to structs that are serialized/deserialized (especially JSON), verify that existing tests that depend on that struct's behavior still pass—including contract tests that exercise external tool integration.
 
-### 2026-02-07 | ralph-runner-nekg | conventions
-Use json:"field,omitempty" tags on struct fields to maintain backward compatibility when adding optional fields to types that are serialized to JSON
-
-### 2026-02-07 | ralph-runner-vabo | conventions
-Runner methods that call claude.Run with timeout should use context.WithTimeout(ctx, duration) to enforce the timeout, and log warnings on error rather than returning early
-
 ### 2026-02-07 | ralph-runner-543u | gotchas
 Test fixtures in fake scripts should enforce required environment variables (e.g., TEST_DIR) rather than falling back to /tmp, and cleanup code should be idempotent and run even if tests fail (consider using trap handlers or defer statements)
 
@@ -121,12 +135,6 @@ PROMPT_*.md files should use pragmatic criteria for learning extraction — task
 
 ### 2026-02-07 | gromit-4zg | gotchas
 bd rename-prefix creates ID mappings that must be manually reflected in runtime state files like status.json to keep bead tracking consistent across the system
-
-### 2026-02-07 | gromit-m0k | conventions
-Superseded docs should add a clear notice at the top referencing the replacement spec/plan, then annotate specific decisions or sections that are superseded inline with reasoning for why they're no longer valid
-
-### 2026-02-07 | gromit-gh9 | conventions
-Use normalizeNilFields() pattern after unmarshaling JSON structs and after file loading to convert nil slices to empty slices—prevents bugs with downstream nil checks, ranges, and JSON serialization (nil → 'null' vs [] → '[]')
 
 ### 2026-02-07 | gromit-w3x | conventions
 When validating skill extraction, verify that downstream consumers (like learnings loader) can properly parse the injected content. Test failures in dependent systems indicate the validation point may be in the wrong layer or the format contract needs to be checked.
@@ -137,20 +145,8 @@ Helper methods like IsAutoPushEnabled() follow the *bool pointer pattern with ex
 ### 2026-02-07 | gromit-w9rs | gotchas
 Optional boolean fields (*bool) in config require separate unit tests for nil-pointer safety alongside table-driven YAML tests; nil defaults to true is a gotcha worth isolating in dedicated tests
 
-### 2026-02-07 | gromit-5pvp | patterns
-Methods following the runBetweenIterationsCommand() pattern in runner.go use nil-safe checks for config fields, gate execution with feature-flag methods (e.g., IsAutoPushEnabled()), pipe stdout/stderr to logs, and delegate failure handling to a mode field (warn vs stop) rather than always returning errors
-
-### 2026-02-07 | gromit-82qx | patterns
-The Run() method follows a clear sequencing pattern in the success path: validate → execute work → persist state (status.json) → run between-iteration hooks → continue loop. New operations should be inserted into this sequence respecting the order of dependencies and side effects.
-
 ### 2026-02-07 | gromit-flt8 | patterns
 Table-driven tests for runner methods include explicit nil-safety cases with dedicated flags (nilRunner, nilConfig) to verify graceful nil-handling; use description field for readability alongside test name
-
-### 2026-02-07 | gromit-9ckj | conventions
-Nested structs in YAML configs use `yaml:"field_name"` tags, and defaults for nested fields are set in parent setDefaults() after the struct is populated
-
-### 2026-02-08 | gromit-zxxs | conventions
-JSON struct tags in this codebase omit the omitempty directive when the field should always be present in output (e.g., CleanExit and UpdatedAt in State struct)
 
 ### 2026-02-08 | gromit-c4jr | patterns
 Use a guardian flag (set false at operation start, true at clean exit) as the primary crash detector, with timestamp age as a secondary signal. Auto-heal should reset unreliable state while preserving git anchors (commits, historical timestamps).
@@ -158,14 +154,8 @@ Use a guardian flag (set false at operation start, true at clean exit) as the pr
 ### 2026-02-08 | gromit-q224 | conventions
 YAML config sections consistently document defaults with 'Default: X' format, explain when/why users would customize fields, and cross-reference related implementation details in comments to aid troubleshooting
 
-### 2026-02-08 | gromit-s73k | conventions
-JSON struct field tags use snake_case for field names (input_tokens, output_tokens) while Go field names use PascalCase
-
 ### 2026-02-08 | gromit-9at0 | patterns
 Thread-safe accessors for mutable shared state use lock/unlock around field reads/writes and nil-check the receiver first, following the pattern: if s == nil { return } followed by s.mu.Lock/defer s.mu.Unlock
-
-### 2026-02-08 | gromit-goaz | conventions
-IterationLog struct fields require JSON tags (cost_usd, input_tokens, output_tokens) for proper serialization to JSONL logs - omitting tags causes fields to be excluded from output
 
 ### 2026-02-08 | gromit-plww | patterns
 Thread new return values through function signatures first using blank identifier (_), then add consumers in follow-up tasks. This separates infrastructure changes from behavioral changes.
@@ -173,20 +163,15 @@ Thread new return values through function signatures first using blank identifie
 ### 2026-02-08 | gromit-a9yc | patterns
 Extract values from intermediate results using dedicated methods (like stats.CostData()) and assign them directly to destination struct fields, rather than passing the intermediate object through the chain. This simplifies dependency flow and makes data transformation points explicit.
 
-### 2026-02-08 | gromit-md3w | conventions
-Struct field naming in this codebase uses CamelCase with explicit types (e.g., TotalTokens, TotalCost, ContextWindowReached bool) rather than abbreviated names; this makes JSON marshaling/unmarshaling work seamlessly without custom tags
-
 ### 2026-02-08 | gromit-6x11 | patterns
 Use intermediate accumulator helper types for multi-level aggregations—collect raw totals during iteration, then convert via dedicated methods. This separates accumulation from final calculations and makes weighted averages (like cost/duration per bead across models) testable and less error-prone.
 
-### 2026-02-08 | gromit-0xbs | conventions
-JSON struct tags consistently use snake_case naming convention across the codebase (e.g., avg_cost_per_bead, started_at); follow this pattern for all new structs intended for JSON serialization
+### 2026-02-08 | gromit-vlk9 | conventions
+For conditional multi-section prompt/output building, use strings.Builder with conditional WriteString calls instead of fmt.Sprintf. This makes section logic clearer and allows each section to be conditionally included based on whether supporting data exists.
 
-### 2026-02-08 | gromit-s7tm | patterns
-Template FuncMap functions like 'sub', 'mul', 'div' enable Go templates to compute deltas and percentages directly without requiring pre-computed values in the data context—define simple helper functions in FuncMap and use them inline in template expressions
-
-### 2026-02-08 | gromit-avbc | patterns
-TemplateContext struct fields are populated directly from data sources via dedicated load/read methods (LoadExperiment, ReadEfficiencyReport), then passed through to template rendering—new fields should follow this pattern of: load → populate field → pass to renderer
+### 2026-02-08 | gromit-9hau | patterns
+When bead operations fail, add the bead ID to skippedBeads map so the existing stuck-bead detection loop catches it on next iteration, rather than handling errors inline. This centralizes failure handling and prevents duplicate logic.
+**Promoted to RULES.md Process section.**
 
 ---
 
@@ -308,3 +293,26 @@ Archived: standard Go programming knowledge (cmd.Stdin vs StdinPipe). Not projec
 ### 2026-02-07 | gromit-3ibd | patterns
 Archived: generic software engineering advice about returning measurements from functions. Not project-specific.
 
+### 2026-02-08 | gromit-gh9 | conventions
+Archived: normalizeNilFields() already captured in RULES.md Code Style section. Redundant with promoted rule.
+
+### 2026-02-08 | ralph-runner-nekg json omitempty | conventions
+Archived: json omitempty backward compatibility already covered by RULES.md Process rule about config fields with omitempty.
+
+### 2026-02-08 | gromit-md3w | conventions
+Archived: standard Go naming convention (PascalCase for exported fields). Not project-specific knowledge.
+
+### 2026-02-08 | gromit-m0k | conventions
+Archived: general documentation practice (superseded notices). Not specific to this codebase's architecture.
+
+### 2026-02-08 | JSON tag originals | conventions
+Archived: gromit-s73k, gromit-0xbs, gromit-goaz, gromit-zxxs consolidated into Confirmed "JSON Serialization Conventions" entry.
+
+### 2026-02-08 | config defaults originals | conventions
+Archived: gromit-9ckj, gromit-w971 consolidated into Confirmed "Config Defaults Pattern" entry.
+
+### 2026-02-08 | template infrastructure originals | patterns
+Archived: gromit-s7tm, gromit-avbc consolidated into Confirmed "Template Infrastructure" entry.
+
+### 2026-02-08 | runner method originals | patterns
+Archived: gromit-5pvp, gromit-82qx, gromit-vabo consolidated into Confirmed "Runner Method Pattern" entry.
