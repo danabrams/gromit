@@ -206,3 +206,25 @@ func (f *File) AddFilteredHashes(hashes []string) {
 		}
 	}
 }
+
+// ReconcileFilteredHashes filters FilteredLearningHashes in-place, keeping only hashes present in currentHashes.
+// Returns true if any hashes were pruned.
+func (f *File) ReconcileFilteredHashes(currentHashes map[string]bool) bool {
+	if f == nil {
+		return false
+	}
+
+	// Filter in-place, keeping only hashes that are in currentHashes
+	kept := f.state.FilteredLearningHashes[:0] // reuse backing array
+	for _, hash := range f.state.FilteredLearningHashes {
+		if currentHashes[hash] {
+			kept = append(kept, hash)
+		}
+	}
+
+	// Check if anything was removed
+	pruned := len(kept) < len(f.state.FilteredLearningHashes)
+	f.state.FilteredLearningHashes = kept
+
+	return pruned
+}
