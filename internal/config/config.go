@@ -180,6 +180,12 @@ func (c *Config) NormalizeNilFields() {
 	if c.Agents.Definitions == nil {
 		c.Agents.Definitions = make(map[string]AgentDefinition)
 	}
+	for name, def := range c.Agents.Definitions {
+		if def.Flags == nil {
+			def.Flags = []string{}
+			c.Agents.Definitions[name] = def
+		}
+	}
 }
 
 // SetDefaults applies default values for all configuration fields.

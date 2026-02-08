@@ -64,6 +64,24 @@ agents:
 	}
 }
 
+func TestNormalizeNilFieldsInitializesAgentFlags(t *testing.T) {
+	cfg := &Config{
+		Agents: AgentsConfig{
+			Definitions: map[string]AgentDefinition{
+				"agent1": {Binary: "test"},
+			},
+		},
+	}
+	cfg.NormalizeNilFields()
+
+	if cfg.Agents.Definitions["agent1"].Flags == nil {
+		t.Error("agent1.Flags is nil, want empty slice")
+	}
+	if len(cfg.Agents.Definitions["agent1"].Flags) != 0 {
+		t.Errorf("len(agent1.Flags) = %d, want 0", len(cfg.Agents.Definitions["agent1"].Flags))
+	}
+}
+
 func TestNormalizeNilFieldsInitializesDefinitionsMap(t *testing.T) {
 	cfg := &Config{}
 	cfg.NormalizeNilFields()
