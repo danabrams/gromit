@@ -991,3 +991,287 @@ func TestResolvePickerShowsDefaultMarker(t *testing.T) {
 		t.Error("Picker output should not mark claude as default when phase is configured differently")
 	}
 }
+
+// TestResolveWithAgentsPromptConfig verifies agents.prompt: true triggers picker automatically
+func TestResolveWithAgentsPromptConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		cfg         *config.Config
+		phase       string
+		input       string
+		wantName    string
+		wantPicker  bool
+		wantErr     bool
+	}{
+		{
+			name: "agents.prompt=true triggers picker",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Prompt: true,
+					Phases: config.PhasesConfig{
+						Refine: "codex",
+					},
+				},
+			},
+			phase:      "refine",
+			input:      "1\n",
+			wantName:   "claude",
+			wantPicker: true,
+			wantErr:    false,
+		},
+		{
+			name: "agents.prompt=false uses normal resolution",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Prompt: false,
+					Phases: config.PhasesConfig{
+						Refine: "codex",
+					},
+				},
+			},
+			phase:      "refine",
+			input:      "",
+			wantName:   "codex",
+			wantPicker: false,
+			wantErr:    false,
+		},
+		{
+			name: "agents.prompt=true with custom choice",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Prompt: true,
+					Definitions: map[string]config.AgentDefinition{
+						"custom": {
+							Binary: "custom-cli",
+							Flags:  []string{"--flag"},
+						},
+					},
+				},
+			},
+			phase:      "plan",
+			input:      "3\n",
+			wantName:   "custom",
+			wantPicker: true,
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.cfg.SetDefaults()
+			tt.cfg.NormalizeNilFields()
+
+			r := strings.NewReader(tt.input)
+			w := &strings.Builder{}
+
+			agent, err := Resolve(tt.cfg, tt.phase, "", false, r, w)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("Resolve() error = nil, want error")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Resolve() error = %v, want nil", err)
+			}
+
+			if agent == nil {
+				t.Fatal("Resolve() returned nil agent")
+			}
+
+			if agent.Name() != tt.wantName {
+				t.Errorf("Agent.Name() = %q, want %q", agent.Name(), tt.wantName)
+			}
+
+			// Verify picker was/wasn't shown
+			output := w.String()
+			pickerShown := strings.Contains(output, "Select agent for")
+			if pickerShown != tt.wantPicker {
+				t.Errorf("Picker shown = %v, want %v", pickerShown, tt.wantPicker)
+			}
+		})
+	}
+}
+
+// TestResolveFlagOverrideBeatAgentsPrompt verifies flag override has higher priority than agents.prompt
+func TestResolveFlagOverrideBeatAgentsPrompt(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Prompt: true,
+			Phases: config.PhasesConfig{
+				Refine: "codex",
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	r := strings.NewReader("")
+	w := &strings.Builder{}
+
+	agent, err := Resolve(cfg, "refine", "gemini", false, r, w)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v, want nil", err)
+	}
+
+	if agent == nil {
+		t.Fatal("Resolve() returned nil agent")
+	}
+
+	if agent.Name() != "gemini" {
+		t.Errorf("Agent.Name() = %q, want %q (flag override should beat agents.prompt)", agent.Name(), "gemini")
+	}
+
+	// Verify picker was NOT shown (flag override bypasses prompt)
+	output := w.String()
+	if strings.Contains(output, "Select agent for") {
+		t.Error("Picker should not be shown when flag override is provided, even with agents.prompt=true")
+	}
+}
+
+// TestResolveChooseAgentAndAgentsPromptSamePriority verifies chooseAgent and agents.prompt have same effect
+func TestResolveChooseAgentAndAgentsPromptSamePriority(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Phases: config.PhasesConfig{
+				Refine: "codex",
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	tests := []struct {
+		name          string
+		chooseAgent   bool
+		agentsPrompt  bool
+		wantPickerRun bool
+	}{
+		{
+			name:          "chooseAgent=true triggers picker",
+			chooseAgent:   true,
+			agentsPrompt:  false,
+			wantPickerRun: true,
+		},
+		{
+			name:          "agents.prompt=true triggers picker",
+			chooseAgent:   false,
+			agentsPrompt:  true,
+			wantPickerRun: true,
+		},
+		{
+			name:          "both true still triggers picker (no double prompt)",
+			chooseAgent:   true,
+			agentsPrompt:  true,
+			wantPickerRun: true,
+		},
+		{
+			name:          "both false uses normal resolution",
+			chooseAgent:   false,
+			agentsPrompt:  false,
+			wantPickerRun: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testCfg := *cfg
+			testCfg.Agents.Prompt = tt.agentsPrompt
+
+			r := strings.NewReader("1\n")
+			w := &strings.Builder{}
+
+			agent, err := Resolve(&testCfg, "refine", "", tt.chooseAgent, r, w)
+			if err != nil {
+				t.Fatalf("Resolve() error = %v, want nil", err)
+			}
+
+			if agent == nil {
+				t.Fatal("Resolve() returned nil agent")
+			}
+
+			output := w.String()
+			pickerRan := strings.Contains(output, "Select agent for")
+
+			if pickerRan != tt.wantPickerRun {
+				t.Errorf("Picker ran = %v, want %v", pickerRan, tt.wantPickerRun)
+			}
+		})
+	}
+}
+
+// TestResolveFullPriorityWithAgentsPrompt verifies complete priority chain including agents.prompt
+func TestResolveFullPriorityWithAgentsPrompt(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Prompt: true,
+			Definitions: map[string]config.AgentDefinition{
+				"custom": {Binary: "custom-cli"},
+			},
+			Phases: config.PhasesConfig{
+				Refine: "codex",
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	t.Run("priority: flag override > agents.prompt > phase config > default", func(t *testing.T) {
+		// Test 1: Flag override beats everything (including agents.prompt=true)
+		r := strings.NewReader("")
+		w := &strings.Builder{}
+		agent, err := Resolve(cfg, "refine", "custom", false, r, w)
+		if err != nil {
+			t.Fatalf("Test 1: Resolve() error = %v", err)
+		}
+		if agent.Name() != "custom" {
+			t.Errorf("Test 1 (flag override): got %q, want %q", agent.Name(), "custom")
+		}
+		if strings.Contains(w.String(), "Select agent for") {
+			t.Error("Test 1: Picker should not run when flag override provided")
+		}
+
+		// Test 2: agents.prompt=true triggers picker (beats phase config)
+		r = strings.NewReader("1\n")
+		w = &strings.Builder{}
+		agent, err = Resolve(cfg, "refine", "", false, r, w)
+		if err != nil {
+			t.Fatalf("Test 2: Resolve() error = %v", err)
+		}
+		if !strings.Contains(w.String(), "Select agent for") {
+			t.Error("Test 2: Picker should run when agents.prompt=true")
+		}
+
+		// Test 3: With agents.prompt=false, phase config is used
+		cfgNoPrompt := *cfg
+		cfgNoPrompt.Agents.Prompt = false
+		r = strings.NewReader("")
+		w = &strings.Builder{}
+		agent, err = Resolve(&cfgNoPrompt, "refine", "", false, r, w)
+		if err != nil {
+			t.Fatalf("Test 3: Resolve() error = %v", err)
+		}
+		if agent.Name() != "codex" {
+			t.Errorf("Test 3 (phase config): got %q, want %q", agent.Name(), "codex")
+		}
+		if strings.Contains(w.String(), "Select agent for") {
+			t.Error("Test 3: Picker should not run when agents.prompt=false")
+		}
+
+		// Test 4: With no agents.prompt and no phase config, default to claude
+		cfgNoPhase := &config.Config{}
+		cfgNoPhase.SetDefaults()
+		cfgNoPhase.NormalizeNilFields()
+		r = strings.NewReader("")
+		w = &strings.Builder{}
+		agent, err = Resolve(cfgNoPhase, "refine", "", false, r, w)
+		if err != nil {
+			t.Fatalf("Test 4: Resolve() error = %v", err)
+		}
+		if agent.Name() != "claude" {
+			t.Errorf("Test 4 (default): got %q, want %q", agent.Name(), "claude")
+		}
+	})
+}

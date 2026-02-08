@@ -61,22 +61,37 @@ All acceptance criteria for the Resolve() function are covered by tests in `reso
 ✅ **Built-in presets exist** (`TestResolveBuiltInPresetsExist`)
 - Claude, Codex, Gemini presets
 
-## Missing Test Coverage
+## agents.prompt Feature Test Coverage
 
-❌ **agents.prompt config field** - NOT IMPLEMENTED YET
+✅ **Config field added** (`config.AgentsConfig.Prompt bool`)
 
-The spec mentions `agents.prompt: true` config option that should automatically trigger the picker on every interactive phase. This feature is not yet implemented:
+⏳ **Acceptance tests written** - Feature NOT YET IMPLEMENTED
 
-**Required implementation:**
-1. Add `Prompt bool` field to `config.AgentsConfig` struct
-2. Update `Resolve()` to check `cfg.Agents.Prompt`
-3. Priority: `flag override > chooseAgent || cfg.Agents.Prompt > phase config > default`
+### Added Tests
 
-**Required tests:**
-- `agents.prompt: true` triggers picker (without chooseAgent flag)
+✅ **agents.prompt config behavior** (`TestResolveWithAgentsPromptConfig`)
+- `agents.prompt=true` triggers picker
+- `agents.prompt=false` uses normal resolution
+- Custom agent selection with agents.prompt
+
+✅ **Priority with flag override** (`TestResolveFlagOverrideBeatAgentsPrompt`)
 - Flag override beats `agents.prompt: true`
-- `agents.prompt: false` uses normal resolution
-- chooseAgent has same priority as agents.prompt
+- Picker not shown when flag override provided
+
+✅ **Equivalence with chooseAgent** (`TestResolveChooseAgentAndAgentsPromptSamePriority`)
+- chooseAgent=true and agents.prompt=true have same effect
+- Both trigger picker independently
+- No double-prompting when both are true
+
+✅ **Complete priority chain** (`TestResolveFullPriorityWithAgentsPrompt`)
+- Verifies: flag override > agents.prompt > phase config > default
+
+### Implementation Requirements
+
+**To make tests pass:**
+1. ✅ Add `Prompt bool` field to `config.AgentsConfig` struct (DONE)
+2. ❌ Update `Resolve()` to check `cfg.Agents.Prompt` before checking phase config
+3. ❌ Priority logic: `flag override > (chooseAgent || cfg.Agents.Prompt) > phase config > default`
 
 ## Test Organization
 

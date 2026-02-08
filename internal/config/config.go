@@ -128,6 +128,7 @@ type StateConfig struct {
 type AgentsConfig struct {
 	Definitions map[string]AgentDefinition `yaml:"definitions"`
 	Phases      PhasesConfig               `yaml:"phases"`
+	Prompt      bool                       `yaml:"prompt"`
 }
 
 type AgentDefinition struct {
