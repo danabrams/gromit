@@ -21,6 +21,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// claudeRunnerAdapter adapts claude.Client to learnings.ClaudeRunner interface
+type claudeRunnerAdapter struct {
+	client *claude.Client
+}
+
+// Run implements learnings.ClaudeRunner interface
+func (a *claudeRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
+	if a == nil || a.client == nil {
+		return nil, fmt.Errorf("adapter or client is nil")
+	}
+	result, err := a.client.Run(ctx, prompt, model)
+	if err != nil {
+		return nil, err
+	}
+	// Convert claude.Result to learnings.Result
+	return &learnings.Result{
+		Success: result.Success,
+		Output:  result.Output,
+	}, nil
+}
+
 var (
 	reviewNonInteractive bool
 	reviewSince          string
@@ -439,6 +460,12 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	if len(result.Learnings) > 0 {
 		learningsFile, err := learnings.NewFile(gromitDir)
 		if err == nil {
+			// Wire filter into learnings file
+			adapter := &claudeRunnerAdapter{client: claudeClient}
+			projectName := "gromit"
+			projectDesc := "A Go CLI tool that runs the Gromit loop correctly"
+			learningsFile.SetFilter(learnings.NewLLMFilter(adapter, projectName, projectDesc))
+
 			if err := learningsFile.Load(); err == nil {
 				for _, learning := range result.Learnings {
 					learningsFile.Add("review", learning, learnings.CategoryPatterns)
@@ -519,6 +546,15 @@ func applyReviewResultCLI(result *review.ReviewResult) (beadsCreated int, backlo
 			gromitDir := resolveGromitDir(cfg)
 			learningsFile, err := learnings.NewFile(gromitDir)
 			if err == nil {
+				// Wire filter into learnings file
+				claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+				if err == nil {
+					adapter := &claudeRunnerAdapter{client: claudeClient}
+					projectName := "gromit"
+					projectDesc := "A Go CLI tool that runs the Gromit loop correctly"
+					learningsFile.SetFilter(learnings.NewLLMFilter(adapter, projectName, projectDesc))
+				}
+
 				if err := learningsFile.Load(); err == nil {
 					for _, learning := range result.Learnings {
 						learningsFile.Add("review", learning, learnings.CategoryPatterns)
