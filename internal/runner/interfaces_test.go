@@ -21,6 +21,7 @@ import (
 
 type mockBeadClient struct {
 	ReadyFn                          func() (*bead.Bead, error)
+	ReadyWithLabelFn                 func(label string) (*bead.Bead, error)
 	ShowFn                           func(id string) (*bead.Bead, error)
 	CloseFn                          func(id string) error
 	SyncFn                           func() error
@@ -43,6 +44,13 @@ type mockComment struct {
 func (m *mockBeadClient) Ready() (*bead.Bead, error) {
 	if m.ReadyFn != nil {
 		return m.ReadyFn()
+	}
+	return nil, nil
+}
+
+func (m *mockBeadClient) ReadyWithLabel(label string) (*bead.Bead, error) {
+	if m.ReadyWithLabelFn != nil {
+		return m.ReadyWithLabelFn(label)
 	}
 	return nil, nil
 }

@@ -263,6 +263,28 @@ func (c *Client) ListReadyIDs() ([]string, error) {
 	return ids, nil
 }
 
+// ReadyWithLabel returns the next unblocked bead with the specified label (excludes epics)
+func (c *Client) ReadyWithLabel(label string) (*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
+	if label == "" {
+		return nil, fmt.Errorf("label cannot be empty")
+	}
+	// Validate label doesn't contain shell metacharacters
+	if strings.ContainsAny(label, ";\n|$`&<>(){}[]'\"\\") {
+		return nil, fmt.Errorf("invalid label: contains shell metacharacters")
+	}
+
+	// Fetch a batch of beads with the specified label and filter out epics client-side
+	out, err := c.run("ready", "--json", "--limit", "10", "--label", label)
+	if err != nil {
+		return nil, fmt.Errorf("bd ready: %w", err)
+	}
+
+	return parseBeadOutputExcluding(out, "epic")
+}
+
 // Show returns full details for a bead
 func (c *Client) Show(id string) (*Bead, error) {
 	if c == nil {

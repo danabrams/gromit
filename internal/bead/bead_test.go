@@ -1791,3 +1791,99 @@ func TestClientListReadyIDsErrorWrapping(t *testing.T) {
 		t.Errorf("ListReadyIDs() error should contain 'bd ready' context: %v", err)
 	}
 }
+
+// TestClientReadyWithLabelReturnsBeadWithMatchingLabel tests that ReadyWithLabel returns bead with matching label
+func TestClientReadyWithLabelReturnsBeadWithMatchingLabel(t *testing.T) {
+	tests := []struct {
+		name       string
+		label      string
+		jsonOutput string
+		wantID     string
+		wantType   string
+		wantNil    bool
+	}{
+		{
+			name:  "single task bead with matching label",
+			label: "spec:auth",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Auth task",
+				"priority": 1,
+				"labels": ["spec:auth"],
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantID:   "task-001",
+			wantType: "task",
+			wantNil:  false,
+		},
+		{
+			name:  "empty array returns nil",
+			label: "spec:payments",
+			jsonOutput: `[]`,
+			wantNil: true,
+		},
+		{
+			name:  "epic bead with matching label should be excluded",
+			label: "spec:database",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Database epic",
+				"priority": 0,
+				"labels": ["spec:database"],
+				"issue_type": "epic",
+				"status": "open"
+			}]`,
+			wantNil: true,
+		},
+		{
+			name:  "task after epic should be returned",
+			label: "spec:ui",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Epic",
+				"priority": 0,
+				"labels": ["spec:ui"],
+				"issue_type": "epic",
+				"status": "open"
+			}, {
+				"id": "task-001",
+				"title": "Task",
+				"priority": 1,
+				"labels": ["spec:ui"],
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantID:   "task-001",
+			wantType: "task",
+			wantNil:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseBeadOutputExcluding(tt.jsonOutput, "epic")
+			if err != nil {
+				t.Fatalf("parseBeadOutputExcluding() error = %v", err)
+			}
+
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("Expected nil bead but got: %+v", got)
+				}
+				return
+			}
+
+			if got == nil {
+				t.Fatal("Expected non-nil bead but got nil")
+			}
+
+			if got.ID != tt.wantID {
+				t.Errorf("ID = %v, want %v", got.ID, tt.wantID)
+			}
+			if got.Type != tt.wantType {
+				t.Errorf("Type = %v, want %v", got.Type, tt.wantType)
+			}
+		})
+	}
+}

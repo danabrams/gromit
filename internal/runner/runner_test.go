@@ -2296,6 +2296,10 @@ func (m *mockBeadClientForStatus) Ready() (*bead.Bead, error) {
 	return m.ready, m.err
 }
 
+func (m *mockBeadClientForStatus) ReadyWithLabel(label string) (*bead.Bead, error) {
+	return nil, nil
+}
+
 func (m *mockBeadClientForStatus) Show(id string) (*bead.Bead, error) {
 	return nil, nil
 }

@@ -24,6 +24,7 @@ var (
 // BeadClient abstracts the bead (bd) CLI operations used by the runner.
 type BeadClient interface {
 	Ready() (*bead.Bead, error)
+	ReadyWithLabel(label string) (*bead.Bead, error)
 	Show(id string) (*bead.Bead, error)
 	Close(id string) error
 	Sync() error
