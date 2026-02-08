@@ -15,6 +15,7 @@ var initCmd = &cobra.Command{
 
 Creates:
   gromit.yaml           - Configuration file
+  CLAUDE.md             - Project documentation (with Gromit patterns)
   .gromit/
     templates/         - Prompt templates
       PROMPT_build.md
@@ -69,6 +70,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Write config file
 	configPath := filepath.Join(cwd, "gromit.yaml")
 	if err := writeFileIfNotExists(configPath, defaultConfig, forceInit); err != nil {
+		return err
+	}
+
+	// Write CLAUDE.md
+	claudeMDPath := filepath.Join(cwd, "CLAUDE.md")
+	if err := writeFileIfNotExists(claudeMDPath, defaultClaudeMD, forceInit); err != nil {
 		return err
 	}
 
@@ -1611,3 +1618,28 @@ When the task is complete:
 
 Do NOT output any special completion markers - just complete the task and exit.
 `
+
+const defaultClaudeMD = "# Your Project\n\n" +
+	"<!-- Update this with your project's name and description -->\n\n" +
+	"## Quick Start\n\n" +
+	"```bash\n" +
+	"bd create \"Task title\" --priority 1\n" +
+	"gromit run                         # Run until no work\n" +
+	"gromit run -n 5 --time-budget 30   # Max 5 beads, 30-min budget\n" +
+	"gromit status                      # Show next bead + model\n" +
+	"```\n\n" +
+	"## Bead Sizing\n\n" +
+	"- **One concern per bead** — a single file or two tightly coupled files\n" +
+	"- **1-3 acceptance criteria** — concrete, testable criteria only; split if more than 3\n" +
+	"- **Self-contained** — understandable without reading other beads\n" +
+	"- **No ambiguity** — Claude implements without making design decisions\n" +
+	"- **Max 2 files touched** — if more, consider splitting the bead\n" +
+	"- **Clear definition of done** — each criterion has an obvious pass/fail test\n\n" +
+	"## Capturing Ideas vs Creating Beads\n\n" +
+	"When asked to add something to the backlog, use `gromit add \"<idea>\"` — not `bd create`. " +
+	"The backlog is for rough ideas that flow through the refine → plan → decompose pipeline. " +
+	"Only use `bd create` when you have a fully scoped, ready-to-implement task with clear acceptance criteria.\n\n" +
+	"## Rules\n\n" +
+	"See `.gromit/RULES.md` for project-specific constraints and best practices.\n\n" +
+	"## Learnings\n\n" +
+	"See `.gromit/LEARNINGS.md` for accumulated patterns and conventions from this project's iterations.\n"

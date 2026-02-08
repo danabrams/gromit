@@ -2,6 +2,7 @@ Bootstrap gromit configuration and templates in the current directory.
 
 Creates:
   gromit.yaml           - Configuration file
+  CLAUDE.md             - Project documentation (with Gromit patterns)
   .gromit/
     templates/         - Prompt templates
       PROMPT_build.md
