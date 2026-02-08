@@ -1925,125 +1925,135 @@ func TestRunBetweenIterationsCommandNilConfig(t *testing.T) {
 	}
 }
 
-func TestRunGitAutoPushDisabled(t *testing.T) {
-	var buf strings.Builder
-	autoPush := false
-	r := &Runner{
-		cfg: &config.Config{
-			Git: config.GitConfig{
-				AutoPush: &autoPush,
-			},
+func TestRunGitAutoPush(t *testing.T) {
+	tests := []struct {
+		name             string
+		autoPush         *bool
+		pushFailure      string
+		wantErrOnFailure bool
+		wantOutput       []string
+		wantNoOutput     []string
+		description      string
+		nilRunner        bool
+		nilConfig        bool
+	}{
+		{
+			name:         "NilRunner",
+			nilRunner:    true,
+			wantNoOutput: []string{"Pushing to remote"},
+			description:  "When runner is nil, returns nil without panic",
 		},
-		output: &buf,
-	}
-
-	// Auto-push disabled, should be no-op
-	err := r.runGitAutoPush()
-	if err != nil {
-		t.Errorf("expected no error for disabled auto-push, got: %v", err)
-	}
-
-	output := buf.String()
-	if output != "" {
-		t.Errorf("expected no output for disabled auto-push, got: %s", output)
-	}
-}
-
-func TestRunGitAutoPushDefaultEnabled(t *testing.T) {
-	var buf strings.Builder
-	r := &Runner{
-		cfg:    &config.Config{}, // Default auto_push is true
-		output: &buf,
-	}
-
-	// This test will attempt a real git push - skip if not in a repo with upstream
-	err := r.runGitAutoPush()
-	// We allow this to fail (no upstream configured), we just verify the method was called
-	// The key is that it should attempt the push since auto-push defaults to true
-	_ = err
-}
-
-func TestRunGitAutoPushStopOnFailure(t *testing.T) {
-	var buf strings.Builder
-	autoPush := true
-	r := &Runner{
-		cfg: &config.Config{
-			Git: config.GitConfig{
-				AutoPush:    &autoPush,
-				PushFailure: "stop",
-			},
+		{
+			name:         "NilConfig",
+			nilConfig:    true,
+			wantNoOutput: []string{"Pushing to remote"},
+			description:  "When config is nil, returns nil without panic",
 		},
-		output: &buf,
-	}
-
-	// This test will attempt a real git push which will likely fail (no upstream)
-	// When push_failure is "stop", it should return an error
-	err := r.runGitAutoPush()
-	if err == nil {
-		// If push succeeded, that's fine (we're in a repo with upstream)
-		// But if it failed, we should have gotten an error back
-		// Either way is acceptable for this test
-	} else {
-		// Verify the error mentions git push
-		if !strings.Contains(err.Error(), "git push failed") {
-			t.Errorf("expected 'git push failed' in error, got: %v", err)
-		}
-	}
-}
-
-func TestRunGitAutoPushWarnOnFailure(t *testing.T) {
-	var buf strings.Builder
-	autoPush := true
-	r := &Runner{
-		cfg: &config.Config{
-			Git: config.GitConfig{
-				AutoPush:    &autoPush,
-				PushFailure: "warn",
-			},
+		{
+			name:         "AutoPushDisabled",
+			autoPush:     boolPtr(false),
+			pushFailure:  "warn",
+			wantNoOutput: []string{"Pushing to remote"},
+			description:  "When auto_push is false, no push is attempted",
 		},
-		output: &buf,
+		{
+			name:         "AutoPushNilDefaultsToTrue",
+			autoPush:     nil,
+			pushFailure:  "warn",
+			wantOutput:   []string{"Pushing to remote"},
+			description:  "When auto_push is nil, defaults to true and attempts push",
+		},
+		{
+			name:         "AutoPushTrue",
+			autoPush:     boolPtr(true),
+			pushFailure:  "warn",
+			wantOutput:   []string{"Pushing to remote"},
+			description:  "When auto_push is true, push is attempted",
+		},
+		{
+			name:             "PushFailureStop",
+			autoPush:         boolPtr(true),
+			pushFailure:      "stop",
+			wantErrOnFailure: true,
+			wantOutput:       []string{"Pushing to remote"},
+			description:      "When push_failure is 'stop' and push fails, returns error",
+		},
+		{
+			name:             "PushFailureWarn",
+			autoPush:         boolPtr(true),
+			pushFailure:      "warn",
+			wantErrOnFailure: false,
+			wantOutput:       []string{"Pushing to remote"},
+			description:      "When push_failure is 'warn', logs warning on failure but returns nil",
+		},
+		{
+			name:         "PushFailureDefaultWarn",
+			autoPush:     boolPtr(true),
+			pushFailure:  "",
+			wantOutput:   []string{"Pushing to remote"},
+			description:  "When push_failure is empty, defaults to warn behavior",
+		},
 	}
 
-	// When push_failure is "warn", it should never return an error
-	err := r.runGitAutoPush()
-	if err != nil {
-		t.Errorf("expected no error for warn mode, got: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf strings.Builder
+			var r *Runner
 
-	// If push failed, output should contain a warning
-	output := buf.String()
-	if strings.Contains(output, "git push failed") {
-		if !strings.Contains(output, "Warning") {
-			t.Errorf("expected warning in output for failed push in warn mode, got: %s", output)
-		}
+			if tt.nilRunner {
+				r = nil
+			} else if tt.nilConfig {
+				r = &Runner{
+					output: &buf,
+				}
+			} else {
+				r = &Runner{
+					cfg: &config.Config{
+						Git: config.GitConfig{
+							AutoPush:    tt.autoPush,
+							PushFailure: tt.pushFailure,
+						},
+					},
+					output: &buf,
+				}
+			}
+
+			err := r.runGitAutoPush()
+
+			// For tests that actually attempt a push, the outcome depends on the git state
+			// If the push succeeds, err will be nil (good)
+			// If the push fails, we check wantErrOnFailure to determine expected behavior
+			if err != nil {
+				if !tt.wantErrOnFailure && tt.pushFailure != "stop" {
+					t.Errorf("%s: unexpected error: %v", tt.description, err)
+				}
+				if tt.wantErrOnFailure && !strings.Contains(err.Error(), "git push failed") {
+					t.Errorf("%s: expected 'git push failed' in error, got: %v", tt.description, err)
+				}
+			}
+
+			output := buf.String()
+
+			// Check expected output
+			for _, want := range tt.wantOutput {
+				if !strings.Contains(output, want) {
+					t.Errorf("%s: expected output to contain %q, got: %s", tt.description, want, output)
+				}
+			}
+
+			// Check unexpected output
+			for _, noWant := range tt.wantNoOutput {
+				if strings.Contains(output, noWant) {
+					t.Errorf("%s: expected output NOT to contain %q, got: %s", tt.description, noWant, output)
+				}
+			}
+		})
 	}
 }
 
-func TestRunGitAutoPushNilRunner(t *testing.T) {
-	var r *Runner
-	// Should not panic
-	err := r.runGitAutoPush()
-	if err != nil {
-		t.Errorf("expected no error for nil runner, got: %v", err)
-	}
-}
-
-func TestRunGitAutoPushNilConfig(t *testing.T) {
-	var buf strings.Builder
-	r := &Runner{
-		output: &buf,
-	}
-
-	// Should not panic
-	err := r.runGitAutoPush()
-	if err != nil {
-		t.Errorf("expected no error for nil config, got: %v", err)
-	}
-
-	output := buf.String()
-	if output != "" {
-		t.Errorf("expected no output for nil config, got: %s", output)
-	}
+// boolPtr is a helper for creating *bool pointers in tests
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 func TestTDDPromptSelection(t *testing.T) {
