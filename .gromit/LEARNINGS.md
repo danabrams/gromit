@@ -182,6 +182,12 @@ Use intermediate accumulator helper types for multi-level aggregations—collect
 ### 2026-02-08 | gromit-0xbs | conventions
 JSON struct tags consistently use snake_case naming convention across the codebase (e.g., avg_cost_per_bead, started_at); follow this pattern for all new structs intended for JSON serialization
 
+### 2026-02-08 | gromit-s7tm | patterns
+Template FuncMap functions like 'sub', 'mul', 'div' enable Go templates to compute deltas and percentages directly without requiring pre-computed values in the data context—define simple helper functions in FuncMap and use them inline in template expressions
+
+### 2026-02-08 | gromit-avbc | patterns
+TemplateContext struct fields are populated directly from data sources via dedicated load/read methods (LoadExperiment, ReadEfficiencyReport), then passed through to template rendering—new fields should follow this pattern of: load → populate field → pass to renderer
+
 ---
 
 ## Archived

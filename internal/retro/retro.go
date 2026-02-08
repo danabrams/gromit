@@ -42,6 +42,8 @@ type Result struct {
 	Analysis      string
 	ProposedRules string
 	Success       bool
+	Efficiency    *logger.EfficiencyReport
+	Experiment    *Experiment
 }
 
 // NewRetro creates a new retrospective analyzer
@@ -139,8 +141,10 @@ func (r *Retro) Run(ctx context.Context) (*Result, error) {
 	}
 
 	result := &Result{
-		Analysis: claudeResult.Output,
-		Success:  claudeResult.Success,
+		Analysis:   claudeResult.Output,
+		Success:    claudeResult.Success,
+		Efficiency: efficiencyReport,
+		Experiment: experiment,
 	}
 
 	return result, nil
@@ -298,29 +302,81 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 // - Run bd commands
 // - Create specs
 // - Select and persist experiments
-func LaunchClaudeCode(analysis string) error {
+func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment) error {
 	// Build the prompt with analysis and instructions
-	prompt := fmt.Sprintf(`# Retrospective Analysis Results
+	var prompt strings.Builder
 
-%s
+	prompt.WriteString("# Retrospective Analysis Results\n\n")
+	prompt.WriteString(analysis)
+	prompt.WriteString("\n\n")
 
-# What You Can Do
+	// Add efficiency analysis section if available
+	if efficiency != nil {
+		prompt.WriteString("# Efficiency Analysis\n\n")
+		prompt.WriteString("The retro analysis above includes detailed efficiency metrics comparing the current run against historical data. ")
+		prompt.WriteString("When investigating efficiency anomalies, apply **Five Whys analysis** to trace surface symptoms ")
+		prompt.WriteString("(e.g., \"this bead cost $3\") to root causes (e.g., \"the acceptance criteria were ambiguous, causing opus escalation\").\n\n")
 
-You are now in an interactive Claude Code session. Based on the analysis above, you can:
+		prompt.WriteString("**Key efficiency indicators:**\n")
+		prompt.WriteString(fmt.Sprintf("- Current avg cost per bead: $%.4f\n", efficiency.CurrentAvgCostPerBead))
+		prompt.WriteString(fmt.Sprintf("- Historical avg cost per bead: $%.4f\n", efficiency.HistoricalAvgCostPerBead))
+		if efficiency.CostDelta != 0 {
+			direction := "more expensive"
+			if efficiency.CostDelta < 0 {
+				direction = "cheaper"
+			}
+			pct := (efficiency.CostDelta / efficiency.HistoricalAvgCostPerBead) * 100
+			prompt.WriteString(fmt.Sprintf("- Cost delta: $%.4f (%+.1f%% %s)\n", efficiency.CostDelta, pct, direction))
+		}
+		prompt.WriteString("\n")
+	}
 
-1. **Edit RULES.md** - Update project rules based on learnings
-2. **Edit LEARNINGS.md** - Consolidate, archive, or promote learnings
-3. **Run bd commands** - Create new beads, update existing ones, or manage the backlog
-4. **Create specs** - Write detailed specifications in .gromit/specs/ for complex features
-5. **Select an experiment** - If efficiency analysis included experiment recommendations, you can select at most ONE experiment to run. Use the retro package functions to persist the selected experiment to .gromit/experiment.json. If an active experiment was evaluated, you can keep it (no action needed), revert it (delete experiment.json and undo changes), or extend it (keep experiment.json).
+	// Add experiment evaluation section if an experiment is active
+	if experiment != nil {
+		prompt.WriteString("# Active Experiment Evaluation\n\n")
+		prompt.WriteString(fmt.Sprintf("**Experiment:** %s\n\n", experiment.Name))
+		prompt.WriteString(fmt.Sprintf("**Hypothesis:** %s\n\n", experiment.Hypothesis))
+		prompt.WriteString(fmt.Sprintf("**Change:** %s\n\n", experiment.Change))
+		prompt.WriteString(fmt.Sprintf("**Started:** %s\n\n", experiment.StartedAt.Format("2006-01-02")))
 
-**Important constraints:**
-- Only select ONE experiment at a time (never multiple)
-- When selecting an experiment, populate baseline metrics using ComputeBaselineMetrics from the retro package
-- Experiment recommendations should focus on concrete, testable process changes
+		prompt.WriteString("The retro analysis above includes a comparison of current metrics against the baseline. ")
+		prompt.WriteString("You need to decide whether to:\n\n")
+		prompt.WriteString("1. **Keep** - The experiment was successful; integrate the change as standard practice (delete experiment.json)\n")
+		prompt.WriteString("2. **Revert** - The experiment didn't work; undo the change and delete experiment.json\n")
+		prompt.WriteString("3. **Extend** - Need more data; keep experiment.json for another cycle\n\n")
+	}
 
-Please review the analysis and take appropriate actions.
-`, analysis)
+	// Add instructions
+	prompt.WriteString("# What You Can Do\n\n")
+	prompt.WriteString("You are now in an interactive Claude Code session. Based on the analysis above, you can:\n\n")
+	prompt.WriteString("1. **Edit RULES.md** - Update project rules based on learnings\n")
+	prompt.WriteString("2. **Edit LEARNINGS.md** - Consolidate, archive, or promote learnings\n")
+	prompt.WriteString("3. **Run bd commands** - Create new beads, update existing ones, or manage the backlog\n")
+	prompt.WriteString("4. **Create specs** - Write detailed specifications in .gromit/specs/ for complex features\n")
+
+	// Add experiment selection guidance
+	if efficiency != nil || experiment != nil {
+		prompt.WriteString("5. **Manage experiments**:\n")
+
+		if experiment != nil {
+			prompt.WriteString("   - An active experiment is being evaluated - decide whether to keep, revert, or extend it\n")
+		}
+
+		if efficiency != nil && experiment == nil {
+			prompt.WriteString("   - Select at most ONE experiment from the recommendations above (or none)\n")
+			prompt.WriteString("   - Use retro.SaveExperiment() to persist your selection to .gromit/experiment.json\n")
+			prompt.WriteString("   - Populate baseline metrics using retro.ComputeBaselineMetrics()\n")
+		}
+
+		prompt.WriteString("\n")
+	}
+
+	prompt.WriteString("\n**Important constraints:**\n")
+	prompt.WriteString("- Only select ONE experiment at a time (never multiple)\n")
+	prompt.WriteString("- When selecting an experiment, populate baseline metrics using ComputeBaselineMetrics from the retro package\n")
+	prompt.WriteString("- Experiment recommendations should focus on concrete, testable process changes\n")
+	prompt.WriteString("- Apply Five Whys analysis when investigating efficiency anomalies to identify root causes\n")
+	prompt.WriteString("\nPlease review the analysis and take appropriate actions.\n")
 
 	// Launch claude binary in interactive mode
 	// Note: We don't use -p flag here since we want interactive mode
@@ -332,7 +388,7 @@ Please review the analysis and take appropriate actions.
 	cmd.Stderr = os.Stderr
 
 	// Set the prompt as a positional argument
-	cmd.Args = append(cmd.Args, prompt)
+	cmd.Args = append(cmd.Args, prompt.String())
 
 	// Run and wait for completion
 	if err := cmd.Run(); err != nil {

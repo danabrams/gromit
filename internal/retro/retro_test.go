@@ -153,9 +153,9 @@ func TestLaunchClaudeCodeWithAnalysis(t *testing.T) {
 	// the command execution. For now, we just verify the function exists and
 	// accepts the correct parameters.
 
-	// The function signature is: LaunchClaudeCode(analysis string) error
+	// The function signature is: LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment) error
 	// This is a compile-time check that the function exists with the right signature.
-	var _ func(string) error = LaunchClaudeCode
+	var _ func(string, *logger.EfficiencyReport, *Experiment) error = LaunchClaudeCode
 
 	// Test that the function accepts a non-empty analysis
 	analysis = "Test analysis results"
