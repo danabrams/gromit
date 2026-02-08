@@ -14,6 +14,8 @@ type State struct {
 	LastReviewCommit      string    `json:"last_review_commit,omitempty"`
 	LastReviewIteration   int       `json:"last_review_iteration,omitempty"`
 	IterationsSinceReview int       `json:"iterations_since_review,omitempty"`
+	CleanExit             bool      `json:"clean_exit"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 // File manages the state.json file
@@ -58,6 +60,9 @@ func (f *File) Save() error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("creating state directory: %w", err)
 	}
+
+	// Auto-stamp UpdatedAt before marshalling
+	f.state.UpdatedAt = time.Now()
 
 	data, err := json.MarshalIndent(f.state, "", "  ")
 	if err != nil {

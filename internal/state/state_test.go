@@ -134,3 +134,67 @@ func TestIncrementIterationsSinceReview(t *testing.T) {
 		t.Errorf("expected 0 after RecordReview, got %d", sf.IterationsSinceReview())
 	}
 }
+
+func TestSaveAutoStampsUpdatedAt(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	before := time.Now()
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+	after := time.Now()
+
+	// Check UpdatedAt was stamped
+	if f.state.UpdatedAt.Before(before) || f.state.UpdatedAt.After(after) {
+		t.Error("UpdatedAt should be between before and after")
+	}
+
+	// Load in a new File and verify UpdatedAt persisted
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	// Allow 1 second tolerance for JSON serialization rounding
+	diff := f.state.UpdatedAt.Sub(f2.state.UpdatedAt)
+	if diff < -time.Second || diff > time.Second {
+		t.Errorf("loaded UpdatedAt should match: got %v, want %v", f2.state.UpdatedAt, f.state.UpdatedAt)
+	}
+}
+
+func TestCleanExitPersistence(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Set CleanExit to true and save
+	f.state.CleanExit = true
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Load in a new File and verify CleanExit persisted
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	if !f2.state.CleanExit {
+		t.Error("CleanExit should be true after load")
+	}
+
+	// Set to false and verify it persists
+	f2.state.CleanExit = false
+	if err := f2.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	f3, _ := NewFile(dir)
+	if err := f3.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	if f3.state.CleanExit {
+		t.Error("CleanExit should be false after load")
+	}
+}
