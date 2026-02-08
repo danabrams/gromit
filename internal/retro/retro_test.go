@@ -2,7 +2,9 @@ package retro
 
 import (
 	"context"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -166,4 +168,341 @@ func TestLaunchClaudeCodeWithAnalysis(t *testing.T) {
 	// 2. Verify the prompt contains the analysis
 	// 3. Verify the command is "claude" with the prompt as an argument
 	// 4. Verify stdin/stdout/stderr are connected
+}
+
+func TestRenderPromptWithPopulatedExperiment(t *testing.T) {
+	// Test that renderPrompt can execute the template with all context fields populated,
+	// especially with an Experiment containing non-zero BaselineMetrics (float64 types).
+	// This test catches type mismatches that would cause template execution to fail at runtime.
+
+	tmpDir := t.TempDir()
+
+	// Write the real PROMPT_retro.md template to the temp directory
+	templateContent := `# Retrospective Analysis
+
+## Run Statistics
+
+{{- if .RunStats.Total }}
+- **Total iterations**: {{ .RunStats.Total }}
+- **Succeeded**: {{ .RunStats.Succeeded }}
+- **Failed**: {{ .RunStats.Failed }}
+- **Failure rate**: {{ printf "%.1f%%" (mul .RunStats.FailureRate 100) }}
+{{- end }}
+
+{{- if .Efficiency }}
+
+## Current Run Efficiency
+
+### Per-Model Aggregates (Current Run)
+| Model | Iterations | Avg Cost |
+|-------|-----------|----------|
+{{- range $model, $stats := .Efficiency.CurrentModels }}
+| {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} |
+{{- end }}
+
+**Overall Metrics**
+- Current avg cost per bead: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }}
+{{- end }}
+
+{{- if .Experiment }}
+
+## Active Experiment Evaluation
+
+**Experiment Details:**
+- **Name**: {{ .Experiment.Name }}
+- **Hypothesis**: {{ .Experiment.Hypothesis }}
+- **Change**: {{ .Experiment.Change }}
+
+**Baseline Metrics (at experiment start):**
+- Avg cost per bead: ${{ printf "%.4f" .Experiment.BaselineMetrics.AvgCostPerBead }}
+- Avg duration per bead: {{ .Experiment.BaselineMetrics.AvgDurationMs }}ms
+- Avg input tokens: {{ printf "%.0f" .Experiment.BaselineMetrics.AvgInputTokens }}
+- Avg output tokens: {{ printf "%.0f" .Experiment.BaselineMetrics.AvgOutputTokens }}
+- Failure rate: {{ printf "%.1f%%" (mul .Experiment.BaselineMetrics.FailureRate 100) }}
+
+**Current vs Baseline:**
+- Cost: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }} vs ${{ printf "%.4f" .Experiment.BaselineMetrics.AvgCostPerBead }} ({{ if gt .Efficiency.CurrentAvgCostPerBead .Experiment.BaselineMetrics.AvgCostPerBead }}+{{ printf "%.1f%%" (mul (div (sub .Efficiency.CurrentAvgCostPerBead .Experiment.BaselineMetrics.AvgCostPerBead) .Experiment.BaselineMetrics.AvgCostPerBead) 100) }}{{ else }}no change{{ end }})
+{{- end }}
+`
+
+	templatePath := tmpDir + "/template.md"
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	// Create Retro with the temp template path
+	tmpGromitDir := t.TempDir()
+	r, err := NewRetro(&config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 60,
+		},
+	}, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+
+	// Override the template path to use our temp template
+	r.templatePath = templatePath
+
+	// Construct fully populated TemplateContext with non-nil and non-zero values
+	ctx := TemplateContext{
+		Rules:     "Test rules",
+		Learnings: "Test learnings",
+		RunStats: logger.RunStats{
+			Total:     10,
+			Succeeded: 8,
+			Failed:    2,
+		},
+		BeadStats: map[string]logger.BeadStats{
+			"bead-1": {
+				BeadID:      "bead-1",
+				BeadTitle:   "Test Bead",
+				TotalRuns:   5,
+				Failures:    1,
+				Successes:   4,
+				Status:      "open",
+				CloseReason: "",
+				Comments:    []string{"Comment 1", "Comment 2"},
+			},
+		},
+		Efficiency: &logger.EfficiencyReport{
+			CurrentModels: map[string]logger.ModelEfficiency{
+				"sonnet": {
+					Model:           "sonnet",
+					IterationCount:  5,
+					AvgCostUSD:      0.35,
+					AvgDuration:     45 * time.Second,
+					AvgInputTokens:  11500.5,
+					AvgOutputTokens: 2800.75,
+				},
+			},
+			CurrentAvgCostPerBead:     0.35,
+			CurrentAvgDurationPerBead: 45 * time.Second,
+		},
+		Experiment: &Experiment{
+			Name:        "Use haiku for test-only beads",
+			Hypothesis:  "Beads that only modify test files can succeed with haiku",
+			Change:      "Add label complexity:low to test beads",
+			Measurement: "Compare success rate and cost before vs after",
+			Risk:        "Test beads may fail more on haiku",
+			StartedAt:   time.Date(2026, 2, 7, 12, 0, 0, 0, time.UTC),
+			BaselineMetrics: BaselineMetrics{
+				AvgCostPerBead:  0.42,
+				AvgDurationMs:   45000.0,
+				AvgInputTokens:  12000.5,
+				AvgOutputTokens: 3000.25,
+				FailureRate:     0.08,
+			},
+		},
+	}
+
+	// Call renderPrompt with all fields populated
+	prompt, err := r.renderPrompt("", "", ctx.RunStats, ctx.BeadStats, ctx.Efficiency, ctx.Experiment)
+
+	// Test 1: renderPrompt should not error
+	if err != nil {
+		t.Fatalf("renderPrompt failed: %v", err)
+	}
+
+	// Test 2: rendered output should not be empty
+	if prompt == "" {
+		t.Error("expected non-empty rendered prompt")
+	}
+
+	// Test 3: verify rendered output contains expected metric values from the input data
+	expectedStrings := []string{
+		"Total iterations",
+		"Iteration",
+		"0.3500", // Current avg cost (formatted with 4 decimals)
+		"0.4200", // Baseline avg cost
+		"12000",  // Baseline input tokens (formatted with 0 decimals)
+		"3000",   // Baseline output tokens
+		"8",      // Failure rate percent
+		"sonnet", // Model name from CurrentModels
+	}
+
+	for _, expected := range expectedStrings {
+		if !contains(prompt, expected) {
+			t.Errorf("rendered prompt missing expected value: %q", expected)
+		}
+	}
+
+	// Test 4: verify Experiment name and details are in output
+	if !contains(prompt, "Use haiku for test-only beads") {
+		t.Error("rendered prompt missing experiment name")
+	}
+
+	// Test 5: verify BaselineMetrics float64 values are properly formatted
+	// (This would fail if BaselineMetrics.AvgDurationMs was incorrectly typed as int64)
+	if !contains(prompt, "45000ms") {
+		t.Error("rendered prompt missing properly formatted baseline duration")
+	}
+}
+
+func TestRenderPromptWithoutExperiment(t *testing.T) {
+	// Test that renderPrompt works correctly when Experiment is nil
+	tmpDir := t.TempDir()
+
+	// Write a simpler template that doesn't use Experiment
+	templateContent := `# Retrospective Analysis
+
+{{- if .RunStats.Total }}
+- **Total iterations**: {{ .RunStats.Total }}
+{{- end }}
+
+{{- if .Efficiency }}
+- Current avg cost per bead: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }}
+{{- end }}
+`
+
+	templatePath := tmpDir + "/template.md"
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	tmpGromitDir := t.TempDir()
+	r, err := NewRetro(&config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 60,
+		},
+	}, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+
+	r.templatePath = templatePath
+
+	// Call renderPrompt with nil Experiment
+	prompt, err := r.renderPrompt("", "", logger.RunStats{Total: 5}, nil, &logger.EfficiencyReport{
+		CurrentAvgCostPerBead: 0.35,
+	}, nil)
+
+	if err != nil {
+		t.Fatalf("renderPrompt with nil Experiment failed: %v", err)
+	}
+
+	if prompt == "" {
+		t.Error("expected non-empty rendered prompt even with nil Experiment")
+	}
+
+	if !contains(prompt, "5") {
+		t.Error("rendered prompt missing Total iterations value")
+	}
+}
+
+func TestRenderPromptTemplateExpressionsWithFloatTypes(t *testing.T) {
+	// Test that all template functions (mul, div, sub, durationMs) work correctly
+	// when applied to BaselineMetrics float64 fields in the Experiment context.
+	// This specifically tests the bug scenario where BaselineMetrics fields were
+	// incorrectly typed as int64, which would cause template function execution to fail.
+
+	tmpDir := t.TempDir()
+
+	// Write a template that exercises all template functions with BaselineMetrics float64 fields
+	templateContent := `# Experiment Analysis
+
+{{- if .Experiment }}
+**Baseline Metrics:**
+- Avg cost: ${{ printf "%.4f" .Experiment.BaselineMetrics.AvgCostPerBead }}
+- Duration: {{ .Experiment.BaselineMetrics.AvgDurationMs }}ms
+- Input tokens: {{ printf "%.0f" .Experiment.BaselineMetrics.AvgInputTokens }}
+- Output tokens: {{ printf "%.0f" .Experiment.BaselineMetrics.AvgOutputTokens }}
+- Failure rate: {{ printf "%.1f%%" (mul .Experiment.BaselineMetrics.FailureRate 100) }}
+
+**Calculations (verify all template functions work with float64 BaselineMetrics):**
+- Cost * 2: ${{ printf "%.4f" (mul .Experiment.BaselineMetrics.AvgCostPerBead 2.0) }}
+- Duration / 2: {{ printf "%.0f" (div .Experiment.BaselineMetrics.AvgDurationMs 2.0) }}ms
+- Cost delta (0.50 - baseline): ${{ printf "%.4f" (sub 0.50 .Experiment.BaselineMetrics.AvgCostPerBead) }}
+- Input delta: {{ printf "%.0f" (sub .Experiment.BaselineMetrics.AvgInputTokens 10000.0) }}
+
+**Efficiency Comparison (all float64 operations):**
+{{- if .Efficiency }}
+- Current cost: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }} vs ${{ printf "%.4f" .Experiment.BaselineMetrics.AvgCostPerBead }}
+- Cost increase: {{ printf "%.1f%%" (mul (div (sub .Efficiency.CurrentAvgCostPerBead .Experiment.BaselineMetrics.AvgCostPerBead) .Experiment.BaselineMetrics.AvgCostPerBead) 100) }}%
+- Duration delta: {{ printf "%.0f" (durationMs .Efficiency.CurrentAvgDurationPerBead) }}ms
+{{- end }}
+{{- end }}
+`
+
+	templatePath := tmpDir + "/template.md"
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	tmpGromitDir := t.TempDir()
+	r, err := NewRetro(&config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 60,
+		},
+	}, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+
+	r.templatePath = templatePath
+
+	// Create Experiment with BaselineMetrics containing float64 values that will be
+	// passed to template functions expecting float64 arguments
+	experiment := &Experiment{
+		Name:        "Cost Reduction Test",
+		Hypothesis:  "Lower costs with haiku",
+		Change:      "Use haiku for simple beads",
+		Measurement: "Compare cost metrics",
+		Risk:        "Failures may increase",
+		StartedAt:   time.Date(2026, 2, 7, 12, 0, 0, 0, time.UTC),
+		BaselineMetrics: BaselineMetrics{
+			AvgCostPerBead:  0.42,
+			AvgDurationMs:   45000.0, // Must be float64, not int64
+			AvgInputTokens:  12000.5, // Must be float64, not int64
+			AvgOutputTokens: 3000.25, // Must be float64, not int64
+			FailureRate:     0.08,    // float64 type
+		},
+	}
+
+	efficiency := &logger.EfficiencyReport{
+		CurrentModels: map[string]logger.ModelEfficiency{
+			"sonnet": {
+				Model:           "sonnet",
+				IterationCount:  5,
+				AvgCostUSD:      0.35,
+				AvgDuration:     45 * time.Second,
+				AvgInputTokens:  11500.5,
+				AvgOutputTokens: 2800.75,
+			},
+		},
+		CurrentAvgCostPerBead:     0.35,
+		CurrentAvgDurationPerBead: 45 * time.Second,
+	}
+
+	// Call renderPrompt with populated Experiment
+	prompt, err := r.renderPrompt("", "", logger.RunStats{}, nil, efficiency, experiment)
+
+	// Verify no error occurred (template functions received correct float64 types)
+	if err != nil {
+		t.Fatalf("renderPrompt failed (likely due to type mismatch in template functions): %v", err)
+	}
+
+	if prompt == "" {
+		t.Error("expected non-empty rendered prompt")
+	}
+
+	// Verify expected calculations in output
+	expectedValues := []string{
+		"0.4200", // Baseline cost
+		"45000",  // Baseline duration
+		"12000",  // Baseline input tokens
+		"3000",   // Baseline output tokens
+		"8.0",    // Failure rate percentage
+		"0.8400", // Cost * 2
+		"22500",  // Duration / 2
+	}
+
+	for _, expected := range expectedValues {
+		if !contains(prompt, expected) {
+			t.Errorf("rendered prompt missing expected calculated value: %q", expected)
+		}
+	}
 }
