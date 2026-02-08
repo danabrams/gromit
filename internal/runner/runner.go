@@ -342,6 +342,8 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			// Close the bead
 			if err := r.beads.Close(b.ID); err != nil {
 				r.log("Warning: failed to close bead: %v", err)
+				// Add to skippedBeads so stuck-bead detection will catch it on next iteration
+				skippedBeads[b.ID] = true
 			}
 
 			// Sync bd state
