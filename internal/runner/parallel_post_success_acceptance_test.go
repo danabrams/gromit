@@ -158,8 +158,8 @@ func TestAcceptance_ParallelPostSuccess_ConcurrentExecution(t *testing.T) {
 
 	// Verify total execution time is closer to max(200ms, 300ms) = 300ms than sum(200ms, 300ms) = 500ms
 	// Allow 150ms overhead for test infrastructure
-	maxExpected := reviewDuration + 150*time.Millisecond  // ~450ms
-	sumExpected := learningDuration + reviewDuration       // 500ms
+	maxExpected := reviewDuration + 150*time.Millisecond // ~450ms
+	sumExpected := learningDuration + reviewDuration     // 500ms
 
 	if elapsed > sumExpected {
 		t.Errorf("execution took too long (%v), suggesting sequential execution (expected <%v for concurrent)",
@@ -453,5 +453,148 @@ func TestAcceptance_ParallelPostSuccess_OnlyReviewEnabled(t *testing.T) {
 	}
 	if !reviewCalled {
 		t.Error("expected review to be called when enabled")
+	}
+}
+
+// TestAcceptance_ParallelPostSuccess_ReviewRevalidationErrorPropagates verifies acceptance criterion:
+// "Review re-validation (when fixes are applied) still works correctly within its goroutine
+// and its error still propagates to the caller."
+//
+// This test verifies that when review applies fixes and re-validation fails, the error
+// propagates to the caller and the bead is NOT closed, even when both stages run concurrently.
+func TestAcceptance_ParallelPostSuccess_ReviewRevalidationErrorPropagates(t *testing.T) {
+	learningCompleted := false
+	reviewCompleted := false
+	revalidationAttempted := false
+	validationCallCount := 0
+	var mu sync.Mutex
+
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "build complete"}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			mu.Lock()
+			validationCallCount++
+			callNum := validationCallCount
+			mu.Unlock()
+
+			// First call is the initial validation (passes)
+			if callNum == 1 {
+				return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
+			}
+
+			// Second call is re-validation after review fixes (fails)
+			mu.Lock()
+			revalidationAttempted = true
+			mu.Unlock()
+			return &claude.Result{Success: false, Output: "VALIDATION_FAILED: review broke something"}, nil
+		},
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			isLearning := strings.Contains(prompt, "extract") || strings.Contains(prompt, "learning")
+			isReview := strings.Contains(prompt, "review") || strings.Contains(prompt, "Review")
+
+			if isLearning {
+				time.Sleep(100 * time.Millisecond) // Simulate learning work
+				mu.Lock()
+				learningCompleted = true
+				mu.Unlock()
+				return &claude.Result{Success: true, Output: `{"learning":"test","category":"patterns"}`}, nil
+			}
+
+			if isReview {
+				time.Sleep(150 * time.Millisecond) // Simulate review work
+				mu.Lock()
+				reviewCompleted = true
+				mu.Unlock()
+				// Review returns fixes applied, which triggers re-validation
+				return &claude.Result{Success: true, Output: `{"summary":"Fixed 2 issues","findings":[],"fixes_applied":["fix1.go","fix2.go"]}`}, nil
+			}
+
+			return &claude.Result{Success: true, Output: "unknown"}, nil
+		},
+	}
+
+	lf, err := learnings.NewFile(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFile failed: %v", err)
+	}
+	lf.SetFilter(func(content string) (bool, error) { return true, nil })
+
+	mockRend := &mockPromptRenderer{
+		LearningsFile: lf,
+		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
+			return "extract learning from success", nil
+		},
+		RenderReviewFn: func(ctx *prompt.ReviewContext) (string, error) {
+			return "review the code", nil
+		},
+	}
+
+	learnFromSuccessEnabled := true
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			if callCount > 1 {
+				return nil, nil
+			}
+			return &bead.Bead{
+				ID:       "test-revalidation",
+				Title:    "Test review re-validation error propagation",
+				Priority: 1,
+				Labels:   []string{},
+			}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(
+		&config.Config{
+			Claude: config.ClaudeConfig{BeadTimeout: 60},
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessEnabled,
+			},
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Models: config.ModelsConfig{Validation: "haiku"},
+			Review: config.ReviewConfig{Enabled: true, Model: "sonnet"},
+		},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}},
+	)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+
+	err = r.Run(context.Background(), 1, time.Time{}, false)
+
+	// Verify that the error propagated (Run should fail)
+	if err == nil {
+		t.Fatal("Expected Run() to fail when review re-validation fails, but it succeeded")
+	}
+	if !strings.Contains(err.Error(), "review fixes broke validation") {
+		t.Errorf("Expected error to mention 'review fixes broke validation', got: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Verify both stages attempted to complete
+	if !learningCompleted {
+		t.Error("learning should have completed")
+	}
+	if !reviewCompleted {
+		t.Error("review should have completed")
+	}
+	if !revalidationAttempted {
+		t.Error("re-validation should have been attempted")
+	}
+
+	// Verify bead was NOT closed (due to re-validation failure)
+	if len(beads.ClosedIDs) != 0 {
+		t.Errorf("expected bead NOT to be closed when re-validation fails, but got closed: %v", beads.ClosedIDs)
 	}
 }
