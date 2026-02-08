@@ -393,6 +393,15 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 		// Handle failure
 		if !result.Success {
+			// Update in-memory stats so stuck bead detection works within this run
+			stats := beadStats[b.ID]
+			stats.BeadID = b.ID
+			stats.BeadTitle = b.Title
+			stats.Failures++
+			stats.TotalRuns++
+			stats.LastAttempt = time.Now()
+			beadStats[b.ID] = stats
+
 			if r.cfg.Loop.StopOnFailure {
 				return fmt.Errorf("bead %s failed: %v", b.ID, result.Error)
 			}
