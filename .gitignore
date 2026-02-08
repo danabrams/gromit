@@ -17,3 +17,4 @@ coverage.out
 # Gromit runner
 .gromit/logs/
 .gromit/tmp/
+.gromit/status.json
