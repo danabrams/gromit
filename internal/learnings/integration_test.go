@@ -31,7 +31,7 @@ func TestLoadActualLearningsFile(t *testing.T) {
 		"Status File Management",
 		"LEARNINGS.md Format Validation",
 		"Test Helper Delegation",
-		"Test Data File Validation",
+		"Prompt and Template Infrastructure",
 	}
 
 	for i, expected := range expectedTitles {

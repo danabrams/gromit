@@ -37,7 +37,11 @@ func TestParallelPostSuccess_BothStagesExecuteConcurrently(t *testing.T) {
 			// Distinguish between learning extraction and review calls by checking prompt content
 			if strings.Contains(prompt, "success learning") || strings.Contains(prompt, "learn") {
 				// Learning extraction
-				learningStarted <- time.Now()
+				select {
+				case learningStarted <- time.Now():
+				default:
+					// Channel already has value, don't block
+				}
 				time.Sleep(learningDuration)
 				return &claude.Result{
 					Success: true,
@@ -45,7 +49,11 @@ func TestParallelPostSuccess_BothStagesExecuteConcurrently(t *testing.T) {
 				}, nil
 			}
 			// Review call
-			reviewStarted <- time.Now()
+			select {
+			case reviewStarted <- time.Now():
+			default:
+				// Channel already has value, don't block
+			}
 			time.Sleep(reviewDuration)
 			return &claude.Result{
 				Success: true,
@@ -148,14 +156,14 @@ func TestParallelPostSuccess_BothStagesExecuteConcurrently(t *testing.T) {
 	maxDuration := reviewDuration                    // 300ms (the longer one)
 	sumDuration := learningDuration + reviewDuration // 500ms
 
-	// Allow some overhead for test execution (100ms)
-	if elapsed > sumDuration-50*time.Millisecond {
+	// Allow some overhead for test execution (150ms to account for scheduling variance)
+	if elapsed > sumDuration-100*time.Millisecond {
 		t.Errorf("execution took too long (%v) - expected closer to max duration (%v), not sum (%v)",
 			elapsed, maxDuration, sumDuration)
 	}
 
 	// Should be at least the max duration (minus some tolerance for timing)
-	if elapsed < maxDuration-50*time.Millisecond {
+	if elapsed < maxDuration-100*time.Millisecond {
 		t.Errorf("execution was too fast (%v) - expected at least max duration (%v)",
 			elapsed, maxDuration)
 	}
@@ -177,11 +185,19 @@ func TestParallelPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 			if strings.Contains(prompt, "success learning") || strings.Contains(prompt, "learn") {
 				// Learning extraction fails
-				learningFailed <- true
+				select {
+				case learningFailed <- true:
+				default:
+					// Non-blocking send in case no one is reading
+				}
 				return nil, fmt.Errorf("learning extraction failed")
 			}
 			// Review succeeds
-			reviewCompleted <- true
+			select {
+			case reviewCompleted <- true:
+			default:
+				// Non-blocking send in case no one is reading
+			}
 			return &claude.Result{
 				Success: true,
 				Output:  `{"summary": "No issues found", "findings": [], "fixes_applied": []}`,
@@ -272,14 +288,22 @@ func TestParallelPostSuccess_ReviewFailureDoesNotBlockLearning(t *testing.T) {
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 			if strings.Contains(prompt, "success learning") || strings.Contains(prompt, "learn") {
 				// Learning succeeds
-				learningCompleted <- true
+				select {
+				case learningCompleted <- true:
+				default:
+					// Non-blocking send in case no one is reading
+				}
 				return &claude.Result{
 					Success: true,
 					Output:  `{"learning": "Test pattern works", "category": "patterns"}`,
 				}, nil
 			}
 			// Review fails
-			reviewFailed <- true
+			select {
+			case reviewFailed <- true:
+			default:
+				// Non-blocking send in case no one is reading
+			}
 			return nil, fmt.Errorf("review failed")
 		},
 	}

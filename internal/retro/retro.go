@@ -107,9 +107,22 @@ func (r *Retro) Run(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("filtering provisional learnings: %w", err)
 	}
 
-	// Save newly-evaluated hashes to state
-	if len(newlyEvaluatedHashes) > 0 {
+	// Add newly-evaluated hashes to state (but don't save yet)
+	hasNewHashes := len(newlyEvaluatedHashes) > 0
+	if hasNewHashes {
 		stateFile.AddFilteredHashes(newlyEvaluatedHashes)
+	}
+
+	// Reconcile filtered hashes against current provisional learnings
+	currentProvisionals := r.learningsFile.GetProvisional()
+	currentHashes := make(map[string]bool, len(currentProvisionals))
+	for _, l := range currentProvisionals {
+		currentHashes[l.Hash] = true
+	}
+	hasPrunedHashes := stateFile.ReconcileFilteredHashes(currentHashes)
+
+	// Save state once if either new hashes were added or stale hashes were pruned
+	if hasNewHashes || hasPrunedHashes {
 		if err := stateFile.Save(); err != nil {
 			return nil, fmt.Errorf("saving state with filtered hashes: %w", err)
 		}

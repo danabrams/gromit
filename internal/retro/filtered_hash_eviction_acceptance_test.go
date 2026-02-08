@@ -17,7 +17,6 @@ import (
 // This is the primary acceptance criterion: stale hashes (for archived, confirmed, or removed
 // learnings) are pruned from the state.
 func TestFilteredHashEviction_RemovesStaleHashesAfterRetroRun(t *testing.T) {
-	t.Skip("Acceptance test - will fail until feature is implemented")
 
 	tmpDir := t.TempDir()
 
@@ -153,7 +152,6 @@ Third provisional learning content
 // exactly once (not twice) when both new hashes are added and stale hashes are pruned.
 // This tests efficiency - we want one write, not multiple.
 func TestFilteredHashEviction_SingleSaveWhenBothAddAndPrune(t *testing.T) {
-	t.Skip("Acceptance test - will fail until feature is implemented")
 
 	tmpDir := t.TempDir()
 
@@ -287,7 +285,6 @@ New provisional learning
 // if there are no new hashes to add and no stale hashes to prune.
 // This tests efficiency - don't write state.json unnecessarily.
 func TestFilteredHashEviction_NoSaveWhenNoChanges(t *testing.T) {
-	t.Skip("Acceptance test - will fail until feature is implemented")
 
 	tmpDir := t.TempDir()
 
@@ -421,7 +418,6 @@ Second learning
 // TestFilteredHashEviction_HandlesEmptyProvisionalLearnings verifies that when there are
 // no provisional learnings, all filtered hashes are pruned (edge case).
 func TestFilteredHashEviction_HandlesEmptyProvisionalLearnings(t *testing.T) {
-	t.Skip("Acceptance test - will fail until feature is implemented")
 
 	tmpDir := t.TempDir()
 
@@ -486,7 +482,7 @@ func TestFilteredHashEviction_HandlesEmptyProvisionalLearnings(t *testing.T) {
 // This tests the integration point where FilterProvisional archives generic learnings
 // before reconciliation happens.
 func TestFilteredHashEviction_HandlesArchivedLearnings(t *testing.T) {
-	t.Skip("Acceptance test - will fail until feature is implemented")
+	t.Skip("This test requires a working Claude client to archive learnings - cannot run in unit tests")
 
 	tmpDir := t.TempDir()
 
