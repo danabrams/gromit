@@ -1116,28 +1116,41 @@ func TestRunRefactorPhase_ValidationDisabled(t *testing.T) {
 	}
 }
 
+// TestRunValidationPostSuccess_ParallelExecution verifies that when both
+// learn_from_success and review are enabled, runValidation dispatches them
+// concurrently. Uses a barrier pattern: each stage signals arrival and waits
+// for the other. If sequential, the test deadlocks (caught by test timeout).
 func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
-	var buf strings.Builder
+	// Barrier channels: each stage signals arrival, then waits for the other.
+	learningArrived := make(chan struct{})
+	reviewArrived := make(chan struct{})
+	learningStarted := make(chan struct{}, 1)
+	reviewStarted := make(chan struct{}, 1)
 
-	// Track execution timing for both stages
-	var learningStarted, reviewStarted, learningFinished, reviewFinished time.Time
+	var buf strings.Builder
 
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 			// Success learning extraction
-			if strings.Contains(prompt, "success") || model == "haiku" {
-				learningStarted = time.Now()
-				time.Sleep(50 * time.Millisecond) // Simulate work
-				learningFinished = time.Now()
+			if strings.Contains(prompt, "success") || strings.Contains(prompt, "learn") || model == "haiku" {
+				select {
+				case learningStarted <- struct{}{}:
+				default:
+				}
+				close(learningArrived)
+				<-reviewArrived // wait for review to also start
 				return &claude.Result{
 					Success: true,
 					Output:  `{"learning": "Test learning", "category": "patterns"}`,
 				}, nil
 			}
 			// Light review
-			reviewStarted = time.Now()
-			time.Sleep(50 * time.Millisecond) // Simulate work
-			reviewFinished = time.Now()
+			select {
+			case reviewStarted <- struct{}{}:
+			default:
+			}
+			close(reviewArrived)
+			<-learningArrived // wait for learning to also start
 			return &claude.Result{
 				Success: true,
 				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Looks good"}`,
@@ -1170,7 +1183,7 @@ func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
 			},
 			Review: config.ReviewConfig{
 				Enabled: true,
-				Timeout: 60, // 60 seconds
+				Timeout: 60,
 			},
 			Validation: config.ValidationConfig{
 				Enabled:  true,
@@ -1212,72 +1225,46 @@ func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
 		t.Fatalf("expected no error, got: %v\nOutput: %s", err, buf.String())
 	}
 
-	// Verify both stages started (times should be non-zero)
-	if learningStarted.IsZero() {
-		t.Error("learning extraction never started")
-	}
-	if reviewStarted.IsZero() {
-		t.Error("review never started")
-	}
-
-	// Verify both stages completed
-	if learningFinished.IsZero() {
-		t.Error("learning extraction never finished")
-	}
-	if reviewFinished.IsZero() {
-		t.Error("review never finished")
+	// Verify both stages actually started
+	select {
+	case <-learningStarted:
+	default:
+		t.Fatal("learning extraction was never started")
 	}
 
-	// Verify that execution started for both before either completed (overlapping execution)
-	// If parallel: learning starts, review starts, learning finishes, review finishes
-	// If sequential: learning starts, learning finishes, review starts, review finishes
-	if learningFinished.Before(reviewStarted) {
-		t.Error("execution appears sequential: learning finished before review started")
+	select {
+	case <-reviewStarted:
+	default:
+		t.Fatal("review was never started")
 	}
+
+	// The barrier pattern proves concurrency: if both stages completed without
+	// deadlocking, they must have been running concurrently.
 }
 
+// TestPostSuccess_BothEnabled_ConcurrentExecution verifies that runPostSuccessParallel
+// runs learning and review concurrently. Uses a barrier pattern: each stage signals
+// arrival and waits for the other. If sequential, the test deadlocks (test timeout).
 func TestPostSuccess_BothEnabled_ConcurrentExecution(t *testing.T) {
-	// This test verifies that when both learn_from_success and review are enabled,
-	// the two stages execute concurrently rather than sequentially.
-	// Mock both stages with 100ms delays each.
-	// Assert total duration is ~100-150ms (concurrent max) rather than 200ms+ (sequential sum).
+	// Barrier channels: each stage signals arrival, then waits for the other.
+	learningArrived := make(chan struct{})
+	reviewArrived := make(chan struct{})
+	learningStarted := make(chan struct{}, 1)
+	reviewStarted := make(chan struct{}, 1)
 
 	var buf strings.Builder
 
-	// Track execution timing with mutex-protected access since goroutines run concurrently
-	var timeMu sync.Mutex
-	var learningCalls, reviewCalls int
-	var learningStarted, reviewStarted, learningFinished, reviewFinished time.Time
-
-	// Create a mock Git HEAD that returns a valid commit
-	tempDir := t.TempDir()
-	gitDir := filepath.Join(tempDir, ".git")
-	if err := os.MkdirAll(gitDir, 0755); err != nil {
-		t.Fatalf("failed to create .git dir: %v", err)
-	}
-	headFile := filepath.Join(gitDir, "HEAD")
-	if err := os.WriteFile(headFile, []byte("abc123def456"), 0644); err != nil {
-		t.Fatalf("failed to write HEAD file: %v", err)
-	}
-
-	// Create a mock Claude client that tracks timing for both learning and review
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
-			// Check if this is a learning extraction call or review call based on prompt content
 			isLearningCall := strings.Contains(prompt, "extract learning") || strings.Contains(prompt, "success") || model == "haiku"
 
 			if isLearningCall {
-				timeMu.Lock()
-				learningCalls++
-				learningStarted = time.Now()
-				timeMu.Unlock()
-
-				time.Sleep(100 * time.Millisecond) // Simulate learning work
-
-				timeMu.Lock()
-				learningFinished = time.Now()
-				timeMu.Unlock()
-
+				select {
+				case learningStarted <- struct{}{}:
+				default:
+				}
+				close(learningArrived)
+				<-reviewArrived // wait for review to also start
 				return &claude.Result{
 					Success: true,
 					Output:  `{"learning": "Test learning from concurrent execution", "category": "patterns"}`,
@@ -1285,17 +1272,12 @@ func TestPostSuccess_BothEnabled_ConcurrentExecution(t *testing.T) {
 			}
 
 			// Review call
-			timeMu.Lock()
-			reviewCalls++
-			reviewStarted = time.Now()
-			timeMu.Unlock()
-
-			time.Sleep(100 * time.Millisecond) // Simulate review work
-
-			timeMu.Lock()
-			reviewFinished = time.Now()
-			timeMu.Unlock()
-
+			select {
+			case reviewStarted <- struct{}{}:
+			default:
+			}
+			close(reviewArrived)
+			<-learningArrived // wait for learning to also start
 			return &claude.Result{
 				Success: true,
 				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Code looks good"}`,
@@ -1338,19 +1320,9 @@ func TestPostSuccess_BothEnabled_ConcurrentExecution(t *testing.T) {
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
 		output:   &buf,
-	}
-
-	// Use a valid git commit - get HEAD^ (parent of HEAD) so there's a diff
-	cmd := exec.Command("git", "rev-parse", "HEAD^")
-	out, err := cmd.Output()
-	var startCommit string
-	if err == nil {
-		startCommit = strings.TrimSpace(string(out))
-	} else {
-		// Fallback to HEAD if HEAD^ doesn't exist (single commit repo)
-		cmd = exec.Command("git", "rev-parse", "HEAD")
-		out, _ = cmd.Output()
-		startCommit = strings.TrimSpace(string(out))
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
 	}
 
 	bc := &beadContext{
@@ -1361,65 +1333,34 @@ func TestPostSuccess_BothEnabled_ConcurrentExecution(t *testing.T) {
 		},
 		model:       "sonnet",
 		result:      &IterationResult{},
-		startCommit: startCommit,
+		startCommit: "abc123",
 		iteration:   1,
 		runDeadline: time.Now().Add(5 * time.Minute),
 		promptCtx: &prompt.Context{
-			WorkDir: tempDir,
+			WorkDir: t.TempDir(),
 		},
 	}
 
-	start := time.Now()
-	err = r.runPostSuccessParallel(context.Background(), bc)
-	duration := time.Since(start)
-
-	// If there's an error from git operations in runLightReview, that's expected in test environment
+	err := r.runPostSuccessParallel(context.Background(), bc)
 	if err != nil {
-		t.Logf("Note: runPostSuccessParallel returned error (may be from git operations): %v", err)
+		t.Fatalf("runPostSuccessParallel failed: %v", err)
 	}
 
-	// Verify timing behavior
-	timeMu.Lock()
-	defer timeMu.Unlock()
-
-	// Check if both stages executed
-	learningRan := !learningStarted.IsZero() && !learningFinished.IsZero()
-	reviewRan := !reviewStarted.IsZero() && !reviewFinished.IsZero()
-
-	if !learningRan {
-		t.Error("learning extraction did not execute")
+	// Verify both stages actually started
+	select {
+	case <-learningStarted:
+	default:
+		t.Fatal("learning extraction was never started")
 	}
 
-	if !reviewRan {
-		t.Logf("WARNING: review did not execute (may have failed on git operations in test environment)")
-		// This is not a fatal error - the test is primarily checking that IF both run, they run concurrently
-		return
+	select {
+	case <-reviewStarted:
+	default:
+		t.Fatal("review was never started")
 	}
 
-	// If both stages ran successfully, verify concurrent execution
-	t.Logf("Both stages executed: learning=%v, review=%v", learningRan, reviewRan)
-
-	// ACCEPTANCE CRITERION: Wall-clock time should be approximately max(100ms, 100ms) = ~100ms
-	// rather than sequential sum(100ms + 100ms) = ~200ms
-	// Allow generous overhead for test execution, but total should be < 180ms (well below 200ms sequential threshold)
-	if duration > 180*time.Millisecond {
-		t.Errorf("FAIL: execution appears sequential: took %v, expected ~100-180ms for concurrent execution (not 200ms+)", duration)
-	} else {
-		t.Logf("PASS: Duration %v indicates concurrent execution (< 180ms threshold)", duration)
-	}
-
-	// Additional verification: check that both stages were running concurrently
-	// If truly concurrent, there should be temporal overlap between the stages
-	if learningFinished.Before(reviewStarted) || reviewFinished.Before(learningStarted) {
-		t.Error("FAIL: execution appears sequential: no overlap detected between learning and review stages")
-	} else {
-		t.Logf("PASS: Temporal overlap detected - stages ran concurrently")
-	}
-
-	t.Logf("Execution timeline: total=%v, learning=%v-%v (%v), review=%v-%v (%v)",
-		duration,
-		learningStarted.Format("15:04:05.000"), learningFinished.Format("15:04:05.000"), learningFinished.Sub(learningStarted),
-		reviewStarted.Format("15:04:05.000"), reviewFinished.Format("15:04:05.000"), reviewFinished.Sub(reviewStarted))
+	// The barrier pattern proves concurrency: if both stages completed without
+	// deadlocking, they must have been running concurrently.
 }
 
 func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
