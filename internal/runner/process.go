@@ -685,7 +685,7 @@ func (r *Runner) verifyTestsFail(ctx context.Context, bc *beadContext) error {
 // refactoring is better than broken code).
 func (r *Runner) runRefactorPhase(ctx context.Context, bc *beadContext) error {
 	// Check if there are any changes to refactor
-	diff, err := getGitDiff(bc.startCommit)
+	diff, err := r.getDiff(bc.startCommit)
 	if err != nil {
 		r.log("Warning: could not get git diff: %v", err)
 		return nil // Skip refactoring, not an error

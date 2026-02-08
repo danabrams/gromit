@@ -36,6 +36,7 @@ type Runner struct {
 	output       io.Writer
 	syncOut      *syncWriter // concrete type for WriteOverwrite access
 	gromitDir    string
+	gitDiffFn    func(string) (string, error) // injectable for testing; defaults to getGitDiff
 }
 
 // claudeRunnerAdapter adapts claude.Client to learnings.ClaudeRunner interface
@@ -127,6 +128,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		output:    syncOut,
 		syncOut:   syncOut,
 		gromitDir: gromitDir,
+		gitDiffFn: getGitDiff,
 	}, nil
 }
 
@@ -167,6 +169,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		output:    syncOut,
 		syncOut:   syncOut,
 		gromitDir: gromitDir,
+		gitDiffFn: getGitDiff,
 	}, nil
 }
 
@@ -1108,6 +1111,14 @@ func getGitDiff(fromCommit string) (string, error) {
 	return string(out), nil
 }
 
+// getDiff calls the injectable gitDiffFn, falling back to getGitDiff if unset.
+func (r *Runner) getDiff(fromCommit string) (string, error) {
+	if r.gitDiffFn != nil {
+		return r.gitDiffFn(fromCommit)
+	}
+	return getGitDiff(fromCommit)
+}
+
 // checkExpectedOutputs checks if expected files exist and returns a summary
 func checkExpectedOutputs(expectedOutputs []string) string {
 	if len(expectedOutputs) == 0 {
@@ -1536,7 +1547,7 @@ func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.
 	}
 
 	// Get diff from start commit to current state
-	diff, err := getGitDiff(startCommit)
+	diff, err := r.getDiff(startCommit)
 	if err != nil {
 		return nil, fmt.Errorf("getting git diff for review: %w", err)
 	}
@@ -1781,7 +1792,7 @@ func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteratio
 		return
 	}
 
-	diff, err := getGitDiff(fromCommit)
+	diff, err := r.getDiff(fromCommit)
 	if err != nil {
 		r.log("Warning: could not get diff for thorough review: %v", err)
 		return

@@ -1185,6 +1185,9 @@ func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
 		output:   &buf,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
 	}
 
 	bc := &beadContext{
@@ -1203,9 +1206,7 @@ func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
 		},
 	}
 
-	start := time.Now()
 	err := r.runValidation(context.Background(), bc)
-	duration := time.Since(start)
 
 	if err != nil {
 		t.Fatalf("expected no error, got: %v\nOutput: %s", err, buf.String())
@@ -1225,12 +1226,6 @@ func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
 	}
 	if reviewFinished.IsZero() {
 		t.Error("review never finished")
-	}
-
-	// Verify parallel execution: total duration should be closer to max(50ms, 50ms) than sum(50ms + 50ms)
-	// Allow overhead but it should be significantly less than 100ms (sequential would be 100ms + overhead)
-	if duration > 90*time.Millisecond {
-		t.Errorf("execution appears sequential: took %v, expected ~50ms for parallel execution", duration)
 	}
 
 	// Verify that execution started for both before either completed (overlapping execution)

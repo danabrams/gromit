@@ -21,10 +21,12 @@ import (
 // This test uses timing to verify concurrent execution - the two stages should
 // execute in approximately max(learning, review) time, not sum.
 func TestParallelPostSuccess_BothStagesExecuteConcurrently(t *testing.T) {
-	learningStarted := make(chan time.Time, 1)
-	reviewStarted := make(chan time.Time, 1)
-	var learningDuration time.Duration = 200 * time.Millisecond
-	var reviewDuration time.Duration = 300 * time.Millisecond
+	// Barrier-based concurrency proof: both stages must start before either can proceed.
+	// If execution were sequential, this would deadlock (caught by test timeout).
+	learningArrived := make(chan struct{})
+	reviewArrived := make(chan struct{})
+	learningStarted := make(chan struct{}, 1)
+	reviewStarted := make(chan struct{}, 1)
 
 	mockClaude := &mockClaudeClient{
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
@@ -34,27 +36,26 @@ func TestParallelPostSuccess_BothStagesExecuteConcurrently(t *testing.T) {
 			return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
 		},
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
-			// Distinguish between learning extraction and review calls by checking prompt content
 			if strings.Contains(prompt, "success learning") || strings.Contains(prompt, "learn") {
-				// Learning extraction
+				// Learning extraction: signal arrival, wait for review
 				select {
-				case learningStarted <- time.Now():
+				case learningStarted <- struct{}{}:
 				default:
-					// Channel already has value, don't block
 				}
-				time.Sleep(learningDuration)
+				close(learningArrived)
+				<-reviewArrived // wait for review to also start
 				return &claude.Result{
 					Success: true,
 					Output:  `{"learning": "Test pattern works well", "category": "patterns"}`,
 				}, nil
 			}
-			// Review call
+			// Review call: signal arrival, wait for learning
 			select {
-			case reviewStarted <- time.Now():
+			case reviewStarted <- struct{}{}:
 			default:
-				// Channel already has value, don't block
 			}
-			time.Sleep(reviewDuration)
+			close(reviewArrived)
+			<-learningArrived // wait for learning to also start
 			return &claude.Result{
 				Success: true,
 				Output:  `{"summary": "No issues found", "findings": [], "fixes_applied": []}`,
@@ -108,6 +109,7 @@ func TestParallelPostSuccess_BothStagesExecuteConcurrently(t *testing.T) {
 				Enabled: true,
 				Model:   "sonnet",
 			},
+			Precheck: config.PrecheckConfig{Enabled: boolPtr(false)},
 		},
 		&buf, t.TempDir(),
 		Deps{
@@ -118,55 +120,32 @@ func TestParallelPostSuccess_BothStagesExecuteConcurrently(t *testing.T) {
 			Logger:   &mockIterationLogger{},
 		},
 	)
+	r.gitDiffFn = func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
 
-	start := time.Now()
 	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
-	elapsed := time.Since(start)
 
 	// Wait for both channels to receive start times (with timeout)
-	var learningStart, reviewStart time.Time
 	timeout := time.After(5 * time.Second)
 
 	select {
-	case learningStart = <-learningStarted:
+	case <-learningStarted:
 	case <-timeout:
 		t.Fatal("timeout waiting for learning to start")
 	}
 
 	select {
-	case reviewStart = <-reviewStarted:
+	case <-reviewStarted:
 	case <-timeout:
 		t.Fatal("timeout waiting for review to start")
 	}
 
-	// Verify both stages started within a small window (indicating concurrency)
-	startTimeDiff := learningStart.Sub(reviewStart)
-	if startTimeDiff < 0 {
-		startTimeDiff = -startTimeDiff
-	}
-
-	// Both should start within 100ms of each other if running concurrently
-	if startTimeDiff > 100*time.Millisecond {
-		t.Errorf("stages did not start concurrently - time difference: %v", startTimeDiff)
-	}
-
-	// Verify total time is closer to max(learning, review) than sum
-	maxDuration := reviewDuration                    // 300ms (the longer one)
-	sumDuration := learningDuration + reviewDuration // 500ms
-
-	// Allow some overhead for test execution (150ms to account for scheduling variance)
-	if elapsed > sumDuration-100*time.Millisecond {
-		t.Errorf("execution took too long (%v) - expected closer to max duration (%v), not sum (%v)",
-			elapsed, maxDuration, sumDuration)
-	}
-
-	// Should be at least the max duration (minus some tolerance for timing)
-	if elapsed < maxDuration-100*time.Millisecond {
-		t.Errorf("execution was too fast (%v) - expected at least max duration (%v)",
-			elapsed, maxDuration)
-	}
+	// Both stages started - the barrier pattern proves concurrency:
+	// each stage signals arrival then waits for the other to also arrive.
+	// If execution were sequential, the test would deadlock (caught by test timeout).
 }
 
 // TestParallelPostSuccess_LearningFailureDoesNotBlockReview verifies that
@@ -241,10 +220,14 @@ func TestParallelPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
 			},
 			Models: config.ModelsConfig{Validation: "haiku"},
 			Review: config.ReviewConfig{Enabled: true, Model: "sonnet"},
+			Precheck: config.PrecheckConfig{Enabled: boolPtr(false)},
 		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}},
 	)
+	r.gitDiffFn = func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
 
 	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
@@ -344,10 +327,14 @@ func TestParallelPostSuccess_ReviewFailureDoesNotBlockLearning(t *testing.T) {
 			},
 			Models: config.ModelsConfig{Validation: "haiku"},
 			Review: config.ReviewConfig{Enabled: true, Model: "sonnet"},
+			Precheck: config.PrecheckConfig{Enabled: boolPtr(false)},
 		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}},
 	)
+	r.gitDiffFn = func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
 
 	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
@@ -438,10 +425,14 @@ func TestParallelPostSuccess_ReviewRevalidationWorks(t *testing.T) {
 			},
 			Models: config.ModelsConfig{Validation: "haiku"},
 			Review: config.ReviewConfig{Enabled: true, Model: "sonnet"},
+			Precheck: config.PrecheckConfig{Enabled: boolPtr(false)},
 		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}},
 	)
+	r.gitDiffFn = func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
 
 	// This test expects re-validation to fail, which should cause the run to fail
 	// Note: The current implementation may not fail the entire run on re-validation failure
@@ -514,6 +505,7 @@ func TestParallelPostSuccess_OnlyLearningEnabled(t *testing.T) {
 			},
 			Models: config.ModelsConfig{Validation: "haiku"},
 			Review: config.ReviewConfig{Enabled: false}, // Review disabled
+			Precheck: config.PrecheckConfig{Enabled: boolPtr(false)},
 		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}},
@@ -594,10 +586,14 @@ func TestParallelPostSuccess_OnlyReviewEnabled(t *testing.T) {
 			},
 			Models: config.ModelsConfig{Validation: "haiku"},
 			Review: config.ReviewConfig{Enabled: true, Model: "sonnet"},
+			Precheck: config.PrecheckConfig{Enabled: boolPtr(false)},
 		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}},
 	)
+	r.gitDiffFn = func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
 
 	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
@@ -665,6 +661,7 @@ func TestParallelPostSuccess_NeitherEnabled(t *testing.T) {
 			},
 			Models: config.ModelsConfig{Validation: "haiku"},
 			Review: config.ReviewConfig{Enabled: false}, // Review disabled
+			Precheck: config.PrecheckConfig{Enabled: boolPtr(false)},
 		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockRenderer{}, Logger: &mockIterationLogger{}},
@@ -754,10 +751,14 @@ func TestParallelPostSuccess_ReviewRevalidationErrorPropagates(t *testing.T) {
 			},
 			Models: config.ModelsConfig{Validation: "haiku"},
 			Review: config.ReviewConfig{Enabled: true, Model: "sonnet"},
+			Precheck: config.PrecheckConfig{Enabled: boolPtr(false)},
 		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}},
 	)
+	r.gitDiffFn = func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
 
 	// When review re-validation fails, the error should prevent bead closure
 	_ = r.Run(context.Background(), 1, time.Time{}, false)
@@ -838,10 +839,14 @@ func TestParallelPostSuccess_OutputInterleaving(t *testing.T) {
 			},
 			Models: config.ModelsConfig{Validation: "haiku"},
 			Review: config.ReviewConfig{Enabled: true, Model: "sonnet"},
+			Precheck: config.PrecheckConfig{Enabled: boolPtr(false)},
 		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}},
 	)
+	r.gitDiffFn = func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
 
 	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
