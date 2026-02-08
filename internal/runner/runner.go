@@ -426,6 +426,11 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			}
 		}
 
+		// Push to remote if configured
+		if err := r.runGitAutoPush(); err != nil {
+			return fmt.Errorf("git auto-push failed: %w", err)
+		}
+
 		// Run between-iterations command if configured
 		r.runBetweenIterationsCommand()
 
@@ -1604,6 +1609,33 @@ func (r *Runner) writeReviewLog(iteration int, beadID string, model string, resu
 		BacklogCreated: backlogCreated,
 		DurationMs:     duration.Milliseconds(),
 	})
+}
+
+// runGitAutoPush pushes the current branch to its upstream tracking ref after bead completion.
+// If auto_push is disabled, does nothing. If push fails and push_failure is "warn", logs a warning
+// and continues. If push fails and push_failure is "stop", returns an error to halt the loop.
+func (r *Runner) runGitAutoPush() error {
+	if r == nil || r.cfg == nil {
+		return nil
+	}
+	if !r.cfg.Git.IsAutoPushEnabled() {
+		return nil
+	}
+
+	r.log("Pushing to remote...")
+	cmd := exec.Command("git", "push")
+	cmd.Stdout = r.output
+	cmd.Stderr = r.output
+
+	if err := cmd.Run(); err != nil {
+		if r.cfg.Git.PushFailure == "stop" {
+			return fmt.Errorf("git push failed: %w", err)
+		}
+		r.log("Warning: git push failed: %v", err)
+		return nil
+	}
+
+	return nil
 }
 
 // runBetweenIterationsCommand runs the user-configured command between iterations.
