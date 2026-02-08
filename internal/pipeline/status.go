@@ -162,13 +162,16 @@ func generateRecommendation(status *PipelineStatus) string {
 	return "No work in pipeline"
 }
 
-// truncate truncates a string to maxLen characters, adding "..." if truncated
+// truncate truncates a string to maxLen runes, adding "..." if truncated
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	if maxLen < 3 {
+		maxLen = 3
+	}
+
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	if maxLen <= 3 {
-		return s[:maxLen]
-	}
-	return s[:maxLen-3] + "..."
+
+	return string(runes[:maxLen-3]) + "..."
 }

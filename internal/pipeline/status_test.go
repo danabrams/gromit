@@ -308,6 +308,42 @@ func TestTruncate(t *testing.T) {
 			maxLen: 10,
 			want:   "",
 		},
+		{
+			name:   "maxLen less than 3",
+			input:  "Hello world this is a long string",
+			maxLen: 1,
+			want:   "...",
+		},
+		{
+			name:   "maxLen equals 3",
+			input:  "Hello world",
+			maxLen: 3,
+			want:   "...",
+		},
+		{
+			name:   "maxLen equals 4",
+			input:  "Hello world",
+			maxLen: 4,
+			want:   "H...",
+		},
+		{
+			name:   "UTF-8 multibyte characters",
+			input:  "こんにちは世界",
+			maxLen: 10,
+			want:   "こんにちは世界",
+		},
+		{
+			name:   "UTF-8 multibyte characters truncated",
+			input:  "こんにちは世界はとても長いです",
+			maxLen: 5,
+			want:   "こん...",
+		},
+		{
+			name:   "mixed ASCII and UTF-8",
+			input:  "Hello こんにちは World",
+			maxLen: 10,
+			want:   "Hello こ...",
+		},
 	}
 
 	for _, tt := range tests {
