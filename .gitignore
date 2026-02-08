@@ -15,6 +15,6 @@ Thumbs.db
 coverage.out
 
 # Gromit runner
-.gromit/logs/
+**/.gromit/logs/
 .gromit/tmp/
 .gromit/status.json
