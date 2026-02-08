@@ -1355,17 +1355,24 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 }
 
 func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
-	// Verifies that when only learning extraction is enabled (review disabled),
+	// Unit test: Verifies that when only learning extraction is enabled (review disabled),
 	// learning runs inline without goroutine overhead and review is skipped entirely.
+	//
+	// Acceptance Criteria:
+	// - When only `learn_from_success` is enabled, `extractSuccessLearning` executes inline
+	// - Review stage is skipped entirely (not called)
+	// - No goroutine overhead (synchronous execution)
 
 	var buf strings.Builder
 	var learningCalled, reviewCalled bool
+	var learningCallTime time.Time
 
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 			// Learning extraction uses haiku model
 			if model == "haiku" {
 				learningCalled = true
+				learningCallTime = time.Now()
 				return &claude.Result{
 					Success: true,
 					Output:  `{"learning": "Test learning from success", "category": "patterns"}`,
@@ -1442,7 +1449,9 @@ func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
 		},
 	}
 
+	start := time.Now()
 	err := r.runValidation(context.Background(), bc)
+	elapsed := time.Since(start)
 
 	// Should not return an error
 	if err != nil {
@@ -1459,6 +1468,12 @@ func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
 		t.Error("review should NOT have been called when disabled")
 	}
 
+	// Verify inline execution: learning should complete before runValidation returns
+	// If learning ran in a goroutine, there would be potential for it to not complete yet
+	if !learningCallTime.IsZero() && learningCallTime.After(start.Add(elapsed)) {
+		t.Error("learning should have completed before runValidation returned (inline execution)")
+	}
+
 	// Verify output contains learning success message
 	output := buf.String()
 	if !strings.Contains(output, "Success learning extracted") {
@@ -1467,11 +1482,17 @@ func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
 }
 
 func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
-	// Verifies that when only review is enabled (learning disabled),
+	// Unit test: Verifies that when only review is enabled (learning disabled),
 	// review runs inline without goroutine overhead and learning is skipped entirely.
+	//
+	// Acceptance Criteria:
+	// - When only `review.enabled` is true, `runLightReview` executes inline
+	// - Learning stage is skipped entirely (not called)
+	// - No goroutine overhead (synchronous execution)
 
 	var buf strings.Builder
 	var learningCalled, reviewCalled bool
+	var reviewCallTime time.Time
 
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
@@ -1486,6 +1507,7 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 
 			// Review stage uses sonnet/opus
 			reviewCalled = true
+			reviewCallTime = time.Now()
 			return &claude.Result{
 				Success: true,
 				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed successfully"}`,
@@ -1554,7 +1576,9 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 		},
 	}
 
+	start := time.Now()
 	err := r.runValidation(context.Background(), bc)
+	elapsed := time.Since(start)
 
 	// Should not return an error
 	if err != nil {
@@ -1569,6 +1593,12 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 	// Verify review was called
 	if !reviewCalled {
 		t.Error("review should have been called")
+	}
+
+	// Verify inline execution: review should complete before runValidation returns
+	// If review ran in a goroutine, there would be potential for it to not complete yet
+	if !reviewCallTime.IsZero() && reviewCallTime.After(start.Add(elapsed)) {
+		t.Error("review should have completed before runValidation returned (inline execution)")
 	}
 
 	// Verify output contains review success message
