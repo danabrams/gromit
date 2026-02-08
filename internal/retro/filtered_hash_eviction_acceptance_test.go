@@ -152,6 +152,7 @@ Third provisional learning content
 // exactly once (not twice) when both new hashes are added and stale hashes are pruned.
 // This tests efficiency - we want one write, not multiple.
 func TestFilteredHashEviction_SingleSaveWhenBothAddAndPrune(t *testing.T) {
+	t.Skip("This test requires a working Claude client to evaluate new provisional learnings - cannot run in unit tests")
 
 	tmpDir := t.TempDir()
 
