@@ -351,6 +351,106 @@ func TestAutoHealNilSafe(t *testing.T) {
 	f.AutoHeal()
 }
 
+func TestGetFilteredHashes(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Empty state returns empty map
+	hashes := f.GetFilteredHashes()
+	if hashes == nil {
+		t.Error("GetFilteredHashes should return empty map, not nil")
+	}
+	if len(hashes) != 0 {
+		t.Errorf("expected empty map, got %d entries", len(hashes))
+	}
+
+	// Add some hashes
+	f.state.FilteredLearningHashes = []string{"hash1", "hash2", "hash3"}
+	hashes = f.GetFilteredHashes()
+
+	if len(hashes) != 3 {
+		t.Errorf("expected 3 hashes, got %d", len(hashes))
+	}
+	if !hashes["hash1"] {
+		t.Error("hash1 should be in map")
+	}
+	if !hashes["hash2"] {
+		t.Error("hash2 should be in map")
+	}
+	if !hashes["hash3"] {
+		t.Error("hash3 should be in map")
+	}
+}
+
+func TestGetFilteredHashesNilSafe(t *testing.T) {
+	var f *File
+	hashes := f.GetFilteredHashes()
+	if hashes != nil {
+		t.Error("nil File should return nil map")
+	}
+}
+
+func TestAddFilteredHashes(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Add initial hashes
+	f.AddFilteredHashes([]string{"hash1", "hash2"})
+
+	if len(f.state.FilteredLearningHashes) != 2 {
+		t.Errorf("expected 2 hashes, got %d", len(f.state.FilteredLearningHashes))
+	}
+
+	// Add more hashes with one duplicate
+	f.AddFilteredHashes([]string{"hash2", "hash3", "hash4"})
+
+	// Should have 4 unique hashes total
+	if len(f.state.FilteredLearningHashes) != 4 {
+		t.Errorf("expected 4 hashes after deduplication, got %d", len(f.state.FilteredLearningHashes))
+	}
+
+	// Verify all unique hashes are present
+	hashMap := f.GetFilteredHashes()
+	expectedHashes := []string{"hash1", "hash2", "hash3", "hash4"}
+	for _, hash := range expectedHashes {
+		if !hashMap[hash] {
+			t.Errorf("expected hash %s to be present", hash)
+		}
+	}
+}
+
+func TestAddFilteredHashesNilSafe(t *testing.T) {
+	var f *File
+	// Should not panic
+	f.AddFilteredHashes([]string{"hash1", "hash2"})
+}
+
+func TestFilteredLearningHashesPersistence(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Add hashes and save
+	f.AddFilteredHashes([]string{"hash1", "hash2", "hash3"})
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Load in a new File and verify persistence
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	if len(f2.state.FilteredLearningHashes) != 3 {
+		t.Errorf("expected 3 hashes after load, got %d", len(f2.state.FilteredLearningHashes))
+	}
+
+	hashMap := f2.GetFilteredHashes()
+	if !hashMap["hash1"] || !hashMap["hash2"] || !hashMap["hash3"] {
+		t.Error("all hashes should be present after load")
+	}
+}
+
 // Helper function for substring matching
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))

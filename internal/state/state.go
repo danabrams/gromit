@@ -10,12 +10,13 @@ import (
 
 // State represents persistent state stored in .gromit/state.json
 type State struct {
-	LastRetro             time.Time `json:"last_retro,omitempty"`
-	LastReviewCommit      string    `json:"last_review_commit,omitempty"`
-	LastReviewIteration   int       `json:"last_review_iteration,omitempty"`
-	IterationsSinceReview int       `json:"iterations_since_review,omitempty"`
-	CleanExit             bool      `json:"clean_exit"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	LastRetro              time.Time `json:"last_retro,omitempty"`
+	LastReviewCommit       string    `json:"last_review_commit,omitempty"`
+	LastReviewIteration    int       `json:"last_review_iteration,omitempty"`
+	IterationsSinceReview  int       `json:"iterations_since_review,omitempty"`
+	CleanExit              bool      `json:"clean_exit"`
+	UpdatedAt              time.Time `json:"updated_at"`
+	FilteredLearningHashes []string  `json:"filtered_learning_hashes,omitempty"`
 }
 
 // File manages the state.json file
@@ -173,4 +174,35 @@ func (f *File) AutoHeal() {
 	f.state.IterationsSinceReview = 0
 	f.state.LastReviewIteration = 0
 	// Preserve: LastReviewCommit, LastRetro
+}
+
+// GetFilteredHashes returns a map of filtered learning hashes for O(1) lookups
+func (f *File) GetFilteredHashes() map[string]bool {
+	if f == nil {
+		return nil
+	}
+	result := make(map[string]bool, len(f.state.FilteredLearningHashes))
+	for _, hash := range f.state.FilteredLearningHashes {
+		result[hash] = true
+	}
+	return result
+}
+
+// AddFilteredHashes merges new hashes with existing ones, deduplicating
+func (f *File) AddFilteredHashes(hashes []string) {
+	if f == nil {
+		return
+	}
+	// Create a set of existing hashes for O(1) lookups
+	existing := make(map[string]bool, len(f.state.FilteredLearningHashes))
+	for _, hash := range f.state.FilteredLearningHashes {
+		existing[hash] = true
+	}
+	// Add new hashes that don't already exist
+	for _, hash := range hashes {
+		if !existing[hash] {
+			f.state.FilteredLearningHashes = append(f.state.FilteredLearningHashes, hash)
+			existing[hash] = true
+		}
+	}
 }
