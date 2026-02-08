@@ -10,7 +10,7 @@ import (
 // BaselineMetrics holds efficiency metrics captured at the start of an experiment
 type BaselineMetrics struct {
 	AvgCostPerBead  float64 `json:"avg_cost_per_bead"`
-	AvgDurationMs   int64   `json:"avg_duration_ms"`
+	AvgDurationMs   float64 `json:"avg_duration_ms"`
 	AvgInputTokens  float64 `json:"avg_input_tokens"`
 	AvgOutputTokens float64 `json:"avg_output_tokens"`
 	FailureRate     float64 `json:"failure_rate"`
@@ -127,7 +127,7 @@ func ComputeBaselineMetrics(
 
 	return BaselineMetrics{
 		AvgCostPerBead:  avgCost,
-		AvgDurationMs:   avgDuration.Milliseconds(),
+		AvgDurationMs:   float64(avgDuration.Milliseconds()),
 		AvgInputTokens:  avgInput,
 		AvgOutputTokens: avgOutput,
 		FailureRate:     stats.FailureRate(),

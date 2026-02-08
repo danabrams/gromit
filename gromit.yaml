@@ -79,6 +79,11 @@ state:
   # crash detector and always triggers auto-heal regardless of time elapsed.
   stale_threshold: 60
 
+# Methodology - test-driven development approaches
+methodology:
+  atdd: true
+  tdd: true
+
 # Paths (relative to project root)
 paths:
   templates: ".gromit/templates"

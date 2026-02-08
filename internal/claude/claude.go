@@ -106,7 +106,7 @@ func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result,
 		// If the context was canceled (Ctrl+C or timeout), propagate as an error
 		if ctx.Err() != nil {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return nil, fmt.Errorf("running claude: invocation timed out after %v", c.timeout)
+				return nil, fmt.Errorf("running claude: invocation timed out after %v", duration.Round(time.Second))
 			}
 			return nil, fmt.Errorf("running claude: interrupted (%w)", ctx.Err())
 		}
@@ -377,7 +377,7 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 		// so the caller stops instead of treating it as a retryable failure.
 		if ctx.Err() != nil {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return nil, fmt.Errorf("running claude: invocation timed out after %v", c.timeout)
+				return nil, fmt.Errorf("running claude: invocation timed out after %v", duration.Round(time.Second))
 			}
 			return nil, fmt.Errorf("running claude: interrupted (%w)", ctx.Err())
 		}

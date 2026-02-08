@@ -131,9 +131,8 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 	if f.filterFunc != nil {
 		isGeneric, err := f.filterFunc(content)
 		if err != nil {
-			return nil, fmt.Errorf("filter function error: %w", err)
-		}
-		if isGeneric {
+			// Fall through to normal logic on filter error — don't block learning placement
+		} else if isGeneric {
 			// Archive as generic engineering advice
 			learning := Learning{
 				Date:     time.Now(),

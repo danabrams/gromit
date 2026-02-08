@@ -294,13 +294,13 @@ func TestFileWithLLMFilter_ErrorHandling(t *testing.T) {
 	filter := NewLLMFilter(runner, "gromit", "A Go CLI tool")
 	f.SetFilter(filter)
 
-	// Add a learning - should fail with filter error
-	_, err := f.Add("bead-789", "Some learning", CategoryPatterns)
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	// Add a learning - filter error should fall through to normal placement
+	learning, err := f.Add("bead-789", "Some learning", CategoryPatterns)
+	if err != nil {
+		t.Fatalf("expected filter error to fall through, got error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "filter function error") {
-		t.Errorf("expected filter function error, got: %v", err)
+	if learning == nil {
+		t.Fatal("expected learning to be placed normally when filter errors")
 	}
 }
 

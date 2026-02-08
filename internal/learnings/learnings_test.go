@@ -1097,7 +1097,7 @@ func TestFilterFuncNotSet(t *testing.T) {
 	}
 }
 
-// TestFilterFuncError tests error handling in filter function
+// TestFilterFuncError tests that filter errors fall through to normal logic
 func TestFilterFuncError(t *testing.T) {
 	tmpDir := t.TempDir()
 	f, _ := NewFile(tmpDir)
@@ -1108,15 +1108,12 @@ func TestFilterFuncError(t *testing.T) {
 	})
 
 	learning, err := f.Add("bead-1", "Some learning", CategoryPatterns)
-	if err == nil {
-		t.Fatal("expected error from filter function")
-	}
-	if !strings.Contains(err.Error(), "filter function error") {
-		t.Errorf("expected error to mention filter function, got: %v", err)
+	if err != nil {
+		t.Fatalf("expected filter error to fall through, got error: %v", err)
 	}
 
-	if learning != nil {
-		t.Error("expected nil learning when filter errors")
+	if learning == nil {
+		t.Fatal("expected learning to be placed normally when filter errors")
 	}
 }
 

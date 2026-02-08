@@ -378,7 +378,7 @@ func TestComputeBaselineMetrics_Success(t *testing.T) {
 		stats          mockStatsData
 		efficiency     EfficiencyData
 		wantCost       float64
-		wantDurationMs int64
+		wantDurationMs float64
 		wantInput      float64
 		wantOutput     float64
 		wantFailure    float64

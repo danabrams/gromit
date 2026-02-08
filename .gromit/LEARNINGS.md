@@ -15,11 +15,6 @@ This file is automatically updated. Review periodically with `gromit retro`.
 Shell scripts handling user content must use quoted <<'EOF' heredocs to prevent variable/command expansion, and pass dynamic values via arguments rather than string interpolation. Both heredoc quoting and argument-passing are required for injection safety.
 **Promoted to RULES.md Safety section.**
 
-### 2026-02-07 | Documentary Test Replacement | patterns
-*Related to: dpk5, prk6, q2id, l0ka*
-
-Replace documentary tests that manually simulate behavior with real tests using dependency injection of callbacks. Include structural property tests (e.g., unmarshal round-trips) to verify extraction fidelity. Integration tests that cover end-to-end flows make narrow documentary tests redundant.
-
 ### 2026-02-07 | Mock Implementation Patterns | patterns
 *Related to: ge6j, atmb*
 
@@ -29,11 +24,6 @@ Mock implementations use optional function pointer fields (FnField pattern) with
 *Related to: nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2*
 
 Status struct fields require backward-compatible changes (omitempty for new optional fields). Use ReadStatus()/IsProcessAlive() for state + liveness checks. Return nil,nil for missing optional files (not an error). StatusWriter handles both lifecycle states and preserves completed iteration count on shutdown. Round-trip tests verify serialization fidelity. Stale resource cleanup integrates into status reporting via process liveness checks. Process utilities (IsProcessAlive) are co-located with Status in status.go. Test file I/O uses t.TempDir() for isolation.
-
-### 2026-02-07 | Output Formatting | patterns
-*Related to: 5xbi, 88fk, 9ntm*
-
-Format functions build output via []string slice joined with newlines. Duration formatting composes by delegating to formatDuration() then appending context like " ago". Use strings.Contains() for multi-line output tests; exact equality for single-value formatters.
 
 ### 2026-02-07 | LEARNINGS.md Format Validation | conventions
 *Related to: gromit-8a52, gromit-i0wm, gromit-wgtu, gromit-2v5n, gromit-49dg, gromit-8et, gromit-3gb, gromit-kim, gromit-due, gromit-1u7, gromit-evq, gromit-w3x, gromit-ltg, gromit-knc, gromit-3fqu, gromit-3ibd, gromit-hvbu, gromit-fntb, gromit-7e5o, gromit-2qf1, gromit-yew, gromit-ie2*
@@ -51,41 +41,21 @@ Test helpers delegate to shared testutil packages rather than duplicating logic.
 
 When tests validate real data files (like LEARNINGS.md), verify that the file structure matches test expectations before implementing code changes. Test fixtures and actual data files must stay in sync - if a test reads real files, those files must conform to the validated schema. Data consolidation processes must update both the data AND any dependent tests that validate that data's structure.
 
-### 2026-02-07 | Template and Renderer Architecture | conventions
-*Related to: ralph-runner-utv8, ralph-runner-yx7b, ralph-runner-5lk0, ralph-runner-kjix*
+### 2026-02-07 | Prompt Rendering Architecture | conventions
+*Related to: ralph-runner-utv8, ralph-runner-yx7b, ralph-runner-5lk0, ralph-runner-kjix, ralph-runner-628c, ralph-runner-nxdm*
 
-Prompt templates follow a consistent architecture: (1) Templates are named PROMPT_<name>.md and rendered via r.render("PROMPT_<name>.md", ctx). (2) Template constants in init.go use naming convention defaultXxxTemplate. (3) Template registration adds entries to the templates map in runInit() with the filename as key. (4) Template variants reuse common context sections (Rules, Learnings, Task, Spec, Parent) and customize only Instructions and Completion sections for methodology-specific workflows.
+Prompt rendering follows a consistent architecture: (1) Templates are named PROMPT_<name>.md, registered in runInit()'s templates map, with constants named defaultXxxTemplate in init.go. (2) Renderer methods accept a context struct (with Bead and ParentBead fields), call r.tmpl.ExecuteTemplate, and return (string, error). (3) Template variants reuse common context sections (Rules, Learnings, Task, Spec, Parent) and customize only Instructions and Completion sections. (4) New context types and render methods should follow existing patterns like ScopeContext, DecomposeContext, PrecheckContext.
 
 ### 2026-02-07 | Methodology Label Activation | patterns
 *Related to: ralph-runner-4a3f, ralph-runner-nzue*
 
 Methodologies use label-based activation ("methodology:true"/"false") with global config fallback via bead.IsMethodologyActive(). When active, replace the build prompt with a specialized RenderXXXBuild method. Check parent labels before adding globally-active methodology labels to sub-beads to avoid duplicates. Order methodology checks carefully for precedence when multiple methodologies are active.
 
-### 2026-02-07 | Renderer Method Pattern | conventions
-*Related to: ralph-runner-628c, ralph-runner-nxdm*
-
-Renderer methods accept a context struct (with Bead and ParentBead fields) as parameter, call r.tmpl.ExecuteTemplate with the context, and return (string, error). Context structs (ScopeContext, DecomposeContext, PrecheckContext, etc.) follow a minimal pattern. New context types and render methods should follow this same structure.
-
-### 2026-02-07 | Table-Driven and Concurrent Testing | patterns
-*Related to: ralph-runner-yysu, ralph-runner-2dsc*
-
-Table-driven tests use t.Run with subtests for each case. Concurrent safety tests use t.Parallel() with goroutines and sync.WaitGroup. Use defer/recover() pattern for panic recovery in tests, checking for nil in the defer block.
-
 ### 2026-02-07 | Dependency Injection for Testability | patterns
 *Related to: ralph-runner-tizz, ralph-runner-tsf4*
 
 Mock implementations in *_test.go require adding Fn fields and calling them in mock methods, mirroring existing Render* patterns. CLI functions with user prompts or subprocess calls should accept these as injected function parameters for testability. When adding new interface methods, add corresponding mock fields and verify against existing mock patterns.
 **Promoted to RULES.md Code Style section.**
-
-### 2026-02-07 | Test Failure Root Cause Analysis | conventions
-*Related to: gromit-jva, gromit-knc*
-
-When task validation fails, check if the broken test is related to the current task or is a pre-existing issue. Integration tests validating real data files (like LEARNINGS.md) can fail independently of the task being worked on. Distinguish between code bugs and pre-existing data file format corruption.
-
-### 2026-02-07 | Helper Function Extraction | conventions
-*Related to: ralph-runner-uq8m, ralph-runner-2m53*
-
-Extract small, focused helper functions for reusability and testability. When a reusable utility function exists for a common pattern (like confirmPrompt), inject and call it rather than reimplementing similar logic. Follow single-responsibility principle even for utility functions.
 
 ### 2026-02-07 | syncWriter Thread Safety | patterns
 *Related to: ralph-runner-qcoc, ralph-runner-t13e, ralph-runner-z6li*
@@ -118,60 +88,18 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-07 | ralph-runner-zgri | conventions
-Test new fields by adding assertions to the existing main test first, then create a dedicated test if the field requires special or isolated validation
-
-### 2026-02-07 | ralph-runner-8ayf | conventions
-When helpers are consolidated into a shared package, verify that the refactored code doesn't change behavior of callers—the tests should catch regressions, but pre-existing test failures in a codebase can hide whether consolidation was successful.
-
-### 2026-02-07 | ralph-runner-nekg | conventions
-When adding fields to structs that are serialized/deserialized (especially JSON), verify that existing tests that depend on that struct's behavior still pass—including contract tests that exercise external tool integration.
-
-### 2026-02-07 | ralph-runner-543u | gotchas
-Test fixtures in fake scripts should enforce required environment variables (e.g., TEST_DIR) rather than falling back to /tmp, and cleanup code should be idempotent and run even if tests fail (consider using trap handlers or defer statements)
-
 ### 2026-02-07 | ralph-runner-3kow | conventions
 PROMPT_*.md files should use pragmatic criteria for learning extraction — task-specific patterns (package conventions, test setup requirements, common gotchas in a subsystem) are valuable as provisional learnings even if not universally applicable; only set learning to null for truly one-off issues (typos, accidental mistakes)
-
-### 2026-02-07 | gromit-4zg | gotchas
-bd rename-prefix creates ID mappings that must be manually reflected in runtime state files like status.json to keep bead tracking consistent across the system
-
-### 2026-02-07 | gromit-w3x | conventions
-When validating skill extraction, verify that downstream consumers (like learnings loader) can properly parse the injected content. Test failures in dependent systems indicate the validation point may be in the wrong layer or the format contract needs to be checked.
-
-### 2026-02-07 | gromit-0azh | patterns
-Helper methods like IsAutoPushEnabled() follow the *bool pointer pattern with explicit enabled check: return b != nil && *b
-
-### 2026-02-07 | gromit-w9rs | gotchas
-Optional boolean fields (*bool) in config require separate unit tests for nil-pointer safety alongside table-driven YAML tests; nil defaults to true is a gotcha worth isolating in dedicated tests
-
-### 2026-02-07 | gromit-flt8 | patterns
-Table-driven tests for runner methods include explicit nil-safety cases with dedicated flags (nilRunner, nilConfig) to verify graceful nil-handling; use description field for readability alongside test name
-
-### 2026-02-08 | gromit-c4jr | patterns
-Use a guardian flag (set false at operation start, true at clean exit) as the primary crash detector, with timestamp age as a secondary signal. Auto-heal should reset unreliable state while preserving git anchors (commits, historical timestamps).
-
-### 2026-02-08 | gromit-q224 | conventions
-YAML config sections consistently document defaults with 'Default: X' format, explain when/why users would customize fields, and cross-reference related implementation details in comments to aid troubleshooting
-
-### 2026-02-08 | gromit-9at0 | patterns
-Thread-safe accessors for mutable shared state use lock/unlock around field reads/writes and nil-check the receiver first, following the pattern: if s == nil { return } followed by s.mu.Lock/defer s.mu.Unlock
-
-### 2026-02-08 | gromit-plww | patterns
-Thread new return values through function signatures first using blank identifier (_), then add consumers in follow-up tasks. This separates infrastructure changes from behavioral changes.
-
-### 2026-02-08 | gromit-a9yc | patterns
-Extract values from intermediate results using dedicated methods (like stats.CostData()) and assign them directly to destination struct fields, rather than passing the intermediate object through the chain. This simplifies dependency flow and makes data transformation points explicit.
-
-### 2026-02-08 | gromit-6x11 | patterns
-Use intermediate accumulator helper types for multi-level aggregations—collect raw totals during iteration, then convert via dedicated methods. This separates accumulation from final calculations and makes weighted averages (like cost/duration per bead across models) testable and less error-prone.
-
-### 2026-02-08 | gromit-vlk9 | conventions
-For conditional multi-section prompt/output building, use strings.Builder with conditional WriteString calls instead of fmt.Sprintf. This makes section logic clearer and allows each section to be conditionally included based on whether supporting data exists.
 
 ### 2026-02-08 | gromit-9hau | patterns
 When bead operations fail, add the bead ID to skippedBeads map so the existing stuck-bead detection loop catches it on next iteration, rather than handling errors inline. This centralizes failure handling and prevents duplicate logic.
 **Promoted to RULES.md Process section.**
+
+### 2026-02-08 | gromit-j5x0 | patterns
+Filter must be set on learnings.File via SetFilter() immediately after NewFile() and before Load() or Add(), to ensure filtering applies to all subsequent operations
+
+### 2026-02-08 | gromit-t5x0 | patterns
+Skills are embedded as package-level variables using go:embed with filesystem patterns like //go:embed gromit-*/SKILL.md, paired with exported string variables like SkillName to make them accessible to the rest of the codebase
 
 ---
 
@@ -316,3 +244,172 @@ Archived: gromit-s7tm, gromit-avbc consolidated into Confirmed "Template Infrast
 
 ### 2026-02-08 | runner method originals | patterns
 Archived: gromit-5pvp, gromit-82qx, gromit-vabo consolidated into Confirmed "Runner Method Pattern" entry.
+
+### 2026-02-08 | gromit-zt4n | gotchas
+Test helpers like NewRunnerWithDeps that create partial configs should either call setDefaults() or document that callers must explicitly set all needed config fields to avoid accidental defaults
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-bq2g | patterns
+Use table-driven tests with t.Run() and temp directories created via t.TempDir() for file-based unit tests - this pattern is established in the codebase for testing functions that interact with the filesystem
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-2cly | patterns
+When launching interactive subprocesses with large context (prompts, system messages), write to a temp file and pass the file path as an argument to avoid ARG_MAX errors. Use callback injection (confirmPrompt, execGromit functions) for testability of interactive chaining flows that invoke subprocesses and parse side effects.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-hzf6 | conventions
+Skill files use SKILL.md naming convention with structured sections: Purpose, When to Use, How It Works, Investigation Report Format, and Example Output to match the pattern seen in other skills like superpowers:systematic-debugging
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-8r7z | patterns
+When filtering/modifying slice items conditionally, collect target indices first, then apply mutations in reverse order to avoid index shifting bugs
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-p44z | conventions
+State struct fields use JSON tags with 'omitempty' for optional fields to handle serialization of empty slices/maps gracefully
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-8tnl | conventions
+Interface definitions in this codebase are minimal and focused—ClaudeRunner only defines the single method needed (Run), avoiding over-specification. Define interfaces with the smallest necessary surface area.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-8nfq | patterns
+Functional options pattern with SetXxx() methods is used for configuring struct fields (e.g., SetFilter()) rather than passing parameters to constructors or modification functions
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-s2va | gotchas
+fmt.Scanln() stops at whitespace and doesn't read full lines with spaces; use bufio.Scanner with Scan() + Text() for line-based input that preserves spaces
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-q4l8 | patterns
+Integration-style tests verify complete scenarios by checking side effects (mock state changes, logs, output) alongside primary assertions, ensuring behavior is traceable through the entire system
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-vlk9 | conventions
+For conditional multi-section prompt/output building, use strings.Builder with conditional WriteString calls instead of fmt.Sprintf. This makes section logic clearer and allows each section to be conditionally included based on whether supporting data exists.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-6x11 | patterns
+Use intermediate accumulator helper types for multi-level aggregations—collect raw totals during iteration, then convert via dedicated methods. This separates accumulation from final calculations and makes weighted averages (like cost/duration per bead across models) testable and less error-prone.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-a9yc | patterns
+Extract values from intermediate results using dedicated methods (like stats.CostData()) and assign them directly to destination struct fields, rather than passing the intermediate object through the chain. This simplifies dependency flow and makes data transformation points explicit.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-plww | patterns
+Thread new return values through function signatures first using blank identifier (_), then add consumers in follow-up tasks. This separates infrastructure changes from behavioral changes.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-9at0 | patterns
+Thread-safe accessors for mutable shared state use lock/unlock around field reads/writes and nil-check the receiver first, following the pattern: if s == nil { return } followed by s.mu.Lock/defer s.mu.Unlock
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-q224 | conventions
+YAML config sections consistently document defaults with 'Default: X' format, explain when/why users would customize fields, and cross-reference related implementation details in comments to aid troubleshooting
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-c4jr | patterns
+Use a guardian flag (set false at operation start, true at clean exit) as the primary crash detector, with timestamp age as a secondary signal. Auto-heal should reset unreliable state while preserving git anchors (commits, historical timestamps).
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-07 | gromit-flt8 | patterns
+Table-driven tests for runner methods include explicit nil-safety cases with dedicated flags (nilRunner, nilConfig) to verify graceful nil-handling; use description field for readability alongside test name
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-07 | gromit-w9rs | gotchas
+Optional boolean fields (*bool) in config require separate unit tests for nil-pointer safety alongside table-driven YAML tests; nil defaults to true is a gotcha worth isolating in dedicated tests
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-07 | gromit-0azh | patterns
+Helper methods like IsAutoPushEnabled() follow the *bool pointer pattern with explicit enabled check: return b != nil && *b
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-07 | gromit-w3x | conventions
+When validating skill extraction, verify that downstream consumers (like learnings loader) can properly parse the injected content. Test failures in dependent systems indicate the validation point may be in the wrong layer or the format contract needs to be checked.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-07 | ralph-runner-543u | gotchas
+Test fixtures in fake scripts should enforce required environment variables (e.g., TEST_DIR) rather than falling back to /tmp, and cleanup code should be idempotent and run even if tests fail (consider using trap handlers or defer statements)
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-07 | ralph-runner-nekg | conventions
+When adding fields to structs that are serialized/deserialized (especially JSON), verify that existing tests that depend on that struct's behavior still pass—including contract tests that exercise external tool integration.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-07 | ralph-runner-8ayf | conventions
+When helpers are consolidated into a shared package, verify that the refactored code doesn't change behavior of callers—the tests should catch regressions, but pre-existing test failures in a codebase can hide whether consolidation was successful.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-07 | ralph-runner-zgri | conventions
+Test new fields by adding assertions to the existing main test first, then create a dedicated test if the field requires special or isolated validation
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | Documentary Test Replacement | patterns
+Archived: generic TDD advice (replace documentary tests with DI, integration tests make narrow tests redundant). Not project-specific.
+
+*Archived from confirmed: filtered: generic engineering advice*
+
+### 2026-02-08 | Output Formatting | patterns
+Archived: generic Go pattern (build via []string joined with newlines, strings.Contains for tests). Not project-specific.
+
+*Archived from confirmed: filtered: generic engineering advice*
+
+### 2026-02-08 | Table-Driven and Concurrent Testing | patterns
+Archived: standard Go testing patterns (t.Run, t.Parallel, sync.WaitGroup, defer/recover). Language-level conventions.
+
+*Archived from confirmed: filtered: generic engineering advice*
+
+### 2026-02-08 | Test Failure Root Cause Analysis | conventions
+Archived: generic debugging advice (check if test failure is related to current task or pre-existing). Universal practice.
+
+*Archived from confirmed: filtered: generic engineering advice*
+
+### 2026-02-08 | Helper Function Extraction | conventions
+Archived: restates basic SRP/DRY (extract small focused helpers, inject rather than reimplement). Not project-specific.
+
+*Archived from confirmed: filtered: generic engineering advice*
+
+### 2026-02-08 | renderer and template consolidation | conventions
+Archived: ralph-runner-628c, ralph-runner-nxdm "Renderer Method Pattern" consolidated into Confirmed "Prompt Rendering Architecture" entry alongside Template and Renderer Architecture.
+
+### 2026-02-08 | gromit-4zg | gotchas
+Archived: one-off migration issue with bd rename-prefix. Not a recurring pattern.
+
+*Archived from provisional: filtered: one-off issue*
+
+### 2026-02-08 | gromit-yw0x | patterns
+Archived: too thin to be actionable (templates use Guidelines sections). Already covered by consolidated Prompt Rendering Architecture learning.
+
+*Archived from provisional: filtered: covered by consolidation*
+
+### 2026-02-08 | gromit-o93z | patterns
+Archived: standard Go test patterns (mock command, test success/failure, validate JSON, check nil). Thin project-specific veneer.
+
+*Archived from provisional: filtered: generic engineering advice*
+
