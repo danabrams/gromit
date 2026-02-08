@@ -361,3 +361,191 @@ func TestDeleteExperiment(t *testing.T) {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || contains(s[1:], substr)))
 }
+
+// mockStatsData implements StatsData interface for testing
+type mockStatsData struct {
+	failureRate float64
+}
+
+func (m mockStatsData) FailureRate() float64 {
+	return m.failureRate
+}
+
+// TestComputeBaselineMetrics_Success tests successful baseline computation
+func TestComputeBaselineMetrics_Success(t *testing.T) {
+	tests := []struct {
+		name           string
+		stats          mockStatsData
+		efficiency     EfficiencyData
+		wantCost       float64
+		wantDurationMs int64
+		wantInput      float64
+		wantOutput     float64
+		wantFailure    float64
+	}{
+		{
+			name: "single model with multiple iterations",
+			stats: mockStatsData{
+				failureRate: 0.1,
+			},
+			efficiency: EfficiencyData{
+				Models: map[string]ModelEfficiencyData{
+					"sonnet": {
+						TotalCostUSD:      4.20,
+						TotalDuration:     450 * time.Second,
+						TotalInputTokens:  120000,
+						TotalOutputTokens: 30000,
+						IterationCount:    10,
+					},
+				},
+			},
+			wantCost:       0.42,
+			wantDurationMs: 45000,
+			wantInput:      12000,
+			wantOutput:     3000,
+			wantFailure:    0.1,
+		},
+		{
+			name: "multiple models with weighted averages",
+			stats: mockStatsData{
+				failureRate: 0.133,
+			},
+			efficiency: EfficiencyData{
+				Models: map[string]ModelEfficiencyData{
+					"opus": {
+						TotalCostUSD:      6.0,
+						TotalDuration:     300 * time.Second,
+						TotalInputTokens:  150000,
+						TotalOutputTokens: 40000,
+						IterationCount:    5,
+					},
+					"sonnet": {
+						TotalCostUSD:      4.0,
+						TotalDuration:     400 * time.Second,
+						TotalInputTokens:  100000,
+						TotalOutputTokens: 20000,
+						IterationCount:    10,
+					},
+				},
+			},
+			wantCost:       (6.0 + 4.0) / 15,
+			wantDurationMs: ((300 + 400) * 1000) / 15,
+			wantInput:      (150000.0 + 100000.0) / 15,
+			wantOutput:     (40000.0 + 20000.0) / 15,
+			wantFailure:    0.133,
+		},
+		{
+			name: "zero iterations returns zero metrics",
+			stats: mockStatsData{
+				failureRate: 0,
+			},
+			efficiency: EfficiencyData{
+				Models: map[string]ModelEfficiencyData{},
+			},
+			wantCost:       0,
+			wantDurationMs: 0,
+			wantInput:      0,
+			wantOutput:     0,
+			wantFailure:    0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			readStats := func(dir string) (StatsData, error) {
+				return tt.stats, nil
+			}
+			readEfficiency := func(dir, runID string) (EfficiencyData, error) {
+				if runID != "" {
+					t.Errorf("expected empty runID, got %q", runID)
+				}
+				return tt.efficiency, nil
+			}
+
+			got, err := ComputeBaselineMetrics("/fake/logs", readStats, readEfficiency)
+			if err != nil {
+				t.Fatalf("ComputeBaselineMetrics() error = %v", err)
+			}
+
+			const epsilon = 0.001
+			if abs(got.AvgCostPerBead-tt.wantCost) > epsilon {
+				t.Errorf("AvgCostPerBead = %v, want %v", got.AvgCostPerBead, tt.wantCost)
+			}
+			if got.AvgDurationMs != tt.wantDurationMs {
+				t.Errorf("AvgDurationMs = %v, want %v", got.AvgDurationMs, tt.wantDurationMs)
+			}
+			if abs(got.AvgInputTokens-tt.wantInput) > epsilon {
+				t.Errorf("AvgInputTokens = %v, want %v", got.AvgInputTokens, tt.wantInput)
+			}
+			if abs(got.AvgOutputTokens-tt.wantOutput) > epsilon {
+				t.Errorf("AvgOutputTokens = %v, want %v", got.AvgOutputTokens, tt.wantOutput)
+			}
+			if abs(got.FailureRate-tt.wantFailure) > epsilon {
+				t.Errorf("FailureRate = %v, want %v", got.FailureRate, tt.wantFailure)
+			}
+		})
+	}
+}
+
+// TestComputeBaselineMetrics_ErrorHandling tests error propagation
+func TestComputeBaselineMetrics_ErrorHandling(t *testing.T) {
+	tests := []struct {
+		name          string
+		readStatsErr  bool
+		readEffErr    bool
+		wantErrSubstr string
+	}{
+		{
+			name:          "stats read error",
+			readStatsErr:  true,
+			wantErrSubstr: "reading run stats",
+		},
+		{
+			name:          "efficiency read error",
+			readEffErr:    true,
+			wantErrSubstr: "reading efficiency data",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			readStats := func(dir string) (StatsData, error) {
+				if tt.readStatsErr {
+					return nil, &testError{"stats error"}
+				}
+				return mockStatsData{}, nil
+			}
+			readEfficiency := func(dir, runID string) (EfficiencyData, error) {
+				if tt.readEffErr {
+					return EfficiencyData{}, &testError{"efficiency error"}
+				}
+				return EfficiencyData{Models: map[string]ModelEfficiencyData{}}, nil
+			}
+
+			_, err := ComputeBaselineMetrics("/fake/logs", readStats, readEfficiency)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !contains(err.Error(), tt.wantErrSubstr) {
+				t.Errorf("error = %v, want substring %q", err, tt.wantErrSubstr)
+			}
+		})
+	}
+}
+
+// testError is a simple error type for testing
+type testError struct {
+	msg string
+}
+
+func (e *testError) Error() string {
+	return e.msg
+}
+
+// abs returns the absolute value of a float64
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
