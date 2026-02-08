@@ -22,7 +22,7 @@ import (
 //   - w: Writer for prompt output
 func Pick(agents []string, defaultAgent string, r io.Reader, w io.Writer) (string, error) {
 	// Validate input
-	if agents == nil || len(agents) == 0 {
+	if len(agents) == 0 {
 		return "", fmt.Errorf("agents list cannot be empty")
 	}
 
