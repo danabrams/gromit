@@ -7,6 +7,81 @@ import (
 	"testing"
 )
 
+func TestAgentsConfigUnmarshal(t *testing.T) {
+	yamlContent := `
+agents:
+  definitions:
+    claude: {}
+    custom:
+      binary: "my-agent"
+      flags: ["--flag1"]
+  phases:
+    refine: claude
+    plan: custom
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Agents.Definitions == nil {
+		t.Fatal("Agents.Definitions is nil, want non-nil map")
+	}
+	if len(cfg.Agents.Definitions) != 2 {
+		t.Errorf("len(Agents.Definitions) = %d, want 2", len(cfg.Agents.Definitions))
+	}
+
+	claudeDef, ok := cfg.Agents.Definitions["claude"]
+	if !ok {
+		t.Fatal("claude definition not found")
+	}
+	if claudeDef.Binary != "" {
+		t.Errorf("claude.Binary = %q, want empty (should use defaults)", claudeDef.Binary)
+	}
+
+	customDef, ok := cfg.Agents.Definitions["custom"]
+	if !ok {
+		t.Fatal("custom definition not found")
+	}
+	if customDef.Binary != "my-agent" {
+		t.Errorf("custom.Binary = %q, want %q", customDef.Binary, "my-agent")
+	}
+	if len(customDef.Flags) != 1 || customDef.Flags[0] != "--flag1" {
+		t.Errorf("custom.Flags = %v, want [--flag1]", customDef.Flags)
+	}
+
+	if cfg.Agents.Phases.Refine != "claude" {
+		t.Errorf("Agents.Phases.Refine = %q, want %q", cfg.Agents.Phases.Refine, "claude")
+	}
+	if cfg.Agents.Phases.Plan != "custom" {
+		t.Errorf("Agents.Phases.Plan = %q, want %q", cfg.Agents.Phases.Plan, "custom")
+	}
+}
+
+func TestSetDefaultsInitializesPhasesToClaude(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Agents.Phases.Refine != "claude" {
+		t.Errorf("Phases.Refine = %q, want %q", cfg.Agents.Phases.Refine, "claude")
+	}
+	if cfg.Agents.Phases.Plan != "claude" {
+		t.Errorf("Phases.Plan = %q, want %q", cfg.Agents.Phases.Plan, "claude")
+	}
+	if cfg.Agents.Phases.Review != "claude" {
+		t.Errorf("Phases.Review = %q, want %q", cfg.Agents.Phases.Review, "claude")
+	}
+	if cfg.Agents.Phases.Explore != "claude" {
+		t.Errorf("Phases.Explore = %q, want %q", cfg.Agents.Phases.Explore, "claude")
+	}
+}
+
 func TestSelectModelBasics(t *testing.T) {
 	tests := []struct {
 		name     string

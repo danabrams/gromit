@@ -28,6 +28,7 @@ type Config struct {
 	Methodology MethodologyConfig `yaml:"methodology"`
 	Git         GitConfig         `yaml:"git"`
 	State       StateConfig       `yaml:"state"`
+	Agents      AgentsConfig      `yaml:"agents"`
 }
 
 type ModelsConfig struct {
@@ -122,6 +123,23 @@ type GitConfig struct {
 
 type StateConfig struct {
 	StaleThreshold int `yaml:"stale_threshold"`
+}
+
+type AgentsConfig struct {
+	Definitions map[string]AgentDefinition `yaml:"definitions"`
+	Phases      PhasesConfig               `yaml:"phases"`
+}
+
+type AgentDefinition struct {
+	Binary string   `yaml:"binary"`
+	Flags  []string `yaml:"flags"`
+}
+
+type PhasesConfig struct {
+	Refine  string `yaml:"refine"`
+	Plan    string `yaml:"plan"`
+	Review  string `yaml:"review"`
+	Explore string `yaml:"explore"`
 }
 
 func Load(path string) (*Config, error) {
@@ -283,6 +301,18 @@ func (c *Config) SetDefaults() {
 	}
 	if c.State.StaleThreshold == 0 {
 		c.State.StaleThreshold = 60
+	}
+	if c.Agents.Phases.Refine == "" {
+		c.Agents.Phases.Refine = "claude"
+	}
+	if c.Agents.Phases.Plan == "" {
+		c.Agents.Phases.Plan = "claude"
+	}
+	if c.Agents.Phases.Review == "" {
+		c.Agents.Phases.Review = "claude"
+	}
+	if c.Agents.Phases.Explore == "" {
+		c.Agents.Phases.Explore = "claude"
 	}
 }
 

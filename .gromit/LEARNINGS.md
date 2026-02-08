@@ -85,6 +85,18 @@ Filter must be set on learnings.File via SetFilter() immediately after NewFile()
 ### 2026-02-08 | gromit-t5x0 | patterns
 Skills are embedded as package-level variables using go:embed with filesystem patterns like //go:embed gromit-*/SKILL.md, paired with exported string variables like SkillName to make them accessible to the rest of the codebase
 
+### 2026-02-08 | gromit-x9bq | conventions
+When modifying bead client interfaces and methods (internal/bead/bead.go and internal/runner/interfaces.go), audit all callers in internal/runner/ that fetch beads - particularly parallel execution logic in parallel_post_success.go. Concurrent tests are timing-sensitive and small changes to how/when beads are fetched can break timing assumptions. Always check that bead fetching remains non-blocking in parallel contexts.
+
+### 2026-02-08 | gromit-o2vl | conventions
+When adding methods to interfaces used by the runner package (especially BeadClient), verify that changes integrate correctly with concurrent execution paths. The parallel post-success flow has strict timing expectations—tests use timing assertions to catch serialization bugs. Always run the full test suite including test/contracts before submitting, as module resolution issues in contracts tests indicate incomplete implementation context.
+
+### 2026-02-08 | gromit-sliw | conventions
+When modifying state.File or other shared state structures, verify that changes don't introduce race conditions or affect the runner's parallel post-success execution flow. The parallel execution tests are sensitive to timing and state mutation patterns—changes to state management can cascade into seemingly unrelated test failures in concurrent execution paths.
+
+### 2026-02-08 | gromit-uwyu | conventions
+When validation fails with multiple unrelated test failures across different packages, investigate whether the failures are caused by the current changes or are pre-existing issues in the test suite. The parallel execution timing tests in internal/runner appear flaky and may need adjustment to timing thresholds or concurrent execution synchronization.
+
 ---
 
 ## Archived
@@ -410,4 +422,14 @@ Archived: meta-advice about what makes a good learning entry. Process guidance, 
 
 ### 2026-02-08 | gromit-9hau | patterns
 Archived: already promoted to RULES.md Process section (skippedBeads map pattern). Redundant with rule.
+
+### 2026-02-08 | gromit-elej | conventions
+When using errgroup for concurrent task execution in Go, ensure the tasks themselves are not blocking. The extractSuccessLearning() function may have context-based timeouts or synchronous I/O that prevents true concurrency. Additionally, error handling in concurrent code requires careful management - using errgroup.Wait() with ignored error returns and deferred error handling can cause errors to be silently dropped. Test concurrent execution with actual timing measurements and verify error propagation through the goroutines.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-x9bq | conventions
+When adding new methods to interfaces (BeadClient in this case), ensure that: (1) all implementations of that interface are updated, not just the interface definition; (2) run the full test suite before considering a task complete, as interface changes can have cascading effects on mock implementations and tests; (3) parallel execution and timing-sensitive tests are brittle and failures may indicate the new code wasn't properly integrated into the concurrent execution paths.
+
+*Archived from new: filtered: generic engineering advice*
 
