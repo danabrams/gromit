@@ -41,7 +41,7 @@ run_test() {
 # Setup
 mkdir -p .gromit
 
-echo "Testing pipeline-resume.sh dollar-sign handling..."
+echo "Testing pipeline-resume.sh marker validation and dollar-sign handling..."
 echo
 
 # Test 1: Dollar sign in spec content
@@ -145,6 +145,57 @@ run_test "Multiline content with dollar signs" \
     "open_beads": "None"
   }
 }'
+
+# Test marker validation - missing markers should cause failure
+echo
+echo "Testing marker validation..."
+echo
+
+# Save and backup the original SKILL.md
+ORIGINAL_SKILL_FILE="$SCRIPT_DIR/SKILL.md"
+if [ -f "$ORIGINAL_SKILL_FILE" ]; then
+  cp "$ORIGINAL_SKILL_FILE" "$ORIGINAL_SKILL_FILE.bak"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+
+# Create a skill file without markers
+cat > "$SCRIPT_DIR/SKILL.md" <<'EOF'
+# Gromit Orchestrator Skill
+
+This skill file is missing the required markers.
+It should cause the pipeline-resume script to fail.
+EOF
+
+echo '{
+  "stage": "refine",
+  "inputs": {
+    "idea_text": "Test idea",
+    "backlog_id": "test-123"
+  }
+}' > "$STATE_FILE"
+
+# Run script and capture output + exit code
+output=$("$SCRIPT" 2>&1) || exit_code=$?
+exit_code=${exit_code:-0}
+
+# Restore original SKILL.md
+if [ -f "$ORIGINAL_SKILL_FILE.bak" ]; then
+  mv "$ORIGINAL_SKILL_FILE.bak" "$ORIGINAL_SKILL_FILE"
+else
+  rm -f "$ORIGINAL_SKILL_FILE"
+fi
+
+if [ "$exit_code" -ne 0 ] && echo "$output" | grep -F "Failed to extract skill content" > /dev/null; then
+  echo "✓ PASS: Missing markers should cause script failure"
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+  echo "✗ FAIL: Missing markers should cause script failure"
+  echo "  Exit code: $exit_code"
+  echo "  Expected error message about marker extraction"
+  echo "  Got output:"
+  echo "$output" | sed 's/^/    /'
+fi
 
 # Cleanup
 rm -f "$STATE_FILE"

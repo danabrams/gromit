@@ -148,7 +148,16 @@ EOF
 }
 
 # Output skill content and context
-extract_skill_content "$STAGE"
+SKILL_CONTENT=$(extract_skill_content "$STAGE")
+
+if [ -z "$SKILL_CONTENT" ]; then
+  echo "Error: Failed to extract skill content for stage '$STAGE'" >&2
+  echo "Error: The skill file may be corrupted or missing BEGIN/END markers" >&2
+  rm -f "$STATE_FILE"
+  exit 1
+fi
+
+echo "$SKILL_CONTENT"
 build_context "$STAGE"
 
 # Delete state file (consume on read)
