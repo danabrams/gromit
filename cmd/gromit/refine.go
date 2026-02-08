@@ -406,5 +406,9 @@ func extractSpecTitle(path string) string {
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		return ""
+	}
+
 	return ""
 }

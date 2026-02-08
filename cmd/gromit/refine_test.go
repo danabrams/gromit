@@ -131,6 +131,29 @@ key: value
 			t.Errorf("extractSpecTitle() for missing file = %q, want empty string", got)
 		}
 	})
+
+	// Test file with insufficient permissions (unreadable after open on some systems)
+	// Note: This test may not reliably trigger scanner.Err() on all systems, but it documents
+	// the intent to handle scanner read errors gracefully.
+	t.Run("unreadable file", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("skipping permission test when running as root")
+		}
+		// Create a readable file, then remove read permissions
+		filePath := filepath.Join(tmpDir, "unreadable.md")
+		if err := os.WriteFile(filePath, []byte("# Test"), 0644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+		if err := os.Chmod(filePath, 0000); err != nil {
+			t.Fatalf("failed to chmod test file: %v", err)
+		}
+		defer os.Chmod(filePath, 0644) // restore permissions for cleanup
+
+		got := extractSpecTitle(filePath)
+		if got != "" {
+			t.Errorf("extractSpecTitle() for unreadable file = %q, want empty string", got)
+		}
+	})
 }
 
 func TestFormatTypeLabel(t *testing.T) {
