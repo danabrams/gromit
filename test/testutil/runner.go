@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -33,28 +32,10 @@ func RunGromitWithStdin(binary, dir string, environ []string, stdin string, args
 	var outBuf, errBuf strings.Builder
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
+	cmd.Stdin = strings.NewReader(stdin)
 
-	// Set up stdin pipe
-	stdinPipe, pipeErr := cmd.StdinPipe()
-	if pipeErr != nil {
-		return "", "", -1, fmt.Errorf("creating stdin pipe: %w", pipeErr)
-	}
-
-	// Start the command
-	if startErr := cmd.Start(); startErr != nil {
-		return "", "", -1, fmt.Errorf("starting command: %w", startErr)
-	}
-
-	// Write stdin data
-	if _, writeErr := stdinPipe.Write([]byte(stdin)); writeErr != nil {
-		stdinPipe.Close()
-		cmd.Wait()
-		return "", "", -1, fmt.Errorf("writing to stdin: %w", writeErr)
-	}
-	stdinPipe.Close()
-
-	// Wait for command to complete
-	runErr := cmd.Wait()
+	// Run the command
+	runErr := cmd.Run()
 	stdout = outBuf.String()
 	stderr = errBuf.String()
 
