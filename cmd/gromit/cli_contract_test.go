@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -577,6 +578,115 @@ This is a plan for adding logging.
 			t.Errorf("'Decompose all' should not appear with only 1 plan, got: %s", stdout)
 		}
 	})
+}
+
+// TestCLIContract_AddContextCapture verifies that multi-word context is captured correctly
+func TestCLIContract_AddContextCapture(t *testing.T) {
+	tests := []struct {
+		name          string
+		ideaText      string
+		stdin         string // stdin input: context input + newlines
+		wantContext   string
+		wantInBacklog bool
+	}{
+		{
+			name:          "multi-word context",
+			ideaText:      "Add user authentication",
+			stdin:         "this should work with the new auth system\n",
+			wantContext:   "this should work with the new auth system",
+			wantInBacklog: true,
+		},
+		{
+			name:          "empty context",
+			ideaText:      "Fix the bug",
+			stdin:         "\n",
+			wantContext:   "",
+			wantInBacklog: true,
+		},
+		{
+			name:          "single word context",
+			ideaText:      "Refactor code",
+			stdin:         "TDD\n",
+			wantContext:   "TDD",
+			wantInBacklog: true,
+		},
+		{
+			name:          "context with punctuation",
+			ideaText:      "Add logging",
+			stdin:         "need this for debugging, ASAP!\n",
+			wantContext:   "need this for debugging, ASAP!",
+			wantInBacklog: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create isolated temp directory
+			tmpDir, err := os.MkdirTemp("", "gromit-add-context-test-*")
+			if err != nil {
+				t.Fatalf("failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tmpDir)
+
+			// Create minimal gromit.yaml
+			configContent := `paths:
+  gromit_dir: .gromit
+`
+			configPath := filepath.Join(tmpDir, "gromit.yaml")
+			if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			// Run gromit add with context input via stdin
+			stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(
+				binaryPath,
+				tmpDir,
+				nil,
+				tt.stdin,
+				"add", tt.ideaText,
+			)
+			if err != nil {
+				t.Fatalf("failed to run gromit add: %v", err)
+			}
+
+			// Command should exit 0
+			if exitCode != 0 {
+				t.Errorf("gromit add exited with code %d, stderr: %s", exitCode, stderr)
+			}
+
+			// Verify success message
+			if !strings.Contains(stdout, "Added to backlog") {
+				t.Errorf("expected success message, got: %s", stdout)
+			}
+
+			// Verify backlog.jsonl was created and contains the idea
+			backlogPath := filepath.Join(tmpDir, ".gromit", "backlog.jsonl")
+			data, err := os.ReadFile(backlogPath)
+			if err != nil {
+				t.Fatalf("failed to read backlog.jsonl: %v", err)
+			}
+
+			// Parse the JSON line
+			var idea struct {
+				ID      string `json:"id"`
+				Text    string `json:"text"`
+				Context string `json:"context"`
+			}
+			if err := json.Unmarshal(data, &idea); err != nil {
+				t.Fatalf("failed to unmarshal backlog entry: %v", err)
+			}
+
+			// Verify the context field matches expected value
+			if idea.Context != tt.wantContext {
+				t.Errorf("context mismatch:\ngot:  %q\nwant: %q", idea.Context, tt.wantContext)
+			}
+
+			// Verify the idea text is correct
+			if idea.Text != tt.ideaText {
+				t.Errorf("idea text mismatch:\ngot:  %q\nwant: %q", idea.Text, tt.ideaText)
+			}
+		})
+	}
 }
 
 // TestCLIContract_ExitCodes verifies exit codes for various error conditions
