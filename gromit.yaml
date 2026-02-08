@@ -69,6 +69,15 @@ git:
   auto_push: true  # Push to remote after each successful bead (default: true)
   push_failure: "warn"  # What to do when push fails: "warn" | "stop" (default: "warn")
 
+# State file staleness protection - detects and auto-heals corrupted state from crashes
+state:
+  # How old (in minutes) state.json can be before it's considered stale
+  # State is loaded at run start; if updated_at exceeds this threshold, counters are reset
+  # Default: 60 (1 hour). Set higher if your builds routinely take longer than 1 hour.
+  # Note: The clean_exit flag (set false at start, true at shutdown) is the primary
+  # crash detector and always triggers auto-heal regardless of time elapsed.
+  stale_threshold: 60
+
 # Paths (relative to project root)
 paths:
   templates: ".gromit/templates"
