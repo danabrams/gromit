@@ -251,3 +251,24 @@ Provide your analysis in two parts:
 - Each experiment must be concrete, testable, and have clear measurement criteria
 - During interactive review, the user will select at most one experiment to run (never multiple)
 {{- end }}
+
+### Anti-Generic Archival Rules
+
+Archive any learning that meets these criteria:
+
+- **Restates standard engineering principles**: DRY, SRP, SOLID, YAGNI, error handling, code review, test coverage, etc., unless it references a project-specific pattern, file, or convention.
+- **Describes basic language features**: Standard library behavior, language syntax, or features (e.g., "Go interfaces are satisfied implicitly", "use defer for cleanup", "channels are thread-safe").
+- **Could apply to any project**: The learning lacks specificity — it could be copy-pasted into any software project without modification.
+- **Generic process advice**: "Always verify tests pass", "commit early and often", "read documentation before implementing", unless it references a specific failure mode or workflow in this codebase.
+
+**When in doubt, archive**. Project-specific learnings reference concrete files, packages, functions, bead patterns, error messages, or failure modes unique to this codebase. Examples of project-specific learnings:
+
+- "The runner's escalation chain skips haiku when the bead has `complexity:high` label" (references specific code behavior)
+- "LEARNINGS.md entries must follow strict pipe-delimited header format: `### YYYY-MM-DD | DESCRIPTIVE_TITLE | CATEGORY_NAME`" (references specific file format)
+- "Use `go test -count=1` in validation to avoid cached results" (references specific project validation command)
+
+Examples of generic learnings to archive:
+
+- "Always verify tests pass before marking a bead complete" (universal advice)
+- "Use single responsibility principle" (standard principle)
+- "Handle errors gracefully" (no specific pattern or file reference)
