@@ -1,8 +1,9 @@
 ---
+created: 2026-02-07T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-07T22:39:04-05:00"
 id: state-staleness-protection
 source_spec: state-staleness-protection
-created: 2026-02-07
-decomposed: false
 ---
 
 # State File Staleness Protection Implementation Plan

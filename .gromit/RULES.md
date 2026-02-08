@@ -10,6 +10,7 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - After unmarshaling JSON structs and after file loading, use `normalizeNilFields()` to convert nil slices to empty slices — prevents bugs with nil checks, range operations, and JSON serialization (`nil` → `null` vs `[]` → `[]`)
 - Keep packages focused: one package should not reach into another package's internal types
 - bead.Client methods have semantic distinctions: Ready()/CountReady() return only unblocked beads (`bd ready`), while List() returns all open beads (`bd list --status open`). Choose the correct method based on whether you need actionable or total counts
+- Functions that call subprocesses or prompt users should accept these dependencies as injected function parameters, not call them directly. This enables testing with simple mocks rather than requiring stdin/stdout management or actual subprocess execution
 
 ## Safety
 
@@ -23,5 +24,6 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - Always run tests before committing
 - Follow existing patterns in the codebase
 - When adding config fields, always provide a default value in `setDefaults()` and test that the default is applied when the field is omitted from YAML. Use `json:"field,omitempty"` for optional fields in serialized structs to maintain backward compatibility
-- Beads that touch more than 2 files should be split before attempting. Cross-cutting refactors (consolidating helpers, extracting interfaces, renaming across files) must be split into per-package or per-concern beads. If a bead fails and the failure analysis suggests scope was too broad, escalate to splitting rather than retrying at a higher model tier
+- Beads that touch more than 2 files should be split before attempting. Cross-cutting refactors (consolidating helpers, extracting interfaces, renaming across files) must be split into per-package or per-concern beads. If a bead fails and the failure analysis suggests scope was too broad, escalate to splitting rather than retrying at a higher model tier. Beads with "infrastructure" or "E2E" in the title should be reviewed for scope before execution — test infrastructure tasks should be decomposed into: (1) create test fixtures, (2) create test helpers, (3) write tests using fixtures+helpers
+- LEARNINGS.md entries must follow strict pipe-delimited header format: `### YYYY-MM-DD | DESCRIPTIVE_TITLE | CATEGORY_NAME`. Dates must be valid (not 0001-01-01), BeadID must contain the full learning title (not categories), and consolidated entries must record source IDs in a separate `*Related to: id1, id2*` line in the content body. Validate format before persisting any changes to LEARNINGS.md
 - Validation commands in gromit.yaml must match the project's build system. Verify against language markers (go.mod, package.json) before running. For this project: use `go test`, `go vet`, `go build` — never pnpm or npm

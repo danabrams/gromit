@@ -1117,9 +1117,10 @@ func TestRunWithMocks_PrecheckPassed(t *testing.T) {
 
 	mockLog := &mockIterationLogger{}
 
+	precheckEnabled := true
 	var buf strings.Builder
 	r, _ := NewRunnerWithDeps(
-		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}, Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30}},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
@@ -1210,9 +1211,10 @@ func TestRunWithMocks_PrecheckNotMet(t *testing.T) {
 
 	mockLog := &mockIterationLogger{}
 
+	precheckEnabled := true
 	var buf strings.Builder
 	r, _ := NewRunnerWithDeps(
-		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}, Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30}},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
@@ -1276,9 +1278,10 @@ func TestRunWithMocks_PrecheckError(t *testing.T) {
 
 	mockLog := &mockIterationLogger{}
 
+	precheckEnabled := true
 	var buf strings.Builder
 	r, _ := NewRunnerWithDeps(
-		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}, Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30}},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
@@ -1366,9 +1369,10 @@ func TestRunWithMocks_PrecheckDoesNotCountAsIteration(t *testing.T) {
 
 	mockLog := &mockIterationLogger{}
 
+	precheckEnabled := true
 	var buf strings.Builder
 	r, _ := NewRunnerWithDeps(
-		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}, Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30}},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 

@@ -509,17 +509,20 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 	}
 
 	r.logger.LogIteration(&logger.IterationLog{
-		Timestamp:   time.Now(),
-		Iteration:   iteration,
-		BeadID:      result.BeadID,
-		BeadTitle:   result.BeadTitle,
-		Model:       result.Model,
-		Success:     result.Success,
-		Validated:   result.Validated,
-		Escalated:   result.Escalated,
-		EscalatedTo: result.EscalatedTo,
-		DurationMs:  result.Duration.Milliseconds(),
-		Error:       errStr,
+		Timestamp:    time.Now(),
+		Iteration:    iteration,
+		BeadID:       result.BeadID,
+		BeadTitle:    result.BeadTitle,
+		Model:        result.Model,
+		Success:      result.Success,
+		Validated:    result.Validated,
+		Escalated:    result.Escalated,
+		EscalatedTo:  result.EscalatedTo,
+		DurationMs:   result.Duration.Milliseconds(),
+		CostUSD:      result.CostUSD,
+		InputTokens:  result.InputTokens,
+		OutputTokens: result.OutputTokens,
+		Error:        errStr,
 	})
 }
 
@@ -639,7 +642,7 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 
 		r.log("Running Claude with model: %s", bc.model)
 
-		claudeResult, _, stallFired, err := r.executeClaudeInvocation(ctx, bc)
+		claudeResult, stats, stallFired, err := r.executeClaudeInvocation(ctx, bc)
 
 		// Handle invocation error (stall, timeout, or other failure)
 		if err != nil {
@@ -669,6 +672,14 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 		}
 
 		bc.result.Output = claudeResult.Output
+
+		// Populate cost/token data from stream stats
+		if stats != nil {
+			costUSD, inputTokens, outputTokens := stats.CostData()
+			bc.result.CostUSD = costUSD
+			bc.result.InputTokens = inputTokens
+			bc.result.OutputTokens = outputTokens
+		}
 
 		// Check if scope is too large
 		if isTooLarge, explanation := claude.IsScopeTooLarge(claudeResult); isTooLarge {
