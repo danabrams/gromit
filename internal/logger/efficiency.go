@@ -1,6 +1,13 @@
 package logger
 
-import "time"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+)
 
 // IterationEfficiency represents efficiency data for a single iteration
 type IterationEfficiency struct {
@@ -49,4 +56,198 @@ type EfficiencyReport struct {
 
 	// Context window flags
 	HighContextIterations []IterationEfficiency // Iterations exceeding 80% threshold
+}
+
+// Model context window sizes (input token limits)
+var modelContextWindows = map[string]int{
+	"opus":   200000,
+	"sonnet": 200000,
+	"haiku":  200000,
+}
+
+// ReadEfficiencyReport reads JSONL log files and computes efficiency aggregates.
+// currentRunID specifies which run is "current" (all others are historical).
+// If currentRunID is empty, all runs are treated as historical.
+func ReadEfficiencyReport(logsDir string, currentRunID string) (*EfficiencyReport, error) {
+	report := &EfficiencyReport{
+		CurrentModels:    make(map[string]ModelEfficiency),
+		HistoricalModels: make(map[string]ModelEfficiency),
+	}
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		return nil, fmt.Errorf("globbing log files: %w", err)
+	}
+
+	// Track per-model totals for both current and historical
+	currentModelTotals := make(map[string]*modelAccumulator)
+	historicalModelTotals := make(map[string]*modelAccumulator)
+
+	for _, f := range files {
+		runID := extractRunID(f)
+		isCurrent := (runID == currentRunID)
+
+		entries, err := readEfficiencyLogFile(f)
+		if err != nil {
+			continue // Skip unreadable files
+		}
+
+		for _, entry := range entries {
+			// Build IterationEfficiency
+			ie := IterationEfficiency{
+				BeadID:       entry.BeadID,
+				Model:        entry.Model,
+				Duration:     time.Duration(entry.DurationMs) * time.Millisecond,
+				CostUSD:      entry.CostUSD,
+				InputTokens:  entry.InputTokens,
+				OutputTokens: entry.OutputTokens,
+			}
+
+			// Calculate context window usage
+			if contextWindow, ok := modelContextWindows[entry.Model]; ok && contextWindow > 0 {
+				ie.ContextWindowUsed = float64(entry.InputTokens) / float64(contextWindow)
+				ie.ExceededThreshold = ie.ContextWindowUsed >= 0.8
+			}
+
+			if isCurrent {
+				report.CurrentIterations = append(report.CurrentIterations, ie)
+				if ie.ExceededThreshold {
+					report.HighContextIterations = append(report.HighContextIterations, ie)
+				}
+
+				// Accumulate per-model stats
+				if currentModelTotals[entry.Model] == nil {
+					currentModelTotals[entry.Model] = &modelAccumulator{}
+				}
+				currentModelTotals[entry.Model].add(ie)
+			} else {
+				// Historical
+				if historicalModelTotals[entry.Model] == nil {
+					historicalModelTotals[entry.Model] = &modelAccumulator{}
+				}
+				historicalModelTotals[entry.Model].add(ie)
+			}
+		}
+	}
+
+	// Compute per-model aggregates for current run
+	for model, acc := range currentModelTotals {
+		report.CurrentModels[model] = acc.toModelEfficiency(model)
+	}
+
+	// Compute per-model aggregates for historical runs
+	for model, acc := range historicalModelTotals {
+		report.HistoricalModels[model] = acc.toModelEfficiency(model)
+	}
+
+	// Compute overall averages
+	report.CurrentAvgCostPerBead = computeOverallAvgCost(report.CurrentModels)
+	report.CurrentAvgDurationPerBead = computeOverallAvgDuration(report.CurrentModels)
+	report.HistoricalAvgCostPerBead = computeOverallAvgCost(report.HistoricalModels)
+	report.HistoricalAvgDurationPerBead = computeOverallAvgDuration(report.HistoricalModels)
+
+	// Compute deltas
+	report.CostDelta = report.CurrentAvgCostPerBead - report.HistoricalAvgCostPerBead
+	report.DurationDelta = report.CurrentAvgDurationPerBead - report.HistoricalAvgDurationPerBead
+
+	return report, nil
+}
+
+// modelAccumulator tracks running totals for a single model
+type modelAccumulator struct {
+	count         int
+	totalCost     float64
+	totalDuration time.Duration
+	totalInput    int
+	totalOutput   int
+}
+
+func (m *modelAccumulator) add(ie IterationEfficiency) {
+	m.count++
+	m.totalCost += ie.CostUSD
+	m.totalDuration += ie.Duration
+	m.totalInput += ie.InputTokens
+	m.totalOutput += ie.OutputTokens
+}
+
+func (m *modelAccumulator) toModelEfficiency(model string) ModelEfficiency {
+	if m.count == 0 {
+		return ModelEfficiency{Model: model}
+	}
+	return ModelEfficiency{
+		Model:             model,
+		IterationCount:    m.count,
+		AvgCostUSD:        m.totalCost / float64(m.count),
+		AvgDuration:       m.totalDuration / time.Duration(m.count),
+		AvgInputTokens:    float64(m.totalInput) / float64(m.count),
+		AvgOutputTokens:   float64(m.totalOutput) / float64(m.count),
+		TotalCostUSD:      m.totalCost,
+		TotalDuration:     m.totalDuration,
+		TotalInputTokens:  m.totalInput,
+		TotalOutputTokens: m.totalOutput,
+	}
+}
+
+// computeOverallAvgCost computes the weighted average cost across all models
+func computeOverallAvgCost(models map[string]ModelEfficiency) float64 {
+	if len(models) == 0 {
+		return 0
+	}
+	totalCost := 0.0
+	totalCount := 0
+	for _, m := range models {
+		totalCost += m.TotalCostUSD
+		totalCount += m.IterationCount
+	}
+	if totalCount == 0 {
+		return 0
+	}
+	return totalCost / float64(totalCount)
+}
+
+// computeOverallAvgDuration computes the weighted average duration across all models
+func computeOverallAvgDuration(models map[string]ModelEfficiency) time.Duration {
+	if len(models) == 0 {
+		return 0
+	}
+	totalDuration := time.Duration(0)
+	totalCount := 0
+	for _, m := range models {
+		totalDuration += m.TotalDuration
+		totalCount += m.IterationCount
+	}
+	if totalCount == 0 {
+		return 0
+	}
+	return totalDuration / time.Duration(totalCount)
+}
+
+// extractRunID extracts the run ID from a log file path like "run-20060102-150405.jsonl"
+func extractRunID(path string) string {
+	base := filepath.Base(path)
+	// Remove "run-" prefix and ".jsonl" suffix
+	if len(base) < 9 {
+		return ""
+	}
+	return base[4 : len(base)-6]
+}
+
+// readEfficiencyLogFile reads iteration logs from a JSONL file
+func readEfficiencyLogFile(path string) ([]IterationLog, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := []IterationLog{}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	for dec.More() {
+		var entry IterationLog
+		if err := dec.Decode(&entry); err != nil {
+			break
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
 }
