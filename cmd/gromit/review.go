@@ -339,7 +339,16 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		// Don't treat Claude exit code as an error - it's normal when user exits
+		if _, ok := err.(*exec.ExitError); ok {
+			// User exited gracefully, not an error
+			return nil
+		}
+		return fmt.Errorf("launching Claude Code: %w", err)
+	}
+
+	return nil
 }
 
 func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string) error {
