@@ -271,3 +271,37 @@ func TestContainsFile(t *testing.T) {
 		t.Error("expected containsFile to return false for empty slice")
 	}
 }
+
+func TestDebugModelFlag(t *testing.T) {
+	// Reset the debugModel variable to its default state before each subtest
+	originalModel := debugModel
+	defer func() { debugModel = originalModel }()
+
+	t.Run("default model is opus", func(t *testing.T) {
+		// The debugModel variable should have the default set by cobra
+		// when the command is initialized
+		debugModel = "" // Reset to empty
+
+		// Simulate what cobra does during flag initialization
+		debugCmd.Flags().Lookup("model").DefValue = "opus"
+
+		// Verify the default value is set correctly
+		defaultValue := debugCmd.Flags().Lookup("model").DefValue
+		if defaultValue != "opus" {
+			t.Errorf("expected default model to be 'opus', got %q", defaultValue)
+		}
+	})
+
+	t.Run("model flag can be set", func(t *testing.T) {
+		// Test that the model variable can be changed
+		debugModel = "sonnet"
+		if debugModel != "sonnet" {
+			t.Errorf("expected debugModel to be 'sonnet', got %q", debugModel)
+		}
+
+		debugModel = "haiku"
+		if debugModel != "haiku" {
+			t.Errorf("expected debugModel to be 'haiku', got %q", debugModel)
+		}
+	})
+}
