@@ -16,3 +16,6 @@ var OrchestratorSkill string
 
 //go:embed gromit-orchestrator/pipeline-resume.sh
 var PipelineResumeHook string
+
+//go:embed gromit-debug/SKILL.md
+var DebugSkill string
