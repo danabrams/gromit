@@ -18,6 +18,10 @@ var (
 	relatedToRegex = regexp.MustCompile(`\*Related to: (.+)\*`)
 )
 
+// FilterFunc determines if a learning is generic engineering advice or project-specific.
+// Returns true if the learning is generic (should be filtered), false if project-specific.
+type FilterFunc func(content string) (isGeneric bool, err error)
+
 // Learning represents a single learning entry
 type Learning struct {
 	Date      time.Time
@@ -34,6 +38,7 @@ type File struct {
 	confirmed   []Learning
 	provisional []Learning
 	archived    []Learning
+	filterFunc  FilterFunc
 }
 
 // Category constants
@@ -58,6 +63,14 @@ func NewFile(dir string) (*File, error) {
 		provisional: []Learning{},
 		archived:    []Learning{},
 	}, nil
+}
+
+// SetFilter sets the filter function used to classify learnings as generic or project-specific.
+func (f *File) SetFilter(fn FilterFunc) {
+	if f == nil {
+		return
+	}
+	f.filterFunc = fn
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
@@ -111,6 +124,26 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 	for _, l := range f.provisional {
 		if l.Hash == hash {
 			return nil, nil // Exact duplicate, skip
+		}
+	}
+
+	// Apply filter if configured
+	if f.filterFunc != nil {
+		isGeneric, err := f.filterFunc(content)
+		if err != nil {
+			return nil, fmt.Errorf("filter function error: %w", err)
+		}
+		if isGeneric {
+			// Archive as generic engineering advice
+			learning := Learning{
+				Date:     time.Now(),
+				BeadID:   beadID,
+				Content:  fmt.Sprintf("%s\n\n*Archived from new: filtered: generic engineering advice*", content),
+				Category: category,
+				Hash:     hash,
+			}
+			f.archived = append(f.archived, learning)
+			return nil, f.Save()
 		}
 	}
 

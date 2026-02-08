@@ -1,6 +1,7 @@
 package learnings
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1006,5 +1007,158 @@ func TestLoadAndSaveWithArchived(t *testing.T) {
 	}
 	if !strings.Contains(f2.archived[0].Content, "test archive") {
 		t.Error("archived reason should persist across save/load")
+	}
+}
+
+// TestFilterFuncGeneric tests that generic learnings are archived
+func TestFilterFuncGeneric(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Set filter that classifies everything as generic
+	f.SetFilter(func(content string) (bool, error) {
+		return true, nil
+	})
+
+	learning, err := f.Add("bead-1", "Always verify tests pass", CategoryPatterns)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should return nil (filtered)
+	if learning != nil {
+		t.Error("expected nil learning for generic content")
+	}
+
+	// Should be archived, not provisional
+	if len(f.provisional) != 0 {
+		t.Errorf("expected 0 provisional, got %d", len(f.provisional))
+	}
+	if len(f.archived) != 1 {
+		t.Errorf("expected 1 archived, got %d", len(f.archived))
+	}
+
+	// Check archived content has filter reason
+	if !strings.Contains(f.archived[0].Content, "filtered: generic engineering advice") {
+		t.Error("expected archived content to contain filter reason")
+	}
+}
+
+// TestFilterFuncSpecific tests that project-specific learnings pass through
+func TestFilterFuncSpecific(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Set filter that classifies everything as project-specific
+	f.SetFilter(func(content string) (bool, error) {
+		return false, nil
+	})
+
+	learning, err := f.Add("bead-1", "The runner's escalation chain skips haiku when the bead has complexity:high label", CategoryPatterns)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should return the learning
+	if learning == nil {
+		t.Fatal("expected learning for project-specific content")
+	}
+
+	// Should be in provisional, not archived
+	if len(f.provisional) != 1 {
+		t.Errorf("expected 1 provisional, got %d", len(f.provisional))
+	}
+	if len(f.archived) != 0 {
+		t.Errorf("expected 0 archived, got %d", len(f.archived))
+	}
+}
+
+// TestFilterFuncNotSet tests that Add works normally when filter is not set
+func TestFilterFuncNotSet(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// No filter set - should add normally
+	learning, err := f.Add("bead-1", "Some learning", CategoryPatterns)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if learning == nil {
+		t.Fatal("expected learning when no filter is set")
+	}
+
+	// Should be in provisional
+	if len(f.provisional) != 1 {
+		t.Errorf("expected 1 provisional, got %d", len(f.provisional))
+	}
+	if len(f.archived) != 0 {
+		t.Errorf("expected 0 archived, got %d", len(f.archived))
+	}
+}
+
+// TestFilterFuncError tests error handling in filter function
+func TestFilterFuncError(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Set filter that returns an error
+	f.SetFilter(func(content string) (bool, error) {
+		return false, fmt.Errorf("filter error")
+	})
+
+	learning, err := f.Add("bead-1", "Some learning", CategoryPatterns)
+	if err == nil {
+		t.Fatal("expected error from filter function")
+	}
+	if !strings.Contains(err.Error(), "filter function error") {
+		t.Errorf("expected error to mention filter function, got: %v", err)
+	}
+
+	if learning != nil {
+		t.Error("expected nil learning when filter errors")
+	}
+}
+
+// TestFilterFuncCalledAfterDuplicateCheck tests that filter is not called for duplicates
+func TestFilterFuncCalledAfterDuplicateCheck(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Add learning first without filter
+	learning1, err := f.Add("bead-1", "Test learning", CategoryPatterns)
+	if err != nil {
+		t.Fatalf("first add failed: %v", err)
+	}
+	if learning1 == nil {
+		t.Fatal("first learning should not be nil")
+	}
+
+	// Now set filter that would archive as generic
+	filterCalled := false
+	f.SetFilter(func(content string) (bool, error) {
+		filterCalled = true
+		return true, nil
+	})
+
+	// Try to add duplicate - filter should NOT be called
+	learning2, err := f.Add("bead-2", "Test learning", CategoryPatterns)
+	if err != nil {
+		t.Fatalf("second add failed: %v", err)
+	}
+	if learning2 != nil {
+		t.Error("duplicate should return nil")
+	}
+
+	if filterCalled {
+		t.Error("filter should not be called for exact duplicates")
+	}
+
+	// Should still have only 1 provisional (the original), no archived
+	if len(f.provisional) != 1 {
+		t.Errorf("expected 1 provisional, got %d", len(f.provisional))
+	}
+	if len(f.archived) != 0 {
+		t.Errorf("expected 0 archived, got %d", len(f.archived))
 	}
 }
