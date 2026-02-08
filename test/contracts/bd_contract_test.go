@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -625,4 +626,168 @@ func TestBDContract_SyncAfterClose(t *testing.T) {
 	//
 	// This happens at the end of a successful iteration.
 	t.Log("✓ Sync contract verified in TestBDContract_SuccessfulRun")
+}
+
+// TestBDContract_ReadyWithLabel verifies that ReadyWithLabel calls bd with --label flag
+func TestBDContract_ReadyWithLabel(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Create multiple beads with different labels
+	beads := []map[string]interface{}{
+		{
+			"id":               "epic-001",
+			"title":            "Epic",
+			"description":      "Parent epic",
+			"priority":         0,
+			"labels":           []string{"spec:auth"},
+			"parent":           "",
+			"issue_type":       "epic",
+			"status":           "open",
+			"owner":            "",
+			"expected_outputs": []string{},
+		},
+		{
+			"id":               "task-001",
+			"title":            "Auth task 1",
+			"description":      "First auth task",
+			"priority":         1,
+			"labels":           []string{"spec:auth"},
+			"parent":           "",
+			"issue_type":       "task",
+			"status":           "open",
+			"owner":            "",
+			"expected_outputs": []string{},
+		},
+		{
+			"id":               "task-002",
+			"title":            "Auth task 2",
+			"description":      "Second auth task",
+			"priority":         1,
+			"labels":           []string{"spec:auth"},
+			"parent":           "",
+			"issue_type":       "task",
+			"status":           "open",
+			"owner":            "",
+			"expected_outputs": []string{},
+		},
+		{
+			"id":               "task-003",
+			"title":            "Payments task",
+			"description":      "Payments feature",
+			"priority":         1,
+			"labels":           []string{"spec:payments"},
+			"parent":           "",
+			"issue_type":       "task",
+			"status":           "open",
+			"owner":            "",
+			"expected_outputs": []string{},
+		},
+	}
+
+	stateJSON := map[string]interface{}{
+		"beads":   beads,
+		"next_id": 4,
+	}
+	stateBytes, err := json.Marshal(stateJSON)
+	if err != nil {
+		t.Fatalf("Failed to marshal state JSON: %v", err)
+	}
+	if err := os.WriteFile(env.BDStateFile, stateBytes, 0644); err != nil {
+		t.Fatalf("Failed to write bd state file: %v", err)
+	}
+
+	// Create a simple Go program that calls ReadyWithLabel
+	testProgram := `package main
+
+import (
+	"fmt"
+	"os"
+	"github.com/danabrams/gromit/internal/bead"
+)
+
+func main() {
+	client, err := bead.NewClient()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create client: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Set the working directory if provided
+	if dir := os.Getenv("TEST_DIR"); dir != "" {
+		client.Dir = dir
+	}
+
+	// Call ReadyWithLabel with spec:auth
+	b, err := client.ReadyWithLabel("spec:auth")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ReadyWithLabel error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if b == nil {
+		fmt.Println("No bead found")
+		os.Exit(0)
+	}
+
+	fmt.Printf("Found bead: %s (%s)\n", b.ID, b.Type)
+}
+`
+	testProgramPath := filepath.Join(env.Dir, "test_ready_with_label.go")
+	if err := os.WriteFile(testProgramPath, []byte(testProgram), 0644); err != nil {
+		t.Fatalf("Failed to write test program: %v", err)
+	}
+
+	// Run the test program
+	cmd := exec.Command("go", "run", testProgramPath)
+	cmd.Dir = env.Dir
+	cmd.Env = env.Env
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Logf("Program output: %s", output)
+		t.Fatalf("Failed to run test program: %v", err)
+	}
+
+	t.Logf("Program output: %s", output)
+
+	// Read bd calls
+	calls, err := filterCalls(env, "bd")
+	if err != nil {
+		t.Fatalf("Failed to read call log: %v", err)
+	}
+
+	t.Logf("BD calls made: %d", len(calls))
+	for i, call := range calls {
+		t.Logf("  %d: %s", i+1, call)
+	}
+
+	// Verify bd ready was called with --label flag
+	foundReadyWithLabel := false
+	for _, call := range calls {
+		if strings.Contains(call, "bd ready") &&
+		   strings.Contains(call, "--label") &&
+		   strings.Contains(call, "spec:auth") {
+			foundReadyWithLabel = true
+			// Verify it includes --json and --limit 10
+			if !strings.Contains(call, "--json") {
+				t.Errorf("Expected --json flag in call: %s", call)
+			}
+			if !strings.Contains(call, "--limit 10") {
+				t.Errorf("Expected --limit 10 in call: %s", call)
+			}
+			t.Logf("✓ Found ready with label call: %s", call)
+			break
+		}
+	}
+
+	if !foundReadyWithLabel {
+		t.Errorf("Expected 'bd ready --json --limit 10 --label spec:auth' call not found. Calls: %v", calls)
+	}
+
+	// Verify the program found a task (not the epic)
+	if !strings.Contains(string(output), "task-001") && !strings.Contains(string(output), "task-002") {
+		t.Errorf("Expected program to find task-001 or task-002 (excluding epic), got: %s", output)
+	}
+	if strings.Contains(string(output), "epic-001") {
+		t.Errorf("Expected program to exclude epic-001, but it was returned: %s", output)
+	}
 }
