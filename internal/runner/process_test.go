@@ -16,89 +16,6 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 )
 
-// mockRendererWithLearn is a mock renderer that supports RenderLearn with customizable output
-type mockRendererWithLearn struct {
-	learningsFile     *learnings.File
-	renderLearnResult string
-}
-
-func (m *mockRendererWithLearn) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
-	return &prompt.Context{
-		Bead:               b,
-		ParentBead:         parent,
-		Iteration:          iteration,
-		Model:              model,
-		ConfirmedLearnings: []learnings.Learning{},
-		RecentLearnings:    []learnings.Learning{},
-	}, nil
-}
-
-func (m *mockRendererWithLearn) RenderBuild(ctx *prompt.Context) (string, error) {
-	return "mock build prompt", nil
-}
-
-func (m *mockRendererWithLearn) RenderAnalyze(ctx *prompt.AnalyzeContext) (string, error) {
-	return "mock analyze prompt", nil
-}
-
-func (m *mockRendererWithLearn) RenderLearn(ctx *prompt.LearnContext) (string, error) {
-	if m.renderLearnResult != "" {
-		return m.renderLearnResult, nil
-	}
-	return "mock learn prompt", nil
-}
-
-func (m *mockRendererWithLearn) RenderDecompose(ctx *prompt.DecomposeContext) (string, error) {
-	return "mock decompose prompt", nil
-}
-
-func (m *mockRendererWithLearn) RenderScope(ctx *prompt.ScopeContext) (string, error) {
-	return "mock scope prompt", nil
-}
-
-func (m *mockRendererWithLearn) RenderPrecheck(ctx *prompt.PrecheckContext) (string, error) {
-	return "mock precheck prompt", nil
-}
-
-func (m *mockRendererWithLearn) LoadSpec(name string) (string, error) {
-	return "", nil
-}
-
-func (m *mockRendererWithLearn) RenderReview(ctx *prompt.ReviewContext) (string, error) {
-	return "mock review prompt", nil
-}
-
-func (m *mockRendererWithLearn) RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error) {
-	return "mock thorough review prompt", nil
-}
-
-func (m *mockRendererWithLearn) LoadClaudeMD() (string, error) {
-	return "", nil
-}
-
-func (m *mockRendererWithLearn) LoadRules() (string, error) {
-	return "", nil
-}
-
-func (m *mockRendererWithLearn) GetLearningsFile() *learnings.File {
-	return m.learningsFile
-}
-
-func (m *mockRendererWithLearn) RenderAcceptanceTests(ctx *prompt.Context) (string, error) {
-	return "mock acceptance tests prompt", nil
-}
-
-func (m *mockRendererWithLearn) RenderATDDBuild(ctx *prompt.Context) (string, error) {
-	return "mock atdd build prompt", nil
-}
-
-func (m *mockRendererWithLearn) RenderTDDBuild(ctx *prompt.Context) (string, error) {
-	return "mock tdd build prompt", nil
-}
-
-func (m *mockRendererWithLearn) RenderRefactor(ctx *prompt.Context) (string, error) {
-	return "mock refactor prompt", nil
-}
 
 func TestSetupBeadContext_NilConfig(t *testing.T) {
 	r := &Runner{output: &strings.Builder{}}
@@ -231,7 +148,7 @@ func TestHandleScopeTooLarge(t *testing.T) {
 		t.Fatalf("creating learnings file: %v", err)
 	}
 
-	mockRend := &mockRendererWithLearn{learningsFile: lf}
+	mockRend := &mockPromptRenderer{LearningsFile: lf}
 
 	r := &Runner{
 		beads:    &mockBeadClient{},
@@ -271,7 +188,7 @@ func TestExtractScopeTooLargeLearning(t *testing.T) {
 		t.Fatalf("creating learnings file: %v", err)
 	}
 
-	mockRend := &mockRendererWithLearn{learningsFile: lf}
+	mockRend := &mockPromptRenderer{LearningsFile: lf}
 
 	r := &Runner{
 		renderer: mockRend,
@@ -307,7 +224,7 @@ func TestExtractTimeoutLearning(t *testing.T) {
 		t.Fatalf("creating learnings file: %v", err)
 	}
 
-	mockRend := &mockRendererWithLearn{learningsFile: lf}
+	mockRend := &mockPromptRenderer{LearningsFile: lf}
 
 	r := &Runner{
 		renderer: mockRend,
@@ -555,9 +472,11 @@ func TestExtractSuccessLearning_NilLearning(t *testing.T) {
 		},
 	}
 	lf, _ := learnings.NewFile(t.TempDir())
-	mockRend := &mockRendererWithLearn{
-		learningsFile:     lf,
-		renderLearnResult: "learning prompt",
+	mockRend := &mockPromptRenderer{
+		LearningsFile: lf,
+		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
+			return "learning prompt", nil
+		},
 	}
 
 	learnFromSuccessEnabled := true
@@ -598,9 +517,11 @@ func TestExtractSuccessLearning_WithLearning(t *testing.T) {
 		},
 	}
 	lf, _ := learnings.NewFile(t.TempDir())
-	mockRend := &mockRendererWithLearn{
-		learningsFile:     lf,
-		renderLearnResult: "learning prompt",
+	mockRend := &mockPromptRenderer{
+		LearningsFile: lf,
+		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
+			return "learning prompt", nil
+		},
 	}
 
 	learnFromSuccessEnabled := true
@@ -640,8 +561,8 @@ func TestRunAcceptanceTests_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	mockRend := &mockRendererWithLearn{
-		learningsFile: nil,
+	mockRend := &mockPromptRenderer{
+		LearningsFile: nil,
 	}
 
 	r := &Runner{
@@ -682,8 +603,8 @@ func TestRunAcceptanceTests_ClaudeFailed(t *testing.T) {
 			}, nil
 		},
 	}
-	mockRend := &mockRendererWithLearn{
-		learningsFile: nil,
+	mockRend := &mockPromptRenderer{
+		LearningsFile: nil,
 	}
 
 	r := &Runner{
@@ -724,8 +645,8 @@ func TestRunAcceptanceTests_InvocationError(t *testing.T) {
 			return nil, fmt.Errorf("network error")
 		},
 	}
-	mockRend := &mockRendererWithLearn{
-		learningsFile: nil,
+	mockRend := &mockPromptRenderer{
+		LearningsFile: nil,
 	}
 
 	r := &Runner{
@@ -771,8 +692,8 @@ func TestRunAcceptanceTests_UsesSameModel(t *testing.T) {
 			}, nil
 		},
 	}
-	mockRend := &mockRendererWithLearn{
-		learningsFile: nil,
+	mockRend := &mockPromptRenderer{
+		LearningsFile: nil,
 	}
 
 	r := &Runner{
@@ -1001,7 +922,7 @@ func TestVerifyTestsFail_NilResult(t *testing.T) {
 func TestRunRefactorPhase_NoDiff(t *testing.T) {
 	var buf strings.Builder
 	mockClaude := &mockClaudeClient{}
-	mockRend := &mockRendererWithLearn{}
+	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{
 		cfg: &config.Config{
@@ -1054,7 +975,7 @@ func TestRunRefactorPhase_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	mockRend := &mockRendererWithLearn{}
+	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{
 		cfg: &config.Config{
@@ -1094,7 +1015,7 @@ func TestRunRefactorPhase_Success(t *testing.T) {
 func TestRunRefactorPhase_RenderError(t *testing.T) {
 	var buf strings.Builder
 	mockClaude := &mockClaudeClient{}
-	mockRend := &mockRendererWithLearn{}
+	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{
 		cfg: &config.Config{
@@ -1128,7 +1049,7 @@ func TestRunRefactorPhase_ClaudeInvocationError(t *testing.T) {
 			return nil, fmt.Errorf("network error")
 		},
 	}
-	mockRend := &mockRendererWithLearn{}
+	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{
 		cfg: &config.Config{
@@ -1165,7 +1086,7 @@ func TestRunRefactorPhase_ValidationDisabled(t *testing.T) {
 			}, nil
 		},
 	}
-	mockRend := &mockRendererWithLearn{}
+	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{
 		cfg: &config.Config{
