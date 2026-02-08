@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/danabrams/gromit/internal/config"
 )
@@ -11,10 +12,32 @@ const (
 	defaultPromptFlag = "--prompt"
 )
 
-// Resolve returns an Agent for the given agent name using the provided config.
+// Resolve returns an Agent for the given phase using priority-based resolution.
+// Resolution priority: flag override, picker (if chooseAgent), phase config, "claude" default.
+// Merges user-defined definitions with preset defaults.
+func Resolve(cfg *config.Config, phase string, flagOverride string, chooseAgent bool, r io.Reader, w io.Writer) (Agent, error) {
+	// Step 1: Flag override has highest priority
+	if flagOverride != "" {
+		return resolveByName(flagOverride, cfg)
+	}
+
+	// Step 2: Interactive picker (if chooseAgent is true)
+	// TODO: Implement picker logic
+
+	// Step 3: Phase config
+	agentName := getPhaseAgent(cfg, phase)
+	if agentName != "" {
+		return resolveByName(agentName, cfg)
+	}
+
+	// Step 4: Default to "claude"
+	return resolveByName("claude", cfg)
+}
+
+// resolveByName returns an Agent for the given agent name using the provided config.
 // It checks for custom agent definitions first, then falls back to built-in presets.
 // Returns an error if the agent name is unknown or empty.
-func Resolve(name string, cfg *config.Config) (Agent, error) {
+func resolveByName(name string, cfg *config.Config) (Agent, error) {
 	if name == "" {
 		return nil, fmt.Errorf("agent name cannot be empty")
 	}
@@ -34,6 +57,26 @@ func Resolve(name string, cfg *config.Config) (Agent, error) {
 		return resolvePromptFileArgPreset(name), nil
 	default:
 		return nil, fmt.Errorf("unknown agent: %s", name)
+	}
+}
+
+// getPhaseAgent returns the configured agent name for the given phase, or empty string if not configured
+func getPhaseAgent(cfg *config.Config, phase string) string {
+	if cfg == nil {
+		return ""
+	}
+
+	switch phase {
+	case "refine":
+		return cfg.Agents.Phases.Refine
+	case "plan":
+		return cfg.Agents.Phases.Plan
+	case "review":
+		return cfg.Agents.Phases.Review
+	case "explore":
+		return cfg.Agents.Phases.Explore
+	default:
+		return ""
 	}
 }
 

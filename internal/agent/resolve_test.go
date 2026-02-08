@@ -1,8 +1,6 @@
 package agent
 
 import (
-	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -17,7 +15,7 @@ func TestResolveClaudePreset(t *testing.T) {
 		},
 	}
 
-	agent, err := Resolve("claude", cfg)
+	agent, err := resolveByName("claude", cfg)
 	if err != nil {
 		t.Fatalf("Resolve(claude) error = %v, want nil", err)
 	}
@@ -58,7 +56,7 @@ func TestResolveClaudePresetWithDefaults(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 
-	agent, err := Resolve("claude", cfg)
+	agent, err := resolveByName("claude", cfg)
 	if err != nil {
 		t.Fatalf("Resolve(claude) error = %v, want nil", err)
 	}
@@ -83,7 +81,7 @@ func TestResolveCodexPreset(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 
-	agent, err := Resolve("codex", cfg)
+	agent, err := resolveByName("codex", cfg)
 	if err != nil {
 		t.Fatalf("Resolve(codex) error = %v, want nil", err)
 	}
@@ -119,7 +117,7 @@ func TestResolveGeminiPreset(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 
-	agent, err := Resolve("gemini", cfg)
+	agent, err := resolveByName("gemini", cfg)
 	if err != nil {
 		t.Fatalf("Resolve(gemini) error = %v, want nil", err)
 	}
@@ -165,7 +163,7 @@ func TestResolveCustomAgent(t *testing.T) {
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	agent, err := Resolve("my-tool", cfg)
+	agent, err := resolveByName("my-tool", cfg)
 	if err != nil {
 		t.Fatalf("Resolve(my-tool) error = %v, want nil", err)
 	}
@@ -220,7 +218,7 @@ func TestResolveCustomAgentOverridesBuiltin(t *testing.T) {
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	agent, err := Resolve("claude", cfg)
+	agent, err := resolveByName("claude", cfg)
 	if err != nil {
 		t.Fatalf("Resolve(claude) error = %v, want nil", err)
 	}
@@ -245,7 +243,7 @@ func TestResolveUnknownAgent(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 
-	agent, err := Resolve("nonexistent-agent", cfg)
+	agent, err := resolveByName("nonexistent-agent", cfg)
 	if err == nil {
 		t.Error("Resolve(nonexistent-agent) error = nil, want error")
 	}
@@ -263,7 +261,7 @@ func TestResolveUnknownAgent(t *testing.T) {
 // TestResolveWithNilConfig verifies Resolve handles nil config gracefully
 func TestResolveWithNilConfig(t *testing.T) {
 	// Built-in presets should work without config (using defaults)
-	agent, err := Resolve("codex", nil)
+	agent, err := resolveByName("codex", nil)
 	if err != nil {
 		t.Fatalf("Resolve(codex, nil) error = %v, want nil", err)
 	}
@@ -287,7 +285,7 @@ func TestResolveEmptyAgentName(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 
-	agent, err := Resolve("", cfg)
+	agent, err := resolveByName("", cfg)
 	if err == nil {
 		t.Error("Resolve(\"\") error = nil, want error")
 	}
@@ -313,7 +311,7 @@ func TestResolveCustomAgentWithEmptyBinary(t *testing.T) {
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	agent, err := Resolve("my-agent", cfg)
+	agent, err := resolveByName("my-agent", cfg)
 	if err != nil {
 		t.Fatalf("Resolve(my-agent) error = %v, want nil", err)
 	}
@@ -338,7 +336,7 @@ func TestResolveBuiltInPresetsExist(t *testing.T) {
 
 	for _, preset := range presets {
 		t.Run(preset, func(t *testing.T) {
-			agent, err := Resolve(preset, cfg)
+			agent, err := resolveByName(preset, cfg)
 			if err != nil {
 				t.Errorf("Resolve(%s) error = %v, want nil", preset, err)
 			}
@@ -369,7 +367,7 @@ func TestResolvePreservesFlagsOrder(t *testing.T) {
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	agent, err := Resolve("ordered", cfg)
+	agent, err := resolveByName("ordered", cfg)
 	if err != nil {
 		t.Fatalf("Resolve(ordered) error = %v, want nil", err)
 	}
