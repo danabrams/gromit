@@ -11,6 +11,7 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - Keep packages focused: one package should not reach into another package's internal types
 - bead.Client methods have semantic distinctions: Ready()/CountReady() return only unblocked beads (`bd ready`), while List() returns all open beads (`bd list --status open`). Choose the correct method based on whether you need actionable or total counts
 - Functions that call subprocesses or prompt users should accept these dependencies as injected function parameters, not call them directly. This enables testing with simple mocks rather than requiring stdin/stdout management or actual subprocess execution
+- JSON struct tags use snake_case field names (e.g., `input_tokens`, `cost_usd`). All serialized fields must have explicit JSON tags — omitting tags causes fields to be excluded from output. Use `omitempty` only for optional fields; omit it when the field should always be present in output
 
 ## Safety
 

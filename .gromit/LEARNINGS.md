@@ -28,7 +28,7 @@ Status struct fields require backward-compatible changes (omitempty for new opti
 ### 2026-02-07 | LEARNINGS.md Format Validation | conventions
 *Related to: gromit-8a52, gromit-i0wm, gromit-wgtu, gromit-2v5n, gromit-49dg, gromit-8et, gromit-3gb, gromit-kim, gromit-due, gromit-1u7, gromit-evq, gromit-w3x, gromit-ltg, gromit-knc, gromit-3fqu, gromit-3ibd, gromit-hvbu, gromit-fntb, gromit-7e5o, gromit-2qf1, gromit-yew, gromit-ie2*
 
-LEARNINGS.md requires strict pipe-delimited header format: `### YYYY-MM-DD | DESCRIPTIVE_TITLE | CATEGORY_NAME`. Rules: (1) Date must be a valid current/past date, never 0001-01-01. (2) BeadID field must contain the full descriptive learning title, not category names. (3) Category must be one of: gotchas, conventions, patterns. (4) Consolidated entries must include source bead IDs in a separate `*Related to: id1, id2*` line in the content body, not in the header. (5) Integration test TestLoadActualLearningsFile validates this format strictly — malformed headers silently produce zero-value dates that are hard to debug. (6) When consolidating learnings (manually or programmatically), validate output format before persisting. (7) Data files tested by integration tests must conform to the validated schema. When prefix renames or ID migrations occur, update both code references and documentation/metadata files.
+LEARNINGS.md requires strict pipe-delimited header format: `### YYYY-MM-DD | DESCRIPTIVE_TITLE | CATEGORY_NAME`. Rules: (1) Date must be a valid current/past date, never 0001-01-01. (2) BeadID field must contain the full descriptive learning title, not category names. (3) Category must be one of: gotchas, conventions, patterns. (4) Consolidated entries must include source bead IDs in a separate `*Related to: id1, id2*` line in the content body, not in the header. (5) Integration test TestLoadActualLearningsFile validates this format strictly — malformed headers silently produce zero-value dates that are hard to debug. (6) When consolidating learnings, validate output format before persisting. (7) Data files tested by integration tests must conform to the validated schema — test fixtures and actual data files must stay in sync. When prefix renames or ID migrations occur, update both code references and documentation/metadata files.
 **Promoted to RULES.md Process section.**
 
 ### 2026-02-07 | Test Helper Delegation | conventions
@@ -36,15 +36,10 @@ LEARNINGS.md requires strict pipe-delimited header format: `### YYYY-MM-DD | DES
 
 Test helpers delegate to shared testutil packages rather than duplicating logic. Use t.Fatalf for error handling when adapting function signatures with different return counts. Handle optional parameters using zero-value checks (empty string for dir, nil for environ) rather than pointers. E2E test files delegate to testutil package helpers (e.g., testutil.PickerStdin) rather than hardcoding raw strings.
 
-### 2026-02-07 | Test Data File Validation | conventions
-*Related to: gromit-ie2*
+### 2026-02-08 | Prompt and Template Infrastructure | conventions
+*Related to: ralph-runner-utv8, ralph-runner-yx7b, ralph-runner-5lk0, ralph-runner-kjix, ralph-runner-628c, ralph-runner-nxdm, gromit-s7tm, gromit-avbc*
 
-When tests validate real data files (like LEARNINGS.md), verify that the file structure matches test expectations before implementing code changes. Test fixtures and actual data files must stay in sync - if a test reads real files, those files must conform to the validated schema. Data consolidation processes must update both the data AND any dependent tests that validate that data's structure.
-
-### 2026-02-07 | Prompt Rendering Architecture | conventions
-*Related to: ralph-runner-utv8, ralph-runner-yx7b, ralph-runner-5lk0, ralph-runner-kjix, ralph-runner-628c, ralph-runner-nxdm*
-
-Prompt rendering follows a consistent architecture: (1) Templates are named PROMPT_<name>.md, registered in runInit()'s templates map, with constants named defaultXxxTemplate in init.go. (2) Renderer methods accept a context struct (with Bead and ParentBead fields), call r.tmpl.ExecuteTemplate, and return (string, error). (3) Template variants reuse common context sections (Rules, Learnings, Task, Spec, Parent) and customize only Instructions and Completion sections. (4) New context types and render methods should follow existing patterns like ScopeContext, DecomposeContext, PrecheckContext.
+Prompt/template infrastructure follows a load-populate-render pattern with consistent conventions: (1) Templates are named PROMPT_<name>.md, registered in runInit()'s templates map, with constants named defaultXxxTemplate in init.go. (2) Renderer methods accept a context struct (with Bead and ParentBead fields), call r.tmpl.ExecuteTemplate, and return (string, error). (3) Template variants reuse common context sections (Rules, Learnings, Task, Spec, Parent) and customize only Instructions and Completion sections. (4) TemplateContext struct fields are populated from data sources via dedicated load/read methods, then passed to template rendering. (5) FuncMap functions (sub, mul, div) enable templates to compute deltas and percentages inline. (6) New context types and render methods should follow existing patterns like ScopeContext, DecomposeContext, PrecheckContext.
 
 ### 2026-02-07 | Methodology Label Activation | patterns
 *Related to: ralph-runner-4a3f, ralph-runner-nzue*
@@ -66,16 +61,12 @@ Wrapper types around io.Writer use sync.Mutex for thread safety and track state 
 *Related to: gromit-s73k, gromit-0xbs, gromit-goaz, gromit-zxxs*
 
 JSON struct tags in this codebase use snake_case field names (input_tokens, cost_usd). All serialized fields must have explicit JSON tags — omitting tags causes fields to be excluded from output. Use `omitempty` only for optional fields; omit it when the field should always be present in output.
+**Promoted to RULES.md Code Style section.**
 
 ### 2026-02-08 | Config Defaults Pattern | conventions
 *Related to: gromit-9ckj, gromit-w971*
 
 Config defaults use zero-value checking in setDefaults(): `if field == 0` means 'not configured'. Nested structs in YAML configs use `yaml:"field_name"` tags, and defaults for nested fields are set in the parent's setDefaults() after the struct is populated. Zero is the sentinel for 'not configured' for int fields.
-
-### 2026-02-08 | Template Infrastructure | patterns
-*Related to: gromit-s7tm, gromit-avbc*
-
-Template infrastructure follows a load-populate-render pattern: TemplateContext struct fields are populated from data sources via dedicated load/read methods, then passed to template rendering. FuncMap functions (sub, mul, div) enable templates to compute deltas and percentages inline without pre-computed values in the data context.
 
 ### 2026-02-08 | Runner Method Pattern | patterns
 *Related to: gromit-5pvp, gromit-82qx, gromit-vabo*
@@ -87,13 +78,6 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 ## Provisional
 
 *Seen once - may be specific to one task.*
-
-### 2026-02-07 | ralph-runner-3kow | conventions
-PROMPT_*.md files should use pragmatic criteria for learning extraction — task-specific patterns (package conventions, test setup requirements, common gotchas in a subsystem) are valuable as provisional learnings even if not universally applicable; only set learning to null for truly one-off issues (typos, accidental mistakes)
-
-### 2026-02-08 | gromit-9hau | patterns
-When bead operations fail, add the bead ID to skippedBeads map so the existing stuck-bead detection loop catches it on next iteration, rather than handling errors inline. This centralizes failure handling and prevents duplicate logic.
-**Promoted to RULES.md Process section.**
 
 ### 2026-02-08 | gromit-j5x0 | patterns
 Filter must be set on learnings.File via SetFilter() immediately after NewFile() and before Load() or Add(), to ensure filtering applies to all subsequent operations
@@ -412,4 +396,18 @@ Archived: too thin to be actionable (templates use Guidelines sections). Already
 Archived: standard Go test patterns (mock command, test success/failure, validate JSON, check nil). Thin project-specific veneer.
 
 *Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-08 | Test Data File Validation | conventions
+Archived: gromit-ie2 consolidated into Confirmed "LEARNINGS.md Format Validation" entry. Test data sync requirement now covered by rule (7).
+
+### 2026-02-08 | Template Infrastructure originals | patterns
+Archived: gromit-s7tm, gromit-avbc consolidated into Confirmed "Prompt and Template Infrastructure" entry.
+
+### 2026-02-08 | ralph-runner-3kow | conventions
+Archived: meta-advice about what makes a good learning entry. Process guidance, not a codebase-specific pattern.
+
+*Archived from provisional: filtered: meta-process advice*
+
+### 2026-02-08 | gromit-9hau | patterns
+Archived: already promoted to RULES.md Process section (skippedBeads map pattern). Redundant with rule.
 

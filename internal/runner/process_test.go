@@ -1111,3 +1111,127 @@ func TestRunRefactorPhase_ValidationDisabled(t *testing.T) {
 		t.Errorf("expected no error when validation is disabled, got: %v", err)
 	}
 }
+
+func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
+	var buf strings.Builder
+
+	// Track execution timing for both stages
+	var learningStarted, reviewStarted, learningFinished, reviewFinished time.Time
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Success learning extraction
+			if strings.Contains(prompt, "success") || model == "haiku" {
+				learningStarted = time.Now()
+				time.Sleep(50 * time.Millisecond) // Simulate work
+				learningFinished = time.Now()
+				return &claude.Result{
+					Success: true,
+					Output:  `{"learning": "Test learning", "category": "patterns"}`,
+				}, nil
+			}
+			// Light review
+			reviewStarted = time.Now()
+			time.Sleep(50 * time.Millisecond) // Simulate work
+			reviewFinished = time.Now()
+			return &claude.Result{
+				Success: true,
+				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Looks good"}`,
+			}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "Tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+	}
+
+	lf, _ := learnings.NewFile(t.TempDir())
+	mockRend := &mockPromptRenderer{
+		LearningsFile: lf,
+		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
+			return "learning prompt", nil
+		},
+		RenderReviewFn: func(ctx *prompt.ReviewContext) (string, error) {
+			return "review prompt", nil
+		},
+	}
+
+	learnFromSuccessEnabled := true
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessEnabled,
+			},
+			Review: config.ReviewConfig{
+				Enabled: true,
+			},
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Models: config.ModelsConfig{
+				Validation: "haiku",
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		beads:    &mockBeadClient{},
+		output:   &buf,
+	}
+
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:          "test-1",
+			Title:       "Test",
+			Description: "Test description",
+		},
+		model:       "sonnet",
+		result:      &IterationResult{Validated: true},
+		startCommit: "abc123",
+		iteration:   1,
+		runDeadline: time.Now().Add(5 * time.Minute),
+		promptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+	}
+
+	start := time.Now()
+	err := r.runValidation(context.Background(), bc)
+	duration := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	// Verify both stages started (times should be non-zero)
+	if learningStarted.IsZero() {
+		t.Error("learning extraction never started")
+	}
+	if reviewStarted.IsZero() {
+		t.Error("review never started")
+	}
+
+	// Verify both stages completed
+	if learningFinished.IsZero() {
+		t.Error("learning extraction never finished")
+	}
+	if reviewFinished.IsZero() {
+		t.Error("review never finished")
+	}
+
+	// Verify parallel execution: total duration should be closer to max(50ms, 50ms) than sum(50ms + 50ms)
+	// Allow overhead but it should be significantly less than 100ms (sequential would be 100ms + overhead)
+	if duration > 90*time.Millisecond {
+		t.Errorf("execution appears sequential: took %v, expected ~50ms for parallel execution", duration)
+	}
+
+	// Verify that execution started for both before either completed (overlapping execution)
+	// If parallel: learning starts, review starts, learning finishes, review finishes
+	// If sequential: learning starts, learning finishes, review starts, review finishes
+	if learningFinished.Before(reviewStarted) {
+		t.Error("execution appears sequential: learning finished before review started")
+	}
+}
