@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 // Retro manages retrospective analysis
@@ -25,6 +26,7 @@ type Retro struct {
 	rulesPath      string
 	templatePath   string
 	experimentPath string
+	gromitDir      string
 }
 
 // TemplateContext holds data for retro prompt template
@@ -66,6 +68,7 @@ func NewRetro(cfg *config.Config, gromitDir string) (*Retro, error) {
 		rulesPath:      filepath.Join(gromitDir, "RULES.md"),
 		templatePath:   filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
 		experimentPath: filepath.Join(gromitDir, "experiment.json"),
+		gromitDir:      gromitDir,
 	}, nil
 }
 
@@ -83,6 +86,33 @@ func (r *Retro) Run(ctx context.Context) (*Result, error) {
 	}
 	if err := r.learningsFile.Load(); err != nil {
 		return nil, fmt.Errorf("loading learnings: %w", err)
+	}
+
+	// Load state for filtered learning hashes
+	stateFile, err := state.NewFile(r.gromitDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating state file: %w", err)
+	}
+	if err := stateFile.Load(); err != nil {
+		return nil, fmt.Errorf("loading state: %w", err)
+	}
+
+	// Run batch filter on provisional learnings
+	alreadyFiltered := stateFile.GetFilteredHashes()
+	// Create adapter to convert claude.Result to learnings.Result
+	claudeAdapter := &claudeRunnerAdapter{client: r.claude}
+	llmFilter := learnings.NewLLMFilter(claudeAdapter, "gromit", "A Go CLI tool that runs the Gromit loop with fresh context on each iteration")
+	newlyEvaluatedHashes, err := r.learningsFile.FilterProvisional(llmFilter, alreadyFiltered)
+	if err != nil {
+		return nil, fmt.Errorf("filtering provisional learnings: %w", err)
+	}
+
+	// Save newly-evaluated hashes to state
+	if len(newlyEvaluatedHashes) > 0 {
+		stateFile.AddFilteredHashes(newlyEvaluatedHashes)
+		if err := stateFile.Save(); err != nil {
+			return nil, fmt.Errorf("saving state with filtered hashes: %w", err)
+		}
 	}
 
 	// Load rules
@@ -264,11 +294,12 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 		return
 	}
 
+	var skipped int
 	for beadID, stats := range beadStats {
-		// Get full bead details
+		// Get full bead details (may fail for beads deleted since the log was written)
 		b, err := client.Show(beadID)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to get details for bead %s: %v\n", beadID, err)
+			skipped++
 			continue
 		}
 
@@ -279,7 +310,6 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 		// Get comments
 		comments, err := client.GetComments(beadID)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to get comments for bead %s: %v\n", beadID, err)
 			stats.Comments = []string{}
 		} else {
 			// Extract comment text into a slice
@@ -292,6 +322,9 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 
 		// Update the map entry
 		beadStats[beadID] = stats
+	}
+	if skipped > 0 {
+		fmt.Fprintf(os.Stderr, "Note: skipped %d bead(s) no longer in bd\n", skipped)
 	}
 }
 
@@ -396,4 +429,28 @@ func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, expe
 	}
 
 	return nil
+}
+
+// claudeRunnerAdapter adapts claude.Client to learnings.ClaudeRunner interface
+// by converting claude.Result to learnings.Result.
+type claudeRunnerAdapter struct {
+	client *claude.Client
+}
+
+// Run calls the underlying claude.Client and converts the result type.
+func (a *claudeRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
+	if a == nil || a.client == nil {
+		return nil, fmt.Errorf("adapter or client is nil")
+	}
+	claudeResult, err := a.client.Run(ctx, prompt, model)
+	if err != nil {
+		return nil, err
+	}
+	if claudeResult == nil {
+		return nil, fmt.Errorf("claude result is nil")
+	}
+	return &learnings.Result{
+		Success: claudeResult.Success,
+		Output:  claudeResult.Output,
+	}, nil
 }
