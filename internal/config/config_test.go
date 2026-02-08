@@ -64,6 +64,18 @@ agents:
 	}
 }
 
+func TestNormalizeNilFieldsInitializesDefinitionsMap(t *testing.T) {
+	cfg := &Config{}
+	cfg.NormalizeNilFields()
+
+	if cfg.Agents.Definitions == nil {
+		t.Error("Agents.Definitions is nil, want empty map")
+	}
+	if len(cfg.Agents.Definitions) != 0 {
+		t.Errorf("len(Agents.Definitions) = %d, want 0", len(cfg.Agents.Definitions))
+	}
+}
+
 func TestSetDefaultsInitializesPhasesToClaude(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()

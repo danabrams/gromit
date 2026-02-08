@@ -177,6 +177,9 @@ func (c *Config) NormalizeNilFields() {
 	if c.Models.Labels == nil {
 		c.Models.Labels = make(map[string]string)
 	}
+	if c.Agents.Definitions == nil {
+		c.Agents.Definitions = make(map[string]AgentDefinition)
+	}
 }
 
 // SetDefaults applies default values for all configuration fields.
