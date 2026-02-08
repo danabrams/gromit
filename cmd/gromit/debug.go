@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/skills"
@@ -50,6 +52,35 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		cfg = nil
 	}
 	gromitDir := resolveGromitDir(cfg)
+	reportsDir := filepath.Join(gromitDir, "reports")
+	plansDir := resolvePlansDir(cfg)
+
+	// Ensure reports directory exists
+	if err := os.MkdirAll(reportsDir, 0o755); err != nil {
+		return fmt.Errorf("creating reports dir: %w", err)
+	}
+
+	// Record existing artifacts before session
+	existingReports, err := getReportFiles(reportsDir)
+	if err != nil {
+		return fmt.Errorf("scanning reports directory: %w", err)
+	}
+
+	existingPlans, err := getPlanFiles(plansDir)
+	if err != nil {
+		return fmt.Errorf("scanning plans directory: %w", err)
+	}
+
+	// Load backlog to track existing items
+	bf, err := backlog.NewFile(gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating backlog file: %w", err)
+	}
+
+	existingBacklogItems, err := bf.List()
+	if err != nil {
+		return fmt.Errorf("loading backlog: %w", err)
+	}
 
 	// Build system prompt with full project context
 	systemPrompt, err := buildDebugPrompt(cfg, gromitDir, args)
@@ -87,8 +118,11 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	// Launch Claude Code with a short initial prompt that references the temp file
 	initialPrompt := fmt.Sprintf("Read and follow the debug instructions in %s", promptPath)
 
-	// Build command args: flags + initial message
+	// Build command args: flags + model + initial message
 	cmdArgs := append([]string{}, claudeFlags...)
+	if debugModel != "" {
+		cmdArgs = append(cmdArgs, "--model", debugModel)
+	}
 	cmdArgs = append(cmdArgs, initialPrompt)
 
 	claudeCmd := exec.Command(claudeBinary, cmdArgs...)
@@ -105,7 +139,8 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("launching Claude Code: %w", err)
 	}
 
-	return nil
+	// Post-session artifact detection
+	return detectAndReportArtifacts(reportsDir, plansDir, existingReports, existingPlans, existingBacklogItems, bf, cfg)
 }
 
 // buildDebugPrompt constructs the system prompt for the debug session
@@ -241,4 +276,159 @@ When applying direct fixes (outcome 1), run these commands:
 %s`, skills.DebugSkill))
 
 	return sb.String(), nil
+}
+
+// getReportFiles returns a list of .md files in the reports directory
+func getReportFiles(reportsDir string) ([]string, error) {
+	entries, err := os.ReadDir(reportsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}, nil
+		}
+		return nil, err
+	}
+
+	reports := []string{}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+			reports = append(reports, filepath.Join(reportsDir, entry.Name()))
+		}
+	}
+
+	return reports, nil
+}
+
+// getPlanFiles returns a list of .md files in the plans directory
+func getPlanFiles(plansDir string) ([]string, error) {
+	entries, err := os.ReadDir(plansDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}, nil
+		}
+		return nil, err
+	}
+
+	plans := []string{}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+			plans = append(plans, filepath.Join(plansDir, entry.Name()))
+		}
+	}
+
+	return plans, nil
+}
+
+// containsFile checks if a string slice contains a value
+func containsFile(slice []string, value string) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+// getNewBacklogItems returns backlog items that are not in the existing list
+func getNewBacklogItems(existing []*backlog.Idea, bf *backlog.File) ([]*backlog.Idea, error) {
+	current, err := bf.List()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build map of existing IDs
+	existingIDs := make(map[string]bool)
+	for _, item := range existing {
+		existingIDs[item.ID] = true
+	}
+
+	// Find new items
+	newItems := []*backlog.Idea{}
+	for _, item := range current {
+		if !existingIDs[item.ID] {
+			newItems = append(newItems, item)
+		}
+	}
+
+	return newItems, nil
+}
+
+// detectAndReportArtifacts scans for new reports, plans, and backlog items,
+// then displays a summary and offers chaining options
+func detectAndReportArtifacts(reportsDir, plansDir string, existingReports, existingPlans []string, existingBacklogItems []*backlog.Idea, bf *backlog.File, cfg *config.Config) error {
+	// Scan for new artifacts
+	newReports, err := getReportFiles(reportsDir)
+	if err != nil {
+		return fmt.Errorf("scanning reports directory: %w", err)
+	}
+
+	newPlans, err := getPlanFiles(plansDir)
+	if err != nil {
+		return fmt.Errorf("scanning plans directory: %w", err)
+	}
+
+	newBacklogItems, err := getNewBacklogItems(existingBacklogItems, bf)
+	if err != nil {
+		return fmt.Errorf("scanning backlog: %w", err)
+	}
+
+	// Find newly created artifacts
+	createdReports := []string{}
+	for _, report := range newReports {
+		if !containsFile(existingReports, report) {
+			createdReports = append(createdReports, report)
+		}
+	}
+
+	createdPlans := []string{}
+	for _, plan := range newPlans {
+		if !containsFile(existingPlans, plan) {
+			createdPlans = append(createdPlans, plan)
+		}
+	}
+
+	// Display summary
+	hasArtifacts := len(createdReports) > 0 || len(createdPlans) > 0 || len(newBacklogItems) > 0
+
+	if hasArtifacts {
+		fmt.Println()
+	}
+
+	if len(createdReports) > 0 {
+		fmt.Println("Investigation reports created:")
+		for _, report := range createdReports {
+			fmt.Printf("  - %s\n", report)
+		}
+		fmt.Println()
+	}
+
+	if len(newBacklogItems) > 0 {
+		fmt.Println("Backlog items created:")
+		for _, item := range newBacklogItems {
+			fmt.Printf("  - %s: %s\n", item.ID, item.Text)
+		}
+		fmt.Println()
+	}
+
+	// Offer chaining if plans were created
+	if len(createdPlans) > 0 {
+		fmt.Println("Plan files created:")
+		for _, plan := range createdPlans {
+			fmt.Printf("  - %s\n", plan)
+		}
+		fmt.Println()
+
+		// Extract plan names for chaining
+		planNames := make([]string, 0, len(createdPlans))
+		for _, planPath := range createdPlans {
+			planName := strings.TrimSuffix(filepath.Base(planPath), ".md")
+			planNames = append(planNames, planName)
+		}
+
+		reader := bufio.NewReader(os.Stdin)
+		chainAfterRefine(planNames, plansDir, func(prompt string, defaultYes bool) bool {
+			return confirmPrompt(reader, prompt, defaultYes)
+		}, execGromit)
+	}
+
+	return nil
 }
