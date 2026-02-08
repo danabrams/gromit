@@ -17,6 +17,12 @@ fi
 # Read and discard stdin (claude expects prompt on stdin)
 cat > /dev/null
 
+# Check for CLAUDE_FAIL error mode
+if [[ "${CLAUDE_FAIL:-0}" == "1" ]]; then
+    echo "claude: simulated failure" >&2
+    exit 1
+fi
+
 # Check for CLAUDE_WRITE_FILE and CLAUDE_WRITE_CONTENT env vars
 # If both are set, create parent directories and write content to file
 if [[ -n "${CLAUDE_WRITE_FILE:-}" ]] && [[ -n "${CLAUDE_WRITE_CONTENT:-}" ]]; then
@@ -49,12 +55,6 @@ if [[ -n "${CLAUDE_WRITE_FILE:-}" ]] && [[ -n "${CLAUDE_WRITE_CONTENT:-}" ]]; th
 
     # Write content to file using printf for exact content fidelity
     printf '%s\n' "$CLAUDE_WRITE_CONTENT" > "$CLAUDE_WRITE_FILE"
-fi
-
-# Check for CLAUDE_FAIL error mode
-if [[ "${CLAUDE_FAIL:-0}" == "1" ]]; then
-    echo "claude: simulated failure" >&2
-    exit 1
 fi
 
 # Check if we're in stream-json mode and extract model
