@@ -2556,3 +2556,135 @@ func TestMethodologyConfigParsing(t *testing.T) {
 		})
 	}
 }
+
+// Tests for GitConfig
+func TestGitConfigDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+
+	if !cfg.Git.IsAutoPushEnabled() {
+		t.Errorf("expected default git auto_push=true")
+	}
+	if cfg.Git.PushFailure != "warn" {
+		t.Errorf("expected default git push_failure='warn', got %q", cfg.Git.PushFailure)
+	}
+}
+
+func TestGitConfigFromYAML(t *testing.T) {
+	tests := []struct {
+		name              string
+		yaml              string
+		expectAutoPush    bool
+		expectPushFailure string
+	}{
+		{
+			name: "All fields explicit",
+			yaml: `git:
+  auto_push: true
+  push_failure: warn
+`,
+			expectAutoPush:    true,
+			expectPushFailure: "warn",
+		},
+		{
+			name: "Disabled explicitly",
+			yaml: `git:
+  auto_push: false
+  push_failure: stop
+`,
+			expectAutoPush:    false,
+			expectPushFailure: "stop",
+		},
+		{
+			name:              "Omitted section gets defaults",
+			yaml:              `models: {p0: opus}`,
+			expectAutoPush:    true,
+			expectPushFailure: "warn",
+		},
+		{
+			name: "Partial config gets defaults for missing fields",
+			yaml: `git:
+  push_failure: stop
+`,
+			expectAutoPush:    true,
+			expectPushFailure: "stop",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			cfg, err := Load(cfgPath)
+			if err != nil {
+				t.Fatalf("loading config: %v", err)
+			}
+
+			if cfg.Git.IsAutoPushEnabled() != tt.expectAutoPush {
+				t.Errorf("expected auto_push=%v, got %v", tt.expectAutoPush, cfg.Git.IsAutoPushEnabled())
+			}
+			if cfg.Git.PushFailure != tt.expectPushFailure {
+				t.Errorf("expected push_failure=%q, got %q", tt.expectPushFailure, cfg.Git.PushFailure)
+			}
+		})
+	}
+}
+
+func TestGitIsAutoPushEnabledNilPointer(t *testing.T) {
+	cfg := GitConfig{}
+	if !cfg.IsAutoPushEnabled() {
+		t.Errorf("expected IsAutoPushEnabled() to return true for nil pointer")
+	}
+}
+
+func TestGitIsAutoPushEnabledExplicitTrue(t *testing.T) {
+	trueVal := true
+	cfg := GitConfig{AutoPush: &trueVal}
+	if !cfg.IsAutoPushEnabled() {
+		t.Errorf("expected IsAutoPushEnabled() to return true for explicit true")
+	}
+}
+
+func TestGitIsAutoPushEnabledExplicitFalse(t *testing.T) {
+	falseVal := false
+	cfg := GitConfig{AutoPush: &falseVal}
+	if cfg.IsAutoPushEnabled() {
+		t.Errorf("expected IsAutoPushEnabled() to return false for explicit false")
+	}
+}
+
+func TestGitConfigInFullConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+git:
+  auto_push: false
+  push_failure: stop
+validation:
+  enabled: true
+  commands: ["go test ./..."]
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Check git section
+	if cfg.Git.IsAutoPushEnabled() {
+		t.Errorf("expected git auto_push=false")
+	}
+	if cfg.Git.PushFailure != "stop" {
+		t.Errorf("expected git push_failure='stop', got %q", cfg.Git.PushFailure)
+	}
+}

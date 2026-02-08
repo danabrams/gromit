@@ -26,6 +26,7 @@ type Config struct {
 	Paths       PathsConfig       `yaml:"paths"`
 	Review      ReviewConfig      `yaml:"review"`
 	Methodology MethodologyConfig `yaml:"methodology"`
+	Git         GitConfig         `yaml:"git"`
 }
 
 type ModelsConfig struct {
@@ -110,6 +111,11 @@ type ThoroughReviewConfig struct {
 type MethodologyConfig struct {
 	ATDD bool `yaml:"atdd"`
 	TDD  bool `yaml:"tdd"`
+}
+
+type GitConfig struct {
+	AutoPush    *bool  `yaml:"auto_push"`
+	PushFailure string `yaml:"push_failure"`
 }
 
 func Load(path string) (*Config, error) {
@@ -256,6 +262,13 @@ func (c *Config) setDefaults() {
 	if c.Review.Thorough.Timeout == 0 {
 		c.Review.Thorough.Timeout = 900
 	}
+	if c.Git.AutoPush == nil {
+		t := true
+		c.Git.AutoPush = &t
+	}
+	if c.Git.PushFailure == "" {
+		c.Git.PushFailure = "warn"
+	}
 }
 
 // SelectModel determines the appropriate model for a bead based on priority and labels
@@ -330,4 +343,12 @@ func (p PrecheckConfig) IsEnabled() bool {
 		return true
 	}
 	return *p.Enabled
+}
+
+// IsAutoPushEnabled returns whether git auto-push should run after bead completion (defaults to true)
+func (g GitConfig) IsAutoPushEnabled() bool {
+	if g.AutoPush == nil {
+		return true
+	}
+	return *g.AutoPush
 }
