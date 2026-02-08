@@ -11,6 +11,7 @@ Available Commands:
   backlog       View and manage the idea backlog
   board         Show all beads grouped by status
   completion    Generate the autocompletion script for the specified shell
+  debug         Launch interactive bug investigation session
   decompose     Decompose a plan into bd beads
   help          Help about any command
   init          Initialize gromit in the current project

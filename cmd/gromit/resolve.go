@@ -25,3 +25,19 @@ func resolvePlansDir(cfg *config.Config) string {
 	}
 	return ".gromit/plans"
 }
+
+// resolveTemplatesDir returns the templates directory path from config or default
+func resolveTemplatesDir(cfg *config.Config) string {
+	if cfg != nil && cfg.Paths.Templates != "" {
+		return cfg.Paths.Templates
+	}
+	return ".gromit/templates"
+}
+
+// resolveProjectClaudeMD returns the project CLAUDE.md path from config or default
+func resolveProjectClaudeMD(cfg *config.Config) string {
+	if cfg != nil && cfg.Paths.ProjectClaudeMD != "" {
+		return cfg.Paths.ProjectClaudeMD
+	}
+	return "CLAUDE.md"
+}
