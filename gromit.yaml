@@ -34,6 +34,12 @@ scope_check:
   enabled: true
   model: haiku  # haiku is fast and cheap for estimation
 
+# Pre-check - verify if acceptance criteria are already met before starting work
+precheck:
+  enabled: true  # defaults to true if omitted
+  model: haiku  # fast check with haiku
+  timeout_seconds: 30  # quick timeout for precheck
+
 # Validation settings - customize for your project
 validation:
   enabled: true

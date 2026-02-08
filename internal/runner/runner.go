@@ -1261,11 +1261,16 @@ func (r *Runner) injectMethodologyLabels(parentLabels []string) []string {
 	return labels
 }
 
-// runPrecheck calls haiku with precheck prompt to check if acceptance criteria are already met.
+// runPrecheck calls configured model with precheck prompt to check if acceptance criteria are already met.
 // Returns true if precheck passed (criteria already satisfied), false otherwise.
 // Non-blocking: logs warnings on errors and returns false.
 func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) bool {
 	if r == nil || b == nil || r.cfg == nil || r.renderer == nil || r.claude == nil {
+		return false
+	}
+
+	// Check if precheck is enabled
+	if !r.cfg.Precheck.IsEnabled() {
 		return false
 	}
 
@@ -1288,12 +1293,12 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) bool {
 		return false
 	}
 
-	// Call Claude with haiku model and 30s timeout
-	precheckTimeout := 30 * time.Second
+	// Call Claude with configured model and timeout
+	precheckTimeout := time.Duration(r.cfg.Precheck.TimeoutSeconds) * time.Second
 	precheckCtx2, cancel := context.WithTimeout(ctx, precheckTimeout)
 	defer cancel()
 
-	claudeResult, err := r.claude.Run(precheckCtx2, precheckPrompt, "haiku")
+	claudeResult, err := r.claude.Run(precheckCtx2, precheckPrompt, r.cfg.Precheck.Model)
 	if err != nil {
 		r.log("Warning: precheck invocation failed: %v", err)
 		return false

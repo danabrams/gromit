@@ -20,6 +20,7 @@ type Config struct {
 	Loop        LoopConfig        `yaml:"loop"`
 	Validation  ValidationConfig  `yaml:"validation"`
 	ScopeCheck  ScopeCheckConfig  `yaml:"scope_check"`
+	Precheck    PrecheckConfig    `yaml:"precheck"`
 	Preflight   PreflightConfig   `yaml:"preflight"`
 	Claude      ClaudeConfig      `yaml:"claude"`
 	Paths       PathsConfig       `yaml:"paths"`
@@ -58,6 +59,12 @@ type ValidationConfig struct {
 type ScopeCheckConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Model   string `yaml:"model"`
+}
+
+type PrecheckConfig struct {
+	Enabled        *bool  `yaml:"enabled"`
+	Model          string `yaml:"model"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
 
 type PreflightConfig struct {
@@ -209,6 +216,16 @@ func (c *Config) setDefaults() {
 	if c.ScopeCheck.Model == "" {
 		c.ScopeCheck.Model = ModelHaiku
 	}
+	if c.Precheck.Enabled == nil {
+		t := true
+		c.Precheck.Enabled = &t
+	}
+	if c.Precheck.Model == "" {
+		c.Precheck.Model = ModelHaiku
+	}
+	if c.Precheck.TimeoutSeconds == 0 {
+		c.Precheck.TimeoutSeconds = 30
+	}
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
 	}
@@ -305,4 +322,12 @@ func (l LoopConfig) ShouldLearnFromSuccess() bool {
 		return true
 	}
 	return *l.LearnFromSuccess
+}
+
+// IsEnabled returns whether precheck should run (defaults to true)
+func (p PrecheckConfig) IsEnabled() bool {
+	if p.Enabled == nil {
+		return true
+	}
+	return *p.Enabled
 }

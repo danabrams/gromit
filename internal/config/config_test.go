@@ -2238,6 +2238,211 @@ claude:
 	}
 }
 
+// Tests for PrecheckConfig
+func TestPrecheckConfigDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+
+	if !cfg.Precheck.IsEnabled() {
+		t.Errorf("expected default precheck enabled=true")
+	}
+	if cfg.Precheck.Model != "haiku" {
+		t.Errorf("expected default precheck model='haiku', got %q", cfg.Precheck.Model)
+	}
+	if cfg.Precheck.TimeoutSeconds != 30 {
+		t.Errorf("expected default precheck timeout=30, got %d", cfg.Precheck.TimeoutSeconds)
+	}
+}
+
+func TestPrecheckConfigFromYAML(t *testing.T) {
+	tests := []struct {
+		name          string
+		yaml          string
+		expectEnabled bool
+		expectModel   string
+		expectTimeout int
+	}{
+		{
+			name: "All fields explicit",
+			yaml: `precheck:
+  enabled: true
+  model: sonnet
+  timeout_seconds: 60
+`,
+			expectEnabled: true,
+			expectModel:   "sonnet",
+			expectTimeout: 60,
+		},
+		{
+			name: "Disabled explicitly",
+			yaml: `precheck:
+  enabled: false
+`,
+			expectEnabled: false,
+			expectModel:   "haiku",
+			expectTimeout: 30,
+		},
+		{
+			name: "Custom model only",
+			yaml: `precheck:
+  model: opus
+`,
+			expectEnabled: true,
+			expectModel:   "opus",
+			expectTimeout: 30,
+		},
+		{
+			name: "Custom timeout only",
+			yaml: `precheck:
+  timeout_seconds: 90
+`,
+			expectEnabled: true,
+			expectModel:   "haiku",
+			expectTimeout: 90,
+		},
+		{
+			name:          "Empty config uses defaults",
+			yaml:          "",
+			expectEnabled: true,
+			expectModel:   "haiku",
+			expectTimeout: 30,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			cfg, err := Load(cfgPath)
+			if err != nil {
+				t.Fatalf("loading config: %v", err)
+			}
+
+			if cfg.Precheck.IsEnabled() != tt.expectEnabled {
+				t.Errorf("expected enabled=%v, got %v", tt.expectEnabled, cfg.Precheck.IsEnabled())
+			}
+			if cfg.Precheck.Model != tt.expectModel {
+				t.Errorf("expected model=%q, got %q", tt.expectModel, cfg.Precheck.Model)
+			}
+			if cfg.Precheck.TimeoutSeconds != tt.expectTimeout {
+				t.Errorf("expected timeout=%d, got %d", tt.expectTimeout, cfg.Precheck.TimeoutSeconds)
+			}
+		})
+	}
+}
+
+func TestPrecheckIsEnabledNilPointer(t *testing.T) {
+	cfg := PrecheckConfig{}
+	if !cfg.IsEnabled() {
+		t.Errorf("expected IsEnabled() to return true for nil pointer")
+	}
+}
+
+func TestPrecheckIsEnabledExplicitTrue(t *testing.T) {
+	trueVal := true
+	cfg := PrecheckConfig{Enabled: &trueVal}
+	if !cfg.IsEnabled() {
+		t.Errorf("expected IsEnabled() to return true for explicit true")
+	}
+}
+
+func TestPrecheckIsEnabledExplicitFalse(t *testing.T) {
+	falseVal := false
+	cfg := PrecheckConfig{Enabled: &falseVal}
+	if cfg.IsEnabled() {
+		t.Errorf("expected IsEnabled() to return false for explicit false")
+	}
+}
+
+func TestPrecheckConfigInFullConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+precheck:
+  enabled: false
+  model: sonnet
+  timeout_seconds: 45
+validation:
+  enabled: true
+  commands: ["go test ./..."]
+claude:
+  timeout: 600
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Check other sections still work
+	if cfg.Models.P0 != "opus" {
+		t.Errorf("expected P0='opus', got %q", cfg.Models.P0)
+	}
+
+	// Check precheck section
+	if cfg.Precheck.IsEnabled() {
+		t.Errorf("expected precheck enabled=false")
+	}
+	if cfg.Precheck.Model != "sonnet" {
+		t.Errorf("expected precheck model='sonnet', got %q", cfg.Precheck.Model)
+	}
+	if cfg.Precheck.TimeoutSeconds != 45 {
+		t.Errorf("expected precheck timeout=45, got %d", cfg.Precheck.TimeoutSeconds)
+	}
+}
+
+func TestPrecheckConfigZeroTimeout(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `precheck:
+  timeout_seconds: 0
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Zero timeout should be replaced with default
+	if cfg.Precheck.TimeoutSeconds != 30 {
+		t.Errorf("expected default timeout=30, got %d", cfg.Precheck.TimeoutSeconds)
+	}
+}
+
+func TestPrecheckConfigEmptyModel(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `precheck:
+  model: ""
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Empty model should be replaced with default
+	if cfg.Precheck.Model != "haiku" {
+		t.Errorf("expected default model='haiku', got %q", cfg.Precheck.Model)
+	}
+}
+
 // Tests for MethodologyConfig parsing
 func TestMethodologyConfigParsing(t *testing.T) {
 	tests := []struct {
