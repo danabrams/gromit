@@ -783,6 +783,126 @@ func TestLogIterationWithoutOutcome(t *testing.T) {
 	}
 }
 
+func TestLogIterationWithCostAndTokens(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	// Log an iteration with cost and token fields
+	log := &IterationLog{
+		Timestamp:    time.Now(),
+		Iteration:    1,
+		BeadID:       "b1",
+		BeadTitle:    "Test bead",
+		Model:        "sonnet",
+		Success:      true,
+		Validated:    true,
+		Escalated:    false,
+		DurationMs:   1000,
+		CostUSD:      0.42,
+		InputTokens:  12000,
+		OutputTokens: 3000,
+	}
+	if err := l.LogIteration(log); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read back and verify
+	data, err := os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !contains(content, `"cost_usd":0.42`) {
+		t.Errorf("log should contain cost_usd field with value 0.42")
+	}
+	if !contains(content, `"input_tokens":12000`) {
+		t.Errorf("log should contain input_tokens field with value 12000")
+	}
+	if !contains(content, `"output_tokens":3000`) {
+		t.Errorf("log should contain output_tokens field with value 3000")
+	}
+}
+
+func TestReadLogFileWithCostAndTokens(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a log file with cost and token fields
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000,"cost_usd":0.25,"input_tokens":10000,"output_tokens":2500}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"opus","success":true,"validated":true,"escalated":false,"duration_ms":2000,"cost_usd":1.50,"input_tokens":50000,"output_tokens":8000}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read back the entries
+	entries, err := readLogFile(filepath.Join(dir, "run-20260205-120000.jsonl"))
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+
+	// First entry
+	if entries[0].CostUSD != 0.25 {
+		t.Errorf("expected cost_usd 0.25, got %f", entries[0].CostUSD)
+	}
+	if entries[0].InputTokens != 10000 {
+		t.Errorf("expected input_tokens 10000, got %d", entries[0].InputTokens)
+	}
+	if entries[0].OutputTokens != 2500 {
+		t.Errorf("expected output_tokens 2500, got %d", entries[0].OutputTokens)
+	}
+
+	// Second entry
+	if entries[1].CostUSD != 1.50 {
+		t.Errorf("expected cost_usd 1.50, got %f", entries[1].CostUSD)
+	}
+	if entries[1].InputTokens != 50000 {
+		t.Errorf("expected input_tokens 50000, got %d", entries[1].InputTokens)
+	}
+	if entries[1].OutputTokens != 8000 {
+		t.Errorf("expected output_tokens 8000, got %d", entries[1].OutputTokens)
+	}
+}
+
+func TestReadLogFileBackwardCompatibility(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a log file without cost and token fields (backward compatibility)
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read back the entries
+	entries, err := readLogFile(filepath.Join(dir, "run-20260205-120000.jsonl"))
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	// Fields should have zero values when omitted
+	if entries[0].CostUSD != 0 {
+		t.Errorf("expected cost_usd 0 (zero value), got %f", entries[0].CostUSD)
+	}
+	if entries[0].InputTokens != 0 {
+		t.Errorf("expected input_tokens 0 (zero value), got %d", entries[0].InputTokens)
+	}
+	if entries[0].OutputTokens != 0 {
+		t.Errorf("expected output_tokens 0 (zero value), got %d", entries[0].OutputTokens)
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsAt(s, substr))
