@@ -451,6 +451,180 @@ func TestFilteredLearningHashesPersistence(t *testing.T) {
 	}
 }
 
+func TestReconcileFilteredHashes_RemovesStaleHashes(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Start with 5 hashes
+	f.state.FilteredLearningHashes = []string{"hash1", "hash2", "hash3", "hash4", "hash5"}
+
+	// Current set only has 3 of them (hash2, hash3, hash5 are gone)
+	currentHashes := map[string]bool{
+		"hash1": true,
+		"hash4": true,
+	}
+
+	// ReconcileFilteredHashes should remove hash2, hash3, hash5
+	pruned := f.ReconcileFilteredHashes(currentHashes)
+
+	if !pruned {
+		t.Error("expected ReconcileFilteredHashes to return true when hashes were removed")
+	}
+
+	// Verify only hash1 and hash4 remain
+	if len(f.state.FilteredLearningHashes) != 2 {
+		t.Errorf("expected 2 hashes after reconciliation, got %d", len(f.state.FilteredLearningHashes))
+	}
+
+	hashMap := f.GetFilteredHashes()
+	if !hashMap["hash1"] {
+		t.Error("hash1 should remain after reconciliation")
+	}
+	if !hashMap["hash4"] {
+		t.Error("hash4 should remain after reconciliation")
+	}
+	if hashMap["hash2"] {
+		t.Error("hash2 should be removed")
+	}
+	if hashMap["hash3"] {
+		t.Error("hash3 should be removed")
+	}
+	if hashMap["hash5"] {
+		t.Error("hash5 should be removed")
+	}
+}
+
+func TestReconcileFilteredHashes_NoChangesWhenAllMatch(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Start with 3 hashes
+	f.state.FilteredLearningHashes = []string{"hash1", "hash2", "hash3"}
+
+	// Current set has exactly the same hashes
+	currentHashes := map[string]bool{
+		"hash1": true,
+		"hash2": true,
+		"hash3": true,
+	}
+
+	// ReconcileFilteredHashes should return false (no pruning)
+	pruned := f.ReconcileFilteredHashes(currentHashes)
+
+	if pruned {
+		t.Error("expected ReconcileFilteredHashes to return false when no hashes were removed")
+	}
+
+	// Verify all 3 hashes remain
+	if len(f.state.FilteredLearningHashes) != 3 {
+		t.Errorf("expected 3 hashes after reconciliation, got %d", len(f.state.FilteredLearningHashes))
+	}
+
+	hashMap := f.GetFilteredHashes()
+	if !hashMap["hash1"] || !hashMap["hash2"] || !hashMap["hash3"] {
+		t.Error("all original hashes should remain when current set matches")
+	}
+}
+
+func TestReconcileFilteredHashes_EmptyCurrentSet(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Start with some hashes
+	f.state.FilteredLearningHashes = []string{"hash1", "hash2", "hash3"}
+
+	// Current set is empty - all hashes should be removed
+	currentHashes := map[string]bool{}
+
+	pruned := f.ReconcileFilteredHashes(currentHashes)
+
+	if !pruned {
+		t.Error("expected ReconcileFilteredHashes to return true when all hashes were removed")
+	}
+
+	// Verify all hashes were removed
+	if len(f.state.FilteredLearningHashes) != 0 {
+		t.Errorf("expected 0 hashes after reconciliation with empty current set, got %d", len(f.state.FilteredLearningHashes))
+	}
+}
+
+func TestReconcileFilteredHashes_EmptyInitialState(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Start with no hashes
+	f.state.FilteredLearningHashes = []string{}
+
+	// Current set has some hashes (but none match because initial is empty)
+	currentHashes := map[string]bool{
+		"hash1": true,
+		"hash2": true,
+	}
+
+	pruned := f.ReconcileFilteredHashes(currentHashes)
+
+	if pruned {
+		t.Error("expected ReconcileFilteredHashes to return false when initial state was empty")
+	}
+
+	// Verify state remains empty
+	if len(f.state.FilteredLearningHashes) != 0 {
+		t.Errorf("expected 0 hashes after reconciliation from empty initial state, got %d", len(f.state.FilteredLearningHashes))
+	}
+}
+
+func TestReconcileFilteredHashes_NilSafe(t *testing.T) {
+	var f *File
+	currentHashes := map[string]bool{
+		"hash1": true,
+	}
+
+	// Should not panic
+	pruned := f.ReconcileFilteredHashes(currentHashes)
+
+	if pruned {
+		t.Error("nil File should return false")
+	}
+}
+
+func TestReconcileFilteredHashes_Persistence(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Add hashes
+	f.state.FilteredLearningHashes = []string{"hash1", "hash2", "hash3", "hash4"}
+
+	// Reconcile to remove hash2 and hash4
+	currentHashes := map[string]bool{
+		"hash1": true,
+		"hash3": true,
+	}
+	f.ReconcileFilteredHashes(currentHashes)
+
+	// Save state
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Load in a new File and verify reconciliation persisted
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	if len(f2.state.FilteredLearningHashes) != 2 {
+		t.Errorf("expected 2 hashes after load, got %d", len(f2.state.FilteredLearningHashes))
+	}
+
+	hashMap := f2.GetFilteredHashes()
+	if !hashMap["hash1"] || !hashMap["hash3"] {
+		t.Error("hash1 and hash3 should be present after load")
+	}
+	if hashMap["hash2"] || hashMap["hash4"] {
+		t.Error("hash2 and hash4 should not be present after load")
+	}
+}
+
 // Helper function for substring matching
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
