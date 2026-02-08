@@ -29,6 +29,7 @@ func ReadStatus(gromitDir, specsDir, plansDir string) (*PipelineStatus, error) {
 		UnrefinedIdeas:    []string{},
 		UnplannedSpecs:    []string{},
 		UndecomposedPlans: []string{},
+		ReadyBeads:        []string{},
 	}
 
 	// Read backlog for unrefined ideas
