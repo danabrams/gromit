@@ -1589,6 +1589,92 @@ func TestStuckBeadThresholdInFullConfig(t *testing.T) {
 	}
 }
 
+// Tests for max-consecutive-skips configuration
+
+func TestMaxConsecutiveSkipsDefault(t *testing.T) {
+	cfg := &Config{}
+	cfg.setDefaults()
+	if cfg.Loop.MaxConsecutiveSkips != 3 {
+		t.Errorf("expected default MaxConsecutiveSkips=3, got %d", cfg.Loop.MaxConsecutiveSkips)
+	}
+}
+
+func TestMaxConsecutiveSkipsFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte("loop:\n  max_consecutive_skips: 5\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Loop.MaxConsecutiveSkips != 5 {
+		t.Errorf("expected MaxConsecutiveSkips=5, got %d", cfg.Loop.MaxConsecutiveSkips)
+	}
+}
+
+func TestMaxConsecutiveSkipsZeroGetsDefault(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte("loop:\n  max_consecutive_skips: 0\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Loop.MaxConsecutiveSkips != 3 {
+		t.Errorf("expected MaxConsecutiveSkips=3 (default), got %d", cfg.Loop.MaxConsecutiveSkips)
+	}
+}
+
+func TestMaxConsecutiveSkipsPreserved(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte("loop:\n  max_consecutive_skips: 10\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Loop.MaxConsecutiveSkips != 10 {
+		t.Errorf("expected MaxConsecutiveSkips=10, got %d", cfg.Loop.MaxConsecutiveSkips)
+	}
+}
+
+func TestMaxConsecutiveSkipsInFullConfig(t *testing.T) {
+	// Test that max_consecutive_skips works alongside other loop settings
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `loop:
+  max_iterations: 20
+  stop_on_failure: true
+  stuck_bead_threshold: 5
+  max_consecutive_skips: 7
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Loop.MaxIterations != 20 {
+		t.Errorf("expected MaxIterations=20, got %d", cfg.Loop.MaxIterations)
+	}
+	if !cfg.Loop.StopOnFailure {
+		t.Errorf("expected StopOnFailure=true, got false")
+	}
+	if cfg.Loop.StuckBeadThreshold != 5 {
+		t.Errorf("expected StuckBeadThreshold=5, got %d", cfg.Loop.StuckBeadThreshold)
+	}
+	if cfg.Loop.MaxConsecutiveSkips != 7 {
+		t.Errorf("expected MaxConsecutiveSkips=7, got %d", cfg.Loop.MaxConsecutiveSkips)
+	}
+}
+
 func TestNormalizeNilFields(t *testing.T) {
 	cfg := &Config{}
 	cfg.normalizeNilFields()

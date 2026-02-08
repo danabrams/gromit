@@ -49,6 +49,7 @@ type LoopConfig struct {
 	MaxIterations            int    `yaml:"max_iterations"`
 	StopOnFailure            bool   `yaml:"stop_on_failure"`
 	StuckBeadThreshold       int    `yaml:"stuck_bead_threshold"`
+	MaxConsecutiveSkips      int    `yaml:"max_consecutive_skips"`
 	LearnFromSuccess         *bool  `yaml:"learn_from_success"`
 	BetweenIterationsCommand string `yaml:"between_iterations_command"`
 }
@@ -239,6 +240,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
+	}
+	if c.Loop.MaxConsecutiveSkips == 0 {
+		c.Loop.MaxConsecutiveSkips = 3
 	}
 	if c.Loop.LearnFromSuccess == nil {
 		t := true
