@@ -480,6 +480,73 @@ func (f *File) ShouldSuggestRetro(lastRetro time.Time, failureRate float64) (boo
 	return false, ""
 }
 
+// FilterProvisional runs the filter function on all provisional learnings that haven't been
+// filtered yet, archives generic ones, and returns all evaluated hashes.
+//
+// Parameters:
+// - fn: FilterFunc to use for classification (must not be nil)
+// - alreadyFiltered: map of hashes that have been previously evaluated
+//
+// Returns:
+// - []string: all hashes evaluated during this run (newly evaluated only)
+// - error: if the filter function returns an error
+func (f *File) FilterProvisional(fn FilterFunc, alreadyFiltered map[string]bool) ([]string, error) {
+	if f == nil {
+		return nil, fmt.Errorf("learnings file is nil")
+	}
+	if fn == nil {
+		return nil, fmt.Errorf("filter function is nil")
+	}
+
+	var evaluatedHashes []string
+	var toArchive []int // Indices of provisional learnings to archive
+
+	for i, learning := range f.provisional {
+		// Skip already-filtered hashes
+		if alreadyFiltered[learning.Hash] {
+			continue
+		}
+
+		// Call filter function
+		isGeneric, err := fn(learning.Content)
+		if err != nil {
+			return evaluatedHashes, fmt.Errorf("filtering learning %s: %w", learning.Hash, err)
+		}
+
+		// Record that we evaluated this hash
+		evaluatedHashes = append(evaluatedHashes, learning.Hash)
+
+		// Mark for archival if generic
+		if isGeneric {
+			toArchive = append(toArchive, i)
+		}
+	}
+
+	// Archive generic learnings (in reverse order to maintain correct indices)
+	for i := len(toArchive) - 1; i >= 0; i-- {
+		idx := toArchive[i]
+		learning := f.provisional[idx]
+
+		// Add reason to content
+		learning.Content = fmt.Sprintf("%s\n\n*Archived from provisional: filtered: generic engineering advice*", learning.Content)
+
+		// Remove from provisional
+		f.provisional = append(f.provisional[:idx], f.provisional[idx+1:]...)
+
+		// Add to archived
+		f.archived = append(f.archived, learning)
+	}
+
+	// Save if any changes were made
+	if len(toArchive) > 0 {
+		if err := f.Save(); err != nil {
+			return evaluatedHashes, fmt.Errorf("saving learnings: %w", err)
+		}
+	}
+
+	return evaluatedHashes, nil
+}
+
 func writeLearning(sb *strings.Builder, l Learning) {
 	sb.WriteString(fmt.Sprintf("### %s | %s | %s\n",
 		l.Date.Format("2006-01-02"),

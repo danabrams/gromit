@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 // mockClaudeRunner is a mock implementation of ClaudeRunner for testing
@@ -300,5 +301,358 @@ func TestFileWithLLMFilter_ErrorHandling(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "filter function error") {
 		t.Errorf("expected filter function error, got: %v", err)
+	}
+}
+
+// TestFilterProvisional_ArchivesGeneric tests that generic learnings are archived
+func TestFilterProvisional_ArchivesGeneric(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Add two provisional learnings (without filter)
+	f.provisional = []Learning{
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-1",
+			Content:  "Always run tests",
+			Category: CategoryPatterns,
+			Hash:     hashContent("Always run tests"),
+		},
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-2",
+			Content:  "Use DRY principle",
+			Category: CategoryPatterns,
+			Hash:     hashContent("Use DRY principle"),
+		},
+	}
+
+	// Create filter that marks all as generic
+	filter := func(content string) (bool, error) {
+		return true, nil // All generic
+	}
+
+	// Run batch filter
+	hashes, err := f.FilterProvisional(filter, map[string]bool{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should return 2 evaluated hashes
+	if len(hashes) != 2 {
+		t.Errorf("expected 2 evaluated hashes, got %d", len(hashes))
+	}
+
+	// Both should be archived
+	if len(f.provisional) != 0 {
+		t.Errorf("expected 0 provisional learnings, got %d", len(f.provisional))
+	}
+	if len(f.archived) != 2 {
+		t.Fatalf("expected 2 archived learnings, got %d", len(f.archived))
+	}
+
+	// Check archived content includes filter reason
+	for _, archived := range f.archived {
+		if !strings.Contains(archived.Content, "filtered: generic engineering advice") {
+			t.Error("archived learning should contain filter reason")
+		}
+	}
+}
+
+// TestFilterProvisional_PreservesSpecific tests that specific learnings are preserved
+func TestFilterProvisional_PreservesSpecific(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Add two provisional learnings
+	f.provisional = []Learning{
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-1",
+			Content:  "Runner uses escalation chain",
+			Category: CategoryPatterns,
+			Hash:     hashContent("Runner uses escalation chain"),
+		},
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-2",
+			Content:  "Bead sizing must be under 2 files",
+			Category: CategoryConventions,
+			Hash:     hashContent("Bead sizing must be under 2 files"),
+		},
+	}
+
+	// Create filter that marks all as specific
+	filter := func(content string) (bool, error) {
+		return false, nil // All specific
+	}
+
+	// Run batch filter
+	hashes, err := f.FilterProvisional(filter, map[string]bool{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should return 2 evaluated hashes
+	if len(hashes) != 2 {
+		t.Errorf("expected 2 evaluated hashes, got %d", len(hashes))
+	}
+
+	// Both should remain in provisional
+	if len(f.provisional) != 2 {
+		t.Errorf("expected 2 provisional learnings, got %d", len(f.provisional))
+	}
+	if len(f.archived) != 0 {
+		t.Errorf("expected 0 archived learnings, got %d", len(f.archived))
+	}
+}
+
+// TestFilterProvisional_SkipsAlreadyFiltered tests that already-filtered hashes are skipped
+func TestFilterProvisional_SkipsAlreadyFiltered(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	hash1 := hashContent("Learning 1")
+	hash2 := hashContent("Learning 2")
+
+	// Add two provisional learnings
+	f.provisional = []Learning{
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-1",
+			Content:  "Learning 1",
+			Category: CategoryPatterns,
+			Hash:     hash1,
+		},
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-2",
+			Content:  "Learning 2",
+			Category: CategoryPatterns,
+			Hash:     hash2,
+		},
+	}
+
+	// Track how many times filter is called
+	var callCount int
+	filter := func(content string) (bool, error) {
+		callCount++
+		return false, nil
+	}
+
+	// Mark first learning as already filtered
+	alreadyFiltered := map[string]bool{hash1: true}
+
+	// Run batch filter
+	hashes, err := f.FilterProvisional(filter, alreadyFiltered)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should only return 1 evaluated hash (the second one)
+	if len(hashes) != 1 {
+		t.Errorf("expected 1 evaluated hash, got %d", len(hashes))
+	}
+	if len(hashes) > 0 && hashes[0] != hash2 {
+		t.Errorf("expected hash2 to be evaluated, got %s", hashes[0])
+	}
+
+	// Filter should only be called once (for the non-skipped learning)
+	if callCount != 1 {
+		t.Errorf("expected filter to be called 1 time, got %d", callCount)
+	}
+}
+
+// TestFilterProvisional_MixedResults tests filtering with mixed specific/generic results
+func TestFilterProvisional_MixedResults(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Add three provisional learnings
+	f.provisional = []Learning{
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-1",
+			Content:  "Always test",
+			Category: CategoryPatterns,
+			Hash:     hashContent("Always test"),
+		},
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-2",
+			Content:  "Runner escalation pattern",
+			Category: CategoryPatterns,
+			Hash:     hashContent("Runner escalation pattern"),
+		},
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-3",
+			Content:  "Use DRY",
+			Category: CategoryPatterns,
+			Hash:     hashContent("Use DRY"),
+		},
+	}
+
+	// Create filter that marks specific ones as generic
+	filter := func(content string) (bool, error) {
+		// Mark first and third as generic, second as specific
+		return strings.Contains(content, "test") || strings.Contains(content, "DRY"), nil
+	}
+
+	// Run batch filter
+	hashes, err := f.FilterProvisional(filter, map[string]bool{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should return 3 evaluated hashes
+	if len(hashes) != 3 {
+		t.Errorf("expected 3 evaluated hashes, got %d", len(hashes))
+	}
+
+	// One should remain in provisional, two should be archived
+	if len(f.provisional) != 1 {
+		t.Errorf("expected 1 provisional learning, got %d", len(f.provisional))
+	}
+	if len(f.archived) != 2 {
+		t.Fatalf("expected 2 archived learnings, got %d", len(f.archived))
+	}
+
+	// The remaining provisional should be the specific one
+	if !strings.Contains(f.provisional[0].Content, "Runner escalation pattern") {
+		t.Error("wrong learning remained in provisional")
+	}
+}
+
+// TestFilterProvisional_ErrorHandling tests error propagation from filter function
+func TestFilterProvisional_ErrorHandling(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Add a provisional learning
+	f.provisional = []Learning{
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-1",
+			Content:  "Some content",
+			Category: CategoryPatterns,
+			Hash:     hashContent("Some content"),
+		},
+	}
+
+	// Create filter that returns an error
+	filter := func(content string) (bool, error) {
+		return false, fmt.Errorf("filter error")
+	}
+
+	// Run batch filter - should fail
+	_, err := f.FilterProvisional(filter, map[string]bool{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "filtering learning") {
+		t.Errorf("expected error to mention 'filtering learning', got: %v", err)
+	}
+}
+
+// TestFilterProvisional_NilFilter tests that nil filter is rejected
+func TestFilterProvisional_NilFilter(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Run with nil filter
+	_, err := f.FilterProvisional(nil, map[string]bool{})
+	if err == nil {
+		t.Fatal("expected error for nil filter, got nil")
+	}
+	if !strings.Contains(err.Error(), "filter function is nil") {
+		t.Errorf("expected error about nil filter, got: %v", err)
+	}
+}
+
+// TestFilterProvisional_NilFile tests that nil file is handled
+func TestFilterProvisional_NilFile(t *testing.T) {
+	var f *File
+	filter := func(content string) (bool, error) {
+		return false, nil
+	}
+
+	_, err := f.FilterProvisional(filter, map[string]bool{})
+	if err == nil {
+		t.Fatal("expected error for nil file, got nil")
+	}
+	if !strings.Contains(err.Error(), "learnings file is nil") {
+		t.Errorf("expected error about nil file, got: %v", err)
+	}
+}
+
+// TestFilterProvisional_EmptyProvisional tests filtering when no provisional learnings exist
+func TestFilterProvisional_EmptyProvisional(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// No provisional learnings
+	f.provisional = []Learning{}
+
+	filter := func(content string) (bool, error) {
+		return true, nil
+	}
+
+	// Run batch filter
+	hashes, err := f.FilterProvisional(filter, map[string]bool{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should return empty list
+	if len(hashes) != 0 {
+		t.Errorf("expected 0 evaluated hashes, got %d", len(hashes))
+	}
+}
+
+// TestFilterProvisional_SavesChanges tests that changes are persisted to disk
+func TestFilterProvisional_SavesChanges(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Add a provisional learning
+	f.provisional = []Learning{
+		{
+			Date:     time.Now(),
+			BeadID:   "bead-1",
+			Content:  "Generic advice",
+			Category: CategoryPatterns,
+			Hash:     hashContent("Generic advice"),
+		},
+	}
+
+	// Save initial state
+	if err := f.Save(); err != nil {
+		t.Fatalf("failed to save initial state: %v", err)
+	}
+
+	// Create filter that marks as generic
+	filter := func(content string) (bool, error) {
+		return true, nil
+	}
+
+	// Run batch filter
+	_, err := f.FilterProvisional(filter, map[string]bool{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Load from disk to verify persistence
+	f2, _ := NewFile(tmpDir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+
+	// Should have 0 provisional and 1 archived
+	if len(f2.provisional) != 0 {
+		t.Errorf("expected 0 provisional learnings after reload, got %d", len(f2.provisional))
+	}
+	if len(f2.archived) != 1 {
+		t.Errorf("expected 1 archived learning after reload, got %d", len(f2.archived))
 	}
 }
