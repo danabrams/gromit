@@ -21,9 +21,11 @@ type StreamEvent struct {
 	ToolUseResult *ToolUseResult `json:"tool_use_result,omitempty"`
 
 	// For result events
-	Result    string  `json:"result,omitempty"`
-	IsError   bool    `json:"is_error,omitempty"`
-	TotalCost float64 `json:"total_cost_usd,omitempty"`
+	Result       string  `json:"result,omitempty"`
+	IsError      bool    `json:"is_error,omitempty"`
+	TotalCost    float64 `json:"total_cost_usd,omitempty"`
+	InputTokens  int     `json:"input_tokens,omitempty"`
+	OutputTokens int     `json:"output_tokens,omitempty"`
 }
 
 // StreamMessage is an assistant or user message in stream-json
@@ -71,6 +73,9 @@ type StreamStats struct {
 	StartTime          time.Time
 	LastEventTime      time.Time
 	firstEventReceived bool
+	TotalCost          float64
+	InputTokens        int
+	OutputTokens       int
 }
 
 // NewStreamStats creates a new StreamStats

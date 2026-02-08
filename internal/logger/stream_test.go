@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -399,5 +400,54 @@ func TestParseAndLogEventTextTruncation(t *testing.T) {
 
 	if !strings.Contains(string(content), "...") {
 		t.Errorf("expected truncated text with '...', got: %s", string(content))
+	}
+}
+
+func TestStreamEventTokenFields(t *testing.T) {
+	line := []byte(`{"type":"result","subtype":"success","total_cost_usd":0.0123,"input_tokens":1000,"output_tokens":500}`)
+
+	var event StreamEvent
+	if err := json.Unmarshal(line, &event); err != nil {
+		t.Fatalf("unmarshaling event: %v", err)
+	}
+
+	if event.TotalCost != 0.0123 {
+		t.Errorf("expected TotalCost=0.0123, got %f", event.TotalCost)
+	}
+	if event.InputTokens != 1000 {
+		t.Errorf("expected InputTokens=1000, got %d", event.InputTokens)
+	}
+	if event.OutputTokens != 500 {
+		t.Errorf("expected OutputTokens=500, got %d", event.OutputTokens)
+	}
+}
+
+func TestStreamStatsTokenFields(t *testing.T) {
+	stats, _ := NewStreamStats()
+
+	// Fields should be initialized to zero
+	if stats.TotalCost != 0 {
+		t.Errorf("expected TotalCost=0, got %f", stats.TotalCost)
+	}
+	if stats.InputTokens != 0 {
+		t.Errorf("expected InputTokens=0, got %d", stats.InputTokens)
+	}
+	if stats.OutputTokens != 0 {
+		t.Errorf("expected OutputTokens=0, got %d", stats.OutputTokens)
+	}
+
+	// Set values
+	stats.TotalCost = 0.0123
+	stats.InputTokens = 1000
+	stats.OutputTokens = 500
+
+	if stats.TotalCost != 0.0123 {
+		t.Errorf("expected TotalCost=0.0123, got %f", stats.TotalCost)
+	}
+	if stats.InputTokens != 1000 {
+		t.Errorf("expected InputTokens=1000, got %d", stats.InputTokens)
+	}
+	if stats.OutputTokens != 500 {
+		t.Errorf("expected OutputTokens=500, got %d", stats.OutputTokens)
 	}
 }
