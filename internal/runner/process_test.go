@@ -1176,6 +1176,7 @@ func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
 	}
 
 	learnFromSuccessEnabled := true
+	syncOut := newSyncWriter(&buf)
 	r := &Runner{
 		cfg: &config.Config{
 			Loop: config.LoopConfig{
@@ -1197,7 +1198,7 @@ func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
 		claude:   mockClaude,
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
-		output:   &buf,
+		output:   syncOut,
 		gitDiffFn: func(fromCommit string) (string, error) {
 			return "diff --git a/file.go b/file.go\n+some change", nil
 		},
@@ -1297,6 +1298,7 @@ func TestPostSuccess_BothEnabled_ConcurrentExecution(t *testing.T) {
 	}
 
 	learnFromSuccessEnabled := true
+	syncOut := newSyncWriter(&buf)
 	r := &Runner{
 		cfg: &config.Config{
 			Loop: config.LoopConfig{
@@ -1319,7 +1321,7 @@ func TestPostSuccess_BothEnabled_ConcurrentExecution(t *testing.T) {
 		claude:   mockClaude,
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
-		output:   &buf,
+		output:   syncOut,
 		gitDiffFn: func(fromCommit string) (string, error) {
 			return "diff --git a/file.go b/file.go\n+some change", nil
 		},
@@ -1457,6 +1459,7 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 	}
 
 	learnFromSuccessEnabled := true
+	syncOut := newSyncWriter(&buf)
 	r := &Runner{
 		cfg: &config.Config{
 			Loop: config.LoopConfig{
@@ -1479,7 +1482,7 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 		claude:   mockClaude,
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
-		output:   &buf,
+		output:   syncOut,
 	}
 
 	bc := &beadContext{
@@ -1637,6 +1640,7 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 	}
 
 	learnFromSuccessEnabled := true
+	syncOut := newSyncWriter(&buf)
 	r := &Runner{
 		cfg: &config.Config{
 			Loop: config.LoopConfig{
@@ -1661,7 +1665,7 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 		claude:   mockClaude,
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
-		output:   &buf,
+		output:   syncOut,
 	}
 
 	bc := &beadContext{
