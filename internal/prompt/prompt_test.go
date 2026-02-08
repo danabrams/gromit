@@ -187,6 +187,115 @@ func TestRenderPrecheckNilRenderer(t *testing.T) {
 	}
 }
 
+func TestRenderPrecheck(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := tmpDir
+	os.MkdirAll(templatesDir, 0755)
+
+	// Write a precheck template that uses PrecheckContext fields
+	tmpl := `Pre-check: {{.Bead.Title}}
+ID: {{.Bead.ID}}
+Priority: P{{.Bead.Priority}}
+{{if .Bead.Labels}}Labels: {{join .Bead.Labels ", "}}{{end}}
+{{if .Bead.Description}}Description: {{.Bead.Description}}{{end}}
+{{if .ParentBead}}Parent: {{.ParentBead.Title}}{{end}}`
+	os.WriteFile(tmpDir+"/PROMPT_precheck.md", []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	tests := []struct {
+		name    string
+		ctx     *PrecheckContext
+		wantStr []string // Expected substrings in output
+	}{
+		{
+			name: "with populated context and no parent",
+			ctx: &PrecheckContext{
+				Bead: &bead.Bead{
+					ID:              "test-123",
+					Title:           "Test acceptance criteria",
+					Priority:        2,
+					Description:     "Check if criteria are met",
+					Labels:          []string{},
+					ExpectedOutputs: []string{},
+				},
+				ParentBead: nil,
+			},
+			wantStr: []string{
+				"Test acceptance criteria",
+				"test-123",
+				"P2",
+				"Check if criteria are met",
+			},
+		},
+		{
+			name: "with parent bead and labels",
+			ctx: &PrecheckContext{
+				Bead: &bead.Bead{
+					ID:              "child-456",
+					Title:           "Child task",
+					Priority:        1,
+					Description:     "Part of larger work",
+					Labels:          []string{"from-review", "test-gap"},
+					ExpectedOutputs: []string{},
+				},
+				ParentBead: &bead.Bead{
+					ID:              "parent-123",
+					Title:           "Parent epic",
+					Priority:        0,
+					Labels:          []string{},
+					ExpectedOutputs: []string{},
+				},
+			},
+			wantStr: []string{
+				"Child task",
+				"child-456",
+				"P1",
+				"Part of larger work",
+				"from-review, test-gap",
+				"Parent epic",
+			},
+		},
+		{
+			name: "with empty labels slice",
+			ctx: &PrecheckContext{
+				Bead: &bead.Bead{
+					ID:              "test-789",
+					Title:           "Simple task",
+					Priority:        3,
+					Description:     "No labels",
+					Labels:          []string{},
+					ExpectedOutputs: []string{},
+				},
+				ParentBead: nil,
+			},
+			wantStr: []string{
+				"Simple task",
+				"test-789",
+				"P3",
+				"No labels",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := r.RenderPrecheck(tt.ctx)
+			if err != nil {
+				t.Fatalf("RenderPrecheck() error = %v", err)
+			}
+			if result == "" {
+				t.Error("expected non-empty output")
+			}
+			for _, want := range tt.wantStr {
+				if !strings.Contains(result, want) {
+					t.Errorf("RenderPrecheck() missing expected string %q\ngot:\n%s", want, result)
+				}
+			}
+		})
+	}
+}
+
 func TestParseScopeEstimate(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -65,6 +65,7 @@ func TestFormatPipeline(t *testing.T) {
 				UnplannedSpecs:    []string{"user-profiles", "notifications", "logging", "auth-fix"},
 				UndecomposedPlans: []string{"status-json-staleness"},
 				ReadyBeadCount:    4,
+				ReadyBeads:        []string{},
 			},
 			want: []string{
 				"  Backlog:  5 unrefined ideas",
@@ -80,6 +81,48 @@ func TestFormatPipeline(t *testing.T) {
 				"  Plans:    1 undecomposed",
 				"    - status-json-staleness",
 				"  Beads:    4 ready",
+			},
+		},
+		{
+			name: "ready beads with data",
+			status: &pipeline.PipelineStatus{
+				UnrefinedCount:    0,
+				UnrefinedIdeas:    []string{},
+				UnplannedSpecs:    []string{},
+				UndecomposedPlans: []string{},
+				ReadyBeadCount:    4,
+				ReadyBeads: []string{
+					"gromit-abc1 — Implement feature X",
+					"gromit-abc2 — Add validation tests",
+					"gromit-abc3 — Fix authentication bug",
+					"gromit-abc4 — Update documentation",
+				},
+			},
+			want: []string{
+				"  Beads:    4 ready",
+				"    - gromit-abc1 — Implement feature X",
+				"    - gromit-abc2 — Add validation tests",
+				"    - gromit-abc3 — Fix authentication bug",
+				"    (and 1 more)",
+			},
+		},
+		{
+			name: "ready beads under limit",
+			status: &pipeline.PipelineStatus{
+				UnrefinedCount:    0,
+				UnrefinedIdeas:    []string{},
+				UnplannedSpecs:    []string{},
+				UndecomposedPlans: []string{},
+				ReadyBeadCount:    2,
+				ReadyBeads: []string{
+					"gromit-xyz1 — Small fix",
+					"gromit-xyz2 — Refactor helper",
+				},
+			},
+			want: []string{
+				"  Beads:    2 ready",
+				"    - gromit-xyz1 — Small fix",
+				"    - gromit-xyz2 — Refactor helper",
 			},
 		},
 	}
