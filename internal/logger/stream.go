@@ -153,6 +153,16 @@ func (s *StreamStats) HasToolActivity() bool {
 	return s.ToolCalls > 0
 }
 
+// CostData returns the cost and token counts recorded from the result event.
+func (s *StreamStats) CostData() (totalCost float64, inputTokens int, outputTokens int) {
+	if s == nil {
+		return 0, 0, 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.TotalCost, s.InputTokens, s.OutputTokens
+}
+
 // StreamLogger writes firehose stream events to a log file
 type StreamLogger struct {
 	file *os.File
@@ -269,6 +279,13 @@ func ParseAndLogEvent(sl *StreamLogger, stats *StreamStats, line []byte) {
 		}
 
 	case "result":
+		if stats != nil {
+			stats.mu.Lock()
+			stats.TotalCost = event.TotalCost
+			stats.InputTokens = event.InputTokens
+			stats.OutputTokens = event.OutputTokens
+			stats.mu.Unlock()
+		}
 		sl.LogEvent("RESULT: subtype=%s, cost=$%.4f", event.Subtype, event.TotalCost)
 	}
 }

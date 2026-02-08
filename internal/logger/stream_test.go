@@ -451,3 +451,59 @@ func TestStreamStatsTokenFields(t *testing.T) {
 		t.Errorf("expected OutputTokens=500, got %d", stats.OutputTokens)
 	}
 }
+
+func TestParseAndLogEventCapturesCostData(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats, _ := NewStreamStats()
+
+	line := []byte(`{"type":"result","subtype":"success","total_cost_usd":0.0456,"input_tokens":2000,"output_tokens":750}`)
+	ParseAndLogEvent(sl, stats, line)
+	sl.Close()
+
+	cost, inputTokens, outputTokens := stats.CostData()
+	if cost != 0.0456 {
+		t.Errorf("expected cost=0.0456, got %f", cost)
+	}
+	if inputTokens != 2000 {
+		t.Errorf("expected inputTokens=2000, got %d", inputTokens)
+	}
+	if outputTokens != 750 {
+		t.Errorf("expected outputTokens=750, got %d", outputTokens)
+	}
+}
+
+func TestParseAndLogEventCostDataNilStats(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+
+	// Should not panic when stats is nil
+	line := []byte(`{"type":"result","subtype":"success","total_cost_usd":0.0456,"input_tokens":2000,"output_tokens":750}`)
+	ParseAndLogEvent(sl, nil, line)
+	sl.Close()
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+
+	// Should still log the event even with nil stats
+	if !strings.Contains(string(content), "RESULT: subtype=success, cost=$0.0456") {
+		t.Errorf("expected RESULT log entry with nil stats, got: %s", string(content))
+	}
+}
+
+func TestStreamStatsCostDataNilSafe(t *testing.T) {
+	var stats *StreamStats
+	cost, inputTokens, outputTokens := stats.CostData()
+	if cost != 0 || inputTokens != 0 || outputTokens != 0 {
+		t.Errorf("expected zeros for nil stats, got cost=%f, inputTokens=%d, outputTokens=%d",
+			cost, inputTokens, outputTokens)
+	}
+}
