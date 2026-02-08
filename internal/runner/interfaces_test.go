@@ -1516,3 +1516,260 @@ func TestRunWithMocks_PrecheckPassedCloseFailsLoopTerminates(t *testing.T) {
 		t.Errorf("expected BeadID 'stuck-bead', got %q", mockLog.Logs[0].BeadID)
 	}
 }
+
+func TestRunWithMocks_ConsecutivePrecheckSkipsHitsLimit(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			// Always return the same bead (simulating Close() appearing to succeed but not working)
+			return &bead.Bead{
+				ID:              "stuck-bead",
+				Title:           "Already completed but Close doesn't work",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature is implemented"},
+			}, nil
+		},
+		CloseFn: func(id string) error {
+			// Close appears to succeed (returns nil) but doesn't actually work
+			return nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Precheck always passes
+			return &claude.Result{Success: true, Output: "PRECHECK_PASSED\n\nAll criteria met."}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+
+	precheckEnabled := true
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{
+			Claude:   config.ClaudeConfig{BeadTimeout: 60},
+			Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30},
+			Loop:     config.LoopConfig{MaxConsecutiveSkips: 3},
+		},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	// Run should fail after 3 consecutive precheck skips
+	err := r.Run(context.Background(), 10, time.Time{}, false)
+	if err == nil {
+		t.Fatal("expected error from consecutive skip limit, got nil")
+	}
+
+	// Verify the error message mentions consecutive skips
+	if !strings.Contains(err.Error(), "consecutive precheck skips") {
+		t.Errorf("expected error about consecutive skips, got: %v", err)
+	}
+
+	// Verify Ready was called 3 times (limit is checked AFTER each skip, so we exit on the 3rd)
+	if callCount != 3 {
+		t.Errorf("expected Ready called 3 times, got %d", callCount)
+	}
+
+	// Verify Close was attempted 3 times (once per skip before limit check)
+	if len(beads.ClosedIDs) != 3 {
+		t.Errorf("expected Close attempted 3 times, got %d: %v", len(beads.ClosedIDs), beads.ClosedIDs)
+	}
+
+	// Verify 3 precheck_skipped logs were written (one for each skip before the error)
+	if len(mockLog.Logs) != 3 {
+		t.Fatalf("expected 3 iteration logs, got %d", len(mockLog.Logs))
+	}
+	for i, log := range mockLog.Logs {
+		if log.Outcome != "precheck_skipped" {
+			t.Errorf("log %d: expected Outcome 'precheck_skipped', got %q", i, log.Outcome)
+		}
+		if log.BeadID != "stuck-bead" {
+			t.Errorf("log %d: expected BeadID 'stuck-bead', got %q", i, log.BeadID)
+		}
+	}
+}
+
+func TestRunWithMocks_ConsecutiveSkipCounterResetsAfterRealBuild(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			// Return sequence: 2 precheck-pass beads, 1 real-build bead (precheck disabled), 2 more precheck-pass beads
+			switch callCount {
+			case 1, 2:
+				return &bead.Bead{
+					ID:              fmt.Sprintf("precheck-bead-%d", callCount),
+					Title:           "Already completed",
+					Priority:        1,
+					Labels:          []string{},
+					ExpectedOutputs: []string{"feature is implemented"},
+				}, nil
+			case 3:
+				// A bead where precheck fails (returns false)
+				return &bead.Bead{
+					ID:              "real-build-bead",
+					Title:           "Needs implementation",
+					Priority:        1,
+					Labels:          []string{},
+					ExpectedOutputs: []string{"feature is implemented"},
+				}, nil
+			case 4, 5:
+				return &bead.Bead{
+					ID:              fmt.Sprintf("precheck-bead-%d", callCount),
+					Title:           "Already completed",
+					Priority:        1,
+					Labels:          []string{},
+					ExpectedOutputs: []string{"feature is implemented"},
+				}, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+
+	callNum := 0
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			callNum++
+			isPrecheck := strings.Contains(prompt, "precheck")
+			// Calls 1-2: precheck pass, Call 3: precheck fail, Call 4: real build, Calls 5-6: precheck pass
+			if isPrecheck {
+				if callNum == 3 {
+					// Bead 3 precheck fails - criteria not met
+					return &claude.Result{Success: true, Output: "Criteria not yet met"}, nil
+				}
+				// All other prechecks pass
+				return &claude.Result{Success: true, Output: "PRECHECK_PASSED\n\nAll criteria met."}, nil
+			}
+			// Real builds succeed
+			return &claude.Result{Success: true, Output: "Implementation complete"}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+
+	precheckEnabled := true
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{
+			Claude:     config.ClaudeConfig{BeadTimeout: 60},
+			Precheck:   config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30},
+			Loop:       config.LoopConfig{MaxConsecutiveSkips: 3},
+			Validation: config.ValidationConfig{Enabled: false},
+		},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	// Run should complete without hitting consecutive skip limit
+	if err := r.Run(context.Background(), 10, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Verify all 5 beads were processed
+	if callCount != 6 {
+		t.Errorf("expected Ready called 6 times (5 beads + final nil check), got %d", callCount)
+	}
+
+	// Verify 5 beads were closed
+	if len(beads.ClosedIDs) != 5 {
+		t.Errorf("expected 5 beads closed, got %d: %v", len(beads.ClosedIDs), beads.ClosedIDs)
+	}
+
+	// Verify 5 iteration logs (2 precheck_skipped, 1 regular, 2 more precheck_skipped)
+	if len(mockLog.Logs) != 5 {
+		t.Fatalf("expected 5 iteration logs, got %d", len(mockLog.Logs))
+	}
+
+	// Count precheck_skipped outcomes - should be 4
+	precheckCount := 0
+	for _, log := range mockLog.Logs {
+		if log.Outcome == "precheck_skipped" {
+			precheckCount++
+		}
+	}
+	if precheckCount != 4 {
+		t.Errorf("expected 4 precheck_skipped outcomes, got %d", precheckCount)
+	}
+
+	// Key assertion: we processed 2 precheck skips, then a real build, then 2 more precheck skips
+	// without hitting the limit of 3 consecutive skips
+	// (If the counter wasn't reset, we'd have hit the limit on the 4th precheck skip)
+}
+
+func TestRunWithMocks_CustomConsecutiveSkipLimit(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			// Always return the same bead (simulating Close() appearing to succeed but not working)
+			return &bead.Bead{
+				ID:              "stuck-bead",
+				Title:           "Already completed but Close doesn't work",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature is implemented"},
+			}, nil
+		},
+		CloseFn: func(id string) error {
+			// Close appears to succeed (returns nil) but doesn't actually work
+			return nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Precheck always passes
+			return &claude.Result{Success: true, Output: "PRECHECK_PASSED\n\nAll criteria met."}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+
+	precheckEnabled := true
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{
+			Claude:   config.ClaudeConfig{BeadTimeout: 60},
+			Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30},
+			Loop:     config.LoopConfig{MaxConsecutiveSkips: 2}, // Custom limit of 2
+		},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	// Run should fail after 2 consecutive precheck skips (custom limit)
+	err := r.Run(context.Background(), 10, time.Time{}, false)
+	if err == nil {
+		t.Fatal("expected error from consecutive skip limit, got nil")
+	}
+
+	// Verify the error message mentions consecutive skips
+	if !strings.Contains(err.Error(), "consecutive precheck skips") {
+		t.Errorf("expected error about consecutive skips, got: %v", err)
+	}
+
+	// Verify Ready was called 2 times (limit is checked AFTER each skip, so we exit on the 2nd)
+	if callCount != 2 {
+		t.Errorf("expected Ready called 2 times, got %d", callCount)
+	}
+
+	// Verify Close was attempted 2 times (once per skip before limit check)
+	if len(beads.ClosedIDs) != 2 {
+		t.Errorf("expected Close attempted 2 times, got %d: %v", len(beads.ClosedIDs), beads.ClosedIDs)
+	}
+
+	// Verify 2 precheck_skipped logs were written (one for each skip before the error)
+	if len(mockLog.Logs) != 2 {
+		t.Fatalf("expected 2 iteration logs, got %d", len(mockLog.Logs))
+	}
+	for i, log := range mockLog.Logs {
+		if log.Outcome != "precheck_skipped" {
+			t.Errorf("log %d: expected Outcome 'precheck_skipped', got %q", i, log.Outcome)
+		}
+		if log.BeadID != "stuck-bead" {
+			t.Errorf("log %d: expected BeadID 'stuck-bead', got %q", i, log.BeadID)
+		}
+	}
+}
