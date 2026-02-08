@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -1116,333 +1113,34 @@ func TestRunRefactorPhase_ValidationDisabled(t *testing.T) {
 	}
 }
 
-// TestRunValidationPostSuccess_ParallelExecution verifies that when both
-// learn_from_success and review are enabled, runValidation dispatches them
-// concurrently. Uses a barrier pattern: each stage signals arrival and waits
-// for the other. If sequential, the test deadlocks (caught by test timeout).
-func TestRunValidationPostSuccess_ParallelExecution(t *testing.T) {
-	// Barrier channels: each stage signals arrival, then waits for the other.
-	learningArrived := make(chan struct{})
-	reviewArrived := make(chan struct{})
-	learningStarted := make(chan struct{}, 1)
-	reviewStarted := make(chan struct{}, 1)
-
-	var buf strings.Builder
-
-	mockClaude := &mockClaudeClient{
-		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
-			// Success learning extraction
-			if strings.Contains(prompt, "success") || strings.Contains(prompt, "learn") || model == "haiku" {
-				select {
-				case learningStarted <- struct{}{}:
-				default:
-				}
-				close(learningArrived)
-				<-reviewArrived // wait for review to also start
-				return &claude.Result{
-					Success: true,
-					Output:  `{"learning": "Test learning", "category": "patterns"}`,
-				}, nil
-			}
-			// Light review
-			select {
-			case reviewStarted <- struct{}{}:
-			default:
-			}
-			close(reviewArrived)
-			<-learningArrived // wait for learning to also start
-			return &claude.Result{
-				Success: true,
-				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Looks good"}`,
-			}, nil
-		},
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "Tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
-	}
-
-	lf, _ := learnings.NewFile(t.TempDir())
-	mockRend := &mockPromptRenderer{
-		LearningsFile: lf,
-		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
-			return "learning prompt", nil
-		},
-		RenderReviewFn: func(ctx *prompt.ReviewContext) (string, error) {
-			return "review prompt", nil
-		},
-	}
-
-	learnFromSuccessEnabled := true
-	syncOut := newSyncWriter(&buf)
-	r := &Runner{
-		cfg: &config.Config{
-			Loop: config.LoopConfig{
-				LearnFromSuccess: &learnFromSuccessEnabled,
-			},
-			Review: config.ReviewConfig{
-				Enabled: true,
-				Timeout: 60,
-			},
-			Validation: config.ValidationConfig{
-				Enabled:  true,
-				Commands: []string{"go test ./..."},
-			},
-			Models: config.ModelsConfig{
-				Validation: "haiku",
-			},
-			Preflight: config.PreflightConfig{},
-		},
-		claude:   mockClaude,
-		renderer: mockRend,
-		beads:    &mockBeadClient{},
-		output:   syncOut,
-		gitDiffFn: func(fromCommit string) (string, error) {
-			return "diff --git a/file.go b/file.go\n+some change", nil
-		},
-	}
-
-	bc := &beadContext{
-		bead: &bead.Bead{
-			ID:          "test-1",
-			Title:       "Test",
-			Description: "Test description",
-		},
-		model:       "sonnet",
-		result:      &IterationResult{Validated: true},
-		startCommit: "abc123",
-		iteration:   1,
-		runDeadline: time.Now().Add(5 * time.Minute),
-		promptCtx: &prompt.Context{
-			WorkDir: t.TempDir(),
-		},
-	}
-
-	err := r.runValidation(context.Background(), bc)
-
-	if err != nil {
-		t.Fatalf("expected no error, got: %v\nOutput: %s", err, buf.String())
-	}
-
-	// Verify both stages actually started
-	select {
-	case <-learningStarted:
-	default:
-		t.Fatal("learning extraction was never started")
-	}
-
-	select {
-	case <-reviewStarted:
-	default:
-		t.Fatal("review was never started")
-	}
-
-	// The barrier pattern proves concurrency: if both stages completed without
-	// deadlocking, they must have been running concurrently.
-}
-
-// TestPostSuccess_BothEnabled_ConcurrentExecution verifies that runPostSuccessParallel
-// runs learning and review concurrently. Uses a barrier pattern: each stage signals
-// arrival and waits for the other. If sequential, the test deadlocks (test timeout).
-func TestPostSuccess_BothEnabled_ConcurrentExecution(t *testing.T) {
-	// Barrier channels: each stage signals arrival, then waits for the other.
-	learningArrived := make(chan struct{})
-	reviewArrived := make(chan struct{})
-	learningStarted := make(chan struct{}, 1)
-	reviewStarted := make(chan struct{}, 1)
-
-	var buf strings.Builder
-
-	mockClaude := &mockClaudeClient{
-		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
-			isLearningCall := strings.Contains(prompt, "extract learning") || strings.Contains(prompt, "success") || model == "haiku"
-
-			if isLearningCall {
-				select {
-				case learningStarted <- struct{}{}:
-				default:
-				}
-				close(learningArrived)
-				<-reviewArrived // wait for review to also start
-				return &claude.Result{
-					Success: true,
-					Output:  `{"learning": "Test learning from concurrent execution", "category": "patterns"}`,
-				}, nil
-			}
-
-			// Review call
-			select {
-			case reviewStarted <- struct{}{}:
-			default:
-			}
-			close(reviewArrived)
-			<-learningArrived // wait for learning to also start
-			return &claude.Result{
-				Success: true,
-				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Code looks good"}`,
-			}, nil
-		},
-	}
-
-	lf, _ := learnings.NewFile(t.TempDir())
-	mockRend := &mockPromptRenderer{
-		LearningsFile: lf,
-		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
-			return "extract learning from this success", nil
-		},
-		RenderReviewFn: func(ctx *prompt.ReviewContext) (string, error) {
-			return "review this code for improvements", nil
-		},
-	}
-
-	learnFromSuccessEnabled := true
-	syncOut := newSyncWriter(&buf)
-	r := &Runner{
-		cfg: &config.Config{
-			Loop: config.LoopConfig{
-				LearnFromSuccess: &learnFromSuccessEnabled,
-			},
-			Review: config.ReviewConfig{
-				Enabled: true,
-				Timeout: 60,
-			},
-			Models: config.ModelsConfig{
-				P0:         "opus",
-				P1:         "sonnet",
-				P2:         "haiku",
-				Validation: "haiku",
-			},
-			Validation: config.ValidationConfig{
-				Enabled: false,
-			},
-		},
-		claude:   mockClaude,
-		renderer: mockRend,
-		beads:    &mockBeadClient{},
-		output:   syncOut,
-		gitDiffFn: func(fromCommit string) (string, error) {
-			return "diff --git a/file.go b/file.go\n+some change", nil
-		},
-	}
-
-	bc := &beadContext{
-		bead: &bead.Bead{
-			ID:          "test-parallel",
-			Title:       "Test Parallel Execution",
-			Description: "Verify concurrent post-success stages",
-		},
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: "abc123",
-		iteration:   1,
-		runDeadline: time.Now().Add(5 * time.Minute),
-		promptCtx: &prompt.Context{
-			WorkDir: t.TempDir(),
-		},
-	}
-
-	err := r.runPostSuccessParallel(context.Background(), bc)
-	if err != nil {
-		t.Fatalf("runPostSuccessParallel failed: %v", err)
-	}
-
-	// Verify both stages actually started
-	select {
-	case <-learningStarted:
-	default:
-		t.Fatal("learning extraction was never started")
-	}
-
-	select {
-	case <-reviewStarted:
-	default:
-		t.Fatal("review was never started")
-	}
-
-	// The barrier pattern proves concurrency: if both stages completed without
-	// deadlocking, they must have been running concurrently.
-}
-
 func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
-	// ACCEPTANCE CRITERION: A failure in learning extraction does not prevent or delay the review.
-	// This test verifies that when learning extraction fails, the review stage still executes
-	// and completes successfully without being affected by the learning failure.
+	// Verifies that when learning extraction fails, the review stage still executes
+	// and completes successfully.
 
 	var buf strings.Builder
 	var learningCalled, reviewCalled bool
-	var mu sync.Mutex
-
-	// Create a real git repo in temp dir so getGitDiff works
-	tempDir := t.TempDir()
-	cmd := exec.Command("git", "init")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to init git repo: %v", err)
-	}
-
-	// Configure git user for commits
-	cmd = exec.Command("git", "config", "user.email", "test@example.com")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to configure git email: %v", err)
-	}
-	cmd = exec.Command("git", "config", "user.name", "Test User")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to configure git name: %v", err)
-	}
-
-	// Create initial commit
-	testFile := filepath.Join(tempDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
-		t.Fatalf("failed to write test file: %v", err)
-	}
-	cmd = exec.Command("git", "add", ".")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git add: %v", err)
-	}
-	cmd = exec.Command("git", "commit", "-m", "initial")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git commit: %v", err)
-	}
-
-	// Get initial commit hash
-	cmd = exec.Command("git", "rev-parse", "HEAD")
-	cmd.Dir = tempDir
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("failed to get HEAD: %v", err)
-	}
-	startCommit := strings.TrimSpace(string(out))
-
-	// Make a change so there's a diff
-	if err := os.WriteFile(testFile, []byte("modified"), 0644); err != nil {
-		t.Fatalf("failed to modify test file: %v", err)
-	}
 
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 			// Learning extraction always uses haiku model
 			if model == "haiku" {
-				mu.Lock()
 				learningCalled = true
-				mu.Unlock()
 				// Learning extraction fails
 				return nil, fmt.Errorf("learning extraction failed: network timeout")
 			}
 
 			// Review stage uses sonnet/opus (selected based on build model)
-			mu.Lock()
 			reviewCalled = true
-			mu.Unlock()
 			// Review succeeds
 			return &claude.Result{
 				Success: true,
 				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed successfully"}`,
+			}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "All tests passed\nVALIDATION_PASSED",
 			}, nil
 		},
 	}
@@ -1476,13 +1174,18 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 				Validation: "haiku",
 			},
 			Validation: config.ValidationConfig{
-				Enabled: false,
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
 			},
+			Preflight: config.PreflightConfig{},
 		},
 		claude:   mockClaude,
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
 		output:   syncOut,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
 	}
 
 	bc := &beadContext{
@@ -1493,28 +1196,20 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 		},
 		model:       "sonnet",
 		result:      &IterationResult{},
-		startCommit: startCommit,
+		startCommit: "abc123",
 		iteration:   1,
 		runDeadline: time.Now().Add(5 * time.Minute),
 		promptCtx: &prompt.Context{
-			WorkDir: tempDir,
+			WorkDir: t.TempDir(),
 		},
 	}
 
-	// Change to the git repo directory for git operations
-	origDir, _ := os.Getwd()
-	os.Chdir(tempDir)
-	defer os.Chdir(origDir)
-
-	err = r.runPostSuccessParallel(context.Background(), bc)
+	err := r.runValidation(context.Background(), bc)
 
 	// The method should not return an error even though learning extraction failed
 	if err != nil {
 		t.Errorf("expected no error when learning fails (should be silently ignored), got: %v", err)
 	}
-
-	mu.Lock()
-	defer mu.Unlock()
 
 	// Verify both stages were called
 	if !learningCalled {
@@ -1532,74 +1227,18 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 }
 
 func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
-	// ACCEPTANCE CRITERION: Review re-validation (when fixes are applied) still works correctly
-	// within its goroutine and its error still propagates to the caller.
-	// This test verifies that when the review applies fixes and re-validation fails,
-	// the error propagates up correctly while learning still completes.
+	// Verifies that when the review applies fixes and re-validation fails,
+	// the error propagates up correctly.
 
 	var buf strings.Builder
 	var learningCalled, reviewCalled, revalidationCalled bool
-	var mu sync.Mutex
-
-	// Create a real git repo in temp dir so getGitDiff works
-	tempDir := t.TempDir()
-	cmd := exec.Command("git", "init")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to init git repo: %v", err)
-	}
-
-	// Configure git user for commits
-	cmd = exec.Command("git", "config", "user.email", "test@example.com")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to configure git email: %v", err)
-	}
-	cmd = exec.Command("git", "config", "user.name", "Test User")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to configure git name: %v", err)
-	}
-
-	// Create initial commit
-	testFile := filepath.Join(tempDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
-		t.Fatalf("failed to write test file: %v", err)
-	}
-	cmd = exec.Command("git", "add", ".")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git add: %v", err)
-	}
-	cmd = exec.Command("git", "commit", "-m", "initial")
-	cmd.Dir = tempDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git commit: %v", err)
-	}
-
-	// Get initial commit hash
-	cmd = exec.Command("git", "rev-parse", "HEAD")
-	cmd.Dir = tempDir
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("failed to get HEAD: %v", err)
-	}
-	startCommit := strings.TrimSpace(string(out))
-
-	// Make a change so there's a diff
-	if err := os.WriteFile(testFile, []byte("modified"), 0644); err != nil {
-		t.Fatalf("failed to modify test file: %v", err)
-	}
+	validationCallCount := 0
 
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 			// Learning extraction uses haiku model
 			if model == "haiku" {
-				mu.Lock()
 				learningCalled = true
-				mu.Unlock()
-				time.Sleep(50 * time.Millisecond) // Simulate work
-				// Learning succeeds
 				return &claude.Result{
 					Success: true,
 					Output:  `{"learning": "Test learning", "category": "patterns"}`,
@@ -1607,9 +1246,7 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 			}
 
 			// Review stage uses sonnet/opus
-			mu.Lock()
 			reviewCalled = true
-			mu.Unlock()
 			// Review succeeds but applies fixes
 			return &claude.Result{
 				Success: true,
@@ -1617,10 +1254,16 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 			}, nil
 		},
 		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			mu.Lock()
-			revalidationCalled = true
-			mu.Unlock()
+			validationCallCount++
+			if validationCallCount == 1 {
+				// Initial validation passes
+				return &claude.Result{
+					Success: true,
+					Output:  "All tests passed\nVALIDATION_PASSED",
+				}, nil
+			}
 			// Re-validation fails - review fixes broke tests
+			revalidationCalled = true
 			return &claude.Result{
 				Success: true,
 				Output:  "Tests failed after review fixes\nVALIDATION_FAILED",
@@ -1666,35 +1309,30 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
 		output:   syncOut,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
 	}
 
 	bc := &beadContext{
 		bead: &bead.Bead{
 			ID:          "test-review-revalidation-fail",
 			Title:       "Test Review Re-validation Error Propagation",
-			Description: "Verify re-validation errors propagate while learning completes",
+			Description: "Verify re-validation errors propagate",
 		},
 		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: startCommit,
+		result:      &IterationResult{Validated: true},
+		startCommit: "abc123",
 		iteration:   1,
 		runDeadline: time.Now().Add(5 * time.Minute),
 		promptCtx: &prompt.Context{
-			WorkDir: tempDir,
+			WorkDir: t.TempDir(),
 		},
 	}
 
-	// Change to the git repo directory for git operations
-	origDir, _ := os.Getwd()
-	os.Chdir(tempDir)
-	defer os.Chdir(origDir)
+	err := r.runValidation(context.Background(), bc)
 
-	err = r.runPostSuccessParallel(context.Background(), bc)
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	// CRITICAL: The error should propagate to the caller
+	// The error should propagate to the caller
 	if err == nil {
 		t.Fatal("expected error when review re-validation fails, but got nil")
 	}
@@ -1714,13 +1352,529 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 	if !revalidationCalled {
 		t.Error("re-validation should have been triggered because fixes were applied")
 	}
+}
 
-	// Verify learning completed successfully despite review re-validation failure
-	// (Learning should complete in its own goroutine unaffected by review's re-validation error)
+func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
+	// Verifies that when only learning extraction is enabled (review disabled),
+	// learning runs inline without goroutine overhead and review is skipped entirely.
+
+	var buf strings.Builder
+	var learningCalled, reviewCalled bool
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Learning extraction uses haiku model
+			if model == "haiku" {
+				learningCalled = true
+				return &claude.Result{
+					Success: true,
+					Output:  `{"learning": "Test learning from success", "category": "patterns"}`,
+				}, nil
+			}
+
+			// Review should not be called
+			reviewCalled = true
+			return &claude.Result{
+				Success: true,
+				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed"}`,
+			}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "All tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+	}
+
+	lf, _ := learnings.NewFile(t.TempDir())
+	mockRend := &mockPromptRenderer{
+		LearningsFile: lf,
+		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
+			return "extract learning from success", nil
+		},
+	}
+
+	learnFromSuccessEnabled := true
+	syncOut := newSyncWriter(&buf)
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessEnabled,
+			},
+			Review: config.ReviewConfig{
+				Enabled: false, // Review disabled
+			},
+			Models: config.ModelsConfig{
+				P0:         "opus",
+				P1:         "sonnet",
+				P2:         "haiku",
+				Validation: "haiku",
+			},
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		beads:    &mockBeadClient{},
+		output:   syncOut,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
+	}
+
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:          "test-only-learning",
+			Title:       "Test Single-Stage Learning",
+			Description: "Verify learning runs inline when review is disabled",
+		},
+		model:       "sonnet",
+		result:      &IterationResult{Validated: true},
+		startCommit: "abc123",
+		iteration:   1,
+		runDeadline: time.Now().Add(5 * time.Minute),
+		promptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+	}
+
+	err := r.runValidation(context.Background(), bc)
+
+	// Should not return an error
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+
+	// Verify learning was called
+	if !learningCalled {
+		t.Error("learning extraction should have been called")
+	}
+
+	// Verify review was NOT called (disabled)
+	if reviewCalled {
+		t.Error("review should NOT have been called when disabled")
+	}
+
+	// Verify output contains learning success message
 	output := buf.String()
-	if strings.Contains(output, "Success learning extracted") {
-		t.Logf("Learning extraction completed successfully as expected")
-	} else {
-		t.Log("Note: Learning extraction may have completed but not logged success message (which is acceptable)")
+	if !strings.Contains(output, "Success learning extracted") {
+		t.Errorf("expected 'Success learning extracted' in output, got: %s", output)
+	}
+}
+
+func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
+	// Verifies that when only review is enabled (learning disabled),
+	// review runs inline without goroutine overhead and learning is skipped entirely.
+
+	var buf strings.Builder
+	var learningCalled, reviewCalled bool
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Learning extraction should not be called
+			if model == "haiku" {
+				learningCalled = true
+				return &claude.Result{
+					Success: true,
+					Output:  `{"learning": "Should not be called", "category": "patterns"}`,
+				}, nil
+			}
+
+			// Review stage uses sonnet/opus
+			reviewCalled = true
+			return &claude.Result{
+				Success: true,
+				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed successfully"}`,
+			}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "All tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+	}
+
+	mockRend := &mockPromptRenderer{
+		LearningsFile: nil, // No learnings file since learning is disabled
+		RenderReviewFn: func(ctx *prompt.ReviewContext) (string, error) {
+			return "review code for improvements", nil
+		},
+	}
+
+	learnFromSuccessDisabled := false
+	syncOut := newSyncWriter(&buf)
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessDisabled, // Learning disabled
+			},
+			Review: config.ReviewConfig{
+				Enabled: true,
+				Timeout: 60,
+			},
+			Models: config.ModelsConfig{
+				P0:         "opus",
+				P1:         "sonnet",
+				P2:         "haiku",
+				Validation: "haiku",
+			},
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		beads:    &mockBeadClient{},
+		output:   syncOut,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
+	}
+
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:          "test-only-review",
+			Title:       "Test Single-Stage Review",
+			Description: "Verify review runs inline when learning is disabled",
+		},
+		model:       "sonnet",
+		result:      &IterationResult{Validated: true},
+		startCommit: "abc123",
+		iteration:   1,
+		runDeadline: time.Now().Add(5 * time.Minute),
+		promptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+	}
+
+	err := r.runValidation(context.Background(), bc)
+
+	// Should not return an error
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+
+	// Verify learning was NOT called (disabled)
+	if learningCalled {
+		t.Error("learning extraction should NOT have been called when disabled")
+	}
+
+	// Verify review was called
+	if !reviewCalled {
+		t.Error("review should have been called")
+	}
+
+	// Verify output contains review success message
+	output := buf.String()
+	if !strings.Contains(output, "Review:") || !strings.Contains(output, "Review completed successfully") {
+		t.Errorf("expected review completion message in output, got: %s", output)
+	}
+
+	// Verify output does NOT contain learning message
+	if strings.Contains(output, "Success learning") {
+		t.Errorf("expected no learning message when disabled, got: %s", output)
+	}
+}
+
+func TestPostSuccess_BothStagesEnabled_ExecuteConcurrently(t *testing.T) {
+	// Verifies that when both learning and review are enabled,
+	// they execute concurrently and wall-clock time is approximately max(learning, review)
+	// rather than sum(learning, review).
+
+	var buf strings.Builder
+	var learningStartTime, reviewStartTime, learningEndTime, reviewEndTime time.Time
+	var mu sync.Mutex
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Learning extraction uses haiku model
+			if model == "haiku" {
+				mu.Lock()
+				learningStartTime = time.Now()
+				mu.Unlock()
+
+				// Simulate work with a sleep
+				time.Sleep(100 * time.Millisecond)
+
+				mu.Lock()
+				learningEndTime = time.Now()
+				mu.Unlock()
+
+				return &claude.Result{
+					Success: true,
+					Output:  `{"learning": "Test concurrent learning", "category": "patterns"}`,
+				}, nil
+			}
+
+			// Review stage uses sonnet/opus
+			mu.Lock()
+			reviewStartTime = time.Now()
+			mu.Unlock()
+
+			// Simulate work with a sleep
+			time.Sleep(150 * time.Millisecond)
+
+			mu.Lock()
+			reviewEndTime = time.Now()
+			mu.Unlock()
+
+			return &claude.Result{
+				Success: true,
+				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed"}`,
+			}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "All tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+	}
+
+	lf, _ := learnings.NewFile(t.TempDir())
+	mockRend := &mockPromptRenderer{
+		LearningsFile: lf,
+		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
+			return "extract learning from success", nil
+		},
+		RenderReviewFn: func(ctx *prompt.ReviewContext) (string, error) {
+			return "review code for improvements", nil
+		},
+	}
+
+	learnFromSuccessEnabled := true
+	syncOut := newSyncWriter(&buf)
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessEnabled,
+			},
+			Review: config.ReviewConfig{
+				Enabled: true,
+				Timeout: 60,
+			},
+			Models: config.ModelsConfig{
+				P0:         "opus",
+				P1:         "sonnet",
+				P2:         "haiku",
+				Validation: "haiku",
+			},
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		beads:    &mockBeadClient{},
+		output:   syncOut,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
+	}
+
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:          "test-concurrent-stages",
+			Title:       "Test Concurrent Post-Success Execution",
+			Description: "Verify learning and review run concurrently",
+		},
+		model:       "sonnet",
+		result:      &IterationResult{Validated: true},
+		startCommit: "abc123",
+		iteration:   1,
+		runDeadline: time.Now().Add(5 * time.Minute),
+		promptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+	}
+
+	start := time.Now()
+	err := r.runValidation(context.Background(), bc)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+
+	// Verify both stages were called
+	mu.Lock()
+	defer mu.Unlock()
+
+	if learningStartTime.IsZero() {
+		t.Error("learning should have been called")
+	}
+	if reviewStartTime.IsZero() {
+		t.Error("review should have been called")
+	}
+
+	// Key assertion: verify concurrent execution
+	// If stages run concurrently, they should overlap in time
+	// Learning takes ~100ms, review takes ~150ms
+	// Sequential: ~250ms total
+	// Concurrent: ~150ms total (max of the two)
+	// Allow some overhead (50ms buffer)
+	maxExpected := 200 * time.Millisecond
+	minExpected := 140 * time.Millisecond
+
+	if elapsed < minExpected {
+		t.Errorf("execution too fast: expected at least %v, got %v (stages may not have actually run)", minExpected, elapsed)
+	}
+
+	if elapsed > maxExpected {
+		t.Errorf("execution too slow: expected at most %v, got %v (stages may be running sequentially)", maxExpected, elapsed)
+	}
+
+	// Verify stages actually overlapped in time
+	// Learning: [learningStartTime, learningEndTime]
+	// Review: [reviewStartTime, reviewEndTime]
+	// They overlap if: learningStartTime < reviewEndTime && reviewStartTime < learningEndTime
+	if !learningStartTime.IsZero() && !reviewStartTime.IsZero() {
+		if learningStartTime.After(reviewEndTime) || reviewStartTime.After(learningEndTime) {
+			t.Errorf("stages did not overlap in time - likely sequential execution. Learning: %v-%v, Review: %v-%v",
+				learningStartTime, learningEndTime, reviewStartTime, reviewEndTime)
+		}
+	}
+
+	// Verify both stages completed successfully
+	output := buf.String()
+	if !strings.Contains(output, "Success learning extracted") {
+		t.Error("expected learning completion message")
+	}
+	if !strings.Contains(output, "Review:") {
+		t.Error("expected review completion message")
+	}
+}
+
+func TestPostSuccess_ConcurrentExecution_LearningFailureDoesNotBlockReview(t *testing.T) {
+	// Verifies that when both stages run concurrently, a failure in learning
+	// does not prevent or delay the review stage from completing.
+
+	var buf strings.Builder
+	var learningCalled, reviewCalled bool
+	var mu sync.Mutex
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			// Learning extraction uses haiku model and fails
+			if model == "haiku" {
+				mu.Lock()
+				learningCalled = true
+				mu.Unlock()
+
+				// Fail immediately
+				return nil, fmt.Errorf("learning extraction failed: network timeout")
+			}
+
+			// Review stage uses sonnet/opus and succeeds
+			mu.Lock()
+			reviewCalled = true
+			mu.Unlock()
+
+			// Simulate some work
+			time.Sleep(50 * time.Millisecond)
+
+			return &claude.Result{
+				Success: true,
+				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed despite learning failure"}`,
+			}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "All tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+	}
+
+	lf, _ := learnings.NewFile(t.TempDir())
+	mockRend := &mockPromptRenderer{
+		LearningsFile: lf,
+		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
+			return "extract learning from success", nil
+		},
+		RenderReviewFn: func(ctx *prompt.ReviewContext) (string, error) {
+			return "review code for improvements", nil
+		},
+	}
+
+	learnFromSuccessEnabled := true
+	syncOut := newSyncWriter(&buf)
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessEnabled,
+			},
+			Review: config.ReviewConfig{
+				Enabled: true,
+				Timeout: 60,
+			},
+			Models: config.ModelsConfig{
+				P0:         "opus",
+				P1:         "sonnet",
+				P2:         "haiku",
+				Validation: "haiku",
+			},
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude:   mockClaude,
+		renderer: mockRend,
+		beads:    &mockBeadClient{},
+		output:   syncOut,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
+	}
+
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:          "test-concurrent-isolation",
+			Title:       "Test Concurrent Stage Isolation",
+			Description: "Verify learning failure doesn't block review",
+		},
+		model:       "sonnet",
+		result:      &IterationResult{Validated: true},
+		startCommit: "abc123",
+		iteration:   1,
+		runDeadline: time.Now().Add(5 * time.Minute),
+		promptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+	}
+
+	err := r.runValidation(context.Background(), bc)
+
+	// The method should not return an error (learning failures are silently ignored)
+	if err != nil {
+		t.Errorf("expected no error when learning fails in concurrent execution, got: %v", err)
+	}
+
+	// Verify both stages were called
+	mu.Lock()
+	defer mu.Unlock()
+
+	if !learningCalled {
+		t.Error("learning should have been called")
+	}
+	if !reviewCalled {
+		t.Error("review should have been called")
+	}
+
+	// Verify review completed despite learning failure
+	output := buf.String()
+	if !strings.Contains(output, "Review:") && !strings.Contains(output, "Review completed despite learning failure") {
+		t.Errorf("expected review completion message, got: %s", output)
 	}
 }
