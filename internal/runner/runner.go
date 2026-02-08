@@ -247,6 +247,20 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		r.log("Warning: could not load state: %v", err)
 	}
 
+	// Check for stale state and auto-heal if needed
+	if sf != nil {
+		if isStale, reason := sf.CheckStaleness(r.cfg.State.StaleThreshold); isStale {
+			r.log("Warning: %s — auto-healing state (resetting iteration counters)", reason)
+			sf.AutoHeal()
+		}
+
+		// Set clean_exit to false and save immediately
+		sf.SetCleanExit(false)
+		if err := sf.Save(); err != nil {
+			r.log("Warning: could not save state after setting clean_exit: %v", err)
+		}
+	}
+
 	// Initialize review baseline if not set
 	if sf != nil && sf.LastReviewCommit() == "" {
 		currentCommit, err := getGitHead()
@@ -466,6 +480,14 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 	// Set final iteration count for deferred status write
 	finalIteration = &iteration
+
+	// Mark clean exit before returning
+	if sf != nil {
+		sf.SetCleanExit(true)
+		if err := sf.Save(); err != nil {
+			r.log("Warning: could not save state after clean exit: %v", err)
+		}
+	}
 
 	// Check if retro should be suggested
 	r.checkRetroSuggestion()
