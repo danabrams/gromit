@@ -465,6 +465,52 @@ func TestNewRunnerWithDeps_NilConfig(t *testing.T) {
 	}
 }
 
+func TestNewRunnerWithDeps_ApplesDefaultsToUninitialisedConfig(t *testing.T) {
+	// Test that NewRunnerWithDeps applies config defaults to prevent
+	// accidental precheck execution in tests that don't explicitly test it.
+	cfg := &config.Config{}
+	var buf strings.Builder
+
+	r, err := NewRunnerWithDeps(cfg, &buf, "/tmp/gromit", Deps{
+		Beads:    &mockBeadClient{},
+		Claude:   &mockClaudeClient{},
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+
+	// Verify that config defaults were applied
+	// Precheck should be enabled by default (true)
+	if cfg.Precheck.Enabled == nil {
+		t.Error("expected Precheck.Enabled to be set to non-nil after NewRunnerWithDeps")
+	}
+	if cfg.Precheck.Enabled != nil && !*cfg.Precheck.Enabled {
+		t.Error("expected Precheck.Enabled to be true by default")
+	}
+
+	// Precheck should have a default model
+	if cfg.Precheck.Model == "" {
+		t.Error("expected Precheck.Model to have default value")
+	}
+
+	// Loop.MaxConsecutiveSkips should have a default value
+	if cfg.Loop.MaxConsecutiveSkips == 0 {
+		t.Error("expected Loop.MaxConsecutiveSkips to have default value")
+	}
+
+	// Models should have defaults
+	if cfg.Models.P0 == "" || cfg.Models.P1 == "" || cfg.Models.P2 == "" {
+		t.Error("expected Models P0, P1, P2 to have default values")
+	}
+
+	if r == nil {
+		t.Fatal("expected non-nil runner")
+	}
+}
+
 func TestRunWithMocks_DryRun(t *testing.T) {
 	callCount := 0
 	beads := &mockBeadClient{

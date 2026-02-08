@@ -135,15 +135,15 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
-	cfg.setDefaults()
-	cfg.normalizeNilFields()
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
 	return &cfg, nil
 }
 
-// normalizeNilFields ensures nil slices and maps are replaced with empty
+// NormalizeNilFields ensures nil slices and maps are replaced with empty
 // instances. This prevents issues with downstream code that marshals to JSON
 // (nil → "null" vs [] → "[]") and ensures consistent behavior.
-func (c *Config) normalizeNilFields() {
+func (c *Config) NormalizeNilFields() {
 	if c.Escalation.Chain == nil {
 		c.Escalation.Chain = []string{}
 	}
@@ -161,7 +161,10 @@ func (c *Config) normalizeNilFields() {
 	}
 }
 
-func (c *Config) setDefaults() {
+// SetDefaults applies default values for all configuration fields.
+// This ensures config has sensible defaults even when partially initialized,
+// particularly important for test configs created with NewRunnerWithDeps.
+func (c *Config) SetDefaults() {
 	if c.Models.P0 == "" {
 		c.Models.P0 = ModelOpus
 	}

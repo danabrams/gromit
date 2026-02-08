@@ -145,10 +145,12 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
-	// Set defaults for fields that might not be initialized in tests
-	if cfg.Loop.MaxConsecutiveSkips == 0 {
-		cfg.Loop.MaxConsecutiveSkips = 3
-	}
+	// Apply config defaults to ensure consistent behavior even when config is
+	// partially initialized in tests. This prevents accidental precheck execution
+	// or other features in tests that don't explicitly test them.
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
 	if output == nil {
 		output = os.Stdout
 	}

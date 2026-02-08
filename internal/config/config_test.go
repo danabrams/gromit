@@ -184,7 +184,7 @@ func TestLoadAndDefaults(t *testing.T) {
 
 func TestStallTimeoutDefault(t *testing.T) {
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 	if cfg.Claude.StallTimeout != 120 {
 		t.Errorf("expected default StallTimeout=120, got %d", cfg.Claude.StallTimeout)
 	}
@@ -192,7 +192,7 @@ func TestStallTimeoutDefault(t *testing.T) {
 
 func TestStallTimeoutActiveDefault(t *testing.T) {
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 	if cfg.Claude.StallTimeoutActive != 300 {
 		t.Errorf("expected default StallTimeoutActive=300, got %d", cfg.Claude.StallTimeoutActive)
 	}
@@ -250,7 +250,7 @@ func TestLoadInvalidYAML(t *testing.T) {
 
 func TestSetDefaultsInitializesLabelsMap(t *testing.T) {
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 	if cfg.Models.Labels == nil {
 		t.Error("expected Models.Labels to be initialized, got nil")
 	}
@@ -267,7 +267,7 @@ func TestSetDefaultsPreservesExistingLabels(t *testing.T) {
 			Labels: map[string]string{"complexity:high": "opus"},
 		},
 	}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 	if cfg.Models.Labels["complexity:high"] != "opus" {
 		t.Errorf("expected existing label preserved, got %q", cfg.Models.Labels["complexity:high"])
 	}
@@ -290,7 +290,7 @@ func TestSelectModelNilLabelsMap(t *testing.T) {
 
 func TestMaxRetriesPerBeadDefault(t *testing.T) {
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 	if cfg.Escalation.MaxRetriesPerBead != 10 {
 		t.Errorf("expected default MaxRetriesPerBead=10, got %d", cfg.Escalation.MaxRetriesPerBead)
 	}
@@ -317,7 +317,7 @@ func TestMaxRetriesPerBeadFromYAML(t *testing.T) {
 func TestSelectModelPriorityWithEmptyLabels(t *testing.T) {
 	// Test priority-based selection with empty labels array
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 
 	tests := []struct {
 		priority int
@@ -384,7 +384,7 @@ func TestSelectModelPriorityIgnoresNonMatchingLabels(t *testing.T) {
 func TestSelectModelPriorityDefaultWhenUnknown(t *testing.T) {
 	// Test that unknown priority defaults to P1
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 
 	tests := []struct {
 		priority int
@@ -823,7 +823,7 @@ func TestNextEscalationModelWithWhitespace(t *testing.T) {
 func TestNextEscalationModelDefaultChain(t *testing.T) {
 	// Test with default chain after setDefaults()
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 	cfg.Escalation.Enabled = true
 
 	result := cfg.NextEscalationModel("haiku")
@@ -1511,7 +1511,7 @@ func TestLoadPreservesLabels(t *testing.T) {
 
 func TestStuckBeadThresholdDefault(t *testing.T) {
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 	if cfg.Loop.StuckBeadThreshold != 3 {
 		t.Errorf("expected default StuckBeadThreshold=3, got %d", cfg.Loop.StuckBeadThreshold)
 	}
@@ -1593,7 +1593,7 @@ func TestStuckBeadThresholdInFullConfig(t *testing.T) {
 
 func TestMaxConsecutiveSkipsDefault(t *testing.T) {
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 	if cfg.Loop.MaxConsecutiveSkips != 3 {
 		t.Errorf("expected default MaxConsecutiveSkips=3, got %d", cfg.Loop.MaxConsecutiveSkips)
 	}
@@ -1677,7 +1677,7 @@ func TestMaxConsecutiveSkipsInFullConfig(t *testing.T) {
 
 func TestNormalizeNilFields(t *testing.T) {
 	cfg := &Config{}
-	cfg.normalizeNilFields()
+	cfg.NormalizeNilFields()
 
 	if cfg.Escalation.Chain == nil {
 		t.Error("Expected Escalation.Chain to be non-nil after normalization")
@@ -1714,7 +1714,7 @@ func TestNormalizeNilFieldsPreservesExisting(t *testing.T) {
 			Labels: map[string]string{"complexity:high": "opus"},
 		},
 	}
-	cfg.normalizeNilFields()
+	cfg.NormalizeNilFields()
 
 	if len(cfg.Escalation.Chain) != 2 {
 		t.Errorf("Expected 2 chain entries, got %d", len(cfg.Escalation.Chain))
@@ -2327,7 +2327,7 @@ claude:
 // Tests for PrecheckConfig
 func TestPrecheckConfigDefaults(t *testing.T) {
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 
 	if !cfg.Precheck.IsEnabled() {
 		t.Errorf("expected default precheck enabled=true")
@@ -2646,7 +2646,7 @@ func TestMethodologyConfigParsing(t *testing.T) {
 // Tests for GitConfig
 func TestGitConfigDefaults(t *testing.T) {
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 
 	if !cfg.Git.IsAutoPushEnabled() {
 		t.Errorf("expected default git auto_push=true")
@@ -2777,7 +2777,7 @@ validation:
 
 func TestStateStaleThresholdDefault(t *testing.T) {
 	cfg := &Config{}
-	cfg.setDefaults()
+	cfg.SetDefaults()
 	if cfg.State.StaleThreshold != 60 {
 		t.Errorf("expected default StaleThreshold=60, got %d", cfg.State.StaleThreshold)
 	}
