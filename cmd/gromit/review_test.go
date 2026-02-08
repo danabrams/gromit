@@ -1,90 +1,130 @@
 package main
 
 import (
+	"os/exec"
 	"strconv"
 	"testing"
 )
 
-// TestReviewPassesClaudeFlags verifies that buildReviewArgs correctly combines
-// flags and prompt into an args array for the claude CLI.
-// Validates extraction fidelity against inline reconstruction.
-func TestReviewPassesClaudeFlags(t *testing.T) {
-	flags := []string{"--dangerously-skip-permissions", "--some-other-flag"}
-	prompt := "Review this code"
-
-	// Call extracted function
-	args := buildReviewArgs(flags, prompt)
-
-	// Verify against inline reconstruction (what runReviewInteractive did at lines 314-316)
-	// Original inline code was:
-	//   args := make([]string, 0, len(cfg.Claude.Flags)+1)
-	//   args = append(args, cfg.Claude.Flags...)
-	//   args = append(args, initialPrompt)
-	expected := make([]string, 0, len(flags)+1)
-	expected = append(expected, flags...)
-	expected = append(expected, prompt)
-
-	// Verify structural properties
-	if len(args) != len(expected) {
-		t.Fatalf("Expected %d args, got %d", len(expected), len(args))
+// TestBuildReviewArgsCorrectlyOrdersArguments verifies that buildReviewArgs produces
+// arguments in the correct order for exec.Command: flags first, then prompt last.
+// This ensures the prompt is correctly interpreted as the final positional argument.
+func TestBuildReviewArgsCorrectlyOrdersArguments(t *testing.T) {
+	tests := []struct {
+		name   string
+		flags  []string
+		prompt string
+		want   []string
+	}{
+		{
+			name:   "single flag with prompt",
+			flags:  []string{"--dangerously-skip-permissions"},
+			prompt: "Review this code",
+			want:   []string{"--dangerously-skip-permissions", "Review this code"},
+		},
+		{
+			name:   "multiple flags with prompt",
+			flags:  []string{"--dangerously-skip-permissions", "--fast"},
+			prompt: "Review this code",
+			want:   []string{"--dangerously-skip-permissions", "--fast", "Review this code"},
+		},
+		{
+			name:   "no flags with prompt",
+			flags:  []string{},
+			prompt: "Review this code",
+			want:   []string{"Review this code"},
+		},
+		{
+			name:   "nil flags with prompt",
+			flags:  nil,
+			prompt: "Review this code",
+			want:   []string{"Review this code"},
+		},
+		{
+			name:   "flags with flag values",
+			flags:  []string{"--model", "opus", "--timeout", "60"},
+			prompt: "Review this code",
+			want:   []string{"--model", "opus", "--timeout", "60", "Review this code"},
+		},
+		{
+			name:   "prompt with special characters",
+			flags:  []string{"--flag"},
+			prompt: "Review: changes in main.go (impact: high)",
+			want:   []string{"--flag", "Review: changes in main.go (impact: high)"},
+		},
 	}
 
-	for i, arg := range expected {
-		if args[i] != arg {
-			t.Errorf("Expected args[%d] to be %q, got %q", i, arg, args[i])
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := buildReviewArgs(tt.flags, tt.prompt)
+
+			// Verify length
+			if len(args) != len(tt.want) {
+				t.Fatalf("expected %d args, got %d", len(tt.want), len(args))
+			}
+
+			// Verify order and content
+			for i, wantArg := range tt.want {
+				if args[i] != wantArg {
+					t.Errorf("args[%d]: expected %q, got %q", i, wantArg, args[i])
+				}
+			}
+
+			// Verify prompt is always last
+			if len(args) > 0 && args[len(args)-1] != tt.prompt {
+				t.Errorf("prompt should be last arg: got %q at index %d", args[len(args)-1], len(args)-1)
+			}
+		})
 	}
 }
 
-// TestReviewWithoutFlags verifies that buildReviewArgs works when no flags are provided.
-// Validates extraction fidelity against inline reconstruction.
-func TestReviewWithoutFlags(t *testing.T) {
-	flags := []string{} // No flags configured
+// TestBuildReviewArgsIntegration verifies that the output of buildReviewArgs
+// can be used to construct a valid exec.Command for the claude CLI.
+// It verifies that cmd.Args contains all the flags and prompt in the correct order.
+func TestBuildReviewArgsIntegration(t *testing.T) {
+	binary := "claude"
+	flags := []string{"--dangerously-skip-permissions", "--fast"}
 	prompt := "Review this code"
 
-	// Call extracted function
 	args := buildReviewArgs(flags, prompt)
 
-	// Verify against inline reconstruction
-	expected := make([]string, 0, len(flags)+1)
-	expected = append(expected, flags...)
-	expected = append(expected, prompt)
+	// Verify that cmd construction doesn't panic and produces the right command
+	cmd := exec.Command(binary, args...)
 
-	// Verify structural properties
-	if len(args) != len(expected) {
-		t.Fatalf("Expected %d args, got %d", len(expected), len(args))
+	if len(cmd.Args) != len(args)+1 { // +1 for the binary name
+		t.Errorf("command args length: expected %d, got %d", len(args)+1, len(cmd.Args))
 	}
 
-	for i, arg := range expected {
-		if args[i] != arg {
-			t.Errorf("Expected args[%d] to be %q, got %q", i, arg, args[i])
+	// Remaining args after the binary name should match our built args
+	for i, arg := range args {
+		if cmd.Args[i+1] != arg {
+			t.Errorf("cmd.Args[%d]: expected %q, got %q", i+1, arg, cmd.Args[i+1])
 		}
+	}
+
+	// Verify prompt is the last argument
+	if cmd.Args[len(cmd.Args)-1] != prompt {
+		t.Errorf("last argument should be prompt %q, got %q", prompt, cmd.Args[len(cmd.Args)-1])
 	}
 }
 
-// TestReviewWithNilFlags verifies that buildReviewArgs works when flags is nil.
-// Validates extraction fidelity against inline reconstruction.
-func TestReviewWithNilFlags(t *testing.T) {
-	var flags []string // nil slice
-	prompt := "Review this code"
+// TestBuildReviewArgsPreservesCapacity verifies that buildReviewArgs
+// allocates the correct capacity to avoid reallocation.
+func TestBuildReviewArgsPreservesCapacity(t *testing.T) {
+	flags := []string{"--flag1", "--flag2"}
+	prompt := "Review this"
 
-	// Call extracted function
 	args := buildReviewArgs(flags, prompt)
 
-	// Verify against inline reconstruction (nil slice behavior matches empty slice)
-	expected := make([]string, 0, len(flags)+1)
-	expected = append(expected, flags...)
-	expected = append(expected, prompt)
-
-	// Verify structural properties
-	if len(args) != len(expected) {
-		t.Fatalf("Expected %d args, got %d", len(expected), len(args))
+	// Capacity should be at least len(flags)+1 to avoid reallocation during append
+	expectedCap := len(flags) + 1
+	if cap(args) < expectedCap {
+		t.Errorf("slice capacity: expected at least %d, got %d", expectedCap, cap(args))
 	}
 
-	for i, arg := range expected {
-		if args[i] != arg {
-			t.Errorf("Expected args[%d] to be %q, got %q", i, arg, args[i])
-		}
+	// Length should equal the number of flags + 1 (for prompt)
+	if len(args) != len(flags)+1 {
+		t.Errorf("slice length: expected %d, got %d", len(flags)+1, len(args))
 	}
 }
 
