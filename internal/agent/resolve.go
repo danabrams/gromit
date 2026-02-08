@@ -16,7 +16,7 @@ const (
 )
 
 // Resolve returns an Agent for the given phase using priority-based resolution.
-// Resolution priority: flag override, picker (if chooseAgent), phase config, "claude" default.
+// Resolution priority: flag override, picker (if chooseAgent or agents.prompt), phase config, "claude" default.
 // Merges user-defined definitions with preset defaults.
 func Resolve(cfg *config.Config, phase string, flagOverride string, chooseAgent bool, r io.Reader, w io.Writer) (Agent, error) {
 	// Step 1: Flag override has highest priority
@@ -24,8 +24,9 @@ func Resolve(cfg *config.Config, phase string, flagOverride string, chooseAgent 
 		return resolveByName(flagOverride, cfg)
 	}
 
-	// Step 2: Interactive picker (if chooseAgent is true)
-	if chooseAgent {
+	// Step 2: Interactive picker (if chooseAgent is true OR agents.prompt is true)
+	shouldPrompt := chooseAgent || (cfg != nil && cfg.Agents.Prompt)
+	if shouldPrompt {
 		agentName, err := pickAgent(cfg, phase, r, w)
 		if err != nil {
 			return nil, fmt.Errorf("agent picker: %w", err)
