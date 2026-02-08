@@ -3,6 +3,9 @@ package agent
 import (
 	"fmt"
 	"io"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
 )
@@ -22,7 +25,13 @@ func Resolve(cfg *config.Config, phase string, flagOverride string, chooseAgent 
 	}
 
 	// Step 2: Interactive picker (if chooseAgent is true)
-	// TODO: Implement picker logic
+	if chooseAgent {
+		agentName, err := pickAgent(cfg, phase, r, w)
+		if err != nil {
+			return nil, fmt.Errorf("agent picker: %w", err)
+		}
+		return resolveByName(agentName, cfg)
+	}
 
 	// Step 3: Phase config
 	agentName := getPhaseAgent(cfg, phase)
@@ -78,6 +87,72 @@ func getPhaseAgent(cfg *config.Config, phase string) string {
 	default:
 		return ""
 	}
+}
+
+// pickAgent displays an interactive picker for selecting an agent
+func pickAgent(cfg *config.Config, phase string, r io.Reader, w io.Writer) (string, error) {
+	// Get list of all available agents (built-in presets + custom definitions)
+	agents := getAvailableAgents(cfg)
+	if len(agents) == 0 {
+		return "", fmt.Errorf("no agents available")
+	}
+
+	// Get the default agent for this phase
+	defaultAgent := getPhaseAgent(cfg, phase)
+	if defaultAgent == "" {
+		defaultAgent = "claude"
+	}
+
+	// Display picker
+	fmt.Fprintf(w, "Select agent for %s:\n\n", phase)
+	for i, agent := range agents {
+		marker := ""
+		if agent == defaultAgent {
+			marker = " (default)"
+		}
+		fmt.Fprintf(w, "  %d. %s%s\n", i+1, agent, marker)
+	}
+	fmt.Fprintf(w, "\nChoice [1-%d]: ", len(agents))
+
+	// Read choice
+	var input string
+	if _, err := fmt.Fscanln(r, &input); err != nil {
+		return "", fmt.Errorf("reading choice: %w", err)
+	}
+
+	input = strings.TrimSpace(input)
+	choice, err := strconv.Atoi(input)
+	if err != nil || choice < 1 || choice > len(agents) {
+		return "", fmt.Errorf("invalid choice: %s", input)
+	}
+
+	return agents[choice-1], nil
+}
+
+// getAvailableAgents returns a sorted list of all available agent names
+func getAvailableAgents(cfg *config.Config) []string {
+	agents := make(map[string]bool)
+
+	// Add built-in presets
+	agents["claude"] = true
+	agents["codex"] = true
+	agents["gemini"] = true
+
+	// Add custom definitions
+	if cfg != nil && cfg.Agents.Definitions != nil {
+		for name := range cfg.Agents.Definitions {
+			agents[name] = true
+		}
+	}
+
+	// Convert to sorted slice
+	result := make([]string, 0, len(agents))
+	for name := range agents {
+		result = append(result, name)
+	}
+	sort.Strings(result)
+
+	return result
 }
 
 // resolveClaudePreset creates an agent for Claude using config.Claude values

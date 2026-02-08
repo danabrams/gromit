@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -856,5 +857,137 @@ func TestResolveClaudePresetUsesClaudeConfig(t *testing.T) {
 		}
 	} else {
 		t.Error("Expected *cliAgent type")
+	}
+}
+
+// TestResolveWithPickerChoosesAgent verifies the picker is used when chooseAgent is true
+func TestResolveWithPickerChoosesAgent(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Definitions: map[string]config.AgentDefinition{
+				"custom": {
+					Binary: "custom-cli",
+					Flags:  []string{"--flag"},
+				},
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	tests := []struct {
+		name       string
+		input      string
+		wantName   string
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name:     "choose first option (claude)",
+			input:    "1\n",
+			wantName: "claude",
+			wantErr:  false,
+		},
+		{
+			name:     "choose second option (codex)",
+			input:    "2\n",
+			wantName: "codex",
+			wantErr:  false,
+		},
+		{
+			name:     "choose third option (custom)",
+			input:    "3\n",
+			wantName: "custom",
+			wantErr:  false,
+		},
+		{
+			name:       "invalid choice - zero",
+			input:      "0\n",
+			wantErr:    true,
+			wantErrMsg: "invalid choice",
+		},
+		{
+			name:       "invalid choice - out of range",
+			input:      "99\n",
+			wantErr:    true,
+			wantErrMsg: "invalid choice",
+		},
+		{
+			name:       "invalid choice - non-numeric",
+			input:      "abc\n",
+			wantErr:    true,
+			wantErrMsg: "invalid choice",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := strings.NewReader(tt.input)
+			w := &strings.Builder{}
+
+			agent, err := Resolve(cfg, "refine", "", true, r, w)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("Resolve() error = nil, want error")
+					return
+				}
+				if tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("Resolve() error = %q, want error containing %q", err.Error(), tt.wantErrMsg)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Resolve() error = %v, want nil", err)
+			}
+
+			if agent == nil {
+				t.Fatal("Resolve() returned nil agent")
+			}
+
+			if agent.Name() != tt.wantName {
+				t.Errorf("Agent.Name() = %q, want %q", agent.Name(), tt.wantName)
+			}
+
+			// Verify picker output was written
+			output := w.String()
+			if !strings.Contains(output, "Select agent for refine:") {
+				t.Error("Picker output missing 'Select agent for refine:'")
+			}
+		})
+	}
+}
+
+// TestResolvePickerShowsDefaultMarker verifies the picker marks the default agent
+func TestResolvePickerShowsDefaultMarker(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Phases: config.PhasesConfig{
+				Refine: "codex",
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	r := strings.NewReader("1\n")
+	w := &strings.Builder{}
+
+	_, err := Resolve(cfg, "refine", "", true, r, w)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+
+	output := w.String()
+
+	// Verify codex is marked as default
+	if !strings.Contains(output, "codex (default)") {
+		t.Error("Picker output should mark codex as default for refine phase")
+	}
+
+	// Verify claude is not marked as default
+	if strings.Contains(output, "claude (default)") {
+		t.Error("Picker output should not mark claude as default when phase is configured differently")
 	}
 }
