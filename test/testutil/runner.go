@@ -3,6 +3,7 @@ package testutil
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -104,4 +105,16 @@ func FindRealGit() string {
 	}
 
 	return ""
+}
+
+// CleanupClaudeFailOnceStateFiles removes any claude fail-once state files from a directory.
+// These files are created by CLAUDE_FAIL_<MODEL>_ONCE mode to track first-time failures
+// and should be cleaned up to prevent state leaks between test runs.
+func CleanupClaudeFailOnceStateFiles(testDir string) {
+	models := []string{"haiku", "sonnet", "opus"}
+	for _, model := range models {
+		stateFile := filepath.Join(testDir, ".claude_fail_"+model+"_once_state")
+		// Ignore errors - file may not exist, which is fine
+		os.Remove(stateFile)
+	}
 }

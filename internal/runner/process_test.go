@@ -16,7 +16,6 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 )
 
-
 func TestSetupBeadContext_NilConfig(t *testing.T) {
 	r := &Runner{output: &strings.Builder{}}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}

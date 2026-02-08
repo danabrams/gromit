@@ -139,17 +139,6 @@ type e2eEnv struct {
 	Env []string
 }
 
-// cleanupClaudeFailOnceStateFiles removes any claude fail-once state files from a test directory.
-// These files are created by CLAUDE_FAIL_<MODEL>_ONCE mode to track first-time failures
-// and should be cleaned up to prevent state leaks between test runs.
-func cleanupClaudeFailOnceStateFiles(testDir string) {
-	models := []string{"haiku", "sonnet", "opus"}
-	for _, model := range models {
-		stateFile := filepath.Join(testDir, ".claude_fail_"+model+"_once_state")
-		// Ignore errors - file may not exist, which is fine
-		os.Remove(stateFile)
-	}
-}
 
 // setupE2E creates a fresh test environment for E2E tests by:
 // - Creating a temp directory
@@ -165,9 +154,9 @@ func setupE2E(t *testing.T) *e2eEnv {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	t.Cleanup(func() {
+		// Clean up any claude fail-once state files before removing the directory
+		testutil.CleanupClaudeFailOnceStateFiles(tmpDir)
 		os.RemoveAll(tmpDir)
-		// Also clean up any claude fail-once state files that may have been created
-		cleanupClaudeFailOnceStateFiles(tmpDir)
 	})
 
 	// Copy scaffold to temp directory

@@ -27,11 +27,11 @@ func TestLoadActualLearningsFile(t *testing.T) {
 	// Verify the first few confirmed learnings have proper structure
 	expectedTitles := []string{
 		"Shell Safety",
-		"Test Helper Delegation",
 		"Documentary Test Replacement",
 		"Mock Implementation Patterns",
 		"Status File Management",
 		"Output Formatting",
+		"LEARNINGS.md Format Validation",
 	}
 
 	for i, expected := range expectedTitles {
