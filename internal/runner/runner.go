@@ -38,6 +38,30 @@ type Runner struct {
 	gromitDir    string
 }
 
+// claudeRunnerAdapter adapts claude.Client to learnings.ClaudeRunner interface
+type claudeRunnerAdapter struct {
+	client *claude.Client
+}
+
+// Run implements learnings.ClaudeRunner interface
+func (a *claudeRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
+	if a == nil || a.client == nil {
+		return nil, fmt.Errorf("adapter or client is nil")
+	}
+	result, err := a.client.Run(ctx, prompt, model)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("claude returned nil result")
+	}
+	// Adapt claude.Result to learnings.Result
+	return &learnings.Result{
+		Success: result.Success,
+		Output:  result.Output,
+	}, nil
+}
+
 // NewRunner creates a new runner
 func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	if cfg == nil {
@@ -68,6 +92,16 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	// Wire filter into learnings file
+	lf := renderer.GetLearningsFile()
+	if lf != nil {
+		// Create adapter for claude.Client to match learnings.ClaudeRunner interface
+		adapter := &claudeRunnerAdapter{client: claudeClient}
+		projectName := "gromit"
+		projectDesc := "A Go CLI tool that runs the Gromit loop correctly"
+		lf.SetFilter(learnings.NewLLMFilter(adapter, projectName, projectDesc))
 	}
 
 	beadsClient, err := bead.NewClient()
@@ -110,6 +144,10 @@ type Deps struct {
 func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, deps Deps) (*Runner, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
+	}
+	// Set defaults for fields that might not be initialized in tests
+	if cfg.Loop.MaxConsecutiveSkips == 0 {
+		cfg.Loop.MaxConsecutiveSkips = 3
 	}
 	if output == nil {
 		output = os.Stdout
@@ -230,6 +268,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	iteration := 0
+	consecutiveSkips := 0
 
 	// Read per-bead statistics once before the main loop for efficiency
 	beadStats, err := logger.ReadPerBeadStats(r.cfg.Paths.Logs)
@@ -310,13 +349,14 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			break
 		}
 
+		// Check if we've already skipped this bead in this run (e.g., Close failure after precheck)
+		if skippedBeads[b.ID] {
+			r.log("All ready beads are stuck and have been skipped. Stopping loop.")
+			break
+		}
+
 		// Check if bead is stuck (too many cross-run failures)
 		if r.isStuckBeadWithStats(b, beadStats) {
-			// If we've already skipped this bead in this run, don't skip again - all ready beads are stuck
-			if skippedBeads[b.ID] {
-				r.log("All ready beads are stuck and have been skipped. Stopping loop.")
-				break
-			}
 
 			stats := beadStats[b.ID]
 			r.log("Bead %s marked as stuck (exceeded failure threshold), skipping", b.ID)
@@ -366,6 +406,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 				})
 			}
 
+			// Increment consecutive skip counter and check limit
+			consecutiveSkips++
+			if consecutiveSkips >= r.cfg.Loop.MaxConsecutiveSkips {
+				return fmt.Errorf("reached max consecutive precheck skips (%d) — bd may not be persisting bead closures correctly", r.cfg.Loop.MaxConsecutiveSkips)
+			}
+
 			continue
 		}
 
@@ -409,6 +455,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 		// Log result to file
 		r.writeIterationLog(iteration, result)
+
+		// Reset consecutive skip counter after any real build attempt
+		consecutiveSkips = 0
 
 		// Handle failure
 		if !result.Success {
