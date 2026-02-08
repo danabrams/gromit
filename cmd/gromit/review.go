@@ -457,22 +457,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	}
 
 	// Persist learnings
-	if len(result.Learnings) > 0 {
-		learningsFile, err := learnings.NewFile(gromitDir)
-		if err == nil {
-			// Wire filter into learnings file
-			adapter := &claudeRunnerAdapter{client: claudeClient}
-			projectName := "gromit"
-			projectDesc := "A Go CLI tool that runs the Gromit loop correctly"
-			learningsFile.SetFilter(learnings.NewLLMFilter(adapter, projectName, projectDesc))
-
-			if err := learningsFile.Load(); err == nil {
-				for _, learning := range result.Learnings {
-					learningsFile.Add("review", learning, learnings.CategoryPatterns)
-				}
-			}
-		}
-	}
+	persistReviewLearnings(gromitDir, result.Learnings, claudeClient)
 
 	// Log the review
 	log, err := logger.NewLogger(cfg.Paths.Logs)
@@ -544,27 +529,42 @@ func applyReviewResultCLI(result *review.ReviewResult) (beadsCreated int, backlo
 		cfg, err := loadConfig()
 		if err == nil {
 			gromitDir := resolveGromitDir(cfg)
-			learningsFile, err := learnings.NewFile(gromitDir)
+			claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
 			if err == nil {
-				// Wire filter into learnings file
-				claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
-				if err == nil {
-					adapter := &claudeRunnerAdapter{client: claudeClient}
-					projectName := "gromit"
-					projectDesc := "A Go CLI tool that runs the Gromit loop correctly"
-					learningsFile.SetFilter(learnings.NewLLMFilter(adapter, projectName, projectDesc))
-				}
-
-				if err := learningsFile.Load(); err == nil {
-					for _, learning := range result.Learnings {
-						learningsFile.Add("review", learning, learnings.CategoryPatterns)
-					}
-				}
+				persistReviewLearnings(gromitDir, result.Learnings, claudeClient)
 			}
 		}
 	}
 
 	return beadsCreated, backlogCreated
+}
+
+// persistReviewLearnings adds review-discovered learnings to the learnings file.
+func persistReviewLearnings(gromitDir string, reviewLearnings []string, claudeClient *claude.Client) {
+	if len(reviewLearnings) == 0 {
+		return
+	}
+
+	learningsFile, err := learnings.NewFile(gromitDir)
+	if err != nil {
+		return
+	}
+
+	// Wire filter into learnings file
+	if claudeClient != nil {
+		adapter := &claudeRunnerAdapter{client: claudeClient}
+		projectName := "gromit"
+		projectDesc := "A Go CLI tool that runs the Gromit loop correctly"
+		learningsFile.SetFilter(learnings.NewLLMFilter(adapter, projectName, projectDesc))
+	}
+
+	if err := learningsFile.Load(); err != nil {
+		return
+	}
+
+	for _, learning := range reviewLearnings {
+		learningsFile.Add("review", learning, learnings.CategoryPatterns)
+	}
 }
 
 func buildReviewBeadLabelsCLI(proposalLabels []string) []string {
