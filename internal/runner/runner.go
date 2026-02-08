@@ -132,17 +132,20 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 
 // IterationResult captures the outcome of one loop iteration
 type IterationResult struct {
-	BeadID      string
-	BeadTitle   string
-	Model       string
-	Success     bool
-	Validated   bool
-	Duration    time.Duration
-	Error       error
-	Escalated   bool
-	EscalatedTo string
-	Decomposed  bool
-	Output      string
+	BeadID       string
+	BeadTitle    string
+	Model        string
+	Success      bool
+	Validated    bool
+	Duration     time.Duration
+	Error        error
+	Escalated    bool
+	EscalatedTo  string
+	Decomposed   bool
+	Output       string
+	CostUSD      float64
+	InputTokens  int
+	OutputTokens int
 }
 
 // SubTask represents a single sub-task from task decomposition
