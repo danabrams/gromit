@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
@@ -27,10 +28,11 @@ type Retro struct {
 
 // TemplateContext holds data for retro prompt template
 type TemplateContext struct {
-	Rules     string
-	Learnings string
-	RunStats  logger.RunStats
-	BeadStats map[string]logger.BeadStats
+	Rules      string
+	Learnings  string
+	RunStats   logger.RunStats
+	BeadStats  map[string]logger.BeadStats
+	Efficiency *logger.EfficiencyReport
 }
 
 // Result represents the outcome of a retro analysis
@@ -92,6 +94,9 @@ func (r *Retro) Run(ctx context.Context) (*Result, error) {
 	runStats, _ := logger.ReadAllLogs(logsDir)
 	allBeadStats, _ := logger.ReadPerBeadStats(logsDir)
 
+	// Load efficiency report (current run is empty string, all runs are historical)
+	efficiencyReport, _ := logger.ReadEfficiencyReport(logsDir, "")
+
 	// Filter per-bead stats to only include beads with >= 2 failures
 	filteredBeadStats := make(map[string]logger.BeadStats)
 	for id, stats := range allBeadStats {
@@ -111,7 +116,7 @@ func (r *Retro) Run(ctx context.Context) (*Result, error) {
 	}
 
 	// Render prompt
-	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats)
+	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats, efficiencyReport)
 	if err != nil {
 		return nil, fmt.Errorf("rendering prompt: %w", err)
 	}
@@ -196,7 +201,7 @@ func (r *Retro) formatLearnings() string {
 }
 
 // renderPrompt renders the retro prompt template
-func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, beadStats map[string]logger.BeadStats) (string, error) {
+func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, beadStats map[string]logger.BeadStats, efficiency *logger.EfficiencyReport) (string, error) {
 	tmplContent, err := os.ReadFile(r.templatePath)
 	if err != nil {
 		return "", fmt.Errorf("reading template: %w", err)
@@ -204,16 +209,26 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 
 	tmpl, err := template.New("retro").Funcs(template.FuncMap{
 		"mul": func(a, b float64) float64 { return a * b },
+		"div": func(a, b float64) float64 {
+			if b == 0 {
+				return 0
+			}
+			return a / b
+		},
+		"durationMs": func(d time.Duration) float64 {
+			return float64(d.Milliseconds())
+		},
 	}).Parse(string(tmplContent))
 	if err != nil {
 		return "", fmt.Errorf("parsing template: %w", err)
 	}
 
 	ctx := TemplateContext{
-		Rules:     rules,
-		Learnings: learnings,
-		RunStats:  runStats,
-		BeadStats: beadStats,
+		Rules:      rules,
+		Learnings:  learnings,
+		RunStats:   runStats,
+		BeadStats:  beadStats,
+		Efficiency: efficiency,
 	}
 
 	var sb strings.Builder

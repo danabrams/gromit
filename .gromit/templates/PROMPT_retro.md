@@ -47,6 +47,61 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 {{- end }}
 {{- end }}
 
+{{- if .Efficiency }}
+
+## Current Run Efficiency
+
+### Per-Iteration Efficiency
+| Bead ID | Model | Duration | Cost (USD) | Input Tokens | Output Tokens |
+|---------|-------|----------|------------|--------------|---------------|
+{{- range .Efficiency.CurrentIterations }}
+| {{ .BeadID }} | {{ .Model }} | {{ .Duration }} | ${{ printf "%.4f" .CostUSD }} | {{ .InputTokens }} | {{ .OutputTokens }} |
+{{- end }}
+
+### Per-Model Aggregates (Current Run)
+| Model | Iterations | Avg Cost | Avg Duration | Avg Input Tokens | Avg Output Tokens |
+|-------|-----------|----------|--------------|------------------|-------------------|
+{{- range $model, $stats := .Efficiency.CurrentModels }}
+| {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} | {{ $stats.AvgDuration }} | {{ printf "%.0f" $stats.AvgInputTokens }} | {{ printf "%.0f" $stats.AvgOutputTokens }} |
+{{- end }}
+
+### Historical Comparison
+{{- if .Efficiency.HistoricalModels }}
+
+**Per-Model Aggregates (Historical)**
+| Model | Iterations | Avg Cost | Avg Duration | Avg Input Tokens | Avg Output Tokens |
+|-------|-----------|----------|--------------|------------------|-------------------|
+{{- range $model, $stats := .Efficiency.HistoricalModels }}
+| {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} | {{ $stats.AvgDuration }} | {{ printf "%.0f" $stats.AvgInputTokens }} | {{ printf "%.0f" $stats.AvgOutputTokens }} |
+{{- end }}
+
+**Overall Metrics**
+- Current avg cost per bead: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }}
+- Historical avg cost per bead: ${{ printf "%.4f" .Efficiency.HistoricalAvgCostPerBead }}
+{{- if ne .Efficiency.CostDelta 0.0 }}
+- Cost delta: ${{ printf "%.4f" .Efficiency.CostDelta }} ({{ if gt .Efficiency.CostDelta 0.0 }}+{{ printf "%.1f%%" (mul (div .Efficiency.CostDelta .Efficiency.HistoricalAvgCostPerBead) 100) }} more expensive{{ else }}{{ printf "%.1f%%" (mul (div .Efficiency.CostDelta .Efficiency.HistoricalAvgCostPerBead) 100) }} cheaper{{ end }})
+{{- end }}
+
+- Current avg duration per bead: {{ .Efficiency.CurrentAvgDurationPerBead }}
+- Historical avg duration per bead: {{ .Efficiency.HistoricalAvgDurationPerBead }}
+{{- if ne .Efficiency.DurationDelta 0 }}
+- Duration delta: {{ .Efficiency.DurationDelta }} ({{ if gt .Efficiency.DurationDelta 0 }}+{{ printf "%.1f%%" (mul (div (durationMs .Efficiency.DurationDelta) (durationMs .Efficiency.HistoricalAvgDurationPerBead)) 100) }} slower{{ else }}{{ printf "%.1f%%" (mul (div (durationMs .Efficiency.DurationDelta) (durationMs .Efficiency.HistoricalAvgDurationPerBead)) 100) }} faster{{ end }})
+{{- end }}
+{{- else }}
+*No historical data available for comparison.*
+{{- end }}
+
+{{- if .Efficiency.HighContextIterations }}
+
+### Context Window Utilization Flags
+The following iterations exceeded 80% of their model's context window:
+{{- range .Efficiency.HighContextIterations }}
+- **{{ .BeadID }}** ({{ .Model }}): {{ .InputTokens }} tokens ({{ printf "%.1f%%" (mul .ContextWindowUsed 100) }} of context window)
+{{- end }}
+{{- end }}
+
+{{- end }}
+
 ## Task
 
 Analyze the learnings above and provide:
@@ -62,6 +117,11 @@ Analyze the learnings above and provide:
    - Root cause hypothesis (based on the failures and learnings)
    - Recommended decomposition strategy (how to break it into smaller tasks)
    - Specific next steps to unblock it
+{{- end }}
+
+{{- if .Efficiency }}
+
+6. **Efficiency Analysis**: Identify cost or time anomalies in the Current Run Efficiency data above. When anomalies are found, apply Five Whys analysis to trace surface symptoms (e.g., "this bead cost $3") to root causes (e.g., "the acceptance criteria were ambiguous, causing opus escalation"). Produce efficiency-related learnings that identify patterns to avoid or improve.
 {{- end }}
 
 ## Output Format
