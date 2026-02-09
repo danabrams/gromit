@@ -4,10 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/skills"
@@ -186,14 +186,6 @@ Plan output path: %s
 
 %s`, specName, specBody, contextBuilder.String(), plansDir, planPath, skills.PlanSkill)
 
-	// Determine binary and flags from config
-	claudeBinary := "claude"
-	var claudeFlags []string
-	if cfg != nil {
-		claudeBinary = cfg.Claude.Binary
-		claudeFlags = cfg.Claude.Flags
-	}
-
 	// Write system prompt to a temp file to avoid "argument list too long" errors
 	// when the spec or open beads list is large
 	tmpDir := filepath.Join(gromitDir, "tmp")
@@ -214,25 +206,19 @@ Plan output path: %s
 	}
 	promptFile.Close()
 
-	// Launch Claude Code with a short initial prompt that references the temp file
-	initialPrompt := fmt.Sprintf("Read and follow the planning instructions in %s", promptPath)
+	// Get flag values
+	agentFlag, _ := cmd.Flags().GetString("agent")
+	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
 
-	// Build command args: flags + initial message
-	cmdArgs := append([]string{}, claudeFlags...)
-	cmdArgs = append(cmdArgs, initialPrompt)
+	// Resolve which agent to use
+	selectedAgent, err := agent.Resolve(cfg, "plan", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	if err != nil {
+		return fmt.Errorf("resolving agent: %w", err)
+	}
 
-	claudeCmd := exec.Command(claudeBinary, cmdArgs...)
-	claudeCmd.Stdin = os.Stdin
-	claudeCmd.Stdout = os.Stdout
-	claudeCmd.Stderr = os.Stderr
-
-	if err := claudeCmd.Run(); err != nil {
-		// Don't treat Claude exit code as an error - it's normal when user exits
-		if _, ok := err.(*exec.ExitError); ok {
-			// User exited gracefully, not an error
-			return nil
-		}
-		return fmt.Errorf("launching Claude Code: %w", err)
+	// Launch the agent with the prompt file
+	if err := selectedAgent.Launch(promptPath); err != nil {
+		return fmt.Errorf("launching agent: %w", err)
 	}
 
 	// Check if plan was created
