@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -112,7 +113,7 @@ func runReview(cmd *cobra.Command, args []string) error {
 
 	// Interactive mode (default)
 	if !reviewNonInteractive {
-		return runReviewInteractive(cfg, fromCommit, diff)
+		return runReviewInteractive(cmd, cfg, fromCommit, diff)
 	}
 
 	// Non-interactive mode
@@ -290,15 +291,8 @@ func getGitDiffStatForReview(fromCommit string) (string, error) {
 	return string(out), nil
 }
 
-// buildReviewArgs combines flags and prompt into an args array for claude CLI.
-func buildReviewArgs(flags []string, initialPrompt string) []string {
-	args := make([]string, 0, len(flags)+1)
-	args = append(args, flags...)
-	args = append(args, initialPrompt)
-	return args
-}
 
-func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) error {
+func runReviewInteractive(cmd *cobra.Command, cfg *config.Config, fromCommit string, diff string) error {
 	// Build and render prompt
 	gromitDir := resolveGromitDir(cfg)
 
@@ -350,27 +344,22 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 	}
 	promptFile.Close()
 
-	// Launch interactive Claude session with a short initial prompt
-	// that references the temp file (avoids ARG_MAX limit)
+	// Launch interactive review session with agent selection
 	fmt.Printf("Launching interactive review session (from commit %s)...\n", shortCommit(fromCommit))
 
-	initialPrompt := fmt.Sprintf("Read and follow the review instructions in %s", promptPath)
+	// Get flag values
+	agentFlag, _ := cmd.Flags().GetString("agent")
+	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
 
-	// Build args with configured flags (including --dangerously-skip-permissions if set)
-	args := buildReviewArgs(cfg.Claude.Flags, initialPrompt)
+	// Resolve which agent to use
+	selectedAgent, err := agent.Resolve(cfg, "review", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	if err != nil {
+		return fmt.Errorf("resolving agent: %w", err)
+	}
 
-	cmd := exec.Command(cfg.Claude.Binary, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		// Don't treat Claude exit code as an error - it's normal when user exits
-		if _, ok := err.(*exec.ExitError); ok {
-			// User exited gracefully, not an error
-			return nil
-		}
-		return fmt.Errorf("launching Claude Code: %w", err)
+	// Launch the agent with the prompt file
+	if err := selectedAgent.Launch(promptPath); err != nil {
+		return fmt.Errorf("launching agent: %w", err)
 	}
 
 	return nil

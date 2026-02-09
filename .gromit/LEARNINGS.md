@@ -43,6 +43,18 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 ### 2026-02-08 | gromit-qnlq | gotchas
 Timing-based concurrency tests in the runner package are sensitive to system load and require either barrier-based synchronization patterns (as mentioned in recent commits using barrier pattern) or more lenient time budgets. Avoid relying solely on wall-clock duration checks; use synchronization primitives like WaitGroup barriers or channels to verify concurrency semantically rather than temporally.
 
+### 2026-02-08 | gromit-l7v4 | conventions
+Interface files should include compile-time satisfaction checks (var _ Interface = (*Impl)(nil)) at the top to catch implementation drift early - see internal/runner/interfaces.go for the pattern
+
+### 2026-02-08 | gromit-l7v4 | conventions
+Use compile-time interface verification with var _ InterfaceName = (*impl)(nil) pattern instead of runtime tests for interface satisfaction—this catches implementation drift early (see internal/runner/interfaces.go for pattern)
+
+### 2026-02-09 | gromit-7dcu | patterns
+Agent selection and execution is abstracted via agent.Resolve() and agent.Launch() functions - use these instead of directly constructing exec.Command with Claude binary/flags
+
+### 2026-02-09 | gromit-3be2 | patterns
+Agent selection and execution uses two-function pattern: agent.Resolve() handles priority-based selection (flag override > interactive picker > phase config > default), then agent.Launch() executes with the resolved agent. Use this pattern for all commands needing agent integration instead of inline Claude launch.
+
 ---
 
 ## Archived
@@ -454,6 +466,31 @@ When testing concurrent execution with errgroup in Go, ensure that goroutines ar
 
 ### 2026-02-08 | gromit-qnlq | gotchas
 Timing-based concurrency assertions in tests are inherently flaky. Use synchronization primitives (barriers, channels, mutexes, or atomic operations) to verify concurrent execution rather than measuring elapsed time. The concurrent execution may be correct but still fail due to system variance.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-k9mi | patterns
+Config merging pattern: check custom user definitions first, then fall back to built-in presets. This ensures user customizations override framework defaults without duplicating logic.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-k9mi | patterns
+Custom definitions take precedence over built-in presets by checking them first in resolution order; defensive nil checks precede all config field access to prevent panics
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-tjjs | patterns
+Use table-driven tests with t.Run() for complex scenarios and verify observable behavior (output written, error states) not just return values
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-703n | patterns
+Test table-driven tests with t.Run for each case, using subtests to organize related test scenarios. When testing functions that handle configuration precedence (flag > phase config > defaults), structure tests to verify each priority level separately with clear assertions on which value wins.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-08 | gromit-703n | patterns
+Use table-driven tests with t.Run() for testing priority resolution logic; organize tests by testing scenario (priority levels, edge cases, full chain) rather than individual conditions to catch interaction bugs between priority levels
 
 *Archived from new: filtered: generic engineering advice*
 
