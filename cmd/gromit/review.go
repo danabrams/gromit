@@ -47,6 +47,8 @@ var (
 	reviewSince          string
 	reviewEpic           string
 	reviewDryRun         bool
+	reviewAgent          string
+	reviewChooseAgent    bool
 )
 
 var reviewCmd = &cobra.Command{
@@ -69,6 +71,8 @@ func init() {
 	reviewCmd.Flags().StringVar(&reviewSince, "since", "", "Review from this commit")
 	reviewCmd.Flags().StringVar(&reviewEpic, "epic", "", "Review changes from this epic's beads")
 	reviewCmd.Flags().BoolVar(&reviewDryRun, "dry-run", false, "Preview what would be reviewed")
+	reviewCmd.Flags().StringVar(&reviewAgent, "agent", "", "Override the agent to use for interactive review")
+	reviewCmd.Flags().BoolVar(&reviewChooseAgent, "choose-agent", false, "Show picker to select agent for interactive review")
 	rootCmd.AddCommand(reviewCmd)
 }
 
