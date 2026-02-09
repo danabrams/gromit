@@ -17,8 +17,10 @@ Usage:
   gromit plan [spec-name] [flags]
 
 Flags:
-      --force   Regenerate plan even if it already exists
-  -h, --help    help for plan
+      --agent string   Override the default agent for this plan session
+      --choose-agent   Show interactive picker to choose agent
+      --force          Regenerate plan even if it already exists
+  -h, --help           help for plan
 
 Global Flags:
   -c, --config string   Path to config file (default "gromit.yaml")
