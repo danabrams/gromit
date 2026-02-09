@@ -113,7 +113,7 @@ func runReview(cmd *cobra.Command, args []string) error {
 
 	// Interactive mode (default)
 	if !reviewNonInteractive {
-		return runReviewInteractive(cmd, cfg, fromCommit, diff)
+		return runReviewInteractive(cfg, fromCommit, diff)
 	}
 
 	// Non-interactive mode
@@ -291,8 +291,7 @@ func getGitDiffStatForReview(fromCommit string) (string, error) {
 	return string(out), nil
 }
 
-
-func runReviewInteractive(cmd *cobra.Command, cfg *config.Config, fromCommit string, diff string) error {
+func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) error {
 	// Build and render prompt
 	gromitDir := resolveGromitDir(cfg)
 
@@ -347,12 +346,8 @@ func runReviewInteractive(cmd *cobra.Command, cfg *config.Config, fromCommit str
 	// Launch interactive review session with agent selection
 	fmt.Printf("Launching interactive review session (from commit %s)...\n", shortCommit(fromCommit))
 
-	// Get flag values
-	agentFlag, _ := cmd.Flags().GetString("agent")
-	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
-
 	// Resolve which agent to use
-	selectedAgent, err := agent.Resolve(cfg, "review", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	selectedAgent, err := agent.Resolve(cfg, "review", reviewAgent, reviewChooseAgent, os.Stdin, os.Stdout)
 	if err != nil {
 		return fmt.Errorf("resolving agent: %w", err)
 	}
