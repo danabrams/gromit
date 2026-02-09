@@ -242,8 +242,11 @@ func TestCLIContract_Flags(t *testing.T) {
 			flags: map[string]string{},
 		},
 		{
-			name:  "refine",
-			flags: map[string]string{},
+			name: "refine",
+			flags: map[string]string{
+				"agent":        "string", // --agent
+				"choose-agent": "bool",   // --choose-agent
+			},
 		},
 		{
 			name: "plan",

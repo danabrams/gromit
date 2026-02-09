@@ -16,7 +16,9 @@ Usage:
   gromit refine [backlog-id or idea text] [flags]
 
 Flags:
-  -h, --help   help for refine
+      --agent string   Override the default agent for this refine session
+      --choose-agent   Show interactive picker to choose agent
+  -h, --help           help for refine
 
 Global Flags:
   -c, --config string   Path to config file (default "gromit.yaml")
