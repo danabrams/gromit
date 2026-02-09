@@ -44,6 +44,8 @@ func init() {
 	planCmd.Flags().BoolVar(&planForce, "force", false, "Regenerate plan even if it already exists")
 	planCmd.Flags().BoolVar(&planNoChain, "no-chain", false, "Skip offering to run next command in pipeline")
 	planCmd.Flags().MarkHidden("no-chain")
+	planCmd.Flags().String("agent", "", "Override the default agent for this plan session")
+	planCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
 	rootCmd.AddCommand(planCmd)
 }
 
