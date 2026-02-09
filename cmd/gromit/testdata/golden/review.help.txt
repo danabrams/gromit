@@ -12,6 +12,8 @@ Usage:
   gromit review [flags]
 
 Flags:
+      --agent string      Override the agent to use for interactive review
+      --choose-agent      Show picker to select agent for interactive review
       --dry-run           Preview what would be reviewed
       --epic string       Review changes from this epic's beads
   -h, --help              help for review

@@ -263,6 +263,8 @@ func TestCLIContract_Flags(t *testing.T) {
 				"since":           "string", // --since
 				"epic":            "string", // --epic
 				"dry-run":         "bool",   // --dry-run
+				"agent":           "string", // --agent
+				"choose-agent":    "bool",   // --choose-agent
 			},
 		},
 		{
