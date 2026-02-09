@@ -251,7 +251,9 @@ func TestCLIContract_Flags(t *testing.T) {
 		{
 			name: "plan",
 			flags: map[string]string{
-				"force": "bool", // --force
+				"force":        "bool",   // --force
+				"agent":        "string", // --agent
+				"choose-agent": "bool",   // --choose-agent
 			},
 		},
 		{
