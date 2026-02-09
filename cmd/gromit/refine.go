@@ -36,6 +36,8 @@ After Claude exits, scans for new spec files and marks backlog items as refined.
 
 func init() {
 	rootCmd.AddCommand(refineCmd)
+	refineCmd.Flags().String("agent", "", "Override the default agent for this refine session")
+	refineCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
 }
 
 func runRefine(cmd *cobra.Command, args []string) error {

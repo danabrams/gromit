@@ -218,3 +218,23 @@ func TestFormatTypeLabel(t *testing.T) {
 		})
 	}
 }
+
+func TestRefineCommand_Flags(t *testing.T) {
+	// Test that --agent flag exists and accepts string values
+	agentFlag := refineCmd.Flags().Lookup("agent")
+	if agentFlag == nil {
+		t.Fatal("--agent flag not defined")
+	}
+	if agentFlag.Value.Type() != "string" {
+		t.Errorf("--agent flag type = %s, want string", agentFlag.Value.Type())
+	}
+
+	// Test that --choose-agent flag exists and is boolean
+	chooseAgentFlag := refineCmd.Flags().Lookup("choose-agent")
+	if chooseAgentFlag == nil {
+		t.Fatal("--choose-agent flag not defined")
+	}
+	if chooseAgentFlag.Value.Type() != "bool" {
+		t.Errorf("--choose-agent flag type = %s, want bool", chooseAgentFlag.Value.Type())
+	}
+}
