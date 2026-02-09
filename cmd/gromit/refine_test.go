@@ -238,3 +238,8 @@ func TestRefineCommand_Flags(t *testing.T) {
 		t.Errorf("--choose-agent flag type = %s, want bool", chooseAgentFlag.Value.Type())
 	}
 }
+
+// Note: Full integration test for agent.Resolve() call would require
+// extensive mocking of config loading, backlog, file system, and TTY.
+// The actual functionality is tested through the agent package's own tests
+// and through manual/acceptance testing of the refine command.

@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/skills"
 	"github.com/spf13/cobra"
@@ -187,14 +187,6 @@ Specs directory: %s
 %s`, ideaText, specsDir, skills.RefineSkill)
 	}
 
-	// Determine binary and flags from config
-	claudeBinary := "claude"
-	var claudeFlags []string
-	if cfg != nil {
-		claudeBinary = cfg.Claude.Binary
-		claudeFlags = cfg.Claude.Flags
-	}
-
 	// Write system prompt to a temp file to avoid "argument list too long" errors
 	// when the idea text or context is large
 	tmpDir := filepath.Join(gromitDir, "tmp")
@@ -215,25 +207,19 @@ Specs directory: %s
 	}
 	promptFile.Close()
 
-	// Launch Claude Code with a short initial prompt that references the temp file
-	initialPrompt := fmt.Sprintf("Read and follow the refinement instructions in %s", promptPath)
+	// Get flag values
+	agentFlag, _ := cmd.Flags().GetString("agent")
+	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
 
-	// Build command args: flags + initial message
-	cmdArgs := append([]string{}, claudeFlags...)
-	cmdArgs = append(cmdArgs, initialPrompt)
+	// Resolve which agent to use
+	selectedAgent, err := agent.Resolve(cfg, "refine", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	if err != nil {
+		return fmt.Errorf("resolving agent: %w", err)
+	}
 
-	claudeCmd := exec.Command(claudeBinary, cmdArgs...)
-	claudeCmd.Stdin = os.Stdin
-	claudeCmd.Stdout = os.Stdout
-	claudeCmd.Stderr = os.Stderr
-
-	if err := claudeCmd.Run(); err != nil {
-		// Don't treat Claude exit code as an error - it's normal when user exits
-		if _, ok := err.(*exec.ExitError); ok {
-			// User exited gracefully, not an error
-			return nil
-		}
-		return fmt.Errorf("launching Claude Code: %w", err)
+	// Launch the agent with the prompt file
+	if err := selectedAgent.Launch(promptPath); err != nil {
+		return fmt.Errorf("launching agent: %w", err)
 	}
 
 	// Scan for new spec files
