@@ -206,13 +206,9 @@ func TestReviewCommand_SpecFlagInHelpText(t *testing.T) {
 	// After implementation should have:
 	//   --spec <name>      Review changes from a spec's beads
 
-	if strings.Contains(helpText, "--spec") {
-		// Good, the flag is documented
-		return
+	if !strings.Contains(helpText, "--spec") {
+		t.Fatal("--spec flag should be documented in review command help text")
 	}
-
-	// Flag not yet documented in help text
-	t.Skip("Pending implementation: --spec flag not yet documented in review command help text")
 }
 
 // TestReviewCommand_SpecResolutionWithNoBeads verifies behavior when

@@ -64,7 +64,8 @@ Non-interactive mode (--non-interactive): Runs autonomously, creates beads for i
 
 Scope options:
   --since <commit>   Review from a specific commit
-  --epic <id>        Review changes from an epic's child beads
+  --spec <name>      Review changes from a spec's beads
+  --epic <id>        Review changes from an epic's beads
   (default)          Review since last thorough review`,
 	RunE: runReview,
 }
