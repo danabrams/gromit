@@ -209,3 +209,39 @@ func TestRunner_GetNextBead_MultipleLabelFilters_SecondHasBead(t *testing.T) {
 		t.Errorf("getNextBead() returned wrong bead: got %s, want %s", result.ID, expectedBead.ID)
 	}
 }
+
+// TestRunner_GetNextBead_MultipleLabelFilters_NoneHaveBeads verifies nil returned when no match
+func TestRunner_GetNextBead_MultipleLabelFilters_NoneHaveBeads(t *testing.T) {
+	callOrder := []string{}
+	mock := &MockBeadClientWithLabel{
+		ReadyWithLabelFunc: func(label string) (*bead.Bead, error) {
+			callOrder = append(callOrder, label)
+			return nil, nil // No beads for any label
+		},
+	}
+
+	r := &Runner{
+		beads:        mock,
+		labelFilters: []string{"spec:auth", "spec:payments", "spec:reporting"},
+	}
+
+	result, err := r.getNextBead()
+	if err != nil {
+		t.Fatalf("getNextBead() unexpected error: %v", err)
+	}
+
+	if len(callOrder) != 3 {
+		t.Errorf("Expected 3 calls to ReadyWithLabel, got %d calls: %v", len(callOrder), callOrder)
+	}
+
+	expected := []string{"spec:auth", "spec:payments", "spec:reporting"}
+	for i, label := range expected {
+		if i >= len(callOrder) || callOrder[i] != label {
+			t.Errorf("Expected call %d to be %s, got %v", i, label, callOrder)
+		}
+	}
+
+	if result != nil {
+		t.Errorf("Expected nil bead when no labels have beads, got %+v", result)
+	}
+}
