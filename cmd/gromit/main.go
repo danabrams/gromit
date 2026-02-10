@@ -24,6 +24,8 @@ var (
 	nonInteractive    bool
 	timeBudgetMinutes int
 	timeBudgetHours   int
+	retroSpecFlag     string
+	retroEpicFlag     string
 )
 
 func main() {
@@ -90,6 +92,8 @@ func init() {
 	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
 
 	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md")
+	retroCmd.Flags().StringVar(&retroSpecFlag, "spec", "", "Scope retro to a specific spec")
+	retroCmd.Flags().StringVar(&retroEpicFlag, "epic", "", "Scope retro to a specific epic")
 
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(statusCmd)

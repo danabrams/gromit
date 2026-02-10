@@ -497,3 +497,13 @@ Use table-driven tests with t.Run() for testing priority resolution logic; organ
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-10 | gromit-4y8h | patterns
+Flag validation logic should be extracted to dedicated functions in domain packages with comprehensive parametrized tests covering edge cases like whitespace handling and all pairwise flag combinations
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-4y8h | conventions
+Flag validation functions should use variadic arguments (e.g., param ...string) for optional parameters to allow backward-compatible function calls with different argument counts without breaking existing callers
+
+*Archived from new: filtered: generic engineering advice*
+
