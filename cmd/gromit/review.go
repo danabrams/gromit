@@ -47,6 +47,7 @@ var (
 	reviewNonInteractive bool
 	reviewSince          string
 	reviewEpic           string
+	reviewSpec           string
 	reviewDryRun         bool
 	reviewAgent          string
 	reviewChooseAgent    bool
@@ -71,6 +72,7 @@ func init() {
 	reviewCmd.Flags().BoolVar(&reviewNonInteractive, "non-interactive", false, "Run review autonomously without interactive session")
 	reviewCmd.Flags().StringVar(&reviewSince, "since", "", "Review from this commit")
 	reviewCmd.Flags().StringVar(&reviewEpic, "epic", "", "Review changes from this epic's beads")
+	reviewCmd.Flags().StringVar(&reviewSpec, "spec", "", "Review changes from this spec's beads")
 	reviewCmd.Flags().BoolVar(&reviewDryRun, "dry-run", false, "Preview what would be reviewed")
 	reviewCmd.Flags().StringVar(&reviewAgent, "agent", "", "Override the agent to use for interactive review")
 	reviewCmd.Flags().BoolVar(&reviewChooseAgent, "choose-agent", false, "Show picker to select agent for interactive review")
