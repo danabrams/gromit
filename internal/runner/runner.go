@@ -347,8 +347,8 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			break
 		}
 
-		// Get next bead
-		b, err := r.beads.Ready()
+		// Get next bead (with optional label filtering)
+		b, err := r.getNextBead()
 		if err != nil {
 			return fmt.Errorf("getting next bead: %w", err)
 		}
@@ -1916,4 +1916,30 @@ func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteratio
 // SetLabelFilters sets optional spec labels to filter beads by
 func (r *Runner) SetLabelFilters(labels []string) {
 	r.labelFilters = labels
+}
+
+// getNextBead gets the next bead to process, optionally filtering by labels
+func (r *Runner) getNextBead() (*bead.Bead, error) {
+	if r == nil || r.beads == nil {
+		return nil, fmt.Errorf("runner or beads client is nil")
+	}
+
+	// If no label filters, use Ready() as before
+	if len(r.labelFilters) == 0 {
+		return r.beads.Ready()
+	}
+
+	// Iterate through labels and return first bead found
+	for _, label := range r.labelFilters {
+		b, err := r.beads.ReadyWithLabel(label)
+		if err != nil {
+			return nil, fmt.Errorf("getting bead with label %s: %w", label, err)
+		}
+		if b != nil {
+			return b, nil
+		}
+	}
+
+	// No beads found for any label
+	return nil, nil
 }
