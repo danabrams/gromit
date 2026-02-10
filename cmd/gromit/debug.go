@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/backlog"
@@ -278,9 +279,9 @@ When applying direct fixes (outcome 1), run these commands:
 	return sb.String(), nil
 }
 
-// getReportFiles returns a list of .md files in the reports directory
-func getReportFiles(reportsDir string) ([]string, error) {
-	entries, err := os.ReadDir(reportsDir)
+// getMDFiles returns a list of .md files in the given directory
+func getMDFiles(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []string{}, nil
@@ -288,44 +289,24 @@ func getReportFiles(reportsDir string) ([]string, error) {
 		return nil, err
 	}
 
-	reports := []string{}
+	mdFiles := []string{}
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-			reports = append(reports, filepath.Join(reportsDir, entry.Name()))
+			mdFiles = append(mdFiles, filepath.Join(dir, entry.Name()))
 		}
 	}
 
-	return reports, nil
+	return mdFiles, nil
+}
+
+// getReportFiles returns a list of .md files in the reports directory
+func getReportFiles(reportsDir string) ([]string, error) {
+	return getMDFiles(reportsDir)
 }
 
 // getPlanFiles returns a list of .md files in the plans directory
 func getPlanFiles(plansDir string) ([]string, error) {
-	entries, err := os.ReadDir(plansDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []string{}, nil
-		}
-		return nil, err
-	}
-
-	plans := []string{}
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-			plans = append(plans, filepath.Join(plansDir, entry.Name()))
-		}
-	}
-
-	return plans, nil
-}
-
-// containsFile checks if a string slice contains a value
-func containsFile(slice []string, value string) bool {
-	for _, item := range slice {
-		if item == value {
-			return true
-		}
-	}
-	return false
+	return getMDFiles(plansDir)
 }
 
 // getNewBacklogItems returns backlog items that are not in the existing list
@@ -374,14 +355,14 @@ func detectAndReportArtifacts(reportsDir, plansDir string, existingReports, exis
 	// Find newly created artifacts
 	createdReports := []string{}
 	for _, report := range newReports {
-		if !containsFile(existingReports, report) {
+		if !slices.Contains(existingReports, report) {
 			createdReports = append(createdReports, report)
 		}
 	}
 
 	createdPlans := []string{}
 	for _, plan := range newPlans {
-		if !containsFile(existingPlans, plan) {
+		if !slices.Contains(existingPlans, plan) {
 			createdPlans = append(createdPlans, plan)
 		}
 	}
