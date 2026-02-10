@@ -1791,3 +1791,517 @@ func TestClientListReadyIDsErrorWrapping(t *testing.T) {
 		t.Errorf("ListReadyIDs() error should contain 'bd ready' context: %v", err)
 	}
 }
+
+// TestClientReadyWithLabelValidation tests that ReadyWithLabel validates label parameter
+func TestClientReadyWithLabelValidation(t *testing.T) {
+	c, _ := NewClient()
+
+	tests := []struct {
+		name    string
+		label   string
+		wantErr bool
+	}{
+		{
+			name:    "empty label",
+			label:   "",
+			wantErr: true,
+		},
+		{
+			name:    "label with semicolon",
+			label:   "spec:auth; rm -rf /",
+			wantErr: true,
+		},
+		{
+			name:    "label with pipe",
+			label:   "spec:auth | cat",
+			wantErr: true,
+		},
+		{
+			name:    "label with dollar sign",
+			label:   "spec:$(whoami)",
+			wantErr: true,
+		},
+		{
+			name:    "label with backtick",
+			label:   "spec:`whoami`",
+			wantErr: true,
+		},
+		{
+			name:    "label with newline",
+			label:   "spec:auth\nspec:other",
+			wantErr: true,
+		},
+		{
+			name:    "valid label",
+			label:   "spec:auth",
+			wantErr: false,
+		},
+		{
+			name:    "valid label with dash",
+			label:   "complexity:high",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := c.ReadyWithLabel(tt.label)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ReadyWithLabel(%q) error = %v, wantErr %v", tt.label, err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && err != nil {
+				if tt.label == "" && !strings.Contains(err.Error(), "empty") {
+					t.Errorf("ReadyWithLabel(\"\") should mention empty label, got: %v", err)
+				}
+				if strings.ContainsAny(tt.label, ";\n|$`&<>(){}[]'\"\\") && !strings.Contains(err.Error(), "shell metacharacters") {
+					t.Errorf("ReadyWithLabel(%q) should mention shell metacharacters, got: %v", tt.label, err)
+				}
+			}
+		})
+	}
+}
+
+// TestClientReadyWithLabelNilClient tests that ReadyWithLabel returns error on nil client
+func TestClientReadyWithLabelNilClient(t *testing.T) {
+	var c *Client
+	_, err := c.ReadyWithLabel("spec:test")
+	if err == nil {
+		t.Errorf("ReadyWithLabel() on nil client expected error but got nil")
+		return
+	}
+	if !strings.Contains(err.Error(), "nil") {
+		t.Errorf("ReadyWithLabel() on nil client should mention nil, got: %v", err)
+	}
+}
+
+// TestClientReadyWithLabelEmptyResults tests that ReadyWithLabel returns nil for empty results
+func TestClientReadyWithLabelEmptyResults(t *testing.T) {
+	tests := []struct {
+		name        string
+		jsonOutput  string
+		description string
+	}{
+		{
+			name:        "empty array",
+			jsonOutput:  "[]",
+			description: "No beads with label",
+		},
+		{
+			name:        "empty string",
+			jsonOutput:  "",
+			description: "No output from bd",
+		},
+		{
+			name:        "whitespace only",
+			jsonOutput:  "   \n  ",
+			description: "Only whitespace",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bead, err := parseBeadOutputExcluding(tt.jsonOutput, "epic")
+			if err != nil {
+				t.Fatalf("parseBeadOutputExcluding() error = %v", err)
+			}
+			if bead != nil {
+				t.Errorf("parseBeadOutputExcluding(\"%s\") expected nil but got %+v", tt.description, bead)
+			}
+		})
+	}
+}
+
+// TestClientReadyWithLabelExcludesEpics tests that ReadyWithLabel filters out epic beads
+func TestClientReadyWithLabelExcludesEpics(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+		wantID     string
+		wantType   string
+		wantNil    bool
+	}{
+		{
+			name: "task bead with spec:auth label",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Auth task",
+				"priority": 1,
+				"labels": ["spec:auth"],
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantID:   "task-001",
+			wantType: "task",
+			wantNil:  false,
+		},
+		{
+			name: "epic bead only - should return nil",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Epic",
+				"priority": 0,
+				"labels": ["spec:auth"],
+				"issue_type": "epic",
+				"status": "open"
+			}]`,
+			wantNil: true,
+		},
+		{
+			name: "epic before task - should skip epic",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Epic",
+				"priority": 0,
+				"labels": ["spec:auth"],
+				"issue_type": "epic",
+				"status": "open"
+			}, {
+				"id": "task-001",
+				"title": "Task",
+				"priority": 1,
+				"labels": ["spec:auth"],
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantID:   "task-001",
+			wantType: "task",
+			wantNil:  false,
+		},
+		{
+			name: "multiple epics only - should return nil",
+			jsonOutput: `[{
+				"id": "epic-001",
+				"title": "Epic 1",
+				"priority": 0,
+				"labels": ["spec:auth"],
+				"issue_type": "epic",
+				"status": "open"
+			}, {
+				"id": "epic-002",
+				"title": "Epic 2",
+				"priority": 0,
+				"labels": ["spec:auth"],
+				"issue_type": "epic",
+				"status": "open"
+			}]`,
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseBeadOutputExcluding(tt.jsonOutput, "epic")
+			if err != nil {
+				t.Fatalf("parseBeadOutputExcluding() error = %v", err)
+			}
+
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("Expected nil bead but got: %+v", got)
+				}
+				return
+			}
+
+			if got == nil {
+				t.Fatal("Expected non-nil bead but got nil")
+			}
+
+			if got.ID != tt.wantID {
+				t.Errorf("ID = %v, want %v", got.ID, tt.wantID)
+			}
+			if got.Type != tt.wantType {
+				t.Errorf("Type = %v, want %v", got.Type, tt.wantType)
+			}
+		})
+	}
+}
+
+// TestClientListWithLabelValidation tests that ListWithLabel validates label parameter
+func TestClientListWithLabelValidation(t *testing.T) {
+	c, _ := NewClient()
+
+	tests := []struct {
+		name    string
+		label   string
+		wantErr bool
+	}{
+		{
+			name:    "empty label",
+			label:   "",
+			wantErr: true,
+		},
+		{
+			name:    "label with semicolon",
+			label:   "spec:auth; rm -rf /",
+			wantErr: true,
+		},
+		{
+			name:    "label with ampersand",
+			label:   "spec:auth & echo pwned",
+			wantErr: true,
+		},
+		{
+			name:    "label with angle brackets",
+			label:   "spec:auth > /etc/passwd",
+			wantErr: true,
+		},
+		{
+			name:    "valid label",
+			label:   "spec:auth",
+			wantErr: false,
+		},
+		{
+			name:    "valid label with colon",
+			label:   "complexity:high",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := c.ListWithLabel(tt.label)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ListWithLabel(%q) error = %v, wantErr %v", tt.label, err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && err != nil {
+				if tt.label == "" && !strings.Contains(err.Error(), "empty") {
+					t.Errorf("ListWithLabel(\"\") should mention empty label, got: %v", err)
+				}
+				if strings.ContainsAny(tt.label, ";\n|$`&<>(){}[]'\"\\") && !strings.Contains(err.Error(), "shell metacharacters") {
+					t.Errorf("ListWithLabel(%q) should mention shell metacharacters, got: %v", tt.label, err)
+				}
+			}
+		})
+	}
+}
+
+// TestClientListWithLabelNilClient tests that ListWithLabel returns error on nil client
+func TestClientListWithLabelNilClient(t *testing.T) {
+	var c *Client
+	_, err := c.ListWithLabel("spec:test")
+	if err == nil {
+		t.Errorf("ListWithLabel() on nil client expected error but got nil")
+		return
+	}
+	if !strings.Contains(err.Error(), "nil") {
+		t.Errorf("ListWithLabel() on nil client should mention nil, got: %v", err)
+	}
+}
+
+// TestClientListWithLabelEmptyResults tests that ListWithLabel returns empty slice for no results
+func TestClientListWithLabelEmptyResults(t *testing.T) {
+	tests := []struct {
+		name        string
+		jsonOutput  string
+		description string
+	}{
+		{
+			name:        "empty array",
+			jsonOutput:  "[]",
+			description: "No beads with label",
+		},
+		{
+			name:        "empty string",
+			jsonOutput:  "",
+			description: "No output from bd",
+		},
+		{
+			name:        "whitespace only",
+			jsonOutput:  "   \n  ",
+			description: "Only whitespace",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			beads, err := parseBeadOutputList(tt.jsonOutput)
+			if err != nil {
+				t.Fatalf("parseBeadOutputList() error = %v", err)
+			}
+			if beads == nil {
+				t.Errorf("parseBeadOutputList(\"%s\") expected empty slice not nil, got nil", tt.description)
+				return
+			}
+			if len(beads) != 0 {
+				t.Errorf("parseBeadOutputList(\"%s\") expected empty slice, got %d beads", tt.description, len(beads))
+			}
+		})
+	}
+}
+
+// TestClientListWithLabelMultipleBeads tests that ListWithLabel returns multiple beads correctly
+func TestClientListWithLabelMultipleBeads(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+		wantCount  int
+		wantIDs    []string
+	}{
+		{
+			name: "single bead with spec:auth label",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Auth task",
+				"priority": 1,
+				"labels": ["spec:auth"],
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantCount: 1,
+			wantIDs:   []string{"task-001"},
+		},
+		{
+			name: "multiple beads with spec:auth label",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Auth task 1",
+				"priority": 1,
+				"labels": ["spec:auth"],
+				"issue_type": "task",
+				"status": "open"
+			}, {
+				"id": "task-002",
+				"title": "Auth task 2",
+				"priority": 2,
+				"labels": ["spec:auth", "complexity:high"],
+				"issue_type": "task",
+				"status": "open"
+			}, {
+				"id": "bug-001",
+				"title": "Auth bug",
+				"priority": 0,
+				"labels": ["spec:auth"],
+				"issue_type": "bug",
+				"status": "open"
+			}]`,
+			wantCount: 3,
+			wantIDs:   []string{"task-001", "task-002", "bug-001"},
+		},
+		{
+			name: "beads with complexity:high label",
+			jsonOutput: `[{
+				"id": "complex-1",
+				"title": "Complex task 1",
+				"priority": 1,
+				"labels": ["complexity:high"],
+				"issue_type": "task",
+				"status": "open"
+			}, {
+				"id": "complex-2",
+				"title": "Complex task 2",
+				"priority": 0,
+				"labels": ["complexity:high", "spec:api"],
+				"issue_type": "feature",
+				"status": "open"
+			}]`,
+			wantCount: 2,
+			wantIDs:   []string{"complex-1", "complex-2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			beads, err := parseBeadOutputList(tt.jsonOutput)
+			if err != nil {
+				t.Fatalf("parseBeadOutputList() error = %v", err)
+			}
+			if len(beads) != tt.wantCount {
+				t.Errorf("parseBeadOutputList() returned %d beads, expected %d", len(beads), tt.wantCount)
+				return
+			}
+			for i, id := range tt.wantIDs {
+				if beads[i].ID != id {
+					t.Errorf("parseBeadOutputList()[%d].ID = %q, expected %q", i, beads[i].ID, id)
+				}
+			}
+		})
+	}
+}
+
+// TestClientListWithLabelIncludesAllTypes tests that ListWithLabel includes all bead types (not just tasks)
+func TestClientListWithLabelIncludesAllTypes(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+		wantTypes  []string
+	}{
+		{
+			name: "mixed types with spec:auth label",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Task",
+				"priority": 1,
+				"labels": ["spec:auth"],
+				"issue_type": "task",
+				"status": "open"
+			}, {
+				"id": "bug-001",
+				"title": "Bug",
+				"priority": 1,
+				"labels": ["spec:auth"],
+				"issue_type": "bug",
+				"status": "open"
+			}, {
+				"id": "feature-001",
+				"title": "Feature",
+				"priority": 1,
+				"labels": ["spec:auth"],
+				"issue_type": "feature",
+				"status": "open"
+			}, {
+				"id": "epic-001",
+				"title": "Epic",
+				"priority": 0,
+				"labels": ["spec:auth"],
+				"issue_type": "epic",
+				"status": "open"
+			}]`,
+			wantTypes: []string{"task", "bug", "feature", "epic"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			beads, err := parseBeadOutputList(tt.jsonOutput)
+			if err != nil {
+				t.Fatalf("parseBeadOutputList() error = %v", err)
+			}
+			if len(beads) != len(tt.wantTypes) {
+				t.Errorf("parseBeadOutputList() returned %d beads, expected %d", len(beads), len(tt.wantTypes))
+				return
+			}
+			for i, wantType := range tt.wantTypes {
+				if beads[i].Type != wantType {
+					t.Errorf("parseBeadOutputList()[%d].Type = %q, expected %q", i, beads[i].Type, wantType)
+				}
+			}
+		})
+	}
+}
+
+// parseBeadOutputList is a helper function that parses JSON output for ListWithLabel tests
+func parseBeadOutputList(out string) ([]*Bead, error) {
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return []*Bead{}, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd list output: %w", err)
+	}
+
+	result := make([]*Bead, len(beads))
+	for i := range beads {
+		beads[i].normalizeNilFields()
+		if err := beads[i].Validate(); err != nil {
+			return nil, fmt.Errorf("invalid bead data at index %d: %w", i, err)
+		}
+		result[i] = &beads[i]
+	}
+
+	return result, nil
+}
