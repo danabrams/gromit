@@ -463,6 +463,126 @@ func (m *mockStateFile) LastRetro() time.Time {
 
 // --- Tests ---
 
+// TestBeadClientInterfaceIncludesReadyWithLabel verifies that BeadClient interface
+// includes the ReadyWithLabel method with correct signature.
+func TestBeadClientInterfaceIncludesReadyWithLabel(t *testing.T) {
+	// Verify the interface method exists by calling it on a mock implementation
+	// This test will only compile if ReadyWithLabel is part of the BeadClient interface
+	mock := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			return &bead.Bead{ID: "test-1", Title: "Test"}, nil
+		},
+	}
+
+	// Call the method through the interface to verify the signature
+	var client BeadClient = mock
+	result, err := client.ReadyWithLabel("spec:test")
+	if err != nil {
+		t.Errorf("ReadyWithLabel() returned error: %v", err)
+	}
+	if result == nil {
+		t.Error("ReadyWithLabel() returned nil bead")
+	}
+	if result.ID != "test-1" {
+		t.Errorf("ReadyWithLabel() bead ID = %q, want 'test-1'", result.ID)
+	}
+}
+
+// TestBeadClientInterfaceIncludesListWithLabel verifies that BeadClient interface
+// includes the ListWithLabel method with correct signature.
+func TestBeadClientInterfaceIncludesListWithLabel(t *testing.T) {
+	// Verify the interface method exists by calling it on a mock implementation
+	// This test will only compile if ListWithLabel is part of the BeadClient interface
+	mock := &mockBeadClient{
+		ListWithLabelFn: func(label string) ([]*bead.Bead, error) {
+			return []*bead.Bead{
+				{ID: "task-1", Title: "First task"},
+				{ID: "task-2", Title: "Second task"},
+			}, nil
+		},
+	}
+
+	// Call the method through the interface to verify the signature
+	var client BeadClient = mock
+	results, err := client.ListWithLabel("spec:auth")
+	if err != nil {
+		t.Errorf("ListWithLabel() returned error: %v", err)
+	}
+	if results == nil {
+		t.Error("ListWithLabel() returned nil slice")
+	}
+	if len(results) != 2 {
+		t.Errorf("ListWithLabel() returned %d beads, want 2", len(results))
+	}
+	if results[0].ID != "task-1" {
+		t.Errorf("ListWithLabel()[0] ID = %q, want 'task-1'", results[0].ID)
+	}
+	if results[1].ID != "task-2" {
+		t.Errorf("ListWithLabel()[1] ID = %q, want 'task-2'", results[1].ID)
+	}
+}
+
+// TestReadyWithLabelMockImplementation verifies the mock's ReadyWithLabel method works
+func TestReadyWithLabelMockImplementation(t *testing.T) {
+	mock := &mockBeadClient{}
+
+	// Test nil callback returns nil bead
+	result, err := mock.ReadyWithLabel("spec:test")
+	if err != nil {
+		t.Errorf("ReadyWithLabel() with nil callback should return nil error, got: %v", err)
+	}
+	if result != nil {
+		t.Errorf("ReadyWithLabel() with nil callback should return nil bead, got: %v", result)
+	}
+
+	// Test custom callback
+	mock.ReadyWithLabelFn = func(label string) (*bead.Bead, error) {
+		return &bead.Bead{ID: "custom", Title: label}, nil
+	}
+	result, err = mock.ReadyWithLabel("custom-label")
+	if err != nil {
+		t.Errorf("ReadyWithLabel() with custom callback returned error: %v", err)
+	}
+	if result.Title != "custom-label" {
+		t.Errorf("ReadyWithLabel() title = %q, want 'custom-label'", result.Title)
+	}
+}
+
+// TestListWithLabelMockImplementation verifies the mock's ListWithLabel method works
+func TestListWithLabelMockImplementation(t *testing.T) {
+	mock := &mockBeadClient{}
+
+	// Test nil callback returns empty slice
+	results, err := mock.ListWithLabel("spec:test")
+	if err != nil {
+		t.Errorf("ListWithLabel() with nil callback should return nil error, got: %v", err)
+	}
+	if results == nil {
+		t.Error("ListWithLabel() with nil callback should return empty slice not nil")
+	}
+	if len(results) != 0 {
+		t.Errorf("ListWithLabel() with nil callback should return empty slice, got %d items", len(results))
+	}
+
+	// Test custom callback
+	mock.ListWithLabelFn = func(label string) ([]*bead.Bead, error) {
+		return []*bead.Bead{
+			{ID: "task-1", Title: "Task for " + label},
+			{ID: "task-2", Title: "Another task"},
+		}, nil
+	}
+	results, err = mock.ListWithLabel("my-spec")
+	if err != nil {
+		t.Errorf("ListWithLabel() with custom callback returned error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Errorf("ListWithLabel() returned %d beads, want 2", len(results))
+	}
+	if results[0].Title != "Task for my-spec" {
+		t.Errorf("ListWithLabel()[0] title = %q, want 'Task for my-spec'", results[0].Title)
+	}
+}
+
 func TestNewRunnerWithDeps(t *testing.T) {
 	cfg := &config.Config{}
 	var buf strings.Builder
