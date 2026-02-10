@@ -992,3 +992,89 @@ func TestReadAllLogsFiltered_FilterIncludesOnlyMatchingBeads(t *testing.T) {
 		t.Errorf("expected 0 failed (b2 excluded), got %d", stats.Failed)
 	}
 }
+
+func TestReadPerBeadStatsFiltered_NilFilterIncludesAll(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":2000,"error":"build failed"}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStatsFiltered(dir, nil)
+	if err != nil {
+		t.Fatalf("reading filtered per-bead stats: %v", err)
+	}
+
+	if len(stats) != 2 {
+		t.Errorf("expected 2 beads with nil filter, got %d", len(stats))
+	}
+}
+
+func TestReadPerBeadStatsFiltered_EmptyFilterIncludesAll(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":2000,"error":"build failed"}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	filter := make(map[string]bool)
+	stats, err := ReadPerBeadStatsFiltered(dir, filter)
+	if err != nil {
+		t.Fatalf("reading filtered per-bead stats: %v", err)
+	}
+
+	if len(stats) != 2 {
+		t.Errorf("expected 2 beads with empty filter, got %d", len(stats))
+	}
+}
+
+func TestReadPerBeadStatsFiltered_FilterIncludesOnlyMatchingBeads(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":2000,"error":"build failed"}
+{"timestamp":"2026-02-05T12:02:00Z","iteration":3,"bead_id":"b2","bead_title":"Task 2","model":"opus","success":true,"validated":true,"escalated":true,"escalated_to":"opus","duration_ms":3000}
+{"timestamp":"2026-02-05T12:03:00Z","iteration":4,"bead_id":"b3","bead_title":"Task 3","model":"haiku","success":true,"validated":true,"escalated":false,"duration_ms":500}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Filter to only include b1 and b3
+	filter := map[string]bool{
+		"b1": true,
+		"b3": true,
+	}
+
+	stats, err := ReadPerBeadStatsFiltered(dir, filter)
+	if err != nil {
+		t.Fatalf("reading filtered per-bead stats: %v", err)
+	}
+
+	if len(stats) != 2 {
+		t.Errorf("expected 2 beads (b1 and b3), got %d", len(stats))
+	}
+
+	if _, exists := stats["b1"]; !exists {
+		t.Error("expected b1 in filtered stats")
+	}
+
+	if _, exists := stats["b3"]; !exists {
+		t.Error("expected b3 in filtered stats")
+	}
+
+	if _, exists := stats["b2"]; exists {
+		t.Error("b2 should be excluded from filtered stats")
+	}
+
+	// Verify b1 has 2 runs (both entries for b1)
+	if stats["b1"].TotalRuns != 2 {
+		t.Errorf("expected b1 to have 2 runs, got %d", stats["b1"].TotalRuns)
+	}
+}

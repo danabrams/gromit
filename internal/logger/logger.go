@@ -219,6 +219,12 @@ func ReadAllLogsFiltered(logsDir string, beadFilter map[string]bool) (RunStats, 
 
 // ReadPerBeadStats reads all JSONL log files and returns per-bead statistics
 func ReadPerBeadStats(logsDir string) (map[string]BeadStats, error) {
+	return ReadPerBeadStatsFiltered(logsDir, nil)
+}
+
+// ReadPerBeadStatsFiltered reads all JSONL log files and returns per-bead statistics,
+// optionally filtered by bead ID. If beadFilter is nil or empty, all entries are included.
+func ReadPerBeadStatsFiltered(logsDir string, beadFilter map[string]bool) (map[string]BeadStats, error) {
 	beadMap := make(map[string]BeadStats)
 
 	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
@@ -232,6 +238,11 @@ func ReadPerBeadStats(logsDir string) (map[string]BeadStats, error) {
 			continue // Skip unreadable files
 		}
 		for _, entry := range entries {
+			// Apply filter if provided
+			if len(beadFilter) > 0 && !beadFilter[entry.BeadID] {
+				continue
+			}
+
 			stats := beadMap[entry.BeadID]
 
 			// Initialize with bead ID and title if this is the first time we see it
