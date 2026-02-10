@@ -854,3 +854,173 @@ func TestRunnerLabelFiltering_DeduplicationInGetNextBead(t *testing.T) {
 		t.Errorf("Expected ReadyWithLabel to be called at least twice (once per label), got %d calls", readyWithLabelCallCount)
 	}
 }
+
+// TestRunnerLabelFiltering_MultipleIterationsWithLabelFilters verifies that across
+// multiple iterations, the runner consistently uses ReadyWithLabel and never falls back
+// to Ready() when label filters are active
+func TestRunnerLabelFiltering_MultipleIterationsWithLabelFilters(t *testing.T) {
+	var output strings.Builder
+
+	// Create beads that will be processed across multiple iterations
+	allBeads := []*bead.Bead{
+		{ID: "auth-1", Title: "Auth task 1", Priority: 1, Labels: []string{"spec:auth"}, ExpectedOutputs: []string{}},
+		{ID: "auth-2", Title: "Auth task 2", Priority: 0, Labels: []string{"spec:auth"}, ExpectedOutputs: []string{}},
+		{ID: "pay-1", Title: "Payment task 1", Priority: 1, Labels: []string{"spec:payments"}, ExpectedOutputs: []string{}},
+		{ID: "pay-2", Title: "Payment task 2", Priority: 2, Labels: []string{"spec:payments"}, ExpectedOutputs: []string{}},
+		{ID: "other-1", Title: "Other task", Priority: 0, Labels: []string{"spec:other"}, ExpectedOutputs: []string{}},
+	}
+
+	var processedBeads []string
+	closedBeads := make(map[string]bool)
+	var readyWithLabelCalls []string
+	var readyCalled bool
+
+	mockBeads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			readyCalled = true
+			t.Error("Ready() should never be called when label filters are set")
+			return nil, nil
+		},
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			readyWithLabelCalls = append(readyWithLabelCalls, label)
+
+			// Find the highest priority non-closed bead with this label
+			var bestBead *bead.Bead
+			for i := 0; i < len(allBeads); i++ {
+				b := allBeads[i]
+				if closedBeads[b.ID] {
+					continue
+				}
+				// Check if this bead has the requested label
+				hasLabel := false
+				for _, l := range b.Labels {
+					if l == label {
+						hasLabel = true
+						break
+					}
+				}
+				if !hasLabel {
+					continue
+				}
+				// Select highest priority (lowest number)
+				if bestBead == nil || b.Priority < bestBead.Priority {
+					bestBead = b
+				}
+			}
+			return bestBead, nil
+		},
+		CloseFn: func(id string) error {
+			closedBeads[id] = true
+			processedBeads = append(processedBeads, id)
+			return nil
+		},
+		SyncFn: func() error {
+			return nil
+		},
+		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
+			return nil, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "validation passed"}, nil
+		},
+	}
+
+	precheckDisabled := false
+	autoPushDisabled := false
+
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled: false,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Review: config.ReviewConfig{
+			Enabled: false,
+		},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	deps := Deps{
+		Beads:    mockBeads,
+		Claude:   mockClaude,
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+
+	// Set label filters for auth and payments only (not "other")
+	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
+
+	ctx := context.Background()
+	err = r.Run(ctx, 10, time.Time{}, false)
+	if err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Verify Ready() was never called across all iterations
+	if readyCalled {
+		t.Error("Ready() was called during execution, but it should never be called when label filters are active")
+	}
+
+	// Verify only auth and payment beads were processed (not "other-1")
+	expectedBeads := []string{"auth-2", "auth-1", "pay-1", "pay-2"} // Priority order: P0, P1, P1, P2
+	if len(processedBeads) != len(expectedBeads) {
+		t.Errorf("Expected %d beads to be processed, got %d: %v", len(expectedBeads), len(processedBeads), processedBeads)
+	}
+
+	// Verify other-1 was NOT processed (it has spec:other label which is not in filters)
+	for _, id := range processedBeads {
+		if id == "other-1" {
+			t.Errorf("Bead 'other-1' should not have been processed as it doesn't match label filters")
+		}
+	}
+
+	// Verify beads were processed in priority order
+	if len(processedBeads) == len(expectedBeads) {
+		for i, expected := range expectedBeads {
+			if processedBeads[i] != expected {
+				t.Errorf("Expected bead at position %d to be %q, got %q", i, expected, processedBeads[i])
+			}
+		}
+	}
+
+	// Verify ReadyWithLabel was called multiple times across iterations
+	if len(readyWithLabelCalls) < 4 {
+		t.Errorf("Expected ReadyWithLabel to be called at least 4 times (across multiple iterations), got %d calls", len(readyWithLabelCalls))
+	}
+
+	// Verify both labels were queried in the calls
+	foundAuth := false
+	foundPayments := false
+	for _, label := range readyWithLabelCalls {
+		if label == "spec:auth" {
+			foundAuth = true
+		}
+		if label == "spec:payments" {
+			foundPayments = true
+		}
+	}
+	if !foundAuth {
+		t.Error("Expected ReadyWithLabel to be called with 'spec:auth' label")
+	}
+	if !foundPayments {
+		t.Error("Expected ReadyWithLabel to be called with 'spec:payments' label")
+	}
+}
