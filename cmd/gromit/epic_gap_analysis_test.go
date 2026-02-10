@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/claude"
@@ -31,6 +32,33 @@ func TestPerformGapAnalysis_CallsClaudeWithHaikuModel(t *testing.T) {
 
 	if capturedModel != "haiku" {
 		t.Errorf("expected model 'haiku', got %q", capturedModel)
+	}
+}
+
+// TestPerformGapAnalysis_IncludesEpicContentInPrompt verifies epic content is in the prompt
+func TestPerformGapAnalysis_IncludesEpicContentInPrompt(t *testing.T) {
+	var capturedPrompt string
+
+	mockClient := &mockClaudeClient{
+		runFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			capturedPrompt = prompt
+			return &claude.Result{
+				Success: true,
+				Output:  "Gap analysis result",
+			}, nil
+		},
+	}
+
+	epicContent := "# Test Epic\n\nThis epic describes payment processing."
+	specSummaries := []string{"Spec 1: Auth"}
+
+	_, err := performGapAnalysis(mockClient, "haiku", epicContent, specSummaries)
+	if err != nil {
+		t.Fatalf("performGapAnalysis failed: %v", err)
+	}
+
+	if !strings.Contains(capturedPrompt, epicContent) {
+		t.Errorf("prompt should contain epic content %q, got: %q", epicContent, capturedPrompt)
 	}
 }
 

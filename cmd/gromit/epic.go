@@ -228,8 +228,11 @@ type claudeClient interface {
 
 // performGapAnalysis runs LLM gap analysis on epic content and spec summaries
 func performGapAnalysis(client claudeClient, model string, epicContent string, specSummaries []string) (string, error) {
+	// Build prompt with epic content
+	prompt := epicContent
+
 	// Call Claude with haiku model
-	result, err := client.Run(context.Background(), "", model)
+	result, err := client.Run(context.Background(), prompt, model)
 	if err != nil {
 		return "", err
 	}
