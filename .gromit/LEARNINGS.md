@@ -595,3 +595,8 @@ Archived: restates rules already codified in RULES.md Test Quality section (//go
 ### 2026-02-10 | gromit-d6sl consolidation originals | conventions
 Archived: two gromit-d6sl provisional learnings consolidated into single "Consolidation beads require strict scope verification" entry.
 
+### 2026-02-10 | gromit-gdzl | conventions
+When consolidating learnings and archiving entries, existing integration tests that hardcode expected learning positions break immediately. Always verify that learnings integration tests use flexible matching (check for minimum count and validate presence of expected items in any order) rather than positional assertions.
+
+*Archived from new: filtered: generic engineering advice*
+
