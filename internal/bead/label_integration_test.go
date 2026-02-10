@@ -365,3 +365,30 @@ func TestListWithLabel_IntegrationReturnsMultipleBeadsInOrder(t *testing.T) {
 		}
 	}
 }
+
+// TestListWithLabel_IntegrationExcludesEpics tests that ListWithLabel() excludes epic type beads
+// This is an acceptance test for the epic exclusion requirement
+func TestListWithLabel_IntegrationExcludesEpics(t *testing.T) {
+	c := newIsolatedClient(t)
+
+	testLabel := "spec:epic-exclusion-list-test"
+
+	// Create a regular task with the label
+	_, err := c.Create("Regular task", 1, []string{testLabel}, []string{})
+	if err != nil {
+		t.Skipf("Cannot create test task: %v", err)
+	}
+
+	// List beads with the label
+	beads, err := c.ListWithLabel(testLabel)
+	if err != nil {
+		t.Fatalf("ListWithLabel() error = %v", err)
+	}
+
+	// Verify no epic beads in results
+	for i, bead := range beads {
+		if bead.Type == "epic" {
+			t.Errorf("ListWithLabel(%q) bead[%d] should not be type epic, got bead ID %s with type %s", testLabel, i, bead.ID, bead.Type)
+		}
+	}
+}

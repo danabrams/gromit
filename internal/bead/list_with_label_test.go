@@ -257,8 +257,9 @@ func TestListWithLabel_ReturnsMultipleBeads(t *testing.T) {
 	}
 }
 
-// TestListWithLabel_IncludesAllBeadTypes tests that ListWithLabel() includes all bead types (task, bug, feature, epic)
-func TestListWithLabel_IncludesAllBeadTypes(t *testing.T) {
+// TestListWithLabel_ExcludesEpicBeads tests that ListWithLabel() excludes epic-type beads
+// This is an acceptance test for the epic exclusion requirement
+func TestListWithLabel_ExcludesEpicBeads(t *testing.T) {
 	jsonOutput := `[{
 		"id": "epic-001",
 		"title": "Epic",
@@ -289,26 +290,39 @@ func TestListWithLabel_IncludesAllBeadTypes(t *testing.T) {
 		"status": "open"
 	}]`
 
-	beads, err := parseListWithLabelOutput(jsonOutput)
+	beads, err := parseListWithLabelOutputExcludingEpics(jsonOutput)
 	if err != nil {
-		t.Fatalf("parseListWithLabelOutput() error = %v", err)
+		t.Fatalf("parseListWithLabelOutputExcludingEpics() error = %v", err)
 	}
 
-	if len(beads) != 4 {
-		t.Fatalf("Expected 4 beads (epic, task, bug, feature), got %d", len(beads))
+	// Should only include task, bug, feature (not epic)
+	if len(beads) != 3 {
+		t.Fatalf("Expected 3 beads (task, bug, feature), got %d", len(beads))
 	}
 
-	// Verify we have all types
+	// Verify no epic beads in results
+	for i, bead := range beads {
+		if bead.Type == "epic" {
+			t.Errorf("Bead[%d] should not be type epic, got: %s", i, bead.Type)
+		}
+	}
+
+	// Verify we have the non-epic types
 	types := make(map[string]bool)
 	for _, bead := range beads {
 		types[bead.Type] = true
 	}
 
-	expectedTypes := []string{"epic", "task", "bug", "feature"}
+	expectedTypes := []string{"task", "bug", "feature"}
 	for _, expectedType := range expectedTypes {
 		if !types[expectedType] {
 			t.Errorf("Expected to find bead with type %q", expectedType)
 		}
+	}
+
+	// Verify epic is NOT present
+	if types["epic"] {
+		t.Error("Should not include epic type beads")
 	}
 }
 
@@ -482,6 +496,34 @@ func parseListWithLabelOutput(out string) ([]*Bead, error) {
 			return nil, fmt.Errorf("invalid bead data at index %d: %w", i, err)
 		}
 		result[i] = &beads[i]
+	}
+
+	return result, nil
+}
+
+// parseListWithLabelOutputExcludingEpics parses JSON output excluding epic-type beads
+// This is the expected behavior for ListWithLabel after implementing epic exclusion
+func parseListWithLabelOutputExcludingEpics(out string) ([]*Bead, error) {
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return []*Bead{}, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd list output: %w", err)
+	}
+
+	// Filter out epic beads and convert to pointers
+	result := []*Bead{}
+	for i := range beads {
+		if beads[i].Type == "epic" {
+			continue
+		}
+		beads[i].normalizeNilFields()
+		if err := beads[i].Validate(); err != nil {
+			return nil, fmt.Errorf("invalid bead data at index %d: %w", i, err)
+		}
+		result = append(result, &beads[i])
 	}
 
 	return result, nil
