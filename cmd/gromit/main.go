@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/retro"
 	"github.com/danabrams/gromit/internal/runner"
+	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -165,6 +166,11 @@ func showStatus(cmd *cobra.Command, args []string) error {
 }
 
 func runRetro(cmd *cobra.Command, args []string) error {
+	// Validate flags first
+	if err := scope.ValidateFlags(retroEpicFlag, retroSpecFlag); err != nil {
+		return err
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
