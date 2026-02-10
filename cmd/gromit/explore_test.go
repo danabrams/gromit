@@ -3,87 +3,280 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/config"
 )
 
-// TestExploreCommand_RecordsExistingEpicFiles verifies that the explore command
-// records all existing .md files in .gromit/epics/ before launching the session.
-func TestExploreCommand_RecordsExistingEpicFiles(t *testing.T) {
+// setupExploreTest creates a temp directory with the standard explore test
+// structure: .gromit/ with templates/, CLAUDE.md, and config.
+func setupExploreTest(t *testing.T) (*config.Config, string) {
+	t.Helper()
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
-	epicsDir := filepath.Join(gromitDir, "epics")
+	templatesDir := filepath.Join(gromitDir, "templates")
 
-	// Create epics directory with some files
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("failed to create templates dir: %v", err)
+	}
+
+	claudeMDPath := filepath.Join(tmpDir, "CLAUDE.md")
+	if err := os.WriteFile(claudeMDPath, []byte("# Project\n\nThis is project context."), 0644); err != nil {
+		t.Fatalf("failed to create CLAUDE.md: %v", err)
+	}
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Templates:       templatesDir,
+			ProjectClaudeMD: claudeMDPath,
+			GromitDir:       gromitDir,
+		},
+	}
+
+	return cfg, gromitDir
+}
+
+// --- buildExplorePrompt tests (table-driven) ---
+
+func TestBuildExplorePrompt(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupFiles     func(t *testing.T, gromitDir string)
+		args           []string
+		wantContains   []string
+		wantNotContain []string
+	}{
+		{
+			name: "includes topic and CLAUDE.md content",
+			args: []string{"Improve developer onboarding"},
+			wantContains: []string{
+				"Improve developer onboarding",
+				"project context",
+			},
+		},
+		{
+			name: "works without topic",
+			args: []string{},
+			wantContains: []string{
+				"# Project",
+			},
+		},
+		{
+			name: "includes RULES.md content",
+			setupFiles: func(t *testing.T, gromitDir string) {
+				t.Helper()
+				rulesPath := filepath.Join(gromitDir, "RULES.md")
+				if err := os.WriteFile(rulesPath, []byte("# Rules\n\nNever commit secrets"), 0644); err != nil {
+					t.Fatalf("failed to create RULES.md: %v", err)
+				}
+			},
+			args: []string{"test topic"},
+			wantContains: []string{
+				"Never commit secrets",
+			},
+		},
+		{
+			name: "includes LEARNINGS.md content",
+			setupFiles: func(t *testing.T, gromitDir string) {
+				t.Helper()
+				learningsPath := filepath.Join(gromitDir, "LEARNINGS.md")
+				content := "### 2026-02-01 | Test Learning | patterns\n\nMock implementations use function pointers."
+				if err := os.WriteFile(learningsPath, []byte(content), 0644); err != nil {
+					t.Fatalf("failed to create LEARNINGS.md: %v", err)
+				}
+			},
+			args: []string{"test topic"},
+			wantContains: []string{
+				"Learning",
+			},
+		},
+		{
+			name: "handles missing RULES.md and LEARNINGS.md",
+			args: []string{"test topic"},
+			wantContains: []string{
+				"test topic",
+				"# Project",
+			},
+		},
+		{
+			name: "is exploration-focused not debug-focused",
+			args: []string{"Improve onboarding"},
+			wantContains: []string{
+				"epic",
+			},
+			wantNotContain: []string{
+				"implement the feature",
+				"write the code",
+			},
+		},
+		{
+			name: "mentions epics and specs directories",
+			args: []string{"test topic"},
+			wantContains: []string{
+				"epic",
+				"spec",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, gromitDir := setupExploreTest(t)
+
+			if tc.setupFiles != nil {
+				tc.setupFiles(t, gromitDir)
+			}
+
+			prompt, err := buildExplorePrompt(cfg, gromitDir, tc.args)
+			if err != nil {
+				t.Fatalf("buildExplorePrompt failed: %v", err)
+			}
+
+			if len(prompt) == 0 {
+				t.Fatal("prompt should not be empty")
+			}
+
+			promptLower := strings.ToLower(prompt)
+			for _, want := range tc.wantContains {
+				if !strings.Contains(prompt, want) && !strings.Contains(promptLower, strings.ToLower(want)) {
+					t.Errorf("prompt should contain %q", want)
+				}
+			}
+
+			for _, unwant := range tc.wantNotContain {
+				if strings.Contains(promptLower, strings.ToLower(unwant)) {
+					t.Errorf("prompt should not contain %q", unwant)
+				}
+			}
+		})
+	}
+}
+
+// --- getEpicFiles tests ---
+
+func TestGetEpicFiles_RecordsExistingFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, "epics")
 	if err := os.MkdirAll(epicsDir, 0755); err != nil {
 		t.Fatalf("failed to create epics dir: %v", err)
 	}
 
-	// Create existing epic files
 	epic1 := filepath.Join(epicsDir, "epic-1.md")
 	epic2 := filepath.Join(epicsDir, "epic-2.md")
+	txtFile := filepath.Join(epicsDir, "notes.txt")
+
 	if err := os.WriteFile(epic1, []byte("# Epic 1"), 0644); err != nil {
 		t.Fatalf("failed to write epic1: %v", err)
 	}
 	if err := os.WriteFile(epic2, []byte("# Epic 2"), 0644); err != nil {
 		t.Fatalf("failed to write epic2: %v", err)
 	}
-
-	// Create a non-markdown file (should be ignored)
-	txtFile := filepath.Join(epicsDir, "notes.txt")
 	if err := os.WriteFile(txtFile, []byte("notes"), 0644); err != nil {
 		t.Fatalf("failed to write txt file: %v", err)
 	}
 
-	// Record existing epic files (this should match the pattern in debug.go)
 	existingEpics, err := getEpicFiles(epicsDir)
 	if err != nil {
 		t.Fatalf("getEpicFiles failed: %v", err)
 	}
 
-	// Verify both epics are recorded
 	if len(existingEpics) != 2 {
 		t.Errorf("expected 2 existing epics, got %d", len(existingEpics))
 	}
 
-	foundEpic1 := false
-	foundEpic2 := false
+	epicSet := make(map[string]bool)
 	for _, e := range existingEpics {
-		if e == epic1 {
-			foundEpic1 = true
-		}
-		if e == epic2 {
-			foundEpic2 = true
-		}
+		epicSet[e] = true
 	}
 
-	if !foundEpic1 || !foundEpic2 {
-		t.Errorf("missing expected epics: epic1=%v, epic2=%v", foundEpic1, foundEpic2)
+	if !epicSet[epic1] || !epicSet[epic2] {
+		t.Error("should contain both epic files")
 	}
-
-	// Verify txt file was not included
-	for _, e := range existingEpics {
-		if e == txtFile {
-			t.Error("getEpicFiles should not include non-markdown files")
-		}
+	if epicSet[txtFile] {
+		t.Error("should not include non-markdown files")
 	}
 }
 
-// TestExploreCommand_RecordsExistingSpecFiles verifies that the explore command
-// records all existing .md files in .gromit/specs/ before launching the session.
-func TestExploreCommand_RecordsExistingSpecFiles(t *testing.T) {
+func TestGetEpicFiles_HandlesEmptyDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	specsDir := filepath.Join(gromitDir, "specs")
+	epicsDir := filepath.Join(tmpDir, "epics")
+	if err := os.MkdirAll(epicsDir, 0755); err != nil {
+		t.Fatalf("failed to create epics dir: %v", err)
+	}
 
-	// Create specs directory with some files
+	existingEpics, err := getEpicFiles(epicsDir)
+	if err != nil {
+		t.Fatalf("getEpicFiles should not error on empty dir: %v", err)
+	}
+
+	if len(existingEpics) != 0 {
+		t.Errorf("expected empty slice for empty dir, got %d epics", len(existingEpics))
+	}
+}
+
+func TestGetEpicFiles_HandlesMissingDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, "nonexistent")
+
+	existingEpics, err := getEpicFiles(epicsDir)
+	if err != nil {
+		t.Fatalf("getEpicFiles should not error on missing dir: %v", err)
+	}
+
+	if len(existingEpics) != 0 {
+		t.Errorf("expected empty slice for missing dir, got %d epics", len(existingEpics))
+	}
+}
+
+func TestGetEpicFiles_SnapshotOrderDoesNotMatter(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, "epics")
+	if err := os.MkdirAll(epicsDir, 0755); err != nil {
+		t.Fatalf("failed to create epics dir: %v", err)
+	}
+
+	epic1 := filepath.Join(epicsDir, "a-epic.md")
+	epic2 := filepath.Join(epicsDir, "z-epic.md")
+	epic3 := filepath.Join(epicsDir, "m-epic.md")
+
+	for _, path := range []string{epic3, epic1, epic2} {
+		if err := os.WriteFile(path, []byte("# Epic"), 0644); err != nil {
+			t.Fatalf("failed to write epic: %v", err)
+		}
+	}
+
+	existingEpics, err := getEpicFiles(epicsDir)
+	if err != nil {
+		t.Fatalf("getEpicFiles failed: %v", err)
+	}
+
+	if len(existingEpics) != 3 {
+		t.Fatalf("expected 3 epics, got %d", len(existingEpics))
+	}
+
+	epicSet := make(map[string]bool)
+	for _, e := range existingEpics {
+		epicSet[e] = true
+	}
+
+	if !epicSet[epic1] || !epicSet[epic2] || !epicSet[epic3] {
+		t.Error("all three epics should be present in snapshot regardless of order")
+	}
+}
+
+// --- getSpecFiles tests ---
+
+func TestGetSpecFiles_RecordsExistingFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	specsDir := filepath.Join(tmpDir, "specs")
 	if err := os.MkdirAll(specsDir, 0755); err != nil {
 		t.Fatalf("failed to create specs dir: %v", err)
 	}
 
-	// Create existing spec files
 	spec1 := filepath.Join(specsDir, "spec-a.md")
 	spec2 := filepath.Join(specsDir, "spec-b.md")
 	if err := os.WriteFile(spec1, []byte("# Spec A"), 0644); err != nil {
@@ -93,36 +286,42 @@ func TestExploreCommand_RecordsExistingSpecFiles(t *testing.T) {
 		t.Fatalf("failed to write spec2: %v", err)
 	}
 
-	// Record existing spec files (this should reuse getSpecFiles pattern)
 	existingSpecs, err := getSpecFiles(specsDir)
 	if err != nil {
 		t.Fatalf("getSpecFiles failed: %v", err)
 	}
 
-	// Verify both specs are recorded
 	if len(existingSpecs) != 2 {
 		t.Errorf("expected 2 existing specs, got %d", len(existingSpecs))
 	}
 
-	foundSpec1 := false
-	foundSpec2 := false
+	specSet := make(map[string]bool)
 	for _, s := range existingSpecs {
-		if s == spec1 {
-			foundSpec1 = true
-		}
-		if s == spec2 {
-			foundSpec2 = true
-		}
+		specSet[s] = true
 	}
 
-	if !foundSpec1 || !foundSpec2 {
-		t.Errorf("missing expected specs: spec1=%v, spec2=%v", foundSpec1, foundSpec2)
+	if !specSet[spec1] || !specSet[spec2] {
+		t.Error("should contain both spec files")
 	}
 }
 
-// TestExploreCommand_RecordsExistingBacklogItems verifies that the explore command
-// records all existing backlog items before launching the session.
-func TestExploreCommand_RecordsExistingBacklogItems(t *testing.T) {
+func TestGetSpecFiles_HandlesMissingDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	specsDir := filepath.Join(tmpDir, "nonexistent")
+
+	existingSpecs, err := getSpecFiles(specsDir)
+	if err != nil {
+		t.Fatalf("getSpecFiles should not error on missing dir: %v", err)
+	}
+
+	if len(existingSpecs) != 0 {
+		t.Errorf("expected empty slice for missing dir, got %d specs", len(existingSpecs))
+	}
+}
+
+// --- Backlog snapshot tests ---
+
+func TestExploreBacklog_RecordsExistingItems(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -134,7 +333,6 @@ func TestExploreCommand_RecordsExistingBacklogItems(t *testing.T) {
 		t.Fatalf("failed to create backlog file: %v", err)
 	}
 
-	// Create initial backlog items
 	item1 := &backlog.Idea{
 		ID:        "idea-1",
 		Text:      "First idea",
@@ -155,136 +353,26 @@ func TestExploreCommand_RecordsExistingBacklogItems(t *testing.T) {
 		t.Fatalf("failed to add item2: %v", err)
 	}
 
-	// Record existing backlog items
 	existingItems, err := bf.List()
 	if err != nil {
 		t.Fatalf("failed to list existing items: %v", err)
 	}
 
-	// Verify both items are recorded
 	if len(existingItems) != 2 {
 		t.Errorf("expected 2 existing items, got %d", len(existingItems))
 	}
 
-	foundItem1 := false
-	foundItem2 := false
+	itemIDs := make(map[string]bool)
 	for _, item := range existingItems {
-		if item.ID == "idea-1" {
-			foundItem1 = true
-		}
-		if item.ID == "idea-2" {
-			foundItem2 = true
-		}
+		itemIDs[item.ID] = true
 	}
 
-	if !foundItem1 || !foundItem2 {
-		t.Errorf("missing expected backlog items: item1=%v, item2=%v", foundItem1, foundItem2)
+	if !itemIDs["idea-1"] || !itemIDs["idea-2"] {
+		t.Error("should contain both backlog items")
 	}
 }
 
-// TestExploreCommand_CreatesEpicsDirIfMissing verifies that the explore command
-// ensures .gromit/epics/ directory exists, creating it if missing.
-func TestExploreCommand_CreatesEpicsDirIfMissing(t *testing.T) {
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	epicsDir := filepath.Join(gromitDir, "epics")
-
-	// Ensure gromit dir exists but epics dir does not
-	if err := os.MkdirAll(gromitDir, 0755); err != nil {
-		t.Fatalf("failed to create gromit dir: %v", err)
-	}
-
-	// Verify epics dir doesn't exist yet
-	if _, err := os.Stat(epicsDir); !os.IsNotExist(err) {
-		t.Fatal("epics dir should not exist yet")
-	}
-
-	// Attempt to ensure epics directory exists
-	if err := os.MkdirAll(epicsDir, 0755); err != nil {
-		t.Fatalf("failed to create epics dir: %v", err)
-	}
-
-	// Verify epics dir now exists
-	stat, err := os.Stat(epicsDir)
-	if err != nil {
-		t.Fatalf("epics dir should exist after creation: %v", err)
-	}
-
-	if !stat.IsDir() {
-		t.Error("epics path should be a directory")
-	}
-
-	// Verify directory has correct permissions
-	mode := stat.Mode()
-	expectedMode := os.FileMode(0755)
-	if mode.Perm() != expectedMode {
-		t.Errorf("epics dir has mode %v, expected %v", mode.Perm(), expectedMode)
-	}
-}
-
-// TestExploreCommand_HandlesEmptyEpicsDir verifies that the explore command
-// handles an empty .gromit/epics/ directory gracefully.
-func TestExploreCommand_HandlesEmptyEpicsDir(t *testing.T) {
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	epicsDir := filepath.Join(gromitDir, "epics")
-
-	// Create empty epics directory
-	if err := os.MkdirAll(epicsDir, 0755); err != nil {
-		t.Fatalf("failed to create epics dir: %v", err)
-	}
-
-	// Record existing epic files
-	existingEpics, err := getEpicFiles(epicsDir)
-	if err != nil {
-		t.Fatalf("getEpicFiles should not error on empty dir: %v", err)
-	}
-
-	// Verify empty slice is returned
-	if len(existingEpics) != 0 {
-		t.Errorf("expected empty slice for empty dir, got %d epics", len(existingEpics))
-	}
-}
-
-// TestExploreCommand_HandlesMissingEpicsDir verifies that the explore command
-// handles a missing .gromit/epics/ directory gracefully by returning an empty list.
-func TestExploreCommand_HandlesMissingEpicsDir(t *testing.T) {
-	tmpDir := t.TempDir()
-	epicsDir := filepath.Join(tmpDir, "nonexistent")
-
-	// Record existing epic files (directory doesn't exist)
-	existingEpics, err := getEpicFiles(epicsDir)
-	if err != nil {
-		t.Fatalf("getEpicFiles should not error on missing dir: %v", err)
-	}
-
-	// Verify empty slice is returned
-	if len(existingEpics) != 0 {
-		t.Errorf("expected empty slice for missing dir, got %d epics", len(existingEpics))
-	}
-}
-
-// TestExploreCommand_HandlesMissingSpecsDir verifies that the explore command
-// handles a missing .gromit/specs/ directory gracefully by returning an empty list.
-func TestExploreCommand_HandlesMissingSpecsDir(t *testing.T) {
-	tmpDir := t.TempDir()
-	specsDir := filepath.Join(tmpDir, "nonexistent")
-
-	// Record existing spec files (directory doesn't exist)
-	existingSpecs, err := getSpecFiles(specsDir)
-	if err != nil {
-		t.Fatalf("getSpecFiles should not error on missing dir: %v", err)
-	}
-
-	// Verify empty slice is returned
-	if len(existingSpecs) != 0 {
-		t.Errorf("expected empty slice for missing dir, got %d specs", len(existingSpecs))
-	}
-}
-
-// TestExploreCommand_HandlesMissingBacklogFile verifies that the explore command
-// handles a missing backlog file gracefully by returning an empty list.
-func TestExploreCommand_HandlesMissingBacklogFile(t *testing.T) {
+func TestExploreBacklog_HandlesMissingFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -296,27 +384,24 @@ func TestExploreCommand_HandlesMissingBacklogFile(t *testing.T) {
 		t.Fatalf("failed to create backlog file: %v", err)
 	}
 
-	// List items (file doesn't exist yet)
 	existingItems, err := bf.List()
 	if err != nil {
 		t.Fatalf("List should not error on missing file: %v", err)
 	}
 
-	// Verify empty slice is returned
 	if len(existingItems) != 0 {
 		t.Errorf("expected empty slice for missing file, got %d items", len(existingItems))
 	}
 }
 
-// TestExploreCommand_SnapshotContainsAllArtifacts verifies that the pre-session
-// snapshot includes all three artifact types: epics, specs, and backlog items.
-func TestExploreCommand_SnapshotContainsAllArtifacts(t *testing.T) {
+// --- Snapshot integration tests ---
+
+func TestExploreSnapshot_ContainsAllArtifacts(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	epicsDir := filepath.Join(gromitDir, "epics")
 	specsDir := filepath.Join(gromitDir, "specs")
 
-	// Create directories
 	if err := os.MkdirAll(epicsDir, 0755); err != nil {
 		t.Fatalf("failed to create epics dir: %v", err)
 	}
@@ -324,122 +409,105 @@ func TestExploreCommand_SnapshotContainsAllArtifacts(t *testing.T) {
 		t.Fatalf("failed to create specs dir: %v", err)
 	}
 
-	// Create an epic file
 	epicFile := filepath.Join(epicsDir, "epic-1.md")
 	if err := os.WriteFile(epicFile, []byte("# Epic 1"), 0644); err != nil {
 		t.Fatalf("failed to write epic: %v", err)
 	}
 
-	// Create a spec file
 	specFile := filepath.Join(specsDir, "spec-a.md")
 	if err := os.WriteFile(specFile, []byte("# Spec A"), 0644); err != nil {
 		t.Fatalf("failed to write spec: %v", err)
 	}
 
-	// Create a backlog item
 	bf, err := backlog.NewFile(gromitDir)
 	if err != nil {
 		t.Fatalf("failed to create backlog file: %v", err)
 	}
-
-	item := &backlog.Idea{
+	if err := bf.Add(&backlog.Idea{
 		ID:        "idea-1",
 		Text:      "Test idea",
 		Type:      "feature",
 		CreatedAt: time.Now(),
-	}
-	if err := bf.Add(item); err != nil {
+	}); err != nil {
 		t.Fatalf("failed to add backlog item: %v", err)
 	}
 
-	// Record snapshot of all artifacts
 	existingEpics, err := getEpicFiles(epicsDir)
 	if err != nil {
 		t.Fatalf("getEpicFiles failed: %v", err)
 	}
-
 	existingSpecs, err := getSpecFiles(specsDir)
 	if err != nil {
 		t.Fatalf("getSpecFiles failed: %v", err)
 	}
-
 	existingBacklog, err := bf.List()
 	if err != nil {
 		t.Fatalf("bf.List failed: %v", err)
 	}
 
-	// Verify snapshot contains all artifacts
 	if len(existingEpics) != 1 {
-		t.Errorf("expected 1 epic in snapshot, got %d", len(existingEpics))
-	} else {
-		// Only check epic file if we have one
-		if existingEpics[0] != epicFile {
-			t.Errorf("expected epic file %s in snapshot, got %s", epicFile, existingEpics[0])
-		}
+		t.Errorf("expected 1 epic, got %d", len(existingEpics))
 	}
-
 	if len(existingSpecs) != 1 {
-		t.Errorf("expected 1 spec in snapshot, got %d", len(existingSpecs))
-	} else {
-		// Only check spec file if we have one
-		if existingSpecs[0] != specFile {
-			t.Errorf("expected spec file %s in snapshot, got %s", specFile, existingSpecs[0])
-		}
+		t.Errorf("expected 1 spec, got %d", len(existingSpecs))
 	}
-
 	if len(existingBacklog) != 1 {
-		t.Errorf("expected 1 backlog item in snapshot, got %d", len(existingBacklog))
-	} else {
-		// Only check backlog item if we have one
-		if existingBacklog[0].ID != "idea-1" {
-			t.Errorf("expected backlog item idea-1 in snapshot, got %s", existingBacklog[0].ID)
-		}
+		t.Errorf("expected 1 backlog item, got %d", len(existingBacklog))
 	}
 }
 
-// TestExploreCommand_SnapshotOrderDoesNotMatter verifies that the order of
-// files in the snapshot doesn't affect correctness (testing set-like behavior).
-func TestExploreCommand_SnapshotOrderDoesNotMatter(t *testing.T) {
+func TestExploreSnapshot_DetectsNewArtifacts(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	epicsDir := filepath.Join(gromitDir, "epics")
 
-	// Create epics directory with multiple files
 	if err := os.MkdirAll(epicsDir, 0755); err != nil {
 		t.Fatalf("failed to create epics dir: %v", err)
 	}
 
-	// Create epic files with names that will be sorted differently by filesystem
-	epic1 := filepath.Join(epicsDir, "a-epic.md")
-	epic2 := filepath.Join(epicsDir, "z-epic.md")
-	epic3 := filepath.Join(epicsDir, "m-epic.md")
+	existingEpic := filepath.Join(epicsDir, "existing.md")
+	if err := os.WriteFile(existingEpic, []byte("# Existing"), 0644); err != nil {
+		t.Fatalf("failed to create existing epic: %v", err)
+	}
 
-	for _, path := range []string{epic3, epic1, epic2} { // Write in different order
-		if err := os.WriteFile(path, []byte("# Epic"), 0644); err != nil {
-			t.Fatalf("failed to write epic: %v", err)
+	// Take pre-session snapshot
+	preSessionEpics, err := getEpicFiles(epicsDir)
+	if err != nil {
+		t.Fatalf("failed to get pre-session epics: %v", err)
+	}
+	if len(preSessionEpics) != 1 {
+		t.Fatalf("pre-session snapshot should have 1 epic, got %d", len(preSessionEpics))
+	}
+
+	// Simulate session creating a new epic
+	newEpic := filepath.Join(epicsDir, "new-from-session.md")
+	if err := os.WriteFile(newEpic, []byte("# New Epic"), 0644); err != nil {
+		t.Fatalf("failed to create new epic: %v", err)
+	}
+
+	// Take post-session snapshot
+	postSessionEpics, err := getEpicFiles(epicsDir)
+	if err != nil {
+		t.Fatalf("failed to get post-session epics: %v", err)
+	}
+	if len(postSessionEpics) != 2 {
+		t.Fatalf("post-session snapshot should have 2 epics, got %d", len(postSessionEpics))
+	}
+
+	// Detect new artifacts by comparing snapshots
+	preSessionSet := make(map[string]bool)
+	for _, epic := range preSessionEpics {
+		preSessionSet[epic] = true
+	}
+
+	var newEpics []string
+	for _, epic := range postSessionEpics {
+		if !preSessionSet[epic] {
+			newEpics = append(newEpics, epic)
 		}
 	}
 
-	// Record existing epics
-	existingEpics, err := getEpicFiles(epicsDir)
-	if err != nil {
-		t.Fatalf("getEpicFiles failed: %v", err)
-	}
-
-	// Verify all three epics are present (order doesn't matter)
-	if len(existingEpics) != 3 {
-		t.Fatalf("expected 3 epics, got %d", len(existingEpics))
-	}
-
-	epicSet := make(map[string]bool)
-	for _, e := range existingEpics {
-		epicSet[e] = true
-	}
-
-	if !epicSet[epic1] || !epicSet[epic2] || !epicSet[epic3] {
-		t.Error("all three epics should be present in snapshot regardless of order")
+	if len(newEpics) != 1 || newEpics[0] != newEpic {
+		t.Errorf("should detect exactly the new epic %s, got %v", newEpic, newEpics)
 	}
 }
-
-// Note: getEpicFiles is implemented in explore.go
-// Note: getSpecFiles already exists in refine.go and will be reused
