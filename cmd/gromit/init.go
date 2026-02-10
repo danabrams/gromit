@@ -1176,11 +1176,12 @@ Your job is to write acceptance tests that verify the acceptance criteria for th
    - Where test files are located (e.g., ` + "`*_test.go` files alongside implementation)" + `)
    - How existing tests are structured and named
    - What helper functions or test utilities exist
+   - What shared setup helpers already exist — reuse them instead of writing new setup code
 
 2. **Write acceptance tests** that:
    - Cover each acceptance criterion with at least one test
    - Follow existing test patterns and naming conventions in the project
-   - Are integration/acceptance level tests, not unit tests (test behavior, not implementation details)
+   - Test behavior through the public API or command surface, not internal helper functions
    - Will fail until the feature is implemented (test for the new behavior)
    - Are clear, readable, and maintainable
 
@@ -1192,20 +1193,34 @@ Your job is to write acceptance tests that verify the acceptance criteria for th
 
 4. **Commit your changes** with a clear commit message like "test: add acceptance tests for [task title]"
 
-## Important Notes
+## What Makes a Good Acceptance Test
 
-- These tests MUST fail when first run - they test behavior that doesn't exist yet
-- If you find the behavior already exists, note this clearly in your response
-- Focus on WHAT the system should do (acceptance criteria), not HOW it does it
-- Each acceptance criterion should map to at least one test case
-- Tests should be deterministic and not flaky
-- Follow the project's testing conventions (table-driven tests, helper functions, etc.)
+Acceptance tests verify **user-visible behavior**, not implementation details. Apply these principles:
+
+- **Test through the public surface.** Call the function, method, or command that a user/caller would use. Do NOT test internal helpers directly — if a helper is private, test the command that calls it instead.
+- **Test behavior, not mechanics.** Assert on outcomes ("the output contains X", "the file was created", "the error message says Y"), not on how the code achieves them. Never test that stdlib functions work (e.g., don't verify that ` + "`os.MkdirAll`" + ` creates directories or that ` + "`os.WriteFile`" + ` writes files).
+- **One acceptance criterion per test case, not per test function.** Use table-driven tests or subtests (` + "`t.Run`" + `) to cover multiple scenarios. Multiple test functions that share identical setup are a sign you need a table-driven test instead.
+- **Extract shared setup into helpers.** If two or more tests create the same directory structure, config, or mock setup, extract it into a ` + "`setupXxx(t *testing.T)`" + ` helper. Keep helpers in the same package as the tests.
+- **Keep tests concise.** A 100-line test function with 30 lines of setup, 5 lines of action, and 65 lines of assertions is too long. Extract setup, use helpers, and trust that stdlib works.
+- **No skipped tests.** Do not write tests with ` + "`t.Skip()`" + ` for features that don't exist yet or can't run in the test environment. Every test you write must be runnable and must fail for the right reason (missing implementation, not missing infrastructure).
+- **Use build tags for true acceptance tests.** If the test requires external dependencies (real binaries, network, etc.), use ` + "`//go:build acceptance`" + ` so it runs separately from unit tests.
+
+## Anti-Patterns to Avoid
+
+Do NOT write tests that:
+- Test Go standard library behavior (file creation, temp files, JSON marshaling)
+- Call private/internal helper functions directly instead of the public API
+- Duplicate 10+ lines of identical setup across multiple test functions
+- Have ` + "`t.Skip()`" + ` because the test can't actually run
+- Verify implementation details like file permissions, temp file naming patterns, or internal data structures that aren't part of the acceptance criteria
+- Are actually unit tests labeled as "acceptance" — if it tests a single function with mocked dependencies, it's a unit test
 
 ## Completion
 
 When complete:
 - Acceptance test files are created/modified
 - Each acceptance criterion is covered by at least one test
+- Tests are concise — shared setup is extracted, related cases use table-driven tests
 - No implementation code has been written
 - All changes are committed
 

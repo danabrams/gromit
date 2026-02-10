@@ -56,6 +56,24 @@ Agent selection and execution uses a two-function pattern: `agent.Resolve()` han
 ### 2026-02-10 | gromit-7guf | conventions
 When reading optional files or directories (epics, specs, backlog), return empty lists gracefully for missing directories/files rather than error, allowing commands to proceed without required artifacts existing
 
+### 2026-02-10 | gromit-u3z9 | conventions
+Skipped acceptance tests document future features; when a test file is entirely skipped, extract the described behaviors to backlog items via gromit add before deleting the dead code
+
+### 2026-02-10 | gromit-nf7p | conventions
+Acceptance test files in cmd/gromit/ follow a naming pattern of test_acceptance_test.go, and consolidation should merge all related acceptance tests into the main test_test.go file while preserving test behavior and ensuring no test files with _acceptance_test.go suffix remain
+
+### 2026-02-10 | gromit-9idu | conventions
+Acceptance tests should be reclassified by purpose and merged into appropriately named test files (*_integration_test.go for bd contract/environment-gated tests, *_test.go for functional tests) rather than maintaining separate *_acceptance_test.go files to reduce file proliferation and organize tests by their actual testing strategy
+
+### 2026-02-10 | gromit-9idu | conventions
+Acceptance tests that verify contracts against external tools (like bd CLI) belong in main test files with unit tests, not in separate *_acceptance_test.go files. Use build tags (e.g., // +build BD_AVAILABLE) to gate integration tests within the same file.
+
+### 2026-02-10 | gromit-xeub | conventions
+Acceptance test files must have //go:build acceptance tag to prevent bloat during regular test runs; untagged *_acceptance_test.go files indicate misclassified tests that should be reclassified and merged into main *_test.go files
+
+### 2026-02-10 | gromit-xeub | conventions
+Use //go:build acceptance tags consistently across all *_acceptance_test.go files to enable conditional compilation and separate acceptance tests from unit tests during standard testing
+
 ---
 
 ## Archived
@@ -517,6 +535,36 @@ Bead 'Add epic and spec flags to retro command' timed out on sonnet — may need
 
 ### 2026-02-10 | gromit-7guf | patterns
 Extract common helper functions (like listMarkdownFiles) to eliminate duplication between similar operations across different commands - both getEpicFiles and getSpecFiles now delegate to the same implementation, ensuring consistent behavior and reducing maintenance burden
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-5rpz | patterns
+Consolidate related acceptance tests using: (1) extract common setup into helper functions, (2) convert multiple test functions testing similar behavior into a single table-driven test with t.Run() subtests
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-9945 | conventions
+When consolidating related acceptance test files, use section divider comments (// --- Category (from source_file.go) ---) to organize tests by purpose and origin, improving navigation and maintainability of the consolidated file
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-9945 | patterns
+When consolidating multiple test files, extract common setup helpers (writeSpecFiles, writeIterationLogs, assertLabelSet) and document with section comments ("--- Test helpers ---") to reduce duplication and make test organization clear
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-75qw | patterns
+Acceptance tests that mirror unit tests should be deleted—unit tests (especially table-driven) are sufficient. Extract common test setup into helper functions (setupLabelFilterTest) to enable table-driven testing and reduce duplication.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-75qw | conventions
+Acceptance tests that mirror unit test scenarios should be consolidated into table-driven unit tests with shared setup helpers (setupLabelFilterTest) and the redundant acceptance test files deleted entirely—unit tests in focused format are more maintainable and provide equivalent coverage.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-9qtb | conventions
+Acceptance test files with //go:build acceptance tag should extract common setup into helper structs and functions (like hashEvictionEnv with setupHashEviction) to reduce duplication across multiple test cases
 
 *Archived from new: filtered: generic engineering advice*
 

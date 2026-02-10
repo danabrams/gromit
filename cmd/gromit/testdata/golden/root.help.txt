@@ -13,6 +13,7 @@ Available Commands:
   completion    Generate the autocompletion script for the specified shell
   debug         Launch interactive bug investigation session
   decompose     Decompose a plan into bd beads
+  epic          Manage epics
   explore       Launch interactive exploration session
   help          Help about any command
   init          Initialize gromit in the current project
