@@ -126,6 +126,29 @@ func TestPerformGapAnalysis_AsksWhatAreasNotCovered(t *testing.T) {
 	}
 }
 
+// TestPerformGapAnalysis_ReturnsClaudeOutput verifies the function returns Claude's output
+func TestPerformGapAnalysis_ReturnsClaudeOutput(t *testing.T) {
+	expectedOutput := "The epic is missing specs for: reporting, notifications, and audit logs."
+
+	mockClient := &mockClaudeClient{
+		runFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  expectedOutput,
+			}, nil
+		},
+	}
+
+	result, err := performGapAnalysis(mockClient, "haiku", "# Epic", []string{})
+	if err != nil {
+		t.Fatalf("performGapAnalysis failed: %v", err)
+	}
+
+	if result != expectedOutput {
+		t.Errorf("expected output %q, got %q", expectedOutput, result)
+	}
+}
+
 // mockClaudeClient implements a minimal claude.Client interface for testing
 type mockClaudeClient struct {
 	runFn func(ctx context.Context, prompt string, model string) (*claude.Result, error)
