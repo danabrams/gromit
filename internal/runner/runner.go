@@ -41,7 +41,6 @@ type Runner struct {
 	labelFilters []string                     // optional spec labels to filter beads
 }
 
-
 // NewRunner creates a new runner
 func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	if cfg == nil {

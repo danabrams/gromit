@@ -1,15 +1,15 @@
 {
-  "name": "Reduce stuck bead retry ceiling",
-  "hypothesis": "Beads like ralph-runner-jje (6 failures) consume iterations without succeeding. Capping retries at 2 and auto-skipping with a decomposition comment will save 4+ wasted iterations per stuck bead",
-  "change": "Set MaxConsecutiveSkips to 2 in gromit.yaml and ensure the skip handler adds a bd comment suggesting the bead be decomposed",
-  "measurement": "Compare total wasted iterations on stuck beads before vs after. Target: reduce from current average of 3.5 failures per stuck bead to max 2",
-  "risk": "Some beads may succeed on attempt 3 with escalation. The MaxConsecutiveSkips config already exists, so this is a tuning change rather than new code",
-  "started_at": "2026-02-08T05:29:15.201307102-05:00",
+  "name": "Reduce stuck bead retry ceiling (corrected)",
+  "hypothesis": "Beads like gromit-7esx (3 failures at stuck_bead_threshold=3) consume iterations without succeeding. Reducing stuck_bead_threshold from 3 to 2 will save 1 wasted iteration per stuck bead. The previous experiment incorrectly changed max_consecutive_skips (precheck loop guard) instead of stuck_bead_threshold.",
+  "change": "Set stuck_bead_threshold to 2 in gromit.yaml (currently 3). This causes beads to be skipped after 2 cross-run failures instead of 3.",
+  "measurement": "Compare total wasted iterations on stuck beads before vs after. Target: reduce from 3 failures per stuck bead to max 2. Track whether any beads that would have succeeded on attempt 3 are now skipped prematurely.",
+  "risk": "Some beads may succeed on attempt 3 with model escalation (haiku-\u003esonnet-\u003eopus). Reducing the threshold from 3 to 2 removes one retry opportunity. The escalation chain has 3 tiers, so threshold=2 means the highest tier (opus) never gets attempted for stuck beads.",
+  "started_at": "2026-02-10T16:10:21.377117565-05:00",
   "baseline_metrics": {
-    "avg_cost_per_bead": 0,
-    "avg_duration_ms": 210885,
+    "avg_cost_per_bead": 0.4979099889344263,
+    "avg_duration_ms": 479982,
     "avg_input_tokens": 0,
     "avg_output_tokens": 0,
-    "failure_rate": 0.13636363636363635
+    "failure_rate": 0.39344262295081966
   }
 }

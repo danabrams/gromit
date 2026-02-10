@@ -44,10 +44,10 @@ func setupExploreTest(t *testing.T) (*config.Config, string) {
 
 func TestBuildExplorePrompt(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFiles     func(t *testing.T, gromitDir string)
-		args           []string
-		wantContains   []string
+		name            string
+		setupFiles      func(t *testing.T, gromitDir string)
+		args            []string
+		wantContains    []string
 		wantNotContains []string
 	}{
 		{

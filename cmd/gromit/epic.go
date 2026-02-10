@@ -50,7 +50,7 @@ func epicStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Find and read epic document
-	epicPath, epicTitle, err := findEpicByID(epicID, epicsDir)
+	_, epicTitle, err := findEpicByID(epicID, epicsDir)
 	if err != nil {
 		return err
 	}
@@ -79,19 +79,19 @@ func epicStatus(cmd *cobra.Command, args []string) error {
 
 		// Create bead client for querying beads
 		beadClient, err := bead.NewClient()
-		if err == nil {
-			// Only show bead counts if bd is available
-			for _, spec := range linkedSpecs {
-				stage := determinePipelineStage(spec.id, cfg)
 
-				// Get bead counts for this spec
+		// Show specs (with or without bead counts depending on bd availability)
+		for _, spec := range linkedSpecs {
+			stage := determinePipelineStage(spec.id, cfg)
+
+			fmt.Printf("  %s\n", spec.id)
+			fmt.Printf("    Title: %s\n", spec.title)
+			fmt.Printf("    Stage: %s\n", stage)
+
+			// Show bead progress if bd is available
+			if err == nil {
 				openCount, closedCount, beadErr := getBeadCounts(beadClient, spec.id)
 
-				fmt.Printf("  %s\n", spec.id)
-				fmt.Printf("    Title: %s\n", spec.title)
-				fmt.Printf("    Stage: %s\n", stage)
-
-				// Show bead progress if we can query beads
 				if beadErr == nil {
 					totalCount := openCount + closedCount
 					if totalCount > 0 {
@@ -100,54 +100,11 @@ func epicStatus(cmd *cobra.Command, args []string) error {
 						fmt.Printf("    Beads: none\n")
 					}
 				}
+			}
 
-				fmt.Println()
-			}
-		} else {
-			// If bd is not available, show specs without bead counts
-			for _, spec := range linkedSpecs {
-				stage := determinePipelineStage(spec.id, cfg)
-				fmt.Printf("  %s\n", spec.id)
-				fmt.Printf("    Title: %s\n", spec.title)
-				fmt.Printf("    Stage: %s\n", stage)
-				fmt.Println()
-			}
+			fmt.Println()
 		}
 	}
-
-	// Perform gap analysis
-	fmt.Println("\nGap Analysis:")
-	fmt.Println()
-
-	// Read epic content
-	epicContent, err := os.ReadFile(epicPath)
-	if err != nil {
-		return fmt.Errorf("reading epic file: %w", err)
-	}
-
-	// Create Claude client
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
-	if err != nil {
-		return fmt.Errorf("creating claude client: %w", err)
-	}
-
-	// Build spec summaries
-	specSummaries := buildSpecSummaries(linkedSpecs)
-
-	// Determine model to use (haiku for cost efficiency)
-	model := cfg.Models.P2 // P2 is haiku by default
-	if model == "" {
-		model = "claude-haiku-4.5-20251001"
-	}
-
-	// Run gap analysis
-	analysis, err := performGapAnalysis(claudeClient, model, string(epicContent), specSummaries)
-	if err != nil {
-		return fmt.Errorf("performing gap analysis: %w", err)
-	}
-
-	// Print analysis
-	fmt.Println(analysis)
 
 	return nil
 }

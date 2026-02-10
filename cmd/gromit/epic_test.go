@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -387,13 +388,16 @@ decomposed: true
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
+	// Check if bd binary is available
+	bdErr := exec.Command("bd", "help").Run()
+	if bdErr != nil {
+		// Skip test if bd is not available
+		t.Skip("bd binary not available, cannot verify bead progress display")
+	}
+
 	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
 
-	// Command requires bd binary - if not available, skip validation
 	if exitCode != 0 {
-		if strings.Contains(stderr, "bd") || strings.Contains(stderr, "not found") {
-			t.Skip("bd binary not available, cannot verify bead progress display")
-		}
 		t.Fatalf("command failed: %s", stderr)
 	}
 
@@ -628,10 +632,10 @@ created: 2026-02-08
 
 	// Create multiple specs with different stages
 	specs := []struct {
-		id       string
-		title    string
-		hasplan  bool
-		decomp   bool
+		id      string
+		title   string
+		hasplan bool
+		decomp  bool
 	}{
 		{"auth-spec", "User Authentication", true, true},
 		{"profile-spec", "User Profile", true, false},

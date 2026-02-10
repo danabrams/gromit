@@ -445,4 +445,3 @@ func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, expe
 
 	return nil
 }
-

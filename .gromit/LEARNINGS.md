@@ -29,6 +29,11 @@ Prompt/template infrastructure follows a load-populate-render pattern with consi
 
 Methodologies use label-based activation ("methodology:true"/"false") with global config fallback via bead.IsMethodologyActive(). When active, replace the build prompt with a specialized RenderXXXBuild method. Check parent labels before adding globally-active methodology labels to sub-beads to avoid duplicates. Order methodology checks carefully for precedence when multiple methodologies are active.
 
+### 2026-02-10 | Acceptance Test File Conventions | conventions
+*Related to: gromit-nf7p, gromit-xeub*
+
+Acceptance test files (`*_acceptance_test.go`) must have `//go:build acceptance` tags to separate them from unit tests during standard `go test` runs. Untagged acceptance test files indicate misclassified tests that should either be reclassified with the build tag or merged into the main `*_test.go` files if they are actually unit tests. In cmd/gromit/, acceptance tests follow the naming pattern `<feature>_acceptance_test.go`.
+
 ### 2026-02-08 | Runner Method Pattern | patterns
 *Related to: gromit-5pvp, gromit-82qx, gromit-vabo*
 
@@ -40,39 +45,8 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-08 | gromit-qnlq | gotchas
-Timing-based concurrency tests in the runner package are sensitive to system load and require either barrier-based synchronization patterns (as mentioned in recent commits using barrier pattern) or more lenient time budgets. Avoid relying solely on wall-clock duration checks; use synchronization primitives like WaitGroup barriers or channels to verify concurrency semantically rather than temporally.
-
-### 2026-02-08 | Compile-time Interface Verification | conventions
-*Related to: gromit-l7v4*
-
-Use compile-time interface verification with `var _ InterfaceName = (*impl)(nil)` at the top of interface files to catch implementation drift early instead of runtime tests — see internal/runner/interfaces.go for the pattern.
-
-### 2026-02-09 | Agent Selection and Execution | patterns
-*Related to: gromit-7dcu, gromit-3be2, gromit-pame*
-
-Agent selection and execution uses a two-function pattern: `agent.Resolve()` handles priority-based selection (flag override > interactive picker > phase config > default), then `agent.Launch()` executes with the resolved agent. CLI commands expose `--agent` and `--choose-agent` flags for override. Use this pattern for all commands needing agent integration instead of directly constructing `exec.Command` with Claude binary/flags.
-
 ### 2026-02-10 | gromit-7guf | conventions
 When reading optional files or directories (epics, specs, backlog), return empty lists gracefully for missing directories/files rather than error, allowing commands to proceed without required artifacts existing
-
-### 2026-02-10 | gromit-u3z9 | conventions
-Skipped acceptance tests document future features; when a test file is entirely skipped, extract the described behaviors to backlog items via gromit add before deleting the dead code
-
-### 2026-02-10 | gromit-nf7p | conventions
-Acceptance test files in cmd/gromit/ follow a naming pattern of test_acceptance_test.go, and consolidation should merge all related acceptance tests into the main test_test.go file while preserving test behavior and ensuring no test files with _acceptance_test.go suffix remain
-
-### 2026-02-10 | gromit-9idu | conventions
-Acceptance tests should be reclassified by purpose and merged into appropriately named test files (*_integration_test.go for bd contract/environment-gated tests, *_test.go for functional tests) rather than maintaining separate *_acceptance_test.go files to reduce file proliferation and organize tests by their actual testing strategy
-
-### 2026-02-10 | gromit-9idu | conventions
-Acceptance tests that verify contracts against external tools (like bd CLI) belong in main test files with unit tests, not in separate *_acceptance_test.go files. Use build tags (e.g., // +build BD_AVAILABLE) to gate integration tests within the same file.
-
-### 2026-02-10 | gromit-xeub | conventions
-Acceptance test files must have //go:build acceptance tag to prevent bloat during regular test runs; untagged *_acceptance_test.go files indicate misclassified tests that should be reclassified and merged into main *_test.go files
-
-### 2026-02-10 | gromit-xeub | conventions
-Use //go:build acceptance tags consistently across all *_acceptance_test.go files to enable conditional compilation and separate acceptance tests from unit tests during standard testing
 
 ---
 
@@ -572,4 +546,44 @@ Acceptance test files with //go:build acceptance tag should extract common setup
 Bead 'Handle edge cases in epic status command' timed out on sonnet — may need simpler scope or higher model tier
 
 *Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-7esx | conventions
+When updating interfaces or mock implementations, run the full test suite first to establish baseline failures, then verify that interface changes don't cause cascading test failures in other packages that depend on the mocks. Mock-related changes have broad impact across the codebase.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-9idu | conventions
+Acceptance tests that verify contracts against external tools (like bd CLI) belong in main test files with unit tests, not in separate *_acceptance_test.go files. Use build tags (e.g., // +build BD_AVAILABLE) to gate integration tests within the same file.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-9idu | conventions
+Acceptance tests should be reclassified by purpose and merged into appropriately named test files (*_integration_test.go for bd contract/environment-gated tests, *_test.go for functional tests) rather than maintaining separate *_acceptance_test.go files to reduce file proliferation and organize tests by their actual testing strategy
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-u3z9 | conventions
+Skipped acceptance tests document future features; when a test file is entirely skipped, extract the described behaviors to backlog items via gromit add before deleting the dead code
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-qnlq | gotchas
+Archived: barrier pattern for concurrency tests already implemented. Core advice (use sync primitives not timing) is standard testing practice. Learning served its purpose.
+
+*Archived from provisional: filtered: stale/served its purpose*
+
+### 2026-02-10 | Agent Selection and Execution | patterns
+Archived: already captured verbatim as a rule in RULES.md Code Style section (agent.Resolve() + agent.Launch() pattern). Redundant with rule.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-10 | acceptance test convention originals | conventions
+Archived: gromit-nf7p, gromit-xeub (x2) consolidated into Confirmed "Acceptance Test File Conventions" entry.
+
+### 2026-02-08 | Compile-time Interface Verification | conventions
+*Related to: gromit-l7v4*
+
+Use compile-time interface verification with `var _ InterfaceName = (*impl)(nil)` at the top of interface files to catch implementation drift early instead of runtime tests — see internal/runner/interfaces.go for the pattern.
+
+*Archived from provisional: filtered: generic engineering advice*
 
