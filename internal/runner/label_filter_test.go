@@ -257,7 +257,7 @@ func TestRunner_GetNextBead_MultipleLabelFilters_PicksHighestPriority(t *testing
 		Type:     "task",
 		Status:   "open",
 	}
-	
+
 	paymentBead := &bead.Bead{
 		ID:       "pay-001",
 		Title:    "Payment task",
