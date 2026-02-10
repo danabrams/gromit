@@ -108,15 +108,6 @@ func TestSkippedTestCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("go test compiles after file deletion", func(t *testing.T) {
-		// This test's existence and successful compilation proves that the package
-		// compiles without run_scope_acceptance_test.go. If that file still existed
-		// with stale imports or broken references, compilation would fail.
-		//
-		// The "run_scope_acceptance_test.go is deleted" subtest above verifies
-		// the file is gone. This subtest is a compile-time proof that the package
-		// remains valid after the deletion.
-	})
 }
 
 // backlogIdea is a minimal struct for reading backlog entries in tests.
