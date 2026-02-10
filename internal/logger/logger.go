@@ -181,6 +181,12 @@ func (s BeadStats) FailureRate() float64 {
 
 // ReadAllLogs reads all JSONL log files in the directory and returns aggregate stats
 func ReadAllLogs(logsDir string) (RunStats, error) {
+	return ReadAllLogsFiltered(logsDir, nil)
+}
+
+// ReadAllLogsFiltered reads all JSONL log files and returns aggregate stats,
+// optionally filtered by bead ID. If beadFilter is nil or empty, all entries are included.
+func ReadAllLogsFiltered(logsDir string, beadFilter map[string]bool) (RunStats, error) {
 	var stats RunStats
 
 	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
@@ -194,6 +200,11 @@ func ReadAllLogs(logsDir string) (RunStats, error) {
 			continue // Skip unreadable files
 		}
 		for _, entry := range entries {
+			// Apply filter if provided
+			if len(beadFilter) > 0 && !beadFilter[entry.BeadID] {
+				continue
+			}
+
 			stats.Total++
 			if entry.Success {
 				stats.Succeeded++
