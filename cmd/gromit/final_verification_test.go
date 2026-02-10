@@ -199,7 +199,7 @@ func hasAcceptanceBuildTag(t *testing.T, path string) bool {
 	for i := 0; i < 10 && scanner.Scan(); i++ {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "//go:build acceptance" || strings.HasPrefix(line, "//go:build acceptance ") ||
-			strings.Contains(line, "//go:build") && strings.Contains(line, "acceptance") {
+			(strings.Contains(line, "//go:build") && strings.Contains(line, "acceptance")) {
 			return true
 		}
 		// Also handle old-style build tags
