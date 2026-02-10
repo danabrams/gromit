@@ -108,7 +108,7 @@ Third provisional learning content
 
 	// Run retro (this should reconcile filtered hashes)
 	ctx := context.Background()
-	_, err = r.Run(ctx)
+	_, err = r.Run(ctx, nil)
 	// Note: Run will fail because claude binary won't work in tests,
 	// but reconciliation should happen before that point.
 	// In a real implementation, we'd mock the claude client.
@@ -242,7 +242,7 @@ New provisional learning
 	}
 
 	ctx := context.Background()
-	_, err = r.Run(ctx)
+	_, err = r.Run(ctx, nil)
 	// Run will fail, but state should be saved once before failure
 
 	// Verify state was modified (saved at least once)
@@ -376,7 +376,7 @@ Second learning
 	}
 
 	ctx := context.Background()
-	_, err = r.Run(ctx)
+	_, err = r.Run(ctx, nil)
 	// Run will fail, but state operations should complete before failure
 
 	// Verify state was NOT modified (no unnecessary save)
@@ -461,7 +461,7 @@ func TestFilteredHashEviction_HandlesEmptyProvisionalLearnings(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err = r.Run(ctx)
+	_, err = r.Run(ctx, nil)
 
 	// Verify all hashes were pruned
 	stateFile2, err := state.NewFile(tmpDir)
@@ -572,7 +572,7 @@ Another generic learning (will be archived)
 	}
 
 	ctx := context.Background()
-	_, err = r.Run(ctx)
+	_, err = r.Run(ctx, nil)
 
 	// Reload learnings to verify archival happened
 	learningsFile2, err := learnings.NewFile(tmpDir)

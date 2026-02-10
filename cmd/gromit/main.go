@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/retro"
 	"github.com/danabrams/gromit/internal/runner"
@@ -191,6 +192,29 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		cancel()
 	}()
 
+	// Build bead filter from flags
+	var beadFilter map[string]bool
+	var labels []string
+
+	if retroSpecFlag != "" {
+		labels = scope.ResolveSpec(retroSpecFlag)
+	} else if retroEpicFlag != "" {
+		specsDir := filepath.Join(gromitDir, "specs")
+		var err error
+		labels, err = scope.ResolveEpic(retroEpicFlag, specsDir)
+		if err != nil {
+			return fmt.Errorf("resolving epic scope: %w", err)
+		}
+	}
+
+	if len(labels) > 0 {
+		var err error
+		beadFilter, err = buildBeadFilter(ctx, labels)
+		if err != nil {
+			return fmt.Errorf("building bead filter: %w", err)
+		}
+	}
+
 	// Run retrospective
 	fmt.Println("Running retrospective analysis...")
 	fmt.Println("This may take a few minutes as it uses opus for quality analysis.")
@@ -200,7 +224,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create retro analyzer: %w", err)
 	}
 
-	result, err := r.Run(ctx)
+	result, err := r.Run(ctx, beadFilter)
 	if err != nil {
 		return fmt.Errorf("running retro: %w", err)
 	}
@@ -247,4 +271,31 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// buildBeadFilter resolves labels to bead IDs and returns a filter map.
+// If labels is empty or nil, returns nil (no filtering).
+func buildBeadFilter(ctx context.Context, labels []string) (map[string]bool, error) {
+	if len(labels) == 0 {
+		return nil, nil
+	}
+
+	client, err := bead.NewClient()
+	if err != nil {
+		return nil, err
+	}
+
+	filter := make(map[string]bool)
+	for _, label := range labels {
+		beads, err := client.ListWithLabel(label)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, b := range beads {
+			filter[b.ID] = true
+		}
+	}
+
+	return filter, nil
 }

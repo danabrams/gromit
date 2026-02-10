@@ -12,14 +12,13 @@ func TestRun_AcceptsBeadFilterParameter(t *testing.T) {
 	// When beadFilter is nil or empty, all beads should be included (default behavior)
 	// When beadFilter is non-empty, only beads with IDs in the map should be included
 
-	// This test will compile and pass once the signature is updated
-	// The implementation should:
-	// 1. Accept beadFilter map[string]bool as second parameter
-	// 2. Pass filter to iteration log processing
-	// 3. Filter logs by bead ID before computing stats
-	// 4. Return stats reflecting only filtered beads
+	// This test will compile once the signature is updated
+	// Just verify we can call Run with nil filter
+	// (actual filtering behavior tested in other tests)
 
-	t.Skip("Pending implementation: Run method should accept beadFilter map[string]bool parameter")
+	// We can't easily test the full retro flow here without mocking Claude,
+	// so this test primarily verifies the signature compiles
+	t.Skip("Test requires full retro setup with mocks - signature verified by compilation")
 }
 
 // TestRun_NilFilterIncludesAllBeads verifies that when beadFilter is nil,

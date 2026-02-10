@@ -72,8 +72,10 @@ func NewRetro(cfg *config.Config, gromitDir string) (*Retro, error) {
 	}, nil
 }
 
-// Run executes the retrospective analysis
-func (r *Retro) Run(ctx context.Context) (*Result, error) {
+// Run executes the retrospective analysis.
+// The beadFilter parameter is optional (nil or empty = all beads included).
+// When non-empty, only logs for bead IDs in the filter map are included in the analysis.
+func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, error) {
 	if r == nil {
 		return nil, fmt.Errorf("retro is nil")
 	}

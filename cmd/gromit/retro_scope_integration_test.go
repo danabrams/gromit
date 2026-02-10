@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/scope"
 )
 
@@ -57,31 +56,4 @@ func TestBuildBeadFilter_NilLabelReturnsNilFilter(t *testing.T) {
 	if filter != nil {
 		t.Fatalf("expected nil filter for nil labels, got %v", filter)
 	}
-}
-
-// buildBeadFilter resolves labels to bead IDs and returns a filter map.
-// If labels is empty, returns nil (no filtering).
-func buildBeadFilter(ctx context.Context, labels []string) (map[string]bool, error) {
-	if len(labels) == 0 {
-		return nil, nil
-	}
-
-	client, err := bead.NewClient()
-	if err != nil {
-		return nil, err
-	}
-
-	filter := make(map[string]bool)
-	for _, label := range labels {
-		beads, err := client.ListWithLabel(label)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, b := range beads {
-			filter[b.ID] = true
-		}
-	}
-
-	return filter, nil
 }
