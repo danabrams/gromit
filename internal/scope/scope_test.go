@@ -411,6 +411,121 @@ func TestResolveSpecReturnsSingleLabel(t *testing.T) {
 	}
 }
 
+// TestValidateFlagsThreeWay_TrimsWhitespace tests that three-way validation
+// considers trimmed values when checking mutual exclusivity
+func TestValidateFlagsThreeWay_TrimsWhitespace(t *testing.T) {
+	tests := []struct {
+		name    string
+		epic    string
+		spec    string
+		since   string
+		wantErr bool
+	}{
+		{
+			name:    "whitespace-only values treated as empty",
+			epic:    "   ",
+			spec:    "   ",
+			since:   "   ",
+			wantErr: false,
+		},
+		{
+			name:    "epic with value, spec with whitespace, since empty",
+			epic:    "gromit-xyz",
+			spec:    "   ",
+			since:   "",
+			wantErr: false,
+		},
+		{
+			name:    "epic with whitespace, spec with value, since with value",
+			epic:    "   ",
+			spec:    "init-wizard",
+			since:   "abc123",
+			wantErr: true,
+		},
+		{
+			name:    "leading/trailing spaces in since",
+			epic:    "",
+			spec:    "",
+			since:   "  abc123  ",
+			wantErr: false,
+		},
+		{
+			name:    "two params with spaces - should error",
+			epic:    "  gromit-xyz  ",
+			spec:    "  init-wizard  ",
+			since:   "",
+			wantErr: true,
+		},
+		{
+			name:    "whitespace-only since with real epic",
+			epic:    "gromit-xyz",
+			spec:    "",
+			since:   "   ",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateFlags(tt.epic, tt.spec, tt.since)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateFlags(%q, %q, %q) error = %v, wantErr %v",
+					tt.epic, tt.spec, tt.since, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestValidateFlagsThreeWay_MentionsFlags verifies that error messages mention
+// which flags are conflicting
+func TestValidateFlagsThreeWay_MentionsFlags(t *testing.T) {
+	tests := []struct {
+		name          string
+		epic          string
+		spec          string
+		since         string
+		shouldMention []string
+	}{
+		{
+			name:          "epic and spec conflict",
+			epic:          "gromit-xyz",
+			spec:          "init-wizard",
+			since:         "",
+			shouldMention: []string{"epic", "spec"},
+		},
+		{
+			name:          "epic and since conflict",
+			epic:          "gromit-xyz",
+			spec:          "",
+			since:         "abc123",
+			shouldMention: []string{"epic", "since"},
+		},
+		{
+			name:          "spec and since conflict",
+			epic:          "",
+			spec:          "init-wizard",
+			since:         "abc123",
+			shouldMention: []string{"spec", "since"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateFlags(tt.epic, tt.spec, tt.since)
+			if err == nil {
+				t.Fatalf("ValidateFlags should return error for %s", tt.name)
+			}
+
+			errMsg := strings.ToLower(err.Error())
+			for _, flag := range tt.shouldMention {
+				if !strings.Contains(errMsg, flag) {
+					t.Errorf("error message should mention %q flag, got: %q", flag, err.Error())
+				}
+			}
+		})
+	}
+}
+
 // TestResolveEpic_NoSpecsDir tests ResolveEpic when specs directory doesn't exist
 func TestResolveEpic_NoSpecsDir(t *testing.T) {
 	tempDir := t.TempDir()
