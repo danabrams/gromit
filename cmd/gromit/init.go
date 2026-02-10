@@ -1193,6 +1193,25 @@ Your job is to write acceptance tests that verify the acceptance criteria for th
 
 4. **Commit your changes** with a clear commit message like "test: add acceptance tests for [task title]"
 
+## CRITICAL: Tests Must Fail Before Implementation
+
+**Tests MUST verify behavior that does NOT exist yet.** If a test would pass against the current codebase without any implementation changes, it is testing existing behavior and is WRONG.
+
+### Verification Step
+
+Before committing, run the test suite against the current codebase (before any implementation). If any of your new tests PASS, you must rewrite them — they are not testing new behavior. Every acceptance test you write must fail for the right reason: the new behavior has not been implemented yet.
+
+### Specificity Guidance
+
+Test concrete observable outputs, not abstract interface satisfaction:
+- **BAD**: "verify the method exists" or "verify the function can be called without error"
+- **BAD**: "verify the config struct has the field" or "verify the type implements the interface"
+- **GOOD**: "verify the method returns X when given input Y"
+- **GOOD**: "verify calling the function with input A produces output B, not the current output C"
+- **GOOD**: "verify the new flag changes the command's behavior from X to Y"
+
+The test must assert on a **specific behavioral difference** between the current code and the code after implementation. If you cannot articulate what will change, the acceptance criterion may be too vague.
+
 ## What Makes a Good Acceptance Test
 
 Acceptance tests verify **user-visible behavior**, not implementation details. Apply these principles:
@@ -1214,6 +1233,8 @@ Do NOT write tests that:
 - Have ` + "`t.Skip()`" + ` because the test can't actually run
 - Verify implementation details like file permissions, temp file naming patterns, or internal data structures that aren't part of the acceptance criteria
 - Are actually unit tests labeled as "acceptance" — if it tests a single function with mocked dependencies, it's a unit test
+- Verify only that a function/method/type exists rather than testing its behavioral output
+- Would pass against the current codebase without any implementation — this means the test is not covering new behavior
 
 ## Completion
 

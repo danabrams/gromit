@@ -29,11 +29,6 @@ Prompt/template infrastructure follows a load-populate-render pattern with consi
 
 Methodologies use label-based activation ("methodology:true"/"false") with global config fallback via bead.IsMethodologyActive(). When active, replace the build prompt with a specialized RenderXXXBuild method. Check parent labels before adding globally-active methodology labels to sub-beads to avoid duplicates. Order methodology checks carefully for precedence when multiple methodologies are active.
 
-### 2026-02-10 | Acceptance Test File Conventions | conventions
-*Related to: gromit-nf7p, gromit-xeub*
-
-Acceptance test files (`*_acceptance_test.go`) must have `//go:build acceptance` tags to separate them from unit tests during standard `go test` runs. Untagged acceptance test files indicate misclassified tests that should either be reclassified with the build tag or merged into the main `*_test.go` files if they are actually unit tests. In cmd/gromit/, acceptance tests follow the naming pattern `<feature>_acceptance_test.go`.
-
 ### 2026-02-08 | Runner Method Pattern | patterns
 *Related to: gromit-5pvp, gromit-82qx, gromit-vabo*
 
@@ -47,6 +42,9 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 
 ### 2026-02-10 | gromit-7guf | conventions
 When reading optional files or directories (epics, specs, backlog), return empty lists gracefully for missing directories/files rather than error, allowing commands to proceed without required artifacts existing
+
+### 2026-02-10 | gromit-d6sl | conventions
+Consolidation beads require strict scope verification: when beads touch 3+ files or involve cross-cutting refactors, verify each commit's actual changes match intent — 'formatting' or 'style' commits from refactoring tools can accidentally delete functional code. Gap analysis functions (performGapAnalysis, buildSpecSummaries, getBeadCounts) must be wired into epicStatus() at the correct call site. Tests expecting tool output (like bead progress from `bd`) should skip gracefully when the tool is unavailable, but gap analysis output should not depend on external tools.
 
 ---
 
@@ -586,4 +584,14 @@ Archived: gromit-nf7p, gromit-xeub (x2) consolidated into Confirmed "Acceptance 
 Use compile-time interface verification with `var _ InterfaceName = (*impl)(nil)` at the top of interface files to catch implementation drift early instead of runtime tests — see internal/runner/interfaces.go for the pattern.
 
 *Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-10 | Acceptance Test File Conventions | conventions
+*Related to: gromit-nf7p, gromit-xeub*
+
+Archived: restates rules already codified in RULES.md Test Quality section (//go:build acceptance tags, file naming). No project-specific insight beyond what the rules capture.
+
+*Archived from confirmed: redundant with rules*
+
+### 2026-02-10 | gromit-d6sl consolidation originals | conventions
+Archived: two gromit-d6sl provisional learnings consolidated into single "Consolidation beads require strict scope verification" entry.
 

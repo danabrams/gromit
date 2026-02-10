@@ -398,6 +398,42 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			continue
 		}
 
+		// Scope gate: block over-scoped beads before spending compute
+		if r.cfg.ScopeCheck.Enabled && r.cfg.ScopeCheck.ShouldBlockOversized() {
+			estimate := r.checkScope(ctx, b)
+			if estimate != nil {
+				blocked := false
+				var reason string
+				if !estimate.CanCompleteInSingleIteration {
+					blocked = true
+					reason = fmt.Sprintf("scope check: cannot complete in single iteration (complexity=%s, estimated_iterations=%d)", estimate.Complexity, estimate.EstimatedIterations)
+				} else if estimate.Complexity == "high" && len(estimate.Blockers) > 0 {
+					blocked = true
+					reason = fmt.Sprintf("scope check: high complexity with blockers (%s)", strings.Join(estimate.Blockers, "; "))
+				}
+				if blocked {
+					r.log("Blocking bead %s: %s", b.ID, reason)
+					comment := fmt.Sprintf("Blocked by scope gate: %s. Please decompose into smaller tasks.", reason)
+					if err := r.beads.AddComment(b.ID, comment); err != nil {
+						r.log("Warning: failed to add comment to blocked bead: %v", err)
+					}
+					skippedBeads[b.ID] = true
+					if r.logger != nil {
+						r.logger.LogIteration(&logger.IterationLog{
+							Timestamp: time.Now(),
+							Iteration: iteration + 1,
+							BeadID:    b.ID,
+							BeadTitle: b.Title,
+							Model:     r.cfg.ScopeCheck.Model,
+							Success:   false,
+							Outcome:   "scope_blocked",
+						})
+					}
+					continue
+				}
+			}
+		}
+
 		// Print separator between iterations (not before first)
 		if iteration > 0 {
 			r.log("")

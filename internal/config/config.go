@@ -61,8 +61,9 @@ type ValidationConfig struct {
 }
 
 type ScopeCheckConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Model   string `yaml:"model"`
+	Enabled        bool   `yaml:"enabled"`
+	Model          string `yaml:"model"`
+	BlockOversized *bool  `yaml:"block_oversized"`
 }
 
 type PrecheckConfig struct {
@@ -259,6 +260,10 @@ func (c *Config) SetDefaults() {
 	if c.ScopeCheck.Model == "" {
 		c.ScopeCheck.Model = ModelHaiku
 	}
+	if c.ScopeCheck.BlockOversized == nil {
+		t := true
+		c.ScopeCheck.BlockOversized = &t
+	}
 	if c.Precheck.Enabled == nil {
 		t := true
 		c.Precheck.Enabled = &t
@@ -406,4 +411,12 @@ func (g GitConfig) IsAutoPushEnabled() bool {
 		return true
 	}
 	return *g.AutoPush
+}
+
+// ShouldBlockOversized returns whether over-scoped beads should be blocked before execution (defaults to true)
+func (s ScopeCheckConfig) ShouldBlockOversized() bool {
+	if s.BlockOversized == nil {
+		return true
+	}
+	return *s.BlockOversized
 }

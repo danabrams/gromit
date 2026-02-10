@@ -2923,3 +2923,26 @@ func TestStateStaleThresholdMissingInYAML(t *testing.T) {
 		t.Errorf("expected default StaleThreshold=60 when omitted, got %d", cfg.State.StaleThreshold)
 	}
 }
+
+func TestShouldBlockOversizedNilPointer(t *testing.T) {
+	cfg := ScopeCheckConfig{}
+	if !cfg.ShouldBlockOversized() {
+		t.Errorf("expected ShouldBlockOversized() to return true for nil pointer")
+	}
+}
+
+func TestShouldBlockOversizedExplicitTrue(t *testing.T) {
+	trueVal := true
+	cfg := ScopeCheckConfig{BlockOversized: &trueVal}
+	if !cfg.ShouldBlockOversized() {
+		t.Errorf("expected ShouldBlockOversized() to return true for explicit true")
+	}
+}
+
+func TestShouldBlockOversizedExplicitFalse(t *testing.T) {
+	falseVal := false
+	cfg := ScopeCheckConfig{BlockOversized: &falseVal}
+	if cfg.ShouldBlockOversized() {
+		t.Errorf("expected ShouldBlockOversized() to return false for explicit false")
+	}
+}

@@ -5,7 +5,7 @@
 models:
   # Priority-based defaults (P0=critical, P1=normal, P2=low)
   p0: opus
-  p1: sonnet
+  p1: opus
   p2: haiku
 
   # Validation always uses haiku for cost efficiency
@@ -35,6 +35,7 @@ loop:
 scope_check:
   enabled: true
   model: haiku  # haiku is fast and cheap for estimation
+  block_oversized: true  # block over-scoped beads before spending compute
 
 # Pre-check - verify if acceptance criteria are already met before starting work
 precheck:
@@ -57,11 +58,11 @@ preflight:
 # Claude CLI settings
 claude:
   binary: "claude"
-  timeout: 600           # seconds per Claude invocation
-  stall_timeout: 120     # seconds with no output before auto-retry (initial, pre-activity)
-  stall_timeout_active: 300  # seconds with no output after tool activity (longer, allows thinking)
-  bead_timeout: 1200     # seconds max per bead (all retries + analysis + validation)
-  analysis_timeout: 120  # seconds max per failure analysis invocation
+  timeout: 900           # seconds per Claude invocation
+  stall_timeout: 180     # seconds with no output before auto-retry (initial, pre-activity)
+  stall_timeout_active: 600  # seconds with no output after tool activity (longer, allows thinking)
+  bead_timeout: 1800     # seconds max per bead (all retries + analysis + validation)
+  analysis_timeout: 180  # seconds max per failure analysis invocation
   flags:
     - "--dangerously-skip-permissions"
 
