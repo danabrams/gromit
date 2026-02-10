@@ -112,7 +112,7 @@ func TestRunner_GetNextBead_SingleLabelFilter(t *testing.T) {
 	}
 }
 
-// TestRunner_GetNextBead_MultipleLabelFilters_FirstHasBead verifies iteration stops at first match
+// TestRunner_GetNextBead_MultipleLabelFilters_FirstHasBead verifies all labels checked even if first has bead
 func TestRunner_GetNextBead_MultipleLabelFilters_FirstHasBead(t *testing.T) {
 	expectedBead := &bead.Bead{
 		ID:       "test-003",
@@ -144,12 +144,13 @@ func TestRunner_GetNextBead_MultipleLabelFilters_FirstHasBead(t *testing.T) {
 		t.Fatalf("getNextBead() unexpected error: %v", err)
 	}
 
-	if len(callOrder) != 1 {
-		t.Errorf("Expected 1 call to ReadyWithLabel, got %d calls: %v", len(callOrder), callOrder)
+	// Should call both labels to collect all candidates
+	if len(callOrder) != 2 {
+		t.Errorf("Expected 2 calls to ReadyWithLabel, got %d calls: %v", len(callOrder), callOrder)
 	}
 
-	if callOrder[0] != "spec:auth" {
-		t.Errorf("Expected first call with spec:auth, got %s", callOrder[0])
+	if callOrder[0] != "spec:auth" || callOrder[1] != "spec:payments" {
+		t.Errorf("Expected calls [spec:auth, spec:payments], got %v", callOrder)
 	}
 
 	if result == nil {
@@ -243,5 +244,64 @@ func TestRunner_GetNextBead_MultipleLabelFilters_NoneHaveBeads(t *testing.T) {
 
 	if result != nil {
 		t.Errorf("Expected nil bead when no labels have beads, got %+v", result)
+	}
+}
+
+// TestRunner_GetNextBead_MultipleLabelFilters_PicksHighestPriority verifies highest priority wins
+func TestRunner_GetNextBead_MultipleLabelFilters_PicksHighestPriority(t *testing.T) {
+	authBead := &bead.Bead{
+		ID:       "auth-001",
+		Title:    "Auth task",
+		Priority: 1, // P1
+		Labels:   []string{"spec:auth"},
+		Type:     "task",
+		Status:   "open",
+	}
+	
+	paymentBead := &bead.Bead{
+		ID:       "pay-001",
+		Title:    "Payment task",
+		Priority: 0, // P0 - higher priority
+		Labels:   []string{"spec:payments"},
+		Type:     "task",
+		Status:   "open",
+	}
+
+	callOrder := []string{}
+	mock := &MockBeadClientWithLabel{
+		ReadyWithLabelFunc: func(label string) (*bead.Bead, error) {
+			callOrder = append(callOrder, label)
+			if label == "spec:auth" {
+				return authBead, nil
+			}
+			if label == "spec:payments" {
+				return paymentBead, nil
+			}
+			return nil, nil
+		},
+	}
+
+	r := &Runner{
+		beads:        mock,
+		labelFilters: []string{"spec:auth", "spec:payments"},
+	}
+
+	result, err := r.getNextBead()
+	if err != nil {
+		t.Fatalf("getNextBead() unexpected error: %v", err)
+	}
+
+	// Should call ReadyWithLabel for all labels to collect candidates
+	if len(callOrder) != 2 {
+		t.Errorf("Expected 2 calls to ReadyWithLabel, got %d calls: %v", len(callOrder), callOrder)
+	}
+
+	if result == nil {
+		t.Fatal("getNextBead() returned nil bead")
+	}
+
+	// Should return the P0 payment bead (highest priority), not P1 auth bead
+	if result.ID != paymentBead.ID {
+		t.Errorf("getNextBead() should return highest priority bead (pay-001), got %s", result.ID)
 	}
 }

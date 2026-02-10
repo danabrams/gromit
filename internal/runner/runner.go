@@ -1929,17 +1929,30 @@ func (r *Runner) getNextBead() (*bead.Bead, error) {
 		return r.beads.Ready()
 	}
 
-	// Iterate through labels and return first bead found
+	// Collect beads from all labels
+	var candidates []*bead.Bead
 	for _, label := range r.labelFilters {
 		b, err := r.beads.ReadyWithLabel(label)
 		if err != nil {
 			return nil, fmt.Errorf("getting bead with label %s: %w", label, err)
 		}
 		if b != nil {
-			return b, nil
+			candidates = append(candidates, b)
 		}
 	}
 
-	// No beads found for any label
-	return nil, nil
+	// If no beads found for any label
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	// Return the highest priority bead (lowest priority number)
+	highestPriority := candidates[0]
+	for _, b := range candidates[1:] {
+		if b.Priority < highestPriority.Priority {
+			highestPriority = b
+		}
+	}
+
+	return highestPriority, nil
 }
