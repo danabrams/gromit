@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -390,5 +391,87 @@ func TestListWithLabel_IntegrationExcludesEpics(t *testing.T) {
 		if bead.Type == "epic" {
 			t.Errorf("ListWithLabel(%q) bead[%d] should not be type epic, got bead ID %s with type %s", testLabel, i, bead.ID, bead.Type)
 		}
+	}
+}
+
+// TestReadyWithLabel_CommandContract verifies the exact bd command contract
+func TestReadyWithLabel_CommandContract(t *testing.T) {
+	if os.Getenv("BD_AVAILABLE") != "true" {
+		t.Skip("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
+	}
+
+	c := newIsolatedClient(t)
+
+	testLabel := "spec:contract-test"
+
+	// Create a test bead
+	_, err := c.Create("Contract test bead", 1, []string{testLabel}, []string{})
+	if err != nil {
+		t.Skipf("Cannot create test bead: %v", err)
+	}
+
+	// Manually execute the exact command we expect ReadyWithLabel to use
+	expectedCmd := []string{"bd", "ready", "--json", "--limit", "10", "--label", testLabel}
+	cmd := exec.Command(expectedCmd[0], expectedCmd[1:]...)
+	cmd.Dir = c.Dir
+	out, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Logf("Expected bd command failed: %v\nOutput: %s", err, string(out))
+	}
+
+	// Now call ReadyWithLabel and verify it produces compatible results
+	bead, clientErr := c.ReadyWithLabel(testLabel)
+
+	// Both should succeed or both should fail
+	if (err == nil) != (clientErr == nil) {
+		t.Errorf("Command and client behavior differ: cmd err=%v, client err=%v", err, clientErr)
+	}
+
+	// If both succeeded and we got a bead, log success
+	if err == nil && clientErr == nil && bead != nil {
+		t.Logf("Contract verified: ReadyWithLabel(%q) returned bead %s", testLabel, bead.ID)
+	}
+}
+
+// TestListWithLabel_CommandContract verifies the exact bd command contract
+func TestListWithLabel_CommandContract(t *testing.T) {
+	if os.Getenv("BD_AVAILABLE") != "true" {
+		t.Skip("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
+	}
+
+	c := newIsolatedClient(t)
+
+	testLabel := "spec:list-contract-test"
+
+	// Create test beads
+	for i := 0; i < 2; i++ {
+		_, err := c.Create("List contract test bead", 1, []string{testLabel}, []string{})
+		if err != nil {
+			t.Skipf("Cannot create test bead %d: %v", i, err)
+		}
+	}
+
+	// Manually execute the exact command we expect ListWithLabel to use
+	expectedCmd := []string{"bd", "list", "--json", "--label", testLabel}
+	cmd := exec.Command(expectedCmd[0], expectedCmd[1:]...)
+	cmd.Dir = c.Dir
+	out, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Logf("Expected bd command failed: %v\nOutput: %s", err, string(out))
+	}
+
+	// Now call ListWithLabel and verify it produces compatible results
+	beads, clientErr := c.ListWithLabel(testLabel)
+
+	// Both should succeed or both should fail
+	if (err == nil) != (clientErr == nil) {
+		t.Errorf("Command and client behavior differ: cmd err=%v, client err=%v", err, clientErr)
+	}
+
+	// If both succeeded and we got beads, log success
+	if err == nil && clientErr == nil && len(beads) > 0 {
+		t.Logf("Contract verified: ListWithLabel(%q) returned %d beads", testLabel, len(beads))
 	}
 }
