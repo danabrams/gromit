@@ -313,8 +313,105 @@ decomposed: true
 	}
 }
 
-// TestEpicStatusCommand_ShowsBeadCounts verifies that status displays bead counts for each spec
-func TestEpicStatusCommand_ShowsBeadCounts(t *testing.T) {
+// TestEpicStatusCommand_ShowsBeadProgress verifies that status displays bead progress for each spec
+func TestEpicStatusCommand_ShowsBeadProgress(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+	plansDir := filepath.Join(tmpDir, ".gromit", "plans")
+
+	for _, dir := range []string{epicsDir, specsDir, plansDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Create epic
+	epicContent := `---
+epic_id: gromit-xyz
+created: 2026-02-08
+---
+
+# Test Epic
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "test.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create spec with decomposed plan (so it will have beads)
+	specContent := `---
+id: test-spec
+epic: gromit-xyz
+created: 2026-02-08
+---
+
+# Test Spec
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "test.md"), []byte(specContent), 0644); err != nil {
+		t.Fatalf("failed to write spec: %v", err)
+	}
+
+	// Create decomposed plan
+	planContent := `---
+id: test-spec
+source_spec: test-spec
+created: 2026-02-08
+decomposed: true
+---
+
+# Plan
+`
+	if err := os.WriteFile(filepath.Join(plansDir, "test-spec.md"), []byte(planContent), 0644); err != nil {
+		t.Fatalf("failed to write plan: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+  plans_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir, plansDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+
+	// Command requires bd binary - if not available, skip validation
+	if exitCode != 0 {
+		if strings.Contains(stderr, "bd") || strings.Contains(stderr, "not found") {
+			t.Skip("bd binary not available, cannot verify bead progress display")
+		}
+		t.Fatalf("command failed: %s", stderr)
+	}
+
+	// Verify bead progress is displayed
+	// Should show some indication like "Beads: 3/5", "Open: 2, Closed: 1", "Progress: 3 of 5 complete", etc.
+	stdoutLower := strings.ToLower(stdout)
+	hasBeadProgress := strings.Contains(stdoutLower, "bead") ||
+		(strings.Contains(stdoutLower, "open") && strings.Contains(stdoutLower, "closed")) ||
+		strings.Contains(stdoutLower, "progress") ||
+		strings.Contains(stdoutLower, "complete")
+
+	if !hasBeadProgress {
+		t.Errorf("status output should show bead progress, got:\n%s", stdout)
+	}
+}
+
+// TestEpicStatusCommand_DisplaysEpicStatus verifies that epic status (open/fully-specified/complete) is shown
+func TestEpicStatusCommand_DisplaysEpicStatus(t *testing.T) {
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -335,19 +432,6 @@ created: 2026-02-08
 `
 	if err := os.WriteFile(filepath.Join(epicsDir, "test.md"), []byte(epicContent), 0644); err != nil {
 		t.Fatalf("failed to write epic: %v", err)
-	}
-
-	// Create spec
-	specContent := `---
-id: test-spec
-epic: gromit-xyz
-created: 2026-02-08
----
-
-# Test Spec
-`
-	if err := os.WriteFile(filepath.Join(specsDir, "test.md"), []byte(specContent), 0644); err != nil {
-		t.Fatalf("failed to write spec: %v", err)
 	}
 
 	// Create minimal gromit.yaml
@@ -371,22 +455,27 @@ created: 2026-02-08
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, _, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
 
-	// If command succeeds (requires bd binary), verify bead counts are shown
-	if exitCode == 0 {
-		stdoutLower := strings.ToLower(stdout)
-
-		// Should show some indication of bead counts
-		// Could be "0 beads", "3/5 complete", "open: 2, closed: 1", etc.
-		hasCounts := strings.Contains(stdoutLower, "bead") ||
-			strings.Contains(stdoutLower, "open") ||
-			strings.Contains(stdoutLower, "closed") ||
-			strings.Contains(stdoutLower, "complete")
-
-		if !hasCounts {
-			t.Logf("Warning: status output should show bead counts, got: %s", stdout)
+	// Command may require bd binary
+	if exitCode != 0 {
+		if strings.Contains(stderr, "epic not found") {
+			t.Fatalf("epic should be found: %s", stderr)
 		}
+		// May be bd not available - skip detailed validation
+		t.Skip("bd binary not available, cannot verify epic status display")
+	}
+
+	// Epic status should be displayed somewhere in output
+	// Could be "Status: open", "EPIC STATUS: open", etc.
+	stdoutLower := strings.ToLower(stdout)
+	hasStatus := strings.Contains(stdoutLower, "status") ||
+		strings.Contains(stdoutLower, "open") ||
+		strings.Contains(stdoutLower, "complete") ||
+		strings.Contains(stdoutLower, "fully-specified")
+
+	if !hasStatus {
+		t.Errorf("output should display epic status (open/fully-specified/complete), got:\n%s", stdout)
 	}
 }
 
@@ -509,6 +598,225 @@ created: 2026-02-08
 		if !hasNoSpecsIndicator {
 			t.Logf("Warning: status should indicate no linked specs, got: %s", stdout)
 		}
+	}
+}
+
+// TestEpicStatusCommand_DisplaysTableFormat verifies that status displays specs in a table-like format
+func TestEpicStatusCommand_DisplaysTableFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+	plansDir := filepath.Join(tmpDir, ".gromit", "plans")
+
+	for _, dir := range []string{epicsDir, specsDir, plansDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Create epic
+	epicContent := `---
+epic_id: gromit-xyz
+created: 2026-02-08
+---
+
+# Developer Onboarding
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "onboarding.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create multiple specs with different stages
+	specs := []struct {
+		id       string
+		title    string
+		hasplan  bool
+		decomp   bool
+	}{
+		{"auth-spec", "User Authentication", true, true},
+		{"profile-spec", "User Profile", true, false},
+		{"docs-spec", "Documentation", false, false},
+	}
+
+	for _, spec := range specs {
+		specContent := fmt.Sprintf(`---
+id: %s
+epic: gromit-xyz
+created: 2026-02-08
+---
+
+# %s
+`, spec.id, spec.title)
+		if err := os.WriteFile(filepath.Join(specsDir, spec.id+".md"), []byte(specContent), 0644); err != nil {
+			t.Fatalf("failed to write spec %s: %v", spec.id, err)
+		}
+
+		if spec.hasplan {
+			planContent := fmt.Sprintf(`---
+id: %s
+source_spec: %s
+created: 2026-02-08
+decomposed: %v
+---
+
+# Plan
+`, spec.id, spec.id, spec.decomp)
+			if err := os.WriteFile(filepath.Join(plansDir, spec.id+".md"), []byte(planContent), 0644); err != nil {
+				t.Fatalf("failed to write plan for %s: %v", spec.id, err)
+			}
+		}
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+  plans_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir, plansDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+
+	// Command may require bd binary - if not available, can still verify structure
+	if exitCode != 0 {
+		if !strings.Contains(stderr, "epic not found") {
+			t.Logf("Command failed (possibly bd not available): %s", stderr)
+		}
+	}
+
+	if exitCode == 0 {
+		// Verify table-like structure: all specs should be displayed with their info
+		if !strings.Contains(stdout, "auth-spec") {
+			t.Errorf("output should contain spec 'auth-spec'")
+		}
+		if !strings.Contains(stdout, "profile-spec") {
+			t.Errorf("output should contain spec 'profile-spec'")
+		}
+		if !strings.Contains(stdout, "docs-spec") {
+			t.Errorf("output should contain spec 'docs-spec'")
+		}
+
+		// Verify each spec shows its title
+		if !strings.Contains(stdout, "User Authentication") {
+			t.Errorf("output should contain spec title 'User Authentication'")
+		}
+
+		// Verify stages are shown for all specs
+		// Different stages should be visible: decomposed, planned, unplanned
+		stdoutLower := strings.ToLower(stdout)
+		if !strings.Contains(stdoutLower, "stage") && !strings.Contains(stdoutLower, "pipeline") {
+			t.Errorf("output should label or indicate pipeline stages")
+		}
+	}
+}
+
+// TestEpicStatusCommand_CoverageGapAnalysis verifies LLM-assisted coverage gap analysis
+func TestEpicStatusCommand_CoverageGapAnalysis(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+
+	for _, dir := range []string{epicsDir, specsDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Create epic with multiple areas mentioned
+	epicContent := `---
+epic_id: gromit-xyz
+created: 2026-02-08
+---
+
+# Developer Onboarding
+
+We need to improve the developer onboarding experience in three areas:
+
+1. Setup automation - getting the environment configured
+2. Documentation - clear guides and tutorials
+3. Interactive help - in-app assistance
+
+Current pain points include manual configuration steps, outdated docs, and
+no contextual help system.
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "onboarding.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create spec for only ONE of the areas mentioned
+	specContent := `---
+id: setup-automation
+epic: gromit-xyz
+created: 2026-02-08
+---
+
+# Setup Automation
+
+Automate environment setup steps.
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "setup.md"), []byte(specContent), 0644); err != nil {
+		t.Fatalf("failed to write spec: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+
+	// Command may require bd binary and Claude CLI
+	if exitCode != 0 {
+		if strings.Contains(stderr, "epic not found") {
+			t.Fatalf("epic should be found: %s", stderr)
+		}
+		// bd or Claude not available - skip validation
+		t.Skip("External dependencies not available, cannot verify coverage gap analysis")
+	}
+
+	// Verify coverage gap analysis is present in output
+	// Should mention areas not covered by specs (documentation, interactive help)
+	stdoutLower := strings.ToLower(stdout)
+
+	// Look for indicators of gap analysis section
+	hasCoverageSection := strings.Contains(stdoutLower, "coverage") ||
+		strings.Contains(stdoutLower, "gap") ||
+		strings.Contains(stdoutLower, "missing") ||
+		strings.Contains(stdoutLower, "not covered") ||
+		strings.Contains(stdoutLower, "uncovered")
+
+	if !hasCoverageSection {
+		t.Errorf("output should include LLM-assisted coverage gap analysis section, got:\n%s", stdout)
 	}
 }
 
