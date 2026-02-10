@@ -300,10 +300,10 @@ func TestValidateFlags_TrimsWhitespace(t *testing.T) {
 // which flags are conflicting
 func TestValidateFlags_MentionsFlags(t *testing.T) {
 	tests := []struct {
-		name         string
-		epic         string
-		spec         string
-		since        string
+		name          string
+		epic          string
+		spec          string
+		since         string
 		shouldMention []string
 	}{
 		{
