@@ -5,7 +5,8 @@ Non-interactive mode (--non-interactive): Runs autonomously, creates beads for i
 
 Scope options:
   --since <commit>   Review from a specific commit
-  --epic <id>        Review changes from an epic's child beads
+  --spec <name>      Review changes from a spec's beads
+  --epic <id>        Review changes from an epic's beads
   (default)          Review since last thorough review
 
 Usage:
@@ -19,6 +20,7 @@ Flags:
   -h, --help              help for review
       --non-interactive   Run review autonomously without interactive session
       --since string      Review from this commit
+      --spec string       Review changes from this spec's beads
 
 Global Flags:
   -c, --config string   Path to config file (default "gromit.yaml")

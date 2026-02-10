@@ -262,6 +262,7 @@ func TestCLIContract_Flags(t *testing.T) {
 				"non-interactive": "bool",   // --non-interactive
 				"since":           "string", // --since
 				"epic":            "string", // --epic
+				"spec":            "string", // --spec
 				"dry-run":         "bool",   // --dry-run
 				"agent":           "string", // --agent
 				"choose-agent":    "bool",   // --choose-agent
