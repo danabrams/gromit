@@ -947,6 +947,119 @@ func TestRunWithBeadFilter_FilterWithNonexistentBead(t *testing.T) {
 	}
 }
 
+// TestRenderPromptWithNilExperimentAndEfficiency tests that renderPrompt
+// correctly handles the case where Experiment=nil, Efficiency=nil, and RunStats are zero.
+// This verifies the template conditional branches ({{- if .Experiment }}, {{- if .Efficiency }}, {{- if .RunStats.Total }})
+// render correctly when all are empty/nil.
+func TestRenderPromptWithNilExperimentAndEfficiency(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write the real PROMPT_retro.md template to the temp directory
+	templateContent := `# Retrospective Analysis
+
+## Run Statistics
+
+{{- if .RunStats.Total }}
+- **Total iterations**: {{ .RunStats.Total }}
+- **Succeeded**: {{ .RunStats.Succeeded }}
+- **Failed**: {{ .RunStats.Failed }}
+- **Failure rate**: {{ printf "%.1f%%" (mul .RunStats.FailureRate 100) }}
+{{- else }}
+- No iterations recorded yet
+{{- end }}
+
+{{- if .Efficiency }}
+
+## Current Run Efficiency
+
+### Per-Model Aggregates (Current Run)
+| Model | Iterations | Avg Cost |
+|-------|-----------|----------|
+{{- range $model, $stats := .Efficiency.CurrentModels }}
+| {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} |
+{{- end }}
+
+**Overall Metrics**
+- Current avg cost per bead: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }}
+{{- end }}
+
+{{- if .Experiment }}
+
+## Active Experiment Evaluation
+
+**Experiment Details:**
+- **Name**: {{ .Experiment.Name }}
+- **Hypothesis**: {{ .Experiment.Hypothesis }}
+- **Change**: {{ .Experiment.Change }}
+
+**Baseline Metrics (at experiment start):**
+- Avg cost per bead: ${{ printf "%.4f" .Experiment.BaselineMetrics.AvgCostPerBead }}
+- Avg duration per bead: {{ .Experiment.BaselineMetrics.AvgDurationMs }}ms
+- Avg input tokens: {{ printf "%.0f" .Experiment.BaselineMetrics.AvgInputTokens }}
+- Avg output tokens: {{ printf "%.0f" .Experiment.BaselineMetrics.AvgOutputTokens }}
+- Failure rate: {{ printf "%.1f%%" (mul .Experiment.BaselineMetrics.FailureRate 100) }}
+
+**Current vs Baseline:**
+- Cost: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }} vs ${{ printf "%.4f" .Experiment.BaselineMetrics.AvgCostPerBead }} ({{ if gt .Efficiency.CurrentAvgCostPerBead .Experiment.BaselineMetrics.AvgCostPerBead }}+{{ printf "%.1f%%" (mul (div (sub .Efficiency.CurrentAvgCostPerBead .Experiment.BaselineMetrics.AvgCostPerBead) .Experiment.BaselineMetrics.AvgCostPerBead) 100) }}{{ else }}no change{{ end }})
+{{- end }}
+`
+
+	templatePath := tmpDir + "/template.md"
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	// Create Retro with the temp template path
+	tmpGromitDir := t.TempDir()
+	r, err := NewRetro(&config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 60,
+		},
+	}, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+
+	// Override the template path to use our temp template
+	r.templatePath = templatePath
+
+	// Call renderPrompt with all nil/zero values
+	prompt, err := r.renderPrompt("", "", logger.RunStats{}, nil, nil, nil)
+
+	// Test 1: renderPrompt should not error with nil Experiment and nil Efficiency
+	if err != nil {
+		t.Fatalf("renderPrompt with nil Experiment/Efficiency failed: %v", err)
+	}
+
+	// Test 2: rendered output should not be empty
+	if prompt == "" {
+		t.Error("expected non-empty rendered prompt even with nil Experiment/Efficiency")
+	}
+
+	// Test 3: verify experiment metric sections are absent from output
+	// The template should not render the "Active Experiment Evaluation" section
+	if contains(prompt, "Active Experiment Evaluation") {
+		t.Error("rendered prompt should not contain 'Active Experiment Evaluation' section when Experiment is nil")
+	}
+
+	// Test 4: verify experiment name is not in output
+	if contains(prompt, "Name:") && contains(prompt, "Hypothesis:") && contains(prompt, "Change:") {
+		// All three together would indicate the experiment section rendered
+		t.Error("rendered prompt should not contain experiment details when Experiment is nil")
+	}
+
+	// Test 5: verify efficiency section is absent from output
+	if contains(prompt, "Per-Model Aggregates") {
+		t.Error("rendered prompt should not contain 'Per-Model Aggregates' section when Efficiency is nil")
+	}
+
+	// Test 6: verify the template still renders without RunStats (zero values)
+	if !contains(prompt, "No iterations recorded yet") {
+		t.Error("rendered prompt should contain 'No iterations recorded yet' fallback when RunStats.Total is 0")
+	}
+}
+
 // createMinimalRetroFiles creates minimal files needed for retro.Run() to execute.
 // This helper is used by filtering tests that focus on log filtering behavior.
 func createMinimalRetroFiles(t *testing.T, tmpDir string) {
