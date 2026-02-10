@@ -17,3 +17,17 @@ func TestRetroCmd_HasSpecFlag(t *testing.T) {
 		t.Errorf("--spec flag should be string type, got %s", specFlag.Value.Type())
 	}
 }
+
+// TestRetroCmd_HasEpicFlag verifies that the retro command has an --epic flag
+func TestRetroCmd_HasEpicFlag(t *testing.T) {
+	// Get the --epic flag
+	epicFlag := retroCmd.Flags().Lookup("epic")
+	if epicFlag == nil {
+		t.Fatal("retro command should have --epic flag")
+	}
+
+	// Verify flag type is string
+	if epicFlag.Value.Type() != "string" {
+		t.Errorf("--epic flag should be string type, got %s", epicFlag.Value.Type())
+	}
+}
