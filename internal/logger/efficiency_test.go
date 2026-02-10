@@ -2,6 +2,7 @@ package logger
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -538,5 +539,80 @@ func writeTestLogFile(t *testing.T, dir string, runID string, logs []IterationLo
 		if err := encoder.Encode(log); err != nil {
 			t.Fatalf("Failed to write test log entry: %v", err)
 		}
+	}
+}
+
+func TestReadEfficiencyReportFiltered_NilFilterIncludesAll(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-02-07T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000,"cost_usd":0.1,"input_tokens":1000,"output_tokens":200}
+{"timestamp":"2026-02-07T12:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"haiku","success":true,"validated":true,"escalated":false,"duration_ms":500,"cost_usd":0.05,"input_tokens":500,"output_tokens":100}
+`
+	runID := "20260207-120000"
+	if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("run-%s.jsonl", runID)), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := ReadEfficiencyReportFiltered(dir, runID, nil)
+	if err != nil {
+		t.Fatalf("ReadEfficiencyReportFiltered failed: %v", err)
+	}
+
+	if len(report.CurrentIterations) != 2 {
+		t.Errorf("expected 2 current iterations with nil filter, got %d", len(report.CurrentIterations))
+	}
+}
+
+func TestReadEfficiencyReportFiltered_FilterIncludesOnlyMatchingBeads(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-02-07T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000,"cost_usd":0.1,"input_tokens":1000,"output_tokens":200}
+{"timestamp":"2026-02-07T12:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"haiku","success":true,"validated":true,"escalated":false,"duration_ms":500,"cost_usd":0.05,"input_tokens":500,"output_tokens":100}
+{"timestamp":"2026-02-07T12:02:00Z","iteration":3,"bead_id":"b3","bead_title":"Task 3","model":"opus","success":true,"validated":true,"escalated":false,"duration_ms":2000,"cost_usd":0.5,"input_tokens":2000,"output_tokens":400}
+`
+	runID := "20260207-120000"
+	if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("run-%s.jsonl", runID)), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Filter to only include b1 and b3
+	filter := map[string]bool{
+		"b1": true,
+		"b3": true,
+	}
+
+	report, err := ReadEfficiencyReportFiltered(dir, runID, filter)
+	if err != nil {
+		t.Fatalf("ReadEfficiencyReportFiltered failed: %v", err)
+	}
+
+	if len(report.CurrentIterations) != 2 {
+		t.Errorf("expected 2 current iterations (b1 and b3), got %d", len(report.CurrentIterations))
+	}
+
+	// Verify b2 is excluded
+	for _, iter := range report.CurrentIterations {
+		if iter.BeadID == "b2" {
+			t.Error("b2 should be excluded from filtered report")
+		}
+	}
+
+	// Verify b1 and b3 are included
+	foundB1 := false
+	foundB3 := false
+	for _, iter := range report.CurrentIterations {
+		if iter.BeadID == "b1" {
+			foundB1 = true
+		}
+		if iter.BeadID == "b3" {
+			foundB3 = true
+		}
+	}
+
+	if !foundB1 {
+		t.Error("b1 should be included in filtered report")
+	}
+	if !foundB3 {
+		t.Error("b3 should be included in filtered report")
 	}
 }

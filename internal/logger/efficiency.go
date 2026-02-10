@@ -69,6 +69,13 @@ var modelContextWindows = map[string]int{
 // currentRunID specifies which run is "current" (all others are historical).
 // If currentRunID is empty, all runs are treated as historical.
 func ReadEfficiencyReport(logsDir string, currentRunID string) (*EfficiencyReport, error) {
+	return ReadEfficiencyReportFiltered(logsDir, currentRunID, nil)
+}
+
+// ReadEfficiencyReportFiltered reads JSONL log files and computes efficiency aggregates,
+// optionally filtered by bead ID. If beadFilter is nil or empty, all entries are included.
+// currentRunID specifies which run is "current" (all others are historical).
+func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilter map[string]bool) (*EfficiencyReport, error) {
 	report := &EfficiencyReport{
 		CurrentModels:    make(map[string]ModelEfficiency),
 		HistoricalModels: make(map[string]ModelEfficiency),
@@ -93,6 +100,11 @@ func ReadEfficiencyReport(logsDir string, currentRunID string) (*EfficiencyRepor
 		}
 
 		for _, entry := range entries {
+			// Apply filter if provided
+			if len(beadFilter) > 0 && !beadFilter[entry.BeadID] {
+				continue
+			}
+
 			// Build IterationEfficiency
 			ie := IterationEfficiency{
 				BeadID:       entry.BeadID,
