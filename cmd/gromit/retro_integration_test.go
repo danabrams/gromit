@@ -15,12 +15,79 @@ import (
 	"github.com/danabrams/gromit/internal/scope"
 )
 
-// --- Scope flag tests (from retro_scope_acceptance_test.go) ---
+// --- Test helpers ---
 
-// TestRetroCommand_SpecFlagExists verifies that the retro command accepts --spec flag
+type specFile struct {
+	filename string
+	id       string
+	epic     string
+}
+
+// writeSpecFiles creates spec markdown files in the given directory.
+func writeSpecFiles(t *testing.T, specsDir string, specs []specFile) {
+	t.Helper()
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("Failed to create specs dir: %v", err)
+	}
+	for _, spec := range specs {
+		specPath := filepath.Join(specsDir, spec.filename)
+		content := fmt.Sprintf("---\nid: %s\nepic: %s\ncreated: 2026-02-08\n---\n\n# Spec\n", spec.id, spec.epic)
+		if err := os.WriteFile(specPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write spec file %s: %v", spec.filename, err)
+		}
+	}
+}
+
+// writeIterationLogs appends JSONL iteration log entries to logsDir/iteration.log.
+func writeIterationLogs(t *testing.T, logsDir string, entries []logger.IterationLog) {
+	t.Helper()
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("Failed to create logs dir: %v", err)
+	}
+	logPath := filepath.Join(logsDir, "iteration.log")
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		t.Fatalf("Failed to open log file: %v", err)
+	}
+	defer f.Close()
+	for i, entry := range entries {
+		data, err := json.Marshal(entry)
+		if err != nil {
+			t.Fatalf("Failed to marshal log entry %d: %v", i, err)
+		}
+		if _, err := f.WriteString(string(data) + "\n"); err != nil {
+			t.Fatalf("Failed to write log entry %d: %v", i, err)
+		}
+	}
+}
+
+// assertLabelSet verifies that got contains exactly the expected labels (order-independent).
+func assertLabelSet(t *testing.T, got []string, expected []string) {
+	t.Helper()
+	if len(got) != len(expected) {
+		t.Fatalf("expected %d labels, got %d: %v", len(expected), len(got), got)
+	}
+	want := make(map[string]bool, len(expected))
+	for _, l := range expected {
+		want[l] = false
+	}
+	for _, l := range got {
+		if _, exists := want[l]; !exists {
+			t.Errorf("unexpected label %q", l)
+		}
+		want[l] = true
+	}
+	for l, found := range want {
+		if !found {
+			t.Errorf("missing expected label %q", l)
+		}
+	}
+}
+
+// --- Scope flag tests ---
+
 func TestRetroCommand_SpecFlagExists(t *testing.T) {
-	cmd := retroCmd
-	specFlag := cmd.Flags().Lookup("spec")
+	specFlag := retroCmd.Flags().Lookup("spec")
 	if specFlag == nil {
 		t.Fatal("retro command should have --spec flag")
 	}
@@ -29,10 +96,8 @@ func TestRetroCommand_SpecFlagExists(t *testing.T) {
 	}
 }
 
-// TestRetroCommand_EpicFlagExists verifies that the retro command accepts --epic flag
 func TestRetroCommand_EpicFlagExists(t *testing.T) {
-	cmd := retroCmd
-	epicFlag := cmd.Flags().Lookup("epic")
+	epicFlag := retroCmd.Flags().Lookup("epic")
 	if epicFlag == nil {
 		t.Fatal("retro command should have --epic flag")
 	}
@@ -41,169 +106,80 @@ func TestRetroCommand_EpicFlagExists(t *testing.T) {
 	}
 }
 
-// TestRetroCommand_SpecAndEpicMutuallyExclusive verifies that --spec and --epic
-// cannot be used together on the retro command
-func TestRetroCommand_SpecAndEpicMutuallyExclusive(t *testing.T) {
-	err := scope.ValidateFlags("gromit-xyz", "init-wizard")
+// TestRunRetro_ValidatesFlags verifies that runRetro calls scope.ValidateFlags
+// and returns an error when both --spec and --epic are set
+func TestRunRetro_ValidatesFlags(t *testing.T) {
+	retroSpecFlag = "init-wizard"
+	retroEpicFlag = "gromit-xyz"
+	defer func() {
+		retroSpecFlag = ""
+		retroEpicFlag = ""
+	}()
+
+	err := runRetro(retroCmd, []string{})
 	if err == nil {
-		t.Fatal("scope.ValidateFlags should return error when both epic and spec are set")
+		t.Fatal("runRetro should return error when both --spec and --epic are set")
 	}
 	if !strings.Contains(err.Error(), "mutually exclusive") {
 		t.Errorf("error should mention mutual exclusivity, got: %v", err)
 	}
 }
 
-// TestRetroCommand_SpecFlagResolvesToLabel verifies that --spec flag
-// resolves to the correct label format via scope.ResolveSpec
 func TestRetroCommand_SpecFlagResolvesToLabel(t *testing.T) {
-	specName := "init-wizard"
-	labels := scope.ResolveSpec(specName)
+	if err := scope.ValidateFlags("", "init-wizard"); err != nil {
+		t.Fatalf("ValidateFlags should accept --spec alone, got error: %v", err)
+	}
+
+	labels := scope.ResolveSpec("init-wizard")
 	if len(labels) != 1 {
 		t.Fatalf("ResolveSpec should return 1 label, got %d", len(labels))
 	}
-	expectedLabel := "spec:init-wizard"
-	if labels[0] != expectedLabel {
-		t.Errorf("ResolveSpec(%q) = %q, want %q", specName, labels[0], expectedLabel)
+	if labels[0] != "spec:init-wizard" {
+		t.Errorf("ResolveSpec = %q, want %q", labels[0], "spec:init-wizard")
 	}
 }
 
-// TestRetroCommand_EpicFlagUsesResolveEpic verifies that --epic flag
-// uses scope.ResolveEpic to resolve epic to spec labels
 func TestRetroCommand_EpicFlagUsesResolveEpic(t *testing.T) {
-	tempDir := t.TempDir()
-	specsDir := filepath.Join(tempDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
-	}
-
-	specs := []struct {
-		filename string
-		id       string
-		epic     string
-	}{
+	specsDir := filepath.Join(t.TempDir(), "specs")
+	writeSpecFiles(t, specsDir, []specFile{
 		{"auth.md", "auth", "gromit-xyz"},
 		{"profile.md", "profile", "gromit-xyz"},
-	}
+	})
 
-	for _, spec := range specs {
-		specPath := filepath.Join(specsDir, spec.filename)
-		specContent := fmt.Sprintf("---\nid: %s\nepic: %s\ncreated: 2026-02-08\n---\n\n# Spec\n", spec.id, spec.epic)
-		if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
-			t.Fatalf("Failed to write spec file: %v", err)
-		}
+	labels, err := scope.ResolveEpic("gromit-xyz", specsDir)
+	if err != nil {
+		t.Fatalf("ResolveEpic returned error: %v", err)
+	}
+	assertLabelSet(t, labels, []string{"spec:auth", "spec:profile"})
+}
+
+func TestRetroCommand_EpicFlagFiltersIterationLogs(t *testing.T) {
+	specsDir := filepath.Join(t.TempDir(), "specs")
+	writeSpecFiles(t, specsDir, []specFile{
+		{"auth.md", "auth", "gromit-xyz"},
+		{"profile.md", "profile", "gromit-xyz"},
+		{"settings.md", "settings", "other-epic"},
+	})
+
+	if err := scope.ValidateFlags("gromit-xyz", ""); err != nil {
+		t.Fatalf("ValidateFlags should accept --epic alone, got error: %v", err)
 	}
 
 	labels, err := scope.ResolveEpic("gromit-xyz", specsDir)
 	if err != nil {
 		t.Fatalf("ResolveEpic returned error: %v", err)
 	}
-	if len(labels) != 2 {
-		t.Fatalf("ResolveEpic should return 2 labels, got %d", len(labels))
-	}
-
-	expectedLabels := map[string]bool{"spec:auth": false, "spec:profile": false}
-	for _, label := range labels {
-		if _, exists := expectedLabels[label]; !exists {
-			t.Errorf("Unexpected label %q", label)
-		}
-		expectedLabels[label] = true
-	}
-	for label, found := range expectedLabels {
-		if !found {
-			t.Errorf("Missing expected label %q", label)
-		}
-	}
+	assertLabelSet(t, labels, []string{"spec:auth", "spec:profile"})
 }
 
-// TestRetroCommand_SpecFlagFiltersIterationLogs verifies the --spec flag
-// validates and resolves correctly for filtering iteration logs
-func TestRetroCommand_SpecFlagFiltersIterationLogs(t *testing.T) {
-	specFlag := "init-wizard"
-	epicFlag := ""
-
-	if err := scope.ValidateFlags(epicFlag, specFlag); err != nil {
-		t.Fatalf("ValidateFlags should accept --spec alone, got error: %v", err)
-	}
-
-	labels := scope.ResolveSpec(specFlag)
-	if len(labels) != 1 {
-		t.Fatalf("ResolveSpec should return 1 label, got %d", len(labels))
-	}
-	expectedLabel := "spec:init-wizard"
-	if labels[0] != expectedLabel {
-		t.Fatalf("ResolveSpec returned %q, want %q", labels[0], expectedLabel)
-	}
-}
-
-// TestRetroCommand_EpicFlagFiltersIterationLogs verifies the --epic flag
-// validates and resolves correctly for filtering iteration logs
-func TestRetroCommand_EpicFlagFiltersIterationLogs(t *testing.T) {
-	tempDir := t.TempDir()
-	specsDir := filepath.Join(tempDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
-	}
-
-	specs := []struct {
-		filename string
-		id       string
-		epic     string
-	}{
-		{"auth.md", "auth", "gromit-xyz"},
-		{"profile.md", "profile", "gromit-xyz"},
-		{"settings.md", "settings", "other-epic"},
-	}
-
-	for _, spec := range specs {
-		specPath := filepath.Join(specsDir, spec.filename)
-		specContent := fmt.Sprintf("---\nid: %s\nepic: %s\ncreated: 2026-02-08\n---\n\n# Spec\n", spec.id, spec.epic)
-		if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
-			t.Fatalf("Failed to write spec file: %v", err)
-		}
-	}
-
-	epicFlag := "gromit-xyz"
-	specFlag := ""
-
-	if err := scope.ValidateFlags(epicFlag, specFlag); err != nil {
-		t.Fatalf("ValidateFlags should accept --epic alone, got error: %v", err)
-	}
-
-	labels, err := scope.ResolveEpic(epicFlag, specsDir)
-	if err != nil {
-		t.Fatalf("ResolveEpic returned error: %v", err)
-	}
-	if len(labels) != 2 {
-		t.Fatalf("ResolveEpic should return 2 labels for gromit-xyz, got %d: %v", len(labels), labels)
-	}
-
-	expectedLabels := map[string]bool{"spec:auth": false, "spec:profile": false}
-	for _, label := range labels {
-		if _, exists := expectedLabels[label]; !exists {
-			t.Errorf("Unexpected label %q", label)
-		}
-		expectedLabels[label] = true
-	}
-	for label, found := range expectedLabels {
-		if !found {
-			t.Errorf("Missing expected label %q", label)
-		}
-	}
-}
-
-// TestRetroCommand_NoScopeFlagUsesDefaultBehavior verifies that when neither
-// --epic nor --spec is provided, validation passes with no filter
 func TestRetroCommand_NoScopeFlagUsesDefaultBehavior(t *testing.T) {
 	if err := scope.ValidateFlags("", ""); err != nil {
 		t.Fatalf("ValidateFlags should accept both flags empty, got error: %v", err)
 	}
 }
 
-// TestRetroCommand_EpicResolutionWithNoSpecs verifies behavior when
-// --epic resolves to no specs in the specs directory
 func TestRetroCommand_EpicResolutionWithNoSpecs(t *testing.T) {
-	tempDir := t.TempDir()
-	specsDir := filepath.Join(tempDir, "specs")
+	specsDir := filepath.Join(t.TempDir(), "specs")
 	if err := os.MkdirAll(specsDir, 0755); err != nil {
 		t.Fatalf("Failed to create specs dir: %v", err)
 	}
@@ -221,19 +197,8 @@ func TestRetroCommand_EpicResolutionWithNoSpecs(t *testing.T) {
 	}
 }
 
-// TestRetroCommand_ValidatesFlagsBeforeResolution verifies that scope validation
-// happens before any resolution or bead client calls
-func TestRetroCommand_ValidatesFlagsBeforeResolution(t *testing.T) {
-	err := scope.ValidateFlags("gromit-xyz", "init-wizard")
-	if err == nil {
-		t.Fatal("ValidateFlags should reject both flags set")
-	}
-}
+// --- CLI help text tests ---
 
-// --- CLI help text tests (from retro_cli_acceptance_test.go) ---
-
-// TestRetroCmd_HelpText_DocumentsSpecFlag verifies that --spec flag is documented
-// in the retro command's Long help text
 func TestRetroCmd_HelpText_DocumentsSpecFlag(t *testing.T) {
 	helpText := retroCmd.Long
 	if !strings.Contains(helpText, "--spec") {
@@ -247,8 +212,6 @@ func TestRetroCmd_HelpText_DocumentsSpecFlag(t *testing.T) {
 	}
 }
 
-// TestRetroCmd_HelpText_DocumentsEpicFlag verifies that --epic flag is documented
-// in the retro command's Long help text
 func TestRetroCmd_HelpText_DocumentsEpicFlag(t *testing.T) {
 	helpText := retroCmd.Long
 	if !strings.Contains(helpText, "--epic") {
@@ -262,14 +225,11 @@ func TestRetroCmd_HelpText_DocumentsEpicFlag(t *testing.T) {
 	}
 }
 
-// --- buildBeadFilter tests (from retro_e2e_acceptance_test.go) ---
+// --- buildBeadFilter tests ---
 
-// TestRetroCommand_BuildBeadFilterHandlesEmptyBeadList verifies that when
-// scope resolution finds no matching beads, buildBeadFilter handles it gracefully
 func TestRetroCommand_BuildBeadFilterHandlesEmptyBeadList(t *testing.T) {
 	ctx := context.Background()
 
-	// Empty labels list returns nil filter
 	filter, err := buildBeadFilter(ctx, []string{})
 	if err != nil {
 		t.Errorf("buildBeadFilter with empty labels should not error, got: %v", err)
@@ -278,7 +238,6 @@ func TestRetroCommand_BuildBeadFilterHandlesEmptyBeadList(t *testing.T) {
 		t.Errorf("buildBeadFilter with empty labels should return nil, got: %v", filter)
 	}
 
-	// nil labels list returns nil filter
 	filter, err = buildBeadFilter(ctx, nil)
 	if err != nil {
 		t.Errorf("buildBeadFilter with nil labels should not error, got: %v", err)
@@ -288,10 +247,8 @@ func TestRetroCommand_BuildBeadFilterHandlesEmptyBeadList(t *testing.T) {
 	}
 }
 
-// --- End-to-end environment setup tests (from retro_e2e_acceptance_test.go) ---
+// --- End-to-end environment setup tests ---
 
-// TestRetroCommand_EndToEndSpecFiltering verifies the complete filtering chain
-// when --spec flag is used, including test environment setup
 func TestRetroCommand_EndToEndSpecFiltering(t *testing.T) {
 	tempDir := t.TempDir()
 	gromitDir := filepath.Join(tempDir, ".gromit")
@@ -316,54 +273,19 @@ func TestRetroCommand_EndToEndSpecFiltering(t *testing.T) {
 	}
 
 	logsDir := filepath.Join(gromitDir, "logs")
-	if err := os.MkdirAll(logsDir, 0755); err != nil {
-		t.Fatalf("Failed to create logs dir: %v", err)
+	entries := []logger.IterationLog{
+		{Timestamp: time.Now(), Iteration: 1, BeadID: "gromit-1", BeadTitle: "Test bead gromit-1", Model: "claude-sonnet-3-5", Success: true, Validated: false},
+		{Timestamp: time.Now(), Iteration: 2, BeadID: "gromit-2", BeadTitle: "Test bead gromit-2", Model: "claude-sonnet-3-5", Success: true, Validated: true},
+		{Timestamp: time.Now(), Iteration: 3, BeadID: "gromit-3", BeadTitle: "Test bead gromit-3", Model: "claude-sonnet-3-5", Success: true, Validated: false},
+		{Timestamp: time.Now(), Iteration: 4, BeadID: "gromit-4", BeadTitle: "Test bead gromit-4", Model: "claude-sonnet-3-5", Success: false, Validated: true},
+		{Timestamp: time.Now(), Iteration: 5, BeadID: "gromit-5", BeadTitle: "Test bead gromit-5", Model: "claude-sonnet-3-5", Success: true, Validated: false},
 	}
+	writeIterationLogs(t, logsDir, entries)
 
-	testLogs := []struct {
-		beadID string
-		phase  string
-		status string
-	}{
-		{"gromit-1", "build", "success"},
-		{"gromit-2", "validate", "success"},
-		{"gromit-3", "build", "success"},
-		{"gromit-4", "validate", "failure"},
-		{"gromit-5", "build", "success"},
-	}
-
-	for i, log := range testLogs {
-		logEntry := logger.IterationLog{
-			Timestamp: time.Now(),
-			Iteration: i + 1,
-			BeadID:    log.beadID,
-			BeadTitle: "Test bead " + log.beadID,
-			Model:     "claude-sonnet-3-5",
-			Success:   log.status == "success",
-			Validated: log.phase == "validate",
-		}
-		logData, err := json.Marshal(logEntry)
-		if err != nil {
-			t.Fatalf("Failed to marshal log entry: %v", err)
-		}
-		logPath := filepath.Join(logsDir, "iteration.log")
-		f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			t.Fatalf("Failed to open log file: %v", err)
-		}
-		if _, err := f.WriteString(string(logData) + "\n"); err != nil {
-			f.Close()
-			t.Fatalf("Failed to write log entry %d: %v", i, err)
-		}
-		f.Close()
-	}
-
-	rulesPath := filepath.Join(gromitDir, "RULES.md")
-	if err := os.WriteFile(rulesPath, []byte("# Rules\n\nTest rules\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("# Rules\n\nTest rules\n"), 0644); err != nil {
 		t.Fatalf("Failed to write RULES.md: %v", err)
 	}
-	learningsPath := filepath.Join(gromitDir, "LEARNINGS.md")
-	if err := os.WriteFile(learningsPath, []byte("# Learnings\n\nTest learnings\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gromitDir, "LEARNINGS.md"), []byte("# Learnings\n\nTest learnings\n"), 0644); err != nil {
 		t.Fatalf("Failed to write LEARNINGS.md: %v", err)
 	}
 
@@ -371,9 +293,8 @@ func TestRetroCommand_EndToEndSpecFiltering(t *testing.T) {
 	if err := os.MkdirAll(templatesDir, 0755); err != nil {
 		t.Fatalf("Failed to create templates dir: %v", err)
 	}
-	retroTemplatePath := filepath.Join(templatesDir, "PROMPT_RETRO.md")
 	retroTemplate := "# Retrospective Analysis\n\n## Rules\n{{ .Rules }}\n\n## Learnings\n{{ .Learnings }}\n\n## Stats\nTotal iterations: {{ .RunStats.Total }}\n"
-	if err := os.WriteFile(retroTemplatePath, []byte(retroTemplate), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_RETRO.md"), []byte(retroTemplate), 0644); err != nil {
 		t.Fatalf("Failed to write retro template: %v", err)
 	}
 
@@ -381,9 +302,9 @@ func TestRetroCommand_EndToEndSpecFiltering(t *testing.T) {
 	for _, path := range []string{
 		filepath.Join(logsDir, "iteration.log"),
 		configPath,
-		rulesPath,
-		learningsPath,
-		retroTemplatePath,
+		filepath.Join(gromitDir, "RULES.md"),
+		filepath.Join(gromitDir, "LEARNINGS.md"),
+		filepath.Join(templatesDir, "PROMPT_RETRO.md"),
 	} {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			t.Fatalf("Expected file should exist: %s", path)
@@ -394,77 +315,28 @@ func TestRetroCommand_EndToEndSpecFiltering(t *testing.T) {
 	// the filter map from bead IDs, retro.Run() uses the filter to restrict analysis
 }
 
-// TestRetroCommand_EndToEndEpicFiltering verifies the complete filtering chain
-// when --epic flag is used
 func TestRetroCommand_EndToEndEpicFiltering(t *testing.T) {
 	tempDir := t.TempDir()
 	gromitDir := filepath.Join(tempDir, ".gromit")
 	specsDir := filepath.Join(gromitDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
-	}
-
-	specs := []struct {
-		filename string
-		id       string
-		epic     string
-	}{
+	writeSpecFiles(t, specsDir, []specFile{
 		{"auth.md", "auth", "gromit-100"},
 		{"profile.md", "profile", "gromit-100"},
 		{"settings.md", "settings", "gromit-200"},
-	}
-
-	for _, spec := range specs {
-		specPath := filepath.Join(specsDir, spec.filename)
-		specContent := "---\nid: " + spec.id + "\nepic: " + spec.epic + "\ncreated: 2026-02-08\n---\n\n# Spec\n"
-		if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
-			t.Fatalf("Failed to write spec file: %v", err)
-		}
-	}
+	})
 
 	logsDir := filepath.Join(gromitDir, "logs")
-	if err := os.MkdirAll(logsDir, 0755); err != nil {
-		t.Fatalf("Failed to create logs dir: %v", err)
+	entries := []logger.IterationLog{
+		{Timestamp: time.Now(), Iteration: 1, BeadID: "gromit-1", BeadTitle: "Test bead gromit-1", Model: "claude-sonnet-3-5", Success: true},
+		{Timestamp: time.Now(), Iteration: 2, BeadID: "gromit-2", BeadTitle: "Test bead gromit-2", Model: "claude-sonnet-3-5", Success: true},
+		{Timestamp: time.Now(), Iteration: 3, BeadID: "gromit-3", BeadTitle: "Test bead gromit-3", Model: "claude-sonnet-3-5", Success: true},
 	}
+	writeIterationLogs(t, logsDir, entries)
 
-	testLogs := []struct {
-		beadID string
-	}{
-		{"gromit-1"},
-		{"gromit-2"},
-		{"gromit-3"},
-	}
-
-	for i, log := range testLogs {
-		logEntry := logger.IterationLog{
-			Timestamp: time.Now(),
-			Iteration: i + 1,
-			BeadID:    log.beadID,
-			BeadTitle: "Test bead " + log.beadID,
-			Model:     "claude-sonnet-3-5",
-			Success:   true,
-			Validated: false,
-		}
-		logData, err := json.Marshal(logEntry)
-		if err != nil {
-			t.Fatalf("Failed to marshal log entry: %v", err)
-		}
-		logPath := filepath.Join(logsDir, "iteration.log")
-		f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			t.Fatalf("Failed to open log file: %v", err)
-		}
-		if _, err := f.WriteString(string(logData) + "\n"); err != nil {
-			f.Close()
-			t.Fatalf("Failed to write log entry %d: %v", i, err)
-		}
-		f.Close()
-	}
-
-	for _, spec := range specs {
-		specPath := filepath.Join(specsDir, spec.filename)
+	for _, filename := range []string{"auth.md", "profile.md", "settings.md"} {
+		specPath := filepath.Join(specsDir, filename)
 		if _, err := os.Stat(specPath); os.IsNotExist(err) {
-			t.Fatalf("Spec file %s should exist", spec.filename)
+			t.Fatalf("Spec file %s should exist", filename)
 		}
 	}
 
