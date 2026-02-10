@@ -211,7 +211,9 @@ func TestCLIContract_Flags(t *testing.T) {
 		{
 			name: "retro",
 			flags: map[string]string{
-				"non-interactive": "bool", // --non-interactive
+				"non-interactive": "bool",   // --non-interactive
+				"spec":            "string", // --spec
+				"epic":            "string", // --epic
 			},
 		},
 		{

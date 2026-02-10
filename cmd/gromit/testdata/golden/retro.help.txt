@@ -10,12 +10,22 @@ The retro command:
 
 Use --non-interactive to skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md instead.
 
+Scoping:
+  --spec <name>      Filter retro to a spec's beads only
+  --epic <id>        Filter retro to an epic's beads only
+
+The --spec and --epic flags are mutually exclusive. When either is used, the retro
+analysis only includes iteration logs, stuck beads, and efficiency metrics for beads
+within that scope. Without either flag, all beads are included (default behavior).
+
 Usage:
   gromit retro [flags]
 
 Flags:
+      --epic string       Scope retro to a specific epic
   -h, --help              help for retro
       --non-interactive   Skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md
+      --spec string       Scope retro to a specific spec
 
 Global Flags:
   -c, --config string   Path to config file (default "gromit.yaml")

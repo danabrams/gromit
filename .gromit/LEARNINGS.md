@@ -507,3 +507,8 @@ Flag validation functions should use variadic arguments (e.g., param ...string) 
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-10 | gromit-71od | patterns
+Bead 'Add epic and spec flags to retro command' timed out on sonnet — may need simpler scope or higher model tier
+
+*Archived from new: filtered: generic engineering advice*
+
