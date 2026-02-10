@@ -65,3 +65,49 @@ func TestRunner_GetNextBead_NoFilters(t *testing.T) {
 		t.Errorf("getNextBead() returned wrong bead: got %s, want %s", result.ID, expectedBead.ID)
 	}
 }
+
+// TestRunner_GetNextBead_SingleLabelFilter verifies ReadyWithLabel is called with single filter
+func TestRunner_GetNextBead_SingleLabelFilter(t *testing.T) {
+	expectedBead := &bead.Bead{
+		ID:       "test-002",
+		Title:    "Auth task",
+		Priority: 1,
+		Labels:   []string{"spec:auth"},
+		Type:     "task",
+		Status:   "open",
+	}
+
+	var calledWithLabel string
+	mock := &MockBeadClientWithLabel{
+		ReadyWithLabelFunc: func(label string) (*bead.Bead, error) {
+			calledWithLabel = label
+			return expectedBead, nil
+		},
+		ReadyFunc: func() (*bead.Bead, error) {
+			t.Error("Ready() should not be called when label filters are set")
+			return nil, nil
+		},
+	}
+
+	r := &Runner{
+		beads:        mock,
+		labelFilters: []string{"spec:auth"},
+	}
+
+	result, err := r.getNextBead()
+	if err != nil {
+		t.Fatalf("getNextBead() unexpected error: %v", err)
+	}
+
+	if calledWithLabel != "spec:auth" {
+		t.Errorf("ReadyWithLabel() called with wrong label: got %s, want spec:auth", calledWithLabel)
+	}
+
+	if result == nil {
+		t.Fatal("getNextBead() returned nil bead")
+	}
+
+	if result.ID != expectedBead.ID {
+		t.Errorf("getNextBead() returned wrong bead: got %s, want %s", result.ID, expectedBead.ID)
+	}
+}
