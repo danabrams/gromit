@@ -1129,3 +1129,61 @@ func createMinimalRetroFiles(t *testing.T, tmpDir string) {
 		t.Fatalf("writing template file: %v", err)
 	}
 }
+
+// TestRenderPromptWithNilExperimentAndEfficiencyUsingRealTemplate verifies that renderPrompt
+// correctly executes the real PROMPT_retro.md template with nil Experiment and nil Efficiency.
+// This test ensures the actual template (not a simplified version) renders without error
+// when no experiment is active and no efficiency data is available.
+func TestRenderPromptWithNilExperimentAndEfficiencyUsingRealTemplate(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Copy the real PROMPT_retro.md template to the temp directory
+	realTemplatePath := "/home/danabrams/gromit/.gromit/templates/PROMPT_retro.md"
+	templateContent, err := os.ReadFile(realTemplatePath)
+	if err != nil {
+		t.Fatalf("failed to read real template: %v", err)
+	}
+
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, templateContent, 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	// Create Retro with the real template
+	tmpGromitDir := t.TempDir()
+	r, err := NewRetro(&config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 60,
+		},
+	}, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+
+	// Override the template path to use the real template
+	r.templatePath = templatePath
+
+	// Call renderPrompt with nil Experiment, nil Efficiency, and zero RunStats
+	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{}, nil, nil, nil)
+
+	// Test 1: renderPrompt should not error
+	if err != nil {
+		t.Fatalf("renderPrompt with nil Experiment/Efficiency failed: %v", err)
+	}
+
+	// Test 2: rendered output should not be empty
+	if prompt == "" {
+		t.Error("expected non-empty rendered prompt")
+	}
+
+	// Test 3: verify experiment metric sections are absent from output
+	if contains(prompt, "Active Experiment Evaluation") {
+		t.Error("rendered prompt should not contain 'Active Experiment Evaluation' section when Experiment is nil")
+	}
+
+	// Test 4: verify experiment details are not in output
+	if contains(prompt, "**Experiment Details:**") {
+		t.Error("rendered prompt should not contain experiment details when Experiment is nil")
+	}
+}
