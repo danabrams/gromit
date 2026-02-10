@@ -62,6 +62,38 @@ func TestPerformGapAnalysis_IncludesEpicContentInPrompt(t *testing.T) {
 	}
 }
 
+// TestPerformGapAnalysis_IncludesSpecSummariesInPrompt verifies spec summaries are in the prompt
+func TestPerformGapAnalysis_IncludesSpecSummariesInPrompt(t *testing.T) {
+	var capturedPrompt string
+
+	mockClient := &mockClaudeClient{
+		runFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			capturedPrompt = prompt
+			return &claude.Result{
+				Success: true,
+				Output:  "Gap analysis result",
+			}, nil
+		},
+	}
+
+	epicContent := "# Test Epic"
+	specSummaries := []string{
+		"auth-spec: Authentication System",
+		"api-spec: REST API",
+	}
+
+	_, err := performGapAnalysis(mockClient, "haiku", epicContent, specSummaries)
+	if err != nil {
+		t.Fatalf("performGapAnalysis failed: %v", err)
+	}
+
+	for _, summary := range specSummaries {
+		if !strings.Contains(capturedPrompt, summary) {
+			t.Errorf("prompt should contain spec summary %q, got: %q", summary, capturedPrompt)
+		}
+	}
+}
+
 // mockClaudeClient implements a minimal claude.Client interface for testing
 type mockClaudeClient struct {
 	runFn func(ctx context.Context, prompt string, model string) (*claude.Result, error)
