@@ -149,6 +149,30 @@ func TestPerformGapAnalysis_ReturnsClaudeOutput(t *testing.T) {
 	}
 }
 
+// TestBuildSpecSummaries_CreatesFormattedList verifies spec summaries are properly formatted
+func TestBuildSpecSummaries_CreatesFormattedList(t *testing.T) {
+	specs := []spec{
+		{id: "auth-spec", title: "Authentication System"},
+		{id: "api-spec", title: "REST API"},
+	}
+
+	summaries := buildSpecSummaries(specs)
+
+	if len(summaries) != 2 {
+		t.Fatalf("expected 2 summaries, got %d", len(summaries))
+	}
+
+	expected1 := "auth-spec: Authentication System"
+	if summaries[0] != expected1 {
+		t.Errorf("expected summary[0] %q, got %q", expected1, summaries[0])
+	}
+
+	expected2 := "api-spec: REST API"
+	if summaries[1] != expected2 {
+		t.Errorf("expected summary[1] %q, got %q", expected2, summaries[1])
+	}
+}
+
 // mockClaudeClient implements a minimal claude.Client interface for testing
 type mockClaudeClient struct {
 	runFn func(ctx context.Context, prompt string, model string) (*claude.Result, error)

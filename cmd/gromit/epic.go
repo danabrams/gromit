@@ -226,6 +226,15 @@ type claudeClient interface {
 	Run(ctx context.Context, prompt string, model string) (*claude.Result, error)
 }
 
+// buildSpecSummaries creates formatted spec summaries for gap analysis
+func buildSpecSummaries(specs []spec) []string {
+	summaries := make([]string, len(specs))
+	for i, s := range specs {
+		summaries[i] = fmt.Sprintf("%s: %s", s.id, s.title)
+	}
+	return summaries
+}
+
 // performGapAnalysis runs LLM gap analysis on epic content and spec summaries
 func performGapAnalysis(client claudeClient, model string, epicContent string, specSummaries []string) (string, error) {
 	// Build prompt with instructions, epic content, and spec summaries
