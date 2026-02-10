@@ -638,3 +638,219 @@ func TestRunnerLabelFiltering_NoMatchingBeads(t *testing.T) {
 		t.Errorf("Expected 'No more work available' in output when no beads match label filter, got: %s", outputStr)
 	}
 }
+
+// TestRunnerLabelFiltering_BeadWithMultipleMatchingLabels verifies that when a bead
+// has multiple labels that match the filter list, it's only returned once (not duplicated)
+func TestRunnerLabelFiltering_BeadWithMultipleMatchingLabels(t *testing.T) {
+	var output strings.Builder
+
+	// Create a bead with multiple spec labels
+	beadsWithMultipleLabels := []*bead.Bead{
+		{ID: "multi-1", Title: "Multi-label task", Priority: 1, Labels: []string{"spec:auth", "spec:payments"}, ExpectedOutputs: []string{}},
+		{ID: "auth-1", Title: "Auth only", Priority: 1, Labels: []string{"spec:auth"}, ExpectedOutputs: []string{}},
+	}
+
+	var processedBeads []string
+	closedBeads := make(map[string]bool)
+
+	mockBeads := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			// Return the first non-closed bead that has this label
+			for i := 0; i < len(beadsWithMultipleLabels); i++ {
+				b := beadsWithMultipleLabels[i]
+				if closedBeads[b.ID] {
+					continue
+				}
+				// Check if this bead has the requested label
+				for _, l := range b.Labels {
+					if l == label {
+						return b, nil
+					}
+				}
+			}
+			return nil, nil
+		},
+		CloseFn: func(id string) error {
+			closedBeads[id] = true
+			processedBeads = append(processedBeads, id)
+			return nil
+		},
+		SyncFn: func() error {
+			return nil
+		},
+		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
+			return nil, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "validation passed"}, nil
+		},
+	}
+
+	precheckDisabled := false
+	autoPushDisabled := false
+
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled: false,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Review: config.ReviewConfig{
+			Enabled: false,
+		},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	deps := Deps{
+		Beads:    mockBeads,
+		Claude:   mockClaude,
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+
+	// Set label filters for both labels that multi-1 has
+	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
+
+	ctx := context.Background()
+	err = r.Run(ctx, 10, time.Time{}, false)
+	if err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Verify multi-1 was only processed once (not twice despite having both labels)
+	multiCount := 0
+	for _, id := range processedBeads {
+		if id == "multi-1" {
+			multiCount++
+		}
+	}
+	if multiCount != 1 {
+		t.Errorf("Expected bead 'multi-1' to be processed exactly once despite having both labels, got %d times. Processed beads: %v", multiCount, processedBeads)
+	}
+
+	// Verify total beads processed is 2 (not 3)
+	if len(processedBeads) != 2 {
+		t.Errorf("Expected 2 beads to be processed (multi-1 once + auth-1), got %d: %v", len(processedBeads), processedBeads)
+	}
+}
+
+// TestRunnerLabelFiltering_DeduplicationInGetNextBead verifies that getNextBead()
+// deduplicates beads when the same bead is returned by multiple ReadyWithLabel calls
+func TestRunnerLabelFiltering_DeduplicationInGetNextBead(t *testing.T) {
+	var output strings.Builder
+
+	// This bead has both labels, so ReadyWithLabel will return it for both label queries
+	multiLabelBead := &bead.Bead{
+		ID:              "multi-1",
+		Title:           "Bead with multiple labels",
+		Priority:        1,
+		Labels:          []string{"spec:auth", "spec:payments"},
+		ExpectedOutputs: []string{},
+	}
+
+	var readyWithLabelCallCount int
+	var processedBeads []string
+
+	mockBeads := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			readyWithLabelCallCount++
+			// Both label queries return the same bead (simulating bd behavior)
+			if label == "spec:auth" || label == "spec:payments" {
+				return multiLabelBead, nil
+			}
+			return nil, nil
+		},
+		CloseFn: func(id string) error {
+			processedBeads = append(processedBeads, id)
+			// After closing, subsequent calls should return nil
+			multiLabelBead = nil
+			return nil
+		},
+		SyncFn: func() error {
+			return nil
+		},
+		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
+			return nil, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "validation passed"}, nil
+		},
+	}
+
+	precheckDisabled := false
+	autoPushDisabled := false
+
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled: false,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Review: config.ReviewConfig{
+			Enabled: false,
+		},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	deps := Deps{
+		Beads:    mockBeads,
+		Claude:   mockClaude,
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+
+	// Set label filters for both labels
+	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
+
+	ctx := context.Background()
+	err = r.Run(ctx, 10, time.Time{}, false)
+	if err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Verify the bead was only processed once
+	if len(processedBeads) != 1 {
+		t.Errorf("Expected bead to be processed exactly once, got %d times: %v", len(processedBeads), processedBeads)
+	}
+
+	// Verify ReadyWithLabel was called for both labels (showing deduplication happened)
+	if readyWithLabelCallCount < 2 {
+		t.Errorf("Expected ReadyWithLabel to be called at least twice (once per label), got %d calls", readyWithLabelCallCount)
+	}
+}
