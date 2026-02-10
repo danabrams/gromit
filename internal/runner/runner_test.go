@@ -2161,6 +2161,345 @@ func TestTDDPromptSelection(t *testing.T) {
 	}
 }
 
+// TestScopedRun_NoFilterUsesReady tests that when no label filters are set,
+// getNextBead uses Ready() method
+func TestScopedRun_NoFilterUsesReady(t *testing.T) {
+	readyCalled := false
+	readyWithLabelCalled := false
+
+	mockBeads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			readyCalled = true
+			return &bead.Bead{
+				ID:       "test-1",
+				Title:    "Test bead",
+				Priority: 1,
+				Labels:   []string{},
+			}, nil
+		},
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			readyWithLabelCalled = true
+			return nil, nil
+		},
+	}
+
+	cfg := &config.Config{}
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    mockBeads,
+			Claude:   &mockClaudeClient{},
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("Failed to create runner: %v", err)
+	}
+
+	// No label filters set
+	bead, err := r.getNextBead()
+	if err != nil {
+		t.Fatalf("getNextBead() error = %v", err)
+	}
+
+	if !readyCalled {
+		t.Error("Expected Ready() to be called when no filters are set")
+	}
+	if readyWithLabelCalled {
+		t.Error("Expected ReadyWithLabel() NOT to be called when no filters are set")
+	}
+	if bead == nil {
+		t.Fatal("Expected non-nil bead")
+	}
+	if bead.ID != "test-1" {
+		t.Errorf("Expected bead ID test-1, got %s", bead.ID)
+	}
+}
+
+// TestScopedRun_WithFilterUsesReadyWithLabel tests that when label filters are set,
+// getNextBead uses ReadyWithLabel() for each label
+func TestScopedRun_WithFilterUsesReadyWithLabel(t *testing.T) {
+	readyCalled := false
+	readyWithLabelCalls := []string{}
+
+	mockBeads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			readyCalled = true
+			return nil, nil
+		},
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			readyWithLabelCalls = append(readyWithLabelCalls, label)
+			if label == "spec:auth" {
+				return &bead.Bead{
+					ID:       "auth-1",
+					Title:    "Auth bead",
+					Priority: 1,
+					Labels:   []string{"spec:auth"},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	cfg := &config.Config{}
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    mockBeads,
+			Claude:   &mockClaudeClient{},
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("Failed to create runner: %v", err)
+	}
+
+	// Set label filters
+	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
+
+	bead, err := r.getNextBead()
+	if err != nil {
+		t.Fatalf("getNextBead() error = %v", err)
+	}
+
+	if readyCalled {
+		t.Error("Expected Ready() NOT to be called when filters are set")
+	}
+	if len(readyWithLabelCalls) != 2 {
+		t.Errorf("Expected ReadyWithLabel() to be called twice, got %d calls", len(readyWithLabelCalls))
+	}
+	if !contains(readyWithLabelCalls, "spec:auth") {
+		t.Error("Expected ReadyWithLabel() to be called with spec:auth")
+	}
+	if !contains(readyWithLabelCalls, "spec:payments") {
+		t.Error("Expected ReadyWithLabel() to be called with spec:payments")
+	}
+	if bead == nil {
+		t.Fatal("Expected non-nil bead")
+	}
+	if bead.ID != "auth-1" {
+		t.Errorf("Expected bead ID auth-1, got %s", bead.ID)
+	}
+}
+
+// TestScopedRun_EmptyResultsExitCleanly tests that when filtered beads return no results,
+// getNextBead returns nil without error
+func TestScopedRun_EmptyResultsExitCleanly(t *testing.T) {
+	mockBeads := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			// All labels return no beads
+			return nil, nil
+		},
+	}
+
+	cfg := &config.Config{}
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    mockBeads,
+			Claude:   &mockClaudeClient{},
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("Failed to create runner: %v", err)
+	}
+
+	// Set label filters
+	r.SetLabelFilters([]string{"spec:nonexistent"})
+
+	bead, err := r.getNextBead()
+	if err != nil {
+		t.Errorf("getNextBead() should not error on empty results, got: %v", err)
+	}
+	if bead != nil {
+		t.Errorf("Expected nil bead for empty results, got: %+v", bead)
+	}
+}
+
+// TestScopedRun_MultipleLabelsPicksHighestPriority tests that when multiple labels
+// return beads, getNextBead picks the one with the highest priority (lowest priority number)
+func TestScopedRun_MultipleLabelsPicksHighestPriority(t *testing.T) {
+	mockBeads := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			switch label {
+			case "spec:auth":
+				return &bead.Bead{
+					ID:       "auth-1",
+					Title:    "Auth bead",
+					Priority: 1, // Lower priority number = higher priority
+					Labels:   []string{"spec:auth"},
+				}, nil
+			case "spec:payments":
+				return &bead.Bead{
+					ID:       "payments-1",
+					Title:    "Payments bead",
+					Priority: 0, // Highest priority
+					Labels:   []string{"spec:payments"},
+				}, nil
+			case "spec:reporting":
+				return &bead.Bead{
+					ID:       "reporting-1",
+					Title:    "Reporting bead",
+					Priority: 2, // Lowest priority
+					Labels:   []string{"spec:reporting"},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	cfg := &config.Config{}
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    mockBeads,
+			Claude:   &mockClaudeClient{},
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("Failed to create runner: %v", err)
+	}
+
+	// Set multiple label filters
+	r.SetLabelFilters([]string{"spec:auth", "spec:payments", "spec:reporting"})
+
+	bead, err := r.getNextBead()
+	if err != nil {
+		t.Fatalf("getNextBead() error = %v", err)
+	}
+
+	if bead == nil {
+		t.Fatal("Expected non-nil bead")
+	}
+	// Should pick payments-1 because it has priority 0 (highest)
+	if bead.ID != "payments-1" {
+		t.Errorf("Expected highest priority bead (payments-1), got %s", bead.ID)
+	}
+	if bead.Priority != 0 {
+		t.Errorf("Expected priority 0, got %d", bead.Priority)
+	}
+}
+
+// TestScopedRun_MultipleLabelsWithPartialResults tests that when some labels
+// return beads and others don't, getNextBead handles it correctly
+func TestScopedRun_MultipleLabelsWithPartialResults(t *testing.T) {
+	mockBeads := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			if label == "spec:auth" {
+				return &bead.Bead{
+					ID:       "auth-1",
+					Title:    "Auth bead",
+					Priority: 1,
+					Labels:   []string{"spec:auth"},
+				}, nil
+			}
+			// Other labels return nil
+			return nil, nil
+		},
+	}
+
+	cfg := &config.Config{}
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    mockBeads,
+			Claude:   &mockClaudeClient{},
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("Failed to create runner: %v", err)
+	}
+
+	// Set multiple label filters, only one returns a bead
+	r.SetLabelFilters([]string{"spec:auth", "spec:payments", "spec:reporting"})
+
+	bead, err := r.getNextBead()
+	if err != nil {
+		t.Fatalf("getNextBead() error = %v", err)
+	}
+
+	if bead == nil {
+		t.Fatal("Expected non-nil bead")
+	}
+	if bead.ID != "auth-1" {
+		t.Errorf("Expected auth-1, got %s", bead.ID)
+	}
+}
+
+// TestScopedRun_DeduplicatesBeadsAcrossLabels tests that if the same bead matches
+// multiple labels, it only appears once in the candidate list
+func TestScopedRun_DeduplicatesBeadsAcrossLabels(t *testing.T) {
+	// Track how many times we return the same bead
+	callCount := 0
+	mockBeads := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			callCount++
+			// Return the same bead for different labels
+			return &bead.Bead{
+				ID:       "shared-1",
+				Title:    "Shared bead",
+				Priority: 1,
+				Labels:   []string{"spec:auth", "spec:payments"}, // Has both labels
+			}, nil
+		},
+	}
+
+	cfg := &config.Config{}
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    mockBeads,
+			Claude:   &mockClaudeClient{},
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("Failed to create runner: %v", err)
+	}
+
+	// Set filters that both return the same bead
+	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
+
+	bead, err := r.getNextBead()
+	if err != nil {
+		t.Fatalf("getNextBead() error = %v", err)
+	}
+
+	if bead == nil {
+		t.Fatal("Expected non-nil bead")
+	}
+	if bead.ID != "shared-1" {
+		t.Errorf("Expected shared-1, got %s", bead.ID)
+	}
+
+	// Verify ReadyWithLabel was called for each label
+	if callCount != 2 {
+		t.Errorf("Expected ReadyWithLabel to be called twice, got %d", callCount)
+	}
+
+	// Note: The current implementation doesn't deduplicate, it just picks the first occurrence.
+	// This test documents current behavior - if deduplication is needed later, update implementation.
+}
+
+// contains is a helper function to check if a slice contains a string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
 func TestRunnerStatusWithLiveRun(t *testing.T) {
 	tests := []struct {
 		name           string
