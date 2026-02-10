@@ -61,10 +61,14 @@ func epicStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("finding linked specs: %w", err)
 	}
 
+	// Determine epic status based on linked specs
+	epicStatus := determineEpicStatus(linkedSpecs)
+
 	// Display status
 	fmt.Println("=" + strings.Repeat("=", 78))
 	fmt.Printf("EPIC: %s\n", epicTitle)
 	fmt.Printf("ID: %s\n", epicID)
+	fmt.Printf("Status: %s\n", epicStatus)
 	fmt.Println("=" + strings.Repeat("=", 78))
 
 	if len(linkedSpecs) == 0 {
@@ -227,7 +231,15 @@ func findLinkedSpecs(epicID string, specsDir string, cfg *config.Config) ([]spec
 
 		// Check if this spec references our epic
 		if fm["epic"] == epicID {
-			specID := fm["id"].(string)
+			// Extract id field, handling missing or non-string types
+			idVal, ok := fm["id"]
+			if !ok {
+				continue
+			}
+			specID, ok := idVal.(string)
+			if !ok {
+				continue
+			}
 			if specID == "" {
 				continue
 			}
@@ -270,6 +282,14 @@ func determinePipelineStage(specID string, cfg *config.Config) string {
 		return "decomposed"
 	}
 	return "planned"
+}
+
+func determineEpicStatus(specs []spec) string {
+	if len(specs) == 0 {
+		return "open"
+	}
+	// When specs are linked, the epic is considered to have been specified
+	return "fully-specified"
 }
 
 func extractTitle(body string) string {
