@@ -223,10 +223,9 @@ func TestRunnerLabelFiltering_MultipleLabels(t *testing.T) {
 		{ID: "pay-2", Title: "Another payment", Priority: 1, Labels: []string{"spec:payments"}, ExpectedOutputs: []string{}},
 	}
 
-	authIndex := 0
-	paymentIndex := 0
 	var processedBeads []string
 	var readyWithLabelCalls []string
+	closedBeads := make(map[string]bool)
 
 	mockBeads := &mockBeadClient{
 		ReadyFn: func() (*bead.Bead, error) {
@@ -235,19 +234,28 @@ func TestRunnerLabelFiltering_MultipleLabels(t *testing.T) {
 		},
 		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
 			readyWithLabelCalls = append(readyWithLabelCalls, label)
-			if label == "spec:auth" && authIndex < len(authBeads) {
-				b := authBeads[authIndex]
-				authIndex++
-				return b, nil
+			if label == "spec:auth" {
+				// Find first non-closed auth bead
+				for i := 0; i < len(authBeads); i++ {
+					if !closedBeads[authBeads[i].ID] {
+						return authBeads[i], nil
+					}
+				}
+				return nil, nil
 			}
-			if label == "spec:payments" && paymentIndex < len(paymentBeads) {
-				b := paymentBeads[paymentIndex]
-				paymentIndex++
-				return b, nil
+			if label == "spec:payments" {
+				// Find first non-closed payment bead
+				for i := 0; i < len(paymentBeads); i++ {
+					if !closedBeads[paymentBeads[i].ID] {
+						return paymentBeads[i], nil
+					}
+				}
+				return nil, nil
 			}
 			return nil, nil
 		},
 		CloseFn: func(id string) error {
+			closedBeads[id] = true
 			processedBeads = append(processedBeads, id)
 			return nil
 		},
@@ -454,25 +462,39 @@ func TestRunnerLabelFiltering_PriorityOrderingAcrossLabels(t *testing.T) {
 		{ID: "pay-2", Title: "Payment P1", Priority: 1, Labels: []string{"spec:payments"}, ExpectedOutputs: []string{}},
 	}
 
-	authIndex := 0
-	paymentIndex := 0
 	var processedBeads []string
+	closedBeads := make(map[string]bool)
 
 	mockBeads := &mockBeadClient{
 		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
-			if label == "spec:auth" && authIndex < len(authBeads) {
-				b := authBeads[authIndex]
-				authIndex++
-				return b, nil
+			if label == "spec:auth" {
+				// Find highest priority (lowest number) non-closed auth bead
+				var bestBead *bead.Bead
+				for i := 0; i < len(authBeads); i++ {
+					if !closedBeads[authBeads[i].ID] {
+						if bestBead == nil || authBeads[i].Priority < bestBead.Priority {
+							bestBead = authBeads[i]
+						}
+					}
+				}
+				return bestBead, nil
 			}
-			if label == "spec:payments" && paymentIndex < len(paymentBeads) {
-				b := paymentBeads[paymentIndex]
-				paymentIndex++
-				return b, nil
+			if label == "spec:payments" {
+				// Find highest priority (lowest number) non-closed payment bead
+				var bestBead *bead.Bead
+				for i := 0; i < len(paymentBeads); i++ {
+					if !closedBeads[paymentBeads[i].ID] {
+						if bestBead == nil || paymentBeads[i].Priority < bestBead.Priority {
+							bestBead = paymentBeads[i]
+						}
+					}
+				}
+				return bestBead, nil
 			}
 			return nil, nil
 		},
 		CloseFn: func(id string) error {
+			closedBeads[id] = true
 			processedBeads = append(processedBeads, id)
 			return nil
 		},
