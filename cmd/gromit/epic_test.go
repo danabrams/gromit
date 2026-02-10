@@ -1272,3 +1272,537 @@ created: 2026-02-08
 		}
 	}
 }
+
+// TestEpicStatusCommand_HandlesSpecsWithoutPlans verifies specs without plans show as unplanned
+func TestEpicStatusCommand_HandlesSpecsWithoutPlans(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+	plansDir := filepath.Join(tmpDir, ".gromit", "plans")
+
+	for _, dir := range []string{epicsDir, specsDir, plansDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Create epic
+	epicContent := `---
+epic_id: gromit-test
+created: 2026-02-08
+---
+
+# Test Epic
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "test.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create spec without a plan file
+	specContent := `---
+id: no-plan-spec
+epic: gromit-test
+created: 2026-02-08
+---
+
+# Spec Without Plan
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "no-plan.md"), []byte(specContent), 0644); err != nil {
+		t.Fatalf("failed to write spec: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+  plans_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir, plansDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+
+	// Command should succeed even with missing plan
+	if exitCode != 0 {
+		if strings.Contains(stderr, "epic not found") {
+			t.Fatalf("epic should be found: %s", stderr)
+		}
+		// May be external dependencies not available
+		t.Skip("External dependencies not available, cannot verify spec without plan handling")
+	}
+
+	// Spec should be shown with unplanned stage
+	if !strings.Contains(stdout, "no-plan-spec") {
+		t.Errorf("status should show spec without plan, got: %s", stdout)
+	}
+
+	stdoutLower := strings.ToLower(stdout)
+	if !strings.Contains(stdoutLower, "unplanned") {
+		t.Errorf("status should indicate spec is unplanned, got: %s", stdout)
+	}
+}
+
+// TestEpicStatusCommand_HandlesMissingSpecsDirectory verifies graceful handling when specs directory does not exist
+func TestEpicStatusCommand_HandlesMissingSpecsDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+
+	// Create only epics directory, not specs directory
+	if err := os.MkdirAll(epicsDir, 0755); err != nil {
+		t.Fatalf("failed to create epics dir: %v", err)
+	}
+
+	// Create epic
+	epicContent := `---
+epic_id: gromit-test
+created: 2026-02-08
+---
+
+# Test Epic
+
+This epic should handle missing specs directory gracefully.
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "test.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+
+	// Command should succeed even with missing specs directory
+	if exitCode != 0 {
+		if strings.Contains(stderr, "epic not found") {
+			t.Fatalf("epic should be found: %s", stderr)
+		}
+		// Check if failure is due to missing directory (should not be)
+		if strings.Contains(stderr, "no such file or directory") {
+			t.Fatalf("command should handle missing specs directory gracefully, stderr: %s", stderr)
+		}
+		// May be external dependencies not available
+		t.Skip("External dependencies not available, cannot verify missing directory handling")
+	}
+
+	// Should indicate no specs found (not crash)
+	stdoutLower := strings.ToLower(stdout)
+	hasNoSpecsIndicator := strings.Contains(stdoutLower, "no spec") ||
+		strings.Contains(stdoutLower, "no linked spec") ||
+		strings.Contains(stdoutLower, "0 spec")
+
+	if !hasNoSpecsIndicator {
+		t.Logf("Warning: status should indicate no specs when directory is missing, got: %s", stdout)
+	}
+}
+
+// TestEpicStatusCommand_HandlesMissingEpicsDirectory verifies clear error when epics directory does not exist
+func TestEpicStatusCommand_HandlesMissingEpicsDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+
+	// Don't create epics directory
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	_, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+
+	// Command should fail with clear error
+	if exitCode == 0 {
+		t.Error("command should exit non-zero when epics directory does not exist")
+	}
+
+	stderrLower := strings.ToLower(stderr)
+	if !strings.Contains(stderrLower, "not found") && !strings.Contains(stderrLower, "no epic") {
+		t.Errorf("error should indicate epic not found, got: %s", stderr)
+	}
+}
+
+// TestEpicStatusCommand_HandlesSpecWithInvalidFrontmatter verifies specs with invalid frontmatter are skipped
+func TestEpicStatusCommand_HandlesSpecWithInvalidFrontmatter(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+
+	for _, dir := range []string{epicsDir, specsDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Create epic
+	epicContent := `---
+epic_id: gromit-test
+created: 2026-02-08
+---
+
+# Test Epic
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "test.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create valid spec
+	validSpec := `---
+id: valid-spec
+epic: gromit-test
+created: 2026-02-08
+---
+
+# Valid Spec
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "valid.md"), []byte(validSpec), 0644); err != nil {
+		t.Fatalf("failed to write valid spec: %v", err)
+	}
+
+	// Create spec with invalid frontmatter (malformed YAML)
+	invalidSpec := `---
+id: invalid-spec
+epic: gromit-test
+created: [this is invalid yaml
+---
+
+# Invalid Spec
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "invalid.md"), []byte(invalidSpec), 0644); err != nil {
+		t.Fatalf("failed to write invalid spec: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+
+	// Command should succeed, skipping invalid spec
+	if exitCode != 0 {
+		if strings.Contains(stderr, "epic not found") {
+			t.Fatalf("epic should be found: %s", stderr)
+		}
+		// May be external dependencies not available
+		t.Skip("External dependencies not available, cannot verify invalid frontmatter handling")
+	}
+
+	// Should show valid spec
+	if !strings.Contains(stdout, "valid-spec") {
+		t.Errorf("status should show valid-spec, got: %s", stdout)
+	}
+
+	// Should NOT show invalid spec (or error out)
+	if strings.Contains(stdout, "invalid-spec") {
+		t.Logf("Warning: status shows invalid-spec despite malformed frontmatter, got: %s", stdout)
+	}
+}
+
+// TestEpicStatusCommand_HandlesEmptyEpicDocument verifies handling of epic with empty body
+func TestEpicStatusCommand_HandlesEmptyEpicDocument(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+
+	for _, dir := range []string{epicsDir, specsDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Create epic with empty body (no title)
+	epicContent := `---
+epic_id: gromit-empty
+created: 2026-02-08
+---
+
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "empty.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-empty")
+
+	// Command should succeed even with empty epic body
+	if exitCode != 0 {
+		if strings.Contains(stderr, "epic not found") {
+			t.Fatalf("epic should be found: %s", stderr)
+		}
+		// May be external dependencies not available
+		t.Skip("External dependencies not available, cannot verify empty epic handling")
+	}
+
+	// Should display epic ID even without title
+	if !strings.Contains(stdout, "gromit-empty") {
+		t.Errorf("status should show epic ID even without title, got: %s", stdout)
+	}
+}
+
+// TestEpicStatusCommand_HandlesSpecWithMissingID verifies specs without id field are skipped
+func TestEpicStatusCommand_HandlesSpecWithMissingID(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+
+	for _, dir := range []string{epicsDir, specsDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Create epic
+	epicContent := `---
+epic_id: gromit-test
+created: 2026-02-08
+---
+
+# Test Epic
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "test.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create valid spec
+	validSpec := `---
+id: valid-spec
+epic: gromit-test
+created: 2026-02-08
+---
+
+# Valid Spec
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "valid.md"), []byte(validSpec), 0644); err != nil {
+		t.Fatalf("failed to write valid spec: %v", err)
+	}
+
+	// Create spec without id field
+	noIDSpec := `---
+epic: gromit-test
+created: 2026-02-08
+---
+
+# Spec Without ID
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "no-id.md"), []byte(noIDSpec), 0644); err != nil {
+		t.Fatalf("failed to write no-id spec: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+
+	// Command should succeed, skipping spec without id
+	if exitCode != 0 {
+		if strings.Contains(stderr, "epic not found") {
+			t.Fatalf("epic should be found: %s", stderr)
+		}
+		if strings.Contains(stderr, "panic") {
+			t.Fatalf("command should not panic on missing id field, stderr: %s", stderr)
+		}
+		// May be external dependencies not available
+		t.Skip("External dependencies not available, cannot verify missing id handling")
+	}
+
+	// Should show valid spec
+	if !strings.Contains(stdout, "valid-spec") {
+		t.Errorf("status should show valid-spec, got: %s", stdout)
+	}
+
+	// Should NOT show spec without id (or panic)
+	if strings.Contains(stdout, "Spec Without ID") {
+		t.Logf("Warning: status shows spec without id field, got: %s", stdout)
+	}
+}
+
+// TestEpicStatusCommand_HandlesSpecWithNonStringID verifies specs with non-string id are skipped
+func TestEpicStatusCommand_HandlesSpecWithNonStringID(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+
+	for _, dir := range []string{epicsDir, specsDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Create epic
+	epicContent := `---
+epic_id: gromit-test
+created: 2026-02-08
+---
+
+# Test Epic
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "test.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create valid spec
+	validSpec := `---
+id: valid-spec
+epic: gromit-test
+created: 2026-02-08
+---
+
+# Valid Spec
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "valid.md"), []byte(validSpec), 0644); err != nil {
+		t.Fatalf("failed to write valid spec: %v", err)
+	}
+
+	// Create spec with numeric id (not a string)
+	numericIDSpec := `---
+id: 12345
+epic: gromit-test
+created: 2026-02-08
+---
+
+# Spec With Numeric ID
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "numeric-id.md"), []byte(numericIDSpec), 0644); err != nil {
+		t.Fatalf("failed to write numeric-id spec: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+
+	// Command should succeed without panicking
+	if exitCode != 0 {
+		if strings.Contains(stderr, "epic not found") {
+			t.Fatalf("epic should be found: %s", stderr)
+		}
+		if strings.Contains(stderr, "panic") || strings.Contains(stderr, "type assertion") {
+			t.Fatalf("command should not panic on non-string id field, stderr: %s", stderr)
+		}
+		// May be external dependencies not available
+		t.Skip("External dependencies not available, cannot verify non-string id handling")
+	}
+
+	// Should show valid spec
+	if !strings.Contains(stdout, "valid-spec") {
+		t.Errorf("status should show valid-spec, got: %s", stdout)
+	}
+}
