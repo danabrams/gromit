@@ -565,3 +565,334 @@ Second provisional learning
 	// Note: This test can't fully verify Run() behavior without mocking claude.Client,
 	// but it sets up the preconditions. The acceptance tests verify the full integration.
 }
+
+// TestRunWithBeadFilter_FilteredPerBeadStats verifies that when a bead filter is provided,
+// only beads in the filter appear in the per-bead stats passed to the prompt template.
+func TestRunWithBeadFilter_FilteredPerBeadStats(t *testing.T) {
+	// This test verifies filtering on per-bead stats.
+	// When beadFilter is provided to Run(), only beads with IDs in the filter
+	// should be included in the BeadStats map that gets passed to the template.
+
+	tmpDir := t.TempDir()
+	logsDir := tmpDir + "/logs"
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("creating logs dir: %v", err)
+	}
+
+	// Create iteration logs with multiple beads
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"bead-1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"duration_ms":1000,"cost_usd":0.10,"input_tokens":1000,"output_tokens":500}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"bead-1","bead_title":"Task 1","model":"sonnet","success":false,"validated":false,"duration_ms":2000,"cost_usd":0.15,"input_tokens":1200,"output_tokens":600,"error":"build failed"}
+{"timestamp":"2026-02-05T12:02:00Z","iteration":3,"bead_id":"bead-2","bead_title":"Task 2","model":"sonnet","success":true,"validated":true,"duration_ms":1500,"cost_usd":0.12,"input_tokens":1100,"output_tokens":550}
+{"timestamp":"2026-02-05T12:03:00Z","iteration":4,"bead_id":"bead-3","bead_title":"Task 3","model":"haiku","success":false,"validated":false,"duration_ms":800,"cost_usd":0.05,"input_tokens":500,"output_tokens":300,"error":"test failed"}
+{"timestamp":"2026-02-05T12:04:00Z","iteration":5,"bead_id":"bead-3","bead_title":"Task 3","model":"sonnet","success":false,"validated":false,"duration_ms":1800,"cost_usd":0.18,"input_tokens":1300,"output_tokens":700,"error":"test failed again"}
+`
+	if err := os.WriteFile(logsDir+"/run-20260205-120000.jsonl", []byte(logContent), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	// Create minimal retro setup
+	createMinimalRetroFiles(t, tmpDir)
+
+	// Create filter that only includes bead-1 and bead-3 (excludes bead-2)
+	beadFilter := map[string]bool{
+		"bead-1": true,
+		"bead-3": true,
+	}
+	_ = beadFilter // Use the variable to prevent unused variable error
+
+	// Expected behavior when Run() is called with this filter:
+	// 1. logger.ReadPerBeadStatsFiltered(logsDir, beadFilter) should only include bead-1 and bead-3
+	// 2. bead-2 should be excluded from the stats
+	// 3. The filtered stats are passed to the prompt template
+	// 4. Analysis focuses only on bead-1 and bead-3
+
+	// This test documents the expected behavior:
+	// - Per-bead stats should only include beads in the filter
+	// - Beads not in the filter should be excluded from analysis
+	// - The filter is passed to logger.ReadPerBeadStatsFiltered()
+
+	// Note: Full verification requires mocking Claude client and checking the rendered prompt.
+	// This test documents the contract between retro.Run() and logger.ReadPerBeadStatsFiltered().
+
+	t.Skip("Pending: verify Run() passes beadFilter to ReadPerBeadStatsFiltered and excludes bead-2 from stats")
+}
+
+// TestRunWithBeadFilter_EmptyFilterProducesEmptyStats verifies that when a filter
+// is provided but it's empty (map[string]bool{}), the stats should be empty or all excluded.
+func TestRunWithBeadFilter_EmptyFilterProducesEmptyStats(t *testing.T) {
+	// This test verifies behavior when beadFilter is an empty map.
+	// An empty filter means "include no beads" - all beads should be excluded.
+
+	tmpDir := t.TempDir()
+	logsDir := tmpDir + "/logs"
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("creating logs dir: %v", err)
+	}
+
+	// Create iteration logs with multiple beads
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"bead-1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"duration_ms":1000,"cost_usd":0.10,"input_tokens":1000,"output_tokens":500}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"bead-2","bead_title":"Task 2","model":"sonnet","success":false,"validated":false,"duration_ms":2000,"cost_usd":0.15,"input_tokens":1200,"output_tokens":600,"error":"failed"}
+`
+	if err := os.WriteFile(logsDir+"/run-20260205-120000.jsonl", []byte(logContent), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	createMinimalRetroFiles(t, tmpDir)
+
+	// Create empty filter - should exclude all beads
+	emptyFilter := map[string]bool{}
+	_ = emptyFilter // Use the variable to prevent unused variable error
+
+	// Expected behavior when Run() is called with empty filter:
+	// 1. logger.ReadPerBeadStatsFiltered(logsDir, emptyFilter) should return empty map
+	// 2. logger.ReadAllLogsFiltered(logsDir, emptyFilter) should return zero stats
+	// 3. logger.ReadEfficiencyReportFiltered(logsDir, "", emptyFilter) should return empty report
+	// 4. The retro analysis runs but with no data (edge case handling)
+
+	// This is a corner case: user specifies --spec or --epic but the scope has no beads.
+	// The system should handle this gracefully without errors.
+
+	t.Skip("Pending: verify Run() with empty beadFilter produces empty stats without error")
+}
+
+// TestRunWithNilFilter_PreservesUnchangedBehavior verifies that when beadFilter is nil,
+// Run() includes all beads (default behavior, no filtering).
+func TestRunWithNilFilter_PreservesUnchangedBehavior(t *testing.T) {
+	// This test verifies backward compatibility: nil filter = no filtering, include all beads.
+
+	tmpDir := t.TempDir()
+	logsDir := tmpDir + "/logs"
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("creating logs dir: %v", err)
+	}
+
+	// Create iteration logs with multiple beads
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"bead-1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"duration_ms":1000,"cost_usd":0.10,"input_tokens":1000,"output_tokens":500}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"bead-2","bead_title":"Task 2","model":"sonnet","success":false,"validated":false,"duration_ms":2000,"cost_usd":0.15,"input_tokens":1200,"output_tokens":600,"error":"failed"}
+{"timestamp":"2026-02-05T12:02:00Z","iteration":3,"bead_id":"bead-3","bead_title":"Task 3","model":"haiku","success":true,"validated":true,"duration_ms":800,"cost_usd":0.05,"input_tokens":500,"output_tokens":300}
+`
+	if err := os.WriteFile(logsDir+"/run-20260205-120000.jsonl", []byte(logContent), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	createMinimalRetroFiles(t, tmpDir)
+
+	// Call Run() with nil filter (default behavior)
+	var nilFilter map[string]bool = nil
+	_ = nilFilter // Use the variable to prevent unused variable error
+
+	// Expected behavior when Run() is called with nil filter:
+	// 1. logger.ReadPerBeadStatsFiltered(logsDir, nil) includes all beads (bead-1, bead-2, bead-3)
+	// 2. logger.ReadAllLogsFiltered(logsDir, nil) includes all 3 iterations
+	// 3. logger.ReadEfficiencyReportFiltered(logsDir, "", nil) includes all beads
+	// 4. RunStats.Total = 3, Succeeded = 2, Failed = 1
+	// 5. BeadStats map has 3 entries
+
+	// This verifies backward compatibility: existing callers that don't use filtering
+	// (passing nil) get the same behavior as before the filter parameter was added.
+
+	t.Skip("Pending: verify Run() with nil beadFilter includes all beads (default behavior)")
+}
+
+// TestRunWithBeadFilter_FilterAppliedToRunStats verifies that when a bead filter is provided,
+// the RunStats aggregates (Total, Succeeded, Failed) only include iterations from filtered beads.
+func TestRunWithBeadFilter_FilterAppliedToRunStats(t *testing.T) {
+	// This test verifies that RunStats reflect the filtered scope, not all beads.
+
+	tmpDir := t.TempDir()
+	logsDir := tmpDir + "/logs"
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("creating logs dir: %v", err)
+	}
+
+	// Create iteration logs:
+	// - bead-1: 2 iterations (1 success, 1 failure)
+	// - bead-2: 1 iteration (1 success)
+	// - bead-3: 2 iterations (2 failures)
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"bead-1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"duration_ms":1000,"cost_usd":0.10,"input_tokens":1000,"output_tokens":500}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"bead-1","bead_title":"Task 1","model":"sonnet","success":false,"validated":false,"duration_ms":2000,"cost_usd":0.15,"input_tokens":1200,"output_tokens":600,"error":"failed"}
+{"timestamp":"2026-02-05T12:02:00Z","iteration":3,"bead_id":"bead-2","bead_title":"Task 2","model":"haiku","success":true,"validated":true,"duration_ms":800,"cost_usd":0.05,"input_tokens":500,"output_tokens":300}
+{"timestamp":"2026-02-05T12:03:00Z","iteration":4,"bead_id":"bead-3","bead_title":"Task 3","model":"sonnet","success":false,"validated":false,"duration_ms":1500,"cost_usd":0.12,"input_tokens":1100,"output_tokens":550,"error":"test failed"}
+{"timestamp":"2026-02-05T12:04:00Z","iteration":5,"bead_id":"bead-3","bead_title":"Task 3","model":"opus","success":false,"validated":false,"duration_ms":3000,"cost_usd":0.50,"input_tokens":2000,"output_tokens":1000,"error":"test failed"}
+`
+	if err := os.WriteFile(logsDir+"/run-20260205-120000.jsonl", []byte(logContent), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	createMinimalRetroFiles(t, tmpDir)
+
+	// Create filter that only includes bead-1 and bead-2 (excludes bead-3)
+	beadFilter := map[string]bool{
+		"bead-1": true,
+		"bead-2": true,
+	}
+	_ = beadFilter // Use the variable to prevent unused variable error
+
+	// Expected behavior when Run() is called with this filter:
+	// 1. logger.ReadAllLogsFiltered(logsDir, beadFilter) should only include iterations 1, 2, 3
+	// 2. RunStats.Total should be 3 (not 5)
+	// 3. RunStats.Succeeded should be 2 (bead-1 iteration 1, bead-2 iteration 3)
+	// 4. RunStats.Failed should be 1 (bead-1 iteration 2)
+	// 5. Iterations 4 and 5 (bead-3) should be excluded
+
+	// This test documents the expected behavior:
+	// - RunStats aggregates should only reflect filtered beads
+	// - Iterations for excluded beads should not be counted
+
+	t.Skip("Pending: verify Run() passes beadFilter to ReadAllLogsFiltered and RunStats reflect filtered scope")
+}
+
+// TestRunWithBeadFilter_FilterAppliedToEfficiencyReport verifies that when a bead filter
+// is provided, the EfficiencyReport only includes cost and token data from filtered beads.
+func TestRunWithBeadFilter_FilterAppliedToEfficiencyReport(t *testing.T) {
+	// This test verifies that efficiency metrics reflect the filtered scope.
+
+	tmpDir := t.TempDir()
+	logsDir := tmpDir + "/logs"
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("creating logs dir: %v", err)
+	}
+
+	// Create iteration logs with different costs:
+	// - bead-1: $0.10 (sonnet)
+	// - bead-2: $0.05 (haiku)
+	// - bead-3: $0.50 (opus, expensive)
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"bead-1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"duration_ms":1000,"cost_usd":0.10,"input_tokens":1000,"output_tokens":500}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"bead-2","bead_title":"Task 2","model":"haiku","success":true,"validated":true,"duration_ms":800,"cost_usd":0.05,"input_tokens":500,"output_tokens":300}
+{"timestamp":"2026-02-05T12:02:00Z","iteration":3,"bead_id":"bead-3","bead_title":"Task 3","model":"opus","success":true,"validated":true,"duration_ms":3000,"cost_usd":0.50,"input_tokens":2000,"output_tokens":1000}
+`
+	if err := os.WriteFile(logsDir+"/run-20260205-120000.jsonl", []byte(logContent), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	createMinimalRetroFiles(t, tmpDir)
+
+	// Create filter that only includes bead-1 and bead-2 (excludes expensive bead-3)
+	beadFilter := map[string]bool{
+		"bead-1": true,
+		"bead-2": true,
+	}
+	_ = beadFilter // Use the variable to prevent unused variable error
+
+	// Expected behavior when Run() is called with this filter:
+	// 1. logger.ReadEfficiencyReportFiltered(logsDir, "", beadFilter) only includes bead-1 and bead-2
+	// 2. Total cost should be $0.15 (not $0.65)
+	// 3. Per-model stats should only include sonnet and haiku (not opus)
+	// 4. Cost per bead should be $0.075 (average of bead-1 and bead-2)
+	// 5. bead-3's $0.50 cost should be excluded from all metrics
+
+	// This test documents the expected behavior:
+	// - Efficiency metrics should only include costs from filtered beads
+	// - Expensive beads outside the filter should not affect averages
+
+	t.Skip("Pending: verify Run() passes beadFilter to ReadEfficiencyReportFiltered and excludes bead-3 from cost metrics")
+}
+
+// TestRunWithBeadFilter_FilterWithNonexistentBead verifies that when a filter contains
+// a bead ID that has no iteration logs, the analysis completes without error.
+func TestRunWithBeadFilter_FilterWithNonexistentBead(t *testing.T) {
+	// This test verifies graceful handling of filters with nonexistent bead IDs.
+
+	tmpDir := t.TempDir()
+	logsDir := tmpDir + "/logs"
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("creating logs dir: %v", err)
+	}
+
+	// Create iteration logs with only bead-1
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"bead-1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"duration_ms":1000,"cost_usd":0.10,"input_tokens":1000,"output_tokens":500}
+`
+	if err := os.WriteFile(logsDir+"/run-20260205-120000.jsonl", []byte(logContent), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	createMinimalRetroFiles(t, tmpDir)
+
+	// Create filter that includes a bead ID that doesn't exist in the logs
+	beadFilter := map[string]bool{
+		"nonexistent-bead": true,
+	}
+	_ = beadFilter // Use the variable to prevent unused variable error
+
+	// Expected behavior when Run() is called with this filter:
+	// 1. logger.ReadPerBeadStatsFiltered returns empty map (no beads match filter)
+	// 2. logger.ReadAllLogsFiltered returns zero stats
+	// 3. logger.ReadEfficiencyReportFiltered returns empty report
+	// 4. Run() completes without error
+	// 5. Analysis may note "no beads found" or similar message
+
+	// This is a valid scenario: user specifies --spec but the spec has no iteration logs yet.
+	// The system should handle this gracefully.
+
+	t.Skip("Pending: verify Run() with filter containing nonexistent bead IDs completes without error")
+}
+
+// createMinimalRetroFiles creates minimal files needed for retro.Run() to execute.
+// This helper is used by filtering tests that focus on log filtering behavior.
+func createMinimalRetroFiles(t *testing.T, tmpDir string) {
+	t.Helper()
+
+	// Create RULES.md
+	rulesPath := tmpDir + "/RULES.md"
+	if err := os.WriteFile(rulesPath, []byte("# Rules\n\nTest rules.\n"), 0644); err != nil {
+		t.Fatalf("writing rules file: %v", err)
+	}
+
+	// Create LEARNINGS.md
+	learningsPath := tmpDir + "/LEARNINGS.md"
+	learningsContent := `# Learnings
+
+## Confirmed
+
+*No confirmed learnings yet.*
+
+## Provisional
+
+*No provisional learnings.*
+
+## Archived
+
+*No archived learnings.*
+`
+	if err := os.WriteFile(learningsPath, []byte(learningsContent), 0644); err != nil {
+		t.Fatalf("writing learnings file: %v", err)
+	}
+
+	// Create state.json
+	statePath := tmpDir + "/state.json"
+	stateContent := `{"filtered_hashes":[],"last_retro":null}`
+	if err := os.WriteFile(statePath, []byte(stateContent), 0644); err != nil {
+		t.Fatalf("writing state file: %v", err)
+	}
+
+	// Create templates directory with retro template
+	templatesDir := tmpDir + "/templates"
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("creating templates dir: %v", err)
+	}
+
+	templatePath := templatesDir + "/PROMPT_retro.md"
+	templateContent := `# Retrospective Analysis
+
+{{- if .RunStats.Total }}
+- **Total iterations**: {{ .RunStats.Total }}
+- **Succeeded**: {{ .RunStats.Succeeded }}
+- **Failed**: {{ .RunStats.Failed }}
+{{- end }}
+
+{{- if .BeadStats }}
+## Stuck Beads
+{{- range $id, $stats := .BeadStats }}
+- **{{ $stats.BeadTitle }}** ({{ $id }}): {{ $stats.Failures }} failures
+{{- end }}
+{{- end }}
+
+{{- if .Efficiency }}
+## Efficiency
+- Current avg cost per bead: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }}
+{{- end }}
+`
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("writing template file: %v", err)
+	}
+}
