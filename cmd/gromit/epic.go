@@ -49,7 +49,7 @@ func epicStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Find and read epic document
-	_, epicTitle, err := findEpicByID(epicID, epicsDir)
+	epicPath, epicTitle, err := findEpicByID(epicID, epicsDir)
 	if err != nil {
 		return err
 	}
@@ -68,19 +68,52 @@ func epicStatus(cmd *cobra.Command, args []string) error {
 
 	if len(linkedSpecs) == 0 {
 		fmt.Println("No linked specs.")
-		return nil
+	} else {
+		fmt.Println("\nLinked Specs:")
+		fmt.Println()
+
+		for _, spec := range linkedSpecs {
+			stage := determinePipelineStage(spec.id, cfg)
+			fmt.Printf("  %s\n", spec.id)
+			fmt.Printf("    Title: %s\n", spec.title)
+			fmt.Printf("    Stage: %s\n", stage)
+			fmt.Println()
+		}
 	}
 
-	fmt.Println("\nLinked Specs:")
+	// Perform gap analysis
+	fmt.Println("\nGap Analysis:")
 	fmt.Println()
 
-	for _, spec := range linkedSpecs {
-		stage := determinePipelineStage(spec.id, cfg)
-		fmt.Printf("  %s\n", spec.id)
-		fmt.Printf("    Title: %s\n", spec.title)
-		fmt.Printf("    Stage: %s\n", stage)
-		fmt.Println()
+	// Read epic content
+	epicContent, err := os.ReadFile(epicPath)
+	if err != nil {
+		return fmt.Errorf("reading epic file: %w", err)
 	}
+
+	// Create Claude client
+	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	if err != nil {
+		return fmt.Errorf("creating claude client: %w", err)
+	}
+
+	// Build spec summaries
+	specSummaries := buildSpecSummaries(linkedSpecs)
+
+	// Determine model to use (haiku for cost efficiency)
+	model := cfg.Models.P2 // P2 is haiku by default
+	if model == "" {
+		model = "claude-haiku-4.5-20251001"
+	}
+
+	// Run gap analysis
+	analysis, err := performGapAnalysis(claudeClient, model, string(epicContent), specSummaries)
+	if err != nil {
+		return fmt.Errorf("performing gap analysis: %w", err)
+	}
+
+	// Print analysis
+	fmt.Println(analysis)
 
 	return nil
 }
