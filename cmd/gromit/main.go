@@ -81,7 +81,15 @@ The retro command:
 5. Suggests archiving stale learnings
 6. Launches Claude Code for interactive review and application
 
-Use --non-interactive to skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md instead.`,
+Use --non-interactive to skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md instead.
+
+Scoping:
+  --spec <name>      Filter retro to a spec's beads only
+  --epic <id>        Filter retro to an epic's beads only
+
+The --spec and --epic flags are mutually exclusive. When either is used, the retro
+analysis only includes iteration logs, stuck beads, and efficiency metrics for beads
+within that scope. Without either flag, all beads are included (default behavior).`,
 	RunE: runRetro,
 }
 

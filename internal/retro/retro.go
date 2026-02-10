@@ -139,13 +139,13 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	// Format learnings for prompt
 	learningsText := r.formatLearnings()
 
-	// Load run stats and per-bead stats
+	// Load run stats and per-bead stats (with optional filtering)
 	logsDir := filepath.Join(filepath.Dir(r.rulesPath), "logs")
-	runStats, _ := logger.ReadAllLogs(logsDir)
-	allBeadStats, _ := logger.ReadPerBeadStats(logsDir)
+	runStats, _ := logger.ReadAllLogsFiltered(logsDir, beadFilter)
+	allBeadStats, _ := logger.ReadPerBeadStatsFiltered(logsDir, beadFilter)
 
 	// Load efficiency report (current run is empty string, all runs are historical)
-	efficiencyReport, _ := logger.ReadEfficiencyReport(logsDir, "")
+	efficiencyReport, _ := logger.ReadEfficiencyReportFiltered(logsDir, "", beadFilter)
 
 	// Load active experiment (if any)
 	experiment, _ := LoadExperiment(r.experimentPath)
