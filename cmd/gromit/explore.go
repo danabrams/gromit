@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/spf13/cobra"
 )
@@ -134,8 +135,9 @@ func runExplore(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("launching Claude Code: %w", err)
 	}
 
-	// Post-session artifact detection would go here
-	// For now, we just note that existing artifacts were captured
+	// TODO: Implement post-session artifact detection
+	// Should scan for new files in epicsDir/specsDir and new backlog items,
+	// compare against pre-session snapshots, and create corresponding bd beads.
 	_ = existingEpics
 	_ = existingSpecs
 	_ = existingBacklogItems
@@ -147,6 +149,32 @@ func runExplore(cmd *cobra.Command, args []string) error {
 // Creates the directory if it doesn't exist.
 func getEpicFiles(epicsDir string) ([]string, error) {
 	return listMarkdownFiles(epicsDir)
+}
+
+// formatLearnings formats learnings into a markdown string.
+// If confirmed is true, returns confirmed learnings; otherwise returns recent learnings (last 24 months).
+// Returns "*None*" if the file is nil or no learnings exist.
+func formatLearnings(lf *learnings.File, confirmed bool) string {
+	if lf == nil {
+		return "*None*"
+	}
+
+	var items []learnings.Learning
+	if confirmed {
+		items = lf.GetConfirmed()
+	} else {
+		items = lf.GetRecent(24)
+	}
+
+	if len(items) == 0 {
+		return "*None*"
+	}
+
+	var sb strings.Builder
+	for _, l := range items {
+		sb.WriteString(fmt.Sprintf("- **[%s]** %s\n", l.Category, l.Content))
+	}
+	return sb.String()
 }
 
 // buildExplorePrompt constructs the system prompt for the exploration session
@@ -173,34 +201,8 @@ func buildExplorePrompt(cfg *config.Config, gromitDir string, args []string) (st
 
 	// Load learnings
 	lf := renderer.GetLearningsFile()
-	var confirmedLearnings, recentLearnings string
-	if lf != nil {
-		confirmed := lf.GetConfirmed()
-		recent := lf.GetRecent(24)
-
-		if len(confirmed) > 0 {
-			var sb strings.Builder
-			for _, l := range confirmed {
-				sb.WriteString(fmt.Sprintf("- **[%s]** %s\n", l.Category, l.Content))
-			}
-			confirmedLearnings = sb.String()
-		} else {
-			confirmedLearnings = "*None*"
-		}
-
-		if len(recent) > 0 {
-			var sb strings.Builder
-			for _, l := range recent {
-				sb.WriteString(fmt.Sprintf("- **[%s]** %s\n", l.Category, l.Content))
-			}
-			recentLearnings = sb.String()
-		} else {
-			recentLearnings = "*None*"
-		}
-	} else {
-		confirmedLearnings = "*None*"
-		recentLearnings = "*None*"
-	}
+	confirmedLearnings := formatLearnings(lf, true)
+	recentLearnings := formatLearnings(lf, false)
 
 	// Get working directory
 	workDir, _ := os.Getwd()
