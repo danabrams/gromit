@@ -45,9 +45,9 @@ func TestExploreCommand_BuildsPromptWithProjectContext(t *testing.T) {
 	// Create minimal config
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			Templates:    templatesDir,
+			Templates:       templatesDir,
 			ProjectClaudeMD: claudeMDPath,
-			GromitDir:    gromitDir,
+			GromitDir:       gromitDir,
 		},
 	}
 
@@ -99,9 +99,9 @@ func TestExploreCommand_BuildsPromptWithoutTopic(t *testing.T) {
 	// Create minimal config
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			Templates:    templatesDir,
+			Templates:       templatesDir,
 			ProjectClaudeMD: claudeMDPath,
-			GromitDir:    gromitDir,
+			GromitDir:       gromitDir,
 		},
 	}
 
@@ -203,9 +203,9 @@ func TestExploreCommand_PromptIncludesEpicsDir(t *testing.T) {
 	// Create minimal config
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			Templates:    templatesDir,
+			Templates:       templatesDir,
 			ProjectClaudeMD: claudeMDPath,
-			GromitDir:    gromitDir,
+			GromitDir:       gromitDir,
 		},
 	}
 
@@ -247,9 +247,9 @@ func TestExploreCommand_PromptIncludesWorkingDirectory(t *testing.T) {
 	// Create minimal config
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			Templates:    templatesDir,
+			Templates:       templatesDir,
 			ProjectClaudeMD: claudeMDPath,
-			GromitDir:    gromitDir,
+			GromitDir:       gromitDir,
 		},
 	}
 
@@ -286,9 +286,9 @@ func TestExploreCommand_HandlesMissingProjectFiles(t *testing.T) {
 	// Create minimal config
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			Templates:    templatesDir,
+			Templates:       templatesDir,
 			ProjectClaudeMD: claudeMDPath,
-			GromitDir:    gromitDir,
+			GromitDir:       gromitDir,
 		},
 	}
 
@@ -330,9 +330,9 @@ func TestExploreCommand_PromptStructureMatchesSpec(t *testing.T) {
 	// Create minimal config
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			Templates:    templatesDir,
+			Templates:       templatesDir,
 			ProjectClaudeMD: claudeMDPath,
-			GromitDir:    gromitDir,
+			GromitDir:       gromitDir,
 		},
 	}
 

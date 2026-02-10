@@ -282,7 +282,7 @@ func TestExploreCommand_StdinStdoutStderrConnected(t *testing.T) {
 // flag overrides the default model.
 func TestExploreCommand_ModelFlagOverridesDefault(t *testing.T) {
 	testCases := []struct {
-		name         string
+		name           string
 		specifiedModel string
 		defaultModel   string
 		expectedModel  string
