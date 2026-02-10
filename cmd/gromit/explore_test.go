@@ -48,7 +48,7 @@ func TestBuildExplorePrompt(t *testing.T) {
 		setupFiles     func(t *testing.T, gromitDir string)
 		args           []string
 		wantContains   []string
-		wantNotContain []string
+		wantNotContains []string
 	}{
 		{
 			name: "includes topic and CLAUDE.md content",
@@ -108,7 +108,7 @@ func TestBuildExplorePrompt(t *testing.T) {
 			wantContains: []string{
 				"epic",
 			},
-			wantNotContain: []string{
+			wantNotContains: []string{
 				"implement the feature",
 				"write the code",
 			},
@@ -142,14 +142,14 @@ func TestBuildExplorePrompt(t *testing.T) {
 
 			promptLower := strings.ToLower(prompt)
 			for _, want := range tc.wantContains {
-				if !strings.Contains(prompt, want) && !strings.Contains(promptLower, strings.ToLower(want)) {
+				if !strings.Contains(promptLower, strings.ToLower(want)) {
 					t.Errorf("prompt should contain %q", want)
 				}
 			}
 
-			for _, unwant := range tc.wantNotContain {
-				if strings.Contains(promptLower, strings.ToLower(unwant)) {
-					t.Errorf("prompt should not contain %q", unwant)
+			for _, notWant := range tc.wantNotContains {
+				if strings.Contains(promptLower, strings.ToLower(notWant)) {
+					t.Errorf("prompt should not contain %q", notWant)
 				}
 			}
 		})
