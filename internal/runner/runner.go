@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -175,21 +176,22 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 
 // IterationResult captures the outcome of one loop iteration
 type IterationResult struct {
-	BeadID               string
-	BeadTitle            string
-	Model                string
-	Success              bool
-	Validated            bool
-	Duration             time.Duration
-	Error                error
-	Escalated            bool
-	EscalatedTo          string
-	Decomposed           bool
-	Output               string
-	CostUSD              float64
-	InputTokens          int
-	OutputTokens         int
+	BeadID                string
+	BeadTitle             string
+	Model                 string
+	Success               bool
+	Validated             bool
+	Duration              time.Duration
+	Error                 error
+	Escalated             bool
+	EscalatedTo           string
+	Decomposed            bool
+	Output                string
+	CostUSD               float64
+	InputTokens           int
+	OutputTokens          int
 	ReviewBrokeValidation bool // true when review fixes broke previously-passing validation
+	AlreadyDone           bool // true when ATDD detected work was already complete
 }
 
 // SubTask represents a single sub-task from task decomposition
@@ -571,6 +573,11 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		errStr = result.Error.Error()
 	}
 
+	outcome := ""
+	if result.AlreadyDone {
+		outcome = "atdd_already_done"
+	}
+
 	r.logger.LogIteration(&logger.IterationLog{
 		Timestamp:    time.Now(),
 		Iteration:    iteration,
@@ -586,6 +593,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		InputTokens:  result.InputTokens,
 		OutputTokens: result.OutputTokens,
 		Error:        errStr,
+		Outcome:      outcome,
 	})
 }
 
@@ -625,6 +633,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 
 		// ATDD Phase 2: Verify tests fail (as expected before implementation)
 		if err := r.verifyTestsFailWithRetry(ctx, bc); err != nil {
+			if errors.Is(err, errATDDAlreadyDone) {
+				bc.result.Success = true
+				bc.result.AlreadyDone = true
+				return bc.result
+			}
 			bc.result.Error = err
 			return bc.result
 		}
@@ -784,6 +797,10 @@ func (r *Runner) selectModel(b *bead.Bead) string {
 
 func (r *Runner) logResult(result *IterationResult) {
 	if r == nil || result == nil {
+		return
+	}
+	if result.AlreadyDone {
+		r.log("ALREADY DONE: %s — ATDD tests pass, work previously completed (%v)", result.BeadID, result.Duration)
 		return
 	}
 	if result.Success {

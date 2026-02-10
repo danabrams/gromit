@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -1861,5 +1862,142 @@ func TestPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "Review:") && !strings.Contains(output, "Review completed despite learning failure") {
 		t.Errorf("expected review completion message, got: %s", output)
+	}
+}
+
+func TestVerifyTestsFailWithRetry_ReturnsAlreadyDone(t *testing.T) {
+	var buf strings.Builder
+
+	// Validation always passes (tests never fail)
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "All tests passed\nVALIDATION_PASSED"}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "wrote acceptance tests"}, nil
+		},
+	}
+
+	mockAnalyzerObj := &mockFailureAnalyzer{
+		AnalyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				Suggestion:  "Tests may be tautological; try testing new behavior",
+			}, nil
+		},
+	}
+
+	mockRend := &mockPromptRenderer{
+		RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+			return "write tests for feature X", nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Models: config.ModelsConfig{
+				Validation: "haiku",
+			},
+			Claude: config.ClaudeConfig{
+				AnalysisTimeout: 60,
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude:   mockClaude,
+		analyzer: mockAnalyzerObj,
+		renderer: mockRend,
+		output:   &buf,
+	}
+
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir: "/test/dir",
+		},
+	}
+
+	err := r.verifyTestsFailWithRetry(context.Background(), bc)
+	if err == nil {
+		t.Fatal("expected error from verifyTestsFailWithRetry")
+	}
+	if !errors.Is(err, errATDDAlreadyDone) {
+		t.Errorf("expected errATDDAlreadyDone, got: %v", err)
+	}
+	if !strings.Contains(buf.String(), "work appears already done") {
+		t.Errorf("expected 'work appears already done' in output, got: %s", buf.String())
+	}
+}
+
+func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
+	var buf strings.Builder
+	validationCallCount := 0
+
+	// First validation: tests pass. Second validation (after retry): tests fail.
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			validationCallCount++
+			if validationCallCount == 1 {
+				return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
+			}
+			return &claude.Result{Success: false, Output: "FAIL: TestFeatureX", ExitCode: 1}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "rewrote acceptance tests"}, nil
+		},
+	}
+
+	mockAnalyzerObj := &mockFailureAnalyzer{
+		AnalyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				Suggestion:  "Tests were tautological, rewrite to test actual new behavior",
+			}, nil
+		},
+	}
+
+	mockRend := &mockPromptRenderer{
+		RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+			return "write better tests", nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+			Models: config.ModelsConfig{
+				Validation: "haiku",
+			},
+			Claude: config.ClaudeConfig{
+				AnalysisTimeout: 60,
+			},
+			Preflight: config.PreflightConfig{},
+		},
+		claude:   mockClaude,
+		analyzer: mockAnalyzerObj,
+		renderer: mockRend,
+		output:   &buf,
+	}
+
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir: "/test/dir",
+		},
+	}
+
+	err := r.verifyTestsFailWithRetry(context.Background(), bc)
+	if err != nil {
+		t.Errorf("expected nil (tests fail on retry as expected), got: %v", err)
 	}
 }

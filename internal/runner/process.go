@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -14,6 +15,11 @@ import (
 	"github.com/danabrams/gromit/internal/preflight"
 	"github.com/danabrams/gromit/internal/prompt"
 )
+
+// errATDDAlreadyDone is returned by verifyTestsFailWithRetry when acceptance
+// tests pass before implementation after retry. This signals that the work is
+// already done (e.g., a sibling bead completed it), not that the tests are bad.
+var errATDDAlreadyDone = errors.New("atdd: acceptance tests pass — work already done")
 
 // beadContext holds the shared state for processing a single bead.
 // It is passed between the extracted methods that compose processBead.
@@ -629,8 +635,9 @@ func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *beadContext) 
 		return nil // Tests now fail as expected
 	}
 
-	// Still passing - fail the bead
-	return fmt.Errorf("acceptance tests passed before implementation after retry - tests may not be covering new behavior")
+	// Still passing after retry with analysis — most likely the work is already done
+	r.log("Acceptance tests pass after retry — work appears already done")
+	return errATDDAlreadyDone
 }
 
 // verifyTestsFail runs validation and returns nil when validation fails (expected)
