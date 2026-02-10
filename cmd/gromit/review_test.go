@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-
 // TestTimestampComparison verifies that Unix timestamp comparison is done numerically,
 // not lexicographically. This is a regression test for the bug where string comparison
 // was used (e.g. "9" > "10" in string comparison).

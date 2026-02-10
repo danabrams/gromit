@@ -43,17 +43,17 @@ func TestBeadClient_InterfaceSatisfaction(t *testing.T) {
 
 // MockBeadClientWithLabel is a mock that implements BeadClient including ReadyWithLabel
 type MockBeadClientWithLabel struct {
-	ReadyFunc             func() (*bead.Bead, error)
-	ReadyWithLabelFunc    func(label string) (*bead.Bead, error)
-	ListWithLabelFunc     func(label string) ([]*bead.Bead, error)
-	ShowFunc              func(id string) (*bead.Bead, error)
-	CloseFunc             func(id string) error
-	SyncFunc              func() error
-	AddCommentFunc        func(id, comment string) error
-	GetParentFunc         func(b *bead.Bead) (*bead.Bead, error)
-	CreateWithParentFunc  func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+	ReadyFunc                          func() (*bead.Bead, error)
+	ReadyWithLabelFunc                 func(label string) (*bead.Bead, error)
+	ListWithLabelFunc                  func(label string) ([]*bead.Bead, error)
+	ShowFunc                           func(id string) (*bead.Bead, error)
+	CloseFunc                          func(id string) error
+	SyncFunc                           func() error
+	AddCommentFunc                     func(id, comment string) error
+	GetParentFunc                      func(b *bead.Bead) (*bead.Bead, error)
+	CreateWithParentFunc               func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
 	CreateWithParentAndDescriptionFunc func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
-	HasOpenChildrenFunc   func(parentID string) (bool, error)
+	HasOpenChildrenFunc                func(parentID string) (bool, error)
 }
 
 func (m *MockBeadClientWithLabel) Ready() (*bead.Bead, error) {

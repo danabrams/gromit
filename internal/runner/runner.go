@@ -38,6 +38,7 @@ type Runner struct {
 	syncOut      *syncWriter // concrete type for WriteOverwrite access
 	gromitDir    string
 	gitDiffFn    func(string) (string, error) // injectable for testing; defaults to getGitDiff
+	labelFilters []string                     // optional spec labels to filter beads
 }
 
 // claudeRunnerAdapter adapts claude.Client to learnings.ClaudeRunner interface
@@ -1910,4 +1911,9 @@ func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteratio
 			r.log("Recorded thorough review at commit %s", currentCommit[:8])
 		}
 	}
+}
+
+// SetLabelFilters sets optional spec labels to filter beads by
+func (r *Runner) SetLabelFilters(labels []string) {
+	r.labelFilters = labels
 }

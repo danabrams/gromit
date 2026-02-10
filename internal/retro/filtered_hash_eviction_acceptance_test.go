@@ -217,8 +217,8 @@ New provisional learning
 	}
 
 	stateFile.AddFilteredHashes([]string{
-		existingHash,  // matches existing provisional
-		"staleHash3",  // stale - no matching provisional
+		existingHash, // matches existing provisional
+		"staleHash3", // stale - no matching provisional
 	})
 	if err := stateFile.Save(); err != nil {
 		t.Fatalf("saving initial state: %v", err)

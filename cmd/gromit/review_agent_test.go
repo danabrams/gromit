@@ -277,10 +277,10 @@ func TestReviewPreservesPromptBuilding(t *testing.T) {
 
 	// Verify prompt building steps are still present in runReviewInteractive
 	requiredPatterns := []string{
-		"RenderThoroughReview",       // Rendering review prompt
-		"CreateTemp",                 // Creating temp file for prompt
+		"RenderThoroughReview",        // Rendering review prompt
+		"CreateTemp",                  // Creating temp file for prompt
 		"WriteString(renderedPrompt)", // Writing prompt to temp file
-		"promptPath",                 // Prompt file path variable
+		"promptPath",                  // Prompt file path variable
 	}
 
 	for _, pattern := range requiredPatterns {

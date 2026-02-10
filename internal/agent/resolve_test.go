@@ -995,13 +995,13 @@ func TestResolvePickerShowsDefaultMarker(t *testing.T) {
 // TestResolveWithAgentsPromptConfig verifies agents.prompt: true triggers picker automatically
 func TestResolveWithAgentsPromptConfig(t *testing.T) {
 	tests := []struct {
-		name        string
-		cfg         *config.Config
-		phase       string
-		input       string
-		wantName    string
-		wantPicker  bool
-		wantErr     bool
+		name       string
+		cfg        *config.Config
+		phase      string
+		input      string
+		wantName   string
+		wantPicker bool
+		wantErr    bool
 	}{
 		{
 			name: "agents.prompt=true triggers picker",

@@ -736,8 +736,8 @@ func TestBDContract_ReadyWithLabel(t *testing.T) {
 	foundReadyWithLabel := false
 	for _, call := range calls {
 		if strings.Contains(call, "bd ready") &&
-		   strings.Contains(call, "--label") &&
-		   strings.Contains(call, "spec:auth") {
+			strings.Contains(call, "--label") &&
+			strings.Contains(call, "spec:auth") {
 			foundReadyWithLabel = true
 			// Verify it includes --json and --limit 10
 			if !strings.Contains(call, "--json") {

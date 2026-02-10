@@ -281,11 +281,11 @@ func TestRefinePreservesPromptBuilding(t *testing.T) {
 
 	// Verify prompt building steps are still present
 	requiredPatterns := []string{
-		"systemPrompt",               // System prompt variable
-		"WriteString(systemPrompt)",  // Writing prompt to temp file
-		"CreateTemp",                 // Creating temp file for prompt
-		"specsDir",                   // Specs directory still used in prompt
-		"skills.RefineSkill",         // Refine skill still embedded
+		"systemPrompt",              // System prompt variable
+		"WriteString(systemPrompt)", // Writing prompt to temp file
+		"CreateTemp",                // Creating temp file for prompt
+		"specsDir",                  // Specs directory still used in prompt
+		"skills.RefineSkill",        // Refine skill still embedded
 	}
 
 	for _, pattern := range requiredPatterns {
@@ -309,11 +309,11 @@ func TestRefinePreservesArtifactDetection(t *testing.T) {
 
 	// Verify artifact detection steps are still present
 	requiredPatterns := []string{
-		"existingSpecs",           // Recording specs before launch
-		"getSpecFiles",            // Getting spec files
-		"newSpecs",                // Getting specs after launch
-		"createdSpecs",            // Finding newly created specs
-		"!containsSpec",           // Comparing old vs new specs
+		"existingSpecs", // Recording specs before launch
+		"getSpecFiles",  // Getting spec files
+		"newSpecs",      // Getting specs after launch
+		"createdSpecs",  // Finding newly created specs
+		"!containsSpec", // Comparing old vs new specs
 	}
 
 	for _, pattern := range requiredPatterns {
