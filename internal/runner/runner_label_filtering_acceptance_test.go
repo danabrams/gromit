@@ -180,24 +180,34 @@ func TestRunnerLabelFiltering_SingleLabel(t *testing.T) {
 		Logger:   &mockIterationLogger{},
 	}
 
-	_, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
+	r, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	// TODO: This will fail until Runner accepts label filters
-	// For now, this test documents the expected behavior
-	// When implementation is done, add:
-	// r.SetLabelFilters([]string{"spec:auth"})
+	// Set label filters - this method should exist after implementation
+	r.SetLabelFilters([]string{"spec:auth"})
 
-	// This will currently fail because Runner doesn't have SetLabelFilters yet
-	// err = r.Run(ctx, 10, time.Time{}, false)
-	t.Skip("Skipping until Runner.SetLabelFilters() is implemented")
+	ctx := context.Background()
+	err = r.Run(ctx, 10, time.Time{}, false)
+	if err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
 
-	// After implementation:
-	// - Verify only auth beads were processed
-	// - Verify ReadyWithLabel was called with "spec:auth"
-	// - Verify Ready() was never called
+	// Verify only auth beads were processed
+	if len(processedBeads) != 2 {
+		t.Errorf("Expected 2 auth beads to be processed, got %d: %v", len(processedBeads), processedBeads)
+	}
+
+	// Verify ReadyWithLabel was called with "spec:auth"
+	if len(readyWithLabelCalls) == 0 {
+		t.Error("Expected ReadyWithLabel to be called, but it wasn't")
+	}
+	for _, label := range readyWithLabelCalls {
+		if label != "spec:auth" {
+			t.Errorf("Expected ReadyWithLabel to be called with 'spec:auth', got %q", label)
+		}
+	}
 }
 
 // TestRunnerLabelFiltering_MultipleLabels verifies that when multiple label filters are set,
@@ -287,24 +297,52 @@ func TestRunnerLabelFiltering_MultipleLabels(t *testing.T) {
 		Logger:   &mockIterationLogger{},
 	}
 
-	_, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
+	r, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	// TODO: This will fail until Runner accepts label filters
-	// For now, this test documents the expected behavior
-	// When implementation is done, add:
-	// r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
+	// Set label filters for multiple specs
+	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
 
-	// This will currently fail because Runner doesn't have SetLabelFilters yet
-	t.Skip("Skipping until Runner.SetLabelFilters() is implemented")
+	ctx := context.Background()
+	err = r.Run(ctx, 10, time.Time{}, false)
+	if err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
 
-	// After implementation:
-	// - Verify all 3 beads were processed (1 auth + 2 payment)
-	// - Verify ReadyWithLabel was called for each label
-	// - Verify beads were processed in priority order across labels
-	// - Expected order: pay-1 (P0), auth-1 (P1), pay-2 (P1)
+	// Verify all 3 beads were processed (1 auth + 2 payment)
+	if len(processedBeads) != 3 {
+		t.Errorf("Expected 3 beads to be processed (1 auth + 2 payments), got %d: %v", len(processedBeads), processedBeads)
+	}
+
+	// Verify ReadyWithLabel was called for each label
+	foundAuth := false
+	foundPayments := false
+	for _, label := range readyWithLabelCalls {
+		if label == "spec:auth" {
+			foundAuth = true
+		}
+		if label == "spec:payments" {
+			foundPayments = true
+		}
+	}
+	if !foundAuth {
+		t.Error("Expected ReadyWithLabel to be called with 'spec:auth'")
+	}
+	if !foundPayments {
+		t.Error("Expected ReadyWithLabel to be called with 'spec:payments'")
+	}
+
+	// Verify beads were processed in priority order: pay-1 (P0), auth-1 (P1), pay-2 (P1)
+	expectedOrder := []string{"pay-1", "auth-1", "pay-2"}
+	if len(processedBeads) == 3 {
+		for i, expected := range expectedOrder {
+			if processedBeads[i] != expected {
+				t.Errorf("Expected bead at position %d to be %q, got %q", i, expected, processedBeads[i])
+			}
+		}
+	}
 }
 
 // TestRunnerLabelFiltering_EmptyLabelList verifies that an empty label list
@@ -386,9 +424,8 @@ func TestRunnerLabelFiltering_EmptyLabelList(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	// TODO: This will fail until Runner accepts label filters
-	// When implementation is done, add:
-	// r.SetLabelFilters([]string{}) // empty list
+	// Set empty label filter list - should behave like no filters
+	r.SetLabelFilters([]string{})
 
 	ctx := context.Background()
 	err = r.Run(ctx, 10, time.Time{}, false)
@@ -485,20 +522,32 @@ func TestRunnerLabelFiltering_PriorityOrderingAcrossLabels(t *testing.T) {
 		Logger:   &mockIterationLogger{},
 	}
 
-	_, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
+	r, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	// TODO: This will fail until Runner accepts label filters
-	// When implementation is done, add:
-	// r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
+	// Set label filters for multiple specs
+	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
 
-	t.Skip("Skipping until Runner.SetLabelFilters() is implemented")
+	ctx := context.Background()
+	err = r.Run(ctx, 10, time.Time{}, false)
+	if err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
 
-	// After implementation:
-	// - Verify beads were processed in priority order: auth-2 (P0), auth-1 (P1), pay-2 (P1), pay-1 (P2)
-	// - This demonstrates cross-label priority ordering works correctly
+	// Verify beads were processed in priority order: auth-2 (P0), auth-1 (P1), pay-2 (P1), pay-1 (P2)
+	expectedOrder := []string{"auth-2", "auth-1", "pay-2", "pay-1"}
+	if len(processedBeads) != 4 {
+		t.Errorf("Expected 4 beads to be processed, got %d: %v", len(processedBeads), processedBeads)
+	}
+	if len(processedBeads) == 4 {
+		for i, expected := range expectedOrder {
+			if processedBeads[i] != expected {
+				t.Errorf("Expected bead at position %d to be %q, got %q (demonstrates cross-label priority ordering)", i, expected, processedBeads[i])
+			}
+		}
+	}
 }
 
 // TestRunnerLabelFiltering_NoMatchingBeads verifies that when label filters are set
@@ -547,18 +596,23 @@ func TestRunnerLabelFiltering_NoMatchingBeads(t *testing.T) {
 		Logger:   &mockIterationLogger{},
 	}
 
-	_, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
+	r, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), deps)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	// TODO: This will fail until Runner accepts label filters
-	// When implementation is done, add:
-	// r.SetLabelFilters([]string{"spec:nonexistent"})
+	// Set label filter for a spec that doesn't exist
+	r.SetLabelFilters([]string{"spec:nonexistent"})
 
-	t.Skip("Skipping until Runner.SetLabelFilters() is implemented")
+	ctx := context.Background()
+	err = r.Run(ctx, 10, time.Time{}, false)
+	if err != nil {
+		t.Fatalf("Run() should not fail when no beads match, got error: %v", err)
+	}
 
-	// After implementation:
-	// - Verify Run() completes without error
-	// - Verify output contains "No more work available"
+	// Verify output contains "No more work available"
+	outputStr := output.String()
+	if !strings.Contains(outputStr, "No more work available") {
+		t.Errorf("Expected 'No more work available' in output when no beads match label filter, got: %s", outputStr)
+	}
 }
