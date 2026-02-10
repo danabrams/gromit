@@ -119,8 +119,8 @@ func TestResolveSpecLabelFormat(t *testing.T) {
 	}
 }
 
-// TestValidateFlags tests that ValidateFlags errors when both epic and spec flags are set
-func TestValidateFlags(t *testing.T) {
+// TestValidateFlags_EpicAndSpecOnly tests ValidateFlags with two parameters (backward compatibility)
+func TestValidateFlags_EpicAndSpecOnly(t *testing.T) {
 	tests := []struct {
 		name    string
 		epic    string
@@ -191,6 +191,94 @@ func TestValidateFlags(t *testing.T) {
 			if tt.wantErr && err != nil && tt.errMsg != "" {
 				if !strings.Contains(err.Error(), tt.errMsg) {
 					t.Errorf("ValidateFlags(%q, %q) error = %q, want error containing %q", tt.epic, tt.spec, err.Error(), tt.errMsg)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateFlagsWithSince tests ValidateFlags with all three parameters including since
+func TestValidateFlagsWithSince(t *testing.T) {
+	tests := []struct {
+		name    string
+		epic    string
+		spec    string
+		since   string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "epic and since both set",
+			epic:    "gromit-xyz",
+			spec:    "",
+			since:   "abc123",
+			wantErr: true,
+			errMsg:  "mutually exclusive",
+		},
+		{
+			name:    "spec and since both set",
+			epic:    "",
+			spec:    "init-wizard",
+			since:   "abc123",
+			wantErr: true,
+			errMsg:  "mutually exclusive",
+		},
+		{
+			name:    "epic and spec both set (no since)",
+			epic:    "gromit-xyz",
+			spec:    "init-wizard",
+			since:   "",
+			wantErr: true,
+			errMsg:  "mutually exclusive",
+		},
+		{
+			name:    "all three flags set",
+			epic:    "gromit-xyz",
+			spec:    "init-wizard",
+			since:   "abc123",
+			wantErr: true,
+			errMsg:  "mutually exclusive",
+		},
+		{
+			name:    "only epic set",
+			epic:    "gromit-xyz",
+			spec:    "",
+			since:   "",
+			wantErr: false,
+		},
+		{
+			name:    "only spec set",
+			epic:    "",
+			spec:    "init-wizard",
+			since:   "",
+			wantErr: false,
+		},
+		{
+			name:    "only since set",
+			epic:    "",
+			spec:    "",
+			since:   "abc123",
+			wantErr: false,
+		},
+		{
+			name:    "no flags set",
+			epic:    "",
+			spec:    "",
+			since:   "",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateFlagsWithSince(tt.epic, tt.spec, tt.since)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateFlagsWithSince(%q, %q, %q) error = %v, wantErr %v", tt.epic, tt.spec, tt.since, err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && err != nil && tt.errMsg != "" {
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("ValidateFlagsWithSince(%q, %q, %q) error = %q, want error containing %q", tt.epic, tt.spec, tt.since, err.Error(), tt.errMsg)
 				}
 			}
 		})

@@ -15,17 +15,39 @@ func ResolveSpec(specName string) []string {
 	return []string{fmt.Sprintf("spec:%s", specName)}
 }
 
-// ValidateFlags returns an error when both epic and spec flags are set.
+// ValidateFlags returns an error when more than one of epic, spec, or since flags are set.
 // It considers trimmed values to handle whitespace-only inputs.
-func ValidateFlags(epic, spec string) error {
+// When called with two arguments, since is treated as empty for backward compatibility.
+func ValidateFlags(epic, spec string, since ...string) error {
 	epicTrimmed := strings.TrimSpace(epic)
 	specTrimmed := strings.TrimSpace(spec)
+	sinceTrimmed := ""
+	if len(since) > 0 {
+		sinceTrimmed = strings.TrimSpace(since[0])
+	}
 
-	if epicTrimmed != "" && specTrimmed != "" {
-		return fmt.Errorf("--epic and --spec flags are mutually exclusive")
+	// Count non-empty flags
+	count := 0
+	if epicTrimmed != "" {
+		count++
+	}
+	if specTrimmed != "" {
+		count++
+	}
+	if sinceTrimmed != "" {
+		count++
+	}
+
+	if count > 1 {
+		return fmt.Errorf("--epic, --spec, and --since flags are mutually exclusive")
 	}
 
 	return nil
+}
+
+// ValidateFlagsWithSince is a convenience function that calls ValidateFlags with all three parameters.
+func ValidateFlagsWithSince(epic, spec, since string) error {
+	return ValidateFlags(epic, spec, since)
 }
 
 // ResolveEpic scans spec files in specsDir and returns labels for specs
