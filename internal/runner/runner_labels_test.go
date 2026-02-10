@@ -143,3 +143,76 @@ func TestRunner_UsesLabelFiltersInLoop(t *testing.T) {
 		t.Errorf("Expected bead 'auth-1' to be closed, got: %v", mock.ClosedIDs)
 	}
 }
+
+// TestRunner_NoFiltersUsesReady tests that when no filters are set, Runner uses Ready()
+func TestRunner_NoFiltersUsesReady(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	readyCalled := false
+	readyWithLabelCalled := false
+
+	callCount := 0
+	mock := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			readyCalled = true
+			callCount++
+			// Return a bead on first call, nil on second
+			if callCount == 1 {
+				return &bead.Bead{
+					ID:              "task-1",
+					Title:           "Regular task",
+					Priority:        1,
+					Labels:          []string{},
+					ExpectedOutputs: []string{},
+				}, nil
+			}
+			return nil, nil
+		},
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			readyWithLabelCalled = true
+			return nil, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+	}
+
+	deps := Deps{
+		Beads:    mock,
+		Claude:   mockClaude,
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, io.Discard, "/tmp/gromit", deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() error = %v", err)
+	}
+
+	// Do NOT set label filters (leave it empty/nil)
+
+	// Run the loop
+	err = r.Run(context.Background(), 0, time.Time{}, false)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// Verify Ready was called, not ReadyWithLabel
+	if !readyCalled {
+		t.Error("Expected Ready() to be called")
+	}
+	if readyWithLabelCalled {
+		t.Error("Expected ReadyWithLabel() NOT to be called when no filters set")
+	}
+
+	// Verify the bead was processed and closed
+	if len(mock.ClosedIDs) != 1 || mock.ClosedIDs[0] != "task-1" {
+		t.Errorf("Expected bead 'task-1' to be closed, got: %v", mock.ClosedIDs)
+	}
+}
