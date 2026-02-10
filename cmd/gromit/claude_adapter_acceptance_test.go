@@ -9,7 +9,7 @@ import (
 )
 
 // TestClaudeAdapterConsolidationLocations verifies the adapter is defined only once
-// and shared across all three locations: review.go, runner.go, and retro.go
+// in the shared internal/learnings package and not in the three original locations
 func TestClaudeAdapterConsolidationLocations(t *testing.T) {
 	// Read the three files that previously had copy-pasted claudeRunnerAdapter
 	reviewSource, err := os.ReadFile("review.go")
@@ -31,16 +31,16 @@ func TestClaudeAdapterConsolidationLocations(t *testing.T) {
 	runnerStr := string(runnerSource)
 	retroStr := string(retroSource)
 
-	// Count how many times "type claudeRunnerAdapter struct" appears
+	// Count how many times "type claudeRunnerAdapter struct" appears in the original locations
 	reviewAdapterCount := strings.Count(reviewStr, "type claudeRunnerAdapter struct")
 	runnerAdapterCount := strings.Count(runnerStr, "type claudeRunnerAdapter struct")
 	retroAdapterCount := strings.Count(retroStr, "type claudeRunnerAdapter struct")
 
 	totalAdapterDefs := reviewAdapterCount + runnerAdapterCount + retroAdapterCount
 
-	// After consolidation, claudeRunnerAdapter should be defined only once across all files
-	if totalAdapterDefs != 1 {
-		t.Errorf("claudeRunnerAdapter should be defined once total, found %d definitions (review:%d, runner:%d, retro:%d)",
+	// After consolidation, claudeRunnerAdapter should NOT be defined in any of these three files
+	if totalAdapterDefs != 0 {
+		t.Errorf("claudeRunnerAdapter should not be defined in review.go, runner.go, or retro.go after consolidation (found %d definitions: review:%d, runner:%d, retro:%d)",
 			totalAdapterDefs, reviewAdapterCount, runnerAdapterCount, retroAdapterCount)
 	}
 }
@@ -108,7 +108,7 @@ func TestClaudeAdapterDefinesInterface(t *testing.T) {
 	}
 }
 
-// TestReviewUsesSharedAdapter verifies review.go uses the shared adapter, not a local copy
+// TestReviewUsesSharedAdapter verifies review.go uses the shared adapter from learnings package
 func TestReviewUsesSharedAdapter(t *testing.T) {
 	reviewSource, err := os.ReadFile("review.go")
 	if err != nil {
@@ -122,24 +122,23 @@ func TestReviewUsesSharedAdapter(t *testing.T) {
 		t.Error("review.go should not define claudeRunnerAdapter locally - it should import from shared package")
 	}
 
-	// review.go should create instances using the adapter
-	// Either through import and direct usage, or through a constructor
-	if !strings.Contains(sourceStr, "claudeRunnerAdapter") {
-		t.Error("review.go should reference claudeRunnerAdapter (imported from shared package)")
+	// review.go should create instances using the constructor from learnings package
+	if !strings.Contains(sourceStr, "learnings.NewClaudeRunnerAdapter") {
+		t.Error("review.go should call learnings.NewClaudeRunnerAdapter from the shared package")
 	}
 
-	// review.go should still have the persistReviewLearnings function that uses the adapter
-	if !strings.Contains(sourceStr, "persistReviewLearnings") {
-		t.Error("review.go should have persistReviewLearnings function")
+	// review.go should use the learnings.NewLLMFilter function
+	if !strings.Contains(sourceStr, "learnings.NewLLMFilter") {
+		t.Error("review.go should call learnings.NewLLMFilter from the shared package")
 	}
 
-	// The function should create an adapter and set up the LLM filter
-	if !strings.Contains(sourceStr, "NewLLMFilter") {
-		t.Error("review.go should call NewLLMFilter in persistReviewLearnings")
+	// review.go should use the standardized ProjectDescriptions
+	if !strings.Contains(sourceStr, "learnings.ProjectDescriptions") {
+		t.Error("review.go should reference learnings.ProjectDescriptions")
 	}
 }
 
-// TestRunnerUsesSharedAdapter verifies runner.go uses the shared adapter, not a local copy
+// TestRunnerUsesSharedAdapter verifies runner.go uses the shared adapter from learnings package
 func TestRunnerUsesSharedAdapter(t *testing.T) {
 	runnerSource, err := os.ReadFile("../../internal/runner/runner.go")
 	if err != nil {
@@ -153,18 +152,23 @@ func TestRunnerUsesSharedAdapter(t *testing.T) {
 		t.Error("runner.go should not define claudeRunnerAdapter locally - it should import from shared package")
 	}
 
-	// runner.go should reference the shared adapter
-	if !strings.Contains(sourceStr, "claudeRunnerAdapter") {
-		t.Error("runner.go should reference claudeRunnerAdapter (imported from shared package)")
+	// runner.go should create instances using the constructor from learnings package
+	if !strings.Contains(sourceStr, "learnings.NewClaudeRunnerAdapter") {
+		t.Error("runner.go should call learnings.NewClaudeRunnerAdapter from the shared package")
 	}
 
-	// runner.go sets up the adapter in its NewRunner function
-	if !strings.Contains(sourceStr, "NewRunner") {
-		t.Error("runner.go should have NewRunner function")
+	// runner.go should use the learnings.NewLLMFilter function
+	if !strings.Contains(sourceStr, "learnings.NewLLMFilter") {
+		t.Error("runner.go should call learnings.NewLLMFilter from the shared package")
+	}
+
+	// runner.go should use the standardized ProjectDescriptions
+	if !strings.Contains(sourceStr, "learnings.ProjectDescriptions") {
+		t.Error("runner.go should reference learnings.ProjectDescriptions")
 	}
 }
 
-// TestRetroUsesSharedAdapter verifies retro.go uses the shared adapter, not a local copy
+// TestRetroUsesSharedAdapter verifies retro.go uses the shared adapter from learnings package
 func TestRetroUsesSharedAdapter(t *testing.T) {
 	retroSource, err := os.ReadFile("../../internal/retro/retro.go")
 	if err != nil {
@@ -178,14 +182,19 @@ func TestRetroUsesSharedAdapter(t *testing.T) {
 		t.Error("retro.go should not define claudeRunnerAdapter locally - it should import from shared package")
 	}
 
-	// retro.go should reference the shared adapter
-	if !strings.Contains(sourceStr, "claudeRunnerAdapter") {
-		t.Error("retro.go should reference claudeRunnerAdapter (imported from shared package)")
+	// retro.go should create instances using the constructor from learnings package
+	if !strings.Contains(sourceStr, "learnings.NewClaudeRunnerAdapter") {
+		t.Error("retro.go should call learnings.NewClaudeRunnerAdapter from the shared package")
 	}
 
-	// retro.go uses the adapter in its Run method
-	if !strings.Contains(sourceStr, "func (r *Retro) Run") {
-		t.Error("retro.go should have Run method")
+	// retro.go should use the learnings.NewLLMFilter function
+	if !strings.Contains(sourceStr, "learnings.NewLLMFilter") {
+		t.Error("retro.go should call learnings.NewLLMFilter from the shared package")
+	}
+
+	// retro.go should use the standardized ProjectDescriptions
+	if !strings.Contains(sourceStr, "learnings.ProjectDescriptions") {
+		t.Error("retro.go should reference learnings.ProjectDescriptions")
 	}
 }
 
@@ -271,21 +280,21 @@ func TestAdapterNilCheckConsistency(t *testing.T) {
 	}
 }
 
-// TestClaudeAdapterNoLongerInMultipleFiles verifies the adapter is no longer in multiple files
+// TestClaudeAdapterNoLongerInMultipleFiles verifies the adapter is not defined in the original three files
 func TestClaudeAdapterNoLongerInMultipleFiles(t *testing.T) {
 	reviewSource, err := os.ReadFile("review.go")
 	if err != nil {
-		t.Skipf("cannot read review.go from current directory, skipping test: %v", err)
+		t.Fatalf("cannot read review.go: %v", err)
 	}
 
 	runnerSource, err := os.ReadFile("../../internal/runner/runner.go")
 	if err != nil {
-		t.Skipf("cannot read ../../internal/runner/runner.go from current directory, skipping test: %v", err)
+		t.Fatalf("cannot read ../../internal/runner/runner.go: %v", err)
 	}
 
 	retroSource, err := os.ReadFile("../../internal/retro/retro.go")
 	if err != nil {
-		t.Skipf("cannot read ../../internal/retro/retro.go from current directory, skipping test: %v", err)
+		t.Fatalf("cannot read ../../internal/retro/retro.go: %v", err)
 	}
 
 	reviewHasAdapter := strings.Contains(string(reviewSource), "type claudeRunnerAdapter struct")
@@ -304,9 +313,9 @@ func TestClaudeAdapterNoLongerInMultipleFiles(t *testing.T) {
 		defCount++
 	}
 
-	// After consolidation, only one file should define it
-	if defCount != 1 {
-		t.Errorf("adapter should be defined in exactly 1 file, found in %d files", defCount)
+	// After consolidation, none of the three original files should define the adapter
+	if defCount != 0 {
+		t.Errorf("adapter should not be defined in review.go, runner.go, or retro.go - found in %d files", defCount)
 	}
 }
 
@@ -354,15 +363,26 @@ func TestAdapterImplementsClaudeRunnerInterface(t *testing.T) {
 
 // TestCallSitesImportAdapterFromSharedPackage verifies all three call sites import from shared package
 func TestCallSitesImportAdapterFromSharedPackage(t *testing.T) {
-	reviewSource, _ := os.ReadFile("cmd/gromit/review.go")
-	runnerSource, _ := os.ReadFile("../../internal/runner/runner.go")
-	retroSource, _ := os.ReadFile("../../internal/retro/retro.go")
+	reviewSource, err := os.ReadFile("review.go")
+	if err != nil {
+		t.Fatalf("cannot read review.go: %v", err)
+	}
+
+	runnerSource, err := os.ReadFile("../../internal/runner/runner.go")
+	if err != nil {
+		t.Fatalf("cannot read runner.go: %v", err)
+	}
+
+	retroSource, err := os.ReadFile("../../internal/retro/retro.go")
+	if err != nil {
+		t.Fatalf("cannot read retro.go: %v", err)
+	}
 
 	reviewStr := string(reviewSource)
 	runnerStr := string(runnerSource)
 	retroStr := string(retroSource)
 
-	// All three should reference claudeRunnerAdapter (imported from shared location)
+	// All three should import learnings package
 	files := []struct {
 		name   string
 		source string
@@ -373,8 +393,8 @@ func TestCallSitesImportAdapterFromSharedPackage(t *testing.T) {
 	}
 
 	for _, f := range files {
-		if !strings.Contains(f.source, "claudeRunnerAdapter") {
-			t.Errorf("%s should reference claudeRunnerAdapter", f.name)
+		if !strings.Contains(f.source, `"github.com/danabrams/gromit/internal/learnings"`) {
+			t.Errorf("%s should import learnings package", f.name)
 		}
 	}
 }
