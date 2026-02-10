@@ -125,14 +125,14 @@ func runReview(cmd *cobra.Command, args []string) error {
 }
 
 func determineReviewScope(cfg *config.Config) (string, error) {
+	// Validate mutual exclusivity of --epic, --spec, and --since
+	if err := scope.ValidateFlags(reviewEpic, reviewSpec, reviewSince); err != nil {
+		return "", err
+	}
+
 	// Priority: --since flag > --spec flag > --epic flag > state file
 	if reviewSince != "" {
 		return reviewSince, nil
-	}
-
-	// Validate mutual exclusivity of --epic and --spec
-	if err := scope.ValidateFlags(reviewEpic, reviewSpec); err != nil {
-		return "", err
 	}
 
 	if reviewSpec != "" {

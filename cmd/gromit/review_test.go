@@ -136,20 +136,19 @@ func TestDetermineReviewScope_MutualExclusivity(t *testing.T) {
 		}
 	})
 
-	t.Run("since overrides without mutual exclusivity error", func(t *testing.T) {
+	t.Run("all three flags set triggers mutual exclusivity error", func(t *testing.T) {
 		reviewEpic = "gromit-xyz"
 		reviewSpec = "init-wizard"
 		reviewSince = "abc123"
 
-		// Even if both epic and spec are set, --since takes priority
-		// and should not trigger mutual exclusivity error
-		commit, err := determineReviewScope(cfg)
-		if err != nil {
-			t.Fatalf("should not error when --since is set (takes priority), got: %v", err)
+		// All three flags are set, should trigger mutual exclusivity error
+		_, err := determineReviewScope(cfg)
+		if err == nil {
+			t.Fatal("expected error when all three flags are set")
 		}
 
-		if commit != "abc123" {
-			t.Errorf("expected commit abc123, got %s", commit)
+		if !strings.Contains(err.Error(), "mutually exclusive") {
+			t.Errorf("error should mention mutual exclusivity, got: %v", err)
 		}
 	})
 }
