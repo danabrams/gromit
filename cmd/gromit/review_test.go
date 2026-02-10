@@ -12,6 +12,20 @@ import (
 	"github.com/danabrams/gromit/internal/scope"
 )
 
+// saveReviewFlags saves the current review flag values and registers a cleanup
+// to restore them after the test completes.
+func saveReviewFlags(t *testing.T) {
+	t.Helper()
+	origEpic := reviewEpic
+	origSpec := reviewSpec
+	origSince := reviewSince
+	t.Cleanup(func() {
+		reviewEpic = origEpic
+		reviewSpec = origSpec
+		reviewSince = origSince
+	})
+}
+
 // TestTimestampComparison verifies that Unix timestamp comparison is done numerically,
 // not lexicographically. This is a regression test for the bug where string comparison
 // was used (e.g. "9" > "10" in string comparison).
@@ -82,79 +96,6 @@ func TestTimestampComparison(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestDetermineReviewScope_MutualExclusivity verifies that determineReviewScope
-// validates mutual exclusivity between --epic and --spec flags
-func TestDetermineReviewScope_MutualExclusivity(t *testing.T) {
-	cfg := &config.Config{}
-
-	// Save original flag values and restore them after test
-	origEpic := reviewEpic
-	origSpec := reviewSpec
-	origSince := reviewSince
-	defer func() {
-		reviewEpic = origEpic
-		reviewSpec = origSpec
-		reviewSince = origSince
-	}()
-
-	t.Run("both epic and spec set", func(t *testing.T) {
-		reviewEpic = "gromit-xyz"
-		reviewSpec = "init-wizard"
-		reviewSince = ""
-
-		_, err := determineReviewScope(cfg)
-		if err == nil {
-			t.Fatal("expected error when both --epic and --spec are set")
-		}
-
-		if !strings.Contains(err.Error(), "mutually exclusive") {
-			t.Errorf("error should mention mutual exclusivity, got: %v", err)
-		}
-	})
-
-	t.Run("only epic set", func(t *testing.T) {
-		reviewEpic = "gromit-xyz"
-		reviewSpec = ""
-		reviewSince = ""
-
-		// This will fail because we don't have a real epic, but it should
-		// not fail on mutual exclusivity
-		_, err := determineReviewScope(cfg)
-		if err != nil && strings.Contains(err.Error(), "mutually exclusive") {
-			t.Errorf("should not error on mutual exclusivity when only --epic is set, got: %v", err)
-		}
-	})
-
-	t.Run("only spec set", func(t *testing.T) {
-		reviewEpic = ""
-		reviewSpec = "init-wizard"
-		reviewSince = ""
-
-		// This will fail because we don't have a real spec, but it should
-		// not fail on mutual exclusivity
-		_, err := determineReviewScope(cfg)
-		if err != nil && strings.Contains(err.Error(), "mutually exclusive") {
-			t.Errorf("should not error on mutual exclusivity when only --spec is set, got: %v", err)
-		}
-	})
-
-	t.Run("all three flags set triggers mutual exclusivity error", func(t *testing.T) {
-		reviewEpic = "gromit-xyz"
-		reviewSpec = "init-wizard"
-		reviewSince = "abc123"
-
-		// All three flags are set, should trigger mutual exclusivity error
-		_, err := determineReviewScope(cfg)
-		if err == nil {
-			t.Fatal("expected error when all three flags are set")
-		}
-
-		if !strings.Contains(err.Error(), "mutually exclusive") {
-			t.Errorf("error should mention mutual exclusivity, got: %v", err)
-		}
-	})
 }
 
 // Tests consolidated from review_scope_acceptance_test.go
@@ -261,18 +202,6 @@ created: 2026-02-08
 	}
 }
 
-// TestReviewCommand_MutualExclusivityOfScopeFlags verifies that scope determination
-// flags are mutually exclusive
-func TestReviewCommand_MutualExclusivityOfScopeFlags(t *testing.T) {
-	err := scope.ValidateFlags("gromit-xyz", "init-wizard")
-	if err == nil {
-		t.Fatal("--epic and --spec together should be mutually exclusive")
-	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("error should mention mutual exclusivity, got: %v", err)
-	}
-}
-
 // TestReviewCommand_SpecFlagInHelpText verifies that --spec flag appears
 // in the review command help text
 func TestReviewCommand_SpecFlagInHelpText(t *testing.T) {
@@ -290,15 +219,7 @@ func TestReviewCommand_SpecFlagInHelpText(t *testing.T) {
 // flags are mutually exclusive on the review command
 func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
 	cfg := &config.Config{}
-
-	origEpic := reviewEpic
-	origSpec := reviewSpec
-	origSince := reviewSince
-	defer func() {
-		reviewEpic = origEpic
-		reviewSpec = origSpec
-		reviewSince = origSince
-	}()
+	saveReviewFlags(t)
 
 	tests := []struct {
 		name    string
@@ -394,47 +315,11 @@ func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
 	}
 }
 
-// TestReviewCommand_SinceAndEpicMutuallyExclusive verifies that --since and --epic
-// cannot be used together
-func TestReviewCommand_SinceAndEpicMutuallyExclusive(t *testing.T) {
-	cfg := &config.Config{}
-
-	origEpic := reviewEpic
-	origSpec := reviewSpec
-	origSince := reviewSince
-	defer func() {
-		reviewEpic = origEpic
-		reviewSpec = origSpec
-		reviewSince = origSince
-	}()
-
-	reviewEpic = "gromit-xyz"
-	reviewSpec = ""
-	reviewSince = "abc123"
-
-	_, err := determineReviewScope(cfg)
-	if err == nil {
-		t.Fatal("expected error when both --since and --epic are set")
-	}
-
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("error should mention mutual exclusivity, got: %v", err)
-	}
-}
-
 // TestReviewCommand_MutualExclusivityCheckedEarly verifies that mutual exclusivity
 // is checked before attempting to resolve specs or epics
 func TestReviewCommand_MutualExclusivityCheckedEarly(t *testing.T) {
 	cfg := &config.Config{}
-
-	origEpic := reviewEpic
-	origSpec := reviewSpec
-	origSince := reviewSince
-	defer func() {
-		reviewEpic = origEpic
-		reviewSpec = origSpec
-		reviewSince = origSince
-	}()
+	saveReviewFlags(t)
 
 	// Set two flags with invalid values that would fail resolution
 	reviewEpic = "nonexistent-epic-xyz"
@@ -456,15 +341,7 @@ func TestReviewCommand_MutualExclusivityCheckedEarly(t *testing.T) {
 // only whitespace are treated as empty and don't trigger mutual exclusivity
 func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
 	cfg := &config.Config{}
-
-	origEpic := reviewEpic
-	origSpec := reviewSpec
-	origSince := reviewSince
-	defer func() {
-		reviewEpic = origEpic
-		reviewSpec = origSpec
-		reviewSince = origSince
-	}()
+	saveReviewFlags(t)
 
 	tests := []struct {
 		name    string
