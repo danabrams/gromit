@@ -44,6 +44,21 @@ func TestBuildBeadFilter_EmptyLabelReturnsNilFilter(t *testing.T) {
 	}
 }
 
+// TestBuildBeadFilter_NilLabelReturnsNilFilter verifies that when labels is nil,
+// buildBeadFilter returns nil (meaning no filtering)
+func TestBuildBeadFilter_NilLabelReturnsNilFilter(t *testing.T) {
+	ctx := context.Background()
+	filter, err := buildBeadFilter(ctx, nil)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if filter != nil {
+		t.Fatalf("expected nil filter for nil labels, got %v", filter)
+	}
+}
+
 // buildBeadFilter resolves labels to bead IDs and returns a filter map.
 // If labels is empty, returns nil (no filtering).
 func buildBeadFilter(ctx context.Context, labels []string) (map[string]bool, error) {
