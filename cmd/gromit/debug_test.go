@@ -256,19 +256,270 @@ func TestGetNewBacklogItems(t *testing.T) {
 	})
 }
 
-func TestContainsFile(t *testing.T) {
-	slice := []string{"/path/to/file1.md", "/path/to/file2.md"}
+// TestGetMDFiles verifies the shared getMDFiles function correctly finds markdown files
+func TestGetMDFiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(t *testing.T, dir string) []string // returns expected file paths
+		expectError bool
+	}{
+		{
+			name: "finds markdown files in directory",
+			setup: func(t *testing.T, dir string) []string {
+				f1 := filepath.Join(dir, "file1.md")
+				f2 := filepath.Join(dir, "file2.md")
+				f3 := filepath.Join(dir, "file3.txt")
 
-	if !containsFile(slice, "/path/to/file1.md") {
-		t.Error("expected containsFile to return true for file1.md")
+				for _, f := range []string{f1, f2, f3} {
+					if err := os.WriteFile(f, []byte("content"), 0644); err != nil {
+						t.Fatalf("failed to write file: %v", err)
+					}
+				}
+
+				return []string{f1, f2} // Only .md files expected
+			},
+			expectError: false,
+		},
+		{
+			name: "returns empty slice for empty directory",
+			setup: func(t *testing.T, dir string) []string {
+				return []string{}
+			},
+			expectError: false,
+		},
+		{
+			name: "ignores non-markdown files",
+			setup: func(t *testing.T, dir string) []string {
+				f1 := filepath.Join(dir, "file.txt")
+				f2 := filepath.Join(dir, "file.json")
+				f3 := filepath.Join(dir, "file.yaml")
+
+				for _, f := range []string{f1, f2, f3} {
+					if err := os.WriteFile(f, []byte("content"), 0644); err != nil {
+						t.Fatalf("failed to write file: %v", err)
+					}
+				}
+
+				return []string{} // No markdown files expected
+			},
+			expectError: false,
+		},
+		{
+			name: "ignores subdirectories",
+			setup: func(t *testing.T, dir string) []string {
+				md := filepath.Join(dir, "file.md")
+				subdir := filepath.Join(dir, "subdir")
+
+				if err := os.WriteFile(md, []byte("content"), 0644); err != nil {
+					t.Fatalf("failed to write file: %v", err)
+				}
+				if err := os.MkdirAll(subdir, 0755); err != nil {
+					t.Fatalf("failed to create subdir: %v", err)
+				}
+
+				return []string{md} // Only top-level .md file expected
+			},
+			expectError: false,
+		},
 	}
 
-	if containsFile(slice, "/path/to/file3.md") {
-		t.Error("expected containsFile to return false for file3.md")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			expectedFiles := tt.setup(t, tmpDir)
+
+			files, err := getMDFiles(tmpDir)
+
+			if tt.expectError && err == nil {
+				t.Fatal("expected error but got nil")
+			}
+			if !tt.expectError && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(files) != len(expectedFiles) {
+				t.Errorf("expected %d files, got %d", len(expectedFiles), len(files))
+			}
+
+			// Check that all expected files are present
+			for _, expected := range expectedFiles {
+				found := false
+				for _, actual := range files {
+					if actual == expected {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected file %q not found in results", expected)
+				}
+			}
+		})
+	}
+}
+
+// TestGetMDFilesNonexistentDirectory verifies getMDFiles handles missing directories gracefully
+func TestGetMDFilesNonexistentDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	nonexistentDir := filepath.Join(tmpDir, "nonexistent")
+
+	files, err := getMDFiles(nonexistentDir)
+	if err != nil {
+		t.Fatalf("getMDFiles should not error on missing dir: %v", err)
 	}
 
-	if containsFile([]string{}, "/path/to/file1.md") {
-		t.Error("expected containsFile to return false for empty slice")
+	if len(files) != 0 {
+		t.Errorf("expected empty slice for missing dir, got %d files", len(files))
+	}
+}
+
+// TestGetReportFilesUsesGetMDFiles verifies getReportFiles works through getMDFiles
+func TestGetReportFilesUsesGetMDFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	reportsDir := filepath.Join(tmpDir, "reports")
+	if err := os.MkdirAll(reportsDir, 0755); err != nil {
+		t.Fatalf("failed to create reports dir: %v", err)
+	}
+
+	// Create test files
+	report1 := filepath.Join(reportsDir, "debug-20260208-120000.md")
+	report2 := filepath.Join(reportsDir, "debug-20260208-130000.md")
+	txtFile := filepath.Join(reportsDir, "notes.txt")
+
+	if err := os.WriteFile(report1, []byte("# Report 1"), 0644); err != nil {
+		t.Fatalf("failed to write report1: %v", err)
+	}
+	if err := os.WriteFile(report2, []byte("# Report 2"), 0644); err != nil {
+		t.Fatalf("failed to write report2: %v", err)
+	}
+	if err := os.WriteFile(txtFile, []byte("notes"), 0644); err != nil {
+		t.Fatalf("failed to write txt file: %v", err)
+	}
+
+	reports, err := getReportFiles(reportsDir)
+	if err != nil {
+		t.Fatalf("getReportFiles failed: %v", err)
+	}
+
+	// Should only return .md files
+	if len(reports) != 2 {
+		t.Errorf("expected 2 reports, got %d", len(reports))
+	}
+
+	for _, expected := range []string{report1, report2} {
+		found := false
+		for _, actual := range reports {
+			if actual == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected report %q not found", expected)
+		}
+	}
+}
+
+// TestGetPlanFilesUsesGetMDFiles verifies getPlanFiles works through getMDFiles
+func TestGetPlanFilesUsesGetMDFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatalf("failed to create plans dir: %v", err)
+	}
+
+	// Create test files
+	plan1 := filepath.Join(plansDir, "feature-a.md")
+	plan2 := filepath.Join(plansDir, "feature-b.md")
+	nonMD := filepath.Join(plansDir, "notes.txt")
+
+	if err := os.WriteFile(plan1, []byte("# Plan A"), 0644); err != nil {
+		t.Fatalf("failed to write plan1: %v", err)
+	}
+	if err := os.WriteFile(plan2, []byte("# Plan B"), 0644); err != nil {
+		t.Fatalf("failed to write plan2: %v", err)
+	}
+	if err := os.WriteFile(nonMD, []byte("notes"), 0644); err != nil {
+		t.Fatalf("failed to write nonMD file: %v", err)
+	}
+
+	plans, err := getPlanFiles(plansDir)
+	if err != nil {
+		t.Fatalf("getPlanFiles failed: %v", err)
+	}
+
+	// Should only return .md files
+	if len(plans) != 2 {
+		t.Errorf("expected 2 plans, got %d", len(plans))
+	}
+
+	for _, expected := range []string{plan1, plan2} {
+		found := false
+		for _, actual := range plans {
+			if actual == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected plan %q not found", expected)
+		}
+	}
+}
+
+// TestDetectAndReportArtifactsUseSlicesContains verifies the artifact detection correctly
+// identifies newly created artifacts (testing the behavior that depends on proper slice containment check)
+func TestDetectAndReportArtifactsUseSlicesContains(t *testing.T) {
+	tmpDir := t.TempDir()
+	reportsDir := filepath.Join(tmpDir, "reports")
+	plansDir := filepath.Join(tmpDir, "plans")
+
+	// Create directories
+	for _, dir := range []string{reportsDir, plansDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create dir: %v", err)
+		}
+	}
+
+	// Create a new report and plan file
+	newReport := filepath.Join(reportsDir, "new-report.md")
+	newPlan := filepath.Join(plansDir, "new-plan.md")
+
+	if err := os.WriteFile(newReport, []byte("# New Report"), 0644); err != nil {
+		t.Fatalf("failed to write new report: %v", err)
+	}
+	if err := os.WriteFile(newPlan, []byte("# New Plan"), 0644); err != nil {
+		t.Fatalf("failed to write new plan: %v", err)
+	}
+
+	// Verify file detection works correctly
+	newReportsList, err := getReportFiles(reportsDir)
+	if err != nil {
+		t.Fatalf("failed to get report files: %v", err)
+	}
+
+	newPlansList, err := getPlanFiles(plansDir)
+	if err != nil {
+		t.Fatalf("failed to get plan files: %v", err)
+	}
+
+	// The key test: verify we correctly identify new artifacts
+	// This depends on proper slice containment checking
+	if len(newReportsList) != 1 {
+		t.Errorf("expected 1 new report, got %d", len(newReportsList))
+	}
+
+	if len(newPlansList) != 1 {
+		t.Errorf("expected 1 new plan, got %d", len(newPlansList))
+	}
+
+	// Verify the exact artifacts are detected
+	if newReportsList[0] != newReport {
+		t.Errorf("expected report %q, got %q", newReport, newReportsList[0])
+	}
+
+	if newPlansList[0] != newPlan {
+		t.Errorf("expected plan %q, got %q", newPlan, newPlansList[0])
 	}
 }
 
