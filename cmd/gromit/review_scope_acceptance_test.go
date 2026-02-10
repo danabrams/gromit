@@ -45,9 +45,7 @@ func TestReviewCommand_SpecAndEpicMutuallyExclusive(t *testing.T) {
 	}
 
 	// The determineReviewScope function should call scope.ValidateFlags(reviewEpic, reviewSpec)
-	// and return the error if both are set. This will be verified once reviewSpec variable exists.
-
-	t.Skip("Pending implementation: determineReviewScope does not yet call scope.ValidateFlags with reviewSpec")
+	// and return the error if both are set.
 }
 
 // TestReviewCommand_SpecFlagResolvesToLabel verifies that --spec flag
@@ -73,8 +71,6 @@ func TestReviewCommand_SpecFlagResolvesToLabel(t *testing.T) {
 	// 2. scope.ResolveSpec(reviewSpec) returns label
 	// 3. bead.ListWithLabel(label) gets beads
 	// 4. Find earliest commit from those bead IDs
-
-	t.Skip("Pending implementation: determineReviewScope does not yet call scope.ResolveSpec for --spec flag")
 }
 
 // TestReviewCommand_EpicFlagUsesResolveEpic verifies that --epic flag
@@ -145,8 +141,6 @@ created: 2026-02-08
 	// 1. Call scope.ResolveEpic("gromit-xyz", specsDir) to get ["spec:auth", "spec:profile"]
 	// 2. For each label, get beads via bead.ListWithLabel
 	// 3. Find earliest commit from all those beads
-
-	t.Skip("Pending implementation: determineReviewScope should use scope.ResolveEpic for --epic flag instead of parent-child resolution")
 }
 
 // TestReviewCommand_FlagPriorityOrder verifies the priority order of scope flags
@@ -195,7 +189,6 @@ func TestReviewCommand_MutualExclusivityOfScopeFlags(t *testing.T) {
 	// All three: --since takes priority (no error needed, just use --since)
 
 	// The key validation is that --epic and --spec cannot both be non-empty
-	t.Skip("Pending implementation: determineReviewScope should call scope.ValidateFlags to check --epic and --spec mutual exclusivity")
 }
 
 // TestReviewCommand_SpecFlagInHelpText verifies that --spec flag appears

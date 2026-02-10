@@ -141,7 +141,8 @@ func determineReviewScope(cfg *config.Config) (string, error) {
 
 	if reviewEpic != "" {
 		// Find the earliest commit from beads in this epic
-		return getEpicBaseCommit(reviewEpic)
+		gromitDir := resolveGromitDir(cfg)
+		return getEpicBaseCommit(reviewEpic, cfg.Paths.Specs, gromitDir)
 	}
 
 	// Default: use last review commit from state
@@ -212,65 +213,48 @@ func getSpecBaseCommit(specName string) (string, error) {
 	return "", fmt.Errorf("no commits found for spec %q - try using --since to specify a commit", specName)
 }
 
-func getEpicBaseCommit(epicID string) (string, error) {
-	// Get the epic bead to verify it exists
+func getEpicBaseCommit(epicID, specsDir, gromitDir string) (string, error) {
+	// Use scope.ResolveEpic to get spec labels for this epic
+	specLabels, err := scope.ResolveEpic(epicID, specsDir)
+	if err != nil {
+		return "", fmt.Errorf("resolving epic %q: %w", epicID, err)
+	}
+
+	if len(specLabels) == 0 {
+		return "", fmt.Errorf("no specs found for epic %q - try using --since to specify a commit", epicID)
+	}
+
+	// Get beads for each spec label
 	beadsClient, err := bead.NewClient()
 	if err != nil {
 		return "", fmt.Errorf("creating bead client: %w", err)
 	}
 
-	epicBead, err := beadsClient.Show(epicID)
-	if err != nil {
-		return "", fmt.Errorf("epic %q not found: %w", epicID, err)
-	}
-
-	if epicBead == nil {
-		return "", fmt.Errorf("epic %q not found", epicID)
-	}
-
-	// Get all child beads (both open and closed) of this epic
-	// We need to list all beads and filter by parent since bd list doesn't support
-	// querying across open+closed with --parent in one call
-	allOpen, allClosed, err := beadsClient.ListAll()
-	if err != nil {
-		return "", fmt.Errorf("listing beads: %w", err)
-	}
-
-	// Collect all child beads
-	childBeads := make([]*bead.Bead, 0)
-	for _, b := range allOpen {
-		if b.Parent == epicID {
-			childBeads = append(childBeads, b)
-		}
-	}
-	for _, b := range allClosed {
-		if b.Parent == epicID {
-			childBeads = append(childBeads, b)
-		}
-	}
-
-	if len(childBeads) == 0 {
-		// No child beads found - return the epic's creation commit or earliest commit
-		// by using the epic creation timestamp as a reference
-		return "", fmt.Errorf("epic %q has no child beads", epicID)
-	}
-
-	// Find the earliest commit that contains any of the child bead IDs in the message
-	// This assumes that when a bead is closed, the commit message references its ID
-	// We'll search git history for references to child bead IDs
-	earliestCommit := ""
-	for _, childBead := range childBeads {
-		// Search git log for commits mentioning this bead ID
-		commit, err := findFirstCommitForBead(childBead.ID)
+	allBeads := make([]*bead.Bead, 0)
+	for _, label := range specLabels {
+		beadsWithLabel, err := beadsClient.ListWithLabel(label)
 		if err != nil {
-			// Skip beads that don't have commits (might be newly created)
+			return "", fmt.Errorf("listing beads with label %q: %w", label, err)
+		}
+		allBeads = append(allBeads, beadsWithLabel...)
+	}
+
+	if len(allBeads) == 0 {
+		return "", fmt.Errorf("no beads found for epic %q - try using --since to specify a commit", epicID)
+	}
+
+	// Find the earliest commit from these beads
+	earliestCommit := ""
+	for _, b := range allBeads {
+		commit, err := findFirstCommitForBead(b.ID)
+		if err != nil {
+			// Skip beads that don't have commits
 			continue
 		}
 		if commit != "" {
 			if earliestCommit == "" {
 				earliestCommit = commit
 			} else {
-				// Get the commit timestamps to find the earliest
 				if isCommitEarlier(commit, earliestCommit) {
 					earliestCommit = commit
 				}
@@ -282,8 +266,6 @@ func getEpicBaseCommit(epicID string) (string, error) {
 		return earliestCommit, nil
 	}
 
-	// If no commits found for any child beads, return an error
-	// This is expected for newly created epics
 	return "", fmt.Errorf("no commits found for epic %q - try using --since to specify a commit", epicID)
 }
 
