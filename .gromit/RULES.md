@@ -12,6 +12,8 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - bead.Client methods have semantic distinctions: Ready()/CountReady() return only unblocked beads (`bd ready`), while List() returns all open beads (`bd list --status open`). Choose the correct method based on whether you need actionable or total counts
 - Functions that call subprocesses or prompt users should accept these dependencies as injected function parameters, not call them directly. This enables testing with simple mocks rather than requiring stdin/stdout management or actual subprocess execution
 - JSON struct tags use snake_case field names (e.g., `input_tokens`, `cost_usd`). All serialized fields must have explicit JSON tags — omitting tags causes fields to be excluded from output. Use `omitempty` only for optional fields; omit it when the field should always be present in output
+- Agent selection and execution uses `agent.Resolve()` + `agent.Launch()` — never construct `exec.Command` with Claude binary/flags directly. `agent.Resolve()` handles priority-based selection (flag override > interactive picker > phase config > default), and CLI commands expose `--agent` and `--choose-agent` flags for override
+- Interface files must include compile-time satisfaction checks (`var _ InterfaceName = (*Impl)(nil)`) at the top of the file to catch implementation drift at compile time rather than runtime — see internal/runner/interfaces.go for the pattern
 
 ## Safety
 

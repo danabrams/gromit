@@ -43,29 +43,26 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 ### 2026-02-08 | gromit-qnlq | gotchas
 Timing-based concurrency tests in the runner package are sensitive to system load and require either barrier-based synchronization patterns (as mentioned in recent commits using barrier pattern) or more lenient time budgets. Avoid relying solely on wall-clock duration checks; use synchronization primitives like WaitGroup barriers or channels to verify concurrency semantically rather than temporally.
 
-### 2026-02-08 | gromit-l7v4 | conventions
-Interface files should include compile-time satisfaction checks (var _ Interface = (*Impl)(nil)) at the top to catch implementation drift early - see internal/runner/interfaces.go for the pattern
+### 2026-02-08 | Compile-time Interface Verification | conventions
+*Related to: gromit-l7v4*
 
-### 2026-02-08 | gromit-l7v4 | conventions
-Use compile-time interface verification with var _ InterfaceName = (*impl)(nil) pattern instead of runtime tests for interface satisfaction—this catches implementation drift early (see internal/runner/interfaces.go for pattern)
+Use compile-time interface verification with `var _ InterfaceName = (*impl)(nil)` at the top of interface files to catch implementation drift early instead of runtime tests — see internal/runner/interfaces.go for the pattern.
 
-### 2026-02-09 | gromit-7dcu | patterns
-Agent selection and execution is abstracted via agent.Resolve() and agent.Launch() functions - use these instead of directly constructing exec.Command with Claude binary/flags
+### 2026-02-09 | Agent Selection and Execution | patterns
+*Related to: gromit-7dcu, gromit-3be2, gromit-pame*
 
-### 2026-02-09 | gromit-3be2 | patterns
-Agent selection and execution uses two-function pattern: agent.Resolve() handles priority-based selection (flag override > interactive picker > phase config > default), then agent.Launch() executes with the resolved agent. Use this pattern for all commands needing agent integration instead of inline Claude launch.
-
-### 2026-02-09 | gromit-pame | patterns
-Agent selection in CLI commands uses agent.Resolve() to handle both --agent flag and --choose-agent interactive prompt, returning a resolved agent name for Launch() invocation
-
-### 2026-02-09 | gromit-pame | conventions
-CLI command flags in review.go use package-level variables (reviewAgent, reviewChooseAgent) for direct access by sub-functions, avoiding cmd.Flags().GetString/GetBool calls and maintaining consistency with other flags in the file
+Agent selection and execution uses a two-function pattern: `agent.Resolve()` handles priority-based selection (flag override > interactive picker > phase config > default), then `agent.Launch()` executes with the resolved agent. CLI commands expose `--agent` and `--choose-agent` flags for override. Use this pattern for all commands needing agent integration instead of directly constructing `exec.Command` with Claude binary/flags.
 
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-09 | gromit-pame | conventions
+Archived: Describes standard cobra CLI pattern (package-level flag variables for direct access). This is basic Go CLI convention, not project-specific — any cobra project uses this pattern.
+
+*Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-06 | gromit-ehn | gotchas
 Archived: duplicate of consolidated validation commands learning. Subsumed by promoted rule.
