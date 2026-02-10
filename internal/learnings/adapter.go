@@ -13,19 +13,19 @@ type ClaudeClientRunner interface {
 	Run(ctx context.Context, prompt string, model string) (*claude.Result, error)
 }
 
-// ClaudeRunnerAdapter adapts claude.Client to the ClaudeRunner interface
+// claudeRunnerAdapter adapts claude.Client to the ClaudeRunner interface
 // by converting claude.Result to learnings.Result.
-type ClaudeRunnerAdapter struct {
+type claudeRunnerAdapter struct {
 	client ClaudeClientRunner
 }
 
 // NewClaudeRunnerAdapter creates a new adapter from a Claude client
-func NewClaudeRunnerAdapter(client ClaudeClientRunner) *ClaudeRunnerAdapter {
-	return &ClaudeRunnerAdapter{client: client}
+func NewClaudeRunnerAdapter(client ClaudeClientRunner) *claudeRunnerAdapter {
+	return &claudeRunnerAdapter{client: client}
 }
 
 // Run implements ClaudeRunner by calling the underlying Claude client and converting the result
-func (a *ClaudeRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*Result, error) {
+func (a *claudeRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*Result, error) {
 	if a.client == nil {
 		return nil, fmt.Errorf("claude client is nil")
 	}

@@ -11,7 +11,7 @@ import (
 
 // TestClaudeRunnerAdapter_Success tests that the adapter properly converts a successful result
 func TestClaudeRunnerAdapter_Success(t *testing.T) {
-	mockClient := &mockClaudeClient{
+	mockClient := &mockClaudeClientRunner{
 		FnRun: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 			return &claude.Result{
 				Success:  true,
@@ -41,7 +41,7 @@ func TestClaudeRunnerAdapter_Success(t *testing.T) {
 
 // TestClaudeRunnerAdapter_Error tests that the adapter propagates errors
 func TestClaudeRunnerAdapter_Error(t *testing.T) {
-	mockClient := &mockClaudeClient{
+	mockClient := &mockClaudeClientRunner{
 		FnRun: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 			return nil, errors.New("test error")
 		},
@@ -76,7 +76,7 @@ func TestClaudeRunnerAdapter_NilClient(t *testing.T) {
 
 // TestClaudeRunnerAdapter_NilResult tests that adapter handles nil claude.Result
 func TestClaudeRunnerAdapter_NilResult(t *testing.T) {
-	mockClient := &mockClaudeClient{
+	mockClient := &mockClaudeClientRunner{
 		FnRun: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 			return nil, nil
 		},
@@ -93,12 +93,12 @@ func TestClaudeRunnerAdapter_NilResult(t *testing.T) {
 	}
 }
 
-// mockClaudeClient implements a mock for claude.Client behavior
-type mockClaudeClient struct {
+// mockClaudeClientRunner implements a mock for claudeRunnerAdapter's ClaudeClientRunner dependency
+type mockClaudeClientRunner struct {
 	FnRun func(ctx context.Context, prompt string, model string) (*claude.Result, error)
 }
 
-func (m *mockClaudeClient) Run(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+func (m *mockClaudeClientRunner) Run(ctx context.Context, prompt string, model string) (*claude.Result, error) {
 	if m.FnRun != nil {
 		return m.FnRun(ctx, prompt, model)
 	}

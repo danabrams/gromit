@@ -23,27 +23,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// claudeRunnerAdapter adapts claude.Client to learnings.ClaudeRunner interface
-type claudeRunnerAdapter struct {
-	client *claude.Client
-}
-
-// Run implements learnings.ClaudeRunner interface
-func (a *claudeRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
-	if a == nil || a.client == nil {
-		return nil, fmt.Errorf("adapter or client is nil")
-	}
-	result, err := a.client.Run(ctx, prompt, model)
-	if err != nil {
-		return nil, err
-	}
-	// Convert claude.Result to learnings.Result
-	return &learnings.Result{
-		Success: result.Success,
-		Output:  result.Output,
-	}, nil
-}
-
 var (
 	reviewNonInteractive bool
 	reviewSince          string
@@ -584,10 +563,8 @@ func persistReviewLearnings(gromitDir string, reviewLearnings []string, claudeCl
 
 	// Wire filter into learnings file
 	if claudeClient != nil {
-		adapter := &claudeRunnerAdapter{client: claudeClient}
-		projectName := "gromit"
-		projectDesc := "A Go CLI tool that runs the Gromit loop correctly"
-		learningsFile.SetFilter(learnings.NewLLMFilter(adapter, projectName, projectDesc))
+		claudeRunnerAdapter := learnings.NewClaudeRunnerAdapter(claudeClient)
+		learningsFile.SetFilter(learnings.NewLLMFilter(claudeRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
 	}
 
 	if err := learningsFile.Load(); err != nil {
