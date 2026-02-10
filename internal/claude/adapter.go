@@ -5,13 +5,18 @@ import (
 	"fmt"
 )
 
+// Runner is an interface for invoking Claude
+type Runner interface {
+	Run(ctx context.Context, prompt string, model string) (*Result, error)
+}
+
 // ClaudeRunnerAdapter wraps a Claude client and converts claude.Result to a standardized result format
 type ClaudeRunnerAdapter struct {
-	client *Client
+	client Runner
 }
 
 // NewClaudeRunnerAdapter creates a new adapter from a Claude client
-func NewClaudeRunnerAdapter(client *Client) *ClaudeRunnerAdapter {
+func NewClaudeRunnerAdapter(client Runner) *ClaudeRunnerAdapter {
 	return &ClaudeRunnerAdapter{client: client}
 }
 
