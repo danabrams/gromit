@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
@@ -72,12 +73,41 @@ func epicStatus(cmd *cobra.Command, args []string) error {
 		fmt.Println("\nLinked Specs:")
 		fmt.Println()
 
-		for _, spec := range linkedSpecs {
-			stage := determinePipelineStage(spec.id, cfg)
-			fmt.Printf("  %s\n", spec.id)
-			fmt.Printf("    Title: %s\n", spec.title)
-			fmt.Printf("    Stage: %s\n", stage)
-			fmt.Println()
+		// Create bead client for querying beads
+		beadClient, err := bead.NewClient()
+		if err == nil {
+			// Only show bead counts if bd is available
+			for _, spec := range linkedSpecs {
+				stage := determinePipelineStage(spec.id, cfg)
+
+				// Get bead counts for this spec
+				openCount, closedCount, beadErr := getBeadCounts(beadClient, spec.id)
+
+				fmt.Printf("  %s\n", spec.id)
+				fmt.Printf("    Title: %s\n", spec.title)
+				fmt.Printf("    Stage: %s\n", stage)
+
+				// Show bead progress if we can query beads
+				if beadErr == nil {
+					totalCount := openCount + closedCount
+					if totalCount > 0 {
+						fmt.Printf("    Beads: %d open, %d closed (%d total)\n", openCount, closedCount, totalCount)
+					} else {
+						fmt.Printf("    Beads: none\n")
+					}
+				}
+
+				fmt.Println()
+			}
+		} else {
+			// If bd is not available, show specs without bead counts
+			for _, spec := range linkedSpecs {
+				stage := determinePipelineStage(spec.id, cfg)
+				fmt.Printf("  %s\n", spec.id)
+				fmt.Printf("    Title: %s\n", spec.title)
+				fmt.Printf("    Stage: %s\n", stage)
+				fmt.Println()
+			}
 		}
 	}
 
@@ -266,6 +296,27 @@ func buildSpecSummaries(specs []spec) []string {
 		summaries[i] = fmt.Sprintf("%s: %s", s.id, s.title)
 	}
 	return summaries
+}
+
+// getBeadCounts returns the number of open and closed beads for a given spec
+func getBeadCounts(client *bead.Client, specID string) (open int, closed int, err error) {
+	// Query beads with label spec:<specID>
+	label := "spec:" + specID
+	beads, err := client.ListWithLabel(label)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// Count open and closed beads
+	for _, b := range beads {
+		if b.Status == "closed" {
+			closed++
+		} else {
+			open++
+		}
+	}
+
+	return open, closed, nil
 }
 
 // performGapAnalysis runs LLM gap analysis on epic content and spec summaries

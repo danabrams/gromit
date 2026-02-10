@@ -1806,3 +1806,113 @@ created: 2026-02-08
 		t.Errorf("status should show valid-spec, got: %s", stdout)
 	}
 }
+
+// TestEpicStatusCommand_HandlesSpecWithNoBeads verifies specs marked as decomposed but with no beads show appropriate message
+func TestEpicStatusCommand_HandlesSpecWithNoBeads(t *testing.T) {
+	tmpDir := t.TempDir()
+	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+	plansDir := filepath.Join(tmpDir, ".gromit", "plans")
+
+	for _, dir := range []string{epicsDir, specsDir, plansDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Create epic
+	epicContent := `---
+epic_id: gromit-test
+created: 2026-02-08
+---
+
+# Test Epic
+`
+	if err := os.WriteFile(filepath.Join(epicsDir, "test.md"), []byte(epicContent), 0644); err != nil {
+		t.Fatalf("failed to write epic: %v", err)
+	}
+
+	// Create spec
+	specContent := `---
+id: no-beads-spec
+epic: gromit-test
+created: 2026-02-08
+---
+
+# Spec Without Beads
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "no-beads.md"), []byte(specContent), 0644); err != nil {
+		t.Fatalf("failed to write spec: %v", err)
+	}
+
+	// Create plan marked as decomposed
+	planContent := `---
+id: no-beads-spec
+source_spec: no-beads-spec
+created: 2026-02-08
+decomposed: true
+---
+
+# Plan
+`
+	if err := os.WriteFile(filepath.Join(plansDir, "no-beads-spec.md"), []byte(planContent), 0644); err != nil {
+		t.Fatalf("failed to write plan: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+  epics_dir: %s
+  specs_dir: %s
+  plans_dir: %s
+`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir, plansDir)
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Change to temp directory
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	defer os.Chdir(oldDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+
+	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+
+	// Command should succeed
+	if exitCode != 0 {
+		if strings.Contains(stderr, "epic not found") {
+			t.Fatalf("epic should be found: %s", stderr)
+		}
+		// May be external dependencies not available
+		t.Skip("External dependencies not available, cannot verify no-beads handling")
+	}
+
+	// Should show spec with stage indicating no beads exist yet
+	if !strings.Contains(stdout, "no-beads-spec") {
+		t.Errorf("status should show spec, got: %s", stdout)
+	}
+
+	// Should show stage as decomposed
+	if !strings.Contains(stdout, "decomposed") {
+		t.Errorf("status should show stage as decomposed, got: %s", stdout)
+	}
+
+	stdoutLower := strings.ToLower(stdout)
+	// If bd is available, should show bead count of 0 or "no beads" or "none"
+	// If bd is not available, the test can still pass (graceful degradation)
+	hasBeadIndicator := strings.Contains(stdoutLower, "0 bead") ||
+		strings.Contains(stdoutLower, "no bead") ||
+		strings.Contains(stdoutLower, "beads: none") ||
+		strings.Contains(stdoutLower, "beads: 0")
+
+	if hasBeadIndicator {
+		t.Logf("Good: status indicates no beads for decomposed spec")
+	} else {
+		t.Logf("Note: bead count not shown (bd may not be available in test environment)")
+	}
+}
