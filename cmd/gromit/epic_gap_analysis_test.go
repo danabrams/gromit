@@ -94,6 +94,38 @@ func TestPerformGapAnalysis_IncludesSpecSummariesInPrompt(t *testing.T) {
 	}
 }
 
+// TestPerformGapAnalysis_AsksWhatAreasNotCovered verifies the prompt asks about coverage gaps
+func TestPerformGapAnalysis_AsksWhatAreasNotCovered(t *testing.T) {
+	var capturedPrompt string
+
+	mockClient := &mockClaudeClient{
+		runFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			capturedPrompt = prompt
+			return &claude.Result{
+				Success: true,
+				Output:  "Gap analysis result",
+			}, nil
+		},
+	}
+
+	epicContent := "# Test Epic"
+	specSummaries := []string{"auth-spec: Auth"}
+
+	_, err := performGapAnalysis(mockClient, "haiku", epicContent, specSummaries)
+	if err != nil {
+		t.Fatalf("performGapAnalysis failed: %v", err)
+	}
+
+	promptLower := strings.ToLower(capturedPrompt)
+	hasGapQuestion := strings.Contains(promptLower, "not covered") ||
+		strings.Contains(promptLower, "gap") ||
+		strings.Contains(promptLower, "missing")
+
+	if !hasGapQuestion {
+		t.Errorf("prompt should ask about coverage gaps, got: %q", capturedPrompt)
+	}
+}
+
 // mockClaudeClient implements a minimal claude.Client interface for testing
 type mockClaudeClient struct {
 	runFn func(ctx context.Context, prompt string, model string) (*claude.Result, error)

@@ -228,17 +228,27 @@ type claudeClient interface {
 
 // performGapAnalysis runs LLM gap analysis on epic content and spec summaries
 func performGapAnalysis(client claudeClient, model string, epicContent string, specSummaries []string) (string, error) {
-	// Build prompt with epic content and spec summaries
+	// Build prompt with instructions, epic content, and spec summaries
 	var promptBuilder strings.Builder
+
+	promptBuilder.WriteString("Analyze the epic below and identify what areas are not covered by existing specs.\n\n")
+	promptBuilder.WriteString("Epic:\n")
 	promptBuilder.WriteString(epicContent)
+	promptBuilder.WriteString("\n\n")
 
 	if len(specSummaries) > 0 {
-		promptBuilder.WriteString("\n\n")
+		promptBuilder.WriteString("Existing specs:\n")
 		for _, summary := range specSummaries {
+			promptBuilder.WriteString("- ")
 			promptBuilder.WriteString(summary)
 			promptBuilder.WriteString("\n")
 		}
+		promptBuilder.WriteString("\n")
+	} else {
+		promptBuilder.WriteString("No specs exist yet.\n\n")
 	}
+
+	promptBuilder.WriteString("What areas of the epic are not covered by existing specs?")
 
 	// Call Claude with haiku model
 	result, err := client.Run(context.Background(), promptBuilder.String(), model)
