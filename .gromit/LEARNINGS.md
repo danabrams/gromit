@@ -53,6 +53,9 @@ Use compile-time interface verification with `var _ InterfaceName = (*impl)(nil)
 
 Agent selection and execution uses a two-function pattern: `agent.Resolve()` handles priority-based selection (flag override > interactive picker > phase config > default), then `agent.Launch()` executes with the resolved agent. CLI commands expose `--agent` and `--choose-agent` flags for override. Use this pattern for all commands needing agent integration instead of directly constructing `exec.Command` with Claude binary/flags.
 
+### 2026-02-10 | gromit-7guf | conventions
+When reading optional files or directories (epics, specs, backlog), return empty lists gracefully for missing directories/files rather than error, allowing commands to proceed without required artifacts existing
+
 ---
 
 ## Archived
@@ -509,6 +512,11 @@ Flag validation functions should use variadic arguments (e.g., param ...string) 
 
 ### 2026-02-10 | gromit-71od | patterns
 Bead 'Add epic and spec flags to retro command' timed out on sonnet — may need simpler scope or higher model tier
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-7guf | patterns
+Extract common helper functions (like listMarkdownFiles) to eliminate duplication between similar operations across different commands - both getEpicFiles and getSpecFiles now delegate to the same implementation, ensuring consistent behavior and reducing maintenance burden
 
 *Archived from new: filtered: generic engineering advice*
 
