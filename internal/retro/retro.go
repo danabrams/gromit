@@ -102,8 +102,8 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	// Run batch filter on provisional learnings
 	alreadyFiltered := stateFile.GetFilteredHashes()
 	// Create adapter to convert claude.Result to learnings.Result
-	claudeAdapter := &claudeRunnerAdapter{client: r.claude}
-	llmFilter := learnings.NewLLMFilter(claudeAdapter, "gromit", "A Go CLI tool that runs the Gromit loop with fresh context on each iteration")
+	claudeRunnerAdapter := learnings.NewClaudeRunnerAdapter(r.claude)
+	llmFilter := learnings.NewLLMFilter(claudeRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit)
 	newlyEvaluatedHashes, err := r.learningsFile.FilterProvisional(llmFilter, alreadyFiltered)
 	if err != nil {
 		return nil, fmt.Errorf("filtering provisional learnings: %w", err)
@@ -446,26 +446,3 @@ func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, expe
 	return nil
 }
 
-// claudeRunnerAdapter adapts claude.Client to learnings.ClaudeRunner interface
-// by converting claude.Result to learnings.Result.
-type claudeRunnerAdapter struct {
-	client *claude.Client
-}
-
-// Run calls the underlying claude.Client and converts the result type.
-func (a *claudeRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
-	if a == nil || a.client == nil {
-		return nil, fmt.Errorf("adapter or client is nil")
-	}
-	claudeResult, err := a.client.Run(ctx, prompt, model)
-	if err != nil {
-		return nil, err
-	}
-	if claudeResult == nil {
-		return nil, fmt.Errorf("claude result is nil")
-	}
-	return &learnings.Result{
-		Success: claudeResult.Success,
-		Output:  claudeResult.Output,
-	}, nil
-}
