@@ -441,15 +441,5 @@ func TestExploreCommand_SnapshotOrderDoesNotMatter(t *testing.T) {
 	}
 }
 
-// Helper function that should exist in explore.go
-// This test will fail until the implementation is created
-
-// getEpicFiles returns a list of .md files in the epics directory
-// This function should be implemented in explore.go (similar to getReportFiles in debug.go)
-func getEpicFiles(epicsDir string) ([]string, error) {
-	// This is a placeholder - the actual implementation should be in explore.go
-	// The test will fail until this is implemented
-	return nil, nil
-}
-
+// Note: getEpicFiles is implemented in explore.go
 // Note: getSpecFiles already exists in refine.go and will be reused
