@@ -45,11 +45,6 @@ func ValidateFlags(epic, spec string, since ...string) error {
 	return nil
 }
 
-// ValidateFlagsWithSince is a convenience function that calls ValidateFlags with all three parameters.
-func ValidateFlagsWithSince(epic, spec, since string) error {
-	return ValidateFlags(epic, spec, since)
-}
-
 // ResolveEpic scans spec files in specsDir and returns labels for specs
 // where the epic field matches epicID. Uses the spec id field for label construction.
 func ResolveEpic(epicID, specsDir string) ([]string, error) {

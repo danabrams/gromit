@@ -197,8 +197,8 @@ func TestValidateFlags_EpicAndSpecOnly(t *testing.T) {
 	}
 }
 
-// TestValidateFlagsWithSince tests ValidateFlags with all three parameters including since
-func TestValidateFlagsWithSince(t *testing.T) {
+// TestValidateFlagsThreeWay tests ValidateFlags with all three parameters including since
+func TestValidateFlagsThreeWay(t *testing.T) {
 	tests := []struct {
 		name    string
 		epic    string
@@ -271,14 +271,14 @@ func TestValidateFlagsWithSince(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateFlagsWithSince(tt.epic, tt.spec, tt.since)
+			err := ValidateFlags(tt.epic, tt.spec, tt.since)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ValidateFlagsWithSince(%q, %q, %q) error = %v, wantErr %v", tt.epic, tt.spec, tt.since, err, tt.wantErr)
+				t.Errorf("ValidateFlags(%q, %q, %q) error = %v, wantErr %v", tt.epic, tt.spec, tt.since, err, tt.wantErr)
 				return
 			}
 			if tt.wantErr && err != nil && tt.errMsg != "" {
 				if !strings.Contains(err.Error(), tt.errMsg) {
-					t.Errorf("ValidateFlagsWithSince(%q, %q, %q) error = %q, want error containing %q", tt.epic, tt.spec, tt.since, err.Error(), tt.errMsg)
+					t.Errorf("ValidateFlags(%q, %q, %q) error = %q, want error containing %q", tt.epic, tt.spec, tt.since, err.Error(), tt.errMsg)
 				}
 			}
 		})
