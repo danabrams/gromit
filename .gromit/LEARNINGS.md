@@ -55,6 +55,12 @@ Agent selection and execution is abstracted via agent.Resolve() and agent.Launch
 ### 2026-02-09 | gromit-3be2 | patterns
 Agent selection and execution uses two-function pattern: agent.Resolve() handles priority-based selection (flag override > interactive picker > phase config > default), then agent.Launch() executes with the resolved agent. Use this pattern for all commands needing agent integration instead of inline Claude launch.
 
+### 2026-02-09 | gromit-pame | patterns
+Agent selection in CLI commands uses agent.Resolve() to handle both --agent flag and --choose-agent interactive prompt, returning a resolved agent name for Launch() invocation
+
+### 2026-02-09 | gromit-pame | conventions
+CLI command flags in review.go use package-level variables (reviewAgent, reviewChooseAgent) for direct access by sub-functions, avoiding cmd.Flags().GetString/GetBool calls and maintaining consistency with other flags in the file
+
 ---
 
 ## Archived
