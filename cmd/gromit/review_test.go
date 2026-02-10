@@ -2,7 +2,10 @@ package main
 
 import (
 	"strconv"
+	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/config"
 )
 
 // TestTimestampComparison verifies that Unix timestamp comparison is done numerically,
@@ -75,4 +78,78 @@ func TestTimestampComparison(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDetermineReviewScope_MutualExclusivity verifies that determineReviewScope
+// validates mutual exclusivity between --epic and --spec flags
+func TestDetermineReviewScope_MutualExclusivity(t *testing.T) {
+	cfg := &config.Config{}
+
+	// Save original flag values and restore them after test
+	origEpic := reviewEpic
+	origSpec := reviewSpec
+	origSince := reviewSince
+	defer func() {
+		reviewEpic = origEpic
+		reviewSpec = origSpec
+		reviewSince = origSince
+	}()
+
+	t.Run("both epic and spec set", func(t *testing.T) {
+		reviewEpic = "gromit-xyz"
+		reviewSpec = "init-wizard"
+		reviewSince = ""
+
+		_, err := determineReviewScope(cfg)
+		if err == nil {
+			t.Fatal("expected error when both --epic and --spec are set")
+		}
+
+		if !strings.Contains(err.Error(), "mutually exclusive") {
+			t.Errorf("error should mention mutual exclusivity, got: %v", err)
+		}
+	})
+
+	t.Run("only epic set", func(t *testing.T) {
+		reviewEpic = "gromit-xyz"
+		reviewSpec = ""
+		reviewSince = ""
+
+		// This will fail because we don't have a real epic, but it should
+		// not fail on mutual exclusivity
+		_, err := determineReviewScope(cfg)
+		if err != nil && strings.Contains(err.Error(), "mutually exclusive") {
+			t.Errorf("should not error on mutual exclusivity when only --epic is set, got: %v", err)
+		}
+	})
+
+	t.Run("only spec set", func(t *testing.T) {
+		reviewEpic = ""
+		reviewSpec = "init-wizard"
+		reviewSince = ""
+
+		// This will fail because we don't have a real spec, but it should
+		// not fail on mutual exclusivity
+		_, err := determineReviewScope(cfg)
+		if err != nil && strings.Contains(err.Error(), "mutually exclusive") {
+			t.Errorf("should not error on mutual exclusivity when only --spec is set, got: %v", err)
+		}
+	})
+
+	t.Run("since overrides without mutual exclusivity error", func(t *testing.T) {
+		reviewEpic = "gromit-xyz"
+		reviewSpec = "init-wizard"
+		reviewSince = "abc123"
+
+		// Even if both epic and spec are set, --since takes priority
+		// and should not trigger mutual exclusivity error
+		commit, err := determineReviewScope(cfg)
+		if err != nil {
+			t.Fatalf("should not error when --since is set (takes priority), got: %v", err)
+		}
+
+		if commit != "abc123" {
+			t.Errorf("expected commit abc123, got %s", commit)
+		}
+	})
 }

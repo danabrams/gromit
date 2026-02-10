@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -123,9 +124,19 @@ func runReview(cmd *cobra.Command, args []string) error {
 }
 
 func determineReviewScope(cfg *config.Config) (string, error) {
-	// Priority: --since flag > --epic flag > state file
+	// Priority: --since flag > --spec flag > --epic flag > state file
 	if reviewSince != "" {
 		return reviewSince, nil
+	}
+
+	// Validate mutual exclusivity of --epic and --spec
+	if err := scope.ValidateFlags(reviewEpic, reviewSpec); err != nil {
+		return "", err
+	}
+
+	if reviewSpec != "" {
+		// Find the earliest commit from beads in this spec
+		return getSpecBaseCommit(reviewSpec)
 	}
 
 	if reviewEpic != "" {
@@ -151,6 +162,54 @@ func determineReviewScope(cfg *config.Config) (string, error) {
 	}
 
 	return fromCommit, nil
+}
+
+func getSpecBaseCommit(specName string) (string, error) {
+	// Get the spec label
+	labels := scope.ResolveSpec(specName)
+	if len(labels) == 0 {
+		return "", fmt.Errorf("no label found for spec %q", specName)
+	}
+
+	// Get all beads with this label
+	beadsClient, err := bead.NewClient()
+	if err != nil {
+		return "", fmt.Errorf("creating bead client: %w", err)
+	}
+
+	beadsWithLabel, err := beadsClient.ListWithLabel(labels[0])
+	if err != nil {
+		return "", fmt.Errorf("listing beads with label %q: %w", labels[0], err)
+	}
+
+	if len(beadsWithLabel) == 0 {
+		return "", fmt.Errorf("no beads found for spec %q - try using --since to specify a commit", specName)
+	}
+
+	// Find the earliest commit from these beads
+	earliestCommit := ""
+	for _, b := range beadsWithLabel {
+		commit, err := findFirstCommitForBead(b.ID)
+		if err != nil {
+			// Skip beads that don't have commits
+			continue
+		}
+		if commit != "" {
+			if earliestCommit == "" {
+				earliestCommit = commit
+			} else {
+				if isCommitEarlier(commit, earliestCommit) {
+					earliestCommit = commit
+				}
+			}
+		}
+	}
+
+	if earliestCommit != "" {
+		return earliestCommit, nil
+	}
+
+	return "", fmt.Errorf("no commits found for spec %q - try using --since to specify a commit", specName)
 }
 
 func getEpicBaseCommit(epicID string) (string, error) {
