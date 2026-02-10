@@ -41,29 +41,6 @@ type Runner struct {
 	labelFilters []string                     // optional spec labels to filter beads
 }
 
-// claudeRunnerAdapter adapts claude.Client to learnings.ClaudeRunner interface
-type claudeRunnerAdapter struct {
-	client *claude.Client
-}
-
-// Run implements learnings.ClaudeRunner interface
-func (a *claudeRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
-	if a == nil || a.client == nil {
-		return nil, fmt.Errorf("adapter or client is nil")
-	}
-	result, err := a.client.Run(ctx, prompt, model)
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		return nil, fmt.Errorf("claude returned nil result")
-	}
-	// Adapt claude.Result to learnings.Result
-	return &learnings.Result{
-		Success: result.Success,
-		Output:  result.Output,
-	}, nil
-}
 
 // NewRunner creates a new runner
 func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
@@ -101,10 +78,8 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	lf := renderer.GetLearningsFile()
 	if lf != nil {
 		// Create adapter for claude.Client to match learnings.ClaudeRunner interface
-		adapter := &claudeRunnerAdapter{client: claudeClient}
-		projectName := "gromit"
-		projectDesc := "A Go CLI tool that runs the Gromit loop correctly"
-		lf.SetFilter(learnings.NewLLMFilter(adapter, projectName, projectDesc))
+		claudeRunnerAdapter := learnings.NewClaudeRunnerAdapter(claudeClient)
+		lf.SetFilter(learnings.NewLLMFilter(claudeRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
 	}
 
 	beadsClient, err := bead.NewClient()
