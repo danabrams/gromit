@@ -27,15 +27,15 @@ func setupLabelFilterTest(t *testing.T, opts labelFilterTestOpts) (*Runner, *lab
 
 	state := &labelFilterTestState{}
 
-	mock := &MockBeadClientWithLabel{
-		ReadyWithLabelFunc: func(label string) (*bead.Bead, error) {
+	mock := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
 			state.ReadyWithLabelCalls = append(state.ReadyWithLabelCalls, label)
 			if opts.readyWithLabelFunc != nil {
 				return opts.readyWithLabelFunc(label)
 			}
 			return nil, nil
 		},
-		ReadyFunc: func() (*bead.Bead, error) {
+		ReadyFn: func() (*bead.Bead, error) {
 			state.ReadyCalled = true
 			if opts.readyFunc != nil {
 				return opts.readyFunc()
@@ -101,16 +101,6 @@ func TestRunner_GetNextBead_LabelFiltering(t *testing.T) {
 	}{
 		{
 			name:         "no filters uses Ready",
-			labelFilters: []string{},
-			readyFunc: func() (*bead.Bead, error) {
-				return authBead, nil
-			},
-			wantBeadID:      "auth-001",
-			wantReadyCalled: true,
-			wantLabelCalls:  nil,
-		},
-		{
-			name:         "empty filter list uses Ready",
 			labelFilters: []string{},
 			readyFunc: func() (*bead.Bead, error) {
 				return authBead, nil

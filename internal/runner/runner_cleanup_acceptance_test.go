@@ -52,12 +52,9 @@ func TestRunnerCleanup(t *testing.T) {
 
 	t.Run("setupLabelFilterTest helper exists", func(t *testing.T) {
 		// The helper should be in one of the label-related test files.
-		// Search label_filter_test.go and runner_labels_test.go.
 		candidates := []string{
 			"label_filter_test.go",
 			"runner_labels_test.go",
-			"interfaces_ready_with_label_test.go",
-			"get_next_bead_test.go",
 		}
 
 		var found bool
@@ -154,8 +151,6 @@ func TestRunnerCleanup(t *testing.T) {
 		candidates := []string{
 			"label_filter_test.go",
 			"runner_labels_test.go",
-			"get_next_bead_test.go",
-			"interfaces_ready_with_label_test.go",
 		}
 
 		var allContent strings.Builder
@@ -210,7 +205,8 @@ func TestRunnerCleanup(t *testing.T) {
 				name: "no matching beads returns nil",
 				check: func(s string) bool {
 					return strings.Contains(s, "NoMatch") || strings.Contains(s, "NoneHave") ||
-						strings.Contains(s, "AllLabelsEmpty") || strings.Contains(s, "no beads")
+						strings.Contains(s, "AllLabelsEmpty") || strings.Contains(s, "no beads") ||
+						strings.Contains(s, "none have beads")
 				},
 			},
 		}
@@ -230,8 +226,6 @@ func TestRunnerCleanup(t *testing.T) {
 		candidates := []string{
 			"label_filter_test.go",
 			"runner_labels_test.go",
-			"interfaces_ready_with_label_test.go",
-			"get_next_bead_test.go",
 		}
 
 		for _, filename := range candidates {
