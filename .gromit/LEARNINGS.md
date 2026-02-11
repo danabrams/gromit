@@ -107,6 +107,12 @@ State struct fields require both JSON tags and explicit initialization in Normal
 ### 2026-02-11 | gromit-6pvd | gotchas
 When adding multiple related state fields and helper methods to the State struct, initialize maps in NormalizeNilFields() to prevent nil pointer dereferences when accessing map fields
 
+### 2026-02-11 | gromit-qz0m | patterns
+Router struct initialization requires NewRouter constructor to properly set up the stateFn callback and initialize empty maps, preventing nil pointer dereferences in Select() method calls
+
+### 2026-02-11 | gromit-qz0m | gotchas
+Calling provider.Run() with nil credentials and empty prompt purely to extract model names is fragile—consider adding a ModelForTier() method to the Provider interface instead of side-effect-laden extraction
+
 ---
 
 ## Archived
