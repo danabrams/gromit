@@ -64,3 +64,33 @@ func TestClaudeProviderNameMethod(t *testing.T) {
 		t.Errorf("Name() = %q, want %q", name, "claude")
 	}
 }
+
+// TestNewClaudeProviderConstructor verifies that NewClaudeProvider constructor
+// creates a ClaudeProvider with the provided client and tier-to-model mapping.
+// Expected failure: NewClaudeProvider() function does not exist yet
+func TestNewClaudeProviderConstructor(t *testing.T) {
+	mockClient := &claude.Client{}
+	tierMap := map[string]string{
+		TierHigh:   "opus",
+		TierMedium: "sonnet",
+		TierLow:    "haiku",
+	}
+
+	cp := NewClaudeProvider(mockClient, tierMap)
+
+	if cp == nil {
+		t.Fatal("NewClaudeProvider() returned nil")
+	}
+
+	if cp.client != mockClient {
+		t.Error("ClaudeProvider.client not set correctly")
+	}
+
+	if cp.tierToModel == nil {
+		t.Error("ClaudeProvider.tierToModel is nil")
+	}
+
+	if cp.tierToModel[TierHigh] != "opus" {
+		t.Errorf("tierToModel[TierHigh] = %q, want %q", cp.tierToModel[TierHigh], "opus")
+	}
+}
