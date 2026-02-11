@@ -137,13 +137,25 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	// Wrap output in synchronized writer for thread-safe writes
 	syncOut := newSyncWriter(output)
 
+	// Create logger if not provided and Logs path is configured
+	iterLogger := deps.Logger
+	if iterLogger == nil && cfg.Paths.Logs != "" {
+		log, err := logger.NewLogger(cfg.Paths.Logs)
+		if err != nil {
+			// Log warning but continue - logging is optional
+			fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
+		} else {
+			iterLogger = log
+		}
+	}
+
 	return &Runner{
 		cfg:       cfg,
 		beads:     deps.Beads,
 		claude:    deps.Claude,
 		analyzer:  deps.Analyzer,
 		renderer:  deps.Renderer,
-		logger:    deps.Logger,
+		logger:    iterLogger,
 		output:    syncOut,
 		syncOut:   syncOut,
 		gromitDir: gromitDir,
@@ -571,6 +583,11 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	r.log("\nGromit loop complete. Processed %d iterations.", iteration)
+
+	// Update global stats if at least one iteration processed
+	if iteration > 0 && r.logger != nil {
+		r.updateGlobalStats()
+	}
 
 	// Set final iteration count for deferred status write
 	finalIteration = &iteration
@@ -2024,4 +2041,35 @@ func (r *Runner) getNextBead() (*bead.Bead, error) {
 	}
 
 	return highestPriority, nil
+}
+
+// updateGlobalStats reads current run's model stats and merges them into ~/.gromit/stats.json
+func (r *Runner) updateGlobalStats() {
+	// Get current run ID from logger
+	runID := r.logger.RunID()
+	if runID == "" {
+		r.log("Warning: could not determine run ID for global stats update")
+		return
+	}
+
+	// Read model stats for current run
+	runStats, err := logger.ReadRunModelStats(r.cfg.Paths.Logs, runID)
+	if err != nil {
+		r.log("Warning: could not read run model stats for global stats update: %v", err)
+		return
+	}
+
+	// Resolve global stats path using user home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		r.log("Warning: could not determine user home directory for global stats: %v", err)
+		return
+	}
+	globalStatsPath := filepath.Join(homeDir, ".gromit", "stats.json")
+
+	// Update global stats
+	if err := logger.UpdateGlobalStats(globalStatsPath, runStats); err != nil {
+		r.log("Warning: could not update global stats: %v", err)
+		return
+	}
 }

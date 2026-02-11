@@ -81,7 +81,7 @@ Atomic file updates in logger package follow read-modify-write with temp-file-th
 All format functions return single strings with embedded newlines (built by appending to []string and joining). Handle nil/empty inputs with early returns showing '(no data)'. Use 2-space indentation for all sub-items and consistent section headers like 'Section Name:' followed by indented details.
 
 ### 2026-02-11 | gromit-w0en | patterns
-Formatter functions should accept value types (map[string]T) rather than pointer types (map[string]*T) when all data is read-only. This eliminates unnecessary allocations at call sites and simplifies the formatter logic since value types don't need nil checks within the loop
+When passing read-only data structures between functions, convert value types to pointer types at the call site (not in the return type) to allow formatters to handle both nil and zero-initialized cases uniformly
 
 ---
 
@@ -794,6 +794,11 @@ Cobra commands follow a consistent pattern: define flags at package level with v
 
 ### 2026-02-11 | gromit-nrzg | patterns
 When formatting output with multiple conditional sections, extract each section (calculations, visibility checks, formatting) into dedicated helper functions—this reduces duplication when the same components appear across different output modes or stat types (e.g., printModelLine handles all model stats formatting, printEscalations handles conditional escalation display)
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-w0en | patterns
+When wiring new data into Status() output sections, accept value types (not pointers) in formatting functions to avoid allocation overhead on every call; Reader functions should log warnings but continue on error since display is informational
 
 *Archived from new: filtered: generic engineering advice*
 

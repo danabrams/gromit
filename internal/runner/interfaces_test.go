@@ -353,6 +353,10 @@ func (m *mockIterationLogger) FilePath() string {
 	return "/mock/logs/run-test.jsonl"
 }
 
+func (m *mockIterationLogger) RunID() string {
+	return "test-run"
+}
+
 // mockRenderer is a minimal PromptRenderer used in nil-check and simple
 // validation tests where actual rendering behavior doesn't matter.
 type mockRenderer struct{}

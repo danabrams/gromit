@@ -75,4 +75,5 @@ type IterationLogger interface {
 	LogReview(log *logger.ReviewLog) error
 	Close() error
 	FilePath() string
+	RunID() string
 }
