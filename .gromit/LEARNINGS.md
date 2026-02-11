@@ -86,6 +86,9 @@ When passing read-only data structures between functions, convert value types to
 ### 2026-02-11 | gromit-zyc8 | patterns
 Spike tasks document CLI mechanics and behavior in markdown files (FINDINGS.md) that serve as reference for future implementation tasks; acceptance tests verify the documented behavior matches reality
 
+### 2026-02-11 | gromit-7oob | patterns
+Mapping functions in provider package use local map lookups with case-insensitive matching (strings.ToLower) and pass-through returns for unrecognized values to maintain forward compatibility with new model names
+
 ---
 
 ## Archived
@@ -822,6 +825,11 @@ Spike tasks should validate CLI mechanics empirically by executing actual comman
 
 ### 2026-02-11 | gromit-vujh | patterns
 Define interfaces for external service integrations in a separate provider package to enable clean dependency injection and testing with mock implementations
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-vujh | patterns
+Internal packages define their own interfaces and types rather than importing from external packages - each package is self-contained with explicit handler type definitions that match external signatures rather than reusing them
 
 *Archived from new: filtered: generic engineering advice*
 

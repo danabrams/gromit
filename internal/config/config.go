@@ -3,7 +3,9 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/danabrams/gromit/internal/provider"
 	"gopkg.in/yaml.v3"
 )
 
@@ -348,6 +350,51 @@ func (c *Config) SetDefaults() {
 	}
 }
 
+// IsTierName returns true if the string is a valid tier name (high, medium, low).
+// Case-insensitive comparison handles config variations like "High", "MEDIUM", etc.
+func (c *Config) IsTierName(s string) bool {
+	switch strings.ToLower(s) {
+	case "high", "medium", "low":
+		return true
+	default:
+		return false
+	}
+}
+
+// SelectTier determines the appropriate tier for a bead based on priority and labels.
+// Returns abstract tier names (high, medium, low) instead of provider-specific model names.
+// For backward compatibility, auto-maps legacy model names via TierFromLegacyModel when
+// config contains model names instead of tier names.
+func (c *Config) SelectTier(priority int, labels []string) string {
+	if c == nil {
+		return provider.TierMedium
+	}
+
+	// Check label overrides first (higher precedence)
+	for _, label := range labels {
+		if value, ok := c.Models.Labels[label]; ok {
+			// Auto-map legacy model names to tiers
+			return provider.TierFromLegacyModel(value)
+		}
+	}
+
+	// Fall back to priority-based selection
+	var value string
+	switch priority {
+	case 0:
+		value = c.Models.P0
+	case 1:
+		value = c.Models.P1
+	case 2:
+		value = c.Models.P2
+	default:
+		value = c.Models.P1 // Default to medium tier for unknown priorities
+	}
+
+	// Auto-map legacy model names to tiers
+	return provider.TierFromLegacyModel(value)
+}
+
 // SelectModel determines the appropriate model for a bead based on priority and labels
 func (c *Config) SelectModel(priority int, labels []string) string {
 	if c == nil {
@@ -371,6 +418,31 @@ func (c *Config) SelectModel(priority int, labels []string) string {
 	default:
 		return c.Models.P1 // Default to sonnet for unknown priorities
 	}
+}
+
+// NextEscalationTier returns the next tier in the escalation chain, or empty if at end.
+// For backward compatibility, auto-maps legacy model names in the chain and input to tiers.
+func (c *Config) NextEscalationTier(currentTier string) string {
+	if c == nil {
+		return ""
+	}
+	if !c.Escalation.Enabled {
+		return ""
+	}
+
+	// Auto-map the current tier if it's a legacy model name
+	mappedCurrentTier := provider.TierFromLegacyModel(currentTier)
+
+	for i, chainEntry := range c.Escalation.Chain {
+		// Auto-map chain entry if it's a legacy model name
+		mappedChainEntry := provider.TierFromLegacyModel(chainEntry)
+
+		if mappedChainEntry == mappedCurrentTier && i+1 < len(c.Escalation.Chain) {
+			// Return the next entry, also mapped
+			return provider.TierFromLegacyModel(c.Escalation.Chain[i+1])
+		}
+	}
+	return ""
 }
 
 // NextEscalationModel returns the next model in the escalation chain, or empty if at end
