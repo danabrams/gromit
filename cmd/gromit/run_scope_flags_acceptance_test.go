@@ -3,22 +3,49 @@
 package main
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 )
 
+// TestRunCommand_SpecFlagExists verifies that the run command has a --spec flag.
+//
+// Expected failure: runCmd.Flags() does not include "spec" flag because the flag
+// is not registered in init() with runCmd.Flags().StringVar(&runSpecFlag, "spec", "", "...")
+func TestRunCommand_SpecFlagExists(t *testing.T) {
+	specFlag := runCmd.Flags().Lookup("spec")
+	if specFlag == nil {
+		t.Fatal("run command should have --spec flag")
+	}
+	if specFlag.Value.Type() != "string" {
+		t.Errorf("--spec flag should be string type, got %s", specFlag.Value.Type())
+	}
+}
+
+// TestRunCommand_EpicFlagExists verifies that the run command has an --epic flag.
+//
+// Expected failure: runCmd.Flags() does not include "epic" flag because the flag
+// is not registered in init() with runCmd.Flags().StringVar(&runEpicFlag, "epic", "", "...")
+func TestRunCommand_EpicFlagExists(t *testing.T) {
+	epicFlag := runCmd.Flags().Lookup("epic")
+	if epicFlag == nil {
+		t.Fatal("run command should have --epic flag")
+	}
+	if epicFlag.Value.Type() != "string" {
+		t.Errorf("--epic flag should be string type, got %s", epicFlag.Value.Type())
+	}
+}
+
 // TestRunCommand_SpecFlagFiltersBeads verifies that --spec flag only processes beads
 // with the matching spec label, not all beads.
 //
-// Expected failure: runLoop does not call scope.ValidateSpec, scope.ResolveSpec,
-// or runner.SetLabelFilters, so all beads will be processed regardless of --spec flag.
+// Expected failure: Package variable runSpecFlag does not exist, and runLoop() does not
+// call scope.ValidateFlags(), scope.ResolveSpec(), or runner.SetLabelFilters().
+// Without this logic, all ready beads are processed regardless of the flag value.
 func TestRunCommand_SpecFlagFiltersBeads(t *testing.T) {
 	// Set up test environment
 	tempDir := t.TempDir()
@@ -62,9 +89,6 @@ func TestRunCommand_SpecFlagFiltersBeads(t *testing.T) {
 	dryRun = true
 	defer func() { dryRun = false }()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Capture what bead would be processed
 	err = runLoop(runCmd, []string{})
 
@@ -93,8 +117,9 @@ func TestRunCommand_SpecFlagFiltersBeads(t *testing.T) {
 // TestRunCommand_EpicFlagFiltersToMultipleSpecs verifies that --epic flag resolves
 // to all specs in that epic and only processes beads with those spec labels.
 //
-// Expected failure: runLoop does not call scope.ResolveEpic or runner.SetLabelFilters,
-// so all beads will be processed regardless of --epic flag.
+// Expected failure: Package variable runEpicFlag does not exist, and runLoop() does not
+// call scope.ValidateFlags(), scope.ResolveEpic(), or runner.SetLabelFilters().
+// Without this logic, all ready beads are processed regardless of the flag value.
 func TestRunCommand_EpicFlagFiltersToMultipleSpecs(t *testing.T) {
 	tempDir := t.TempDir()
 	gromitDir := setupFullGromitEnv(t, tempDir)
@@ -131,9 +156,6 @@ func TestRunCommand_EpicFlagFiltersToMultipleSpecs(t *testing.T) {
 	dryRun = true
 	defer func() { dryRun = false }()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	err = runLoop(runCmd, []string{})
 
 	// The key behavioral test: With --epic epic-100, the runner should resolve to
@@ -153,8 +175,9 @@ func TestRunCommand_EpicFlagFiltersToMultipleSpecs(t *testing.T) {
 // TestRunCommand_SpecAndEpicFlagsMutuallyExclusive verifies that using both
 // --spec and --epic flags returns an error.
 //
-// Expected failure: runLoop does not call scope.ValidateFlags, so both flags
-// can be set without error.
+// Expected failure: Package variables runSpecFlag and runEpicFlag do not exist, and
+// runLoop() does not call scope.ValidateFlags(runEpicFlag, runSpecFlag).
+// Without validation, both flags can be set simultaneously without error.
 func TestRunCommand_SpecAndEpicFlagsMutuallyExclusive(t *testing.T) {
 	tempDir := t.TempDir()
 	setupFullGromitEnv(t, tempDir)
@@ -183,8 +206,9 @@ func TestRunCommand_SpecAndEpicFlagsMutuallyExclusive(t *testing.T) {
 // TestRunCommand_SpecFlagValidatesSpecExists verifies that --spec flag validates
 // the spec file exists before proceeding.
 //
-// Expected failure: runLoop does not call scope.ValidateSpec, so nonexistent spec
-// names are accepted and only fail later with unhelpful errors.
+// Expected failure: Package variable runSpecFlag does not exist, and runLoop() does not
+// call scope.ValidateSpec(specsDir, runSpecFlag). Without validation, nonexistent spec
+// names are accepted and only fail later with unhelpful "no beads found" errors.
 func TestRunCommand_SpecFlagValidatesSpecExists(t *testing.T) {
 	tempDir := t.TempDir()
 	gromitDir := setupFullGromitEnv(t, tempDir)
@@ -219,8 +243,9 @@ func TestRunCommand_SpecFlagValidatesSpecExists(t *testing.T) {
 // TestRunCommand_NoFlagsProcessesAllBeads verifies that without --spec or --epic,
 // the runner processes all ready beads (existing behavior continues to work).
 //
-// Expected failure: This is a regression test. After implementation, we need to verify
-// that the default behavior (no flags = no filtering) still works correctly.
+// Expected failure: Package variables runSpecFlag and runEpicFlag do not exist yet.
+// This is a regression test - after implementation, the code must check if labelFilters
+// is empty before calling runner.SetLabelFilters(), ensuring default behavior is preserved.
 func TestRunCommand_NoFlagsProcessesAllBeads(t *testing.T) {
 	tempDir := t.TempDir()
 	gromitDir := setupFullGromitEnv(t, tempDir)
@@ -249,9 +274,6 @@ func TestRunCommand_NoFlagsProcessesAllBeads(t *testing.T) {
 	dryRun = true
 	defer func() { dryRun = false }()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	err = runLoop(runCmd, []string{})
 
 	// Current behavior: client.Ready() returns all ready beads
@@ -266,7 +288,8 @@ func TestRunCommand_NoFlagsProcessesAllBeads(t *testing.T) {
 // TestRunCommand_HelpTextDocumentsSpecFlag verifies that the run command help
 // documents the --spec flag and explains its filtering behavior.
 //
-// Expected failure: runCmd.Long does not document --spec flag yet.
+// Expected failure: runCmd.Long does not mention "--spec" or explain filtering/scoping
+// behavior because the help text has not been updated to document the new flag.
 func TestRunCommand_HelpTextDocumentsSpecFlag(t *testing.T) {
 	helpText := runCmd.Long
 
@@ -284,7 +307,8 @@ func TestRunCommand_HelpTextDocumentsSpecFlag(t *testing.T) {
 // TestRunCommand_HelpTextDocumentsEpicFlag verifies that the run command help
 // documents the --epic flag and explains its filtering behavior.
 //
-// Expected failure: runCmd.Long does not document --epic flag yet.
+// Expected failure: runCmd.Long does not mention "--epic" or explain filtering/scoping
+// behavior because the help text has not been updated to document the new flag.
 func TestRunCommand_HelpTextDocumentsEpicFlag(t *testing.T) {
 	helpText := runCmd.Long
 
@@ -302,7 +326,8 @@ func TestRunCommand_HelpTextDocumentsEpicFlag(t *testing.T) {
 // TestRunCommand_HelpTextDocumentsMutualExclusivity verifies that the help text
 // explains that --spec and --epic are mutually exclusive.
 //
-// Expected failure: runCmd.Long does not document mutual exclusivity yet.
+// Expected failure: runCmd.Long does not contain the phrase "mutually exclusive"
+// because the help text has not been updated to document flag interaction rules.
 func TestRunCommand_HelpTextDocumentsMutualExclusivity(t *testing.T) {
 	helpText := runCmd.Long
 
@@ -317,7 +342,32 @@ func TestRunCommand_HelpTextDocumentsMutualExclusivity(t *testing.T) {
 // Returns the gromitDir path.
 func setupFullGromitEnv(t *testing.T, tempDir string) string {
 	t.Helper()
-	return setupMinimalGromitConfig(t, tempDir)
+	gromitDir := filepath.Join(tempDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	cfgPath := filepath.Join(tempDir, "gromit.yaml")
+	configContent := `models:
+  p0: claude-opus-4
+  p1: claude-sonnet-3-5
+  p2: claude-haiku-3
+  validation: claude-haiku-3
+
+paths:
+  gromit_dir: .gromit
+  templates: .gromit/templates
+  specs: .gromit/specs
+`
+	if err := os.WriteFile(cfgPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	// Update global configPath for test
+	configPath = cfgPath
+
+	return gromitDir
 }
 
 // setupBeadClient initializes a bead client for the test directory.
