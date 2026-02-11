@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/jsonutil"
 )
@@ -2389,6 +2390,19 @@ func parseBeadCount(out string) (int, error) {
 	}
 
 	return len(beads), nil
+}
+
+// TestCountClosedAfterNilClient tests that CountClosedAfter returns error on nil client
+func TestCountClosedAfterNilClient(t *testing.T) {
+	var c *Client
+	after := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	_, err := c.CountClosedAfter(after)
+	if err == nil {
+		t.Fatal("CountClosedAfter() on nil client expected error but got nil")
+	}
+	if !strings.Contains(err.Error(), "nil") {
+		t.Errorf("CountClosedAfter() on nil client should mention nil, got: %v", err)
+	}
 }
 
 // TestCountByStatusNilClient tests that CountByStatus returns error on nil client

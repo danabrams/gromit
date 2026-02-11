@@ -259,6 +259,31 @@ func (c *Client) CountByStatus(status string) (int, error) {
 	return len(beads), nil
 }
 
+// CountClosedAfter returns the count of beads closed after the specified time
+func (c *Client) CountClosedAfter(after time.Time) (int, error) {
+	if c == nil {
+		return 0, fmt.Errorf("bead client is nil")
+	}
+	// Format time for bd CLI (RFC3339 format)
+	afterStr := after.Format(time.RFC3339)
+	// Fetch all closed beads after the specified time (limit 0 = no limit)
+	out, err := c.run("list", "--json", "--status", "closed", "--closed-after", afterStr, "--limit", "0")
+	if err != nil {
+		return 0, fmt.Errorf("bd list: %w", err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return 0, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return 0, fmt.Errorf("parsing bd list output: %w", err)
+	}
+
+	return len(beads), nil
+}
+
 // ListReadyIDs returns a slice of ready bead IDs (from a batch of 10)
 func (c *Client) ListReadyIDs() ([]string, error) {
 	if c == nil {
