@@ -89,6 +89,9 @@ Spike tasks document CLI mechanics and behavior in markdown files (FINDINGS.md) 
 ### 2026-02-11 | gromit-7oob | patterns
 Mapping functions in provider package use local map lookups with case-insensitive matching (strings.ToLower) and pass-through returns for unrecognized values to maintain forward compatibility with new model names
 
+### 2026-02-11 | gromit-cz7a | patterns
+Backward compatibility logic should be delegated to a dedicated mapping function in the domain package (e.g., TierFromLegacyModel in provider/), not embedded in the selector methods. This keeps selection logic clean and reusable across multiple methods (SelectTier, NextEscalationTier, IsTierName).
+
 ---
 
 ## Archived
@@ -830,6 +833,11 @@ Define interfaces for external service integrations in a separate provider packa
 
 ### 2026-02-11 | gromit-vujh | patterns
 Internal packages define their own interfaces and types rather than importing from external packages - each package is self-contained with explicit handler type definitions that match external signatures rather than reusing them
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-cz7a | gotchas
+When a task shows 'passed' validation but the error output is a generic confirmation message, verify actual task completion by checking git commits and test results rather than interpreting the message as a failure. This avoids false-positive failure analysis.
 
 *Archived from new: filtered: generic engineering advice*
 

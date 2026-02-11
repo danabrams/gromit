@@ -17,20 +17,22 @@ const (
 )
 
 type Config struct {
-	Models      ModelsConfig      `yaml:"models"`
-	Escalation  EscalationConfig  `yaml:"escalation"`
-	Loop        LoopConfig        `yaml:"loop"`
-	Validation  ValidationConfig  `yaml:"validation"`
-	ScopeCheck  ScopeCheckConfig  `yaml:"scope_check"`
-	Precheck    PrecheckConfig    `yaml:"precheck"`
-	Preflight   PreflightConfig   `yaml:"preflight"`
-	Claude      ClaudeConfig      `yaml:"claude"`
-	Paths       PathsConfig       `yaml:"paths"`
-	Review      ReviewConfig      `yaml:"review"`
-	Methodology MethodologyConfig `yaml:"methodology"`
-	Git         GitConfig         `yaml:"git"`
-	State       StateConfig       `yaml:"state"`
-	Agents      AgentsConfig      `yaml:"agents"`
+	Models      ModelsConfig         `yaml:"models"`
+	Escalation  EscalationConfig     `yaml:"escalation"`
+	Loop        LoopConfig           `yaml:"loop"`
+	Validation  ValidationConfig     `yaml:"validation"`
+	ScopeCheck  ScopeCheckConfig     `yaml:"scope_check"`
+	Precheck    PrecheckConfig       `yaml:"precheck"`
+	Preflight   PreflightConfig      `yaml:"preflight"`
+	Claude      ClaudeConfig         `yaml:"claude"`
+	Paths       PathsConfig          `yaml:"paths"`
+	Review      ReviewConfig         `yaml:"review"`
+	Methodology MethodologyConfig    `yaml:"methodology"`
+	Git         GitConfig            `yaml:"git"`
+	State       StateConfig          `yaml:"state"`
+	Agents      AgentsConfig         `yaml:"agents"`
+	Providers   map[string]ProviderDef `yaml:"providers"`
+	Routing     RoutingConfig        `yaml:"routing"`
 }
 
 type ModelsConfig struct {
@@ -157,6 +159,25 @@ type PhasesConfig struct {
 	Explore string `yaml:"explore"`
 }
 
+type ProviderDef struct {
+	Binary         string            `yaml:"binary"`
+	Flags          []string          `yaml:"flags"`
+	PromptDelivery string            `yaml:"prompt_delivery"`
+	PromptFlag     string            `yaml:"prompt_flag"`
+	Models         map[string]string `yaml:"models"`
+}
+
+type RoutingConfig struct {
+	PhasePreferences map[string]string `yaml:"phase_preferences"`
+	Ratio            map[string]int    `yaml:"ratio"`
+	Fallback         FallbackConfig    `yaml:"fallback"`
+}
+
+type FallbackConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Cooldown string `yaml:"cooldown"`
+}
+
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -203,6 +224,23 @@ func (c *Config) NormalizeNilFields() {
 			def.Flags = []string{}
 			c.Agents.Definitions[name] = def
 		}
+	}
+	// Normalize Providers fields
+	for name, def := range c.Providers {
+		if def.Flags == nil {
+			def.Flags = []string{}
+		}
+		if def.Models == nil {
+			def.Models = make(map[string]string)
+		}
+		c.Providers[name] = def
+	}
+	// Normalize Routing fields
+	if c.Routing.PhasePreferences == nil {
+		c.Routing.PhasePreferences = make(map[string]string)
+	}
+	if c.Routing.Ratio == nil {
+		c.Routing.Ratio = make(map[string]int)
 	}
 }
 
@@ -533,4 +571,9 @@ func (s ScopeCheckConfig) ShouldBlockOversized() bool {
 		return true
 	}
 	return *s.BlockOversized
+}
+
+// HasProviders returns true when providers section is non-empty
+func (c *Config) HasProviders() bool {
+	return len(c.Providers) > 0
 }
