@@ -15,6 +15,43 @@ func ResolveSpec(specName string) []string {
 	return []string{fmt.Sprintf("spec:%s", specName)}
 }
 
+// ValidateSpec checks if a spec file exists at <specsDir>/<specName>.md.
+// If the file doesn't exist, it returns an error listing available spec names.
+// Returns nil if the spec file exists.
+func ValidateSpec(specsDir, specName string) error {
+	// Check if the spec file exists
+	specPath := filepath.Join(specsDir, specName+".md")
+	if _, err := os.Stat(specPath); err == nil {
+		return nil // Spec exists
+	}
+
+	// Spec doesn't exist - read directory to list available specs
+	entries, err := os.ReadDir(specsDir)
+	if err != nil {
+		// Directory doesn't exist or can't be read
+		return fmt.Errorf("spec %q not found: %w", specName, err)
+	}
+
+	// Collect available .md file names (without extension)
+	var availableSpecs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), ".md") {
+			specNameWithoutExt := strings.TrimSuffix(entry.Name(), ".md")
+			availableSpecs = append(availableSpecs, specNameWithoutExt)
+		}
+	}
+
+	// Build error message
+	if len(availableSpecs) == 0 {
+		return fmt.Errorf("spec %q not found: no specs available in %s", specName, specsDir)
+	}
+
+	return fmt.Errorf("spec %q not found. Available specs: %s", specName, strings.Join(availableSpecs, ", "))
+}
+
 // ValidateFlags returns an error when more than one of epic, spec, or since flags are set.
 // It considers trimmed values to handle whitespace-only inputs.
 // When called with two arguments, since is treated as empty for backward compatibility.
