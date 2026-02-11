@@ -1,8 +1,9 @@
 ---
+created: 2026-02-11T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-11T09:27:33-05:00"
 id: multi-provider-routing
 source_spec: multi-provider-routing
-created: 2026-02-11
-decomposed: false
 ---
 
 # Multi-Provider Routing Implementation Plan

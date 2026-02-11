@@ -87,13 +87,14 @@ Table-driven tests for `Check()` covering:
 
 ## Implementation Tasks
 
-### Task 1: Create core detection logic
+### Task 1: Create usage limit detection package with core logic and tests (`gromit-g7oi`)
 
 **Files:**
 - Create: `internal/usagelimit/detect.go`
+- Create: `internal/usagelimit/detect_test.go`
 
 **What to Do:**
-Define `Signals` struct with `ExitCode int`, `Output string`, `RateLimitHits int`. Define `Patterns` struct with `Keywords []string`. Implement `Check(signals Signals, patterns Patterns) bool` with two detection paths: (1) non-zero exit AND case-insensitive keyword substring match in Output, (2) non-zero exit AND RateLimitHits > 0. Add `ClaudePatterns()` returning keywords from spec. Add `CodexPatterns()` returning same keyword set (to be refined with empirical data).
+Define `Signals` struct with `ExitCode int`, `Output string`, `RateLimitHits int`. Define `Patterns` struct with `Keywords []string`. Implement `Check(signals Signals, patterns Patterns) bool` with two detection paths: (1) non-zero exit AND case-insensitive keyword substring match in Output, (2) non-zero exit AND RateLimitHits > 0. Add `ClaudePatterns()` returning keywords from spec. Add `CodexPatterns()` returning same keyword set (to be refined with empirical data). Include table-driven tests with `t.Run` subtests covering all heuristic keywords, both detection paths, false positive prevention (test failures, build errors, lint output), case insensitivity, edge cases (empty output, zero hits), and combined signals.
 
 **Acceptance Criteria:**
 - `Check` returns true when exit code is non-zero AND output contains a keyword (case-insensitive)
@@ -102,29 +103,14 @@ Define `Signals` struct with `ExitCode int`, `Output string`, `RateLimitHits int
 
 **Dependencies:** None
 
-### Task 2: Add comprehensive unit tests
-
-**Files:**
-- Create: `internal/usagelimit/detect_test.go`
-
-**What to Do:**
-Table-driven tests with `t.Run` subtests covering all heuristic keywords, both detection paths, false positive prevention (test failures, build errors, lint output), case insensitivity, edge cases (empty output, zero hits), and combined signals. Follow existing test patterns in the codebase.
-
-**Acceptance Criteria:**
-- Every keyword in the heuristic list has a passing test case
-- False positive cases (normal test/build/lint failures) return false
-- Both detection paths (keyword match, RateLimitHits) tested independently
-
-**Dependencies:** Task 1
-
-### Task 3: Wire into runner and logger
+### Task 2: Wire usage limit detection into runner and logger (`gromit-qj2a`)
 
 **Files:**
 - Modify: `internal/runner/runner.go` — add `UsageLimited bool` to `IterationResult`, add usage-limit check in `executeWithRetry()`
 - Modify: `internal/logger/logger.go` — add `UsageLimited bool` to `IterationLog`
 
 **What to Do:**
-In `executeWithRetry()`, after checking `claudeResult.Success` is false and before `analyzeAndHandleFailure()`, construct `usagelimit.Signals` from the result and stream stats, call `usagelimit.Check()` with `ClaudePatterns()`. If true, set `bc.result.UsageLimited = true`, set `bc.result.Error` to a descriptive message, log a warning, and return false. Add `UsageLimited bool` to `IterationResult` and `IterationLog`. In `writeIterationLog()`, propagate the field.
+Add `UsageLimited bool` field to `IterationResult` and `IterationLog`. In `executeWithRetry()`, after checking `claudeResult.Success` is false and before `analyzeAndHandleFailure()`, construct `usagelimit.Signals` from the result and stream stats, call `usagelimit.Check()` with `ClaudePatterns()`. If true, set `bc.result.UsageLimited = true`, set `bc.result.Error` to a descriptive message, log a warning, and return false. In `writeIterationLog()`, propagate the field.
 
 **Acceptance Criteria:**
 - Usage-limit failures skip `analyzeAndHandleFailure` and escalation in `executeWithRetry`

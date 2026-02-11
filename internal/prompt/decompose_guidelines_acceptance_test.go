@@ -1,3 +1,5 @@
+//go:build acceptance
+
 package prompt
 
 import (

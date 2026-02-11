@@ -62,6 +62,11 @@ Example format:
   - **Companion methods in same package** — Methods that follow the same pattern in the same file are one bead. If you'd copy-paste-modify to create the second, they belong together
   - **Command flags + wiring that makes them work** — A CLI flag that does nothing isn't a deliverable. The flag, its plumbing, and its effect are one bead
   - **Template + registration** — Adding a template file and registering it in the renderer are one action, not two
+- **When to Split:**
+  - If a task has 4+ acceptance criteria, split by distinct behaviors
+  - If a task touches 6+ files across unrelated packages, split by package boundary
+  - If two parts of a task are independently useful and don't need each other to compile, they can be separate beads
+  - If a task requires design decisions that would benefit from being settled first (e.g., define the data model, then build the API), split at the decision boundary
 - If a task has a natural prerequisite, indicate the dependency
 - Avoid tasks that are just "refactoring" or "cleanup" - focus on functionality
 - Each task should be demonstrable with commits/tests
