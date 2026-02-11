@@ -13,6 +13,27 @@ type mockProvider struct{}
 
 var _ Provider = (*mockProvider)(nil)
 
+func (m *mockProvider) Name() string {
+	return "mock"
+}
+
+func (m *mockProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
+	return &Result{Success: true}, nil
+}
+
+func (m *mockProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
+	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
+	return &Result{Success: true}, nil
+}
+
+func (m *mockProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error) {
+	return &Result{Success: true}, nil
+}
+
+func (m *mockProvider) IsUsageLimitError(result *Result, err error) bool {
+	return false
+}
+
 // TestProviderInterfaceDefinition verifies that the Provider interface exists
 // and can be used in type assertions and interface satisfaction checks.
 // Expected failure: Provider interface does not exist yet
@@ -447,27 +468,6 @@ func TestProviderMethodSignatures(t *testing.T) {
 
 	// Verify IsUsageLimitError(result, err) bool
 	_ = impl.IsUsageLimitError(&Result{}, nil)
-}
-
-func (m *mockProvider) Name() string {
-	return "mock"
-}
-
-func (m *mockProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
-	return &Result{Success: true}, nil
-}
-
-func (m *mockProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
-	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
-	return &Result{Success: true}, nil
-}
-
-func (m *mockProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error) {
-	return &Result{Success: true}, nil
-}
-
-func (m *mockProvider) IsUsageLimitError(result *Result, err error) bool {
-	return false
 }
 
 // TestEventHandlerNilSafety verifies that EventHandler can handle nil values safely.

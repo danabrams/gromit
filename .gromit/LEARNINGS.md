@@ -820,3 +820,8 @@ Spike tasks should validate CLI mechanics empirically by executing actual comman
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-vujh | patterns
+Define interfaces for external service integrations in a separate provider package to enable clean dependency injection and testing with mock implementations
+
+*Archived from new: filtered: generic engineering advice*
+
