@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/claude"
 )
@@ -140,12 +141,24 @@ func (cp *ClaudeProvider) RunValidation(ctx context.Context, commands []string, 
 }
 
 // IsUsageLimitError detects Claude-specific usage limit errors.
-// Currently returns false as Claude CLI does not return usage limit errors
-// in a detectable pattern. This may be updated in the future as error patterns
-// are identified.
+// Checks for exit code 2 with stderr containing "usage limit", "rate limit",
+// or "quota exceeded" (case-insensitive).
 func (cp *ClaudeProvider) IsUsageLimitError(result *Result, err error) bool {
-	// Claude CLI does not currently have detectable usage limit error patterns
-	// that are distinct from other errors. Always return false for now.
+	if result == nil {
+		return false
+	}
+	// Must have exit code 2 to be a usage limit error
+	if result.ExitCode != 2 {
+		return false
+	}
+	// Check for usage limit keywords (case-insensitive)
+	outputLower := strings.ToLower(result.Output)
+	keywords := []string{"usage limit", "rate limit", "quota exceeded"}
+	for _, keyword := range keywords {
+		if strings.Contains(outputLower, keyword) {
+			return true
+		}
+	}
 	return false
 }
 

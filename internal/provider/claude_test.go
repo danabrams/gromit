@@ -263,3 +263,20 @@ func TestClaudeProviderIsScopeTooLargeDelegation(t *testing.T) {
 		t.Error("IsScopeTooLarge() explanation should not be empty when marker is present")
 	}
 }
+
+// TestClaudeProviderIsUsageLimitErrorExitCode2 verifies that
+// IsUsageLimitError() detects exit code 2 with usage limit keywords.
+func TestClaudeProviderIsUsageLimitErrorExitCode2(t *testing.T) {
+	cp := &ClaudeProvider{}
+
+	result := &Result{
+		Success:  false,
+		ExitCode: 2,
+		Output:   "Error: usage limit exceeded",
+	}
+
+	got := cp.IsUsageLimitError(result, nil)
+	if !got {
+		t.Errorf("IsUsageLimitError() = %v, want true for exit code 2 with 'usage limit'", got)
+	}
+}
