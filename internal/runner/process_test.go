@@ -2547,7 +2547,7 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 
 // --- Preemptive Escalation Tests ---
 
-func TestBuildPromptForBead_MediumComplexityEscalatesSonnet(t *testing.T) {
+func TestBuildPromptForBead_MediumComplexityKeepsSonnet(t *testing.T) {
 	var buf strings.Builder
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
@@ -2590,14 +2590,12 @@ func TestBuildPromptForBead_MediumComplexityEscalatesSonnet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if bc.model != "opus" {
-		t.Errorf("expected model to be escalated to 'opus', got %q", bc.model)
+	// Sonnet should stay sonnet for medium complexity — no auto-escalation
+	if bc.model != "sonnet" {
+		t.Errorf("expected model to stay 'sonnet', got %q", bc.model)
 	}
-	if bc.result.Model != "opus" {
-		t.Errorf("expected result.Model to be 'opus', got %q", bc.result.Model)
-	}
-	if !strings.Contains(buf.String(), "complexity=medium on sonnet") {
-		t.Errorf("expected escalation log message, got: %s", buf.String())
+	if strings.Contains(buf.String(), "auto-escalating") {
+		t.Errorf("should not auto-escalate medium complexity on sonnet, got: %s", buf.String())
 	}
 }
 

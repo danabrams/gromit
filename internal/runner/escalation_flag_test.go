@@ -43,12 +43,12 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 			wantEscalatedTo: "opus",
 		},
 		{
-			name:            "medium complexity on sonnet escalates and sets Escalated flag",
+			name:            "medium complexity on sonnet does not escalate",
 			complexity:      "medium",
 			startModel:      "sonnet",
-			wantModel:       "opus",
-			wantEscalated:   true,
-			wantEscalatedTo: "opus",
+			wantModel:       "sonnet",
+			wantEscalated:   false,
+			wantEscalatedTo: "",
 		},
 	}
 

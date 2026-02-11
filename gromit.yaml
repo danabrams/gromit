@@ -5,7 +5,7 @@
 models:
   # Priority-based defaults (P0=critical, P1=normal, P2=low)
   p0: opus
-  p1: opus
+  p1: sonnet
   p2: haiku
 
   # Validation always uses haiku for cost efficiency
@@ -26,7 +26,7 @@ escalation:
 loop:
   max_iterations: 0  # 0 = unlimited
   stop_on_failure: false  # Continue to next bead on failure
-  stuck_bead_threshold: 2  # Skip bead if it fails this many times across runs (experiment: reduce from 3 to save wasted iterations)
+  stuck_bead_threshold: 3  # Skip bead if it fails this many times across runs
   max_consecutive_skips: 2  # Stop loop after 2 consecutive precheck skips
   learn_from_success: true  # Extract learnings from successful iterations (default: true)
   between_iterations_command: "make"  # Shell command to run after each successful bead (e.g., rebuild binary)
