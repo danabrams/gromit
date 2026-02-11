@@ -4,7 +4,7 @@ package runner
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"io"
 	"strings"
 	"testing"
@@ -57,10 +57,19 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 		},
 	}
 
+	// Create StreamLogger to enable handler in executeClaudeInvocation
+	dir := t.TempDir()
+	sl, err := logger.NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("failed to create StreamLogger: %v", err)
+	}
+	defer sl.Close()
+
 	r := &Runner{
-		cfg:    cfg,
-		claude: mockClaude,
-		output: &strings.Builder{},
+		cfg:          cfg,
+		claude:       mockClaude,
+		output:       &strings.Builder{},
+		streamLogger: sl,
 	}
 
 	bc := &beadContext{
@@ -314,15 +323,7 @@ func TestIterationLogJSON_IncludesRateLimitRecoveryMs(t *testing.T) {
 	}
 
 	// Marshal to JSON using encoding/json
-	var jsonBytes []byte
-	var err error
-	if marshaler, ok := interface{}(log).(interface{ MarshalJSON() ([]byte, error) }); ok {
-		jsonBytes, err = marshaler.MarshalJSON()
-	} else {
-		// IterationLog doesn't have MarshalJSON, use json.Marshal directly
-		t.Fatal("IterationLog should be JSON-serializable")
-	}
-
+	jsonBytes, err := json.Marshal(log)
 	if err != nil {
 		t.Fatalf("failed to marshal IterationLog: %v", err)
 	}
@@ -376,14 +377,7 @@ func TestIterationLogJSON_OmitsZeroRecoveryMs(t *testing.T) {
 	}
 
 	// Marshal to JSON using encoding/json
-	var jsonBytes []byte
-	var err error
-	if marshaler, ok := interface{}(log).(interface{ MarshalJSON() ([]byte, error) }); ok {
-		jsonBytes, err = marshaler.MarshalJSON()
-	} else {
-		t.Fatal("IterationLog should be JSON-serializable")
-	}
-
+	jsonBytes, err := json.Marshal(log)
 	if err != nil {
 		t.Fatalf("failed to marshal IterationLog: %v", err)
 	}
@@ -444,11 +438,20 @@ func TestEndToEndRateLimitRecoveryLogging(t *testing.T) {
 		},
 	}
 
+	// Create StreamLogger to enable handler in executeClaudeInvocation
+	dir := t.TempDir()
+	sl, err := logger.NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("failed to create StreamLogger: %v", err)
+	}
+	defer sl.Close()
+
 	r := &Runner{
-		cfg:    cfg,
-		claude: mockClaude,
-		logger: mockLog,
-		output: &strings.Builder{},
+		cfg:          cfg,
+		claude:       mockClaude,
+		logger:       mockLog,
+		output:       &strings.Builder{},
+		streamLogger: sl,
 	}
 
 	bc := &beadContext{
@@ -464,7 +467,7 @@ func TestEndToEndRateLimitRecoveryLogging(t *testing.T) {
 
 	// Execute Claude invocation (captures recovery time)
 	ctx := context.Background()
-	_, _, _, err := r.executeClaudeInvocation(ctx, bc)
+	_, _, _, err = r.executeClaudeInvocation(ctx, bc)
 	if err != nil {
 		t.Fatalf("executeClaudeInvocation failed: %v", err)
 	}
@@ -543,11 +546,20 @@ func TestMultipleRateLimits_LogsMostRecentRecovery(t *testing.T) {
 		},
 	}
 
+	// Create StreamLogger to enable handler in executeClaudeInvocation
+	dir := t.TempDir()
+	sl, err := logger.NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("failed to create StreamLogger: %v", err)
+	}
+	defer sl.Close()
+
 	r := &Runner{
-		cfg:    cfg,
-		claude: mockClaude,
-		logger: mockLog,
-		output: &strings.Builder{},
+		cfg:          cfg,
+		claude:       mockClaude,
+		logger:       mockLog,
+		output:       &strings.Builder{},
+		streamLogger: sl,
 	}
 
 	bc := &beadContext{
@@ -562,7 +574,7 @@ func TestMultipleRateLimits_LogsMostRecentRecovery(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, _, _, err := r.executeClaudeInvocation(ctx, bc)
+	_, _, _, err = r.executeClaudeInvocation(ctx, bc)
 	if err != nil {
 		t.Fatalf("executeClaudeInvocation failed: %v", err)
 	}
