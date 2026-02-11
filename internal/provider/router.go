@@ -41,6 +41,27 @@ func NewRouter(providers map[string]Provider, preferences map[string]string, rat
 	}
 }
 
+// NewSingleProviderRouter creates a minimal router for backward compatibility
+// with one provider, all preferences "any", ratio 100%
+func NewSingleProviderRouter(p Provider) *Router {
+	name := p.Name()
+	return &Router{
+		providers: map[string]Provider{
+			name: p,
+		},
+		preferences: map[string]string{
+			"any": "any",
+		},
+		ratio: map[string]int{
+			name: 100,
+		},
+		counts:      make(map[string]int),
+		unavailable: make(map[string]time.Time),
+		cooldown:    0,
+		stateFn:     nil,
+	}
+}
+
 // Select picks the provider for a given phase and tier.
 // Returns the selected provider and the concrete model name for that tier.
 // Returns nil provider and empty model name if all providers are unavailable.
@@ -156,4 +177,23 @@ func (r *Router) selectProvider(name string, tier string) (Provider, string) {
 	}
 
 	return provider, modelName
+}
+
+// MarkUnavailable records current time plus cooldown for the specified provider
+func (r *Router) MarkUnavailable(name string) {
+	until := time.Now().Add(r.cooldown)
+	r.unavailable[name] = until
+
+	if r.stateFn != nil {
+		r.stateFn.SetProviderUnavailable(name, until)
+	}
+}
+
+// RecordInvocation increments count and persists to state via stateFn
+func (r *Router) RecordInvocation(name string) {
+	r.counts[name]++
+
+	if r.stateFn != nil {
+		r.stateFn.IncrementProviderCount(name)
+	}
 }
