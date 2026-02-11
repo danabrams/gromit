@@ -2438,6 +2438,109 @@ func TestCountClosedAfterEmptyResults(t *testing.T) {
 	}
 }
 
+// TestCountClosedAfterWithBeads tests that CountClosedAfter returns correct count
+func TestCountClosedAfterWithBeads(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+		wantCount  int
+	}{
+		{
+			name: "single closed bead",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Task",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "closed"
+			}]`,
+			wantCount: 1,
+		},
+		{
+			name: "three closed beads",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Task 1",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "closed"
+			}, {
+				"id": "task-002",
+				"title": "Task 2",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "closed"
+			}, {
+				"id": "bug-001",
+				"title": "Bug fix",
+				"priority": 2,
+				"issue_type": "bug",
+				"status": "closed"
+			}]`,
+			wantCount: 3,
+		},
+		{
+			name: "many closed beads in run",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Task 1",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "closed"
+			}, {
+				"id": "task-002",
+				"title": "Task 2",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "closed"
+			}, {
+				"id": "task-003",
+				"title": "Task 3",
+				"priority": 1,
+				"issue_type": "feature",
+				"status": "closed"
+			}, {
+				"id": "task-004",
+				"title": "Task 4",
+				"priority": 2,
+				"issue_type": "bug",
+				"status": "closed"
+			}, {
+				"id": "task-005",
+				"title": "Task 5",
+				"priority": 0,
+				"issue_type": "task",
+				"status": "closed"
+			}, {
+				"id": "task-006",
+				"title": "Task 6",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "closed"
+			}, {
+				"id": "task-007",
+				"title": "Task 7",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "closed"
+			}]`,
+			wantCount: 7,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, err := parseBeadCount(tt.jsonOutput)
+			if err != nil {
+				t.Fatalf("parseBeadCount() error = %v", err)
+			}
+			if count != tt.wantCount {
+				t.Errorf("parseBeadCount() = %d, want %d", count, tt.wantCount)
+			}
+		})
+	}
+}
+
 // TestCountByStatusNilClient tests that CountByStatus returns error on nil client
 func TestCountByStatusNilClient(t *testing.T) {
 	var c *Client
