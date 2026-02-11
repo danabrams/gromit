@@ -17,22 +17,22 @@ const (
 )
 
 type Config struct {
-	Models      ModelsConfig         `yaml:"models"`
-	Escalation  EscalationConfig     `yaml:"escalation"`
-	Loop        LoopConfig           `yaml:"loop"`
-	Validation  ValidationConfig     `yaml:"validation"`
-	ScopeCheck  ScopeCheckConfig     `yaml:"scope_check"`
-	Precheck    PrecheckConfig       `yaml:"precheck"`
-	Preflight   PreflightConfig      `yaml:"preflight"`
-	Claude      ClaudeConfig         `yaml:"claude"`
-	Paths       PathsConfig          `yaml:"paths"`
-	Review      ReviewConfig         `yaml:"review"`
-	Methodology MethodologyConfig    `yaml:"methodology"`
-	Git         GitConfig            `yaml:"git"`
-	State       StateConfig          `yaml:"state"`
-	Agents      AgentsConfig         `yaml:"agents"`
+	Models      ModelsConfig           `yaml:"models"`
+	Escalation  EscalationConfig       `yaml:"escalation"`
+	Loop        LoopConfig             `yaml:"loop"`
+	Validation  ValidationConfig       `yaml:"validation"`
+	ScopeCheck  ScopeCheckConfig       `yaml:"scope_check"`
+	Precheck    PrecheckConfig         `yaml:"precheck"`
+	Preflight   PreflightConfig        `yaml:"preflight"`
+	Claude      ClaudeConfig           `yaml:"claude"`
+	Paths       PathsConfig            `yaml:"paths"`
+	Review      ReviewConfig           `yaml:"review"`
+	Methodology MethodologyConfig      `yaml:"methodology"`
+	Git         GitConfig              `yaml:"git"`
+	State       StateConfig            `yaml:"state"`
+	Agents      AgentsConfig           `yaml:"agents"`
 	Providers   map[string]ProviderDef `yaml:"providers"`
-	Routing     RoutingConfig        `yaml:"routing"`
+	Routing     RoutingConfig          `yaml:"routing"`
 }
 
 type ModelsConfig struct {
