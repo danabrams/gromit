@@ -1,15 +1,15 @@
 {
-  "name": "Reduce stuck bead retry ceiling (corrected)",
-  "hypothesis": "Beads like gromit-7esx (3 failures at stuck_bead_threshold=3) consume iterations without succeeding. Reducing stuck_bead_threshold from 3 to 2 will save 1 wasted iteration per stuck bead. The previous experiment incorrectly changed max_consecutive_skips (precheck loop guard) instead of stuck_bead_threshold.",
-  "change": "Set stuck_bead_threshold to 2 in gromit.yaml (currently 3). This causes beads to be skipped after 2 cross-run failures instead of 3.",
-  "measurement": "Compare total wasted iterations on stuck beads before vs after. Target: reduce from 3 failures per stuck bead to max 2. Track whether any beads that would have succeeded on attempt 3 are now skipped prematurely.",
-  "risk": "Some beads may succeed on attempt 3 with model escalation (haiku-\u003esonnet-\u003eopus). Reducing the threshold from 3 to 2 removes one retry opportunity. The escalation chain has 3 tiers, so threshold=2 means the highest tier (opus) never gets attempted for stuck beads.",
-  "started_at": "2026-02-10T16:10:21.377117565-05:00",
+  "name": "Route test-only beads to haiku by default",
+  "hypothesis": "Beads detected by IsTestOnlyBead() are lower complexity since they only add/modify test files. Routing them to haiku will reduce their average cost from ~$0.60 (sonnet) to ~$0.08 (haiku) without significantly increasing failure rate, because the escalation chain provides a safety net.",
+  "change": "In Runner.selectModel(), when bead.IsTestOnlyBead(b.Title) returns true and no explicit complexity label is set, return haiku instead of the priority-based model. Explicit labels still override.",
+  "measurement": "Compare success rate and average cost of test-only beads before vs after. Target: maintain \u003e80% success rate while reducing average cost by \u003e50%. Track how many test-only beads require escalation to sonnet/opus.",
+  "risk": "Some test-only beads may be more complex than the title suggests (e.g., tests requiring complex fixture setup or touching integration boundaries). These would fail on haiku and require escalation, potentially increasing total cost if the escalation chain adds iterations.",
+  "started_at": "2026-02-11T05:09:25.834754533-05:00",
   "baseline_metrics": {
-    "avg_cost_per_bead": 0.4979099889344263,
-    "avg_duration_ms": 479982,
+    "avg_cost_per_bead": 0.5166577782608697,
+    "avg_duration_ms": 488641,
     "avg_input_tokens": 0,
     "avg_output_tokens": 0,
-    "failure_rate": 0.39344262295081966
+    "failure_rate": 0.391304347826087
   }
 }

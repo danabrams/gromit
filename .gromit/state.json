@@ -1,6 +1,7 @@
 {
-  "last_retro": "2026-02-10T17:14:04.453874789-05:00",
-  "last_review_commit": "ff7fc8c625543884ff499fca546168ceefe6b160",
+  "last_retro": "2026-02-11T06:49:29.677757875-05:00",
+  "last_review_commit": "e1ef940cd10654ed76223aadaddafda3fd3c8e2a",
+  "iterations_since_review": 2,
   "clean_exit": false,
-  "updated_at": "2026-02-10T17:14:09.705866956-05:00"
+  "updated_at": "2026-02-11T07:53:14.181153946-05:00"
 }

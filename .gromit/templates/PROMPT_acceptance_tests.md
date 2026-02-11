@@ -92,13 +92,18 @@ Your job is to write acceptance tests that verify the acceptance criteria for th
    - Will fail until the feature is implemented (test for the new behavior)
    - Are clear, readable, and maintainable
 
-3. **Only modify test files** - do not write any implementation code:
+3. **Document expected failures**: Each test must include a comment explaining why it should fail before implementation:
+   - Add `// Expected failure: <reason>` to each test or subtest documenting why it should fail
+   - Example: `// Expected failure: MaxFixAttempts field does not exist on ValidationConfig yet`
+   - Every test must reference at least one function, method, type, or constant that does not currently exist in the codebase
+
+4. **Only modify test files** - do not write any implementation code:
    - Create new test files following the project's naming conventions
    - Add test cases to existing test files if appropriate
    - Do NOT modify implementation files (e.g., non-test .go files)
    - Do NOT stub out implementations to make tests pass
 
-4. **Commit your changes** with a clear commit message like "test: add acceptance tests for [task title]"
+5. **Commit your changes** with a clear commit message like "test: add acceptance tests for [task title]"
 
 ## CRITICAL: Tests Must Fail Before Implementation
 
@@ -142,6 +147,7 @@ Do NOT write tests that:
 - Are actually unit tests labeled as "acceptance" — if it tests a single function with mocked dependencies, it's a unit test
 - Verify only that a function/method/type exists rather than testing its behavioral output
 - Would pass against the current codebase without any implementation — this means the test is not covering new behavior
+- Would pass if all assertions were removed — this indicates the test setup itself is not exercising new behavior
 
 ## Completion
 

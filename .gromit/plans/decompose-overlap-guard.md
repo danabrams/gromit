@@ -1,8 +1,9 @@
 ---
+created: 2026-02-10T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-10T20:08:55-05:00"
 id: decompose-overlap-guard
 source_spec: decompose-overlap-guard
-created: 2026-02-10
-decomposed: false
 ---
 
 # Decompose Overlap Guard Implementation Plan

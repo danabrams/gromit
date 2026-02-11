@@ -19,11 +19,6 @@ Mock implementations use optional function pointer fields (FnField pattern) with
 
 Status struct fields require backward-compatible changes (omitempty for new optional fields). Use ReadStatus()/IsProcessAlive() for state + liveness checks. Return nil,nil for missing optional files (not an error). StatusWriter handles both lifecycle states and preserves completed iteration count on shutdown. Round-trip tests verify serialization fidelity. Stale resource cleanup integrates into status reporting via process liveness checks. Process utilities (IsProcessAlive) are co-located with Status in status.go. Test file I/O uses t.TempDir() for isolation.
 
-### 2026-02-08 | Prompt and Template Infrastructure | conventions
-*Related to: ralph-runner-utv8, ralph-runner-yx7b, ralph-runner-5lk0, ralph-runner-kjix, ralph-runner-628c, ralph-runner-nxdm, gromit-s7tm, gromit-avbc*
-
-Prompt/template infrastructure follows a load-populate-render pattern with consistent conventions: (1) Templates are named PROMPT_<name>.md, registered in runInit()'s templates map, with constants named defaultXxxTemplate in init.go. (2) Renderer methods accept a context struct (with Bead and ParentBead fields), call r.tmpl.ExecuteTemplate, and return (string, error). (3) Template variants reuse common context sections (Rules, Learnings, Task, Spec, Parent) and customize only Instructions and Completion sections. (4) TemplateContext struct fields are populated from data sources via dedicated load/read methods, then passed to template rendering. (5) FuncMap functions (sub, mul, div) enable templates to compute deltas and percentages inline. (6) New context types and render methods should follow existing patterns like ScopeContext, DecomposeContext, PrecheckContext.
-
 ### 2026-02-07 | Methodology Label Activation | patterns
 *Related to: ralph-runner-4a3f, ralph-runner-nzue*
 
@@ -40,17 +35,27 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-10 | gromit-7guf | conventions
-When reading optional files or directories (epics, specs, backlog), return empty lists gracefully for missing directories/files rather than error, allowing commands to proceed without required artifacts existing
-
-### 2026-02-10 | gromit-d6sl | conventions
-Consolidation beads require strict scope verification: when beads touch 3+ files or involve cross-cutting refactors, verify each commit's actual changes match intent — 'formatting' or 'style' commits from refactoring tools can accidentally delete functional code. Gap analysis functions (performGapAnalysis, buildSpecSummaries, getBeadCounts) must be wired into epicStatus() at the correct call site. Tests expecting tool output (like bead progress from `bd`) should skip gracefully when the tool is unavailable, but gap analysis output should not depend on external tools.
+*No provisional learnings.*
 
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-10 | Refactoring Bead Cascade Risks | conventions
+*Related to: gromit-d6sl, gromit-gdzl, gromit-uwuh, gromit-w0lo, gromit-66dz*
+
+Archived: key insights incorporated into RULES.md Process section (bead splitting rule — cascade verification for shared packages, diff-vs-intent review). Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-10 | Test-Only Bead Detection Pattern | patterns
+*Related to: gromit-755e*
+
+Archived: promoted to RULES.md Process section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
 
 ### 2026-02-09 | gromit-pame | conventions
 Archived: Describes standard cobra CLI pattern (package-level flag variables for direct access). This is basic Go CLI convention, not project-specific — any cobra project uses this pattern.
@@ -597,6 +602,67 @@ Archived: two gromit-d6sl provisional learnings consolidated into single "Consol
 
 ### 2026-02-10 | gromit-gdzl | conventions
 When consolidating learnings and archiving entries, existing integration tests that hardcode expected learning positions break immediately. Always verify that learnings integration tests use flexible matching (check for minimum count and validate presence of expected items in any order) rather than positional assertions.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-7guf | conventions
+Archived: generic defensive programming advice (return empty lists for missing optional files/directories). Already covered by Status File Management confirmed learning and normalizeNilFields() rule.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-d6sl, gromit-gdzl consolidation originals | conventions
+Archived: gromit-d6sl, gromit-gdzl consolidated into Provisional "Refactoring and Consolidation Bead Hygiene" entry.
+
+### 2026-02-10 | learnings refactoring cascade originals | conventions
+Archived: gromit-uwuh, gromit-w0lo consolidated into Provisional "Learnings Package Refactoring Cascades" entry.
+
+### 2026-02-10 | refactoring cascade consolidation | conventions
+Archived: "Refactoring and Consolidation Bead Hygiene" (gromit-d6sl, gromit-gdzl) and "Learnings Package Refactoring Cascades" (gromit-uwuh, gromit-w0lo) consolidated into Provisional "Refactoring Bead Cascade Risks" entry.
+
+### 2026-02-10 | Prompt and Template Infrastructure | conventions
+*Related to: ralph-runner-utv8, ralph-runner-yx7b, ralph-runner-5lk0, ralph-runner-kjix, ralph-runner-628c, ralph-runner-nxdm, gromit-s7tm, gromit-avbc*
+
+Archived: promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from confirmed: promoted to rules*
+
+### 2026-02-10 | gromit-66dz | gotchas
+When a function like escalateModel() is designed to handle state changes with side effects (logging, flag setting), all code paths that perform that operation should route through it rather than duplicating the logic—direct assignments bypass the intended behavior
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-66dz conventions | conventions
+Archived: consolidated into Provisional "Refactoring Bead Cascade Risks" entry point (5).
+
+*Archived from provisional: consolidated*
+
+### 2026-02-10 | gromit-66dz | gotchas
+Archived: generic SRP advice (route state changes through single function). Escalation routing already captured in Runner Method Pattern confirmed learning.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-10 | gromit-vbdo | patterns
+Archived: non-zero value precedence and NormalizeNilFields() already codified in RULES.md (Code Style: normalizeNilFields after unmarshaling; Process: zero is sentinel for 'not configured'). Redundant with rules.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-10 | gromit-vbdo | gotchas
+Archived: promoted to RULES.md Process section (config file compliance testing). Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-10 | gromit-755e consolidation originals | conventions
+Archived: gromit-755e patterns and gromit-755e conventions consolidated into Provisional "Test-Only Bead Detection Pattern" entry.
+
+*Archived from provisional: consolidated*
+
+### 2026-02-11 | gromit-r3mq | gotchas
+Use .gitignore to prevent accidentally committing build artifacts (*.test binaries, *.o files, etc.) - Go test binaries are auto-generated and should never be in version control
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-r3mq | gotchas
+Go test binaries (*.test files) should be added to .gitignore to prevent accidental commits of large binary artifacts
 
 *Archived from new: filtered: generic engineering advice*
 
