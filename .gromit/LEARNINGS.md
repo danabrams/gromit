@@ -754,3 +754,13 @@ When a task requires adding new functionality with acceptance tests, check if th
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-qpjd | conventions
+Test functions use descriptive underscore-separated names indicating the specific scenario being tested (e.g., TestSetupBeadContext_PreemptiveEscalationP1HighComplexity, TestSetupBeadContext_NoEscalationWhenScopeCheckDisabled) rather than generic names, making each test's purpose immediately clear without reading the test body
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-qpjd | patterns
+Consolidate related test scenarios for a feature into a dedicated, focused test file (e.g., preemptive_escalation_test.go) rather than scattering them across general test files like process_test.go—this improves maintainability and reduces duplicate test code
+
+*Archived from new: filtered: generic engineering advice*
+

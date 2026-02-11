@@ -72,9 +72,7 @@ claude:
       stall_timeout_active: 900  # longer active stall for sonnet's deeper thinking
       bead_timeout: 2400       # longer bead budget for sonnet retries
     opus:
-      timeout: 0               # uses default (900s) — opus rarely times out
-      stall_timeout_active: 0  # uses default (600s) — opus responds reliably
-      bead_timeout: 0          # uses default (1800s) — opus succeeds in standard window
+      stall_timeout_active: 420  # longer than code default (300s) — opus legitimately takes longer on complex reasoning
     haiku:
       stall_timeout: 90        # shorter stall — haiku should respond quickly
       bead_timeout: 900        # shorter bead budget — fail fast on haiku
