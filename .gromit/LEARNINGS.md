@@ -62,6 +62,9 @@ Test files for log parsing use synthetic JSONL with varying field completeness t
 ### 2026-02-11 | gromit-oqtr | patterns
 When adding a field to a logging structure (IterationLog), the field must be wired through three layers: capture it in the execution layer (executeClaudeInvocation extracts from DiagnosticSnapshot), store it in the intermediate result struct (IterationResult), and propagate it when writing the final log entry (writeIterationLog). Missing any layer breaks the data flow to JSONL output.
 
+### 2026-02-11 | gromit-vvea | gotchas
+When moving a function call earlier in a lifecycle (e.g., escalateModel called preemptively in setupBeadContext before promptCtx exists), defensive nil checks are required for fields initialized later. escalateModel must check `if bc.promptCtx != nil` before updating it.
+
 ---
 
 ## Archived

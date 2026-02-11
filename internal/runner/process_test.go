@@ -141,6 +141,65 @@ func TestEscalateModel(t *testing.T) {
 	}
 }
 
+func TestSetupBeadContext_PreemptiveEscalationP1HighComplexity(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg: &config.Config{
+			Models: config.ModelsConfig{
+				P0: "opus",
+				P1: "sonnet",
+				P2: "haiku",
+			},
+			ScopeCheck: config.ScopeCheckConfig{
+				Enabled: true,
+				Model:   "haiku",
+			},
+			Claude: config.ClaudeConfig{
+				BeadTimeout: 300,
+			},
+			Escalation: config.EscalationConfig{
+				MaxRetriesPerModel: 2,
+				MaxRetriesPerBead:  5,
+			},
+		},
+		beads:    &mockBeadClient{},
+		renderer: &mockPromptRenderer{},
+		claude:   &mockClaudeClient{},
+		output:   &buf,
+	}
+
+	b := &bead.Bead{
+		ID:       "test-p1-high",
+		Title:    "Complex P1 Task",
+		Priority: 1, // P1 = sonnet
+		Labels:   []string{},
+	}
+
+	scopeEstimate := &prompt.ScopeEstimate{
+		Complexity:                   "high",
+		EstimatedIterations:          2,
+		CanCompleteInSingleIteration: false,
+		Rationale:                    "This task touches multiple subsystems",
+		Blockers:                     []string{},
+	}
+
+	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, scopeEstimate)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer cancel()
+
+	if bc.model != "opus" {
+		t.Errorf("expected model to escalate from sonnet to opus, got %q", bc.model)
+	}
+	if !bc.result.Escalated {
+		t.Error("expected result.Escalated to be true after preemptive escalation")
+	}
+	if bc.result.EscalatedTo != "opus" {
+		t.Errorf("expected result.EscalatedTo='opus', got %q", bc.result.EscalatedTo)
+	}
+}
+
 func TestHandleScopeTooLarge(t *testing.T) {
 	var buf strings.Builder
 	tempDir := t.TempDir()
