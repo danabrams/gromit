@@ -8,6 +8,11 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 )
 
+const (
+	// providerNameClaude is the name identifier for the Claude provider
+	providerNameClaude = "claude"
+)
+
 // claudeClient is an interface for the claude.Client methods used by ClaudeProvider.
 // This allows for easier testing with mock implementations.
 type claudeClient interface {
@@ -35,7 +40,18 @@ func NewClaudeProvider(client claudeClient, tierToModel map[string]string) *Clau
 
 // Name returns the provider name "claude"
 func (cp *ClaudeProvider) Name() string {
-	return "claude"
+	return providerNameClaude
+}
+
+// validateProvider checks that the provider and its client are not nil
+func (cp *ClaudeProvider) validateProvider() error {
+	if cp == nil {
+		return fmt.Errorf("claude provider is nil")
+	}
+	if cp.client == nil {
+		return fmt.Errorf("claude client is nil")
+	}
+	return nil
 }
 
 // resolveTier maps an abstract tier to a concrete model name
@@ -46,46 +62,40 @@ func (cp *ClaudeProvider) resolveTier(tier string) string {
 	return tier
 }
 
-// Run executes an LLM invocation with the given prompt and tier.
-// It resolves the tier to a model name and delegates to claude.Client.Run().
-func (cp *ClaudeProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
-	if cp == nil {
-		return nil, fmt.Errorf("claude provider is nil")
-	}
-	if cp.client == nil {
-		return nil, fmt.Errorf("claude client is nil")
-	}
-
-	// Resolve tier to model name
-	modelName := cp.resolveTier(tier)
-
-	// Delegate to claude.Client
-	claudeResult, err := cp.client.Run(ctx, prompt, modelName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert claude.Result to provider.Result
+// convertResult converts a claude.Result to a provider.Result
+func convertResult(claudeResult *claude.Result) *Result {
 	return &Result{
 		Success:  claudeResult.Success,
 		Output:   claudeResult.Output,
 		ExitCode: claudeResult.ExitCode,
 		Duration: claudeResult.Duration,
 		Model:    claudeResult.Model,
-	}, nil
+	}
+}
+
+// Run executes an LLM invocation with the given prompt and tier.
+// It resolves the tier to a model name and delegates to claude.Client.Run().
+func (cp *ClaudeProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
+	if err := cp.validateProvider(); err != nil {
+		return nil, err
+	}
+
+	modelName := cp.resolveTier(tier)
+	claudeResult, err := cp.client.Run(ctx, prompt, modelName)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertResult(claudeResult), nil
 }
 
 // StreamRun executes an LLM invocation with streaming output.
 // It resolves the tier to a model name and delegates to claude.Client.StreamRun().
 func (cp *ClaudeProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
-	if cp == nil {
-		return nil, fmt.Errorf("claude provider is nil")
-	}
-	if cp.client == nil {
-		return nil, fmt.Errorf("claude client is nil")
+	if err := cp.validateProvider(); err != nil {
+		return nil, err
 	}
 
-	// Resolve tier to model name
 	modelName := cp.resolveTier(tier)
 
 	// Convert provider handlers to claude handlers
@@ -105,49 +115,28 @@ func (cp *ClaudeProvider) StreamRun(ctx context.Context, prompt string, tier str
 		}
 	}
 
-	// Delegate to claude.Client
 	claudeResult, err := cp.client.StreamRun(ctx, prompt, modelName, output, claudeHandler, claudeToolHandler)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert claude.Result to provider.Result
-	return &Result{
-		Success:  claudeResult.Success,
-		Output:   claudeResult.Output,
-		ExitCode: claudeResult.ExitCode,
-		Duration: claudeResult.Duration,
-		Model:    claudeResult.Model,
-	}, nil
+	return convertResult(claudeResult), nil
 }
 
 // RunValidation executes validation commands using the LLM.
 // It resolves the tier to a model name and delegates to claude.Client.RunValidation().
 func (cp *ClaudeProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error) {
-	if cp == nil {
-		return nil, fmt.Errorf("claude provider is nil")
-	}
-	if cp.client == nil {
-		return nil, fmt.Errorf("claude client is nil")
+	if err := cp.validateProvider(); err != nil {
+		return nil, err
 	}
 
-	// Resolve tier to model name
 	modelName := cp.resolveTier(tier)
-
-	// Delegate to claude.Client
 	claudeResult, err := cp.client.RunValidation(ctx, commands, modelName, workDir)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert claude.Result to provider.Result
-	return &Result{
-		Success:  claudeResult.Success,
-		Output:   claudeResult.Output,
-		ExitCode: claudeResult.ExitCode,
-		Duration: claudeResult.Duration,
-		Model:    claudeResult.Model,
-	}, nil
+	return convertResult(claudeResult), nil
 }
 
 // IsUsageLimitError detects Claude-specific usage limit errors.

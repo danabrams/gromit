@@ -852,3 +852,8 @@ Gromit tasks with acceptance criteria involving metrics (like test line reductio
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-z56a | patterns
+Provider interface implementations delegate to underlying client implementations (e.g., claude.Client.Run()) rather than reimplementing logic, keeping the provider as a thin adapter layer that maps tier→model and handles interface satisfaction
+
+*Archived from new: filtered: generic engineering advice*
+
