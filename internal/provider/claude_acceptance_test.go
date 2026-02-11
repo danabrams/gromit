@@ -569,8 +569,8 @@ type mockClaudeClient struct {
 	lastPrompt          string
 	lastModel           string
 	lastOutput          io.Writer
-	lastEventHandler    func([]byte)
-	lastToolCallHandler func(claude.ToolEvent)
+	lastEventHandler    claude.EventHandler
+	lastToolCallHandler claude.ToolCallHandler
 	resultToReturn      *claude.Result
 	errorToReturn       error
 }
@@ -598,7 +598,7 @@ func (m *mockClaudeClient) Run(ctx context.Context, prompt string, model string)
 }
 
 func (m *mockClaudeClient) StreamRun(ctx context.Context, prompt string, model string,
-	output io.Writer, handler func([]byte), onToolCall func(claude.ToolEvent)) (*claude.Result, error) {
+	output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 	m.streamRunCalled = true
 	m.lastPrompt = prompt
 	m.lastModel = model

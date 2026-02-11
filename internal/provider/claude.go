@@ -8,9 +8,17 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 )
 
+// claudeClient is an interface for the claude.Client methods used by ClaudeProvider.
+// This allows for easier testing with mock implementations.
+type claudeClient interface {
+	Run(ctx context.Context, prompt string, model string) (*claude.Result, error)
+	StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error)
+	RunValidation(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error)
+}
+
 // ClaudeProvider wraps the Claude CLI client and implements the Provider interface
 type ClaudeProvider struct {
-	client      *claude.Client
+	client      claudeClient
 	tierToModel map[string]string
 }
 
@@ -18,7 +26,7 @@ type ClaudeProvider struct {
 var _ Provider = (*ClaudeProvider)(nil)
 
 // NewClaudeProvider creates a new ClaudeProvider with the given client and tier mapping
-func NewClaudeProvider(client *claude.Client, tierToModel map[string]string) *ClaudeProvider {
+func NewClaudeProvider(client claudeClient, tierToModel map[string]string) *ClaudeProvider {
 	return &ClaudeProvider{
 		client:      client,
 		tierToModel: tierToModel,
