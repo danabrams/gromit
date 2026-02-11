@@ -408,8 +408,11 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 
 		// Scope gate: block over-scoped beads before spending compute
+		// Store the estimate so it can be reused in buildPromptForBead (avoid duplicate LLM calls)
+		var scopeEstimate *prompt.ScopeEstimate
 		if r.cfg.ScopeCheck.Enabled && r.cfg.ScopeCheck.ShouldBlockOversized() {
 			estimate := r.checkScope(ctx, b)
+			scopeEstimate = estimate // Cache for later use
 			if estimate != nil {
 				blocked := false
 				var reason string
@@ -473,8 +476,8 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			continue
 		}
 
-		// Process the bead
-		result := r.processBead(ctx, b, iteration, deadline)
+		// Process the bead (pass cached scope estimate to avoid duplicate LLM calls)
+		result := r.processBead(ctx, b, iteration, deadline, scopeEstimate)
 
 		r.log("")
 
@@ -624,11 +627,11 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 	})
 }
 
-func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, deadline time.Time) *IterationResult {
+func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, deadline time.Time, scopeEstimate *prompt.ScopeEstimate) *IterationResult {
 	start := time.Now()
 
 	// Set up bead context: validate state, timeouts, git capture, model selection
-	bc, beadCtx, beadCancel, err := r.setupBeadContext(ctx, b, iteration, deadline)
+	bc, beadCtx, beadCancel, err := r.setupBeadContext(ctx, b, iteration, deadline, scopeEstimate)
 	if err != nil {
 		return &IterationResult{
 			BeadID:    b.ID,
@@ -827,6 +830,15 @@ func (r *Runner) selectModel(b *bead.Bead) string {
 	}
 	if r.cfg == nil {
 		return "sonnet"
+	}
+	// Experiment: route test-only beads to haiku unless an explicit complexity label overrides
+	if bead.IsTestOnlyBead(b.Title) {
+		for _, label := range b.Labels {
+			if _, ok := r.cfg.Models.Labels[label]; ok {
+				return r.cfg.SelectModel(b.Priority, b.Labels)
+			}
+		}
+		return "haiku"
 	}
 	return r.cfg.SelectModel(b.Priority, b.Labels)
 }

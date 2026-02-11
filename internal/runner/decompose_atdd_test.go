@@ -44,9 +44,6 @@ func setupDecomposeATDDTest(t *testing.T, cfgATDD bool) (*Runner, **prompt.Decom
 // TestDecomposeTaskATDDActiveWiring verifies that DecomposeTask() correctly
 // computes ATDD-active status from bead labels and config, then passes it
 // to the renderer via DecomposeContext.ATDDActive.
-//
-// Expected failure: DecomposeContext.ATDDActive field does not exist or
-// DecomposeTask does not compute it via bead.IsMethodologyActive
 func TestDecomposeTaskATDDActiveWiring(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -119,9 +116,6 @@ func TestDecomposeTaskATDDActiveWiring(t *testing.T) {
 // TestDecomposeTaskForwardsBeadWithATDDActive verifies that DecomposeTask
 // correctly populates the full DecomposeContext — the bead, parent, and
 // ATDDActive field are all set together when passed to the renderer.
-//
-// Expected failure: DecomposeContext.ATDDActive field does not exist or
-// DecomposeTask does not set ATDDActive alongside Bead and ParentBead
 func TestDecomposeTaskForwardsBeadWithATDDActive(t *testing.T) {
 	r, capturedCtxPtr := setupDecomposeATDDTest(t, true)
 

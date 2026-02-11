@@ -98,10 +98,11 @@ func TestScopeCheckDedup_ScopeGateAndBuildPromptShareEstimate(t *testing.T) {
 
 	// Now simulate building the prompt (second potential call)
 	bc := &beadContext{
-		bead:   testBead,
-		parent: nil,
-		result: &IterationResult{Model: "sonnet"},
-		model:  "sonnet",
+		bead:          testBead,
+		parent:        nil,
+		result:        &IterationResult{Model: "sonnet"},
+		model:         "sonnet",
+		scopeEstimate: scopeEstimate, // Pass cached estimate from scope gate
 	}
 
 	// This should NOT trigger another checkScope call in the fixed implementation
@@ -300,10 +301,11 @@ func TestScopeCheckDedup_HighComplexityAutoEscalationUsesCache(t *testing.T) {
 
 	// Build prompt with auto-escalation
 	bc := &beadContext{
-		bead:   testBead,
-		parent: nil,
-		result: &IterationResult{Model: "sonnet"},
-		model:  "sonnet",
+		bead:          testBead,
+		parent:        nil,
+		result:        &IterationResult{Model: "sonnet"},
+		model:         "sonnet",
+		scopeEstimate: scopeEstimate, // Pass cached estimate from scope gate
 	}
 
 	err = r.buildPromptForBead(ctx, bc, 1)

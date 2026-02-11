@@ -60,7 +60,7 @@ func TestProcessBead_SkipsATDDForTestOnlyBead(t *testing.T) {
 				ExpectedOutputs: []string{},
 			}
 
-			result := r.processBead(context.Background(), b, 1, time.Time{})
+			result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 			if !result.Success {
 				t.Fatalf("expected success, got error: %v", result.Error)
@@ -114,7 +114,7 @@ func TestProcessBead_SkipsATDDForTestOnlyBead_LogsReason(t *testing.T) {
 		ExpectedOutputs: []string{},
 	}
 
-	r.processBead(context.Background(), b, 1, time.Time{})
+	r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	output := buf.String()
 	if !strings.Contains(output, "Skipping ATDD: bead is test-only") {

@@ -184,7 +184,7 @@ func TestNilGuards(t *testing.T) {
 			fn: func() error {
 				r := &Runner{output: os.Stdout}
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1, time.Time{})
+				result := r.processBead(nil, b, 1, time.Time{}, nil)
 				if result.Error == nil {
 					return fmt.Errorf("expected error for nil config in processBead")
 				}
@@ -731,7 +731,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			method: func(r *Runner) error {
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1, time.Time{})
+				result := r.processBead(nil, b, 1, time.Time{}, nil)
 				return result.Error
 			},
 			expectedError: "beads client is nil",
@@ -745,7 +745,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			method: func(r *Runner) error {
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1, time.Time{})
+				result := r.processBead(nil, b, 1, time.Time{}, nil)
 				return result.Error
 			},
 			expectedError: "renderer is nil",
@@ -760,7 +760,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			method: func(r *Runner) error {
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1, time.Time{})
+				result := r.processBead(nil, b, 1, time.Time{}, nil)
 				return result.Error
 			},
 			expectedError: "claude client is nil",
@@ -2148,7 +2148,7 @@ func TestTDDPromptSelection(t *testing.T) {
 			}
 
 			// Call processBead - we don't care about the result, just whether RenderTDDBuild was called
-			_ = r.processBead(context.Background(), testBead, 1, time.Time{})
+			_ = r.processBead(context.Background(), testBead, 1, time.Time{}, nil)
 
 			// Verify expectations
 			if tt.expectTDDBuildCalled && !tddBuildCalled {
@@ -2960,7 +2960,7 @@ func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 				Labels:   tt.beadLabels,
 			}
 
-			_ = r.processBead(context.Background(), testBead, 1, time.Time{})
+			_ = r.processBead(context.Background(), testBead, 1, time.Time{}, nil)
 
 			output := buf.String()
 

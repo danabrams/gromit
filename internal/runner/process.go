@@ -43,11 +43,14 @@ type beadContext struct {
 	parentCtx   context.Context // original context (to distinguish bead timeout from Ctrl+C)
 	beadTimeout time.Duration
 	runDeadline time.Time // run deadline for time-budget awareness
+
+	// Scope estimate (cached from scope gate to avoid duplicate LLM calls)
+	scopeEstimate *prompt.ScopeEstimate
 }
 
 // setupBeadContext validates runner state, sets up timeouts, captures git state,
 // fetches parent bead, and selects the initial model.
-func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration int, runDeadline time.Time) (*beadContext, context.Context, context.CancelFunc, error) {
+func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration int, runDeadline time.Time, scopeEstimate *prompt.ScopeEstimate) (*beadContext, context.Context, context.CancelFunc, error) {
 	if r.cfg == nil {
 		return nil, nil, nil, fmt.Errorf("runner config is nil")
 	}
@@ -90,6 +93,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		parentCtx:         ctx,
 		beadTimeout:       beadTimeout,
 		runDeadline:       runDeadline,
+		scopeEstimate:     scopeEstimate,
 	}
 
 	return bc, beadCtx, beadCancel, nil
@@ -107,7 +111,11 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iterat
 	bc.promptCtx = promptCtx
 
 	if r.cfg.ScopeCheck.Enabled {
-		scopeEstimate := r.checkScope(ctx, bc.bead)
+		// Use cached scope estimate if available (from scope gate), otherwise call checkScope
+		scopeEstimate := bc.scopeEstimate
+		if scopeEstimate == nil {
+			scopeEstimate = r.checkScope(ctx, bc.bead)
+		}
 		if scopeEstimate != nil {
 			if scopeEstimate.Complexity == "high" {
 				r.log("Scope check: complexity=high, auto-escalating to opus")

@@ -1011,6 +1011,10 @@ func TestSelectModelWithMocks(t *testing.T) {
 		{"P2 uses haiku", &bead.Bead{ID: "t3", Priority: 2, Labels: []string{}}, "haiku"},
 		{"complexity:high overrides to opus", &bead.Bead{ID: "t4", Priority: 2, Labels: []string{"complexity:high"}}, "opus"},
 		{"complexity:low overrides to haiku", &bead.Bead{ID: "t5", Priority: 0, Labels: []string{"complexity:low"}}, "haiku"},
+		{"test-only P1 bead routes to haiku", &bead.Bead{ID: "t6", Priority: 1, Title: "Add tests for runner escalation", Labels: []string{}}, "haiku"},
+		{"test-only P0 bead routes to haiku", &bead.Bead{ID: "t7", Priority: 0, Title: "Write tests for prompt rendering", Labels: []string{}}, "haiku"},
+		{"test-only with complexity:high still uses opus", &bead.Bead{ID: "t8", Priority: 1, Title: "Add tests for complex integration", Labels: []string{"complexity:high"}}, "opus"},
+		{"non-test bead P1 still uses sonnet", &bead.Bead{ID: "t9", Priority: 1, Title: "Fix failing tests in runner", Labels: []string{}}, "sonnet"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1035,7 +1039,7 @@ func TestProcessBeadWithMocks_SuccessfulBuild(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "build-test", Title: "Build Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1, time.Time{})
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if !result.Success {
 		t.Errorf("expected success, got error: %v", result.Error)
@@ -1067,7 +1071,7 @@ func TestProcessBeadWithMocks_BuildFailure(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "fail-test", Title: "Fail Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1, time.Time{})
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if result.Success {
 		t.Error("expected failure")
@@ -1136,7 +1140,7 @@ func TestProcessBeadWithMocks_ValidationEnabled(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "val-test", Title: "Validation Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1, time.Time{})
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if !result.Success {
 		t.Errorf("expected success, got error: %v", result.Error)
@@ -1177,7 +1181,7 @@ func TestEscalationWithMocks(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "escalate-test", Title: "Escalation Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1, time.Time{})
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if !result.Success {
 		t.Errorf("expected success after escalation, got error: %v", result.Error)
@@ -1236,7 +1240,7 @@ func TestProcessBeadWithMocks_UnclearSpec(t *testing.T) {
 		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
 	b := &bead.Bead{ID: "unclear-test", Title: "Unclear Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
-	result := r.processBead(context.Background(), b, 1, time.Time{})
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if result.Success {
 		t.Error("expected failure for unclear spec")

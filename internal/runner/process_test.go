@@ -22,7 +22,7 @@ import (
 func TestSetupBeadContext_NilConfig(t *testing.T) {
 	r := &Runner{output: &strings.Builder{}}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	_, _, _, err := r.setupBeadContext(context.Background(), b, 1, time.Time{})
+	_, _, _, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "config is nil") {
 		t.Errorf("expected 'config is nil' error, got: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestSetupBeadContext_NilConfig(t *testing.T) {
 func TestSetupBeadContext_NilBeads(t *testing.T) {
 	r := &Runner{cfg: &config.Config{}, output: &strings.Builder{}}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	_, _, _, err := r.setupBeadContext(context.Background(), b, 1, time.Time{})
+	_, _, _, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "beads client is nil") {
 		t.Errorf("expected 'beads client is nil' error, got: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestSetupBeadContext_NilRenderer(t *testing.T) {
 		output: &strings.Builder{},
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	_, _, _, err := r.setupBeadContext(context.Background(), b, 1, time.Time{})
+	_, _, _, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "renderer is nil") {
 		t.Errorf("expected 'renderer is nil' error, got: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestSetupBeadContext_NilClaude(t *testing.T) {
 		output:   &strings.Builder{},
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
-	_, _, _, err := r.setupBeadContext(context.Background(), b, 1, time.Time{})
+	_, _, _, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "claude client is nil") {
 		t.Errorf("expected 'claude client is nil' error, got: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test", Priority: 1}
 
-	bc, beadCtx, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{})
+	bc, beadCtx, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -412,7 +412,7 @@ func TestProcessBead_DurationIsSetOnSetupFailure(t *testing.T) {
 	r := &Runner{output: &strings.Builder{}}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
 
-	result := r.processBead(context.Background(), b, 1, time.Time{})
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if result.Error == nil {
 		t.Fatal("expected error for nil config")
