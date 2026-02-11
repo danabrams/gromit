@@ -11,22 +11,22 @@ import (
 
 // IterationLog represents a single iteration's outcome
 type IterationLog struct {
-	Timestamp    time.Time `json:"timestamp"`
-	Iteration    int       `json:"iteration"`
-	BeadID       string    `json:"bead_id"`
-	BeadTitle    string    `json:"bead_title"`
-	Model        string    `json:"model"`
-	Success      bool      `json:"success"`
-	Validated    bool      `json:"validated"`
-	Escalated    bool      `json:"escalated"`
-	EscalatedTo  string    `json:"escalated_to,omitempty"`
-	DurationMs   int64     `json:"duration_ms"`
-	CostUSD      float64   `json:"cost_usd"`
-	InputTokens  int       `json:"input_tokens"`
-	OutputTokens int       `json:"output_tokens"`
-	Error             string `json:"error,omitempty"`
-	Outcome           string `json:"outcome,omitempty"`
-	ValidationRetried bool   `json:"validation_retried,omitempty"`
+	Timestamp         time.Time `json:"timestamp"`
+	Iteration         int       `json:"iteration"`
+	BeadID            string    `json:"bead_id"`
+	BeadTitle         string    `json:"bead_title"`
+	Model             string    `json:"model"`
+	Success           bool      `json:"success"`
+	Validated         bool      `json:"validated"`
+	Escalated         bool      `json:"escalated"`
+	EscalatedTo       string    `json:"escalated_to,omitempty"`
+	DurationMs        int64     `json:"duration_ms"`
+	CostUSD           float64   `json:"cost_usd"`
+	InputTokens       int       `json:"input_tokens"`
+	OutputTokens      int       `json:"output_tokens"`
+	Error             string    `json:"error,omitempty"`
+	Outcome           string    `json:"outcome,omitempty"`
+	ValidationRetried bool      `json:"validation_retried,omitempty"`
 
 	// Diagnostic fields for timeout investigation
 	TimeoutType        string `json:"timeout_type,omitempty"`           // "stall", "bead", "invocation", ""

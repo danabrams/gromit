@@ -2515,9 +2515,9 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 		output: &buf,
 	}
 	bc := &beadContext{
-		bead:      &bead.Bead{ID: "test-1", Title: "Test"},
-		model:     "sonnet",
-		result:    &IterationResult{},
+		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		model:       "sonnet",
+		result:      &IterationResult{},
 		buildPrompt: "test prompt",
 	}
 
