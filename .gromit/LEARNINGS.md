@@ -83,6 +83,9 @@ All format functions return single strings with embedded newlines (built by appe
 ### 2026-02-11 | gromit-w0en | patterns
 When passing read-only data structures between functions, convert value types to pointer types at the call site (not in the return type) to allow formatters to handle both nil and zero-initialized cases uniformly
 
+### 2026-02-11 | gromit-zyc8 | patterns
+Spike tasks document CLI mechanics and behavior in detailed markdown findings files that serve as implementation reference—prefer comprehensive documentation over acceptance tests when test line budgets are constrained
+
 ---
 
 ## Archived
@@ -804,6 +807,11 @@ When wiring new data into Status() output sections, accept value types (not poin
 
 ### 2026-02-11 | gromit-lubw | conventions
 Logger functions are called with resolved filesystem paths (os.UserHomeDir()) rather than relative paths; always resolve home directory paths at call sites, not inside logger functions
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-zyc8 | patterns
+Acceptance test line count reduction is a hard requirement for task completion. The spike task was meant to reduce acceptance test bloat by documenting findings and shifting validation responsibility. Ensure acceptance tests are consolidated or removed when shifting to provider-based validation, rather than just adding new provider code alongside existing tests.
 
 *Archived from new: filtered: generic engineering advice*
 
