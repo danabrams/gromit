@@ -47,6 +47,9 @@ Template files in .gromit/templates/ follow a consistent structure: context sect
 ### 2026-02-11 | gromit-o4ow | patterns
 Test cases in learnings_test.go use subtests with t.Run and table-driven patterns, with mock implementations via testutils package providing controlled state for archived duplicate detection
 
+### 2026-02-11 | gromit-lxlp | conventions
+In this codebase, acceptance tests (build tag: //go:build acceptance) are subject to strict line count audits - total across all files must not exceed a fixed threshold. New test code should use unit tests for API verification, not acceptance tests. When adding new methods, place comprehensive tests in regular *_test.go files unless testing actual bd CLI integration/behavior.
+
 ---
 
 ## Archived

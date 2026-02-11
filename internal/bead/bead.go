@@ -213,15 +213,15 @@ func (c *Client) ReadyAny() (*Bead, error) {
 	return parseBeadOutput(out)
 }
 
-// CountReady returns the count of ready (unblocked) beads
-func (c *Client) CountReady() (int, error) {
+// countBeads is a helper that runs a bd command and returns the count of beads in the result
+func (c *Client) countBeads(cmdName string, args ...string) (int, error) {
 	if c == nil {
 		return 0, fmt.Errorf("bead client is nil")
 	}
-	// Fetch all ready beads (limit 0 = no limit)
-	out, err := c.run("ready", "--json", "--limit", "0")
+
+	out, err := c.run(args...)
 	if err != nil {
-		return 0, fmt.Errorf("bd ready: %w", err)
+		return 0, fmt.Errorf("bd %s: %w", cmdName, err)
 	}
 
 	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
@@ -230,58 +230,26 @@ func (c *Client) CountReady() (int, error) {
 
 	var beads []Bead
 	if err := jsonutil.ExtractArray(out, &beads); err != nil {
-		return 0, fmt.Errorf("parsing bd ready output: %w", err)
+		return 0, fmt.Errorf("parsing bd %s output: %w", cmdName, err)
 	}
 
 	return len(beads), nil
+}
+
+// CountReady returns the count of ready (unblocked) beads
+func (c *Client) CountReady() (int, error) {
+	return c.countBeads("ready", "ready", "--json", "--limit", "0")
 }
 
 // CountByStatus returns the count of beads with the specified status
 func (c *Client) CountByStatus(status string) (int, error) {
-	if c == nil {
-		return 0, fmt.Errorf("bead client is nil")
-	}
-	// Fetch all beads with the specified status (limit 0 = no limit)
-	out, err := c.run("list", "--json", "--status", status, "--limit", "0")
-	if err != nil {
-		return 0, fmt.Errorf("bd list: %w", err)
-	}
-
-	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
-		return 0, nil
-	}
-
-	var beads []Bead
-	if err := jsonutil.ExtractArray(out, &beads); err != nil {
-		return 0, fmt.Errorf("parsing bd list output: %w", err)
-	}
-
-	return len(beads), nil
+	return c.countBeads("list", "list", "--json", "--status", status, "--limit", "0")
 }
 
 // CountClosedAfter returns the count of beads closed after the specified time
 func (c *Client) CountClosedAfter(after time.Time) (int, error) {
-	if c == nil {
-		return 0, fmt.Errorf("bead client is nil")
-	}
-	// Format time for bd CLI (RFC3339 format)
 	afterStr := after.Format(time.RFC3339)
-	// Fetch all closed beads after the specified time (limit 0 = no limit)
-	out, err := c.run("list", "--json", "--status", "closed", "--closed-after", afterStr, "--limit", "0")
-	if err != nil {
-		return 0, fmt.Errorf("bd list: %w", err)
-	}
-
-	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
-		return 0, nil
-	}
-
-	var beads []Bead
-	if err := jsonutil.ExtractArray(out, &beads); err != nil {
-		return 0, fmt.Errorf("parsing bd list output: %w", err)
-	}
-
-	return len(beads), nil
+	return c.countBeads("list", "list", "--json", "--status", "closed", "--closed-after", afterStr, "--limit", "0")
 }
 
 // ListReadyIDs returns a slice of ready bead IDs (from a batch of 10)
