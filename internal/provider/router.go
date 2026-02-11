@@ -93,21 +93,24 @@ func (r *Router) isAvailable(name string) bool {
 	return true
 }
 
-// selectByRatio selects the provider furthest below its target ratio
+// selectByRatio selects the provider furthest below its target ratio.
+// Compares each available provider's current usage percentage against its target,
+// choosing the one with the largest gap (target - current). This maintains the
+// configured ratio over time by prioritizing underused providers.
 func (r *Router) selectByRatio() string {
 	if len(r.ratio) == 0 {
 		return ""
 	}
 
-	// Calculate total count
+	// Calculate total count across all providers
 	totalCount := 0
 	for _, count := range r.counts {
 		totalCount += count
 	}
 
-	// Find provider furthest below target
+	// Find available provider with largest gap below its target
 	var selectedName string
-	maxGap := -1.0
+	largestGap := -1.0
 
 	for name, targetRatio := range r.ratio {
 		if !r.isAvailable(name) {
@@ -123,8 +126,8 @@ func (r *Router) selectByRatio() string {
 		targetPercent := float64(targetRatio)
 		gap := targetPercent - currentPercent
 
-		if gap > maxGap {
-			maxGap = gap
+		if gap > largestGap {
+			largestGap = gap
 			selectedName = name
 		}
 	}
