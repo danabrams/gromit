@@ -743,3 +743,8 @@ Tests use individual test functions with simple direct assertions rather than ta
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-oqtr | conventions
+When a task requires adding new functionality with acceptance tests, check if there's an explicit test reduction target or acceptance test line limit in the validation criteria. Large test suites may require consolidating, removing redundant, or refactoring existing tests to stay within budgets. The gromit codebase appears to track acceptance test line counts as a quality metric to prevent test bloat.
+
+*Archived from new: filtered: generic engineering advice*
+
