@@ -62,12 +62,20 @@ golangci-lint run ./...                 # Lint
 
 ## Bead Sizing
 
-- **One concern per bead** — a single file or two tightly coupled files
+- **One deliverable behavior per bead** — a single observable change that a caller or user could verify, not "one file" or "one concern," but one unit of working functionality
 - **1-3 acceptance criteria** — concrete, testable criteria only; split if more than 3
+- **Soft file limit of 4-5** — if touching 6+ files across unrelated packages, consider splitting. Touching interface.go, impl.go, mock_test.go, and impl_test.go for one method addition is fine — that's one change, not four
 - **Self-contained** — understandable without reading other beads
 - **No ambiguity** — Claude implements without making design decisions
-- **Max 2 files touched** — if more, consider splitting the bead
 - **Clear definition of done** — each criterion has an obvious pass/fail test
+
+### Grouping Rules (Never Split These)
+
+- **Interface + implementation + mock updates** — changing an interface requires updating all implementations and mocks to compile. This is one change, not three beads
+- **Implementation + its tests** — Claude writes tests alongside implementation. Under ATDD, they're explicitly the same workflow. Never create a separate "write tests for X" bead
+- **Companion methods in the same package** — methods that follow the same pattern in the same file (e.g., `ReadyWithLabel` and `ListWithLabel`) are one bead. If you'd copy-paste-modify to create the second, they belong together
+- **Command flags + the wiring that makes them work** — a CLI flag that does nothing isn't a deliverable. The flag, its plumbing through to the runner, and its effect are one bead
+- **Template + its registration** — adding a template file and registering it in the renderer are one action, not two
 
 ## Capturing Ideas vs Creating Beads
 
