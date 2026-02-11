@@ -101,6 +101,12 @@ When adding new fields to Config struct, always update both SetDefaults() AND No
 ### 2026-02-11 | gromit-nqf1 | conventions
 When implementing features in gromit, check if acceptance tests are required and account for the total acceptance test line budget. The project enforces strict test line reduction targets via final_verification_test.go. New acceptance tests should be minimal or existing tests should be consolidated to stay within the 30% reduction target.
 
+### 2026-02-11 | gromit-6pvd | conventions
+State struct fields require both JSON tags and explicit initialization in NormalizeNilFields() to ensure maps are never nil—this prevents nil pointer dereferences in helper methods.
+
+### 2026-02-11 | gromit-6pvd | gotchas
+When adding multiple related state fields and helper methods to the State struct, initialize maps in NormalizeNilFields() to prevent nil pointer dereferences when accessing map fields
+
 ---
 
 ## Archived
