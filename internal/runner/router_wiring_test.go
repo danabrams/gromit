@@ -21,3 +21,16 @@ func TestRunnerHasRouterField(t *testing.T) {
 		t.Errorf("Expected router field to be assignable and retrievable")
 	}
 }
+
+// TestDepsHasRouterField verifies that the Deps struct has a Router field
+func TestDepsHasRouterField(t *testing.T) {
+	// Create a Deps struct with a Router
+	mockRouter := &provider.Router{}
+	deps := Deps{
+		Router: mockRouter,
+	}
+
+	if deps.Router != mockRouter {
+		t.Errorf("Expected Router field to be assignable and retrievable")
+	}
+}

@@ -116,6 +116,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 type Deps struct {
 	Beads    BeadClient
 	Claude   ClaudeClient
+	Router   *provider.Router
 	Analyzer FailureAnalyzer
 	Renderer PromptRenderer
 	Logger   IterationLogger
