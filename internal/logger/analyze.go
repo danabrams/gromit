@@ -47,11 +47,11 @@ func AnalyzeTimeouts(logsDir string) (TimeoutAnalysis, error) {
 	}
 
 	// Track per-model running totals for computing averages
-	type runningTotals struct {
+	type modelTotals struct {
 		timeToFirstEventMs int64
 		toolCallCount      int
 	}
-	totals := make(map[string]*runningTotals)
+	totals := make(map[string]*modelTotals)
 
 	for _, f := range files {
 		entries, err := readLogFile(f)
@@ -60,13 +60,12 @@ func AnalyzeTimeouts(logsDir string) (TimeoutAnalysis, error) {
 		}
 
 		for _, entry := range entries {
-			// Count all iterations
 			analysis.TotalIterations++
 
 			// Initialize model stats and totals if needed
 			if _, exists := analysis.ByModel[entry.Model]; !exists {
 				analysis.ByModel[entry.Model] = ModelTimeoutStats{}
-				totals[entry.Model] = &runningTotals{}
+				totals[entry.Model] = &modelTotals{}
 			}
 
 			stats := analysis.ByModel[entry.Model]
@@ -82,7 +81,7 @@ func AnalyzeTimeouts(logsDir string) (TimeoutAnalysis, error) {
 				stats.TimeoutCount++
 				updateTimeoutBreakdown(&stats, entry.TimeoutType)
 
-				// Rate limit correlation: count timeouts with rate_limit_hits > 0
+				// Correlation with rate limiting: count timeouts with rate_limit_hits > 0
 				if entry.RateLimitHits > 0 {
 					stats.RateLimitCorrelation++
 				}
@@ -96,9 +95,9 @@ func AnalyzeTimeouts(logsDir string) (TimeoutAnalysis, error) {
 	// Compute averages for each model
 	for model, stats := range analysis.ByModel {
 		if stats.TotalIterations > 0 {
-			t := totals[model]
-			stats.AvgTimeToFirstEventMs = t.timeToFirstEventMs / int64(stats.TotalIterations)
-			stats.AvgToolCallCount = t.toolCallCount / stats.TotalIterations
+			modelTotal := totals[model]
+			stats.AvgTimeToFirstEventMs = modelTotal.timeToFirstEventMs / int64(stats.TotalIterations)
+			stats.AvgToolCallCount = modelTotal.toolCallCount / stats.TotalIterations
 		}
 		analysis.ByModel[model] = stats
 	}

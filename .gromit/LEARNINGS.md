@@ -50,6 +50,15 @@ Test cases in learnings_test.go use subtests with t.Run and table-driven pattern
 ### 2026-02-11 | gromit-lxlp | conventions
 In this codebase, acceptance tests (build tag: //go:build acceptance) are subject to strict line count audits - total across all files must not exceed a fixed threshold. New test code should use unit tests for API verification, not acceptance tests. When adding new methods, place comprehensive tests in regular *_test.go files unless testing actual bd CLI integration/behavior.
 
+### 2026-02-11 | gromit-03lk | conventions
+When expanding a struct with new fields in the pipeline package, you must: (1) update ReadStatus() to populate the new count fields by iterating through beads and counting by status, (2) update the formatting/display logic (likely in runner/format_bead_breakdown.go) to include these new counts in status output, and (3) ensure any helper methods for counting beads are called correctly. The count fields won't be used automatically—they require explicit population and display logic.
+
+### 2026-02-11 | gromit-d46r | patterns
+When building comma-separated status breakdowns, only include non-zero counts and provide a fallback value ('none') when all counts are zero; use conditional logical operators (if > 0) to filter parts before joining to avoid empty entries
+
+### 2026-02-11 | gromit-j2p9 | patterns
+Test files for log parsing use synthetic JSONL with varying field completeness to document backward compatibility—test both full-format and minimal-format entries to prevent regressions when log schema evolves
+
 ---
 
 ## Archived
@@ -721,6 +730,11 @@ CLAUDE.md is the source of truth for project conventions and should be updated w
 
 ### 2026-02-11 | gromit-lxlp | patterns
 Extract common logic into helper functions when adding similar methods to Client. Multiple Count* methods should delegate to a shared countBeads() helper that handles bd invocation, JSON parsing, and empty-result handling.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-d46r | patterns
+The formatPipeline function uses a pattern where multiple conditional fields are combined into a single display line, with detailed lists preserved on separate lines below—this keeps the summary concise while retaining full information.
 
 *Archived from new: filtered: generic engineering advice*
 
