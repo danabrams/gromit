@@ -260,6 +260,63 @@ func TestSetupBeadContext_P0NoPreemptiveEscalation(t *testing.T) {
 	}
 }
 
+func TestSetupBeadContext_NoEscalationWhenScopeCheckDisabled(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg: &config.Config{
+			Models: config.ModelsConfig{
+				P0: "opus",
+				P1: "sonnet",
+				P2: "haiku",
+			},
+			ScopeCheck: config.ScopeCheckConfig{
+				Enabled: false, // DISABLED
+				Model:   "haiku",
+			},
+			Claude: config.ClaudeConfig{
+				BeadTimeout: 300,
+			},
+			Escalation: config.EscalationConfig{
+				MaxRetriesPerModel: 2,
+				MaxRetriesPerBead:  5,
+			},
+		},
+		beads:    &mockBeadClient{},
+		renderer: &mockPromptRenderer{},
+		claude:   &mockClaudeClient{},
+		output:   &buf,
+	}
+
+	b := &bead.Bead{
+		ID:       "test-no-scope",
+		Title:    "Complex Task",
+		Priority: 1, // P1 = sonnet
+		Labels:   []string{},
+	}
+
+	scopeEstimate := &prompt.ScopeEstimate{
+		Complexity:                   "high",
+		EstimatedIterations:          2,
+		CanCompleteInSingleIteration: false,
+		Rationale:                    "This task touches multiple subsystems",
+		Blockers:                     []string{},
+	}
+
+	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, scopeEstimate)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer cancel()
+
+	// When scope check is disabled, no escalation should occur even with high complexity
+	if bc.model != "sonnet" {
+		t.Errorf("expected model to remain 'sonnet' when scope check disabled, got %q", bc.model)
+	}
+	if bc.result.Escalated {
+		t.Error("expected result.Escalated to be false when scope check is disabled")
+	}
+}
+
 func TestHandleScopeTooLarge(t *testing.T) {
 	var buf strings.Builder
 	tempDir := t.TempDir()
