@@ -738,3 +738,8 @@ The formatPipeline function uses a pattern where multiple conditional fields are
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-j2p9 | conventions
+Tests use individual test functions with simple direct assertions rather than table-driven tests; use t.TempDir() for temporary files and t.Fatalf() for setup errors
+
+*Archived from new: filtered: generic engineering advice*
+

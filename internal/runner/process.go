@@ -177,12 +177,13 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 	childCancel()
 
 	// Capture diagnostic data from stream stats
-	stallCount, stallTier, ttfe, toolCalls, rateLimitHits := stats.DiagnosticSnapshot()
+	stallCount, stallTier, ttfe, toolCalls, rateLimitHits, rateLimitRecoveryMs := stats.DiagnosticSnapshot()
 	bc.result.StallCount = stallCount
 	bc.result.StallTier = stallTier
 	bc.result.TimeToFirstEventMs = ttfe.Milliseconds()
 	bc.result.ToolCallCount = toolCalls
 	bc.result.RateLimitHits = rateLimitHits
+	bc.result.RateLimitRecoveryMs = rateLimitRecoveryMs
 
 	return claudeResult, stats, stallFired, err
 }
