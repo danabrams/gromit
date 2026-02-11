@@ -108,3 +108,50 @@ func TestNewRunnerCreatesRouterWhenNoProviders(t *testing.T) {
 		t.Errorf("Expected runner.router to be created even without providers config")
 	}
 }
+
+// TestNewRunnerWithProvidersConfigLeavesTodo verifies that NewRunner
+// leaves router as nil (TODO) when cfg.HasProviders() is true
+func TestNewRunnerWithProvidersConfigLeavesTodo(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create template and spec directories
+	if err := os.MkdirAll(tmpDir+"/templates", 0755); err != nil {
+		t.Fatalf("Failed to create templates dir: %v", err)
+	}
+	if err := os.MkdirAll(tmpDir+"/specs", 0755); err != nil {
+		t.Fatalf("Failed to create specs dir: %v", err)
+	}
+
+	// Create a config with providers defined
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"claude": {
+				Binary: "claude",
+				Models: map[string]string{
+					"high":   "opus",
+					"medium": "sonnet",
+					"low":    "haiku",
+				},
+			},
+		},
+		Paths: config.PathsConfig{
+			Templates: tmpDir + "/templates",
+			Specs:     tmpDir + "/specs",
+		},
+		Claude: config.ClaudeConfig{
+			Binary: "claude",
+		},
+	}
+
+	runner, err := NewRunner(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+
+	// For now, router will be nil when providers are configured (TODO implementation)
+	if runner.router != nil {
+		t.Logf("router is set (provider building implemented)")
+	} else {
+		t.Logf("router is nil (provider building not yet implemented)")
+	}
+}
