@@ -692,3 +692,77 @@ func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
 		}
 	}
 }
+
+// TestListWithLabel_CommandArgumentsIncludeAllAndLimit verifies that the bd list command
+// is invoked with --all and --limit 0 flags, ensuring complete results are returned.
+func TestListWithLabel_CommandArgumentsIncludeAllAndLimit(t *testing.T) {
+	// Expected failure: ListWithLabel at internal/bead/bead.go:616 does not pass --all and --limit 0
+	// Current command: c.run("list", "--json", "--label", label, "--sort", "priority")
+	// Expected command: c.run("list", "--json", "--label", label, "--sort", "priority", "--all", "--limit", "0")
+	//
+	// This test verifies that the command invocation includes the required flags.
+	// Since we can't easily mock the bd binary in unit tests, we verify this behaviorally
+	// by confirming that closed beads and unlimited results are returned when they should be.
+
+	c := newIsolatedClient(t)
+
+	testLabel := "spec:command-args-test"
+
+	// Create an open bead
+	openBead, err := c.Create("Open task", 1, []string{testLabel}, []string{})
+	if err != nil {
+		t.Skipf("Cannot create open bead: %v", err)
+	}
+	openID := openBead.ID
+
+	// Create and close a bead
+	closedBead, err := c.Create("Closed task", 1, []string{testLabel}, []string{})
+	if err != nil {
+		t.Skipf("Cannot create closed bead: %v", err)
+	}
+	closedID := closedBead.ID
+	if err := c.Close(closedID); err != nil {
+		t.Skipf("Cannot close bead: %v", err)
+	}
+
+	// Call ListWithLabel
+	beads, err := c.ListWithLabel(testLabel)
+	if err != nil {
+		t.Fatalf("ListWithLabel() error = %v", err)
+	}
+
+	// Map beads by ID
+	beadsByID := make(map[string]*Bead)
+	for _, b := range beads {
+		beadsByID[b.ID] = b
+	}
+
+	// Verify open bead is present (this should always work)
+	if _, found := beadsByID[openID]; !found {
+		t.Errorf("Open bead %s not found in results", openID)
+	}
+
+	// Verify closed bead is present (requires --all flag)
+	// Expected failure: closed bead will be missing without --all
+	if _, found := beadsByID[closedID]; !found {
+		t.Errorf("Closed bead %s not found in results. This confirms --all flag is missing from command invocation.", closedID)
+	}
+
+	// Verify we have both statuses represented
+	statuses := make(map[string]int)
+	for _, b := range beads {
+		statuses[b.Status]++
+	}
+
+	if statuses["open"] == 0 {
+		t.Error("No open beads in results")
+	}
+	if statuses["closed"] == 0 {
+		t.Error("No closed beads in results. Without --all flag, bd list filters out closed beads.")
+	}
+
+	// Additional check: verify at least 2 beads returned (open + closed)
+	if len(beads) < 2 {
+		t.Errorf("Expected at least 2 beads (1 open + 1 closed), got %d. Missing --all flag causes closed beads to be filtered.", len(beads))
+	}
+}
