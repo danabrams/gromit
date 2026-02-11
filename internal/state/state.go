@@ -249,9 +249,7 @@ func (f *File) IncrementProviderCount(provider string) {
 	if f == nil {
 		return
 	}
-	if f.state.ProviderCounts == nil {
-		f.state.ProviderCounts = make(map[string]int)
-	}
+	f.ensureProviderMaps()
 	f.state.ProviderCounts[provider]++
 }
 
@@ -284,9 +282,7 @@ func (f *File) SetProviderUnavailable(provider string, until time.Time) {
 	if f == nil {
 		return
 	}
-	if f.state.ProviderUnavailableUntil == nil {
-		f.state.ProviderUnavailableUntil = make(map[string]time.Time)
-	}
+	f.ensureProviderMaps()
 	f.state.ProviderUnavailableUntil[provider] = until
 }
 
@@ -311,8 +307,16 @@ func (f *File) ClearProviderUnavailable(provider string) {
 	if f == nil {
 		return
 	}
-	if f.state.ProviderUnavailableUntil == nil {
-		return
-	}
+	f.ensureProviderMaps()
 	delete(f.state.ProviderUnavailableUntil, provider)
+}
+
+// ensureProviderMaps initializes provider-related maps if they are nil
+func (f *File) ensureProviderMaps() {
+	if f.state.ProviderCounts == nil {
+		f.state.ProviderCounts = make(map[string]int)
+	}
+	if f.state.ProviderUnavailableUntil == nil {
+		f.state.ProviderUnavailableUntil = make(map[string]time.Time)
+	}
 }
