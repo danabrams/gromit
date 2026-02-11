@@ -83,7 +83,7 @@ func TestScopeCheckNotDuplicatedInProcessBead(t *testing.T) {
 		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: p}, nil
 		},
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler, onToolCall func(ToolEvent)) (*claude.Result, error) {
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "mock output"}, nil
 		},
 	}
@@ -396,7 +396,7 @@ func TestProcessBeadReceivesScopeEstimateFromRun(t *testing.T) {
 		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: p}, nil
 		},
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler, onToolCall func(ToolEvent)) (*claude.Result, error) {
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "mock success"}, nil
 		},
 		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
@@ -471,7 +471,7 @@ func TestProcessBeadSignatureIncludesScopeEstimate(t *testing.T) {
 	}
 
 	mockClaude := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler, onToolCall func(ToolEvent)) (*claude.Result, error) {
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "mock output"}, nil
 		},
 	}
