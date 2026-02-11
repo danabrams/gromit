@@ -143,3 +143,22 @@ func TestClaudeProviderRunMethodSignature(t *testing.T) {
 		t.Error("Run() with nil client should return an error")
 	}
 }
+
+// TestClaudeProviderStreamRunMethodSignature verifies that StreamRun() method
+// exists with the correct signature matching the Provider interface.
+// Expected failure: StreamRun() method does not exist yet
+func TestClaudeProviderStreamRunMethodSignature(t *testing.T) {
+	cp := &ClaudeProvider{}
+
+	var handler EventHandler
+	var toolHandler ToolCallHandler
+
+	// Verify we can call StreamRun() with the expected signature
+	// We expect it to fail since client is nil, but the method should exist
+	_, err := cp.StreamRun(nil, "test prompt", TierHigh, nil, handler, toolHandler)
+
+	// We expect an error (nil client), but the method signature should be correct
+	if err == nil {
+		t.Error("StreamRun() with nil client should return an error")
+	}
+}
