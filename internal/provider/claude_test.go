@@ -127,3 +127,19 @@ func TestClaudeProviderResolveTier(t *testing.T) {
 		})
 	}
 }
+
+// TestClaudeProviderRunMethodSignature verifies that Run() method exists
+// with the correct signature matching the Provider interface.
+// Expected failure: Run() method does not exist yet
+func TestClaudeProviderRunMethodSignature(t *testing.T) {
+	cp := &ClaudeProvider{}
+
+	// Verify we can call Run() with the expected signature
+	// We expect it to fail since client is nil, but the method should exist
+	_, err := cp.Run(nil, "test prompt", TierMedium)
+
+	// We expect an error (nil client), but the method signature should be correct
+	if err == nil {
+		t.Error("Run() with nil client should return an error")
+	}
+}
