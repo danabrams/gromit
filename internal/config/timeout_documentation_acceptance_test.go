@@ -50,41 +50,26 @@ func TestProjectGromitYAML_ModelTimeoutComments(t *testing.T) {
 	content := string(yamlContent)
 
 	t.Run("sonnet_timeout_has_rationale", func(t *testing.T) {
-		// Expected failure: no comment explaining why sonnet needs longer timeout
 		if !strings.Contains(content, "model_timeouts:") {
 			t.Fatal("gromit.yaml missing model_timeouts section")
 		}
 
-		// Find the sonnet section
 		sonnetIdx := strings.Index(content, "sonnet:")
 		if sonnetIdx == -1 {
 			t.Fatal("gromit.yaml missing sonnet entry in model_timeouts")
 		}
 
-		// Look for timeout field and verify it has a comment explaining rationale
-		timeoutIdx := strings.Index(content[sonnetIdx:], "timeout:")
-		if timeoutIdx == -1 {
+		lineContent := extractLineWithField(content, sonnetIdx, "timeout:")
+		if lineContent == "" {
 			t.Fatal("sonnet entry missing timeout field")
 		}
 
-		// Check for explanatory comment on the same line or line before
-		lineStart := strings.LastIndex(content[:sonnetIdx+timeoutIdx], "\n")
-		lineEnd := strings.Index(content[sonnetIdx+timeoutIdx:], "\n")
-		if lineEnd == -1 {
-			lineEnd = len(content) - (sonnetIdx + timeoutIdx)
-		}
-		lineContent := content[lineStart : sonnetIdx+timeoutIdx+lineEnd]
-
-		// Verify comment exists explaining the rationale
 		if !strings.Contains(lineContent, "#") {
 			t.Error("sonnet timeout field missing explanatory comment")
 		}
 
-		// Verify comment contains meaningful rationale (not just field name)
-		if strings.Contains(lineContent, "#") {
-			commentIdx := strings.Index(lineContent, "#")
+		if commentIdx := strings.Index(lineContent, "#"); commentIdx != -1 {
 			comment := lineContent[commentIdx:]
-			// Expected failure: no rationale like "consistently needs >900s" or "deeper thinking"
 			if !containsRationale(comment) {
 				t.Errorf("sonnet timeout comment does not explain rationale: %s", comment)
 			}
@@ -92,16 +77,14 @@ func TestProjectGromitYAML_ModelTimeoutComments(t *testing.T) {
 	})
 
 	t.Run("opus_timeout_has_rationale", func(t *testing.T) {
-		// Expected failure: opus entry does not exist yet, so no comment exists
 		opusIdx := strings.Index(content, "opus:")
 		if opusIdx == -1 {
 			t.Fatal("gromit.yaml missing opus entry in model_timeouts")
 		}
 
-		// Look for timeout field and verify it has a comment explaining rationale
-		timeoutIdx := strings.Index(content[opusIdx:], "timeout:")
-		if timeoutIdx == -1 {
-			// opus might not have timeout override, that's OK - check for any field
+		// opus might not have timeout override - check for any timeout field
+		lineContent := extractLineWithField(content, opusIdx, "timeout:")
+		if lineContent == "" {
 			if !strings.Contains(content[opusIdx:], "stall_timeout:") &&
 				!strings.Contains(content[opusIdx:], "bead_timeout:") {
 				t.Skip("opus entry has no timeout overrides, skipping comment check")
@@ -109,23 +92,12 @@ func TestProjectGromitYAML_ModelTimeoutComments(t *testing.T) {
 			return
 		}
 
-		// Check for explanatory comment
-		lineStart := strings.LastIndex(content[:opusIdx+timeoutIdx], "\n")
-		lineEnd := strings.Index(content[opusIdx+timeoutIdx:], "\n")
-		if lineEnd == -1 {
-			lineEnd = len(content) - (opusIdx + timeoutIdx)
-		}
-		lineContent := content[lineStart : opusIdx+timeoutIdx+lineEnd]
-
 		if !strings.Contains(lineContent, "#") {
 			t.Error("opus timeout field missing explanatory comment")
 		}
 
-		// Verify comment contains meaningful rationale
-		if strings.Contains(lineContent, "#") {
-			commentIdx := strings.Index(lineContent, "#")
+		if commentIdx := strings.Index(lineContent, "#"); commentIdx != -1 {
 			comment := lineContent[commentIdx:]
-			// Expected failure: no rationale explaining why opus needs specific timeout
 			if !containsRationale(comment) {
 				t.Errorf("opus timeout comment does not explain rationale: %s", comment)
 			}
@@ -133,34 +105,23 @@ func TestProjectGromitYAML_ModelTimeoutComments(t *testing.T) {
 	})
 
 	t.Run("haiku_timeout_has_rationale", func(t *testing.T) {
-		// Expected failure: existing haiku comments may not explain rationale sufficiently
 		haikuIdx := strings.Index(content, "haiku:")
 		if haikuIdx == -1 {
 			t.Fatal("gromit.yaml missing haiku entry in model_timeouts")
 		}
 
 		// Check stall_timeout comment (haiku's primary override)
-		stallIdx := strings.Index(content[haikuIdx:], "stall_timeout:")
-		if stallIdx == -1 {
+		lineContent := extractLineWithField(content, haikuIdx, "stall_timeout:")
+		if lineContent == "" {
 			t.Skip("haiku has no stall_timeout override, skipping comment check")
 		}
-
-		lineStart := strings.LastIndex(content[:haikuIdx+stallIdx], "\n")
-		lineEnd := strings.Index(content[haikuIdx+stallIdx:], "\n")
-		if lineEnd == -1 {
-			lineEnd = len(content) - (haikuIdx + stallIdx)
-		}
-		lineContent := content[lineStart : haikuIdx+stallIdx+lineEnd]
 
 		if !strings.Contains(lineContent, "#") {
 			t.Error("haiku stall_timeout field missing explanatory comment")
 		}
 
-		// Verify comment contains meaningful rationale
-		if strings.Contains(lineContent, "#") {
-			commentIdx := strings.Index(lineContent, "#")
+		if commentIdx := strings.Index(lineContent, "#"); commentIdx != -1 {
 			comment := lineContent[commentIdx:]
-			// Expected failure: may not explain why haiku should respond quickly
 			if !containsRationale(comment) {
 				t.Errorf("haiku stall_timeout comment does not explain rationale: %s", comment)
 			}
@@ -168,9 +129,27 @@ func TestProjectGromitYAML_ModelTimeoutComments(t *testing.T) {
 	})
 }
 
+// extractLineWithField finds the line containing fieldName after startIdx and returns it.
+// Returns empty string if field not found.
+func extractLineWithField(content string, startIdx int, fieldName string) string {
+	fieldIdx := strings.Index(content[startIdx:], fieldName)
+	if fieldIdx == -1 {
+		return ""
+	}
+
+	// Find line boundaries
+	absFieldIdx := startIdx + fieldIdx
+	lineStart := strings.LastIndex(content[:absFieldIdx], "\n")
+	lineEnd := strings.Index(content[absFieldIdx:], "\n")
+	if lineEnd == -1 {
+		lineEnd = len(content) - absFieldIdx
+	}
+
+	return content[lineStart : absFieldIdx+lineEnd]
+}
+
 // containsRationale checks if a comment explains WHY a timeout is set, not just WHAT it is
 func containsRationale(comment string) bool {
-	// Expected failure: this helper function does not exist yet
 	lowerComment := strings.ToLower(comment)
 
 	// Rationale keywords that explain reasoning

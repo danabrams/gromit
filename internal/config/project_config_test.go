@@ -16,31 +16,35 @@ func TestGromitYamlDocumentsModelTimeouts(t *testing.T) {
 
 	text := string(content)
 
-	// Verify model_timeouts section exists
-	if !strings.Contains(text, "model_timeouts:") {
-		t.Error("gromit.yaml missing model_timeouts section")
-	}
-
-	// Verify sonnet configuration is documented
-	if !strings.Contains(text, "sonnet:") {
-		t.Error("gromit.yaml missing sonnet timeout configuration")
-	}
-
-	// Verify opus configuration is documented
-	if !strings.Contains(text, "opus:") {
-		t.Error("gromit.yaml missing opus timeout configuration")
-	}
-
-	// Verify rationale comments exist for timeout adjustments
-	expectedComments := []string{
-		"# longer invocation timeout",
-		"# longer active stall",
-		"# longer bead budget",
-	}
-
-	for _, comment := range expectedComments {
-		if !strings.Contains(text, comment) {
-			t.Errorf("gromit.yaml missing expected rationale comment: %q", comment)
+	t.Run("has_model_timeouts_section", func(t *testing.T) {
+		if !strings.Contains(text, "model_timeouts:") {
+			t.Error("gromit.yaml missing model_timeouts section")
 		}
-	}
+	})
+
+	t.Run("documents_sonnet_configuration", func(t *testing.T) {
+		if !strings.Contains(text, "sonnet:") {
+			t.Error("gromit.yaml missing sonnet timeout configuration")
+		}
+	})
+
+	t.Run("documents_opus_configuration", func(t *testing.T) {
+		if !strings.Contains(text, "opus:") {
+			t.Error("gromit.yaml missing opus timeout configuration")
+		}
+	})
+
+	t.Run("includes_rationale_comments", func(t *testing.T) {
+		expectedComments := []string{
+			"# longer invocation timeout",
+			"# longer active stall",
+			"# longer bead budget",
+		}
+
+		for _, comment := range expectedComments {
+			if !strings.Contains(text, comment) {
+				t.Errorf("gromit.yaml missing expected rationale comment: %q", comment)
+			}
+		}
+	})
 }

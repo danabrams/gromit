@@ -65,6 +65,9 @@ When adding a field to a logging structure (IterationLog), the field must be wir
 ### 2026-02-11 | gromit-vvea | gotchas
 When moving a function call earlier in a lifecycle (e.g., escalateModel called preemptively in setupBeadContext before promptCtx exists), defensive nil checks are required for fields initialized later. escalateModel must check `if bc.promptCtx != nil` before updating it.
 
+### 2026-02-11 | gromit-2xrq | conventions
+Configuration files in gromit.yaml use inline comments (after values) to explain the rationale and trade-offs for each setting, not just what the setting does—comments include why a value differs from defaults and what it optimizes for (e.g., 'longer invocation timeout — sonnet consistently needs >900s')
+
 ---
 
 ## Archived
