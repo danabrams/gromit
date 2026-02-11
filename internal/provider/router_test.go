@@ -299,10 +299,10 @@ func TestRouterSelectWithPhasePreference(t *testing.T) {
 			"claude": 50,
 			"openai": 50,
 		},
-		counts:       map[string]int{},
-		unavailable:  map[string]time.Time{},
-		cooldown:     30 * time.Minute,
-		stateFn:      &mockStateFile{},
+		counts:      map[string]int{},
+		unavailable: map[string]time.Time{},
+		cooldown:    30 * time.Minute,
+		stateFn:     &mockStateFile{},
 	}
 
 	// Test that build phase prefers claude
@@ -667,6 +667,354 @@ func (m *mockStateFile) SetProviderUnavailable(provider string, until time.Time)
 		m.unavailableProviders = make(map[string]bool)
 	}
 	m.unavailableProviders[provider] = true
+}
+
+// TestRouterMarkUnavailableMethod verifies that MarkUnavailable() method
+// records the current time plus cooldown for a provider.
+// Expected failure: MarkUnavailable() method does not exist yet
+func TestRouterMarkUnavailableMethod(t *testing.T) {
+	cooldown := 30 * time.Minute
+	stateFn := &mockStateFile{}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+		},
+		unavailable: make(map[string]time.Time),
+		cooldown:    cooldown,
+		stateFn:     stateFn,
+	}
+
+	beforeMark := time.Now()
+	r.MarkUnavailable("claude")
+	afterMark := time.Now()
+
+	// Verify unavailable time was recorded in local map
+	unavailUntil, ok := r.unavailable["claude"]
+	if !ok {
+		t.Fatal("MarkUnavailable() did not record provider in unavailable map")
+	}
+
+	// The recorded time should be approximately now + cooldown
+	expectedMin := beforeMark.Add(cooldown)
+	expectedMax := afterMark.Add(cooldown)
+
+	if unavailUntil.Before(expectedMin) || unavailUntil.After(expectedMax) {
+		t.Errorf("MarkUnavailable() recorded time %v, expected between %v and %v",
+			unavailUntil, expectedMin, expectedMax)
+	}
+}
+
+// TestRouterMarkUnavailablePersistsToState verifies that MarkUnavailable()
+// persists the unavailable timestamp to the state file via SetProviderUnavailable.
+// Expected failure: MarkUnavailable() method does not exist yet
+func TestRouterMarkUnavailablePersistsToState(t *testing.T) {
+	cooldown := 30 * time.Minute
+	stateFn := &mockStateFile{}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+		},
+		unavailable: make(map[string]time.Time),
+		cooldown:    cooldown,
+		stateFn:     stateFn,
+	}
+
+	r.MarkUnavailable("claude")
+
+	// Verify SetProviderUnavailable was called on the state file
+	if !stateFn.unavailableProviders["claude"] {
+		t.Error("MarkUnavailable() did not call SetProviderUnavailable on state file")
+	}
+}
+
+// TestRouterMarkUnavailableWithNilStateFn verifies that MarkUnavailable()
+// handles nil stateFn gracefully without crashing.
+// Expected failure: MarkUnavailable() method does not exist yet
+func TestRouterMarkUnavailableWithNilStateFn(t *testing.T) {
+	cooldown := 30 * time.Minute
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+		},
+		unavailable: make(map[string]time.Time),
+		cooldown:    cooldown,
+		stateFn:     nil, // nil state file
+	}
+
+	// Should not panic
+	r.MarkUnavailable("claude")
+
+	// Verify unavailable time was still recorded locally
+	if _, ok := r.unavailable["claude"]; !ok {
+		t.Error("MarkUnavailable() should record locally even with nil stateFn")
+	}
+}
+
+// TestRouterRecordInvocationMethod verifies that RecordInvocation()
+// increments the invocation count for a provider.
+// Expected failure: RecordInvocation() method does not exist yet
+func TestRouterRecordInvocationMethod(t *testing.T) {
+	stateFn := &mockStateFile{
+		providerCounts: map[string]int{
+			"claude": 5,
+		},
+	}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+		},
+		counts:  map[string]int{"claude": 5},
+		stateFn: stateFn,
+	}
+
+	r.RecordInvocation("claude")
+
+	// Verify internal count was incremented
+	if r.counts["claude"] != 6 {
+		t.Errorf("RecordInvocation() resulted in count %d, want 6", r.counts["claude"])
+	}
+}
+
+// TestRouterRecordInvocationPersistsToState verifies that RecordInvocation()
+// persists the updated count to the state file via IncrementProviderCount.
+// Expected failure: RecordInvocation() method does not exist yet
+func TestRouterRecordInvocationPersistsToState(t *testing.T) {
+	stateFn := &mockStateFile{
+		providerCounts: map[string]int{
+			"claude": 5,
+		},
+	}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+		},
+		counts:  map[string]int{"claude": 5},
+		stateFn: stateFn,
+	}
+
+	r.RecordInvocation("claude")
+
+	// Verify IncrementProviderCount was called
+	if !stateFn.incrementCalled {
+		t.Error("RecordInvocation() did not call IncrementProviderCount on state file")
+	}
+
+	if stateFn.lastIncrementedProvider != "claude" {
+		t.Errorf("IncrementProviderCount called with %q, want %q",
+			stateFn.lastIncrementedProvider, "claude")
+	}
+}
+
+// TestRouterRecordInvocationWithNilStateFn verifies that RecordInvocation()
+// handles nil stateFn gracefully without crashing.
+// Expected failure: RecordInvocation() method does not exist yet
+func TestRouterRecordInvocationWithNilStateFn(t *testing.T) {
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+		},
+		counts:  map[string]int{"claude": 5},
+		stateFn: nil, // nil state file
+	}
+
+	// Should not panic
+	r.RecordInvocation("claude")
+
+	// Verify count was still incremented locally
+	if r.counts["claude"] != 6 {
+		t.Errorf("RecordInvocation() should increment locally even with nil stateFn, got count %d, want 6",
+			r.counts["claude"])
+	}
+}
+
+// TestRouterRecordInvocationInitializesCount verifies that RecordInvocation()
+// initializes count to 1 for a provider that has never been invoked.
+// Expected failure: RecordInvocation() method does not exist yet
+func TestRouterRecordInvocationInitializesCount(t *testing.T) {
+	stateFn := &mockStateFile{
+		providerCounts: make(map[string]int),
+	}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+		},
+		counts:  make(map[string]int),
+		stateFn: stateFn,
+	}
+
+	r.RecordInvocation("claude")
+
+	// Verify count was initialized to 1
+	if r.counts["claude"] != 1 {
+		t.Errorf("RecordInvocation() initialized count to %d, want 1", r.counts["claude"])
+	}
+}
+
+// TestNewSingleProviderRouterConstructor verifies that NewSingleProviderRouter()
+// creates a router with minimal configuration for backward compatibility.
+// Expected failure: NewSingleProviderRouter() function does not exist yet
+func TestNewSingleProviderRouterConstructor(t *testing.T) {
+	provider := &mockProvider{name: "claude"}
+
+	r := NewSingleProviderRouter(provider)
+
+	if r == nil {
+		t.Fatal("NewSingleProviderRouter() returned nil")
+	}
+}
+
+// TestNewSingleProviderRouterSingleProvider verifies that the router
+// created by NewSingleProviderRouter() contains exactly one provider.
+// Expected failure: NewSingleProviderRouter() function does not exist yet
+func TestNewSingleProviderRouterSingleProvider(t *testing.T) {
+	provider := &mockProvider{name: "claude"}
+
+	r := NewSingleProviderRouter(provider)
+
+	if r == nil {
+		t.Fatal("NewSingleProviderRouter() returned nil")
+	}
+
+	if len(r.providers) != 1 {
+		t.Errorf("NewSingleProviderRouter() created router with %d providers, want 1",
+			len(r.providers))
+	}
+
+	if r.providers["claude"] != provider {
+		t.Error("NewSingleProviderRouter() did not include the provided provider")
+	}
+}
+
+// TestNewSingleProviderRouterRatio100Percent verifies that the router
+// created by NewSingleProviderRouter() sets ratio to 100% for the single provider.
+// Expected failure: NewSingleProviderRouter() function does not exist yet
+func TestNewSingleProviderRouterRatio100Percent(t *testing.T) {
+	provider := &mockProvider{name: "claude"}
+
+	r := NewSingleProviderRouter(provider)
+
+	if r == nil {
+		t.Fatal("NewSingleProviderRouter() returned nil")
+	}
+
+	if r.ratio["claude"] != 100 {
+		t.Errorf("NewSingleProviderRouter() set ratio to %d%%, want 100%%", r.ratio["claude"])
+	}
+}
+
+// TestNewSingleProviderRouterPreferencesAny verifies that the router
+// created by NewSingleProviderRouter() sets all preferences to "any".
+// Expected failure: NewSingleProviderRouter() function does not exist yet
+func TestNewSingleProviderRouterPreferencesAny(t *testing.T) {
+	provider := &mockProvider{name: "openai"}
+
+	r := NewSingleProviderRouter(provider)
+
+	if r == nil {
+		t.Fatal("NewSingleProviderRouter() returned nil")
+	}
+
+	// The spec says "all preferences any", which could mean phase preferences
+	// are set to "any". We verify that the preferences map exists and contains "any".
+	if r.preferences == nil {
+		t.Error("NewSingleProviderRouter() did not initialize preferences map")
+	}
+
+	// Based on the implementation in router.go line 188-190, it sets "any": "any"
+	if r.preferences["any"] != "any" {
+		t.Errorf("NewSingleProviderRouter() preferences[\"any\"] = %q, want %q",
+			r.preferences["any"], "any")
+	}
+}
+
+// TestNewSingleProviderRouterInitializesEmptyMaps verifies that the router
+// created by NewSingleProviderRouter() properly initializes empty maps for
+// counts and unavailable fields.
+// Expected failure: NewSingleProviderRouter() function does not exist yet
+func TestNewSingleProviderRouterInitializesEmptyMaps(t *testing.T) {
+	provider := &mockProvider{name: "claude"}
+
+	r := NewSingleProviderRouter(provider)
+
+	if r == nil {
+		t.Fatal("NewSingleProviderRouter() returned nil")
+	}
+
+	if r.counts == nil {
+		t.Error("NewSingleProviderRouter() did not initialize counts map")
+	}
+
+	if r.unavailable == nil {
+		t.Error("NewSingleProviderRouter() did not initialize unavailable map")
+	}
+}
+
+// TestNewSingleProviderRouterNilStateFn verifies that the router
+// created by NewSingleProviderRouter() has nil stateFn since it's for
+// backward compatibility with code that doesn't use state persistence.
+// Expected failure: NewSingleProviderRouter() function does not exist yet
+func TestNewSingleProviderRouterNilStateFn(t *testing.T) {
+	provider := &mockProvider{name: "claude"}
+
+	r := NewSingleProviderRouter(provider)
+
+	if r == nil {
+		t.Fatal("NewSingleProviderRouter() returned nil")
+	}
+
+	if r.stateFn != nil {
+		t.Error("NewSingleProviderRouter() should set stateFn to nil for backward compatibility")
+	}
+}
+
+// TestNewSingleProviderRouterZeroCooldown verifies that the router
+// created by NewSingleProviderRouter() has zero cooldown.
+// Expected failure: NewSingleProviderRouter() function does not exist yet
+func TestNewSingleProviderRouterZeroCooldown(t *testing.T) {
+	provider := &mockProvider{name: "claude"}
+
+	r := NewSingleProviderRouter(provider)
+
+	if r == nil {
+		t.Fatal("NewSingleProviderRouter() returned nil")
+	}
+
+	if r.cooldown != 0 {
+		t.Errorf("NewSingleProviderRouter() set cooldown to %v, want 0", r.cooldown)
+	}
+}
+
+// TestNewSingleProviderRouterSelectWorks verifies that a router created
+// by NewSingleProviderRouter() can successfully route invocations.
+// Expected failure: NewSingleProviderRouter() function does not exist yet
+func TestNewSingleProviderRouterSelectWorks(t *testing.T) {
+	provider := &mockProvider{name: "claude"}
+
+	r := NewSingleProviderRouter(provider)
+
+	if r == nil {
+		t.Fatal("NewSingleProviderRouter() returned nil")
+	}
+
+	// Should be able to select for any phase
+	selectedProvider, modelName := r.Select("build", TierMedium)
+
+	if selectedProvider == nil {
+		t.Error("Select() on single-provider router returned nil provider")
+	}
+
+	if selectedProvider != nil && selectedProvider.Name() != "claude" {
+		t.Errorf("Select() returned provider %q, want %q", selectedProvider.Name(), "claude")
+	}
+
+	// modelName can be any value, we just verify it can be called
+	_ = modelName
 }
 
 // mockProviderWithModels is a test provider that maps tiers to model names
