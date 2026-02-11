@@ -27,7 +27,7 @@ loop:
   max_iterations: 0  # 0 = unlimited
   stop_on_failure: false  # Continue to next bead on failure
   stuck_bead_threshold: 3  # Skip bead if it fails this many times across runs
-  max_consecutive_skips: 2  # Stop loop after 2 consecutive precheck skips
+  max_consecutive_skips: 5  # Stop loop after 5 consecutive precheck skips — needs headroom for related beads with overlapping acceptance criteria
   learn_from_success: true  # Extract learnings from successful iterations (default: true)
   between_iterations_command: "make"  # Shell command to run after each successful bead (e.g., rebuild binary)
 
