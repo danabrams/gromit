@@ -11,15 +11,43 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 )
 
+// setupDecomposeATDDTest creates a runner with mocks for testing ATDDActive wiring
+// in DecomposeTask. It captures the DecomposeContext passed to RenderDecompose.
+func setupDecomposeATDDTest(t *testing.T, cfgATDD bool) (*Runner, **prompt.DecomposeContext) {
+	t.Helper()
+	validJSON := `[{"title":"Sub 1","description":"First","depends_on":null,"acceptance_criteria":["Done"]}]`
+
+	var capturedCtx *prompt.DecomposeContext
+	mockRend := &mockPromptRenderer{
+		RenderDecomposeFn: func(ctx *prompt.DecomposeContext) (string, error) {
+			capturedCtx = ctx
+			return "mock decompose prompt", nil
+		},
+	}
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: validJSON}, nil
+		},
+	}
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{ATDD: cfgATDD},
+	}
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() error = %v", err)
+	}
+	return r, &capturedCtx
+}
+
 // TestDecomposeTaskATDDActiveWiring verifies that DecomposeTask() correctly
 // computes ATDD-active status from bead labels and config, then passes it
 // to the renderer via DecomposeContext.ATDDActive.
 //
 // Expected failure: DecomposeContext.ATDDActive field does not exist or
-// DecomposeTask does not set it based on bead.IsMethodologyActive
+// DecomposeTask does not compute it via bead.IsMethodologyActive
 func TestDecomposeTaskATDDActiveWiring(t *testing.T) {
-	validJSON := `[{"title":"Sub 1","description":"First","depends_on":null,"acceptance_criteria":["Done"]}]`
-
 	tests := []struct {
 		name           string
 		labels         []string
@@ -50,35 +78,17 @@ func TestDecomposeTaskATDDActiveWiring(t *testing.T) {
 			cfgATDD:        false,
 			wantATDDActive: false,
 		},
+		{
+			name:           "atdd:true with other labels still activates ATDD",
+			labels:         []string{"complexity:low", "atdd:true", "spec:something"},
+			cfgATDD:        false,
+			wantATDDActive: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var capturedCtx *prompt.DecomposeContext
-
-			mockRend := &mockPromptRenderer{
-				RenderDecomposeFn: func(ctx *prompt.DecomposeContext) (string, error) {
-					capturedCtx = ctx
-					return "mock decompose prompt", nil
-				},
-			}
-
-			mockClaude := &mockClaudeClient{
-				RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
-					return &claude.Result{Success: true, Output: validJSON}, nil
-				},
-			}
-
-			cfg := &config.Config{
-				Methodology: config.MethodologyConfig{ATDD: tt.cfgATDD},
-			}
-
-			var buf strings.Builder
-			r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-				Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}})
-			if err != nil {
-				t.Fatalf("NewRunnerWithDeps() error = %v", err)
-			}
+			r, capturedCtxPtr := setupDecomposeATDDTest(t, tt.cfgATDD)
 
 			b := &bead.Bead{
 				ID:              "decompose-1",
@@ -88,18 +98,61 @@ func TestDecomposeTaskATDDActiveWiring(t *testing.T) {
 				ExpectedOutputs: []string{},
 			}
 
-			_, err = r.DecomposeTask(context.Background(), b)
+			_, err := r.DecomposeTask(context.Background(), b)
 			if err != nil {
 				t.Fatalf("DecomposeTask() error = %v", err)
 			}
 
+			capturedCtx := *capturedCtxPtr
 			if capturedCtx == nil {
 				t.Fatal("RenderDecompose was not called")
 			}
 
 			if capturedCtx.ATDDActive != tt.wantATDDActive {
-				t.Errorf("ATDDActive = %v, want %v", capturedCtx.ATDDActive, tt.wantATDDActive)
+				t.Errorf("DecomposeContext.ATDDActive = %v, want %v (labels=%v, config=%v)",
+					capturedCtx.ATDDActive, tt.wantATDDActive, tt.labels, tt.cfgATDD)
 			}
 		})
+	}
+}
+
+// TestDecomposeTaskForwardsBeadWithATDDActive verifies that DecomposeTask
+// correctly populates the full DecomposeContext — the bead, parent, and
+// ATDDActive field are all set together when passed to the renderer.
+//
+// Expected failure: DecomposeContext.ATDDActive field does not exist or
+// DecomposeTask does not set ATDDActive alongside Bead and ParentBead
+func TestDecomposeTaskForwardsBeadWithATDDActive(t *testing.T) {
+	r, capturedCtxPtr := setupDecomposeATDDTest(t, true)
+
+	b := &bead.Bead{
+		ID:              "decompose-ctx-check",
+		Title:           "Feature requiring ATDD",
+		Priority:        1,
+		Labels:          []string{"atdd:true"},
+		ExpectedOutputs: []string{},
+	}
+
+	_, err := r.DecomposeTask(context.Background(), b)
+	if err != nil {
+		t.Fatalf("DecomposeTask() error = %v", err)
+	}
+
+	capturedCtx := *capturedCtxPtr
+	if capturedCtx == nil {
+		t.Fatal("RenderDecompose was not called")
+	}
+
+	// Verify bead is forwarded alongside ATDDActive
+	if capturedCtx.Bead == nil {
+		t.Fatal("DecomposeContext.Bead is nil")
+	}
+	if capturedCtx.Bead.ID != "decompose-ctx-check" {
+		t.Errorf("DecomposeContext.Bead.ID = %q, want %q", capturedCtx.Bead.ID, "decompose-ctx-check")
+	}
+
+	// Verify ATDDActive is true when bead has atdd:true label
+	if !capturedCtx.ATDDActive {
+		t.Error("DecomposeContext.ATDDActive = false, want true when bead has atdd:true label")
 	}
 }
