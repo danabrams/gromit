@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"io"
+	"strings"
 	"time"
 )
 
@@ -55,49 +56,27 @@ type Provider interface {
 //   - gpt-4o-mini → low
 //
 // Unrecognized model names are returned unchanged for forward compatibility.
-// Matching is case-insensitive for known models.
+// Case-insensitive matching allows for flexible config formats (e.g., "Opus" or "OPUS").
 func TierFromLegacyModel(modelName string) string {
-	// Normalize to lowercase for case-insensitive matching
-	normalized := toLower(modelName)
-
-	// Claude models
-	if normalized == "opus" {
-		return TierHigh
-	}
-	if normalized == "sonnet" {
-		return TierMedium
-	}
-	if normalized == "haiku" {
-		return TierLow
+	// Map of known model names (lowercase) to tiers
+	legacyModelToTier := map[string]string{
+		// Claude models
+		"opus":   TierHigh,
+		"sonnet": TierMedium,
+		"haiku":  TierLow,
+		// OpenAI models
+		"o3":          TierHigh,
+		"gpt-4o":      TierMedium,
+		"gpt-4o-mini": TierLow,
 	}
 
-	// OpenAI models
-	if normalized == "o3" {
-		return TierHigh
-	}
-	if normalized == "gpt-4o" {
-		return TierMedium
-	}
-	if normalized == "gpt-4o-mini" {
-		return TierLow
+	// Check for known model (case-insensitive)
+	if tier, ok := legacyModelToTier[strings.ToLower(modelName)]; ok {
+		return tier
 	}
 
 	// Pass through unrecognized names unchanged
 	return modelName
-}
-
-// toLower converts a string to lowercase for case-insensitive comparison
-func toLower(s string) string {
-	result := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			result[i] = c + ('a' - 'A')
-		} else {
-			result[i] = c
-		}
-	}
-	return string(result)
 }
 
 // Compile-time interface satisfaction checks
