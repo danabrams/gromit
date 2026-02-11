@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"os"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -71,5 +72,39 @@ func TestNewRunnerWithDepsFallsBackToWrappingClaude(t *testing.T) {
 
 	if runner.router == nil {
 		t.Errorf("Expected runner.router to be set even when deps.Router is nil")
+	}
+}
+
+// TestNewRunnerCreatesRouterWhenNoProviders verifies that NewRunner wraps
+// Claude client when cfg.HasProviders() is false
+func TestNewRunnerCreatesRouterWhenNoProviders(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create template and spec directories
+	if err := os.MkdirAll(tmpDir+"/templates", 0755); err != nil {
+		t.Fatalf("Failed to create templates dir: %v", err)
+	}
+	if err := os.MkdirAll(tmpDir+"/specs", 0755); err != nil {
+		t.Fatalf("Failed to create specs dir: %v", err)
+	}
+
+	// Create a config without providers (backward compat mode)
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Templates: tmpDir + "/templates",
+			Specs:     tmpDir + "/specs",
+		},
+		Claude: config.ClaudeConfig{
+			Binary: "claude",
+		},
+	}
+
+	runner, err := NewRunner(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+
+	if runner.router == nil {
+		t.Errorf("Expected runner.router to be created even without providers config")
 	}
 }

@@ -98,10 +98,28 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	// Wrap output in synchronized writer for thread-safe writes
 	syncOut := newSyncWriter(output)
 
+	// Create router: either from providers config or wrap Claude client
+	var router *provider.Router
+	if cfg.HasProviders() {
+		// TODO: Build router from providers config
+		// For now, this will be nil when providers are configured
+		router = nil
+	} else {
+		// Backward compatibility: wrap Claude client in single-provider router
+		tierToModel := map[string]string{
+			"high":   "opus",
+			"medium": "sonnet",
+			"low":    "haiku",
+		}
+		claudeProvider := provider.NewClaudeProvider(claudeClient, tierToModel)
+		router = provider.NewSingleProviderRouter(claudeProvider)
+	}
+
 	return &Runner{
 		cfg:       cfg,
 		beads:     beadsClient,
 		claude:    claudeClient,
+		router:    router,
 		analyzer:  analyzerObj,
 		renderer:  renderer,
 		logger:    log,
