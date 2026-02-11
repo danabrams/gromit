@@ -802,3 +802,8 @@ When wiring new data into Status() output sections, accept value types (not poin
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-lubw | conventions
+Logger functions are called with resolved filesystem paths (os.UserHomeDir()) rather than relative paths; always resolve home directory paths at call sites, not inside logger functions
+
+*Archived from new: filtered: generic engineering advice*
+
