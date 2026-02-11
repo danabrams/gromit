@@ -65,6 +65,15 @@ claude:
   analysis_timeout: 180  # seconds max per failure analysis invocation
   flags:
     - "--dangerously-skip-permissions"
+  # Per-model timeout overrides (non-zero values override the defaults above)
+  model_timeouts:
+    sonnet:
+      timeout: 1200            # longer invocation timeout — sonnet consistently needs >900s
+      stall_timeout_active: 900  # longer active stall for sonnet's deeper thinking
+      bead_timeout: 2400       # longer bead budget for sonnet retries
+    haiku:
+      stall_timeout: 90        # shorter stall — haiku should respond quickly
+      bead_timeout: 900        # shorter bead budget — fail fast on haiku
 
 # Git settings
 git:

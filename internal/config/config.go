@@ -86,12 +86,13 @@ type ClaudeConfig struct {
 	BeadTimeout        int                              `yaml:"bead_timeout"`
 	AnalysisTimeout    int                              `yaml:"analysis_timeout"`
 	Flags              []string                         `yaml:"flags"`
-	ModelTimeouts      map[string]ModelTimeoutOverrides  `yaml:"model_timeouts"`
+	ModelTimeouts      map[string]ModelTimeoutOverrides `yaml:"model_timeouts"`
 }
 
 // ModelTimeoutOverrides allows per-model timeout tuning.
 // Non-zero values override the corresponding top-level ClaudeConfig defaults.
 type ModelTimeoutOverrides struct {
+	Timeout            int `yaml:"timeout"`
 	StallTimeout       int `yaml:"stall_timeout"`
 	StallTimeoutActive int `yaml:"stall_timeout_active"`
 	BeadTimeout        int `yaml:"bead_timeout"`
@@ -429,14 +430,18 @@ func (g GitConfig) IsAutoPushEnabled() bool {
 	return *g.AutoPush
 }
 
-// TimeoutsForModel returns the effective stall, stall-active, and bead timeouts for a model.
+// TimeoutsForModel returns the effective invocation, stall, stall-active, and bead timeouts for a model.
 // Per-model overrides (if non-zero) take precedence over the top-level defaults.
-func (c ClaudeConfig) TimeoutsForModel(model string) (stallTimeout, stallTimeoutActive, beadTimeout int) {
+func (c ClaudeConfig) TimeoutsForModel(model string) (invocationTimeout, stallTimeout, stallTimeoutActive, beadTimeout int) {
+	invocationTimeout = c.Timeout
 	stallTimeout = c.StallTimeout
 	stallTimeoutActive = c.StallTimeoutActive
 	beadTimeout = c.BeadTimeout
 
 	if overrides, ok := c.ModelTimeouts[model]; ok {
+		if overrides.Timeout > 0 {
+			invocationTimeout = overrides.Timeout
+		}
 		if overrides.StallTimeout > 0 {
 			stallTimeout = overrides.StallTimeout
 		}

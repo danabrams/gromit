@@ -2957,7 +2957,10 @@ func TestTimeoutsForModel_Defaults(t *testing.T) {
 		ModelTimeouts:      map[string]ModelTimeoutOverrides{},
 	}
 
-	stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
+	invocation, stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
+	if invocation != 0 {
+		t.Errorf("expected invocation=0 (no base Timeout set), got %d", invocation)
+	}
 	if stall != 120 {
 		t.Errorf("expected stall=120, got %d", stall)
 	}
@@ -2983,7 +2986,7 @@ func TestTimeoutsForModel_Override(t *testing.T) {
 		},
 	}
 
-	stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
+	_, stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
 	if stall != 60 {
 		t.Errorf("expected stall=60, got %d", stall)
 	}
@@ -2995,7 +2998,7 @@ func TestTimeoutsForModel_Override(t *testing.T) {
 	}
 
 	// Opus should still get defaults
-	stall, stallActive, bead = cfg.TimeoutsForModel("opus")
+	_, stall, stallActive, bead = cfg.TimeoutsForModel("opus")
 	if stall != 120 {
 		t.Errorf("expected opus stall=120, got %d", stall)
 	}
@@ -3020,7 +3023,7 @@ func TestTimeoutsForModel_PartialOverride(t *testing.T) {
 		},
 	}
 
-	stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
+	_, stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
 	if stall != 60 {
 		t.Errorf("expected stall=60, got %d", stall)
 	}
@@ -3039,7 +3042,7 @@ func TestTimeoutsForModel_NilMap(t *testing.T) {
 		BeadTimeout:        1200,
 	}
 
-	stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
+	_, stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
 	if stall != 120 || stallActive != 300 || bead != 1200 {
 		t.Errorf("expected defaults with nil map, got stall=%d, stallActive=%d, bead=%d", stall, stallActive, bead)
 	}
@@ -3066,7 +3069,7 @@ claude:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	stall, stallActive, bead := cfg.Claude.TimeoutsForModel("sonnet")
+	_, stall, stallActive, bead := cfg.Claude.TimeoutsForModel("sonnet")
 	if stall != 60 {
 		t.Errorf("expected stall=60 from YAML, got %d", stall)
 	}
@@ -3075,5 +3078,122 @@ claude:
 	}
 	if bead != 900 {
 		t.Errorf("expected bead=900 from YAML, got %d", bead)
+	}
+}
+
+// TestModelTimeoutOverrides_InvocationTimeout verifies that per-model invocation
+// timeout overrides load from YAML and are returned by TimeoutsForModel.
+func TestModelTimeoutOverrides_InvocationTimeout(t *testing.T) {
+	yamlContent := `
+claude:
+  timeout: 900
+  stall_timeout: 180
+  stall_timeout_active: 600
+  bead_timeout: 1800
+  model_timeouts:
+    sonnet:
+      timeout: 1200
+      stall_timeout_active: 900
+      bead_timeout: 2400
+`
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	sonnetOverrides := cfg.Claude.ModelTimeouts["sonnet"]
+	if sonnetOverrides.Timeout != 1200 {
+		t.Errorf("sonnet invocation timeout: got %d, want 1200", sonnetOverrides.Timeout)
+	}
+}
+
+// TestTimeoutsForModel_ReturnsInvocationTimeout verifies that TimeoutsForModel
+// returns the per-model invocation timeout as the first return value.
+func TestTimeoutsForModel_ReturnsInvocationTimeout(t *testing.T) {
+	cfg := ClaudeConfig{
+		Timeout:            900,
+		StallTimeout:       180,
+		StallTimeoutActive: 600,
+		BeadTimeout:        1800,
+		ModelTimeouts: map[string]ModelTimeoutOverrides{
+			"sonnet": {
+				Timeout: 1200,
+			},
+		},
+	}
+
+	invocationTimeout, _, _, _ := cfg.TimeoutsForModel("sonnet")
+	if invocationTimeout != 1200 {
+		t.Errorf("sonnet invocation timeout: got %d, want 1200", invocationTimeout)
+	}
+
+	// Model without override should get the base timeout
+	invocationTimeout, _, _, _ = cfg.TimeoutsForModel("opus")
+	if invocationTimeout != 900 {
+		t.Errorf("opus invocation timeout: got %d, want 900 (base default)", invocationTimeout)
+	}
+}
+
+// TestProjectGromitYAML_HasModelTimeouts loads the actual project gromit.yaml
+// and verifies that sonnet and haiku have per-model timeout overrides configured.
+func TestProjectGromitYAML_HasModelTimeouts(t *testing.T) {
+	projectRoot := findProjectRoot(t)
+	cfgPath := filepath.Join(projectRoot, "gromit.yaml")
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load(%s) error = %v", cfgPath, err)
+	}
+
+	t.Run("sonnet_has_overrides", func(t *testing.T) {
+		sonnet, ok := cfg.Claude.ModelTimeouts["sonnet"]
+		if !ok {
+			t.Fatal("gromit.yaml missing model_timeouts entry for sonnet")
+		}
+		if sonnet.Timeout <= cfg.Claude.Timeout {
+			t.Errorf("sonnet invocation timeout (%d) should be greater than base timeout (%d)",
+				sonnet.Timeout, cfg.Claude.Timeout)
+		}
+	})
+
+	t.Run("haiku_has_overrides", func(t *testing.T) {
+		haiku, ok := cfg.Claude.ModelTimeouts["haiku"]
+		if !ok {
+			t.Fatal("gromit.yaml missing model_timeouts entry for haiku")
+		}
+		if haiku.StallTimeout >= cfg.Claude.StallTimeout {
+			t.Errorf("haiku stall_timeout (%d) should be less than base stall_timeout (%d)",
+				haiku.StallTimeout, cfg.Claude.StallTimeout)
+		}
+		if haiku.BeadTimeout >= cfg.Claude.BeadTimeout {
+			t.Errorf("haiku bead_timeout (%d) should be less than base bead_timeout (%d)",
+				haiku.BeadTimeout, cfg.Claude.BeadTimeout)
+		}
+	})
+}
+
+// findProjectRoot walks up from the current working directory to find the
+// project root (directory containing gromit.yaml).
+func findProjectRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "gromit.yaml")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("could not find project root (no gromit.yaml found)")
+		}
+		dir = parent
 	}
 }

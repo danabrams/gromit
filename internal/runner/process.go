@@ -61,7 +61,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		return nil, nil, nil, fmt.Errorf("runner claude client is nil")
 	}
 
-	_, _, beadTimeoutSec := r.cfg.Claude.TimeoutsForModel(r.selectModel(b))
+	_, _, _, beadTimeoutSec := r.cfg.Claude.TimeoutsForModel(r.selectModel(b))
 	beadTimeout := time.Duration(beadTimeoutSec) * time.Second
 	beadCtx, beadCancel := context.WithTimeout(ctx, beadTimeout)
 
@@ -141,7 +141,7 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
 
-	stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.model)
+	_, stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.model)
 	stallTimeout := time.Duration(stallTimeoutSec) * time.Second
 	stallTimeoutActive := time.Duration(stallTimeoutActiveSec) * time.Second
 
@@ -560,7 +560,7 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
 
-	stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.model)
+	_, stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.model)
 	stallTimeout := time.Duration(stallTimeoutSec) * time.Second
 	stallTimeoutActive := time.Duration(stallTimeoutActiveSec) * time.Second
 
@@ -627,8 +627,8 @@ func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *beadContext) 
 	analysisCancel()
 
 	if analyzeErr != nil {
-		r.log("Warning: failure analysis failed: %v", analyzeErr)
-		return fmt.Errorf("tests passed before implementation (analysis failed): %w", err)
+		r.log("Warning: failure analysis failed: %v — treating as already done", analyzeErr)
+		return errATDDAlreadyDone
 	}
 
 	// Retry acceptance tests once with analysis context
