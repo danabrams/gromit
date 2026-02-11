@@ -2405,6 +2405,39 @@ func TestCountClosedAfterNilClient(t *testing.T) {
 	}
 }
 
+// TestCountClosedAfterEmptyResults tests that CountClosedAfter returns 0 for empty results
+func TestCountClosedAfterEmptyResults(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+	}{
+		{
+			name:       "empty array",
+			jsonOutput: "[]",
+		},
+		{
+			name:       "empty string",
+			jsonOutput: "",
+		},
+		{
+			name:       "whitespace only",
+			jsonOutput: "   \n  ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, err := parseBeadCount(tt.jsonOutput)
+			if err != nil {
+				t.Fatalf("parseBeadCount() error = %v", err)
+			}
+			if count != 0 {
+				t.Errorf("parseBeadCount() = %d, want 0", count)
+			}
+		})
+	}
+}
+
 // TestCountByStatusNilClient tests that CountByStatus returns error on nil client
 func TestCountByStatusNilClient(t *testing.T) {
 	var c *Client
