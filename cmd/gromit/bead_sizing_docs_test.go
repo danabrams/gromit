@@ -115,7 +115,7 @@ func TestRULESMD_ProcessSection(t *testing.T) {
 
 	// Verify the context about grouping is mentioned
 	if !strings.Contains(text, "Interface + implementation + mock") ||
-	   !strings.Contains(text, "implementation + tests") {
+		!strings.Contains(text, "implementation + tests") {
 		t.Error("RULES.md should reference grouping patterns (e.g., interface+impl+mock, implementation+tests)")
 	}
 }
@@ -300,9 +300,9 @@ func TestAllDocuments_ConsistentFileLimits(t *testing.T) {
 	// Expected failure: Documents have inconsistent file limit language
 
 	docs := map[string]string{
-		"CLAUDE.md":                            "../../CLAUDE.md",
-		".gromit/RULES.md":                     "../../.gromit/RULES.md",
-		"skills/gromit-decompose/SKILL.md":     "../../skills/gromit-decompose/SKILL.md",
+		"CLAUDE.md":                             "../../CLAUDE.md",
+		".gromit/RULES.md":                      "../../.gromit/RULES.md",
+		"skills/gromit-decompose/SKILL.md":      "../../skills/gromit-decompose/SKILL.md",
 		".gromit/templates/PROMPT_decompose.md": "../../.gromit/templates/PROMPT_decompose.md",
 	}
 
@@ -353,9 +353,9 @@ func TestAllDocuments_ConsistentGroupingRules(t *testing.T) {
 	// Expected failure: Not all documents that discuss splitting mention the grouping rules
 
 	docsWithSplitting := map[string]string{
-		"CLAUDE.md":                            "../../CLAUDE.md",
-		".gromit/RULES.md":                     "../../.gromit/RULES.md",
-		"skills/gromit-decompose/SKILL.md":     "../../skills/gromit-decompose/SKILL.md",
+		"CLAUDE.md":                             "../../CLAUDE.md",
+		".gromit/RULES.md":                      "../../.gromit/RULES.md",
+		"skills/gromit-decompose/SKILL.md":      "../../skills/gromit-decompose/SKILL.md",
 		".gromit/templates/PROMPT_decompose.md": "../../.gromit/templates/PROMPT_decompose.md",
 	}
 
@@ -381,11 +381,11 @@ func TestAllDocuments_ConsistentGroupingRules(t *testing.T) {
 
 			// Check if the pattern is present in some form
 			hasInterfaceImplMock := strings.Contains(textLower, "interface") &&
-									strings.Contains(textLower, "implementation") &&
-									strings.Contains(textLower, "mock")
+				strings.Contains(textLower, "implementation") &&
+				strings.Contains(textLower, "mock")
 			hasImplTests := strings.Contains(textLower, "implementation") &&
-							strings.Contains(textLower, "tests") &&
-							(strings.Contains(textLower, "together") || strings.Contains(textLower, "same bead"))
+				strings.Contains(textLower, "tests") &&
+				(strings.Contains(textLower, "together") || strings.Contains(textLower, "same bead"))
 
 			if strings.Contains(normalized, "interface") && !hasInterfaceImplMock {
 				missingPatterns = append(missingPatterns, pattern)

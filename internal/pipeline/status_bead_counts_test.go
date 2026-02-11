@@ -241,10 +241,10 @@ func ReadStatusWithStartTime(gromitDir, specsDir, plansDir string, startedAt *ti
 
 // Mock client for testing bead count integration
 type mockBeadClient struct {
-	CountByStatusFunc   func(status string) (int, error)
-	CountReadyFunc      func() (int, error)
+	CountByStatusFunc    func(status string) (int, error)
+	CountReadyFunc       func() (int, error)
 	CountClosedAfterFunc func(after time.Time) (int, error)
-	ListReadyIDsFunc    func() ([]string, error)
+	ListReadyIDsFunc     func() ([]string, error)
 }
 
 func (m *mockBeadClient) CountByStatus(status string) (int, error) {
