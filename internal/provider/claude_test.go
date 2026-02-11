@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/claude"
@@ -178,5 +179,52 @@ func TestClaudeProviderRunValidationMethodSignature(t *testing.T) {
 	// We expect an error (nil client), but the method signature should be correct
 	if err == nil {
 		t.Error("RunValidation() with nil client should return an error")
+	}
+}
+
+// TestClaudeProviderIsUsageLimitError verifies that IsUsageLimitError()
+// returns false for Claude, since Claude CLI does not return usage limit errors
+// in a detectable way currently.
+// Expected failure: IsUsageLimitError() method does not exist yet
+func TestClaudeProviderIsUsageLimitError(t *testing.T) {
+	cp := &ClaudeProvider{}
+
+	tests := []struct {
+		name     string
+		result   *Result
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil result and error",
+			result:   nil,
+			err:      nil,
+			expected: false,
+		},
+		{
+			name: "failed result with generic error",
+			result: &Result{
+				Success:  false,
+				ExitCode: 1,
+				Output:   "some error",
+			},
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "error without result",
+			result:   nil,
+			err:      fmt.Errorf("context deadline exceeded"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cp.IsUsageLimitError(tt.result, tt.err)
+			if got != tt.expected {
+				t.Errorf("IsUsageLimitError() = %v, want %v", got, tt.expected)
+			}
+		})
 	}
 }

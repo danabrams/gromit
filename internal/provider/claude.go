@@ -138,3 +138,13 @@ func (cp *ClaudeProvider) RunValidation(ctx context.Context, commands []string, 
 		Model:    claudeResult.Model,
 	}, nil
 }
+
+// IsUsageLimitError detects Claude-specific usage limit errors.
+// Currently returns false as Claude CLI does not return usage limit errors
+// in a detectable pattern. This may be updated in the future as error patterns
+// are identified.
+func (cp *ClaudeProvider) IsUsageLimitError(result *Result, err error) bool {
+	// Claude CLI does not currently have detectable usage limit error patterns
+	// that are distinct from other errors. Always return false for now.
+	return false
+}
