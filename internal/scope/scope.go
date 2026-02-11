@@ -35,13 +35,11 @@ func ValidateSpec(specsDir, specName string) error {
 	// Collect available .md file names (without extension)
 	var availableSpecs []string
 	for _, entry := range entries {
-		if entry.IsDir() {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		if strings.HasSuffix(entry.Name(), ".md") {
-			specNameWithoutExt := strings.TrimSuffix(entry.Name(), ".md")
-			availableSpecs = append(availableSpecs, specNameWithoutExt)
-		}
+		name := strings.TrimSuffix(entry.Name(), ".md")
+		availableSpecs = append(availableSpecs, name)
 	}
 
 	// Build error message
