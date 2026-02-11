@@ -2283,6 +2283,78 @@ func TestClientListWithLabelIncludesAllTypes(t *testing.T) {
 	}
 }
 
+// TestIsTestOnlyBead tests the IsTestOnlyBead heuristic for detecting beads
+// whose deliverable IS tests (e.g., "Add unit tests for X"), which should
+// automatically skip the ATDD pre-pass.
+// Expected failure: IsTestOnlyBead function does not exist yet
+func TestIsTestOnlyBead(t *testing.T) {
+	tests := []struct {
+		name  string
+		title string
+		want  bool
+	}{
+		{
+			name:  "Add unit tests for X",
+			title: "Add unit tests for config loading",
+			want:  true,
+		},
+		{
+			name:  "Add tests for X",
+			title: "Add tests for runner escalation",
+			want:  true,
+		},
+		{
+			name:  "Write tests for X",
+			title: "Write tests for prompt rendering",
+			want:  true,
+		},
+		{
+			name:  "regular feature bead",
+			title: "Implement dark mode toggle",
+			want:  false,
+		},
+		{
+			name:  "bead mentioning tests but not test-only",
+			title: "Fix failing tests in runner package",
+			want:  false,
+		},
+		{
+			name:  "refactor bead",
+			title: "Refactor config loading to use interfaces",
+			want:  false,
+		},
+		{
+			name:  "bead with test in middle",
+			title: "Implement test harness improvements",
+			want:  false,
+		},
+		{
+			name:  "Add acceptance tests for X",
+			title: "Add acceptance tests for decompose phase",
+			want:  true,
+		},
+		{
+			name:  "Write unit tests for X",
+			title: "Write unit tests for bead client",
+			want:  true,
+		},
+		{
+			name:  "empty title",
+			title: "",
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsTestOnlyBead(tt.title)
+			if got != tt.want {
+				t.Errorf("IsTestOnlyBead(%q) = %v, want %v", tt.title, got, tt.want)
+			}
+		})
+	}
+}
+
 // parseBeadOutputList is a helper function that parses JSON output for ListWithLabel tests
 func parseBeadOutputList(out string) ([]*Bead, error) {
 	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
