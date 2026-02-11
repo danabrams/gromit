@@ -317,6 +317,55 @@ func TestSetupBeadContext_NoEscalationWhenScopeCheckDisabled(t *testing.T) {
 	}
 }
 
+func TestSetupBeadContext_NoEscalationWithNilScopeEstimate(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg: &config.Config{
+			Models: config.ModelsConfig{
+				P0: "opus",
+				P1: "sonnet",
+				P2: "haiku",
+			},
+			ScopeCheck: config.ScopeCheckConfig{
+				Enabled: true,
+				Model:   "haiku",
+			},
+			Claude: config.ClaudeConfig{
+				BeadTimeout: 300,
+			},
+			Escalation: config.EscalationConfig{
+				MaxRetriesPerModel: 2,
+				MaxRetriesPerBead:  5,
+			},
+		},
+		beads:    &mockBeadClient{},
+		renderer: &mockPromptRenderer{},
+		claude:   &mockClaudeClient{},
+		output:   &buf,
+	}
+
+	b := &bead.Bead{
+		ID:       "test-nil-scope",
+		Title:    "Task without scope estimate",
+		Priority: 1, // P1 = sonnet
+		Labels:   []string{},
+	}
+
+	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer cancel()
+
+	// When scopeEstimate is nil (no scope gate ran), no escalation should occur
+	if bc.model != "sonnet" {
+		t.Errorf("expected model to remain 'sonnet' when scopeEstimate is nil, got %q", bc.model)
+	}
+	if bc.result.Escalated {
+		t.Error("expected result.Escalated to be false when scopeEstimate is nil")
+	}
+}
+
 func TestHandleScopeTooLarge(t *testing.T) {
 	var buf strings.Builder
 	tempDir := t.TempDir()
