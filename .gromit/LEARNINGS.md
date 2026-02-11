@@ -113,6 +113,9 @@ Router struct initialization requires NewRouter constructor to properly set up t
 ### 2026-02-11 | gromit-qz0m | gotchas
 Calling provider.Run() with nil credentials and empty prompt purely to extract model names is fragile—consider adding a ModelForTier() method to the Provider interface instead of side-effect-laden extraction
 
+### 2026-02-11 | gromit-2edx | conventions
+The gromit codebase has a validation constraint that acceptance test line counts must be reduced by at least 30% from baseline (8370 → max 5859 lines). When adding new acceptance tests, existing test files must be correspondingly reduced or consolidated to stay within the budget. Adding new tests without removing/consolidating old ones violates this constraint.
+
 ---
 
 ## Archived
