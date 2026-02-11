@@ -130,7 +130,7 @@ func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.G
 	// Display global stats
 	if globalStats != nil && len(globalStats.Models) > 0 {
 		fmt.Println()
-		fmt.Println("Global Model Performance (all projects):")
+		fmt.Println("Global Model Performance (all projects, global aggregate):")
 		fmt.Println()
 
 		for model, stats := range globalStats.Models {
