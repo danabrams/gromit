@@ -25,6 +25,8 @@ import (
 	"github.com/danabrams/gromit/internal/tmux"
 )
 
+var errValidationFailed = errors.New("validation failed")
+
 // Runner orchestrates the Gromit loop
 type Runner struct {
 	cfg          *config.Config

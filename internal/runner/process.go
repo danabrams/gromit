@@ -924,7 +924,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 		}
 
 		bc.result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + valResult.Output
-		return fmt.Errorf("validation failed")
+		return errValidationFailed
 	}
 
 	bc.result.Validated = true
@@ -955,8 +955,8 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext)
 		return nil
 	}
 
-	// Only recover from "validation failed" errors, not invocation/nil-result errors
-	if err.Error() != "validation failed" {
+	// Only recover from errValidationFailed errors, not invocation/nil-result errors
+	if !errors.Is(err, errValidationFailed) {
 		return err
 	}
 
