@@ -89,6 +89,26 @@ func (f *File) normalizeNilFields() {
 	}
 }
 
+// hashExists checks if a hash already exists in any section (confirmed, provisional, or archived)
+func (f *File) hashExists(hash string) bool {
+	for _, l := range f.confirmed {
+		if l.Hash == hash {
+			return true
+		}
+	}
+	for _, l := range f.provisional {
+		if l.Hash == hash {
+			return true
+		}
+	}
+	for _, l := range f.archived {
+		if l.Hash == hash {
+			return true
+		}
+	}
+	return false
+}
+
 // Load reads and parses the LEARNINGS.md file
 func (f *File) Load() error {
 	if f == nil {
@@ -115,21 +135,9 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 	}
 	hash := hashContent(content)
 
-	// Check for exact duplicate
-	for _, l := range f.confirmed {
-		if l.Hash == hash {
-			return nil, nil // Exact duplicate, skip
-		}
-	}
-	for _, l := range f.provisional {
-		if l.Hash == hash {
-			return nil, nil // Exact duplicate, skip
-		}
-	}
-	for _, l := range f.archived {
-		if l.Hash == hash {
-			return nil, nil // Exact duplicate, skip
-		}
+	// Check for exact duplicate in any section
+	if f.hashExists(hash) {
+		return nil, nil // Exact duplicate, skip
 	}
 
 	// Apply filter if configured
