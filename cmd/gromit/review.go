@@ -116,7 +116,7 @@ func determineReviewScope(cfg *config.Config) (string, error) {
 
 	if reviewSpec != "" {
 		// Find the earliest commit from beads in this spec
-		return getSpecBaseCommit(reviewSpec)
+		return getSpecBaseCommit(reviewSpec, cfg.Paths.Specs)
 	}
 
 	if reviewEpic != "" {
@@ -145,7 +145,12 @@ func determineReviewScope(cfg *config.Config) (string, error) {
 	return fromCommit, nil
 }
 
-func getSpecBaseCommit(specName string) (string, error) {
+func getSpecBaseCommit(specName string, specsDir string) (string, error) {
+	// Validate spec file exists before attempting to resolve
+	if err := scope.ValidateSpec(specsDir, specName); err != nil {
+		return "", err
+	}
+
 	// Get the spec label
 	labels := scope.ResolveSpec(specName)
 	if len(labels) == 0 {
