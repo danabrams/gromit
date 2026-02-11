@@ -1158,13 +1158,6 @@ func (r *Runner) Status() error {
 		modelStats = make(map[string]logger.ModelStats)
 	}
 
-	// Convert map[string]ModelStats to map[string]*ModelStats for formatter
-	modelStatsPtr := make(map[string]*logger.ModelStats)
-	for k, v := range modelStats {
-		vCopy := v
-		modelStatsPtr[k] = &vCopy
-	}
-
 	// Format and print all sections
 	r.log("%s", formatPipeline(pipelineStatus))
 	r.log("")
@@ -1172,7 +1165,7 @@ func (r *Runner) Status() error {
 	r.log("")
 	r.log("%s", formatHealth(stateFile.LastRetro(), stateFile.IterationsSinceReview()))
 	r.log("")
-	r.log("%s", formatModelPerformance(modelStatsPtr))
+	r.log("%s", formatModelPerformance(modelStats))
 	r.log("")
 	r.log("%s", formatRecommendation(pipelineStatus.Recommendation))
 

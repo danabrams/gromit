@@ -7,7 +7,6 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 )
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_NilStats(t *testing.T) {
 	got := formatModelPerformance(nil)
 
@@ -17,9 +16,8 @@ func TestFormatModelPerformance_NilStats(t *testing.T) {
 	}
 }
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_EmptyStats(t *testing.T) {
-	stats := make(map[string]*logger.ModelStats)
+	stats := make(map[string]logger.ModelStats)
 
 	got := formatModelPerformance(stats)
 
@@ -29,14 +27,13 @@ func TestFormatModelPerformance_EmptyStats(t *testing.T) {
 	}
 }
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_SingleModel(t *testing.T) {
-	stats := map[string]*logger.ModelStats{
+	stats := map[string]logger.ModelStats{
 		"opus": {
-			Model:      "opus",
-			Iterations: 10,
-			Successes:  9,
-			Failures:   1,
+			Model:        "opus",
+			Iterations:   10,
+			Successes:    9,
+			Failures:     1,
 			TotalCostUSD: 20.40,
 		},
 	}
@@ -46,8 +43,8 @@ func TestFormatModelPerformance_SingleModel(t *testing.T) {
 	want := []string{
 		"Model Performance",
 		"opus",
-		"90%",  // success rate
-		"(9/10)", // success/total
+		"90%",        // success rate
+		"(9/10)",     // success/total
 		"$2.04/iter", // avg cost per iteration
 	}
 
@@ -58,9 +55,8 @@ func TestFormatModelPerformance_SingleModel(t *testing.T) {
 	}
 }
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_MultipleModels(t *testing.T) {
-	stats := map[string]*logger.ModelStats{
+	stats := map[string]logger.ModelStats{
 		"opus": {
 			Model:        "opus",
 			Iterations:   11,
@@ -134,9 +130,8 @@ func TestFormatModelPerformance_MultipleModels(t *testing.T) {
 	}
 }
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_ZeroIterations(t *testing.T) {
-	stats := map[string]*logger.ModelStats{
+	stats := map[string]logger.ModelStats{
 		"opus": {
 			Model:        "opus",
 			Iterations:   0,
@@ -154,9 +149,8 @@ func TestFormatModelPerformance_ZeroIterations(t *testing.T) {
 	}
 }
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_PerfectSuccessRate(t *testing.T) {
-	stats := map[string]*logger.ModelStats{
+	stats := map[string]logger.ModelStats{
 		"opus": {
 			Model:        "opus",
 			Iterations:   5,
@@ -182,9 +176,8 @@ func TestFormatModelPerformance_PerfectSuccessRate(t *testing.T) {
 	}
 }
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_ZeroSuccessRate(t *testing.T) {
-	stats := map[string]*logger.ModelStats{
+	stats := map[string]logger.ModelStats{
 		"sonnet": {
 			Model:        "sonnet",
 			Iterations:   4,
@@ -210,9 +203,8 @@ func TestFormatModelPerformance_ZeroSuccessRate(t *testing.T) {
 	}
 }
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_FormattingConsistency(t *testing.T) {
-	stats := map[string]*logger.ModelStats{
+	stats := map[string]logger.ModelStats{
 		"opus": {
 			Model:        "opus",
 			Iterations:   10,
@@ -244,7 +236,6 @@ func TestFormatModelPerformance_FormattingConsistency(t *testing.T) {
 	}
 }
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_CostFormatting(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -280,7 +271,7 @@ func TestFormatModelPerformance_CostFormatting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stats := map[string]*logger.ModelStats{
+			stats := map[string]logger.ModelStats{
 				"opus": {
 					Model:        "opus",
 					Iterations:   tt.iterations,
@@ -299,9 +290,8 @@ func TestFormatModelPerformance_CostFormatting(t *testing.T) {
 	}
 }
 
-// Expected failure: formatModelPerformance function does not exist yet
 func TestFormatModelPerformance_ModelOrdering(t *testing.T) {
-	stats := map[string]*logger.ModelStats{
+	stats := map[string]logger.ModelStats{
 		"haiku": {
 			Model:        "haiku",
 			Iterations:   5,

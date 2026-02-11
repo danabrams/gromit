@@ -195,7 +195,7 @@ func formatRecommendation(rec string) string {
 }
 
 // formatModelPerformance formats model performance stats for display
-func formatModelPerformance(stats map[string]*logger.ModelStats) string {
+func formatModelPerformance(stats map[string]logger.ModelStats) string {
 	if stats == nil || len(stats) == 0 {
 		return "Model Performance: (no data)"
 	}
@@ -225,9 +225,6 @@ func formatModelPerformance(stats map[string]*logger.ModelStats) string {
 	// Format each model's stats
 	for _, model := range models {
 		s := stats[model]
-		if s == nil {
-			continue
-		}
 
 		// Calculate success rate percentage (rounded to nearest integer)
 		successRate := 0
