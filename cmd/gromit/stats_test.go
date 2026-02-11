@@ -648,6 +648,9 @@ func TestStatsCmd_ShowsEscalationFrequency(t *testing.T) {
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 
+	// Reset command flags before execution
+	statsCmd.Flags().Set("json", "false")
+
 	// Create a pipe to capture stdout
 	r, w, err := os.Pipe()
 	if err != nil {
