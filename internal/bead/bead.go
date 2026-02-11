@@ -712,6 +712,33 @@ func HasLabel(labels []string, target string) bool {
 	return false
 }
 
+// IsTestOnlyBead returns true if the bead's title indicates that tests ARE the deliverable
+// (e.g., "Add unit tests for X", "Write tests for Y"). Such beads should skip the ATDD
+// pre-pass since acceptance tests are the implementation itself.
+func IsTestOnlyBead(title string) bool {
+	t := strings.ToLower(strings.TrimSpace(title))
+	if t == "" {
+		return false
+	}
+	// Match titles where the primary verb is about writing/adding tests
+	prefixes := []string{
+		"add tests for",
+		"add unit tests for",
+		"add acceptance tests for",
+		"add integration tests for",
+		"write tests for",
+		"write unit tests for",
+		"write acceptance tests for",
+		"write integration tests for",
+	}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(t, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsMethodologyActive checks if a methodology (e.g., "atdd", "tdd") is active for a bead.
 // It checks for a label like "atdd:true" or "atdd:false" and returns that value if present.
 // If no matching label is found, it falls back to the globalDefault value.
