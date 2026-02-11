@@ -2377,6 +2377,20 @@ func parseBeadOutputList(out string) ([]*Bead, error) {
 	return result, nil
 }
 
+// parseBeadCount is a helper function that parses JSON output and returns bead count
+func parseBeadCount(out string) (int, error) {
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return 0, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return 0, fmt.Errorf("parsing bd output: %w", err)
+	}
+
+	return len(beads), nil
+}
+
 // TestCountByStatusNilClient tests that CountByStatus returns error on nil client
 func TestCountByStatusNilClient(t *testing.T) {
 	var c *Client
@@ -2386,5 +2400,38 @@ func TestCountByStatusNilClient(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "nil") {
 		t.Errorf("CountByStatus() on nil client should mention nil, got: %v", err)
+	}
+}
+
+// TestCountByStatusEmptyResults tests that CountByStatus returns 0 for empty results
+func TestCountByStatusEmptyResults(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+	}{
+		{
+			name:       "empty array",
+			jsonOutput: "[]",
+		},
+		{
+			name:       "empty string",
+			jsonOutput: "",
+		},
+		{
+			name:       "whitespace only",
+			jsonOutput: "   \n  ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, err := parseBeadCount(tt.jsonOutput)
+			if err != nil {
+				t.Fatalf("parseBeadCount() error = %v", err)
+			}
+			if count != 0 {
+				t.Errorf("parseBeadCount() = %d, want 0", count)
+			}
+		})
 	}
 }
