@@ -18,8 +18,6 @@ func TestRepoHygiene_TestBinaryRemoved(t *testing.T) {
 	}
 
 	t.Run("gromit.test binary is not tracked by git", func(t *testing.T) {
-		// Expected failure: cmd/gromit/gromit.test is currently tracked by git
-		// and has not been removed yet.
 		cmd := exec.Command("git", "ls-files", "cmd/gromit/gromit.test")
 		cmd.Dir = projectRoot
 		out, err := cmd.Output()
@@ -33,7 +31,6 @@ func TestRepoHygiene_TestBinaryRemoved(t *testing.T) {
 	})
 
 	t.Run("gromit.test binary does not exist on disk", func(t *testing.T) {
-		// Expected failure: cmd/gromit/gromit.test currently exists as an 8.3MB ELF binary.
 		binaryPath := filepath.Join(projectRoot, "cmd", "gromit", "gromit.test")
 		if _, err := os.Stat(binaryPath); err == nil {
 			t.Error("cmd/gromit/gromit.test still exists on disk; should be deleted")
@@ -43,7 +40,6 @@ func TestRepoHygiene_TestBinaryRemoved(t *testing.T) {
 	})
 
 	t.Run("gitignore contains test binary pattern", func(t *testing.T) {
-		// Expected failure: .gitignore does not currently contain a *.test pattern.
 		gitignorePath := filepath.Join(projectRoot, ".gitignore")
 		data, err := os.ReadFile(gitignorePath)
 		if err != nil {
