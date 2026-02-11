@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -668,7 +669,7 @@ func captureStdout(t *testing.T, fn func()) string {
 	// Close writer and read captured output
 	w.Close()
 	var buf strings.Builder
-	if _, err := buf.ReadFrom(r); err != nil {
+	if _, err := io.Copy(&buf, r); err != nil {
 		t.Fatalf("failed to read captured output: %v", err)
 	}
 

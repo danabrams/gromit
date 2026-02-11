@@ -68,6 +68,15 @@ When moving a function call earlier in a lifecycle (e.g., escalateModel called p
 ### 2026-02-11 | gromit-2xrq | conventions
 Configuration files in gromit.yaml use inline comments (after values) to explain the rationale and trade-offs for each setting, not just what the setting does—comments include why a value differs from defaults and what it optimizes for (e.g., 'longer invocation timeout — sonnet consistently needs >900s')
 
+### 2026-02-11 | gromit-eo57 | gotchas
+Aggregation functions in logger package often duplicate logic rather than compose (e.g., ReadModelStats and ReadRunModelStats have nearly identical implementations). When adding similar per-model aggregation functions, consider whether refactoring to a filtered helper would reduce duplication, but follow existing patterns if choosing direct implementation.
+
+### 2026-02-11 | gromit-eo57 | patterns
+Aggregation functions follow a consistent pattern: glob run-*.jsonl files, optionally filter by extracted run ID, read with readLogFile(), then iterate entries building maps/accumulators. Reuse helper functions (extractRunID, readLogFile) across multiple aggregation modules to avoid duplication.
+
+### 2026-02-11 | gromit-jsta | patterns
+Atomic file updates in logger package follow read-modify-write with temp-file-then-rename: ReadGlobalStats handles missing files gracefully (returns initialized empty state, not error), UpdateGlobalStats merges data then writes atomically via CreateTemp+Rename, with defer cleanup. Apply this pattern to other file-based aggregations.
+
 ---
 
 ## Archived
