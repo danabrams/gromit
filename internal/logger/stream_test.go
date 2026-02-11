@@ -507,3 +507,198 @@ func TestStreamStatsCostDataNilSafe(t *testing.T) {
 			cost, inputTokens, outputTokens)
 	}
 }
+
+func TestStreamStats_TimeToFirstEvent(t *testing.T) {
+	stats, _ := NewStreamStats()
+
+	// Before any events, should return 0
+	if ttfe := stats.TimeToFirstEvent(); ttfe != 0 {
+		t.Errorf("expected 0 before first event, got %v", ttfe)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	stats.RecordEvent()
+
+	ttfe := stats.TimeToFirstEvent()
+	if ttfe < 50*time.Millisecond {
+		t.Errorf("expected >= 50ms time to first event, got %v", ttfe)
+	}
+
+	// Second event should not change FirstEventTime
+	time.Sleep(50 * time.Millisecond)
+	stats.RecordEvent()
+	ttfe2 := stats.TimeToFirstEvent()
+	if ttfe2 != ttfe {
+		t.Errorf("expected time to first event unchanged after second event, got %v vs %v", ttfe2, ttfe)
+	}
+}
+
+func TestStreamStats_TimeToFirstEventNilSafe(t *testing.T) {
+	var stats *StreamStats
+	if ttfe := stats.TimeToFirstEvent(); ttfe != 0 {
+		t.Errorf("expected 0 for nil stats, got %v", ttfe)
+	}
+}
+
+func TestStreamStats_RecordStall(t *testing.T) {
+	stats, _ := NewStreamStats()
+
+	stats.RecordStall("initial")
+	if stats.StallCount != 1 {
+		t.Errorf("expected StallCount=1, got %d", stats.StallCount)
+	}
+	if stats.StallTier != "initial" {
+		t.Errorf("expected StallTier='initial', got %q", stats.StallTier)
+	}
+
+	stats.RecordStall("active")
+	if stats.StallCount != 2 {
+		t.Errorf("expected StallCount=2, got %d", stats.StallCount)
+	}
+	if stats.StallTier != "active" {
+		t.Errorf("expected StallTier='active', got %q", stats.StallTier)
+	}
+}
+
+func TestStreamStats_RecordStallNilSafe(t *testing.T) {
+	var stats *StreamStats
+	stats.RecordStall("initial") // should not panic
+}
+
+func TestStreamStats_RecordRateLimitHit(t *testing.T) {
+	stats, _ := NewStreamStats()
+	stats.RecordRateLimitHit()
+	stats.RecordRateLimitHit()
+	if stats.RateLimitHits != 2 {
+		t.Errorf("expected RateLimitHits=2, got %d", stats.RateLimitHits)
+	}
+}
+
+func TestStreamStats_RecordRateLimitHitNilSafe(t *testing.T) {
+	var stats *StreamStats
+	stats.RecordRateLimitHit() // should not panic
+}
+
+func TestStreamStats_DiagnosticSnapshot(t *testing.T) {
+	stats, _ := NewStreamStats()
+
+	// Record some activity
+	time.Sleep(50 * time.Millisecond)
+	stats.RecordEvent()
+	stats.RecordToolCall("Read", "/foo.go")
+	stats.RecordToolCall("Edit", "/bar.go")
+	stats.RecordStall("initial")
+	stats.RecordStall("active")
+	stats.RecordRateLimitHit()
+
+	stallCount, stallTier, ttfe, toolCalls, rateLimitHits := stats.DiagnosticSnapshot()
+	if stallCount != 2 {
+		t.Errorf("expected stallCount=2, got %d", stallCount)
+	}
+	if stallTier != "active" {
+		t.Errorf("expected stallTier='active', got %q", stallTier)
+	}
+	if ttfe < 50*time.Millisecond {
+		t.Errorf("expected ttfe >= 50ms, got %v", ttfe)
+	}
+	if toolCalls != 2 {
+		t.Errorf("expected toolCalls=2, got %d", toolCalls)
+	}
+	if rateLimitHits != 1 {
+		t.Errorf("expected rateLimitHits=1, got %d", rateLimitHits)
+	}
+}
+
+func TestStreamStats_DiagnosticSnapshotNilSafe(t *testing.T) {
+	var stats *StreamStats
+	stallCount, stallTier, ttfe, toolCalls, rateLimitHits := stats.DiagnosticSnapshot()
+	if stallCount != 0 || stallTier != "" || ttfe != 0 || toolCalls != 0 || rateLimitHits != 0 {
+		t.Error("expected all zeros for nil stats")
+	}
+}
+
+func TestParseAndLogEvent_RateLimitDetection(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats, _ := NewStreamStats()
+
+	// Rate limit event
+	line := []byte(`{"type":"error","subtype":"overloaded"}`)
+	ParseAndLogEvent(sl, stats, line)
+	sl.Close()
+
+	if stats.RateLimitHits != 1 {
+		t.Errorf("expected RateLimitHits=1, got %d", stats.RateLimitHits)
+	}
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+	if !strings.Contains(string(content), "RATE_LIMIT") {
+		t.Errorf("expected RATE_LIMIT in log, got: %s", string(content))
+	}
+}
+
+func TestParseAndLogEvent_RateLimitDetectionNilLogger(t *testing.T) {
+	stats, _ := NewStreamStats()
+
+	// Rate limit should be detected even without stream logger
+	line := []byte(`{"type":"error","subtype":"rate_limit"}`)
+	ParseAndLogEvent(nil, stats, line)
+
+	if stats.RateLimitHits != 1 {
+		t.Errorf("expected RateLimitHits=1 with nil logger, got %d", stats.RateLimitHits)
+	}
+}
+
+func TestParseAndLogEvent_NonRateLimitError(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats, _ := NewStreamStats()
+
+	// Non-rate-limit error
+	line := []byte(`{"type":"error","subtype":"invalid_request"}`)
+	ParseAndLogEvent(sl, stats, line)
+	sl.Close()
+
+	if stats.RateLimitHits != 0 {
+		t.Errorf("expected RateLimitHits=0 for non-rate-limit error, got %d", stats.RateLimitHits)
+	}
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+	if !strings.Contains(string(content), "ERROR:") {
+		t.Errorf("expected ERROR in log, got: %s", string(content))
+	}
+}
+
+func TestIsRateLimitEvent(t *testing.T) {
+	tests := []struct {
+		subtype string
+		want    bool
+	}{
+		{"overloaded", true},
+		{"rate_limit", true},
+		{"rate_limited", true},
+		{"invalid_request", false},
+		{"", false},
+		{"timeout", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.subtype, func(t *testing.T) {
+			event := StreamEvent{Type: "error", Subtype: tt.subtype}
+			if got := isRateLimitEvent(event); got != tt.want {
+				t.Errorf("isRateLimitEvent(subtype=%q) = %v, want %v", tt.subtype, got, tt.want)
+			}
+		})
+	}
+}

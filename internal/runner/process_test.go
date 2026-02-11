@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -1999,5 +2000,751 @@ func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
 	err := r.verifyTestsFailWithRetry(context.Background(), bc)
 	if err != nil {
 		t.Errorf("expected nil (tests fail on retry as expected), got: %v", err)
+	}
+}
+
+// --- Validation Recovery Tests (Bead 1.5) ---
+
+func TestRunValidationWithRecovery_PassesOnFirstTry(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "All tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+	}
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:        true,
+			Commands:       []string{"go test ./..."},
+			MaxFixAttempts: 1,
+		},
+		Models: config.ModelsConfig{
+			Validation: "haiku",
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+
+	r := &Runner{
+		cfg:      cfg,
+		claude:   mockClaude,
+		renderer: &mockRenderer{},
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		model:  "sonnet",
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir:            t.TempDir(),
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+	}
+
+	err := r.runValidationWithRecovery(context.Background(), bc)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if bc.result.ValidationRetried {
+		t.Error("ValidationRetried should be false when validation passes on first try")
+	}
+}
+
+func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
+	var buf strings.Builder
+	validationCalls := 0
+	streamRunCalls := 0
+
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			validationCalls++
+			if validationCalls == 1 {
+				// First validation fails
+				return &claude.Result{
+					Success: true,
+					Output:  "FAIL: TestSomething\nVALIDATION_FAILED",
+				}, nil
+			}
+			// Second validation passes after fix
+			return &claude.Result{
+				Success: true,
+				Output:  "All tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			streamRunCalls++
+			// Fix build succeeds
+			return &claude.Result{
+				Success: true,
+				Output:  "Fixed the validation error",
+			}, nil
+		},
+	}
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:        true,
+			Commands:       []string{"go test ./..."},
+			MaxFixAttempts: 1,
+		},
+		Models: config.ModelsConfig{
+			Validation: "haiku",
+		},
+		Claude: config.ClaudeConfig{
+			StallTimeout:       30,
+			StallTimeoutActive: 10,
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+
+	r := &Runner{
+		cfg:      cfg,
+		claude:   mockClaude,
+		renderer: &mockRenderer{},
+		analyzer: &mockFailureAnalyzer{},
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		model:  "sonnet",
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir:            t.TempDir(),
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+		maxRetries:        1,
+		maxRetriesPerBead: 5,
+		parentCtx:         context.Background(),
+	}
+
+	err := r.runValidationWithRecovery(context.Background(), bc)
+	if err != nil {
+		t.Errorf("expected no error after successful fix, got: %v", err)
+	}
+	if !bc.result.ValidationRetried {
+		t.Error("ValidationRetried should be true when recovery was attempted")
+	}
+	if validationCalls != 2 {
+		t.Errorf("expected 2 validation calls, got %d", validationCalls)
+	}
+	if streamRunCalls != 1 {
+		t.Errorf("expected 1 fix build call, got %d", streamRunCalls)
+	}
+}
+
+func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
+	var buf strings.Builder
+	validationCalls := 0
+
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			validationCalls++
+			// Validation always fails
+			return &claude.Result{
+				Success: true,
+				Output:  "FAIL: TestSomething\nVALIDATION_FAILED",
+			}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			// Fix build succeeds but validation will still fail
+			return &claude.Result{
+				Success: true,
+				Output:  "Attempted fix",
+			}, nil
+		},
+	}
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:        true,
+			Commands:       []string{"go test ./..."},
+			MaxFixAttempts: 1,
+		},
+		Models: config.ModelsConfig{
+			Validation: "haiku",
+		},
+		Claude: config.ClaudeConfig{
+			StallTimeout:       30,
+			StallTimeoutActive: 10,
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+
+	r := &Runner{
+		cfg:      cfg,
+		claude:   mockClaude,
+		renderer: &mockRenderer{},
+		analyzer: &mockFailureAnalyzer{},
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		model:  "sonnet",
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir:            t.TempDir(),
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+		maxRetries:        1,
+		maxRetriesPerBead: 5,
+		parentCtx:         context.Background(),
+	}
+
+	err := r.runValidationWithRecovery(context.Background(), bc)
+	if err == nil {
+		t.Error("expected error when fix doesn't resolve validation")
+	}
+	if !strings.Contains(err.Error(), "validation failed") {
+		t.Errorf("expected 'validation failed' error, got: %v", err)
+	}
+	if !bc.result.ValidationRetried {
+		t.Error("ValidationRetried should be true when recovery was attempted")
+	}
+}
+
+func TestRunValidationWithRecovery_InvocationErrorNotRecovered(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return nil, fmt.Errorf("network error")
+		},
+	}
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:        true,
+			Commands:       []string{"go test ./..."},
+			MaxFixAttempts: 1,
+		},
+		Models: config.ModelsConfig{
+			Validation: "haiku",
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+
+	r := &Runner{
+		cfg:      cfg,
+		claude:   mockClaude,
+		renderer: &mockRenderer{},
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		model:  "sonnet",
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir:            t.TempDir(),
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+	}
+
+	err := r.runValidationWithRecovery(context.Background(), bc)
+	if err == nil {
+		t.Error("expected error for invocation failure")
+	}
+	if !strings.Contains(err.Error(), "validation invocation") {
+		t.Errorf("expected 'validation invocation' error, got: %v", err)
+	}
+	// Invocation errors should not trigger recovery
+	if bc.result.ValidationRetried {
+		t.Error("ValidationRetried should be false for invocation errors")
+	}
+}
+
+// --- isTestOnlyDiff Tests (Bead 2.3) ---
+
+func TestIsTestOnlyDiff(t *testing.T) {
+	tests := []struct {
+		name string
+		diff string
+		want bool
+	}{
+		{
+			name: "empty diff",
+			diff: "",
+			want: true,
+		},
+		{
+			name: "whitespace only diff",
+			diff: "   \n  \n",
+			want: true,
+		},
+		{
+			name: "only test files",
+			diff: "diff --git a/internal/runner/process_test.go b/internal/runner/process_test.go\n+some test code\ndiff --git a/internal/config/config_test.go b/internal/config/config_test.go\n+more tests",
+			want: true,
+		},
+		{
+			name: "implementation files present",
+			diff: "diff --git a/internal/runner/process.go b/internal/runner/process.go\n+implementation code\ndiff --git a/internal/runner/process_test.go b/internal/runner/process_test.go\n+test code",
+			want: false,
+		},
+		{
+			name: "only implementation files",
+			diff: "diff --git a/internal/runner/process.go b/internal/runner/process.go\n+implementation code",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isTestOnlyDiff(tt.diff)
+			if got != tt.want {
+				t.Errorf("isTestOnlyDiff() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestVerifyTestsFailWithRetry_DiffGuard_TestOnlyDiff(t *testing.T) {
+	// When tests pass but only test files changed, retry instead of returning errATDDAlreadyDone
+	var buf strings.Builder
+	validationCalls := 0
+	streamRunCalls := 0
+
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			validationCalls++
+			// First two calls: tests pass (unexpected)
+			// Third call (after diff-guard retry): tests pass again
+			// Fourth call: tests fail as expected
+			if validationCalls <= 3 {
+				return &claude.Result{
+					Success: true,
+					Output:  "All tests passed\nVALIDATION_PASSED",
+				}, nil
+			}
+			return &claude.Result{
+				Success: true,
+				Output:  "FAIL: TestSomething\nVALIDATION_FAILED",
+			}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			streamRunCalls++
+			return &claude.Result{
+				Success: true,
+				Output:  "Tests rewritten",
+			}, nil
+		},
+	}
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+		Models: config.ModelsConfig{
+			Validation: "haiku",
+		},
+		Claude: config.ClaudeConfig{
+			StallTimeout:       30,
+			StallTimeoutActive: 10,
+			AnalysisTimeout:    10,
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+
+	r := &Runner{
+		cfg:      cfg,
+		claude:   mockClaude,
+		renderer: &mockRenderer{},
+		analyzer: &mockFailureAnalyzer{},
+		output:   &buf,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			// Return test-only diff
+			return "diff --git a/internal/runner/process_test.go b/internal/runner/process_test.go\n+some test code", nil
+		},
+	}
+	bc := &beadContext{
+		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		model:       "sonnet",
+		result:      &IterationResult{},
+		startCommit: "abc123",
+		promptCtx: &prompt.Context{
+			WorkDir:            t.TempDir(),
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+	}
+
+	err := r.verifyTestsFailWithRetry(context.Background(), bc)
+	// The diff guard should trigger extra retries. Whether tests ultimately fail
+	// depends on the mock behavior, but the diff guard path should be exercised.
+	if err != nil && errors.Is(err, errATDDAlreadyDone) {
+		// If we still get errATDDAlreadyDone, verify the output shows diff guard was triggered
+		if !strings.Contains(buf.String(), "only test files changed") {
+			t.Error("expected diff guard to trigger when only test files changed")
+		}
+	}
+	// Verify multiple retries were attempted (diff guard triggered additional attempts)
+	if streamRunCalls < 2 {
+		t.Errorf("expected at least 2 stream run calls (initial + diff guard retry), got %d", streamRunCalls)
+	}
+}
+
+func TestVerifyTestsFailWithRetry_DiffGuard_ImplDiff(t *testing.T) {
+	// When tests pass and implementation files changed, return errATDDAlreadyDone (genuine)
+	var buf strings.Builder
+	validationCalls := 0
+
+	mockClaude := &mockClaudeClient{
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			validationCalls++
+			// Tests always pass
+			return &claude.Result{
+				Success: true,
+				Output:  "All tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  "Tests rewritten",
+			}, nil
+		},
+	}
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+		Models: config.ModelsConfig{
+			Validation: "haiku",
+		},
+		Claude: config.ClaudeConfig{
+			StallTimeout:       30,
+			StallTimeoutActive: 10,
+			AnalysisTimeout:    10,
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+
+	r := &Runner{
+		cfg:      cfg,
+		claude:   mockClaude,
+		renderer: &mockRenderer{},
+		analyzer: &mockFailureAnalyzer{},
+		output:   &buf,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			// Return diff with implementation files
+			return "diff --git a/internal/runner/process.go b/internal/runner/process.go\n+implementation code\ndiff --git a/internal/runner/process_test.go b/internal/runner/process_test.go\n+test code", nil
+		},
+	}
+	bc := &beadContext{
+		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		model:       "sonnet",
+		result:      &IterationResult{},
+		startCommit: "abc123",
+		promptCtx: &prompt.Context{
+			WorkDir:            t.TempDir(),
+			ConfirmedLearnings: []learnings.Learning{},
+			RecentLearnings:    []learnings.Learning{},
+		},
+	}
+
+	err := r.verifyTestsFailWithRetry(context.Background(), bc)
+	if !errors.Is(err, errATDDAlreadyDone) {
+		t.Errorf("expected errATDDAlreadyDone when implementation files changed, got: %v", err)
+	}
+}
+
+// --- Config Tests for MaxFixAttempts ---
+
+func TestMaxFixAttempts_DefaultValue(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	if cfg.Validation.MaxFixAttempts != 1 {
+		t.Errorf("expected default MaxFixAttempts=1, got %d", cfg.Validation.MaxFixAttempts)
+	}
+}
+
+func TestMaxFixAttempts_LoadFromYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlContent := `
+validation:
+  enabled: true
+  max_fix_attempts: 3
+  commands:
+    - go test ./...
+`
+	cfgPath := tmpDir + "/gromit.yaml"
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Validation.MaxFixAttempts != 3 {
+		t.Errorf("expected MaxFixAttempts=3, got %d", cfg.Validation.MaxFixAttempts)
+	}
+}
+
+// --- Diagnostic Wiring Tests ---
+
+func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "ok"}, nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Claude: config.ClaudeConfig{
+				StallTimeout:       30,
+				StallTimeoutActive: 60,
+			},
+		},
+		claude: mockClaude,
+		output: &buf,
+	}
+	bc := &beadContext{
+		bead:      &bead.Bead{ID: "test-1", Title: "Test"},
+		model:     "sonnet",
+		result:    &IterationResult{},
+		buildPrompt: "test prompt",
+	}
+
+	claudeResult, stats, stallFired, err := r.executeClaudeInvocation(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if claudeResult == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if stallFired {
+		t.Error("expected stallFired=false")
+	}
+	if stats == nil {
+		t.Fatal("expected non-nil stats")
+	}
+
+	// Diagnostic fields should be populated on bc.result
+	if bc.result.TimeToFirstEventMs < 0 {
+		t.Errorf("expected non-negative TimeToFirstEventMs, got %d", bc.result.TimeToFirstEventMs)
+	}
+	// StallCount should be 0 for a successful run
+	if bc.result.StallCount != 0 {
+		t.Errorf("expected StallCount=0, got %d", bc.result.StallCount)
+	}
+}
+
+// --- Preemptive Escalation Tests ---
+
+func TestBuildPromptForBead_MediumComplexityEscalatesSonnet(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
+			// Scope check returns medium complexity
+			return &claude.Result{
+				Success: true,
+				Output:  `{"complexity":"medium","estimated_iterations":1,"can_complete_in_single_iteration":true,"blockers":[],"rationale":"medium task"}`,
+			}, nil
+		},
+	}
+	mockRend := &mockPromptRenderer{
+		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+			return &prompt.Context{
+				Model:              model,
+				ConfirmedLearnings: []learnings.Learning{},
+				RecentLearnings:    []learnings.Learning{},
+			}, nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			ScopeCheck: config.ScopeCheckConfig{
+				Enabled: true,
+				Model:   "haiku",
+			},
+		},
+		claude:   mockClaude,
+		beads:    &mockBeadClient{},
+		renderer: mockRend,
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
+		model:  "sonnet",
+		result: &IterationResult{Model: "sonnet"},
+	}
+
+	err := r.buildPromptForBead(context.Background(), bc, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bc.model != "opus" {
+		t.Errorf("expected model to be escalated to 'opus', got %q", bc.model)
+	}
+	if bc.result.Model != "opus" {
+		t.Errorf("expected result.Model to be 'opus', got %q", bc.result.Model)
+	}
+	if !strings.Contains(buf.String(), "complexity=medium on sonnet") {
+		t.Errorf("expected escalation log message, got: %s", buf.String())
+	}
+}
+
+func TestBuildPromptForBead_MediumComplexityKeepsOpus(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  `{"complexity":"medium","estimated_iterations":1,"can_complete_in_single_iteration":true,"blockers":[],"rationale":"medium task"}`,
+			}, nil
+		},
+	}
+	mockRend := &mockPromptRenderer{
+		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+			return &prompt.Context{
+				Model:              model,
+				ConfirmedLearnings: []learnings.Learning{},
+				RecentLearnings:    []learnings.Learning{},
+			}, nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			ScopeCheck: config.ScopeCheckConfig{
+				Enabled: true,
+				Model:   "haiku",
+			},
+		},
+		claude:   mockClaude,
+		beads:    &mockBeadClient{},
+		renderer: mockRend,
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
+		model:  "opus",
+		result: &IterationResult{Model: "opus"},
+	}
+
+	err := r.buildPromptForBead(context.Background(), bc, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Opus should stay opus for medium complexity
+	if bc.model != "opus" {
+		t.Errorf("expected model to stay 'opus', got %q", bc.model)
+	}
+	if strings.Contains(buf.String(), "auto-escalating") {
+		t.Errorf("should not escalate opus, got: %s", buf.String())
+	}
+}
+
+func TestBuildPromptForBead_LowComplexityKeepsSonnet(t *testing.T) {
+	var buf strings.Builder
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
+			return &claude.Result{
+				Success: true,
+				Output:  `{"complexity":"low","estimated_iterations":1,"can_complete_in_single_iteration":true,"blockers":[],"rationale":"simple task"}`,
+			}, nil
+		},
+	}
+	mockRend := &mockPromptRenderer{
+		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+			return &prompt.Context{
+				Model:              model,
+				ConfirmedLearnings: []learnings.Learning{},
+				RecentLearnings:    []learnings.Learning{},
+			}, nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			ScopeCheck: config.ScopeCheckConfig{
+				Enabled: true,
+				Model:   "haiku",
+			},
+		},
+		claude:   mockClaude,
+		beads:    &mockBeadClient{},
+		renderer: mockRend,
+		output:   &buf,
+	}
+	bc := &beadContext{
+		bead:   &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
+		model:  "sonnet",
+		result: &IterationResult{Model: "sonnet"},
+	}
+
+	err := r.buildPromptForBead(context.Background(), bc, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Sonnet should stay sonnet for low complexity
+	if bc.model != "sonnet" {
+		t.Errorf("expected model to stay 'sonnet', got %q", bc.model)
+	}
+}
+
+func TestWriteIterationLog_DiagnosticFields(t *testing.T) {
+	mockLog := &mockIterationLogger{}
+
+	r := &Runner{
+		cfg:    &config.Config{},
+		logger: mockLog,
+		output: &strings.Builder{},
+	}
+
+	result := &IterationResult{
+		BeadID:             "test-1",
+		BeadTitle:          "Test",
+		Model:              "sonnet",
+		Success:            false,
+		TimeoutType:        "stall",
+		TimeToFirstEventMs: 1234,
+		ToolCallCount:      5,
+		StallCount:         2,
+		StallTier:          "active",
+		RateLimitHits:      1,
+		Error:              fmt.Errorf("stall timeout"),
+	}
+
+	r.writeIterationLog(1, result)
+
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(mockLog.Logs))
+	}
+	log := mockLog.Logs[0]
+	if log.TimeoutType != "stall" {
+		t.Errorf("expected TimeoutType='stall', got %q", log.TimeoutType)
+	}
+	if log.TimeToFirstEventMs != 1234 {
+		t.Errorf("expected TimeToFirstEventMs=1234, got %d", log.TimeToFirstEventMs)
+	}
+	if log.ToolCallCount != 5 {
+		t.Errorf("expected ToolCallCount=5, got %d", log.ToolCallCount)
+	}
+	if log.StallCount != 2 {
+		t.Errorf("expected StallCount=2, got %d", log.StallCount)
+	}
+	if log.StallTier != "active" {
+		t.Errorf("expected StallTier='active', got %q", log.StallTier)
+	}
+	if log.RateLimitHits != 1 {
+		t.Errorf("expected RateLimitHits=1, got %d", log.RateLimitHits)
 	}
 }

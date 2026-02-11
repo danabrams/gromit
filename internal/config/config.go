@@ -56,8 +56,9 @@ type LoopConfig struct {
 }
 
 type ValidationConfig struct {
-	Enabled  bool     `yaml:"enabled"`
-	Commands []string `yaml:"commands"`
+	Enabled        bool     `yaml:"enabled"`
+	Commands       []string `yaml:"commands"`
+	MaxFixAttempts int      `yaml:"max_fix_attempts"`
 }
 
 type ScopeCheckConfig struct {
@@ -78,13 +79,22 @@ type PreflightConfig struct {
 }
 
 type ClaudeConfig struct {
-	Binary             string   `yaml:"binary"`
-	Timeout            int      `yaml:"timeout"`
-	StallTimeout       int      `yaml:"stall_timeout"`
-	StallTimeoutActive int      `yaml:"stall_timeout_active"`
-	BeadTimeout        int      `yaml:"bead_timeout"`
-	AnalysisTimeout    int      `yaml:"analysis_timeout"`
-	Flags              []string `yaml:"flags"`
+	Binary             string                           `yaml:"binary"`
+	Timeout            int                              `yaml:"timeout"`
+	StallTimeout       int                              `yaml:"stall_timeout"`
+	StallTimeoutActive int                              `yaml:"stall_timeout_active"`
+	BeadTimeout        int                              `yaml:"bead_timeout"`
+	AnalysisTimeout    int                              `yaml:"analysis_timeout"`
+	Flags              []string                         `yaml:"flags"`
+	ModelTimeouts      map[string]ModelTimeoutOverrides  `yaml:"model_timeouts"`
+}
+
+// ModelTimeoutOverrides allows per-model timeout tuning.
+// Non-zero values override the corresponding top-level ClaudeConfig defaults.
+type ModelTimeoutOverrides struct {
+	StallTimeout       int `yaml:"stall_timeout"`
+	StallTimeoutActive int `yaml:"stall_timeout_active"`
+	BeadTimeout        int `yaml:"bead_timeout"`
 }
 
 type PathsConfig struct {
@@ -176,6 +186,9 @@ func (c *Config) NormalizeNilFields() {
 	if c.Claude.Flags == nil {
 		c.Claude.Flags = []string{}
 	}
+	if c.Claude.ModelTimeouts == nil {
+		c.Claude.ModelTimeouts = make(map[string]ModelTimeoutOverrides)
+	}
 	if c.Models.Labels == nil {
 		c.Models.Labels = make(map[string]string)
 	}
@@ -241,6 +254,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Paths.ProjectClaudeMD == "" {
 		c.Paths.ProjectClaudeMD = "CLAUDE.md"
+	}
+	if c.Validation.MaxFixAttempts == 0 {
+		c.Validation.MaxFixAttempts = 1
 	}
 	if len(c.Escalation.Chain) == 0 {
 		c.Escalation.Chain = []string{ModelHaiku, ModelSonnet, ModelOpus}
@@ -411,6 +427,27 @@ func (g GitConfig) IsAutoPushEnabled() bool {
 		return true
 	}
 	return *g.AutoPush
+}
+
+// TimeoutsForModel returns the effective stall, stall-active, and bead timeouts for a model.
+// Per-model overrides (if non-zero) take precedence over the top-level defaults.
+func (c ClaudeConfig) TimeoutsForModel(model string) (stallTimeout, stallTimeoutActive, beadTimeout int) {
+	stallTimeout = c.StallTimeout
+	stallTimeoutActive = c.StallTimeoutActive
+	beadTimeout = c.BeadTimeout
+
+	if overrides, ok := c.ModelTimeouts[model]; ok {
+		if overrides.StallTimeout > 0 {
+			stallTimeout = overrides.StallTimeout
+		}
+		if overrides.StallTimeoutActive > 0 {
+			stallTimeoutActive = overrides.StallTimeoutActive
+		}
+		if overrides.BeadTimeout > 0 {
+			beadTimeout = overrides.BeadTimeout
+		}
+	}
+	return
 }
 
 // ShouldBlockOversized returns whether over-scoped beads should be blocked before execution (defaults to true)

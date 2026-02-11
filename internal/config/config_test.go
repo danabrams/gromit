@@ -2946,3 +2946,134 @@ func TestShouldBlockOversizedExplicitFalse(t *testing.T) {
 		t.Errorf("expected ShouldBlockOversized() to return false for explicit false")
 	}
 }
+
+// --- Per-model timeout tests ---
+
+func TestTimeoutsForModel_Defaults(t *testing.T) {
+	cfg := ClaudeConfig{
+		StallTimeout:       120,
+		StallTimeoutActive: 300,
+		BeadTimeout:        1200,
+		ModelTimeouts:      map[string]ModelTimeoutOverrides{},
+	}
+
+	stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
+	if stall != 120 {
+		t.Errorf("expected stall=120, got %d", stall)
+	}
+	if stallActive != 300 {
+		t.Errorf("expected stallActive=300, got %d", stallActive)
+	}
+	if bead != 1200 {
+		t.Errorf("expected bead=1200, got %d", bead)
+	}
+}
+
+func TestTimeoutsForModel_Override(t *testing.T) {
+	cfg := ClaudeConfig{
+		StallTimeout:       120,
+		StallTimeoutActive: 300,
+		BeadTimeout:        1200,
+		ModelTimeouts: map[string]ModelTimeoutOverrides{
+			"sonnet": {
+				StallTimeout:       60,
+				StallTimeoutActive: 150,
+				BeadTimeout:        900,
+			},
+		},
+	}
+
+	stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
+	if stall != 60 {
+		t.Errorf("expected stall=60, got %d", stall)
+	}
+	if stallActive != 150 {
+		t.Errorf("expected stallActive=150, got %d", stallActive)
+	}
+	if bead != 900 {
+		t.Errorf("expected bead=900, got %d", bead)
+	}
+
+	// Opus should still get defaults
+	stall, stallActive, bead = cfg.TimeoutsForModel("opus")
+	if stall != 120 {
+		t.Errorf("expected opus stall=120, got %d", stall)
+	}
+	if stallActive != 300 {
+		t.Errorf("expected opus stallActive=300, got %d", stallActive)
+	}
+	if bead != 1200 {
+		t.Errorf("expected opus bead=1200, got %d", bead)
+	}
+}
+
+func TestTimeoutsForModel_PartialOverride(t *testing.T) {
+	cfg := ClaudeConfig{
+		StallTimeout:       120,
+		StallTimeoutActive: 300,
+		BeadTimeout:        1200,
+		ModelTimeouts: map[string]ModelTimeoutOverrides{
+			"sonnet": {
+				StallTimeout: 60,
+				// StallTimeoutActive and BeadTimeout not set → fall back to defaults
+			},
+		},
+	}
+
+	stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
+	if stall != 60 {
+		t.Errorf("expected stall=60, got %d", stall)
+	}
+	if stallActive != 300 {
+		t.Errorf("expected stallActive=300 (default), got %d", stallActive)
+	}
+	if bead != 1200 {
+		t.Errorf("expected bead=1200 (default), got %d", bead)
+	}
+}
+
+func TestTimeoutsForModel_NilMap(t *testing.T) {
+	cfg := ClaudeConfig{
+		StallTimeout:       120,
+		StallTimeoutActive: 300,
+		BeadTimeout:        1200,
+	}
+
+	stall, stallActive, bead := cfg.TimeoutsForModel("sonnet")
+	if stall != 120 || stallActive != 300 || bead != 1200 {
+		t.Errorf("expected defaults with nil map, got stall=%d, stallActive=%d, bead=%d", stall, stallActive, bead)
+	}
+}
+
+func TestTimeoutsForModel_LoadFromYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlContent := `
+claude:
+  stall_timeout: 120
+  stall_timeout_active: 300
+  bead_timeout: 1200
+  model_timeouts:
+    sonnet:
+      stall_timeout: 60
+      bead_timeout: 900
+`
+	cfgPath := tmpDir + "/gromit.yaml"
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	stall, stallActive, bead := cfg.Claude.TimeoutsForModel("sonnet")
+	if stall != 60 {
+		t.Errorf("expected stall=60 from YAML, got %d", stall)
+	}
+	if stallActive != 300 {
+		t.Errorf("expected stallActive=300 (default), got %d", stallActive)
+	}
+	if bead != 900 {
+		t.Errorf("expected bead=900 from YAML, got %d", bead)
+	}
+}

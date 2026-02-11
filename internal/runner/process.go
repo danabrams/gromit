@@ -61,7 +61,8 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		return nil, nil, nil, fmt.Errorf("runner claude client is nil")
 	}
 
-	beadTimeout := time.Duration(r.cfg.Claude.BeadTimeout) * time.Second
+	_, _, beadTimeoutSec := r.cfg.Claude.TimeoutsForModel(r.selectModel(b))
+	beadTimeout := time.Duration(beadTimeoutSec) * time.Second
 	beadCtx, beadCancel := context.WithTimeout(ctx, beadTimeout)
 
 	startCommit, err := getGitHead()
@@ -113,6 +114,11 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iterat
 				bc.model = "opus"
 				bc.result.Model = bc.model
 				bc.promptCtx.Model = bc.model
+			} else if scopeEstimate.Complexity == "medium" && bc.model == "sonnet" {
+				r.log("Scope check: complexity=medium on sonnet, auto-escalating to opus")
+				bc.model = "opus"
+				bc.result.Model = bc.model
+				bc.promptCtx.Model = bc.model
 			} else {
 				r.log("Scope check: complexity=%s", scopeEstimate.Complexity)
 			}
@@ -139,8 +145,9 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
 
-	stallTimeout := time.Duration(r.cfg.Claude.StallTimeout) * time.Second
-	stallTimeoutActive := time.Duration(r.cfg.Claude.StallTimeoutActive) * time.Second
+	stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.model)
+	stallTimeout := time.Duration(stallTimeoutSec) * time.Second
+	stallTimeoutActive := time.Duration(stallTimeoutActiveSec) * time.Second
 
 	toolCallEvents := make(chan claude.ToolEvent, 10)
 
@@ -167,6 +174,14 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 	claudeResult, err := r.claude.StreamRun(childCtx, bc.buildPrompt, bc.model, r.output, handler, onToolCall)
 	stopHeartbeat()
 	childCancel()
+
+	// Capture diagnostic data from stream stats
+	stallCount, stallTier, ttfe, toolCalls, rateLimitHits := stats.DiagnosticSnapshot()
+	bc.result.StallCount = stallCount
+	bc.result.StallTier = stallTier
+	bc.result.TimeToFirstEventMs = ttfe.Milliseconds()
+	bc.result.ToolCallCount = toolCalls
+	bc.result.RateLimitHits = rateLimitHits
 
 	return claudeResult, stats, stallFired, err
 }
@@ -550,8 +565,9 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
 
-	stallTimeout := time.Duration(r.cfg.Claude.StallTimeout) * time.Second
-	stallTimeoutActive := time.Duration(r.cfg.Claude.StallTimeoutActive) * time.Second
+	stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.model)
+	stallTimeout := time.Duration(stallTimeoutSec) * time.Second
+	stallTimeoutActive := time.Duration(stallTimeoutActiveSec) * time.Second
 
 	toolCallEvents := make(chan claude.ToolEvent, 10)
 
@@ -635,7 +651,26 @@ func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *beadContext) 
 		return nil // Tests now fail as expected
 	}
 
-	// Still passing after retry with analysis — most likely the work is already done
+	// Still passing after retry with analysis — check if this is a false positive
+	// by examining the git diff. If only test files changed (no implementation),
+	// the tests are likely checking existing behavior, not new behavior.
+	if bc.startCommit != "" {
+		diff, diffErr := r.getDiff(bc.startCommit)
+		if diffErr == nil && isTestOnlyDiff(diff) {
+			r.log("Tests pass but only test files changed — likely testing existing behavior, retrying...")
+			bc.promptCtx.IsRetry = true
+			bc.promptCtx.FailureContext = "Tests pass but no implementation code was changed — tests are likely checking existing behavior. Rewrite tests to assert on behavior that does not exist yet."
+
+			if retryErr2 := r.runAcceptanceTests(ctx, bc); retryErr2 == nil {
+				// Verify tests fail again after diff-aware retry
+				if err2 := r.verifyTestsFail(ctx, bc); err2 == nil {
+					return nil // Tests now fail as expected
+				}
+			}
+			// If retry failed or tests still pass, fall through to errATDDAlreadyDone
+		}
+	}
+
 	r.log("Acceptance tests pass after retry — work appears already done")
 	return errATDDAlreadyDone
 }
@@ -681,6 +716,29 @@ func (r *Runner) verifyTestsFail(ctx context.Context, bc *beadContext) error {
 
 	r.log("Acceptance tests failed as expected")
 	return nil
+}
+
+// isTestOnlyDiff returns true if the diff is empty or only contains changes
+// to test files (*_test.go). This is used to detect ATDD false positives where
+// tests pass because they're checking existing behavior rather than new behavior.
+func isTestOnlyDiff(diff string) bool {
+	if strings.TrimSpace(diff) == "" {
+		return true
+	}
+	// Parse diff headers to find changed files
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, "diff --git ") {
+			// Extract the file path from "diff --git a/path b/path"
+			parts := strings.Fields(line)
+			if len(parts) >= 4 {
+				filePath := strings.TrimPrefix(parts[3], "b/")
+				if !strings.HasSuffix(filePath, "_test.go") {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
 
 // runRefactorPhase runs the refactoring phase after validation passes.
@@ -885,6 +943,70 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 	}
 
 	return nil
+}
+
+// runValidationWithRecovery wraps runValidation with a recovery mechanism.
+// On validation failure, it feeds the validation output back to the build model
+// and re-invokes executeWithRetry, then re-validates. If still failing after
+// max_fix_attempts, returns the original error.
+func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext) error {
+	err := r.runValidation(ctx, bc)
+	if err == nil {
+		return nil
+	}
+
+	// Only recover from "validation failed" errors, not invocation/nil-result errors
+	if err.Error() != "validation failed" {
+		return err
+	}
+
+	maxAttempts := r.cfg.Validation.MaxFixAttempts
+	if maxAttempts <= 0 {
+		return err
+	}
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		r.log("Validation failed, attempting fix (attempt %d/%d)...", attempt+1, maxAttempts)
+		bc.result.ValidationRetried = true
+
+		// Feed validation output back to the build model
+		bc.promptCtx.IsRetry = true
+		bc.promptCtx.PrevFailure = bc.result.Output
+		bc.promptCtx.FailureContext = "Validation (tests/lint) failed after your build succeeded. Fix the validation errors."
+
+		// Re-render the build prompt with failure context
+		var renderErr error
+		bc.buildPrompt, renderErr = r.renderer.RenderBuild(bc.promptCtx)
+		if renderErr != nil {
+			return fmt.Errorf("rendering validation fix prompt: %w", renderErr)
+		}
+
+		// Save retry state and enforce single attempt
+		savedMaxRetries := bc.maxRetries
+		savedRetriesThisModel := bc.retriesThisModel
+		savedTotalRetries := bc.totalRetriesThisBead
+		bc.maxRetries = 0 // Single attempt only - no retry within retry
+		bc.retriesThisModel = 0
+
+		success := r.executeWithRetry(ctx, bc)
+
+		// Restore retry state
+		bc.maxRetries = savedMaxRetries
+		bc.retriesThisModel = savedRetriesThisModel
+		bc.totalRetriesThisBead = savedTotalRetries
+
+		if !success {
+			return fmt.Errorf("validation fix build failed: %w", bc.result.Error)
+		}
+
+		// Re-validate
+		if valErr := r.runValidation(ctx, bc); valErr == nil {
+			r.log("Validation fix succeeded")
+			return nil
+		}
+	}
+
+	return err
 }
 
 // runPostSuccessReview runs only the review stage (when learning is disabled).

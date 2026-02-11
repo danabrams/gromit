@@ -73,9 +73,13 @@ type StreamStats struct {
 	StartTime          time.Time
 	LastEventTime      time.Time
 	firstEventReceived bool
+	FirstEventTime     time.Time
 	TotalCost          float64
 	InputTokens        int
 	OutputTokens       int
+	StallCount         int
+	StallTier          string // "initial" or "active"
+	RateLimitHits      int
 }
 
 // NewStreamStats creates a new StreamStats
@@ -118,7 +122,11 @@ func (s *StreamStats) RecordEvent() {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.LastEventTime = time.Now()
+	now := time.Now()
+	s.LastEventTime = now
+	if !s.firstEventReceived {
+		s.FirstEventTime = now
+	}
 	s.firstEventReceived = true
 }
 
@@ -161,6 +169,55 @@ func (s *StreamStats) CostData() (totalCost float64, inputTokens int, outputToke
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.TotalCost, s.InputTokens, s.OutputTokens
+}
+
+// TimeToFirstEvent returns the duration from stream start to the first event.
+// Returns 0 if no events have been received.
+func (s *StreamStats) TimeToFirstEvent() time.Duration {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.firstEventReceived {
+		return 0
+	}
+	return s.FirstEventTime.Sub(s.StartTime)
+}
+
+// RecordStall records that a stall was detected, including which tier fired.
+func (s *StreamStats) RecordStall(tier string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.StallCount++
+	s.StallTier = tier
+}
+
+// RecordRateLimitHit records that a rate limit indicator was detected in stream events.
+func (s *StreamStats) RecordRateLimitHit() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.RateLimitHits++
+}
+
+// DiagnosticSnapshot returns all diagnostic data under one lock acquisition.
+func (s *StreamStats) DiagnosticSnapshot() (stallCount int, stallTier string, timeToFirstEvent time.Duration, toolCalls int, rateLimitHits int) {
+	if s == nil {
+		return 0, "", 0, 0, 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var ttfe time.Duration
+	if s.firstEventReceived {
+		ttfe = s.FirstEventTime.Sub(s.StartTime)
+	}
+	return s.StallCount, s.StallTier, ttfe, s.ToolCalls, s.RateLimitHits
 }
 
 // StreamLogger writes firehose stream events to a log file
@@ -228,6 +285,11 @@ func ParseAndLogEvent(sl *StreamLogger, stats *StreamStats, line []byte) {
 
 	if stats != nil {
 		stats.RecordEvent()
+
+		// Detect rate limiting even when stream logger is nil
+		if event.Type == "error" && isRateLimitEvent(event) {
+			stats.RecordRateLimitHit()
+		}
 	}
 
 	if sl == nil {
@@ -287,7 +349,23 @@ func ParseAndLogEvent(sl *StreamLogger, stats *StreamStats, line []byte) {
 			stats.mu.Unlock()
 		}
 		sl.LogEvent("RESULT: subtype=%s, cost=$%.4f", event.Subtype, event.TotalCost)
+
+	case "error":
+		if isRateLimitEvent(event) {
+			sl.LogEvent("RATE_LIMIT: subtype=%s", event.Subtype)
+		} else {
+			sl.LogEvent("ERROR: subtype=%s", event.Subtype)
+		}
 	}
+}
+
+// isRateLimitEvent returns true if the stream event indicates API rate limiting.
+func isRateLimitEvent(event StreamEvent) bool {
+	switch event.Subtype {
+	case "overloaded", "rate_limit", "rate_limited":
+		return true
+	}
+	return false
 }
 
 // extractFilePath tries to get a file_path from tool input JSON

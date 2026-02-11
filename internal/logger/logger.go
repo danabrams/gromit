@@ -24,8 +24,17 @@ type IterationLog struct {
 	CostUSD      float64   `json:"cost_usd"`
 	InputTokens  int       `json:"input_tokens"`
 	OutputTokens int       `json:"output_tokens"`
-	Error        string    `json:"error,omitempty"`
-	Outcome      string    `json:"outcome,omitempty"`
+	Error             string `json:"error,omitempty"`
+	Outcome           string `json:"outcome,omitempty"`
+	ValidationRetried bool   `json:"validation_retried,omitempty"`
+
+	// Diagnostic fields for timeout investigation
+	TimeoutType        string `json:"timeout_type,omitempty"`           // "stall", "bead", "invocation", ""
+	TimeToFirstEventMs int64  `json:"time_to_first_event_ms,omitempty"` // ms from start to first stream event
+	ToolCallCount      int    `json:"tool_call_count,omitempty"`        // tool calls before completion/timeout
+	StallCount         int    `json:"stall_count,omitempty"`            // number of stall detections
+	StallTier          string `json:"stall_tier,omitempty"`             // "initial" or "active"
+	RateLimitHits      int    `json:"rate_limit_hits,omitempty"`        // rate limit events detected
 }
 
 // ReviewLog represents a review's outcome (light or thorough)

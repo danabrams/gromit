@@ -167,6 +167,15 @@ type IterationResult struct {
 	OutputTokens          int
 	ReviewBrokeValidation bool // true when review fixes broke previously-passing validation
 	AlreadyDone           bool // true when ATDD detected work was already complete
+	ValidationRetried     bool // true when validation recovery was attempted
+
+	// Diagnostic fields for timeout investigation
+	TimeoutType        string // "stall", "bead", "invocation", ""
+	TimeToFirstEventMs int64
+	ToolCallCount      int
+	StallCount         int
+	StallTier          string // "initial" or "active"
+	RateLimitHits      int
 }
 
 // SubTask represents a single sub-task from task decomposition
@@ -590,21 +599,28 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 	}
 
 	r.logger.LogIteration(&logger.IterationLog{
-		Timestamp:    time.Now(),
-		Iteration:    iteration,
-		BeadID:       result.BeadID,
-		BeadTitle:    result.BeadTitle,
-		Model:        result.Model,
-		Success:      result.Success,
-		Validated:    result.Validated,
-		Escalated:    result.Escalated,
-		EscalatedTo:  result.EscalatedTo,
-		DurationMs:   result.Duration.Milliseconds(),
-		CostUSD:      result.CostUSD,
-		InputTokens:  result.InputTokens,
-		OutputTokens: result.OutputTokens,
-		Error:        errStr,
-		Outcome:      outcome,
+		Timestamp:          time.Now(),
+		Iteration:          iteration,
+		BeadID:             result.BeadID,
+		BeadTitle:          result.BeadTitle,
+		Model:              result.Model,
+		Success:            result.Success,
+		Validated:          result.Validated,
+		Escalated:          result.Escalated,
+		EscalatedTo:        result.EscalatedTo,
+		DurationMs:         result.Duration.Milliseconds(),
+		CostUSD:            result.CostUSD,
+		InputTokens:        result.InputTokens,
+		OutputTokens:       result.OutputTokens,
+		Error:              errStr,
+		Outcome:            outcome,
+		ValidationRetried:  result.ValidationRetried,
+		TimeoutType:        result.TimeoutType,
+		TimeToFirstEventMs: result.TimeToFirstEventMs,
+		ToolCallCount:      result.ToolCallCount,
+		StallCount:         result.StallCount,
+		StallTier:          result.StallTier,
+		RateLimitHits:      result.RateLimitHits,
 	})
 }
 
@@ -682,8 +698,8 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		return bc.result
 	}
 
-	// Run validation if enabled
-	if err := r.runValidation(ctx, bc); err != nil {
+	// Run validation if enabled (with recovery on failure)
+	if err := r.runValidationWithRecovery(ctx, bc); err != nil {
 		bc.result.Error = err
 		return bc.result
 	}
@@ -696,9 +712,9 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 			r.log("Warning: refactor phase encountered issues: %v", err)
 		}
 
-		// Re-validate after refactoring
+		// Re-validate after refactoring (with recovery on failure)
 		if r.cfg.Validation.Enabled {
-			if err := r.runValidation(ctx, bc); err != nil {
+			if err := r.runValidationWithRecovery(ctx, bc); err != nil {
 				bc.result.Error = fmt.Errorf("validation failed after refactoring: %w", err)
 				return bc.result
 			}
@@ -734,6 +750,7 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 		// Handle invocation error (stall, timeout, or other failure)
 		if err != nil {
 			if stallFired && ctx.Err() == nil {
+				bc.result.TimeoutType = "stall"
 				if r.handleStallTimeout(ctx, bc) {
 					continue
 				}
@@ -741,6 +758,7 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 			}
 			// Distinguish bead timeout from user Ctrl+C
 			if ctx.Err() != nil && bc.parentCtx.Err() == nil {
+				bc.result.TimeoutType = "bead"
 				// Extract synthetic learning for timeout failure
 				r.extractTimeoutLearning(bc)
 				bc.result.Error = fmt.Errorf("bead timeout: exceeded %v total processing time", bc.beadTimeout)
@@ -748,6 +766,7 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 				// User-initiated cancellation (Ctrl+C) - don't extract learning
 				bc.result.Error = fmt.Errorf("context cancelled: %w", bc.parentCtx.Err())
 			} else {
+				bc.result.TimeoutType = "invocation"
 				bc.result.Error = fmt.Errorf("claude invocation: %w", err)
 			}
 			return false
@@ -917,6 +936,7 @@ func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeou
 							tier = "active"
 						}
 						if stats.TimeSinceLastEvent() >= threshold {
+							stats.RecordStall(tier)
 							r.log("STALL DETECTED (%s): No output from Claude for %v (threshold: %v)",
 								tier, stats.TimeSinceLastEvent().Round(time.Second), threshold)
 							onStall()
