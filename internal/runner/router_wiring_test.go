@@ -3,6 +3,7 @@ package runner
 import (
 	"testing"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -32,5 +33,23 @@ func TestDepsHasRouterField(t *testing.T) {
 
 	if deps.Router != mockRouter {
 		t.Errorf("Expected Router field to be assignable and retrievable")
+	}
+}
+
+// TestNewRunnerWithDepsUsesProvidedRouter verifies that NewRunnerWithDeps uses deps.Router when provided
+func TestNewRunnerWithDepsUsesProvidedRouter(t *testing.T) {
+	cfg := &config.Config{}
+	mockRouter := &provider.Router{}
+	deps := Deps{
+		Router: mockRouter,
+	}
+
+	runner, err := NewRunnerWithDeps(cfg, nil, "/tmp/gromit", deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() error = %v", err)
+	}
+
+	if runner.router != mockRouter {
+		t.Errorf("Expected runner.router to be set from deps.Router")
 	}
 }

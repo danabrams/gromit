@@ -156,6 +156,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		cfg:       cfg,
 		beads:     deps.Beads,
 		claude:    deps.Claude,
+		router:    deps.Router,
 		analyzer:  deps.Analyzer,
 		renderer:  deps.Renderer,
 		logger:    iterLogger,
