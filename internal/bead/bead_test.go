@@ -2376,3 +2376,15 @@ func parseBeadOutputList(out string) ([]*Bead, error) {
 
 	return result, nil
 }
+
+// TestCountByStatusNilClient tests that CountByStatus returns error on nil client
+func TestCountByStatusNilClient(t *testing.T) {
+	var c *Client
+	_, err := c.CountByStatus("open")
+	if err == nil {
+		t.Fatal("CountByStatus() on nil client expected error but got nil")
+	}
+	if !strings.Contains(err.Error(), "nil") {
+		t.Errorf("CountByStatus() on nil client should mention nil, got: %v", err)
+	}
+}

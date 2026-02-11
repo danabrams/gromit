@@ -236,6 +236,29 @@ func (c *Client) CountReady() (int, error) {
 	return len(beads), nil
 }
 
+// CountByStatus returns the count of beads with the specified status
+func (c *Client) CountByStatus(status string) (int, error) {
+	if c == nil {
+		return 0, fmt.Errorf("bead client is nil")
+	}
+	// Fetch all beads with the specified status (limit 0 = no limit)
+	out, err := c.run("list", "--json", "--status", status, "--limit", "0")
+	if err != nil {
+		return 0, fmt.Errorf("bd list: %w", err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return 0, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return 0, fmt.Errorf("parsing bd list output: %w", err)
+	}
+
+	return len(beads), nil
+}
+
 // ListReadyIDs returns a slice of ready bead IDs (from a batch of 10)
 func (c *Client) ListReadyIDs() ([]string, error) {
 	if c == nil {
