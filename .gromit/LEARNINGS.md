@@ -847,3 +847,8 @@ When a task shows 'passed' validation but the error output is a generic confirma
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-z56a | gotchas
+Gromit tasks with acceptance criteria involving metrics (like test line reduction percentages) must explicitly state the target threshold. When implementing features that affect test coverage or codebase size, verify the reduction percentage requirement against the baseline before submission.
+
+*Archived from new: filtered: generic engineering advice*
+
