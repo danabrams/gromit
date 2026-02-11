@@ -564,15 +564,15 @@ func TestClaudeProviderEmptyTierMap(t *testing.T) {
 
 // mockClaudeClient is a test double for claude.Client
 type mockClaudeClient struct {
-	runCalled       bool
-	streamRunCalled bool
-	lastPrompt      string
-	lastModel       string
-	lastOutput      io.Writer
-	lastEventHandler func([]byte)
+	runCalled           bool
+	streamRunCalled     bool
+	lastPrompt          string
+	lastModel           string
+	lastOutput          io.Writer
+	lastEventHandler    func([]byte)
 	lastToolCallHandler func(claude.ToolEvent)
-	resultToReturn  *claude.Result
-	errorToReturn   error
+	resultToReturn      *claude.Result
+	errorToReturn       error
 }
 
 func (m *mockClaudeClient) Run(ctx context.Context, prompt string, model string) (*claude.Result, error) {

@@ -92,6 +92,12 @@ Mapping functions in provider package use local map lookups with case-insensitiv
 ### 2026-02-11 | gromit-cz7a | patterns
 Backward compatibility logic should be delegated to a dedicated mapping function in the domain package (e.g., TierFromLegacyModel in provider/), not embedded in the selector methods. This keeps selection logic clean and reusable across multiple methods (SelectTier, NextEscalationTier, IsTierName).
 
+### 2026-02-11 | gromit-c2ax | conventions
+When adding new nested config structs (ProvidersConfig, RoutingConfig), both SetDefaults() and NormalizeNilFields() must be updated to handle nil pointer initialization and default value setting for all new fields to prevent nil dereference panics
+
+### 2026-02-11 | gromit-c2ax | conventions
+When adding new fields to Config struct, always update both SetDefaults() AND NormalizeNilFields() methods to maintain consistency in config initialization and normalization flows
+
 ---
 
 ## Archived
