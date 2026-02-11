@@ -38,6 +38,15 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 ### 2026-02-11 | gromit-4yrb | conventions
 ValidateSpec must be called before ResolveSpec to provide helpful error messages with available specs; requires passing specsDir to functions that need validation
 
+### 2026-02-11 | gromit-wwhq | conventions
+ValidateSpec must be called before ResolveSpec—validation of spec file existence happens before resolution of its labels. This pattern applies consistently across all handlers (review.go and retro handler) to provide early error feedback.
+
+### 2026-02-11 | gromit-wwhq | conventions
+ValidateSpec must be called before ResolveSpec in all spec-handling code paths to provide early validation errors with available spec suggestions; this is now a consistent pattern across handlers (review.go, retro)
+
+### 2026-02-11 | gromit-1wen | conventions
+Bead sizing rules are enforced across multiple documentation files (.gromit/RULES.md, SKILL.md, PROMPT_decompose.md, and CLAUDE.md). Changes to sizing rules must be propagated to all four files consistently, not just CLAUDE.md. Check for tests that validate cross-file consistency before implementing sizing changes.
+
 ---
 
 ## Archived
@@ -679,6 +688,11 @@ When validating specific file existence, check with os.Stat() first for fast pat
 
 ### 2026-02-11 | gromit-4yrb | gotchas
 Function signature changes that add parameters should be updated at all call sites in the same file; use grep to verify all callers are updated before testing.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-1wen | conventions
+CLAUDE.md is the source of truth for project conventions and should be updated when patterns change, not when individual files are added. Keep the architecture section directory-focused rather than file-focused to avoid constant updates.
 
 *Archived from new: filtered: generic engineering advice*
 
