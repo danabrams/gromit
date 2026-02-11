@@ -626,3 +626,248 @@ func TestProviderIsUsageLimitErrorWithVariousResults(t *testing.T) {
 		})
 	}
 }
+
+// TestTierFromLegacyModelClaudeModels verifies that TierFromLegacyModel() maps
+// Claude model names (opus, sonnet, haiku) to the correct tier constants.
+// Expected failure: TierFromLegacyModel() function does not exist yet
+func TestTierFromLegacyModelClaudeModels(t *testing.T) {
+	tests := []struct {
+		name         string
+		modelName    string
+		expectedTier string
+	}{
+		{
+			name:         "opus maps to high tier",
+			modelName:    "opus",
+			expectedTier: TierHigh,
+		},
+		{
+			name:         "sonnet maps to medium tier",
+			modelName:    "sonnet",
+			expectedTier: TierMedium,
+		},
+		{
+			name:         "haiku maps to low tier",
+			modelName:    "haiku",
+			expectedTier: TierLow,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TierFromLegacyModel(tt.modelName)
+			if got != tt.expectedTier {
+				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
+			}
+		})
+	}
+}
+
+// TestTierFromLegacyModelOpenAIModels verifies that TierFromLegacyModel() maps
+// OpenAI model names (o3, gpt-4o, gpt-4o-mini) to the correct tier constants.
+// Expected failure: TierFromLegacyModel() function does not exist yet
+func TestTierFromLegacyModelOpenAIModels(t *testing.T) {
+	tests := []struct {
+		name         string
+		modelName    string
+		expectedTier string
+	}{
+		{
+			name:         "o3 maps to high tier",
+			modelName:    "o3",
+			expectedTier: TierHigh,
+		},
+		{
+			name:         "gpt-4o maps to medium tier",
+			modelName:    "gpt-4o",
+			expectedTier: TierMedium,
+		},
+		{
+			name:         "gpt-4o-mini maps to low tier",
+			modelName:    "gpt-4o-mini",
+			expectedTier: TierLow,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TierFromLegacyModel(tt.modelName)
+			if got != tt.expectedTier {
+				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
+			}
+		})
+	}
+}
+
+// TestTierFromLegacyModelUnrecognizedPassthrough verifies that TierFromLegacyModel()
+// passes through unrecognized model names unchanged for forward compatibility.
+// Expected failure: TierFromLegacyModel() function does not exist yet
+func TestTierFromLegacyModelUnrecognizedPassthrough(t *testing.T) {
+	tests := []struct {
+		name         string
+		modelName    string
+		expectedTier string
+	}{
+		{
+			name:         "unknown model name passed through",
+			modelName:    "gpt-5-turbo",
+			expectedTier: "gpt-5-turbo",
+		},
+		{
+			name:         "custom model name passed through",
+			modelName:    "custom-llm-v2",
+			expectedTier: "custom-llm-v2",
+		},
+		{
+			name:         "empty string passed through",
+			modelName:    "",
+			expectedTier: "",
+		},
+		{
+			name:         "tier constant passed through unchanged",
+			modelName:    "high",
+			expectedTier: "high",
+		},
+		{
+			name:         "another tier constant passed through",
+			modelName:    "medium",
+			expectedTier: "medium",
+		},
+		{
+			name:         "low tier constant passed through",
+			modelName:    "low",
+			expectedTier: "low",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TierFromLegacyModel(tt.modelName)
+			if got != tt.expectedTier {
+				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
+			}
+		})
+	}
+}
+
+// TestTierFromLegacyModelCaseInsensitive verifies that TierFromLegacyModel()
+// handles model names case-insensitively for known models but preserves case
+// for unrecognized models (passthrough).
+// Expected failure: TierFromLegacyModel() function does not exist yet
+func TestTierFromLegacyModelCaseInsensitive(t *testing.T) {
+	tests := []struct {
+		name         string
+		modelName    string
+		expectedTier string
+	}{
+		{
+			name:         "OPUS uppercase maps to high tier",
+			modelName:    "OPUS",
+			expectedTier: TierHigh,
+		},
+		{
+			name:         "Sonnet mixed case maps to medium tier",
+			modelName:    "Sonnet",
+			expectedTier: TierMedium,
+		},
+		{
+			name:         "HAIKU uppercase maps to low tier",
+			modelName:    "HAIKU",
+			expectedTier: TierLow,
+		},
+		{
+			name:         "GPT-4O uppercase maps to medium tier",
+			modelName:    "GPT-4O",
+			expectedTier: TierMedium,
+		},
+		{
+			name:         "O3 uppercase maps to high tier",
+			modelName:    "O3",
+			expectedTier: TierHigh,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TierFromLegacyModel(tt.modelName)
+			if got != tt.expectedTier {
+				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
+			}
+		})
+	}
+}
+
+// TestTierFromLegacyModelAllKnownModels verifies that all known model names
+// from the spec are properly mapped to their corresponding tiers.
+// This test captures the complete mapping requirement in one place.
+// Expected failure: TierFromLegacyModel() function does not exist yet
+func TestTierFromLegacyModelAllKnownModels(t *testing.T) {
+	// Complete mapping from the spec: opus→high, sonnet→medium, haiku→low,
+	// o3→high, gpt-4o→medium, gpt-4o-mini→low
+	tests := []struct {
+		modelName    string
+		expectedTier string
+	}{
+		// Claude models
+		{"opus", TierHigh},
+		{"sonnet", TierMedium},
+		{"haiku", TierLow},
+		// OpenAI models
+		{"o3", TierHigh},
+		{"gpt-4o", TierMedium},
+		{"gpt-4o-mini", TierLow},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.modelName, func(t *testing.T) {
+			got := TierFromLegacyModel(tt.modelName)
+			if got != tt.expectedTier {
+				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
+			}
+		})
+	}
+}
+
+// TestTierFromLegacyModelIdempotent verifies that TierFromLegacyModel()
+// is idempotent - calling it multiple times with the same input produces
+// the same output, and tier constants remain unchanged when passed through.
+// Expected failure: TierFromLegacyModel() function does not exist yet
+func TestTierFromLegacyModelIdempotent(t *testing.T) {
+	tests := []struct {
+		name      string
+		modelName string
+	}{
+		{
+			name:      "opus remains consistent",
+			modelName: "opus",
+		},
+		{
+			name:      "high tier remains high",
+			modelName: TierHigh,
+		},
+		{
+			name:      "unknown model remains consistent",
+			modelName: "future-model",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			first := TierFromLegacyModel(tt.modelName)
+			second := TierFromLegacyModel(tt.modelName)
+			third := TierFromLegacyModel(first)
+
+			if first != second {
+				t.Errorf("TierFromLegacyModel(%q) not idempotent: first=%q, second=%q",
+					tt.modelName, first, second)
+			}
+
+			// Applying the function to its own output should be idempotent
+			if first != third {
+				t.Errorf("TierFromLegacyModel not idempotent when applied to result: "+
+					"TierFromLegacyModel(%q)=%q, but TierFromLegacyModel(%q)=%q",
+					tt.modelName, first, first, third)
+			}
+		})
+	}
+}
