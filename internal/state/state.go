@@ -10,13 +10,15 @@ import (
 
 // State represents persistent state stored in .gromit/state.json
 type State struct {
-	LastRetro              time.Time `json:"last_retro,omitempty"`
-	LastReviewCommit       string    `json:"last_review_commit,omitempty"`
-	LastReviewIteration    int       `json:"last_review_iteration,omitempty"`
-	IterationsSinceReview  int       `json:"iterations_since_review,omitempty"`
-	CleanExit              bool      `json:"clean_exit"`
-	UpdatedAt              time.Time `json:"updated_at"`
-	FilteredLearningHashes []string  `json:"filtered_learning_hashes,omitempty"`
+	LastRetro                time.Time          `json:"last_retro,omitempty"`
+	LastReviewCommit         string             `json:"last_review_commit,omitempty"`
+	LastReviewIteration      int                `json:"last_review_iteration,omitempty"`
+	IterationsSinceReview    int                `json:"iterations_since_review,omitempty"`
+	CleanExit                bool               `json:"clean_exit"`
+	UpdatedAt                time.Time          `json:"updated_at"`
+	FilteredLearningHashes   []string           `json:"filtered_learning_hashes,omitempty"`
+	ProviderCounts           map[string]int     `json:"provider_counts,omitempty"`
+	ProviderUnavailableUntil map[string]time.Time `json:"provider_unavailable_until,omitempty"`
 }
 
 // File manages the state.json file
@@ -227,4 +229,90 @@ func (f *File) ReconcileFilteredHashes(currentHashes map[string]bool) bool {
 	f.state.FilteredLearningHashes = kept
 
 	return pruned
+}
+
+// NormalizeNilFields converts nil slices and maps to empty slices/maps
+func (s *State) NormalizeNilFields() {
+	if s.FilteredLearningHashes == nil {
+		s.FilteredLearningHashes = []string{}
+	}
+	if s.ProviderCounts == nil {
+		s.ProviderCounts = make(map[string]int)
+	}
+	if s.ProviderUnavailableUntil == nil {
+		s.ProviderUnavailableUntil = make(map[string]time.Time)
+	}
+}
+
+// IncrementProviderCount increments the invocation count for a provider
+func (f *File) IncrementProviderCount(provider string) {
+	if f == nil {
+		return
+	}
+	if f.state.ProviderCounts == nil {
+		f.state.ProviderCounts = make(map[string]int)
+	}
+	f.state.ProviderCounts[provider]++
+}
+
+// GetProviderCounts returns a copy of the provider invocation counts
+func (f *File) GetProviderCounts() map[string]int {
+	if f == nil {
+		return nil
+	}
+	if f.state.ProviderCounts == nil {
+		return make(map[string]int)
+	}
+	// Return copy to prevent external mutations
+	result := make(map[string]int, len(f.state.ProviderCounts))
+	for k, v := range f.state.ProviderCounts {
+		result[k] = v
+	}
+	return result
+}
+
+// ResetProviderCounts resets all provider invocation counts to zero
+func (f *File) ResetProviderCounts() {
+	if f == nil {
+		return
+	}
+	f.state.ProviderCounts = make(map[string]int)
+}
+
+// SetProviderUnavailable marks a provider as unavailable until the specified time
+func (f *File) SetProviderUnavailable(provider string, until time.Time) {
+	if f == nil {
+		return
+	}
+	if f.state.ProviderUnavailableUntil == nil {
+		f.state.ProviderUnavailableUntil = make(map[string]time.Time)
+	}
+	f.state.ProviderUnavailableUntil[provider] = until
+}
+
+// IsProviderAvailable returns true if the provider is available (not in cooldown period)
+func (f *File) IsProviderAvailable(provider string) bool {
+	if f == nil {
+		return true // nil-safe default: available
+	}
+	if f.state.ProviderUnavailableUntil == nil {
+		return true
+	}
+	until, exists := f.state.ProviderUnavailableUntil[provider]
+	if !exists {
+		return true
+	}
+	// Available if the cooldown time has passed
+	return time.Now().After(until)
+}
+
+// ClearProviderUnavailable removes the unavailable status for a provider
+func (f *File) ClearProviderUnavailable(provider string) {
+	if f == nil {
+		return
+	}
+	if f.state.ProviderUnavailableUntil == nil {
+		return
+	}
+	delete(f.state.ProviderUnavailableUntil, provider)
 }

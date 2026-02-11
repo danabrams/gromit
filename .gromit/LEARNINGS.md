@@ -865,3 +865,13 @@ Provider implementations delegate directly to underlying client methods; type re
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-nqf1 | patterns
+ClaudeProvider delegates validation and error detection to the underlying claude.Client, following a pattern where provider methods wrap and delegate to their underlying client implementations
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-nqf1 | patterns
+Provider wrapper methods delegate to package-level validation functions by converting provider.Result back to domain types using helper converters (convertToClaudeResult), enabling reuse of domain-package logic without duplicating validation rules
+
+*Archived from new: filtered: generic engineering advice*
+
