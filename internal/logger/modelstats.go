@@ -150,6 +150,40 @@ func ReadRunModelStats(logsDir string, runID string) (map[string]ModelStats, err
 }
 
 // CostPerCompletedBead computes the total cost per completed bead
+// including all retry attempts and escalations leading to completion
 func CostPerCompletedBead(logsDir string) (map[string]float64, error) {
-	return nil, nil
+	beadCosts := make(map[string]float64)
+	beadCompleted := make(map[string]bool)
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		return beadCosts, fmt.Errorf("globbing log files: %w", err)
+	}
+
+	for _, f := range files {
+		entries, err := readLogFile(f)
+		if err != nil {
+			continue // Skip unreadable files
+		}
+
+		for _, entry := range entries {
+			// Accumulate cost for this bead
+			beadCosts[entry.BeadID] += entry.CostUSD
+
+			// Track if bead ever succeeded
+			if entry.Success {
+				beadCompleted[entry.BeadID] = true
+			}
+		}
+	}
+
+	// Filter to only completed beads
+	result := make(map[string]float64)
+	for beadID, cost := range beadCosts {
+		if beadCompleted[beadID] {
+			result[beadID] = cost
+		}
+	}
+
+	return result, nil
 }
