@@ -14,6 +14,9 @@ type ClaudeProvider struct {
 	tierToModel map[string]string
 }
 
+// Compile-time check to verify ClaudeProvider implements Provider interface
+var _ Provider = (*ClaudeProvider)(nil)
+
 // NewClaudeProvider creates a new ClaudeProvider with the given client and tier mapping
 func NewClaudeProvider(client *claude.Client, tierToModel map[string]string) *ClaudeProvider {
 	return &ClaudeProvider{
