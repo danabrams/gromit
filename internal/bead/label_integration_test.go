@@ -453,7 +453,7 @@ func TestListWithLabel_CommandContract(t *testing.T) {
 	}
 
 	// Manually execute the exact command we expect ListWithLabel to use
-	expectedCmd := []string{"bd", "list", "--json", "--label", testLabel}
+	expectedCmd := []string{"bd", "list", "--json", "--label", testLabel, "--sort", "priority"}
 	cmd := exec.Command(expectedCmd[0], expectedCmd[1:]...)
 	cmd.Dir = c.Dir
 	out, err := cmd.CombinedOutput()

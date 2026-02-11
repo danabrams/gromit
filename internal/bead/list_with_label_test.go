@@ -8,6 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/jsonutil"
 )
 
+
 // TestListWithLabel_NilClient tests that ListWithLabel() returns error on nil client
 func TestListWithLabel_NilClient(t *testing.T) {
 	var c *Client

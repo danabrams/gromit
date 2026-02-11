@@ -613,7 +613,7 @@ func (c *Client) ListWithLabel(label string) ([]*Bead, error) {
 		return nil, fmt.Errorf("invalid label: contains shell metacharacters")
 	}
 
-	out, err := c.run("list", "--json", "--label", label)
+	out, err := c.run("list", "--json", "--label", label, "--sort", "priority")
 	if err != nil {
 		return nil, fmt.Errorf("bd list: %w", err)
 	}
