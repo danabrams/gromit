@@ -728,6 +728,100 @@ Iteration: {{.Iteration}}`
 	}
 }
 
+func TestRenderDecomposeAntiOverlapGuidance(t *testing.T) {
+	// Use the real PROMPT_decompose.md template from the project
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+
+	// Verify template exists
+	templatePath := filepath.Join(templatesDir, "PROMPT_decompose.md")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		t.Skipf("skipping: real template not found at %s", templatePath)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	testBead := &bead.Bead{
+		ID:              "test-123",
+		Title:           "Complex feature",
+		Priority:        1,
+		Description:     "Implement a complex feature",
+		Labels:          []string{},
+		ExpectedOutputs: []string{},
+	}
+
+	t.Run("anti-overlap guidance always present", func(t *testing.T) {
+		ctx := &DecomposeContext{
+			Bead:       testBead,
+			ATDDActive: false,
+		}
+		result, err := r.RenderDecompose(ctx)
+		if err != nil {
+			t.Fatalf("RenderDecompose() error = %v", err)
+		}
+		if !strings.Contains(result, "Avoiding Sibling Overlap") {
+			t.Error("expected anti-overlap guidance in output")
+		}
+		if !strings.Contains(result, "would this task's acceptance criteria still fail") {
+			t.Error("expected cross-check question in output")
+		}
+	})
+
+	t.Run("ATDD guidance absent when ATDDActive=false", func(t *testing.T) {
+		ctx := &DecomposeContext{
+			Bead:       testBead,
+			ATDDActive: false,
+		}
+		result, err := r.RenderDecompose(ctx)
+		if err != nil {
+			t.Fatalf("RenderDecompose() error = %v", err)
+		}
+		if strings.Contains(result, "ATDD Active") {
+			t.Error("ATDD guidance should NOT appear when ATDDActive=false")
+		}
+		if strings.Contains(result, "No Test-Only Beads") {
+			t.Error("test-only bead suppression should NOT appear when ATDDActive=false")
+		}
+	})
+
+	t.Run("ATDD guidance present when ATDDActive=true", func(t *testing.T) {
+		ctx := &DecomposeContext{
+			Bead:       testBead,
+			ATDDActive: true,
+		}
+		result, err := r.RenderDecompose(ctx)
+		if err != nil {
+			t.Fatalf("RenderDecompose() error = %v", err)
+		}
+		if !strings.Contains(result, "ATDD Active") {
+			t.Error("expected ATDD guidance when ATDDActive=true")
+		}
+		if !strings.Contains(result, "No Test-Only Beads") {
+			t.Error("expected test-only bead suppression when ATDDActive=true")
+		}
+		if !strings.Contains(result, "Do NOT create sub-tasks whose sole purpose is writing tests") {
+			t.Error("expected explicit test-only bead suppression instruction")
+		}
+	})
+
+	t.Run("default DecomposeContext has no ATDD guidance", func(t *testing.T) {
+		ctx := &DecomposeContext{
+			Bead: testBead,
+		}
+		result, err := r.RenderDecompose(ctx)
+		if err != nil {
+			t.Fatalf("RenderDecompose() error = %v", err)
+		}
+		// Zero-value ATDDActive (false) should behave same as explicit false
+		if strings.Contains(result, "ATDD Active") {
+			t.Error("ATDD guidance should NOT appear with default (zero-value) ATDDActive")
+		}
+		// But anti-overlap should still be present
+		if !strings.Contains(result, "Avoiding Sibling Overlap") {
+			t.Error("expected anti-overlap guidance even with default context")
+		}
+	})
+}
+
 func TestRenderTDDBuild(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")

@@ -60,4 +60,21 @@ Example format:
 - Each task should be demonstrable with commits/tests
 - Consider what files will likely be touched by each task
 
+### Avoiding Sibling Overlap
+
+Each sub-task's acceptance criteria must be **unique to that task** — criteria that would NOT be satisfied by completing any sibling task. Before finalizing your decomposition, perform this cross-check:
+
+> For each sub-task, ask: "If I completed any other sub-task instead, would this task's acceptance criteria still fail?"
+
+If the answer is "no" for any pair, the tasks overlap. Fix this by:
+- Merging the overlapping tasks into one
+- Rewriting acceptance criteria to be more specific to each task's unique contribution
+- Ensuring each task adds distinct, observable behavior that no sibling provides
+{{if .ATDDActive}}
+
+### ATDD Active — No Test-Only Beads
+
+ATDD methodology is active. Do NOT create sub-tasks whose sole purpose is writing tests (e.g., "Add unit tests for X", "Write tests for Y"). ATDD handles test writing automatically as Phase 1 of each bead — creating a separate test bead leads to a logical contradiction where acceptance tests always pass before implementation.
+{{end}}
+
 Respond with ONLY the JSON array (no markdown, no explanation).

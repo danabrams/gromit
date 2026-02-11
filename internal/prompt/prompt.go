@@ -77,6 +77,7 @@ type SuccessLearning struct {
 type DecomposeContext struct {
 	Bead       *bead.Bead
 	ParentBead *bead.Bead
+	ATDDActive bool // Whether ATDD methodology is active for this bead
 }
 
 // ScopeContext holds data for scope estimation prompt template

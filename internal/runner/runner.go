@@ -1247,9 +1247,11 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 	}
 
 	// Build decompose context
+	atddActive := bead.IsMethodologyActive(b.Labels, "atdd", r.cfg.Methodology.ATDD)
 	decomposeCtx := &prompt.DecomposeContext{
 		Bead:       b,
 		ParentBead: parent,
+		ATDDActive: atddActive,
 	}
 
 	// Render decompose prompt
