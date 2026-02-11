@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+// mockProvider is a test implementation of the Provider interface
+type mockProvider struct{}
+
+var _ Provider = (*mockProvider)(nil)
+
 // TestProviderInterfaceDefinition verifies that the Provider interface exists
 // and can be used in type assertions and interface satisfaction checks.
 // Expected failure: Provider interface does not exist yet
@@ -421,42 +426,27 @@ func TestResultFieldAccess(t *testing.T) {
 // have the correct signatures and can be called.
 // Expected failure: Provider interface and its methods do not exist yet
 func TestProviderMethodSignatures(t *testing.T) {
-	// Create a mock implementation to verify interface satisfaction
-	type mockProvider struct{}
-
-	var _ Provider = (*mockProvider)(nil)
-
-	// Implement all required methods
+	// Use the package-level mock implementation
 	impl := &mockProvider{}
 
 	// Verify Name() string
-	_ = func(p *mockProvider) string { return p.Name() }(impl)
+	_ = impl.Name()
 
 	// Verify Run(ctx, prompt, tier) (*Result, error)
-	_ = func(p *mockProvider) (*Result, error) {
-		ctx := context.Background()
-		return p.Run(ctx, "prompt", TierMedium)
-	}(impl)
+	ctx := context.Background()
+	_, _ = impl.Run(ctx, "prompt", TierMedium)
 
 	// Verify StreamRun(ctx, prompt, tier, output, handler, toolHandler) (*Result, error)
-	_ = func(p *mockProvider) (*Result, error) {
-		ctx := context.Background()
-		var output io.Writer
-		var handler EventHandler
-		var toolHandler ToolCallHandler
-		return p.StreamRun(ctx, "prompt", TierHigh, output, handler, toolHandler)
-	}(impl)
+	var output io.Writer
+	var handler EventHandler
+	var toolHandler ToolCallHandler
+	_, _ = impl.StreamRun(ctx, "prompt", TierHigh, output, handler, toolHandler)
 
 	// Verify RunValidation(ctx, commands, tier, workDir) (*Result, error)
-	_ = func(p *mockProvider) (*Result, error) {
-		ctx := context.Background()
-		return p.RunValidation(ctx, []string{"test"}, TierLow, "/tmp")
-	}(impl)
+	_, _ = impl.RunValidation(ctx, []string{"test"}, TierLow, "/tmp")
 
 	// Verify IsUsageLimitError(result, err) bool
-	_ = func(p *mockProvider) bool {
-		return p.IsUsageLimitError(&Result{}, nil)
-	}(impl)
+	_ = impl.IsUsageLimitError(&Result{}, nil)
 }
 
 func (m *mockProvider) Name() string {

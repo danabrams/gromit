@@ -84,7 +84,7 @@ All format functions return single strings with embedded newlines (built by appe
 When passing read-only data structures between functions, convert value types to pointer types at the call site (not in the return type) to allow formatters to handle both nil and zero-initialized cases uniformly
 
 ### 2026-02-11 | gromit-zyc8 | patterns
-Spike tasks document CLI mechanics and behavior in detailed markdown findings files that serve as implementation reference—prefer comprehensive documentation over acceptance tests when test line budgets are constrained
+Spike tasks document CLI mechanics and behavior in markdown files (FINDINGS.md) that serve as reference for future implementation tasks; acceptance tests verify the documented behavior matches reality
 
 ---
 
@@ -812,6 +812,11 @@ Logger functions are called with resolved filesystem paths (os.UserHomeDir()) ra
 
 ### 2026-02-11 | gromit-zyc8 | patterns
 Acceptance test line count reduction is a hard requirement for task completion. The spike task was meant to reduce acceptance test bloat by documenting findings and shifting validation responsibility. Ensure acceptance tests are consolidated or removed when shifting to provider-based validation, rather than just adding new provider code alongside existing tests.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-zyc8 | gotchas
+Spike tasks should validate CLI mechanics empirically by executing actual commands and examining output/exit codes rather than reading docs—discovered that `codex` requires explicit model selection via flags (not env vars), and accepts stdin for prompts
 
 *Archived from new: filtered: generic engineering advice*
 
