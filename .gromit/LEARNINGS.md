@@ -38,6 +38,12 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 ### 2026-02-11 | gromit-rpne | conventions
 Acceptance tests for prompt template changes must be kept in sync with the actual template updates. When updating templates like PROMPT_decompose.md, ensure test expectations match the exact content being added, including specific phrases and subsection structure. Also remember to add `//go:build acceptance` tag to acceptance test files in this codebase.
 
+### 2026-02-11 | gromit-rpne | conventions
+Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating; when modifying sections, maintain blank lines between sections and ensure ATDD blocks remain unchanged
+
+### 2026-02-11 | gromit-rpne | conventions
+Template files in .gromit/templates/ follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks—preserve exact line ranges when updating guidelines to avoid disrupting downstream sections
+
 ---
 
 ## Archived

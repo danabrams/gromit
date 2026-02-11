@@ -1159,3 +1159,41 @@ func TestFilterFuncCalledAfterDuplicateCheck(t *testing.T) {
 		t.Errorf("expected 0 archived, got %d", len(f.archived))
 	}
 }
+
+// TestAddArchivedDuplicateReturnsNil tests that Add() returns (nil, nil) when matching archived learning exists
+func TestAddArchivedDuplicateReturnsNil(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+
+	// Manually add a learning to archived section
+	archivedLearning := Learning{
+		Date:     time.Now(),
+		BeadID:   "bead-1",
+		Content:  "Archived learning content",
+		Category: CategoryPatterns,
+		Hash:     hashContent("Archived learning content"),
+	}
+	f.archived = append(f.archived, archivedLearning)
+
+	// Try to add the same content
+	learning, err := f.Add("bead-2", "Archived learning content", CategoryPatterns)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should return nil (duplicate)
+	if learning != nil {
+		t.Fatal("expected nil for archived duplicate")
+	}
+
+	// State should not change - no new learnings in any section
+	if len(f.provisional) != 0 {
+		t.Errorf("expected 0 provisional, got %d", len(f.provisional))
+	}
+	if len(f.confirmed) != 0 {
+		t.Errorf("expected 0 confirmed, got %d", len(f.confirmed))
+	}
+	if len(f.archived) != 1 {
+		t.Errorf("expected 1 archived (unchanged), got %d", len(f.archived))
+	}
+}

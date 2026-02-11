@@ -126,6 +126,11 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 			return nil, nil // Exact duplicate, skip
 		}
 	}
+	for _, l := range f.archived {
+		if l.Hash == hash {
+			return nil, nil // Exact duplicate, skip
+		}
+	}
 
 	// Apply filter if configured
 	if f.filterFunc != nil {
