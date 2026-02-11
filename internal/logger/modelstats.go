@@ -26,12 +26,40 @@ func (s ModelStats) SuccessRate() float64 {
 
 // ReadModelStats aggregates per-model statistics from all JSONL logs
 func ReadModelStats(logsDir string) (map[string]ModelStats, error) {
-	modelMap := make(map[string]ModelStats)
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		return nil, fmt.Errorf("globbing log files: %w", err)
+	}
+
+	return aggregateModelStats(files)
+}
+
+// ReadRunModelStats aggregates per-model statistics filtered by run ID
+func ReadRunModelStats(logsDir string, runID string) (map[string]ModelStats, error) {
+	// Empty runID returns empty stats
+	if runID == "" {
+		return make(map[string]ModelStats), nil
+	}
 
 	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
 	if err != nil {
-		return modelMap, fmt.Errorf("globbing log files: %w", err)
+		return nil, fmt.Errorf("globbing log files: %w", err)
 	}
+
+	// Filter files to only those matching the runID
+	var filtered []string
+	for _, f := range files {
+		if extractRunID(f) == runID {
+			filtered = append(filtered, f)
+		}
+	}
+
+	return aggregateModelStats(filtered)
+}
+
+// aggregateModelStats aggregates per-model statistics from the given log files
+func aggregateModelStats(files []string) (map[string]ModelStats, error) {
+	modelMap := make(map[string]ModelStats)
 
 	for _, f := range files {
 		entries, err := readLogFile(f)
@@ -40,113 +68,53 @@ func ReadModelStats(logsDir string) (map[string]ModelStats, error) {
 		}
 
 		for _, entry := range entries {
-			stats := modelMap[entry.Model]
-
-			// Initialize with model name if first time
-			if stats.Model == "" {
-				stats.Model = entry.Model
-			}
-
-			stats.Iterations++
-			if entry.Success {
-				stats.Successes++
-			} else {
-				stats.Failures++
-			}
-
-			stats.TotalCostUSD += entry.CostUSD
-
-			// Track escalations
-			if entry.Escalated {
-				stats.EscalationsFrom++
-			}
-			if entry.EscalatedTo == entry.Model {
-				stats.EscalationsTo++
-			}
-
-			modelMap[entry.Model] = stats
+			updateModelStats(modelMap, entry)
 		}
 
-		// Track escalation "to" counts separately
-		for _, entry := range entries {
-			if entry.Escalated && entry.EscalatedTo != "" {
-				targetStats := modelMap[entry.EscalatedTo]
-				if targetStats.Model == "" {
-					targetStats.Model = entry.EscalatedTo
-				}
-				targetStats.EscalationsTo++
-				modelMap[entry.EscalatedTo] = targetStats
-			}
-		}
+		trackEscalationTargets(modelMap, entries)
 	}
 
 	return modelMap, nil
 }
 
-// ReadRunModelStats aggregates per-model statistics filtered by run ID
-func ReadRunModelStats(logsDir string, runID string) (map[string]ModelStats, error) {
-	modelMap := make(map[string]ModelStats)
+// updateModelStats updates the statistics for the model in the given entry
+func updateModelStats(modelMap map[string]ModelStats, entry IterationLog) {
+	stats := modelMap[entry.Model]
 
-	// Empty runID returns empty stats
-	if runID == "" {
-		return modelMap, nil
+	// Initialize with model name if first time
+	if stats.Model == "" {
+		stats.Model = entry.Model
 	}
 
-	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
-	if err != nil {
-		return modelMap, fmt.Errorf("globbing log files: %w", err)
+	stats.Iterations++
+	if entry.Success {
+		stats.Successes++
+	} else {
+		stats.Failures++
 	}
 
-	for _, f := range files {
-		// Only process files matching the specified runID
-		if extractRunID(f) != runID {
-			continue
-		}
+	stats.TotalCostUSD += entry.CostUSD
 
-		entries, err := readLogFile(f)
-		if err != nil {
-			continue // Skip unreadable files
-		}
-
-		for _, entry := range entries {
-			stats := modelMap[entry.Model]
-
-			// Initialize with model name if first time
-			if stats.Model == "" {
-				stats.Model = entry.Model
-			}
-
-			stats.Iterations++
-			if entry.Success {
-				stats.Successes++
-			} else {
-				stats.Failures++
-			}
-
-			stats.TotalCostUSD += entry.CostUSD
-
-			// Track escalations
-			if entry.Escalated {
-				stats.EscalationsFrom++
-			}
-
-			modelMap[entry.Model] = stats
-		}
-
-		// Track escalation "to" counts separately
-		for _, entry := range entries {
-			if entry.Escalated && entry.EscalatedTo != "" {
-				targetStats := modelMap[entry.EscalatedTo]
-				if targetStats.Model == "" {
-					targetStats.Model = entry.EscalatedTo
-				}
-				targetStats.EscalationsTo++
-				modelMap[entry.EscalatedTo] = targetStats
-			}
-		}
+	// Track escalations from this model
+	if entry.Escalated {
+		stats.EscalationsFrom++
 	}
 
-	return modelMap, nil
+	modelMap[entry.Model] = stats
+}
+
+// trackEscalationTargets tracks how many times each model was escalated to
+func trackEscalationTargets(modelMap map[string]ModelStats, entries []IterationLog) {
+	for _, entry := range entries {
+		if entry.Escalated && entry.EscalatedTo != "" {
+			targetStats := modelMap[entry.EscalatedTo]
+			if targetStats.Model == "" {
+				targetStats.Model = entry.EscalatedTo
+			}
+			targetStats.EscalationsTo++
+			modelMap[entry.EscalatedTo] = targetStats
+		}
+	}
 }
 
 // CostPerCompletedBead computes the total cost per completed bead
