@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/bead"
@@ -30,7 +31,7 @@ type PipelineStatus struct {
 }
 
 // ReadStatus reads pipeline state from gromit data sources and returns structured status
-func ReadStatus(gromitDir, specsDir, plansDir string) (*PipelineStatus, error) {
+func ReadStatus(gromitDir, specsDir, plansDir string, startedAt *time.Time) (*PipelineStatus, error) {
 	status := &PipelineStatus{
 		UnrefinedIdeas:    []string{},
 		UnplannedSpecs:    []string{},
@@ -102,8 +103,43 @@ func ReadStatus(gromitDir, specsDir, plansDir string) (*PipelineStatus, error) {
 	if err == nil {
 		client.Dir = filepath.Dir(gromitDir)
 		status.ReadyBeads, status.ReadyBeadCount = listReadyBeads(client)
+
+		// Populate additional bead counts
+		// These calls may fail if bd is not available, which is fine (counts remain 0)
+
+		// In-progress count
+		if count, err := client.CountByStatus("in_progress"); err == nil {
+			status.InProgressCount = count
+		}
+
+		// Deferred count
+		if count, err := client.CountByStatus("deferred"); err == nil {
+			status.DeferredCount = count
+		}
+
+		// Closed count
+		if count, err := client.CountByStatus("closed"); err == nil {
+			status.ClosedCount = count
+		}
+
+		// Blocked count = open - ready
+		// Open beads include both ready and blocked (those with unmet dependencies)
+		if openCount, err := client.CountByStatus("open"); err == nil {
+			status.BlockedCount = openCount - status.ReadyBeadCount
+			if status.BlockedCount < 0 {
+				status.BlockedCount = 0
+			}
+		}
+
+		// If startedAt is provided, populate "closed this run" count
+		if startedAt != nil {
+			status.HasRunInfo = true
+			if count, err := client.CountClosedAfter(*startedAt); err == nil {
+				status.ClosedThisRunCount = count
+			}
+		}
 	}
-	// If client creation fails, ReadyBeadCount and ReadyBeads remain empty
+	// If client creation fails, all counts remain zero
 
 	// Generate recommendation based on priority
 	status.Recommendation = generateRecommendation(status)

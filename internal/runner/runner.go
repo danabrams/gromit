@@ -1129,7 +1129,12 @@ func (r *Runner) Status() error {
 	}
 
 	// Read pipeline status
-	pipelineStatus, err := pipeline.ReadStatus(r.gromitDir, r.cfg.Paths.Specs, r.cfg.Paths.Plans)
+	// Pass startedAt from status.json if available for "closed this run" count
+	var startedAt *time.Time
+	if status != nil && !status.StartedAt.IsZero() {
+		startedAt = &status.StartedAt
+	}
+	pipelineStatus, err := pipeline.ReadStatus(r.gromitDir, r.cfg.Paths.Specs, r.cfg.Paths.Plans, startedAt)
 	if err != nil {
 		return fmt.Errorf("reading pipeline status: %w", err)
 	}

@@ -222,7 +222,7 @@ func TestReadStatus(t *testing.T) {
 			tt.setupFunc(t, tmpDir)
 
 			// Read status
-			status, err := ReadStatus(gromitDir, specsDir, plansDir)
+			status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 			if err != nil {
 				t.Fatalf("ReadStatus() error = %v", err)
 			}
@@ -255,7 +255,7 @@ func TestReadStatus_MissingDirectories(t *testing.T) {
 	plansDir := filepath.Join(gromitDir, "plans")
 
 	// Don't create any directories - ReadStatus should handle this gracefully
-	status, err := ReadStatus(gromitDir, specsDir, plansDir)
+	status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 	if err != nil {
 		t.Fatalf("ReadStatus() with missing directories should not error, got: %v", err)
 	}
@@ -454,7 +454,7 @@ func TestReadStatus_ErrorHandling(t *testing.T) {
 		os.WriteFile(backlogPath, []byte("{invalid json\n"), 0644)
 
 		// ReadStatus should return an error
-		_, err := ReadStatus(gromitDir, specsDir, plansDir)
+		_, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 		if err == nil {
 			t.Fatal("expected error with corrupt backlog file, got nil")
 		}
@@ -475,7 +475,7 @@ func TestReadStatus_ErrorHandling(t *testing.T) {
 		os.WriteFile(planPath, []byte("---\nthis is not valid yaml: {[\n---\n# Plan"), 0644)
 
 		// ReadStatus should return an error
-		_, err := ReadStatus(gromitDir, specsDir, plansDir)
+		_, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 		if err == nil {
 			t.Fatal("expected error with corrupt plan frontmatter, got nil")
 		}
@@ -492,7 +492,7 @@ func TestReadStatus_ErrorHandling(t *testing.T) {
 		os.MkdirAll(plansDir, 0755)
 
 		// ReadStatus should return an error
-		_, err := ReadStatus(gromitDir, specsDir, plansDir)
+		_, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 		if err == nil {
 			// Clean up permission issue before test framework tries to delete it
 			os.Chmod(specsDir, 0755)
@@ -514,7 +514,7 @@ func TestReadStatus_ErrorHandling(t *testing.T) {
 		os.MkdirAll(plansDir, 0000) // no permissions
 
 		// ReadStatus should return an error
-		_, err := ReadStatus(gromitDir, specsDir, plansDir)
+		_, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 		if err == nil {
 			// Clean up permission issue before test framework tries to delete it
 			os.Chmod(plansDir, 0755)
@@ -558,7 +558,7 @@ func TestReadStatus_CountingAccuracy(t *testing.T) {
 		// spec-b should not be counted (decomposed: true)
 		// spec-c should be counted as unplanned
 
-		status, err := ReadStatus(gromitDir, specsDir, plansDir)
+		status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 		if err != nil {
 			t.Fatalf("ReadStatus() error = %v", err)
 		}
@@ -595,7 +595,7 @@ func TestReadStatus_CountingAccuracy(t *testing.T) {
 		os.WriteFile(filepath.Join(specsDir, "feature.md"), []byte("# Feature"), 0644)
 		os.WriteFile(filepath.Join(plansDir, "api.md"), []byte("---\ndecomposed: false\n---\n# API Plan"), 0644)
 
-		status, err := ReadStatus(gromitDir, specsDir, plansDir)
+		status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 		if err != nil {
 			t.Fatalf("ReadStatus() error = %v", err)
 		}
@@ -629,7 +629,7 @@ func TestReadStatus_SpecNamesSorted(t *testing.T) {
 	os.WriteFile(filepath.Join(specsDir, "apple.md"), []byte("# Apple"), 0644)
 	os.WriteFile(filepath.Join(specsDir, "mango.md"), []byte("# Mango"), 0644)
 
-	status, err := ReadStatus(gromitDir, specsDir, plansDir)
+	status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 	if err != nil {
 		t.Fatalf("ReadStatus() error = %v", err)
 	}
@@ -662,7 +662,7 @@ func TestReadStatus_PlanNamesSorted(t *testing.T) {
 	os.WriteFile(filepath.Join(plansDir, "apple.md"), []byte("# Apple (no frontmatter)"), 0644)
 	os.WriteFile(filepath.Join(plansDir, "mango.md"), []byte("---\ndecomposed: false\n---\n# Mango"), 0644)
 
-	status, err := ReadStatus(gromitDir, specsDir, plansDir)
+	status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
 	if err != nil {
 		t.Fatalf("ReadStatus() error = %v", err)
 	}
