@@ -463,3 +463,164 @@ func TestFormatRecommendation(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatBeadBreakdown(t *testing.T) {
+	tests := []struct {
+		name   string
+		status *pipeline.PipelineStatus
+		want   string
+	}{
+		{
+			name: "all counts zero",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:     0,
+				InProgressCount:    0,
+				BlockedCount:       0,
+				DeferredCount:      0,
+				ClosedCount:        0,
+				ClosedThisRunCount: 0,
+				HasRunInfo:         false,
+			},
+			want: "none",
+		},
+		{
+			name: "single status - ready only",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:  5,
+				InProgressCount: 0,
+				BlockedCount:    0,
+				DeferredCount:   0,
+				ClosedCount:     0,
+				HasRunInfo:      false,
+			},
+			want: "5 ready",
+		},
+		{
+			name: "single status - closed only",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:  0,
+				InProgressCount: 0,
+				BlockedCount:    0,
+				DeferredCount:   0,
+				ClosedCount:     100,
+				HasRunInfo:      false,
+			},
+			want: "100 closed",
+		},
+		{
+			name: "all non-zero statuses without this run info",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:     14,
+				InProgressCount:    2,
+				BlockedCount:       5,
+				DeferredCount:      3,
+				ClosedCount:        543,
+				ClosedThisRunCount: 0,
+				HasRunInfo:         false,
+			},
+			want: "14 ready, 2 in-progress, 5 blocked, 3 deferred, 543 closed",
+		},
+		{
+			name: "all non-zero statuses with this run info",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:     14,
+				InProgressCount:    2,
+				BlockedCount:       5,
+				DeferredCount:      3,
+				ClosedCount:        543,
+				ClosedThisRunCount: 23,
+				HasRunInfo:         true,
+			},
+			want: "14 ready, 2 in-progress, 5 blocked, 3 deferred, 543 closed (23 this run)",
+		},
+		{
+			name: "zero statuses omitted - ready and closed only",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:  14,
+				InProgressCount: 0,
+				BlockedCount:    0,
+				DeferredCount:   0,
+				ClosedCount:     543,
+				HasRunInfo:      false,
+			},
+			want: "14 ready, 543 closed",
+		},
+		{
+			name: "zero statuses omitted - blocked and in-progress only",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:  0,
+				InProgressCount: 3,
+				BlockedCount:    7,
+				DeferredCount:   0,
+				ClosedCount:     0,
+				HasRunInfo:      false,
+			},
+			want: "3 in-progress, 7 blocked",
+		},
+		{
+			name: "closed without run info - no parenthetical",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:     10,
+				InProgressCount:    0,
+				BlockedCount:       0,
+				DeferredCount:      0,
+				ClosedCount:        543,
+				ClosedThisRunCount: 23, // Has count but no run info
+				HasRunInfo:         false,
+			},
+			want: "10 ready, 543 closed",
+		},
+		{
+			name: "has run info but zero closed this run",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:     10,
+				InProgressCount:    0,
+				BlockedCount:       0,
+				DeferredCount:      0,
+				ClosedCount:        543,
+				ClosedThisRunCount: 0,
+				HasRunInfo:         true,
+			},
+			want: "10 ready, 543 closed",
+		},
+		{
+			name: "display order verification - all statuses in lifecycle order",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:     1,
+				InProgressCount:    2,
+				BlockedCount:       3,
+				DeferredCount:      4,
+				ClosedCount:        5,
+				ClosedThisRunCount: 1,
+				HasRunInfo:         true,
+			},
+			want: "1 ready, 2 in-progress, 3 blocked, 4 deferred, 5 closed (1 this run)",
+		},
+		{
+			name: "display order verification - sparse statuses maintain order",
+			status: &pipeline.PipelineStatus{
+				ReadyBeadCount:  10,
+				InProgressCount: 0,
+				BlockedCount:    5,
+				DeferredCount:   0,
+				ClosedCount:     100,
+				HasRunInfo:      false,
+			},
+			want: "10 ready, 5 blocked, 100 closed",
+		},
+		{
+			name:   "nil status",
+			status: nil,
+			want:   "none",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatBeadBreakdown(tt.status)
+			if got != tt.want {
+				t.Errorf("formatBeadBreakdown() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
