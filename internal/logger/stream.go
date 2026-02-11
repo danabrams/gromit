@@ -67,19 +67,22 @@ type ToolResultFile struct {
 
 // StreamStats tracks activity during a Claude run
 type StreamStats struct {
-	mu                 sync.Mutex
-	ToolCalls          int
-	FilesModified      map[string]bool
-	StartTime          time.Time
-	LastEventTime      time.Time
-	firstEventReceived bool
-	FirstEventTime     time.Time
-	TotalCost          float64
-	InputTokens        int
-	OutputTokens       int
-	StallCount         int
-	StallTier          string // "initial" or "active"
-	RateLimitHits      int
+	mu                   sync.Mutex
+	ToolCalls            int
+	FilesModified        map[string]bool
+	StartTime            time.Time
+	LastEventTime        time.Time
+	firstEventReceived   bool
+	FirstEventTime       time.Time
+	TotalCost            float64
+	InputTokens          int
+	OutputTokens         int
+	StallCount           int
+	StallTier            string // "initial" or "active"
+	RateLimitHits        int
+	lastRateLimitTime    time.Time     // timestamp of most recent rate limit
+	rateLimitRecoveryMs  int64         // recovery time in ms from most recent rate limit
+	hasUnrecoveredRateLimit bool       // true if rate limit hit but no event after
 }
 
 // NewStreamStats creates a new StreamStats
@@ -128,6 +131,12 @@ func (s *StreamStats) RecordEvent() {
 		s.FirstEventTime = now
 	}
 	s.firstEventReceived = true
+
+	// Calculate recovery time if there was a rate limit
+	if s.hasUnrecoveredRateLimit && !s.lastRateLimitTime.IsZero() {
+		s.rateLimitRecoveryMs = now.Sub(s.lastRateLimitTime).Milliseconds()
+		s.hasUnrecoveredRateLimit = false
+	}
 }
 
 // TimeSinceLastEvent returns the duration since the last stream event was received.
@@ -204,12 +213,14 @@ func (s *StreamStats) RecordRateLimitHit() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.RateLimitHits++
+	s.lastRateLimitTime = time.Now()
+	s.hasUnrecoveredRateLimit = true
 }
 
 // DiagnosticSnapshot returns all diagnostic data under one lock acquisition.
-func (s *StreamStats) DiagnosticSnapshot() (stallCount int, stallTier string, timeToFirstEvent time.Duration, toolCalls int, rateLimitHits int) {
+func (s *StreamStats) DiagnosticSnapshot() (stallCount int, stallTier string, timeToFirstEvent time.Duration, toolCalls int, rateLimitHits int, rateLimitRecoveryMs int64) {
 	if s == nil {
-		return 0, "", 0, 0, 0
+		return 0, "", 0, 0, 0, 0
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -217,7 +228,7 @@ func (s *StreamStats) DiagnosticSnapshot() (stallCount int, stallTier string, ti
 	if s.firstEventReceived {
 		ttfe = s.FirstEventTime.Sub(s.StartTime)
 	}
-	return s.StallCount, s.StallTier, ttfe, s.ToolCalls, s.RateLimitHits
+	return s.StallCount, s.StallTier, ttfe, s.ToolCalls, s.RateLimitHits, s.rateLimitRecoveryMs
 }
 
 // StreamLogger writes firehose stream events to a log file

@@ -591,7 +591,7 @@ func TestStreamStats_DiagnosticSnapshot(t *testing.T) {
 	stats.RecordStall("active")
 	stats.RecordRateLimitHit()
 
-	stallCount, stallTier, ttfe, toolCalls, rateLimitHits := stats.DiagnosticSnapshot()
+	stallCount, stallTier, ttfe, toolCalls, rateLimitHits, _ := stats.DiagnosticSnapshot()
 	if stallCount != 2 {
 		t.Errorf("expected stallCount=2, got %d", stallCount)
 	}
@@ -611,8 +611,8 @@ func TestStreamStats_DiagnosticSnapshot(t *testing.T) {
 
 func TestStreamStats_DiagnosticSnapshotNilSafe(t *testing.T) {
 	var stats *StreamStats
-	stallCount, stallTier, ttfe, toolCalls, rateLimitHits := stats.DiagnosticSnapshot()
-	if stallCount != 0 || stallTier != "" || ttfe != 0 || toolCalls != 0 || rateLimitHits != 0 {
+	stallCount, stallTier, ttfe, toolCalls, rateLimitHits, recoveryMs := stats.DiagnosticSnapshot()
+	if stallCount != 0 || stallTier != "" || ttfe != 0 || toolCalls != 0 || rateLimitHits != 0 || recoveryMs != 0 {
 		t.Error("expected all zeros for nil stats")
 	}
 }
