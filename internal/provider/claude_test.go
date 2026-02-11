@@ -28,3 +28,39 @@ func TestClaudeProviderHasClientField(t *testing.T) {
 		t.Error("ClaudeProvider.client should not be nil after assignment")
 	}
 }
+
+// TestClaudeProviderHasTierModelMap verifies that ClaudeProvider has a
+// tierToModel map field for mapping abstract tiers to concrete model names.
+// Expected failure: tierToModel field does not exist yet
+func TestClaudeProviderHasTierModelMap(t *testing.T) {
+	tierMap := map[string]string{
+		TierHigh:   "opus",
+		TierMedium: "sonnet",
+		TierLow:    "haiku",
+	}
+
+	cp := &ClaudeProvider{
+		tierToModel: tierMap,
+	}
+
+	if cp.tierToModel == nil {
+		t.Error("ClaudeProvider.tierToModel should not be nil after assignment")
+	}
+
+	if cp.tierToModel[TierHigh] != "opus" {
+		t.Errorf("tierToModel[TierHigh] = %q, want %q", cp.tierToModel[TierHigh], "opus")
+	}
+}
+
+// TestClaudeProviderNameMethod verifies that ClaudeProvider implements
+// Name() method returning "claude".
+// Expected failure: Name() method does not exist yet
+func TestClaudeProviderNameMethod(t *testing.T) {
+	cp := &ClaudeProvider{}
+
+	name := cp.Name()
+
+	if name != "claude" {
+		t.Errorf("Name() = %q, want %q", name, "claude")
+	}
+}
