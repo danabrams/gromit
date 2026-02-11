@@ -528,3 +528,167 @@ func parseListWithLabelOutputExcludingEpics(out string) ([]*Bead, error) {
 
 	return result, nil
 }
+
+// TestListWithLabel_IntegrationReturnsPrioritySortedBeads tests that ListWithLabel returns beads sorted by priority
+func TestListWithLabel_IntegrationReturnsPrioritySortedBeads(t *testing.T) {
+	// Expected failure: ListWithLabel at internal/bead/bead.go:616 does not pass --sort priority
+	// Current command: c.run("list", "--json", "--label", label)
+	// Expected command: c.run("list", "--json", "--label", label, "--sort", "priority")
+	//
+	// This test verifies that beads returned by ListWithLabel are sorted by priority (P0 < P1 < P2)
+	// in ascending order, matching the behavior of List() which uses --sort priority.
+
+	c := newIsolatedClient(t)
+
+	// Create beads with the same label but different priorities
+	testLabel := "spec:priority-sort-test"
+
+	// Create P2 bead first
+	bead1, err := c.Create("Low priority task", 2, []string{testLabel}, []string{})
+	if err != nil {
+		t.Skipf("Cannot create P2 bead: %v", err)
+	}
+	id1 := bead1.ID
+
+	// Create P0 bead second
+	bead2, err := c.Create("High priority task", 0, []string{testLabel}, []string{})
+	if err != nil {
+		t.Skipf("Cannot create P0 bead: %v", err)
+	}
+	id2 := bead2.ID
+
+	// Create P1 bead third
+	bead3, err := c.Create("Medium priority task", 1, []string{testLabel}, []string{})
+	if err != nil {
+		t.Skipf("Cannot create P1 bead: %v", err)
+	}
+	id3 := bead3.ID
+
+	// Call ListWithLabel - should return beads sorted by priority
+	beads, err := c.ListWithLabel(testLabel)
+	if err != nil {
+		t.Fatalf("ListWithLabel() error = %v", err)
+	}
+
+	if len(beads) < 3 {
+		t.Fatalf("Expected at least 3 beads, got %d", len(beads))
+	}
+
+	// Verify beads are sorted by priority: P0, P1, P2
+	// Find our test beads in the result
+	beadsByID := make(map[string]*Bead)
+	for _, b := range beads {
+		beadsByID[b.ID] = b
+	}
+
+	// Verify priorities match
+	if b := beadsByID[id2]; b == nil || b.Priority != 0 {
+		t.Errorf("P0 bead %s not found or has wrong priority", id2)
+	}
+	if b := beadsByID[id3]; b == nil || b.Priority != 1 {
+		t.Errorf("P1 bead %s not found or has wrong priority", id3)
+	}
+	if b := beadsByID[id1]; b == nil || b.Priority != 2 {
+		t.Errorf("P2 bead %s not found or has wrong priority", id1)
+	}
+
+	// Verify beads appear in priority order (P0 before P1 before P2)
+	priorities := []int{}
+	for _, b := range beads {
+		if b.ID == id1 || b.ID == id2 || b.ID == id3 {
+			priorities = append(priorities, b.Priority)
+		}
+	}
+
+	// Check that priorities are in ascending order
+	for i := 1; i < len(priorities); i++ {
+		if priorities[i] < priorities[i-1] {
+			t.Errorf("Beads not sorted by priority. Expected ascending order, got: %v", priorities)
+			break
+		}
+	}
+
+	// The specific failure mode when --sort priority is missing:
+	// Beads will be returned in insertion order (P2, P0, P1) instead of priority order (P0, P1, P2)
+	if len(priorities) == 3 {
+		expected := []int{0, 1, 2}
+		match := true
+		for i := range expected {
+			if priorities[i] != expected[i] {
+				match = false
+				break
+			}
+		}
+		if !match {
+			t.Errorf("ListWithLabel returned beads in wrong order. Expected priority order [0,1,2], got %v. This indicates --sort priority flag is missing.", priorities)
+		}
+	}
+}
+
+// TestListWithLabel_IntegrationConsistentWithListMethod tests ordering consistency between List() and ListWithLabel()
+func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
+	// Expected failure: ListWithLabel does not include --sort priority like List() does
+	//
+	// List() uses: c.run("list", "--json", "--sort", "priority", "--limit", "0")
+	// ListWithLabel() should use: c.run("list", "--json", "--label", label, "--sort", "priority")
+	//
+	// This test verifies that both methods return beads in the same priority-sorted order.
+
+	c := newIsolatedClient(t)
+
+	// Create beads with various priorities (no label filter for List())
+	priorities := []int{2, 0, 1, 2, 0}
+	createdIDs := make([]string, len(priorities))
+
+	for i, p := range priorities {
+		bead, err := c.Create(fmt.Sprintf("Task %d", i), p, []string{"test-label"}, []string{})
+		if err != nil {
+			t.Skipf("Cannot create bead %d: %v", i, err)
+		}
+		createdIDs[i] = bead.ID
+	}
+
+	// Get beads from both methods
+	allBeads, err := c.List()
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	labelBeads, err := c.ListWithLabel("test-label")
+	if err != nil {
+		t.Fatalf("ListWithLabel() error = %v", err)
+	}
+
+	// Extract just our test beads from List() result
+	var allBeadsFiltered []*Bead
+	for _, b := range allBeads {
+		for _, id := range createdIDs {
+			if b.ID == id {
+				allBeadsFiltered = append(allBeadsFiltered, b)
+				break
+			}
+		}
+	}
+
+	// Both should have the same beads in the same priority order
+	if len(allBeadsFiltered) != len(labelBeads) {
+		t.Errorf("List() and ListWithLabel() returned different bead counts: %d vs %d", len(allBeadsFiltered), len(labelBeads))
+		return
+	}
+
+	// Verify priority order matches
+	for i := range allBeadsFiltered {
+		if allBeadsFiltered[i].Priority != labelBeads[i].Priority {
+			t.Errorf("Priority order mismatch at position %d: List() has P%d, ListWithLabel() has P%d",
+				i, allBeadsFiltered[i].Priority, labelBeads[i].Priority)
+		}
+	}
+
+	// Verify priorities are in ascending order for both
+	for i := 1; i < len(labelBeads); i++ {
+		if labelBeads[i].Priority < labelBeads[i-1].Priority {
+			t.Errorf("ListWithLabel() beads not in priority order at position %d: P%d comes after P%d",
+				i, labelBeads[i].Priority, labelBeads[i-1].Priority)
+		}
+	}
+}

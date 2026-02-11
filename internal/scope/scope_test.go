@@ -1029,3 +1029,223 @@ created: 2026-02-08
 		}
 	}
 }
+
+// TestValidateSpec_ExistingSpec tests that ValidateSpec returns nil when spec file exists
+func TestValidateSpec_ExistingSpec(t *testing.T) {
+	// Expected failure: ValidateSpec function does not exist yet
+	tempDir := t.TempDir()
+	specsDir := filepath.Join(tempDir, "specs")
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("Failed to create specs dir: %v", err)
+	}
+
+	// Create spec file
+	specPath := filepath.Join(specsDir, "review-spec-validation.md")
+	specContent := `---
+id: review-spec-validation
+created: 2026-02-11
+---
+
+# Review Spec Validation
+`
+	if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
+		t.Fatalf("Failed to write spec file: %v", err)
+	}
+
+	err := ValidateSpec(specsDir, "review-spec-validation")
+	if err != nil {
+		t.Errorf("ValidateSpec with existing spec should return nil, got error: %v", err)
+	}
+}
+
+// TestValidateSpec_NonexistentSpec tests that ValidateSpec returns error with available specs listed
+func TestValidateSpec_NonexistentSpec(t *testing.T) {
+	// Expected failure: ValidateSpec function does not exist yet
+	tempDir := t.TempDir()
+	specsDir := filepath.Join(tempDir, "specs")
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("Failed to create specs dir: %v", err)
+	}
+
+	// Create several spec files
+	specNames := []string{"auth", "user-profile", "settings"}
+	for _, name := range specNames {
+		specPath := filepath.Join(specsDir, name+".md")
+		specContent := fmt.Sprintf(`---
+id: %s
+created: 2026-02-11
+---
+
+# Spec
+`, name)
+		if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
+			t.Fatalf("Failed to write spec file: %v", err)
+		}
+	}
+
+	err := ValidateSpec(specsDir, "nonexistent")
+	if err == nil {
+		t.Fatal("ValidateSpec with nonexistent spec should return error")
+	}
+
+	errMsg := err.Error()
+	// Error should mention that spec was not found
+	if !strings.Contains(strings.ToLower(errMsg), "not found") && !strings.Contains(strings.ToLower(errMsg), "does not exist") {
+		t.Errorf("Error should indicate spec not found, got: %v", err)
+	}
+
+	// Error should list available specs
+	for _, name := range specNames {
+		if !strings.Contains(errMsg, name) {
+			t.Errorf("Error should list available spec %q, got: %v", name, err)
+		}
+	}
+}
+
+// TestValidateSpec_EmptySpecsDirectory tests ValidateSpec when specs directory is empty
+func TestValidateSpec_EmptySpecsDirectory(t *testing.T) {
+	// Expected failure: ValidateSpec function does not exist yet
+	tempDir := t.TempDir()
+	specsDir := filepath.Join(tempDir, "specs")
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("Failed to create specs dir: %v", err)
+	}
+
+	err := ValidateSpec(specsDir, "any-spec")
+	if err == nil {
+		t.Fatal("ValidateSpec with empty directory should return error")
+	}
+
+	errMsg := err.Error()
+	// Should indicate no specs available
+	if !strings.Contains(strings.ToLower(errMsg), "no spec") || !strings.Contains(strings.ToLower(errMsg), "available") {
+		t.Errorf("Error should indicate no specs available, got: %v", err)
+	}
+}
+
+// TestValidateSpec_NonexistentDirectory tests ValidateSpec when specs directory doesn't exist
+func TestValidateSpec_NonexistentDirectory(t *testing.T) {
+	// Expected failure: ValidateSpec function does not exist yet
+	tempDir := t.TempDir()
+	nonexistentDir := filepath.Join(tempDir, "nonexistent")
+
+	err := ValidateSpec(nonexistentDir, "any-spec")
+	if err == nil {
+		t.Fatal("ValidateSpec with nonexistent directory should return error")
+	}
+
+	// Should return error about directory not existing
+	errMsg := err.Error()
+	if !strings.Contains(strings.ToLower(errMsg), "not exist") && !strings.Contains(strings.ToLower(errMsg), "not found") {
+		t.Errorf("Error should indicate directory doesn't exist, got: %v", err)
+	}
+}
+
+// TestValidateSpec_IgnoresNonMarkdownFiles tests that ValidateSpec only lists .md files
+func TestValidateSpec_IgnoresNonMarkdownFiles(t *testing.T) {
+	// Expected failure: ValidateSpec function does not exist yet
+	tempDir := t.TempDir()
+	specsDir := filepath.Join(tempDir, "specs")
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("Failed to create specs dir: %v", err)
+	}
+
+	// Create .md files
+	mdFiles := []string{"auth.md", "profile.md"}
+	for _, filename := range mdFiles {
+		path := filepath.Join(specsDir, filename)
+		if err := os.WriteFile(path, []byte("content"), 0644); err != nil {
+			t.Fatalf("Failed to write file: %v", err)
+		}
+	}
+
+	// Create non-.md files (should be ignored)
+	nonMdFiles := []string{"readme.txt", "notes.doc", "data.json"}
+	for _, filename := range nonMdFiles {
+		path := filepath.Join(specsDir, filename)
+		if err := os.WriteFile(path, []byte("content"), 0644); err != nil {
+			t.Fatalf("Failed to write file: %v", err)
+		}
+	}
+
+	err := ValidateSpec(specsDir, "nonexistent")
+	if err == nil {
+		t.Fatal("ValidateSpec with nonexistent spec should return error")
+	}
+
+	errMsg := err.Error()
+	// Should only list .md files (without extension)
+	for _, filename := range mdFiles {
+		specName := strings.TrimSuffix(filename, ".md")
+		if !strings.Contains(errMsg, specName) {
+			t.Errorf("Error should list spec %q from %s, got: %v", specName, filename, err)
+		}
+	}
+
+	// Should NOT list non-.md files
+	for _, filename := range nonMdFiles {
+		baseName := strings.TrimSuffix(filename, filepath.Ext(filename))
+		// Only check if the error explicitly lists the non-md file as an available spec
+		// This is a negative check - we want to ensure non-md files aren't suggested as specs
+		if strings.Contains(errMsg, filename) || strings.Contains(errMsg, baseName+",") || strings.Contains(errMsg, baseName+" ") {
+			t.Errorf("Error should not list non-.md file %q, got: %v", filename, err)
+		}
+	}
+}
+
+// TestValidateSpec_ErrorMessageFormat tests that error includes helpful formatting
+func TestValidateSpec_ErrorMessageFormat(t *testing.T) {
+	// Expected failure: ValidateSpec function does not exist yet
+	tempDir := t.TempDir()
+	specsDir := filepath.Join(tempDir, "specs")
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("Failed to create specs dir: %v", err)
+	}
+
+	// Create multiple spec files
+	for i, name := range []string{"auth", "profile", "settings", "dashboard"} {
+		path := filepath.Join(specsDir, name+".md")
+		content := fmt.Sprintf("---\nid: %s\n---\n# Spec %d", name, i)
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write spec: %v", err)
+		}
+	}
+
+	err := ValidateSpec(specsDir, "typo-spec")
+	if err == nil {
+		t.Fatal("ValidateSpec with nonexistent spec should return error")
+	}
+
+	errMsg := err.Error()
+	// Error should be readable and helpful
+	// Should contain the spec name that was requested
+	if !strings.Contains(errMsg, "typo-spec") {
+		t.Errorf("Error should mention the requested spec name 'typo-spec', got: %v", err)
+	}
+
+	// Should indicate what went wrong
+	notFoundIndicators := []string{"not found", "does not exist", "unknown", "invalid"}
+	hasNotFoundIndicator := false
+	for _, indicator := range notFoundIndicators {
+		if strings.Contains(strings.ToLower(errMsg), indicator) {
+			hasNotFoundIndicator = true
+			break
+		}
+	}
+	if !hasNotFoundIndicator {
+		t.Errorf("Error should indicate spec not found, got: %v", err)
+	}
+
+	// Should provide available alternatives
+	availableIndicators := []string{"available", "found", "existing", "try"}
+	hasAvailableIndicator := false
+	for _, indicator := range availableIndicators {
+		if strings.Contains(strings.ToLower(errMsg), indicator) {
+			hasAvailableIndicator = true
+			break
+		}
+	}
+	if !hasAvailableIndicator {
+		t.Errorf("Error should indicate available specs, got: %v", err)
+	}
+}
