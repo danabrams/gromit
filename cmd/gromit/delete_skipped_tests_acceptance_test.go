@@ -3,9 +3,7 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -39,113 +37,52 @@ func TestDeletePermanentlySkippedTests(t *testing.T) {
 		}
 	})
 
-	t.Run("backlog contains ideas for retro filter skipped behaviors", func(t *testing.T) {
-		// Expected failure: backlog entries for retro filter behaviors do not exist yet
-		// The implementation should have run `gromit add` for the retro filter behaviors.
-		// Verify the backlog has entries covering the filter-related functionality.
+	t.Run("backlog contains ideas for skipped test behaviors", func(t *testing.T) {
+		// The implementation should have run `gromit add` for the skipped test behaviors.
+		// Verify the backlog has entries covering these areas.
 		//
-		// Skipped test source: internal/retro/retro_filter_test.go
-		// Main theme: Add bead filtering to retro Run method (filter by bead ID)
-		// Sub-behaviors:
-		// - Run method accepts optional beadFilter parameter (map[string]bool)
-		// - Nil or empty filter includes all beads (default behavior)
-		// - Non-empty filter excludes non-matching beads
-		// - Filtering applied before stats computation (BeadStats, RunStats, EfficiencyReport)
-		// - Integration with --spec and --epic flags
+		// Skipped test sources:
+		// 1. internal/retro/retro_filter_test.go: 14 tests about bead filtering in retro Run method
+		// 2. cmd/gromit/stdin_helper_example_test.go: 2 tests about test helper for stdin/picker interaction
 
-		projectRoot, err := findProjectRoot()
-		if err != nil {
-			t.Fatalf("could not find project root: %v", err)
+		ideas := loadBacklogIdeas(t)
+
+		// Each skipped behavior source must have at least one matching backlog entry.
+		skippedBehaviors := []struct {
+			description string
+			matchFn     func(text string) bool
+		}{
+			{
+				description: "retro Run method bead filtering (all 14 skipped tests)",
+				matchFn: func(text string) bool {
+					hasRetro := containsAny(text, "retro", "retrospective")
+					hasFilter := containsAny(text, "filter", "filtering", "bead id", "scope")
+					return hasRetro && hasFilter
+				},
+			},
+			{
+				description: "runGromitWithStdin test helper for interactive commands (2 skipped example tests)",
+				matchFn: func(text string) bool {
+					// Must mention both the helper concept AND gromit command execution with stdin
+					hasHelper := containsAny(text, "helper function", "test helper", "helper for test", "test utility", "testing util")
+					hasGromitStdin := containsAny(text, "rungromit", "gromit command", "gromit with stdin", "execute gromit")
+					return hasHelper && hasGromitStdin
+				},
+			},
 		}
 
-		backlogPath := filepath.Join(projectRoot, ".gromit", "backlog.jsonl")
-		data, err := os.ReadFile(backlogPath)
-		if err != nil {
-			t.Fatalf("could not read backlog.jsonl: %v", err)
-		}
-
-		// Parse all backlog entries
-		var ideas []backlogIdea
-		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-			if line == "" {
-				continue
+		for _, behavior := range skippedBehaviors {
+			found := false
+			for _, idea := range ideas {
+				textLower := strings.ToLower(idea.Text + " " + idea.Context)
+				if behavior.matchFn(textLower) {
+					found = true
+					break
+				}
 			}
-			var idea backlogIdea
-			if err := json.Unmarshal([]byte(line), &idea); err != nil {
-				t.Fatalf("failed to parse backlog line: %v", err)
+			if !found {
+				t.Errorf("no backlog idea found for: %s", behavior.description)
 			}
-			ideas = append(ideas, idea)
-		}
-
-		// The retro filter behavior must have at least one matching backlog entry.
-		// We look for entries that mention both "retro" and "filter" or "bead" filtering concepts.
-		found := false
-		for _, idea := range ideas {
-			textLower := strings.ToLower(idea.Text + " " + idea.Context)
-			hasRetro := containsAny(textLower, "retro", "retrospective")
-			hasFilter := containsAny(textLower, "filter", "filtering", "bead id", "scope")
-			if hasRetro && hasFilter {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("no backlog idea found for: retro Run method bead filtering (all 14 skipped tests)")
-		}
-	})
-
-	t.Run("backlog contains ideas for stdin helper example behaviors", func(t *testing.T) {
-		// Expected failure: backlog entries for stdin helper behaviors do not exist yet
-		// The implementation should have run `gromit add` for the stdin helper behaviors.
-		// Verify the backlog has entries covering the stdin test helper functionality.
-		//
-		// Skipped test source: cmd/gromit/stdin_helper_example_test.go
-		// Main theme: Test helper for commands with stdin/picker interaction
-		// Sub-behaviors:
-		// - runGromitWithStdin helper for simulating user input
-		// - Support for picker selections (testutil.PickerStdin)
-		// - Support for multiple stdin inputs
-
-		projectRoot, err := findProjectRoot()
-		if err != nil {
-			t.Fatalf("could not find project root: %v", err)
-		}
-
-		backlogPath := filepath.Join(projectRoot, ".gromit", "backlog.jsonl")
-		data, err := os.ReadFile(backlogPath)
-		if err != nil {
-			t.Fatalf("could not read backlog.jsonl: %v", err)
-		}
-
-		// Parse all backlog entries
-		var ideas []backlogIdea
-		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-			if line == "" {
-				continue
-			}
-			var idea backlogIdea
-			if err := json.Unmarshal([]byte(line), &idea); err != nil {
-				t.Fatalf("failed to parse backlog line: %v", err)
-			}
-			ideas = append(ideas, idea)
-		}
-
-		// The stdin helper behavior must have at least one matching backlog entry.
-		// We look for entries that specifically mention the test helper function
-		// pattern (runGromitWithStdin or similar), not just tests that use stdin.
-		found := false
-		for _, idea := range ideas {
-			textLower := strings.ToLower(idea.Text + " " + idea.Context)
-			// Must mention both the helper concept AND gromit command execution with stdin
-			hasHelper := containsAny(textLower, "helper function", "test helper", "helper for test", "test utility", "testing util")
-			hasGromitStdin := containsAny(textLower, "rungromit", "gromit command", "gromit with stdin", "execute gromit")
-			if hasHelper && hasGromitStdin {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("no backlog idea found for: runGromitWithStdin test helper for interactive commands (2 skipped example tests)")
 		}
 	})
 }
