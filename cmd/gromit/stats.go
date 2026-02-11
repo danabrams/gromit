@@ -90,35 +90,8 @@ func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.G
 func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64) error {
 	fmt.Println("Project Model Performance (Escalation rates shown):")
 	fmt.Println()
-	for model, stats := range projectStats {
-		successRate := stats.SuccessRate() * 100
-		avgCost := 0.0
-		if stats.Iterations > 0 {
-			avgCost = stats.TotalCostUSD / float64(stats.Iterations)
-		}
+	printProjectModelStats(projectStats)
 
-		fmt.Printf("  %s  %.0f%% success  (%d/%d)  avg $%.2f/iter",
-			model,
-			successRate,
-			stats.Successes,
-			stats.Iterations,
-			avgCost)
-
-		// Show escalation info
-		if stats.EscalationsFrom > 0 || stats.EscalationsTo > 0 {
-			fmt.Printf("  escalation:")
-			if stats.EscalationsFrom > 0 {
-				fmt.Printf(" from=%d", stats.EscalationsFrom)
-			}
-			if stats.EscalationsTo > 0 {
-				fmt.Printf(" to=%d", stats.EscalationsTo)
-			}
-		}
-
-		fmt.Println()
-	}
-
-	// Display bead costs
 	if len(beadCosts) > 0 {
 		fmt.Println()
 		fmt.Println("cost per completed bead (including retries):")
@@ -127,40 +100,61 @@ func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.G
 		}
 	}
 
-	// Display global stats
 	if globalStats != nil && len(globalStats.Models) > 0 {
 		fmt.Println()
 		fmt.Println("Global Model Performance (all projects, global aggregate):")
 		fmt.Println()
-
-		for model, stats := range globalStats.Models {
-			successRate := 0.0
-			if stats.Iterations > 0 {
-				successRate = float64(stats.Successes) / float64(stats.Iterations) * 100
-			}
-			avgCost := 0.0
-			if stats.Iterations > 0 {
-				avgCost = stats.TotalCostUSD / float64(stats.Iterations)
-			}
-
-			fmt.Printf("  %s  %.0f%% success  (%d/%d)  avg $%.2f/iter",
-				model,
-				successRate,
-				stats.Successes,
-				stats.Iterations,
-				avgCost)
-
-			// Show Escalation info
-			if stats.EscalationsFrom > 0 {
-				fmt.Printf("  Escalation from: %d", stats.EscalationsFrom)
-			}
-			if stats.EscalationsTo > 0 {
-				fmt.Printf("  Escalation to: %d", stats.EscalationsTo)
-			}
-
-			fmt.Println()
-		}
+		printGlobalModelStats(globalStats.Models)
 	}
 
 	return nil
+}
+
+func printProjectModelStats(stats map[string]logger.ModelStats) {
+	for model, s := range stats {
+		printModelLine(model, s.SuccessRate()*100, s.Successes, s.Iterations, s.TotalCostUSD)
+		printEscalations(s.EscalationsFrom, s.EscalationsTo)
+		fmt.Println()
+	}
+}
+
+func printGlobalModelStats(stats map[string]*logger.GlobalModelStats) {
+	for model, s := range stats {
+		successRate := calculateSuccessRate(s.Successes, s.Iterations)
+		printModelLine(model, successRate, s.Successes, s.Iterations, s.TotalCostUSD)
+		printEscalations(s.EscalationsFrom, s.EscalationsTo)
+		fmt.Println()
+	}
+}
+
+func printModelLine(model string, successRate float64, successes, iterations int, totalCost float64) {
+	avgCost := calculateAvgCost(totalCost, iterations)
+	fmt.Printf("  %s  %.0f%% success  (%d/%d)  avg $%.2f/iter",
+		model, successRate, successes, iterations, avgCost)
+}
+
+func printEscalations(escalationsFrom, escalationsTo int) {
+	if escalationsFrom > 0 || escalationsTo > 0 {
+		fmt.Printf("  escalation:")
+		if escalationsFrom > 0 {
+			fmt.Printf(" from=%d", escalationsFrom)
+		}
+		if escalationsTo > 0 {
+			fmt.Printf(" to=%d", escalationsTo)
+		}
+	}
+}
+
+func calculateSuccessRate(successes, iterations int) float64 {
+	if iterations == 0 {
+		return 0.0
+	}
+	return float64(successes) / float64(iterations) * 100
+}
+
+func calculateAvgCost(totalCost float64, iterations int) float64 {
+	if iterations == 0 {
+		return 0.0
+	}
+	return totalCost / float64(iterations)
 }
