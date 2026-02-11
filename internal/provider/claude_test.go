@@ -94,3 +94,36 @@ func TestNewClaudeProviderConstructor(t *testing.T) {
 		t.Errorf("tierToModel[TierHigh] = %q, want %q", cp.tierToModel[TierHigh], "opus")
 	}
 }
+
+// TestClaudeProviderResolveTier verifies that resolveTier() helper maps
+// tier constants to model names using the tierToModel map.
+// Expected failure: resolveTier() method does not exist yet
+func TestClaudeProviderResolveTier(t *testing.T) {
+	tierMap := map[string]string{
+		TierHigh:   "opus",
+		TierMedium: "sonnet",
+		TierLow:    "haiku",
+	}
+
+	cp := &ClaudeProvider{
+		tierToModel: tierMap,
+	}
+
+	tests := []struct {
+		tier     string
+		expected string
+	}{
+		{TierHigh, "opus"},
+		{TierMedium, "sonnet"},
+		{TierLow, "haiku"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tier, func(t *testing.T) {
+			modelName := cp.resolveTier(tt.tier)
+			if modelName != tt.expected {
+				t.Errorf("resolveTier(%q) = %q, want %q", tt.tier, modelName, tt.expected)
+			}
+		})
+	}
+}

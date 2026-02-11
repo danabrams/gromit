@@ -22,3 +22,11 @@ func NewClaudeProvider(client *claude.Client, tierToModel map[string]string) *Cl
 func (cp *ClaudeProvider) Name() string {
 	return "claude"
 }
+
+// resolveTier maps an abstract tier to a concrete model name
+func (cp *ClaudeProvider) resolveTier(tier string) string {
+	if modelName, ok := cp.tierToModel[tier]; ok {
+		return modelName
+	}
+	return tier
+}
