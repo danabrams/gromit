@@ -20,6 +20,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tmux"
@@ -32,6 +33,7 @@ type Runner struct {
 	cfg          *config.Config
 	beads        BeadClient
 	claude       ClaudeClient
+	router       *provider.Router
 	analyzer     FailureAnalyzer
 	renderer     PromptRenderer
 	logger       IterationLogger

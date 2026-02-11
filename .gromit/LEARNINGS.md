@@ -890,3 +890,8 @@ Provider wrapper methods delegate to package-level validation functions by conve
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-2edx | patterns
+Dual-layer state pattern: modify in-memory state first, then conditionally persist via injected StateFile interface. Always check if stateFn != nil before delegating persistence to handle cases where state management isn't needed.
+
+*Archived from new: filtered: generic engineering advice*
+
