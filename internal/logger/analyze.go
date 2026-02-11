@@ -23,6 +23,18 @@ type ModelTimeoutStats struct {
 	RateLimitCorrelation  int
 }
 
+// updateTimeoutBreakdown increments the appropriate timeout counter based on type
+func updateTimeoutBreakdown(stats *ModelTimeoutStats, timeoutType string) {
+	switch timeoutType {
+	case "stall":
+		stats.StallTimeouts++
+	case "bead":
+		stats.BeadTimeouts++
+	case "invocation":
+		stats.InvocationTimeouts++
+	}
+}
+
 // AnalyzeTimeouts reads all JSONL log files in the directory and aggregates timeout statistics
 func AnalyzeTimeouts(logsDir string) (TimeoutAnalysis, error) {
 	analysis := TimeoutAnalysis{
@@ -34,12 +46,12 @@ func AnalyzeTimeouts(logsDir string) (TimeoutAnalysis, error) {
 		return analysis, err
 	}
 
-	// Track per-model aggregates for computing averages
-	type modelAggregates struct {
-		totalTimeToFirstEventMs int64
-		totalToolCallCount      int
+	// Track per-model running totals for computing averages
+	type runningTotals struct {
+		timeToFirstEventMs int64
+		toolCallCount      int
 	}
-	aggregates := make(map[string]*modelAggregates)
+	totals := make(map[string]*runningTotals)
 
 	for _, f := range files {
 		entries, err := readLogFile(f)
@@ -51,37 +63,24 @@ func AnalyzeTimeouts(logsDir string) (TimeoutAnalysis, error) {
 			// Count all iterations
 			analysis.TotalIterations++
 
-			// Initialize model stats if needed
+			// Initialize model stats and totals if needed
 			if _, exists := analysis.ByModel[entry.Model]; !exists {
 				analysis.ByModel[entry.Model] = ModelTimeoutStats{}
-				aggregates[entry.Model] = &modelAggregates{}
+				totals[entry.Model] = &runningTotals{}
 			}
 
 			stats := analysis.ByModel[entry.Model]
-			agg := aggregates[entry.Model]
-
-			// Count total iterations for this model
 			stats.TotalIterations++
 
-			// Accumulate values for averages
-			agg.totalTimeToFirstEventMs += entry.TimeToFirstEventMs
-			agg.totalToolCallCount += entry.ToolCallCount
+			// Accumulate values for averaging
+			totals[entry.Model].timeToFirstEventMs += entry.TimeToFirstEventMs
+			totals[entry.Model].toolCallCount += entry.ToolCallCount
 
-			// Detect timeouts
-			isTimeout := entry.TimeoutType != ""
-			if isTimeout {
+			// Process timeout if present
+			if entry.TimeoutType != "" {
 				analysis.TotalTimeouts++
 				stats.TimeoutCount++
-
-				// Breakdown by timeout type
-				switch entry.TimeoutType {
-				case "stall":
-					stats.StallTimeouts++
-				case "bead":
-					stats.BeadTimeouts++
-				case "invocation":
-					stats.InvocationTimeouts++
-				}
+				updateTimeoutBreakdown(&stats, entry.TimeoutType)
 
 				// Rate limit correlation: count timeouts with rate_limit_hits > 0
 				if entry.RateLimitHits > 0 {
@@ -89,17 +88,17 @@ func AnalyzeTimeouts(logsDir string) (TimeoutAnalysis, error) {
 				}
 			}
 
-			// Update the map with modified stats
+			// Write back updated stats
 			analysis.ByModel[entry.Model] = stats
 		}
 	}
 
 	// Compute averages for each model
 	for model, stats := range analysis.ByModel {
-		agg := aggregates[model]
 		if stats.TotalIterations > 0 {
-			stats.AvgTimeToFirstEventMs = agg.totalTimeToFirstEventMs / int64(stats.TotalIterations)
-			stats.AvgToolCallCount = agg.totalToolCallCount / stats.TotalIterations
+			t := totals[model]
+			stats.AvgTimeToFirstEventMs = t.timeToFirstEventMs / int64(stats.TotalIterations)
+			stats.AvgToolCallCount = t.toolCallCount / stats.TotalIterations
 		}
 		analysis.ByModel[model] = stats
 	}
