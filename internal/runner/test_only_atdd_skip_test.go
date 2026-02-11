@@ -15,12 +15,6 @@ import (
 // TestProcessBead_SkipsATDDForTestOnlyBead verifies that when ATDD is globally
 // enabled but the bead's title indicates it IS a test deliverable, the ATDD
 // pre-pass is skipped automatically.
-//
-// Expected failure: processBead does not yet check bead.IsTestOnlyBead() to
-// skip the ATDD phase for test-only beads. Currently, a test-only bead with
-// ATDD globally enabled will enter the acceptance test phase, causing
-// StreamRun to be called for acceptance tests. After implementation, it should
-// skip directly to the build phase with only 1 StreamRun call.
 func TestProcessBead_SkipsATDDForTestOnlyBead(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -86,10 +80,6 @@ func TestProcessBead_SkipsATDDForTestOnlyBead(t *testing.T) {
 
 // TestProcessBead_SkipsATDDForTestOnlyBead_LogsReason verifies that when ATDD
 // is skipped for a test-only bead, the runner logs the reason.
-//
-// Expected failure: processBead does not yet detect test-only beads or log
-// "Skipping ATDD: bead is test-only". After implementation, this log message
-// should appear in the output buffer.
 func TestProcessBead_SkipsATDDForTestOnlyBead_LogsReason(t *testing.T) {
 	mockClaude := &mockClaudeClient{
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {

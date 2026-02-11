@@ -2286,7 +2286,6 @@ func TestClientListWithLabelIncludesAllTypes(t *testing.T) {
 // TestIsTestOnlyBead tests the IsTestOnlyBead heuristic for detecting beads
 // whose deliverable IS tests (e.g., "Add unit tests for X"), which should
 // automatically skip the ATDD pre-pass.
-// Expected failure: IsTestOnlyBead function does not exist yet
 func TestIsTestOnlyBead(t *testing.T) {
 	tests := []struct {
 		name  string

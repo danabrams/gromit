@@ -2847,17 +2847,15 @@ func (m *mockBeadClientForStatus) HasOpenChildren(parentID string) (bool, error)
 // is globally active. This covers acceptance criteria 2 and 3:
 // - AC2: Beads whose title matches test-only heuristic skip ATDD
 // - AC3: When ATDD is skipped for a test-only bead, log the reason
-// Expected failure: IsTestOnlyBead function does not exist yet, and runner.go
-// does not check bead title to skip ATDD
 func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 	tests := []struct {
-		name                          string
-		beadTitle                     string
-		globalATDD                    bool
-		beadLabels                    []string
-		expectAcceptanceTestsCalled   bool
-		expectSkipLogMessage          bool
-		description                   string
+		name                        string
+		beadTitle                   string
+		globalATDD                  bool
+		beadLabels                  []string
+		expectAcceptanceTestsCalled bool
+		expectSkipLogMessage        bool
+		description                 string
 	}{
 		{
 			name:                        "test-only bead with global ATDD skips ATDD",
