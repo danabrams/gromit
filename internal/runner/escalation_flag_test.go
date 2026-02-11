@@ -27,8 +27,6 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 		wantEscalatedTo string
 	}{
 		{
-			// Expected failure: buildPromptForBead sets bc.model directly for high
-			// complexity without calling escalateModel(), so result.Escalated stays false.
 			name:            "high complexity escalates haiku and sets Escalated flag",
 			complexity:      "high",
 			startModel:      "haiku",
@@ -37,8 +35,6 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 			wantEscalatedTo: "opus",
 		},
 		{
-			// Expected failure: buildPromptForBead sets bc.model directly for high
-			// complexity without calling escalateModel(), so result.Escalated stays false.
 			name:            "high complexity escalates sonnet and sets Escalated flag",
 			complexity:      "high",
 			startModel:      "sonnet",
@@ -47,8 +43,6 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 			wantEscalatedTo: "opus",
 		},
 		{
-			// Expected failure: buildPromptForBead sets bc.model directly for medium
-			// complexity on sonnet without calling escalateModel(), so result.Escalated stays false.
 			name:            "medium complexity on sonnet escalates and sets Escalated flag",
 			complexity:      "medium",
 			startModel:      "sonnet",
@@ -119,34 +113,13 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 	}
 }
 
-// TestAcceptanceTestEscalation_SetsEscalatedFlag verifies that when acceptance
-// tests exhaust retries and escalate to a higher model, the escalation is
-// tracked in the iteration result via escalateModel().
-func TestAcceptanceTestEscalation_SetsEscalatedFlag(t *testing.T) {
-	// Expected failure: runAcceptanceTestsWithRetry sets bc.model directly
-	// without calling escalateModel(), so result.Escalated stays false and
-	// result.EscalatedTo stays empty.
-
+// setupAcceptanceEscalation creates a Runner and beadContext configured for
+// acceptance test escalation tests. The mock Claude fails the first 2 calls
+// (haiku attempts) and succeeds on the 3rd (sonnet).
+func setupAcceptanceEscalation(t *testing.T) (*Runner, *beadContext) {
+	t.Helper()
 	var buf strings.Builder
 	callCount := 0
-	mockClaude := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, p string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			callCount++
-			// First two calls (haiku attempts) fail, third call (sonnet) succeeds
-			if callCount <= 2 {
-				return &claude.Result{
-					Success: false,
-					Output:  "acceptance tests failed",
-				}, nil
-			}
-			return &claude.Result{
-				Success: true,
-				Output:  "acceptance tests passed",
-			}, nil
-		},
-	}
-	mockRend := &mockPromptRenderer{}
-
 	r := &Runner{
 		cfg: &config.Config{
 			Claude: config.ClaudeConfig{
@@ -159,8 +132,16 @@ func TestAcceptanceTestEscalation_SetsEscalatedFlag(t *testing.T) {
 				MaxRetriesPerModel: 1, // 1 retry = 2 attempts total per model
 			},
 		},
-		claude:   mockClaude,
-		renderer: mockRend,
+		claude: &mockClaudeClient{
+			StreamRunFn: func(ctx context.Context, p string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+				callCount++
+				if callCount <= 2 {
+					return &claude.Result{Success: false, Output: "acceptance tests failed"}, nil
+				}
+				return &claude.Result{Success: true, Output: "acceptance tests passed"}, nil
+			},
+		},
+		renderer: &mockPromptRenderer{},
 		output:   &buf,
 	}
 	bc := &beadContext{
@@ -175,6 +156,14 @@ func TestAcceptanceTestEscalation_SetsEscalatedFlag(t *testing.T) {
 			RecentLearnings:    []learnings.Learning{},
 		},
 	}
+	return r, bc
+}
+
+// TestAcceptanceTestEscalation_SetsEscalatedFlag verifies that when acceptance
+// tests exhaust retries and escalate to a higher model, the escalation is
+// tracked in the iteration result via escalateModel().
+func TestAcceptanceTestEscalation_SetsEscalatedFlag(t *testing.T) {
+	r, bc := setupAcceptanceEscalation(t)
 
 	err := r.runAcceptanceTestsWithRetry(context.Background(), bc)
 	if err != nil {
@@ -193,68 +182,16 @@ func TestAcceptanceTestEscalation_SetsEscalatedFlag(t *testing.T) {
 }
 
 // TestAcceptanceTestEscalation_ResetsRetries verifies that when acceptance
-// tests escalate to a higher model, retriesThisModel is reset to 0
-// (as escalateModel() does).
+// tests escalate to a higher model, retriesThisModel is reset to 0.
 func TestAcceptanceTestEscalation_ResetsRetries(t *testing.T) {
-	// Expected failure: runAcceptanceTestsWithRetry does not call
-	// escalateModel(), so bc.retriesThisModel is not reset to 0.
-
-	var buf strings.Builder
-	callCount := 0
-	mockClaude := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, p string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			callCount++
-			// First two calls (haiku attempts) fail, third call (sonnet) succeeds
-			if callCount <= 2 {
-				return &claude.Result{
-					Success: false,
-					Output:  "acceptance tests failed",
-				}, nil
-			}
-			return &claude.Result{
-				Success: true,
-				Output:  "acceptance tests passed",
-			}, nil
-		},
-	}
-	mockRend := &mockPromptRenderer{}
-
-	r := &Runner{
-		cfg: &config.Config{
-			Claude: config.ClaudeConfig{
-				StallTimeout:       30,
-				StallTimeoutActive: 10,
-			},
-			Escalation: config.EscalationConfig{
-				Enabled:            true,
-				Chain:              []string{"haiku", "sonnet", "opus"},
-				MaxRetriesPerModel: 1,
-			},
-		},
-		claude:   mockClaude,
-		renderer: mockRend,
-		output:   &buf,
-	}
-	bc := &beadContext{
-		bead:             &bead.Bead{ID: "test-1", Title: "Test"},
-		model:            "haiku",
-		retriesThisModel: 3, // non-zero starting value
-		result: &IterationResult{
-			Model: "haiku",
-		},
-		promptCtx: &prompt.Context{
-			Model:              "haiku",
-			ConfirmedLearnings: []learnings.Learning{},
-			RecentLearnings:    []learnings.Learning{},
-		},
-	}
+	r, bc := setupAcceptanceEscalation(t)
+	bc.retriesThisModel = 3 // non-zero starting value
 
 	err := r.runAcceptanceTestsWithRetry(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// escalateModel() resets retriesThisModel to 0; the current code does not
 	if bc.retriesThisModel != 0 {
 		t.Errorf("expected retriesThisModel=0 after escalation, got %d", bc.retriesThisModel)
 	}
@@ -263,9 +200,6 @@ func TestAcceptanceTestEscalation_ResetsRetries(t *testing.T) {
 // TestScopeCheckEscalation_ResetsRetries verifies that scope check
 // auto-escalation resets retriesThisModel to 0 (as escalateModel() does).
 func TestScopeCheckEscalation_ResetsRetries(t *testing.T) {
-	// Expected failure: buildPromptForBead sets bc.model directly for high
-	// complexity without calling escalateModel(), so retriesThisModel is not reset.
-
 	var buf strings.Builder
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
@@ -313,7 +247,6 @@ func TestScopeCheckEscalation_ResetsRetries(t *testing.T) {
 	if bc.model != "opus" {
 		t.Errorf("expected model 'opus', got %q", bc.model)
 	}
-	// escalateModel() resets retriesThisModel to 0; the current code does not
 	if bc.retriesThisModel != 0 {
 		t.Errorf("expected retriesThisModel=0 after scope check escalation, got %d", bc.retriesThisModel)
 	}
