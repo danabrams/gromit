@@ -33,7 +33,7 @@ func TestFormatPipeline(t *testing.T) {
 				"  Backlog:  0 unrefined ideas",
 				"  Specs:    0 unplanned",
 				"  Plans:    0 undecomposed",
-				"  Beads:    0 ready",
+				"  Beads:    none",
 			},
 		},
 		{
@@ -48,7 +48,7 @@ func TestFormatPipeline(t *testing.T) {
 			want: []string{
 				"  Backlog:  1 unrefined idea",
 				"    - Add rate limiting",
-				"  Beads:    1 ready",
+				"  Beads:    1 ready", // Single status shown
 			},
 		},
 		{
@@ -80,7 +80,7 @@ func TestFormatPipeline(t *testing.T) {
 				"    (and 1 more)",
 				"  Plans:    1 undecomposed",
 				"    - status-json-staleness",
-				"  Beads:    4 ready",
+				"  Beads:    4 ready", // Single status shown
 			},
 		},
 		{
@@ -99,7 +99,7 @@ func TestFormatPipeline(t *testing.T) {
 				},
 			},
 			want: []string{
-				"  Beads:    4 ready",
+				"  Beads:    4 ready", // Single status shown
 				"    - gromit-abc1 — Implement feature X",
 				"    - gromit-abc2 — Add validation tests",
 				"    - gromit-abc3 — Fix authentication bug",
@@ -120,7 +120,7 @@ func TestFormatPipeline(t *testing.T) {
 				},
 			},
 			want: []string{
-				"  Beads:    2 ready",
+				"  Beads:    2 ready", // Single status shown
 				"    - gromit-xyz1 — Small fix",
 				"    - gromit-xyz2 — Refactor helper",
 			},
