@@ -719,3 +719,8 @@ CLAUDE.md is the source of truth for project conventions and should be updated w
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-lxlp | patterns
+Extract common logic into helper functions when adding similar methods to Client. Multiple Count* methods should delegate to a shared countBeads() helper that handles bd invocation, JSON parsing, and empty-result handling.
+
+*Archived from new: filtered: generic engineering advice*
+

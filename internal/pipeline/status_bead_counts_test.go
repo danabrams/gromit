@@ -5,9 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/danabrams/gromit/internal/backlog"
-	"github.com/danabrams/gromit/internal/bead"
 )
 
 // TestPipelineStatus_ExpandedCountFields verifies that PipelineStatus struct has new count fields

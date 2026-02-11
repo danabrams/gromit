@@ -14,13 +14,19 @@ import (
 
 // PipelineStatus represents the current state of the gromit pipeline
 type PipelineStatus struct {
-	UnrefinedCount    int      // Number of backlog items not yet refined
-	UnrefinedIdeas    []string // Text of unrefined ideas
-	UnplannedSpecs    []string // Names of specs without corresponding plans
-	UndecomposedPlans []string // Names of plans not yet decomposed
-	ReadyBeadCount    int      // Number of ready beads
-	ReadyBeads        []string // IDs of ready beads (up to 3 shown, rest summarized)
-	Recommendation    string   // Suggested next action
+	UnrefinedCount     int      // Number of backlog items not yet refined
+	UnrefinedIdeas     []string // Text of unrefined ideas
+	UnplannedSpecs     []string // Names of specs without corresponding plans
+	UndecomposedPlans  []string // Names of plans not yet decomposed
+	ReadyBeadCount     int      // Number of ready beads
+	ReadyBeads         []string // IDs of ready beads (up to 3 shown, rest summarized)
+	InProgressCount    int      // Number of beads currently in progress
+	BlockedCount       int      // Number of blocked beads (open but dependencies not met)
+	DeferredCount      int      // Number of deferred beads
+	ClosedCount        int      // Number of closed beads
+	ClosedThisRunCount int      // Number of beads closed during this run
+	HasRunInfo         bool     // Whether run start time is available (for "this run" counts)
+	Recommendation     string   // Suggested next action
 }
 
 // ReadStatus reads pipeline state from gromit data sources and returns structured status
