@@ -857,3 +857,8 @@ Provider interface implementations delegate to underlying client implementations
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-z56a | patterns
+Provider implementations delegate directly to underlying client methods; type resolution (tier→model mapping) happens in the provider layer, not in the client itself
+
+*Archived from new: filtered: generic engineering advice*
+

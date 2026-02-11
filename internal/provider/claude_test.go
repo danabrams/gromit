@@ -228,3 +228,19 @@ func TestClaudeProviderIsUsageLimitError(t *testing.T) {
 		})
 	}
 }
+
+// TestClaudeProviderIsValidationPassedDelegation verifies that
+// IsValidationPassed() delegates to claude.IsValidationPassed().
+func TestClaudeProviderIsValidationPassedDelegation(t *testing.T) {
+	cp := &ClaudeProvider{}
+
+	result := &Result{
+		Success: true,
+		Output:  "All tests passed.\nVALIDATION_PASSED",
+	}
+
+	got := cp.IsValidationPassed(result)
+	if !got {
+		t.Errorf("IsValidationPassed() = %v, want true for result with VALIDATION_PASSED marker", got)
+	}
+}

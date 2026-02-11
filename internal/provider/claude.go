@@ -148,3 +148,20 @@ func (cp *ClaudeProvider) IsUsageLimitError(result *Result, err error) bool {
 	// that are distinct from other errors. Always return false for now.
 	return false
 }
+
+// IsValidationPassed checks if the result indicates validation passed.
+// Delegates to claude.IsValidationPassed() to check for the VALIDATION_PASSED marker.
+func (cp *ClaudeProvider) IsValidationPassed(result *Result) bool {
+	if result == nil {
+		return false
+	}
+	// Convert provider.Result to claude.Result for delegation
+	claudeResult := &claude.Result{
+		Success:  result.Success,
+		Output:   result.Output,
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+		Model:    result.Model,
+	}
+	return claude.IsValidationPassed(claudeResult)
+}
