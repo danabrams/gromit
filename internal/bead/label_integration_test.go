@@ -246,20 +246,21 @@ func TestReadyWithLabel_IntegrationCallsCorrectCommand(t *testing.T) {
 }
 
 // TestListWithLabel_IntegrationCallsCorrectCommand verifies the exact command being called
+// Expected failure: Current implementation does not include --all and --limit 0 flags in the command.
 func TestListWithLabel_IntegrationCallsCorrectCommand(t *testing.T) {
 	// This test verifies the command structure by checking if bd accepts the arguments
 	c := newIsolatedClient(t)
 
 	testLabel := "spec:list-cmd-test"
 
-	// Manually execute the expected command to verify bd accepts it
-	cmd := exec.Command("bd", "list", "--json", "--label", testLabel)
+	// Manually execute the expected command with --all and --limit 0 flags to verify bd accepts it
+	cmd := exec.Command("bd", "list", "--json", "--label", testLabel, "--all", "--limit", "0")
 	cmd.Dir = c.Dir
 	out, err := cmd.CombinedOutput()
 
 	if err != nil {
 		if strings.Contains(string(out), "unknown flag") || strings.Contains(string(out), "flag provided but not defined") {
-			t.Fatalf("bd list does not support --label flag: %s", string(out))
+			t.Fatalf("bd list does not support required flags (--label, --all, or --limit): %s", string(out))
 		}
 		// Other errors (like no beads) are acceptable
 	}
@@ -435,6 +436,7 @@ func TestReadyWithLabel_CommandContract(t *testing.T) {
 }
 
 // TestListWithLabel_CommandContract verifies the exact bd command contract
+// Expected failure: Current test expects command without --all and --limit 0 flags.
 func TestListWithLabel_CommandContract(t *testing.T) {
 	if os.Getenv("BD_AVAILABLE") != "true" {
 		t.Skip("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
@@ -444,16 +446,22 @@ func TestListWithLabel_CommandContract(t *testing.T) {
 
 	testLabel := "spec:list-contract-test"
 
-	// Create test beads
+	// Create test beads (including a closed one to verify --all flag)
 	for i := 0; i < 2; i++ {
-		_, err := c.Create("List contract test bead", 1, []string{testLabel}, []string{})
+		bead, err := c.Create("List contract test bead", 1, []string{testLabel}, []string{})
 		if err != nil {
 			t.Skipf("Cannot create test bead %d: %v", i, err)
 		}
+		// Close the first bead to test --all flag behavior
+		if i == 0 {
+			if err := c.Close(bead.ID); err != nil {
+				t.Skipf("Cannot close test bead: %v", err)
+			}
+		}
 	}
 
-	// Manually execute the exact command we expect ListWithLabel to use
-	expectedCmd := []string{"bd", "list", "--json", "--label", testLabel, "--sort", "priority"}
+	// Manually execute the exact command we expect ListWithLabel to use (with --all and --limit 0)
+	expectedCmd := []string{"bd", "list", "--json", "--label", testLabel, "--sort", "priority", "--all", "--limit", "0"}
 	cmd := exec.Command(expectedCmd[0], expectedCmd[1:]...)
 	cmd.Dir = c.Dir
 	out, err := cmd.CombinedOutput()
@@ -470,8 +478,24 @@ func TestListWithLabel_CommandContract(t *testing.T) {
 		t.Errorf("Command and client behavior differ: cmd err=%v, client err=%v", err, clientErr)
 	}
 
-	// If both succeeded and we got beads, log success
-	if err == nil && clientErr == nil && len(beads) > 0 {
-		t.Logf("Contract verified: ListWithLabel(%q) returned %d beads", testLabel, len(beads))
+	// If both succeeded, verify we got beads including the closed one (proves --all flag works)
+	if err == nil && clientErr == nil {
+		if len(beads) < 2 {
+			t.Errorf("Contract test: expected at least 2 beads (1 open, 1 closed), got %d (--all flag may not be working)", len(beads))
+		}
+
+		// Count closed beads
+		closedCount := 0
+		for _, b := range beads {
+			if b.Status == "closed" {
+				closedCount++
+			}
+		}
+
+		if closedCount == 0 {
+			t.Errorf("Contract test: expected at least 1 closed bead in results (--all flag is required to return closed beads)")
+		}
+
+		t.Logf("Contract verified: ListWithLabel(%q) returned %d beads (%d closed)", testLabel, len(beads), closedCount)
 	}
 }
