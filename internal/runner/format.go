@@ -38,7 +38,7 @@ func formatPipeline(ps *pipeline.PipelineStatus) string {
 	lines = append(lines, formatItems(ps.UndecomposedPlans, 3)...)
 
 	// Beads
-	beadLine := fmt.Sprintf("  Beads:    %d ready", ps.ReadyBeadCount)
+	beadLine := fmt.Sprintf("  Beads:    %s", formatBeadBreakdown(ps))
 	lines = append(lines, beadLine)
 	lines = append(lines, formatItems(ps.ReadyBeads, 3)...)
 
