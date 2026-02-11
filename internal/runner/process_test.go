@@ -200,6 +200,66 @@ func TestSetupBeadContext_PreemptiveEscalationP1HighComplexity(t *testing.T) {
 	}
 }
 
+func TestSetupBeadContext_P0NoPreemptiveEscalation(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{
+		cfg: &config.Config{
+			Models: config.ModelsConfig{
+				P0: "opus",
+				P1: "sonnet",
+				P2: "haiku",
+			},
+			ScopeCheck: config.ScopeCheckConfig{
+				Enabled: true,
+				Model:   "haiku",
+			},
+			Claude: config.ClaudeConfig{
+				BeadTimeout: 300,
+			},
+			Escalation: config.EscalationConfig{
+				MaxRetriesPerModel: 2,
+				MaxRetriesPerBead:  5,
+			},
+		},
+		beads:    &mockBeadClient{},
+		renderer: &mockPromptRenderer{},
+		claude:   &mockClaudeClient{},
+		output:   &buf,
+	}
+
+	b := &bead.Bead{
+		ID:       "test-p0-high",
+		Title:    "Critical Task",
+		Priority: 0, // P0 = opus
+		Labels:   []string{},
+	}
+
+	scopeEstimate := &prompt.ScopeEstimate{
+		Complexity:                   "high",
+		EstimatedIterations:          3,
+		CanCompleteInSingleIteration: false,
+		Rationale:                    "Very complex task",
+		Blockers:                     []string{},
+	}
+
+	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, scopeEstimate)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer cancel()
+
+	// P0 should already be opus, no escalation
+	if bc.model != "opus" {
+		t.Errorf("expected model to remain 'opus', got %q", bc.model)
+	}
+	if bc.result.Escalated {
+		t.Error("expected result.Escalated to be false for P0 (already at top tier)")
+	}
+	if bc.result.EscalatedTo != "" {
+		t.Errorf("expected result.EscalatedTo to be empty, got %q", bc.result.EscalatedTo)
+	}
+}
+
 func TestHandleScopeTooLarge(t *testing.T) {
 	var buf strings.Builder
 	tempDir := t.TempDir()
