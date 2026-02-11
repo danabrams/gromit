@@ -109,3 +109,32 @@ func (cp *ClaudeProvider) StreamRun(ctx context.Context, prompt string, tier str
 		Model:    claudeResult.Model,
 	}, nil
 }
+
+// RunValidation executes validation commands using the LLM.
+// It resolves the tier to a model name and delegates to claude.Client.RunValidation().
+func (cp *ClaudeProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error) {
+	if cp == nil {
+		return nil, fmt.Errorf("claude provider is nil")
+	}
+	if cp.client == nil {
+		return nil, fmt.Errorf("claude client is nil")
+	}
+
+	// Resolve tier to model name
+	modelName := cp.resolveTier(tier)
+
+	// Delegate to claude.Client
+	claudeResult, err := cp.client.RunValidation(ctx, commands, modelName, workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert claude.Result to provider.Result
+	return &Result{
+		Success:  claudeResult.Success,
+		Output:   claudeResult.Output,
+		ExitCode: claudeResult.ExitCode,
+		Duration: claudeResult.Duration,
+		Model:    claudeResult.Model,
+	}, nil
+}
