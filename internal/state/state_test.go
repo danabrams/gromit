@@ -625,6 +625,407 @@ func TestReconcileFilteredHashes_Persistence(t *testing.T) {
 	}
 }
 
+// TestProviderCountsInitialization verifies that ProviderCounts map is initialized when loading state
+// Expected failure: ProviderCounts field does not exist on State struct yet
+func TestProviderCountsInitialization(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Load state - should initialize ProviderCounts as empty map
+	if err := f.Load(); err != nil {
+		t.Fatal(err)
+	}
+
+	counts := f.GetProviderCounts()
+	if counts == nil {
+		t.Error("GetProviderCounts should return empty map, not nil")
+	}
+	if len(counts) != 0 {
+		t.Errorf("expected empty provider counts, got %d entries", len(counts))
+	}
+}
+
+// TestIncrementProviderCount verifies that provider invocation counts can be incremented
+// Expected failure: IncrementProviderCount method does not exist on File yet
+func TestIncrementProviderCount(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Increment claude count multiple times
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("claude")
+
+	// Increment openai count once
+	f.IncrementProviderCount("openai")
+
+	counts := f.GetProviderCounts()
+	if counts["claude"] != 3 {
+		t.Errorf("expected claude count 3, got %d", counts["claude"])
+	}
+	if counts["openai"] != 1 {
+		t.Errorf("expected openai count 1, got %d", counts["openai"])
+	}
+}
+
+// TestIncrementProviderCountPersistence verifies that provider counts persist across save/load
+// Expected failure: ProviderCounts field does not exist on State struct yet
+func TestIncrementProviderCountPersistence(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Increment counts
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("openai")
+
+	// Save state
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Load in new File
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	counts := f2.GetProviderCounts()
+	if counts["claude"] != 2 {
+		t.Errorf("expected claude count 2 after load, got %d", counts["claude"])
+	}
+	if counts["openai"] != 1 {
+		t.Errorf("expected openai count 1 after load, got %d", counts["openai"])
+	}
+}
+
+// TestGetProviderCountsNilSafe verifies that GetProviderCounts handles nil receiver safely
+// Expected failure: GetProviderCounts method does not exist on File yet
+func TestGetProviderCountsNilSafe(t *testing.T) {
+	var f *File
+	counts := f.GetProviderCounts()
+	if counts != nil {
+		t.Error("nil File should return nil from GetProviderCounts")
+	}
+}
+
+// TestResetProviderCounts verifies that provider counts can be reset to zero
+// Expected failure: ResetProviderCounts method does not exist on File yet
+func TestResetProviderCounts(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Build up some counts
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("openai")
+	f.IncrementProviderCount("gemini")
+
+	// Reset counts
+	f.ResetProviderCounts()
+
+	counts := f.GetProviderCounts()
+	if len(counts) != 0 {
+		t.Errorf("expected empty counts after reset, got %d entries", len(counts))
+	}
+}
+
+// TestResetProviderCountsPersistence verifies that reset counts persist across save/load
+// Expected failure: ResetProviderCounts method does not exist on File yet
+func TestResetProviderCountsPersistence(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Build up counts and save
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("openai")
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Reset and save again
+	f.ResetProviderCounts()
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state after reset: %v", err)
+	}
+
+	// Load in new File and verify counts are empty
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	counts := f2.GetProviderCounts()
+	if len(counts) != 0 {
+		t.Errorf("expected empty counts after load, got %d entries", len(counts))
+	}
+}
+
+// TestSetProviderUnavailable verifies that a provider can be marked as unavailable
+// Expected failure: SetProviderUnavailable method does not exist on File yet
+func TestSetProviderUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Initially provider should be available
+	if !f.IsProviderAvailable("claude") {
+		t.Error("provider should be available initially")
+	}
+
+	// Mark provider unavailable until a future time
+	until := time.Now().Add(30 * time.Minute)
+	f.SetProviderUnavailable("claude", until)
+
+	// Provider should now be unavailable
+	if f.IsProviderAvailable("claude") {
+		t.Error("provider should be unavailable after SetProviderUnavailable")
+	}
+}
+
+// TestSetProviderUnavailablePersistence verifies that unavailable status persists across save/load
+// Expected failure: ProviderUnavailableUntil field does not exist on State struct yet
+func TestSetProviderUnavailablePersistence(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Mark provider unavailable
+	until := time.Now().Add(1 * time.Hour)
+	f.SetProviderUnavailable("claude", until)
+
+	// Save state
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Load in new File
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	// Provider should still be unavailable
+	if f2.IsProviderAvailable("claude") {
+		t.Error("provider should still be unavailable after load")
+	}
+}
+
+// TestIsProviderAvailableAfterCooldown verifies that provider becomes available after cooldown expires
+// Expected failure: IsProviderAvailable method does not exist on File yet
+func TestIsProviderAvailableAfterCooldown(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Mark provider unavailable until a past time
+	pastTime := time.Now().Add(-10 * time.Minute)
+	f.SetProviderUnavailable("claude", pastTime)
+
+	// Provider should be available because cooldown has passed
+	if !f.IsProviderAvailable("claude") {
+		t.Error("provider should be available after cooldown expires")
+	}
+}
+
+// TestIsProviderAvailableNilSafe verifies that IsProviderAvailable handles nil receiver safely
+// Expected failure: IsProviderAvailable method does not exist on File yet
+func TestIsProviderAvailableNilSafe(t *testing.T) {
+	var f *File
+	// Should not panic and should return true (available by default)
+	if !f.IsProviderAvailable("claude") {
+		t.Error("nil File should return true for IsProviderAvailable")
+	}
+}
+
+// TestClearProviderUnavailable verifies that unavailable status can be cleared
+// Expected failure: ClearProviderUnavailable method does not exist on File yet
+func TestClearProviderUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Mark provider unavailable
+	until := time.Now().Add(1 * time.Hour)
+	f.SetProviderUnavailable("claude", until)
+
+	// Provider should be unavailable
+	if f.IsProviderAvailable("claude") {
+		t.Error("provider should be unavailable after SetProviderUnavailable")
+	}
+
+	// Clear unavailable status
+	f.ClearProviderUnavailable("claude")
+
+	// Provider should now be available
+	if !f.IsProviderAvailable("claude") {
+		t.Error("provider should be available after ClearProviderUnavailable")
+	}
+}
+
+// TestClearProviderUnavailablePersistence verifies that cleared status persists across save/load
+// Expected failure: ClearProviderUnavailable method does not exist on File yet
+func TestClearProviderUnavailablePersistence(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Mark provider unavailable
+	until := time.Now().Add(1 * time.Hour)
+	f.SetProviderUnavailable("claude", until)
+
+	// Clear status and save
+	f.ClearProviderUnavailable("claude")
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Load in new File
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	// Provider should be available
+	if !f2.IsProviderAvailable("claude") {
+		t.Error("provider should be available after load")
+	}
+}
+
+// TestMultipleProvidersUnavailable verifies that multiple providers can be tracked independently
+// Expected failure: ProviderUnavailableUntil field does not exist on State struct yet
+func TestMultipleProvidersUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Mark claude unavailable (far future)
+	claudeUntil := time.Now().Add(2 * time.Hour)
+	f.SetProviderUnavailable("claude", claudeUntil)
+
+	// Mark openai unavailable (past)
+	openaiUntil := time.Now().Add(-10 * time.Minute)
+	f.SetProviderUnavailable("openai", openaiUntil)
+
+	// Claude should be unavailable
+	if f.IsProviderAvailable("claude") {
+		t.Error("claude should be unavailable")
+	}
+
+	// OpenAI should be available (cooldown expired)
+	if !f.IsProviderAvailable("openai") {
+		t.Error("openai should be available (cooldown expired)")
+	}
+
+	// Gemini was never marked unavailable, should be available
+	if !f.IsProviderAvailable("gemini") {
+		t.Error("gemini should be available (never marked unavailable)")
+	}
+}
+
+// TestProviderRoutingStateRoundTrip verifies complete round-trip of provider routing state
+// Expected failure: ProviderCounts and ProviderUnavailableUntil fields do not exist on State struct yet
+func TestProviderRoutingStateRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Set up provider counts
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("claude")
+	f.IncrementProviderCount("openai")
+	f.IncrementProviderCount("openai")
+	f.IncrementProviderCount("gemini")
+
+	// Mark one provider unavailable
+	claudeUntil := time.Now().Add(30 * time.Minute)
+	f.SetProviderUnavailable("claude", claudeUntil)
+
+	// Save state
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Load in new File
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	// Verify counts persisted
+	counts := f2.GetProviderCounts()
+	if counts["claude"] != 3 {
+		t.Errorf("expected claude count 3, got %d", counts["claude"])
+	}
+	if counts["openai"] != 2 {
+		t.Errorf("expected openai count 2, got %d", counts["openai"])
+	}
+	if counts["gemini"] != 1 {
+		t.Errorf("expected gemini count 1, got %d", counts["gemini"])
+	}
+
+	// Verify unavailable status persisted
+	if f2.IsProviderAvailable("claude") {
+		t.Error("claude should still be unavailable after load")
+	}
+	if !f2.IsProviderAvailable("openai") {
+		t.Error("openai should be available after load")
+	}
+	if !f2.IsProviderAvailable("gemini") {
+		t.Error("gemini should be available after load")
+	}
+}
+
+// TestNormalizeNilFieldsInitializesMaps verifies that NormalizeNilFields initializes provider maps
+// Expected failure: NormalizeNilFields method does not exist yet, or does not initialize provider maps
+func TestNormalizeNilFieldsInitializesMaps(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Manually set state to have nil maps (simulating deserialization of old state files)
+	f.state.ProviderCounts = nil
+	f.state.ProviderUnavailableUntil = nil
+
+	// Call NormalizeNilFields to initialize them
+	f.state.NormalizeNilFields()
+
+	// Verify maps are initialized (not nil)
+	if f.state.ProviderCounts == nil {
+		t.Error("ProviderCounts should be initialized to empty map, not nil")
+	}
+	if f.state.ProviderUnavailableUntil == nil {
+		t.Error("ProviderUnavailableUntil should be initialized to empty map, not nil")
+	}
+
+	// Should be able to use maps without panic
+	f.IncrementProviderCount("claude")
+	f.SetProviderUnavailable("openai", time.Now().Add(1*time.Hour))
+
+	counts := f.GetProviderCounts()
+	if counts["claude"] != 1 {
+		t.Errorf("expected claude count 1, got %d", counts["claude"])
+	}
+	if f.IsProviderAvailable("openai") {
+		t.Error("openai should be unavailable")
+	}
+}
+
+// TestProviderCountsWithZeroValues verifies that providers with zero counts are handled correctly
+// Expected failure: GetProviderCounts method does not exist on File yet
+func TestProviderCountsWithZeroValues(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Increment and get counts
+	f.IncrementProviderCount("claude")
+
+	counts := f.GetProviderCounts()
+
+	// Provider with count should be present
+	if counts["claude"] != 1 {
+		t.Errorf("expected claude count 1, got %d", counts["claude"])
+	}
+
+	// Provider never incremented should return zero (map zero-value behavior)
+	if counts["openai"] != 0 {
+		t.Errorf("expected openai count 0 (zero value), got %d", counts["openai"])
+	}
+}
+
 // Helper function for substring matching
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
