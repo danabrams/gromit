@@ -781,3 +781,13 @@ Configuration inline comments should explain the rationale (why) using keywords 
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-nrzg | conventions
+Cobra commands follow a consistent pattern: define flags at package level with var declarations, initialize the command struct in init(), and use PersistentPreRunE for validation/setup that applies across command variations. Always check existing similar commands (like debug.go) for the exact registration and error-handling patterns.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-nrzg | patterns
+When formatting output with multiple conditional sections, extract each section (calculations, visibility checks, formatting) into dedicated helper functions—this reduces duplication when the same components appear across different output modes or stat types (e.g., printModelLine handles all model stats formatting, printEscalations handles conditional escalation display)
+
+*Archived from new: filtered: generic engineering advice*
+

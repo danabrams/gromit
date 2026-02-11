@@ -2,9 +2,11 @@ package runner
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -190,4 +192,60 @@ func formatRecommendation(rec string) string {
 	}
 
 	return fmt.Sprintf("Next action: %s%s", rec, hint)
+}
+
+// formatModelPerformance formats model performance stats for display
+func formatModelPerformance(stats map[string]*logger.ModelStats) string {
+	if stats == nil || len(stats) == 0 {
+		return "Model Performance: (no data)"
+	}
+
+	var lines []string
+	lines = append(lines, "Model Performance:")
+
+	// Get model names and sort them for consistent ordering (tier order: opus, sonnet, haiku)
+	modelOrder := []string{"opus", "sonnet", "haiku"}
+	var models []string
+	for _, m := range modelOrder {
+		if _, exists := stats[m]; exists {
+			models = append(models, m)
+		}
+	}
+
+	// Add any models not in the standard list (alphabetically)
+	var otherModels []string
+	for m := range stats {
+		if m != "opus" && m != "sonnet" && m != "haiku" {
+			otherModels = append(otherModels, m)
+		}
+	}
+	sort.Strings(otherModels)
+	models = append(models, otherModels...)
+
+	// Format each model's stats
+	for _, model := range models {
+		s := stats[model]
+		if s == nil {
+			continue
+		}
+
+		// Calculate success rate percentage (rounded to nearest integer)
+		successRate := 0
+		if s.Iterations > 0 {
+			successRate = int(float64(s.Successes)/float64(s.Iterations)*100 + 0.5)
+		}
+
+		// Calculate average cost per iteration
+		avgCost := 0.0
+		if s.Iterations > 0 {
+			avgCost = s.TotalCostUSD / float64(s.Iterations)
+		}
+
+		// Format: "  model    XX% success  (X/Y)  avg $X.XX/iter"
+		line := fmt.Sprintf("  %-6s  %3d%% success  (%d/%d)  avg $%.2f/iter",
+			model, successRate, s.Successes, s.Iterations, avgCost)
+		lines = append(lines, line)
+	}
+
+	return strings.Join(lines, "\n")
 }
