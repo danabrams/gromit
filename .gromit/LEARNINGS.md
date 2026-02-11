@@ -35,7 +35,8 @@ Runner methods follow a consistent pattern: nil-safe receiver/config checks, fea
 
 *Seen once - may be specific to one task.*
 
-*No provisional learnings.*
+### 2026-02-11 | gromit-4yrb | conventions
+ValidateSpec must be called before ResolveSpec to provide helpful error messages with available specs; requires passing specsDir to functions that need validation
 
 ---
 
@@ -663,6 +664,21 @@ Use .gitignore to prevent accidentally committing build artifacts (*.test binari
 
 ### 2026-02-11 | gromit-r3mq | gotchas
 Go test binaries (*.test files) should be added to .gitignore to prevent accidental commits of large binary artifacts
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-0ypa | conventions
+Test files with t.Skip() on all tests are violations of RULES.md and should be deleted entirely rather than kept as placeholders — the codebase prefers removing untestable code over maintaining skipped test suites
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-s7hk | patterns
+When validating specific file existence, check with os.Stat() first for fast path; only call os.ReadDir() when file is missing to list alternatives for user-friendly error messages, avoiding unnecessary directory scans on success
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-4yrb | gotchas
+Function signature changes that add parameters should be updated at all call sites in the same file; use grep to verify all callers are updated before testing.
 
 *Archived from new: filtered: generic engineering advice*
 

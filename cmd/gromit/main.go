@@ -205,6 +205,10 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	var labels []string
 
 	if retroSpecFlag != "" {
+		specsDir := filepath.Join(gromitDir, "specs")
+		if err := scope.ValidateSpec(specsDir, retroSpecFlag); err != nil {
+			return fmt.Errorf("validating spec: %w", err)
+		}
 		labels = scope.ResolveSpec(retroSpecFlag)
 	} else if retroEpicFlag != "" {
 		specsDir := filepath.Join(gromitDir, "specs")

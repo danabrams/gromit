@@ -17,14 +17,14 @@ import (
 var exploreCmd = &cobra.Command{
 	Use:   "explore [topic]",
 	Short: "Launch interactive exploration session",
-	Long: `Launch an interactive Claude Code session for exploring problem spaces.
+	Long: `Launch an interactive brainstorming session for exploring a big idea or problem space.
 
-The session receives full project context (CLAUDE.md, RULES.md, LEARNINGS.md)
-and guides free-form exploration to understand problems, research approaches,
-and identify scope before committing to artifacts.
+The session receives full project context and guides collaborative exploration
+to break down ideas into concrete artifacts: backlog items (via gromit add),
+specs, or epics — whatever granularity makes sense.
 
 Examples:
-  gromit explore                              # Blank exploration
+  gromit explore                              # Open-ended brainstorm
   gromit explore "Improve developer onboarding" # Pre-seeded topic
   gromit explore --model sonnet "Add dark mode" # Override model`,
 	Args: cobra.MaximumNArgs(1),
@@ -257,6 +257,24 @@ Specs directory: %s
 %s
 
 `, confirmedLearnings, recentLearnings))
+
+	// Exploration instructions
+	sb.WriteString("## Instructions\n\n")
+	sb.WriteString("You are running an exploration session. Your goal is to brainstorm a big idea or problem space and break it down into concrete, actionable artifacts.\n\n")
+	sb.WriteString("### What To Do\n\n")
+	sb.WriteString("1. **Understand the problem space** — If a topic was provided above, start there. Otherwise, ask the user what they want to explore. Read relevant code and docs to ground your understanding.\n\n")
+	sb.WriteString("2. **Brainstorm broadly** — Think through the problem from multiple angles. Consider user needs, technical constraints, edge cases, and alternative approaches. Discuss ideas with the user — this is a collaborative session.\n\n")
+	sb.WriteString("3. **Break it down** — As ideas crystallize, capture them as the appropriate artifact type:\n\n")
+	sb.WriteString(fmt.Sprintf("   - **Backlog items** — Quick ideas, rough feature requests, bugs, or chores. Add these by running: gromit add \"<idea>\". Optionally provide context when prompted. These flow through the refine → plan → decompose pipeline later.\n"))
+	sb.WriteString(fmt.Sprintf("   - **Specs** — For ideas that are well-understood enough to specify, write a spec file to %s/<name>.md. A spec describes what to build, why, acceptance criteria, and key decisions. See existing specs in that directory for the format.\n", specsDir))
+	sb.WriteString(fmt.Sprintf("   - **Epics** — For large initiatives that span multiple specs, write an epic file to %s/epics/<name>.md with frontmatter containing epic_id and created fields.\n\n", gromitDir))
+	sb.WriteString("4. **Prefer backlog items** — When in doubt, use gromit add. Backlog items are cheap and get refined later. Only write specs for ideas you've discussed enough to specify clearly. Only create epics when the scope genuinely spans multiple independent specs.\n\n")
+	sb.WriteString("### What NOT To Do\n\n")
+	sb.WriteString("- Do NOT implement features or write production code\n")
+	sb.WriteString("- Do NOT create beads with bd create — that happens during decomposition\n")
+	sb.WriteString("- Do NOT skip the conversation — explore with the user, don't just dump a list of ideas\n\n")
+	sb.WriteString("### Session Flow\n\n")
+	sb.WriteString("Start by understanding the topic, then alternate between discussing ideas and capturing them. End the session when the problem space feels well-mapped and the key ideas have been captured as artifacts.\n")
 
 	return sb.String(), nil
 }
