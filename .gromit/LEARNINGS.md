@@ -44,6 +44,9 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 ### 2026-02-11 | gromit-rpne | conventions
 Template files in .gromit/templates/ follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks—preserve exact line ranges when updating guidelines to avoid disrupting downstream sections
 
+### 2026-02-11 | gromit-o4ow | patterns
+Test cases in learnings_test.go use subtests with t.Run and table-driven patterns, with mock implementations via testutils package providing controlled state for archived duplicate detection
+
 ---
 
 ## Archived

@@ -263,6 +263,54 @@ func TestRunCommand_NoFlagsProcessesAllBeads(t *testing.T) {
 	}
 }
 
+// TestRunCommand_HelpTextDocumentsSpecFlag verifies that the run command help
+// documents the --spec flag and explains its filtering behavior.
+//
+// Expected failure: runCmd.Long does not document --spec flag yet.
+func TestRunCommand_HelpTextDocumentsSpecFlag(t *testing.T) {
+	helpText := runCmd.Long
+
+	if !strings.Contains(helpText, "--spec") {
+		t.Error("runCmd.Long should document --spec flag")
+	}
+
+	// Verify it explains the filtering/scoping concept
+	lowerHelp := strings.ToLower(helpText)
+	if !strings.Contains(lowerHelp, "filter") && !strings.Contains(lowerHelp, "scope") {
+		t.Error("runCmd.Long should explain that --spec filters/scopes which beads are processed")
+	}
+}
+
+// TestRunCommand_HelpTextDocumentsEpicFlag verifies that the run command help
+// documents the --epic flag and explains its filtering behavior.
+//
+// Expected failure: runCmd.Long does not document --epic flag yet.
+func TestRunCommand_HelpTextDocumentsEpicFlag(t *testing.T) {
+	helpText := runCmd.Long
+
+	if !strings.Contains(helpText, "--epic") {
+		t.Error("runCmd.Long should document --epic flag")
+	}
+
+	// Verify it explains the filtering/scoping concept
+	lowerHelp := strings.ToLower(helpText)
+	if !strings.Contains(lowerHelp, "filter") && !strings.Contains(lowerHelp, "scope") {
+		t.Error("runCmd.Long should explain that --epic filters/scopes which beads are processed")
+	}
+}
+
+// TestRunCommand_HelpTextDocumentsMutualExclusivity verifies that the help text
+// explains that --spec and --epic are mutually exclusive.
+//
+// Expected failure: runCmd.Long does not document mutual exclusivity yet.
+func TestRunCommand_HelpTextDocumentsMutualExclusivity(t *testing.T) {
+	helpText := runCmd.Long
+
+	if !strings.Contains(strings.ToLower(helpText), "mutually exclusive") {
+		t.Error("runCmd.Long should note that --spec and --epic are mutually exclusive")
+	}
+}
+
 // --- Test Helpers ---
 
 // setupFullGromitEnv creates a complete gromit environment for testing.
