@@ -172,12 +172,13 @@ type IterationResult struct {
 	ValidationRetried     bool // true when validation recovery was attempted
 
 	// Diagnostic fields for timeout investigation
-	TimeoutType        string // "stall", "bead", "invocation", ""
-	TimeToFirstEventMs int64
-	ToolCallCount      int
-	StallCount         int
-	StallTier          string // "initial" or "active"
-	RateLimitHits      int
+	TimeoutType         string // "stall", "bead", "invocation", ""
+	TimeToFirstEventMs  int64
+	ToolCallCount       int
+	StallCount          int
+	StallTier           string // "initial" or "active"
+	RateLimitHits       int
+	RateLimitRecoveryMs int64 // ms to recover from most recent rate limit
 }
 
 // SubTask represents a single sub-task from task decomposition
