@@ -173,29 +173,12 @@ func getSpecBaseCommit(specName string, specsDir string) (string, error) {
 	}
 
 	// Find the earliest commit from these beads
-	earliestCommit := ""
-	for _, b := range beadsWithLabel {
-		commit, err := findFirstCommitForBead(b.ID)
-		if err != nil {
-			// Skip beads that don't have commits
-			continue
-		}
-		if commit != "" {
-			if earliestCommit == "" {
-				earliestCommit = commit
-			} else {
-				if isCommitEarlier(commit, earliestCommit) {
-					earliestCommit = commit
-				}
-			}
-		}
+	earliestCommit := findEarliestCommitFromBeads(beadsWithLabel)
+	if earliestCommit == "" {
+		return "", fmt.Errorf("no commits found for spec %q - try using --since to specify a commit", specName)
 	}
 
-	if earliestCommit != "" {
-		return earliestCommit, nil
-	}
-
-	return "", fmt.Errorf("no commits found for spec %q - try using --since to specify a commit", specName)
+	return earliestCommit, nil
 }
 
 func getEpicBaseCommit(epicID, specsDir, gromitDir string) (string, error) {
@@ -229,29 +212,12 @@ func getEpicBaseCommit(epicID, specsDir, gromitDir string) (string, error) {
 	}
 
 	// Find the earliest commit from these beads
-	earliestCommit := ""
-	for _, b := range allBeads {
-		commit, err := findFirstCommitForBead(b.ID)
-		if err != nil {
-			// Skip beads that don't have commits
-			continue
-		}
-		if commit != "" {
-			if earliestCommit == "" {
-				earliestCommit = commit
-			} else {
-				if isCommitEarlier(commit, earliestCommit) {
-					earliestCommit = commit
-				}
-			}
-		}
+	earliestCommit := findEarliestCommitFromBeads(allBeads)
+	if earliestCommit == "" {
+		return "", fmt.Errorf("no commits found for epic %q - try using --since to specify a commit", epicID)
 	}
 
-	if earliestCommit != "" {
-		return earliestCommit, nil
-	}
-
-	return "", fmt.Errorf("no commits found for epic %q - try using --since to specify a commit", epicID)
+	return earliestCommit, nil
 }
 
 func findFirstCommitForBead(beadID string) (string, error) {
@@ -299,6 +265,29 @@ func isCommitEarlier(commit1, commit2 string) bool {
 	}
 
 	return timestamp1 < timestamp2
+}
+
+// findEarliestCommitFromBeads iterates through beads and returns the earliest commit found.
+// Returns empty string if no commits are found.
+func findEarliestCommitFromBeads(beads []*bead.Bead) string {
+	earliestCommit := ""
+	for _, b := range beads {
+		commit, err := findFirstCommitForBead(b.ID)
+		if err != nil {
+			// Skip beads that don't have commits
+			continue
+		}
+		if commit != "" {
+			if earliestCommit == "" {
+				earliestCommit = commit
+			} else {
+				if isCommitEarlier(commit, earliestCommit) {
+					earliestCommit = commit
+				}
+			}
+		}
+	}
+	return earliestCommit
 }
 
 func getGitDiffForReview(fromCommit string) (string, error) {
