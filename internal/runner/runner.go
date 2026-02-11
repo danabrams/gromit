@@ -650,6 +650,12 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	// Check if ATDD is active for this bead
 	atddActive := bead.IsMethodologyActive(bc.bead.Labels, "atdd", r.cfg.Methodology.ATDD)
 
+	// Skip ATDD for test-only beads — their deliverable IS tests
+	if atddActive && bead.IsTestOnlyBead(bc.bead.Title) {
+		r.log("Skipping ATDD: bead is test-only")
+		atddActive = false
+	}
+
 	// ATDD Phase 1: Write acceptance tests (if ATDD active)
 	if atddActive {
 		r.log("ATDD enabled, writing acceptance tests first...")
