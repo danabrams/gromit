@@ -117,8 +117,8 @@ func TestStatsCmd_DisplaysProjectStats(t *testing.T) {
 
 	// Execute stats command
 	output := captureStdout(t, func() {
-		statsCmd.SetArgs([]string{})
-		if err := statsCmd.Execute(); err != nil {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("stats command failed: %v", err)
 		}
 	})
@@ -250,8 +250,8 @@ func TestStatsCmd_DisplaysGlobalStats(t *testing.T) {
 
 	// Execute stats command
 	output := captureStdout(t, func() {
-		statsCmd.SetArgs([]string{})
-		if err := statsCmd.Execute(); err != nil {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("stats command failed: %v", err)
 		}
 	})
@@ -332,8 +332,8 @@ func TestStatsCmd_JSONOutput(t *testing.T) {
 
 	// Execute stats command with --json flag
 	output := captureStdout(t, func() {
-		statsCmd.SetArgs([]string{"--json"})
-		if err := statsCmd.Execute(); err != nil {
+		rootCmd.SetArgs([]string{"stats", "--json"})
+		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("stats command with --json failed: %v", err)
 		}
 	})
@@ -434,8 +434,8 @@ func TestStatsCmd_ShowsCostPerCompletedBead(t *testing.T) {
 
 	// Execute stats command
 	output := captureStdout(t, func() {
-		statsCmd.SetArgs([]string{})
-		if err := statsCmd.Execute(); err != nil {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("stats command failed: %v", err)
 		}
 	})
@@ -513,7 +513,8 @@ func TestStatsCmd_HandlesNoGlobalStats(t *testing.T) {
 
 	// Execute stats command - should not error even without global stats
 	output := captureStdout(t, func() {
-		if err := statsCmd.Execute(); err != nil {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("stats command should not error when global stats missing: %v", err)
 		}
 	})
@@ -619,8 +620,8 @@ func TestStatsCmd_ShowsEscalationFrequency(t *testing.T) {
 
 	// Execute stats command
 	output := captureStdout(t, func() {
-		statsCmd.SetArgs([]string{})
-		if err := statsCmd.Execute(); err != nil {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("stats command failed: %v", err)
 		}
 	})
@@ -657,21 +658,25 @@ func captureStdout(t *testing.T, fn func()) string {
 	origStdout := os.Stdout
 	os.Stdout = w
 
-	// Ensure we restore stdout and close pipe
-	defer func() {
-		os.Stdout = origStdout
-		w.Close()
+	// Capture output in a goroutine to avoid deadlock
+	done := make(chan string)
+	go func() {
+		var buf strings.Builder
+		io.Copy(&buf, r)
+		done <- buf.String()
 	}()
 
 	// Run the function
 	fn()
 
-	// Close writer and read captured output
+	// Close writer to signal goroutine
 	w.Close()
-	var buf strings.Builder
-	if _, err := io.Copy(&buf, r); err != nil {
-		t.Fatalf("failed to read captured output: %v", err)
-	}
 
-	return buf.String()
+	// Restore stdout
+	os.Stdout = origStdout
+
+	// Wait for captured output
+	output := <-done
+
+	return output
 }
