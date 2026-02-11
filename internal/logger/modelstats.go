@@ -85,7 +85,68 @@ func ReadModelStats(logsDir string) (map[string]ModelStats, error) {
 
 // ReadRunModelStats aggregates per-model statistics filtered by run ID
 func ReadRunModelStats(logsDir string, runID string) (map[string]ModelStats, error) {
-	return nil, nil
+	modelMap := make(map[string]ModelStats)
+
+	// Empty runID returns empty stats
+	if runID == "" {
+		return modelMap, nil
+	}
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		return modelMap, fmt.Errorf("globbing log files: %w", err)
+	}
+
+	for _, f := range files {
+		// Only process files matching the specified runID
+		if extractRunID(f) != runID {
+			continue
+		}
+
+		entries, err := readLogFile(f)
+		if err != nil {
+			continue // Skip unreadable files
+		}
+
+		for _, entry := range entries {
+			stats := modelMap[entry.Model]
+
+			// Initialize with model name if first time
+			if stats.Model == "" {
+				stats.Model = entry.Model
+			}
+
+			stats.Iterations++
+			if entry.Success {
+				stats.Successes++
+			} else {
+				stats.Failures++
+			}
+
+			stats.TotalCostUSD += entry.CostUSD
+
+			// Track escalations
+			if entry.Escalated {
+				stats.EscalationsFrom++
+			}
+
+			modelMap[entry.Model] = stats
+		}
+
+		// Track escalation "to" counts separately
+		for _, entry := range entries {
+			if entry.Escalated && entry.EscalatedTo != "" {
+				targetStats := modelMap[entry.EscalatedTo]
+				if targetStats.Model == "" {
+					targetStats.Model = entry.EscalatedTo
+				}
+				targetStats.EscalationsTo++
+				modelMap[entry.EscalatedTo] = targetStats
+			}
+		}
+	}
+
+	return modelMap, nil
 }
 
 // CostPerCompletedBead computes the total cost per completed bead
