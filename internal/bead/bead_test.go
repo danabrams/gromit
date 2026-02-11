@@ -2435,3 +2435,94 @@ func TestCountByStatusEmptyResults(t *testing.T) {
 		})
 	}
 }
+
+// TestCountByStatusWithBeads tests that CountByStatus returns correct count for various statuses
+func TestCountByStatusWithBeads(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonOutput string
+		wantCount  int
+	}{
+		{
+			name: "single open bead",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Task",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "open"
+			}]`,
+			wantCount: 1,
+		},
+		{
+			name: "multiple closed beads",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Task 1",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "closed"
+			}, {
+				"id": "task-002",
+				"title": "Task 2",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "closed"
+			}, {
+				"id": "task-003",
+				"title": "Task 3",
+				"priority": 2,
+				"issue_type": "bug",
+				"status": "closed"
+			}]`,
+			wantCount: 3,
+		},
+		{
+			name: "many in-progress beads",
+			jsonOutput: `[{
+				"id": "task-001",
+				"title": "Task 1",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "in_progress"
+			}, {
+				"id": "task-002",
+				"title": "Task 2",
+				"priority": 1,
+				"issue_type": "task",
+				"status": "in_progress"
+			}, {
+				"id": "task-003",
+				"title": "Task 3",
+				"priority": 1,
+				"issue_type": "feature",
+				"status": "in_progress"
+			}, {
+				"id": "task-004",
+				"title": "Task 4",
+				"priority": 2,
+				"issue_type": "bug",
+				"status": "in_progress"
+			}, {
+				"id": "task-005",
+				"title": "Task 5",
+				"priority": 0,
+				"issue_type": "epic",
+				"status": "in_progress"
+			}]`,
+			wantCount: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, err := parseBeadCount(tt.jsonOutput)
+			if err != nil {
+				t.Fatalf("parseBeadCount() error = %v", err)
+			}
+			if count != tt.wantCount {
+				t.Errorf("parseBeadCount() = %d, want %d", count, tt.wantCount)
+			}
+		})
+	}
+}
