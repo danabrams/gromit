@@ -96,6 +96,13 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		scopeEstimate:     scopeEstimate,
 	}
 
+	// Preemptive escalation: if scope check is enabled, scope complexity is high,
+	// and model is sonnet, escalate to opus before first invocation
+	if r.cfg.ScopeCheck.Enabled && scopeEstimate != nil && scopeEstimate.Complexity == "high" && model == "sonnet" {
+		r.log("Scope check: complexity=high, preemptively escalating from sonnet to opus")
+		r.escalateModel(bc, "opus")
+	}
+
 	return bc, beadCtx, beadCancel, nil
 }
 
@@ -507,7 +514,9 @@ func (r *Runner) escalateModel(bc *beadContext, nextModel string) {
 	bc.model = nextModel
 	bc.retriesThisModel = 0
 	bc.result.Model = bc.model
-	bc.promptCtx.Model = bc.model
+	if bc.promptCtx != nil {
+		bc.promptCtx.Model = bc.model
+	}
 }
 
 // runAcceptanceTestsWithRetry runs the acceptance test phase with retry and escalation logic.

@@ -59,6 +59,9 @@ When building comma-separated status breakdowns, only include non-zero counts an
 ### 2026-02-11 | gromit-j2p9 | patterns
 Test files for log parsing use synthetic JSONL with varying field completeness to document backward compatibility—test both full-format and minimal-format entries to prevent regressions when log schema evolves
 
+### 2026-02-11 | gromit-oqtr | patterns
+When adding a field to a logging structure (IterationLog), the field must be wired through three layers: capture it in the execution layer (executeClaudeInvocation extracts from DiagnosticSnapshot), store it in the intermediate result struct (IterationResult), and propagate it when writing the final log entry (writeIterationLog). Missing any layer breaks the data flow to JSONL output.
+
 ---
 
 ## Archived
