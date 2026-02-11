@@ -152,11 +152,24 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		}
 	}
 
+	// Use provided Router, or wrap Claude client for backward compatibility
+	router := deps.Router
+	if router == nil && deps.Claude != nil {
+		// Create a ClaudeProvider wrapping the Claude client
+		tierToModel := map[string]string{
+			"high":   "opus",
+			"medium": "sonnet",
+			"low":    "haiku",
+		}
+		claudeProvider := provider.NewClaudeProvider(deps.Claude, tierToModel)
+		router = provider.NewSingleProviderRouter(claudeProvider)
+	}
+
 	return &Runner{
 		cfg:       cfg,
 		beads:     deps.Beads,
 		claude:    deps.Claude,
-		router:    deps.Router,
+		router:    router,
 		analyzer:  deps.Analyzer,
 		renderer:  deps.Renderer,
 		logger:    iterLogger,

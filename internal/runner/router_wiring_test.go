@@ -53,3 +53,23 @@ func TestNewRunnerWithDepsUsesProvidedRouter(t *testing.T) {
 		t.Errorf("Expected runner.router to be set from deps.Router")
 	}
 }
+
+// TestNewRunnerWithDepsFallsBackToWrappingClaude verifies that when deps.Router is nil,
+// NewRunnerWithDeps wraps deps.Claude in a single-provider router
+func TestNewRunnerWithDepsFallsBackToWrappingClaude(t *testing.T) {
+	cfg := &config.Config{}
+	mockClaude := &mockClaudeClient{}
+	deps := Deps{
+		Claude: mockClaude,
+		Router: nil,
+	}
+
+	runner, err := NewRunnerWithDeps(cfg, nil, "/tmp/gromit", deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() error = %v", err)
+	}
+
+	if runner.router == nil {
+		t.Errorf("Expected runner.router to be set even when deps.Router is nil")
+	}
+}
