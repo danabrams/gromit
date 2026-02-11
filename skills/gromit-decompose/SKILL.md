@@ -34,18 +34,25 @@ When the skill starts:
 Each task in the plan must be mapped to 1-3 beads following these **strict sizing rules**:
 
 **Bead Sizing Rules:**
-- **One concern per bead** — A single file or two tightly coupled files
+- **One deliverable behavior per bead** — A single observable change that a caller or user could verify. Not "one file" or "one concern," but one unit of working functionality
 - **1-3 acceptance criteria** — Concrete, testable criteria only; split if more than 3
-- **Max 2 files touched** — If more, split the task into multiple beads
+- **Soft file limit of 4-5** — If touching 6+ files across unrelated packages, consider splitting. But touching interface.go, impl.go, mock_test.go, and impl_test.go for one method addition is fine — that's one change, not four
 - **Self-contained** — Understandable without reading other beads
 - **No ambiguity** — Claude implements without making design decisions
 - **Clear definition of done** — Each criterion has an obvious pass/fail test
 
+**Grouping Rules (Never Split These):**
+- **Interface + implementation + mock updates** — In Go, changing an interface requires updating all implementations and mocks to compile. This is one change, not three beads
+- **Implementation + its tests** — Claude writes tests alongside implementation. Under ATDD, they're explicitly the same workflow. Never create a separate "write tests for X" bead
+- **Companion methods in the same package** — Methods that follow the same pattern in the same file (e.g., `ReadyWithLabel` and `ListWithLabel`) are one bead. If you'd copy-paste-modify to create the second, they belong together
+- **Command flags + the wiring that makes them work** — A CLI flag that does nothing isn't a deliverable. The flag, its plumbing through to the runner, and its effect are one bead
+- **Template + its registration** — Adding a template file and registering it in the renderer are one action, not two
+
 **Splitting Logic:**
-- If a task touches 3+ files → split by file or by logical grouping
 - If a task has 4+ acceptance criteria → split into multiple beads with 1-3 criteria each
-- If a task has both implementation and tests → consider separate beads (implementation first, then tests)
-- If a task has multiple concerns (e.g., types + logic + API) → split by concern
+- If a task touches 6+ files across unrelated packages → split by package boundary
+- If two parts of a task are independently useful and don't need each other to compile → they can be separate beads
+- If a task requires design decisions that would benefit from being settled first (e.g., define the data model, then build the API) → split at the decision boundary
 
 **DO NOT** create beads that are too small (e.g., single-line changes) unless they're genuinely independent concerns.
 
@@ -150,32 +157,32 @@ You do NOT need to include these in the JSON output. Focus only on the five fiel
 
 ## Bead Splitting Examples
 
-### Example 1: Task Touches Too Many Files
+### Example 1: Task Touches Too Many Files Across Unrelated Packages
 
 **Plan Task:**
 ```
-Task 1: Add user authentication
-Files: models/user.go, store/user_store.go, api/auth.go, middleware/auth.go
+Task 1: Add user authentication system
+Files: models/user.go, store/user_store.go, store/user_store_test.go, api/auth.go, api/auth_test.go, middleware/auth.go, middleware/auth_test.go, config/auth_config.go
 Acceptance Criteria:
 - User model includes password hash field
 - User store has methods for creating and finding users
 - POST /api/register creates new users
 - POST /api/login validates credentials and returns token
 - Auth middleware validates tokens on protected routes
+- Auth config loaded from environment
 ```
 
-**Split into 3 beads:**
-1. Bead 0: Create user model with auth fields (models/user.go)
-2. Bead 1: Implement user store methods (store/user_store.go) — depends on [0]
-3. Bead 2: Add register and login endpoints (api/auth.go) — depends on [0, 1]
-4. Bead 3: Add auth middleware (middleware/auth.go) — depends on [2]
+**Split into 3 beads (each is a complete deliverable behavior):**
+1. Bead 0: Create user model and store with auth methods (models/user.go, store/user_store.go, store/user_store_test.go) — 2 criteria: model has password hash, store has create/find methods with tests
+2. Bead 1: Add register and login endpoints (api/auth.go, api/auth_test.go, config/auth_config.go) — 3 criteria: register creates users, login validates credentials and returns token, config loaded. Depends on [0]
+3. Bead 2: Add auth middleware (middleware/auth.go, middleware/auth_test.go) — 1 criterion: validates tokens on protected routes. Depends on [1]
 
 ### Example 2: Task Has Too Many Acceptance Criteria
 
 **Plan Task:**
 ```
 Task 2: Implement profile validation
-Files: internal/validator/profile.go
+Files: internal/validator/profile.go, internal/validator/profile_test.go
 Acceptance Criteria:
 - Validates email format using regex
 - Validates bio length is under 500 characters
@@ -186,32 +193,30 @@ Acceptance Criteria:
 ```
 
 **Split into 2 beads:**
-1. Bead 0: Implement field validators (email, bio, avatar, name) — 3 criteria
-2. Bead 1: Add validation error handling — 2 criteria, depends on [0]
+1. Bead 0: Implement field validators with tests (internal/validator/profile.go, profile_test.go) — 3 criteria: email format, bio length, avatar URL validation
+2. Bead 1: Add validation error handling with tests (internal/validator/profile.go, profile_test.go) — 2 criteria: structured errors, nil pointer handling. Depends on [0]
 
-### Example 3: Implementation + Tests
+### Example 3: Interface + Implementation + Tests (DO NOT SPLIT)
 
 **Plan Task:**
 ```
-Task 3: Build JWT token generator
-Files: internal/auth/token.go, internal/auth/token_test.go
+Task 3: Add JWT token generator interface
+Files: internal/auth/token.go, internal/auth/token_test.go, internal/auth/mocks/mock_token.go
 Acceptance Criteria:
-- Generates JWT tokens with user ID and expiration
-- Signs tokens with RS256 algorithm
-- Includes refresh token in response
-- Unit tests cover token generation
-- Unit tests cover signature verification
+- TokenGenerator interface defined with Generate and Validate methods
+- JWT implementation generates tokens with user ID and expiration
+- JWT implementation signs tokens with RS256 algorithm
+- Unit tests cover token generation and validation
 ```
 
-**Split into 2 beads:**
-1. Bead 0: Implement JWT token generation and signing — 3 criteria (implementation only)
-2. Bead 1: Add token generator tests — 2 criteria (tests), depends on [0]
+**One bead (natural unit):**
+1. Bead 0: Add TokenGenerator interface with JWT implementation (internal/auth/token.go, token_test.go, mocks/mock_token.go) — All 4 criteria. This is interface+implementation+mock+tests for one feature, so it stays together.
 
 ## Key Principles
 
 1. **Non-interactive** — No conversation, no questions, no explanations
 2. **JSON only** — Output must be valid JSON, nothing else
-3. **Strict sizing** — Enforce 1-2 files, 1-3 criteria per bead
+3. **Strict sizing** — Enforce 1-3 criteria per bead, soft limit of 4-5 files (split at 6+ across unrelated packages)
 4. **Self-contained beads** — Each bead is understandable on its own
 5. **Concrete criteria** — Every acceptance criterion must be testable
 6. **Dependency integrity** — Preserve task dependencies when splitting
@@ -220,10 +225,11 @@ Acceptance Criteria:
 
 1. **Outputting markdown**: DO NOT wrap JSON in code fences or add explanatory text
 2. **Too many criteria**: If you're creating a bead with 4+ criteria, you need to split it
-3. **Too many files**: If a bead touches 3+ files, it's too large
+3. **Too many files**: If a bead touches 6+ files across unrelated packages, it's too large (but interface+impl+mock+test for one feature is fine)
 4. **Vague criteria**: "Works correctly" is not testable; "Returns 404 when user not found" is
 5. **Missing dependencies**: If bead B uses types from bead A, B must depend on A
 6. **Breaking atomicity**: Each bead should be independently committable
+7. **Splitting natural units**: Never split interface+implementation+mock, implementation+tests, companion methods, flags+wiring, or template+registration
 
 ## Model and Complexity
 
