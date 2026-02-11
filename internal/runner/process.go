@@ -111,14 +111,10 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iterat
 		if scopeEstimate != nil {
 			if scopeEstimate.Complexity == "high" {
 				r.log("Scope check: complexity=high, auto-escalating to opus")
-				bc.model = "opus"
-				bc.result.Model = bc.model
-				bc.promptCtx.Model = bc.model
+				r.escalateModel(bc, "opus")
 			} else if scopeEstimate.Complexity == "medium" && bc.model == "sonnet" {
 				r.log("Scope check: complexity=medium on sonnet, auto-escalating to opus")
-				bc.model = "opus"
-				bc.result.Model = bc.model
-				bc.promptCtx.Model = bc.model
+				r.escalateModel(bc, "opus")
 			} else {
 				r.log("Scope check: complexity=%s", scopeEstimate.Complexity)
 			}
@@ -539,9 +535,8 @@ func (r *Runner) runAcceptanceTestsWithRetry(ctx context.Context, bc *beadContex
 		}
 
 		r.log("Escalating acceptance tests from %s to %s", currentModel, nextModel)
+		r.escalateModel(bc, nextModel)
 		currentModel = nextModel
-		bc.model = nextModel
-		bc.promptCtx.Model = nextModel
 		retries = 0
 	}
 }

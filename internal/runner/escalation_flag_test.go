@@ -19,11 +19,11 @@ import (
 // tracked in the iteration result.
 func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 	tests := []struct {
-		name           string
-		complexity     string
-		startModel     string
-		wantModel      string
-		wantEscalated  bool
+		name            string
+		complexity      string
+		startModel      string
+		wantModel       string
+		wantEscalated   bool
 		wantEscalatedTo string
 	}{
 		{
