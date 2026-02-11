@@ -98,6 +98,9 @@ When adding new nested config structs (ProvidersConfig, RoutingConfig), both Set
 ### 2026-02-11 | gromit-c2ax | conventions
 When adding new fields to Config struct, always update both SetDefaults() AND NormalizeNilFields() methods to maintain consistency in config initialization and normalization flows
 
+### 2026-02-11 | gromit-nqf1 | conventions
+When implementing features in gromit, check if acceptance tests are required and account for the total acceptance test line budget. The project enforces strict test line reduction targets via final_verification_test.go. New acceptance tests should be minimal or existing tests should be consolidated to stay within the 30% reduction target.
+
 ---
 
 ## Archived
