@@ -244,3 +244,22 @@ func TestClaudeProviderIsValidationPassedDelegation(t *testing.T) {
 		t.Errorf("IsValidationPassed() = %v, want true for result with VALIDATION_PASSED marker", got)
 	}
 }
+
+// TestClaudeProviderIsScopeTooLargeDelegation verifies that
+// IsScopeTooLarge() delegates to claude.IsScopeTooLarge().
+func TestClaudeProviderIsScopeTooLargeDelegation(t *testing.T) {
+	cp := &ClaudeProvider{}
+
+	result := &Result{
+		Success: true,
+		Output:  "Analysis:\nSCOPE_TOO_LARGE: This task touches 8 files across 4 packages.\n\nMore details...",
+	}
+
+	gotTooLarge, gotExplanation := cp.IsScopeTooLarge(result)
+	if !gotTooLarge {
+		t.Errorf("IsScopeTooLarge() tooLarge = %v, want true for result with SCOPE_TOO_LARGE marker", gotTooLarge)
+	}
+	if gotExplanation == "" {
+		t.Error("IsScopeTooLarge() explanation should not be empty when marker is present")
+	}
+}

@@ -165,3 +165,21 @@ func (cp *ClaudeProvider) IsValidationPassed(result *Result) bool {
 	}
 	return claude.IsValidationPassed(claudeResult)
 }
+
+// IsScopeTooLarge checks if the result indicates the task scope is too large.
+// Delegates to claude.IsScopeTooLarge() to check for the SCOPE_TOO_LARGE marker.
+// Returns true and the explanation text if the marker is found.
+func (cp *ClaudeProvider) IsScopeTooLarge(result *Result) (bool, string) {
+	if result == nil {
+		return false, ""
+	}
+	// Convert provider.Result to claude.Result for delegation
+	claudeResult := &claude.Result{
+		Success:  result.Success,
+		Output:   result.Output,
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+		Model:    result.Model,
+	}
+	return claude.IsScopeTooLarge(claudeResult)
+}
