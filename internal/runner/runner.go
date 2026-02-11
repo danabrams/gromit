@@ -1150,12 +1150,29 @@ func (r *Runner) Status() error {
 		return fmt.Errorf("loading state file: %w", err)
 	}
 
+	// Read model performance stats
+	modelStats, err := logger.ReadModelStats(r.cfg.Paths.Logs)
+	if err != nil {
+		// Log warning but continue - model stats are informational only
+		r.log("Warning: could not read model stats: %v", err)
+		modelStats = make(map[string]logger.ModelStats)
+	}
+
+	// Convert map[string]ModelStats to map[string]*ModelStats for formatter
+	modelStatsPtr := make(map[string]*logger.ModelStats)
+	for k, v := range modelStats {
+		vCopy := v
+		modelStatsPtr[k] = &vCopy
+	}
+
 	// Format and print all sections
 	r.log("%s", formatPipeline(pipelineStatus))
 	r.log("")
 	r.log("%s", formatRun(status))
 	r.log("")
 	r.log("%s", formatHealth(stateFile.LastRetro(), stateFile.IterationsSinceReview()))
+	r.log("")
+	r.log("%s", formatModelPerformance(modelStatsPtr))
 	r.log("")
 	r.log("%s", formatRecommendation(pipelineStatus.Recommendation))
 

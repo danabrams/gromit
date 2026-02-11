@@ -77,6 +77,9 @@ Aggregation functions follow a consistent pattern: glob run-*.jsonl files, optio
 ### 2026-02-11 | gromit-jsta | patterns
 Atomic file updates in logger package follow read-modify-write with temp-file-then-rename: ReadGlobalStats handles missing files gracefully (returns initialized empty state, not error), UpdateGlobalStats merges data then writes atomically via CreateTemp+Rename, with defer cleanup. Apply this pattern to other file-based aggregations.
 
+### 2026-02-11 | gromit-6w39 | patterns
+All format functions return single strings with embedded newlines (built by appending to []string and joining). Handle nil/empty inputs with early returns showing '(no data)'. Use 2-space indentation for all sub-items and consistent section headers like 'Section Name:' followed by indented details.
+
 ---
 
 ## Archived
