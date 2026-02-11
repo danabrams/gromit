@@ -11,6 +11,9 @@
 .DS_Store
 Thumbs.db
 
+# Test binaries
+*.test
+
 # Test coverage
 coverage.out
 
