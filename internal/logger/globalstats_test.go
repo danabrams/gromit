@@ -580,4 +580,3 @@ func TestReadGlobalStats_InitializedFieldsOnMissingFile(t *testing.T) {
 		t.Error("Models should be initialized to empty map, got nil")
 	}
 }
-

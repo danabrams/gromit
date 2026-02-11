@@ -29,13 +29,13 @@ type IterationLog struct {
 	ValidationRetried bool      `json:"validation_retried,omitempty"`
 
 	// Diagnostic fields for timeout investigation
-	TimeoutType         string `json:"timeout_type,omitempty"`             // "stall", "bead", "invocation", ""
-	TimeToFirstEventMs  int64  `json:"time_to_first_event_ms,omitempty"`   // ms from start to first stream event
-	ToolCallCount       int    `json:"tool_call_count,omitempty"`          // tool calls before completion/timeout
-	StallCount          int    `json:"stall_count,omitempty"`              // number of stall detections
-	StallTier           string `json:"stall_tier,omitempty"`               // "initial" or "active"
-	RateLimitHits       int    `json:"rate_limit_hits,omitempty"`          // rate limit events detected
-	RateLimitRecoveryMs int64  `json:"rate_limit_recovery_ms,omitempty"`   // ms to recover from most recent rate limit
+	TimeoutType         string `json:"timeout_type,omitempty"`           // "stall", "bead", "invocation", ""
+	TimeToFirstEventMs  int64  `json:"time_to_first_event_ms,omitempty"` // ms from start to first stream event
+	ToolCallCount       int    `json:"tool_call_count,omitempty"`        // tool calls before completion/timeout
+	StallCount          int    `json:"stall_count,omitempty"`            // number of stall detections
+	StallTier           string `json:"stall_tier,omitempty"`             // "initial" or "active"
+	RateLimitHits       int    `json:"rate_limit_hits,omitempty"`        // rate limit events detected
+	RateLimitRecoveryMs int64  `json:"rate_limit_recovery_ms,omitempty"` // ms to recover from most recent rate limit
 }
 
 // ReviewLog represents a review's outcome (light or thorough)

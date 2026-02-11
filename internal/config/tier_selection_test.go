@@ -150,7 +150,7 @@ func TestSelectTierLabelOverrides(t *testing.T) {
 			}},
 			priority: 2,
 			labels:   []string{"spec:example"}, // Not in Labels map
-			want:     provider.TierLow,          // Falls back to P2
+			want:     provider.TierLow,         // Falls back to P2
 		},
 	}
 
@@ -251,9 +251,9 @@ func TestSelectTierBackwardCompatibility(t *testing.T) {
 		{
 			name: "MixedTierAndLegacyConfig",
 			cfg: &Config{Models: ModelsConfig{
-				P0: "opus",               // Legacy
-				P1: provider.TierMedium,  // Tier
-				P2: "haiku",              // Legacy
+				P0: "opus",              // Legacy
+				P1: provider.TierMedium, // Tier
+				P2: "haiku",             // Legacy
 			}},
 			priority: 0,
 			labels:   nil,

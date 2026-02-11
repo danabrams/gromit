@@ -67,22 +67,22 @@ type ToolResultFile struct {
 
 // StreamStats tracks activity during a Claude run
 type StreamStats struct {
-	mu                   sync.Mutex
-	ToolCalls            int
-	FilesModified        map[string]bool
-	StartTime            time.Time
-	LastEventTime        time.Time
-	firstEventReceived   bool
-	FirstEventTime       time.Time
-	TotalCost            float64
-	InputTokens          int
-	OutputTokens         int
-	StallCount           int
-	StallTier            string // "initial" or "active"
-	RateLimitHits        int
-	lastRateLimitTime    time.Time     // timestamp of most recent rate limit
-	rateLimitRecoveryMs  int64         // recovery time in ms from most recent rate limit
-	hasUnrecoveredRateLimit bool       // true if rate limit hit but no event after
+	mu                      sync.Mutex
+	ToolCalls               int
+	FilesModified           map[string]bool
+	StartTime               time.Time
+	LastEventTime           time.Time
+	firstEventReceived      bool
+	FirstEventTime          time.Time
+	TotalCost               float64
+	InputTokens             int
+	OutputTokens            int
+	StallCount              int
+	StallTier               string // "initial" or "active"
+	RateLimitHits           int
+	lastRateLimitTime       time.Time // timestamp of most recent rate limit
+	rateLimitRecoveryMs     int64     // recovery time in ms from most recent rate limit
+	hasUnrecoveredRateLimit bool      // true if rate limit hit but no event after
 }
 
 // NewStreamStats creates a new StreamStats

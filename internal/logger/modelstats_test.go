@@ -9,13 +9,13 @@ import (
 // Expected failure: ModelStats struct does not exist yet
 func TestModelStats_Struct(t *testing.T) {
 	ms := ModelStats{
-		Model:          "opus",
-		Iterations:     10,
-		Successes:      8,
-		Failures:       2,
-		EscalationsTo:  3,
+		Model:           "opus",
+		Iterations:      10,
+		Successes:       8,
+		Failures:        2,
+		EscalationsTo:   3,
 		EscalationsFrom: 1,
-		TotalCostUSD:   12.50,
+		TotalCostUSD:    12.50,
 	}
 
 	if ms.Model != "opus" {
@@ -173,13 +173,13 @@ func TestReadModelStats_MultipleModels(t *testing.T) {
 			DurationMs: 30000,
 		},
 		{
-			BeadID:     "b2",
-			Model:      "sonnet",
-			Success:    false,
-			Escalated:  true,
+			BeadID:      "b2",
+			Model:       "sonnet",
+			Success:     false,
+			Escalated:   true,
 			EscalatedTo: "opus",
-			CostUSD:    0.25,
-			DurationMs: 20000,
+			CostUSD:     0.25,
+			DurationMs:  20000,
 		},
 		{
 			BeadID:     "b2",
