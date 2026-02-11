@@ -1,11 +1,9 @@
 package logger
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 // Expected failure: ModelStats struct does not exist yet

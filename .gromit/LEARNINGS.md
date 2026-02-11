@@ -767,3 +767,8 @@ Consolidate related test scenarios for a feature into a dedicated, focused test 
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-2xrq | conventions
+Configuration inline comments should explain the rationale (why) using keywords like 'needs', 'consistently', 'longer', 'complex', 'prevent' — not just the value itself (what). Tests can verify this by searching for rationale keywords in comments.
+
+*Archived from new: filtered: generic engineering advice*
+
