@@ -28,8 +28,6 @@ func setupNewRunnerDirs(t *testing.T) string {
 
 // TestNewRunnerWithProvidersBuildsMultiProviderRouter verifies that when config
 // has a providers section, NewRunner constructs a multi-provider Router (not nil).
-//
-// Expected failure: the HasProviders() branch in NewRunner is a TODO — router remains nil
 func TestNewRunnerWithProvidersBuildsMultiProviderRouter(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -83,7 +81,6 @@ func TestNewRunnerWithProvidersBuildsMultiProviderRouter(t *testing.T) {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
 
-	// Expected failure: router is nil because HasProviders() branch is a TODO
 	if runner.router == nil {
 		t.Fatal("Expected runner.router to be non-nil when providers are configured, got nil")
 	}
@@ -91,8 +88,6 @@ func TestNewRunnerWithProvidersBuildsMultiProviderRouter(t *testing.T) {
 
 // TestNewRunnerWithProvidersSelectsCorrectProviderForPhase verifies that a
 // multi-provider Router built from config routes phases to the preferred provider.
-//
-// Expected failure: router is nil because HasProviders() branch is not implemented
 func TestNewRunnerWithProvidersSelectsCorrectProviderForPhase(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -162,8 +157,6 @@ func TestNewRunnerWithProvidersSelectsCorrectProviderForPhase(t *testing.T) {
 
 // TestNewRunnerWithProvidersCodexTierMapping verifies that the codex provider
 // created from config has the correct tier-to-model mapping.
-//
-// Expected failure: router is nil because HasProviders() branch is not implemented
 func TestNewRunnerWithProvidersCodexTierMapping(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -212,8 +205,6 @@ func TestNewRunnerWithProvidersCodexTierMapping(t *testing.T) {
 
 // TestNewRunnerUnrecognizedProviderReturnsError verifies that an unrecognized
 // provider name in the config causes NewRunner to return a clear error.
-//
-// Expected failure: HasProviders() branch is a TODO — unrecognized providers are not checked
 func TestNewRunnerUnrecognizedProviderReturnsError(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -249,8 +240,6 @@ func TestNewRunnerUnrecognizedProviderReturnsError(t *testing.T) {
 
 // TestNewRunnerEmptyModelsUsesDefaults verifies that when a provider's models
 // map is nil or empty, NewRunner fills in default tier mappings.
-//
-// Expected failure: HasProviders() branch is a TODO — default model mapping not applied
 func TestNewRunnerEmptyModelsUsesDefaults(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -304,12 +293,8 @@ func TestNewRunnerEmptyModelsUsesDefaults(t *testing.T) {
 
 // TestNewRunnerWithProvidersStateFileReusedInRun verifies that the state file
 // is created in NewRunner and reused in Run() rather than creating a duplicate.
-// We verify this indirectly: after NewRunner with providers, calling Run() and
-// then checking that provider selection counts persist across router.Select calls
-// (which requires a non-nil StateFile in the Router).
-//
-// Expected failure: HasProviders() branch is a TODO — router is nil, so Select panics.
-// After implementation, the state file should be wired into the router.
+// After NewRunner with providers, provider selection counts persist across
+// router.Select calls via the non-nil StateFile in the Router.
 func TestNewRunnerWithProvidersStateFileReusedInRun(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -377,8 +362,6 @@ func TestNewRunnerWithProvidersStateFileReusedInRun(t *testing.T) {
 // TestNewRunnerWithProvidersNoRoutingUsesDefaults verifies that when providers
 // exist but routing config is empty, sensible defaults are applied:
 // all phases "any", equal ratio split, 30m cooldown.
-//
-// Expected failure: HasProviders() branch is a TODO — no router is built
 func TestNewRunnerWithProvidersNoRoutingUsesDefaults(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -443,8 +426,6 @@ func TestNewRunnerWithProvidersNoRoutingUsesDefaults(t *testing.T) {
 // TestNewRunnerWithProvidersCooldownParsed verifies that the cooldown duration
 // from cfg.Routing.Fallback.Cooldown is parsed and applied to the Router.
 // When a provider is marked unavailable, it should respect the configured cooldown.
-//
-// Expected failure: HasProviders() branch is a TODO — router is nil
 func TestNewRunnerWithProvidersCooldownParsed(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -514,8 +495,6 @@ func TestNewRunnerWithProvidersCooldownParsed(t *testing.T) {
 
 // TestNewRunnerSingleProviderInProvidersSection verifies that a single provider
 // in the providers section works through the multi-provider code path.
-//
-// Expected failure: HasProviders() branch is a TODO — router remains nil
 func TestNewRunnerSingleProviderInProvidersSection(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -566,10 +545,6 @@ func TestNewRunnerSingleProviderInProvidersSection(t *testing.T) {
 // claudeProviderForLearnings is set to the Claude provider from the providers
 // config when one exists. We test this indirectly by verifying the runner's
 // analyzer is non-nil (analyzer requires a provider for learnings).
-//
-// Expected failure: HasProviders() branch is a TODO — claudeProviderForLearnings
-// is nil, so the analyzer falls back to the legacy claudeClient adapter path.
-// After implementation, the analyzer should use the provider from the config.
 func TestNewRunnerWithProvidersLearningsUsesClaudeProvider(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
@@ -627,8 +602,6 @@ func TestNewRunnerWithProvidersLearningsUsesClaudeProvider(t *testing.T) {
 
 // TestNewRunnerPhasePreferencesPassedToRouter verifies that phase preferences
 // from the routing config are correctly passed to the Router.
-//
-// Expected failure: HasProviders() branch is a TODO — router is nil
 func TestNewRunnerPhasePreferencesPassedToRouter(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 
