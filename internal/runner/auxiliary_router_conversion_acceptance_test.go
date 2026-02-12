@@ -288,6 +288,7 @@ func TestAcceptance_RunPrecheckCallsProviderRun(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		claude:   &mockClaudeClient{}, // Required for nil check
 		renderer: mockRenderer,
 		beads:    mockBeads,
 		output:   io.Discard,
@@ -344,6 +345,7 @@ func TestAcceptance_CheckScopeCallsProviderRun(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		claude:   &mockClaudeClient{}, // Required for nil check
 		renderer: mockRenderer,
 		beads:    mockBeads,
 		output:   io.Discard,
@@ -400,6 +402,7 @@ func TestAcceptance_DecomposeTaskCallsProviderRun(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		claude:   &mockClaudeClient{}, // Required for nil check
 		renderer: mockRenderer,
 		beads:    mockBeads,
 		output:   io.Discard,
@@ -459,6 +462,7 @@ func TestAcceptance_ExtractSuccessLearningCallsProviderRun(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		claude:   &mockClaudeClient{}, // Required for nil check
 		renderer: mockRenderer,
 		output:   io.Discard,
 	}
