@@ -19,14 +19,21 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	result := NewExploreResult()
 
 	// Record existing artifacts (pre-snapshots)
-	existingEpics, err := ListMarkdownFiles(p.paths.EpicsDir)
-	if err != nil {
-		return nil, fmt.Errorf("scanning epics directory: %w", err)
+	var existingEpics, existingSpecs []string
+	var err error
+
+	if p.paths.EpicsDir != "" {
+		existingEpics, err = ListMarkdownFiles(p.paths.EpicsDir)
+		if err != nil {
+			return nil, fmt.Errorf("scanning epics directory: %w", err)
+		}
 	}
 
-	existingSpecs, err := ListMarkdownFiles(p.paths.SpecsDir)
-	if err != nil {
-		return nil, fmt.Errorf("scanning specs directory: %w", err)
+	if p.paths.SpecsDir != "" {
+		existingSpecs, err = ListMarkdownFiles(p.paths.SpecsDir)
+		if err != nil {
+			return nil, fmt.Errorf("scanning specs directory: %w", err)
+		}
 	}
 
 	existingBacklogItems, err := p.deps.BacklogClient.List()
