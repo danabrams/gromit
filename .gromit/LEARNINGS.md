@@ -49,6 +49,9 @@ When refactoring a CLI adapter to use Pipeline methods, verify that the Pipeline
 ### 2026-02-12 | gromit-qfr1 | conventions
 Verification tests in cmd/gromit enforce file locations for test organization - explore tests must be colocated with the cmd/gromit/explore.go adapter, not in the internal package. Always check final_verification_test.go before implementing to understand test organization expectations.
 
+### 2026-02-12 | gromit-qfr1 | patterns
+Pipeline methods follow a consistent pattern: input struct with all parameters, output struct with results, validate dependencies first, use renderer for template processing, handle agent resolution via p.agents.ResolveByName with defaults, and define post-processing logic to detect changes
+
 ---
 
 ## Archived

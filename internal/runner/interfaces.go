@@ -2,11 +2,9 @@ package runner
 
 import (
 	"context"
-	"io"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -15,7 +13,6 @@ import (
 // Compile-time interface satisfaction checks.
 var (
 	_ BeadClient      = (*bead.Client)(nil)
-	_ ClaudeClient    = (*claude.Client)(nil)
 	_ FailureAnalyzer = (*analyzer.Analyzer)(nil)
 	_ PromptRenderer  = (*prompt.Renderer)(nil)
 	_ IterationLogger = (*logger.Logger)(nil)
@@ -34,13 +31,6 @@ type BeadClient interface {
 	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
 	CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
 	HasOpenChildren(parentID string) (bool, error)
-}
-
-// ClaudeClient abstracts the Claude CLI operations used by the runner.
-type ClaudeClient interface {
-	Run(ctx context.Context, prompt string, model string) (*claude.Result, error)
-	StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error)
-	RunValidation(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error)
 }
 
 // FailureAnalyzer abstracts the failure analysis operations used by the runner.
