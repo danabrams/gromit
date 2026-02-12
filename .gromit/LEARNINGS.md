@@ -29,140 +29,105 @@ Methodologies use label-based activation ("methodology:true"/"false") with globa
 
 Runner methods follow a consistent pattern: nil-safe receiver/config checks, feature-flag gating (e.g., IsAutoPushEnabled()), context.WithTimeout for subprocess calls, and failure handling via mode field (warn vs stop) or skippedBeads map rather than inline error handling. The Run() method follows a clear sequencing: validate -> execute work -> persist state -> run between-iteration hooks -> continue loop. Log warnings on timeout errors rather than returning early.
 
+### 2026-02-11 | Router Conversion Pattern | patterns
+*Related to: gromit-juyb, gromit-2zju, gromit-557p, gromit-3gdz, gromit-gibz*
+
+Router-based calls use phase + tier parameters: phase identifies the operation (build/validate/review/refactor), tier selects the complexity level (low/medium/high). Follow the executeClaudeInvocation pattern: extract tier selection, use router.StreamRun() for the initial call, handle UsageLimitError by escalating to the next tier. Distinguish between tier selection and model selection — SetEscalatedTo gets the final model name from TierToModel, not the tier string. Standard tiers: validation uses phase="validate" tier="low"; reviews use selectTier(bead) or "high" for opus builds/thorough reviews. When converting call sites, check all related functions in the same flow (e.g., runRefactorPhase + handleRefactorValidationFailure + runPostSuccessReview). Router conversions in tests require mockProviderWithRouterTracking and real git repo fixtures for acceptance tests. Use selectReviewTier() helper which delegates to selectTier() for non-opus and returns "high" for opus builds.
+
+### 2026-02-11 | Acceptance Test Line Budget | conventions
+*Related to: gromit-lxlp, gromit-nqf1, gromit-2edx, gromit-557p, gromit-3gdz*
+
+Acceptance tests (//go:build acceptance) are subject to line count audits — total across all files must not exceed the budget ceiling (currently 6,000 lines, rebased after cleanup achieved 38.5% reduction from original 8,370). New test code should prefer unit tests for API verification, not acceptance tests. Task specs that add test coverage should account for the total line budget. Test metrics are enforced via final_verification_test.go.
+
+### 2026-02-11 | Prompt Template Structure | conventions
+*Related to: gromit-rpne*
+
+Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating. Template files follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks. When modifying sections, maintain blank lines between sections and ensure downstream blocks remain unchanged. Acceptance tests for template changes must match the exact content being added, including specific phrases and subsection structure.
+
 ---
 
 ## Provisional
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-11 | gromit-rpne | conventions
-Acceptance tests for prompt template changes must be kept in sync with the actual template updates. When updating templates like PROMPT_decompose.md, ensure test expectations match the exact content being added, including specific phrases and subsection structure. Also remember to add `//go:build acceptance` tag to acceptance test files in this codebase.
-
-### 2026-02-11 | gromit-rpne | conventions
-Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating; when modifying sections, maintain blank lines between sections and ensure ATDD blocks remain unchanged
-
-### 2026-02-11 | gromit-rpne | conventions
-Template files in .gromit/templates/ follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks—preserve exact line ranges when updating guidelines to avoid disrupting downstream sections
-
-### 2026-02-11 | gromit-o4ow | patterns
-Test cases in learnings_test.go use subtests with t.Run and table-driven patterns, with mock implementations via testutils package providing controlled state for archived duplicate detection
-
-### 2026-02-11 | gromit-lxlp | conventions
-In this codebase, acceptance tests (build tag: //go:build acceptance) are subject to strict line count audits - total across all files must not exceed a fixed threshold. New test code should use unit tests for API verification, not acceptance tests. When adding new methods, place comprehensive tests in regular *_test.go files unless testing actual bd CLI integration/behavior.
-
 ### 2026-02-11 | gromit-03lk | conventions
 When expanding a struct with new fields in the pipeline package, you must: (1) update ReadStatus() to populate the new count fields by iterating through beads and counting by status, (2) update the formatting/display logic (likely in runner/format_bead_breakdown.go) to include these new counts in status output, and (3) ensure any helper methods for counting beads are called correctly. The count fields won't be used automatically—they require explicit population and display logic.
 
-### 2026-02-11 | gromit-d46r | patterns
-When building comma-separated status breakdowns, only include non-zero counts and provide a fallback value ('none') when all counts are zero; use conditional logical operators (if > 0) to filter parts before joining to avoid empty entries
-
-### 2026-02-11 | gromit-j2p9 | patterns
-Test files for log parsing use synthetic JSONL with varying field completeness to document backward compatibility—test both full-format and minimal-format entries to prevent regressions when log schema evolves
-
-### 2026-02-11 | gromit-oqtr | patterns
-When adding a field to a logging structure (IterationLog), the field must be wired through three layers: capture it in the execution layer (executeClaudeInvocation extracts from DiagnosticSnapshot), store it in the intermediate result struct (IterationResult), and propagate it when writing the final log entry (writeIterationLog). Missing any layer breaks the data flow to JSONL output.
-
-### 2026-02-11 | gromit-vvea | gotchas
-When moving a function call earlier in a lifecycle (e.g., escalateModel called preemptively in setupBeadContext before promptCtx exists), defensive nil checks are required for fields initialized later. escalateModel must check `if bc.promptCtx != nil` before updating it.
-
-### 2026-02-11 | gromit-2xrq | conventions
-Configuration files in gromit.yaml use inline comments (after values) to explain the rationale and trade-offs for each setting, not just what the setting does—comments include why a value differs from defaults and what it optimizes for (e.g., 'longer invocation timeout — sonnet consistently needs >900s')
-
-### 2026-02-11 | gromit-eo57 | gotchas
-Aggregation functions in logger package often duplicate logic rather than compose (e.g., ReadModelStats and ReadRunModelStats have nearly identical implementations). When adding similar per-model aggregation functions, consider whether refactoring to a filtered helper would reduce duplication, but follow existing patterns if choosing direct implementation.
-
-### 2026-02-11 | gromit-eo57 | patterns
-Aggregation functions follow a consistent pattern: glob run-*.jsonl files, optionally filter by extracted run ID, read with readLogFile(), then iterate entries building maps/accumulators. Reuse helper functions (extractRunID, readLogFile) across multiple aggregation modules to avoid duplication.
-
-### 2026-02-11 | gromit-jsta | patterns
-Atomic file updates in logger package follow read-modify-write with temp-file-then-rename: ReadGlobalStats handles missing files gracefully (returns initialized empty state, not error), UpdateGlobalStats merges data then writes atomically via CreateTemp+Rename, with defer cleanup. Apply this pattern to other file-based aggregations.
-
-### 2026-02-11 | gromit-6w39 | patterns
-All format functions return single strings with embedded newlines (built by appending to []string and joining). Handle nil/empty inputs with early returns showing '(no data)'. Use 2-space indentation for all sub-items and consistent section headers like 'Section Name:' followed by indented details.
-
-### 2026-02-11 | gromit-w0en | patterns
-When passing read-only data structures between functions, convert value types to pointer types at the call site (not in the return type) to allow formatters to handle both nil and zero-initialized cases uniformly
-
-### 2026-02-11 | gromit-zyc8 | patterns
-Spike tasks document CLI mechanics and behavior in markdown files (FINDINGS.md) that serve as reference for future implementation tasks; acceptance tests verify the documented behavior matches reality
-
-### 2026-02-11 | gromit-7oob | patterns
-Mapping functions in provider package use local map lookups with case-insensitive matching (strings.ToLower) and pass-through returns for unrecognized values to maintain forward compatibility with new model names
-
-### 2026-02-11 | gromit-cz7a | patterns
-Backward compatibility logic should be delegated to a dedicated mapping function in the domain package (e.g., TierFromLegacyModel in provider/), not embedded in the selector methods. This keeps selection logic clean and reusable across multiple methods (SelectTier, NextEscalationTier, IsTierName).
-
-### 2026-02-11 | gromit-c2ax | conventions
-When adding new nested config structs (ProvidersConfig, RoutingConfig), both SetDefaults() and NormalizeNilFields() must be updated to handle nil pointer initialization and default value setting for all new fields to prevent nil dereference panics
-
-### 2026-02-11 | gromit-c2ax | conventions
-When adding new fields to Config struct, always update both SetDefaults() AND NormalizeNilFields() methods to maintain consistency in config initialization and normalization flows
-
-### 2026-02-11 | gromit-nqf1 | conventions
-When implementing features in gromit, check if acceptance tests are required and account for the total acceptance test line budget. The project enforces strict test line reduction targets via final_verification_test.go. New acceptance tests should be minimal or existing tests should be consolidated to stay within the 30% reduction target.
-
-### 2026-02-11 | gromit-6pvd | conventions
-State struct fields require both JSON tags and explicit initialization in NormalizeNilFields() to ensure maps are never nil—this prevents nil pointer dereferences in helper methods.
-
-### 2026-02-11 | gromit-6pvd | gotchas
-When adding multiple related state fields and helper methods to the State struct, initialize maps in NormalizeNilFields() to prevent nil pointer dereferences when accessing map fields
-
-### 2026-02-11 | gromit-qz0m | patterns
-Router struct initialization requires NewRouter constructor to properly set up the stateFn callback and initialize empty maps, preventing nil pointer dereferences in Select() method calls
-
-### 2026-02-11 | gromit-qz0m | gotchas
-Calling provider.Run() with nil credentials and empty prompt purely to extract model names is fragile—consider adding a ModelForTier() method to the Provider interface instead of side-effect-laden extraction
-
-### 2026-02-11 | gromit-2edx | conventions
-The gromit codebase has a validation constraint that acceptance test line counts must be reduced by at least 30% from baseline (8370 → max 5859 lines). When adding new acceptance tests, existing test files must be correspondingly reduced or consolidated to stay within the budget. Adding new tests without removing/consolidating old ones violates this constraint.
-
-### 2026-02-11 | gromit-u1gm | patterns
-When adding new fields to core structs like Runner and Deps, check for both direct instantiation paths (NewRunner) and test/dependency injection paths (NewRunnerWithDeps) to maintain backward compatibility while supporting new functionality
-
-### 2026-02-11 | gromit-juyb | patterns
-When implementing router-based escalation, distinguish between tier selection (complexity:low/high labels) and model selection (haiku/sonnet/opus names). The SetEscalatedTo field should contain the final model name, not the complexity tier. Check how TierToModel or ModelForTier maps tiers to models before setting EscalatedTo.
-
-### 2026-02-11 | gromit-juyb | patterns
-When converting functions to use the router pattern with escalation/retry logic, follow the executeClaudeInvocation pattern exactly: extract the tier selection into a variable, use router.StreamRun() for the initial call, then handle UsageLimitError by escalating to the next tier and retrying. This pattern is now standardized across multiple functions (executeClaudeInvocation, runAcceptanceTests).
-
-### 2026-02-11 | gromit-2zju | conventions
-The codebase has acceptance tests that validate codebase-wide metrics (like total test line count reduction targets). When implementing features or refactoring, check if there are acceptance tests verifying codebase metrics that might need satisfying via cleanup or consolidation of other test files. The validation_router_conversion_acceptance_test.go appears to be new and could potentially be merged into existing acceptance tests to reduce line count overhead.
-
-### 2026-02-11 | gromit-2zju | patterns
-When converting multiple call sites to use a Router pattern, check for different phases/tiers that should be used at each site - validation calls consistently use phase='validate' tier='low', which is distinct from build/refactor phases that may need different configurations
-
-### 2026-02-11 | gromit-2zju | patterns
-When converting function calls to use a Router abstraction, check for all call sites in related functions (runRefactorPhase, handleRefactorValidationFailure, runPostSuccessReview) that may need the same conversion, not just the primary function - this prevents piecemeal refactoring across iterations.
-
-### 2026-02-11 | gromit-557p | conventions
-When acceptance test line count is a validation gate, new test additions require corresponding reduction in existing test files to meet the overall threshold. Task specs that add test coverage must account for the total line budget, not just the new lines added. Check gromit.yaml validation rules and acceptance test baselines before adding new test files.
-
-### 2026-02-11 | gromit-557p | gotchas
-Router-based phase conversions require updating both the call site (process.go) and the acceptance tests to use proper git repo fixtures—mock repos won't pass router validation. When converting from r.claude.Run() to router calls, regenerate acceptance tests with real repo setup.
-
-### 2026-02-11 | gromit-3gdz | conventions
-When converting runner.go sites to Router or refactoring core functionality, acceptance test totals must be actively managed. If the conversion adds test coverage or new test cases, acceptance tests need corresponding consolidation or removal to maintain the target line count. Test metrics are enforced as part of validation and must be tracked alongside code changes.
-
-### 2026-02-11 | gromit-3gdz | gotchas
-Router conversions in runner.go require careful mock setup in tests - checkScope and extractSuccessLearning specifically need mockProviderWithRouterTracking to capture routing state, not just mock.mock*Provider
-
-### 2026-02-11 | gromit-gibz | conventions
-When converting code to new patterns (like router-based calls), check if there are accompanying acceptance tests that validate the old pattern. These tests may become redundant with the new implementation and should be updated or removed to meet code quality thresholds. Search for acceptance tests related to the converted functions (e.g., tests for runLightReview, runThoroughReview, claude.Run) and consolidate them.
-
-### 2026-02-11 | gromit-gibz | conventions
-Router-based calls should check for Opus build before selecting tier - use selectReviewTier() helper which delegates to selectTier() for non-opus and returns 'high' for opus builds
-
-### 2026-02-11 | gromit-gibz | conventions
-Router-based refactoring uses consistent phase + tier parameters: selectTier(bead) for standard reviews, 'high' tier for opus builds or thorough reviews, 'low' tier for validation sub-calls. When converting r.claude.Run() to router calls, check context first (isOpusBuild) to determine tier override.
-
 ### 2026-02-11 | gromit-mz3m | conventions
-When migrating from one pattern to another (e.g., ClaudeClient → Provider), ensure structural changes are completed across all types (not just the adapter/analyzer). Acceptance test files must include the `//go:build acceptance` build tag to be properly categorized. Review all struct definitions and their test expectations when making breaking pattern changes.
+When migrating from one pattern to another (e.g., ClaudeClient → Provider), ensure structural changes are completed across all types (not just the adapter/analyzer). Search for all embedded fields and struct initializations across the codebase—not just method calls. Fields like Runner.claude need to be identified and removed after all call sites are migrated to the new interface. Acceptance test files must include the `//go:build acceptance` build tag to be properly categorized.
 
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-12 | router conversion originals | patterns
+Archived: gromit-juyb (x2), gromit-2zju (x2), gromit-557p, gromit-3gdz, gromit-gibz (x3) consolidated into Confirmed "Router Conversion Pattern" entry.
+
+### 2026-02-12 | acceptance test budget originals | conventions
+Archived: gromit-lxlp, gromit-nqf1, gromit-2edx, gromit-557p, gromit-3gdz consolidated into Confirmed "Acceptance Test Line Budget" entry.
+
+### 2026-02-12 | prompt template originals | conventions
+Archived: gromit-rpne (x3) consolidated into Confirmed "Prompt Template Structure" entry.
+
+### 2026-02-12 | provider migration originals | conventions
+Archived: gromit-mz3m (x2) consolidated into Provisional "Provider Migration" entry.
+
+### 2026-02-12 | gromit-c2ax | conventions
+Archived: SetDefaults() + NormalizeNilFields() requirement promoted to RULES.md Process section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-12 | gromit-juyb tier-vs-model | patterns
+Archived: tier-vs-model distinction promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-12 | gromit-o4ow | patterns
+Archived: standard Go testing patterns (subtests with t.Run, table-driven tests). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-j2p9 | patterns
+Archived: standard testing practice (synthetic test data with varying completeness for backward compatibility). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-oqtr | patterns
+Archived: standard data flow advice (wire through capture/store/propagate layers). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-2xrq | conventions
+Archived: generic documentation practice (inline comments explaining rationale). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-eo57 | patterns
+Archived: gromit-eo57 (x2) aggregation function patterns — standard Go file processing (glob, filter, iterate, accumulate). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-jsta | patterns
+Archived: atomic file updates (read-modify-write with temp-file-then-rename). Standard Go pattern, not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-zyc8 | patterns
+Archived: generic process advice (spike tasks document findings in markdown). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-7oob | patterns
+Archived: standard Go pattern (map lookups with strings.ToLower, pass-through for unknown values). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-2zju | conventions
+Archived: acceptance tests validating codebase-wide metrics — subsumed by Confirmed "Acceptance Test Line Budget" entry.
+
+*Archived from provisional: consolidated*
 
 ### 2026-02-11 | ValidateSpec Before ResolveSpec Convention | conventions
 *Related to: gromit-4yrb, gromit-wwhq*
@@ -180,7 +145,7 @@ Bead sizing rules are enforced across multiple documentation files (.gromit/RULE
 *Archived from provisional: promoted to rules*
 
 ### 2026-02-11 | gromit-1wen | conventions
-CLAUDE.md is the authoritative source for project conventions and should be updated when patterns change; keep the architecture section directory-based rather than file-specific to reduce maintenance burden
+Archived: generic engineering advice (keep architecture docs directory-based). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
@@ -342,127 +307,127 @@ Archived: gromit-s7tm, gromit-avbc consolidated into Confirmed "Template Infrast
 Archived: gromit-5pvp, gromit-82qx, gromit-vabo consolidated into Confirmed "Runner Method Pattern" entry.
 
 ### 2026-02-08 | gromit-zt4n | gotchas
-Test helpers like NewRunnerWithDeps that create partial configs should either call setDefaults() or document that callers must explicitly set all needed config fields to avoid accidental defaults
+Archived: generic engineering advice (test helpers should call setDefaults or document expectations). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-bq2g | patterns
-Use table-driven tests with t.Run() and temp directories created via t.TempDir() for file-based unit tests - this pattern is established in the codebase for testing functions that interact with the filesystem
+Archived: standard Go testing patterns (t.Run, t.TempDir). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-2cly | patterns
-When launching interactive subprocesses with large context (prompts, system messages), write to a temp file and pass the file path as an argument to avoid ARG_MAX errors. Use callback injection (confirmPrompt, execGromit functions) for testability of interactive chaining flows that invoke subprocesses and parse side effects.
+Archived: generic engineering advice (temp files for large args, callback injection for testability). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-hzf6 | conventions
-Skill files use SKILL.md naming convention with structured sections: Purpose, When to Use, How It Works, Investigation Report Format, and Example Output to match the pattern seen in other skills like superpowers:systematic-debugging
+Archived: generic engineering advice (skill file structure). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-8r7z | patterns
-When filtering/modifying slice items conditionally, collect target indices first, then apply mutations in reverse order to avoid index shifting bugs
+Archived: generic engineering advice (reverse-order mutation to avoid index shifting). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-p44z | conventions
-State struct fields use JSON tags with 'omitempty' for optional fields to handle serialization of empty slices/maps gracefully
+Archived: generic engineering advice (JSON omitempty for optional fields). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-8tnl | conventions
-Interface definitions in this codebase are minimal and focused—ClaudeRunner only defines the single method needed (Run), avoiding over-specification. Define interfaces with the smallest necessary surface area.
+Archived: generic engineering advice (minimal interfaces). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-8nfq | patterns
-Functional options pattern with SetXxx() methods is used for configuring struct fields (e.g., SetFilter()) rather than passing parameters to constructors or modification functions
+Archived: generic engineering advice (functional options pattern). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-s2va | gotchas
-fmt.Scanln() stops at whitespace and doesn't read full lines with spaces; use bufio.Scanner with Scan() + Text() for line-based input that preserves spaces
+Archived: generic engineering advice (bufio.Scanner vs fmt.Scanln). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-q4l8 | patterns
-Integration-style tests verify complete scenarios by checking side effects (mock state changes, logs, output) alongside primary assertions, ensuring behavior is traceable through the entire system
+Archived: generic engineering advice (integration tests check side effects). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-vlk9 | conventions
-For conditional multi-section prompt/output building, use strings.Builder with conditional WriteString calls instead of fmt.Sprintf. This makes section logic clearer and allows each section to be conditionally included based on whether supporting data exists.
+Archived: generic engineering advice (strings.Builder for conditional sections). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-6x11 | patterns
-Use intermediate accumulator helper types for multi-level aggregations—collect raw totals during iteration, then convert via dedicated methods. This separates accumulation from final calculations and makes weighted averages (like cost/duration per bead across models) testable and less error-prone.
+Archived: generic engineering advice (intermediate accumulator types). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-a9yc | patterns
-Extract values from intermediate results using dedicated methods (like stats.CostData()) and assign them directly to destination struct fields, rather than passing the intermediate object through the chain. This simplifies dependency flow and makes data transformation points explicit.
+Archived: generic engineering advice (extract values via dedicated methods). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-plww | patterns
-Thread new return values through function signatures first using blank identifier (_), then add consumers in follow-up tasks. This separates infrastructure changes from behavioral changes.
+Archived: generic engineering advice (thread return values with blank identifier). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-9at0 | patterns
-Thread-safe accessors for mutable shared state use lock/unlock around field reads/writes and nil-check the receiver first, following the pattern: if s == nil { return } followed by s.mu.Lock/defer s.mu.Unlock
+Archived: generic engineering advice (thread-safe accessors with mutex). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-q224 | conventions
-YAML config sections consistently document defaults with 'Default: X' format, explain when/why users would customize fields, and cross-reference related implementation details in comments to aid troubleshooting
+Archived: generic engineering advice (YAML config documentation style). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-c4jr | patterns
-Use a guardian flag (set false at operation start, true at clean exit) as the primary crash detector, with timestamp age as a secondary signal. Auto-heal should reset unreliable state while preserving git anchors (commits, historical timestamps).
+Archived: generic engineering advice (guardian flag for crash detection). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-07 | gromit-flt8 | patterns
-Table-driven tests for runner methods include explicit nil-safety cases with dedicated flags (nilRunner, nilConfig) to verify graceful nil-handling; use description field for readability alongside test name
+Archived: generic engineering advice (nil-safety test cases). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-07 | gromit-w9rs | gotchas
-Optional boolean fields (*bool) in config require separate unit tests for nil-pointer safety alongside table-driven YAML tests; nil defaults to true is a gotcha worth isolating in dedicated tests
+Archived: generic engineering advice (optional *bool nil-pointer testing). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-07 | gromit-0azh | patterns
-Helper methods like IsAutoPushEnabled() follow the *bool pointer pattern with explicit enabled check: return b != nil && *b
+Archived: generic engineering advice (*bool pointer pattern). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-07 | gromit-w3x | conventions
-When validating skill extraction, verify that downstream consumers (like learnings loader) can properly parse the injected content. Test failures in dependent systems indicate the validation point may be in the wrong layer or the format contract needs to be checked.
+Archived: generic engineering advice (validate downstream consumers can parse). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-07 | ralph-runner-543u | gotchas
-Test fixtures in fake scripts should enforce required environment variables (e.g., TEST_DIR) rather than falling back to /tmp, and cleanup code should be idempotent and run even if tests fail (consider using trap handlers or defer statements)
+Archived: generic engineering advice (test fixtures enforce env vars). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-07 | ralph-runner-nekg | conventions
-When adding fields to structs that are serialized/deserialized (especially JSON), verify that existing tests that depend on that struct's behavior still pass—including contract tests that exercise external tool integration.
+Archived: generic engineering advice (verify tests pass after struct changes). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-07 | ralph-runner-8ayf | conventions
-When helpers are consolidated into a shared package, verify that the refactored code doesn't change behavior of callers—the tests should catch regressions, but pre-existing test failures in a codebase can hide whether consolidation was successful.
+Archived: generic engineering advice (verify refactored code preserves behavior). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-07 | ralph-runner-zgri | conventions
-Test new fields by adding assertions to the existing main test first, then create a dedicated test if the field requires special or isolated validation
+Archived: generic engineering advice (test new fields in existing tests first). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
@@ -524,27 +489,27 @@ Archived: meta-advice about what makes a good learning entry. Process guidance, 
 Archived: already promoted to RULES.md Process section (skippedBeads map pattern). Redundant with rule.
 
 ### 2026-02-08 | gromit-elej | conventions
-When using errgroup for concurrent task execution in Go, ensure the tasks themselves are not blocking. The extractSuccessLearning() function may have context-based timeouts or synchronous I/O that prevents true concurrency. Additionally, error handling in concurrent code requires careful management - using errgroup.Wait() with ignored error returns and deferred error handling can cause errors to be silently dropped. Test concurrent execution with actual timing measurements and verify error propagation through the goroutines.
+Archived: generic engineering advice (errgroup concurrent tasks, error handling). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-x9bq | conventions
-When adding new methods to interfaces (BeadClient in this case), ensure that: (1) all implementations of that interface are updated, not just the interface definition; (2) run the full test suite before considering a task complete, as interface changes can have cascading effects on mock implementations and tests; (3) parallel execution and timing-sensitive tests are brittle and failures may indicate the new code wasn't properly integrated into the concurrent execution paths.
+Archived: generic engineering advice (update all interface implementations). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-leha | conventions
-When adding new configuration structs (like AgentsConfig), ensure that all code that depends on that configuration is updated to read and use it. Configuration changes often require coordinated updates across multiple packages. Test failures in different areas (runner tests + contract tests) suggest incomplete propagation of the new config fields.
+Archived: generic engineering advice (propagate config changes across packages). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-j5x0 | patterns
-Archived: describes standard API usage ordering (call SetFilter before Load/Add). Generic 'call init before use' advice — obvious from function signatures and not a surprising gotcha.
+Archived: standard API usage ordering. Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-t5x0 | patterns
-Archived: describes standard go:embed usage with filesystem patterns. One-time implementation detail obvious from reading the code.
+Archived: standard go:embed usage. Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
@@ -562,12 +527,12 @@ Archived: parallel post-success execution removed. syncWriter remains but parall
 Archived: gromit-x9bq, gromit-o2vl, gromit-sliw consolidated into Confirmed "Parallel Post-Success Execution Fragility" entry.
 
 ### 2026-02-08 | gromit-uwyu | conventions
-Archived: temporal observation about parallel tests appearing flaky. Root causes fixed in commits d11a43b (barrier patterns) and cc053dd (syncWriter races). Substantive content captured in consolidated parallel post-success learning.
+Archived: temporal observation about parallel tests appearing flaky. Root causes fixed. Captured in consolidated learning.
 
 *Archived from provisional: filtered: stale observation*
 
 ### 2026-02-08 | gromit-kcdt | gotchas
-When generating and compiling Go code in temporary/subdirectories during tests, either: (1) copy go.mod/go.sum to the temp directory, (2) use GOPATH mode, or (3) compile from the parent module root with proper -C or working directory flags. bd contract tests need module context for generated programs to resolve internal imports.
+Archived: generic engineering advice (module context for temp directory compilation). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
@@ -597,127 +562,127 @@ Archived: already promoted to RULES.md Code Style section. Rule is the source of
 *Archived from confirmed: promoted to rules*
 
 ### 2026-02-08 | Config Defaults Pattern | conventions
-Archived: already covered by RULES.md Process section (config defaults with setDefaults() and zero-value sentinels). Redundant with rule.
+Archived: already covered by RULES.md Process section. Redundant with rule.
 
 *Archived from confirmed: promoted to rules*
 
 ### 2026-02-08 | gromit-qnlq | conventions
-When testing concurrent execution with errgroup in Go, ensure that goroutines are actually spawned and executed in parallel. Sequential execution can occur if goroutines block on synchronization primitives, if stages are not properly spawned in separate goroutines, or if the errgroup is not correctly configured to run tasks concurrently. Tests should use barriers or sync points rather than timing-based assertions to verify concurrency.
+Archived: generic engineering advice (errgroup concurrency testing). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-qnlq | gotchas
-Timing-based concurrency assertions in tests are inherently flaky. Use synchronization primitives (barriers, channels, mutexes, or atomic operations) to verify concurrent execution rather than measuring elapsed time. The concurrent execution may be correct but still fail due to system variance.
+Archived: generic engineering advice (timing-based concurrency assertions are flaky). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-k9mi | patterns
-Config merging pattern: check custom user definitions first, then fall back to built-in presets. This ensures user customizations override framework defaults without duplicating logic.
+Archived: generic engineering advice (custom definitions over built-in presets). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-k9mi | patterns
-Custom definitions take precedence over built-in presets by checking them first in resolution order; defensive nil checks precede all config field access to prevent panics
+Archived: generic engineering advice (nil checks before config access). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-tjjs | patterns
-Use table-driven tests with t.Run() for complex scenarios and verify observable behavior (output written, error states) not just return values
+Archived: generic engineering advice (table-driven tests, verify observable behavior). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-703n | patterns
-Test table-driven tests with t.Run for each case, using subtests to organize related test scenarios. When testing functions that handle configuration precedence (flag > phase config > defaults), structure tests to verify each priority level separately with clear assertions on which value wins.
+Archived: generic engineering advice (table-driven tests for config precedence). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-08 | gromit-703n | patterns
-Use table-driven tests with t.Run() for testing priority resolution logic; organize tests by testing scenario (priority levels, edge cases, full chain) rather than individual conditions to catch interaction bugs between priority levels
+Archived: generic engineering advice (test by scenario not condition). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-4y8h | patterns
-Flag validation logic should be extracted to dedicated functions in domain packages with comprehensive parametrized tests covering edge cases like whitespace handling and all pairwise flag combinations
+Archived: generic engineering advice (flag validation extraction). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-4y8h | conventions
-Flag validation functions should use variadic arguments (e.g., param ...string) for optional parameters to allow backward-compatible function calls with different argument counts without breaking existing callers
+Archived: generic engineering advice (variadic arguments for backward compat). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-71od | patterns
-Bead 'Add epic and spec flags to retro command' timed out on sonnet — may need simpler scope or higher model tier
+Archived: one-off timeout observation. Not actionable.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-7guf | patterns
-Extract common helper functions (like listMarkdownFiles) to eliminate duplication between similar operations across different commands - both getEpicFiles and getSpecFiles now delegate to the same implementation, ensuring consistent behavior and reducing maintenance burden
+Archived: generic engineering advice (extract common helpers). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-5rpz | patterns
-Consolidate related acceptance tests using: (1) extract common setup into helper functions, (2) convert multiple test functions testing similar behavior into a single table-driven test with t.Run() subtests
+Archived: generic engineering advice (consolidate tests with table-driven patterns). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-9945 | conventions
-When consolidating related acceptance test files, use section divider comments (// --- Category (from source_file.go) ---) to organize tests by purpose and origin, improving navigation and maintainability of the consolidated file
+Archived: generic engineering advice (section divider comments in test files). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-9945 | patterns
-When consolidating multiple test files, extract common setup helpers (writeSpecFiles, writeIterationLogs, assertLabelSet) and document with section comments ("--- Test helpers ---") to reduce duplication and make test organization clear
+Archived: generic engineering advice (extract test helpers, document with comments). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-75qw | patterns
-Acceptance tests that mirror unit tests should be deleted—unit tests (especially table-driven) are sufficient. Extract common test setup into helper functions (setupLabelFilterTest) to enable table-driven testing and reduce duplication.
+Archived: generic engineering advice (delete acceptance tests that mirror unit tests). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-75qw | conventions
-Acceptance tests that mirror unit test scenarios should be consolidated into table-driven unit tests with shared setup helpers (setupLabelFilterTest) and the redundant acceptance test files deleted entirely—unit tests in focused format are more maintainable and provide equivalent coverage.
+Archived: generic engineering advice (consolidate into table-driven unit tests). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-9qtb | conventions
-Acceptance test files with //go:build acceptance tag should extract common setup into helper structs and functions (like hashEvictionEnv with setupHashEviction) to reduce duplication across multiple test cases
+Archived: generic engineering advice (extract setup helpers in acceptance tests). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-g8j7 | patterns
-Bead 'Handle edge cases in epic status command' timed out on sonnet — may need simpler scope or higher model tier
+Archived: one-off timeout observation. Not actionable.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-7esx | conventions
-When updating interfaces or mock implementations, run the full test suite first to establish baseline failures, then verify that interface changes don't cause cascading test failures in other packages that depend on the mocks. Mock-related changes have broad impact across the codebase.
+Archived: generic engineering advice (run full test suite after interface changes). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-9idu | conventions
-Acceptance tests that verify contracts against external tools (like bd CLI) belong in main test files with unit tests, not in separate *_acceptance_test.go files. Use build tags (e.g., // +build BD_AVAILABLE) to gate integration tests within the same file.
+Archived: generic engineering advice (acceptance tests belong with unit tests). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-9idu | conventions
-Acceptance tests should be reclassified by purpose and merged into appropriately named test files (*_integration_test.go for bd contract/environment-gated tests, *_test.go for functional tests) rather than maintaining separate *_acceptance_test.go files to reduce file proliferation and organize tests by their actual testing strategy
+Archived: generic engineering advice (reclassify test files by purpose). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-u3z9 | conventions
-Skipped acceptance tests document future features; when a test file is entirely skipped, extract the described behaviors to backlog items via gromit add before deleting the dead code
+Archived: generic engineering advice (extract skipped test behaviors to backlog). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-qnlq | gotchas
-Archived: barrier pattern for concurrency tests already implemented. Core advice (use sync primitives not timing) is standard testing practice. Learning served its purpose.
+Archived: barrier pattern already implemented. Not project-specific.
 
 *Archived from provisional: filtered: stale/served its purpose*
 
 ### 2026-02-10 | Agent Selection and Execution | patterns
-Archived: already captured verbatim as a rule in RULES.md Code Style section (agent.Resolve() + agent.Launch() pattern). Redundant with rule.
+Archived: already captured as a rule in RULES.md Code Style section. Redundant.
 
 *Archived from provisional: promoted to rules*
 
@@ -727,38 +692,38 @@ Archived: gromit-nf7p, gromit-xeub (x2) consolidated into Confirmed "Acceptance 
 ### 2026-02-08 | Compile-time Interface Verification | conventions
 *Related to: gromit-l7v4*
 
-Use compile-time interface verification with `var _ InterfaceName = (*impl)(nil)` at the top of interface files to catch implementation drift early instead of runtime tests — see internal/runner/interfaces.go for the pattern.
+Archived: generic Go engineering advice. Already codified as a rule.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-10 | Acceptance Test File Conventions | conventions
 *Related to: gromit-nf7p, gromit-xeub*
 
-Archived: restates rules already codified in RULES.md Test Quality section (//go:build acceptance tags, file naming). No project-specific insight beyond what the rules capture.
+Archived: restates rules already codified in RULES.md Test Quality section. Redundant.
 
 *Archived from confirmed: redundant with rules*
 
 ### 2026-02-10 | gromit-d6sl consolidation originals | conventions
-Archived: two gromit-d6sl provisional learnings consolidated into single "Consolidation beads require strict scope verification" entry.
+Archived: consolidated into "Refactoring Bead Cascade Risks" entry.
 
 ### 2026-02-10 | gromit-gdzl | conventions
-When consolidating learnings and archiving entries, existing integration tests that hardcode expected learning positions break immediately. Always verify that learnings integration tests use flexible matching (check for minimum count and validate presence of expected items in any order) rather than positional assertions.
+Archived: generic engineering advice (use flexible matching in integration tests). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-7guf | conventions
-Archived: generic defensive programming advice (return empty lists for missing optional files/directories). Already covered by Status File Management confirmed learning and normalizeNilFields() rule.
+Archived: generic defensive programming. Covered by rules.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-d6sl, gromit-gdzl consolidation originals | conventions
-Archived: gromit-d6sl, gromit-gdzl consolidated into Provisional "Refactoring and Consolidation Bead Hygiene" entry.
+Archived: consolidated into "Refactoring and Consolidation Bead Hygiene" entry.
 
 ### 2026-02-10 | learnings refactoring cascade originals | conventions
-Archived: gromit-uwuh, gromit-w0lo consolidated into Provisional "Learnings Package Refactoring Cascades" entry.
+Archived: consolidated into "Learnings Package Refactoring Cascades" entry.
 
 ### 2026-02-10 | refactoring cascade consolidation | conventions
-Archived: "Refactoring and Consolidation Bead Hygiene" (gromit-d6sl, gromit-gdzl) and "Learnings Package Refactoring Cascades" (gromit-uwuh, gromit-w0lo) consolidated into Provisional "Refactoring Bead Cascade Risks" entry.
+Archived: consolidated into "Refactoring Bead Cascade Risks" entry.
 
 ### 2026-02-10 | Prompt and Template Infrastructure | conventions
 *Related to: ralph-runner-utv8, ralph-runner-yx7b, ralph-runner-5lk0, ralph-runner-kjix, ralph-runner-628c, ralph-runner-nxdm, gromit-s7tm, gromit-avbc*
@@ -768,192 +733,246 @@ Archived: promoted to RULES.md Code Style section. Rule is the source of truth.
 *Archived from confirmed: promoted to rules*
 
 ### 2026-02-10 | gromit-66dz | gotchas
-When a function like escalateModel() is designed to handle state changes with side effects (logging, flag setting), all code paths that perform that operation should route through it rather than duplicating the logic—direct assignments bypass the intended behavior
+Archived: generic SRP advice. Covered by Runner Method Pattern.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-66dz conventions | conventions
-Archived: consolidated into Provisional "Refactoring Bead Cascade Risks" entry point (5).
+Archived: consolidated into "Refactoring Bead Cascade Risks" entry.
 
 *Archived from provisional: consolidated*
 
 ### 2026-02-10 | gromit-66dz | gotchas
-Archived: generic SRP advice (route state changes through single function). Escalation routing already captured in Runner Method Pattern confirmed learning.
+Archived: generic SRP advice. Redundant with Runner Method Pattern.
 
 *Archived from provisional: filtered: generic engineering advice*
 
 ### 2026-02-10 | gromit-vbdo | patterns
-Archived: non-zero value precedence and NormalizeNilFields() already codified in RULES.md (Code Style: normalizeNilFields after unmarshaling; Process: zero is sentinel for 'not configured'). Redundant with rules.
+Archived: covered by RULES.md (normalizeNilFields, zero sentinel). Redundant.
 
 *Archived from provisional: redundant with rules*
 
 ### 2026-02-10 | gromit-vbdo | gotchas
-Archived: promoted to RULES.md Process section (config file compliance testing). Rule is the source of truth.
+Archived: promoted to RULES.md Process section. Rule is the source of truth.
 
 *Archived from provisional: promoted to rules*
 
 ### 2026-02-10 | gromit-755e consolidation originals | conventions
-Archived: gromit-755e patterns and gromit-755e conventions consolidated into Provisional "Test-Only Bead Detection Pattern" entry.
+Archived: consolidated into "Test-Only Bead Detection Pattern" entry.
 
 *Archived from provisional: consolidated*
 
 ### 2026-02-11 | gromit-r3mq | gotchas
-Use .gitignore to prevent accidentally committing build artifacts (*.test binaries, *.o files, etc.) - Go test binaries are auto-generated and should never be in version control
+Archived: generic engineering advice (.gitignore for build artifacts). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-r3mq | gotchas
-Go test binaries (*.test files) should be added to .gitignore to prevent accidental commits of large binary artifacts
+Archived: generic engineering advice (gitignore test binaries). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-0ypa | conventions
-Test files with t.Skip() on all tests are violations of RULES.md and should be deleted entirely rather than kept as placeholders — the codebase prefers removing untestable code over maintaining skipped test suites
+Archived: generic engineering advice (delete t.Skip test files). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-s7hk | patterns
-When validating specific file existence, check with os.Stat() first for fast path; only call os.ReadDir() when file is missing to list alternatives for user-friendly error messages, avoiding unnecessary directory scans on success
+Archived: generic engineering advice (os.Stat fast path). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-4yrb | gotchas
-Function signature changes that add parameters should be updated at all call sites in the same file; use grep to verify all callers are updated before testing.
+Archived: generic engineering advice (update all call sites). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-1wen | conventions
-CLAUDE.md is the source of truth for project conventions and should be updated when patterns change, not when individual files are added. Keep the architecture section directory-focused rather than file-focused to avoid constant updates.
+Archived: generic engineering advice (keep docs directory-focused). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-lxlp | patterns
-Extract common logic into helper functions when adding similar methods to Client. Multiple Count* methods should delegate to a shared countBeads() helper that handles bd invocation, JSON parsing, and empty-result handling.
+Archived: generic engineering advice (extract common logic into helpers). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-d46r | patterns
-The formatPipeline function uses a pattern where multiple conditional fields are combined into a single display line, with detailed lists preserved on separate lines below—this keeps the summary concise while retaining full information.
+Archived: generic engineering advice (concise summary with detail below). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-j2p9 | conventions
-Tests use individual test functions with simple direct assertions rather than table-driven tests; use t.TempDir() for temporary files and t.Fatalf() for setup errors
+Archived: generic engineering advice (individual test functions, t.TempDir, t.Fatalf). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-oqtr | conventions
-When a task requires adding new functionality with acceptance tests, check if there's an explicit test reduction target or acceptance test line limit in the validation criteria. Large test suites may require consolidating, removing redundant, or refactoring existing tests to stay within budgets. The gromit codebase appears to track acceptance test line counts as a quality metric to prevent test bloat.
+Archived: generic engineering advice (check test reduction targets). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-qpjd | conventions
-Test functions use descriptive underscore-separated names indicating the specific scenario being tested (e.g., TestSetupBeadContext_PreemptiveEscalationP1HighComplexity, TestSetupBeadContext_NoEscalationWhenScopeCheckDisabled) rather than generic names, making each test's purpose immediately clear without reading the test body
+Archived: generic engineering advice (descriptive test names). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-qpjd | patterns
-Consolidate related test scenarios for a feature into a dedicated, focused test file (e.g., preemptive_escalation_test.go) rather than scattering them across general test files like process_test.go—this improves maintainability and reduces duplicate test code
+Archived: generic engineering advice (dedicated test files for features). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-2xrq | conventions
-Configuration inline comments should explain the rationale (why) using keywords like 'needs', 'consistently', 'longer', 'complex', 'prevent' — not just the value itself (what). Tests can verify this by searching for rationale keywords in comments.
+Archived: generic engineering advice (config comments explain rationale). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-nrzg | conventions
-Cobra commands follow a consistent pattern: define flags at package level with var declarations, initialize the command struct in init(), and use PersistentPreRunE for validation/setup that applies across command variations. Always check existing similar commands (like debug.go) for the exact registration and error-handling patterns.
+Archived: generic engineering advice (cobra command patterns). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-nrzg | patterns
-When formatting output with multiple conditional sections, extract each section (calculations, visibility checks, formatting) into dedicated helper functions—this reduces duplication when the same components appear across different output modes or stat types (e.g., printModelLine handles all model stats formatting, printEscalations handles conditional escalation display)
+Archived: generic engineering advice (extract formatting helpers). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-w0en | patterns
-When wiring new data into Status() output sections, accept value types (not pointers) in formatting functions to avoid allocation overhead on every call; Reader functions should log warnings but continue on error since display is informational
+Archived: generic engineering advice (value types for read-only data). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-lubw | conventions
-Logger functions are called with resolved filesystem paths (os.UserHomeDir()) rather than relative paths; always resolve home directory paths at call sites, not inside logger functions
+Archived: generic engineering advice (resolve paths at call sites). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-zyc8 | patterns
-Acceptance test line count reduction is a hard requirement for task completion. The spike task was meant to reduce acceptance test bloat by documenting findings and shifting validation responsibility. Ensure acceptance tests are consolidated or removed when shifting to provider-based validation, rather than just adding new provider code alongside existing tests.
+Archived: generic engineering advice (acceptance test reduction as hard requirement). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-zyc8 | gotchas
-Spike tasks should validate CLI mechanics empirically by executing actual commands and examining output/exit codes rather than reading docs—discovered that `codex` requires explicit model selection via flags (not env vars), and accepts stdin for prompts
+Archived: generic engineering advice (validate CLI mechanics empirically). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-vujh | patterns
-Define interfaces for external service integrations in a separate provider package to enable clean dependency injection and testing with mock implementations
+Archived: generic engineering advice (provider interface for DI). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-vujh | patterns
-Internal packages define their own interfaces and types rather than importing from external packages - each package is self-contained with explicit handler type definitions that match external signatures rather than reusing them
+Archived: generic engineering advice (self-contained packages). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-cz7a | gotchas
-When a task shows 'passed' validation but the error output is a generic confirmation message, verify actual task completion by checking git commits and test results rather than interpreting the message as a failure. This avoids false-positive failure analysis.
+Archived: generic engineering advice (verify actual completion). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-z56a | gotchas
-Gromit tasks with acceptance criteria involving metrics (like test line reduction percentages) must explicitly state the target threshold. When implementing features that affect test coverage or codebase size, verify the reduction percentage requirement against the baseline before submission.
+Archived: generic engineering advice (verify metrics thresholds). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-z56a | patterns
-Provider interface implementations delegate to underlying client implementations (e.g., claude.Client.Run()) rather than reimplementing logic, keeping the provider as a thin adapter layer that maps tier→model and handles interface satisfaction
+Archived: generic engineering advice (thin adapter/delegation pattern). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-z56a | patterns
-Provider implementations delegate directly to underlying client methods; type resolution (tier→model mapping) happens in the provider layer, not in the client itself
+Archived: generic engineering advice (tier→model mapping in provider layer). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-nqf1 | patterns
-ClaudeProvider delegates validation and error detection to the underlying claude.Client, following a pattern where provider methods wrap and delegate to their underlying client implementations
+Archived: generic engineering advice (provider delegation). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-nqf1 | patterns
-Provider wrapper methods delegate to package-level validation functions by converting provider.Result back to domain types using helper converters (convertToClaudeResult), enabling reuse of domain-package logic without duplicating validation rules
+Archived: generic engineering advice (converter helpers for domain type reuse). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-2edx | patterns
-Dual-layer state pattern: modify in-memory state first, then conditionally persist via injected StateFile interface. Always check if stateFn != nil before delegating persistence to handle cases where state management isn't needed.
+Archived: generic engineering advice (dual-layer state pattern). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-bu86 | patterns
-Instance methods on Runner use early return with nil checks for receiver and cfg, defaulting to TierMedium/sonnet rather than panicking. Constructor Run() validates all dependencies (beads, renderer, claude, router) with explicit nil checks before any logic executes.
+Archived: generic engineering advice (nil checks, early returns). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-6tyj | conventions
-When converting a function to use a new dependency (like router), update all test mocks and helpers to initialize that dependency. In particular, check internal/runner tests that directly instantiate or use the Runner struct—they need the new field set up with a mock or real implementation. Use grep for 'NewRunner' and test fixtures to find all construction points.
+Archived: generic engineering advice (update test mocks for new dependencies). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-11 | gromit-mz3m | gotchas
-When migrating interfaces (like ClaudeClient → Provider), systematically search for all usages across the codebase—including adapter structs and type assertions—to ensure no dangling references remain before removing the old field
+Archived: generic engineering advice (search all usages for interface migration). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
 ### 2026-02-12 | gromit-mz3m | conventions
-Acceptance test suites in this codebase enforce quantitative metrics (like test line reduction percentages) as hard pass/fail criteria. Before declaring a task complete, check test output for acceptance metrics and ensure all thresholds are met—migration completeness alone is insufficient if metrics targets are embedded in validation tests.
+Archived: generic engineering advice (check acceptance metrics before declaring complete). Not project-specific.
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-u1gm | patterns
+Archived: generic engineering advice (check both instantiation paths for new fields). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-qz0m | gotchas
+Archived: generic engineering advice (don't call methods for side effects). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-qz0m | patterns
+Archived: generic engineering advice (use constructors for proper initialization). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-6pvd | gotchas
+Archived: generic engineering advice (initialize maps in NormalizeNilFields). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-6pvd | conventions
+Archived: generic engineering advice (JSON tags + NormalizeNilFields for state). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-c2ax | conventions
+Archived: generic engineering advice (update SetDefaults and NormalizeNilFields). Promoted to rule.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-cz7a | patterns
+Archived: generic engineering advice (dedicated mapping functions for backward compat). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-w0en | patterns
+Archived: generic engineering advice (value-to-pointer conversion at call site). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-6w39 | patterns
+Archived: generic engineering advice (format functions return strings with embedded newlines). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-vvea | gotchas
+Archived: generic engineering advice (nil checks when calling functions earlier in lifecycle). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-11 | gromit-d46r | patterns
+Archived: generic engineering advice (only include non-zero counts in breakdowns). Not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
