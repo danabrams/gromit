@@ -24,10 +24,10 @@ Methodologies use label-based activation ("methodology:true"/"false") with globa
 
 Runner methods follow a consistent pattern: nil-safe receiver/config checks, feature-flag gating (e.g., IsAutoPushEnabled()), context.WithTimeout for subprocess calls, and failure handling via mode field (warn vs stop) or skippedBeads map rather than inline error handling. The Run() method follows clear sequencing: validate -> execute work -> persist state -> run between-iteration hooks -> continue loop. Log warnings on timeout errors rather than returning early. Provider invocations use router.Select() with phase + tier parameters: phase identifies the operation (build/validate/review/refactor), tier selects the complexity level (low/medium/high). Provider's StreamRun() executes the invocation. Capture the selected provider's Name() immediately after selection for use in dependent operations. Follow the executeClaudeInvocation pattern: extract tier selection, use provider.StreamRun(), handle UsageLimitError by escalating to the next tier via TierToModel mapping. Standard tiers: validation uses phase="validate" tier="low"; reviews use selectTier(bead) or "high" for opus builds/thorough reviews. Use selectReviewTier() helper which delegates to selectTier() for non-opus and returns "high" for opus builds.
 
-### 2026-02-11 | Acceptance Test Conventions | conventions
+### 2026-02-11 | Acceptance Test Line Budget | conventions
 *Related to: gromit-lxlp, gromit-nqf1, gromit-2edx, gromit-557p, gromit-3gdz*
 
-Acceptance tests (//go:build acceptance) must have proper build tags — enforced via final_verification_test.go. New test code should prefer unit tests for API verification, not acceptance tests. Files named *_acceptance_test.go must either use //go:build acceptance or genuinely test end-to-end behavior through the command surface.
+Acceptance tests (//go:build acceptance) are subject to line count audits — total across all files must not exceed the budget ceiling (currently 6,000 lines, rebased after cleanup achieved 38.5% reduction from original 8,370). New test code should prefer unit tests for API verification, not acceptance tests. Task specs that add test coverage should account for the total line budget. Test metrics are enforced via final_verification_test.go.
 
 ### 2026-02-11 | Prompt Template Structure | conventions
 *Related to: gromit-rpne*
@@ -45,6 +45,9 @@ When modifying command help text or descriptions in cmd/gromit, regenerate golde
 
 ### 2026-02-12 | gromit-uy56 | conventions
 When refactoring a CLI adapter to use Pipeline methods, verify that the Pipeline methods themselves handle all the integration details (agent launching, prompt file construction, temp file management) that the original code or tests expect. The Pipeline.ReviewInteractive method should be constructing and passing the prompt through the full agent launch workflow, not just rendering it. Check the existing Pipeline patterns in runner.go or other pipeline methods to understand the established convention for agent invocation and prompt handling.
+
+### 2026-02-12 | gromit-qfr1 | conventions
+Verification tests in cmd/gromit enforce file locations for test organization - explore tests must be colocated with the cmd/gromit/explore.go adapter, not in the internal package. Always check final_verification_test.go before implementing to understand test organization expectations.
 
 ---
 
