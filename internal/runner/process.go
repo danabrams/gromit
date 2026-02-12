@@ -1274,7 +1274,7 @@ func (r *Runner) runPostSuccessReview(ctx context.Context, bc *beadContext) erro
 	reviewStart := time.Now()
 	r.log("Running post-iteration review with model: %s", selectReviewModel(r.cfg, bc.model))
 
-	reviewResult, err := r.runLightReview(ctx, bc.bead, bc.parent, bc.startCommit, bc.model, bc.iteration, bc.runDeadline)
+	reviewResult, err := r.runLightReview(ctx, bc.bead, bc.parent, bc.startCommit, bc.model, bc.iteration, bc.runDeadline, bc.buildProvider)
 	if err != nil {
 		r.log("Warning: review failed: %v", err)
 		return nil // Review failure is non-blocking

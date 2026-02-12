@@ -163,13 +163,8 @@ func TestCrossReviewRoutesToOppositeProvider(t *testing.T) {
 	b := &bead.Bead{ID: "test-1", Priority: 1}
 
 	// The build was done by "claude" (model "sonnet"), so cross-review
-	// should route to "openai". The current implementation will NOT do this
-	// because runLightReview calls Select("review", tier) and "cross" is
-	// not a known provider name — it falls through to ratio balancing.
-	//
-	// Expected failure: review is NOT routed to "openai" because cross-review
-	// routing has not been implemented yet
-	_, _ = r.runLightReview(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{})
+	// should route to "openai".
+	_, _ = r.runLightReview(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{}, "claude")
 
 	if reviewProviderName != "openai" {
 		t.Errorf("cross-review routed to %q, want %q (opposite of build provider 'claude')",
@@ -255,8 +250,7 @@ func TestCrossReviewReverseDirection(t *testing.T) {
 	b := &bead.Bead{ID: "test-2", Priority: 1}
 
 	// Build was by "openai" (model "gpt-4o"), cross-review should go to "claude"
-	// Expected failure: cross-review routing not implemented yet
-	_, _ = r.runLightReview(context.Background(), b, nil, "def456", "gpt-4o", 1, time.Time{})
+	_, _ = r.runLightReview(context.Background(), b, nil, "def456", "gpt-4o", 1, time.Time{}, "openai")
 
 	if reviewProviderName != "claude" {
 		t.Errorf("cross-review routed to %q, want %q (opposite of build provider 'openai')",

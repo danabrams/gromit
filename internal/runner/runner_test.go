@@ -1745,7 +1745,7 @@ func TestRunLightReviewSkipsWhenDeadlineExpired(t *testing.T) {
 	// Deadline already expired
 	expiredDeadline := time.Now().Add(-1 * time.Second)
 
-	result, err := r.runLightReview(nil, b, nil, "abc123", "sonnet", 1, expiredDeadline)
+	result, err := r.runLightReview(nil, b, nil, "abc123", "sonnet", 1, expiredDeadline, "")
 
 	if err != nil {
 		t.Errorf("expected no error, got: %v", err)
@@ -1774,7 +1774,7 @@ func TestRunLightReviewSkipsWhenInsufficientTime(t *testing.T) {
 	// Deadline in 60 seconds, but review needs 300
 	deadline := time.Now().Add(60 * time.Second)
 
-	result, err := r.runLightReview(nil, b, nil, "abc123", "sonnet", 1, deadline)
+	result, err := r.runLightReview(nil, b, nil, "abc123", "sonnet", 1, deadline, "")
 
 	if err != nil {
 		t.Errorf("expected no error, got: %v", err)

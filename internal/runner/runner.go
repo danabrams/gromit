@@ -1747,7 +1747,7 @@ func selectReviewModel(cfg *config.Config, buildModel string) string {
 // runLightReview runs a post-iteration code review.
 // Gets diff from startCommit, builds ReviewContext, renders prompt, calls Claude, parses result.
 // If deadline is set and approaching, may reduce timeout or skip the review.
-func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.Bead, startCommit string, buildModel string, iteration int, deadline time.Time) (*review.ReviewResult, error) {
+func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.Bead, startCommit string, buildModel string, iteration int, deadline time.Time, buildProvider string) (*review.ReviewResult, error) {
 	if r == nil {
 		return nil, fmt.Errorf("runner is nil")
 	}
@@ -1822,8 +1822,13 @@ func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.
 	// Select tier for review (use "high" if opus build and matching enabled, else use bead tier)
 	tier := r.selectReviewTier(b, buildModel)
 
-	// Select provider via router (phase="review", tier from selectReviewTier)
-	p, _ := r.router.Select("review", tier)
+	// Select provider via router — use cross-review if configured
+	var p provider.Provider
+	if r.cfg.Routing.PhasePreferences["review"] == "cross" && buildProvider != "" {
+		p, _ = r.router.SelectCross(buildProvider, tier)
+	} else {
+		p, _ = r.router.Select("review", tier)
+	}
 	if p == nil {
 		return nil, fmt.Errorf("no provider available for review")
 	}
