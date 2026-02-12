@@ -632,6 +632,10 @@ func (m *mockBeadClient) Show(id string) (interface{}, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *mockBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *mockBeadClient) Close(id string) error {
 	return fmt.Errorf("not implemented")
 }
