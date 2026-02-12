@@ -131,3 +131,41 @@ func TestPaths_FieldAccess(t *testing.T) {
 		t.Errorf("EpicsDir = %q, want %q", paths.EpicsDir, "/tmp/.gromit/epics")
 	}
 }
+
+func TestDeps_FieldAccess(t *testing.T) {
+	deps := Deps{
+		AgentResolver:    &mockAgentResolver{},
+		ClaudeClient:     &mockClaudeClient{},
+		BeadClient:       &mockBeadClient{},
+		BacklogClient:    &mockBacklogClient{},
+		PromptRenderer:   &mockPromptRenderer{},
+		LearningsManager: &mockLearningsManager{},
+		StateManager:     &mockStateManager{},
+		LogWriter:        &mockLogWriter{},
+	}
+
+	if deps.AgentResolver == nil {
+		t.Error("AgentResolver field should be set")
+	}
+	if deps.ClaudeClient == nil {
+		t.Error("ClaudeClient field should be set")
+	}
+	if deps.BeadClient == nil {
+		t.Error("BeadClient field should be set")
+	}
+	if deps.BacklogClient == nil {
+		t.Error("BacklogClient field should be set")
+	}
+	if deps.PromptRenderer == nil {
+		t.Error("PromptRenderer field should be set")
+	}
+	if deps.LearningsManager == nil {
+		t.Error("LearningsManager field should be set")
+	}
+	if deps.StateManager == nil {
+		t.Error("StateManager field should be set")
+	}
+	if deps.LogWriter == nil {
+		t.Error("LogWriter field should be set")
+	}
+}
