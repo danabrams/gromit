@@ -105,26 +105,28 @@ func NewDecomposeResult() DecomposeResult {
 
 // ReviewInput contains parameters for the Review workflow.
 type ReviewInput struct {
-	Since     string // Git commit ref to review since
-	Spec      string // Spec label to scope review
-	Epic      string // Epic label to scope review
-	AgentName string // Optional agent override
+	FromCommit string        // Git commit ref to review from
+	Diff       string        // Diff content to review
+	Model      string        // Model to use for review
+	Timeout    int           // Timeout in seconds
+	AgentName  string        // Optional agent override (for interactive mode)
+	Spec       string        // Spec label to scope review (used by CLI to resolve FromCommit)
+	Epic       string        // Epic label to scope review (used by CLI to resolve FromCommit)
 }
 
 // ReviewResult contains the output from the Review workflow.
 // Use NewReviewResult() to create instances with properly initialized slices.
 type ReviewResult struct {
-	CreatedBeads        []string `json:"created_beads"`
-	CreatedBacklogItems []string `json:"created_backlog_items"`
-	PersistedLearnings  bool     `json:"persisted_learnings"`
+	Passed         bool   `json:"passed"`
+	Summary        string `json:"summary"`
+	FixesApplied   int    `json:"fixes_applied"`
+	BeadsCreated   int    `json:"beads_created"`
+	BacklogCreated int    `json:"backlog_created"`
 }
 
 // NewReviewResult creates a ReviewResult with initialized slices.
 func NewReviewResult() ReviewResult {
-	return ReviewResult{
-		CreatedBeads:        []string{},
-		CreatedBacklogItems: []string{},
-	}
+	return ReviewResult{}
 }
 
 // ExploreInput contains parameters for the Explore workflow.

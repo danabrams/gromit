@@ -119,17 +119,31 @@ func TestPipeline_DecomposeMethod(t *testing.T) {
 	}
 }
 
-func TestPipeline_ReviewMethod(t *testing.T) {
+func TestPipeline_ReviewInteractiveMethod(t *testing.T) {
 	deps := &Deps{}
 	paths := &Paths{}
 	p := New(deps, paths)
 
 	ctx := context.Background()
-	input := ReviewInput{Since: "HEAD~1"}
+	input := ReviewInput{FromCommit: "HEAD~1", Diff: "diff"}
 
-	_, err := p.Review(ctx, input)
+	_, err := p.ReviewInteractive(ctx, input)
 	if err == nil {
-		t.Error("Review() should error with nil dependencies")
+		t.Error("ReviewInteractive() should error with nil dependencies")
+	}
+}
+
+func TestPipeline_ReviewNonInteractiveMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := ReviewInput{FromCommit: "HEAD~1", Diff: "diff", Model: "sonnet", Timeout: 300}
+
+	_, err := p.ReviewNonInteractive(ctx, input)
+	if err == nil {
+		t.Error("ReviewNonInteractive() should error with nil dependencies")
 	}
 }
 

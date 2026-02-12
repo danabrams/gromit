@@ -60,11 +60,12 @@ func TestConstructors_InitializeSlices(t *testing.T) {
 
 	t.Run("ReviewResult", func(t *testing.T) {
 		result := NewReviewResult()
-		if result.CreatedBeads == nil {
-			t.Error("NewReviewResult().CreatedBeads should be non-nil")
+		// ReviewResult now contains counts, not slices
+		if result.BeadsCreated != 0 {
+			t.Errorf("NewReviewResult().BeadsCreated should be 0, got %d", result.BeadsCreated)
 		}
-		if result.CreatedBacklogItems == nil {
-			t.Error("NewReviewResult().CreatedBacklogItems should be non-nil")
+		if result.BacklogCreated != 0 {
+			t.Errorf("NewReviewResult().BacklogCreated should be 0, got %d", result.BacklogCreated)
 		}
 	})
 

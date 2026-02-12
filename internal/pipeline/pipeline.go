@@ -88,6 +88,7 @@ type PromptRenderer interface {
 	RenderRefine(input interface{}) (string, error)
 	RenderPlan(input interface{}) (string, error)
 	RenderDecompose(input interface{}) (string, error)
+	RenderThoroughReview(ctx interface{}) (string, error)
 }
 
 // LearningsManager abstracts learning persistence operations.
@@ -116,13 +117,22 @@ func (p *Pipeline) Plan(ctx context.Context, input PlanInput) (*PlanSession, err
 	return nil, fmt.Errorf("pipeline: Plan not yet implemented")
 }
 
-// Review executes the review workflow.
-func (p *Pipeline) Review(ctx context.Context, input ReviewInput) (*ReviewSession, error) {
+// ReviewInteractive executes the interactive review workflow.
+func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*ReviewSession, error) {
 	if p.deps == nil || p.deps.AgentResolver == nil {
 		return nil, fmt.Errorf("pipeline: nil dependencies")
 	}
 	// TODO: implement
-	return nil, fmt.Errorf("pipeline: Review not yet implemented")
+	return nil, fmt.Errorf("pipeline: ReviewInteractive not yet implemented")
+}
+
+// ReviewNonInteractive executes the non-interactive review workflow.
+func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) (*ReviewResult, error) {
+	if p.deps == nil || p.deps.ClaudeClient == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+	// TODO: implement
+	return nil, fmt.Errorf("pipeline: ReviewNonInteractive not yet implemented")
 }
 
 // Explore executes the explore workflow.

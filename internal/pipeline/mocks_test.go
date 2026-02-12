@@ -81,6 +81,10 @@ func (m *testPromptRenderer) RenderDecompose(input interface{}) (string, error) 
 	return "", nil
 }
 
+func (m *testPromptRenderer) RenderThoroughReview(ctx interface{}) (string, error) {
+	return "", nil
+}
+
 // testLearningsManager is a mock for unit tests
 type testLearningsManager struct{}
 
