@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // --- Mock implementations ---
@@ -1970,4 +1971,98 @@ func TestRunWithMocks_CustomConsecutiveSkipLimit(t *testing.T) {
 			t.Errorf("log %d: expected BeadID 'stuck-bead', got %q", i, log.BeadID)
 		}
 	}
+}
+
+// mockClaudeProviderAdapter wraps a mockClaudeClient to implement provider.Provider interface
+type mockClaudeProviderAdapter struct {
+	client *mockClaudeClient
+}
+
+func (m *mockClaudeProviderAdapter) Name() string {
+	return "mock-claude"
+}
+
+func (m *mockClaudeProviderAdapter) ModelForTier(tier string) string {
+	switch tier {
+	case provider.TierHigh:
+		return "opus"
+	case provider.TierMedium:
+		return "sonnet"
+	case provider.TierLow:
+		return "haiku"
+	default:
+		return "haiku"
+	}
+}
+
+func (m *mockClaudeProviderAdapter) Run(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+	model := m.ModelForTier(tier)
+	result, err := m.client.Run(ctx, prompt, model)
+	if err != nil {
+		return nil, err
+	}
+	return &provider.Result{
+		Success:  result.Success,
+		Output:   result.Output,
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+		Model:    result.Model,
+	}, nil
+}
+
+func (m *mockClaudeProviderAdapter) StreamRun(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	model := m.ModelForTier(tier)
+	// Convert provider handlers back to claude handlers for the mock
+	var claudeHandler claude.EventHandler
+	if handler != nil {
+		claudeHandler = func(line []byte) {
+			handler(line)
+		}
+	}
+	var claudeToolHandler claude.ToolCallHandler
+	if onToolCall != nil {
+		claudeToolHandler = func(event claude.ToolEvent) {
+			onToolCall(provider.ToolEvent{
+				ToolName:  event.ToolName,
+				FilePath:  event.FilePath,
+				Timestamp: event.Timestamp,
+			})
+		}
+	}
+	result, err := m.client.StreamRun(ctx, prompt, model, output, claudeHandler, claudeToolHandler)
+	if err != nil {
+		return nil, err
+	}
+	return &provider.Result{
+		Success:  result.Success,
+		Output:   result.Output,
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+		Model:    result.Model,
+	}, nil
+}
+
+func (m *mockClaudeProviderAdapter) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	model := m.ModelForTier(tier)
+	result, err := m.client.RunValidation(ctx, commands, model, workDir)
+	if err != nil {
+		return nil, err
+	}
+	return &provider.Result{
+		Success:  result.Success,
+		Output:   result.Output,
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+		Model:    result.Model,
+	}, nil
+}
+
+func (m *mockClaudeProviderAdapter) IsUsageLimitError(result *provider.Result, err error) bool {
+	return false
+}
+
+// newMockRouterFromClaudeClient creates a router wrapping a mockClaudeClient for unit tests
+func newMockRouterFromClaudeClient(client *mockClaudeClient) *provider.Router {
+	adapter := &mockClaudeProviderAdapter{client: client}
+	return provider.NewSingleProviderRouter(adapter)
 }

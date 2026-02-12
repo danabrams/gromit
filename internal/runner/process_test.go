@@ -2078,6 +2078,7 @@ func TestRunValidationWithRecovery_PassesOnFirstTry(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		claude:   mockClaude,
+		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: &mockRenderer{},
 		output:   &buf,
 	}

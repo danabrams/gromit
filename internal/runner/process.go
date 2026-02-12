@@ -992,16 +992,54 @@ func (r *Runner) runRefactorPhase(ctx context.Context, bc *beadContext) error {
 		return nil
 	}
 
-	valResult, err := r.claude.RunValidation(
+	if r.router == nil {
+		r.log("Warning: router is nil, cannot validate refactor")
+		return nil
+	}
+
+	// Select provider using router with phase="validate" and tier="low"
+	phase := "validate"
+	tier := provider.TierLow
+	p, modelName := r.router.Select(phase, tier)
+	if p == nil {
+		r.log("Warning: no providers available for validation")
+		return nil
+	}
+
+	// Call provider.RunValidation with the tier
+	providerResult, err := p.RunValidation(
 		ctx,
 		r.cfg.Validation.Commands,
-		r.cfg.Models.Validation,
+		tier,
 		bc.promptCtx.WorkDir,
 	)
+
+	// Check for usage limit error and retry with fallback provider
+	if err != nil && p.IsUsageLimitError(providerResult, err) {
+		r.router.MarkUnavailable(p.Name())
+
+		// Retry with new provider
+		p2, modelName2 := r.router.Select(phase, tier)
+		if p2 != nil {
+			r.log("Retrying validation with model: %s", modelName2)
+			providerResult, err = p2.RunValidation(ctx, r.cfg.Validation.Commands, tier, bc.promptCtx.WorkDir)
+		}
+	}
+
 	if err != nil {
 		r.log("Warning: refactor re-validation invocation failed: %v", err)
 		return r.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "re-validation invocation failed")
 	}
+
+	// Convert provider.Result to claude.Result for compatibility
+	valResult := &claude.Result{
+		Success:  providerResult.Success,
+		Output:   providerResult.Output,
+		ExitCode: providerResult.ExitCode,
+		Duration: providerResult.Duration,
+		Model:    modelName,
+	}
+
 	if valResult == nil || !claude.IsValidationPassed(valResult) {
 		return r.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "tests failed after refactoring")
 	}
@@ -1048,12 +1086,52 @@ func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *beadCo
 	r.log("Retry refactor complete, re-validating...")
 
 	// Re-validate after retry refactor
-	valResult, err := r.claude.RunValidation(
+	if r.router == nil {
+		r.log("Warning: router is nil, cannot validate retry refactor")
+		return nil
+	}
+
+	// Select provider using router with phase="validate" and tier="low"
+	phase := "validate"
+	tier := provider.TierLow
+	p, modelName := r.router.Select(phase, tier)
+	if p == nil {
+		r.log("Warning: no providers available for validation")
+		return nil
+	}
+
+	// Call provider.RunValidation with the tier
+	providerResult, err := p.RunValidation(
 		ctx,
 		r.cfg.Validation.Commands,
-		r.cfg.Models.Validation,
+		tier,
 		bc.promptCtx.WorkDir,
 	)
+
+	// Check for usage limit error and retry with fallback provider
+	if err != nil && p.IsUsageLimitError(providerResult, err) {
+		r.router.MarkUnavailable(p.Name())
+
+		// Retry with new provider
+		p2, modelName2 := r.router.Select(phase, tier)
+		if p2 != nil {
+			r.log("Retrying validation with model: %s", modelName2)
+			providerResult, err = p2.RunValidation(ctx, r.cfg.Validation.Commands, tier, bc.promptCtx.WorkDir)
+		}
+	}
+
+	// Convert provider.Result to claude.Result for compatibility
+	var valResult *claude.Result
+	if providerResult != nil {
+		valResult = &claude.Result{
+			Success:  providerResult.Success,
+			Output:   providerResult.Output,
+			ExitCode: providerResult.ExitCode,
+			Duration: providerResult.Duration,
+			Model:    modelName,
+		}
+	}
+
 	if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
 		r.log("Warning: retry refactor also failed validation - skipping refactoring")
 		// Revert again
@@ -1263,10 +1341,54 @@ func (r *Runner) runPostSuccessReview(ctx context.Context, bc *beadContext) erro
 			r.log("Review applied %d fixes, re-validating...", len(reviewResult.FixesApplied))
 
 			if r.cfg.Validation.Enabled {
-				valResult, err := r.claude.RunValidation(ctx, r.cfg.Validation.Commands, r.cfg.Models.Validation, bc.promptCtx.WorkDir)
+				if r.router == nil {
+					return fmt.Errorf("router is nil, cannot validate review fixes")
+				}
+
+				// Select provider using router with phase="validate" and tier="low"
+				phase := "validate"
+				tier := provider.TierLow
+				p, modelName := r.router.Select(phase, tier)
+				if p == nil {
+					return fmt.Errorf("no providers available for validation")
+				}
+
+				// Call provider.RunValidation with the tier
+				providerResult, err := p.RunValidation(
+					ctx,
+					r.cfg.Validation.Commands,
+					tier,
+					bc.promptCtx.WorkDir,
+				)
+
+				// Check for usage limit error and retry with fallback provider
+				if err != nil && p.IsUsageLimitError(providerResult, err) {
+					r.router.MarkUnavailable(p.Name())
+
+					// Retry with new provider
+					p2, modelName2 := r.router.Select(phase, tier)
+					if p2 != nil {
+						r.log("Retrying validation with model: %s", modelName2)
+						providerResult, err = p2.RunValidation(ctx, r.cfg.Validation.Commands, tier, bc.promptCtx.WorkDir)
+					}
+				}
+
 				if err != nil {
 					return fmt.Errorf("review re-validation invocation: %w", err)
 				}
+
+				// Convert provider.Result to claude.Result for compatibility
+				var valResult *claude.Result
+				if providerResult != nil {
+					valResult = &claude.Result{
+						Success:  providerResult.Success,
+						Output:   providerResult.Output,
+						ExitCode: providerResult.ExitCode,
+						Duration: providerResult.Duration,
+						Model:    modelName,
+					}
+				}
+
 				if valResult == nil || !claude.IsValidationPassed(valResult) {
 					bc.result.Output += "\n\n=== REVIEW RE-VALIDATION FAILED ===\n"
 					if valResult != nil {
