@@ -13,6 +13,7 @@ import (
 
 // TestAcceptance_RunPrecheckUsesRouterSelect verifies that runPrecheck
 // calls router.Select() with phase="precheck" and tier="low".
+// Expected failure: runPrecheck still uses r.claude.Run() directly instead of router.Select()
 func TestAcceptance_RunPrecheckUsesRouterSelect(t *testing.T) {
 	cfg := makeTestRunnerConfig()
 	enabled := true
@@ -66,6 +67,7 @@ func TestAcceptance_RunPrecheckUsesRouterSelect(t *testing.T) {
 
 // TestAcceptance_CheckScopeUsesRouterSelect verifies that checkScope
 // calls router.Select() with phase="scope_check" and tier="low".
+// Expected failure: checkScope still uses r.claude.Run() directly instead of router.Select()
 func TestAcceptance_CheckScopeUsesRouterSelect(t *testing.T) {
 	cfg := makeTestRunnerConfig()
 	cfg.ScopeCheck.Enabled = true
@@ -128,6 +130,7 @@ func TestAcceptance_CheckScopeUsesRouterSelect(t *testing.T) {
 
 // TestAcceptance_DecomposeTaskUsesRouterSelect verifies that DecomposeTask
 // calls router.Select() with phase="decompose" and tier="high".
+// Expected failure: DecomposeTask still uses r.claude.Run() directly instead of router.Select()
 func TestAcceptance_DecomposeTaskUsesRouterSelect(t *testing.T) {
 	cfg := makeTestRunnerConfig()
 
@@ -197,6 +200,7 @@ func TestAcceptance_DecomposeTaskUsesRouterSelect(t *testing.T) {
 
 // TestAcceptance_ExtractSuccessLearningUsesRouterSelect verifies that
 // extractSuccessLearning calls router.Select() with phase="build" and tier="low".
+// Expected failure: extractSuccessLearning still uses r.claude.Run() directly instead of router.Select()
 func TestAcceptance_ExtractSuccessLearningUsesRouterSelect(t *testing.T) {
 	cfg := makeTestRunnerConfig()
 	learnFromSuccess := true
