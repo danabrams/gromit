@@ -28,7 +28,8 @@ type beadContext struct {
 	bead        *bead.Bead
 	parent      *bead.Bead
 	result      *IterationResult
-	model       string
+	model       string // concrete model name for display/logging
+	tier        string // abstract tier (high/medium/low) for router selection
 	promptCtx   *prompt.Context
 	buildPrompt string
 	startCommit string
@@ -65,7 +66,10 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		return nil, nil, nil, fmt.Errorf("runner claude client is nil")
 	}
 
-	_, _, _, beadTimeoutSec := r.cfg.Claude.TimeoutsForModel(r.selectModel(b))
+	tier := r.selectTier(b)
+	model := r.selectModel(b) // legacy - for timeout lookup
+
+	_, _, _, beadTimeoutSec := r.cfg.Claude.TimeoutsForModel(model)
 	beadTimeout := time.Duration(beadTimeoutSec) * time.Second
 	beadCtx, beadCancel := context.WithTimeout(ctx, beadTimeout)
 
@@ -80,13 +84,12 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		r.log("Warning: failed to get parent bead: %v", err)
 	}
 
-	model := r.selectModel(b)
-
 	bc := &beadContext{
 		bead:              b,
 		parent:            parent,
-		result:            &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model},
-		model:             model,
+		result:            &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: ""}, // model set by router
+		model:             "",  // will be set by router in executeClaudeInvocation
+		tier:              tier,
 		startCommit:       startCommit,
 		iteration:         iteration,
 		maxRetries:        r.cfg.Escalation.MaxRetriesPerModel,
@@ -98,10 +101,10 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	}
 
 	// Preemptive escalation: if scope check is enabled, scope complexity is high,
-	// and model is sonnet, escalate to opus before first invocation
-	if r.cfg.ScopeCheck.Enabled && scopeEstimate != nil && scopeEstimate.Complexity == "high" && model == "sonnet" {
-		r.log("Scope check: complexity=high, preemptively escalating from sonnet to opus")
-		r.escalateModel(bc, "opus")
+	// and tier is medium, escalate to high before first invocation
+	if r.cfg.ScopeCheck.Enabled && scopeEstimate != nil && scopeEstimate.Complexity == "high" && tier == provider.TierMedium {
+		r.log("Scope check: complexity=high, preemptively escalating from medium to high tier")
+		r.escalateTier(bc, provider.TierHigh)
 	}
 
 	return bc, beadCtx, beadCancel, nil
@@ -126,8 +129,8 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iterat
 		}
 		if scopeEstimate != nil {
 			if scopeEstimate.Complexity == "high" {
-				r.log("Scope check: complexity=high, auto-escalating to opus")
-				r.escalateModel(bc, "opus")
+				r.log("Scope check: complexity=high, auto-escalating to high tier")
+				r.escalateTier(bc, provider.TierHigh)
 			} else {
 				r.log("Scope check: complexity=%s", scopeEstimate.Complexity)
 			}
@@ -155,9 +158,9 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 		return nil, nil, false, fmt.Errorf("runner router is nil")
 	}
 
-	// Determine phase and tier
+	// Determine phase and use tier from bead context
 	phase := "build"
-	tier := r.selectTier(bc.bead)
+	tier := bc.tier
 
 	// Select provider using router
 	p, modelName := r.router.Select(phase, tier)
@@ -168,6 +171,10 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 	// Update bead context with router-selected model
 	bc.model = modelName
 	bc.result.Model = modelName
+	// If this is an escalated invocation, update EscalatedTo with the concrete model name
+	if bc.result.Escalated && bc.result.EscalatedTo != "" {
+		bc.result.EscalatedTo = modelName
+	}
 
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
@@ -275,15 +282,15 @@ func (r *Runner) handleStallTimeout(ctx context.Context, bc *beadContext) (conti
 		return true
 	}
 
-	r.log("Stall timeout, retries exhausted for %s", bc.model)
-	nextModel := r.cfg.NextEscalationModel(bc.model)
-	if nextModel == "" {
-		r.log("Stall timeout, no more models to escalate to - attempting decomposition")
+	r.log("Stall timeout, retries exhausted for tier %s", bc.tier)
+	nextTier := r.cfg.NextEscalationTier(bc.tier)
+	if nextTier == "" {
+		r.log("Stall timeout, no more tiers to escalate to - attempting decomposition")
 		return r.attemptDecomposition(ctx, bc, "stall timeout")
 	}
 
-	r.log("Escalating from %s to %s after stall", bc.model, nextModel)
-	r.escalateModel(bc, nextModel)
+	r.log("Escalating from tier %s to %s after stall", bc.tier, nextTier)
+	r.escalateTier(bc, nextTier)
 
 	var err error
 	bc.buildPrompt, err = r.renderer.RenderBuild(bc.promptCtx)
@@ -508,12 +515,12 @@ func (r *Runner) analyzeAndHandleFailure(ctx context.Context, bc *beadContext, c
 	return r.handleEscalation(ctx, bc, claudeResult)
 }
 
-// handleEscalation tries to escalate to the next model or decompose the task.
+// handleEscalation tries to escalate to the next tier or decompose the task.
 // Returns true if the retry loop should continue, false if processBead should return.
 func (r *Runner) handleEscalation(ctx context.Context, bc *beadContext, claudeResult *claude.Result) (continueLoop bool) {
-	nextModel := r.cfg.NextEscalationModel(bc.model)
-	if nextModel == "" {
-		r.log("Build failed, no more models to escalate to - attempting decomposition")
+	nextTier := r.cfg.NextEscalationTier(bc.tier)
+	if nextTier == "" {
+		r.log("Build failed, no more tiers to escalate to - attempting decomposition")
 		return r.attemptDecomposition(ctx, bc, "build failed with all models")
 	}
 
@@ -526,12 +533,12 @@ func (r *Runner) handleEscalation(ctx context.Context, bc *beadContext, claudeRe
 		return false
 	}
 
-	r.log("Escalating from %s to %s", bc.model, nextModel)
-	r.escalateModel(bc, nextModel)
+	r.log("Escalating from tier %s to %s", bc.tier, nextTier)
+	r.escalateTier(bc, nextTier)
 
 	bc.promptCtx.IsRetry = true
 	bc.promptCtx.PrevFailure = claudeResult.Output
-	bc.promptCtx.Model = bc.model
+	bc.promptCtx.Model = bc.tier // will be resolved to concrete model name by router
 
 	var err error
 	bc.buildPrompt, err = r.renderer.RenderBuild(bc.promptCtx)
@@ -570,7 +577,18 @@ func (r *Runner) attemptDecomposition(ctx context.Context, bc *beadContext, fail
 	return false
 }
 
+// escalateTier updates the bead context to use a new tier after escalation.
+// The router will select the concrete model on the next invocation.
+func (r *Runner) escalateTier(bc *beadContext, nextTier string) {
+	bc.result.Escalated = true
+	bc.result.EscalatedTo = nextTier // store tier, not model name
+	bc.tier = nextTier
+	bc.retriesThisModel = 0
+	// bc.model will be updated by router in executeClaudeInvocation
+}
+
 // escalateModel updates the bead context to use a new model after escalation.
+// Legacy function - prefer escalateTier for router-based code paths.
 func (r *Runner) escalateModel(bc *beadContext, nextModel string) {
 	bc.result.Escalated = true
 	bc.result.EscalatedTo = nextModel
@@ -587,7 +605,7 @@ func (r *Runner) escalateModel(bc *beadContext, nextModel string) {
 func (r *Runner) runAcceptanceTestsWithRetry(ctx context.Context, bc *beadContext) error {
 	retries := 0
 	maxRetries := r.cfg.Escalation.MaxRetriesPerModel
-	currentModel := bc.model
+	currentTier := bc.tier
 
 	for {
 		if retries > 0 {
@@ -599,22 +617,22 @@ func (r *Runner) runAcceptanceTestsWithRetry(ctx context.Context, bc *beadContex
 			return nil
 		}
 
-		// Retry with same model
+		// Retry with same tier
 		if retries < maxRetries {
 			retries++
 			// Could add failure analysis here if needed
 			continue
 		}
 
-		// Escalate model
-		nextModel := r.cfg.NextEscalationModel(currentModel)
-		if nextModel == "" {
-			return fmt.Errorf("acceptance tests failed with all models: %w", err)
+		// Escalate tier
+		nextTier := r.cfg.NextEscalationTier(currentTier)
+		if nextTier == "" {
+			return fmt.Errorf("acceptance tests failed with all tiers: %w", err)
 		}
 
-		r.log("Escalating acceptance tests from %s to %s", currentModel, nextModel)
-		r.escalateModel(bc, nextModel)
-		currentModel = nextModel
+		r.log("Escalating acceptance tests from tier %s to %s", currentTier, nextTier)
+		r.escalateTier(bc, nextTier)
+		currentTier = nextTier
 		retries = 0
 	}
 }
