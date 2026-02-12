@@ -26,6 +26,8 @@ type Agent interface {
 	Name() string
 	// Launch executes the agent with the given prompt file path
 	Launch(promptPath string) error
+	// Command builds a configured *exec.Cmd for the agent without starting it
+	Command(promptPath string) (*exec.Cmd, error)
 }
 
 // cliAgent is a CLI-based agent implementation
@@ -114,4 +116,36 @@ func (a *cliAgent) Launch(promptPath string) error {
 	}
 
 	return err
+}
+
+// Command builds a configured *exec.Cmd for the agent without starting it
+func (a *cliAgent) Command(promptPath string) (*exec.Cmd, error) {
+	// Verify prompt file exists
+	if _, err := os.Stat(promptPath); err != nil {
+		return nil, fmt.Errorf("prompt file not found: %w", err)
+	}
+
+	// Build command arguments based on prompt delivery method
+	args := make([]string, 0, len(a.flags)+len(a.extraArgs)+3)
+	args = append(args, a.flags...)
+
+	switch a.promptDelivery {
+	case FileRef:
+		// Add the file reference message as a positional argument
+		args = append(args, fmt.Sprintf(fileRefMessageFormat, promptPath))
+	case PromptFileArg:
+		// Add the prompt flag and file path
+		if a.promptFlag != "" {
+			args = append(args, a.promptFlag, promptPath)
+		}
+	case Stdin:
+		// No additional args needed - caller is responsible for stdin setup
+	}
+
+	args = append(args, a.extraArgs...)
+
+	// Create command - do not set stdout/stderr/stdin (caller's responsibility)
+	cmd := exec.Command(a.binary, args...)
+
+	return cmd, nil
 }

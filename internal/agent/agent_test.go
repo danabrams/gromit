@@ -19,6 +19,9 @@ type testAgent struct{}
 
 func (a *testAgent) Name() string                   { return "test" }
 func (a *testAgent) Launch(promptPath string) error { return nil }
+func (a *testAgent) Command(promptPath string) (*exec.Cmd, error) {
+	return exec.Command("echo", "test"), nil
+}
 
 // TestPromptDeliveryConstants verifies all three PromptDelivery constants exist
 func TestPromptDeliveryConstants(t *testing.T) {
