@@ -351,10 +351,6 @@ func (m *mockAgent) Launch(promptPath string) error {
 	return nil
 }
 
-func (m *mockAgent) Command(promptPath string) (interface{}, error) {
-	return nil, nil
-}
-
 // mockBacklogClient implements BacklogClient for testing
 type mockBacklogClient struct {
 	ideas []*Idea

@@ -45,10 +45,10 @@ type AgentResolver interface {
 }
 
 // Agent abstracts the agent interface needed by the pipeline.
+// This matches the agent.Agent interface from internal/agent.
 type Agent interface {
 	Name() string
 	Launch(promptPath string) error
-	Command(promptPath string) (interface{}, error)
 }
 
 // ClaudeClient abstracts Claude CLI operations for non-interactive workflows.
