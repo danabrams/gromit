@@ -131,8 +131,9 @@ func NewReviewResult() ReviewResult {
 
 // ExploreInput contains parameters for the Explore workflow.
 type ExploreInput struct {
-	Topic string // Topic to explore
-	Model string // Model to use for exploration
+	Topic     string // Topic to explore (optional)
+	AgentName string // Optional agent override
+	Model     string // Model to use for exploration
 }
 
 // ExploreResult contains the output from the Explore workflow.

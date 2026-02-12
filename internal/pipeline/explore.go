@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 )
 
 // Explore executes the explore workflow in non-interactive mode.
@@ -52,11 +53,30 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	if err != nil {
 		return nil, fmt.Errorf("rendering explore prompt: %w", err)
 	}
-	_ = renderedPrompt // Will be written to temp file
 
-	// TODO: Write temp file
-	// TODO: Resolve agent
-	// TODO: Launch agent
+	// Write temp file
+	tmpDir := filepath.Join(p.paths.GromitDir, "tmp")
+	promptPath, cleanup, err := WriteTempPrompt(tmpDir, renderedPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("writing temp prompt: %w", err)
+	}
+	defer cleanup()
+
+	// Resolve agent (defaulting to "claude" if not specified)
+	agentName := input.AgentName
+	if agentName == "" {
+		agentName = "claude"
+	}
+	agent, err := p.deps.AgentResolver.Resolve("explore", agentName, false)
+	if err != nil {
+		return nil, fmt.Errorf("resolving agent: %w", err)
+	}
+
+	// Launch agent
+	if err := agent.Launch(promptPath); err != nil {
+		return nil, fmt.Errorf("launching agent: %w", err)
+	}
+
 	// TODO: Post-processing: detect new artifacts using pre-snapshots
 
 	return &result, nil
