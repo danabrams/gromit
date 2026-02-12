@@ -58,31 +58,14 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 		return nil, fmt.Errorf("codex provider is nil")
 	}
 
-	// Resolve tier to model name
 	model := cp.ModelForTier(tier)
-
-	// Write prompt to temporary file
-	tmpFile, err := os.CreateTemp("", "codex-prompt-*.txt")
+	tmpFile, cleanup, err := cp.createPromptFile(prompt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file for prompt: %w", err)
+		return nil, err
 	}
-	defer os.Remove(tmpFile.Name())
+	defer cleanup()
 
-	if _, err := tmpFile.WriteString(prompt); err != nil {
-		tmpFile.Close()
-		return nil, fmt.Errorf("failed to write prompt to temp file: %w", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close temp file: %w", err)
-	}
-
-	// Build command arguments
-	args := []string{}
-	args = append(args, cp.flags...)
-	args = append(args, "--model", model)
-	args = append(args, cp.promptFlag, tmpFile.Name())
-
-	// Execute command
+	args := cp.buildCommandArgs(model, tmpFile)
 	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
 
 	var stdout, stderr bytes.Buffer
@@ -93,34 +76,23 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 	err = cmd.Run()
 	duration := time.Since(startTime)
 
-	// Check if context was cancelled
 	if ctx.Err() != nil {
 		return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
 	}
 
-	// Combine stdout and stderr
 	output := stdout.String() + stderr.String()
-
-	// Get exit code
-	exitCode := 0
+	exitCode, err := cp.extractExitCode(err)
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			// Command failed to start
-			return nil, fmt.Errorf("failed to execute codex command: %w", err)
-		}
+		return nil, err
 	}
 
-	result := &Result{
+	return &Result{
 		Success:  exitCode == 0,
 		Output:   output,
 		ExitCode: exitCode,
 		Duration: duration,
 		Model:    model,
-	}
-
-	return result, nil
+	}, nil
 }
 
 // StreamRun executes an LLM invocation with streaming output.
@@ -131,31 +103,14 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		return nil, fmt.Errorf("codex provider is nil")
 	}
 
-	// Resolve tier to model name
 	model := cp.ModelForTier(tier)
-
-	// Write prompt to temporary file
-	tmpFile, err := os.CreateTemp("", "codex-prompt-*.txt")
+	tmpFile, cleanup, err := cp.createPromptFile(prompt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file for prompt: %w", err)
+		return nil, err
 	}
-	defer os.Remove(tmpFile.Name())
+	defer cleanup()
 
-	if _, err := tmpFile.WriteString(prompt); err != nil {
-		tmpFile.Close()
-		return nil, fmt.Errorf("failed to write prompt to temp file: %w", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close temp file: %w", err)
-	}
-
-	// Build command arguments
-	args := []string{}
-	args = append(args, cp.flags...)
-	args = append(args, "--model", model)
-	args = append(args, cp.promptFlag, tmpFile.Name())
-
-	// Execute command
+	args := cp.buildCommandArgs(model, tmpFile)
 	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
 
 	// Stream output to both the provided writer and our capture buffer
@@ -175,37 +130,26 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	err = cmd.Run()
 	duration := time.Since(startTime)
 
-	// Check if context was cancelled
 	if ctx.Err() != nil {
 		return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
 	}
 
-	// Combine stdout and stderr for the result
 	combinedOutput := captureBuffer.String() + stderr.String()
-
-	// Get exit code
-	exitCode := 0
+	exitCode, err := cp.extractExitCode(err)
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			// Command failed to start
-			return nil, fmt.Errorf("failed to execute codex command: %w", err)
-		}
-	}
-
-	result := &Result{
-		Success:  exitCode == 0,
-		Output:   combinedOutput,
-		ExitCode: exitCode,
-		Duration: duration,
-		Model:    model,
+		return nil, err
 	}
 
 	// EventHandler and ToolCallHandler are intentionally not called for Codex
 	// as it doesn't produce Claude-style stream-json events
 
-	return result, nil
+	return &Result{
+		Success:  exitCode == 0,
+		Output:   combinedOutput,
+		ExitCode: exitCode,
+		Duration: duration,
+		Model:    model,
+	}, nil
 }
 
 // RunValidation is not implemented for CodexProvider.
@@ -237,4 +181,52 @@ func (cp *CodexProvider) IsUsageLimitError(result *Result, err error) bool {
 	}
 
 	return false
+}
+
+// createPromptFile writes the prompt to a temporary file and returns the filename
+// and a cleanup function. The cleanup function should be called via defer.
+func (cp *CodexProvider) createPromptFile(prompt string) (string, func(), error) {
+	tmpFile, err := os.CreateTemp("", "codex-prompt-*.txt")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create temp file for prompt: %w", err)
+	}
+
+	cleanup := func() { os.Remove(tmpFile.Name()) }
+
+	if _, err := tmpFile.WriteString(prompt); err != nil {
+		tmpFile.Close()
+		cleanup()
+		return "", nil, fmt.Errorf("failed to write prompt to temp file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	return tmpFile.Name(), cleanup, nil
+}
+
+// buildCommandArgs constructs the command arguments for the Codex CLI invocation
+func (cp *CodexProvider) buildCommandArgs(model, promptFile string) []string {
+	args := make([]string, 0, len(cp.flags)+4)
+	args = append(args, cp.flags...)
+	args = append(args, "--model", model)
+	args = append(args, cp.promptFlag, promptFile)
+	return args
+}
+
+// extractExitCode extracts the exit code from a command execution error.
+// Returns 0 for success, the exit code for ExitError, or an error if the command
+// failed to start.
+func (cp *CodexProvider) extractExitCode(err error) (int, error) {
+	if err == nil {
+		return 0, nil
+	}
+
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		return exitErr.ExitCode(), nil
+	}
+
+	return 0, fmt.Errorf("failed to execute codex command: %w", err)
 }
