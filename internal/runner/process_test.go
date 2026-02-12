@@ -2515,6 +2515,9 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 		},
 	}
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			Claude: config.ClaudeConfig{
@@ -2523,6 +2526,7 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 			},
 		},
 		claude: mockClaude,
+		router: mockRouter,
 		output: &buf,
 	}
 	bc := &beadContext{

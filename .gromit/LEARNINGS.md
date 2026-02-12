@@ -903,3 +903,8 @@ Instance methods on Runner use early return with nil checks for receiver and cfg
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-6tyj | conventions
+When converting a function to use a new dependency (like router), update all test mocks and helpers to initialize that dependency. In particular, check internal/runner tests that directly instantiate or use the Runner struct—they need the new field set up with a mock or real implementation. Use grep for 'NewRunner' and test fixtures to find all construction points.
+
+*Archived from new: filtered: generic engineering advice*
+

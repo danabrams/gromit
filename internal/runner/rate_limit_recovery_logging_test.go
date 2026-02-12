@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs verifies that
@@ -57,9 +58,13 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 	}
 	defer sl.Close()
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg:          cfg,
 		claude:       mockClaude,
+		router:       mockRouter,
 		streamLogger: sl,
 	}
 
@@ -135,9 +140,13 @@ func TestExecuteClaudeInvocation_ZeroRecoveryMsWhenNoRateLimit(t *testing.T) {
 		},
 	}
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg:    cfg,
 		claude: mockClaude,
+		router: mockRouter,
 	}
 
 	bc := &beadContext{
