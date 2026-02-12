@@ -52,6 +52,9 @@ Verification tests in cmd/gromit enforce file locations for test organization - 
 ### 2026-02-12 | gromit-qfr1 | patterns
 Pipeline methods follow a consistent pattern: input struct with all parameters, output struct with results, validate dependencies first, use renderer for template processing, handle agent resolution via p.agents.ResolveByName with defaults, and define post-processing logic to detect changes
 
+### 2026-02-12 | gromit-914c | patterns
+Interface cleanup in this codebase removes unused interface definitions entirely rather than keeping them for backwards compatibility or as documentation — check for unused interfaces in runner/interfaces.go and similar files when making changes to understand the current API contract
+
 ---
 
 ## Archived
@@ -1074,4 +1077,9 @@ Acceptance test budget (6000 lines across all test files) is a hard constraint i
 Archived: consolidated into Confirmed "Runner and Provider Invocation Pattern" entry. Router Conversion Pattern was migration-specific (migration complete); durable provider invocation knowledge merged with Runner Method Pattern.
 
 *Archived from confirmed: consolidated*
+
+### 2026-02-12 | gromit-914c | patterns
+When removing unused interfaces, check if test mocks implement them. If they do, move mocks to a legacy_*_test.go file with clear comments rather than deleting them entirely—this preserves backward compatibility with tests that haven't been migrated yet
+
+*Archived from new: filtered: generic engineering advice*
 

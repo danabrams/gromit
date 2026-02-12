@@ -11,6 +11,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/state"
 )
 
@@ -87,7 +88,14 @@ func (env hashEvictionEnv) addFilteredHashes(t *testing.T, hashes []string) {
 // runRetro creates a Retro instance and runs it, returning the filtered hashes from state.
 func (env hashEvictionEnv) runRetro(t *testing.T) map[string]bool {
 	t.Helper()
-	r, err := NewRetro(env.cfg, env.tmpDir)
+	// Create provider from config
+	mockProvider := &mockProvider{
+		runResult: &provider.Result{
+			Success: true,
+			Output:  `{"category":"patterns","project_relevant":true}`,
+		},
+	}
+	r, err := NewRetroWithProvider(mockProvider, env.tmpDir)
 	if err != nil {
 		t.Fatalf("creating retro: %v", err)
 	}

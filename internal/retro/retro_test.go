@@ -7,18 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danabrams/gromit/internal/claude"
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 )
 
-func TestNewRetroNilConfig(t *testing.T) {
-	r, err := NewRetro(nil, ".gromit")
+func TestNewRetroWithProviderNilProvider(t *testing.T) {
+	r, err := NewRetroWithProvider(nil, ".gromit")
 	if r != nil {
-		t.Error("expected nil Retro for nil config")
+		t.Error("expected nil Retro for nil provider")
 	}
 	if err == nil {
-		t.Error("expected error for nil config")
+		t.Error("expected error for nil provider")
 	}
 }
 
@@ -30,20 +28,20 @@ func TestRunNilReceiver(t *testing.T) {
 	}
 }
 
-func TestRunNilClaudeClient(t *testing.T) {
+func TestRunNilProvider(t *testing.T) {
 	r := &Retro{
-		claude: nil,
+		provider: nil,
 	}
 	_, err := r.Run(context.Background(), nil)
 	if err == nil {
-		t.Error("expected error for nil claude client")
+		t.Error("expected error for nil provider")
 	}
 }
 
 func TestRunNilLearningsFile(t *testing.T) {
-	claudeClient, _ := claude.NewClient("claude", nil, 60)
+	mockProvider := &mockProvider{}
 	r := &Retro{
-		claude:        claudeClient,
+		provider:      mockProvider,
 		learningsFile: nil,
 	}
 	_, err := r.Run(context.Background(), nil)
@@ -61,24 +59,16 @@ func TestEnrichBeadStatsNilReceiver(t *testing.T) {
 
 func TestEnrichBeadStatsNilMap(t *testing.T) {
 	tmpDir := t.TempDir()
-	r, _ := NewRetro(&config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}, tmpDir)
+	mockProvider := &mockProvider{}
+	r, _ := NewRetroWithProvider(mockProvider, tmpDir)
 	// Should not panic
 	r.enrichBeadStats(context.Background(), nil)
 }
 
 func TestEnrichBeadStatsEmptyMap(t *testing.T) {
 	tmpDir := t.TempDir()
-	r, _ := NewRetro(&config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}, tmpDir)
+	mockProvider := &mockProvider{}
+	r, _ := NewRetroWithProvider(mockProvider, tmpDir)
 	beadStats := make(map[string]logger.BeadStats)
 	// Should not panic and return immediately
 	r.enrichBeadStats(context.Background(), beadStats)
@@ -233,12 +223,8 @@ func TestRenderPromptWithPopulatedExperiment(t *testing.T) {
 
 	// Create Retro with the temp template path
 	tmpGromitDir := t.TempDir()
-	r, err := NewRetro(&config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}, tmpGromitDir)
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
 	if err != nil {
 		t.Fatalf("failed to create Retro: %v", err)
 	}
@@ -363,12 +349,8 @@ func TestRenderPromptWithoutExperiment(t *testing.T) {
 	}
 
 	tmpGromitDir := t.TempDir()
-	r, err := NewRetro(&config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}, tmpGromitDir)
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
 	if err != nil {
 		t.Fatalf("failed to create Retro: %v", err)
 	}
@@ -433,12 +415,8 @@ func TestRenderPromptTemplateExpressionsWithFloatTypes(t *testing.T) {
 	}
 
 	tmpGromitDir := t.TempDir()
-	r, err := NewRetro(&config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}, tmpGromitDir)
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
 	if err != nil {
 		t.Fatalf("failed to create Retro: %v", err)
 	}
@@ -541,14 +519,9 @@ Second provisional learning
 	}
 
 	// Create basic config
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}
+	mockProvider := &mockProvider{}
 
-	r, err := NewRetro(cfg, tmpDir)
+	r, err := NewRetroWithProvider(mockProvider, tmpDir)
 	if err != nil {
 		t.Fatalf("creating retro: %v", err)
 	}
@@ -1011,12 +984,8 @@ func TestRenderPromptWithNilExperimentAndEfficiency(t *testing.T) {
 
 	// Create Retro with the temp template path
 	tmpGromitDir := t.TempDir()
-	r, err := NewRetro(&config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}, tmpGromitDir)
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
 	if err != nil {
 		t.Fatalf("failed to create Retro: %v", err)
 	}
@@ -1151,12 +1120,8 @@ func TestRenderPromptWithNilExperimentAndEfficiencyUsingRealTemplate(t *testing.
 
 	// Create Retro with the real template
 	tmpGromitDir := t.TempDir()
-	r, err := NewRetro(&config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}, tmpGromitDir)
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
 	if err != nil {
 		t.Fatalf("failed to create Retro: %v", err)
 	}

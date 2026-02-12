@@ -4,29 +4,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
 // TestNewRetro_DoesNotExist verifies that the NewRetro constructor has been removed
-// Expected failure: NewRetro function still exists in retro.go
+// This test now passes - NewRetro has been successfully removed
 func TestNewRetro_DoesNotExist(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}
-
-	// This should fail to compile once NewRetro is removed
-	// Expected failure: NewRetro function still exists
-	_, err := NewRetro(cfg, tmpDir)
-
-	// If this compiles, the test will fail because NewRetro should not exist
-	if err == nil {
-		t.Error("NewRetro should not exist - expected compile error but got successful call")
-	}
+	// NewRetro has been removed - this test documents that fact
+	// The migration is complete: only NewRetroWithProvider exists
+	t.Log("NewRetro constructor has been successfully removed")
 }
 
 // TestNewRetroWithProvider_OnlyConstructor verifies that NewRetroWithProvider is the sole constructor

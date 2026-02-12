@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/provider"
@@ -27,8 +25,6 @@ type ProviderRunner interface {
 
 // Retro manages retrospective analysis
 type Retro struct {
-	cfg            *config.Config
-	claude         *claude.Client
 	provider       ProviderRunner
 	learningsFile  *learnings.File
 	rulesPath      string
@@ -54,30 +50,6 @@ type Result struct {
 	Success       bool
 	Efficiency    *logger.EfficiencyReport
 	Experiment    *Experiment
-}
-
-// NewRetro creates a new retrospective analyzer
-func NewRetro(cfg *config.Config, gromitDir string) (*Retro, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config is nil")
-	}
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
-	if err != nil {
-		return nil, err
-	}
-	learningsFile, err := learnings.NewFile(gromitDir)
-	if err != nil {
-		return nil, err
-	}
-	return &Retro{
-		cfg:            cfg,
-		claude:         claudeClient,
-		learningsFile:  learningsFile,
-		rulesPath:      filepath.Join(gromitDir, "RULES.md"),
-		templatePath:   filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
-		experimentPath: filepath.Join(gromitDir, "experiment.json"),
-		gromitDir:      gromitDir,
-	}, nil
 }
 
 // NewRetroWithProvider creates a new retrospective analyzer with a Provider
@@ -112,9 +84,9 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	if r == nil {
 		return nil, fmt.Errorf("retro is nil")
 	}
-	// Check for either claude client or provider
-	if r.claude == nil && r.provider == nil {
-		return nil, fmt.Errorf("neither claude client nor provider is set")
+	// Check for provider
+	if r.provider == nil {
+		return nil, fmt.Errorf("provider is nil")
 	}
 	// Load learnings
 	if r.learningsFile == nil {
@@ -227,33 +199,19 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 func (r *Retro) createLearningsAdapter() interface {
 	Run(ctx context.Context, prompt string, model string) (*learnings.Result, error)
 } {
-	if r.provider != nil {
-		return learnings.NewProviderRunnerAdapter(r.provider)
-	}
-	return learnings.NewClaudeRunnerAdapter(r.claude)
+	return learnings.NewProviderRunnerAdapter(r.provider)
 }
 
-// runAnalysis executes the LLM analysis using either provider or Claude client
+// runAnalysis executes the LLM analysis using provider
 func (r *Retro) runAnalysis(ctx context.Context, prompt string) (resultGetter, error) {
-	if r.provider != nil {
-		result, err := r.provider.Run(ctx, prompt, "high")
-		if err != nil {
-			return nil, fmt.Errorf("running provider analysis: %w", err)
-		}
-		if result == nil {
-			return &providerResultAdapter{&provider.Result{Success: false}}, nil
-		}
-		return &providerResultAdapter{result}, nil
-	}
-
-	result, err := r.claude.Run(ctx, prompt, "opus")
+	result, err := r.provider.Run(ctx, prompt, "high")
 	if err != nil {
-		return nil, fmt.Errorf("running Claude analysis: %w", err)
+		return nil, fmt.Errorf("running provider analysis: %w", err)
 	}
 	if result == nil {
-		return &claudeResultAdapter{&claude.Result{Success: false}}, nil
+		return &providerResultAdapter{&provider.Result{Success: false}}, nil
 	}
-	return &claudeResultAdapter{result}, nil
+	return &providerResultAdapter{result}, nil
 }
 
 // providerResultAdapter adapts provider.Result to resultGetter interface
@@ -269,18 +227,6 @@ func (a *providerResultAdapter) GetOutput() string {
 	return a.result.Output
 }
 
-// claudeResultAdapter adapts claude.Result to resultGetter interface
-type claudeResultAdapter struct {
-	result *claude.Result
-}
-
-func (a *claudeResultAdapter) GetSuccess() bool {
-	return a.result.Success
-}
-
-func (a *claudeResultAdapter) GetOutput() string {
-	return a.result.Output
-}
 
 // loadRules reads the RULES.md file
 func (r *Retro) loadRules() (string, error) {
