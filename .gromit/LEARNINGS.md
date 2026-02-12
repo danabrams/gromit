@@ -122,6 +122,12 @@ When adding new fields to core structs like Runner and Deps, check for both dire
 ### 2026-02-11 | gromit-juyb | patterns
 When implementing router-based escalation, distinguish between tier selection (complexity:low/high labels) and model selection (haiku/sonnet/opus names). The SetEscalatedTo field should contain the final model name, not the complexity tier. Check how TierToModel or ModelForTier maps tiers to models before setting EscalatedTo.
 
+### 2026-02-11 | gromit-juyb | patterns
+When converting functions to use the router pattern with escalation/retry logic, follow the executeClaudeInvocation pattern exactly: extract the tier selection into a variable, use router.StreamRun() for the initial call, then handle UsageLimitError by escalating to the next tier and retrying. This pattern is now standardized across multiple functions (executeClaudeInvocation, runAcceptanceTests).
+
+### 2026-02-11 | gromit-2zju | conventions
+The codebase has acceptance tests that validate codebase-wide metrics (like total test line count reduction targets). When implementing features or refactoring, check if there are acceptance tests verifying codebase metrics that might need satisfying via cleanup or consolidation of other test files. The validation_router_conversion_acceptance_test.go appears to be new and could potentially be merged into existing acceptance tests to reduce line count overhead.
+
 ---
 
 ## Archived
