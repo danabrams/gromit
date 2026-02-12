@@ -207,12 +207,10 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 		}
 	}
 
-	// Convert claude handlers to provider handlers
-	var providerHandler func(line []byte)
+	// Convert claude handler to provider handler type
+	var providerHandler provider.EventHandler
 	if handler != nil {
-		providerHandler = func(line []byte) {
-			handler(line)
-		}
+		providerHandler = provider.EventHandler(handler)
 	}
 
 	providerToolHandler := func(event provider.ToolEvent) {
@@ -718,12 +716,10 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 		}
 	}
 
-	// Convert claude handlers to provider handlers
-	var providerHandler func(line []byte)
+	// Convert claude handler to provider handler type
+	var providerHandler provider.EventHandler
 	if handler != nil {
-		providerHandler = func(line []byte) {
-			handler(line)
-		}
+		providerHandler = provider.EventHandler(handler)
 	}
 
 	providerToolHandler := func(event provider.ToolEvent) {

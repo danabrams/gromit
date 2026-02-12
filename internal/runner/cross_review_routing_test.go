@@ -14,7 +14,6 @@ import (
 
 // TestBeadContextHasBuildProviderField verifies that beadContext has a
 // buildProvider string field that tracks which provider performed the build.
-// Expected failure: beadContext does not have a buildProvider field yet
 func TestBeadContextHasBuildProviderField(t *testing.T) {
 	bc := &beadContext{
 		buildProvider: "claude",
@@ -33,8 +32,6 @@ func TestBeadContextHasBuildProviderField(t *testing.T) {
 // TestExecuteClaudeInvocationSetsBuildProvider verifies that after
 // executeClaudeInvocation completes, beadContext.buildProvider is set
 // to the name of the provider that performed the build.
-// Expected failure: beadContext.buildProvider field does not exist yet,
-// and executeClaudeInvocation does not set it
 func TestExecuteClaudeInvocationSetsBuildProvider(t *testing.T) {
 	claudeProv := &mockProviderWithRouterTracking{
 		name: "test-claude",
@@ -69,7 +66,6 @@ func TestExecuteClaudeInvocationSetsBuildProvider(t *testing.T) {
 	ctx := context.Background()
 	_, _, _, _ = r.executeClaudeInvocation(ctx, bc)
 
-	// Expected failure: buildProvider is not set by executeClaudeInvocation
 	if bc.buildProvider != "test-claude" {
 		t.Errorf("bc.buildProvider = %q after executeClaudeInvocation, want %q",
 			bc.buildProvider, "test-claude")
@@ -79,13 +75,6 @@ func TestExecuteClaudeInvocationSetsBuildProvider(t *testing.T) {
 // TestCrossReviewRoutesToOppositeProvider verifies the end-to-end behavior:
 // when routing.phase_preferences.review is "cross" and the build was performed
 // by provider "claude", the review is routed to "openai" (and vice versa).
-//
-// This tests through runLightReview which currently calls router.Select("review", tier).
-// After implementation, it should detect the "cross" preference and call
-// router.SelectCross(buildProvider, tier) instead.
-//
-// Expected failure: Router.SelectCross does not exist yet, runLightReview does
-// not accept a buildProvider parameter and does not handle "cross" preference
 func TestCrossReviewRoutesToOppositeProvider(t *testing.T) {
 	// Track which provider the review was routed to
 	var reviewProviderName string
@@ -174,7 +163,6 @@ func TestCrossReviewRoutesToOppositeProvider(t *testing.T) {
 
 // TestCrossReviewReverseDirection verifies that when the build was done by
 // "openai", the cross-review routes to "claude".
-// Expected failure: Router.SelectCross does not exist yet
 func TestCrossReviewReverseDirection(t *testing.T) {
 	var reviewProviderName string
 

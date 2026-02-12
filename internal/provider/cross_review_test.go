@@ -7,7 +7,6 @@ import (
 
 // TestSelectCrossReturnsOppositeProvider verifies that SelectCross returns the first
 // available provider whose name differs from the buildProvider argument.
-// Expected failure: SelectCross method does not exist on Router yet
 func TestSelectCrossReturnsOppositeProvider(t *testing.T) {
 	claudeProv := &mockProviderWithModels{
 		name: "claude",
@@ -73,7 +72,6 @@ func TestSelectCrossReturnsOppositeProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Expected failure: SelectCross method does not exist on Router yet
 			p, modelName := r.SelectCross(tt.buildProvider, tt.tier)
 			if p == nil {
 				t.Fatal("SelectCross() returned nil provider")
@@ -93,7 +91,6 @@ func TestSelectCrossReturnsOppositeProvider(t *testing.T) {
 // TestSelectCrossFallsBackToBuildProviderWhenNoCrossAvailable verifies that
 // SelectCross falls back to the buildProvider itself when no other provider
 // is available (either because there's only one provider or others are unavailable).
-// Expected failure: SelectCross method does not exist on Router yet
 func TestSelectCrossFallsBackToBuildProviderWhenNoCrossAvailable(t *testing.T) {
 	claudeProv := &mockProviderWithModels{
 		name: "claude",
@@ -151,7 +148,6 @@ func TestSelectCrossFallsBackToBuildProviderWhenNoCrossAvailable(t *testing.T) {
 				stateFn:     &mockStateFile{},
 			}
 
-			// Expected failure: SelectCross method does not exist on Router yet
 			p, _ := r.SelectCross(tt.buildProvider, TierMedium)
 			if p == nil {
 				t.Fatal("SelectCross() returned nil provider")
@@ -167,7 +163,6 @@ func TestSelectCrossFallsBackToBuildProviderWhenNoCrossAvailable(t *testing.T) {
 // TestSelectCrossIncrementsCount verifies that SelectCross increments the
 // invocation count for the selected cross-provider, following the same
 // pattern as Select().
-// Expected failure: SelectCross method does not exist on Router yet
 func TestSelectCrossIncrementsCount(t *testing.T) {
 	stateFn := &mockStateFile{
 		providerCounts: map[string]int{},
@@ -192,7 +187,6 @@ func TestSelectCrossIncrementsCount(t *testing.T) {
 		stateFn:     stateFn,
 	}
 
-	// Expected failure: SelectCross method does not exist on Router yet
 	p, _ := r.SelectCross("claude", TierMedium)
 	if p == nil {
 		t.Fatal("SelectCross() returned nil provider")
@@ -210,7 +204,6 @@ func TestSelectCrossIncrementsCount(t *testing.T) {
 // TestSelectCrossWithThreeProviders verifies that SelectCross picks any
 // available provider that differs from the buildProvider when more than
 // two providers are configured.
-// Expected failure: SelectCross method does not exist on Router yet
 func TestSelectCrossWithThreeProviders(t *testing.T) {
 	r := &Router{
 		providers: map[string]Provider{
@@ -235,7 +228,6 @@ func TestSelectCrossWithThreeProviders(t *testing.T) {
 		stateFn:     &mockStateFile{},
 	}
 
-	// Expected failure: SelectCross method does not exist on Router yet
 	p, _ := r.SelectCross("claude", TierMedium)
 	if p == nil {
 		t.Fatal("SelectCross() returned nil provider")
