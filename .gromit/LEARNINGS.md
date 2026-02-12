@@ -55,6 +55,12 @@ Pipeline methods follow a consistent pattern: input struct with all parameters, 
 ### 2026-02-12 | gromit-914c | patterns
 Interface cleanup in this codebase removes unused interface definitions entirely rather than keeping them for backwards compatibility or as documentation — check for unused interfaces in runner/interfaces.go and similar files when making changes to understand the current API contract
 
+### 2026-02-12 | gromit-vgzh | gotchas
+When migrating from dual-mode (with fallback) to Provider-only, update ALL call sites consistently — missing even one NewRetro() call will fail at runtime. Search comprehensively before declaring migration complete.
+
+### 2026-02-12 | gromit-jxnk | patterns
+Multi-provider Router initialization happens within cfg.HasProviders() conditional branch in NewRunner(); the legacy single-client path (claudeClient) stays in the else branch to maintain backward compatibility
+
 ---
 
 ## Archived
@@ -1080,6 +1086,11 @@ Archived: consolidated into Confirmed "Runner and Provider Invocation Pattern" e
 
 ### 2026-02-12 | gromit-914c | patterns
 When removing unused interfaces, check if test mocks implement them. If they do, move mocks to a legacy_*_test.go file with clear comments rather than deleting them entirely—this preserves backward compatibility with tests that haven't been migrated yet
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-klxl | conventions
+Use SetDefaults() to apply conditional defaults based on other config fields (e.g., apply routing defaults only when providers are configured), and only apply defaults to empty fields while preserving user-specified values
 
 *Archived from new: filtered: generic engineering advice*
 

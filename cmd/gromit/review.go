@@ -625,8 +625,8 @@ func (m *cliLearningsManager) Add(content string) error {
 
 	// Wire filter into learnings file
 	if m.claudeClient != nil {
-		claudeRunnerAdapter := learnings.NewClaudeRunnerAdapter(m.claudeClient)
-		learningsFile.SetFilter(learnings.NewLLMFilter(claudeRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
+		claudeRunner := &cliClaudeRunner{client: m.claudeClient}
+		learningsFile.SetFilter(learnings.NewLLMFilter(claudeRunner, "gromit", learnings.ProjectDescriptions.Gromit))
 	}
 
 	if err := learningsFile.Load(); err != nil {
@@ -635,6 +635,32 @@ func (m *cliLearningsManager) Add(content string) error {
 
 	learningsFile.Add("review", content, learnings.CategoryPatterns)
 	return nil
+}
+
+// cliClaudeRunner implements learnings.ClaudeRunner interface for the Claude client
+type cliClaudeRunner struct {
+	client *claude.Client
+}
+
+func (r *cliClaudeRunner) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
+	if r.client == nil {
+		return nil, fmt.Errorf("claude client is nil")
+	}
+
+	claudeResult, err := r.client.Run(ctx, prompt, model)
+	if err != nil {
+		return nil, err
+	}
+
+	if claudeResult == nil {
+		return nil, fmt.Errorf("claude returned nil result")
+	}
+
+	// Convert claude.Result to learnings.Result
+	return &learnings.Result{
+		Success: claudeResult.Success,
+		Output:  claudeResult.Output,
+	}, nil
 }
 
 // cliLogWriter adapts logger operations to pipeline.LogWriter interface

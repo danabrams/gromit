@@ -147,6 +147,11 @@ type Renderer struct {
 	rulesPath     string
 	gromitDir     string
 	learningsFile *learnings.File
+
+	// Cache fields
+	claudeMDCache *string
+	rulesCache    *string
+	specCache     map[string]string
 }
 
 // NewRenderer creates a new prompt renderer
@@ -164,6 +169,7 @@ func NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir string) (*Rende
 		rulesPath:     filepath.Join(gromitDir, "RULES.md"),
 		gromitDir:     gromitDir,
 		learningsFile: lf,
+		specCache:     make(map[string]string),
 	}, nil
 }
 
@@ -282,6 +288,16 @@ func (r *Renderer) LoadSpec(name string) (string, error) {
 		return "", err
 	}
 
+	// Lazy initialize cache if needed
+	if r.specCache == nil {
+		r.specCache = make(map[string]string)
+	}
+
+	// Return cached content if already loaded
+	if content, ok := r.specCache[name]; ok {
+		return content, nil
+	}
+
 	path := filepath.Join(r.specsDir, name+".md")
 
 	// Belt-and-suspenders: verify resolved path stays within specsDir
@@ -304,13 +320,19 @@ func (r *Renderer) LoadSpec(name string) (string, error) {
 		}
 		return "", fmt.Errorf("reading spec %s: %w", name, err)
 	}
-	return string(content), nil
+	contentStr := string(content)
+	r.specCache[name] = contentStr
+	return contentStr, nil
 }
 
 // LoadClaudeMD loads the project's CLAUDE.md
 func (r *Renderer) LoadClaudeMD() (string, error) {
 	if r == nil {
 		return "", fmt.Errorf("renderer is nil")
+	}
+	// Return cached content if already loaded
+	if r.claudeMDCache != nil {
+		return *r.claudeMDCache, nil
 	}
 	content, err := os.ReadFile(r.claudeMDPath)
 	if err != nil {
@@ -319,7 +341,9 @@ func (r *Renderer) LoadClaudeMD() (string, error) {
 		}
 		return "", fmt.Errorf("reading CLAUDE.md: %w", err)
 	}
-	return string(content), nil
+	contentStr := string(content)
+	r.claudeMDCache = &contentStr
+	return contentStr, nil
 }
 
 // BuildContext builds a complete prompt context for a bead
@@ -384,6 +408,10 @@ func (r *Renderer) LoadRules() (string, error) {
 	if r == nil {
 		return "", fmt.Errorf("renderer is nil")
 	}
+	// Return cached content if already loaded
+	if r.rulesCache != nil {
+		return *r.rulesCache, nil
+	}
 	content, err := os.ReadFile(r.rulesPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -391,7 +419,9 @@ func (r *Renderer) LoadRules() (string, error) {
 		}
 		return "", fmt.Errorf("reading RULES.md: %w", err)
 	}
-	return string(content), nil
+	contentStr := string(content)
+	r.rulesCache = &contentStr
+	return contentStr, nil
 }
 
 func (r *Renderer) render(templateName string, ctx any) (string, error) {
