@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/retro"
 	"github.com/danabrams/gromit/internal/runner"
 	"github.com/danabrams/gromit/internal/scope"
@@ -230,7 +232,20 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println("Running retrospective analysis...")
 	fmt.Println("This may take a few minutes as it uses opus for quality analysis.")
 
-	r, err := retro.NewRetro(cfg, gromitDir)
+	// Create provider from config
+	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	if err != nil {
+		return fmt.Errorf("failed to create claude client: %w", err)
+	}
+
+	tierToModel := map[string]string{
+		"high":   "opus",
+		"medium": "sonnet",
+		"low":    "haiku",
+	}
+	claudeProvider := provider.NewClaudeProvider(claudeClient, tierToModel)
+
+	r, err := retro.NewRetroWithProvider(claudeProvider, gromitDir)
 	if err != nil {
 		return fmt.Errorf("failed to create retro analyzer: %w", err)
 	}
