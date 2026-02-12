@@ -43,6 +43,9 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 ### 2026-02-12 | gromit-t4ch | conventions
 When modifying command help text or descriptions in cmd/gromit, regenerate golden files for CLI contract tests using the -update flag. The test output shows 'Run with -update flag to update golden file', which is the proper workflow for help text changes.
 
+### 2026-02-12 | gromit-uy56 | conventions
+When refactoring a CLI adapter to use Pipeline methods, verify that the Pipeline methods themselves handle all the integration details (agent launching, prompt file construction, temp file management) that the original code or tests expect. The Pipeline.ReviewInteractive method should be constructing and passing the prompt through the full agent launch workflow, not just rendering it. Check the existing Pipeline patterns in runner.go or other pipeline methods to understand the established convention for agent invocation and prompt handling.
+
 ---
 
 ## Archived

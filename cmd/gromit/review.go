@@ -220,11 +220,10 @@ func getEpicBaseCommit(epicID, specsDir, gromitDir string) (string, error) {
 }
 
 func findFirstCommitForBead(beadID string) (string, error) {
-	// Search git log for the bead ID in commit messages
 	cmd := exec.Command("git", "log", "--all", "--format=%H", "--grep", beadID)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", nil // No commits found
+		return "", nil // No commits found - not an error, just no work yet
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
@@ -237,55 +236,39 @@ func findFirstCommitForBead(beadID string) (string, error) {
 }
 
 func isCommitEarlier(commit1, commit2 string) bool {
-	// Compare commit timestamps to determine which is earlier
-	cmd1 := exec.Command("git", "log", "-1", "--format=%at", commit1)
-	out1, err1 := cmd1.Output()
-	if err1 != nil {
+	ts1, err1 := getCommitTimestamp(commit1)
+	ts2, err2 := getCommitTimestamp(commit2)
+	if err1 != nil || err2 != nil {
 		return false
 	}
+	return ts1 < ts2
+}
 
-	cmd2 := exec.Command("git", "log", "-1", "--format=%at", commit2)
-	out2, err2 := cmd2.Output()
-	if err2 != nil {
-		return false
-	}
-
-	timestamp1Str := strings.TrimSpace(string(out1))
-	timestamp2Str := strings.TrimSpace(string(out2))
-
-	timestamp1, err := strconv.ParseInt(timestamp1Str, 10, 64)
+func getCommitTimestamp(commit string) (int64, error) {
+	cmd := exec.Command("git", "log", "-1", "--format=%at", commit)
+	out, err := cmd.Output()
 	if err != nil {
-		return false
+		return 0, err
 	}
-
-	timestamp2, err := strconv.ParseInt(timestamp2Str, 10, 64)
-	if err != nil {
-		return false
-	}
-
-	return timestamp1 < timestamp2
+	return strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
 }
 
 // findEarliestCommitFromBeads iterates through beads and returns the earliest commit found.
 // Returns empty string if no commits are found.
 func findEarliestCommitFromBeads(beads []*bead.Bead) string {
-	earliestCommit := ""
+	var earliestCommit string
+
 	for _, b := range beads {
 		commit, err := findFirstCommitForBead(b.ID)
-		if err != nil {
-			// Skip beads that don't have commits
-			continue
+		if err != nil || commit == "" {
+			continue // Skip beads without commits
 		}
-		if commit != "" {
-			if earliestCommit == "" {
-				earliestCommit = commit
-			} else {
-				if isCommitEarlier(commit, earliestCommit) {
-					earliestCommit = commit
-				}
-			}
+
+		if earliestCommit == "" || isCommitEarlier(commit, earliestCommit) {
+			earliestCommit = commit
 		}
 	}
+
 	return earliestCommit
 }
 
@@ -326,7 +309,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 
 	// Create agent resolver adapter
 	agentResolver := &cliAgentResolver{
-		cfg:         cfg,
+		cfg:          cfg,
 		flagOverride: reviewAgent,
 		choosePicker: reviewChooseAgent,
 	}
@@ -662,10 +645,21 @@ func (w *cliLogWriter) Write(entry interface{}) error {
 	}
 	defer log.Close()
 
-	// Convert entry map to ReviewLog
 	entryMap, ok := entry.(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("unexpected entry type")
+	}
+
+	// Extract fields with defaults for optional values
+	passed, _ := entryMap["passed"].(bool)
+	fixesApplied, _ := entryMap["fixes_applied"].(int)
+	beadsCreated, _ := entryMap["beads_created"].(int)
+	backlogCreated, _ := entryMap["backlog_created"].(int)
+
+	// Extract optional fields
+	model, _ := entryMap["model"].(string)
+	if model == "" {
+		model = "opus" // Default for thorough reviews
 	}
 
 	reviewLog := &logger.ReviewLog{
@@ -673,12 +667,12 @@ func (w *cliLogWriter) Write(entry interface{}) error {
 		Type:           "review",
 		ReviewType:     "thorough-cli",
 		Iteration:      0,
-		Model:          "opus", // TODO: get from entry
-		Passed:         entryMap["passed"].(bool),
-		FixesApplied:   entryMap["fixes_applied"].(int),
-		BeadsCreated:   entryMap["beads_created"].(int),
-		BacklogCreated: entryMap["backlog_created"].(int),
-		DurationMs:     0, // TODO: track duration
+		Model:          model,
+		Passed:         passed,
+		FixesApplied:   fixesApplied,
+		BeadsCreated:   beadsCreated,
+		BacklogCreated: backlogCreated,
+		DurationMs:     0, // Duration tracked by caller if needed
 	}
 
 	return log.LogReview(reviewLog)

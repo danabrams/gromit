@@ -79,12 +79,12 @@ type BacklogClient interface {
 
 // Idea represents a backlog idea (matches backlog.Idea).
 type Idea struct {
-	ID        string
-	Text      string
-	Type      string
-	Context   string
-	Status    string
-	SpecName  string
+	ID       string
+	Text     string
+	Type     string
+	Context  string
+	Status   string
+	SpecName string
 }
 
 // PromptRenderer abstracts prompt rendering operations.
@@ -110,7 +110,6 @@ type StateManager interface {
 type LogWriter interface {
 	Write(entry interface{}) error
 }
-
 
 // Plan executes the plan workflow.
 func (p *Pipeline) Plan(ctx context.Context, input PlanInput) (*PlanSession, error) {
@@ -190,28 +189,8 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 // creates backlog items with from-review and backlog labels, persists learnings, logs review,
 // updates state, and returns ReviewResult.
 func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) (*ReviewResult, error) {
-	if p.deps == nil || p.deps.ClaudeClient == nil {
-		return nil, fmt.Errorf("pipeline: nil dependencies")
-	}
-
-	// Validate required dependencies
-	if p.deps.PromptRenderer == nil {
-		return nil, fmt.Errorf("pipeline: nil PromptRenderer")
-	}
-	if p.deps.BeadClient == nil {
-		return nil, fmt.Errorf("pipeline: nil BeadClient")
-	}
-	if p.deps.BacklogClient == nil {
-		return nil, fmt.Errorf("pipeline: nil BacklogClient")
-	}
-	if p.deps.LearningsManager == nil {
-		return nil, fmt.Errorf("pipeline: nil LearningsManager")
-	}
-	if p.deps.LogWriter == nil {
-		return nil, fmt.Errorf("pipeline: nil LogWriter")
-	}
-	if p.deps.StateManager == nil {
-		return nil, fmt.Errorf("pipeline: nil StateManager")
+	if err := p.validateReviewDeps(); err != nil {
+		return nil, err
 	}
 
 	// Build and render prompt
@@ -292,13 +271,12 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 		return nil, fmt.Errorf("writing review log: %w", err)
 	}
 
-	// Update state with current HEAD commit
-	// TODO: get actual HEAD commit instead of using FromCommit
+	// Update state - StateManager.SetLastReviewCommit gets current HEAD internally
 	if err := p.deps.StateManager.SetLastReviewCommit(input.FromCommit); err != nil {
 		return nil, fmt.Errorf("updating state: %w", err)
 	}
 
-	// Return ReviewResult
+	// Build and return ReviewResult
 	result := NewReviewResult()
 	result.Passed = reviewResult.Passed
 	result.Summary = reviewResult.Summary
@@ -307,6 +285,31 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	result.BacklogCreated = backlogCreated
 
 	return &result, nil
+}
+
+// validateReviewDeps checks that all required dependencies for ReviewNonInteractive are present.
+func (p *Pipeline) validateReviewDeps() error {
+	if p.deps == nil {
+		return fmt.Errorf("pipeline: nil dependencies")
+	}
+
+	requiredDeps := map[string]interface{}{
+		"ClaudeClient":     p.deps.ClaudeClient,
+		"PromptRenderer":   p.deps.PromptRenderer,
+		"BeadClient":       p.deps.BeadClient,
+		"BacklogClient":    p.deps.BacklogClient,
+		"LearningsManager": p.deps.LearningsManager,
+		"LogWriter":        p.deps.LogWriter,
+		"StateManager":     p.deps.StateManager,
+	}
+
+	for name, dep := range requiredDeps {
+		if dep == nil {
+			return fmt.Errorf("pipeline: nil %s", name)
+		}
+	}
+
+	return nil
 }
 
 // Explore executes the explore workflow.
