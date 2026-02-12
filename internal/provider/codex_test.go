@@ -236,3 +236,51 @@ exit 0
 		t.Errorf("StreamRun() output missing 'Line 3', got: %s", outputStr)
 	}
 }
+
+// TestCodexProviderStreamRunHandlersAreNoops verifies that StreamRun()
+// accepts EventHandler and ToolCallHandler but treats them as no-ops.
+func TestCodexProviderStreamRunHandlersAreNoops(t *testing.T) {
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := "#!/bin/bash\necho 'output'\nexit 0\n"
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
+	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+
+	ctx := context.Background()
+	var output bytes.Buffer
+
+	// Handlers should not be called for Codex
+	eventHandlerCalled := false
+	eventHandler := func(line []byte) {
+		eventHandlerCalled = true
+	}
+
+	toolHandlerCalled := false
+	toolHandler := func(event ToolEvent) {
+		toolHandlerCalled = true
+	}
+
+	result, err := cp.StreamRun(ctx, "test", TierLow, &output, eventHandler, toolHandler)
+
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v, want nil", err)
+	}
+
+	if result == nil {
+		t.Fatal("StreamRun() returned nil result")
+	}
+
+	// Handlers should NOT be called for Codex - they're no-ops
+	if eventHandlerCalled {
+		t.Error("StreamRun() called EventHandler, but it should be a no-op for Codex")
+	}
+
+	if toolHandlerCalled {
+		t.Error("StreamRun() called ToolCallHandler, but it should be a no-op for Codex")
+	}
+}
