@@ -1,8 +1,13 @@
 package provider
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"time"
 )
 
 const (
@@ -48,7 +53,68 @@ func (cp *CodexProvider) ModelForTier(tier string) string {
 
 // Run executes an LLM invocation with the given prompt and tier
 func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
-	return nil, nil
+	if cp == nil {
+		return nil, fmt.Errorf("codex provider is nil")
+	}
+
+	// Resolve tier to model name
+	model := cp.ModelForTier(tier)
+
+	// Write prompt to temporary file
+	tmpFile, err := os.CreateTemp("", "codex-prompt-*.txt")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file for prompt: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(prompt); err != nil {
+		tmpFile.Close()
+		return nil, fmt.Errorf("failed to write prompt to temp file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Build command arguments
+	args := []string{}
+	args = append(args, cp.flags...)
+	args = append(args, "--model", model)
+	args = append(args, cp.promptFlag, tmpFile.Name())
+
+	// Execute command
+	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	startTime := time.Now()
+	err = cmd.Run()
+	duration := time.Since(startTime)
+
+	// Combine stdout and stderr
+	output := stdout.String() + stderr.String()
+
+	// Get exit code
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			// Command failed to start
+			return nil, fmt.Errorf("failed to execute codex command: %w", err)
+		}
+	}
+
+	result := &Result{
+		Success:  exitCode == 0,
+		Output:   output,
+		ExitCode: exitCode,
+		Duration: duration,
+		Model:    model,
+	}
+
+	return result, nil
 }
 
 // StreamRun executes an LLM invocation with streaming output

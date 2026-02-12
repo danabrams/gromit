@@ -1,6 +1,10 @@
 package provider
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -94,5 +98,55 @@ func TestCodexProviderModelForTierReturnsCorrectModel(t *testing.T) {
 				t.Errorf("ModelForTier(%q) = %q, want %q", tt.tier, got, tt.wantModel)
 			}
 		})
+	}
+}
+
+// TestCodexProviderRunWritesPromptToTempFile verifies that Run() writes the
+// prompt to a temporary file when promptDelivery is "prompt_file_arg".
+func TestCodexProviderRunWritesPromptToTempFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a mock codex binary that reads and echoes the prompt file
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+# The prompt file should be passed via --prompt flag
+PROMPT_FILE=""
+for i in "$@"; do
+    if [ "$prev" = "--prompt" ]; then
+        PROMPT_FILE="$i"
+        break
+    fi
+    prev="$i"
+done
+
+if [ -f "$PROMPT_FILE" ]; then
+    echo "PROMPT_CONTENT:"
+    cat "$PROMPT_FILE"
+else
+    echo "ERROR: Prompt file not found or not passed"
+    exit 1
+fi
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	tierMap := map[string]string{TierMedium: "gpt-4o"}
+	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+
+	ctx := context.Background()
+	testPrompt := "This is a test prompt for Codex"
+	result, err := cp.Run(ctx, testPrompt, TierMedium)
+
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !strings.Contains(result.Output, "PROMPT_CONTENT:") {
+		t.Errorf("Run() did not pass prompt file correctly, output: %s", result.Output)
+	}
+
+	if !strings.Contains(result.Output, testPrompt) {
+		t.Errorf("Run() prompt file missing expected content, output: %s", result.Output)
 	}
 }
