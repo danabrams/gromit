@@ -1565,19 +1565,34 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Dura
 		return false, time.Since(start)
 	}
 
-	// Call Claude with configured model and timeout
+	// Call router to select provider and model
 	precheckTimeout := time.Duration(r.cfg.Precheck.TimeoutSeconds) * time.Second
 	precheckCtx2, cancel := context.WithTimeout(ctx, precheckTimeout)
 	defer cancel()
 
-	claudeResult, err := r.claude.Run(precheckCtx2, precheckPrompt, r.cfg.Precheck.Model)
+	// Select provider via router (phase="precheck", tier="low")
+	p, _ := r.router.Select("precheck", provider.TierLow)
+	if p == nil {
+		r.log("Warning: no provider available for precheck")
+		return false, time.Since(start)
+	}
+
+	// Invoke provider with low tier
+	result, err := p.Run(precheckCtx2, precheckPrompt, provider.TierLow)
 	if err != nil {
 		r.log("Warning: precheck invocation failed: %v", err)
 		return false, time.Since(start)
 	}
-	if claudeResult == nil {
+	if result == nil {
 		r.log("Warning: precheck returned nil result")
 		return false, time.Since(start)
+	}
+
+	// Convert provider.Result to match existing code expectations
+	claudeResult := &claude.Result{
+		Success:  result.Success,
+		ExitCode: result.ExitCode,
+		Output:   result.Output,
 	}
 
 	if !claudeResult.Success {
