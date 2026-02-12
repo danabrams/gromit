@@ -1638,26 +1638,31 @@ func (r *Runner) checkScope(ctx context.Context, b *bead.Bead) *prompt.ScopeEsti
 		return nil
 	}
 
-	// Call Claude with haiku model
-	scopeCheckModel := r.cfg.ScopeCheck.Model
-	if scopeCheckModel == "" {
-		scopeCheckModel = "haiku"
+	// Select provider via router (phase="scope_check", tier="low")
+	p, _ := r.router.Select("scope_check", provider.TierLow)
+	if p == nil {
+		r.log("Warning: no provider available for scope check")
+		return nil
 	}
 
-	claudeResult, err := r.claude.Run(ctx, scopePrompt, scopeCheckModel)
+	// Invoke provider with low tier
+	result, err := p.Run(ctx, scopePrompt, provider.TierLow)
 	if err != nil {
 		r.log("Warning: scope check invocation failed: %v", err)
 		return nil
 	}
-	if claudeResult == nil {
+	if result == nil {
 		r.log("Warning: scope check returned nil result")
 		return nil
 	}
 
-	if !claudeResult.Success {
-		r.log("Warning: scope check failed with exit code %d", claudeResult.ExitCode)
+	if !result.Success {
+		r.log("Warning: scope check failed with exit code %d", result.ExitCode)
 		return nil
 	}
+
+	// Use result.Output directly (no conversion needed for scope estimate parsing)
+	claudeResult := result
 
 	// Parse the scope estimate
 	estimate, err := prompt.ParseScopeEstimate(claudeResult.Output)
