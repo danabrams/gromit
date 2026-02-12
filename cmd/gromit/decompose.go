@@ -190,16 +190,7 @@ func decomposeSinglePlan(planName string, cfg *config.Config) error {
 
 	// Review mode: show proposed beads and prompt for confirmation
 	if decomposeReview {
-		// Convert result to beadDef for display
-		beadDefs := make([]beadDef, len(result.CreatedBeads))
-		for i, bead := range result.CreatedBeads {
-			// Note: Review mode doesn't include acceptance criteria in result
-			// This is a simplified conversion for display purposes
-			beadDefs[i] = beadDef{
-				Title:    bead.Title,
-				Priority: fmt.Sprintf("P%d", bead.Priority),
-			}
-		}
+		beadDefs := convertToBeadDefs(result.CreatedBeads)
 		if !promptReviewBeads(beadDefs) {
 			fmt.Println("\nDecomposition cancelled.")
 			return nil
@@ -235,12 +226,10 @@ type claudeClientAdapter struct {
 }
 
 func (a *claudeClientAdapter) Run(prompt string, model string) (interface{}, error) {
-	ctx := context.Background()
-	result, err := a.Client.Run(ctx, prompt, model)
+	result, err := a.Client.Run(context.Background(), prompt, model)
 	if err != nil {
 		return nil, err
 	}
-	// Convert to map for pipeline interface
 	return map[string]interface{}{
 		"Success":  result.Success,
 		"ExitCode": result.ExitCode,
@@ -266,21 +255,25 @@ func (a *beadClientAdapter) Create(title string, priority int, labels []string, 
 }
 
 func (a *beadClientAdapter) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
-	bead, err := a.Client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
-	if err != nil {
-		return nil, err
-	}
-	// Convert to map for pipeline interface
-	return map[string]interface{}{
-		"ID":       bead.ID,
-		"Title":    bead.Title,
-		"Priority": bead.Priority,
-		"Labels":   bead.Labels,
-	}, nil
+	return a.Client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
 }
 
 func (a *beadClientAdapter) Close(id string) error {
 	return a.Client.Close(id)
+}
+
+// convertToBeadDefs converts pipeline.CreatedBead to CLI beadDef for display.
+// Note: Review mode doesn't include acceptance criteria or description in result,
+// so those fields are empty in the conversion.
+func convertToBeadDefs(beads []pipeline.CreatedBead) []beadDef {
+	defs := make([]beadDef, len(beads))
+	for i, bead := range beads {
+		defs[i] = beadDef{
+			Title:    bead.Title,
+			Priority: fmt.Sprintf("P%d", bead.Priority),
+		}
+	}
+	return defs
 }
 
 // promptReviewBeads displays proposed beads and asks for confirmation.

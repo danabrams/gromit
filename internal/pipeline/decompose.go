@@ -118,25 +118,10 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			return nil, fmt.Errorf("creating bead %d: %w", i, err)
 		}
 
-		// Extract ID from result - handle both struct and map types
-		var beadID string
-		switch v := beadResult.(type) {
-		case map[string]interface{}:
-			id, ok := v["ID"].(string)
-			if !ok {
-				return nil, fmt.Errorf("bead result map missing ID field")
-			}
-			beadID = id
-		case interface{ GetID() string }:
-			// Structs with ID getter
-			beadID = v.GetID()
-		default:
-			// Try to extract ID field via reflection on struct with ID field
-			if idField, ok := extractIDField(beadResult); ok {
-				beadID = idField
-			} else {
-				return nil, fmt.Errorf("cannot extract ID from bead result of type %T", beadResult)
-			}
+		// Extract ID from bead creation result
+		beadID, err := extractBeadID(beadResult)
+		if err != nil {
+			return nil, fmt.Errorf("extracting ID from bead %d: %w", i, err)
 		}
 
 		createdIDs = append(createdIDs, beadID)
@@ -159,9 +144,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	return &result, nil
 }
 
-// buildDecomposePrompt constructs the prompt for Claude.
-func buildDecomposePrompt(planName, planBody, skillContent string) string {
-	return fmt.Sprintf(`# Decompose Plan: %s
+const decomposePromptTemplate = `# Decompose Plan: %s
 
 You are decomposing an implementation plan into bd beads following the gromit-decompose skill.
 
@@ -179,7 +162,11 @@ Output ONLY a JSON array of bead definitions. No markdown, no explanations, no w
 Each bead must include: title, description, priority, acceptance_criteria, depends_on_index.
 
 The spec label will be added automatically: spec:%s
-`, planName, planBody, skillContent, planName)
+`
+
+// buildDecomposePrompt constructs the prompt for Claude.
+func buildDecomposePrompt(planName, planBody, skillContent string) string {
+	return fmt.Sprintf(decomposePromptTemplate, planName, planBody, skillContent, planName)
 }
 
 // parsePriority converts priority string (P0, P1, P2) to int (0, 1, 2).
@@ -225,33 +212,36 @@ func extractClaudeOutput(result interface{}) (string, error) {
 	return output, nil
 }
 
-// extractIDField attempts to extract an ID field from a struct via reflection
-func extractIDField(v interface{}) (string, bool) {
-	val := reflect.ValueOf(v)
+// extractBeadID extracts the ID field from a bead creation result.
+// Handles map[string]interface{}, structs with GetID() method, and structs with ID field.
+func extractBeadID(result interface{}) (string, error) {
+	// Try map first (most common case)
+	if m, ok := result.(map[string]interface{}); ok {
+		if id, ok := m["ID"].(string); ok {
+			return id, nil
+		}
+		return "", fmt.Errorf("map missing ID field")
+	}
 
-	// Handle pointers
+	// Try GetID() method
+	if getter, ok := result.(interface{ GetID() string }); ok {
+		return getter.GetID(), nil
+	}
+
+	// Try struct with ID field via reflection
+	val := reflect.ValueOf(result)
 	for val.Kind() == reflect.Ptr {
 		if val.IsNil() {
-			return "", false
+			return "", fmt.Errorf("nil pointer")
 		}
 		val = val.Elem()
 	}
 
-	// Must be a struct
-	if val.Kind() != reflect.Struct {
-		return "", false
+	if val.Kind() == reflect.Struct {
+		if idField := val.FieldByName("ID"); idField.IsValid() && idField.Kind() == reflect.String {
+			return idField.String(), nil
+		}
 	}
 
-	// Look for ID field
-	idField := val.FieldByName("ID")
-	if !idField.IsValid() {
-		return "", false
-	}
-
-	// Must be a string
-	if idField.Kind() != reflect.String {
-		return "", false
-	}
-
-	return idField.String(), true
+	return "", fmt.Errorf("cannot extract ID from type %T", result)
 }
