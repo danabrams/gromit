@@ -28,8 +28,9 @@ type beadContext struct {
 	bead        *bead.Bead
 	parent      *bead.Bead
 	result      *IterationResult
-	model       string // concrete model name for display/logging
-	tier        string // abstract tier (high/medium/low) for router selection
+	model         string // concrete model name for display/logging
+	tier          string // abstract tier (high/medium/low) for router selection
+	buildProvider string // name of provider that performed the build (for cross-review routing)
 	promptCtx   *prompt.Context
 	buildPrompt string
 	startCommit string
@@ -168,9 +169,10 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 		return nil, nil, false, fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
 	}
 
-	// Update bead context with router-selected model
+	// Update bead context with router-selected model and provider
 	bc.model = modelName
 	bc.result.Model = modelName
+	bc.buildProvider = p.Name()
 	// If this is an escalated invocation, update EscalatedTo with the concrete model name
 	if bc.result.Escalated && bc.result.EscalatedTo != "" {
 		bc.result.EscalatedTo = modelName
