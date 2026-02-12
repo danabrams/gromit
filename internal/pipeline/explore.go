@@ -18,12 +18,39 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	// Initialize result with empty slices
 	result := NewExploreResult()
 
-	// TODO: Record existing artifacts (pre-snapshots)
-	// TODO: Build explore prompt using renderer
+	// Record existing artifacts (pre-snapshots)
+	existingEpics, err := ListMarkdownFiles(p.paths.EpicsDir)
+	if err != nil {
+		return nil, fmt.Errorf("scanning epics directory: %w", err)
+	}
+
+	existingSpecs, err := ListMarkdownFiles(p.paths.SpecsDir)
+	if err != nil {
+		return nil, fmt.Errorf("scanning specs directory: %w", err)
+	}
+
+	existingBacklogItems, err := p.deps.BacklogClient.List()
+	if err != nil {
+		return nil, fmt.Errorf("loading backlog: %w", err)
+	}
+	_ = existingBacklogItems // Will be used in post-processing
+	_ = existingEpics        // Will be used in post-processing
+	_ = existingSpecs        // Will be used in post-processing
+
+	// Build explore prompt using renderer
+	exploreContext := map[string]interface{}{
+		"Topic": input.Topic,
+	}
+	renderedPrompt, err := p.deps.PromptRenderer.RenderExplore(exploreContext)
+	if err != nil {
+		return nil, fmt.Errorf("rendering explore prompt: %w", err)
+	}
+	_ = renderedPrompt // Will be written to temp file
+
 	// TODO: Write temp file
 	// TODO: Resolve agent
 	// TODO: Launch agent
-	// TODO: Post-processing: detect new artifacts
+	// TODO: Post-processing: detect new artifacts using pre-snapshots
 
 	return &result, nil
 }
