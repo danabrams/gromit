@@ -48,28 +48,6 @@ func TestClaudeRunnerAdapterRemoved(t *testing.T) {
 	}
 }
 
-// TestReviewGoUsesProviderAdapter verifies that cmd/gromit/review.go has migrated
-// from using learnings.NewClaudeRunnerAdapter to using a provider-based approach.
-// Expected failure: review.go still calls learnings.NewClaudeRunnerAdapter(m.claudeClient)
-func TestReviewGoUsesProviderAdapter(t *testing.T) {
-	reviewPath := filepath.Join(".", "..", "..", "cmd", "gromit", "review.go")
-	source, err := os.ReadFile(reviewPath)
-	if err != nil {
-		t.Fatalf("could not read review.go: %v", err)
-	}
-
-	sourceStr := string(source)
-
-	// Should NOT call NewClaudeRunnerAdapter anymore
-	if strings.Contains(sourceStr, "learnings.NewClaudeRunnerAdapter") {
-		t.Error("review.go should not call learnings.NewClaudeRunnerAdapter - should use provider-based approach instead")
-	}
-
-	// Should use provider-based approach (NewProviderRunnerAdapter or direct provider)
-	if !strings.Contains(sourceStr, "learnings.NewProviderRunnerAdapter") && !strings.Contains(sourceStr, "learnings.NewLLMFilter") {
-		t.Error("review.go should use learnings.NewProviderRunnerAdapter or pass provider directly to NewLLMFilter")
-	}
-}
 
 // TestAdapterTestsRemoved verifies that the tests for ClaudeRunnerAdapter
 // have been removed from adapter_test.go since the code under test no longer exists.

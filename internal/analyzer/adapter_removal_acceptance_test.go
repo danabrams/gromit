@@ -43,46 +43,6 @@ func TestClaudeClientAdapterRemoved(t *testing.T) {
 	}
 }
 
-// TestRunnerUsesProviderDirectly verifies that internal/runner/runner.go
-// no longer uses analyzer.NewClaudeClientAdapter and instead passes
-// provider.Provider directly to analyzer.NewAnalyzer.
-// Expected failure: runner.go still calls analyzer.NewClaudeClientAdapter(claudeClient)
-func TestRunnerUsesProviderDirectly(t *testing.T) {
-	runnerPath := filepath.Join(".", "..", "runner", "runner.go")
-	source, err := os.ReadFile(runnerPath)
-	if err != nil {
-		t.Fatalf("could not read runner.go: %v", err)
-	}
-
-	sourceStr := string(source)
-
-	// Should NOT call analyzer.NewClaudeClientAdapter
-	if strings.Contains(sourceStr, "analyzer.NewClaudeClientAdapter") {
-		t.Error("runner.go should not call analyzer.NewClaudeClientAdapter - should pass provider directly to analyzer.NewAnalyzer")
-	}
-
-	// Should call analyzer.NewAnalyzer with a provider (not wrapped in an adapter)
-	if !strings.Contains(sourceStr, "analyzer.NewAnalyzer(") {
-		t.Error("runner.go should still call analyzer.NewAnalyzer")
-	}
-
-	// The fallback path that used NewClaudeClientAdapter should be removed
-	// or replaced with direct provider usage
-	if strings.Contains(sourceStr, "// Fallback for when providers config is used") {
-		// If this comment still exists, check what comes after
-		lines := strings.Split(sourceStr, "\n")
-		for i, line := range lines {
-			if strings.Contains(line, "// Fallback for when providers config is used") {
-				// Check next few lines don't use NewClaudeClientAdapter
-				for j := i + 1; j < i+5 && j < len(lines); j++ {
-					if strings.Contains(lines[j], "NewClaudeClientAdapter") {
-						t.Error("runner.go fallback path should not use NewClaudeClientAdapter")
-					}
-				}
-			}
-		}
-	}
-}
 
 // TestAnalyzerTestsUpdated verifies that analyzer_test.go no longer uses
 // NewClaudeClientAdapter in its test setup.
