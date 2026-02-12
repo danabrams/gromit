@@ -178,7 +178,8 @@ func TestNewRunnerRouterUsesRatioForAnyPhases(t *testing.T) {
 
 	// "validate" is configured as "any" — the ratio balancer should pick a provider.
 	// With a fresh router (0 counts), the provider furthest below its ratio target
-	// should be selected. With 60/40 split and 0 counts, either could be first.
+	// should be selected first. Claude has 60% target vs openai 40%, so claude
+	// has the larger gap (60-0=60 > 40-0=40) and should be selected first.
 	p, model := runner.router.Select("validate", provider.TierLow)
 	if p == nil {
 		t.Fatal("Select returned nil provider for 'any' phase")
@@ -187,10 +188,25 @@ func TestNewRunnerRouterUsesRatioForAnyPhases(t *testing.T) {
 		t.Fatal("Select returned empty model for 'any' phase")
 	}
 
-	// The selected provider must be one of the configured providers
-	provName := p.Name()
-	if provName != "claude" && provName != "codex" {
-		t.Errorf("Select(validate, low) provider = %q, want 'claude' or 'codex'", provName)
+	// With 0 counts and 60/40 ratio, claude should be selected first (larger gap)
+	if p.Name() != "claude" {
+		t.Errorf("Select(validate, low) provider = %q, want 'claude' (60%% ratio target vs 40%%)", p.Name())
+	}
+	if model != "haiku" {
+		t.Errorf("Select(validate, low) model = %q, want 'haiku' for claude low tier", model)
+	}
+
+	// After one claude invocation (count now claude:1, openai:0),
+	// openai should be further below its target and get selected next.
+	p2, model2 := runner.router.Select("validate", provider.TierLow)
+	if p2 == nil {
+		t.Fatal("second Select returned nil provider")
+	}
+	if p2.Name() != "codex" {
+		t.Errorf("second Select(validate, low) provider = %q, want 'codex' (rebalancing)", p2.Name())
+	}
+	if model2 != "gpt-4o-mini" {
+		t.Errorf("second Select(validate, low) model = %q, want 'gpt-4o-mini'", model2)
 	}
 }
 
@@ -536,5 +552,157 @@ func TestNewRunnerCooldownParsing(t *testing.T) {
 				t.Error("claude should be unavailable after MarkUnavailable with non-zero cooldown")
 			}
 		})
+	}
+}
+
+// TestNewRunnerRouterProviderNames verifies that the router built from config
+// creates providers with the correct Name() values: "claude" for the claude
+// provider and "codex" for the openai/codex provider.
+//
+// Expected failure: The TODO at runner.go:103 is not implemented - router is nil,
+// and no providers are constructed from cfg.Providers.
+func TestNewRunnerRouterProviderNames(t *testing.T) {
+	cfg := setupTwoProviderConfig(t)
+
+	runner, err := NewRunner(cfg, os.Stdout)
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+	if runner.router == nil {
+		t.Fatal("expected router to be non-nil")
+	}
+
+	// Select the build phase (prefers claude) to verify claude provider exists
+	pClaude, _ := runner.router.Select("build", provider.TierMedium)
+	if pClaude == nil {
+		t.Fatal("Select(build) returned nil provider")
+	}
+	if pClaude.Name() != "claude" {
+		t.Errorf("build phase provider Name() = %q, want 'claude'", pClaude.Name())
+	}
+
+	// Mark claude unavailable to force fallback to the openai/codex provider
+	runner.router.MarkUnavailable("claude")
+
+	// Now build phase should fall back to the codex provider
+	pCodex, _ := runner.router.Select("build", provider.TierMedium)
+	if pCodex == nil {
+		t.Fatal("Select(build) after marking claude unavailable returned nil provider")
+	}
+	// The openai config key should create a CodexProvider whose Name() returns "codex"
+	if pCodex.Name() != "codex" {
+		t.Errorf("fallback provider Name() = %q, want 'codex' (from openai config key)", pCodex.Name())
+	}
+}
+
+// TestNewRunnerRouterAllTierMappingsForBothProviders verifies that the router
+// correctly maps all three tiers to the right model names for both providers.
+// This ensures cfg.Providers[x].Models is properly passed to each provider.
+//
+// Expected failure: The TODO at runner.go:103 is not implemented - router is nil,
+// and provider tier-to-model mappings are never constructed from config.
+func TestNewRunnerRouterAllTierMappingsForBothProviders(t *testing.T) {
+	cfg := setupTwoProviderConfig(t)
+
+	runner, err := NewRunner(cfg, os.Stdout)
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+	if runner.router == nil {
+		t.Fatal("expected router to be non-nil")
+	}
+
+	// Test claude provider tier mappings via phase preferences (build prefers claude)
+	claudeTests := []struct {
+		tier          string
+		expectedModel string
+	}{
+		{provider.TierHigh, "opus"},
+		{provider.TierMedium, "sonnet"},
+		{provider.TierLow, "haiku"},
+	}
+
+	for _, tt := range claudeTests {
+		t.Run("claude_"+tt.tier, func(t *testing.T) {
+			p, model := runner.router.Select("build", tt.tier)
+			if p == nil {
+				t.Fatal("Select returned nil")
+			}
+			if p.Name() != "claude" {
+				t.Fatalf("expected claude provider for build phase, got %q", p.Name())
+			}
+			if model != tt.expectedModel {
+				t.Errorf("claude tier %q → model %q, want %q", tt.tier, model, tt.expectedModel)
+			}
+		})
+	}
+
+	// Mark claude unavailable to test codex tier mappings
+	runner.router.MarkUnavailable("claude")
+
+	codexTests := []struct {
+		tier          string
+		expectedModel string
+	}{
+		{provider.TierHigh, "o3"},
+		{provider.TierMedium, "gpt-4o"},
+		{provider.TierLow, "gpt-4o-mini"},
+	}
+
+	for _, tt := range codexTests {
+		t.Run("codex_"+tt.tier, func(t *testing.T) {
+			p, model := runner.router.Select("build", tt.tier)
+			if p == nil {
+				t.Fatal("Select returned nil after claude marked unavailable")
+			}
+			if p.Name() != "codex" {
+				t.Fatalf("expected codex provider after claude unavailable, got %q", p.Name())
+			}
+			if model != tt.expectedModel {
+				t.Errorf("codex tier %q → model %q, want %q", tt.tier, model, tt.expectedModel)
+			}
+		})
+	}
+}
+
+// TestNewRunnerRouterAnalyzerUsesClaudeAsDefault verifies that when multiple
+// providers are configured and claude is one of them, the analyzer is wired
+// using the claude provider as the default (not a fallback ClaudeClientAdapter).
+//
+// Expected failure: The TODO at runner.go:103 is not implemented —
+// claudeProviderForLearnings remains nil, so analyzer uses the fallback adapter.
+func TestNewRunnerRouterAnalyzerUsesClaudeAsDefault(t *testing.T) {
+	cfg := setupTwoProviderConfig(t)
+
+	// Create LEARNINGS.md so learnings filter can be wired
+	gromitDir := filepath.Dir(cfg.Paths.Templates)
+	if err := os.WriteFile(
+		filepath.Join(gromitDir, "LEARNINGS.md"),
+		[]byte("# Learnings\n"),
+		0644,
+	); err != nil {
+		t.Fatalf("failed to create LEARNINGS.md: %v", err)
+	}
+
+	runner, err := NewRunner(cfg, os.Stdout)
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+
+	// Both router and analyzer must be non-nil
+	if runner.router == nil {
+		t.Fatal("expected router to be non-nil")
+	}
+	if runner.analyzer == nil {
+		t.Fatal("expected analyzer to be non-nil")
+	}
+
+	// Verify that the router can select claude (proving the provider was built correctly)
+	p, _ := runner.router.Select("build", provider.TierMedium)
+	if p == nil {
+		t.Fatal("router.Select returned nil provider")
+	}
+	if p.Name() != "claude" {
+		t.Errorf("expected claude as default/preferred build provider, got %q", p.Name())
 	}
 }

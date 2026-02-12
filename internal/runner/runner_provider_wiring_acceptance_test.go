@@ -69,8 +69,9 @@ func TestRunnerProviderWiringWithBackwardCompatPath(t *testing.T) {
 }
 
 // TestRunnerProviderWiringWithProvidersConfig verifies that NewRunner
-// correctly handles the providers config path (the TODO at lines 98-100).
-// Expected failure: The TODO path is not implemented yet - router and provider will be nil
+// correctly builds a multi-provider router when providers config is present.
+// Expected failure: The TODO at runner.go:103 is not implemented —
+// cfg.HasProviders() branch does not construct provider instances or call NewRouter().
 func TestRunnerProviderWiringWithProvidersConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, ".gromit", "templates")
@@ -78,7 +79,7 @@ func TestRunnerProviderWiringWithProvidersConfig(t *testing.T) {
 		t.Fatalf("failed to create templates dir: %v", err)
 	}
 
-	// Create config WITH providers section to trigger the TODO path
+	// Create config WITH providers section to trigger the HasProviders() path
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
 			Binary:  "claude",
@@ -102,6 +103,9 @@ func TestRunnerProviderWiringWithProvidersConfig(t *testing.T) {
 				},
 			},
 		},
+		Routing: config.RoutingConfig{
+			Ratio: map[string]int{"claude": 100},
+		},
 	}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
@@ -112,26 +116,33 @@ func TestRunnerProviderWiringWithProvidersConfig(t *testing.T) {
 	}
 
 	runner, err := NewRunner(cfg, os.Stdout)
-
-	// The TODO path at line 99 is not implemented yet, so router will be nil
-	// and the analyzer will be created via the fallback path (lines 123-128)
 	if err != nil {
-		t.Fatalf("NewRunner should not error even with TODO path: %v", err)
+		t.Fatalf("NewRunner() error = %v", err)
 	}
-
 	if runner == nil {
-		t.Fatal("NewRunner should return non-nil runner even with TODO path")
+		t.Fatal("NewRunner() returned nil runner")
 	}
 
-	// When TODO is implemented, router should be built from providers config
-	// For now, the TODO path leaves router as nil
-	if runner.router != nil {
-		t.Error("expected router to be nil until TODO is implemented")
+	// After implementation, router must be non-nil and built from providers config
+	if runner.router == nil {
+		t.Fatal("expected runner.router to be non-nil when providers config is present")
 	}
 
-	// Analyzer should be created via fallback path (lines 123-128) until TODO is done
+	// The router should be functional — Select should return the claude provider
+	p, model := runner.router.Select("build", provider.TierMedium)
+	if p == nil {
+		t.Fatal("router.Select() returned nil provider")
+	}
+	if p.Name() != "claude" {
+		t.Errorf("router.Select() returned provider %q, want 'claude'", p.Name())
+	}
+	if model != "sonnet" {
+		t.Errorf("router.Select() returned model %q, want 'sonnet' for medium tier", model)
+	}
+
+	// Analyzer must still be wired when using multi-provider path
 	if runner.analyzer == nil {
-		t.Error("expected analyzer to be non-nil via fallback path")
+		t.Fatal("expected analyzer to be non-nil with providers config")
 	}
 }
 
