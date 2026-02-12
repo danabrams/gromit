@@ -10,14 +10,14 @@ import (
 
 // State represents persistent state stored in .gromit/state.json
 type State struct {
-	LastRetro                time.Time          `json:"last_retro,omitempty"`
-	LastReviewCommit         string             `json:"last_review_commit,omitempty"`
-	LastReviewIteration      int                `json:"last_review_iteration,omitempty"`
-	IterationsSinceReview    int                `json:"iterations_since_review,omitempty"`
-	CleanExit                bool               `json:"clean_exit"`
-	UpdatedAt                time.Time          `json:"updated_at"`
-	FilteredLearningHashes   []string           `json:"filtered_learning_hashes,omitempty"`
-	ProviderCounts           map[string]int     `json:"provider_counts,omitempty"`
+	LastRetro                time.Time            `json:"last_retro,omitempty"`
+	LastReviewCommit         string               `json:"last_review_commit,omitempty"`
+	LastReviewIteration      int                  `json:"last_review_iteration,omitempty"`
+	IterationsSinceReview    int                  `json:"iterations_since_review,omitempty"`
+	CleanExit                bool                 `json:"clean_exit"`
+	UpdatedAt                time.Time            `json:"updated_at"`
+	FilteredLearningHashes   []string             `json:"filtered_learning_hashes,omitempty"`
+	ProviderCounts           map[string]int       `json:"provider_counts,omitempty"`
 	ProviderUnavailableUntil map[string]time.Time `json:"provider_unavailable_until,omitempty"`
 }
 

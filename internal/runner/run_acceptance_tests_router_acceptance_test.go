@@ -44,7 +44,7 @@ func TestAcceptance_RunAcceptanceTestsUsesRouter(t *testing.T) {
 			Labels:   []string{},
 		},
 		tier:   provider.TierMedium, // From setupBeadContext via selectTier
-		model:  "sonnet",             // Legacy model name for display
+		model:  "sonnet",            // Legacy model name for display
 		result: &IterationResult{},
 		promptCtx: &prompt.Context{
 			Model:              "sonnet",

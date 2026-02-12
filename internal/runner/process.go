@@ -659,6 +659,27 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 		return err
 	}
 
+	if r.router == nil {
+		return fmt.Errorf("runner router is nil")
+	}
+
+	// Determine phase and use tier from bead context
+	phase := "build"
+	tier := bc.tier
+
+	// Select provider using router
+	p, modelName := r.router.Select(phase, tier)
+	if p == nil {
+		return fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
+	}
+
+	// Update bead context with router-selected model
+	bc.model = modelName
+	// If this is an escalated invocation, update EscalatedTo with the concrete model name
+	if bc.result.Escalated && bc.result.EscalatedTo != "" {
+		bc.result.EscalatedTo = modelName
+	}
+
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
 
@@ -688,8 +709,55 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 		}
 	}
 
-	// Call Claude with the acceptance tests prompt
-	claudeResult, err := r.claude.StreamRun(childCtx, acceptancePrompt, bc.model, r.output, handler, onToolCall)
+	// Convert claude handlers to provider handlers
+	var providerHandler func(line []byte)
+	if handler != nil {
+		providerHandler = func(line []byte) {
+			handler(line)
+		}
+	}
+
+	providerToolHandler := func(event provider.ToolEvent) {
+		onToolCall(claude.ToolEvent{
+			ToolName:  event.ToolName,
+			FilePath:  event.FilePath,
+			Timestamp: event.Timestamp,
+		})
+	}
+
+	// Call provider.StreamRun with the tier
+	providerResult, err := p.StreamRun(childCtx, acceptancePrompt, tier, r.output, providerHandler, providerToolHandler)
+
+	// Check for usage limit error and retry with fallback provider
+	if err != nil && p.IsUsageLimitError(providerResult, err) {
+		r.router.MarkUnavailable(p.Name())
+
+		// Retry with new provider
+		p2, modelName2 := r.router.Select(phase, tier)
+		if p2 != nil {
+			bc.model = modelName2
+			// If this is an escalated invocation, update EscalatedTo with the concrete model name
+			if bc.result.Escalated && bc.result.EscalatedTo != "" {
+				bc.result.EscalatedTo = modelName2
+			}
+
+			// Retry the invocation with the fallback provider
+			providerResult, err = p2.StreamRun(childCtx, acceptancePrompt, tier, r.output, providerHandler, providerToolHandler)
+		}
+	}
+
+	// Convert provider.Result back to claude.Result for backward compatibility
+	var claudeResult *claude.Result
+	if providerResult != nil {
+		claudeResult = &claude.Result{
+			Success:  providerResult.Success,
+			Output:   providerResult.Output,
+			ExitCode: providerResult.ExitCode,
+			Duration: providerResult.Duration,
+			Model:    providerResult.Model,
+		}
+	}
+
 	stopHeartbeat()
 	childCancel()
 

@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // TestScopeCheckEscalation_SetsEscalatedFlag verifies that scope check
@@ -120,6 +121,19 @@ func setupAcceptanceEscalation(t *testing.T) (*Runner, *beadContext) {
 	t.Helper()
 	var buf strings.Builder
 	callCount := 0
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, p string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			callCount++
+			if callCount <= 2 {
+				return &claude.Result{Success: false, Output: "acceptance tests failed"}, nil
+			}
+			return &claude.Result{Success: true, Output: "acceptance tests passed", Model: "sonnet"}, nil
+		},
+	}
+
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			Claude: config.ClaudeConfig{
@@ -128,24 +142,18 @@ func setupAcceptanceEscalation(t *testing.T) (*Runner, *beadContext) {
 			},
 			Escalation: config.EscalationConfig{
 				Enabled:            true,
-				Chain:              []string{"haiku", "sonnet", "opus"},
+				Chain:              []string{provider.TierLow, provider.TierMedium, provider.TierHigh},
 				MaxRetriesPerModel: 1, // 1 retry = 2 attempts total per model
 			},
 		},
-		claude: &mockClaudeClient{
-			StreamRunFn: func(ctx context.Context, p string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-				callCount++
-				if callCount <= 2 {
-					return &claude.Result{Success: false, Output: "acceptance tests failed"}, nil
-				}
-				return &claude.Result{Success: true, Output: "acceptance tests passed"}, nil
-			},
-		},
+		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: &mockPromptRenderer{},
 		output:   &buf,
 	}
 	bc := &beadContext{
 		bead:  &bead.Bead{ID: "test-1", Title: "Test"},
+		tier:  provider.TierLow, // Start with low tier (haiku)
 		model: "haiku",
 		result: &IterationResult{
 			Model: "haiku",
@@ -160,8 +168,8 @@ func setupAcceptanceEscalation(t *testing.T) (*Runner, *beadContext) {
 }
 
 // TestAcceptanceTestEscalation_SetsEscalatedFlag verifies that when acceptance
-// tests exhaust retries and escalate to a higher model, the escalation is
-// tracked in the iteration result via escalateModel().
+// tests exhaust retries and escalate to a higher tier, the escalation is
+// tracked in the iteration result via escalateTier().
 func TestAcceptanceTestEscalation_SetsEscalatedFlag(t *testing.T) {
 	r, bc := setupAcceptanceEscalation(t)
 
@@ -170,12 +178,18 @@ func TestAcceptanceTestEscalation_SetsEscalatedFlag(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// Verify tier was escalated to medium
+	if bc.tier != provider.TierMedium {
+		t.Errorf("expected tier to be escalated to %q, got %q", provider.TierMedium, bc.tier)
+	}
+	// Verify concrete model name from router
 	if bc.model != "sonnet" {
 		t.Errorf("expected model to be escalated to 'sonnet', got %q", bc.model)
 	}
 	if bc.result.Escalated != true {
 		t.Errorf("expected result.Escalated=true after acceptance test escalation, got false")
 	}
+	// EscalatedTo is updated with concrete model name by router
 	if bc.result.EscalatedTo != "sonnet" {
 		t.Errorf("expected result.EscalatedTo='sonnet', got %q", bc.result.EscalatedTo)
 	}

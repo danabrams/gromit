@@ -568,6 +568,9 @@ func TestRunAcceptanceTests_Success(t *testing.T) {
 		LearningsFile: nil,
 	}
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			Claude: config.ClaudeConfig{
@@ -576,11 +579,13 @@ func TestRunAcceptanceTests_Success(t *testing.T) {
 			},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		tier:   provider.TierMedium,
 		model:  "sonnet",
 		result: &IterationResult{},
 		promptCtx: &prompt.Context{
@@ -610,6 +615,9 @@ func TestRunAcceptanceTests_ClaudeFailed(t *testing.T) {
 		LearningsFile: nil,
 	}
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			Claude: config.ClaudeConfig{
@@ -618,11 +626,13 @@ func TestRunAcceptanceTests_ClaudeFailed(t *testing.T) {
 			},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		tier:   provider.TierMedium,
 		model:  "sonnet",
 		result: &IterationResult{},
 		promptCtx: &prompt.Context{
@@ -652,6 +662,9 @@ func TestRunAcceptanceTests_InvocationError(t *testing.T) {
 		LearningsFile: nil,
 	}
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			Claude: config.ClaudeConfig{
@@ -660,11 +673,13 @@ func TestRunAcceptanceTests_InvocationError(t *testing.T) {
 			},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		tier:   provider.TierMedium,
 		model:  "sonnet",
 		result: &IterationResult{},
 		promptCtx: &prompt.Context{
@@ -685,19 +700,23 @@ func TestRunAcceptanceTests_InvocationError(t *testing.T) {
 
 func TestRunAcceptanceTests_UsesSameModel(t *testing.T) {
 	var buf strings.Builder
-	var capturedModel string
+	var capturedTier string
 	mockClaude := &mockClaudeClient{
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			capturedModel = model
+			capturedTier = model // In router mode, the tier is passed as the model parameter
 			return &claude.Result{
 				Success: true,
 				Output:  "Tests written",
+				Model:   "opus", // Return the concrete model name
 			}, nil
 		},
 	}
 	mockRend := &mockPromptRenderer{
 		LearningsFile: nil,
 	}
+
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
 
 	r := &Runner{
 		cfg: &config.Config{
@@ -707,12 +726,14 @@ func TestRunAcceptanceTests_UsesSameModel(t *testing.T) {
 			},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		model:  "opus", // Using opus for this test
+		tier:   provider.TierHigh, // Using high tier
+		model:  "opus",            // Initial model name (will be updated by router)
 		result: &IterationResult{},
 		promptCtx: &prompt.Context{
 			Model:              "opus",
@@ -725,8 +746,13 @@ func TestRunAcceptanceTests_UsesSameModel(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected no error, got: %v", err)
 	}
-	if capturedModel != "opus" {
-		t.Errorf("expected model 'opus', got %q", capturedModel)
+	// Verify tier was passed correctly
+	if capturedTier != provider.TierHigh {
+		t.Errorf("expected tier %q, got %q", provider.TierHigh, capturedTier)
+	}
+	// Verify bc.model was updated with concrete model name from router
+	if bc.model != "opus" {
+		t.Errorf("expected bc.model to be updated to 'opus', got %q", bc.model)
 	}
 }
 
@@ -1896,6 +1922,9 @@ func TestVerifyTestsFailWithRetry_ReturnsAlreadyDone(t *testing.T) {
 		},
 	}
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			Validation: config.ValidationConfig{
@@ -1906,11 +1935,14 @@ func TestVerifyTestsFailWithRetry_ReturnsAlreadyDone(t *testing.T) {
 				Validation: "haiku",
 			},
 			Claude: config.ClaudeConfig{
-				AnalysisTimeout: 60,
+				AnalysisTimeout:    60,
+				StallTimeout:       30,
+				StallTimeoutActive: 10,
 			},
 			Preflight: config.PreflightConfig{},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		analyzer: mockAnalyzerObj,
 		renderer: mockRend,
 		output:   &buf,
@@ -1918,9 +1950,12 @@ func TestVerifyTestsFailWithRetry_ReturnsAlreadyDone(t *testing.T) {
 
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		tier:   provider.TierMedium,
+		model:  "sonnet",
 		result: &IterationResult{},
 		promptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
+			Model:   "sonnet",
 		},
 	}
 
@@ -1970,6 +2005,9 @@ func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
 		},
 	}
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			Validation: config.ValidationConfig{
@@ -1980,11 +2018,14 @@ func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
 				Validation: "haiku",
 			},
 			Claude: config.ClaudeConfig{
-				AnalysisTimeout: 60,
+				AnalysisTimeout:    60,
+				StallTimeout:       30,
+				StallTimeoutActive: 10,
 			},
 			Preflight: config.PreflightConfig{},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		analyzer: mockAnalyzerObj,
 		renderer: mockRend,
 		output:   &buf,
@@ -1992,9 +2033,12 @@ func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
 
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		tier:   provider.TierMedium,
+		model:  "sonnet",
 		result: &IterationResult{},
 		promptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
+			Model:   "sonnet",
 		},
 	}
 
@@ -2367,9 +2411,13 @@ func TestVerifyTestsFailWithRetry_DiffGuard_TestOnlyDiff(t *testing.T) {
 	}
 	cfg.SetDefaults()
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg:      cfg,
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
@@ -2380,11 +2428,13 @@ func TestVerifyTestsFailWithRetry_DiffGuard_TestOnlyDiff(t *testing.T) {
 	}
 	bc := &beadContext{
 		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		tier:        provider.TierMedium,
 		model:       "sonnet",
 		result:      &IterationResult{},
 		startCommit: "abc123",
 		promptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
+			Model:              "sonnet",
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
 		},
@@ -2444,9 +2494,13 @@ func TestVerifyTestsFailWithRetry_DiffGuard_ImplDiff(t *testing.T) {
 	}
 	cfg.SetDefaults()
 
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg:      cfg,
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
@@ -2457,11 +2511,13 @@ func TestVerifyTestsFailWithRetry_DiffGuard_ImplDiff(t *testing.T) {
 	}
 	bc := &beadContext{
 		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		tier:        provider.TierMedium,
 		model:       "sonnet",
 		result:      &IterationResult{},
 		startCommit: "abc123",
 		promptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
+			Model:              "sonnet",
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
 		},
