@@ -150,3 +150,45 @@ fi
 		t.Errorf("Run() prompt file missing expected content, output: %s", result.Output)
 	}
 }
+
+// TestCodexProviderRunCapturesStdoutAndStderr verifies that Run() captures both
+// stdout and stderr from the codex CLI invocation.
+func TestCodexProviderRunCapturesStdoutAndStderr(t *testing.T) {
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+echo "stdout message"
+echo "stderr message" >&2
+exit 1
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
+	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+
+	ctx := context.Background()
+	result, err := cp.Run(ctx, "test", TierLow)
+
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !strings.Contains(result.Output, "stdout message") {
+		t.Errorf("Run() output missing stdout content, got: %s", result.Output)
+	}
+
+	if !strings.Contains(result.Output, "stderr message") {
+		t.Errorf("Run() output missing stderr content, got: %s", result.Output)
+	}
+
+	if result.ExitCode != 1 {
+		t.Errorf("Run() ExitCode = %d, want 1", result.ExitCode)
+	}
+
+	if result.Success {
+		t.Error("Run() Success should be false for non-zero exit code")
+	}
+}
