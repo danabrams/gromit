@@ -55,21 +55,11 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		return nil, fmt.Errorf("invoking Claude: %w", err)
 	}
 
-	// Check if the result has Success field
-	resultMap, ok := claudeResult.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("unexpected Claude result type")
+	// Extract output from result
+	output, err := extractClaudeOutput(claudeResult)
+	if err != nil {
+		return nil, err
 	}
-
-	success, _ := resultMap["Success"].(bool)
-	if !success {
-		exitCode, _ := resultMap["ExitCode"].(int)
-		output, _ := resultMap["Output"].(string)
-		return nil, fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", exitCode, output)
-	}
-
-	// Parse JSON array from result
-	output, _ := resultMap["Output"].(string)
 	var beadDefs []beadDef
 	if err := jsonutil.ExtractJSON(output, &beadDefs); err != nil {
 		return nil, fmt.Errorf("parsing bead definitions: %w", err)
@@ -83,14 +73,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	if input.Review {
 		result := NewDecomposeResult()
 		for _, def := range beadDefs {
-			priority := parsePriority(def.Priority)
-			labels := []string{fmt.Sprintf("spec:%s", input.PlanName)}
-
-			bead := NewCreatedBead()
-			bead.ID = "" // Not created yet
-			bead.Title = def.Title
-			bead.Priority = priority
-			bead.Labels = labels
+			bead := newCreatedBeadFromDef(def, input.PlanName, "")
 			result.CreatedBeads = append(result.CreatedBeads, bead)
 		}
 		result.PlanUpdated = false
@@ -159,11 +142,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		createdIDs = append(createdIDs, beadID)
 
 		// Add to result
-		bead := NewCreatedBead()
-		bead.ID = beadID
-		bead.Title = def.Title
-		bead.Priority = priority
-		bead.Labels = labels
+		bead := newCreatedBeadFromDef(def, input.PlanName, beadID)
 		result.CreatedBeads = append(result.CreatedBeads, bead)
 	}
 
@@ -215,6 +194,35 @@ func parsePriority(p string) int {
 	default:
 		return 1 // Default to P1
 	}
+}
+
+// newCreatedBeadFromDef creates a CreatedBead from a beadDef.
+// If beadID is empty, the bead hasn't been created yet (review mode).
+func newCreatedBeadFromDef(def beadDef, planName, beadID string) CreatedBead {
+	bead := NewCreatedBead()
+	bead.ID = beadID
+	bead.Title = def.Title
+	bead.Priority = parsePriority(def.Priority)
+	bead.Labels = []string{fmt.Sprintf("spec:%s", planName)}
+	return bead
+}
+
+// extractClaudeOutput validates and extracts the output string from a Claude result.
+func extractClaudeOutput(result interface{}) (string, error) {
+	resultMap, ok := result.(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("unexpected Claude result type")
+	}
+
+	success, _ := resultMap["Success"].(bool)
+	if !success {
+		exitCode, _ := resultMap["ExitCode"].(int)
+		output, _ := resultMap["Output"].(string)
+		return "", fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", exitCode, output)
+	}
+
+	output, _ := resultMap["Output"].(string)
+	return output, nil
 }
 
 // extractIDField attempts to extract an ID field from a struct via reflection
