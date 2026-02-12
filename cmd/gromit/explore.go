@@ -1,15 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/spf13/cobra"
 )
@@ -47,176 +49,177 @@ func runExplore(cmd *cobra.Command, args []string) error {
 		}
 		cfg = nil
 	}
-	gromitDir := resolveGromitDir(cfg)
-	epicsDir := filepath.Join(gromitDir, "epics")
-	specsDir := resolveSpecsDir(cfg)
 
-	// Ensure epics directory exists
-	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
-		return fmt.Errorf("creating epics dir: %w", err)
+	// Extract topic from args
+	var topic string
+	if len(args) > 0 {
+		topic = args[0]
 	}
 
-	// Record existing artifacts before session
-	existingEpics, err := getEpicFiles(epicsDir)
+	// Build pipeline
+	p, err := buildExplorePipeline(cfg)
 	if err != nil {
-		return fmt.Errorf("scanning epics directory: %w", err)
+		return fmt.Errorf("building pipeline: %w", err)
 	}
 
-	existingSpecs, err := getSpecFiles(specsDir)
+	// Execute explore workflow
+	ctx := context.Background()
+	input := pipeline.ExploreInput{
+		Topic:     topic,
+		AgentName: "", // Use default agent
+		Model:     exploreModel,
+	}
+
+	result, err := p.Explore(ctx, input)
 	if err != nil {
-		return fmt.Errorf("scanning specs directory: %w", err)
+		return fmt.Errorf("explore workflow: %w", err)
 	}
 
-	// Load backlog to track existing items
-	bf, err := backlog.NewFile(gromitDir)
-	if err != nil {
-		return fmt.Errorf("creating backlog file: %w", err)
-	}
-
-	existingBacklogItems, err := bf.List()
-	if err != nil {
-		return fmt.Errorf("loading backlog: %w", err)
-	}
-
-	// Build system prompt with full project context
-	systemPrompt, err := buildExplorePrompt(cfg, gromitDir, args)
-	if err != nil {
-		return fmt.Errorf("building explore prompt: %w", err)
-	}
-
-	// Determine binary and flags from config
-	claudeBinary := "claude"
-	var claudeFlags []string
-	if cfg != nil {
-		claudeBinary = cfg.Claude.Binary
-		claudeFlags = cfg.Claude.Flags
-	}
-
-	// Write system prompt to a temp file to avoid "argument list too long" errors
-	tmpDir := filepath.Join(gromitDir, "tmp")
-	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
-		return fmt.Errorf("creating tmp dir: %w", err)
-	}
-
-	promptFile, err := os.CreateTemp(tmpDir, "explore-prompt-*.md")
-	if err != nil {
-		return fmt.Errorf("creating temp prompt file: %w", err)
-	}
-	promptPath := promptFile.Name()
-	defer os.Remove(promptPath)
-
-	if _, err := promptFile.WriteString(systemPrompt); err != nil {
-		promptFile.Close()
-		return fmt.Errorf("writing prompt file: %w", err)
-	}
-	promptFile.Close()
-
-	// Launch Claude Code with a short initial prompt that references the temp file
-	initialPrompt := fmt.Sprintf("Read and follow the exploration instructions in %s", promptPath)
-
-	// Build command args: flags + model + initial message
-	cmdArgs := append([]string{}, claudeFlags...)
-	if exploreModel != "" {
-		cmdArgs = append(cmdArgs, "--model", exploreModel)
-	}
-	cmdArgs = append(cmdArgs, initialPrompt)
-
-	claudeCmd := exec.Command(claudeBinary, cmdArgs...)
-	claudeCmd.Stdin = os.Stdin
-	claudeCmd.Stdout = os.Stdout
-	claudeCmd.Stderr = os.Stderr
-
-	if err := claudeCmd.Run(); err != nil {
-		// Don't treat Claude exit code as an error - it's normal when user exits
-		if _, ok := err.(*exec.ExitError); ok {
-			// User exited gracefully, not an error
-			return nil
+	// Display results
+	if len(result.CreatedEpics) > 0 {
+		fmt.Printf("\nEpics created:\n")
+		for _, epic := range result.CreatedEpics {
+			fmt.Printf("  - %s\n", epic)
 		}
-		return fmt.Errorf("launching Claude Code: %w", err)
 	}
 
-	// TODO: Implement post-session artifact detection
-	// Should scan for new files in epicsDir/specsDir and new backlog items,
-	// compare against pre-session snapshots, and create corresponding bd beads.
-	_ = existingEpics
-	_ = existingSpecs
-	_ = existingBacklogItems
+	if len(result.CreatedSpecs) > 0 {
+		fmt.Printf("\nSpecs created:\n")
+		for _, spec := range result.CreatedSpecs {
+			fmt.Printf("  - %s\n", spec)
+		}
+	}
+
+	if len(result.CreatedBacklogItems) > 0 {
+		fmt.Printf("\nBacklog items created: %d\n", len(result.CreatedBacklogItems))
+	}
 
 	return nil
 }
 
-// getEpicFiles returns a list of .md files in the epics directory.
-// Creates the directory if it doesn't exist.
-func getEpicFiles(epicsDir string) ([]string, error) {
-	return listMarkdownFiles(epicsDir)
-}
-
-// formatLearnings formats learnings into a markdown string.
-// If confirmed is true, returns confirmed learnings; otherwise returns recent learnings (last 24 months).
-// Returns "*None*" if the file is nil or no learnings exist.
-func formatLearnings(lf *learnings.File, confirmed bool) string {
-	if lf == nil {
-		return "*None*"
-	}
-
-	var items []learnings.Learning
-	if confirmed {
-		items = lf.GetConfirmed()
-	} else {
-		items = lf.GetRecent(24)
-	}
-
-	if len(items) == 0 {
-		return "*None*"
-	}
-
-	var sb strings.Builder
-	for _, l := range items {
-		sb.WriteString(fmt.Sprintf("- **[%s]** %s\n", l.Category, l.Content))
-	}
-	return sb.String()
-}
-
-// buildExplorePrompt constructs the system prompt for the exploration session
-func buildExplorePrompt(cfg *config.Config, gromitDir string, args []string) (string, error) {
-	// Load project context
-	templatesDir := resolveTemplatesDir(cfg)
+// buildExplorePipeline constructs a Pipeline configured for the explore workflow
+func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
+	gromitDir := resolveGromitDir(cfg)
+	epicsDir := filepath.Join(gromitDir, "epics")
 	specsDir := resolveSpecsDir(cfg)
-	claudeMDPath := resolveProjectClaudeMD(cfg)
 
-	renderer, err := prompt.NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir)
-	if err != nil {
-		return "", fmt.Errorf("creating prompt renderer: %w", err)
+	// Ensure directories exist
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		return nil, fmt.Errorf("creating epics dir: %w", err)
+	}
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		return nil, fmt.Errorf("creating specs dir: %w", err)
 	}
 
-	claudeMD, err := renderer.LoadClaudeMD()
+	// Create renderer
+	renderer, err := prompt.NewRenderer(
+		cfg.Paths.Templates,
+		cfg.Paths.Specs,
+		cfg.Paths.ProjectClaudeMD,
+		gromitDir,
+	)
 	if err != nil {
-		return "", fmt.Errorf("loading CLAUDE.md: %w", err)
+		return nil, fmt.Errorf("creating renderer: %w", err)
 	}
 
-	rules, err := renderer.LoadRules()
+	// Create backlog client
+	backlogFile, err := backlog.NewFile(gromitDir)
 	if err != nil {
-		return "", fmt.Errorf("loading RULES.md: %w", err)
+		return nil, fmt.Errorf("creating backlog file: %w", err)
+	}
+
+	// Create adapters
+	agentResolver := &exploreAgentResolver{cfg: cfg}
+	promptRenderer := &explorePromptRenderer{renderer: renderer}
+	backlogClient := &exploreBacklogClient{file: backlogFile}
+
+	deps := &pipeline.Deps{
+		AgentResolver:  agentResolver,
+		PromptRenderer: promptRenderer,
+		BacklogClient:  backlogClient,
+	}
+
+	paths := &pipeline.Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+		EpicsDir:  epicsDir,
+	}
+
+	return pipeline.New(deps, paths), nil
+}
+
+// Adapter types
+
+// exploreAgentResolver adapts agent.Resolve to pipeline.AgentResolver
+type exploreAgentResolver struct {
+	cfg *config.Config
+}
+
+func (r *exploreAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
+	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
+}
+
+// explorePromptRenderer adapts prompt.Renderer to pipeline.PromptRenderer
+type explorePromptRenderer struct {
+	renderer *prompt.Renderer
+}
+
+func (r *explorePromptRenderer) RenderRefine(input interface{}) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
+func (r *explorePromptRenderer) RenderPlan(input interface{}) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
+func (r *explorePromptRenderer) RenderDecompose(input interface{}) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
+func (r *explorePromptRenderer) RenderThoroughReview(ctx interface{}) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
+func (r *explorePromptRenderer) RenderExplore(ctx interface{}) (string, error) {
+	// Extract context
+	ctxMap, ok := ctx.(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("unexpected context type")
+	}
+
+	topic, _ := ctxMap["Topic"].(string)
+
+	// Load ClaudeMD and Rules
+	claudeMD, err := r.renderer.LoadClaudeMD()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not load CLAUDE.md: %v\n", err)
+	}
+
+	rules, err := r.renderer.LoadRules()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not load RULES.md: %v\n", err)
 	}
 
 	// Load learnings
-	lf := renderer.GetLearningsFile()
+	lf := r.renderer.GetLearningsFile()
 	confirmedLearnings := formatLearnings(lf, true)
 	recentLearnings := formatLearnings(lf, false)
 
-	// Get working directory
+	// Get working directory and paths
 	workDir, _ := os.Getwd()
+	gromitDir := r.renderer.GetGromitDir()
+	specsDir := r.renderer.GetSpecsDir()
 
 	// Build the system prompt
 	var sb strings.Builder
 
 	// Optional: pre-seeded topic
-	if len(args) > 0 {
+	if topic != "" {
 		sb.WriteString(fmt.Sprintf(`Topic for exploration:
 
 %s
 
-`, args[0]))
+`, topic))
 	}
 
 	// Context section
@@ -277,4 +280,68 @@ Specs directory: %s
 	sb.WriteString("Start by understanding the topic, then alternate between discussing ideas and capturing them. End the session when the problem space feels well-mapped and the key ideas have been captured as artifacts.\n")
 
 	return sb.String(), nil
+}
+
+// exploreBacklogClient adapts backlog.File to pipeline.BacklogClient
+type exploreBacklogClient struct {
+	file *backlog.File
+}
+
+func (c *exploreBacklogClient) List() ([]*pipeline.Idea, error) {
+	items, err := c.file.List()
+	if err != nil {
+		return nil, err
+	}
+
+	var ideas []*pipeline.Idea
+	for _, item := range items {
+		ideas = append(ideas, &pipeline.Idea{
+			ID:       item.ID,
+			Text:     item.Text,
+			Type:     item.Type,
+			Context:  item.Context,
+			Status:   item.Status,
+			SpecName: item.SpecName,
+		})
+	}
+
+	return ideas, nil
+}
+
+func (c *exploreBacklogClient) Get(id string) (*pipeline.Idea, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (c *exploreBacklogClient) Add(item *pipeline.Idea) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (c *exploreBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
+	return fmt.Errorf("not implemented")
+}
+
+// formatLearnings formats learnings into a markdown string.
+// If confirmed is true, returns confirmed learnings; otherwise returns recent learnings (last 24 months).
+// Returns "*None*" if the file is nil or no learnings exist.
+func formatLearnings(lf *learnings.File, confirmed bool) string {
+	if lf == nil {
+		return "*None*"
+	}
+
+	var items []learnings.Learning
+	if confirmed {
+		items = lf.GetConfirmed()
+	} else {
+		items = lf.GetRecent(24)
+	}
+
+	if len(items) == 0 {
+		return "*None*"
+	}
+
+	var sb strings.Builder
+	for _, l := range items {
+		sb.WriteString(fmt.Sprintf("- **[%s]** %s\n", l.Category, l.Content))
+	}
+	return sb.String()
 }

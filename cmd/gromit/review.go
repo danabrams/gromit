@@ -535,6 +535,10 @@ func (r *cliPromptRenderer) RenderThoroughReview(ctx interface{}) (string, error
 	return r.renderer.RenderThoroughReview(reviewCtx)
 }
 
+func (r *cliPromptRenderer) RenderExplore(ctx interface{}) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
 // cliClaudeClient adapts claude.Client to pipeline.ClaudeClient interface
 type cliClaudeClient struct {
 	client *claude.Client

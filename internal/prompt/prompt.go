@@ -145,6 +145,7 @@ type Renderer struct {
 	specsDir      string
 	claudeMDPath  string
 	rulesPath     string
+	gromitDir     string
 	learningsFile *learnings.File
 }
 
@@ -161,6 +162,7 @@ func NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir string) (*Rende
 		specsDir:      specsDir,
 		claudeMDPath:  claudeMDPath,
 		rulesPath:     filepath.Join(gromitDir, "RULES.md"),
+		gromitDir:     gromitDir,
 		learningsFile: lf,
 	}, nil
 }
@@ -171,6 +173,22 @@ func (r *Renderer) GetLearningsFile() *learnings.File {
 		return nil
 	}
 	return r.learningsFile
+}
+
+// GetSpecsDir returns the specs directory path
+func (r *Renderer) GetSpecsDir() string {
+	if r == nil {
+		return ""
+	}
+	return r.specsDir
+}
+
+// GetGromitDir returns the gromit directory path
+func (r *Renderer) GetGromitDir() string {
+	if r == nil {
+		return ""
+	}
+	return r.gromitDir
 }
 
 // RenderBuild renders the build prompt for a bead

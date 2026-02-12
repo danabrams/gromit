@@ -1,8 +1,9 @@
 ---
+created: 2026-02-12T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-12T15:55:03-05:00"
 id: codex-cli-spike-findings
 source_spec: codex-cli-spike-findings
-created: 2026-02-12
-decomposed: false
 ---
 
 # Codex CLI Spike Findings Implementation Plan
