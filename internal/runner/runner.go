@@ -1314,6 +1314,7 @@ func (r *Runner) getDiff(fromCommit string) (string, error) {
 func defaultCmdRunner(ctx context.Context, command string, workDir string) (string, string, int, error) {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = workDir
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
