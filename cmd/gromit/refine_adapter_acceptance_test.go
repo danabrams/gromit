@@ -3,314 +3,415 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/danabrams/gromit/internal/pipeline"
 )
 
-// TestRefineCommandUsesGromitYamlParser verifies refine command loads config from project gromit.yaml
-// Expected failure: refine command does not use gromit.yaml parser yet
-func TestRefineCommandUsesGromitYamlParser(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create gromit.yaml
-	gromitYaml := filepath.Join(tmpDir, "gromit.yaml")
-	yamlContent := `
-paths:
-  gromit_dir: .custom-gromit
-  specs_dir: .custom-gromit/custom-specs
-`
-	if err := os.WriteFile(gromitYaml, []byte(yamlContent), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Change to project dir
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
-
-	// Run command (this is an integration-style check)
-	// The command should respect the custom paths from gromit.yaml
-	// This test verifies the adapter loads config properly
-
-	// For now, just verify the command structure exists
-	// Full integration would require running the cobra command
-	if refineCmd == nil {
-		t.Fatal("refineCmd is nil, command not registered")
-	}
-
-	// Verify command has expected flags
-	if refineCmd.Flags().Lookup("agent") == nil {
-		t.Error("refine command missing --agent flag")
-	}
-	if refineCmd.Flags().Lookup("choose-agent") == nil {
-		t.Error("refine command missing --choose-agent flag")
-	}
-}
-
-// TestRefineCommandCallsPipelineRefine verifies command delegates to pipeline.Refine()
-// Expected failure: refine command does not call pipeline.Refine() yet
-func TestRefineCommandCallsPipelineRefine(t *testing.T) {
-	// This test would ideally mock the pipeline and verify it's called
-	// For now, we verify the command structure is set up correctly
-
-	if refineCmd == nil {
-		t.Fatal("refineCmd is nil")
-	}
-
-	if refineCmd.RunE == nil {
-		t.Fatal("refineCmd.RunE is nil, no execution handler")
-	}
-
-	// The refactored command should be much shorter (~50 lines)
-	// We can't directly test line count, but we verify it has the right shape
-}
-
-// TestRefineCommandAdapterThinness verifies refine.go is a thin adapter
-// Expected failure: refine.go still contains business logic instead of delegating to pipeline
-func TestRefineCommandAdapterThinness(t *testing.T) {
-	// Read the refine.go file
-	content, err := os.ReadFile("refine.go")
+// TestRefineCLIAdapterIsThin verifies refine.go becomes a thin adapter after refactoring.
+// Expected failure: runRefine() still contains business logic (backlog loading, spec detection,
+// post-processing) instead of delegating to pipeline.Pipeline.Refine().
+func TestRefineCLIAdapterIsThin(t *testing.T) {
+	// Read refine.go source
+	sourceContent, err := os.ReadFile("refine.go")
 	if err != nil {
 		t.Fatalf("Failed to read refine.go: %v", err)
 	}
 
-	code := string(content)
+	source := string(sourceContent)
 
-	// After refactoring, the file should:
-	// 1. Import pipeline package
-	if !strings.Contains(code, `"github.com/danabrams/gromit/internal/pipeline"`) {
-		t.Error("refine.go does not import pipeline package, should delegate to pipeline.Refine()")
+	// After refactoring, these business logic calls should NOT be in refine.go
+	businessLogicIndicators := []string{
+		"getSpecFiles(specsDir)",                    // Spec detection moved to pipeline
+		"containsSpec(",                             // Comparison logic moved to pipeline
+		"bf.Update(",                                // Backlog updates moved to pipeline
+		"bf.Add(",                                   // Backlog creation moved to pipeline
+		"extractSpecTitle(",                         // Title extraction moved to pipeline
+		"for _, spec := range newSpecs",             // Iteration over new specs moved to pipeline
+		"if fromBacklog && len(createdSpecs) > 0 {", // Conditional logic moved to pipeline
+		"if isBlankSession && len(createdSpecs)",    // Blank session logic moved to pipeline
 	}
 
-	// 2. Call pipeline.Refine()
-	if !strings.Contains(code, "pipeline.Refine(") && !strings.Contains(code, ".Refine(") {
-		t.Error("refine.go does not call pipeline.Refine(), should delegate orchestration")
-	}
-
-	// 3. Not contain business logic (backlog scanning, spec detection, etc.)
-	businessLogicPatterns := []string{
-		"ListMarkdownFiles(",     // Spec detection should be in pipeline
-		"DiffFiles(",             // Diffing should be in pipeline
-		"ExtractSpecTitle(",      // Title extraction should be in pipeline
-		"time.Now().Format(",     // Timestamp logic should be in pipeline
-		"backlog.NewFile(",       // Direct backlog access should be wrapped
-	}
-
-	for _, pattern := range businessLogicPatterns {
-		if strings.Contains(code, pattern) {
-			t.Errorf("refine.go contains business logic pattern %q, should be in pipeline package", pattern)
+	var foundBusinessLogic []string
+	for _, indicator := range businessLogicIndicators {
+		if strings.Contains(source, indicator) {
+			foundBusinessLogic = append(foundBusinessLogic, indicator)
 		}
 	}
+
+	if len(foundBusinessLogic) > 0 {
+		t.Errorf("refine.go still contains business logic after refactoring:\n%s\n\nExpected these to be moved to pipeline.Pipeline.Refine()",
+			strings.Join(foundBusinessLogic, "\n"))
+	}
 }
 
-// TestRefineCommandFormatsOutput verifies command handles session events and formats output
-// Expected failure: refine command does not handle session events yet
-func TestRefineCommandFormatsOutput(t *testing.T) {
-	// This test verifies the adapter layer handles event streaming
-	// The actual test would need to mock the pipeline and send events
-
-	tmpDir := t.TempDir()
-	specsDir := filepath.Join(tmpDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create a mock session that emits events
-	ctx := context.Background()
-	mockSession := &mockRefineSession{
-		events: make(chan pipeline.Event, 10),
-	}
-
-	// Send test events
-	go func() {
-		mockSession.events <- pipeline.Event{Type: pipeline.EventSessionStarted}
-		mockSession.events <- pipeline.Event{Type: pipeline.EventOutput, Content: "Processing..."}
-		mockSession.events <- pipeline.Event{Type: pipeline.EventSessionEnded}
-		close(mockSession.events)
-	}()
-
-	// The command adapter should drain events and write to stdout
-	var buf bytes.Buffer
-	// In the real implementation, the adapter would:
-	// for event := range session.Events() {
-	//     switch event.Type {
-	//     case EventOutput:
-	//         fmt.Print(event.Content)
-	//     }
-	// }
-
-	// For this test, we just verify the structure exists
-	_ = buf
-	_ = ctx
-	_ = mockSession
-}
-
-// TestRefineCommandHandlesAgentFlag verifies --agent flag is passed to pipeline
-// Expected failure: refine command does not pass --agent flag to pipeline yet
-func TestRefineCommandHandlesAgentFlag(t *testing.T) {
-	// Verify the flag exists
-	if refineCmd.Flags().Lookup("agent") == nil {
-		t.Fatal("refine command missing --agent flag")
-	}
-
-	// The adapter should parse this flag and pass it in RefineInput
-	// input := pipeline.RefineInput{
-	//     AgentName: agentFlag,
-	//     ...
-	// }
-	// _, err := p.Refine(ctx, input)
-}
-
-// TestRefineCommandHandlesPickerMode verifies interactive picker is in adapter layer
-// Expected failure: refine command does not implement picker in adapter layer yet
-func TestRefineCommandHandlesPickerMode(t *testing.T) {
-	// When no args provided, the adapter should:
-	// 1. Load backlog
-	// 2. Show picker UI
-	// 3. Get user selection
-	// 4. Pass selected IdeaID to pipeline.Refine()
-
-	// The picker UI is interface-specific (CLI vs TUI vs web)
-	// So it should NOT be in the pipeline package
-
-	// Verify refine.go would handle this in the adapter
-	content, err := os.ReadFile("refine.go")
+// TestRefineCLICallsPipelineRefine verifies refine command delegates to pipeline.
+// Expected failure: runRefine() does not call pipeline.Pipeline.Refine() yet.
+func TestRefineCLICallsPipelineRefine(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
 	if err != nil {
 		t.Fatalf("Failed to read refine.go: %v", err)
 	}
 
-	code := string(content)
+	source := string(sourceContent)
 
-	// After refactor, picker should call pipeline.Refine() with result
-	// Not implement backlog scanning itself
-	if !strings.Contains(code, "RunE:") {
-		t.Error("refine.go missing RunE handler")
+	// After refactoring, should call pipeline methods
+	if !strings.Contains(source, "pipeline.Refine(") && !strings.Contains(source, "p.Refine(") {
+		t.Error("refine.go does not call pipeline.Refine(), expected delegation to pipeline package")
+	}
+
+	// Should create Pipeline instance
+	if !strings.Contains(source, "pipeline.New(") {
+		t.Error("refine.go does not call pipeline.New(), expected Pipeline initialization")
 	}
 }
 
-// TestRefineCommandWiresSessionEvents verifies adapter pipes session I/O
-// Expected failure: refine command does not wire session events yet
-func TestRefineCommandWiresSessionEvents(t *testing.T) {
-	// The adapter layer should:
-	// 1. Get session from pipeline.Refine()
-	// 2. Wire session.Events() to stdout
-	// 3. Wire stdin to session.SendInput()
-	// 4. Call session.Wait()
-	// 5. Get session.Result() and format output
-
-	// This is CLI-specific I/O wiring, not business logic
-	// So it belongs in cmd/gromit/refine.go, not internal/pipeline
-}
-
-// TestRefineCommandChainingLogic verifies chaining stays in CLI layer
-// Expected failure: chaining logic is not separated from pipeline logic yet
-func TestRefineCommandChainingLogic(t *testing.T) {
-	// After refactor, chaining should:
-	// 1. Use result.CreatedSpecs from pipeline
-	// 2. Prompt user "Plan these specs?" (CLI-specific)
-	// 3. Call pipeline.Plan() if user confirms
-
-	// Chaining is interface-specific user interaction
-	// It should NOT be in the pipeline package
-
-	// Read chain.go
-	chainContent, err := os.ReadFile("chain.go")
+// TestRefineCLIAdapterRetainsUIResponsibilities verifies CLI layer keeps interface duties.
+// Expected failure: after refactoring, these responsibilities might be incorrectly moved
+// to pipeline package instead of staying in CLI adapter.
+func TestRefineCLIAdapterRetainsUIResponsibilities(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
 	if err != nil {
-		t.Skipf("chain.go not found: %v", err)
+		t.Fatalf("Failed to read refine.go: %v", err)
 	}
 
-	code := string(chainContent)
+	source := string(sourceContent)
 
-	// chain.go should use pipeline results, not implement pipeline logic
-	if strings.Contains(code, "pipeline.") || strings.Contains(code, "RefineResult") {
-		// Good - chain.go references pipeline types
-		// (This will be true after refactor)
-	}
-}
-
-// TestRefineCommandNoDirectCobraInPipeline verifies pipeline doesn't use cobra
-// Expected failure: pipeline package still has cobra dependencies
-func TestRefineCommandNoDirectCobraInPipeline(t *testing.T) {
-	// Read pipeline package files
-	files := []string{
-		"../../internal/pipeline/pipeline.go",
-		"../../internal/pipeline/types.go",
+	// These should remain in CLI layer
+	cliResponsibilities := map[string]string{
+		"cobra.Command": "Cobra command definition",
+		"Flags()":       "Flag parsing",
+		"fmt.Printf":    "Output formatting",
+		"fmt.Println":   "Output formatting",
+		"bufio.Reader":  "User input handling (picker)",
 	}
 
-	for _, file := range files {
-		content, err := os.ReadFile(file)
-		if err != nil {
-			continue // File may not exist yet
-		}
-
-		code := string(content)
-		if strings.Contains(code, "github.com/spf13/cobra") {
-			t.Errorf("%s imports cobra, pipeline should not depend on CLI framework", file)
-		}
-		if strings.Contains(code, "os.Stdin") || strings.Contains(code, "os.Stdout") {
-			t.Errorf("%s references os.Stdin/Stdout, pipeline should not do terminal I/O", file)
+	for pattern, description := range cliResponsibilities {
+		if !strings.Contains(source, pattern) {
+			t.Errorf("refine.go is missing %s (%s) - CLI adapter should retain UI responsibilities",
+				description, pattern)
 		}
 	}
 }
 
-// TestRefineCommandPreservesUserExperience verifies CLI behavior is unchanged
-// Expected failure: refactored command changes user-visible behavior
-func TestRefineCommandPreservesUserExperience(t *testing.T) {
-	// After refactor, these user-facing features must still work:
-	// - gromit refine (picker mode)
-	// - gromit refine <id> (backlog item mode)
-	// - gromit refine "text" (ad-hoc mode)
-	// - --agent flag
-	// - --choose-agent flag
-	// - Output formatting (spec names, status)
-	// - Chaining prompt
-
-	// This is a smoke test that the command structure is preserved
-	if refineCmd == nil {
-		t.Fatal("refineCmd is nil after refactor")
+// TestRefineCLIAdapterDrainsEventStream verifies CLI drains session event stream.
+// Expected failure: runRefine() does not implement event stream draining loop yet -
+// it does not call session.Events() and route events to stdout.
+func TestRefineCLIAdapterDrainsEventStream(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
 	}
 
-	expectedFlags := []string{"agent", "choose-agent"}
-	for _, flag := range expectedFlags {
-		if refineCmd.Flags().Lookup(flag) == nil {
-			t.Errorf("refine command missing --%s flag after refactor", flag)
+	source := string(sourceContent)
+
+	// Should drain events from session
+	if !strings.Contains(source, "session.Events()") && !strings.Contains(source, ".Events()") {
+		t.Error("refine.go does not call session.Events(), expected event stream handling for interactive mode")
+	}
+
+	// Should iterate over events
+	if !strings.Contains(source, "for") && !strings.Contains(source, "range") {
+		// This is a weak check, but acceptance tests verify behavior not syntax
+		t.Log("Warning: could not find event iteration pattern")
+	}
+}
+
+// TestRefineCLIAdapterHandlesChaining verifies chaining stays in CLI layer.
+// Expected failure: chainAfterRefine call might be removed during refactoring, but
+// chaining is a CLI responsibility and should remain.
+func TestRefineCLIAdapterHandlesChaining(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	source := string(sourceContent)
+
+	// Chaining should remain in CLI
+	if !strings.Contains(source, "chainAfterRefine(") {
+		t.Error("refine.go does not call chainAfterRefine(), chaining should remain in CLI adapter")
+	}
+}
+
+// TestRefineCLIAdapterFormatsOutput verifies CLI formats result for display.
+// Expected failure: runRefine() does not extract and format result.CreatedSpecs for
+// user display yet - result formatting should be CLI responsibility.
+func TestRefineCLIAdapterFormatsOutput(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	source := string(sourceContent)
+
+	// Should access result from session
+	if !strings.Contains(source, "result.CreatedSpecs") && !strings.Contains(source, ".CreatedSpecs") {
+		t.Error("refine.go does not access result.CreatedSpecs, expected CLI to format results for display")
+	}
+
+	// Should print success messages
+	hasSuccessOutput := strings.Contains(source, "Spec files created") ||
+		strings.Contains(source, "Created backlog item") ||
+		strings.Contains(source, "Marked backlog item")
+
+	if !hasSuccessOutput {
+		t.Error("refine.go missing success output messages, CLI should format results for user")
+	}
+}
+
+// TestRefineCLIAdapterSizeConstraint verifies refactored CLI is approximately 50 lines.
+// Expected failure: refine.go is currently ~400 lines, should be ~50 lines after extraction.
+func TestRefineCLIAdapterSizeConstraint(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	lines := strings.Split(string(sourceContent), "\n")
+
+	// Count non-empty, non-comment lines in runRefine function
+	inRunRefine := false
+	funcLines := 0
+	braceDepth := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmed, "func runRefine(") {
+			inRunRefine = true
+			funcLines = 1
+			continue
+		}
+
+		if !inRunRefine {
+			continue
+		}
+
+		// Track brace depth to know when function ends
+		braceDepth += strings.Count(line, "{") - strings.Count(line, "}")
+
+		if braceDepth == 0 && funcLines > 0 {
+			// Function ended
+			break
+		}
+
+		// Count non-empty, non-comment lines
+		if trimmed != "" && !strings.HasPrefix(trimmed, "//") {
+			funcLines++
+		}
+	}
+
+	// Allow some flexibility: target is 50 lines, but accept up to 80 lines
+	maxAcceptableLines := 80
+	if funcLines > maxAcceptableLines {
+		t.Errorf("runRefine() has %d significant lines, want ≤%d lines (target ~50)\nRefactoring should move business logic to pipeline package",
+			funcLines, maxAcceptableLines)
+	}
+}
+
+// TestRefineCLIAdapterPreservesExistingBehavior verifies no user-visible changes.
+// Expected failure: this is a meta-test checking that all original behaviors (flags,
+// input modes, error messages) are preserved during refactoring.
+func TestRefineCLIAdapterPreservesExistingBehavior(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	source := string(sourceContent)
+
+	// Check that all original features are still present
+	requiredFeatures := map[string]string{
+		"--agent":              "Agent override flag",
+		"--choose-agent":       "Interactive agent picker flag",
+		"\"idea-\"":            "Backlog ID prefix detection",
+		"\"refined\"":          "Backlog status update",
+		"\"Something new...\"": "Blank session picker option",
+		"resolveGromitDir":     "Config path resolver usage",
+		"resolveSpecsDir":      "Config path resolver usage",
+	}
+
+	for pattern, description := range requiredFeatures {
+		if !strings.Contains(source, pattern) {
+			t.Errorf("Missing feature: %s (%s) - refactoring should preserve all existing functionality",
+				description, pattern)
 		}
 	}
 }
 
-// Mock types for testing
-
-type mockRefineSession struct {
-	events chan pipeline.Event
-}
-
-func (m *mockRefineSession) Events() <-chan pipeline.Event {
-	return m.events
-}
-
-func (m *mockRefineSession) SendInput(text string) error {
-	return nil
-}
-
-func (m *mockRefineSession) Cancel() {
-	close(m.events)
-}
-
-func (m *mockRefineSession) Wait() error {
-	// Drain events
-	for range m.events {
+// TestRefineHelperFunctionsMovedOrRemoved verifies helper functions are moved to pipeline or removed.
+// Expected failure: helper functions like getSpecFiles, containsSpec, extractSpecTitle are still
+// in refine.go instead of being moved to pipeline package or helpers.
+func TestRefineHelperFunctionsMovedOrRemoved(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
 	}
-	return nil
+
+	source := string(sourceContent)
+
+	// These helper functions should be removed from refine.go (moved to pipeline)
+	helpersThatShouldMove := []string{
+		"func getSpecFiles(",
+		"func containsSpec(",
+		"func extractSpecTitle(",
+	}
+
+	var stillPresent []string
+	for _, helper := range helpersThatShouldMove {
+		if strings.Contains(source, helper) {
+			stillPresent = append(stillPresent, helper)
+		}
+	}
+
+	if len(stillPresent) > 0 {
+		t.Errorf("Helper functions still in refine.go:\n%s\n\nExpected these to be moved to pipeline package or internal helpers",
+			strings.Join(stillPresent, "\n"))
+	}
+
+	// listMarkdownFiles might stay or move - either is acceptable
+	// formatTypeLabel should stay (UI formatting)
 }
 
-func (m *mockRefineSession) Result() (pipeline.RefineResult, error) {
-	return pipeline.NewRefineResult(), nil
+// TestRefineCLIAdapterImportsPipeline verifies refine.go imports pipeline package.
+// Expected failure: refine.go does not import internal/pipeline package yet.
+func TestRefineCLIAdapterImportsPipeline(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	source := string(sourceContent)
+
+	// Should import pipeline package
+	hasImport := strings.Contains(source, "\"github.com/danabrams/gromit/internal/pipeline\"") ||
+		strings.Contains(source, "github.com/danabrams/gromit/internal/pipeline")
+
+	if !hasImport {
+		t.Error("refine.go does not import internal/pipeline package, expected import after refactoring")
+	}
+}
+
+// TestRefineCLICreatesDepsAndPaths verifies CLI constructs pipeline dependencies.
+// Expected failure: runRefine() does not create pipeline.Deps and pipeline.Paths structs yet.
+func TestRefineCLICreatesDepsAndPaths(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	source := string(sourceContent)
+
+	// Should construct Deps struct
+	if !strings.Contains(source, "pipeline.Deps{") && !strings.Contains(source, "&pipeline.Deps{") {
+		t.Error("refine.go does not construct pipeline.Deps, expected dependency injection setup")
+	}
+
+	// Should construct Paths struct
+	if !strings.Contains(source, "pipeline.Paths{") && !strings.Contains(source, "&pipeline.Paths{") {
+		t.Error("refine.go does not construct pipeline.Paths, expected paths configuration")
+	}
+}
+
+// TestRefineCLIPickerInputHandling verifies picker logic remains in CLI.
+// Expected failure: picker display and input reading might be incorrectly moved to
+// pipeline during refactoring, but this is CLI responsibility.
+func TestRefineCLIPickerInputHandling(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	source := string(sourceContent)
+
+	// Picker should remain in CLI
+	pickerIndicators := []string{
+		"Select an idea to refine",
+		"bufio.NewReader",
+		"reader.ReadString",
+		"fmt.Sscanf",
+		"Choice [",
+	}
+
+	var missingIndicators []string
+	for _, indicator := range pickerIndicators {
+		if !strings.Contains(source, indicator) {
+			missingIndicators = append(missingIndicators, indicator)
+		}
+	}
+
+	if len(missingIndicators) == len(pickerIndicators) {
+		// All missing - likely moved incorrectly
+		t.Error("Picker logic appears to be missing from refine.go - interactive input handling should remain in CLI layer")
+	}
+}
+
+// TestRefineCLIErrorHandling verifies CLI handles pipeline errors appropriately.
+// Expected failure: runRefine() does not check errors from pipeline.Refine() and session.Wait() yet.
+func TestRefineCLIErrorHandling(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	source := string(sourceContent)
+
+	// Should check Refine() error
+	hasRefineErrorCheck := strings.Contains(source, "p.Refine(") && strings.Contains(source, "if err")
+	if !hasRefineErrorCheck {
+		t.Error("refine.go does not check error from pipeline.Refine(), expected error handling")
+	}
+
+	// Should check Wait() error
+	hasWaitErrorCheck := strings.Contains(source, ".Wait()") && strings.Contains(source, "if err")
+	if !hasWaitErrorCheck {
+		t.Error("refine.go does not check error from session.Wait(), expected error handling")
+	}
+}
+
+// TestRefineConfigLoadingStaysInCLI verifies config loading remains in CLI.
+// Expected failure: config loading might move to pipeline, but CLI should handle
+// config loading and pass resolved values to pipeline.
+func TestRefineConfigLoadingStaysInCLI(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	source := string(sourceContent)
+
+	// Config loading should stay in CLI
+	if !strings.Contains(source, "loadConfig()") {
+		t.Error("refine.go does not call loadConfig(), config loading should remain in CLI adapter")
+	}
+
+	// Path resolution should stay in CLI
+	hasPathResolution := strings.Contains(source, "resolveGromitDir") ||
+		strings.Contains(source, "resolveSpecsDir")
+
+	if !hasPathResolution {
+		t.Error("refine.go does not resolve paths, CLI should resolve config paths before passing to pipeline")
+	}
+}
+
+// TestRefineFilePathConstruction verifies spec file paths are constructed in post-processing.
+// Expected failure: after refactoring, CLI might be constructing spec paths instead of
+// getting them from pipeline result.
+func TestRefineFilePathConstruction(t *testing.T) {
+	sourceContent, err := os.ReadFile("refine.go")
+	if err != nil {
+		t.Fatalf("Failed to read refine.go: %v", err)
+	}
+
+	source := string(sourceContent)
+
+	// After refactoring, should NOT be doing filepath.Join on raw spec names
+	// (pipeline should return full paths in result.CreatedSpecs)
+	hasManualPathConstruction := strings.Contains(source, "filepath.Join(specsDir,") &&
+		strings.Contains(source, "for _, spec := range")
+
+	if hasManualPathConstruction {
+		t.Error("refine.go appears to construct spec file paths manually - pipeline should return full paths in result.CreatedSpecs")
+	}
 }
