@@ -1,5 +1,10 @@
 package pipeline
 
+import (
+	"context"
+	"fmt"
+)
+
 // Paths contains filesystem paths used by the pipeline.
 type Paths struct {
 	GromitDir string
@@ -81,4 +86,49 @@ type StateManager interface {
 // LogWriter abstracts log writing operations.
 type LogWriter interface {
 	Write(entry interface{}) error
+}
+
+// Refine executes the refine workflow.
+func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineSession, error) {
+	if p.deps == nil || p.deps.AgentResolver == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+	// TODO: implement
+	return nil, fmt.Errorf("pipeline: Refine not yet implemented")
+}
+
+// Plan executes the plan workflow.
+func (p *Pipeline) Plan(ctx context.Context, input PlanInput) (*PlanSession, error) {
+	if p.deps == nil || p.deps.AgentResolver == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+	// TODO: implement
+	return nil, fmt.Errorf("pipeline: Plan not yet implemented")
+}
+
+// Decompose executes the decompose workflow.
+func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*DecomposeResult, error) {
+	if p.deps == nil || p.deps.ClaudeClient == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+	// TODO: implement
+	return nil, fmt.Errorf("pipeline: Decompose not yet implemented")
+}
+
+// Review executes the review workflow.
+func (p *Pipeline) Review(ctx context.Context, input ReviewInput) (*ReviewSession, error) {
+	if p.deps == nil || p.deps.AgentResolver == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+	// TODO: implement
+	return nil, fmt.Errorf("pipeline: Review not yet implemented")
+}
+
+// Explore executes the explore workflow.
+func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreSession, error) {
+	if p.deps == nil || p.deps.AgentResolver == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+	// TODO: implement
+	return nil, fmt.Errorf("pipeline: Explore not yet implemented")
 }

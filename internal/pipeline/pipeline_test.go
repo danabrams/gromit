@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"testing"
 )
 
@@ -167,5 +168,76 @@ func TestDeps_FieldAccess(t *testing.T) {
 	}
 	if deps.LogWriter == nil {
 		t.Error("LogWriter field should be set")
+	}
+}
+
+func TestPipeline_RefineMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := RefineInput{IdeaText: "Test idea"}
+
+	// Should return error with nil dependencies
+	_, err := p.Refine(ctx, input)
+	if err == nil {
+		t.Error("Refine() should error with nil dependencies")
+	}
+}
+
+func TestPipeline_PlanMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := PlanInput{SpecName: "test-spec"}
+
+	_, err := p.Plan(ctx, input)
+	if err == nil {
+		t.Error("Plan() should error with nil dependencies")
+	}
+}
+
+func TestPipeline_DecomposeMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := DecomposeInput{PlanName: "test-plan"}
+
+	_, err := p.Decompose(ctx, input)
+	if err == nil {
+		t.Error("Decompose() should error with nil dependencies")
+	}
+}
+
+func TestPipeline_ReviewMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := ReviewInput{Since: "HEAD~1"}
+
+	_, err := p.Review(ctx, input)
+	if err == nil {
+		t.Error("Review() should error with nil dependencies")
+	}
+}
+
+func TestPipeline_ExploreMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := ExploreInput{Topic: "test topic"}
+
+	_, err := p.Explore(ctx, input)
+	if err == nil {
+		t.Error("Explore() should error with nil dependencies")
 	}
 }
