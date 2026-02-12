@@ -947,3 +947,8 @@ When converting a function to use a new dependency (like router), update all tes
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-mz3m | gotchas
+When migrating interfaces (like ClaudeClient → Provider), systematically search for all usages across the codebase—including adapter structs and type assertions—to ensure no dangling references remain before removing the old field
+
+*Archived from new: filtered: generic engineering advice*
+

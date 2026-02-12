@@ -99,6 +99,12 @@ func NewRetroWithProvider(p ProviderRunner, gromitDir string) (*Retro, error) {
 	}, nil
 }
 
+// resultGetter is a common interface for extracting results from either provider or Claude
+type resultGetter interface {
+	GetSuccess() bool
+	GetOutput() string
+}
+
 // Run executes the retrospective analysis.
 // The beadFilter parameter is optional (nil or empty = all beads included).
 // When non-empty, only logs for bead IDs in the filter map are included in the analysis.
@@ -129,15 +135,7 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 
 	// Run batch filter on provisional learnings
 	alreadyFiltered := stateFile.GetFilteredHashes()
-	// Create adapter - use provider if available, otherwise use claude client
-	var runnerAdapter interface {
-		Run(ctx context.Context, prompt string, model string) (*learnings.Result, error)
-	}
-	if r.provider != nil {
-		runnerAdapter = learnings.NewProviderRunnerAdapter(r.provider)
-	} else {
-		runnerAdapter = learnings.NewClaudeRunnerAdapter(r.claude)
-	}
+	runnerAdapter := r.createLearningsAdapter()
 	llmFilter := learnings.NewLLMFilter(runnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit)
 	newlyEvaluatedHashes, err := r.learningsFile.FilterProvisional(llmFilter, alreadyFiltered)
 	if err != nil {
@@ -210,30 +208,9 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	}
 
 	// Run analysis (use high tier for quality analysis)
-	tier := "high"
-	var analysisResult interface {
-		GetSuccess() bool
-		GetOutput() string
-	}
-
-	if r.provider != nil {
-		providerResult, err := r.provider.Run(ctx, prompt, tier)
-		if err != nil {
-			return nil, fmt.Errorf("running provider analysis: %w", err)
-		}
-		if providerResult == nil {
-			return &Result{Success: false}, nil
-		}
-		analysisResult = &providerResultAdapter{providerResult}
-	} else {
-		claudeResult, err := r.claude.Run(ctx, prompt, "opus")
-		if err != nil {
-			return nil, fmt.Errorf("running Claude analysis: %w", err)
-		}
-		if claudeResult == nil {
-			return &Result{Success: false}, nil
-		}
-		analysisResult = &claudeResultAdapter{claudeResult}
+	analysisResult, err := r.runAnalysis(ctx, prompt)
+	if err != nil {
+		return nil, err
 	}
 
 	result := &Result{
@@ -246,7 +223,40 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	return result, nil
 }
 
-// providerResultAdapter adapts provider.Result to the result interface
+// createLearningsAdapter creates the appropriate adapter for learnings filtering
+func (r *Retro) createLearningsAdapter() interface {
+	Run(ctx context.Context, prompt string, model string) (*learnings.Result, error)
+} {
+	if r.provider != nil {
+		return learnings.NewProviderRunnerAdapter(r.provider)
+	}
+	return learnings.NewClaudeRunnerAdapter(r.claude)
+}
+
+// runAnalysis executes the LLM analysis using either provider or Claude client
+func (r *Retro) runAnalysis(ctx context.Context, prompt string) (resultGetter, error) {
+	if r.provider != nil {
+		result, err := r.provider.Run(ctx, prompt, "high")
+		if err != nil {
+			return nil, fmt.Errorf("running provider analysis: %w", err)
+		}
+		if result == nil {
+			return &providerResultAdapter{&provider.Result{Success: false}}, nil
+		}
+		return &providerResultAdapter{result}, nil
+	}
+
+	result, err := r.claude.Run(ctx, prompt, "opus")
+	if err != nil {
+		return nil, fmt.Errorf("running Claude analysis: %w", err)
+	}
+	if result == nil {
+		return &claudeResultAdapter{&claude.Result{Success: false}}, nil
+	}
+	return &claudeResultAdapter{result}, nil
+}
+
+// providerResultAdapter adapts provider.Result to resultGetter interface
 type providerResultAdapter struct {
 	result *provider.Result
 }
@@ -259,7 +269,7 @@ func (a *providerResultAdapter) GetOutput() string {
 	return a.result.Output
 }
 
-// claudeResultAdapter adapts claude.Result to the result interface
+// claudeResultAdapter adapts claude.Result to resultGetter interface
 type claudeResultAdapter struct {
 	result *claude.Result
 }
