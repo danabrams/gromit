@@ -32,14 +32,15 @@ type RefineInput struct {
 }
 
 // RefineResult contains the output from the Refine workflow.
+// Use NewRefineResult() to create instances with properly initialized slices.
 type RefineResult struct {
-	CreatedSpecs  []string // Paths to new spec files
-	RefinedItems  []string // Backlog item IDs marked as refined
+	CreatedSpecs  []string `json:"created_specs"`
+	RefinedItems  []string `json:"refined_items"`
 }
 
 // NewRefineResult creates a RefineResult with initialized slices.
-func NewRefineResult() *RefineResult {
-	return &RefineResult{
+func NewRefineResult() RefineResult {
+	return RefineResult{
 		CreatedSpecs: []string{},
 		RefinedItems: []string{},
 	}
@@ -53,8 +54,16 @@ type PlanInput struct {
 }
 
 // PlanResult contains the output from the Plan workflow.
+// Use NewPlanResult() to create instances with properly initialized slices.
 type PlanResult struct {
-	CreatedPlans []string // Paths to new plan files
+	CreatedPlans []string `json:"created_plans"`
+}
+
+// NewPlanResult creates a PlanResult with initialized slices.
+func NewPlanResult() PlanResult {
+	return PlanResult{
+		CreatedPlans: []string{},
+	}
 }
 
 // DecomposeInput contains parameters for the Decompose workflow.
@@ -65,17 +74,33 @@ type DecomposeInput struct {
 }
 
 // CreatedBead contains information about a bead that was created.
+// Use NewCreatedBead() to create instances with properly initialized slices.
 type CreatedBead struct {
-	ID       string
-	Title    string
-	Priority int
-	Labels   []string
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Priority int      `json:"priority"`
+	Labels   []string `json:"labels"`
+}
+
+// NewCreatedBead creates a CreatedBead with initialized slices.
+func NewCreatedBead() CreatedBead {
+	return CreatedBead{
+		Labels: []string{},
+	}
 }
 
 // DecomposeResult contains the output from the Decompose workflow.
+// Use NewDecomposeResult() to create instances with properly initialized slices.
 type DecomposeResult struct {
-	CreatedBeads []CreatedBead // Beads that were created
-	PlanUpdated  bool          // Whether plan frontmatter was updated
+	CreatedBeads []CreatedBead `json:"created_beads"`
+	PlanUpdated  bool          `json:"plan_updated"`
+}
+
+// NewDecomposeResult creates a DecomposeResult with initialized slices.
+func NewDecomposeResult() DecomposeResult {
+	return DecomposeResult{
+		CreatedBeads: []CreatedBead{},
+	}
 }
 
 // ReviewInput contains parameters for the Review workflow.
@@ -87,10 +112,19 @@ type ReviewInput struct {
 }
 
 // ReviewResult contains the output from the Review workflow.
+// Use NewReviewResult() to create instances with properly initialized slices.
 type ReviewResult struct {
-	CreatedBeads        []string // Bead IDs created from review
-	CreatedBacklogItems []string // Backlog item IDs created from review
-	PersistedLearnings  bool     // Whether learnings were persisted
+	CreatedBeads        []string `json:"created_beads"`
+	CreatedBacklogItems []string `json:"created_backlog_items"`
+	PersistedLearnings  bool     `json:"persisted_learnings"`
+}
+
+// NewReviewResult creates a ReviewResult with initialized slices.
+func NewReviewResult() ReviewResult {
+	return ReviewResult{
+		CreatedBeads:        []string{},
+		CreatedBacklogItems: []string{},
+	}
 }
 
 // ExploreInput contains parameters for the Explore workflow.
@@ -100,10 +134,20 @@ type ExploreInput struct {
 }
 
 // ExploreResult contains the output from the Explore workflow.
+// Use NewExploreResult() to create instances with properly initialized slices.
 type ExploreResult struct {
-	CreatedSpecs        []string // Paths to new spec files
-	CreatedEpics        []string // Paths to new epic files
-	CreatedBacklogItems []string // Backlog item IDs created
+	CreatedSpecs        []string `json:"created_specs"`
+	CreatedEpics        []string `json:"created_epics"`
+	CreatedBacklogItems []string `json:"created_backlog_items"`
+}
+
+// NewExploreResult creates a ExploreResult with initialized slices.
+func NewExploreResult() ExploreResult {
+	return ExploreResult{
+		CreatedSpecs:        []string{},
+		CreatedEpics:        []string{},
+		CreatedBacklogItems: []string{},
+	}
 }
 
 // RefineSession is a typed wrapper for interactive Refine sessions.
