@@ -74,3 +74,30 @@ func TestDiffFiles_NoChanges(t *testing.T) {
 		t.Errorf("expected no differences, got %d: %v", len(diff), diff)
 	}
 }
+
+func TestDiffFiles_WithNewFiles(t *testing.T) {
+	before := []string{"/path/to/spec1.md"}
+	after := []string{"/path/to/spec1.md", "/path/to/spec2.md", "/path/to/spec3.md"}
+
+	diff := DiffFiles(before, after)
+
+	if len(diff) != 2 {
+		t.Fatalf("expected 2 new files, got %d", len(diff))
+	}
+
+	expected := map[string]bool{
+		"/path/to/spec2.md": false,
+		"/path/to/spec3.md": false,
+	}
+	for _, f := range diff {
+		if _, ok := expected[f]; ok {
+			expected[f] = true
+		}
+	}
+
+	for file, found := range expected {
+		if !found {
+			t.Errorf("expected new file not found: %s", file)
+		}
+	}
+}
