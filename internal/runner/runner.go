@@ -38,6 +38,13 @@ var defaultTierToModelMap = map[string]string{
 	"low":    "haiku",
 }
 
+// defaultCodexTierToModelMap defines the default Codex model tier mapping.
+var defaultCodexTierToModelMap = map[string]string{
+	"high":   "gpt-5.3-codex",
+	"medium": "gpt-5.3-codex",
+	"low":    "gpt-5.3-codex",
+}
+
 // Runner orchestrates the Gromit loop
 type Runner struct {
 	cfg          *config.Config
@@ -50,6 +57,7 @@ type Runner struct {
 	output       io.Writer
 	syncOut      *syncWriter // concrete type for WriteOverwrite access
 	gromitDir    string
+	stateFile    *state.File                                                                                                        // promoted from Run() for router state persistence
 	gitDiffFn    func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
 	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
 	autoFixFn    func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
@@ -68,11 +76,6 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	log, err := logger.NewLogger(cfg.Paths.Logs)
 	if err != nil {
 		fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
-	}
-
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
-	if err != nil {
-		return nil, err
 	}
 
 	// Determine gromit directory (parent of templates dir)
@@ -99,10 +102,73 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	// Create router: either from providers config or wrap Claude client
 	var router *provider.Router
 	var claudeProviderForLearnings provider.Provider
+	var sf *state.File
 	if cfg.HasProviders() {
-		// TODO: Build router from providers config
+		// Apply config defaults to ensure routing fields are populated
+		cfg.SetDefaults()
+		cfg.NormalizeNilFields()
+
+		// Build provider map from config
+		providers := make(map[string]provider.Provider)
+		for name, def := range cfg.Providers {
+			switch {
+			case name == "claude" || def.Binary == "claude":
+				tierMap := def.Models
+				if len(tierMap) == 0 {
+					tierMap = defaultTierToModelMap
+				}
+				client, cErr := claude.NewClient(def.Binary, def.Flags, cfg.Claude.Timeout)
+				if cErr != nil {
+					return nil, cErr
+				}
+				providers[name] = provider.NewClaudeProvider(client, tierMap)
+			case name == "codex" || name == "openai" || def.Binary == "codex":
+				tierMap := def.Models
+				if len(tierMap) == 0 {
+					tierMap = defaultCodexTierToModelMap
+				}
+				providers[name] = provider.NewCodexProvider(def.Binary, def.Flags, def.PromptDelivery, def.PromptFlag, tierMap)
+			default:
+				return nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\" and \"codex\"", name)
+			}
+		}
+
+		// Parse cooldown duration
+		var cooldown time.Duration
+		if cfg.Routing.Fallback.Enabled && cfg.Routing.Fallback.Cooldown != "" {
+			cd, parseErr := time.ParseDuration(cfg.Routing.Fallback.Cooldown)
+			if parseErr != nil {
+				cooldown = 30 * time.Minute
+			} else {
+				cooldown = cd
+			}
+		}
+
+		// Create and load state file for router initialization
+		sf, err = state.NewFile(gromitDir)
+		if err != nil {
+			fmt.Fprintf(output, "Warning: could not create state file: %v\n", err)
+		} else if loadErr := sf.Load(); loadErr != nil {
+			fmt.Fprintf(output, "Warning: could not load state: %v\n", loadErr)
+		}
+
+		router = provider.NewRouter(providers, cfg.Routing.PhasePreferences, cfg.Routing.Ratio, cooldown, sf)
+
+		// Set claudeProviderForLearnings: prefer claude, fallback to first available
+		if cp, ok := providers["claude"]; ok {
+			claudeProviderForLearnings = cp
+		} else {
+			for _, p := range providers {
+				claudeProviderForLearnings = p
+				break
+			}
+		}
 	} else {
 		// Backward compatibility: wrap Claude client in single-provider router
+		claudeClient, cErr := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+		if cErr != nil {
+			return nil, cErr
+		}
 		claudeProvider := provider.NewClaudeProvider(claudeClient, defaultTierToModelMap)
 		claudeProviderForLearnings = claudeProvider
 		router = provider.NewSingleProviderRouter(claudeProvider)
@@ -116,20 +182,10 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		lf.SetFilter(learnings.NewLLMFilter(providerRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
 	}
 
-	// Create analyzer using provider (use same provider as learnings for consistency)
-	var analyzerObj *analyzer.Analyzer
-	if claudeProviderForLearnings != nil {
-		analyzerObj, err = analyzer.NewAnalyzer(claudeProviderForLearnings, cfg.Models.Validation, renderer)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Fallback for when providers config is used (TODO path)
-		claudeAdapter := analyzer.NewClaudeClientAdapter(claudeClient)
-		analyzerObj, err = analyzer.NewAnalyzer(claudeAdapter, cfg.Models.Validation, renderer)
-		if err != nil {
-			return nil, err
-		}
+	// Create analyzer using provider
+	analyzerObj, err := analyzer.NewAnalyzer(claudeProviderForLearnings, cfg.Models.Validation, renderer)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Runner{
@@ -142,6 +198,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		output:      syncOut,
 		syncOut:     syncOut,
 		gromitDir:   gromitDir,
+		stateFile:   sf,
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: defaultCmdRunner,
 	}, nil
@@ -331,13 +388,16 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	// Track skipped bead IDs to avoid infinite loops
 	skippedBeads := make(map[string]bool)
 
-	// Load state for review tracking
-	sf, err := state.NewFile(r.gromitDir)
-	if err != nil {
-		r.log("Warning: could not create state file: %v", err)
-		sf = nil
-	} else if err := sf.Load(); err != nil {
-		r.log("Warning: could not load state: %v", err)
+	// Load state for review tracking — reuse state file from NewRunner if available
+	sf := r.stateFile
+	if sf == nil {
+		sf, err = state.NewFile(r.gromitDir)
+		if err != nil {
+			r.log("Warning: could not create state file: %v", err)
+			sf = nil
+		} else if err := sf.Load(); err != nil {
+			r.log("Warning: could not load state: %v", err)
+		}
 	}
 
 	// Check for stale state and auto-heal if needed
