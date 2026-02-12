@@ -16,6 +16,19 @@ models:
     "complexity:high": opus
     "complexity:low": haiku
 
+# Routing - multi-provider routing configuration (optional)
+# routing:
+#   phase_preferences:
+#     build: claude        # prefer specific provider for builds
+#     validate: any        # any provider (ratio balancer decides)
+#     review: cross        # "cross" = use opposite provider from build
+#                          # e.g., if claude built, openai reviews (and vice versa)
+#                          # falls back to build provider if no other is available
+#     analyze: any
+#     scope_check: any
+#     precheck: any
+#     decompose: claude
+
 # Escalation chain on failure (left to right)
 escalation:
   enabled: true
