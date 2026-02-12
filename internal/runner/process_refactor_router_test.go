@@ -116,6 +116,108 @@ func TestRunRefactorPhase_UsesRouter(t *testing.T) {
 	}
 }
 
+// TestHandleRefactorValidationFailure_UsesRouter verifies that
+// handleRefactorValidationFailure calls router.Select() with phase="build"
+// and the tier from bc.tier when retrying the refactor.
+func TestHandleRefactorValidationFailure_UsesRouter(t *testing.T) {
+	// Create a temp git repo
+	tmpDir := t.TempDir()
+	setupGitRepo(t, tmpDir)
+
+	var buf strings.Builder
+
+	// Track router.Select calls
+	selectCalled := false
+	var capturedPhase, capturedTier string
+
+	mockProvider := &mockProviderForRefactor{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			selectCalled = true
+			capturedPhase = "build"
+			capturedTier = tier
+			return &provider.Result{
+				Success: true,
+				Model:   "test-model",
+				Output:  "retry refactor complete",
+			}, nil
+		},
+		runValidationFn: func(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Model:   "validation-model",
+				Output:  "Tests passed\nVALIDATION_PASSED",
+			}, nil
+		},
+	}
+
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	mockRend := &mockPromptRenderer{
+		RenderRefactorFn: func(ctx *prompt.Context) (string, error) {
+			return "retry refactor this code", nil
+		},
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+		},
+		router:   mockRouter,
+		renderer: mockRend,
+		output:   &buf,
+	}
+
+	// Setup git commits
+	writeTestFile(t, tmpDir, "test.txt", "initial content")
+	commitGit(t, tmpDir, "initial commit")
+	preRefactorCommit := getGitHeadCommit(t, tmpDir)
+
+	// Make some changes after refactor (which we'll revert)
+	writeTestFile(t, tmpDir, "test.txt", "refactored content")
+	commitGit(t, tmpDir, "refactored")
+
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:       "test-1",
+			Title:    "Test",
+			Priority: 1,
+		},
+		tier:   provider.TierMedium,
+		model:  "sonnet",
+		result: &IterationResult{},
+		promptCtx: &prompt.Context{
+			WorkDir: tmpDir,
+		},
+	}
+
+	// Change to temp dir so git operations work
+	oldDir := changeDir(t, tmpDir)
+	defer changeDir(t, oldDir)
+
+	err := r.handleRefactorValidationFailure(context.Background(), bc, preRefactorCommit, "test failure")
+	if err != nil {
+		t.Fatalf("handleRefactorValidationFailure() error = %v", err)
+	}
+
+	// Verify router.Select() was called with correct phase
+	if !selectCalled {
+		t.Error("router.Select() was not called - handleRefactorValidationFailure should use router")
+	}
+
+	if capturedPhase != "build" {
+		t.Errorf("router.Select() phase = %q, want %q", capturedPhase, "build")
+	}
+
+	// Verify tier matches bc.tier
+	if capturedTier != bc.tier {
+		t.Errorf("router.Select() tier = %q, want %q", capturedTier, bc.tier)
+	}
+}
+
 // mockProviderForRefactor is a test double for Provider that tracks Run calls
 type mockProviderForRefactor struct {
 	name            string

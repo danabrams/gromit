@@ -1077,7 +1077,50 @@ func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *beadCo
 		return nil // Skip refactoring, not an error
 	}
 
-	claudeResult, err := r.claude.Run(ctx, refactorPrompt, bc.model)
+	if r.router == nil {
+		r.log("Warning: router is nil, skipping refactor retry")
+		return nil
+	}
+
+	// Select provider using router with phase="build" and tier from bc.tier
+	phase := "build"
+	tier := bc.tier
+	p, modelName := r.router.Select(phase, tier)
+	if p == nil {
+		r.log("Warning: no providers available for phase=%s tier=%s", phase, tier)
+		return nil
+	}
+
+	r.log("Retrying refactor with model: %s", modelName)
+
+	// Call provider.Run with retry refactor prompt
+	providerResult, err := p.Run(ctx, refactorPrompt, tier)
+
+	// Check for usage limit error and retry with fallback provider
+	if err != nil && p.IsUsageLimitError(providerResult, err) {
+		r.router.MarkUnavailable(p.Name())
+
+		// Retry with new provider
+		p2, modelName2 := r.router.Select(phase, tier)
+		if p2 != nil {
+			r.log("Retrying refactor retry with model: %s", modelName2)
+			providerResult, err = p2.Run(ctx, refactorPrompt, tier)
+			modelName = modelName2
+		}
+	}
+
+	// Convert provider.Result to claude.Result for backward compatibility
+	var claudeResult *claude.Result
+	if providerResult != nil {
+		claudeResult = &claude.Result{
+			Success:  providerResult.Success,
+			Output:   providerResult.Output,
+			ExitCode: providerResult.ExitCode,
+			Duration: providerResult.Duration,
+			Model:    modelName,
+		}
+	}
+
 	if err != nil {
 		r.log("Warning: retry refactor invocation failed: %v - skipping refactoring", err)
 		return nil
