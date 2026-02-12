@@ -1358,18 +1358,27 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 		return nil, fmt.Errorf("rendering decompose prompt: %w", err)
 	}
 
-	// Call Claude with opus model
-	claudeResult, err := r.claude.Run(ctx, decomposedPrompt, "opus")
-	if err != nil {
-		return nil, fmt.Errorf("claude decomposition: %w", err)
-	}
-	if claudeResult == nil {
-		return nil, fmt.Errorf("claude decomposition returned nil result")
+	// Select provider via router (phase="decompose", tier="high" for opus-level complexity)
+	p, _ := r.router.Select("decompose", provider.TierHigh)
+	if p == nil {
+		return nil, fmt.Errorf("no provider available for decomposition")
 	}
 
-	if !claudeResult.Success {
-		return nil, fmt.Errorf("claude decomposition failed with exit code %d", claudeResult.ExitCode)
+	// Invoke provider with high tier
+	result, err := p.Run(ctx, decomposedPrompt, provider.TierHigh)
+	if err != nil {
+		return nil, fmt.Errorf("decomposition invocation: %w", err)
 	}
+	if result == nil {
+		return nil, fmt.Errorf("decomposition returned nil result")
+	}
+
+	if !result.Success {
+		return nil, fmt.Errorf("decomposition failed with exit code %d", result.ExitCode)
+	}
+
+	// Use result.Output directly (only need the output for parsing)
+	claudeResult := result
 
 	// Parse the output
 	subTasks, err := parseDecomposeOutput(claudeResult.Output)
