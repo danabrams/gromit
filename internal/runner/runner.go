@@ -1968,15 +1968,19 @@ func (r *Runner) runGitAutoPush() error {
 	}
 
 	r.log("Pushing to remote...")
-	cmd := exec.Command("git", "push")
-	cmd.Stdout = r.output
-	cmd.Stderr = r.output
-
-	if err := cmd.Run(); err != nil {
+	_, stderr, exitCode, err := r.runCmd(context.Background(), "git push", "")
+	if err != nil {
 		if r.cfg.Git.PushFailure == "stop" {
 			return fmt.Errorf("git push failed: %w", err)
 		}
 		r.log("Warning: git push failed: %v", err)
+		return nil
+	}
+	if exitCode != 0 {
+		if r.cfg.Git.PushFailure == "stop" {
+			return fmt.Errorf("git push failed (exit %d): %s", exitCode, stderr)
+		}
+		r.log("Warning: git push failed (exit %d): %s", exitCode, stderr)
 		return nil
 	}
 

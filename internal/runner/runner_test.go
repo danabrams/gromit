@@ -1998,11 +1998,21 @@ func TestRunGitAutoPush(t *testing.T) {
 			var buf strings.Builder
 			var r *Runner
 
+			// Mock cmdRunnerFn to prevent real git push calls
+			mockCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+				if command == "git push" {
+					// Simulate push failure (no remote configured)
+					return "", "fatal: No configured push destination", 128, nil
+				}
+				return "", "", 0, nil
+			}
+
 			if tt.nilRunner {
 				r = nil
 			} else if tt.nilConfig {
 				r = &Runner{
-					output: &buf,
+					output:      &buf,
+					cmdRunnerFn: mockCmdRunner,
 				}
 			} else {
 				r = &Runner{
@@ -2012,7 +2022,8 @@ func TestRunGitAutoPush(t *testing.T) {
 							PushFailure: tt.pushFailure,
 						},
 					},
-					output: &buf,
+					output:      &buf,
+					cmdRunnerFn: mockCmdRunner,
 				}
 			}
 
@@ -2046,6 +2057,55 @@ func TestRunGitAutoPush(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestNoNewDirectExecCommand is a ratchet test that prevents new exec.Command calls
+// from being added to runner production code. All subprocess execution should go through
+// r.runCmd() (which delegates to the injectable cmdRunnerFn) so tests can mock it.
+// Direct exec.Command bypasses the mock and can cause real network calls in tests.
+func TestNoNewDirectExecCommand(t *testing.T) {
+	// Known exec.Command call sites in production code (not tests).
+	// These are legacy — ideally they'd all migrate to runCmd, but for now
+	// this test prevents the count from increasing.
+	//
+	// runner.go: getHeadCommit, getDiffStat, getDiffFull (local git, safe)
+	// runner.go: defaultCmdRunner (the one valid call site behind runCmd)
+	// runner.go: runBetweenIterationsCommand (user-configured shell command)
+	// process.go: 2x git reset --hard (refactor rollback)
+	const knownCount = 7
+
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("reading runner directory: %v", err)
+	}
+
+	total := 0
+	for _, entry := range entries {
+		name := entry.Name()
+		// Only scan production code, not test files
+		if strings.HasSuffix(name, "_test.go") || !strings.HasSuffix(name, ".go") {
+			continue
+		}
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatalf("reading %s: %v", name, err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "//") {
+				continue // skip comments
+			}
+			if strings.Contains(line, "exec.Command(") || strings.Contains(line, "exec.CommandContext(") {
+				total++
+			}
+		}
+	}
+
+	if total > knownCount {
+		t.Errorf("found %d exec.Command calls in runner production code (known: %d). "+
+			"New subprocess calls should use r.runCmd() so tests can mock them via cmdRunnerFn. "+
+			"If this is intentional, update knownCount after review.", total, knownCount)
 	}
 }
 
