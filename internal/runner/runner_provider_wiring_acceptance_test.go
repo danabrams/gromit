@@ -114,7 +114,7 @@ func TestRunnerProviderWiringWithProvidersConfig(t *testing.T) {
 	runner, err := NewRunner(cfg, os.Stdout)
 
 	// The TODO path at line 99 is not implemented yet, so router will be nil
-	// and the subsequent code (lines 123-128) will use the fallback path
+	// and the analyzer will be created via the fallback path (lines 123-128)
 	if err != nil {
 		t.Fatalf("NewRunner should not error even with TODO path: %v", err)
 	}
@@ -124,9 +124,9 @@ func TestRunnerProviderWiringWithProvidersConfig(t *testing.T) {
 	}
 
 	// When TODO is implemented, router should be built from providers config
-	// For now, it falls through to the else block (line 123) which uses claudeAdapter
-	if runner.router == nil {
-		t.Error("expected router to be non-nil (even if using fallback path)")
+	// For now, the TODO path leaves router as nil
+	if runner.router != nil {
+		t.Error("expected router to be nil until TODO is implemented")
 	}
 
 	// Analyzer should be created via fallback path (lines 123-128) until TODO is done
