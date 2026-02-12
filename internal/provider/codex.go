@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -202,7 +203,27 @@ func (cp *CodexProvider) RunValidation(ctx context.Context, commands []string, t
 	return nil, nil
 }
 
-// IsUsageLimitError detects Codex-specific usage limit errors
+// IsUsageLimitError detects Codex-specific usage limit errors.
+// Checks for output containing "usage limit", "rate limit", or "quota exceeded"
+// (case-insensitive) with a non-success result.
 func (cp *CodexProvider) IsUsageLimitError(result *Result, err error) bool {
+	if result == nil {
+		return false
+	}
+
+	// Must be a failure to be a usage limit error
+	if result.Success {
+		return false
+	}
+
+	// Check for usage limit keywords (case-insensitive)
+	outputLower := strings.ToLower(result.Output)
+	keywords := []string{"usage limit", "rate limit", "quota exceeded"}
+	for _, keyword := range keywords {
+		if strings.Contains(outputLower, keyword) {
+			return true
+		}
+	}
+
 	return false
 }

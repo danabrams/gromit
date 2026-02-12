@@ -284,3 +284,82 @@ func TestCodexProviderStreamRunHandlersAreNoops(t *testing.T) {
 		t.Error("StreamRun() called ToolCallHandler, but it should be a no-op for Codex")
 	}
 }
+
+// TestCodexProviderIsUsageLimitErrorDetectsOpenAIErrors verifies that
+// IsUsageLimitError() detects OpenAI/Codex-specific usage limit patterns.
+func TestCodexProviderIsUsageLimitErrorDetectsOpenAIErrors(t *testing.T) {
+	cp := &CodexProvider{}
+
+	tests := []struct {
+		name     string
+		result   *Result
+		err      error
+		expected bool
+	}{
+		{
+			name: "detects quota exceeded",
+			result: &Result{
+				Success:  false,
+				ExitCode: 1,
+				Output:   "Error: quota exceeded for this model",
+			},
+			err:      nil,
+			expected: true,
+		},
+		{
+			name: "detects rate limit",
+			result: &Result{
+				Success:  false,
+				ExitCode: 429,
+				Output:   "Rate limit exceeded. Please try again later.",
+			},
+			err:      nil,
+			expected: true,
+		},
+		{
+			name: "detects usage limit",
+			result: &Result{
+				Success:  false,
+				ExitCode: 1,
+				Output:   "usage limit reached",
+			},
+			err:      nil,
+			expected: true,
+		},
+		{
+			name: "does not detect generic errors",
+			result: &Result{
+				Success:  false,
+				ExitCode: 1,
+				Output:   "Error: invalid prompt format",
+			},
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "nil result returns false",
+			result:   nil,
+			err:      nil,
+			expected: false,
+		},
+		{
+			name: "successful result returns false",
+			result: &Result{
+				Success:  true,
+				ExitCode: 0,
+				Output:   "completed successfully",
+			},
+			err:      nil,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cp.IsUsageLimitError(tt.result, tt.err)
+			if got != tt.expected {
+				t.Errorf("IsUsageLimitError() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
