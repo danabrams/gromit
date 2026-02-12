@@ -876,6 +876,16 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 	}
 }
 
+func (r *Runner) selectTier(b *bead.Bead) string {
+	if r == nil || r.cfg == nil {
+		return provider.TierMedium
+	}
+	if b == nil {
+		return provider.TierMedium
+	}
+	return r.cfg.SelectTier(b.Priority, b.Labels)
+}
+
 func (r *Runner) selectModel(b *bead.Bead) string {
 	if b == nil {
 		return "sonnet"

@@ -116,6 +116,9 @@ Calling provider.Run() with nil credentials and empty prompt purely to extract m
 ### 2026-02-11 | gromit-2edx | conventions
 The gromit codebase has a validation constraint that acceptance test line counts must be reduced by at least 30% from baseline (8370 → max 5859 lines). When adding new acceptance tests, existing test files must be correspondingly reduced or consolidated to stay within the budget. Adding new tests without removing/consolidating old ones violates this constraint.
 
+### 2026-02-11 | gromit-u1gm | patterns
+When adding new fields to core structs like Runner and Deps, check for both direct instantiation paths (NewRunner) and test/dependency injection paths (NewRunnerWithDeps) to maintain backward compatibility while supporting new functionality
+
 ---
 
 ## Archived
