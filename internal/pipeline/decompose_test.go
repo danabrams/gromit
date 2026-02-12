@@ -64,6 +64,57 @@ func TestDecompose_ChecksPlanExists(t *testing.T) {
 	}
 }
 
+// TestDecompose_RejectsAlreadyDecomposed verifies that already-decomposed plans are rejected unless Force is true.
+func TestDecompose_RejectsAlreadyDecomposed(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a plan file with decomposed:true frontmatter
+	planPath := filepath.Join(plansDir, "already-done.md")
+	planContent := `---
+spec: already-done
+decomposed: true
+decomposed_at: 2026-02-11T10:00:00Z
+---
+
+# Already Done Plan
+
+Some content.
+`
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeTestClaudeClient{}
+	deps := &Deps{
+		ClaudeClient: mockClaude,
+		BeadClient:   &decomposeTestBeadClient{},
+	}
+	paths := &Paths{
+		PlansDir: plansDir,
+	}
+
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := DecomposeInput{
+		PlanName: "already-done",
+		Force:    false,
+	}
+
+	_, err := p.Decompose(ctx, input)
+	if err == nil {
+		t.Fatal("Decompose() with already-decomposed plan should return error when Force=false")
+	}
+
+	if !strings.Contains(err.Error(), "already decomposed") {
+		t.Errorf("error = %q, want error about already decomposed", err.Error())
+	}
+}
+
 // decomposeTestClaudeClient is a mock with injectable functions for decompose tests.
 type decomposeTestClaudeClient struct {
 	RunFn func(prompt string, model string) (interface{}, error)
