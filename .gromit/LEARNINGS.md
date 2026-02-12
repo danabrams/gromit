@@ -131,6 +131,9 @@ The codebase has acceptance tests that validate codebase-wide metrics (like tota
 ### 2026-02-11 | gromit-2zju | patterns
 When converting multiple call sites to use a Router pattern, check for different phases/tiers that should be used at each site - validation calls consistently use phase='validate' tier='low', which is distinct from build/refactor phases that may need different configurations
 
+### 2026-02-11 | gromit-2zju | patterns
+When converting function calls to use a Router abstraction, check for all call sites in related functions (runRefactorPhase, handleRefactorValidationFailure, runPostSuccessReview) that may need the same conversion, not just the primary function - this prevents piecemeal refactoring across iterations.
+
 ---
 
 ## Archived
