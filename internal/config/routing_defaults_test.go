@@ -9,7 +9,6 @@ import (
 // TestSetDefaultsRoutingDefaults verifies that SetDefaults populates routing
 // defaults when providers are configured: equal-split ratio from provider names,
 // fallback cooldown of "30m", and fallback enabled for multi-provider configs.
-// Expected failure: SetDefaults does not yet populate Routing defaults from providers
 func TestSetDefaultsRoutingDefaults(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -82,7 +81,6 @@ func TestSetDefaultsRoutingDefaults(t *testing.T) {
 // TestSetDefaultsPreservesUserRoutingValues verifies that SetDefaults does not
 // overwrite user-specified routing values, while still applying defaults for
 // fields the user left empty.
-// Expected failure: SetDefaults does not yet populate Routing.Fallback.Cooldown default
 func TestSetDefaultsPreservesUserRoutingValues(t *testing.T) {
 	cfg := &Config{
 		Providers: map[string]ProviderDef{
@@ -116,7 +114,6 @@ func TestSetDefaultsPreservesUserRoutingValues(t *testing.T) {
 // TestSetDefaultsDoesNotAddRoutingWhenNoProviders verifies that SetDefaults
 // does not populate routing defaults when no providers are configured, but does
 // populate them when providers are present.
-// Expected failure: SetDefaults does not yet populate Routing.Ratio from provider names
 func TestSetDefaultsDoesNotAddRoutingWhenNoProviders(t *testing.T) {
 	// Without providers — routing should remain empty
 	cfgNoProviders := &Config{}
@@ -148,7 +145,6 @@ func TestSetDefaultsDoesNotAddRoutingWhenNoProviders(t *testing.T) {
 
 // TestSetDefaultsRoutingViaLoad verifies the full Load path applies routing defaults
 // when a YAML config has providers but no routing section.
-// Expected failure: SetDefaults does not yet populate Routing defaults from providers
 func TestSetDefaultsRoutingViaLoad(t *testing.T) {
 	yamlContent := `
 providers:
@@ -195,7 +191,6 @@ providers:
 // TestSetDefaultsRoutingViaLoadPreservesExplicit verifies the full Load path
 // does not overwrite routing values that the user explicitly set in YAML, while
 // still applying defaults for unset fields.
-// Expected failure: SetDefaults does not yet populate Routing.Fallback.Cooldown default
 func TestSetDefaultsRoutingViaLoadPreservesExplicit(t *testing.T) {
 	yamlContent := `
 providers:
