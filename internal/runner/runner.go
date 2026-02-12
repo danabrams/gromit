@@ -24,6 +24,7 @@ import (
 	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tmux"
+	"github.com/danabrams/gromit/internal/usagelimit"
 )
 
 var errValidationFailed = errors.New("validation failed")
@@ -862,6 +863,23 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 		// Success — exit the retry loop
 		if claudeResult.Success {
 			return true
+		}
+
+		// Check for usage limit before attempting analysis/retry
+		rateLimitHits := 0
+		if stats != nil {
+			rateLimitHits = stats.RateLimitHits
+		}
+		signals := usagelimit.Signals{
+			ExitCode:      claudeResult.ExitCode,
+			Output:        claudeResult.Output,
+			RateLimitHits: rateLimitHits,
+		}
+		if usagelimit.Check(signals, usagelimit.ClaudePatterns()) {
+			bc.result.UsageLimited = true
+			bc.result.Error = fmt.Errorf("usage limit detected: retries or escalation will not resolve this failure (exit code: %d, rate limit events: %d)", claudeResult.ExitCode, rateLimitHits)
+			r.log("Warning: usage limit detected - stopping retry attempts")
+			return false
 		}
 
 		// Check for context cancellation before analysis
