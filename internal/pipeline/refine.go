@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
 // Refine executes the refine workflow interactively.
@@ -71,6 +72,25 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult
 
 	result := NewRefineResult()
 	result.CreatedSpecs = createdSpecs
+
+	// If from backlog and a spec was created, mark as refined
+	if ideaID != "" && len(createdSpecs) > 0 {
+		// Use the first new spec (should typically be only one)
+		specPath := createdSpecs[0]
+		specName := strings.TrimSuffix(filepath.Base(specPath), ".md")
+
+		// Update backlog item status
+		err := p.deps.BacklogClient.Update(ideaID, func(idea *Idea) {
+			idea.Status = "refined"
+			idea.SpecName = specName
+		})
+		if err != nil {
+			// Don't fail the whole operation if update fails
+			// Just skip adding to refined items
+		} else {
+			result.RefinedItems = append(result.RefinedItems, ideaID)
+		}
+	}
 
 	return &result, nil
 }

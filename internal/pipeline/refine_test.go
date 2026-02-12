@@ -200,6 +200,64 @@ func TestRefine_DetectsNewSpecs(t *testing.T) {
 	}
 }
 
+func TestRefine_MarksBacklogItemRefined(t *testing.T) {
+	tmpDir := t.TempDir()
+	specsDir := tmpDir + "/specs"
+
+	// Create backlog with an idea
+	backlogIdea := &Idea{
+		ID:   "idea-123",
+		Text: "Implement feature Y",
+	}
+	mockBacklog := &mockBacklogClient{
+		ideas: []*Idea{backlogIdea},
+	}
+
+	// Mock agent that creates a spec
+	mockAgent := &mockAgent{
+		name: "test-agent",
+		onLaunch: func(promptPath string) {
+			os.MkdirAll(specsDir, 0755)
+			os.WriteFile(specsDir+"/feature-y.md", []byte("# Feature Y"), 0644)
+		},
+	}
+
+	p := New(&Deps{
+		AgentResolver: &mockAgentResolver{agent: mockAgent},
+		BacklogClient: mockBacklog,
+	}, &Paths{
+		GromitDir: tmpDir,
+		SpecsDir:  specsDir,
+	})
+
+	result, err := p.Refine(context.Background(), RefineInput{IdeaID: "idea-123"})
+	if err != nil {
+		t.Fatalf("Refine() failed: %v", err)
+	}
+
+	// Verify spec was created
+	if len(result.CreatedSpecs) != 1 {
+		t.Fatalf("expected 1 created spec, got %d", len(result.CreatedSpecs))
+	}
+
+	// Verify backlog item was marked as refined
+	if len(result.RefinedItems) != 1 {
+		t.Fatalf("expected 1 refined item, got %d", len(result.RefinedItems))
+	}
+	if result.RefinedItems[0] != "idea-123" {
+		t.Errorf("expected refined item idea-123, got %s", result.RefinedItems[0])
+	}
+
+	// Verify the backlog item was updated
+	idea, _ := mockBacklog.Get("idea-123")
+	if idea.Status != "refined" {
+		t.Errorf("expected status 'refined', got %s", idea.Status)
+	}
+	if idea.SpecName != "feature-y" {
+		t.Errorf("expected spec_name 'feature-y', got %s", idea.SpecName)
+	}
+}
+
 func containsInner(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
