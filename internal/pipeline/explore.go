@@ -77,9 +77,51 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}
 
-	// TODO: Post-processing: detect new artifacts using pre-snapshots
+	// Post-processing: detect new artifacts using pre-snapshots
+	var currentEpics, currentSpecs []string
+
+	if p.paths.EpicsDir != "" {
+		currentEpics, err = ListMarkdownFiles(p.paths.EpicsDir)
+		if err != nil {
+			return nil, fmt.Errorf("scanning epics directory after session: %w", err)
+		}
+	}
+
+	if p.paths.SpecsDir != "" {
+		currentSpecs, err = ListMarkdownFiles(p.paths.SpecsDir)
+		if err != nil {
+			return nil, fmt.Errorf("scanning specs directory after session: %w", err)
+		}
+	}
+
+	currentBacklogItems, err := p.deps.BacklogClient.List()
+	if err != nil {
+		return nil, fmt.Errorf("loading backlog after session: %w", err)
+	}
+
+	// Diff to find new artifacts
+	result.CreatedEpics = DiffFiles(existingEpics, currentEpics)
+	result.CreatedSpecs = DiffFiles(existingSpecs, currentSpecs)
+	result.CreatedBacklogItems = diffBacklogItems(existingBacklogItems, currentBacklogItems)
 
 	return &result, nil
+}
+
+// diffBacklogItems returns IDs of items in current that are not in existing
+func diffBacklogItems(existing, current []*Idea) []string {
+	existingSet := make(map[string]bool)
+	for _, idea := range existing {
+		existingSet[idea.ID] = true
+	}
+
+	var newIDs []string
+	for _, idea := range current {
+		if !existingSet[idea.ID] {
+			newIDs = append(newIDs, idea.ID)
+		}
+	}
+
+	return newIDs
 }
 
 // validateExploreDeps checks that all required dependencies for Explore are present.
