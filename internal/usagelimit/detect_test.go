@@ -7,10 +7,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 )
 
-// Expected failure: package usagelimit does not exist yet
-
 func TestCheck_ExitCodeAndStderrPattern(t *testing.T) {
-	// Expected failure: Check function does not exist yet
 	tests := []struct {
 		name     string
 		signals  Signals
@@ -173,7 +170,6 @@ func TestCheck_ExitCodeAndStderrPattern(t *testing.T) {
 }
 
 func TestCheck_RateLimitHitsPath(t *testing.T) {
-	// Expected failure: Check function and RateLimitHits field do not exist yet
 	tests := []struct {
 		name     string
 		signals  Signals
@@ -241,7 +237,6 @@ func TestCheck_RateLimitHitsPath(t *testing.T) {
 }
 
 func TestCheck_CaseInsensitivity(t *testing.T) {
-	// Expected failure: Check function does not exist yet, case-insensitive matching not implemented
 	tests := []struct {
 		name     string
 		signals  Signals
@@ -305,7 +300,6 @@ func TestCheck_CaseInsensitivity(t *testing.T) {
 }
 
 func TestCheck_EdgeCases(t *testing.T) {
-	// Expected failure: Check function does not exist yet
 	tests := []struct {
 		name     string
 		signals  Signals
@@ -403,7 +397,6 @@ func TestCheck_EdgeCases(t *testing.T) {
 }
 
 func TestCheck_CombinedSignals(t *testing.T) {
-	// Expected failure: Check function does not exist yet
 	tests := []struct {
 		name     string
 		signals  Signals
@@ -459,7 +452,6 @@ func TestCheck_CombinedSignals(t *testing.T) {
 }
 
 func TestClaudePatterns(t *testing.T) {
-	// Expected failure: ClaudePatterns function does not exist yet
 	patterns := ClaudePatterns()
 
 	if patterns.Keywords == nil {
@@ -487,7 +479,6 @@ func TestClaudePatterns(t *testing.T) {
 }
 
 func TestCodexPatterns(t *testing.T) {
-	// Expected failure: CodexPatterns function does not exist yet
 	patterns := CodexPatterns()
 
 	if patterns.Keywords == nil {
@@ -515,8 +506,7 @@ func TestCodexPatterns(t *testing.T) {
 }
 
 func TestCheck_WithClaudeResult(t *testing.T) {
-	// Expected failure: Check function does not exist yet, integration with claude.Result not implemented
-	// This tests the integration with the actual claude.Result type
+	// Tests integration with the actual claude.Result type
 	tests := []struct {
 		name         string
 		result       *claude.Result
@@ -592,8 +582,7 @@ func TestCheck_WithClaudeResult(t *testing.T) {
 }
 
 func TestCheck_WithStreamStats(t *testing.T) {
-	// Expected failure: Check function does not exist yet, integration with logger.StreamStats not implemented
-	// This tests the integration with the actual logger.StreamStats type
+	// Tests integration with the actual logger.StreamStats type
 	tests := []struct {
 		name     string
 		exitCode int
@@ -660,8 +649,7 @@ func TestCheck_WithStreamStats(t *testing.T) {
 }
 
 func TestCheck_FalsePositivePrevention(t *testing.T) {
-	// Expected failure: Check function does not exist yet, false positive prevention not implemented
-	// These tests ensure normal code/test/build failures are NOT detected as usage limits
+	// Ensures normal code/test/build failures are NOT detected as usage limits
 	tests := []struct {
 		name     string
 		signals  Signals
@@ -753,8 +741,7 @@ FAIL	github.com/example/pkg	0.023s`,
 }
 
 func TestSignals_Struct(t *testing.T) {
-	// Expected failure: Signals struct does not exist yet
-	// Verify Signals struct has the expected fields
+	// Verifies Signals struct has the expected fields
 	s := Signals{
 		ExitCode:      1,
 		Output:        "test output",
@@ -773,8 +760,7 @@ func TestSignals_Struct(t *testing.T) {
 }
 
 func TestPatterns_Struct(t *testing.T) {
-	// Expected failure: Patterns struct does not exist yet
-	// Verify Patterns struct has the expected fields
+	// Verifies Patterns struct has the expected fields
 	p := Patterns{
 		Keywords: []string{"usage limit", "rate limit"},
 	}
