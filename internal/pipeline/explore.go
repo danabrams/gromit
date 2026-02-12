@@ -100,9 +100,23 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	}
 
 	// Diff to find new artifacts
-	result.CreatedEpics = DiffFiles(existingEpics, currentEpics)
-	result.CreatedSpecs = DiffFiles(existingSpecs, currentSpecs)
-	result.CreatedBacklogItems = diffBacklogItems(existingBacklogItems, currentBacklogItems)
+	newEpics := DiffFiles(existingEpics, currentEpics)
+	if newEpics == nil {
+		newEpics = []string{}
+	}
+	result.CreatedEpics = newEpics
+
+	newSpecs := DiffFiles(existingSpecs, currentSpecs)
+	if newSpecs == nil {
+		newSpecs = []string{}
+	}
+	result.CreatedSpecs = newSpecs
+
+	newBacklogItems := diffBacklogItems(existingBacklogItems, currentBacklogItems)
+	if newBacklogItems == nil {
+		newBacklogItems = []string{}
+	}
+	result.CreatedBacklogItems = newBacklogItems
 
 	return &result, nil
 }
