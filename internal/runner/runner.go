@@ -889,6 +889,15 @@ func (r *Runner) selectTier(b *bead.Bead) string {
 	return r.cfg.SelectTier(b.Priority, b.Labels)
 }
 
+// selectReviewTier determines the tier for code review based on build model.
+// If buildModel is "opus", returns "high". Otherwise uses selectTier(bead).
+func (r *Runner) selectReviewTier(b *bead.Bead, buildModel string) string {
+	if buildModel == "opus" {
+		return provider.TierHigh
+	}
+	return r.selectTier(b)
+}
+
 func (r *Runner) selectModel(b *bead.Bead) string {
 	if b == nil {
 		return "sonnet"
