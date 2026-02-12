@@ -244,6 +244,89 @@ created: 2026-02-11
 	}
 }
 
+// TestDecompose_ReviewModeReturnsProposedBeads verifies that Review mode returns beads without creating them.
+func TestDecompose_ReviewModeReturnsProposedBeads(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	planPath := filepath.Join(plansDir, "review-test.md")
+	planContent := `# Review Test Plan
+
+Task 1
+`
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeTestClaudeClient{
+		RunFn: func(prompt string, model string) (interface{}, error) {
+			return map[string]interface{}{
+				"Success":  true,
+				"ExitCode": 0,
+				"Output": `[
+					{
+						"title": "Implement Task 1",
+						"description": "Task 1 implementation",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					}
+				]`,
+			}, nil
+		},
+	}
+
+	beadCreationCalled := false
+	mockBead := &decomposeTestBeadClient{
+		CreateWithDepsAndDescriptionFn: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+			beadCreationCalled = true
+			return nil, nil
+		},
+	}
+
+	deps := &Deps{
+		ClaudeClient: mockClaude,
+		BeadClient:   mockBead,
+	}
+	paths := &Paths{
+		PlansDir: plansDir,
+	}
+
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := DecomposeInput{
+		PlanName: "review-test",
+		Review:   true,
+	}
+
+	result, err := p.Decompose(ctx, input)
+	if err != nil {
+		t.Fatalf("Decompose() in Review mode failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Decompose() returned nil result")
+	}
+
+	// In Review mode, beads should be returned but not created
+	if beadCreationCalled {
+		t.Error("Review mode should not create beads")
+	}
+
+	// Result should indicate proposed beads
+	if len(result.CreatedBeads) != 1 {
+		t.Errorf("CreatedBeads count = %d, want 1 (proposed but not created)", len(result.CreatedBeads))
+	}
+
+	if result.PlanUpdated {
+		t.Error("Review mode should not update plan frontmatter")
+	}
+}
+
 // decomposeTestClaudeClient is a mock with injectable functions for decompose tests.
 type decomposeTestClaudeClient struct {
 	RunFn func(prompt string, model string) (interface{}, error)

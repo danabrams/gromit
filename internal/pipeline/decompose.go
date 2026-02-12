@@ -77,6 +77,24 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		return nil, fmt.Errorf("no beads extracted from plan")
 	}
 
+	// Review mode: return proposed beads without creating them
+	if input.Review {
+		result := NewDecomposeResult()
+		for _, def := range beadDefs {
+			priority := parsePriority(def.Priority)
+			labels := []string{fmt.Sprintf("spec:%s", input.PlanName)}
+
+			bead := NewCreatedBead()
+			bead.ID = "" // Not created yet
+			bead.Title = def.Title
+			bead.Priority = priority
+			bead.Labels = labels
+			result.CreatedBeads = append(result.CreatedBeads, bead)
+		}
+		result.PlanUpdated = false
+		return &result, nil
+	}
+
 	// TODO: create beads, update plan frontmatter
 	return nil, fmt.Errorf("pipeline: Decompose not yet implemented")
 }
