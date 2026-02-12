@@ -140,6 +140,9 @@ When acceptance test line count is a validation gate, new test additions require
 ### 2026-02-11 | gromit-557p | gotchas
 Router-based phase conversions require updating both the call site (process.go) and the acceptance tests to use proper git repo fixtures—mock repos won't pass router validation. When converting from r.claude.Run() to router calls, regenerate acceptance tests with real repo setup.
 
+### 2026-02-11 | gromit-3gdz | conventions
+When converting runner.go sites to Router or refactoring core functionality, acceptance test totals must be actively managed. If the conversion adds test coverage or new test cases, acceptance tests need corresponding consolidation or removal to maintain the target line count. Test metrics are enforced as part of validation and must be tracked alongside code changes.
+
 ---
 
 ## Archived
