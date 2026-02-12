@@ -15,13 +15,21 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/state"
 )
+
+// ProviderRunner is an interface for running LLM prompts.
+// It matches the subset of provider.Provider methods used by Retro.
+type ProviderRunner interface {
+	Run(ctx context.Context, prompt string, tier string) (*provider.Result, error)
+}
 
 // Retro manages retrospective analysis
 type Retro struct {
 	cfg            *config.Config
 	claude         *claude.Client
+	provider       ProviderRunner
 	learningsFile  *learnings.File
 	rulesPath      string
 	templatePath   string
@@ -64,6 +72,25 @@ func NewRetro(cfg *config.Config, gromitDir string) (*Retro, error) {
 	return &Retro{
 		cfg:            cfg,
 		claude:         claudeClient,
+		learningsFile:  learningsFile,
+		rulesPath:      filepath.Join(gromitDir, "RULES.md"),
+		templatePath:   filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
+		experimentPath: filepath.Join(gromitDir, "experiment.json"),
+		gromitDir:      gromitDir,
+	}, nil
+}
+
+// NewRetroWithProvider creates a new retrospective analyzer with a Provider
+func NewRetroWithProvider(p ProviderRunner, gromitDir string) (*Retro, error) {
+	if p == nil {
+		return nil, fmt.Errorf("provider is nil")
+	}
+	learningsFile, err := learnings.NewFile(gromitDir)
+	if err != nil {
+		return nil, err
+	}
+	return &Retro{
+		provider:       p,
 		learningsFile:  learningsFile,
 		rulesPath:      filepath.Join(gromitDir, "RULES.md"),
 		templatePath:   filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
