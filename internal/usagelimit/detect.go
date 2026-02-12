@@ -16,10 +16,11 @@ type Patterns struct {
 
 // Check returns true if the signals indicate a usage limit error based on the provided patterns.
 // It uses two detection paths to handle different failure modes:
-// 1. Rate limit hits from stream events - when the CLI observes rate limit events during
-//    execution and ultimately fails, even if the error message is generic
-// 2. Keyword match in terminal output - when the CLI fails with a usage-limit-related
-//    error message in stdout/stderr (case-insensitive matching)
+//  1. Rate limit hits from stream events - when the CLI observes rate limit events during
+//     execution and ultimately fails, even if the error message is generic
+//  2. Keyword match in terminal output - when the CLI fails with a usage-limit-related
+//     error message in stdout/stderr (case-insensitive matching)
+//
 // Both paths require a non-zero exit code to avoid false positives on successful invocations.
 func Check(signals Signals, patterns Patterns) bool {
 	// Path 2: Rate limit hits with failed invocation

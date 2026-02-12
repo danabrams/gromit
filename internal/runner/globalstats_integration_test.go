@@ -131,7 +131,6 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 		},
 	}
 
-
 	var buf1 strings.Builder
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{BeadTimeout: 60},
@@ -169,7 +168,6 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 			return b, nil
 		},
 	}
-
 
 	var buf2 strings.Builder
 	r2, err := NewRunnerWithDeps(cfg, &buf2, tmpDir,
@@ -243,7 +241,6 @@ func TestRun_LogsWarningOnGlobalStatsUpdateFailure(t *testing.T) {
 		},
 	}
 
-
 	var buf strings.Builder
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{BeadTimeout: 60},
@@ -303,7 +300,6 @@ func TestRun_AccumulatesStatsFromMultipleIterations(t *testing.T) {
 			return b, nil
 		},
 	}
-
 
 	var buf strings.Builder
 	cfg := &config.Config{
@@ -413,7 +409,6 @@ func TestRun_MergesWithExistingGlobalStats(t *testing.T) {
 		},
 	}
 
-
 	var buf strings.Builder
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{BeadTimeout: 60},
@@ -493,7 +488,6 @@ func TestRun_UsesUserHomeDirForGlobalStatsPath(t *testing.T) {
 			return b, nil
 		},
 	}
-
 
 	var buf strings.Builder
 	cfg := &config.Config{

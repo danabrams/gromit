@@ -594,7 +594,7 @@ func TestNewRunnerWithDeps(t *testing.T) {
 
 	r, err := NewRunnerWithDeps(cfg, &buf, "/tmp/gromit", Deps{
 		Beads:    &mockBeadClient{},
-		Router: newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},
@@ -622,7 +622,7 @@ func TestNewRunnerWithDeps_ApplesDefaultsToUninitialisedConfig(t *testing.T) {
 
 	r, err := NewRunnerWithDeps(cfg, &buf, "/tmp/gromit", Deps{
 		Beads:    &mockBeadClient{},
-		Router: newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},

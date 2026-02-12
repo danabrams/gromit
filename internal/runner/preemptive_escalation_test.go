@@ -529,7 +529,7 @@ func TestSetupBeadContext_PreemptiveEscalationTableDriven(t *testing.T) {
 				beads:    &mockBeadClient{},
 				renderer: &mockPromptRenderer{},
 				router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
-		analyzer: &mockFailureAnalyzer{},
+				analyzer: &mockFailureAnalyzer{},
 				output:   &buf,
 			}
 

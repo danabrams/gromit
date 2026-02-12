@@ -378,9 +378,9 @@ func TestCodexProviderRunSetsSuccessBasedOnExitCode(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := []struct {
-		name         string
-		exitCode     int
-		wantSuccess  bool
+		name        string
+		exitCode    int
+		wantSuccess bool
 	}{
 		{
 			name:        "exit code 0 means success",
@@ -910,7 +910,7 @@ func TestCodexProviderBinaryNotFound(t *testing.T) {
 	if err != nil {
 		errMsg := err.Error()
 		if !strings.Contains(errMsg, "executable") && !strings.Contains(errMsg, "not found") &&
-		   !strings.Contains(errMsg, "no such file") {
+			!strings.Contains(errMsg, "no such file") {
 			t.Errorf("Run() error = %q, want error indicating binary not found", errMsg)
 		}
 	}

@@ -64,12 +64,12 @@ func TestAnalyzerWithProvider(t *testing.T) {
 
 // mockProvider implements a mock Provider for testing
 type mockProvider struct {
-	FnRun            func(ctx context.Context, prompt string, tier string) (*provider.Result, error)
-	FnStreamRun      func(ctx context.Context, prompt string, tier string) (*provider.Result, error)
-	FnRunValidation  func(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error)
-	FnName           func() string
-	FnModelForTier   func(tier string) string
-	FnIsUsageLimit   func(result *provider.Result, err error) bool
+	FnRun           func(ctx context.Context, prompt string, tier string) (*provider.Result, error)
+	FnStreamRun     func(ctx context.Context, prompt string, tier string) (*provider.Result, error)
+	FnRunValidation func(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error)
+	FnName          func() string
+	FnModelForTier  func(tier string) string
+	FnIsUsageLimit  func(result *provider.Result, err error) bool
 }
 
 func (m *mockProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {

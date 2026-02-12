@@ -508,11 +508,11 @@ func TestCodexPatterns(t *testing.T) {
 func TestCheck_WithClaudeResult(t *testing.T) {
 	// Tests integration with the actual claude.Result type
 	tests := []struct {
-		name         string
-		result       *claude.Result
+		name          string
+		result        *claude.Result
 		rateLimitHits int
-		patterns     Patterns
-		want         bool
+		patterns      Patterns
+		want          bool
 	}{
 		{
 			name: "failed result with usage limit in output",
@@ -554,8 +554,8 @@ func TestCheck_WithClaudeResult(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "nil result",
-			result: nil,
+			name:          "nil result",
+			result:        nil,
 			rateLimitHits: 0,
 			patterns: Patterns{
 				Keywords: []string{"usage limit"},
