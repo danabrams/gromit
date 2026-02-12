@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // TestValidationSentinelError_RecoveryDistinguishesErrorTypes verifies that
@@ -106,9 +107,14 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 			}
 			cfg.SetDefaults()
 
+			// Create a mock provider for the router
+			mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+			mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 			r := &Runner{
 				cfg:      cfg,
 				claude:   mockClaude,
+				router:   mockRouter,
 				renderer: &mockRenderer{},
 				analyzer: &mockFailureAnalyzer{},
 				output:   &buf,

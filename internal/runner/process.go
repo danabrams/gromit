@@ -151,6 +151,10 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 		return nil, nil, false, err
 	}
 
+	if r.router == nil {
+		return nil, nil, false, fmt.Errorf("runner router is nil")
+	}
+
 	// Determine phase and tier
 	phase := "build"
 	tier := r.selectTier(bc.bead)

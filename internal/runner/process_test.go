@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 func TestSetupBeadContext_NilConfig(t *testing.T) {
@@ -2103,9 +2104,14 @@ func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
 	}
 	cfg.SetDefaults()
 
+	// Create a mock provider for the router
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg:      cfg,
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
@@ -2178,9 +2184,14 @@ func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
 	}
 	cfg.SetDefaults()
 
+	// Create a mock provider for the router
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg:      cfg,
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
@@ -2745,4 +2756,78 @@ func TestWriteIterationLog_DiagnosticFields(t *testing.T) {
 	if log.RateLimitHits != 1 {
 		t.Errorf("expected RateLimitHits=1, got %d", log.RateLimitHits)
 	}
+}
+
+// mockProviderForProcess wraps a claude.Client to implement provider.Provider for process tests
+type mockProviderForProcess struct {
+	claudeClient *mockClaudeClient
+}
+
+func (m *mockProviderForProcess) Name() string {
+	return "mock"
+}
+
+func (m *mockProviderForProcess) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	result, err := m.claudeClient.Run(ctx, prompt, tier)
+	if err != nil {
+		return nil, err
+	}
+	return &provider.Result{
+		Success:  result.Success,
+		Output:   result.Output,
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+		Model:    result.Model,
+	}, nil
+}
+
+func (m *mockProviderForProcess) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	// Convert provider handlers to claude handlers
+	var claudeHandler claude.EventHandler
+	if handler != nil {
+		claudeHandler = func(line []byte) {
+			handler(line)
+		}
+	}
+
+	var claudeToolHandler claude.ToolCallHandler
+	if onToolCall != nil {
+		claudeToolHandler = func(event claude.ToolEvent) {
+			onToolCall(provider.ToolEvent{
+				ToolName:  event.ToolName,
+				FilePath:  event.FilePath,
+				Timestamp: event.Timestamp,
+			})
+		}
+	}
+
+	result, err := m.claudeClient.StreamRun(ctx, prompt, tier, output, claudeHandler, claudeToolHandler)
+	if err != nil {
+		return nil, err
+	}
+	return &provider.Result{
+		Success:  result.Success,
+		Output:   result.Output,
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+		Model:    result.Model,
+	}, nil
+}
+
+func (m *mockProviderForProcess) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	result, err := m.claudeClient.RunValidation(ctx, commands, tier, workDir)
+	if err != nil {
+		return nil, err
+	}
+	return &provider.Result{
+		Success:  result.Success,
+		Output:   result.Output,
+		ExitCode: result.ExitCode,
+		Duration: result.Duration,
+		Model:    result.Model,
+	}, nil
+}
+
+func (m *mockProviderForProcess) IsUsageLimitError(result *provider.Result, err error) bool {
+	return false
 }
