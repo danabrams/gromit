@@ -150,10 +150,6 @@ func NewExploreResult() ExploreResult {
 	}
 }
 
-// RefineSession is a typed wrapper for interactive Refine sessions.
-type RefineSession struct {
-	Session
-}
 
 // PlanSession is a typed wrapper for interactive Plan sessions.
 type PlanSession struct {

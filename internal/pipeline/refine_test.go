@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"os"
 	"testing"
 )
 
@@ -30,6 +31,42 @@ func TestRefine_BlankSession(t *testing.T) {
 	}
 }
 
+func TestRefine_ScansExistingSpecs(t *testing.T) {
+	tmpDir := t.TempDir()
+	specsDir := tmpDir + "/specs"
+
+	// Create existing spec file
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	existingSpec := specsDir + "/existing.md"
+	if err := os.WriteFile(existingSpec, []byte("# Existing"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	p := New(&Deps{
+		AgentResolver: &mockAgentResolver{agent: &mockAgent{name: "test-agent"}},
+		BacklogClient: &mockBacklogClient{},
+	}, &Paths{
+		GromitDir: tmpDir,
+		SpecsDir:  specsDir,
+	})
+
+	session, err := p.Refine(context.Background(), RefineInput{})
+	if err != nil {
+		t.Fatalf("Refine() failed: %v", err)
+	}
+
+	// Verify Refine scanned existing specs
+	snapshot := session.GetBeforeSnapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("expected 1 spec in before snapshot, got %d", len(snapshot))
+	}
+	if snapshot[0] != existingSpec {
+		t.Errorf("expected snapshot to contain %s, got %s", existingSpec, snapshot[0])
+	}
+}
+
 // mockAgentResolver implements AgentResolver for testing
 type mockAgentResolver struct {
 	agent Agent
@@ -45,7 +82,8 @@ func (m *mockAgentResolver) Resolve(phase string, flagOverride string, choosePic
 
 // mockAgent implements Agent for testing
 type mockAgent struct {
-	name string
+	name     string
+	onLaunch func(before []string)
 }
 
 func (m *mockAgent) Name() string {
@@ -53,6 +91,9 @@ func (m *mockAgent) Name() string {
 }
 
 func (m *mockAgent) Launch(promptPath string) error {
+	if m.onLaunch != nil {
+		m.onLaunch(nil) // Will be updated when Refine passes before snapshot
+	}
 	return nil
 }
 
