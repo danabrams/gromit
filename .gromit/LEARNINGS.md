@@ -62,6 +62,9 @@ Gromit projects enforce an acceptance test line budget (default 6000 lines acros
 ### 2026-02-12 | gromit-gte1 | patterns
 Provider implementations follow a pattern of capturing stdout/stderr separately into strings and returning them both in RunResult; StreamRun uses the same command building but writes output during execution rather than capturing
 
+### 2026-02-12 | gromit-qj2a | patterns
+When adding fields to result types that flow through the runner→logger pipeline, add the field to both IterationResult and IterationLog, then explicitly propagate it in writeIterationLog() — symmetric field propagation ensures observable data isn't lost during persistence
+
 ---
 
 ## Archived
