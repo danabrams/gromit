@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 // TestAcceptance_ExecuteClaudeInvocationUsesRouterSelect verifies that
@@ -514,4 +515,245 @@ func setupTestGitRepo(t *testing.T) (string, string) {
 	run("git", "add", ".")
 	run("git", "commit", "-m", "c2")
 	return dir, start
+}
+
+// Review router conversion tests
+
+// TestAcceptance_RunLightReviewUsesRouter verifies that runLightReview
+// calls router.Select() with phase="review" and the tier from selectReviewTier().
+func TestAcceptance_RunLightReviewUsesRouter(t *testing.T) {
+	_, startCommit := setupTestGitRepo(t)
+	cfg := makeTestRunnerConfig()
+
+	var capturedTier string
+	providerCalled := false
+
+	mockProvider := &mockProviderWithSelectTracking{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			providerCalled = true
+			capturedTier = tier
+			return &provider.Result{
+				Success: true,
+				Model:   "test-model",
+				Output:  `{"passed": true, "summary": "LGTM: OK", "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "learnings": []}`,
+			}, nil
+		},
+	}
+
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	b := &bead.Bead{
+		ID:       "review-001",
+		Priority: 1,
+		Labels:   []string{},
+	}
+
+	r := &Runner{
+		cfg:    cfg,
+		router: mockRouter,
+		claude: &mockClaudeClientForReview{},
+		renderer: &mockPromptRenderer{
+			RenderReviewFn: func(*prompt.ReviewContext) (string, error) {
+				return "review", nil
+			},
+			LoadClaudeMDFn: func() (string, error) { return "", nil },
+			LoadRulesFn:    func() (string, error) { return "", nil },
+		},
+		output:    io.Discard,
+		gitDiffFn: func(string) (string, error) { return "diff", nil },
+	}
+
+	_, err := r.runLightReview(context.Background(), b, nil, startCommit, "sonnet", 1, time.Time{})
+	if err != nil || !providerCalled {
+		t.Fatalf("error = %v, providerCalled = %v", err, providerCalled)
+	}
+
+	if capturedTier != r.selectTier(b) {
+		t.Errorf("tier = %q, want %q", capturedTier, r.selectTier(b))
+	}
+}
+
+// TestAcceptance_RunLightReviewUsesHighTierForOpusBuild verifies that when
+// buildModel is "opus" and ShouldMatchBuildModel is true, runLightReview uses tier "high".
+func TestAcceptance_RunLightReviewUsesHighTierForOpusBuild(t *testing.T) {
+	_, startCommit := setupTestGitRepo(t)
+	cfg := makeTestRunnerConfig()
+	trueVal := true
+	cfg.Review.MatchBuildModel = &trueVal
+
+	var capturedTier string
+
+	mockProvider := &mockProviderWithSelectTracking{
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			capturedTier = tier
+			return &provider.Result{
+				Success: true,
+				Model:   "test-opus",
+				Output:  `{"passed": true, "summary": "LGTM: OK", "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "learnings": []}`,
+			}, nil
+		},
+	}
+
+	b := &bead.Bead{ID: "review-003", Priority: 2}
+
+	r := &Runner{
+		cfg:    cfg,
+		router: provider.NewSingleProviderRouter(mockProvider),
+		claude: &mockClaudeClientForReview{},
+		renderer: &mockPromptRenderer{
+			RenderReviewFn: func(*prompt.ReviewContext) (string, error) { return "review", nil },
+			LoadClaudeMDFn: func() (string, error) { return "", nil },
+			LoadRulesFn:    func() (string, error) { return "", nil },
+		},
+		output:    io.Discard,
+		gitDiffFn: func(string) (string, error) { return "diff", nil },
+	}
+
+	_, err := r.runLightReview(context.Background(), b, nil, startCommit, "opus", 1, time.Time{})
+	if err != nil || capturedTier != provider.TierHigh {
+		t.Errorf("error = %v, tier = %q, want %q", err, capturedTier, provider.TierHigh)
+	}
+}
+
+// TestAcceptance_RunThoroughReviewUsesRouter verifies that runThoroughReview
+// calls router.Select() with phase="review" and tier="high".
+func TestAcceptance_RunThoroughReviewUsesRouter(t *testing.T) {
+	tmpDir, startCommit := setupTestGitRepo(t)
+	cfg := makeTestRunnerConfig()
+	cfg.Validation.Enabled = false
+
+	var capturedTier string
+
+	mockProvider := &mockProviderWithSelectTracking{
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			capturedTier = tier
+			return &provider.Result{
+				Success: true,
+				Model:   "test-opus",
+				Output:  `{"passed": true, "summary": "LGTM: OK", "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "learnings": []}`,
+			}, nil
+		},
+	}
+
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	stateDir := filepath.Join(tmpDir, ".gromit")
+	os.MkdirAll(stateDir, 0755)
+	sf, _ := state.NewFile(stateDir)
+	sf.RecordReview(startCommit, 0)
+
+	r := &Runner{
+		cfg:    cfg,
+		router: mockRouter,
+		claude: &mockClaudeClientForReview{},
+		renderer: &mockPromptRenderer{
+			RenderThoroughReviewFn: func(*prompt.ThoroughReviewContext) (string, error) {
+				return "thorough review", nil
+			},
+			LoadClaudeMDFn: func() (string, error) { return "", nil },
+			LoadRulesFn:    func() (string, error) { return "", nil },
+		},
+		output:    io.Discard,
+		gitDiffFn: func(string) (string, error) { return "diff", nil },
+	}
+
+	r.runThoroughReview(context.Background(), sf, 1, time.Time{})
+
+	if capturedTier != provider.TierHigh {
+		t.Errorf("tier = %q, want %q", capturedTier, provider.TierHigh)
+	}
+}
+
+// TestAcceptance_RunThoroughReviewValidationUsesRouter verifies that
+// the validation sub-call in runThoroughReview uses router with tier="low".
+func TestAcceptance_RunThoroughReviewValidationUsesRouter(t *testing.T) {
+	tmpDir, startCommit := setupTestGitRepo(t)
+	cfg := makeTestRunnerConfig()
+	cfg.Validation.Enabled = true
+	cfg.Validation.Commands = []string{"echo test"}
+
+	var validationTier string
+	validationCalled := false
+
+	mockProvider := &mockProviderWithValidationTracking{
+		mockProviderWithSelectTracking: &mockProviderWithSelectTracking{
+			runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+				return &provider.Result{
+					Success: true,
+					Model:   "test-opus",
+					Output:  `{"passed": true, "summary": "LGTM: Fixed", "fixes_applied": ["test.go"], "beads_to_create": [], "backlog_items": [], "learnings": []}`,
+				}, nil
+			},
+		},
+		onValidationSelect: func(phase, tier string) {
+			validationTier = tier
+			validationCalled = true
+		},
+		runValidationResult: &provider.Result{Success: true, Model: "test-haiku", Output: "VALIDATION_PASSED"},
+	}
+
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	stateDir := filepath.Join(tmpDir, ".gromit")
+	os.MkdirAll(stateDir, 0755)
+	sf, _ := state.NewFile(stateDir)
+	sf.RecordReview(startCommit, 0)
+
+	r := &Runner{
+		cfg:    cfg,
+		router: mockRouter,
+		claude: &mockClaudeClientForReview{},
+		renderer: &mockPromptRenderer{
+			RenderThoroughReviewFn: func(*prompt.ThoroughReviewContext) (string, error) {
+				return "thorough review", nil
+			},
+			LoadClaudeMDFn: func() (string, error) { return "", nil },
+			LoadRulesFn:    func() (string, error) { return "", nil },
+		},
+		output:    io.Discard,
+		gitDiffFn: func(string) (string, error) { return "diff", nil },
+	}
+
+	r.runThoroughReview(context.Background(), sf, 1, time.Time{})
+
+	if !validationCalled || validationTier != provider.TierLow {
+		t.Errorf("validationCalled = %v, tier = %q, want %q", validationCalled, validationTier, provider.TierLow)
+	}
+}
+
+// mockProviderWithValidationTracking extends mockProviderWithSelectTracking
+// to track validation calls separately
+type mockProviderWithValidationTracking struct {
+	*mockProviderWithSelectTracking
+	onValidationSelect  func(phase, tier string)
+	runValidationResult *provider.Result
+	runValidationErr    error
+}
+
+func (m *mockProviderWithValidationTracking) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	if m.onValidationSelect != nil {
+		m.onValidationSelect("validate", tier)
+	}
+	if m.runValidationResult != nil {
+		return m.runValidationResult, m.runValidationErr
+	}
+	return &provider.Result{Success: true, Model: "test-haiku", Output: "VALIDATION_PASSED"}, nil
+}
+
+// mockClaudeClientForReview provides backward-compatible claude client for review tests.
+type mockClaudeClientForReview struct{}
+
+func (m *mockClaudeClientForReview) Run(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+	reviewJSON := `{"passed": true, "summary": "LGTM", "fixes_applied": [], "proposals": []}`
+	return &claude.Result{Success: true, Model: model, Output: reviewJSON}, nil
+}
+
+func (m *mockClaudeClientForReview) StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+	reviewJSON := `{"passed": true, "summary": "LGTM", "fixes_applied": [], "proposals": []}`
+	return &claude.Result{Success: true, Model: model, Output: reviewJSON}, nil
+}
+
+func (m *mockClaudeClientForReview) RunValidation(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+	return &claude.Result{Success: true, Model: model, Output: "VALIDATION_PASSED"}, nil
 }

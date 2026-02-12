@@ -146,6 +146,9 @@ When converting runner.go sites to Router or refactoring core functionality, acc
 ### 2026-02-11 | gromit-3gdz | gotchas
 Router conversions in runner.go require careful mock setup in tests - checkScope and extractSuccessLearning specifically need mockProviderWithRouterTracking to capture routing state, not just mock.mock*Provider
 
+### 2026-02-11 | gromit-gibz | conventions
+When converting code to new patterns (like router-based calls), check if there are accompanying acceptance tests that validate the old pattern. These tests may become redundant with the new implementation and should be updated or removed to meet code quality thresholds. Search for acceptance tests related to the converted functions (e.g., tests for runLightReview, runThoroughReview, claude.Run) and consolidate them.
+
 ---
 
 ## Archived
