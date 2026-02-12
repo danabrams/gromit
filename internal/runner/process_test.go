@@ -483,6 +483,12 @@ func TestExtractSuccessLearning_NilLearning(t *testing.T) {
 		},
 	}
 
+	// Create a mock provider that returns the same output as mockClaude
+	mockProvider := &mockProviderForProcess{
+		claudeClient: mockClaude,
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	learnFromSuccessEnabled := true
 	r := &Runner{
 		cfg: &config.Config{
@@ -491,6 +497,7 @@ func TestExtractSuccessLearning_NilLearning(t *testing.T) {
 			},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
 	}
@@ -528,6 +535,12 @@ func TestExtractSuccessLearning_WithLearning(t *testing.T) {
 		},
 	}
 
+	// Create a mock provider that returns the same output as mockClaude
+	mockProvider := &mockProviderForProcess{
+		claudeClient: mockClaude,
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	learnFromSuccessEnabled := true
 	r := &Runner{
 		cfg: &config.Config{
@@ -536,6 +549,7 @@ func TestExtractSuccessLearning_WithLearning(t *testing.T) {
 			},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
 	}
@@ -2652,6 +2666,12 @@ func TestBuildPromptForBead_MediumComplexityKeepsSonnet(t *testing.T) {
 		},
 	}
 
+	// Create a mock provider that returns the same output as mockClaude
+	mockProvider := &mockProviderForProcess{
+		claudeClient: mockClaude,
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			ScopeCheck: config.ScopeCheckConfig{
@@ -2660,6 +2680,7 @@ func TestBuildPromptForBead_MediumComplexityKeepsSonnet(t *testing.T) {
 			},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		beads:    &mockBeadClient{},
 		renderer: mockRend,
 		output:   &buf,
@@ -2703,6 +2724,12 @@ func TestBuildPromptForBead_MediumComplexityKeepsOpus(t *testing.T) {
 		},
 	}
 
+	// Create a mock provider that returns the same output as mockClaude
+	mockProvider := &mockProviderForProcess{
+		claudeClient: mockClaude,
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			ScopeCheck: config.ScopeCheckConfig{
@@ -2711,6 +2738,7 @@ func TestBuildPromptForBead_MediumComplexityKeepsOpus(t *testing.T) {
 			},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		beads:    &mockBeadClient{},
 		renderer: mockRend,
 		output:   &buf,
@@ -2754,6 +2782,12 @@ func TestBuildPromptForBead_LowComplexityKeepsSonnet(t *testing.T) {
 		},
 	}
 
+	// Create a mock provider that returns the same output as mockClaude
+	mockProvider := &mockProviderForProcess{
+		claudeClient: mockClaude,
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
 	r := &Runner{
 		cfg: &config.Config{
 			ScopeCheck: config.ScopeCheckConfig{
@@ -2762,6 +2796,7 @@ func TestBuildPromptForBead_LowComplexityKeepsSonnet(t *testing.T) {
 			},
 		},
 		claude:   mockClaude,
+		router:   mockRouter,
 		beads:    &mockBeadClient{},
 		renderer: mockRend,
 		output:   &buf,
