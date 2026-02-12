@@ -30,6 +30,9 @@ type Context struct {
 	ConfirmedLearnings []learnings.Learning
 	RecentLearnings    []learnings.Learning
 
+	// Validation history
+	RecentValidationFailures []string // Summaries of recent validation failures from current run
+
 	// Iteration info
 	Iteration      int
 	Model          string
@@ -48,6 +51,9 @@ func (c *Context) normalizeNilFields() {
 	}
 	if c.RecentLearnings == nil {
 		c.RecentLearnings = []learnings.Learning{}
+	}
+	if c.RecentValidationFailures == nil {
+		c.RecentValidationFailures = []string{}
 	}
 }
 
