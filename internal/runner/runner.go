@@ -1377,11 +1377,8 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 		return nil, fmt.Errorf("decomposition failed with exit code %d", result.ExitCode)
 	}
 
-	// Use result.Output directly (only need the output for parsing)
-	claudeResult := result
-
 	// Parse the output
-	subTasks, err := parseDecomposeOutput(claudeResult.Output)
+	subTasks, err := parseDecomposeOutput(result.Output)
 	if err != nil {
 		return nil, fmt.Errorf("parsing decomposition: %w", err)
 	}
@@ -1597,20 +1594,13 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Dura
 		return false, time.Since(start)
 	}
 
-	// Convert provider.Result to match existing code expectations
-	claudeResult := &claude.Result{
-		Success:  result.Success,
-		ExitCode: result.ExitCode,
-		Output:   result.Output,
-	}
-
-	if !claudeResult.Success {
-		r.log("Warning: precheck failed with exit code %d", claudeResult.ExitCode)
+	if !result.Success {
+		r.log("Warning: precheck failed with exit code %d", result.ExitCode)
 		return false, time.Since(start)
 	}
 
 	// Check for PRECHECK_PASSED signal
-	passed := strings.Contains(claudeResult.Output, "PRECHECK_PASSED")
+	passed := strings.Contains(result.Output, "PRECHECK_PASSED")
 
 	if passed {
 		r.log("Pre-check: acceptance criteria already met")
@@ -1670,11 +1660,8 @@ func (r *Runner) checkScope(ctx context.Context, b *bead.Bead) *prompt.ScopeEsti
 		return nil
 	}
 
-	// Use result.Output directly (no conversion needed for scope estimate parsing)
-	claudeResult := result
-
 	// Parse the scope estimate
-	estimate, err := prompt.ParseScopeEstimate(claudeResult.Output)
+	estimate, err := prompt.ParseScopeEstimate(result.Output)
 	if err != nil {
 		r.log("Warning: failed to parse scope estimate: %v", err)
 		return nil

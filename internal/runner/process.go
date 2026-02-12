@@ -429,11 +429,8 @@ func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
 		return
 	}
 
-	// Use result directly (only need the output for parsing)
-	claudeResult := result
-
 	// Parse the result
-	successLearning, err := prompt.ParseSuccessLearning(claudeResult.Output)
+	successLearning, err := prompt.ParseSuccessLearning(result.Output)
 	if err != nil {
 		return
 	}
