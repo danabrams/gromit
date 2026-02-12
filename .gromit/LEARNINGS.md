@@ -134,6 +134,9 @@ When converting multiple call sites to use a Router pattern, check for different
 ### 2026-02-11 | gromit-2zju | patterns
 When converting function calls to use a Router abstraction, check for all call sites in related functions (runRefactorPhase, handleRefactorValidationFailure, runPostSuccessReview) that may need the same conversion, not just the primary function - this prevents piecemeal refactoring across iterations.
 
+### 2026-02-11 | gromit-557p | conventions
+When acceptance test line count is a validation gate, new test additions require corresponding reduction in existing test files to meet the overall threshold. Task specs that add test coverage must account for the total line budget, not just the new lines added. Check gromit.yaml validation rules and acceptance test baselines before adding new test files.
+
 ---
 
 ## Archived

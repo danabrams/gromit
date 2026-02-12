@@ -6,12 +6,17 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -147,144 +152,74 @@ func TestAcceptance_ExecuteClaudeInvocationCallsProviderStreamRun(t *testing.T) 
 	}
 }
 
-// TestAcceptance_ExecuteClaudeInvocationDetectsUsageLimitError verifies that
-// when provider.StreamRun() fails and provider.IsUsageLimitError() returns true,
-// executeClaudeInvocation calls router.MarkUnavailable() and retries with a new provider.
-// Expected failure: IsUsageLimitError() check does not exist in executeClaudeInvocation yet
+// TestAcceptance_ExecuteClaudeInvocationDetectsUsageLimitError verifies usage limit fallback
 func TestAcceptance_ExecuteClaudeInvocationDetectsUsageLimitError(t *testing.T) {
-	cfg := makeTestRunnerConfig()
+	limitErr := errors.New("usage limit")
+	callCount := 0
+	var marked string
 
-	usageLimitErr := errors.New("usage limit exceeded")
-	streamRunCallCount := 0
-	var markedProviderName string
-
-	// First provider hits usage limit
-	firstProvider := &mockProviderWithUsageLimitTracking{
+	p1 := &mockProviderWithUsageLimitTracking{
 		name: "claude",
-		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-			streamRunCallCount++
-			if streamRunCallCount == 1 {
-				return &provider.Result{Success: false, Output: "usage limit hit"}, usageLimitErr
+		streamRunFn: func(context.Context, string, string, io.Writer, provider.EventHandler, provider.ToolCallHandler) (*provider.Result, error) {
+			callCount++
+			if callCount == 1 {
+				return &provider.Result{Success: false}, limitErr
 			}
-			return &provider.Result{Success: true, Model: "fallback-model", Output: "done"}, nil
+			return &provider.Result{Success: true, Model: "fallback"}, nil
 		},
-		isUsageLimitErrorFn: func(result *provider.Result, err error) bool {
-			return err != nil && errors.Is(err, usageLimitErr)
-		},
-		onMarkUnavailable: func(name string) {
-			markedProviderName = name
-		},
+		isUsageLimitErrorFn: func(*provider.Result, error) bool { return callCount == 1 },
+		onMarkUnavailable:   func(n string) { marked = n },
 	}
-
-	// Second provider succeeds
-	secondProvider := &mockProviderWithUsageLimitTracking{
+	p2 := &mockProviderWithUsageLimitTracking{
 		name: "openai",
-		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-			streamRunCallCount++
-			return &provider.Result{Success: true, Model: "fallback-model", Output: "done"}, nil
+		streamRunFn: func(context.Context, string, string, io.Writer, provider.EventHandler, provider.ToolCallHandler) (*provider.Result, error) {
+			callCount++
+			return &provider.Result{Success: true, Model: "fallback"}, nil
 		},
 	}
-
-	// Create router with both providers
-	mockState := &mockStateForRouterTest{
-		onSetUnavailable: func(name string, until time.Time) {
-			markedProviderName = name
-			if firstProvider.onMarkUnavailable != nil {
-				firstProvider.onMarkUnavailable(name)
-			}
-		},
-	}
-	mockRouter := provider.NewRouter(
-		map[string]provider.Provider{
-			"claude": firstProvider,
-			"openai": secondProvider,
-		},
-		map[string]string{"build": "any"},
-		map[string]int{"claude": 50, "openai": 50},
-		0,
-		mockState,
-	)
-
-	bc := &beadContext{
-		bead: &bead.Bead{
-			ID:       "test-003",
-			Priority: 1,
-		},
-		result:      &IterationResult{},
-		buildPrompt: "implement feature with fallback",
-	}
-
-	mockClaude := &mockClaudeClientForProcess{}
 
 	r := &Runner{
-		cfg:    cfg,
-		router: mockRouter,
-		claude: mockClaude,
+		cfg: makeTestRunnerConfig(),
+		router: provider.NewRouter(
+			map[string]provider.Provider{"claude": p1, "openai": p2},
+			map[string]string{"build": "any"},
+			map[string]int{"claude": 50, "openai": 50},
+			0,
+			&mockStateForRouterTest{onSetUnavailable: func(n string, _ time.Time) { marked = n }},
+		),
+		claude: &mockClaudeClientForProcess{},
 		output: io.Discard,
 	}
 
-	result, _, _, err := r.executeClaudeInvocation(context.Background(), bc)
-	if err != nil {
-		t.Fatalf("executeClaudeInvocation() error = %v, want success after fallback", err)
-	}
+	result, _, _, err := r.executeClaudeInvocation(context.Background(), &beadContext{
+		bead:        &bead.Bead{ID: "t3", Priority: 1},
+		result:      &IterationResult{},
+		buildPrompt: "test",
+	})
 
-	// Verify first call failed and second succeeded
-	if streamRunCallCount != 2 {
-		t.Errorf("provider.StreamRun() called %d times, want 2 (failure + retry)", streamRunCallCount)
-	}
-
-	// Verify MarkUnavailable was called
-	if markedProviderName != "claude" {
-		t.Errorf("router.MarkUnavailable() called with %q, want %q", markedProviderName, "claude")
-	}
-
-	// Verify retry succeeded
-	if result == nil || !result.Success {
-		t.Error("executeClaudeInvocation() should succeed after fallback to available provider")
+	if err != nil || callCount != 2 || marked != "claude" || !result.Success {
+		t.Errorf("got err=%v calls=%d marked=%q success=%v", err, callCount, marked, result.Success)
 	}
 }
 
 // TestAcceptance_ExecuteClaudeInvocationReturnsErrorWhenAllProvidersUnavailable verifies
-// that when router.Select() returns nil provider, executeClaudeInvocation returns an error.
-// Expected failure: executeClaudeInvocation does not check for nil provider from router.Select()
+// error when no providers available
 func TestAcceptance_ExecuteClaudeInvocationReturnsErrorWhenAllProvidersUnavailable(t *testing.T) {
-	cfg := makeTestRunnerConfig()
-
-	// Create router with no providers (empty map) to simulate all unavailable
-	mockState := &mockStateForRouterTest{}
-	mockRouter := provider.NewRouter(
-		map[string]provider.Provider{},
-		map[string]string{"build": "any"},
-		map[string]int{},
-		0,
-		mockState,
-	)
-
-	bc := &beadContext{
-		bead: &bead.Bead{
-			ID:       "test-004",
-			Priority: 1,
-		},
-		result:      &IterationResult{},
-		buildPrompt: "should fail with no providers",
-	}
-
-	mockClaude := &mockClaudeClientForProcess{}
-
 	r := &Runner{
-		cfg:    cfg,
-		router: mockRouter,
-		claude: mockClaude,
+		cfg:    makeTestRunnerConfig(),
+		router: provider.NewRouter(map[string]provider.Provider{}, map[string]string{"build": "any"}, map[string]int{}, 0, &mockStateForRouterTest{}),
+		claude: &mockClaudeClientForProcess{},
 		output: io.Discard,
 	}
 
-	_, _, _, err := r.executeClaudeInvocation(context.Background(), bc)
-	if err == nil {
-		t.Fatal("executeClaudeInvocation() should return error when all providers unavailable")
-	}
+	_, _, _, err := r.executeClaudeInvocation(context.Background(), &beadContext{
+		bead:        &bead.Bead{ID: "t4", Priority: 1},
+		result:      &IterationResult{},
+		buildPrompt: "fail",
+	})
 
-	if err.Error() == "" {
-		t.Error("executeClaudeInvocation() error message should not be empty")
+	if err == nil || err.Error() == "" {
+		t.Error("expected non-empty error when no providers available")
 	}
 }
 
@@ -339,11 +274,13 @@ func TestAcceptance_ExecuteClaudeInvocationUpdatesBeadContextModel(t *testing.T)
 
 // mockProviderWithSelectTracking is a test double that tracks router.Select() calls
 type mockProviderWithSelectTracking struct {
-	name            string
-	onSelect        func(phase, tier string)
-	streamRunFn     func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
-	streamRunResult *provider.Result
-	streamRunErr    error
+	name                string
+	onSelect            func(phase, tier string)
+	runFn               func(ctx context.Context, prompt, tier string) (*provider.Result, error)
+	streamRunFn         func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
+	streamRunResult     *provider.Result
+	streamRunErr        error
+	runValidationResult *provider.Result
 }
 
 func (m *mockProviderWithSelectTracking) Name() string {
@@ -370,6 +307,9 @@ func (m *mockProviderWithSelectTracking) Run(ctx context.Context, prompt, tier s
 	if m.onSelect != nil {
 		m.onSelect("", tier)
 	}
+	if m.runFn != nil {
+		return m.runFn(ctx, prompt, tier)
+	}
 	modelName := "mock-model"
 	if m.streamRunResult != nil && m.streamRunResult.Model != "" {
 		modelName = m.streamRunResult.Model
@@ -391,7 +331,10 @@ func (m *mockProviderWithSelectTracking) StreamRun(ctx context.Context, prompt, 
 }
 
 func (m *mockProviderWithSelectTracking) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
-	return &provider.Result{Success: true, Model: "mock-model"}, nil
+	if m.runValidationResult != nil {
+		return m.runValidationResult, nil
+	}
+	return &provider.Result{Success: true, Model: "mock-model", Output: "VALIDATION_PASSED"}, nil
 }
 
 func (m *mockProviderWithSelectTracking) IsUsageLimitError(result *provider.Result, err error) bool {
@@ -401,9 +344,11 @@ func (m *mockProviderWithSelectTracking) IsUsageLimitError(result *provider.Resu
 // mockProviderWithUsageLimitTracking is a test double for usage limit testing
 type mockProviderWithUsageLimitTracking struct {
 	name                string
+	runFn               func(ctx context.Context, prompt, tier string) (*provider.Result, error)
 	streamRunFn         func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
 	isUsageLimitErrorFn func(result *provider.Result, err error) bool
 	onMarkUnavailable   func(name string)
+	runValidationResult *provider.Result
 }
 
 func (m *mockProviderWithUsageLimitTracking) Name() string {
@@ -427,6 +372,9 @@ func (m *mockProviderWithUsageLimitTracking) ModelForTier(tier string) string {
 }
 
 func (m *mockProviderWithUsageLimitTracking) Run(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+	if m.runFn != nil {
+		return m.runFn(ctx, prompt, tier)
+	}
 	return &provider.Result{Success: true, Model: "mock-model"}, nil
 }
 
@@ -438,7 +386,10 @@ func (m *mockProviderWithUsageLimitTracking) StreamRun(ctx context.Context, prom
 }
 
 func (m *mockProviderWithUsageLimitTracking) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
-	return &provider.Result{Success: true, Model: "mock-model"}, nil
+	if m.runValidationResult != nil {
+		return m.runValidationResult, nil
+	}
+	return &provider.Result{Success: true, Model: "mock-model", Output: "VALIDATION_PASSED"}, nil
 }
 
 func (m *mockProviderWithUsageLimitTracking) IsUsageLimitError(result *provider.Result, err error) bool {
@@ -496,4 +447,71 @@ func (m *mockStateForRouterTest) SetProviderUnavailable(provider string, until t
 	if m.onSetUnavailable != nil {
 		m.onSetUnavailable(provider, until)
 	}
+}
+
+// TestAcceptance_RunRefactorPhaseUsesRouter verifies runRefactorPhase uses router
+func TestAcceptance_RunRefactorPhaseUsesRouter(t *testing.T) {
+	tmpDir, startCommit := setupTestGitRepo(t)
+	cfg := makeTestRunnerConfig()
+	cfg.Validation.Enabled, cfg.Validation.Commands = true, []string{"go test"}
+
+	var capturedTier string
+	mockProvider := &mockProviderWithSelectTracking{
+		runFn: func(_ context.Context, _ string, tier string) (*provider.Result, error) {
+			capturedTier = tier
+			return &provider.Result{Success: true, Model: "test-model", Output: "done"}, nil
+		},
+		runValidationResult: &provider.Result{Success: true, Model: "vm", Output: "VALIDATION_PASSED"},
+	}
+
+	bc := &beadContext{
+		bead:        &bead.Bead{ID: "r001", Priority: 1},
+		tier:        provider.TierHigh,
+		result:      &IterationResult{},
+		promptCtx:   &prompt.Context{WorkDir: tmpDir},
+		startCommit: startCommit,
+	}
+
+	r := &Runner{
+		cfg:    cfg,
+		router: provider.NewSingleProviderRouter(mockProvider),
+		renderer: &mockPromptRenderer{
+			RenderRefactorFn: func(*prompt.Context) (string, error) { return "refactor", nil },
+		},
+		output:    io.Discard,
+		gitDiffFn: func(string) (string, error) { return "diff", nil },
+	}
+
+	if err := r.runRefactorPhase(context.Background(), bc); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+
+	if capturedTier != bc.tier {
+		t.Errorf("tier = %q, want %q", capturedTier, bc.tier)
+	}
+}
+
+func setupTestGitRepo(t *testing.T) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	run := func(args ...string) string {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v failed: %v", args, err)
+		}
+		return string(out)
+	}
+	run("git", "init")
+	run("git", "config", "user.email", "t@t.com")
+	run("git", "config", "user.name", "T")
+	os.WriteFile(filepath.Join(dir, "t.txt"), []byte("v1"), 0644)
+	run("git", "add", ".")
+	run("git", "commit", "-m", "c1")
+	start := strings.TrimSpace(run("git", "rev-parse", "HEAD"))
+	os.WriteFile(filepath.Join(dir, "t.txt"), []byte("v2"), 0644)
+	run("git", "add", ".")
+	run("git", "commit", "-m", "c2")
+	return dir, start
 }
