@@ -569,9 +569,11 @@ func TestTypedSessionConstructors(t *testing.T) {
 			wantType:    "*pipeline.ReviewSession",
 		},
 		{
-			name:        "newExploreSession",
-			constructor: func(c context.Context, cmd *exec.Cmd, f func() error) interface{} { return newExploreSession(c, cmd, f) },
-			wantType:    "*pipeline.ExploreSession",
+			name: "newExploreSession",
+			constructor: func(c context.Context, cmd *exec.Cmd, f func() error) interface{} {
+				return newExploreSession(c, cmd, f)
+			},
+			wantType: "*pipeline.ExploreSession",
 		},
 	}
 

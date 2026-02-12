@@ -130,9 +130,9 @@ func TestNewRunnerRouterRespectsPhasePreferences(t *testing.T) {
 	}
 
 	tests := []struct {
-		phase        string
-		expectedProv string
-		tier         string
+		phase         string
+		expectedProv  string
+		tier          string
 		expectedModel string
 	}{
 		// "build" prefers "claude" → should select claude with sonnet for medium tier

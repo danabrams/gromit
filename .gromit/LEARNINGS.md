@@ -74,6 +74,18 @@ Validation recovery attempts trivial auto-fixes (gofmt/goimports via injected au
 ### 2026-02-12 | gromit-17zd | conventions
 Acceptance test budget (6000 lines across all test files) is a hard constraint in this project. When adding large test suites for new packages, audit existing test files first to identify reusable test patterns and avoid duplication. Use table-driven tests and helper functions to maximize coverage per line of code.
 
+### 2026-02-12 | gromit-sx84 | patterns
+Provider selection in the runner is determined at invocation time via router.Select(), and provider tracking is achieved by capturing the selected provider's Name() immediately after selection and storing it in beadContext or function parameters for later use in dependent operations like review routing.
+
+### 2026-02-12 | gromit-5wop | conventions
+When changing how validation works (direct exec vs Claude CLI), ensure iteration log recording is updated to capture the validation_mode field. This field appears to be part of the contract for direct validation logging in this codebase.
+
+### 2026-02-12 | gromit-5wop | gotchas
+Contract tests use claude-cli-mock to intercept Claude invocations; when validation logic changes from using Claude CLI to direct exec.Command, contract tests need to verify command execution through shell or process tracking instead of Claude call interception
+
+### 2026-02-12 | gromit-5wop | patterns
+Contract tests for direct validation verify behavior through multiple assertion layers: Claude call counts (architecture), shell marker file side effects (execution), stdout content (observability), and exit code interpretation (semantics). This layered approach works better than mocking subprocess internals when changing from Claude CLI to direct exec.Command.
+
 ---
 
 ## Archived
@@ -1007,6 +1019,21 @@ Package test files use table-driven tests with t.Run for each case, covering all
 
 ### 2026-02-12 | gromit-17zd | gotchas
 Slice fields in Go structs should be initialized to empty slices (not nil) in constructors to ensure predictable behavior and avoid nil pointer panics when iterating or appending. This is especially critical in struct fields passed between functions and packages.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-17zd | conventions
+Initialize all slice fields to empty slices in struct constructors using make() with zero capacity, not nil, to ensure JSON marshaling produces [] instead of null and enable append operations without nil checks
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-b0xw | conventions
+When adding a method to an interface that's implemented by multiple types, update all implementations and their tests together as one bead—the interface change, all concrete implementations, and the corresponding test cases are a single atomic unit of work.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-b0xw | patterns
+Extract shared logic into helpers (buildCommandArgs), but preserve method-specific responsibility at the call site—Command() returns unconfigured I/O to let the caller own stdin/stdout/stderr setup
 
 *Archived from new: filtered: generic engineering advice*
 

@@ -171,8 +171,8 @@ func TestAutoFix_ValidationRetryCappedAt2(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
 				Validation: config.ValidationConfig{
-					Enabled:  true,
-					Commands: []string{"go test ./..."},
+					Enabled:              true,
+					Commands:             []string{"go test ./..."},
 					MaxValidationRetries: tt.maxRetries,
 				},
 				Preflight: config.PreflightConfig{},
@@ -366,8 +366,8 @@ func TestAutoFix_MaxValidationRetriesDefault(t *testing.T) {
 func TestAutoFix_BeadMarkedFailedAfterMaxRetries(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
-			Enabled:  true,
-			Commands: []string{"go test ./..."},
+			Enabled:              true,
+			Commands:             []string{"go test ./..."},
 			MaxValidationRetries: 2,
 		},
 		Preflight: config.PreflightConfig{},
