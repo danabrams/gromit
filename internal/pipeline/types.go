@@ -34,8 +34,8 @@ type RefineInput struct {
 // RefineResult contains the output from the Refine workflow.
 // Use NewRefineResult() to create instances with properly initialized slices.
 type RefineResult struct {
-	CreatedSpecs  []string `json:"created_specs"`
-	RefinedItems  []string `json:"refined_items"`
+	CreatedSpecs []string `json:"created_specs"`
+	RefinedItems []string `json:"refined_items"`
 }
 
 // NewRefineResult creates a RefineResult with initialized slices.
@@ -141,7 +141,7 @@ type ExploreResult struct {
 	CreatedBacklogItems []string `json:"created_backlog_items"`
 }
 
-// NewExploreResult creates a ExploreResult with initialized slices.
+// NewExploreResult creates an ExploreResult with initialized slices.
 func NewExploreResult() ExploreResult {
 	return ExploreResult{
 		CreatedSpecs:        []string{},

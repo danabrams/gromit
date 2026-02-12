@@ -65,6 +65,15 @@ Provider implementations follow a pattern of capturing stdout/stderr separately 
 ### 2026-02-12 | gromit-qj2a | patterns
 When adding fields to result types that flow through the runner→logger pipeline, add the field to both IterationResult and IterationLog, then explicitly propagate it in writeIterationLog() — symmetric field propagation ensures observable data isn't lost during persistence
 
+### 2026-02-12 | gromit-qj2a | patterns
+New fields added to IterationResult in runner/runner.go are propagated to IterationLog in writeIterationLog() by copying the field directly; follow this pattern for any new result fields
+
+### 2026-02-12 | gromit-sacl | patterns
+Validation recovery attempts trivial auto-fixes (gofmt/goimports via injected autoFixFn) before invoking Claude, re-validating after each fix; only escalates to Claude build if auto-fix fails. Inject autoFixFn into Runner for DI-based testability, use MaxValidationRetries to cap retry depth (default 2).
+
+### 2026-02-12 | gromit-17zd | conventions
+Acceptance test budget (6000 lines across all test files) is a hard constraint in this project. When adding large test suites for new packages, audit existing test files first to identify reusable test patterns and avoid duplication. Use table-driven tests and helper functions to maximize coverage per line of code.
+
 ---
 
 ## Archived
@@ -993,6 +1002,11 @@ Provider implementations use temp files for prompt delivery and explicitly handl
 
 ### 2026-02-12 | gromit-g7oi | patterns
 Package test files use table-driven tests with t.Run for each case, covering all heuristic paths, edge cases (empty output, zero hits), case insensitivity, and false positive prevention alongside happy paths
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-17zd | gotchas
+Slice fields in Go structs should be initialized to empty slices (not nil) in constructors to ensure predictable behavior and avoid nil pointer panics when iterating or appending. This is especially critical in struct fields passed between functions and packages.
 
 *Archived from new: filtered: generic engineering advice*
 
