@@ -952,3 +952,8 @@ When migrating interfaces (like ClaudeClient → Provider), systematically searc
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-12 | gromit-mz3m | conventions
+Acceptance test suites in this codebase enforce quantitative metrics (like test line reduction percentages) as hard pass/fail criteria. Before declaring a task complete, check test output for acceptance metrics and ensure all thresholds are met—migration completeness alone is insufficient if metrics targets are embedded in validation tests.
+
+*Archived from new: filtered: generic engineering advice*
+

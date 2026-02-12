@@ -172,7 +172,6 @@ func TestRunnerWithDepsAcceptsRouterDependency(t *testing.T) {
 
 // TestRunnerNoLongerHasClaudeField verifies that the Runner struct
 // no longer has a direct `claude` field - all LLM access goes through router.
-// Expected failure: Test will fail if Runner.claude field still exists
 func TestRunnerNoLongerHasClaudeField(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, ".gromit", "templates")
@@ -197,18 +196,9 @@ func TestRunnerNoLongerHasClaudeField(t *testing.T) {
 		t.Fatalf("NewRunner failed: %v", err)
 	}
 
-	// The runner should have a router field
 	if runner.router == nil {
 		t.Fatal("expected runner.router to exist")
 	}
-
-	// Verify there's no claude field accessible (this is a compile-time check really,
-	// but we document the expectation here)
-	// If Runner had a claude field, code like `runner.claude.Run()` would compile
-	// Since it doesn't, all LLM invocations must go through runner.router.Select()
-
-	// This test primarily documents the architectural requirement:
-	// Runner.claude field has been removed, router is the sole LLM access point
 }
 
 // simpleTestProvider implements provider.Provider for testing

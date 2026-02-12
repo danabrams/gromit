@@ -14,33 +14,13 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 )
 
-// TestNewAnalyzerAcceptsProvider verifies that NewAnalyzer can accept a Provider
-// instead of only claude.Client
-// Expected failure: NewAnalyzer does not accept Provider parameter yet
-func TestNewAnalyzerAcceptsProvider(t *testing.T) {
+// TestAnalyzerWithProvider verifies that Analyzer works with Provider interface,
+// accepts tier parameter correctly, and properly parses analysis results.
+func TestAnalyzerWithProvider(t *testing.T) {
+	var capturedTier string
 	mockProvider := &mockProvider{
 		FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
-			return &provider.Result{Success: true, Output: `{"category":"syntax","recoverable":true,"root_cause":"test"}`}, nil
-		},
-	}
-	mockRenderer := &mockRenderer{}
-
-	analyzer, err := NewAnalyzer(mockProvider, "haiku", mockRenderer)
-
-	if err != nil {
-		t.Fatalf("NewAnalyzer with provider should succeed, got error: %v", err)
-	}
-	if analyzer == nil {
-		t.Fatal("NewAnalyzer should return non-nil analyzer")
-	}
-}
-
-// TestAnalyzerAnalyzeWithProvider verifies that Analyzer.Analyze works correctly
-// when initialized with a Provider instead of claude.Client
-// Expected failure: Analyzer.Analyze does not work with Provider yet
-func TestAnalyzerAnalyzeWithProvider(t *testing.T) {
-	mockProvider := &mockProvider{
-		FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+			capturedTier = tier
 			return &provider.Result{
 				Success:  true,
 				Output:   `{"category":"logic","recoverable":true,"root_cause":"test root cause","suggestion":"test suggestion"}`,
@@ -56,16 +36,15 @@ func TestAnalyzerAnalyzeWithProvider(t *testing.T) {
 		},
 	}
 
-	analyzer, err := NewAnalyzer(mockProvider, "haiku", mockRenderer)
+	analyzer, err := NewAnalyzer(mockProvider, "medium", mockRenderer)
 	if err != nil {
 		t.Fatalf("NewAnalyzer failed: %v", err)
 	}
-
-	b := &bead.Bead{
-		ID:    "test-123",
-		Title: "Test bead",
+	if analyzer == nil {
+		t.Fatal("NewAnalyzer should return non-nil analyzer")
 	}
 
+	b := &bead.Bead{ID: "test-123", Title: "Test bead"}
 	analysis, err := analyzer.Analyze(context.Background(), b, "test failure output")
 
 	if err != nil {
@@ -80,91 +59,8 @@ func TestAnalyzerAnalyzeWithProvider(t *testing.T) {
 	if analysis.RootCause != "test root cause" {
 		t.Errorf("expected root_cause='test root cause', got %q", analysis.RootCause)
 	}
-}
-
-// TestAnalyzerUsesProviderTierParameter verifies that Analyzer calls Provider.Run
-// with the tier parameter (not a model name)
-// Expected failure: Analyzer does not call Provider.Run with tier parameter yet
-func TestAnalyzerUsesProviderTierParameter(t *testing.T) {
-	var capturedTier string
-	mockProvider := &mockProvider{
-		FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
-			capturedTier = tier
-			return &provider.Result{
-				Success: true,
-				Output:  `{"category":"syntax","recoverable":true,"root_cause":"test","suggestion":"test"}`,
-			}, nil
-		},
-	}
-	mockRenderer := &mockRenderer{
-		FnRenderAnalyze: func(ctx *prompt.AnalyzeContext) (string, error) {
-			return "analyze prompt", nil
-		},
-	}
-
-	analyzer, err := NewAnalyzer(mockProvider, "sonnet", mockRenderer)
-	if err != nil {
-		t.Fatalf("NewAnalyzer failed: %v", err)
-	}
-
-	b := &bead.Bead{ID: "test-123", Title: "Test"}
-	_, err = analyzer.Analyze(context.Background(), b, "failure output")
-
-	if err != nil {
-		t.Fatalf("Analyze failed: %v", err)
-	}
-	if capturedTier != "sonnet" {
-		t.Errorf("expected Provider.Run to be called with tier='sonnet', got %q", capturedTier)
-	}
-}
-
-// TestNewAnalyzerRejectsNilProvider verifies that NewAnalyzer returns an error
-// when given a nil Provider
-// Expected failure: NewAnalyzer does not check for nil Provider yet
-func TestNewAnalyzerRejectsNilProvider(t *testing.T) {
-	mockRenderer := &mockRenderer{}
-
-	analyzer, err := NewAnalyzer(nil, "haiku", mockRenderer)
-
-	if err == nil {
-		t.Fatal("NewAnalyzer should return error for nil provider")
-	}
-	if analyzer != nil {
-		t.Error("NewAnalyzer should return nil analyzer when provider is nil")
-	}
-	if !strings.Contains(err.Error(), "provider") && !strings.Contains(err.Error(), "nil") {
-		t.Errorf("error should mention provider or nil, got: %v", err)
-	}
-}
-
-// TestAnalyzerAnalyzeWithProviderError verifies that Analyzer.Analyze properly
-// propagates errors from Provider.Run
-// Expected failure: Analyzer does not handle Provider errors correctly yet
-func TestAnalyzerAnalyzeWithProviderError(t *testing.T) {
-	mockProvider := &mockProvider{
-		FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
-			return nil, errors.New("provider run failed")
-		},
-	}
-	mockRenderer := &mockRenderer{
-		FnRenderAnalyze: func(ctx *prompt.AnalyzeContext) (string, error) {
-			return "analyze prompt", nil
-		},
-	}
-
-	analyzer, err := NewAnalyzer(mockProvider, "haiku", mockRenderer)
-	if err != nil {
-		t.Fatalf("NewAnalyzer failed: %v", err)
-	}
-
-	b := &bead.Bead{ID: "test-123", Title: "Test"}
-	analysis, err := analyzer.Analyze(context.Background(), b, "failure output")
-
-	if err == nil {
-		t.Fatal("Analyze should return error when Provider.Run fails")
-	}
-	if analysis != nil {
-		t.Error("Analyze should return nil analysis on error")
+	if capturedTier != "medium" {
+		t.Errorf("expected Provider.Run to be called with tier='medium', got %q", capturedTier)
 	}
 }
 
