@@ -162,9 +162,10 @@ Create a test file and commit it.
 	t.Logf("✓ Build invocation uses correct format: claude -p --model sonnet")
 }
 
-// TestClaudeContract_ValidationInvocation verifies that gromit passes correct arguments
-// to claude for a validation invocation
-func TestClaudeContract_ValidationInvocation(t *testing.T) {
+// TestClaudeContract_DirectValidation verifies that validation runs commands
+// directly via exec.Command (not through Claude CLI). When validation is enabled,
+// only the build phase should invoke Claude. Validation commands execute via shell.
+func TestClaudeContract_DirectValidation(t *testing.T) {
 	env := setupTestEnv(t)
 
 	// Create a minimal gromit config with validation enabled
@@ -299,27 +300,38 @@ Create a test file and commit it.
 		t.Logf("  %d: %s", i+1, call)
 	}
 
-	// Verify at least two claude calls were made (build + validation)
-	if len(calls) < 2 {
-		t.Fatalf("Expected at least 2 claude calls (build + validation), got %d", len(calls))
+	// AC1: Claude is only called for the build phase — exactly 1 call
+	if len(calls) != 1 {
+		t.Fatalf("Expected exactly 1 claude call (build only), got %d — validation should not invoke Claude CLI", len(calls))
 	}
 
-	// Verify the build call uses haiku (P2 bead)
+	// AC2: The build call uses haiku for a P2 bead
 	buildCall := calls[0]
 	if !strings.Contains(buildCall, "--model haiku") {
 		t.Errorf("Expected build call to use '--model haiku' for P2 bead, got: %s", buildCall)
 	}
-	t.Logf("✓ Build call uses haiku for P2 bead")
 
-	// Verify the validation call uses haiku (configured as validation model)
-	validationCall := calls[1]
-	if !strings.Contains(validationCall, "claude -p") {
-		t.Errorf("Expected validation call to start with 'claude -p', got: %s", validationCall)
+	// AC3: Validation commands executed via shell (visible in stdout)
+	if !strings.Contains(stdout, "Validation passed") {
+		t.Errorf("Expected stdout to confirm validation passed via direct execution, got: %s", stdout)
 	}
-	if !strings.Contains(validationCall, "--model haiku") {
-		t.Errorf("Expected validation call to use '--model haiku', got: %s", validationCall)
+
+	// AC4: Bead was closed (build succeeded + validation passed)
+	bdCalls, err := filterCalls(env, "bd")
+	if err != nil {
+		t.Fatalf("Failed to read bd calls: %v", err)
 	}
-	t.Logf("✓ Validation call uses correct format: claude -p --model haiku")
+
+	foundClose := false
+	for _, call := range bdCalls {
+		if strings.Contains(call, "close") && strings.Contains(call, "test-bead-1") {
+			foundClose = true
+			break
+		}
+	}
+	if !foundClose {
+		t.Errorf("Expected bead test-bead-1 to be closed after successful build + validation, bd calls: %v", bdCalls)
+	}
 }
 
 // TestClaudeContract_EscalationOnFailure verifies that gromit escalates to a higher
