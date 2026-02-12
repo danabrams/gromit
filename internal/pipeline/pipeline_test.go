@@ -1,6 +1,103 @@
 package pipeline
 
-import "testing"
+import (
+	"testing"
+)
+
+// These should compile if the interfaces are properly defined
+var _ AgentResolver = (*mockAgentResolver)(nil)
+var _ ClaudeClient = (*mockClaudeClient)(nil)
+var _ BeadClient = (*mockBeadClient)(nil)
+var _ BacklogClient = (*mockBacklogClient)(nil)
+var _ PromptRenderer = (*mockPromptRenderer)(nil)
+var _ LearningsManager = (*mockLearningsManager)(nil)
+var _ StateManager = (*mockStateManager)(nil)
+var _ LogWriter = (*mockLogWriter)(nil)
+
+// Mock implementations for testing
+type mockAgentResolver struct{}
+
+func (m *mockAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (interface{}, error) {
+	return nil, nil
+}
+
+type mockClaudeClient struct{}
+
+func (m *mockClaudeClient) Run(prompt string, model string) (interface{}, error) {
+	return nil, nil
+}
+
+type mockBeadClient struct{}
+
+func (m *mockBeadClient) Ready() (interface{}, error) {
+	return nil, nil
+}
+
+func (m *mockBeadClient) Show(id string) (interface{}, error) {
+	return nil, nil
+}
+
+func (m *mockBeadClient) Create(title string, priority int, labels []string, outputs []string) (interface{}, error) {
+	return nil, nil
+}
+
+func (m *mockBeadClient) Close(id string) error {
+	return nil
+}
+
+type mockBacklogClient struct{}
+
+func (m *mockBacklogClient) List() ([]interface{}, error) {
+	return nil, nil
+}
+
+func (m *mockBacklogClient) Get(id string) (interface{}, error) {
+	return nil, nil
+}
+
+func (m *mockBacklogClient) Add(item interface{}) error {
+	return nil
+}
+
+func (m *mockBacklogClient) Update(id string, fn func(interface{})) error {
+	return nil
+}
+
+type mockPromptRenderer struct{}
+
+func (m *mockPromptRenderer) RenderRefine(input interface{}) (string, error) {
+	return "", nil
+}
+
+func (m *mockPromptRenderer) RenderPlan(input interface{}) (string, error) {
+	return "", nil
+}
+
+func (m *mockPromptRenderer) RenderDecompose(input interface{}) (string, error) {
+	return "", nil
+}
+
+type mockLearningsManager struct{}
+
+func (m *mockLearningsManager) Add(content string) error {
+	return nil
+}
+
+type mockStateManager struct{}
+
+func (m *mockStateManager) GetLastReviewCommit() (string, error) {
+	return "", nil
+}
+
+func (m *mockStateManager) SetLastReviewCommit(commit string) error {
+	return nil
+}
+
+type mockLogWriter struct{}
+
+func (m *mockLogWriter) Write(entry interface{}) error {
+	return nil
+}
 
 func TestNew_ReturnsNonNil(t *testing.T) {
 	deps := &Deps{}
