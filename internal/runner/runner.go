@@ -675,6 +675,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		Error:               errStr,
 		Outcome:             outcome,
 		ValidationRetried:   result.ValidationRetried,
+		UsageLimited:        result.UsageLimited,
 		TimeoutType:         result.TimeoutType,
 		TimeToFirstEventMs:  result.TimeToFirstEventMs,
 		ToolCallCount:       result.ToolCallCount,
