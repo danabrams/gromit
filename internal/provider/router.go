@@ -172,6 +172,27 @@ func (r *Router) selectProvider(name string, tier string) (Provider, string) {
 	return provider, modelName
 }
 
+// SelectCross picks a provider different from buildProvider for cross-review routing.
+// Returns the first available provider whose name differs from buildProvider.
+// Falls back to buildProvider if no other provider is available.
+// Returns nil provider and empty model name if no providers are available at all.
+func (r *Router) SelectCross(buildProvider string, tier string) (Provider, string) {
+	// Try to find an available provider that differs from the build provider
+	for name := range r.providers {
+		if name != buildProvider && r.isAvailable(name) {
+			return r.selectProvider(name, tier)
+		}
+	}
+
+	// Fall back to the build provider itself if no cross-provider is available
+	if r.isAvailable(buildProvider) {
+		return r.selectProvider(buildProvider, tier)
+	}
+
+	// No providers available at all
+	return nil, ""
+}
+
 // MarkUnavailable records current time plus cooldown for the specified provider
 func (r *Router) MarkUnavailable(name string) {
 	until := time.Now().Add(r.cooldown)
