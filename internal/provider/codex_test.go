@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -190,5 +191,48 @@ exit 1
 
 	if result.Success {
 		t.Error("Run() Success should be false for non-zero exit code")
+	}
+}
+
+// TestCodexProviderStreamRunStreamsOutput verifies that StreamRun() writes
+// output to the provided io.Writer as it's produced by the codex CLI.
+func TestCodexProviderStreamRunStreamsOutput(t *testing.T) {
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+echo "Line 1"
+echo "Line 2"
+echo "Line 3"
+exit 0
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	tierMap := map[string]string{TierMedium: "gpt-4o"}
+	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+
+	ctx := context.Background()
+	var output bytes.Buffer
+	result, err := cp.StreamRun(ctx, "test prompt", TierMedium, &output, nil, nil)
+
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v, want nil", err)
+	}
+
+	if result == nil {
+		t.Fatal("StreamRun() returned nil result")
+	}
+
+	outputStr := output.String()
+	if !strings.Contains(outputStr, "Line 1") {
+		t.Errorf("StreamRun() output missing 'Line 1', got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "Line 2") {
+		t.Errorf("StreamRun() output missing 'Line 2', got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "Line 3") {
+		t.Errorf("StreamRun() output missing 'Line 3', got: %s", outputStr)
 	}
 }
