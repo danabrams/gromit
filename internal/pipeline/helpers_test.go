@@ -101,3 +101,23 @@ func TestDiffFiles_WithNewFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractSpecTitle_SimpleHeading(t *testing.T) {
+	dir := t.TempDir()
+	specFile := filepath.Join(dir, "spec.md")
+
+	content := `# Pipeline Extraction
+
+This is a spec about pipeline extraction.`
+
+	if err := os.WriteFile(specFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	title := ExtractSpecTitle(specFile)
+
+	expected := "Pipeline Extraction"
+	if title != expected {
+		t.Errorf("expected title %q, got %q", expected, title)
+	}
+}
