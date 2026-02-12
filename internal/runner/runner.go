@@ -52,7 +52,7 @@ type Runner struct {
 	gromitDir    string
 	gitDiffFn    func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
 	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
-	autoFixFn    func(startCommit string) error                                                                                    // injectable for testing; defaults to defaultAutoFix (gofmt + goimports)
+	autoFixFn    func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
 	labelFilters []string                                                                                                          // optional spec labels to filter beads
 }
 

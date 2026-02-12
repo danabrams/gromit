@@ -6,11 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/learnings"
-	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -57,10 +54,6 @@ func setupAutoFixRunner(t *testing.T, cfg *config.Config) (*Runner, *mockClaudeC
 // TestAutoFix_GofmtAndGoimportsRunBeforeClaudeReinvocation verifies AC1:
 // Before re-invoking Claude on validation failure, gofmt -w and goimports -w
 // run automatically on changed files.
-//
-// Expected failure: autoFixFn does not exist on Runner yet. The implementation
-// must add an injectable function that runs gofmt -w and goimports -w on
-// changed Go files before attempting a Claude-based fix.
 func TestAutoFix_GofmtAndGoimportsRunBeforeClaudeReinvocation(t *testing.T) {
 	r, mockClaude, _, _ := setupAutoFixRunner(t, nil)
 	r.cfg.Validation.MaxFixAttempts = 1
@@ -75,9 +68,6 @@ func TestAutoFix_GofmtAndGoimportsRunBeforeClaudeReinvocation(t *testing.T) {
 	claudeFixCalled := false
 	callOrder := []string{}
 
-	// Expected failure: autoFixFn does not exist on Runner yet.
-	// After implementation, this injectable function runs gofmt/goimports
-	// on changed files before Claude is invoked for a fix.
 	r.autoFixFn = func(startCommit string) error {
 		autoFixCalled = true
 		callOrder = append(callOrder, "autofix")
@@ -114,8 +104,6 @@ func TestAutoFix_GofmtAndGoimportsRunBeforeClaudeReinvocation(t *testing.T) {
 
 // TestAutoFix_PassesStartCommitToAutoFixFn verifies AC1: the auto-fix step
 // receives the startCommit so it can determine which files changed.
-//
-// Expected failure: autoFixFn does not exist on Runner yet.
 func TestAutoFix_PassesStartCommitToAutoFixFn(t *testing.T) {
 	r, mockClaude, _, _ := setupAutoFixRunner(t, nil)
 	r.cfg.Validation.MaxFixAttempts = 1
@@ -128,7 +116,6 @@ func TestAutoFix_PassesStartCommitToAutoFixFn(t *testing.T) {
 
 	var receivedCommit string
 
-	// Expected failure: autoFixFn does not exist on Runner yet.
 	r.autoFixFn = func(startCommit string) error {
 		receivedCommit = startCommit
 		return nil
@@ -156,11 +143,6 @@ func TestAutoFix_PassesStartCommitToAutoFixFn(t *testing.T) {
 
 // TestAutoFix_ValidationRetryCappedAt2 verifies AC2: validation retry is
 // capped at 2 attempts per bead; after 2 failures the bead is marked failed.
-//
-// Expected failure: MaxValidationRetries config field does not exist yet.
-// The current MaxFixAttempts defaults to 1. The implementation must add a
-// MaxValidationRetries field (defaulting to 2) that caps total validation
-// retry attempts including both auto-fix and Claude-based fix cycles.
 func TestAutoFix_ValidationRetryCappedAt2(t *testing.T) {
 	tests := []struct {
 		name                 string
@@ -191,8 +173,6 @@ func TestAutoFix_ValidationRetryCappedAt2(t *testing.T) {
 				Validation: config.ValidationConfig{
 					Enabled:  true,
 					Commands: []string{"go test ./..."},
-					// Expected failure: MaxValidationRetries does not exist yet.
-					// After implementation, this field caps total validation retry attempts.
 					MaxValidationRetries: tt.maxRetries,
 				},
 				Preflight: config.PreflightConfig{},
@@ -212,7 +192,6 @@ func TestAutoFix_ValidationRetryCappedAt2(t *testing.T) {
 				return &claude.Result{Success: true, Output: "Fixed"}, nil
 			}
 
-			// Expected failure: autoFixFn does not exist on Runner yet.
 			r.autoFixFn = func(startCommit string) error { return nil }
 
 			validationCallCount := 0
@@ -253,10 +232,6 @@ func TestAutoFix_ValidationRetryCappedAt2(t *testing.T) {
 
 // TestAutoFix_TrivialFixResolvedWithoutClaude verifies AC3: when gofmt/goimports
 // resolve the validation failure, no Claude invocation is needed for the fix.
-//
-// Expected failure: autoFixFn does not exist on Runner yet. After implementation,
-// if the auto-fix step (gofmt + goimports) resolves the validation failure,
-// runValidationWithRecovery should skip the Claude build-fix invocation entirely.
 func TestAutoFix_TrivialFixResolvedWithoutClaude(t *testing.T) {
 	r, mockClaude, _, _ := setupAutoFixRunner(t, nil)
 	r.cfg.Validation.MaxFixAttempts = 1
@@ -273,7 +248,6 @@ func TestAutoFix_TrivialFixResolvedWithoutClaude(t *testing.T) {
 		return &claude.Result{Success: true, Output: "Fixed"}, nil
 	}
 
-	// Expected failure: autoFixFn does not exist on Runner yet.
 	r.autoFixFn = func(startCommit string) error {
 		return nil // auto-fix "succeeds" (runs gofmt/goimports)
 	}
@@ -299,9 +273,6 @@ func TestAutoFix_TrivialFixResolvedWithoutClaude(t *testing.T) {
 
 // TestAutoFix_TrivialAutoFixedFieldSetOnResult verifies AC3: when a trivial
 // fix resolves validation, the result records that it was auto-fixed.
-//
-// Expected failure: TrivialAutoFixed field does not exist on IterationResult yet.
-// After implementation, the result should indicate that the fix was trivial.
 func TestAutoFix_TrivialAutoFixedFieldSetOnResult(t *testing.T) {
 	r, _, _, _ := setupAutoFixRunner(t, nil)
 	r.cfg.Validation.MaxFixAttempts = 1
@@ -312,7 +283,6 @@ func TestAutoFix_TrivialAutoFixedFieldSetOnResult(t *testing.T) {
 	bc.parentCtx = context.Background()
 	bc.startCommit = "abc123"
 
-	// Expected failure: autoFixFn does not exist on Runner yet.
 	r.autoFixFn = func(startCommit string) error { return nil }
 
 	validationCallCount := 0
@@ -326,7 +296,6 @@ func TestAutoFix_TrivialAutoFixedFieldSetOnResult(t *testing.T) {
 
 	_ = r.runValidationWithRecovery(context.Background(), bc)
 
-	// Expected failure: TrivialAutoFixed field does not exist on IterationResult yet.
 	if !bc.result.TrivialAutoFixed {
 		t.Error("expected TrivialAutoFixed=true when auto-fix resolved validation without Claude")
 	}
@@ -335,8 +304,6 @@ func TestAutoFix_TrivialAutoFixedFieldSetOnResult(t *testing.T) {
 // TestAutoFix_RevalidatesAfterAutoFixBeforeCallingClaude verifies AC1+AC3:
 // after running gofmt/goimports, validation is re-run. Only if it still fails
 // does Claude get invoked for a fix.
-//
-// Expected failure: autoFixFn does not exist on Runner yet.
 func TestAutoFix_RevalidatesAfterAutoFixBeforeCallingClaude(t *testing.T) {
 	r, mockClaude, _, _ := setupAutoFixRunner(t, nil)
 	r.cfg.Validation.MaxFixAttempts = 1
@@ -349,7 +316,6 @@ func TestAutoFix_RevalidatesAfterAutoFixBeforeCallingClaude(t *testing.T) {
 
 	callSequence := []string{}
 
-	// Expected failure: autoFixFn does not exist on Runner yet.
 	r.autoFixFn = func(startCommit string) error {
 		callSequence = append(callSequence, "autofix")
 		return nil
@@ -386,13 +352,10 @@ func TestAutoFix_RevalidatesAfterAutoFixBeforeCallingClaude(t *testing.T) {
 
 // TestAutoFix_MaxValidationRetriesDefault verifies AC2: the default value for
 // MaxValidationRetries is 2, meaning validation retries are capped at 2 by default.
-//
-// Expected failure: MaxValidationRetries field does not exist on ValidationConfig yet.
 func TestAutoFix_MaxValidationRetriesDefault(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 
-	// Expected failure: MaxValidationRetries field does not exist yet.
 	if cfg.Validation.MaxValidationRetries != 2 {
 		t.Errorf("expected MaxValidationRetries default of 2, got %d", cfg.Validation.MaxValidationRetries)
 	}
@@ -400,14 +363,11 @@ func TestAutoFix_MaxValidationRetriesDefault(t *testing.T) {
 
 // TestAutoFix_BeadMarkedFailedAfterMaxRetries verifies AC2: after exhausting
 // validation retries, the bead result indicates failure.
-//
-// Expected failure: autoFixFn and MaxValidationRetries do not exist yet.
 func TestAutoFix_BeadMarkedFailedAfterMaxRetries(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
 			Enabled:  true,
 			Commands: []string{"go test ./..."},
-			// Expected failure: MaxValidationRetries does not exist yet.
 			MaxValidationRetries: 2,
 		},
 		Preflight: config.PreflightConfig{},
@@ -425,7 +385,6 @@ func TestAutoFix_BeadMarkedFailedAfterMaxRetries(t *testing.T) {
 		return &claude.Result{Success: true, Output: "Fixed"}, nil
 	}
 
-	// Expected failure: autoFixFn does not exist on Runner yet.
 	r.autoFixFn = func(startCommit string) error { return nil }
 
 	// Validation always fails
@@ -449,9 +408,3 @@ func TestAutoFix_BeadMarkedFailedAfterMaxRetries(t *testing.T) {
 		t.Error("expected ValidationRetried=true after exhausting retries")
 	}
 }
-
-// Suppress unused import warnings — these imports are used by test types above.
-var _ = (*bead.Bead)(nil)
-var _ = (*learnings.Learning)(nil)
-var _ = (*prompt.Context)(nil)
-var _ = (*provider.Router)(nil)
