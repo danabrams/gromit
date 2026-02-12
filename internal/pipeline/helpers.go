@@ -13,12 +13,12 @@ import (
 func ListMarkdownFiles(dir string) ([]string, error) {
 	// Ensure directory exists
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating directory: %w", err)
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading directory: %w", err)
 	}
 
 	var files []string
