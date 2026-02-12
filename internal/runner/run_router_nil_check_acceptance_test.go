@@ -79,6 +79,9 @@ func TestAcceptance_RunChecksNilFieldsInOrder(t *testing.T) {
 type mockProviderForTest struct{}
 
 func (m *mockProviderForTest) Name() string { return "mock" }
+func (m *mockProviderForTest) ModelForTier(tier string) string {
+	return "mock-model"
+}
 func (m *mockProviderForTest) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
 	return &provider.Result{Success: true, Model: "mock-model"}, nil
 }

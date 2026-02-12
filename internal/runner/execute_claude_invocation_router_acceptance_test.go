@@ -353,6 +353,19 @@ func (m *mockProviderWithSelectTracking) Name() string {
 	return "mock"
 }
 
+func (m *mockProviderWithSelectTracking) ModelForTier(tier string) string {
+	switch tier {
+	case provider.TierHigh:
+		return "mock-opus"
+	case provider.TierMedium:
+		return "mock-sonnet"
+	case provider.TierLow:
+		return "mock-haiku"
+	default:
+		return "mock-model"
+	}
+}
+
 func (m *mockProviderWithSelectTracking) Run(ctx context.Context, prompt, tier string) (*provider.Result, error) {
 	if m.onSelect != nil {
 		m.onSelect("", tier)
@@ -398,6 +411,19 @@ func (m *mockProviderWithUsageLimitTracking) Name() string {
 		return m.name
 	}
 	return "mock"
+}
+
+func (m *mockProviderWithUsageLimitTracking) ModelForTier(tier string) string {
+	switch tier {
+	case provider.TierHigh:
+		return m.name + "-high"
+	case provider.TierMedium:
+		return m.name + "-medium"
+	case provider.TierLow:
+		return m.name + "-low"
+	default:
+		return m.name + "-default"
+	}
 }
 
 func (m *mockProviderWithUsageLimitTracking) Run(ctx context.Context, prompt, tier string) (*provider.Result, error) {
