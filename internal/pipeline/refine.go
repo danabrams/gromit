@@ -6,13 +6,8 @@ import (
 	"path/filepath"
 )
 
-// refineContext holds state for a refine workflow execution.
-type refineContext struct {
-	specsBeforeSnapshot []string
-}
-
 // Refine executes the refine workflow interactively.
-func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineSession, error) {
+func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult, error) {
 	if p.deps == nil || p.deps.AgentResolver == nil {
 		return nil, fmt.Errorf("pipeline: nil dependencies")
 	}
@@ -61,19 +56,23 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineSessio
 		return nil, fmt.Errorf("resolving agent: %w", err)
 	}
 
-	// Launch agent
+	// Launch agent (blocks until complete)
 	if err := agent.Launch(promptPath); err != nil {
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}
 
-	refineCtx := &refineContext{
-		specsBeforeSnapshot: existingSpecs,
+	// Post-processing: detect new specs
+	newSpecs, err := ListMarkdownFiles(p.paths.SpecsDir)
+	if err != nil {
+		return nil, fmt.Errorf("scanning specs after agent: %w", err)
 	}
 
-	// Return session with context
-	return &RefineSession{
-		ctx: refineCtx,
-	}, nil
+	createdSpecs := DiffFiles(existingSpecs, newSpecs)
+
+	result := NewRefineResult()
+	result.CreatedSpecs = createdSpecs
+
+	return &result, nil
 }
 
 // buildRefinePrompt constructs the system prompt for refine sessions.
@@ -101,18 +100,4 @@ Specs directory: %s
 ## Instructions
 
 (skill content would go here)`, ideaText, p.paths.SpecsDir)
-}
-
-// RefineSession is a typed wrapper for interactive Refine sessions.
-type RefineSession struct {
-	Session
-	ctx *refineContext
-}
-
-// GetBeforeSnapshot returns the specs that existed before the session started (for testing).
-func (s *RefineSession) GetBeforeSnapshot() []string {
-	if s.ctx == nil {
-		return nil
-	}
-	return s.ctx.specsBeforeSnapshot
 }

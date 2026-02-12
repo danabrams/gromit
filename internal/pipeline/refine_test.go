@@ -21,13 +21,13 @@ func TestRefine_BlankSession(t *testing.T) {
 		SpecsDir:  specsDir,
 	})
 
-	session, err := p.Refine(context.Background(), RefineInput{})
+	result, err := p.Refine(context.Background(), RefineInput{})
 	if err != nil {
 		t.Fatalf("Refine() failed: %v", err)
 	}
 
-	if session == nil {
-		t.Fatal("expected non-nil session")
+	if result == nil {
+		t.Fatal("expected non-nil result")
 	}
 }
 
@@ -44,26 +44,36 @@ func TestRefine_ScansExistingSpecs(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Track what was scanned
+	var beforeSnapshot []string
+	mockAgent := &mockAgent{
+		name: "test-agent",
+		onLaunch: func(promptPath string) {
+			// Capture the existing specs at launch time
+			specs, _ := ListMarkdownFiles(specsDir)
+			beforeSnapshot = specs
+		},
+	}
+
 	p := New(&Deps{
-		AgentResolver: &mockAgentResolver{agent: &mockAgent{name: "test-agent"}},
+		AgentResolver: &mockAgentResolver{agent: mockAgent},
 		BacklogClient: &mockBacklogClient{},
 	}, &Paths{
 		GromitDir: tmpDir,
 		SpecsDir:  specsDir,
 	})
 
-	session, err := p.Refine(context.Background(), RefineInput{})
+	_, err := p.Refine(context.Background(), RefineInput{})
 	if err != nil {
 		t.Fatalf("Refine() failed: %v", err)
 	}
 
-	// Verify Refine scanned existing specs
-	snapshot := session.GetBeforeSnapshot()
-	if len(snapshot) != 1 {
-		t.Fatalf("expected 1 spec in before snapshot, got %d", len(snapshot))
+	// Verify specs were scanned before launch
+	if len(beforeSnapshot) != 1 {
+		t.Fatalf("expected 1 spec before launch, got %d", len(beforeSnapshot))
 	}
-	if snapshot[0] != existingSpec {
-		t.Errorf("expected snapshot to contain %s, got %s", existingSpec, snapshot[0])
+	if beforeSnapshot[0] != existingSpec {
+		t.Errorf("expected snapshot to contain %s, got %s", existingSpec, beforeSnapshot[0])
 	}
 }
 
@@ -152,6 +162,42 @@ func TestRefine_LoadsBacklogIdea(t *testing.T) {
 
 func contains(s, substr string) bool {
 	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) >= len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsInner(s, substr)))
+}
+
+func TestRefine_DetectsNewSpecs(t *testing.T) {
+	tmpDir := t.TempDir()
+	specsDir := tmpDir + "/specs"
+
+	// Create mock agent that creates a spec file
+	mockAgent := &mockAgent{
+		name: "test-agent",
+		onLaunch: func(promptPath string) {
+			// Simulate agent creating a new spec
+			os.MkdirAll(specsDir, 0755)
+			os.WriteFile(specsDir+"/new-feature.md", []byte("# New Feature"), 0644)
+		},
+	}
+
+	p := New(&Deps{
+		AgentResolver: &mockAgentResolver{agent: mockAgent},
+		BacklogClient: &mockBacklogClient{},
+	}, &Paths{
+		GromitDir: tmpDir,
+		SpecsDir:  specsDir,
+	})
+
+	result, err := p.Refine(context.Background(), RefineInput{IdeaText: "test"})
+	if err != nil {
+		t.Fatalf("Refine() failed: %v", err)
+	}
+
+	// Verify detected specs
+	if len(result.CreatedSpecs) != 1 {
+		t.Fatalf("expected 1 created spec, got %d", len(result.CreatedSpecs))
+	}
+	if !contains(result.CreatedSpecs[0], "new-feature.md") {
+		t.Errorf("expected created spec to be new-feature.md, got %s", result.CreatedSpecs[0])
+	}
 }
 
 func containsInner(s, substr string) bool {
