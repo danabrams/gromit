@@ -210,9 +210,21 @@ created: 2026-02-11
 			}, nil
 		},
 	}
+
+	mockBead := &decomposeTestBeadClient{
+		CreateWithDepsAndDescriptionFn: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+			return map[string]interface{}{
+				"ID":       "bead-1",
+				"Title":    title,
+				"Priority": priority,
+				"Labels":   labels,
+			}, nil
+		},
+	}
+
 	deps := &Deps{
 		ClaudeClient: mockClaude,
-		BeadClient:   &decomposeTestBeadClient{},
+		BeadClient:   mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -226,8 +238,7 @@ created: 2026-02-11
 	}
 
 	_, err := p.Decompose(ctx, input)
-	// Ignore the "not yet implemented" error - we're just testing prompt construction
-	if err != nil && !strings.Contains(err.Error(), "not yet implemented") {
+	if err != nil {
 		t.Fatalf("Decompose() failed unexpectedly: %v", err)
 	}
 
