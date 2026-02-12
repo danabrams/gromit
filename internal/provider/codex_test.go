@@ -52,3 +52,15 @@ func TestNewCodexProviderConstructor(t *testing.T) {
 		t.Errorf("tierToModel[TierHigh] = %q, want %q", cp.tierToModel[TierHigh], "o3")
 	}
 }
+
+// TestCodexProviderNameMethod verifies that CodexProvider implements
+// Name() method returning "codex".
+func TestCodexProviderNameMethod(t *testing.T) {
+	cp := &CodexProvider{}
+
+	name := cp.Name()
+
+	if name != "codex" {
+		t.Errorf("Name() = %q, want %q", name, "codex")
+	}
+}
