@@ -27,9 +27,9 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 		{
 			name: "nil AgentResolver",
 			deps: &Deps{
-				AgentResolver:    nil,
-				PromptRenderer:   &testPromptRenderer{},
-				BacklogClient:    &testBacklogClient{},
+				AgentResolver:  nil,
+				PromptRenderer: &testPromptRenderer{},
+				BacklogClient:  &testBacklogClient{},
 			},
 			paths:   &Paths{},
 			wantErr: "nil AgentResolver",
@@ -37,9 +37,9 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 		{
 			name: "nil PromptRenderer",
 			deps: &Deps{
-				AgentResolver:    &testAgentResolver{},
-				PromptRenderer:   nil,
-				BacklogClient:    &testBacklogClient{},
+				AgentResolver:  &testAgentResolver{},
+				PromptRenderer: nil,
+				BacklogClient:  &testBacklogClient{},
 			},
 			paths:   &Paths{},
 			wantErr: "nil PromptRenderer",
@@ -47,9 +47,9 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 		{
 			name: "nil BacklogClient",
 			deps: &Deps{
-				AgentResolver:    &testAgentResolver{},
-				PromptRenderer:   &testPromptRenderer{},
-				BacklogClient:    nil,
+				AgentResolver:  &testAgentResolver{},
+				PromptRenderer: &testPromptRenderer{},
+				BacklogClient:  nil,
 			},
 			paths:   &Paths{},
 			wantErr: "nil BacklogClient",

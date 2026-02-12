@@ -105,13 +105,13 @@ func NewDecomposeResult() DecomposeResult {
 
 // ReviewInput contains parameters for the Review workflow.
 type ReviewInput struct {
-	FromCommit string        // Git commit ref to review from
-	Diff       string        // Diff content to review
-	Model      string        // Model to use for review
-	Timeout    int           // Timeout in seconds
-	AgentName  string        // Optional agent override (for interactive mode)
-	Spec       string        // Spec label to scope review (used by CLI to resolve FromCommit)
-	Epic       string        // Epic label to scope review (used by CLI to resolve FromCommit)
+	FromCommit string // Git commit ref to review from
+	Diff       string // Diff content to review
+	Model      string // Model to use for review
+	Timeout    int    // Timeout in seconds
+	AgentName  string // Optional agent override (for interactive mode)
+	Spec       string // Spec label to scope review (used by CLI to resolve FromCommit)
+	Epic       string // Epic label to scope review (used by CLI to resolve FromCommit)
 }
 
 // ReviewResult contains the output from the Review workflow.
@@ -152,7 +152,6 @@ func NewExploreResult() ExploreResult {
 		CreatedBacklogItems: []string{},
 	}
 }
-
 
 // PlanSession is a typed wrapper for interactive Plan sessions.
 type PlanSession struct {

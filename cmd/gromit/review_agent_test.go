@@ -400,8 +400,8 @@ func TestReviewAgentSelectionIntegration(t *testing.T) {
 
 		// Verify key integration points in review.go (adapter layer)
 		integrationChecks := map[string]string{
-			"imports agent package":        `"github.com/danabrams/gromit/internal/agent"`,
-			"calls agent.Resolve":          "agent.Resolve",
+			"imports agent package":            `"github.com/danabrams/gromit/internal/agent"`,
+			"calls agent.Resolve":              "agent.Resolve",
 			"calls pipeline.ReviewInteractive": "p.ReviewInteractive",
 		}
 

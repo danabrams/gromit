@@ -270,10 +270,10 @@ func TestRefinePreservesPromptBuilding(t *testing.T) {
 
 	// Verify prompt building steps are still present
 	requiredPatterns := []string{
-		"systemPrompt",           // System prompt variable
-		"buildRefinePrompt",      // Prompt building method
-		"WriteTempPrompt",        // Writing prompt to temp file
-		"SpecsDir",               // Specs directory still used in prompt
+		"systemPrompt",      // System prompt variable
+		"buildRefinePrompt", // Prompt building method
+		"WriteTempPrompt",   // Writing prompt to temp file
+		"SpecsDir",          // Specs directory still used in prompt
 	}
 
 	for _, pattern := range requiredPatterns {
@@ -298,11 +298,11 @@ func TestRefinePreservesArtifactDetection(t *testing.T) {
 
 	// Verify artifact detection steps are still present
 	requiredPatterns := []string{
-		"existingSpecs",      // Recording specs before launch
-		"ListMarkdownFiles",  // Getting spec files
-		"newSpecs",           // Getting specs after launch
-		"createdSpecs",       // Finding newly created specs
-		"DiffFiles",          // Comparing old vs new specs
+		"existingSpecs",     // Recording specs before launch
+		"ListMarkdownFiles", // Getting spec files
+		"newSpecs",          // Getting specs after launch
+		"createdSpecs",      // Finding newly created specs
+		"DiffFiles",         // Comparing old vs new specs
 	}
 
 	for _, pattern := range requiredPatterns {
@@ -342,8 +342,8 @@ func TestRefineAgentSelectionIntegration(t *testing.T) {
 
 		// Verify key integration points in pipeline package
 		integrationChecks := map[string]string{
-			"calls agent.Resolve":    ".Resolve(",
-			"calls agent.Launch":     ".Launch(",
+			"calls agent.Resolve": ".Resolve(",
+			"calls agent.Launch":  ".Launch(",
 		}
 
 		for check, pattern := range integrationChecks {

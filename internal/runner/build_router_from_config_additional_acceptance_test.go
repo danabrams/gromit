@@ -20,11 +20,11 @@ func setupSingleProviderConfig(t *testing.T, name string, pDef config.ProviderDe
 		t.Fatalf("failed to create templates dir: %v", err)
 	}
 	cfg := &config.Config{
-		Claude:   config.ClaudeConfig{Binary: "claude", Timeout: 300},
-		Paths:    config.PathsConfig{Templates: templatesDir},
-		Models:   config.ModelsConfig{Validation: "low"},
+		Claude:    config.ClaudeConfig{Binary: "claude", Timeout: 300},
+		Paths:     config.PathsConfig{Templates: templatesDir},
+		Models:    config.ModelsConfig{Validation: "low"},
 		Providers: map[string]config.ProviderDef{name: pDef},
-		Routing:  config.RoutingConfig{Ratio: map[string]int{name: 100}},
+		Routing:   config.RoutingConfig{Ratio: map[string]int{name: 100}},
 	}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()

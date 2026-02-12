@@ -173,4 +173,3 @@ func hasAcceptanceBuildTag(t *testing.T, path string) bool {
 	}
 	return false
 }
-
