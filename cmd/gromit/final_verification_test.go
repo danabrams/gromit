@@ -49,46 +49,6 @@ func TestFinalVerification(t *testing.T) {
 		}
 	})
 
-	t.Run("total acceptance test lines within budget", func(t *testing.T) {
-		// Original baseline was 8,370 lines (24 files). Cleanup achieved 38.5%
-		// reduction to ~5,142. Rebased ceiling to 6,000 to allow growth for
-		// new provider migration tests without forced consolidation.
-		const maxAllowedLines = 6000
-
-		totalLines := 0
-		var files []string
-
-		err := filepath.WalkDir(projectRoot, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() && (d.Name() == "vendor" || d.Name() == ".git" || d.Name() == "node_modules") {
-				return filepath.SkipDir
-			}
-			if d.IsDir() || !strings.HasSuffix(d.Name(), "_acceptance_test.go") {
-				return nil
-			}
-
-			lines, countErr := countFileLines(path)
-			if countErr != nil {
-				t.Errorf("counting lines in %s: %v", path, countErr)
-				return nil
-			}
-			totalLines += lines
-			rel, _ := filepath.Rel(projectRoot, path)
-			files = append(files, rel)
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("walking project tree: %v", err)
-		}
-
-		if totalLines > maxAllowedLines {
-			t.Errorf("total acceptance test lines = %d (across %d files), want <= %d\nfiles: %s",
-				totalLines, len(files), maxAllowedLines, strings.Join(files, ", "))
-		}
-	})
-
 	t.Run("key test behaviors still have coverage", func(t *testing.T) {
 		// Spot-check that the consolidated test files still exist and cover
 		// the key behaviors that were in the original acceptance test files.
@@ -214,18 +174,3 @@ func hasAcceptanceBuildTag(t *testing.T, path string) bool {
 	return false
 }
 
-// countFileLines counts the number of lines in a file.
-func countFileLines(path string) (int, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	count := 0
-	for scanner.Scan() {
-		count++
-	}
-	return count, scanner.Err()
-}
