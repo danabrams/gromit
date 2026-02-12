@@ -213,6 +213,21 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 	// Call provider.StreamRun with the tier
 	providerResult, err := p.StreamRun(childCtx, bc.buildPrompt, tier, r.output, providerHandler, providerToolHandler)
 
+	// Check for usage limit error and retry with fallback provider
+	if err != nil && p.IsUsageLimitError(providerResult, err) {
+		r.router.MarkUnavailable(p.Name())
+
+		// Retry with new provider
+		p2, modelName2 := r.router.Select(phase, tier)
+		if p2 != nil {
+			bc.model = modelName2
+			bc.result.Model = modelName2
+
+			// Retry the invocation with the fallback provider
+			providerResult, err = p2.StreamRun(childCtx, bc.buildPrompt, tier, r.output, providerHandler, providerToolHandler)
+		}
+	}
+
 	// Convert provider.Result back to claude.Result for backward compatibility
 	var claudeResult *claude.Result
 	if providerResult != nil {

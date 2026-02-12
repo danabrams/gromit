@@ -186,7 +186,14 @@ func TestAcceptance_ExecuteClaudeInvocationDetectsUsageLimitError(t *testing.T) 
 	}
 
 	// Create router with both providers
-	mockState := &mockStateForRouterTest{}
+	mockState := &mockStateForRouterTest{
+		onSetUnavailable: func(name string, until time.Time) {
+			markedProviderName = name
+			if firstProvider.onMarkUnavailable != nil {
+				firstProvider.onMarkUnavailable(name)
+			}
+		},
+	}
 	mockRouter := provider.NewRouter(
 		map[string]provider.Provider{
 			"claude": firstProvider,
@@ -437,7 +444,8 @@ func (m *mockClaudeClientForProcess) RunValidation(ctx context.Context, commands
 
 // mockStateForRouterTest provides a minimal StateFile implementation for router tests
 type mockStateForRouterTest struct {
-	counts map[string]int
+	counts           map[string]int
+	onSetUnavailable func(string, time.Time)
 }
 
 func (m *mockStateForRouterTest) IncrementProviderCount(provider string) {
@@ -459,5 +467,7 @@ func (m *mockStateForRouterTest) IsProviderAvailable(provider string) bool {
 }
 
 func (m *mockStateForRouterTest) SetProviderUnavailable(provider string, until time.Time) {
-	// No-op for tests
+	if m.onSetUnavailable != nil {
+		m.onSetUnavailable(provider, until)
+	}
 }
