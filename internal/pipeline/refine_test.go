@@ -67,6 +67,57 @@ func TestRefine_ScansExistingSpecs(t *testing.T) {
 	}
 }
 
+func TestRefine_BuildsPromptWithIdeaText(t *testing.T) {
+	tmpDir := t.TempDir()
+	specsDir := tmpDir + "/specs"
+
+	var capturedPrompt string
+	mockAgent := &mockAgent{
+		name: "test-agent",
+		onLaunch: func(promptPath string) {
+			data, _ := os.ReadFile(promptPath)
+			capturedPrompt = string(data)
+		},
+	}
+
+	p := New(&Deps{
+		AgentResolver: &mockAgentResolver{agent: mockAgent},
+		BacklogClient: &mockBacklogClient{},
+	}, &Paths{
+		GromitDir: tmpDir,
+		SpecsDir:  specsDir,
+	})
+
+	_, err := p.Refine(context.Background(), RefineInput{IdeaText: "Add feature X"})
+	if err != nil {
+		t.Fatalf("Refine() failed: %v", err)
+	}
+
+	// Verify prompt contains idea text
+	if capturedPrompt == "" {
+		t.Fatal("expected prompt to be captured")
+	}
+	if !contains(capturedPrompt, "Add feature X") {
+		t.Errorf("expected prompt to contain idea text, got: %s", capturedPrompt)
+	}
+	if !contains(capturedPrompt, specsDir) {
+		t.Errorf("expected prompt to contain specs directory, got: %s", capturedPrompt)
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) >= len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsInner(s, substr)))
+}
+
+func containsInner(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
 // mockAgentResolver implements AgentResolver for testing
 type mockAgentResolver struct {
 	agent Agent
@@ -83,7 +134,7 @@ func (m *mockAgentResolver) Resolve(phase string, flagOverride string, choosePic
 // mockAgent implements Agent for testing
 type mockAgent struct {
 	name     string
-	onLaunch func(before []string)
+	onLaunch func(promptPath string)
 }
 
 func (m *mockAgent) Name() string {
@@ -92,7 +143,7 @@ func (m *mockAgent) Name() string {
 
 func (m *mockAgent) Launch(promptPath string) error {
 	if m.onLaunch != nil {
-		m.onLaunch(nil) // Will be updated when Refine passes before snapshot
+		m.onLaunch(promptPath)
 	}
 	return nil
 }
