@@ -195,12 +195,6 @@ func mapKeys(m map[string]interface{}) []string {
 // validation is enabled, Claude CLI is invoked only for the build phase.
 // Validation commands run directly via exec.Command (sh -c), so the claude
 // fake is never called for validation.
-//
-// Expected failure: The existing TestClaudeContract_ValidationInvocation
-// asserts len(calls) >= 2 (expecting build + validation Claude calls).
-// This replacement test asserts exactly 1 Claude call because validation
-// no longer uses Claude CLI. The old test must be removed for the contract
-// test suite to pass.
 func TestClaudeContract_DirectValidation_OnlyBuildCallsClaude(t *testing.T) {
 	env := setupDirectValidationEnv(t, []string{"true"})
 
@@ -246,13 +240,6 @@ func TestClaudeContract_DirectValidation_OnlyBuildCallsClaude(t *testing.T) {
 // TestClaudeContract_DirectValidation_ShellCommandSideEffect verifies that
 // validation commands actually execute as shell commands in the project directory.
 // A validation command that creates a marker file proves commands run via sh -c.
-//
-// Expected failure: This test verifies that gromit's validation reports the
-// exact command that ran (via stdout containing the command name) and produces
-// a shell side-effect. The test depends on the direct validation implementation
-// being active and the contract test for validation being updated to reflect
-// this behavior. When the old TestClaudeContract_ValidationInvocation is
-// removed and replaced with these tests, the contract suite will pass.
 func TestClaudeContract_DirectValidation_ShellCommandSideEffect(t *testing.T) {
 	markerFile := "validation_ran.marker"
 
@@ -287,13 +274,7 @@ func TestClaudeContract_DirectValidation_ShellCommandSideEffect(t *testing.T) {
 // TestClaudeContract_DirectValidation_ExitCodeInterpretation verifies that
 // validation commands' exit codes are correctly interpreted: exit 0 means pass
 // (bead is closed), exit non-zero means fail (bead is NOT closed).
-//
-// Expected failure: The existing TestClaudeContract_ValidationInvocation does
-// not test exit code interpretation at all — it only checks for 2 Claude calls.
-// This test verifies the behavioral contract: a failing validation command
-// (exit 1) prevents the bead from being closed via bd, while a passing command
-// (exit 0) allows it. The bd close call is the observable E2E signal that
-// distinguishes pass from fail at the contract level.
+// The bd close call is the observable E2E signal that distinguishes pass from fail.
 func TestClaudeContract_DirectValidation_ExitCodeInterpretation(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -378,11 +359,6 @@ func TestClaudeContract_DirectValidation_ExitCodeInterpretation(t *testing.T) {
 // verifies that when multiple validation commands are configured, execution
 // stops at the first failure. Only the failing command's output should be
 // reported, and subsequent commands should not execute.
-//
-// Expected failure: This test creates observable side effects for each command
-// and verifies that only commands up to (and including) the first failure
-// actually execute. This E2E behavior was not tested in the old
-// TestClaudeContract_ValidationInvocation, which only checked Claude call count.
 func TestClaudeContract_DirectValidation_MultipleCommandsStopOnFirstFailure(t *testing.T) {
 	env := setupDirectValidationEnv(t, []string{
 		"touch " + filepath.Join("$TEST_DIR", "cmd1_ran"),
@@ -419,14 +395,6 @@ func TestClaudeContract_DirectValidation_MultipleCommandsStopOnFirstFailure(t *t
 // the JSONL iteration log records a validation_mode field indicating validation
 // ran directly via shell commands (not through Claude CLI). This provides
 // observability for operators monitoring gromit runs.
-//
-// Expected failure: The IterationLog struct in internal/logger/logger.go and
-// IterationResult in internal/runner/runner.go do not yet have a ValidationMode
-// field. After implementation, the field should be set to "direct" when
-// validation runs via exec.Command, allowing the JSONL log to distinguish
-// between direct and Claude-based validation. This field does not exist yet
-// and must be added to IterationLog, IterationResult, and propagated in
-// writeIterationLog().
 func TestClaudeContract_DirectValidation_LogRecordsValidationMode(t *testing.T) {
 	env := setupDirectValidationEnv(t, []string{"true"})
 
