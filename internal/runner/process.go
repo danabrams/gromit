@@ -581,13 +581,13 @@ func (r *Runner) attemptDecomposition(ctx context.Context, bc *beadContext, fail
 // The router will select the concrete model on the next invocation.
 func (r *Runner) escalateTier(bc *beadContext, nextTier string) {
 	bc.result.Escalated = true
-	bc.result.EscalatedTo = nextTier // will be updated to concrete model by router
 	bc.tier = nextTier
 	bc.retriesThisModel = 0
 	// Set legacy model name for display/logging (will be updated by router to concrete name)
 	legacyModel := provider.TierToLegacyModel(nextTier)
 	bc.model = legacyModel
 	bc.result.Model = legacyModel
+	bc.result.EscalatedTo = legacyModel // Use legacy model name, will be updated by router if needed
 	if bc.promptCtx != nil {
 		bc.promptCtx.Model = legacyModel
 	}

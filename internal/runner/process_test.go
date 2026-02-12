@@ -381,6 +381,7 @@ func TestHandleStallTimeout_Escalates(t *testing.T) {
 		bead:   &bead.Bead{ID: "test-1"},
 		result: &IterationResult{},
 		model:  "haiku",
+		tier:   provider.TierLow, // haiku maps to low tier
 		promptCtx: &prompt.Context{
 			Model:              "haiku",
 			ConfirmedLearnings: []learnings.Learning{},

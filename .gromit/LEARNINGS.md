@@ -119,6 +119,9 @@ The gromit codebase has a validation constraint that acceptance test line counts
 ### 2026-02-11 | gromit-u1gm | patterns
 When adding new fields to core structs like Runner and Deps, check for both direct instantiation paths (NewRunner) and test/dependency injection paths (NewRunnerWithDeps) to maintain backward compatibility while supporting new functionality
 
+### 2026-02-11 | gromit-juyb | patterns
+When implementing router-based escalation, distinguish between tier selection (complexity:low/high labels) and model selection (haiku/sonnet/opus names). The SetEscalatedTo field should contain the final model name, not the complexity tier. Check how TierToModel or ModelForTier maps tiers to models before setting EscalatedTo.
+
 ---
 
 ## Archived
