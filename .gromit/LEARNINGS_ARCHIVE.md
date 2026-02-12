@@ -1,69 +1,11 @@
-# Learnings
+# Learnings Archive
 
-Accumulated operational knowledge from Gromit iterations.
-This file is automatically updated. Review periodically with `gromit retro`.
-
----
-
-## Confirmed
-
-*Patterns seen multiple times - high confidence.*
-
-### 2026-02-07 | Mock Implementation Patterns | patterns
-*Related to: ge6j, atmb*
-
-Mock implementations use optional function pointer fields (FnField pattern) with nil-safe defaults. Tests set up only the behavior needed via tracking flags or injected callbacks, enabling focused verification of specific code paths without requiring full mock setup.
-
-### 2026-02-07 | Status File Management | patterns
-*Related to: nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2*
-
-Status struct fields require backward-compatible changes (omitempty for new optional fields). Use ReadStatus()/IsProcessAlive() for state + liveness checks. Return nil,nil for missing optional files (not an error). StatusWriter handles both lifecycle states and preserves completed iteration count on shutdown. Round-trip tests verify serialization fidelity. Stale resource cleanup integrates into status reporting via process liveness checks. Process utilities (IsProcessAlive) are co-located with Status in status.go. Test file I/O uses t.TempDir() for isolation.
-
-### 2026-02-07 | Methodology Label Activation | patterns
-*Related to: ralph-runner-4a3f, ralph-runner-nzue*
-
-Methodologies use label-based activation ("methodology:true"/"false") with global config fallback via bead.IsMethodologyActive(). When active, replace the build prompt with a specialized RenderXXXBuild method. Check parent labels before adding globally-active methodology labels to sub-beads to avoid duplicates. Order methodology checks carefully for precedence when multiple methodologies are active.
-
-### 2026-02-08 | Runner Method Pattern | patterns
-*Related to: gromit-5pvp, gromit-82qx, gromit-vabo*
-
-Runner methods follow a consistent pattern: nil-safe receiver/config checks, feature-flag gating (e.g., IsAutoPushEnabled()), context.WithTimeout for subprocess calls, and failure handling via mode field (warn vs stop) or skippedBeads map rather than inline error handling. The Run() method follows a clear sequencing: validate -> execute work -> persist state -> run between-iteration hooks -> continue loop. Log warnings on timeout errors rather than returning early.
-
-### 2026-02-11 | Router Conversion Pattern | patterns
-*Related to: gromit-juyb, gromit-2zju, gromit-557p, gromit-3gdz, gromit-gibz*
-
-Router-based calls use phase + tier parameters: phase identifies the operation (build/validate/review/refactor), tier selects the complexity level (low/medium/high). Follow the executeClaudeInvocation pattern: extract tier selection, use router.StreamRun() for the initial call, handle UsageLimitError by escalating to the next tier. Distinguish between tier selection and model selection — SetEscalatedTo gets the final model name from TierToModel, not the tier string. Standard tiers: validation uses phase="validate" tier="low"; reviews use selectTier(bead) or "high" for opus builds/thorough reviews. When converting call sites, check all related functions in the same flow (e.g., runRefactorPhase + handleRefactorValidationFailure + runPostSuccessReview). Router conversions in tests require mockProviderWithRouterTracking and real git repo fixtures for acceptance tests. Use selectReviewTier() helper which delegates to selectTier() for non-opus and returns "high" for opus builds.
-
-### 2026-02-11 | Acceptance Test Line Budget | conventions
-*Related to: gromit-lxlp, gromit-nqf1, gromit-2edx, gromit-557p, gromit-3gdz*
-
-Acceptance tests (//go:build acceptance) are subject to line count audits — total across all files must not exceed the budget ceiling (currently 6,000 lines, rebased after cleanup achieved 38.5% reduction from original 8,370). New test code should prefer unit tests for API verification, not acceptance tests. Task specs that add test coverage should account for the total line budget. Test metrics are enforced via final_verification_test.go.
-
-### 2026-02-11 | Prompt Template Structure | conventions
-*Related to: gromit-rpne*
-
-Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating. Template files follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks. When modifying sections, maintain blank lines between sections and ensure downstream blocks remain unchanged. Acceptance tests for template changes must match the exact content being added, including specific phrases and subsection structure.
+Archived learnings moved from LEARNINGS.md on 2026-02-12 to reduce prompt context overhead.
+These entries are no longer active — they've been promoted to rules, consolidated, or filtered as generic advice.
 
 ---
 
-## Provisional
-
-*Seen once - may be specific to one task.*
-
-### 2026-02-11 | gromit-03lk | conventions
-When expanding a struct with new fields in the pipeline package, you must: (1) update ReadStatus() to populate the new count fields by iterating through beads and counting by status, (2) update the formatting/display logic (likely in runner/format_bead_breakdown.go) to include these new counts in status output, and (3) ensure any helper methods for counting beads are called correctly. The count fields won't be used automatically—they require explicit population and display logic.
-
-### 2026-02-11 | gromit-mz3m | conventions
-When migrating from one pattern to another (e.g., ClaudeClient → Provider), ensure structural changes are completed across all types (not just the adapter/analyzer). Search for all embedded fields and struct initializations across the codebase—not just method calls. Fields like Runner.claude need to be identified and removed after all call sites are migrated to the new interface. Acceptance test files must include the `//go:build acceptance` build tag to be properly categorized.
-
-### 2026-02-12 | gromit-gte1 | conventions
-Gromit projects enforce an acceptance test line budget (default 6000 lines across all test files). When implementing features with acceptance tests, check the current total and ensure new tests fit within the remaining budget. Use `go test ./... -run TestFinalVerification` to verify the budget before considering work complete.
-
----
-
-## Archived
-
-*Moved to LEARNINGS_ARCHIVE.md on 2026-02-12 to reduce file size.*
+### 2026-02-12 | router conversion originals | patterns
 Archived: gromit-juyb (x2), gromit-2zju (x2), gromit-557p, gromit-3gdz, gromit-gibz (x3) consolidated into Confirmed "Router Conversion Pattern" entry.
 
 ### 2026-02-12 | acceptance test budget originals | conventions
@@ -977,4 +919,3 @@ Archived: generic engineering advice (nil checks when calling functions earlier 
 Archived: generic engineering advice (only include non-zero counts in breakdowns). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
-
