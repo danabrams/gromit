@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,4 +91,32 @@ func ExtractSpecTitle(path string) string {
 	}
 
 	return ""
+}
+
+// WriteTempPrompt writes a prompt to a temporary file and returns the path and a cleanup function.
+// The cleanup function should be called to remove the temp file when done.
+func WriteTempPrompt(tmpDir, prompt string) (path string, cleanup func(), err error) {
+	// Ensure tmp directory exists
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		return "", nil, fmt.Errorf("creating tmp dir: %w", err)
+	}
+
+	promptFile, err := os.CreateTemp(tmpDir, "prompt-*.md")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating temp prompt file: %w", err)
+	}
+	promptPath := promptFile.Name()
+
+	if _, err := promptFile.WriteString(prompt); err != nil {
+		promptFile.Close()
+		os.Remove(promptPath)
+		return "", nil, fmt.Errorf("writing prompt file: %w", err)
+	}
+	promptFile.Close()
+
+	cleanup = func() {
+		os.Remove(promptPath)
+	}
+
+	return promptPath, cleanup, nil
 }

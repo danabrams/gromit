@@ -146,3 +146,29 @@ This spec has frontmatter.`
 		t.Errorf("expected title %q, got %q", expected, title)
 	}
 }
+
+func TestWriteTempPrompt_CreatesFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	prompt := "This is a test prompt"
+
+	path, cleanup, err := WriteTempPrompt(tmpDir, prompt)
+	if err != nil {
+		t.Fatalf("WriteTempPrompt failed: %v", err)
+	}
+	defer cleanup()
+
+	// Verify file was created
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Fatalf("temp file was not created: %s", path)
+	}
+
+	// Verify content
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read temp file: %v", err)
+	}
+
+	if string(content) != prompt {
+		t.Errorf("expected content %q, got %q", prompt, string(content))
+	}
+}
