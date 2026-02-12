@@ -28,6 +28,14 @@ import (
 
 var errValidationFailed = errors.New("validation failed")
 
+// defaultTierToModelMap defines the default Claude model tier mapping.
+// This is used for backward compatibility when no providers are configured.
+var defaultTierToModelMap = map[string]string{
+	"high":   "opus",
+	"medium": "sonnet",
+	"low":    "haiku",
+}
+
 // Runner orchestrates the Gromit loop
 type Runner struct {
 	cfg          *config.Config
@@ -102,16 +110,9 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	var router *provider.Router
 	if cfg.HasProviders() {
 		// TODO: Build router from providers config
-		// For now, this will be nil when providers are configured
-		router = nil
 	} else {
 		// Backward compatibility: wrap Claude client in single-provider router
-		tierToModel := map[string]string{
-			"high":   "opus",
-			"medium": "sonnet",
-			"low":    "haiku",
-		}
-		claudeProvider := provider.NewClaudeProvider(claudeClient, tierToModel)
+		claudeProvider := provider.NewClaudeProvider(claudeClient, defaultTierToModelMap)
 		router = provider.NewSingleProviderRouter(claudeProvider)
 	}
 
@@ -174,12 +175,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	router := deps.Router
 	if router == nil && deps.Claude != nil {
 		// Create a ClaudeProvider wrapping the Claude client
-		tierToModel := map[string]string{
-			"high":   "opus",
-			"medium": "sonnet",
-			"low":    "haiku",
-		}
-		claudeProvider := provider.NewClaudeProvider(deps.Claude, tierToModel)
+		claudeProvider := provider.NewClaudeProvider(deps.Claude, defaultTierToModelMap)
 		router = provider.NewSingleProviderRouter(claudeProvider)
 	}
 
