@@ -6,6 +6,10 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,8 +20,10 @@ import (
 
 // TestAcceptance_RunRefactorPhaseUsesRouterSelect verifies that
 // runRefactorPhase calls router.Select() with phase="build" and tier from bc.tier.
-// Expected failure: runRefactorPhase still uses r.claude.Run() instead of router.Select()
 func TestAcceptance_RunRefactorPhaseUsesRouterSelect(t *testing.T) {
+	// Set up git repo with actual commits so getDiff works
+	tmpDir, startCommit := setupTestGitRepo(t)
+
 	cfg := makeTestRunnerConfig()
 	cfg.Validation.Enabled = true
 	cfg.Validation.Commands = []string{"go test"}
@@ -54,8 +60,8 @@ func TestAcceptance_RunRefactorPhaseUsesRouterSelect(t *testing.T) {
 		tier:        provider.TierMedium,
 		model:       "sonnet",
 		result:      &IterationResult{},
-		promptCtx:   &prompt.Context{WorkDir: "."},
-		startCommit: "abc123",
+		promptCtx:   &prompt.Context{WorkDir: tmpDir},
+		startCommit: startCommit,
 	}
 
 	r := &Runner{
@@ -63,6 +69,10 @@ func TestAcceptance_RunRefactorPhaseUsesRouterSelect(t *testing.T) {
 		router:   mockRouter,
 		renderer: mockRenderer,
 		output:   io.Discard,
+		// Mock gitDiffFn to return a diff so we don't early-return
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "some diff content", nil
+		},
 	}
 
 	err := r.runRefactorPhase(context.Background(), bc)
@@ -87,8 +97,10 @@ func TestAcceptance_RunRefactorPhaseUsesRouterSelect(t *testing.T) {
 
 // TestAcceptance_RunRefactorPhaseCallsProviderRun verifies that
 // runRefactorPhase invokes provider.Run() with the selected tier.
-// Expected failure: runRefactorPhase still uses r.claude.Run() instead of provider.Run()
 func TestAcceptance_RunRefactorPhaseCallsProviderRun(t *testing.T) {
+	// Set up git repo with actual commits so getDiff works
+	tmpDir, startCommit := setupTestGitRepo(t)
+
 	cfg := makeTestRunnerConfig()
 	cfg.Validation.Enabled = true
 	cfg.Validation.Commands = []string{"go test"}
@@ -124,8 +136,8 @@ func TestAcceptance_RunRefactorPhaseCallsProviderRun(t *testing.T) {
 		tier:        provider.TierHigh,
 		model:       "opus",
 		result:      &IterationResult{},
-		promptCtx:   &prompt.Context{WorkDir: "."},
-		startCommit: "def456",
+		promptCtx:   &prompt.Context{WorkDir: tmpDir},
+		startCommit: startCommit,
 	}
 
 	r := &Runner{
@@ -133,6 +145,9 @@ func TestAcceptance_RunRefactorPhaseCallsProviderRun(t *testing.T) {
 		router:   mockRouter,
 		renderer: mockRenderer,
 		output:   io.Discard,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "some diff content", nil
+		},
 	}
 
 	err := r.runRefactorPhase(context.Background(), bc)
@@ -157,8 +172,10 @@ func TestAcceptance_RunRefactorPhaseCallsProviderRun(t *testing.T) {
 // TestAcceptance_RunRefactorPhaseDetectsUsageLimitError verifies that
 // when provider.Run() fails with a usage limit error, runRefactorPhase
 // calls router.MarkUnavailable() and retries with a fallback provider.
-// Expected failure: runRefactorPhase does not check IsUsageLimitError() yet
 func TestAcceptance_RunRefactorPhaseDetectsUsageLimitError(t *testing.T) {
+	// Set up git repo with actual commits so getDiff works
+	tmpDir, startCommit := setupTestGitRepo(t)
+
 	cfg := makeTestRunnerConfig()
 	cfg.Validation.Enabled = true
 	cfg.Validation.Commands = []string{"go test"}
@@ -228,8 +245,8 @@ func TestAcceptance_RunRefactorPhaseDetectsUsageLimitError(t *testing.T) {
 		tier:        provider.TierMedium,
 		model:       "sonnet",
 		result:      &IterationResult{},
-		promptCtx:   &prompt.Context{WorkDir: "."},
-		startCommit: "ghi789",
+		promptCtx:   &prompt.Context{WorkDir: tmpDir},
+		startCommit: startCommit,
 	}
 
 	r := &Runner{
@@ -237,6 +254,9 @@ func TestAcceptance_RunRefactorPhaseDetectsUsageLimitError(t *testing.T) {
 		router:   mockRouter,
 		renderer: mockRenderer,
 		output:   io.Discard,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "some diff content", nil
+		},
 	}
 
 	err := r.runRefactorPhase(context.Background(), bc)
@@ -257,8 +277,10 @@ func TestAcceptance_RunRefactorPhaseDetectsUsageLimitError(t *testing.T) {
 
 // TestAcceptance_HandleRefactorValidationFailureUsesRouterSelect verifies that
 // handleRefactorValidationFailure calls router.Select() when retrying after revert.
-// Expected failure: handleRefactorValidationFailure still uses r.claude.Run() instead of router.Select()
 func TestAcceptance_HandleRefactorValidationFailureUsesRouterSelect(t *testing.T) {
+	// Set up git repo with actual commits so revert works
+	tmpDir, _ := setupTestGitRepo(t)
+
 	cfg := makeTestRunnerConfig()
 	cfg.Validation.Enabled = true
 	cfg.Validation.Commands = []string{"go test"}
@@ -295,7 +317,7 @@ func TestAcceptance_HandleRefactorValidationFailureUsesRouterSelect(t *testing.T
 		tier:      provider.TierMedium,
 		model:     "sonnet",
 		result:    &IterationResult{},
-		promptCtx: &prompt.Context{WorkDir: "."},
+		promptCtx: &prompt.Context{WorkDir: tmpDir},
 	}
 
 	r := &Runner{
@@ -305,8 +327,9 @@ func TestAcceptance_HandleRefactorValidationFailureUsesRouterSelect(t *testing.T
 		output:   io.Discard,
 	}
 
-	// Simulate git HEAD capture (would normally come from getGitHead)
-	preRefactorCommit := "xyz123"
+	// Get actual HEAD to use as pre-refactor commit
+	preRefactorCommit := runTestCmdOutput(t, tmpDir, "git", "rev-parse", "HEAD")
+	preRefactorCommit = strings.TrimSpace(preRefactorCommit)
 
 	err := r.handleRefactorValidationFailure(context.Background(), bc, preRefactorCommit, "tests failed")
 	if err != nil {
@@ -331,8 +354,10 @@ func TestAcceptance_HandleRefactorValidationFailureUsesRouterSelect(t *testing.T
 // TestAcceptance_HandleRefactorValidationFailureDetectsUsageLimitError verifies that
 // when the retry provider.Run() fails with a usage limit error, handleRefactorValidationFailure
 // calls router.MarkUnavailable() and retries with a fallback provider.
-// Expected failure: handleRefactorValidationFailure does not check IsUsageLimitError() yet
 func TestAcceptance_HandleRefactorValidationFailureDetectsUsageLimitError(t *testing.T) {
+	// Set up git repo with actual commits so revert works
+	tmpDir, _ := setupTestGitRepo(t)
+
 	cfg := makeTestRunnerConfig()
 	cfg.Validation.Enabled = true
 	cfg.Validation.Commands = []string{"go test"}
@@ -402,7 +427,7 @@ func TestAcceptance_HandleRefactorValidationFailureDetectsUsageLimitError(t *tes
 		tier:      provider.TierMedium,
 		model:     "sonnet",
 		result:    &IterationResult{},
-		promptCtx: &prompt.Context{WorkDir: "."},
+		promptCtx: &prompt.Context{WorkDir: tmpDir},
 	}
 
 	r := &Runner{
@@ -412,7 +437,9 @@ func TestAcceptance_HandleRefactorValidationFailureDetectsUsageLimitError(t *tes
 		output:   io.Discard,
 	}
 
-	preRefactorCommit := "abc999"
+	// Get actual HEAD to use as pre-refactor commit
+	preRefactorCommit := runTestCmdOutput(t, tmpDir, "git", "rev-parse", "HEAD")
+	preRefactorCommit = strings.TrimSpace(preRefactorCommit)
 
 	err := r.handleRefactorValidationFailure(context.Background(), bc, preRefactorCommit, "tests failed")
 	if err != nil {
@@ -530,4 +557,55 @@ func (m *mockProviderForRefactorUsageLimit) IsUsageLimitError(result *provider.R
 		return m.isUsageLimitErrorFn(result, err)
 	}
 	return false
+}
+
+// setupTestGitRepo creates a temporary git repo with commits and returns
+// the directory and the starting commit hash.
+func setupTestGitRepo(t *testing.T) (string, string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	// Initialize git repo
+	runTestCmd(t, tmpDir, "git", "init")
+	runTestCmd(t, tmpDir, "git", "config", "user.email", "test@example.com")
+	runTestCmd(t, tmpDir, "git", "config", "user.name", "Test User")
+
+	// Create initial commit
+	writeTestFileInDir(t, tmpDir, "test.txt", "initial content")
+	runTestCmd(t, tmpDir, "git", "add", ".")
+	runTestCmd(t, tmpDir, "git", "commit", "-m", "initial commit")
+
+	// Get starting commit
+	startCommit := runTestCmdOutput(t, tmpDir, "git", "rev-parse", "HEAD")
+
+	// Make some changes to simulate work that needs refactoring
+	writeTestFileInDir(t, tmpDir, "test.txt", "modified content")
+	runTestCmd(t, tmpDir, "git", "add", ".")
+	runTestCmd(t, tmpDir, "git", "commit", "-m", "implementation")
+
+	return tmpDir, strings.TrimSpace(startCommit)
+}
+
+func runTestCmd(t *testing.T, dir string, name string, args ...string) {
+	t.Helper()
+	runTestCmdOutput(t, dir, name, args...)
+}
+
+func runTestCmdOutput(t *testing.T, dir string, name string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("command %s %v failed: %v\n%s", name, args, err, output)
+	}
+	return string(output)
+}
+
+func writeTestFileInDir(t *testing.T, dir, filename, content string) {
+	t.Helper()
+	path := filepath.Join(dir, filename)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
 }
