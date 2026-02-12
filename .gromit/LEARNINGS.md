@@ -128,6 +128,9 @@ When converting functions to use the router pattern with escalation/retry logic,
 ### 2026-02-11 | gromit-2zju | conventions
 The codebase has acceptance tests that validate codebase-wide metrics (like total test line count reduction targets). When implementing features or refactoring, check if there are acceptance tests verifying codebase metrics that might need satisfying via cleanup or consolidation of other test files. The validation_router_conversion_acceptance_test.go appears to be new and could potentially be merged into existing acceptance tests to reduce line count overhead.
 
+### 2026-02-11 | gromit-2zju | patterns
+When converting multiple call sites to use a Router pattern, check for different phases/tiers that should be used at each site - validation calls consistently use phase='validate' tier='low', which is distinct from build/refactor phases that may need different configurations
+
 ---
 
 ## Archived
