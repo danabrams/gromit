@@ -42,11 +42,11 @@ func TestSelectCrossReturnsOppositeProvider(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		buildProvider    string
-		tier             string
-		wantProvider     string
-		wantModel        string
+		name          string
+		buildProvider string
+		tier          string
+		wantProvider  string
+		wantModel     string
 	}{
 		{
 			name:          "claude build selects openai for cross-review",

@@ -25,16 +25,16 @@ var errATDDAlreadyDone = errors.New("atdd: acceptance tests pass — work alread
 // beadContext holds the shared state for processing a single bead.
 // It is passed between the extracted methods that compose processBead.
 type beadContext struct {
-	bead        *bead.Bead
-	parent      *bead.Bead
-	result      *IterationResult
+	bead          *bead.Bead
+	parent        *bead.Bead
+	result        *IterationResult
 	model         string // concrete model name for display/logging
 	tier          string // abstract tier (high/medium/low) for router selection
 	buildProvider string // name of provider that performed the build (for cross-review routing)
-	promptCtx   *prompt.Context
-	buildPrompt string
-	startCommit string
-	iteration   int
+	promptCtx     *prompt.Context
+	buildPrompt   string
+	startCommit   string
+	iteration     int
 
 	// Retry tracking
 	retriesThisModel     int

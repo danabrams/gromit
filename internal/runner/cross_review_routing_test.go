@@ -261,7 +261,7 @@ func TestCrossReviewReverseDirection(t *testing.T) {
 // crossReviewMockStateFile implements provider.StateFile for cross-review tests
 type crossReviewMockStateFile struct{}
 
-func (m *crossReviewMockStateFile) IncrementProviderCount(prov string)                       {}
-func (m *crossReviewMockStateFile) GetProviderCounts() map[string]int                        { return make(map[string]int) }
-func (m *crossReviewMockStateFile) IsProviderAvailable(prov string) bool                     { return true }
-func (m *crossReviewMockStateFile) SetProviderUnavailable(prov string, until time.Time)      {}
+func (m *crossReviewMockStateFile) IncrementProviderCount(prov string)                  {}
+func (m *crossReviewMockStateFile) GetProviderCounts() map[string]int                   { return make(map[string]int) }
+func (m *crossReviewMockStateFile) IsProviderAvailable(prov string) bool                { return true }
+func (m *crossReviewMockStateFile) SetProviderUnavailable(prov string, until time.Time) {}
