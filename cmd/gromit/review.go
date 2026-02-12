@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/scope"
@@ -309,7 +309,10 @@ func getGitDiffStatForReview(fromCommit string) (string, error) {
 }
 
 func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) error {
-	// Build and render prompt
+	// Print status message
+	fmt.Printf("Launching interactive review session (from commit %s)...\n", shortCommit(fromCommit))
+
+	// Build pipeline and dependencies
 	gromitDir := resolveGromitDir(cfg)
 
 	renderer, err := prompt.NewRenderer(
@@ -322,56 +325,41 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 		return fmt.Errorf("creating renderer: %w", err)
 	}
 
-	reviewCtx := &prompt.ThoroughReviewContext{
-		Diff:  diff,
-		Model: cfg.Review.Thorough.Model,
+	// Create agent resolver adapter
+	agentResolver := &cliAgentResolver{
+		cfg:         cfg,
+		flagOverride: reviewAgent,
+		choosePicker: reviewChooseAgent,
 	}
-	reviewCtx.ClaudeMD, err = renderer.LoadClaudeMD()
+
+	// Create prompt renderer adapter that loads ClaudeMD and Rules
+	promptRendererAdapter := &cliPromptRenderer{
+		renderer: renderer,
+	}
+
+	deps := &pipeline.Deps{
+		AgentResolver:  agentResolver,
+		PromptRenderer: promptRendererAdapter,
+	}
+
+	paths := &pipeline.Paths{
+		GromitDir: gromitDir,
+	}
+
+	p := pipeline.New(deps, paths)
+
+	// Prepare input
+	input := pipeline.ReviewInput{
+		FromCommit: fromCommit,
+		Diff:       diff,
+		Model:      cfg.Review.Thorough.Model,
+		AgentName:  reviewAgent,
+	}
+
+	// Call pipeline
+	_, err = p.ReviewInteractive(context.Background(), input)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load CLAUDE.md: %v\n", err)
-	}
-	reviewCtx.Rules, err = renderer.LoadRules()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load rules: %v\n", err)
-	}
-
-	renderedPrompt, err := renderer.RenderThoroughReview(reviewCtx)
-	if err != nil {
-		return fmt.Errorf("rendering review prompt: %w", err)
-	}
-
-	// Write prompt to a temp file to avoid "argument list too long" errors
-	// when the diff is large
-	tmpDir := filepath.Join(gromitDir, "tmp")
-	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
-		return fmt.Errorf("creating tmp dir: %w", err)
-	}
-
-	promptFile, err := os.CreateTemp(tmpDir, "review-prompt-*.md")
-	if err != nil {
-		return fmt.Errorf("creating temp prompt file: %w", err)
-	}
-	promptPath := promptFile.Name()
-	defer os.Remove(promptPath)
-
-	if _, err := promptFile.WriteString(renderedPrompt); err != nil {
-		promptFile.Close()
-		return fmt.Errorf("writing prompt file: %w", err)
-	}
-	promptFile.Close()
-
-	// Launch interactive review session with agent selection
-	fmt.Printf("Launching interactive review session (from commit %s)...\n", shortCommit(fromCommit))
-
-	// Resolve which agent to use
-	selectedAgent, err := agent.Resolve(cfg, "review", reviewAgent, reviewChooseAgent, os.Stdin, os.Stdout)
-	if err != nil {
-		return fmt.Errorf("resolving agent: %w", err)
-	}
-
-	// Launch the agent with the prompt file
-	if err := selectedAgent.Launch(promptPath); err != nil {
-		return fmt.Errorf("launching agent: %w", err)
+		return fmt.Errorf("review interactive: %w", err)
 	}
 
 	return nil
@@ -380,7 +368,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string) error {
 	fmt.Printf("Running autonomous thorough review (from commit %s)...\n", shortCommit(fromCommit))
 
-	// Build context
+	// Build pipeline and dependencies
 	gromitDir := resolveGromitDir(cfg)
 
 	renderer, err := prompt.NewRenderer(
@@ -393,103 +381,97 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		return fmt.Errorf("creating renderer: %w", err)
 	}
 
-	reviewCtx := &prompt.ThoroughReviewContext{
-		Diff:  diff,
-		Model: cfg.Review.Thorough.Model,
-	}
-	reviewCtx.ClaudeMD, err = renderer.LoadClaudeMD()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load CLAUDE.md: %v\n", err)
-	}
-	reviewCtx.Rules, err = renderer.LoadRules()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load rules: %v\n", err)
-	}
-
-	renderedPrompt, err := renderer.RenderThoroughReview(reviewCtx)
-	if err != nil {
-		return fmt.Errorf("rendering review prompt: %w", err)
-	}
-
-	// Call Claude
 	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
 	if err != nil {
 		return fmt.Errorf("creating claude client: %w", err)
 	}
 
+	beadsClient, err := bead.NewClient()
+	if err != nil {
+		return fmt.Errorf("creating bead client: %w", err)
+	}
+
+	// Create adapters
+	promptRendererAdapter := &cliPromptRenderer{
+		renderer: renderer,
+	}
+
+	claudeAdapter := &cliClaudeClient{
+		client: claudeClient,
+	}
+
+	beadAdapter := &cliBeadClient{
+		client: beadsClient,
+	}
+
+	backlogAdapter := &cliBacklogClient{
+		beadClient: beadsClient,
+	}
+
+	learningsAdapter := &cliLearningsManager{
+		gromitDir:    gromitDir,
+		claudeClient: claudeClient,
+	}
+
+	logAdapter := &cliLogWriter{
+		logsDir: cfg.Paths.Logs,
+	}
+
+	stateAdapter := &cliStateManager{
+		gromitDir: gromitDir,
+	}
+
+	deps := &pipeline.Deps{
+		PromptRenderer:   promptRendererAdapter,
+		ClaudeClient:     claudeAdapter,
+		BeadClient:       beadAdapter,
+		BacklogClient:    backlogAdapter,
+		LearningsManager: learningsAdapter,
+		LogWriter:        logAdapter,
+		StateManager:     stateAdapter,
+	}
+
+	paths := &pipeline.Paths{
+		GromitDir: gromitDir,
+	}
+
+	p := pipeline.New(deps, paths)
+
+	// Prepare input
 	timeout := time.Duration(cfg.Review.Thorough.Timeout) * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	model := cfg.Review.Thorough.Model
-	claudeResult, err := claudeClient.Run(ctx, renderedPrompt, model)
-	if err != nil {
-		return fmt.Errorf("review invocation: %w", err)
-	}
-	if claudeResult == nil {
-		return fmt.Errorf("review returned nil result")
+	input := pipeline.ReviewInput{
+		FromCommit: fromCommit,
+		Diff:       diff,
+		Model:      cfg.Review.Thorough.Model,
+		Timeout:    cfg.Review.Thorough.Timeout,
 	}
 
-	// Parse result
-	result, err := review.ParseReviewResult(claudeResult.Output)
+	// Call pipeline
+	result, err := p.ReviewNonInteractive(ctx, input)
 	if err != nil {
-		return fmt.Errorf("parsing review result: %w", err)
+		return fmt.Errorf("review non-interactive: %w", err)
 	}
 
-	// Display summary
+	// Display output
 	fmt.Println("\n" + strings.Repeat("=", 80))
 	fmt.Println("REVIEW SUMMARY")
 	fmt.Println(strings.Repeat("=", 80))
 	fmt.Println(result.Summary)
 	fmt.Println()
 
-	if len(result.FixesApplied) > 0 {
-		fmt.Printf("Fixes applied: %d\n", len(result.FixesApplied))
-		for _, fix := range result.FixesApplied {
-			fmt.Printf("  - %s\n", fix)
-		}
+	if result.FixesApplied > 0 {
+		fmt.Printf("Fixes applied: %d\n", result.FixesApplied)
 		fmt.Println()
 	}
 
-	// Apply results (create beads)
-	beadsCreated, backlogCreated := applyReviewResultCLI(result)
-
-	if beadsCreated > 0 {
-		fmt.Printf("Created %d beads from review findings\n", beadsCreated)
+	if result.BeadsCreated > 0 {
+		fmt.Printf("Created %d beads from review findings\n", result.BeadsCreated)
 	}
-	if backlogCreated > 0 {
-		fmt.Printf("Created %d backlog items\n", backlogCreated)
-	}
-
-	// Persist learnings
-	persistReviewLearnings(gromitDir, result.Learnings, claudeClient)
-
-	// Log the review
-	log, err := logger.NewLogger(cfg.Paths.Logs)
-	if err == nil {
-		log.LogReview(&logger.ReviewLog{
-			Timestamp:      time.Now(),
-			Type:           "review",
-			ReviewType:     "thorough-cli",
-			Iteration:      0,
-			Model:          model,
-			Passed:         result.Passed,
-			FixesApplied:   len(result.FixesApplied),
-			BeadsCreated:   beadsCreated,
-			BacklogCreated: backlogCreated,
-			DurationMs:     int64(claudeResult.Duration.Milliseconds()),
-		})
-		log.Close()
-	}
-
-	// Update state
-	sf, err := state.NewFile(gromitDir)
-	if err == nil {
-		sf.Load()
-		currentCommit, err := getGitHeadForReview()
-		if err == nil {
-			sf.RecordReview(currentCommit, 0)
-		}
+	if result.BacklogCreated > 0 {
+		fmt.Printf("Created %d backlog items\n", result.BacklogCreated)
 	}
 
 	fmt.Println("\nReview complete!")
@@ -598,4 +580,233 @@ func shortCommit(commit string) string {
 		return commit[:8]
 	}
 	return commit
+}
+
+// cliAgentResolver adapts agent.Resolve to the pipeline.AgentResolver interface
+type cliAgentResolver struct {
+	cfg          *config.Config
+	flagOverride string
+	choosePicker bool
+}
+
+func (r *cliAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
+	// Use the CLI's agent.Resolve which handles stdin/stdout
+	return agent.Resolve(r.cfg, phase, r.flagOverride, r.choosePicker, os.Stdin, os.Stdout)
+}
+
+// cliPromptRenderer adapts prompt.Renderer to pipeline.PromptRenderer interface
+// It loads ClaudeMD and Rules before rendering
+type cliPromptRenderer struct {
+	renderer *prompt.Renderer
+}
+
+func (r *cliPromptRenderer) RenderRefine(input interface{}) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
+func (r *cliPromptRenderer) RenderPlan(input interface{}) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
+func (r *cliPromptRenderer) RenderDecompose(input interface{}) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
+func (r *cliPromptRenderer) RenderThoroughReview(ctx interface{}) (string, error) {
+	// Build ThoroughReviewContext from the map
+	ctxMap, ok := ctx.(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("unexpected context type")
+	}
+
+	diff, _ := ctxMap["Diff"].(string)
+	model, _ := ctxMap["Model"].(string)
+
+	reviewCtx := &prompt.ThoroughReviewContext{
+		Diff:  diff,
+		Model: model,
+	}
+
+	// Load ClaudeMD and Rules (warnings only)
+	var err error
+	reviewCtx.ClaudeMD, err = r.renderer.LoadClaudeMD()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not load CLAUDE.md: %v\n", err)
+	}
+	reviewCtx.Rules, err = r.renderer.LoadRules()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not load rules: %v\n", err)
+	}
+
+	return r.renderer.RenderThoroughReview(reviewCtx)
+}
+
+// cliClaudeClient adapts claude.Client to pipeline.ClaudeClient interface
+type cliClaudeClient struct {
+	client *claude.Client
+}
+
+func (c *cliClaudeClient) Run(prompt string, model string) (interface{}, error) {
+	// Use a long timeout context since the pipeline doesn't expose timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	result, err := c.client.Run(ctx, prompt, model)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to map format expected by pipeline
+	return map[string]interface{}{
+		"Success":  true,
+		"Output":   result.Output,
+		"ExitCode": 0,
+	}, nil
+}
+
+// cliBeadClient adapts bead.Client to pipeline.BeadClient interface
+type cliBeadClient struct {
+	client *bead.Client
+}
+
+func (c *cliBeadClient) Ready() (interface{}, error) {
+	return c.client.Ready()
+}
+
+func (c *cliBeadClient) Show(id string) (interface{}, error) {
+	return c.client.Show(id)
+}
+
+func (c *cliBeadClient) Create(title string, priority int, labels []string, outputs []string) (interface{}, error) {
+	return c.client.Create(title, priority, labels, outputs)
+}
+
+func (c *cliBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+	return c.client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
+}
+
+func (c *cliBeadClient) Close(id string) error {
+	return c.client.Close(id)
+}
+
+// cliBacklogClient adapts bead operations to pipeline.BacklogClient interface
+type cliBacklogClient struct {
+	beadClient *bead.Client
+}
+
+func (c *cliBacklogClient) List() ([]*pipeline.Idea, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (c *cliBacklogClient) Get(id string) (*pipeline.Idea, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (c *cliBacklogClient) Add(item *pipeline.Idea) error {
+	// Create a backlog bead with P2 priority and backlog label
+	labels := []string{"from-review", "backlog"}
+	_, err := c.beadClient.Create(item.Text, 2, labels, nil)
+	return err
+}
+
+func (c *cliBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
+	return fmt.Errorf("not implemented")
+}
+
+// cliLearningsManager adapts learnings operations to pipeline.LearningsManager interface
+type cliLearningsManager struct {
+	gromitDir    string
+	claudeClient *claude.Client
+}
+
+func (m *cliLearningsManager) Add(content string) error {
+	learningsFile, err := learnings.NewFile(m.gromitDir)
+	if err != nil {
+		return err
+	}
+
+	// Wire filter into learnings file
+	if m.claudeClient != nil {
+		claudeRunnerAdapter := learnings.NewClaudeRunnerAdapter(m.claudeClient)
+		learningsFile.SetFilter(learnings.NewLLMFilter(claudeRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
+	}
+
+	if err := learningsFile.Load(); err != nil {
+		return err
+	}
+
+	learningsFile.Add("review", content, learnings.CategoryPatterns)
+	return nil
+}
+
+// cliLogWriter adapts logger operations to pipeline.LogWriter interface
+type cliLogWriter struct {
+	logsDir string
+}
+
+func (w *cliLogWriter) Write(entry interface{}) error {
+	log, err := logger.NewLogger(w.logsDir)
+	if err != nil {
+		return err
+	}
+	defer log.Close()
+
+	// Convert entry map to ReviewLog
+	entryMap, ok := entry.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected entry type")
+	}
+
+	reviewLog := &logger.ReviewLog{
+		Timestamp:      time.Now(),
+		Type:           "review",
+		ReviewType:     "thorough-cli",
+		Iteration:      0,
+		Model:          "opus", // TODO: get from entry
+		Passed:         entryMap["passed"].(bool),
+		FixesApplied:   entryMap["fixes_applied"].(int),
+		BeadsCreated:   entryMap["beads_created"].(int),
+		BacklogCreated: entryMap["backlog_created"].(int),
+		DurationMs:     0, // TODO: track duration
+	}
+
+	return log.LogReview(reviewLog)
+}
+
+// cliStateManager adapts state operations to pipeline.StateManager interface
+type cliStateManager struct {
+	gromitDir string
+}
+
+func (m *cliStateManager) GetLastReviewCommit() (string, error) {
+	sf, err := state.NewFile(m.gromitDir)
+	if err != nil {
+		return "", err
+	}
+
+	if err := sf.Load(); err != nil {
+		return "", err
+	}
+
+	return sf.LastReviewCommit(), nil
+}
+
+func (m *cliStateManager) SetLastReviewCommit(commit string) error {
+	sf, err := state.NewFile(m.gromitDir)
+	if err != nil {
+		return err
+	}
+
+	if err := sf.Load(); err != nil {
+		return err
+	}
+
+	// Get current HEAD commit
+	currentCommit, err := getGitHeadForReview()
+	if err != nil {
+		currentCommit = commit // Fallback to input commit
+	}
+
+	sf.RecordReview(currentCommit, 0)
+	return nil
 }
