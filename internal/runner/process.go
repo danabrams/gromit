@@ -1191,9 +1191,8 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 }
 
 // runValidationWithRecovery wraps runValidation with a recovery mechanism.
-// On validation failure, it feeds the validation output back to the build model
-// and re-invokes executeWithRetry, then re-validates. If still failing after
-// max_fix_attempts, returns the original error.
+// On validation failure, it first attempts trivial auto-fixes (gofmt/goimports),
+// then falls back to Claude-based fixes. Retry depth is capped by MaxValidationRetries.
 func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext) error {
 	err := r.runValidation(ctx, bc)
 	if err == nil {
@@ -1205,21 +1204,35 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext)
 		return err
 	}
 
-	maxAttempts := r.cfg.Validation.MaxFixAttempts
-	if maxAttempts <= 0 {
+	maxRetries := r.cfg.Validation.MaxValidationRetries
+	if maxRetries <= 0 {
 		return err
 	}
 
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		r.log("Validation failed, attempting fix (attempt %d/%d)...", attempt+1, maxAttempts)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		r.log("Validation failed, attempting fix (attempt %d/%d)...", attempt+1, maxRetries)
 		bc.result.ValidationRetried = true
 
-		// Feed validation output back to the build model
+		// Step 1: Try trivial auto-fix (gofmt/goimports) before invoking Claude
+		if r.autoFixFn != nil {
+			r.log("Running auto-fix (gofmt/goimports)...")
+			if fixErr := r.autoFixFn(bc.startCommit); fixErr != nil {
+				r.log("Warning: auto-fix failed: %v", fixErr)
+			}
+
+			// Re-validate after auto-fix
+			if valErr := r.runValidation(ctx, bc); valErr == nil {
+				r.log("Trivial auto-fix resolved validation failure")
+				bc.result.TrivialAutoFixed = true
+				return nil
+			}
+		}
+
+		// Step 2: Auto-fix didn't resolve it — invoke Claude for a fix
 		bc.promptCtx.IsRetry = true
 		bc.promptCtx.PrevFailure = bc.result.Output
 		bc.promptCtx.FailureContext = "Validation (tests/lint) failed after your build succeeded. Fix the validation errors."
 
-		// Re-render the build prompt with failure context
 		var renderErr error
 		bc.buildPrompt, renderErr = r.renderer.RenderBuild(bc.promptCtx)
 		if renderErr != nil {
@@ -1230,7 +1243,7 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext)
 		savedMaxRetries := bc.maxRetries
 		savedRetriesThisModel := bc.retriesThisModel
 		savedTotalRetries := bc.totalRetriesThisBead
-		bc.maxRetries = 0 // Single attempt only - no retry within retry
+		bc.maxRetries = 0
 		bc.retriesThisModel = 0
 
 		success := r.executeWithRetry(ctx, bc)
@@ -1241,10 +1254,10 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext)
 		bc.totalRetriesThisBead = savedTotalRetries
 
 		if !success {
-			return fmt.Errorf("validation fix build failed: %w", bc.result.Error)
+			continue // Count as a failed retry, try next attempt
 		}
 
-		// Re-validate
+		// Re-validate after Claude fix
 		if valErr := r.runValidation(ctx, bc); valErr == nil {
 			r.log("Validation fix succeeded")
 			return nil
