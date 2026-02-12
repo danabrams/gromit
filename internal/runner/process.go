@@ -407,20 +407,30 @@ func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
 		return
 	}
 
-	// Call Claude with haiku (lightweight, fast)
+	// Select provider via router (phase="build", tier="low" for lightweight extraction)
 	// Use a short timeout - learning extraction should be quick
 	learnTimeout := 30 * time.Second
 	learnCtxTimeout, cancel := context.WithTimeout(ctx, learnTimeout)
 	defer cancel()
 
-	claudeResult, err := r.claude.Run(learnCtxTimeout, learnPrompt, "haiku")
+	p, _ := r.router.Select("build", provider.TierLow)
+	if p == nil {
+		// Learning extraction is optional - don't fail the iteration
+		return
+	}
+
+	// Invoke provider with low tier
+	result, err := p.Run(learnCtxTimeout, learnPrompt, provider.TierLow)
 	if err != nil {
 		// Learning extraction is optional - don't fail the iteration
 		return
 	}
-	if claudeResult == nil || !claudeResult.Success {
+	if result == nil || !result.Success {
 		return
 	}
+
+	// Use result directly (only need the output for parsing)
+	claudeResult := result
 
 	// Parse the result
 	successLearning, err := prompt.ParseSuccessLearning(claudeResult.Output)
