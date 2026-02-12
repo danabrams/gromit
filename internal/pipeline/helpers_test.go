@@ -63,3 +63,14 @@ func TestListMarkdownFiles_WithMarkdownFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestDiffFiles_NoChanges(t *testing.T) {
+	before := []string{"/path/to/spec1.md", "/path/to/spec2.md"}
+	after := []string{"/path/to/spec1.md", "/path/to/spec2.md"}
+
+	diff := DiffFiles(before, after)
+
+	if len(diff) != 0 {
+		t.Errorf("expected no differences, got %d: %v", len(diff), diff)
+	}
+}

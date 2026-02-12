@@ -28,3 +28,20 @@ func ListMarkdownFiles(dir string) ([]string, error) {
 
 	return files, nil
 }
+
+// DiffFiles returns files in after that are not in before.
+func DiffFiles(before, after []string) []string {
+	beforeSet := make(map[string]bool)
+	for _, f := range before {
+		beforeSet[f] = true
+	}
+
+	var diff []string
+	for _, f := range after {
+		if !beforeSet[f] {
+			diff = append(diff, f)
+		}
+	}
+
+	return diff
+}
