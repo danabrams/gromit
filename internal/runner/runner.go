@@ -1767,24 +1767,30 @@ func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.
 		return nil, fmt.Errorf("rendering review prompt: %w", err)
 	}
 
-	// Select model for review
-	model := selectReviewModel(r.cfg, buildModel)
+	// Select tier for review (use "high" if opus build and matching enabled, else use bead tier)
+	tier := r.selectReviewTier(b, buildModel)
 
-	// Call Claude with timeout
+	// Select provider via router (phase="review", tier from selectReviewTier)
+	p, _ := r.router.Select("review", tier)
+	if p == nil {
+		return nil, fmt.Errorf("no provider available for review")
+	}
+
+	// Call provider with timeout
 	timeout := time.Duration(r.cfg.Review.Timeout) * time.Second
 	reviewTimeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	claudeResult, err := r.claude.Run(reviewTimeoutCtx, reviewPrompt, model)
+	providerResult, err := p.Run(reviewTimeoutCtx, reviewPrompt, tier)
 	if err != nil {
 		return nil, fmt.Errorf("review invocation: %w", err)
 	}
-	if claudeResult == nil {
+	if providerResult == nil {
 		return nil, fmt.Errorf("review returned nil result")
 	}
 
 	// Parse review result
-	result, err := review.ParseReviewResult(claudeResult.Output)
+	result, err := review.ParseReviewResult(providerResult.Output)
 	if err != nil {
 		return nil, fmt.Errorf("parsing review result: %w", err)
 	}

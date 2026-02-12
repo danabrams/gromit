@@ -143,6 +143,9 @@ Router-based phase conversions require updating both the call site (process.go) 
 ### 2026-02-11 | gromit-3gdz | conventions
 When converting runner.go sites to Router or refactoring core functionality, acceptance test totals must be actively managed. If the conversion adds test coverage or new test cases, acceptance tests need corresponding consolidation or removal to maintain the target line count. Test metrics are enforced as part of validation and must be tracked alongside code changes.
 
+### 2026-02-11 | gromit-3gdz | gotchas
+Router conversions in runner.go require careful mock setup in tests - checkScope and extractSuccessLearning specifically need mockProviderWithRouterTracking to capture routing state, not just mock.mock*Provider
+
 ---
 
 ## Archived
