@@ -106,8 +106,9 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	if r == nil {
 		return nil, fmt.Errorf("retro is nil")
 	}
-	if r.claude == nil {
-		return nil, fmt.Errorf("claude client is nil")
+	// Check for either claude client or provider
+	if r.claude == nil && r.provider == nil {
+		return nil, fmt.Errorf("neither claude client nor provider is set")
 	}
 	// Load learnings
 	if r.learningsFile == nil {
@@ -128,9 +129,16 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 
 	// Run batch filter on provisional learnings
 	alreadyFiltered := stateFile.GetFilteredHashes()
-	// Create adapter to convert claude.Result to learnings.Result
-	claudeRunnerAdapter := learnings.NewClaudeRunnerAdapter(r.claude)
-	llmFilter := learnings.NewLLMFilter(claudeRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit)
+	// Create adapter - use provider if available, otherwise use claude client
+	var runnerAdapter interface {
+		Run(ctx context.Context, prompt string, model string) (*learnings.Result, error)
+	}
+	if r.provider != nil {
+		runnerAdapter = learnings.NewProviderRunnerAdapter(r.provider)
+	} else {
+		runnerAdapter = learnings.NewClaudeRunnerAdapter(r.claude)
+	}
+	llmFilter := learnings.NewLLMFilter(runnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit)
 	newlyEvaluatedHashes, err := r.learningsFile.FilterProvisional(llmFilter, alreadyFiltered)
 	if err != nil {
 		return nil, fmt.Errorf("filtering provisional learnings: %w", err)
@@ -201,25 +209,67 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 		return nil, fmt.Errorf("rendering prompt: %w", err)
 	}
 
-	// Run Claude analysis (use opus for quality analysis)
-	model := "opus"
-	claudeResult, err := r.claude.Run(ctx, prompt, model)
-	if err != nil {
-		return nil, fmt.Errorf("running Claude analysis: %w", err)
+	// Run analysis (use high tier for quality analysis)
+	tier := "high"
+	var analysisResult interface {
+		GetSuccess() bool
+		GetOutput() string
 	}
 
-	if claudeResult == nil {
-		return &Result{Success: false}, nil
+	if r.provider != nil {
+		providerResult, err := r.provider.Run(ctx, prompt, tier)
+		if err != nil {
+			return nil, fmt.Errorf("running provider analysis: %w", err)
+		}
+		if providerResult == nil {
+			return &Result{Success: false}, nil
+		}
+		analysisResult = &providerResultAdapter{providerResult}
+	} else {
+		claudeResult, err := r.claude.Run(ctx, prompt, "opus")
+		if err != nil {
+			return nil, fmt.Errorf("running Claude analysis: %w", err)
+		}
+		if claudeResult == nil {
+			return &Result{Success: false}, nil
+		}
+		analysisResult = &claudeResultAdapter{claudeResult}
 	}
 
 	result := &Result{
-		Analysis:   claudeResult.Output,
-		Success:    claudeResult.Success,
+		Analysis:   analysisResult.GetOutput(),
+		Success:    analysisResult.GetSuccess(),
 		Efficiency: efficiencyReport,
 		Experiment: experiment,
 	}
 
 	return result, nil
+}
+
+// providerResultAdapter adapts provider.Result to the result interface
+type providerResultAdapter struct {
+	result *provider.Result
+}
+
+func (a *providerResultAdapter) GetSuccess() bool {
+	return a.result.Success
+}
+
+func (a *providerResultAdapter) GetOutput() string {
+	return a.result.Output
+}
+
+// claudeResultAdapter adapts claude.Result to the result interface
+type claudeResultAdapter struct {
+	result *claude.Result
+}
+
+func (a *claudeResultAdapter) GetSuccess() bool {
+	return a.result.Success
+}
+
+func (a *claudeResultAdapter) GetOutput() string {
+	return a.result.Output
 }
 
 // loadRules reads the RULES.md file
