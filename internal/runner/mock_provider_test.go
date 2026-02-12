@@ -62,19 +62,6 @@ func (m *mockProviderWithRouterTracking) IsUsageLimitError(result *provider.Resu
 	return false
 }
 
-// mockRouterWithTracking wraps a provider.Router and tracks Select() calls
-type mockRouterWithTracking struct {
-	inner    *provider.Router
-	onSelect func(phase, tier string)
-}
-
-func newMockRouterWithTracking(inner *provider.Router, onSelect func(phase, tier string)) *provider.Router {
-	// We can't actually wrap the router because it's a struct, not an interface.
-	// Instead, we need to intercept at the provider level.
-	// Return the inner router and let the provider handle tracking.
-	return inner
-}
-
 // newMockRouter creates a simple mock router with a basic provider for tests
 // that don't care about router functionality
 func newMockRouter() *provider.Router {
