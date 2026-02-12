@@ -20,21 +20,14 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	result := NewExploreResult()
 
 	// Record existing artifacts (pre-snapshots)
-	var existingEpics, existingSpecs []string
-	var err error
-
-	if p.paths.EpicsDir != "" {
-		existingEpics, err = ListMarkdownFiles(p.paths.EpicsDir)
-		if err != nil {
-			return nil, fmt.Errorf("scanning epics directory: %w", err)
-		}
+	existingEpics, err := scanArtifacts(p.paths.EpicsDir, "epics directory")
+	if err != nil {
+		return nil, err
 	}
 
-	if p.paths.SpecsDir != "" {
-		existingSpecs, err = ListMarkdownFiles(p.paths.SpecsDir)
-		if err != nil {
-			return nil, fmt.Errorf("scanning specs directory: %w", err)
-		}
+	existingSpecs, err := scanArtifacts(p.paths.SpecsDir, "specs directory")
+	if err != nil {
+		return nil, err
 	}
 
 	existingBacklogItems, err := p.deps.BacklogClient.List()
@@ -75,20 +68,14 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	}
 
 	// Post-processing: detect new artifacts using pre-snapshots
-	var currentEpics, currentSpecs []string
-
-	if p.paths.EpicsDir != "" {
-		currentEpics, err = ListMarkdownFiles(p.paths.EpicsDir)
-		if err != nil {
-			return nil, fmt.Errorf("scanning epics directory after session: %w", err)
-		}
+	currentEpics, err := scanArtifacts(p.paths.EpicsDir, "epics directory after session")
+	if err != nil {
+		return nil, err
 	}
 
-	if p.paths.SpecsDir != "" {
-		currentSpecs, err = ListMarkdownFiles(p.paths.SpecsDir)
-		if err != nil {
-			return nil, fmt.Errorf("scanning specs directory after session: %w", err)
-		}
+	currentSpecs, err := scanArtifacts(p.paths.SpecsDir, "specs directory after session")
+	if err != nil {
+		return nil, err
 	}
 
 	currentBacklogItems, err := p.deps.BacklogClient.List()
@@ -102,6 +89,19 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	result.CreatedBacklogItems = ensureNonNil(diffBacklogItems(existingBacklogItems, currentBacklogItems))
 
 	return &result, nil
+}
+
+// scanArtifacts scans a directory for markdown files, returning empty slice if dir is empty.
+// contextName is used in error messages (e.g., "epics directory", "specs directory after session").
+func scanArtifacts(dir, contextName string) ([]string, error) {
+	if dir == "" {
+		return []string{}, nil
+	}
+	files, err := ListMarkdownFiles(dir)
+	if err != nil {
+		return nil, fmt.Errorf("scanning %s: %w", contextName, err)
+	}
+	return files, nil
 }
 
 // ensureNonNil returns the input slice or an empty slice if input is nil.
