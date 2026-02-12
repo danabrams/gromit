@@ -57,11 +57,13 @@ func (a *cliAgent) Name() string {
 	return a.name
 }
 
-// Launch executes the agent with the given prompt file path
-func (a *cliAgent) Launch(promptPath string) error {
+// buildCommandArgs constructs the argument list for the agent command
+// based on the prompt delivery method. Returns an error if the prompt file
+// does not exist.
+func (a *cliAgent) buildCommandArgs(promptPath string) ([]string, error) {
 	// Verify prompt file exists
 	if _, err := os.Stat(promptPath); err != nil {
-		return fmt.Errorf("prompt file not found: %w", err)
+		return nil, fmt.Errorf("prompt file not found: %w", err)
 	}
 
 	// Build command arguments based on prompt delivery method
@@ -82,6 +84,15 @@ func (a *cliAgent) Launch(promptPath string) error {
 	}
 
 	args = append(args, a.extraArgs...)
+	return args, nil
+}
+
+// Launch executes the agent with the given prompt file path
+func (a *cliAgent) Launch(promptPath string) error {
+	args, err := a.buildCommandArgs(promptPath)
+	if err != nil {
+		return err
+	}
 
 	// Create command
 	cmd := exec.Command(a.binary, args...)
@@ -108,7 +119,7 @@ func (a *cliAgent) Launch(promptPath string) error {
 	}
 
 	// Run the command
-	err := cmd.Run()
+	err = cmd.Run()
 
 	// Treat exec.ExitError as graceful exit (agent returned non-zero)
 	if _, ok := err.(*exec.ExitError); ok {
@@ -118,34 +129,15 @@ func (a *cliAgent) Launch(promptPath string) error {
 	return err
 }
 
-// Command builds a configured *exec.Cmd for the agent without starting it
+// Command builds a configured *exec.Cmd for the agent without starting it.
+// The caller is responsible for setting up stdin/stdout/stderr.
 func (a *cliAgent) Command(promptPath string) (*exec.Cmd, error) {
-	// Verify prompt file exists
-	if _, err := os.Stat(promptPath); err != nil {
-		return nil, fmt.Errorf("prompt file not found: %w", err)
+	args, err := a.buildCommandArgs(promptPath)
+	if err != nil {
+		return nil, err
 	}
-
-	// Build command arguments based on prompt delivery method
-	args := make([]string, 0, len(a.flags)+len(a.extraArgs)+3)
-	args = append(args, a.flags...)
-
-	switch a.promptDelivery {
-	case FileRef:
-		// Add the file reference message as a positional argument
-		args = append(args, fmt.Sprintf(fileRefMessageFormat, promptPath))
-	case PromptFileArg:
-		// Add the prompt flag and file path
-		if a.promptFlag != "" {
-			args = append(args, a.promptFlag, promptPath)
-		}
-	case Stdin:
-		// No additional args needed - caller is responsible for stdin setup
-	}
-
-	args = append(args, a.extraArgs...)
 
 	// Create command - do not set stdout/stderr/stdin (caller's responsibility)
 	cmd := exec.Command(a.binary, args...)
-
 	return cmd, nil
 }
