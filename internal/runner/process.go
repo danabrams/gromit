@@ -1171,6 +1171,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 	}
 
 	bc.result.Validated = true
+	bc.result.ValidationMode = "direct"
 	r.log("Validation passed")
 
 	// Run post-success stages sequentially

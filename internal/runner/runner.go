@@ -220,11 +220,12 @@ type IterationResult struct {
 	CostUSD               float64
 	InputTokens           int
 	OutputTokens          int
-	ReviewBrokeValidation bool // true when review fixes broke previously-passing validation
-	AlreadyDone           bool // true when ATDD detected work was already complete
-	ValidationRetried     bool // true when validation recovery was attempted
-	TrivialAutoFixed      bool // true when auto-fix (gofmt/goimports) resolved validation without Claude
-	UsageLimited          bool // true when invocation failed due to usage/rate limit
+	ReviewBrokeValidation bool   // true when review fixes broke previously-passing validation
+	AlreadyDone           bool   // true when ATDD detected work was already complete
+	ValidationRetried     bool   // true when validation recovery was attempted
+	TrivialAutoFixed      bool   // true when auto-fix (gofmt/goimports) resolved validation without Claude
+	UsageLimited          bool   // true when invocation failed due to usage/rate limit
+	ValidationMode        string // "direct" when validation ran via shell commands
 
 	// Diagnostic fields for timeout investigation
 	TimeoutType         string // "stall", "bead", "invocation", ""
@@ -683,6 +684,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		ValidationRetried:   result.ValidationRetried,
 		TrivialAutoFixed:    result.TrivialAutoFixed,
 		UsageLimited:        result.UsageLimited,
+		ValidationMode:      result.ValidationMode,
 		TimeoutType:         result.TimeoutType,
 		TimeToFirstEventMs:  result.TimeToFirstEventMs,
 		ToolCallCount:       result.ToolCallCount,
