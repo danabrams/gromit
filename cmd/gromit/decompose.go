@@ -7,14 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
-	"github.com/danabrams/gromit/internal/jsonutil"
-	"github.com/danabrams/gromit/skills"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 
@@ -60,7 +58,7 @@ func init() {
 	rootCmd.AddCommand(decomposeCmd)
 }
 
-// beadDef represents a bead definition from Claude's JSON output
+// beadDef represents a bead definition for display purposes (review mode).
 type beadDef struct {
 	Title              string   `json:"title"`
 	Description        string   `json:"description"`
@@ -147,176 +145,142 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 }
 
 // decomposeSinglePlan decomposes a single plan file into bd beads.
-// It reads the plan file, checks if already decomposed (unless force flag is set),
-// invokes Claude to extract beads, creates them via bd, and updates the plan frontmatter.
+// Delegates business logic to pipeline.Decompose() and handles CLI interactions
+// (review confirmation, output formatting, chaining).
 // Respects package-level flags: decomposeReview, decomposeForce, decomposeNoChain.
 func decomposeSinglePlan(planName string, cfg *config.Config) error {
-	plansDir := resolvePlansDir(cfg)
-
-	// Check if plan file exists
-	planPath := filepath.Join(plansDir, planName+".md")
-	if _, err := os.Stat(planPath); os.IsNotExist(err) {
-		return fmt.Errorf("plan not found: %s\nLooking for: %s", planName, planPath)
-	}
-
-	// Read plan file
-	planFrontmatter, planBody, err := frontmatter.ReadFile(planPath)
-	if err != nil {
-		return fmt.Errorf("reading plan file: %w", err)
-	}
-
-	// Check if already decomposed
-	if decomposed, ok := planFrontmatter["decomposed"].(bool); ok && decomposed && !decomposeForce {
-		return fmt.Errorf("plan already decomposed: %s\nUse --force to re-decompose", planName)
-	}
-
-	// Build prompt with embedded skill content
-	prompt := buildDecomposePrompt(planName, planBody, skills.DecomposeSkill)
-
 	// Create Claude client
 	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
 	if err != nil {
 		return fmt.Errorf("creating Claude client: %w", err)
 	}
 
-	// Run Claude non-interactively with sonnet
-	fmt.Printf("Decomposing plan '%s' into beads...\n", planName)
-	ctx := context.Background()
-	result, err := claudeClient.Run(ctx, prompt, config.ModelSonnet)
-	if err != nil {
-		return fmt.Errorf("invoking Claude: %w", err)
-	}
-
-	if !result.Success {
-		return fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", result.ExitCode, result.Output)
-	}
-
-	// Parse JSON array from result
-	var beadDefs []beadDef
-	if err := jsonutil.ExtractJSON(result.Output, &beadDefs); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to parse JSON output from Claude:\n%s\n\n", result.Output)
-		return fmt.Errorf("parsing bead definitions: %w", err)
-	}
-
-	if len(beadDefs) == 0 {
-		return fmt.Errorf("no beads extracted from plan")
-	}
-
-	fmt.Printf("\nExtracted %d bead(s) from plan\n\n", len(beadDefs))
-
-	// Review mode: show proposed beads and prompt for confirmation
-	if decomposeReview {
-		if !promptReviewBeads(beadDefs) {
-			fmt.Println("\nDecomposition cancelled.")
-			return nil
-		}
-	}
-
-	// Create beads
+	// Create Bead client
 	beadClient, err := bead.NewClient()
 	if err != nil {
 		return fmt.Errorf("creating bead client: %w", err)
 	}
 
-	createdBeads := []string{}
-	for i, def := range beadDefs {
-		// Map priority string to int (P0 -> 0, P1 -> 1, P2 -> 2)
-		priority := parsePriority(def.Priority)
+	// Create pipeline
+	deps := &pipeline.Deps{
+		ClaudeClient: &claudeClientAdapter{Client: claudeClient},
+		BeadClient:   &beadClientAdapter{Client: beadClient},
+	}
+	paths := &pipeline.Paths{
+		GromitDir: resolveGromitDir(cfg),
+		SpecsDir:  resolveSpecsDir(cfg),
+		PlansDir:  resolvePlansDir(cfg),
+	}
 
-		// Build labels: always include spec:<name>
-		labels := []string{fmt.Sprintf("spec:%s", planName)}
+	p := pipeline.New(deps, paths)
 
-		// Resolve dependencies from depends_on_index
-		var dependencies []string
-		for _, depIdx := range def.DependsOnIndex {
-			if depIdx == i {
-				fmt.Fprintf(os.Stderr, "  Warning: bead %d (%s) has self-dependency, skipping\n", i, def.Title)
-				continue
+	// Execute decompose workflow
+	fmt.Printf("Decomposing plan '%s' into beads...\n", planName)
+	ctx := context.Background()
+	input := pipeline.DecomposeInput{
+		PlanName: planName,
+		Force:    decomposeForce,
+		Review:   decomposeReview,
+	}
+
+	result, err := p.Decompose(ctx, input)
+	if err != nil {
+		return err
+	}
+
+	// Review mode: show proposed beads and prompt for confirmation
+	if decomposeReview {
+		// Convert result to beadDef for display
+		beadDefs := make([]beadDef, len(result.CreatedBeads))
+		for i, bead := range result.CreatedBeads {
+			// Note: Review mode doesn't include acceptance criteria in result
+			// This is a simplified conversion for display purposes
+			beadDefs[i] = beadDef{
+				Title:    bead.Title,
+				Priority: fmt.Sprintf("P%d", bead.Priority),
 			}
-			if depIdx < 0 || depIdx >= len(createdBeads) {
-				fmt.Fprintf(os.Stderr, "  Warning: bead %d (%s) references unresolvable dependency index %d, skipping\n", i, def.Title, depIdx)
-				continue
-			}
-			dependencies = append(dependencies, createdBeads[depIdx])
+		}
+		if !promptReviewBeads(beadDefs) {
+			fmt.Println("\nDecomposition cancelled.")
+			return nil
 		}
 
-		// Create bead
-		createdBead, err := beadClient.CreateWithDepsAndDescription(
-			def.Title,
-			priority,
-			labels,
-			def.AcceptanceCriteria,
-			dependencies,
-			def.Description,
-		)
+		// User approved - run decompose again without review mode
+		input.Review = false
+		result, err = p.Decompose(ctx, input)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "\nFailed to create bead %d: %v\n", i+1, err)
-			fmt.Fprintf(os.Stderr, "Successfully created %d bead(s) before failure:\n", len(createdBeads))
-			for j, id := range createdBeads {
-				fmt.Fprintf(os.Stderr, "  %d. %s\n", j+1, id)
-			}
-			return fmt.Errorf("bead creation failed")
+			return err
 		}
-
-		createdBeads = append(createdBeads, createdBead.ID)
-		fmt.Printf("  ✓ Created: %s (%s)\n", createdBead.ID, def.Title)
 	}
 
-	// Update plan frontmatter
-	updates := map[string]interface{}{
-		"decomposed":    true,
-		"decomposed_at": time.Now().Format(time.RFC3339),
-	}
-	if err := frontmatter.UpdateFile(planPath, updates); err != nil {
-		fmt.Fprintf(os.Stderr, "\nWarning: failed to update plan frontmatter: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Beads were created successfully, but plan file not marked as decomposed.\n")
+	// Display results
+	fmt.Printf("\nExtracted %d bead(s) from plan\n\n", len(result.CreatedBeads))
+	for _, bead := range result.CreatedBeads {
+		fmt.Printf("  ✓ Created: %s (%s)\n", bead.ID, bead.Title)
 	}
 
-	fmt.Printf("\n✓ Created %d bead(s) from plan '%s'\n", len(createdBeads), planName)
+	fmt.Printf("\n✓ Created %d bead(s) from plan '%s'\n", len(result.CreatedBeads), planName)
 
 	// Offer to chain to 'gromit run' if chaining is enabled
-	if !decomposeNoChain && len(createdBeads) > 0 {
+	if !decomposeNoChain && len(result.CreatedBeads) > 0 {
 		chainAfterDecompose()
 	}
 
 	return nil
 }
 
-// buildDecomposePrompt constructs the prompt for Claude
-func buildDecomposePrompt(planName, planBody, skillContent string) string {
-	return fmt.Sprintf(`# Decompose Plan: %s
-
-You are decomposing an implementation plan into bd beads following the gromit-decompose skill.
-
-## Plan Content
-
-%s
-
-## Skill Instructions
-
-%s
-
-## Output
-
-Output ONLY a JSON array of bead definitions. No markdown, no explanations, no wrapper.
-Each bead must include: title, description, priority, acceptance_criteria, depends_on_index.
-
-The spec label will be added automatically: spec:%s
-`, planName, planBody, skillContent, planName)
+// claudeClientAdapter adapts claude.Client to pipeline.ClaudeClient interface.
+type claudeClientAdapter struct {
+	Client *claude.Client
 }
 
-// parsePriority converts priority string (P0, P1, P2) to int (0, 1, 2)
-func parsePriority(p string) int {
-	switch strings.ToUpper(p) {
-	case "P0":
-		return 0
-	case "P1":
-		return 1
-	case "P2":
-		return 2
-	default:
-		return 1 // Default to P1
+func (a *claudeClientAdapter) Run(prompt string, model string) (interface{}, error) {
+	ctx := context.Background()
+	result, err := a.Client.Run(ctx, prompt, model)
+	if err != nil {
+		return nil, err
 	}
+	// Convert to map for pipeline interface
+	return map[string]interface{}{
+		"Success":  result.Success,
+		"ExitCode": result.ExitCode,
+		"Output":   result.Output,
+	}, nil
+}
+
+// beadClientAdapter adapts bead.Client to pipeline.BeadClient interface.
+type beadClientAdapter struct {
+	Client *bead.Client
+}
+
+func (a *beadClientAdapter) Ready() (interface{}, error) {
+	return a.Client.Ready()
+}
+
+func (a *beadClientAdapter) Show(id string) (interface{}, error) {
+	return a.Client.Show(id)
+}
+
+func (a *beadClientAdapter) Create(title string, priority int, labels []string, outputs []string) (interface{}, error) {
+	return a.Client.Create(title, priority, labels, outputs)
+}
+
+func (a *beadClientAdapter) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+	bead, err := a.Client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
+	if err != nil {
+		return nil, err
+	}
+	// Convert to map for pipeline interface
+	return map[string]interface{}{
+		"ID":       bead.ID,
+		"Title":    bead.Title,
+		"Priority": bead.Priority,
+		"Labels":   bead.Labels,
+	}, nil
+}
+
+func (a *beadClientAdapter) Close(id string) error {
+	return a.Client.Close(id)
 }
 
 // promptReviewBeads displays proposed beads and asks for confirmation.
