@@ -17,7 +17,6 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/spf13/cobra"
@@ -476,94 +475,6 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 
 	fmt.Println("\nReview complete!")
 	return nil
-}
-
-func applyReviewResultCLI(result *review.ReviewResult) (beadsCreated int, backlogCreated int) {
-	if result == nil {
-		return 0, 0
-	}
-
-	beadsClient, err := bead.NewClient()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not create bead client: %v\n", err)
-		return 0, 0
-	}
-
-	for _, bp := range result.BeadsToCreate {
-		labels := buildReviewBeadLabelsCLI(bp.Labels)
-		_, err := beadsClient.Create(bp.Title, bp.Priority, labels, nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to create review bead: %v\n", err)
-			continue
-		}
-		beadsCreated++
-		fmt.Printf("Created bead: %s (P%d)\n", bp.Title, bp.Priority)
-	}
-
-	for _, bi := range result.BacklogItems {
-		labels := buildBacklogLabelsCLI()
-		_, err := beadsClient.Create(bi.Title, 2, labels, nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to create backlog bead: %v\n", err)
-			continue
-		}
-		backlogCreated++
-		fmt.Printf("Created backlog: %s (reason: %s)\n", bi.Title, bi.Reason)
-	}
-
-	// Persist learnings
-	if len(result.Learnings) > 0 {
-		cfg, err := loadConfig()
-		if err == nil {
-			gromitDir := resolveGromitDir(cfg)
-			claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
-			if err == nil {
-				persistReviewLearnings(gromitDir, result.Learnings, claudeClient)
-			}
-		}
-	}
-
-	return beadsCreated, backlogCreated
-}
-
-// persistReviewLearnings adds review-discovered learnings to the learnings file.
-func persistReviewLearnings(gromitDir string, reviewLearnings []string, claudeClient *claude.Client) {
-	if len(reviewLearnings) == 0 {
-		return
-	}
-
-	learningsFile, err := learnings.NewFile(gromitDir)
-	if err != nil {
-		return
-	}
-
-	// Wire filter into learnings file
-	if claudeClient != nil {
-		claudeRunnerAdapter := learnings.NewClaudeRunnerAdapter(claudeClient)
-		learningsFile.SetFilter(learnings.NewLLMFilter(claudeRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
-	}
-
-	if err := learningsFile.Load(); err != nil {
-		return
-	}
-
-	for _, learning := range reviewLearnings {
-		learningsFile.Add("review", learning, learnings.CategoryPatterns)
-	}
-}
-
-func buildReviewBeadLabelsCLI(proposalLabels []string) []string {
-	labels := []string{"from-review"}
-	for _, l := range proposalLabels {
-		if l != "from-review" {
-			labels = append(labels, l)
-		}
-	}
-	return labels
-}
-
-func buildBacklogLabelsCLI() []string {
-	return []string{"from-review", "backlog"}
 }
 
 func getGitHeadForReview() (string, error) {
