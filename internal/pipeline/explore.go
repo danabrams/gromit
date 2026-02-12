@@ -41,9 +41,6 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	if err != nil {
 		return nil, fmt.Errorf("loading backlog: %w", err)
 	}
-	_ = existingBacklogItems // Will be used in post-processing
-	_ = existingEpics        // Will be used in post-processing
-	_ = existingSpecs        // Will be used in post-processing
 
 	// Build explore prompt using renderer
 	exploreContext := map[string]interface{}{
@@ -99,29 +96,24 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 		return nil, fmt.Errorf("loading backlog after session: %w", err)
 	}
 
-	// Diff to find new artifacts
-	newEpics := DiffFiles(existingEpics, currentEpics)
-	if newEpics == nil {
-		newEpics = []string{}
-	}
-	result.CreatedEpics = newEpics
-
-	newSpecs := DiffFiles(existingSpecs, currentSpecs)
-	if newSpecs == nil {
-		newSpecs = []string{}
-	}
-	result.CreatedSpecs = newSpecs
-
-	newBacklogItems := diffBacklogItems(existingBacklogItems, currentBacklogItems)
-	if newBacklogItems == nil {
-		newBacklogItems = []string{}
-	}
-	result.CreatedBacklogItems = newBacklogItems
+	// Diff to find new artifacts and ensure non-nil slices
+	result.CreatedEpics = ensureNonNil(DiffFiles(existingEpics, currentEpics))
+	result.CreatedSpecs = ensureNonNil(DiffFiles(existingSpecs, currentSpecs))
+	result.CreatedBacklogItems = ensureNonNil(diffBacklogItems(existingBacklogItems, currentBacklogItems))
 
 	return &result, nil
 }
 
-// diffBacklogItems returns IDs of items in current that are not in existing
+// ensureNonNil returns the input slice or an empty slice if input is nil.
+// This ensures consistent nil-safe slice handling across all result fields.
+func ensureNonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+// diffBacklogItems returns IDs of backlog items in current that are not in existing.
 func diffBacklogItems(existing, current []*Idea) []string {
 	existingSet := make(map[string]bool)
 	for _, idea := range existing {
