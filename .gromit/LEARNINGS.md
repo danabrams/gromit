@@ -137,6 +137,9 @@ When converting function calls to use a Router abstraction, check for all call s
 ### 2026-02-11 | gromit-557p | conventions
 When acceptance test line count is a validation gate, new test additions require corresponding reduction in existing test files to meet the overall threshold. Task specs that add test coverage must account for the total line budget, not just the new lines added. Check gromit.yaml validation rules and acceptance test baselines before adding new test files.
 
+### 2026-02-11 | gromit-557p | gotchas
+Router-based phase conversions require updating both the call site (process.go) and the acceptance tests to use proper git repo fixtures—mock repos won't pass router validation. When converting from r.claude.Run() to router calls, regenerate acceptance tests with real repo setup.
+
 ---
 
 ## Archived
