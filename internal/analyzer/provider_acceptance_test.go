@@ -4,8 +4,6 @@ package analyzer
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"testing"
 	"time"
 

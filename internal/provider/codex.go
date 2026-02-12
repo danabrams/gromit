@@ -22,6 +22,17 @@ type CodexProvider struct {
 // Compile-time check to verify CodexProvider implements Provider interface
 var _ Provider = (*CodexProvider)(nil)
 
+// NewCodexProvider creates a new CodexProvider with the given configuration
+func NewCodexProvider(binaryPath string, flags []string, promptDelivery string, promptFlag string, tierToModel map[string]string) *CodexProvider {
+	return &CodexProvider{
+		binaryPath:     binaryPath,
+		flags:          flags,
+		promptDelivery: promptDelivery,
+		promptFlag:     promptFlag,
+		tierToModel:    tierToModel,
+	}
+}
+
 // Name returns the provider name "codex"
 func (cp *CodexProvider) Name() string {
 	return providerNameCodex
