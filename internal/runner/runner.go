@@ -52,6 +52,7 @@ type Runner struct {
 	gromitDir    string
 	gitDiffFn    func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
 	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
+	autoFixFn    func(startCommit string) error                                                                                    // injectable for testing; defaults to defaultAutoFix (gofmt + goimports)
 	labelFilters []string                                                                                                          // optional spec labels to filter beads
 }
 
@@ -222,6 +223,7 @@ type IterationResult struct {
 	ReviewBrokeValidation bool // true when review fixes broke previously-passing validation
 	AlreadyDone           bool // true when ATDD detected work was already complete
 	ValidationRetried     bool // true when validation recovery was attempted
+	TrivialAutoFixed      bool // true when auto-fix (gofmt/goimports) resolved validation without Claude
 	UsageLimited          bool // true when invocation failed due to usage/rate limit
 
 	// Diagnostic fields for timeout investigation
@@ -679,6 +681,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		Error:               errStr,
 		Outcome:             outcome,
 		ValidationRetried:   result.ValidationRetried,
+		TrivialAutoFixed:    result.TrivialAutoFixed,
 		UsageLimited:        result.UsageLimited,
 		TimeoutType:         result.TimeoutType,
 		TimeToFirstEventMs:  result.TimeToFirstEventMs,

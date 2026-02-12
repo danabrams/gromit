@@ -60,9 +60,10 @@ type LoopConfig struct {
 }
 
 type ValidationConfig struct {
-	Enabled        bool     `yaml:"enabled"`
-	Commands       []string `yaml:"commands"`
-	MaxFixAttempts int      `yaml:"max_fix_attempts"`
+	Enabled              bool     `yaml:"enabled"`
+	Commands             []string `yaml:"commands"`
+	MaxFixAttempts       int      `yaml:"max_fix_attempts"`
+	MaxValidationRetries int      `yaml:"max_validation_retries"`
 }
 
 type ScopeCheckConfig struct {
@@ -298,6 +299,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Validation.MaxFixAttempts == 0 {
 		c.Validation.MaxFixAttempts = 1
+	}
+	if c.Validation.MaxValidationRetries == 0 {
+		c.Validation.MaxValidationRetries = 2
 	}
 	if len(c.Escalation.Chain) == 0 {
 		c.Escalation.Chain = []string{ModelHaiku, ModelSonnet, ModelOpus}
