@@ -92,7 +92,7 @@ claude:
 
 # Git settings
 git:
-  auto_push: true  # Push to remote after each successful bead (default: true)
+  auto_push: false  # Push to remote after each successful bead (default: true)
   push_failure: "warn"  # What to do when push fails: "warn" | "stop" (default: "warn")
 
 # State file staleness protection - detects and auto-heals corrupted state from crashes

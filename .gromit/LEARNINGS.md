@@ -9,11 +9,6 @@ This file is automatically updated. Review periodically with `gromit retro`.
 
 *Patterns seen multiple times - high confidence.*
 
-### 2026-02-07 | Mock Implementation Patterns | patterns
-*Related to: ge6j, atmb*
-
-Mock implementations use optional function pointer fields (FnField pattern) with nil-safe defaults. Tests set up only the behavior needed via tracking flags or injected callbacks, enabling focused verification of specific code paths without requiring full mock setup.
-
 ### 2026-02-07 | Status File Management | patterns
 *Related to: nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2*
 
@@ -30,9 +25,9 @@ Methodologies use label-based activation ("methodology:true"/"false") with globa
 Runner methods follow a consistent pattern: nil-safe receiver/config checks, feature-flag gating (e.g., IsAutoPushEnabled()), context.WithTimeout for subprocess calls, and failure handling via mode field (warn vs stop) or skippedBeads map rather than inline error handling. The Run() method follows a clear sequencing: validate -> execute work -> persist state -> run between-iteration hooks -> continue loop. Log warnings on timeout errors rather than returning early.
 
 ### 2026-02-11 | Router Conversion Pattern | patterns
-*Related to: gromit-juyb, gromit-2zju, gromit-557p, gromit-3gdz, gromit-gibz*
+*Related to: gromit-juyb, gromit-2zju, gromit-557p, gromit-3gdz, gromit-gibz, gromit-sx84*
 
-Router-based calls use phase + tier parameters: phase identifies the operation (build/validate/review/refactor), tier selects the complexity level (low/medium/high). Follow the executeClaudeInvocation pattern: extract tier selection, use router.StreamRun() for the initial call, handle UsageLimitError by escalating to the next tier. Distinguish between tier selection and model selection — SetEscalatedTo gets the final model name from TierToModel, not the tier string. Standard tiers: validation uses phase="validate" tier="low"; reviews use selectTier(bead) or "high" for opus builds/thorough reviews. When converting call sites, check all related functions in the same flow (e.g., runRefactorPhase + handleRefactorValidationFailure + runPostSuccessReview). Router conversions in tests require mockProviderWithRouterTracking and real git repo fixtures for acceptance tests. Use selectReviewTier() helper which delegates to selectTier() for non-opus and returns "high" for opus builds.
+Router-based calls use phase + tier parameters: phase identifies the operation (build/validate/review/refactor), tier selects the complexity level (low/medium/high). Provider selection happens at invocation time via router.Select(), which returns a Provider and model name. The Provider's StreamRun() method executes the invocation. Follow the executeClaudeInvocation pattern: extract tier selection, use provider.StreamRun() for the initial call, handle UsageLimitError by escalating to the next tier. Capture the selected provider's Name() immediately after selection for use in dependent operations (e.g., review routing via SelectCross). Distinguish between tier selection and model selection — SetEscalatedTo gets the final model name from TierToModel, not the tier string. Standard tiers: validation uses phase="validate" tier="low"; reviews use selectTier(bead) or "high" for opus builds/thorough reviews. When converting call sites, check all related functions in the same flow (e.g., runRefactorPhase + handleRefactorValidationFailure + runPostSuccessReview). Router conversions in tests require mockProviderWithRouterTracking and real git repo fixtures for acceptance tests. Use selectReviewTier() helper which delegates to selectTier() for non-opus and returns "high" for opus builds.
 
 ### 2026-02-11 | Acceptance Test Line Budget | conventions
 *Related to: gromit-lxlp, gromit-nqf1, gromit-2edx, gromit-557p, gromit-3gdz*
@@ -50,14 +45,23 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-12 | gromit-sx84 | patterns
-Provider selection in the runner is determined at invocation time via router.Select(), and provider tracking is achieved by capturing the selected provider's Name() immediately after selection and storing it in beadContext or function parameters for later use in dependent operations like review routing.
-
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-12 | Mock Implementation Patterns | patterns
+*Related to: ge6j, atmb*
+
+Archived: promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from confirmed: promoted to rules*
+
+### 2026-02-12 | gromit-sx84 provider selection | patterns
+Archived: consolidated into Confirmed "Router Conversion Pattern" entry.
+
+*Archived from provisional: consolidated*
 
 ### 2026-02-12 | gromit-gte1, gromit-u9qy acceptance test budget duplicates | conventions
 Archived: redundant with Confirmed "Acceptance Test Line Budget" entry (same 6000-line budget information).
