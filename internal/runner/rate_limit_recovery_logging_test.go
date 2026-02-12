@@ -63,7 +63,6 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 
 	r := &Runner{
 		cfg:          cfg,
-		claude:       mockClaude,
 		router:       mockRouter,
 		streamLogger: sl,
 	}
@@ -145,7 +144,6 @@ func TestExecuteClaudeInvocation_ZeroRecoveryMsWhenNoRateLimit(t *testing.T) {
 
 	r := &Runner{
 		cfg:    cfg,
-		claude: mockClaude,
 		router: mockRouter,
 	}
 

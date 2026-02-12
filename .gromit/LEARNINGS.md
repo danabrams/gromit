@@ -155,6 +155,9 @@ Router-based calls should check for Opus build before selecting tier - use selec
 ### 2026-02-11 | gromit-gibz | conventions
 Router-based refactoring uses consistent phase + tier parameters: selectTier(bead) for standard reviews, 'high' tier for opus builds or thorough reviews, 'low' tier for validation sub-calls. When converting r.claude.Run() to router calls, check context first (isOpusBuild) to determine tier override.
 
+### 2026-02-11 | gromit-mz3m | conventions
+When migrating from one pattern to another (e.g., ClaudeClient → Provider), ensure structural changes are completed across all types (not just the adapter/analyzer). Acceptance test files must include the `//go:build acceptance` build tag to be properly categorized. Review all struct definitions and their test expectations when making breaking pattern changes.
+
 ---
 
 ## Archived

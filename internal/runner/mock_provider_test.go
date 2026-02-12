@@ -74,3 +74,12 @@ func newMockRouterWithTracking(inner *provider.Router, onSelect func(phase, tier
 	// Return the inner router and let the provider handle tracking.
 	return inner
 }
+
+// newMockRouter creates a simple mock router with a basic provider for tests
+// that don't care about router functionality
+func newMockRouter() *provider.Router {
+	mockProvider := &mockProviderWithRouterTracking{
+		streamRunResult: &provider.Result{Success: true, Model: "test-model", Output: "done"},
+	}
+	return provider.NewSingleProviderRouter(mockProvider)
+}

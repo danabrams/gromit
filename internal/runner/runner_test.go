@@ -976,7 +976,7 @@ func TestCreateSubBeads_MethodologyInheritance(t *testing.T) {
 			r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 				Deps{
 					Beads:    mockBeads,
-					Claude:   &mockClaudeClient{},
+					Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 					Analyzer: &mockFailureAnalyzer{},
 					Renderer: &mockPromptRenderer{},
 					Logger:   &mockIterationLogger{},
@@ -1730,12 +1730,10 @@ func TestApplyReviewResultHandlesCreateErrors(t *testing.T) {
 }
 
 func TestRunLightReviewSkipsWhenDeadlineExpired(t *testing.T) {
-	mockClaude := &mockClaudeClient{}
 	var buf strings.Builder
 
 	r := &Runner{
 		cfg:      &config.Config{Review: config.ReviewConfig{Timeout: 30}},
-		claude:   mockClaude,
 		renderer: &mockRenderer{},
 		beads:    &mockBeadClient{},
 		output:   &buf,
@@ -1760,12 +1758,10 @@ func TestRunLightReviewSkipsWhenDeadlineExpired(t *testing.T) {
 }
 
 func TestRunLightReviewSkipsWhenInsufficientTime(t *testing.T) {
-	mockClaude := &mockClaudeClient{}
 	var buf strings.Builder
 
 	r := &Runner{
 		cfg:      &config.Config{Review: config.ReviewConfig{Timeout: 300}}, // 300 second timeout
-		claude:   mockClaude,
 		renderer: &mockRenderer{},
 		beads:    &mockBeadClient{},
 		output:   &buf,
@@ -2131,7 +2127,7 @@ func TestTDDPromptSelection(t *testing.T) {
 			r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 				Deps{
 					Beads:    &mockBeadClient{},
-					Claude:   &mockClaudeClient{},
+					Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 					Analyzer: &mockFailureAnalyzer{},
 					Renderer: mockRenderer,
 					Logger:   &mockIterationLogger{},
@@ -2188,7 +2184,7 @@ func TestScopedRun_NoFilterUsesReady(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   &mockClaudeClient{},
+			Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},
@@ -2247,7 +2243,7 @@ func TestScopedRun_WithFilterUsesReadyWithLabel(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   &mockClaudeClient{},
+			Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},
@@ -2299,7 +2295,7 @@ func TestScopedRun_EmptyResultsExitCleanly(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   &mockClaudeClient{},
+			Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},
@@ -2357,7 +2353,7 @@ func TestScopedRun_MultipleLabelsPicksHighestPriority(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   &mockClaudeClient{},
+			Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},
@@ -2409,7 +2405,7 @@ func TestScopedRun_MultipleLabelsWithPartialResults(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   &mockClaudeClient{},
+			Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},
@@ -2457,7 +2453,7 @@ func TestScopedRun_DeduplicatesBeadsAcrossLabels(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   &mockClaudeClient{},
+			Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},
@@ -2944,7 +2940,7 @@ func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 			r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 				Deps{
 					Beads:    &mockBeadClient{},
-					Claude:   &mockClaudeClient{},
+					Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 					Analyzer: &mockFailureAnalyzer{},
 					Renderer: mockRend,
 					Logger:   &mockIterationLogger{},

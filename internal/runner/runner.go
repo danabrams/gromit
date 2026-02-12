@@ -40,7 +40,6 @@ var defaultTierToModelMap = map[string]string{
 type Runner struct {
 	cfg          *config.Config
 	beads        BeadClient
-	claude       ClaudeClient
 	router       *provider.Router
 	analyzer     FailureAnalyzer
 	renderer     PromptRenderer
@@ -132,7 +131,6 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	return &Runner{
 		cfg:       cfg,
 		beads:     beadsClient,
-		claude:    claudeClient,
 		router:    router,
 		analyzer:  analyzerObj,
 		renderer:  renderer,
@@ -147,7 +145,6 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 // Deps holds injectable dependencies for a Runner, used for testing.
 type Deps struct {
 	Beads    BeadClient
-	Claude   ClaudeClient
 	Router   *provider.Router
 	Analyzer FailureAnalyzer
 	Renderer PromptRenderer
@@ -184,18 +181,12 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		}
 	}
 
-	// Use provided Router, or wrap Claude client for backward compatibility
+	// Use provided Router
 	router := deps.Router
-	if router == nil && deps.Claude != nil {
-		// Create a ClaudeProvider wrapping the Claude client
-		claudeProvider := provider.NewClaudeProvider(deps.Claude, defaultTierToModelMap)
-		router = provider.NewSingleProviderRouter(claudeProvider)
-	}
 
 	return &Runner{
 		cfg:       cfg,
 		beads:     deps.Beads,
-		claude:    deps.Claude,
 		router:    router,
 		analyzer:  deps.Analyzer,
 		renderer:  deps.Renderer,
@@ -268,9 +259,6 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 	if r.renderer == nil {
 		return fmt.Errorf("runner renderer is nil")
-	}
-	if r.claude == nil {
-		return fmt.Errorf("runner claude client is nil")
 	}
 	if r.router == nil {
 		return fmt.Errorf("runner router is nil")
@@ -1355,8 +1343,8 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 	if r.renderer == nil {
 		return nil, fmt.Errorf("runner renderer is nil")
 	}
-	if r.claude == nil {
-		return nil, fmt.Errorf("runner claude client is nil")
+	if r.router == nil {
+		return nil, fmt.Errorf("runner router is nil")
 	}
 
 	// Get parent bead if exists
@@ -1565,7 +1553,7 @@ func (r *Runner) injectMethodologyLabels(parentLabels []string) []string {
 func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Duration) {
 	start := time.Now()
 
-	if r == nil || b == nil || r.cfg == nil || r.renderer == nil || r.claude == nil {
+	if r == nil || b == nil || r.cfg == nil || r.renderer == nil || r.router == nil {
 		return false, 0
 	}
 
@@ -1636,7 +1624,7 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Dura
 // checkScope calls haiku with scope prompt and returns ScopeEstimate.
 // If scope check fails, logs a warning and continues (non-blocking).
 func (r *Runner) checkScope(ctx context.Context, b *bead.Bead) *prompt.ScopeEstimate {
-	if r == nil || b == nil || r.cfg == nil || r.renderer == nil || r.claude == nil {
+	if r == nil || b == nil || r.cfg == nil || r.renderer == nil || r.router == nil {
 		return nil
 	}
 
@@ -1718,8 +1706,8 @@ func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.
 	if r.renderer == nil {
 		return nil, fmt.Errorf("runner renderer is nil")
 	}
-	if r.claude == nil {
-		return nil, fmt.Errorf("runner claude client is nil")
+	if r.router == nil {
+		return nil, fmt.Errorf("runner router is nil")
 	}
 	if b == nil {
 		return nil, fmt.Errorf("bead is nil")

@@ -59,10 +59,8 @@ func TestNewRunnerWithDepsUsesProvidedRouter(t *testing.T) {
 // NewRunnerWithDeps wraps deps.Claude in a single-provider router
 func TestNewRunnerWithDepsFallsBackToWrappingClaude(t *testing.T) {
 	cfg := &config.Config{}
-	mockClaude := &mockClaudeClient{}
 	deps := Deps{
-		Claude: mockClaude,
-		Router: nil,
+		Router: newMockRouterFromClaudeClient(&mockClaudeClient{}),
 	}
 
 	runner, err := NewRunnerWithDeps(cfg, nil, "/tmp/gromit", deps)

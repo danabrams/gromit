@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"github.com/danabrams/gromit/internal/provider"
 	"context"
 	"encoding/json"
 	"io"
@@ -48,15 +49,7 @@ func TestRun_UpdatesGlobalStatsAfterCompletion(t *testing.T) {
 		},
 	}
 
-	// Mock Claude to return success
-	mockClaude := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "done",
-			}, nil
-		},
-	}
+	// Mock Claude to return success (no longer needed - using Router)
 
 	var buf strings.Builder
 	cfg := &config.Config{
@@ -69,7 +62,7 @@ func TestRun_UpdatesGlobalStatsAfterCompletion(t *testing.T) {
 	r, err := NewRunnerWithDeps(
 		cfg,
 		&buf, tmpDir,
-		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
+		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
 	)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
@@ -141,11 +134,6 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 		},
 	}
 
-	mockClaude1 := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			return &claude.Result{Success: true, Output: "done"}, nil
-		},
-	}
 
 	var buf1 strings.Builder
 	cfg := &config.Config{
@@ -157,7 +145,7 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 	}
 
 	r1, err := NewRunnerWithDeps(cfg, &buf1, tmpDir,
-		Deps{Beads: beads1, Claude: mockClaude1, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}})
+		Deps{Beads: beads1, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}})
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
@@ -185,15 +173,10 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 		},
 	}
 
-	mockClaude2 := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			return &claude.Result{Success: true, Output: "done"}, nil
-		},
-	}
 
 	var buf2 strings.Builder
 	r2, err := NewRunnerWithDeps(cfg, &buf2, tmpDir,
-		Deps{Beads: beads2, Claude: mockClaude2, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}})
+		Deps{Beads: beads2, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}})
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed for second run: %v", err)
 	}
@@ -263,14 +246,6 @@ func TestRun_LogsWarningOnGlobalStatsUpdateFailure(t *testing.T) {
 		},
 	}
 
-	mockClaude := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "done",
-			}, nil
-		},
-	}
 
 	var buf strings.Builder
 	cfg := &config.Config{
@@ -283,7 +258,7 @@ func TestRun_LogsWarningOnGlobalStatsUpdateFailure(t *testing.T) {
 	r, err := NewRunnerWithDeps(
 		cfg,
 		&buf, tmpDir,
-		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
+		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
 	)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
@@ -332,14 +307,6 @@ func TestRun_AccumulatesStatsFromMultipleIterations(t *testing.T) {
 		},
 	}
 
-	mockClaude := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "done",
-			}, nil
-		},
-	}
 
 	var buf strings.Builder
 	cfg := &config.Config{
@@ -352,7 +319,7 @@ func TestRun_AccumulatesStatsFromMultipleIterations(t *testing.T) {
 	r, err := NewRunnerWithDeps(
 		cfg,
 		&buf, tmpDir,
-		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
+		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
 	)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
@@ -448,14 +415,6 @@ func TestRun_MergesWithExistingGlobalStats(t *testing.T) {
 		},
 	}
 
-	mockClaude := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "done",
-			}, nil
-		},
-	}
 
 	var buf strings.Builder
 	cfg := &config.Config{
@@ -469,7 +428,7 @@ func TestRun_MergesWithExistingGlobalStats(t *testing.T) {
 	r, err := NewRunnerWithDeps(
 		cfg,
 		&buf, tmpDir,
-		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
+		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
 	)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
@@ -537,11 +496,6 @@ func TestRun_UsesUserHomeDirForGlobalStatsPath(t *testing.T) {
 		},
 	}
 
-	mockClaude := &mockClaudeClient{
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			return &claude.Result{Success: true, Output: "done"}, nil
-		},
-	}
 
 	var buf strings.Builder
 	cfg := &config.Config{
@@ -554,7 +508,7 @@ func TestRun_UsesUserHomeDirForGlobalStatsPath(t *testing.T) {
 	r, err := NewRunnerWithDeps(
 		cfg,
 		&buf, tmpDir,
-		Deps{Beads: beads, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
+		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}},
 	)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)

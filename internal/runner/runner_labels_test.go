@@ -25,7 +25,7 @@ func TestRunner_AcceptsLabelFilters(t *testing.T) {
 
 	deps := Deps{
 		Beads:    mock,
-		Claude:   &mockClaudeClient{},
+		Router: newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},

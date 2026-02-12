@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"github.com/danabrams/gromit/internal/provider"
 	"context"
 	"strings"
 	"testing"
@@ -15,7 +16,6 @@ import (
 // in DecomposeTask. It captures the DecomposeContext passed to RenderDecompose.
 func setupDecomposeATDDTest(t *testing.T, cfgATDD bool) (*Runner, **prompt.DecomposeContext) {
 	t.Helper()
-	validJSON := `[{"title":"Sub 1","description":"First","depends_on":null,"acceptance_criteria":["Done"]}]`
 
 	var capturedCtx *prompt.DecomposeContext
 	mockRend := &mockPromptRenderer{
@@ -24,17 +24,12 @@ func setupDecomposeATDDTest(t *testing.T, cfgATDD bool) (*Runner, **prompt.Decom
 			return "mock decompose prompt", nil
 		},
 	}
-	mockClaude := &mockClaudeClient{
-		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
-			return &claude.Result{Success: true, Output: validJSON}, nil
-		},
-	}
 	cfg := &config.Config{
 		Methodology: config.MethodologyConfig{ATDD: cfgATDD},
 	}
 	var buf strings.Builder
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-		Deps{Beads: &mockBeadClient{}, Claude: mockClaude, Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}})
+		Deps{Beads: &mockBeadClient{}, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: mockRend, Logger: &mockIterationLogger{}})
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps() error = %v", err)
 	}

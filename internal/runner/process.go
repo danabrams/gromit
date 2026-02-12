@@ -62,8 +62,8 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	if r.renderer == nil {
 		return nil, nil, nil, fmt.Errorf("runner renderer is nil")
 	}
-	if r.claude == nil {
-		return nil, nil, nil, fmt.Errorf("runner claude client is nil")
+	if r.router == nil {
+		return nil, nil, nil, fmt.Errorf("runner router is nil")
 	}
 
 	tier := r.selectTier(b)
@@ -380,7 +380,7 @@ func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
 	if r.cfg == nil || !r.cfg.Loop.ShouldLearnFromSuccess() {
 		return
 	}
-	if r.claude == nil || r.renderer == nil {
+	if r.router == nil || r.renderer == nil {
 		return
 	}
 

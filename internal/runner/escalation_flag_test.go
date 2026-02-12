@@ -101,7 +101,6 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 						Model:   "haiku",
 					},
 				},
-				claude:   mockClaude,
 				router:   mockRouter,
 				beads:    &mockBeadClient{},
 				renderer: mockRend,
@@ -164,7 +163,6 @@ func setupAcceptanceEscalation(t *testing.T) (*Runner, *beadContext) {
 				MaxRetriesPerModel: 1, // 1 retry = 2 attempts total per model
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: &mockPromptRenderer{},
 		output:   &buf,
@@ -275,7 +273,6 @@ func TestScopeCheckEscalation_ResetsRetries(t *testing.T) {
 				Model:   "haiku",
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		beads:    &mockBeadClient{},
 		renderer: mockRend,

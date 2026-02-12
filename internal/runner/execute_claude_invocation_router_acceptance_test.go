@@ -57,7 +57,6 @@ func TestAcceptance_ExecuteClaudeInvocationUsesRouterSelect(t *testing.T) {
 	r := &Runner{
 		cfg:    cfg,
 		router: mockRouter,
-		claude: mockClaude,
 		output: io.Discard,
 	}
 
@@ -130,7 +129,6 @@ func TestAcceptance_ExecuteClaudeInvocationCallsProviderStreamRun(t *testing.T) 
 	r := &Runner{
 		cfg:    cfg,
 		router: mockRouter,
-		claude: mockClaude,
 		output: io.Discard,
 	}
 
@@ -188,7 +186,6 @@ func TestAcceptance_ExecuteClaudeInvocationDetectsUsageLimitError(t *testing.T) 
 			0,
 			&mockStateForRouterTest{onSetUnavailable: func(n string, _ time.Time) { marked = n }},
 		),
-		claude: &mockClaudeClientForProcess{},
 		output: io.Discard,
 	}
 
@@ -209,7 +206,6 @@ func TestAcceptance_ExecuteClaudeInvocationReturnsErrorWhenAllProvidersUnavailab
 	r := &Runner{
 		cfg:    makeTestRunnerConfig(),
 		router: provider.NewRouter(map[string]provider.Provider{}, map[string]string{"build": "any"}, map[string]int{}, 0, &mockStateForRouterTest{}),
-		claude: &mockClaudeClientForProcess{},
 		output: io.Discard,
 	}
 
@@ -253,7 +249,6 @@ func TestAcceptance_ExecuteClaudeInvocationUpdatesBeadContextModel(t *testing.T)
 	r := &Runner{
 		cfg:    cfg,
 		router: mockRouter,
-		claude: mockClaude,
 		output: io.Discard,
 	}
 
@@ -552,7 +547,6 @@ func TestAcceptance_RunLightReviewUsesRouter(t *testing.T) {
 	r := &Runner{
 		cfg:    cfg,
 		router: mockRouter,
-		claude: &mockClaudeClientForReview{},
 		renderer: &mockPromptRenderer{
 			RenderReviewFn: func(*prompt.ReviewContext) (string, error) {
 				return "review", nil
@@ -600,7 +594,6 @@ func TestAcceptance_RunLightReviewUsesHighTierForOpusBuild(t *testing.T) {
 	r := &Runner{
 		cfg:    cfg,
 		router: provider.NewSingleProviderRouter(mockProvider),
-		claude: &mockClaudeClientForReview{},
 		renderer: &mockPromptRenderer{
 			RenderReviewFn: func(*prompt.ReviewContext) (string, error) { return "review", nil },
 			LoadClaudeMDFn: func() (string, error) { return "", nil },
@@ -646,7 +639,6 @@ func TestAcceptance_RunThoroughReviewUsesRouter(t *testing.T) {
 	r := &Runner{
 		cfg:    cfg,
 		router: mockRouter,
-		claude: &mockClaudeClientForReview{},
 		renderer: &mockPromptRenderer{
 			RenderThoroughReviewFn: func(*prompt.ThoroughReviewContext) (string, error) {
 				return "thorough review", nil
@@ -703,7 +695,6 @@ func TestAcceptance_RunThoroughReviewValidationUsesRouter(t *testing.T) {
 	r := &Runner{
 		cfg:    cfg,
 		router: mockRouter,
-		claude: &mockClaudeClientForReview{},
 		renderer: &mockPromptRenderer{
 			RenderThoroughReviewFn: func(*prompt.ThoroughReviewContext) (string, error) {
 				return "thorough review", nil

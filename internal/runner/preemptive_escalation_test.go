@@ -40,7 +40,8 @@ func TestSetupBeadContext_PreemptiveEscalationFromSonnetToOpus(t *testing.T) {
 		},
 		beads:    &mockBeadClient{},
 		renderer: &mockPromptRenderer{},
-		claude:   &mockClaudeClient{},
+		router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
 	}
 
@@ -126,7 +127,8 @@ func TestSetupBeadContext_NoPreemptiveEscalationWhenComplexityMedium(t *testing.
 		},
 		beads:    &mockBeadClient{},
 		renderer: &mockPromptRenderer{},
-		claude:   &mockClaudeClient{},
+		router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
 	}
 
@@ -193,7 +195,8 @@ func TestSetupBeadContext_NoPreemptiveEscalationWhenScopeCheckDisabled(t *testin
 		},
 		beads:    &mockBeadClient{},
 		renderer: &mockPromptRenderer{},
-		claude:   &mockClaudeClient{},
+		router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
 	}
 
@@ -257,7 +260,8 @@ func TestSetupBeadContext_NoPreemptiveEscalationFromHaiku(t *testing.T) {
 		},
 		beads:    &mockBeadClient{},
 		renderer: &mockPromptRenderer{},
-		claude:   &mockClaudeClient{},
+		router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
 	}
 
@@ -321,7 +325,8 @@ func TestSetupBeadContext_PreemptiveEscalationFromOpusIsNoop(t *testing.T) {
 		},
 		beads:    &mockBeadClient{},
 		renderer: &mockPromptRenderer{},
-		claude:   &mockClaudeClient{},
+		router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
 	}
 
@@ -388,7 +393,8 @@ func TestSetupBeadContext_NilScopeEstimateDoesNotCausePreemptiveEscalation(t *te
 		},
 		beads:    &mockBeadClient{},
 		renderer: &mockPromptRenderer{},
-		claude:   &mockClaudeClient{},
+		router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
 	}
 
@@ -522,7 +528,8 @@ func TestSetupBeadContext_PreemptiveEscalationTableDriven(t *testing.T) {
 				},
 				beads:    &mockBeadClient{},
 				renderer: &mockPromptRenderer{},
-				claude:   &mockClaudeClient{},
+				router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		analyzer: &mockFailureAnalyzer{},
 				output:   &buf,
 			}
 

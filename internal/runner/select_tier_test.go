@@ -50,7 +50,6 @@ func TestRunValidatesRouterNotNil(t *testing.T) {
 		cfg:      cfg,
 		beads:    &mockBeadClient{},
 		renderer: &mockPromptRenderer{},
-		claude:   &mockClaudeClient{},
 		router:   nil, // Explicitly nil
 	}
 
