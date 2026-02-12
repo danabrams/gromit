@@ -2006,25 +2006,31 @@ func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteratio
 		return
 	}
 
-	// Call Claude with opus
+	// Select provider via router (phase="review", tier="high" for thorough review)
+	p, _ := r.router.Select("review", provider.TierHigh)
+	if p == nil {
+		r.log("Warning: no provider available for thorough review")
+		return
+	}
+
+	// Call provider with timeout
 	timeout := time.Duration(r.cfg.Review.Thorough.Timeout) * time.Second
 	reviewCtxTimeout, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	model := r.cfg.Review.Thorough.Model
-	r.log("Running thorough review with model: %s", model)
-	claudeResult, err := r.claude.Run(reviewCtxTimeout, reviewPrompt, model)
+	r.log("Running thorough review with tier: high")
+	providerResult, err := p.Run(reviewCtxTimeout, reviewPrompt, provider.TierHigh)
 	if err != nil {
 		r.log("Warning: thorough review failed: %v", err)
 		return
 	}
-	if claudeResult == nil {
+	if providerResult == nil {
 		r.log("Warning: thorough review returned nil result")
 		return
 	}
 
 	// Parse and apply
-	result, err := review.ParseReviewResult(claudeResult.Output)
+	result, err := review.ParseReviewResult(providerResult.Output)
 	if err != nil {
 		r.log("Warning: could not parse thorough review result: %v", err)
 		return
@@ -2037,11 +2043,19 @@ func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteratio
 	if len(result.FixesApplied) > 0 && r.cfg.Validation.Enabled {
 		r.log("Thorough review applied %d fixes, re-validating...", len(result.FixesApplied))
 		workDir, _ := os.Getwd()
-		valResult, err := r.claude.RunValidation(ctx, r.cfg.Validation.Commands, r.cfg.Models.Validation, workDir)
-		if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
-			r.log("Warning: thorough review fixes broke validation")
+
+		// Select provider via router (phase="validate", tier="low")
+		valProvider, _ := r.router.Select("validate", provider.TierLow)
+		if valProvider == nil {
+			r.log("Warning: no provider available for validation")
 		} else {
-			r.log("Re-validation passed")
+			valResult, err := valProvider.RunValidation(ctx, r.cfg.Validation.Commands, provider.TierLow, workDir)
+			valPassed := valResult != nil && valResult.Success && strings.Contains(valResult.Output, "VALIDATION_PASSED")
+			if err != nil || !valPassed {
+				r.log("Warning: thorough review fixes broke validation")
+			} else {
+				r.log("Re-validation passed")
+			}
 		}
 	}
 
@@ -2052,7 +2066,7 @@ func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteratio
 			Type:           "review",
 			ReviewType:     "thorough",
 			Iteration:      iteration,
-			Model:          model,
+			Model:          providerResult.Model,
 			Passed:         result.Passed,
 			FixesApplied:   len(result.FixesApplied),
 			BeadsCreated:   beadsCreated,
