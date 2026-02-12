@@ -176,7 +176,7 @@ func TestSetupBeadContextAcceptsScopeEstimate(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Router:   &mockRouterForRunner{},
+			Router:   newMockRouter(),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},
@@ -268,7 +268,7 @@ func TestBuildPromptForBeadSkipsScopeCheckWhenEstimateCached(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Router:   &mockRouterForRunner{},
+			Router:   newMockRouter(),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: mockRenderer,
 			Logger:   &mockIterationLogger{},

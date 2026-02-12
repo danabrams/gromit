@@ -4,6 +4,7 @@ package runner
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -89,17 +90,15 @@ func TestRunnerProviderWiringWithProvidersConfig(t *testing.T) {
 		Models: config.ModelsConfig{
 			Validation: "low",
 		},
-		Providers: &config.ProvidersConfig{
-			Providers: map[string]config.ProviderDef{
-				"claude": {
-					Binary:         "claude",
-					Flags:          []string{"--no-input"},
-					PromptDelivery: "stdin",
-					Models: map[string]string{
-						"high":   "opus",
-						"medium": "sonnet",
-						"low":    "haiku",
-					},
+		Providers: map[string]config.ProviderDef{
+			"claude": {
+				Binary:         "claude",
+				Flags:          []string{"--no-input"},
+				PromptDelivery: "stdin",
+				Models: map[string]string{
+					"high":   "opus",
+					"medium": "sonnet",
+					"low":    "haiku",
 				},
 			},
 		},
@@ -223,7 +222,7 @@ func (tp *simpleTestProvider) Run(ctx context.Context, prompt string, tier strin
 	return &provider.Result{Success: true, Output: "test"}, nil
 }
 
-func (tp *simpleTestProvider) StreamRun(ctx context.Context, prompt string, tier string, output interface{}, handler interface{}, onToolCall interface{}) (*provider.Result, error) {
+func (tp *simpleTestProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 	return &provider.Result{Success: true}, nil
 }
 
