@@ -118,9 +118,11 @@ func TestRunnerGoUsesSharedAdapter(t *testing.T) {
 
 	sourceStr := string(source)
 
-	// Should reference the constructor from the shared package
-	if !strings.Contains(sourceStr, "learnings.NewClaudeRunnerAdapter") {
-		t.Error("runner.go should call learnings.NewClaudeRunnerAdapter")
+	// Should reference either Claude or Provider adapter from shared package
+	hasClaudeAdapter := strings.Contains(sourceStr, "learnings.NewClaudeRunnerAdapter")
+	hasProviderAdapter := strings.Contains(sourceStr, "learnings.NewProviderRunnerAdapter")
+	if !hasClaudeAdapter && !hasProviderAdapter {
+		t.Error("runner.go should call either learnings.NewClaudeRunnerAdapter or learnings.NewProviderRunnerAdapter")
 	}
 
 	// Should pass the adapter to LLMFilter
@@ -144,9 +146,11 @@ func TestRetroGoUsesSharedAdapter(t *testing.T) {
 
 	sourceStr := string(source)
 
-	// Should reference the constructor from the shared package
-	if !strings.Contains(sourceStr, "learnings.NewClaudeRunnerAdapter") {
-		t.Error("retro.go should call learnings.NewClaudeRunnerAdapter")
+	// Should reference either Claude or Provider adapter from shared package (or both for backward compat)
+	hasClaudeAdapter := strings.Contains(sourceStr, "learnings.NewClaudeRunnerAdapter")
+	hasProviderAdapter := strings.Contains(sourceStr, "learnings.NewProviderRunnerAdapter")
+	if !hasClaudeAdapter && !hasProviderAdapter {
+		t.Error("retro.go should call either learnings.NewClaudeRunnerAdapter or learnings.NewProviderRunnerAdapter")
 	}
 
 	// Should pass the adapter to LLMFilter
