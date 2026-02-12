@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -94,17 +95,21 @@ func TestNewRunnerWithDepsWorksWithOnlyRouter(t *testing.T) {
 
 // TestLearningsAdapterCanUseProviderInterface verifies that the learnings adapter
 // integration in NewRunner can work with a Provider instead of requiring claude.Client
-// Expected failure: NewRunner still calls learnings.NewClaudeRunnerAdapter with claude.Client
 func TestLearningsAdapterCanUseProviderInterface(t *testing.T) {
-	// This test documents the expected change in NewRunner:
-	// Instead of:
-	//   claudeRunnerAdapter := learnings.NewClaudeRunnerAdapter(claudeClient)
-	// It should use:
-	//   provider, _ := r.router.Select("analyze", "low")
-	//   providerAdapter := learnings.NewProviderRunnerAdapter(provider)
+	// This test validates that NewProviderRunnerAdapter exists and works
+	mockProvider := &mockProviderForRunner{}
 
-	// The test validates that NewProviderRunnerAdapter exists and works
-	t.Skip("This test validates the integration point - the actual learnings adapter must be created first")
+	// Create adapter with provider
+	adapter := learnings.NewProviderRunnerAdapter(mockProvider)
+	if adapter == nil {
+		t.Fatal("NewProviderRunnerAdapter returned nil")
+	}
+
+	// Verify it can be used with LLMFilter
+	filter := learnings.NewLLMFilter(adapter, "test", "test project")
+	if filter == nil {
+		t.Fatal("NewLLMFilter returned nil")
+	}
 }
 
 // TestAnalyzerCanBeCreatedWithProvider verifies that analyzer.NewAnalyzer

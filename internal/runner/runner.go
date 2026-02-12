@@ -85,20 +85,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		return nil, err
 	}
 
-	// Wire filter into learnings file
-	lf := renderer.GetLearningsFile()
-	if lf != nil {
-		// Create adapter for claude.Client to match learnings.ClaudeRunner interface
-		claudeRunnerAdapter := learnings.NewClaudeRunnerAdapter(claudeClient)
-		lf.SetFilter(learnings.NewLLMFilter(claudeRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
-	}
-
 	beadsClient, err := bead.NewClient()
-	if err != nil {
-		return nil, err
-	}
-
-	analyzerObj, err := analyzer.NewAnalyzer(claudeClient, cfg.Models.Validation, renderer)
 	if err != nil {
 		return nil, err
 	}
@@ -108,12 +95,27 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 
 	// Create router: either from providers config or wrap Claude client
 	var router *provider.Router
+	var claudeProviderForLearnings provider.Provider
 	if cfg.HasProviders() {
 		// TODO: Build router from providers config
 	} else {
 		// Backward compatibility: wrap Claude client in single-provider router
 		claudeProvider := provider.NewClaudeProvider(claudeClient, defaultTierToModelMap)
+		claudeProviderForLearnings = claudeProvider
 		router = provider.NewSingleProviderRouter(claudeProvider)
+	}
+
+	// Wire filter into learnings file (after router creation so we can use the provider)
+	lf := renderer.GetLearningsFile()
+	if lf != nil && claudeProviderForLearnings != nil {
+		// Create adapter for Provider to match learnings.ClaudeRunner interface
+		providerRunnerAdapter := learnings.NewProviderRunnerAdapter(claudeProviderForLearnings)
+		lf.SetFilter(learnings.NewLLMFilter(providerRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
+	}
+
+	analyzerObj, err := analyzer.NewAnalyzer(claudeClient, cfg.Models.Validation, renderer)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Runner{
