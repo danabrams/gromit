@@ -172,3 +172,26 @@ func TestWriteTempPrompt_CreatesFile(t *testing.T) {
 		t.Errorf("expected content %q, got %q", prompt, string(content))
 	}
 }
+
+func TestWriteTempPrompt_CleanupRemovesFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	prompt := "This is a test prompt"
+
+	path, cleanup, err := WriteTempPrompt(tmpDir, prompt)
+	if err != nil {
+		t.Fatalf("WriteTempPrompt failed: %v", err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Fatalf("temp file was not created: %s", path)
+	}
+
+	// Call cleanup
+	cleanup()
+
+	// Verify file was removed
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("temp file was not removed after cleanup: %s", path)
+	}
+}
