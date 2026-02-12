@@ -41,7 +41,7 @@ scope_check:
 precheck:
   enabled: true  # defaults to true if omitted
   model: haiku  # fast check with haiku
-  timeout_seconds: 30  # quick timeout for precheck
+  timeout_seconds: 60  # enough headroom for CLI startup + file reads
 
 # Validation settings - customize for your project
 validation:

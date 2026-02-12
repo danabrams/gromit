@@ -333,7 +333,7 @@ func (c *Config) SetDefaults() {
 		c.Precheck.Model = ModelHaiku
 	}
 	if c.Precheck.TimeoutSeconds == 0 {
-		c.Precheck.TimeoutSeconds = 30
+		c.Precheck.TimeoutSeconds = 60
 	}
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
