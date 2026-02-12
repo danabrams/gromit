@@ -22,6 +22,18 @@ func (m *mockProvider) Name() string {
 	return "mock"
 }
 
+func (m *mockProvider) ModelForTier(tier string) string {
+	tierMap := map[string]string{
+		TierHigh:   "opus",
+		TierMedium: "sonnet",
+		TierLow:    "haiku",
+	}
+	if model, ok := tierMap[tier]; ok {
+		return model
+	}
+	return tier
+}
+
 func (m *mockProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
 	return &Result{Success: true}, nil
 }

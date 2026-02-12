@@ -1027,6 +1027,13 @@ func (m *mockProviderWithModels) Name() string {
 	return m.name
 }
 
+func (m *mockProviderWithModels) ModelForTier(tier string) string {
+	if model, ok := m.models[tier]; ok {
+		return model
+	}
+	return tier
+}
+
 func (m *mockProviderWithModels) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
 	return &Result{Success: true, Model: m.models[tier]}, nil
 }
