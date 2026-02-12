@@ -60,7 +60,7 @@ func scopeGateTestSetup(t *testing.T, cfg *config.Config, scopeEstimate *prompt.
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   mockLogger,

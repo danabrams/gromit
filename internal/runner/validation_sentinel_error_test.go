@@ -113,7 +113,6 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 
 			r := &Runner{
 				cfg:      cfg,
-				claude:   mockClaude,
 				router:   mockRouter,
 				renderer: &mockRenderer{},
 				analyzer: &mockFailureAnalyzer{},

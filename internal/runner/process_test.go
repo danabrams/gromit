@@ -60,8 +60,8 @@ func TestSetupBeadContext_NilClaude(t *testing.T) {
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
 	_, _, _, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
-	if err == nil || !strings.Contains(err.Error(), "claude client is nil") {
-		t.Errorf("expected 'claude client is nil' error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "router is nil") {
+		t.Errorf("expected 'router is nil' error, got: %v", err)
 	}
 }
 
@@ -79,6 +79,7 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 		beads:    &mockBeadClient{},
 		renderer: &mockRenderer{},
 		output:   &strings.Builder{},
+		router:   newMockRouter(),
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test", Priority: 1}
 
@@ -958,7 +959,6 @@ func TestVerifyTestsFail_NilResult(t *testing.T) {
 
 func TestRunRefactorPhase_NoDiff(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{}
 	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{
@@ -997,20 +997,6 @@ func TestRunRefactorPhase_NoDiff(t *testing.T) {
 
 func TestRunRefactorPhase_Success(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "Refactoring complete",
-			}, nil
-		},
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "Tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
-	}
 	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{
@@ -1049,7 +1035,6 @@ func TestRunRefactorPhase_Success(t *testing.T) {
 
 func TestRunRefactorPhase_RenderError(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{}
 	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{
@@ -1078,11 +1063,6 @@ func TestRunRefactorPhase_RenderError(t *testing.T) {
 
 func TestRunRefactorPhase_ClaudeInvocationError(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
-			return nil, fmt.Errorf("network error")
-		},
-	}
 	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{
@@ -1111,14 +1091,6 @@ func TestRunRefactorPhase_ClaudeInvocationError(t *testing.T) {
 
 func TestRunRefactorPhase_ValidationDisabled(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "Refactoring complete",
-			}, nil
-		},
-	}
 	mockRend := &mockPromptRenderer{}
 
 	r := &Runner{

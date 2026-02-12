@@ -94,7 +94,7 @@ func TestScopeCheckNotDuplicatedInProcessBead(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: mockRenderer,
 			Logger:   &mockIterationLogger{},
@@ -410,7 +410,7 @@ func TestProcessBeadReceivesScopeEstimateFromRun(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: mockRenderer,
 			Logger:   &mockIterationLogger{},
@@ -482,7 +482,7 @@ func TestProcessBeadSignatureIncludesScopeEstimate(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{
 				BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {

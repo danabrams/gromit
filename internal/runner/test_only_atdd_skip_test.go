@@ -42,7 +42,7 @@ func TestProcessBead_SkipsATDDForTestOnlyBead(t *testing.T) {
 				&buf, t.TempDir(),
 				Deps{
 					Beads:    &mockBeadClient{},
-					Claude:   mockClaude,
+					Router:   newMockRouterFromClaudeClient(mockClaude),
 					Analyzer: &mockFailureAnalyzer{},
 					Renderer: &mockPromptRenderer{},
 					Logger:   &mockIterationLogger{},
@@ -96,7 +96,7 @@ func TestProcessBead_SkipsATDDForTestOnlyBead_LogsReason(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{
 			Beads:    &mockBeadClient{},
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},

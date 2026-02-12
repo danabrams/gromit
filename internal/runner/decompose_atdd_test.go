@@ -1,13 +1,11 @@
 package runner
 
 import (
-	"github.com/danabrams/gromit/internal/provider"
 	"context"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 )

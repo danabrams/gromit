@@ -72,7 +72,7 @@ func TestScopeCheckDedup_ScopeGateAndBuildPromptShareEstimate(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: mockRenderer,
 			Logger:   &mockIterationLogger{},
@@ -179,7 +179,7 @@ func TestScopeCheckDedup_BlockOversizedDisabledSkipsGateButCallsBuildPrompt(t *t
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: mockRenderer,
 			Logger:   &mockIterationLogger{},
@@ -272,7 +272,7 @@ func TestScopeCheckDedup_HighComplexityAutoEscalationUsesCache(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: mockRenderer,
 			Logger:   &mockIterationLogger{},
@@ -385,7 +385,7 @@ func TestScopeCheckDedup_BlockedBeadsDoNotCallBuildPrompt(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: mockRenderer,
 			Logger:   &mockIterationLogger{},

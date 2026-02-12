@@ -92,7 +92,7 @@ func TestRunner_UsesLabelFiltersInLoop(t *testing.T) {
 
 	deps := Deps{
 		Beads:    mock,
-		Claude:   mockClaude,
+		Router:   newMockRouterFromClaudeClient(mockClaude),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},
@@ -184,7 +184,7 @@ func TestRunner_NoFiltersUsesReady(t *testing.T) {
 
 	deps := Deps{
 		Beads:    mock,
-		Claude:   mockClaude,
+		Router:   newMockRouterFromClaudeClient(mockClaude),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},

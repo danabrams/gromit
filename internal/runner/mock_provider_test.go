@@ -80,6 +80,14 @@ func newMockRouterWithTracking(inner *provider.Router, onSelect func(phase, tier
 func newMockRouter() *provider.Router {
 	mockProvider := &mockProviderWithRouterTracking{
 		streamRunResult: &provider.Result{Success: true, Model: "test-model", Output: "done"},
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			// Return valid decomposition JSON for DecomposeTask tests
+			return &provider.Result{
+				Success: true,
+				Model:   "test-model",
+				Output:  `[{"title": "Sub-task 1", "acceptance_criteria": ["Criterion 1"]}]`,
+			}, nil
+		},
 	}
 	return provider.NewSingleProviderRouter(mockProvider)
 }

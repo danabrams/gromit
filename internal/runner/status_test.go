@@ -363,7 +363,7 @@ func TestRunner_Status_NoStatusFile(t *testing.T) {
 
 	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
 		Beads:    mockBeads,
-		Claude:   &mockClaudeClient{},
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},
@@ -413,7 +413,7 @@ func TestRunner_Status_LivePID(t *testing.T) {
 
 	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
 		Beads:    mockBeads,
-		Claude:   &mockClaudeClient{},
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},
@@ -487,7 +487,7 @@ func TestRunner_Status_DeadPID(t *testing.T) {
 
 	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
 		Beads:    mockBeads,
-		Claude:   &mockClaudeClient{},
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},
@@ -842,7 +842,7 @@ func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 
 	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
 		Beads:    mockBeads,
-		Claude:   &mockClaudeClient{},
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},
@@ -950,7 +950,7 @@ func TestRunner_Status_Integration_IdleWithHistory(t *testing.T) {
 
 	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
 		Beads:    mockBeads,
-		Claude:   &mockClaudeClient{},
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},
@@ -1050,7 +1050,7 @@ func TestRunner_Status_Integration_IdleWithoutHistory(t *testing.T) {
 
 	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
 		Beads:    mockBeads,
-		Claude:   &mockClaudeClient{},
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
 		Renderer: &mockPromptRenderer{},
 		Logger:   &mockIterationLogger{},

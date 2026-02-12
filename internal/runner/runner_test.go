@@ -763,7 +763,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 				result := r.processBead(nil, b, 1, time.Time{}, nil)
 				return result.Error
 			},
-			expectedError: "claude client is nil",
+			expectedError: "router is nil",
 		},
 		{
 			name: "RunNilBeads",
@@ -799,7 +799,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			method: func(r *Runner) error {
 				return r.Run(nil, 0, time.Time{}, false)
 			},
-			expectedError: "claude client is nil",
+			expectedError: "router is nil",
 		},
 	}
 
@@ -845,7 +845,7 @@ func TestDecomposeTaskNilDependencies(t *testing.T) {
 		{
 			name:          "DecomposeTaskNilClaude",
 			runner:        &Runner{beads: &mockBeadClient{}, renderer: &mockRenderer{}, output: os.Stdout},
-			expectedError: "claude client is nil",
+			expectedError: "router is nil",
 		},
 	}
 
@@ -1737,6 +1737,7 @@ func TestRunLightReviewSkipsWhenDeadlineExpired(t *testing.T) {
 		renderer: &mockRenderer{},
 		beads:    &mockBeadClient{},
 		output:   &buf,
+		router:   newMockRouter(),
 	}
 
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -1765,6 +1766,7 @@ func TestRunLightReviewSkipsWhenInsufficientTime(t *testing.T) {
 		renderer: &mockRenderer{},
 		beads:    &mockBeadClient{},
 		output:   &buf,
+		router:   newMockRouter(),
 	}
 
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
@@ -2584,7 +2586,7 @@ func TestScopedRun_FullLoopWithLabelFilters(t *testing.T) {
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
 		Deps{
 			Beads:    mockBeads,
-			Claude:   mockClaude,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},
