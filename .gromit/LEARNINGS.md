@@ -86,6 +86,9 @@ Contract tests use claude-cli-mock to intercept Claude invocations; when validat
 ### 2026-02-12 | gromit-5wop | patterns
 Contract tests for direct validation verify behavior through multiple assertion layers: Claude call counts (architecture), shell marker file side effects (execution), stdout content (observability), and exit code interpretation (semantics). This layered approach works better than mocking subprocess internals when changing from Claude CLI to direct exec.Command.
 
+### 2026-02-12 | gromit-u9qy | conventions
+Acceptance test files in this codebase are subject to a strict line count budget (6000 lines total). Before creating new acceptance tests, check the current acceptance test line total with `go test ./... TestFinalVerification/total_acceptance_test_lines_within_budget` and ensure the new tests won't push the total over the limit. Consider consolidating or removing existing tests rather than just adding new ones when the budget is exceeded.
+
 ---
 
 ## Archived
