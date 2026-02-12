@@ -58,29 +58,10 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf strings.Builder
-			validationCalls := 0
+			cmdCallCount := 0
 			fixAttempts := 0
 
 			mockClaude := &mockClaudeClient{
-				RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-					validationCalls++
-					if validationCalls == 1 {
-						// First call - return the test error
-						if tt.validationErr == errValidationFailed {
-							return &claude.Result{
-								Success: true,
-								Output:  "FAIL: TestSomething\nVALIDATION_FAILED",
-							}, nil
-						}
-						// For non-validation errors, return them directly
-						return nil, tt.validationErr
-					}
-					// Second call (after fix) - pass
-					return &claude.Result{
-						Success: true,
-						Output:  "All tests passed\nVALIDATION_PASSED",
-					}, nil
-				},
 				StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 					fixAttempts++
 					return &claude.Result{
@@ -96,9 +77,6 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 					Commands:       []string{"go test ./..."},
 					MaxFixAttempts: 1,
 				},
-				Models: config.ModelsConfig{
-					Validation: "haiku",
-				},
 				Claude: config.ClaudeConfig{
 					StallTimeout:       30,
 					StallTimeoutActive: 10,
@@ -111,12 +89,33 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 			mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
 			mockRouter := provider.NewSingleProviderRouter(mockProvider)
 
+			// Build cmdRunnerFn based on test case
+			testErr := tt.validationErr
+			var cmdRunnerFn func(ctx context.Context, command string, workDir string) (string, string, int, error)
+			if errors.Is(testErr, errValidationFailed) {
+				// Simulate validation failure then pass on recovery
+				cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+					cmdCallCount++
+					if cmdCallCount == 1 {
+						return "", "FAIL: TestSomething", 1, nil
+					}
+					return "ok", "", 0, nil
+				}
+			} else {
+				// Simulate command execution error (not recoverable)
+				cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+					cmdCallCount++
+					return "", "", -1, fmt.Errorf("command execution error")
+				}
+			}
+
 			r := &Runner{
-				cfg:      cfg,
-				router:   mockRouter,
-				renderer: &mockRenderer{},
-				analyzer: &mockFailureAnalyzer{},
-				output:   &buf,
+				cfg:         cfg,
+				router:      mockRouter,
+				renderer:    &mockRenderer{},
+				analyzer:    &mockFailureAnalyzer{},
+				output:      &buf,
+				cmdRunnerFn: cmdRunnerFn,
 			}
 			bc := &beadContext{
 				bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -190,24 +189,12 @@ func TestValidationSentinelError_WrappedErrorsPreserved(t *testing.T) {
 // runValidation returns errValidationFailed (not a string-based error) when
 // validation fails.
 func TestValidationSentinelError_RunValidationReturnsCorrectError(t *testing.T) {
-	// Expected failure: runValidation returns fmt.Errorf("validation failed") instead of errValidationFailed
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "FAIL: TestSomething\nVALIDATION_FAILED",
-			}, nil
-		},
-	}
 
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
 			Enabled:  true,
 			Commands: []string{"go test ./..."},
-		},
-		Models: config.ModelsConfig{
-			Validation: "haiku",
 		},
 		Preflight: config.PreflightConfig{},
 	}
@@ -215,10 +202,13 @@ func TestValidationSentinelError_RunValidationReturnsCorrectError(t *testing.T) 
 
 	r := &Runner{
 		cfg:      cfg,
-		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
+		// Validation command fails with non-zero exit
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "FAIL: TestSomething", 1, nil
+		},
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},

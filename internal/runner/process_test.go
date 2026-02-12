@@ -794,14 +794,6 @@ func TestVerifyTestsFail_ValidationDisabled(t *testing.T) {
 
 func TestVerifyTestsFail_TestsFailAsExpected(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "Tests failed as expected\nVALIDATION_FAILED",
-			}, nil
-		},
-	}
 
 	r := &Runner{
 		cfg: &config.Config{
@@ -809,13 +801,13 @@ func TestVerifyTestsFail_TestsFailAsExpected(t *testing.T) {
 				Enabled:  true,
 				Commands: []string{"go test ./..."},
 			},
-			Models: config.ModelsConfig{
-				Validation: "haiku",
-			},
 			Preflight: config.PreflightConfig{},
 		},
-		router: newMockRouterFromClaudeClient(mockClaude),
 		output: &buf,
+		// Validation commands run directly — test failure means non-zero exit
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "FAIL: TestSomething", 1, nil
+		},
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -836,14 +828,6 @@ func TestVerifyTestsFail_TestsFailAsExpected(t *testing.T) {
 
 func TestVerifyTestsFail_TestsPassUnexpectedly(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "All tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
-	}
 
 	r := &Runner{
 		cfg: &config.Config{
@@ -851,13 +835,13 @@ func TestVerifyTestsFail_TestsPassUnexpectedly(t *testing.T) {
 				Enabled:  true,
 				Commands: []string{"go test ./..."},
 			},
-			Models: config.ModelsConfig{
-				Validation: "haiku",
-			},
 			Preflight: config.PreflightConfig{},
 		},
-		router: newMockRouterFromClaudeClient(mockClaude),
 		output: &buf,
+		// All commands pass — unexpected for ATDD verify-tests-fail
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
+		},
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -881,11 +865,6 @@ func TestVerifyTestsFail_TestsPassUnexpectedly(t *testing.T) {
 
 func TestVerifyTestsFail_InvocationError(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return nil, fmt.Errorf("network error")
-		},
-	}
 
 	r := &Runner{
 		cfg: &config.Config{
@@ -893,13 +872,13 @@ func TestVerifyTestsFail_InvocationError(t *testing.T) {
 				Enabled:  true,
 				Commands: []string{"go test ./..."},
 			},
-			Models: config.ModelsConfig{
-				Validation: "haiku",
-			},
 			Preflight: config.PreflightConfig{},
 		},
-		router: newMockRouterFromClaudeClient(mockClaude),
 		output: &buf,
+		// Command execution itself fails (not just non-zero exit)
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "", -1, fmt.Errorf("network error")
+		},
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -918,13 +897,8 @@ func TestVerifyTestsFail_InvocationError(t *testing.T) {
 	}
 }
 
-func TestVerifyTestsFail_NilResult(t *testing.T) {
+func TestVerifyTestsFail_CommandExecutionError(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return nil, nil
-		},
-	}
 
 	r := &Runner{
 		cfg: &config.Config{
@@ -932,13 +906,13 @@ func TestVerifyTestsFail_NilResult(t *testing.T) {
 				Enabled:  true,
 				Commands: []string{"go test ./..."},
 			},
-			Models: config.ModelsConfig{
-				Validation: "haiku",
-			},
 			Preflight: config.PreflightConfig{},
 		},
-		router: newMockRouterFromClaudeClient(mockClaude),
 		output: &buf,
+		// Simulate a command execution error (not a non-zero exit, but a real error)
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "", -1, fmt.Errorf("exec: command not found")
+		},
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -950,10 +924,10 @@ func TestVerifyTestsFail_NilResult(t *testing.T) {
 
 	err := r.verifyTestsFail(context.Background(), bc)
 	if err == nil {
-		t.Error("expected error when validation returns nil result")
+		t.Error("expected error when command execution fails")
 	}
-	if !strings.Contains(err.Error(), "validation returned no result") {
-		t.Errorf("expected 'validation returned no result' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "exec: command not found") {
+		t.Errorf("expected 'exec: command not found' in error, got: %v", err)
 	}
 }
 
@@ -1141,12 +1115,6 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed successfully"}`,
 			}, nil
 		},
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "All tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
 	}
 
 	lf, _ := learnings.NewFile(t.TempDir())
@@ -1189,6 +1157,10 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 		output:   syncOut,
 		gitDiffFn: func(fromCommit string) (string, error) {
 			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
+		// Validation commands run directly — simulate all passing
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
 		},
 	}
 
@@ -1235,8 +1207,8 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 	// the error propagates up correctly.
 
 	var buf strings.Builder
-	var learningCalled, reviewCalled, revalidationCalled bool
-	validationCallCount := 0
+	var learningCalled, reviewCalled bool
+	cmdCallCount := 0
 
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
@@ -1255,22 +1227,6 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 			return &claude.Result{
 				Success: true,
 				Output:  `{"passed": true, "fixes_applied": ["Fixed typo in comment", "Added missing error check"], "beads_to_create": [], "backlog_items": [], "summary": "Applied minor fixes"}`,
-			}, nil
-		},
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			validationCallCount++
-			if validationCallCount == 1 {
-				// Initial validation passes
-				return &claude.Result{
-					Success: true,
-					Output:  "All tests passed\nVALIDATION_PASSED",
-				}, nil
-			}
-			// Re-validation fails - review fixes broke tests
-			revalidationCalled = true
-			return &claude.Result{
-				Success: true,
-				Output:  "Tests failed after review fixes\nVALIDATION_FAILED",
 			}, nil
 		},
 	}
@@ -1316,6 +1272,15 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 		gitDiffFn: func(fromCommit string) (string, error) {
 			return "diff --git a/file.go b/file.go\n+some change", nil
 		},
+		// Initial validation passes; re-validation after review fails
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			cmdCallCount++
+			if cmdCallCount == 1 {
+				return "ok", "", 0, nil
+			}
+			// Re-validation fails — review fixes broke tests
+			return "", "FAIL: TestSomething", 1, nil
+		},
 	}
 
 	bc := &beadContext{
@@ -1353,9 +1318,6 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 	if !reviewCalled {
 		t.Error("review should have been called")
 	}
-	if !revalidationCalled {
-		t.Error("re-validation should have been triggered because fixes were applied")
-	}
 }
 
 func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
@@ -1388,12 +1350,6 @@ func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
 			return &claude.Result{
 				Success: true,
 				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed"}`,
-			}, nil
-		},
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "All tests passed\nVALIDATION_PASSED",
 			}, nil
 		},
 	}
@@ -1434,6 +1390,10 @@ func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
 		output:   syncOut,
 		gitDiffFn: func(fromCommit string) (string, error) {
 			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
+		// Validation commands run directly — simulate all passing
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
 		},
 	}
 
@@ -1517,12 +1477,6 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed successfully"}`,
 			}, nil
 		},
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "All tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
 	}
 
 	mockRend := &mockPromptRenderer{
@@ -1561,6 +1515,10 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 		output:   syncOut,
 		gitDiffFn: func(fromCommit string) (string, error) {
 			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
+		// Validation commands run directly — simulate all passing
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
 		},
 	}
 
@@ -1649,12 +1607,6 @@ func TestPostSuccess_BothStagesEnabled_RunSequentially(t *testing.T) {
 				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed"}`,
 			}, nil
 		},
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "All tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
 	}
 
 	lf, _ := learnings.NewFile(t.TempDir())
@@ -1697,6 +1649,10 @@ func TestPostSuccess_BothStagesEnabled_RunSequentially(t *testing.T) {
 		output:   syncOut,
 		gitDiffFn: func(fromCommit string) (string, error) {
 			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
+		// Validation commands run directly — simulate all passing
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
 		},
 	}
 
@@ -1776,12 +1732,6 @@ func TestPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
 				Output:  `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "Review completed despite learning failure"}`,
 			}, nil
 		},
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "All tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
 	}
 
 	lf, _ := learnings.NewFile(t.TempDir())
@@ -1824,6 +1774,10 @@ func TestPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
 		output:   syncOut,
 		gitDiffFn: func(fromCommit string) (string, error) {
 			return "diff --git a/file.go b/file.go\n+some change", nil
+		},
+		// Validation commands run directly — simulate all passing
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
 		},
 	}
 
@@ -1947,17 +1901,10 @@ func TestVerifyTestsFailWithRetry_ReturnsAlreadyDone(t *testing.T) {
 
 func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
 	var buf strings.Builder
-	validationCallCount := 0
+	cmdCallCount := 0
 
 	// First validation: tests pass. Second validation (after retry): tests fail.
 	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			validationCallCount++
-			if validationCallCount == 1 {
-				return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
-			}
-			return &claude.Result{Success: false, Output: "FAIL: TestFeatureX", ExitCode: 1}, nil
-		},
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "rewrote acceptance tests"}, nil
 		},
@@ -2002,6 +1949,14 @@ func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
 		analyzer: mockAnalyzerObj,
 		renderer: mockRend,
 		output:   &buf,
+		// First call: tests pass (unexpected). Second call: tests fail as expected.
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			cmdCallCount++
+			if cmdCallCount == 1 {
+				return "ok", "", 0, nil
+			}
+			return "", "FAIL: TestFeatureX", 1, nil
+		},
 	}
 
 	bc := &beadContext{
@@ -2025,14 +1980,6 @@ func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
 
 func TestRunValidationWithRecovery_PassesOnFirstTry(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{
-				Success: true,
-				Output:  "All tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
-	}
 
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
@@ -2040,18 +1987,18 @@ func TestRunValidationWithRecovery_PassesOnFirstTry(t *testing.T) {
 			Commands:       []string{"go test ./..."},
 			MaxFixAttempts: 1,
 		},
-		Models: config.ModelsConfig{
-			Validation: "haiku",
-		},
 		Preflight: config.PreflightConfig{},
 	}
 	cfg.SetDefaults()
 
 	r := &Runner{
 		cfg:      cfg,
-		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: &mockRenderer{},
 		output:   &buf,
+		// Validation commands run directly — simulate all passing
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
+		},
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -2075,25 +2022,10 @@ func TestRunValidationWithRecovery_PassesOnFirstTry(t *testing.T) {
 
 func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
 	var buf strings.Builder
-	validationCalls := 0
+	cmdCallCount := 0
 	streamRunCalls := 0
 
 	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			validationCalls++
-			if validationCalls == 1 {
-				// First validation fails
-				return &claude.Result{
-					Success: true,
-					Output:  "FAIL: TestSomething\nVALIDATION_FAILED",
-				}, nil
-			}
-			// Second validation passes after fix
-			return &claude.Result{
-				Success: true,
-				Output:  "All tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			streamRunCalls++
 			// Fix build succeeds
@@ -2109,9 +2041,6 @@ func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
 			Enabled:        true,
 			Commands:       []string{"go test ./..."},
 			MaxFixAttempts: 1,
-		},
-		Models: config.ModelsConfig{
-			Validation: "haiku",
 		},
 		Claude: config.ClaudeConfig{
 			StallTimeout:       30,
@@ -2131,6 +2060,14 @@ func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
+		// First validation fails, second passes after fix
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			cmdCallCount++
+			if cmdCallCount == 1 {
+				return "", "FAIL: TestSomething", 1, nil
+			}
+			return "ok", "", 0, nil
+		},
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -2153,8 +2090,8 @@ func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
 	if !bc.result.ValidationRetried {
 		t.Error("ValidationRetried should be true when recovery was attempted")
 	}
-	if validationCalls != 2 {
-		t.Errorf("expected 2 validation calls, got %d", validationCalls)
+	if cmdCallCount != 2 {
+		t.Errorf("expected 2 cmd calls, got %d", cmdCallCount)
 	}
 	if streamRunCalls != 1 {
 		t.Errorf("expected 1 fix build call, got %d", streamRunCalls)
@@ -2163,17 +2100,8 @@ func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
 
 func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
 	var buf strings.Builder
-	validationCalls := 0
 
 	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			validationCalls++
-			// Validation always fails
-			return &claude.Result{
-				Success: true,
-				Output:  "FAIL: TestSomething\nVALIDATION_FAILED",
-			}, nil
-		},
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			// Fix build succeeds but validation will still fail
 			return &claude.Result{
@@ -2188,9 +2116,6 @@ func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
 			Enabled:        true,
 			Commands:       []string{"go test ./..."},
 			MaxFixAttempts: 1,
-		},
-		Models: config.ModelsConfig{
-			Validation: "haiku",
 		},
 		Claude: config.ClaudeConfig{
 			StallTimeout:       30,
@@ -2210,6 +2135,10 @@ func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
+		// Validation always fails
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "FAIL: TestSomething", 1, nil
+		},
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -2239,11 +2168,6 @@ func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
 
 func TestRunValidationWithRecovery_InvocationErrorNotRecovered(t *testing.T) {
 	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return nil, fmt.Errorf("network error")
-		},
-	}
 
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
@@ -2251,18 +2175,18 @@ func TestRunValidationWithRecovery_InvocationErrorNotRecovered(t *testing.T) {
 			Commands:       []string{"go test ./..."},
 			MaxFixAttempts: 1,
 		},
-		Models: config.ModelsConfig{
-			Validation: "haiku",
-		},
 		Preflight: config.PreflightConfig{},
 	}
 	cfg.SetDefaults()
 
 	r := &Runner{
 		cfg:      cfg,
-		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: &mockRenderer{},
 		output:   &buf,
+		// Command execution itself errors (not a non-zero exit)
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "", -1, fmt.Errorf("network error")
+		},
 	}
 	bc := &beadContext{
 		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -2279,8 +2203,8 @@ func TestRunValidationWithRecovery_InvocationErrorNotRecovered(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for invocation failure")
 	}
-	if !strings.Contains(err.Error(), "validation invocation") {
-		t.Errorf("expected 'validation invocation' error, got: %v", err)
+	if !strings.Contains(err.Error(), "validation command") {
+		t.Errorf("expected 'validation command' error, got: %v", err)
 	}
 	// Invocation errors should not trigger recovery
 	if bc.result.ValidationRetried {
@@ -2336,26 +2260,10 @@ func TestIsTestOnlyDiff(t *testing.T) {
 func TestVerifyTestsFailWithRetry_DiffGuard_TestOnlyDiff(t *testing.T) {
 	// When tests pass but only test files changed, retry instead of returning errATDDAlreadyDone
 	var buf strings.Builder
-	validationCalls := 0
+	cmdCallCount := 0
 	streamRunCalls := 0
 
 	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			validationCalls++
-			// First two calls: tests pass (unexpected)
-			// Third call (after diff-guard retry): tests pass again
-			// Fourth call: tests fail as expected
-			if validationCalls <= 3 {
-				return &claude.Result{
-					Success: true,
-					Output:  "All tests passed\nVALIDATION_PASSED",
-				}, nil
-			}
-			return &claude.Result{
-				Success: true,
-				Output:  "FAIL: TestSomething\nVALIDATION_FAILED",
-			}, nil
-		},
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			streamRunCalls++
 			return &claude.Result{
@@ -2395,6 +2303,14 @@ func TestVerifyTestsFailWithRetry_DiffGuard_TestOnlyDiff(t *testing.T) {
 			// Return test-only diff
 			return "diff --git a/internal/runner/process_test.go b/internal/runner/process_test.go\n+some test code", nil
 		},
+		// First three calls: tests pass. Fourth call: tests fail as expected.
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			cmdCallCount++
+			if cmdCallCount <= 3 {
+				return "ok", "", 0, nil
+			}
+			return "", "FAIL: TestSomething", 1, nil
+		},
 	}
 	bc := &beadContext{
 		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
@@ -2428,17 +2344,8 @@ func TestVerifyTestsFailWithRetry_DiffGuard_TestOnlyDiff(t *testing.T) {
 func TestVerifyTestsFailWithRetry_DiffGuard_ImplDiff(t *testing.T) {
 	// When tests pass and implementation files changed, return errATDDAlreadyDone (genuine)
 	var buf strings.Builder
-	validationCalls := 0
 
 	mockClaude := &mockClaudeClient{
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			validationCalls++
-			// Tests always pass
-			return &claude.Result{
-				Success: true,
-				Output:  "All tests passed\nVALIDATION_PASSED",
-			}, nil
-		},
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{
 				Success: true,
@@ -2476,6 +2383,10 @@ func TestVerifyTestsFailWithRetry_DiffGuard_ImplDiff(t *testing.T) {
 		gitDiffFn: func(fromCommit string) (string, error) {
 			// Return diff with implementation files
 			return "diff --git a/internal/runner/process.go b/internal/runner/process.go\n+implementation code\ndiff --git a/internal/runner/process_test.go b/internal/runner/process_test.go\n+test code", nil
+		},
+		// Tests always pass — validation commands run directly
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
 		},
 	}
 	bc := &beadContext{

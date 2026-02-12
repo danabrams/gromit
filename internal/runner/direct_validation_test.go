@@ -211,11 +211,11 @@ func TestDirectValidation_StopsOnFirstFailure(t *testing.T) {
 // but should NOT be invoked when validation succeeds.
 func TestDirectValidation_AnalyzerOnlyCalledOnFailure(t *testing.T) {
 	tests := []struct {
-		name             string
-		exitCode         int
-		expectAnalyzer   bool
-		expectValFailed  bool
-		description      string
+		name            string
+		exitCode        int
+		expectAnalyzer  bool
+		expectValFailed bool
+		description     string
 	}{
 		{
 			name:            "analyzer called on failure",

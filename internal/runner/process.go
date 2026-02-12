@@ -866,7 +866,7 @@ func (r *Runner) verifyTestsFail(ctx context.Context, bc *beadContext) error {
 
 	r.log("Verifying acceptance tests fail (as expected)...")
 
-	valResult, err := r.runValidationWithRouter(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
+	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
 	if err != nil {
 		return fmt.Errorf("validation invocation: %w", err)
 	}
@@ -908,50 +908,37 @@ func isTestOnlyDiff(diff string) bool {
 	return true
 }
 
-// runValidationWithRouter executes validation using the router with automatic fallback.
-// Returns the validation result and any error. This helper centralizes the router
-// selection and usage limit fallback pattern used across multiple validation sites.
-func (r *Runner) runValidationWithRouter(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-	if r.router == nil {
-		return nil, fmt.Errorf("runner router is nil")
-	}
+// runDirectValidationCheck executes validation commands directly via exec.Command
+// and returns a claude.Result for backward compatibility with callers.
+// Returns Success=true with "VALIDATION_PASSED" if all commands exit 0,
+// or Success=false with captured output if any command fails.
+func (r *Runner) runDirectValidationCheck(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+	for _, command := range commands {
+		stdout, stderr, exitCode, err := r.runCmd(ctx, command, workDir)
+		if err != nil {
+			return nil, fmt.Errorf("validation command %q: %w", command, err)
+		}
 
-	phase := "validate"
-	tier := provider.TierLow
-	p, modelName := r.router.Select(phase, tier)
-	if p == nil {
-		return nil, fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
-	}
-
-	// Call provider.RunValidation with the tier
-	providerResult, err := p.RunValidation(ctx, commands, tier, workDir)
-
-	// Check for usage limit error and retry with fallback provider
-	if err != nil && p.IsUsageLimitError(providerResult, err) {
-		r.router.MarkUnavailable(p.Name())
-
-		// Retry with new provider
-		p2, modelName2 := r.router.Select(phase, tier)
-		if p2 != nil {
-			r.log("Retrying validation with model: %s", modelName2)
-			providerResult, err = p2.RunValidation(ctx, commands, tier, workDir)
-			modelName = modelName2
+		if exitCode != 0 {
+			failureOutput := fmt.Sprintf("Command failed: %s (exit code %d)\n", command, exitCode)
+			if stdout != "" {
+				failureOutput += "\nStdout:\n" + stdout
+			}
+			if stderr != "" {
+				failureOutput += "\nStderr:\n" + stderr
+			}
+			return &claude.Result{
+				Success:  false,
+				Output:   failureOutput,
+				ExitCode: exitCode,
+			}, nil
 		}
 	}
 
-	// Convert provider.Result to claude.Result for compatibility
-	var claudeResult *claude.Result
-	if providerResult != nil {
-		claudeResult = &claude.Result{
-			Success:  providerResult.Success,
-			Output:   providerResult.Output,
-			ExitCode: providerResult.ExitCode,
-			Duration: providerResult.Duration,
-			Model:    modelName,
-		}
-	}
-
-	return claudeResult, err
+	return &claude.Result{
+		Success: true,
+		Output:  "VALIDATION_PASSED",
+	}, nil
 }
 
 // runRefactorWithRouter executes a refactor invocation using the router with automatic fallback.
@@ -1050,7 +1037,7 @@ func (r *Runner) runRefactorPhase(ctx context.Context, bc *beadContext) error {
 		return nil
 	}
 
-	valResult, err := r.runValidationWithRouter(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
+	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
 	if err != nil {
 		r.log("Warning: refactor re-validation invocation failed: %v", err)
 		return r.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "re-validation invocation failed")
@@ -1102,7 +1089,7 @@ func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *beadCo
 
 	r.log("Retry refactor complete, re-validating...")
 
-	valResult, err := r.runValidationWithRouter(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
+	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
 
 	if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
 		r.log("Warning: retry refactor also failed validation - skipping refactoring")
@@ -1119,7 +1106,9 @@ func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *beadCo
 }
 
 // runValidation runs the validation step (tests/lint) after a successful build.
-// Returns an error if validation fails or encounters an error.
+// Commands are executed directly via exec.Command, not through Claude CLI (AC1).
+// Exit codes determine pass/fail: 0=pass, non-zero=fail with captured stderr (AC2).
+// Claude is only invoked for failure interpretation via the analyzer (AC3).
 func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 	if !r.cfg.Validation.Enabled {
 		return nil
@@ -1135,41 +1124,52 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 		return nil // Skip validation, not an error
 	}
 
-	valResult, err := r.runValidationWithRouter(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
-	if err != nil {
-		return fmt.Errorf("validation invocation: %w", err)
-	}
-	if valResult == nil {
-		return fmt.Errorf("validation returned no result")
-	}
+	r.log("Running validation commands directly...")
 
-	r.log("Running validation with model: %s", valResult.Model)
-
-	if !claude.IsValidationPassed(valResult) {
-		r.log("\nValidation failed. Output:")
-		r.log("%s", valResult.Output)
-
-		logPath, err := logger.WriteValidationLog(r.cfg.Paths.Logs, valResult.Output)
+	// Execute each validation command directly
+	for _, command := range r.cfg.Validation.Commands {
+		r.log("  %s", command)
+		stdout, stderr, exitCode, err := r.runCmd(ctx, command, bc.promptCtx.WorkDir)
 		if err != nil {
-			r.log("Warning: could not save validation log: %v", err)
-		} else {
-			r.log("\nFull output saved to: %s", logPath)
+			return fmt.Errorf("validation command %q: %w", command, err)
 		}
 
-		if bc.startCommit != "" {
-			r.showPartialProgress(bc.bead, bc.startCommit)
-		}
+		if exitCode != 0 {
+			// Build failure output with command name and captured output
+			failureOutput := fmt.Sprintf("Command failed: %s (exit code %d)\n", command, exitCode)
+			if stdout != "" {
+				failureOutput += "\nStdout:\n" + stdout
+			}
+			if stderr != "" {
+				failureOutput += "\nStderr:\n" + stderr
+			}
 
-		r.log("Running failure analysis...")
-		valAnalysisCtx, valAnalysisCancel := context.WithTimeout(ctx, time.Duration(r.cfg.Claude.AnalysisTimeout)*time.Second)
-		analysis, err := r.analyzer.Analyze(valAnalysisCtx, bc.bead, valResult.Output)
-		valAnalysisCancel()
-		if err == nil && analysis != nil {
-			r.extractLearning(bc, analysis)
-		}
+			r.log("\nValidation failed. Output:")
+			r.log("%s", failureOutput)
 
-		bc.result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + valResult.Output
-		return errValidationFailed
+			logPath, logErr := logger.WriteValidationLog(r.cfg.Paths.Logs, failureOutput)
+			if logErr != nil {
+				r.log("Warning: could not save validation log: %v", logErr)
+			} else {
+				r.log("\nFull output saved to: %s", logPath)
+			}
+
+			if bc.startCommit != "" {
+				r.showPartialProgress(bc.bead, bc.startCommit)
+			}
+
+			// Run failure analysis (AC3: Claude only for failure interpretation)
+			r.log("Running failure analysis...")
+			valAnalysisCtx, valAnalysisCancel := context.WithTimeout(ctx, time.Duration(r.cfg.Claude.AnalysisTimeout)*time.Second)
+			analysis, analyzeErr := r.analyzer.Analyze(valAnalysisCtx, bc.bead, failureOutput)
+			valAnalysisCancel()
+			if analyzeErr == nil && analysis != nil {
+				r.extractLearning(bc, analysis)
+			}
+
+			bc.result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
+			return errValidationFailed
+		}
 	}
 
 	bc.result.Validated = true
@@ -1273,7 +1273,7 @@ func (r *Runner) runPostSuccessReview(ctx context.Context, bc *beadContext) erro
 			r.log("Review applied %d fixes, re-validating...", len(reviewResult.FixesApplied))
 
 			if r.cfg.Validation.Enabled {
-				valResult, err := r.runValidationWithRouter(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
+				valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
 				if err != nil {
 					return fmt.Errorf("review re-validation invocation: %w", err)
 				}

@@ -1129,9 +1129,6 @@ func TestProcessBeadWithMocks_ValidationEnabled(t *testing.T) {
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "build ok"}, nil
 		},
-		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-			return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
-		},
 	}
 
 	var buf strings.Builder
@@ -1144,6 +1141,13 @@ func TestProcessBeadWithMocks_ValidationEnabled(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
+	// Validation now runs commands directly via cmdRunnerFn
+	cmdRunCount := 0
+	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		cmdRunCount++
+		return "ok", "", 0, nil
+	}
+
 	b := &bead.Bead{ID: "val-test", Title: "Validation Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
 	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
@@ -1153,8 +1157,8 @@ func TestProcessBeadWithMocks_ValidationEnabled(t *testing.T) {
 	if !result.Validated {
 		t.Error("expected Validated=true")
 	}
-	if mockClaude.ValidationCalls != 1 {
-		t.Errorf("expected 1 validation call, got %d", mockClaude.ValidationCalls)
+	if cmdRunCount != 1 {
+		t.Errorf("expected 1 direct validation command execution, got %d", cmdRunCount)
 	}
 }
 

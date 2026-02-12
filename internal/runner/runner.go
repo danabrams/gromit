@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -49,8 +50,9 @@ type Runner struct {
 	output       io.Writer
 	syncOut      *syncWriter // concrete type for WriteOverwrite access
 	gromitDir    string
-	gitDiffFn    func(string) (string, error) // injectable for testing; defaults to getGitDiff
-	labelFilters []string                     // optional spec labels to filter beads
+	gitDiffFn    func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
+	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
+	labelFilters []string                                                                                                          // optional spec labels to filter beads
 }
 
 // NewRunner creates a new runner
@@ -130,16 +132,17 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	}
 
 	return &Runner{
-		cfg:       cfg,
-		beads:     beadsClient,
-		router:    router,
-		analyzer:  analyzerObj,
-		renderer:  renderer,
-		logger:    log,
-		output:    syncOut,
-		syncOut:   syncOut,
-		gromitDir: gromitDir,
-		gitDiffFn: getGitDiff,
+		cfg:         cfg,
+		beads:       beadsClient,
+		router:      router,
+		analyzer:    analyzerObj,
+		renderer:    renderer,
+		logger:      log,
+		output:      syncOut,
+		syncOut:     syncOut,
+		gromitDir:   gromitDir,
+		gitDiffFn:   getGitDiff,
+		cmdRunnerFn: defaultCmdRunner,
 	}, nil
 }
 
@@ -186,16 +189,17 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	router := deps.Router
 
 	return &Runner{
-		cfg:       cfg,
-		beads:     deps.Beads,
-		router:    router,
-		analyzer:  deps.Analyzer,
-		renderer:  deps.Renderer,
-		logger:    iterLogger,
-		output:    syncOut,
-		syncOut:   syncOut,
-		gromitDir: gromitDir,
-		gitDiffFn: getGitDiff,
+		cfg:         cfg,
+		beads:       deps.Beads,
+		router:      router,
+		analyzer:    deps.Analyzer,
+		renderer:    deps.Renderer,
+		logger:      iterLogger,
+		output:      syncOut,
+		syncOut:     syncOut,
+		gromitDir:   gromitDir,
+		gitDiffFn:   getGitDiff,
+		cmdRunnerFn: defaultCmdRunner,
 	}, nil
 }
 
@@ -1300,6 +1304,32 @@ func (r *Runner) getDiff(fromCommit string) (string, error) {
 	return getGitDiff(fromCommit)
 }
 
+// defaultCmdRunner executes a shell command and returns stdout, stderr, exit code.
+// Non-zero exit codes are returned as exitCode (not as an error).
+func defaultCmdRunner(ctx context.Context, command string, workDir string) (string, string, int, error) {
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Dir = workDir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return stdout.String(), stderr.String(), exitErr.ExitCode(), nil
+		}
+		return stdout.String(), stderr.String(), -1, err
+	}
+	return stdout.String(), stderr.String(), 0, nil
+}
+
+// runCmd calls the injectable cmdRunnerFn, falling back to defaultCmdRunner if unset.
+func (r *Runner) runCmd(ctx context.Context, command string, workDir string) (string, string, int, error) {
+	if r.cmdRunnerFn != nil {
+		return r.cmdRunnerFn(ctx, command, workDir)
+	}
+	return defaultCmdRunner(ctx, command, workDir)
+}
+
 // checkExpectedOutputs checks if expected files exist and returns a summary
 func checkExpectedOutputs(expectedOutputs []string) string {
 	if len(expectedOutputs) == 0 {
@@ -2063,18 +2093,11 @@ func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteratio
 		r.log("Thorough review applied %d fixes, re-validating...", len(result.FixesApplied))
 		workDir, _ := os.Getwd()
 
-		// Select provider via router (phase="validate", tier="low")
-		valProvider, _ := r.router.Select("validate", provider.TierLow)
-		if valProvider == nil {
-			r.log("Warning: no provider available for validation")
+		valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, workDir)
+		if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
+			r.log("Warning: thorough review fixes broke validation")
 		} else {
-			valResult, err := valProvider.RunValidation(ctx, r.cfg.Validation.Commands, provider.TierLow, workDir)
-			valPassed := valResult != nil && valResult.Success && strings.Contains(valResult.Output, "VALIDATION_PASSED")
-			if err != nil || !valPassed {
-				r.log("Warning: thorough review fixes broke validation")
-			} else {
-				r.log("Re-validation passed")
-			}
+			r.log("Re-validation passed")
 		}
 	}
 
