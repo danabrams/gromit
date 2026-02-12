@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // ClaudeClientRunner is an interface for invoking claude.Client.
@@ -51,4 +52,43 @@ var ProjectDescriptions = struct {
 	Gromit string
 }{
 	Gromit: "A Go CLI tool that runs the Gromit loop with fresh context on each iteration",
+}
+
+// ProviderRunner is an interface for invoking provider.Provider.
+// This is used for dependency injection in learnings filtering.
+type ProviderRunner interface {
+	Run(ctx context.Context, prompt string, tier string) (*provider.Result, error)
+}
+
+// providerRunnerAdapter adapts provider.Provider to the ClaudeRunner interface
+// by converting provider.Result to learnings.Result.
+type providerRunnerAdapter struct {
+	provider ProviderRunner
+}
+
+// NewProviderRunnerAdapter creates a new adapter from a Provider
+func NewProviderRunnerAdapter(p ProviderRunner) *providerRunnerAdapter {
+	return &providerRunnerAdapter{provider: p}
+}
+
+// Run implements ClaudeRunner by calling the underlying Provider and converting the result
+func (a *providerRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*Result, error) {
+	if a.provider == nil {
+		return nil, fmt.Errorf("provider is nil")
+	}
+
+	providerResult, err := a.provider.Run(ctx, prompt, model)
+	if err != nil {
+		return nil, err
+	}
+
+	if providerResult == nil {
+		return nil, fmt.Errorf("provider returned nil result")
+	}
+
+	// Convert provider.Result to learnings.Result
+	return &Result{
+		Success: providerResult.Success,
+		Output:  providerResult.Output,
+	}, nil
 }

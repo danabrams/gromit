@@ -149,6 +149,12 @@ Router conversions in runner.go require careful mock setup in tests - checkScope
 ### 2026-02-11 | gromit-gibz | conventions
 When converting code to new patterns (like router-based calls), check if there are accompanying acceptance tests that validate the old pattern. These tests may become redundant with the new implementation and should be updated or removed to meet code quality thresholds. Search for acceptance tests related to the converted functions (e.g., tests for runLightReview, runThoroughReview, claude.Run) and consolidate them.
 
+### 2026-02-11 | gromit-gibz | conventions
+Router-based calls should check for Opus build before selecting tier - use selectReviewTier() helper which delegates to selectTier() for non-opus and returns 'high' for opus builds
+
+### 2026-02-11 | gromit-gibz | conventions
+Router-based refactoring uses consistent phase + tier parameters: selectTier(bead) for standard reviews, 'high' tier for opus builds or thorough reviews, 'low' tier for validation sub-calls. When converting r.claude.Run() to router calls, check context first (isOpusBuild) to determine tier override.
+
 ---
 
 ## Archived
