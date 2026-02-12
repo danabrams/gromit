@@ -121,3 +121,28 @@ This is a spec about pipeline extraction.`
 		t.Errorf("expected title %q, got %q", expected, title)
 	}
 }
+
+func TestExtractSpecTitle_WithFrontmatter(t *testing.T) {
+	dir := t.TempDir()
+	specFile := filepath.Join(dir, "spec.md")
+
+	content := `---
+id: pipeline-extraction
+created: 2026-02-11
+---
+
+# Pipeline Extraction
+
+This spec has frontmatter.`
+
+	if err := os.WriteFile(specFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	title := ExtractSpecTitle(specFile)
+
+	expected := "Pipeline Extraction"
+	if title != expected {
+		t.Errorf("expected title %q, got %q", expected, title)
+	}
+}
