@@ -64,3 +64,35 @@ func TestCodexProviderNameMethod(t *testing.T) {
 		t.Errorf("Name() = %q, want %q", name, "codex")
 	}
 }
+
+// TestCodexProviderModelForTierReturnsCorrectModel verifies that ModelForTier()
+// maps tier constants to the configured Codex model names.
+func TestCodexProviderModelForTierReturnsCorrectModel(t *testing.T) {
+	tierMap := map[string]string{
+		TierHigh:   "o3",
+		TierMedium: "gpt-4o",
+		TierLow:    "gpt-4o-mini",
+	}
+
+	cp := &CodexProvider{
+		tierToModel: tierMap,
+	}
+
+	tests := []struct {
+		tier      string
+		wantModel string
+	}{
+		{TierHigh, "o3"},
+		{TierMedium, "gpt-4o"},
+		{TierLow, "gpt-4o-mini"},
+	}
+
+	for _, tt := range tests {
+		t.Run("tier_"+tt.tier, func(t *testing.T) {
+			got := cp.ModelForTier(tt.tier)
+			if got != tt.wantModel {
+				t.Errorf("ModelForTier(%q) = %q, want %q", tt.tier, got, tt.wantModel)
+			}
+		})
+	}
+}
