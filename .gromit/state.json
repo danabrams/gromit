@@ -1,9 +1,6 @@
 {
-  "last_retro": "2026-02-12T11:45:10.521204059-05:00",
-  "last_review_commit": "9dea82364231db28340a1042f4ac2a5f218f1ace",
-  "clean_exit": true,
-  "updated_at": "2026-02-12T12:47:44.353421325-05:00",
-  "filtered_learning_hashes": [
-    "f5e6befc60f898ee"
-  ]
+  "last_retro": "2026-02-12T13:56:00.832417181-05:00",
+  "last_review_commit": "8e12f0f212b0ffe5216bca149b56737c2060965a",
+  "clean_exit": false,
+  "updated_at": "2026-02-12T14:15:54.432370737-05:00"
 }

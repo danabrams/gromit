@@ -19,15 +19,10 @@ Status struct fields require backward-compatible changes (omitempty for new opti
 
 Methodologies use label-based activation ("methodology:true"/"false") with global config fallback via bead.IsMethodologyActive(). When active, replace the build prompt with a specialized RenderXXXBuild method. Check parent labels before adding globally-active methodology labels to sub-beads to avoid duplicates. Order methodology checks carefully for precedence when multiple methodologies are active.
 
-### 2026-02-08 | Runner Method Pattern | patterns
-*Related to: gromit-5pvp, gromit-82qx, gromit-vabo*
+### 2026-02-12 | Runner and Provider Invocation Pattern | patterns
+*Related to: gromit-5pvp, gromit-82qx, gromit-vabo, gromit-juyb, gromit-2zju, gromit-557p, gromit-3gdz, gromit-gibz, gromit-sx84*
 
-Runner methods follow a consistent pattern: nil-safe receiver/config checks, feature-flag gating (e.g., IsAutoPushEnabled()), context.WithTimeout for subprocess calls, and failure handling via mode field (warn vs stop) or skippedBeads map rather than inline error handling. The Run() method follows a clear sequencing: validate -> execute work -> persist state -> run between-iteration hooks -> continue loop. Log warnings on timeout errors rather than returning early.
-
-### 2026-02-11 | Router Conversion Pattern | patterns
-*Related to: gromit-juyb, gromit-2zju, gromit-557p, gromit-3gdz, gromit-gibz, gromit-sx84*
-
-Router-based calls use phase + tier parameters: phase identifies the operation (build/validate/review/refactor), tier selects the complexity level (low/medium/high). Provider selection happens at invocation time via router.Select(), which returns a Provider and model name. The Provider's StreamRun() method executes the invocation. Follow the executeClaudeInvocation pattern: extract tier selection, use provider.StreamRun() for the initial call, handle UsageLimitError by escalating to the next tier. Capture the selected provider's Name() immediately after selection for use in dependent operations (e.g., review routing via SelectCross). Distinguish between tier selection and model selection — SetEscalatedTo gets the final model name from TierToModel, not the tier string. Standard tiers: validation uses phase="validate" tier="low"; reviews use selectTier(bead) or "high" for opus builds/thorough reviews. When converting call sites, check all related functions in the same flow (e.g., runRefactorPhase + handleRefactorValidationFailure + runPostSuccessReview). Router conversions in tests require mockProviderWithRouterTracking and real git repo fixtures for acceptance tests. Use selectReviewTier() helper which delegates to selectTier() for non-opus and returns "high" for opus builds.
+Runner methods follow a consistent pattern: nil-safe receiver/config checks, feature-flag gating (e.g., IsAutoPushEnabled()), context.WithTimeout for subprocess calls, and failure handling via mode field (warn vs stop) or skippedBeads map rather than inline error handling. The Run() method follows clear sequencing: validate -> execute work -> persist state -> run between-iteration hooks -> continue loop. Log warnings on timeout errors rather than returning early. Provider invocations use router.Select() with phase + tier parameters: phase identifies the operation (build/validate/review/refactor), tier selects the complexity level (low/medium/high). Provider's StreamRun() executes the invocation. Capture the selected provider's Name() immediately after selection for use in dependent operations. Follow the executeClaudeInvocation pattern: extract tier selection, use provider.StreamRun(), handle UsageLimitError by escalating to the next tier via TierToModel mapping. Standard tiers: validation uses phase="validate" tier="low"; reviews use selectTier(bead) or "high" for opus builds/thorough reviews. Use selectReviewTier() helper which delegates to selectTier() for non-opus and returns "high" for opus builds.
 
 ### 2026-02-11 | Acceptance Test Line Budget | conventions
 *Related to: gromit-lxlp, gromit-nqf1, gromit-2edx, gromit-557p, gromit-3gdz*
@@ -1063,3 +1058,7 @@ Acceptance test budget (6000 lines across all test files) is a hard constraint i
 
 *Archived from provisional: filtered: generic engineering advice*
 
+### 2026-02-12 | Runner Method Pattern + Router Conversion Pattern | patterns
+Archived: consolidated into Confirmed "Runner and Provider Invocation Pattern" entry. Router Conversion Pattern was migration-specific (migration complete); durable provider invocation knowledge merged with Runner Method Pattern.
+
+*Archived from confirmed: consolidated*

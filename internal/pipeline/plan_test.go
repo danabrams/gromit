@@ -547,6 +547,10 @@ func (m *mockBeadClient) Create(title string, priority int, labels []string, out
 	return nil, nil
 }
 
+func (m *mockBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+	return nil, nil
+}
+
 func (m *mockBeadClient) Close(id string) error {
 	return nil
 }

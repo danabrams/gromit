@@ -61,6 +61,7 @@ type BeadClient interface {
 	Ready() (interface{}, error)
 	Show(id string) (interface{}, error)
 	Create(title string, priority int, labels []string, outputs []string) (interface{}, error)
+	CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error)
 	Close(id string) error
 }
 
@@ -113,15 +114,6 @@ func (p *Pipeline) Plan(ctx context.Context, input PlanInput) (*PlanSession, err
 	}
 	// TODO: implement
 	return nil, fmt.Errorf("pipeline: Plan not yet implemented")
-}
-
-// Decompose executes the decompose workflow.
-func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*DecomposeResult, error) {
-	if p.deps == nil || p.deps.ClaudeClient == nil {
-		return nil, fmt.Errorf("pipeline: nil dependencies")
-	}
-	// TODO: implement
-	return nil, fmt.Errorf("pipeline: Decompose not yet implemented")
 }
 
 // Review executes the review workflow.
