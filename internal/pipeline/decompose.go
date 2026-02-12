@@ -95,8 +95,68 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		return &result, nil
 	}
 
-	// TODO: create beads, update plan frontmatter
-	return nil, fmt.Errorf("pipeline: Decompose not yet implemented")
+	// Create beads
+	result := NewDecomposeResult()
+	createdIDs := []string{}
+
+	for i, def := range beadDefs {
+		// Map priority string to int
+		priority := parsePriority(def.Priority)
+
+		// Build labels: always include spec:<name>
+		labels := []string{fmt.Sprintf("spec:%s", input.PlanName)}
+
+		// Resolve dependencies from depends_on_index
+		var dependencies []string
+		for _, depIdx := range def.DependsOnIndex {
+			// Skip self-dependencies
+			if depIdx == i {
+				continue
+			}
+			// Skip out-of-range dependencies
+			if depIdx < 0 || depIdx >= len(createdIDs) {
+				continue
+			}
+			dependencies = append(dependencies, createdIDs[depIdx])
+		}
+
+		// Create bead via BeadClient
+		beadResult, err := p.deps.BeadClient.CreateWithDepsAndDescription(
+			def.Title,
+			priority,
+			labels,
+			def.AcceptanceCriteria,
+			dependencies,
+			def.Description,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("creating bead %d: %w", i, err)
+		}
+
+		// Extract ID from result
+		beadMap, ok := beadResult.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("unexpected bead result type")
+		}
+		beadID, ok := beadMap["ID"].(string)
+		if !ok {
+			return nil, fmt.Errorf("bead result missing ID field")
+		}
+
+		createdIDs = append(createdIDs, beadID)
+
+		// Add to result
+		bead := NewCreatedBead()
+		bead.ID = beadID
+		bead.Title = def.Title
+		bead.Priority = priority
+		bead.Labels = labels
+		result.CreatedBeads = append(result.CreatedBeads, bead)
+	}
+
+	// TODO: update plan frontmatter
+	result.PlanUpdated = false
+	return &result, nil
 }
 
 // buildDecomposePrompt constructs the prompt for Claude.

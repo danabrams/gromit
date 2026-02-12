@@ -327,6 +327,143 @@ Task 1
 	}
 }
 
+// TestDecompose_CreatesBeadsWithDependencies verifies that beads are created with proper dependency mapping.
+func TestDecompose_CreatesBeadsWithDependencies(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	planPath := filepath.Join(plansDir, "deps-test.md")
+	planContent := `# Deps Test Plan
+
+Tasks with dependencies
+`
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeTestClaudeClient{
+		RunFn: func(prompt string, model string) (interface{}, error) {
+			return map[string]interface{}{
+				"Success":  true,
+				"ExitCode": 0,
+				"Output": `[
+					{
+						"title": "Task A",
+						"description": "First task",
+						"priority": "P1",
+						"acceptance_criteria": ["A done"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Task B",
+						"description": "Second task",
+						"priority": "P1",
+						"acceptance_criteria": ["B done"],
+						"depends_on_index": [0]
+					},
+					{
+						"title": "Task C",
+						"description": "Third task",
+						"priority": "P2",
+						"acceptance_criteria": ["C done"],
+						"depends_on_index": [0, 1]
+					}
+				]`,
+			}, nil
+		},
+	}
+
+	var createdBeads []struct {
+		title    string
+		priority int
+		labels   []string
+		criteria []string
+		deps     []string
+		desc     string
+	}
+
+	mockBead := &decomposeTestBeadClient{
+		CreateWithDepsAndDescriptionFn: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+			id := fmt.Sprintf("bead-%d", len(createdBeads)+1)
+			createdBeads = append(createdBeads, struct {
+				title    string
+				priority int
+				labels   []string
+				criteria []string
+				deps     []string
+				desc     string
+			}{title, priority, labels, criteria, deps, desc})
+			return map[string]interface{}{
+				"ID":       id,
+				"Title":    title,
+				"Priority": priority,
+				"Labels":   labels,
+			}, nil
+		},
+	}
+
+	deps := &Deps{
+		ClaudeClient: mockClaude,
+		BeadClient:   mockBead,
+	}
+	paths := &Paths{
+		PlansDir: plansDir,
+	}
+
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := DecomposeInput{
+		PlanName: "deps-test",
+	}
+
+	result, err := p.Decompose(ctx, input)
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if len(createdBeads) != 3 {
+		t.Fatalf("created %d beads, want 3", len(createdBeads))
+	}
+
+	// Verify Task A has no dependencies
+	if len(createdBeads[0].deps) != 0 {
+		t.Errorf("Task A deps = %v, want []", createdBeads[0].deps)
+	}
+
+	// Verify Task B depends on Task A
+	if len(createdBeads[1].deps) != 1 || createdBeads[1].deps[0] != "bead-1" {
+		t.Errorf("Task B deps = %v, want [bead-1]", createdBeads[1].deps)
+	}
+
+	// Verify Task C depends on Task A and B
+	if len(createdBeads[2].deps) != 2 || createdBeads[2].deps[0] != "bead-1" || createdBeads[2].deps[1] != "bead-2" {
+		t.Errorf("Task C deps = %v, want [bead-1, bead-2]", createdBeads[2].deps)
+	}
+
+	// Verify result contains created beads
+	if len(result.CreatedBeads) != 3 {
+		t.Errorf("result.CreatedBeads count = %d, want 3", len(result.CreatedBeads))
+	}
+
+	// Verify spec label is added
+	for i, bead := range createdBeads {
+		found := false
+		for _, label := range bead.labels {
+			if label == "spec:deps-test" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("bead %d missing spec:deps-test label", i)
+		}
+	}
+}
+
 // decomposeTestClaudeClient is a mock with injectable functions for decompose tests.
 type decomposeTestClaudeClient struct {
 	RunFn func(prompt string, model string) (interface{}, error)
