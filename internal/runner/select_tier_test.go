@@ -1,7 +1,9 @@
 package runner
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -34,5 +36,33 @@ func TestSelectTierDelegatesToConfig(t *testing.T) {
 
 	if result != provider.TierMedium {
 		t.Errorf("selectTier() = %q, want %q", result, provider.TierMedium)
+	}
+}
+
+// TestRunValidatesRouterNotNil verifies that Run() checks for nil router
+func TestRunValidatesRouterNotNil(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	// Create runner with nil router
+	r := &Runner{
+		cfg:      cfg,
+		beads:    &mockBeadClient{},
+		renderer: &mockPromptRenderer{},
+		claude:   &mockClaudeClient{},
+		router:   nil, // Explicitly nil
+	}
+
+	ctx := context.Background()
+	err := r.Run(ctx, 0, time.Time{}, true)
+
+	if err == nil {
+		t.Error("Run() with nil router should return error, got nil")
+	}
+
+	expectedMsg := "runner router is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("Run() error = %q, want %q", err.Error(), expectedMsg)
 	}
 }

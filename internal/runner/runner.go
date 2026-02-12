@@ -259,6 +259,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	if r.claude == nil {
 		return fmt.Errorf("runner claude client is nil")
 	}
+	if r.router == nil {
+		return fmt.Errorf("runner router is nil")
+	}
 
 	// Set up tmux title management (no-op if not in tmux)
 	tmuxMgr, err := tmux.NewManager()
