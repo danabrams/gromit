@@ -63,6 +63,11 @@ func (cp *ClaudeProvider) resolveTier(tier string) string {
 	return tier
 }
 
+// ModelForTier returns the model name for a given tier without invoking the LLM.
+func (cp *ClaudeProvider) ModelForTier(tier string) string {
+	return cp.resolveTier(tier)
+}
+
 // convertResult converts a claude.Result to a provider.Result
 func convertResult(claudeResult *claude.Result) *Result {
 	return &Result{

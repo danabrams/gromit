@@ -2771,6 +2771,19 @@ func (m *mockProviderForProcess) Name() string {
 	return "mock"
 }
 
+func (m *mockProviderForProcess) ModelForTier(tier string) string {
+	// Simple tier-to-model mapping for tests
+	tierMap := map[string]string{
+		provider.TierHigh:   "opus",
+		provider.TierMedium: "sonnet",
+		provider.TierLow:    "haiku",
+	}
+	if model, ok := tierMap[tier]; ok {
+		return model
+	}
+	return tier
+}
+
 func (m *mockProviderForProcess) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
 	result, err := m.claudeClient.Run(ctx, prompt, tier)
 	if err != nil {

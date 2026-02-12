@@ -160,15 +160,8 @@ func (r *Router) selectByRatio() string {
 func (r *Router) selectProvider(name string, tier string) (Provider, string) {
 	provider := r.providers[name]
 
-	// Get model name by running a fake invocation to extract the model
-	// For now, we'll use a simple approach: the provider's Run method returns Result with Model field
-	// In real implementation, providers would have a ModelForTier method
-	// For testing, we assume the provider's result includes the model name
-	result, _ := provider.Run(nil, "", tier)
-	modelName := ""
-	if result != nil {
-		modelName = result.Model
-	}
+	// Get model name for the tier
+	modelName := provider.ModelForTier(tier)
 
 	// Increment count
 	r.counts[name]++

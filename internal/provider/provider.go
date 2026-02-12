@@ -39,6 +39,7 @@ type ToolCallHandler func(event ToolEvent)
 // Provider executes LLM invocations via a CLI tool
 type Provider interface {
 	Name() string
+	ModelForTier(tier string) string
 	Run(ctx context.Context, prompt string, tier string) (*Result, error)
 	StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
 		handler EventHandler, onToolCall ToolCallHandler) (*Result, error)
