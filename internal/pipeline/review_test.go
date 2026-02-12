@@ -565,6 +565,10 @@ func (m *reviewAcceptanceMockPromptRenderer) RenderThoroughReview(ctx interface{
 	return "", fmt.Errorf("not implemented")
 }
 
+func (m *reviewAcceptanceMockPromptRenderer) RenderExplore(ctx interface{}) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
 type reviewAcceptanceMockClaudeClient struct {
 	runFunc func(prompt string, model string, timeout time.Duration) (interface{}, error)
 }

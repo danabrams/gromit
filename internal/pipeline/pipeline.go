@@ -93,6 +93,7 @@ type PromptRenderer interface {
 	RenderPlan(input interface{}) (string, error)
 	RenderDecompose(input interface{}) (string, error)
 	RenderThoroughReview(ctx interface{}) (string, error)
+	RenderExplore(ctx interface{}) (string, error)
 }
 
 // LearningsManager abstracts learning persistence operations.
@@ -312,11 +313,3 @@ func (p *Pipeline) validateReviewDeps() error {
 	return nil
 }
 
-// Explore executes the explore workflow.
-func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreSession, error) {
-	if p.deps == nil || p.deps.AgentResolver == nil {
-		return nil, fmt.Errorf("pipeline: nil dependencies")
-	}
-	// TODO: implement
-	return nil, fmt.Errorf("pipeline: Explore not yet implemented")
-}

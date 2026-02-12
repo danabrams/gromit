@@ -1,0 +1,50 @@
+package pipeline
+
+import (
+	"context"
+	"fmt"
+)
+
+// Explore executes the explore workflow in non-interactive mode.
+// It validates deps, records existing artifacts (epics, specs, backlog items) as pre-snapshots,
+// builds explore prompt using renderer, writes temp file, resolves agent, launches agent,
+// performs post-processing to detect new artifacts, and returns ExploreResult.
+func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreResult, error) {
+	// Validate dependencies
+	if err := p.validateExploreDeps(); err != nil {
+		return nil, err
+	}
+
+	// Initialize result with empty slices
+	result := NewExploreResult()
+
+	// TODO: Record existing artifacts (pre-snapshots)
+	// TODO: Build explore prompt using renderer
+	// TODO: Write temp file
+	// TODO: Resolve agent
+	// TODO: Launch agent
+	// TODO: Post-processing: detect new artifacts
+
+	return &result, nil
+}
+
+// validateExploreDeps checks that all required dependencies for Explore are present.
+func (p *Pipeline) validateExploreDeps() error {
+	if p.deps == nil {
+		return fmt.Errorf("pipeline: nil dependencies")
+	}
+
+	requiredDeps := map[string]interface{}{
+		"AgentResolver":  p.deps.AgentResolver,
+		"PromptRenderer": p.deps.PromptRenderer,
+		"BacklogClient":  p.deps.BacklogClient,
+	}
+
+	for name, dep := range requiredDeps {
+		if dep == nil {
+			return fmt.Errorf("pipeline: nil %s", name)
+		}
+	}
+
+	return nil
+}
