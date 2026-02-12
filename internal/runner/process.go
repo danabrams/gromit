@@ -1050,19 +1050,54 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 		return nil // Skip validation, not an error
 	}
 
-	r.log("Running validation with model: %s", r.cfg.Models.Validation)
+	if r.router == nil {
+		return fmt.Errorf("runner router is nil")
+	}
 
-	valResult, err := r.claude.RunValidation(
+	// Select provider using router with phase="validate" and tier="low"
+	phase := "validate"
+	tier := provider.TierLow
+	p, modelName := r.router.Select(phase, tier)
+	if p == nil {
+		return fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
+	}
+
+	r.log("Running validation with model: %s", modelName)
+
+	// Call provider.RunValidation with the tier
+	providerResult, err := p.RunValidation(
 		ctx,
 		r.cfg.Validation.Commands,
-		r.cfg.Models.Validation,
+		tier,
 		bc.promptCtx.WorkDir,
 	)
+
+	// Check for usage limit error and retry with fallback provider
+	if err != nil && p.IsUsageLimitError(providerResult, err) {
+		r.router.MarkUnavailable(p.Name())
+
+		// Retry with new provider
+		p2, modelName2 := r.router.Select(phase, tier)
+		if p2 != nil {
+			r.log("Retrying validation with model: %s", modelName2)
+			providerResult, err = p2.RunValidation(ctx, r.cfg.Validation.Commands, tier, bc.promptCtx.WorkDir)
+		}
+	}
+
 	if err != nil {
 		return fmt.Errorf("validation invocation: %w", err)
 	}
-	if valResult == nil {
+	if providerResult == nil {
 		return fmt.Errorf("validation returned no result")
+	}
+
+	// Convert provider.Result to claude.Result for compatibility with claude.IsValidationPassed
+	valResult := &claude.Result{
+		Success:  providerResult.Success,
+		Output:   providerResult.Output,
+		ExitCode: providerResult.ExitCode,
+		Duration: providerResult.Duration,
+		Model:    providerResult.Model,
 	}
 
 	if !claude.IsValidationPassed(valResult) {
