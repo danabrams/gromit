@@ -161,7 +161,6 @@ func TestLoadSpec_CachesPerSpecName(t *testing.T) {
 	}
 }
 
-
 // TestBuildContext_UsesCachedFiles verifies that BuildContext uses cached
 // CLAUDE.md and RULES.md content rather than reading from disk multiple times.
 func TestBuildContext_UsesCachedFiles(t *testing.T) {

@@ -227,7 +227,6 @@ func (a *providerResultAdapter) GetOutput() string {
 	return a.result.Output
 }
 
-
 // loadRules reads the RULES.md file
 func (r *Retro) loadRules() (string, error) {
 	content, err := os.ReadFile(r.rulesPath)

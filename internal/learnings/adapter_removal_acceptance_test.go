@@ -48,7 +48,6 @@ func TestClaudeRunnerAdapterRemoved(t *testing.T) {
 	}
 }
 
-
 // TestAdapterTestsRemoved verifies that the tests for ClaudeRunnerAdapter
 // have been removed from adapter_test.go since the code under test no longer exists.
 // Expected failure: adapter_test.go still contains TestClaudeRunnerAdapter_Success and related tests

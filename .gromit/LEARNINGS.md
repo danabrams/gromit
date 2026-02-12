@@ -61,6 +61,12 @@ When migrating from dual-mode (with fallback) to Provider-only, update ALL call 
 ### 2026-02-12 | gromit-jxnk | patterns
 Multi-provider Router initialization happens within cfg.HasProviders() conditional branch in NewRunner(); the legacy single-client path (claudeClient) stays in the else branch to maintain backward compatibility
 
+### 2026-02-12 | gromit-glxx | patterns
+Renderer methods that load static files (CLAUDE.md, RULES.md, specs) should use sync.Once or similar to cache on first load, since these files are immutable during a run and loaded multiple times across different phases (light review, thorough review). This avoids repeated disk I/O without requiring cache invalidation logic.
+
+### 2026-02-12 | gromit-glxx | patterns
+Cache static files loaded multiple times in a run using pointer fields (*string) for single values or maps for multi-value caches—check if nil/in-map, read from disk once, store the result. This is simpler than sync.Once and avoids repeated disk I/O without invalidation logic.
+
 ---
 
 ## Archived

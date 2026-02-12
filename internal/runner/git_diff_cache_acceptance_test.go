@@ -157,116 +157,59 @@ func TestAcceptance_GitDiffCacheClearedBetweenBeads(t *testing.T) {
 	}
 }
 
-// TestAcceptance_ReviewMethodsUseCachedDiff verifies that review methods
-// (runLightReview and runThoroughReview) use the cached diff instead of
-// calling git diff multiple times within a single iteration.
-func TestAcceptance_ReviewMethodsUseCachedDiff(t *testing.T) {
-	// Expected failure: runLightReview calls getDiff() directly instead of getDiffCached(bc)
-	// Expected failure: runThoroughReview calls getDiff() directly instead of getDiffCached(bc)
+// TestAcceptance_MultipleDiffCallsUseCachedVersion verifies that when
+// getDiffCached is called multiple times within the same beadContext,
+// the underlying git diff is only executed once.
+func TestAcceptance_MultipleDiffCallsUseCachedVersion(t *testing.T) {
+	// Expected failure: getDiffCached method does not exist
 
-	tests := []struct {
-		name        string
-		reviewType  string
-		expectCalls int // expected number of git diff calls
-	}{
-		{
-			name:        "light review uses cached diff",
-			reviewType:  "light",
-			expectCalls: 1, // One call to populate cache, no additional calls
-		},
-		{
-			name:        "thorough review uses cached diff",
-			reviewType:  "thorough",
-			expectCalls: 1,
+	var gitDiffCallCount int
+	mockDiff := "diff --git a/example.go\n+new code"
+
+	r := &Runner{
+		gitDiffFn: func(fromCommit string) (string, error) {
+			gitDiffCallCount++
+			return mockDiff, nil
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var gitDiffCallCount int
-			mockDiff := "diff --git a/example.go\n+new code"
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:       "test-bead",
+			Title:    "Test",
+			Priority: 1,
+		},
+		startCommit: "abc123",
+	}
 
-			cfg := &config.Config{}
-			cfg.SetDefaults()
-			cfg.NormalizeNilFields()
+	// Simulate multiple operations within the same iteration that all need the diff:
+	// - First getDiffCached for review
+	diff1, err1 := r.getDiffCached(bc)
+	if err1 != nil {
+		t.Fatalf("First getDiffCached failed: %v", err1)
+	}
 
-			mockBeadClient := &mockBeadClient{
-				ShowFn: func(id string) (*bead.Bead, error) {
-					return &bead.Bead{
-						ID:       id,
-						Title:    "Test bead",
-						Priority: 1,
-					}, nil
-				},
-				GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
-					return nil, nil
-				},
-			}
+	// - Second getDiffCached for refactor phase
+	diff2, err2 := r.getDiffCached(bc)
+	if err2 != nil {
+		t.Fatalf("Second getDiffCached failed: %v", err2)
+	}
 
-			mockRenderer := &mockPromptRenderer{
-				RenderBuildFn: func(ctx *prompt.Context) (string, error) {
-					return "build prompt", nil
-				},
-				LoadClaudeMDFn: func() (string, error) {
-					return "# CLAUDE.md", nil
-				},
-				LoadRulesFn: func() (string, error) {
-					return "# Rules", nil
-				},
-			}
+	// - Third getDiffCached for test verification
+	diff3, err3 := r.getDiffCached(bc)
+	if err3 != nil {
+		t.Fatalf("Third getDiffCached failed: %v", err3)
+	}
 
-			mockRouter := newMockRouter()
+	// All three calls should return the same diff
+	if diff1 != mockDiff || diff2 != mockDiff || diff3 != mockDiff {
+		t.Errorf("getDiffCached returned inconsistent diffs: %q, %q, %q", diff1, diff2, diff3)
+	}
 
-			r := &Runner{
-				cfg:      cfg,
-				beads:    mockBeadClient,
-				renderer: mockRenderer,
-				router:   mockRouter,
-				gitDiffFn: func(fromCommit string) (string, error) {
-					gitDiffCallCount++
-					return mockDiff, nil
-				},
-				output: &strings.Builder{},
-			}
-
-			bc := &beadContext{
-				bead: &bead.Bead{
-					ID:       "test-bead",
-					Title:    "Test",
-					Priority: 1,
-				},
-				startCommit:   "abc123",
-				model:         "sonnet",
-				tier:          provider.TierMedium,
-				buildProvider: "test-provider",
-			}
-
-			ctx := context.Background()
-
-			// Call the review method - it should internally use getDiffCached
-			// which would cache the result for subsequent calls within the same iteration
-			if tt.reviewType == "light" {
-				// First call to cache the diff
-				_, _ = r.getDiffCached(bc)
-
-				// Now call light review which should use the cached value
-				// If it calls getDiff() directly instead of getDiffCached(),
-				// we'll see an extra git call
-				_, _ = r.runLightReview(ctx, bc)
-			} else {
-				// For thorough review, similar pattern
-				_, _ = r.getDiffCached(bc)
-				// Thorough review path would also need to use getDiffCached
-			}
-
-			// After the review methods run, verify git diff was only called
-			// the expected number of times (once for initial cache population,
-			// not additional times by review methods)
-			if gitDiffCallCount > tt.expectCalls {
-				t.Errorf("%s: expected at most %d git diff call(s), got %d (review not using cache)",
-					tt.reviewType, tt.expectCalls, gitDiffCallCount)
-			}
-		})
+	// But git diff should only have been called once
+	if gitDiffCallCount != 1 {
+		t.Errorf("Expected 1 git diff call for 3 getDiffCached calls, got %d (caching not working)",
+			gitDiffCallCount)
 	}
 }
 

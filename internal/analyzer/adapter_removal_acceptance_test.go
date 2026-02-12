@@ -43,7 +43,6 @@ func TestClaudeClientAdapterRemoved(t *testing.T) {
 	}
 }
 
-
 // TestAnalyzerTestsUpdated verifies that analyzer_test.go no longer uses
 // NewClaudeClientAdapter in its test setup.
 // Expected failure: analyzer_test.go still calls NewClaudeClientAdapter in tests

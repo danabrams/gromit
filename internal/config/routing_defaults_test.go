@@ -11,11 +11,11 @@ import (
 // fallback cooldown of "30m", and fallback enabled for multi-provider configs.
 func TestSetDefaultsRoutingDefaults(t *testing.T) {
 	tests := []struct {
-		name            string
-		providers       map[string]ProviderDef
-		wantRatio       map[string]int
-		wantCooldown    string
-		wantFallbackOn  bool
+		name           string
+		providers      map[string]ProviderDef
+		wantRatio      map[string]int
+		wantCooldown   string
+		wantFallbackOn bool
 	}{
 		{
 			name: "TwoProviders_EqualSplitRatio",

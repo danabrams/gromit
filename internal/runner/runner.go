@@ -57,7 +57,7 @@ type Runner struct {
 	output       io.Writer
 	syncOut      *syncWriter // concrete type for WriteOverwrite access
 	gromitDir    string
-	stateFile    *state.File                                                                                                        // promoted from Run() for router state persistence
+	stateFile    *state.File                                                                                                       // promoted from Run() for router state persistence
 	gitDiffFn    func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
 	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
 	autoFixFn    func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
