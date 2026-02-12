@@ -258,6 +258,60 @@ func TestRefine_MarksBacklogItemRefined(t *testing.T) {
 	}
 }
 
+func TestRefine_BlankSessionCreatesBacklogItem(t *testing.T) {
+	tmpDir := t.TempDir()
+	specsDir := tmpDir + "/specs"
+
+	mockBacklog := &mockBacklogClient{}
+
+	// Mock agent that creates a spec with title
+	mockAgent := &mockAgent{
+		name: "test-agent",
+		onLaunch: func(promptPath string) {
+			os.MkdirAll(specsDir, 0755)
+			os.WriteFile(specsDir+"/new-idea.md", []byte("# New Idea\n\nContent here"), 0644)
+		},
+	}
+
+	p := New(&Deps{
+		AgentResolver: &mockAgentResolver{agent: mockAgent},
+		BacklogClient: mockBacklog,
+	}, &Paths{
+		GromitDir: tmpDir,
+		SpecsDir:  specsDir,
+	})
+
+	result, err := p.Refine(context.Background(), RefineInput{}) // Blank session
+	if err != nil {
+		t.Fatalf("Refine() failed: %v", err)
+	}
+
+	// Verify spec was created
+	if len(result.CreatedSpecs) != 1 {
+		t.Fatalf("expected 1 created spec, got %d", len(result.CreatedSpecs))
+	}
+
+	// Verify backlog item was auto-created
+	ideas, _ := mockBacklog.List()
+	if len(ideas) != 1 {
+		t.Fatalf("expected 1 backlog item, got %d", len(ideas))
+	}
+
+	idea := ideas[0]
+	if idea.Text != "New Idea" {
+		t.Errorf("expected text 'New Idea', got %s", idea.Text)
+	}
+	if idea.Status != "refined" {
+		t.Errorf("expected status 'refined', got %s", idea.Status)
+	}
+	if idea.SpecName != "new-idea" {
+		t.Errorf("expected spec_name 'new-idea', got %s", idea.SpecName)
+	}
+	if idea.Type != "feature" {
+		t.Errorf("expected type 'feature', got %s", idea.Type)
+	}
+}
+
 func containsInner(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {

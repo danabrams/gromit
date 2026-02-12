@@ -92,6 +92,33 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult
 		}
 	}
 
+	// If blank session and a spec was created, auto-create backlog item
+	if ideaText == "" && ideaID == "" && len(createdSpecs) > 0 {
+		// Use the first new spec (should typically be only one)
+		specPath := createdSpecs[0]
+		specName := strings.TrimSuffix(filepath.Base(specPath), ".md")
+
+		// Extract title from spec file
+		specTitle := ExtractSpecTitle(specPath)
+		if specTitle == "" {
+			specTitle = specName // Fallback to filename if no title found
+		}
+
+		// Create backlog item
+		idea := &Idea{
+			ID:       fmt.Sprintf("idea-%d", len(specName)), // Simple ID generation for now
+			Text:     specTitle,
+			Type:     "feature",
+			Status:   "refined",
+			SpecName: specName,
+		}
+
+		err := p.deps.BacklogClient.Add(idea)
+		if err != nil {
+			// Don't fail the whole operation if adding fails
+		}
+	}
+
 	return &result, nil
 }
 
