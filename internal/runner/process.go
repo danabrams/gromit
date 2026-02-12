@@ -67,7 +67,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	}
 
 	tier := r.selectTier(b)
-	model := r.selectModel(b) // legacy - for timeout lookup
+	model := r.selectModel(b) // legacy model name for display/timeouts
 
 	_, _, _, beadTimeoutSec := r.cfg.Claude.TimeoutsForModel(model)
 	beadTimeout := time.Duration(beadTimeoutSec) * time.Second
@@ -87,8 +87,8 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	bc := &beadContext{
 		bead:              b,
 		parent:            parent,
-		result:            &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: ""}, // model set by router
-		model:             "",  // will be set by router in executeClaudeInvocation
+		result:            &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model},
+		model:             model, // legacy model name, will be updated by router
 		tier:              tier,
 		startCommit:       startCommit,
 		iteration:         iteration,
@@ -581,10 +581,16 @@ func (r *Runner) attemptDecomposition(ctx context.Context, bc *beadContext, fail
 // The router will select the concrete model on the next invocation.
 func (r *Runner) escalateTier(bc *beadContext, nextTier string) {
 	bc.result.Escalated = true
-	bc.result.EscalatedTo = nextTier // store tier, not model name
+	bc.result.EscalatedTo = nextTier // will be updated to concrete model by router
 	bc.tier = nextTier
 	bc.retriesThisModel = 0
-	// bc.model will be updated by router in executeClaudeInvocation
+	// Set legacy model name for display/logging (will be updated by router to concrete name)
+	legacyModel := provider.TierToLegacyModel(nextTier)
+	bc.model = legacyModel
+	bc.result.Model = legacyModel
+	if bc.promptCtx != nil {
+		bc.promptCtx.Model = legacyModel
+	}
 }
 
 // escalateModel updates the bead context to use a new model after escalation.

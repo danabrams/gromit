@@ -79,6 +79,25 @@ func TierFromLegacyModel(modelName string) string {
 	return modelName
 }
 
+// TierToLegacyModel maps abstract tier constants to Claude legacy model names.
+// This is used for backward compatibility and display purposes.
+// Returns "opus" for high, "sonnet" for medium, "haiku" for low.
+// Unrecognized tier values are passed through unchanged.
+func TierToLegacyModel(tier string) string {
+	tierToLegacyModel := map[string]string{
+		TierHigh:   "opus",
+		TierMedium: "sonnet",
+		TierLow:    "haiku",
+	}
+
+	if model, ok := tierToLegacyModel[tier]; ok {
+		return model
+	}
+
+	// Pass through unrecognized tiers unchanged
+	return tier
+}
+
 // Compile-time interface satisfaction checks
 // These will be implemented by concrete provider types (ClaudeProvider, CodexProvider, etc.)
 // and verified in their respective files
