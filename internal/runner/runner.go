@@ -60,8 +60,9 @@ type Runner struct {
 	stateFile    *state.File                                                                                                       // promoted from Run() for router state persistence
 	gitDiffFn    func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
 	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
-	autoFixFn    func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
-	labelFilters []string                                                                                                          // optional spec labels to filter beads
+	autoFixFn            func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
+	labelFilters         []string                                                                                                          // optional spec labels to filter beads
+	validationFailures   []string                                                                                                          // recent validation failure summaries from current run, injected into build prompts
 }
 
 // NewRunner creates a new runner
