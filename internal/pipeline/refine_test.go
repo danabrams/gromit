@@ -105,6 +105,51 @@ func TestRefine_BuildsPromptWithIdeaText(t *testing.T) {
 	}
 }
 
+func TestRefine_LoadsBacklogIdea(t *testing.T) {
+	tmpDir := t.TempDir()
+	specsDir := tmpDir + "/specs"
+
+	// Create backlog with an idea
+	backlogIdea := &Idea{
+		ID:      "idea-123",
+		Text:    "Implement feature Y",
+		Context: "This is important",
+	}
+	mockBacklog := &mockBacklogClient{
+		ideas: []*Idea{backlogIdea},
+	}
+
+	var capturedPrompt string
+	mockAgent := &mockAgent{
+		name: "test-agent",
+		onLaunch: func(promptPath string) {
+			data, _ := os.ReadFile(promptPath)
+			capturedPrompt = string(data)
+		},
+	}
+
+	p := New(&Deps{
+		AgentResolver: &mockAgentResolver{agent: mockAgent},
+		BacklogClient: mockBacklog,
+	}, &Paths{
+		GromitDir: tmpDir,
+		SpecsDir:  specsDir,
+	})
+
+	_, err := p.Refine(context.Background(), RefineInput{IdeaID: "idea-123"})
+	if err != nil {
+		t.Fatalf("Refine() failed: %v", err)
+	}
+
+	// Verify prompt contains idea text and context
+	if !contains(capturedPrompt, "Implement feature Y") {
+		t.Errorf("expected prompt to contain idea text, got: %s", capturedPrompt)
+	}
+	if !contains(capturedPrompt, "This is important") {
+		t.Errorf("expected prompt to contain idea context, got: %s", capturedPrompt)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) >= len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsInner(s, substr)))
 }

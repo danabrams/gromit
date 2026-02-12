@@ -17,6 +17,27 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineSessio
 		return nil, fmt.Errorf("pipeline: nil dependencies")
 	}
 
+	// Determine idea text
+	ideaText := input.IdeaText
+	ideaID := input.IdeaID
+
+	// If IdeaID is provided, load from backlog
+	if ideaID != "" {
+		idea, err := p.deps.BacklogClient.Get(ideaID)
+		if err != nil {
+			return nil, fmt.Errorf("loading backlog idea: %w", err)
+		}
+		if idea == nil {
+			return nil, fmt.Errorf("backlog idea not found: %s", ideaID)
+		}
+
+		// Combine text and context
+		ideaText = idea.Text
+		if idea.Context != "" {
+			ideaText = fmt.Sprintf("%s\n\nContext: %s", idea.Text, idea.Context)
+		}
+	}
+
 	// Scan existing specs before launching agent
 	existingSpecs, err := ListMarkdownFiles(p.paths.SpecsDir)
 	if err != nil {
@@ -24,7 +45,7 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineSessio
 	}
 
 	// Build system prompt
-	systemPrompt := p.buildRefinePrompt(input.IdeaText)
+	systemPrompt := p.buildRefinePrompt(ideaText)
 
 	// Write prompt to temp file
 	tmpDir := filepath.Join(p.paths.GromitDir, "tmp")
