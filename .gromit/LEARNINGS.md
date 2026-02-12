@@ -40,6 +40,9 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 *Seen once - may be specific to one task.*
 
+### 2026-02-12 | gromit-t4ch | conventions
+When modifying command help text or descriptions in cmd/gromit, regenerate golden files for CLI contract tests using the -update flag. The test output shows 'Run with -update flag to update golden file', which is the proper workflow for help text changes.
+
 ---
 
 ## Archived
@@ -1062,3 +1065,4 @@ Acceptance test budget (6000 lines across all test files) is a hard constraint i
 Archived: consolidated into Confirmed "Runner and Provider Invocation Pattern" entry. Router Conversion Pattern was migration-specific (migration complete); durable provider invocation knowledge merged with Runner Method Pattern.
 
 *Archived from confirmed: consolidated*
+

@@ -24,6 +24,11 @@ Three input modes:
   gromit refine <backlog-id>       # Refine a specific backlog item
   gromit refine "some idea text"   # Refine an ad-hoc idea (not in backlog)
 
+The command launches Claude with:
+- The idea text as context
+- Specs directory path for output
+- References the gromit-refine skill for conversational refinement
+
 After Claude exits, scans for new spec files and marks backlog items as refined.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runRefine,

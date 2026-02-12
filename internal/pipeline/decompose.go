@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -134,14 +135,25 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			return nil, fmt.Errorf("creating bead %d: %w", i, err)
 		}
 
-		// Extract ID from result
-		beadMap, ok := beadResult.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("unexpected bead result type")
-		}
-		beadID, ok := beadMap["ID"].(string)
-		if !ok {
-			return nil, fmt.Errorf("bead result missing ID field")
+		// Extract ID from result - handle both struct and map types
+		var beadID string
+		switch v := beadResult.(type) {
+		case map[string]interface{}:
+			id, ok := v["ID"].(string)
+			if !ok {
+				return nil, fmt.Errorf("bead result map missing ID field")
+			}
+			beadID = id
+		case interface{ GetID() string }:
+			// Structs with ID getter
+			beadID = v.GetID()
+		default:
+			// Try to extract ID field via reflection on struct with ID field
+			if idField, ok := extractIDField(beadResult); ok {
+				beadID = idField
+			} else {
+				return nil, fmt.Errorf("cannot extract ID from bead result of type %T", beadResult)
+			}
 		}
 
 		createdIDs = append(createdIDs, beadID)
@@ -203,4 +215,35 @@ func parsePriority(p string) int {
 	default:
 		return 1 // Default to P1
 	}
+}
+
+// extractIDField attempts to extract an ID field from a struct via reflection
+func extractIDField(v interface{}) (string, bool) {
+	val := reflect.ValueOf(v)
+
+	// Handle pointers
+	for val.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			return "", false
+		}
+		val = val.Elem()
+	}
+
+	// Must be a struct
+	if val.Kind() != reflect.Struct {
+		return "", false
+	}
+
+	// Look for ID field
+	idField := val.FieldByName("ID")
+	if !idField.IsValid() {
+		return "", false
+	}
+
+	// Must be a string
+	if idField.Kind() != reflect.String {
+		return "", false
+	}
+
+	return idField.String(), true
 }

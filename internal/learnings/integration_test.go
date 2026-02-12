@@ -26,10 +26,10 @@ func TestLoadActualLearningsFile(t *testing.T) {
 
 	// Verify the first few confirmed learnings have proper structure
 	expectedTitles := []string{
-		"Mock Implementation Patterns",
 		"Status File Management",
 		"Methodology Label Activation",
-		"Runner Method Pattern",
+		"Runner and Provider Invocation Pattern",
+		"Acceptance Test Line Budget",
 	}
 
 	for i, expected := range expectedTitles {

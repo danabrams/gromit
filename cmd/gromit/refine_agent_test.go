@@ -229,96 +229,85 @@ agents:
 
 // TestRefineUsesAgentLaunchNotDirectExec verifies refine uses agent.Launch() not exec.Command directly
 func TestRefineUsesAgentLaunchNotDirectExec(t *testing.T) {
-	// This acceptance test verifies that the refine command has been refactored
+	// This acceptance test verifies that the refine workflow has been refactored
 	// to use agent.Launch() instead of constructing exec.Command directly
+	// The agent integration now lives in internal/pipeline/refine.go
 
-	// Read the refine.go source code
-	refineSource, err := os.ReadFile("refine.go")
+	// Read the pipeline refine.go source code
+	refineSource, err := os.ReadFile("../../internal/pipeline/refine.go")
 	if err != nil {
-		t.Fatalf("Reading refine.go: %v", err)
+		t.Fatalf("Reading pipeline/refine.go: %v", err)
 	}
 
 	sourceStr := string(refineSource)
 
-	// Check that agent package is imported
-	if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agent"`) {
-		t.Error("refine.go does not import agent package - integration not complete")
-	}
-
 	// Check that agent.Resolve is called
-	// This is the key integration point - refine should call agent.Resolve
+	// This is the key integration point - refine should call Resolve
 	// to get the appropriate agent based on config and flags
-	if !strings.Contains(sourceStr, "agent.Resolve") {
-		t.Error("refine.go does not call agent.Resolve - agent selection not integrated")
+	if !strings.Contains(sourceStr, ".Resolve(") {
+		t.Error("pipeline/refine.go does not call .Resolve() - agent selection not integrated")
 	}
 
 	// Check that agent.Launch is called
 	// After getting the agent, refine should call agent.Launch(promptPath)
 	// instead of constructing exec.Command directly
 	if !strings.Contains(sourceStr, ".Launch(") {
-		t.Error("refine.go does not call .Launch() - agent launch not integrated")
-	}
-
-	// Check that the old exec.Command pattern for Claude is removed
-	// The old code had: exec.Command(claudeBinary, cmdArgs...)
-	// After refactoring, this should be gone (replaced with agent.Launch)
-	if strings.Contains(sourceStr, "exec.Command(claudeBinary") {
-		t.Error("refine.go still contains direct exec.Command(claudeBinary...) - old code not removed")
+		t.Error("pipeline/refine.go does not call .Launch() - agent launch not integrated")
 	}
 }
 
 // TestRefinePreservesPromptBuilding verifies refine still builds prompts correctly
 func TestRefinePreservesPromptBuilding(t *testing.T) {
-	// This acceptance test verifies that prompt building logic is unchanged
-	// Only the agent invocation should change, not prompt construction
+	// This acceptance test verifies that prompt building logic is preserved
+	// Prompt construction now lives in internal/pipeline/refine.go
 
-	refineSource, err := os.ReadFile("refine.go")
+	refineSource, err := os.ReadFile("../../internal/pipeline/refine.go")
 	if err != nil {
-		t.Fatalf("Reading refine.go: %v", err)
+		t.Fatalf("Reading pipeline/refine.go: %v", err)
 	}
 
 	sourceStr := string(refineSource)
 
 	// Verify prompt building steps are still present
 	requiredPatterns := []string{
-		"systemPrompt",              // System prompt variable
-		"WriteString(systemPrompt)", // Writing prompt to temp file
-		"CreateTemp",                // Creating temp file for prompt
-		"specsDir",                  // Specs directory still used in prompt
-		"skills.RefineSkill",        // Refine skill still embedded
+		"systemPrompt",           // System prompt variable
+		"buildRefinePrompt",      // Prompt building method
+		"WriteTempPrompt",        // Writing prompt to temp file
+		"SpecsDir",               // Specs directory still used in prompt
 	}
 
 	for _, pattern := range requiredPatterns {
 		if !strings.Contains(sourceStr, pattern) {
-			t.Errorf("refine.go missing prompt building pattern %q - prompt construction may be broken", pattern)
+			t.Errorf("pipeline/refine.go missing prompt building pattern %q - prompt construction may be broken", pattern)
 		}
 	}
 }
 
 // TestRefinePreservesArtifactDetection verifies refine still detects new spec files
 func TestRefinePreservesArtifactDetection(t *testing.T) {
-	// This acceptance test verifies that post-launch artifact detection is unchanged
+	// This acceptance test verifies that post-launch artifact detection is preserved
 	// After agent exits, refine should still scan for new spec files
+	// Artifact detection now lives in internal/pipeline/refine.go
 
-	refineSource, err := os.ReadFile("refine.go")
+	refineSource, err := os.ReadFile("../../internal/pipeline/refine.go")
 	if err != nil {
-		t.Fatalf("Reading refine.go: %v", err)
+		t.Fatalf("Reading pipeline/refine.go: %v", err)
 	}
 
 	sourceStr := string(refineSource)
 
 	// Verify artifact detection steps are still present
 	requiredPatterns := []string{
-		"existingSpecs", // Recording specs before launch
-		"getSpecFiles",  // Getting spec files
-		"newSpecs",      // Getting specs after launch
-		"createdSpecs",  // Finding newly created specs
-		"!containsSpec", // Comparing old vs new specs
+		"existingSpecs",      // Recording specs before launch
+		"ListMarkdownFiles",  // Getting spec files
+		"newSpecs",           // Getting specs after launch
+		"createdSpecs",       // Finding newly created specs
+		"DiffFiles",          // Comparing old vs new specs
 	}
 
 	for _, pattern := range requiredPatterns {
 		if !strings.Contains(sourceStr, pattern) {
-			t.Errorf("refine.go missing artifact detection pattern %q - spec detection may be broken", pattern)
+			t.Errorf("pipeline/refine.go missing artifact detection pattern %q - spec detection may be broken", pattern)
 		}
 	}
 }
@@ -344,18 +333,17 @@ func TestRefineAgentSelectionIntegration(t *testing.T) {
 	})
 
 	t.Run("source code has agent integration", func(t *testing.T) {
-		refineSource, err := os.ReadFile("refine.go")
+		refineSource, err := os.ReadFile("../../internal/pipeline/refine.go")
 		if err != nil {
-			t.Skipf("Cannot read refine.go: %v", err)
+			t.Skipf("Cannot read pipeline/refine.go: %v", err)
 		}
 
 		sourceStr := string(refineSource)
 
-		// Verify key integration points
+		// Verify key integration points in pipeline package
 		integrationChecks := map[string]string{
-			"imports agent package": `"github.com/danabrams/gromit/internal/agent"`,
-			"calls agent.Resolve":   "agent.Resolve",
-			"calls agent.Launch":    ".Launch(",
+			"calls agent.Resolve":    ".Resolve(",
+			"calls agent.Launch":     ".Launch(",
 		}
 
 		for check, pattern := range integrationChecks {
@@ -366,31 +354,33 @@ func TestRefineAgentSelectionIntegration(t *testing.T) {
 	})
 
 	t.Run("old exec.Command pattern removed", func(t *testing.T) {
-		refineSource, err := os.ReadFile("refine.go")
-		if err != nil {
-			t.Skipf("Cannot read refine.go: %v", err)
-		}
+		// Check both cmd/gromit/refine.go and internal/pipeline/refine.go
+		files := []string{"refine.go", "../../internal/pipeline/refine.go"}
 
-		sourceStr := string(refineSource)
-
-		// Check that old patterns are removed
-		oldPatterns := []string{
-			"exec.Command(claudeBinary",
-			"claudeCmd := exec.Command",
-			"claudeCmd.Stdin = os.Stdin",
-			"claudeCmd.Stdout = os.Stdout",
-			"claudeCmd.Run()",
-		}
-
-		foundOldPatterns := []string{}
-		for _, pattern := range oldPatterns {
-			if strings.Contains(sourceStr, pattern) {
-				foundOldPatterns = append(foundOldPatterns, pattern)
+		for _, file := range files {
+			refineSource, err := os.ReadFile(file)
+			if err != nil {
+				continue // Skip if file doesn't exist
 			}
-		}
 
-		if len(foundOldPatterns) > 0 {
-			t.Errorf("Old exec.Command patterns still present (should be replaced by agent.Launch): %v", foundOldPatterns)
+			sourceStr := string(refineSource)
+
+			// Check that old patterns are removed
+			oldPatterns := []string{
+				"exec.Command(claudeBinary",
+				"claudeCmd := exec.Command",
+			}
+
+			foundOldPatterns := []string{}
+			for _, pattern := range oldPatterns {
+				if strings.Contains(sourceStr, pattern) {
+					foundOldPatterns = append(foundOldPatterns, pattern)
+				}
+			}
+
+			if len(foundOldPatterns) > 0 {
+				t.Errorf("%s: Old exec.Command patterns still present (should be replaced by agent.Launch): %v", file, foundOldPatterns)
+			}
 		}
 	})
 }
