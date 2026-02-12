@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/jsonutil"
@@ -154,8 +155,16 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		result.CreatedBeads = append(result.CreatedBeads, bead)
 	}
 
-	// TODO: update plan frontmatter
-	result.PlanUpdated = false
+	// Update plan frontmatter
+	updates := map[string]interface{}{
+		"decomposed":    true,
+		"decomposed_at": time.Now().Format(time.RFC3339),
+	}
+	if err := frontmatter.UpdateFile(planPath, updates); err != nil {
+		return nil, fmt.Errorf("updating plan frontmatter: %w", err)
+	}
+
+	result.PlanUpdated = true
 	return &result, nil
 }
 

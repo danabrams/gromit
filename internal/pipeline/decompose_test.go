@@ -464,6 +464,102 @@ Tasks with dependencies
 	}
 }
 
+// TestDecompose_UpdatesPlanFrontmatter verifies that plan frontmatter is updated with decomposed=true and timestamp.
+func TestDecompose_UpdatesPlanFrontmatter(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	planPath := filepath.Join(plansDir, "frontmatter-test.md")
+	planContent := `---
+spec: frontmatter-test
+created: 2026-02-11
+---
+
+# Frontmatter Test Plan
+
+Task 1
+`
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeTestClaudeClient{
+		RunFn: func(prompt string, model string) (interface{}, error) {
+			return map[string]interface{}{
+				"Success":  true,
+				"ExitCode": 0,
+				"Output": `[{
+					"title": "Task 1",
+					"description": "First task",
+					"priority": "P1",
+					"acceptance_criteria": ["Done"],
+					"depends_on_index": []
+				}]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeTestBeadClient{
+		CreateWithDepsAndDescriptionFn: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+			return map[string]interface{}{
+				"ID":       "bead-1",
+				"Title":    title,
+				"Priority": priority,
+				"Labels":   labels,
+			}, nil
+		},
+	}
+
+	deps := &Deps{
+		ClaudeClient: mockClaude,
+		BeadClient:   mockBead,
+	}
+	paths := &Paths{
+		PlansDir: plansDir,
+	}
+
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := DecomposeInput{
+		PlanName: "frontmatter-test",
+	}
+
+	result, err := p.Decompose(ctx, input)
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if !result.PlanUpdated {
+		t.Error("PlanUpdated = false, want true")
+	}
+
+	// Read plan file and verify frontmatter was updated
+	planData, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("reading plan file: %v", err)
+	}
+	planStr := string(planData)
+
+	if !strings.Contains(planStr, "decomposed: true") {
+		t.Error("plan frontmatter missing 'decomposed: true'")
+	}
+	if !strings.Contains(planStr, "decomposed_at:") {
+		t.Error("plan frontmatter missing 'decomposed_at' timestamp")
+	}
+
+	// Verify original frontmatter fields are preserved
+	if !strings.Contains(planStr, "spec: frontmatter-test") {
+		t.Error("plan frontmatter should preserve existing fields")
+	}
+	if !strings.Contains(planStr, "created: 2026-02-11") {
+		t.Error("plan frontmatter should preserve existing fields")
+	}
+}
+
 // decomposeTestClaudeClient is a mock with injectable functions for decompose tests.
 type decomposeTestClaudeClient struct {
 	RunFn func(prompt string, model string) (interface{}, error)
