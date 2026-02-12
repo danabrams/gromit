@@ -347,10 +347,10 @@ func TestCheck_EdgeCases(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "keyword appears in middle of word",
+			name: "keyword appears in middle of sentence",
 			signals: Signals{
 				ExitCode: 1,
-				Output:   "The calculated usage is within limits",
+				Output:   "Error: your usage limit has been exceeded",
 			},
 			patterns: Patterns{
 				Keywords: []string{"usage limit"},
