@@ -113,9 +113,20 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		lf.SetFilter(learnings.NewLLMFilter(providerRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
 	}
 
-	analyzerObj, err := analyzer.NewAnalyzer(claudeClient, cfg.Models.Validation, renderer)
-	if err != nil {
-		return nil, err
+	// Create analyzer using provider (use same provider as learnings for consistency)
+	var analyzerObj *analyzer.Analyzer
+	if claudeProviderForLearnings != nil {
+		analyzerObj, err = analyzer.NewAnalyzer(claudeProviderForLearnings, cfg.Models.Validation, renderer)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Fallback for when providers config is used (TODO path)
+		claudeAdapter := analyzer.NewClaudeClientAdapter(claudeClient)
+		analyzerObj, err = analyzer.NewAnalyzer(claudeAdapter, cfg.Models.Validation, renderer)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Runner{

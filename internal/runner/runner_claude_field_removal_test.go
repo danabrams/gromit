@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/provider"
@@ -114,25 +115,25 @@ func TestLearningsAdapterCanUseProviderInterface(t *testing.T) {
 
 // TestAnalyzerCanBeCreatedWithProvider verifies that analyzer.NewAnalyzer
 // can accept a Provider instead of requiring claude.Client
-// Expected failure: analyzer.NewAnalyzer still requires *claude.Client, not Provider
 func TestAnalyzerCanBeCreatedWithProvider(t *testing.T) {
 	mockProvider := &mockProviderForRunner{}
 
-	// This will fail because NewAnalyzer expects *claude.Client, not Provider
-	// After implementation, it should accept provider.Provider interface
-	_, err := testNewAnalyzerWithProvider(mockProvider)
+	// Create analyzer with provider
+	mockRenderer := &mockPromptRenderer{}
+	a, err := testNewAnalyzerWithProvider(mockProvider, mockRenderer)
 
 	if err != nil {
-		t.Logf("Expected failure: %v", err)
-		t.Skip("analyzer.NewAnalyzer does not accept Provider yet")
+		t.Fatalf("analyzer.NewAnalyzer should accept Provider, got error: %v", err)
+	}
+	if a == nil {
+		t.Fatal("expected non-nil analyzer")
 	}
 }
 
-// Helper function that will fail to compile until NewAnalyzer accepts Provider
-func testNewAnalyzerWithProvider(p provider.Provider) (interface{}, error) {
-	// This is a placeholder that won't compile with current analyzer.NewAnalyzer signature
-	// After implementation, this should work
-	return nil, nil
+// Helper function to test NewAnalyzer with Provider
+func testNewAnalyzerWithProvider(p provider.Provider, renderer interface{}) (interface{}, error) {
+	// analyzer.NewAnalyzer now accepts Provider
+	return analyzer.NewAnalyzer(p, "low", renderer.(analyzer.PromptRenderer))
 }
 
 // Mock types for testing
