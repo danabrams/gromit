@@ -434,7 +434,8 @@ func TestNewAnalyzerNilClient(t *testing.T) {
 // TestNewAnalyzerNilRenderer tests that NewAnalyzer returns error when renderer is nil
 func TestNewAnalyzerNilRenderer(t *testing.T) {
 	claudeClient, _ := claude.NewClient("claude", nil, 60)
-	a, err := NewAnalyzer(claudeClient, "sonnet", nil)
+	adapter := NewClaudeClientAdapter(claudeClient)
+	a, err := NewAnalyzer(adapter, "sonnet", nil)
 	if a != nil {
 		t.Error("expected nil Analyzer when renderer is nil")
 	}
@@ -457,7 +458,8 @@ func TestNewAnalyzerBothNil(t *testing.T) {
 // TestNewAnalyzerValidParams tests that NewAnalyzer returns non-nil with valid params
 func TestNewAnalyzerValidParams(t *testing.T) {
 	claudeClient, _ := claude.NewClient("claude", nil, 60)
-	a, err := NewAnalyzer(claudeClient, "sonnet", &prompt.Renderer{})
+	adapter := NewClaudeClientAdapter(claudeClient)
+	a, err := NewAnalyzer(adapter, "sonnet", &prompt.Renderer{})
 	if a == nil {
 		t.Error("expected non-nil Analyzer with valid params")
 	}
@@ -484,20 +486,21 @@ func TestAnalyzeNilBead(t *testing.T) {
 	}
 }
 
-// TestAnalyzeNilClaudeClient tests that Analyze handles nil claude field
-func TestAnalyzeNilClaudeClient(t *testing.T) {
+// TestAnalyzeNilProvider tests that Analyze handles nil provider field
+func TestAnalyzeNilProvider(t *testing.T) {
 	a := &Analyzer{renderer: &prompt.Renderer{}}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
 	_, err := a.Analyze(context.Background(), b, "output")
 	if err == nil {
-		t.Error("expected error for nil claude client")
+		t.Error("expected error for nil provider")
 	}
 }
 
 // TestAnalyzeNilRenderer tests that Analyze handles nil renderer field
 func TestAnalyzeNilRenderer(t *testing.T) {
 	claudeClient, _ := claude.NewClient("claude", nil, 60)
-	a := &Analyzer{claude: claudeClient}
+	adapter := NewClaudeClientAdapter(claudeClient)
+	a := &Analyzer{provider: adapter}
 	b := &bead.Bead{ID: "test-1", Title: "Test"}
 	_, err := a.Analyze(context.Background(), b, "output")
 	if err == nil {

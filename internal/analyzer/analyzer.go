@@ -8,6 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // Category represents the type of failure
@@ -54,25 +55,70 @@ func (a *Analysis) LearningCategory() string {
 	}
 }
 
-// Analyzer performs failure analysis using Claude
-type Analyzer struct {
-	claude   *claude.Client
-	model    string
-	renderer *prompt.Renderer
+// ProviderRunner is an interface for running analysis prompts.
+// It matches the subset of provider.Provider methods used by Analyzer.
+type ProviderRunner interface {
+	Run(ctx context.Context, prompt string, tier string) (*provider.Result, error)
 }
 
-// NewAnalyzer creates a new analyzer. Returns an error if claudeClient or renderer is nil.
-func NewAnalyzer(claudeClient *claude.Client, model string, renderer *prompt.Renderer) (*Analyzer, error) {
-	if claudeClient == nil {
-		return nil, fmt.Errorf("claude client is nil")
+// Analyzer performs failure analysis using a Provider
+type Analyzer struct {
+	provider ProviderRunner
+	tier     string
+	renderer PromptRenderer
+}
+
+// PromptRenderer is an interface for rendering analysis prompts.
+type PromptRenderer interface {
+	RenderAnalyze(ctx *prompt.AnalyzeContext) (string, error)
+}
+
+// NewAnalyzer creates a new analyzer. Returns an error if provider or renderer is nil.
+func NewAnalyzer(p ProviderRunner, tier string, renderer PromptRenderer) (*Analyzer, error) {
+	if p == nil {
+		return nil, fmt.Errorf("provider is nil")
 	}
 	if renderer == nil {
 		return nil, fmt.Errorf("renderer is nil")
 	}
 	return &Analyzer{
-		claude:   claudeClient,
-		model:    model,
+		provider: p,
+		tier:     tier,
 		renderer: renderer,
+	}, nil
+}
+
+// claudeClientAdapter adapts claude.Client to ProviderRunner interface
+type claudeClientAdapter struct {
+	client *claude.Client
+}
+
+// NewClaudeClientAdapter creates an adapter from a Claude client
+func NewClaudeClientAdapter(client *claude.Client) ProviderRunner {
+	return &claudeClientAdapter{client: client}
+}
+
+// Run implements ProviderRunner by calling the underlying Claude client and converting the result
+func (a *claudeClientAdapter) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("claude client is nil")
+	}
+
+	claudeResult, err := a.client.Run(ctx, prompt, tier)
+	if err != nil {
+		return nil, err
+	}
+
+	if claudeResult == nil {
+		return nil, fmt.Errorf("claude returned nil result")
+	}
+
+	// Convert claude.Result to provider.Result
+	return &provider.Result{
+		Success:  claudeResult.Success,
+		Output:   claudeResult.Output,
+		ExitCode: claudeResult.ExitCode,
+		Duration: claudeResult.Duration,
 	}, nil
 }
 
@@ -84,8 +130,8 @@ func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput stri
 	if b == nil {
 		return nil, fmt.Errorf("bead is nil")
 	}
-	if a.claude == nil {
-		return nil, fmt.Errorf("claude client is nil")
+	if a.provider == nil {
+		return nil, fmt.Errorf("provider is nil")
 	}
 	if a.renderer == nil {
 		return nil, fmt.Errorf("renderer is nil")
@@ -107,7 +153,7 @@ func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput stri
 		return nil, fmt.Errorf("rendering analysis prompt: %w", err)
 	}
 
-	result, err := a.claude.Run(ctx, analysisPrompt, a.model)
+	result, err := a.provider.Run(ctx, analysisPrompt, a.tier)
 	if err != nil {
 		return nil, fmt.Errorf("running analysis: %w", err)
 	}
