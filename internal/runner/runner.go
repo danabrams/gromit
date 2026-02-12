@@ -217,6 +217,7 @@ type IterationResult struct {
 	ReviewBrokeValidation bool // true when review fixes broke previously-passing validation
 	AlreadyDone           bool // true when ATDD detected work was already complete
 	ValidationRetried     bool // true when validation recovery was attempted
+	UsageLimited          bool // true when invocation failed due to usage/rate limit
 
 	// Diagnostic fields for timeout investigation
 	TimeoutType         string // "stall", "bead", "invocation", ""

@@ -59,11 +59,16 @@ When migrating from one pattern to another (e.g., ClaudeClient → Provider), en
 ### 2026-02-12 | gromit-gte1 | conventions
 Gromit projects enforce an acceptance test line budget (default 6000 lines across all test files). When implementing features with acceptance tests, check the current total and ensure new tests fit within the remaining budget. Use `go test ./... -run TestFinalVerification` to verify the budget before considering work complete.
 
+### 2026-02-12 | gromit-gte1 | patterns
+Provider implementations follow a pattern of capturing stdout/stderr separately into strings and returning them both in RunResult; StreamRun uses the same command building but writes output during execution rather than capturing
+
 ---
 
 ## Archived
 
-*Moved to LEARNINGS_ARCHIVE.md on 2026-02-12 to reduce file size.*
+*No longer relevant or superseded.*
+
+### 2026-02-12 | router conversion originals | patterns
 Archived: gromit-juyb (x2), gromit-2zju (x2), gromit-557p, gromit-3gdz, gromit-gibz (x3) consolidated into Confirmed "Router Conversion Pattern" entry.
 
 ### 2026-02-12 | acceptance test budget originals | conventions
@@ -977,4 +982,14 @@ Archived: generic engineering advice (nil checks when calling functions earlier 
 Archived: generic engineering advice (only include non-zero counts in breakdowns). Not project-specific.
 
 *Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-gte1 | patterns
+Provider implementations use temp files for prompt delivery and explicitly handle streaming vs non-streaming modes with separate methods (Run vs StreamRun), where streaming still executes commands but iterates through output in real-time
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-g7oi | patterns
+Package test files use table-driven tests with t.Run for each case, covering all heuristic paths, edge cases (empty output, zero hits), case insensitivity, and false positive prevention alongside happy paths
+
+*Archived from new: filtered: generic engineering advice*
 

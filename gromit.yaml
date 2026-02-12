@@ -33,7 +33,7 @@ loop:
 
 # Scope checking - estimate task complexity before work
 scope_check:
-  enabled: true
+  enabled: false
   model: haiku  # haiku is fast and cheap for estimation
   block_oversized: true  # block over-scoped beads before spending compute
 
