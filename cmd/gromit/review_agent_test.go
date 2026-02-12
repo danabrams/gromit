@@ -209,10 +209,10 @@ agents:
 	t.Log("agents.prompt: true picker triggering will be tested via integration test")
 }
 
-// TestReviewUsesAgentLaunchNotDirectExec verifies review uses agent.Launch() not exec.Command directly
+// TestReviewUsesAgentLaunchNotDirectExec verifies review uses pipeline which uses agent abstraction
 func TestReviewUsesAgentLaunchNotDirectExec(t *testing.T) {
 	// This acceptance test verifies that the review command has been refactored
-	// to use agent.Launch() instead of constructing exec.Command directly
+	// to use the pipeline pattern, which in turn uses agent.Launch() instead of exec.Command directly
 
 	// Read the review.go source code
 	reviewSource, err := os.ReadFile("review.go")
@@ -222,29 +222,28 @@ func TestReviewUsesAgentLaunchNotDirectExec(t *testing.T) {
 
 	sourceStr := string(reviewSource)
 
-	// Check that agent package is imported
+	// Check that agent package is imported (used in cliAgentResolver adapter)
 	if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agent"`) {
 		t.Error("review.go does not import agent package - integration not complete")
 	}
 
-	// Check that agent.Resolve is called in runReviewInteractive
-	// This is the key integration point - review should call agent.Resolve
+	// Check that agent.Resolve is called (in cliAgentResolver adapter)
+	// This is the key integration point - review adapter should call agent.Resolve
 	// to get the appropriate agent based on config and flags
 	if !strings.Contains(sourceStr, "agent.Resolve") {
 		t.Error("review.go does not call agent.Resolve - agent selection not integrated")
 	}
 
-	// Check that agent.Launch is called
-	// After getting the agent, review should call agent.Launch(promptPath)
-	// instead of constructing exec.Command directly
-	if !strings.Contains(sourceStr, ".Launch(") {
-		t.Error("review.go does not call .Launch() - agent launch not integrated")
+	// Check that pipeline.ReviewInteractive is called
+	// After pipeline extraction, review.go delegates to pipeline which does agent.Launch
+	if !strings.Contains(sourceStr, "p.ReviewInteractive") {
+		t.Error("review.go does not call pipeline.ReviewInteractive - pipeline integration missing")
 	}
 
 	// Check that the old exec.Command pattern for Claude in interactive mode is removed
 	// The old code had: exec.Command(cfg.Claude.Binary, args...)
-	// After refactoring, this should be gone from runReviewInteractive (replaced with agent.Launch)
-	// Note: runReviewNonInteractive should still use exec.Command (it's not being changed)
+	// After refactoring, this should be gone from runReviewInteractive (replaced with pipeline call)
+	// Note: runReviewNonInteractive should still use exec.Command via pipeline
 	if strings.Contains(sourceStr, "func runReviewInteractive") {
 		// Extract just the runReviewInteractive function to check it specifically
 		startIdx := strings.Index(sourceStr, "func runReviewInteractive")
@@ -263,10 +262,10 @@ func TestReviewUsesAgentLaunchNotDirectExec(t *testing.T) {
 	}
 }
 
-// TestReviewPreservesPromptBuilding verifies review still builds prompts correctly
+// TestReviewPreservesPromptBuilding verifies review uses pipeline which builds prompts
 func TestReviewPreservesPromptBuilding(t *testing.T) {
-	// This acceptance test verifies that prompt building logic is unchanged
-	// Only the agent invocation should change, not prompt construction
+	// This acceptance test verifies that prompt building is delegated to pipeline
+	// After pipeline extraction, prompt construction happens in pipeline.ReviewInteractive
 
 	reviewSource, err := os.ReadFile("review.go")
 	if err != nil {
@@ -275,17 +274,33 @@ func TestReviewPreservesPromptBuilding(t *testing.T) {
 
 	sourceStr := string(reviewSource)
 
-	// Verify prompt building steps are still present in runReviewInteractive
-	requiredPatterns := []string{
-		"RenderThoroughReview",        // Rendering review prompt
-		"CreateTemp",                  // Creating temp file for prompt
-		"WriteString(renderedPrompt)", // Writing prompt to temp file
-		"promptPath",                  // Prompt file path variable
+	// Verify that review.go delegates to pipeline
+	if !strings.Contains(sourceStr, "p.ReviewInteractive") {
+		t.Error("review.go missing p.ReviewInteractive call - pipeline integration missing")
 	}
 
-	for _, pattern := range requiredPatterns {
-		if !strings.Contains(sourceStr, pattern) {
-			t.Errorf("review.go missing prompt building pattern %q - prompt construction may be broken", pattern)
+	// Verify that review.go uses PromptRenderer adapter
+	if !strings.Contains(sourceStr, "PromptRenderer") {
+		t.Error("review.go missing PromptRenderer - adapter pattern not implemented")
+	}
+
+	// Verify the pipeline package has prompt building logic
+	pipelineSource, err := os.ReadFile("../../internal/pipeline/pipeline.go")
+	if err != nil {
+		t.Skipf("Cannot read pipeline.go: %v", err)
+	}
+
+	pipelineStr := string(pipelineSource)
+	pipelinePatterns := []string{
+		"RenderThoroughReview", // Rendering review prompt
+		"CreateTemp",           // Creating temp file for prompt
+		"WriteString",          // Writing prompt to temp file
+		"promptPath",           // Prompt file path variable
+	}
+
+	for _, pattern := range pipelinePatterns {
+		if !strings.Contains(pipelineStr, pattern) {
+			t.Errorf("pipeline.go missing prompt building pattern %q - prompt construction may be broken", pattern)
 		}
 	}
 }
@@ -383,17 +398,27 @@ func TestReviewAgentSelectionIntegration(t *testing.T) {
 
 		sourceStr := string(reviewSource)
 
-		// Verify key integration points
+		// Verify key integration points in review.go (adapter layer)
 		integrationChecks := map[string]string{
-			"imports agent package": `"github.com/danabrams/gromit/internal/agent"`,
-			"calls agent.Resolve":   "agent.Resolve",
-			"calls agent.Launch":    ".Launch(",
+			"imports agent package":        `"github.com/danabrams/gromit/internal/agent"`,
+			"calls agent.Resolve":          "agent.Resolve",
+			"calls pipeline.ReviewInteractive": "p.ReviewInteractive",
 		}
 
 		for check, pattern := range integrationChecks {
 			if !strings.Contains(sourceStr, pattern) {
 				t.Errorf("Integration check failed: %s (missing pattern %q)", check, pattern)
 			}
+		}
+
+		// Verify pipeline has agent.Launch integration
+		pipelineSource, err := os.ReadFile("../../internal/pipeline/pipeline.go")
+		if err != nil {
+			t.Skipf("Cannot read pipeline.go: %v", err)
+		}
+
+		if !strings.Contains(string(pipelineSource), ".Launch(") {
+			t.Error("pipeline.go does not call .Launch() - agent launch not integrated in pipeline")
 		}
 	})
 
