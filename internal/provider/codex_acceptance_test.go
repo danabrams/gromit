@@ -5,7 +5,6 @@ package provider
 import (
 	"bytes"
 	"context"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -179,8 +178,8 @@ func TestCodexProviderRunBuildsCommandWithModelFlag(t *testing.T) {
 	// Create a mock codex binary that echoes its arguments
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
-echo "MODEL_FLAG: $2"
-echo "MODEL_VALUE: $3"
+echo "MODEL_FLAG: $1"
+echo "MODEL_VALUE: $2"
 exit 0
 `
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
@@ -292,7 +291,6 @@ exit 0
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 
-	expectedOutput := "Test output line 1\nTest output line 2"
 	if !strings.Contains(result.Output, "Test output line 1") {
 		t.Errorf("Run() output missing expected stdout, got: %s", result.Output)
 	}
@@ -933,7 +931,7 @@ func TestCodexProviderEmptyTierToModelMap(t *testing.T) {
 
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
-echo "MODEL: $3"
+echo "MODEL: $2"
 exit 0
 `
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {

@@ -93,6 +93,11 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 	err = cmd.Run()
 	duration := time.Since(startTime)
 
+	// Check if context was cancelled
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
+	}
+
 	// Combine stdout and stderr
 	output := stdout.String() + stderr.String()
 
@@ -169,6 +174,11 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	startTime := time.Now()
 	err = cmd.Run()
 	duration := time.Since(startTime)
+
+	// Check if context was cancelled
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
+	}
 
 	// Combine stdout and stderr for the result
 	combinedOutput := captureBuffer.String() + stderr.String()
