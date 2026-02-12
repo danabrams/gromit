@@ -390,6 +390,33 @@ func (c *Config) SetDefaults() {
 	if c.Agents.Phases.Explore == "" {
 		c.Agents.Phases.Explore = "claude"
 	}
+
+	// Routing defaults — only when providers are configured
+	if c.HasProviders() {
+		// Initialize PhasePreferences if nil
+		if c.Routing.PhasePreferences == nil {
+			c.Routing.PhasePreferences = make(map[string]string)
+		}
+
+		// Build equal-split ratio from provider names when ratio is empty
+		if len(c.Routing.Ratio) == 0 {
+			c.Routing.Ratio = make(map[string]int)
+			share := 100 / len(c.Providers)
+			for name := range c.Providers {
+				c.Routing.Ratio[name] = share
+			}
+		}
+
+		// Default fallback cooldown
+		if c.Routing.Fallback.Cooldown == "" {
+			c.Routing.Fallback.Cooldown = "30m"
+		}
+
+		// Enable fallback for multi-provider configs
+		if len(c.Providers) > 1 && !c.Routing.Fallback.Enabled {
+			c.Routing.Fallback.Enabled = true
+		}
+	}
 }
 
 // IsTierName returns true if the string is a valid tier name (high, medium, low).
