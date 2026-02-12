@@ -198,9 +198,10 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	return result, nil
 }
 
-// RunValidation executes validation commands using the LLM
+// RunValidation is not implemented for CodexProvider.
+// Codex CLI does not support the structured validation prompt pattern used by Claude.
 func (cp *CodexProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error) {
-	return nil, nil
+	return nil, fmt.Errorf("RunValidation is not implemented for Codex provider")
 }
 
 // IsUsageLimitError detects Codex-specific usage limit errors.

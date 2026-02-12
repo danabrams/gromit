@@ -363,3 +363,26 @@ func TestCodexProviderIsUsageLimitErrorDetectsOpenAIErrors(t *testing.T) {
 		})
 	}
 }
+
+// TestCodexProviderRunValidationIsNotImplemented verifies that RunValidation()
+// is not implemented for CodexProvider and returns an appropriate error.
+func TestCodexProviderRunValidationIsNotImplemented(t *testing.T) {
+	cp := &CodexProvider{}
+
+	ctx := context.Background()
+	commands := []string{"go test ./..."}
+	result, err := cp.RunValidation(ctx, commands, TierLow, "/tmp")
+
+	// RunValidation is not supported for Codex - should return an error
+	if err == nil {
+		t.Error("RunValidation() error = nil, want non-nil error for unsupported operation")
+	}
+
+	if result != nil {
+		t.Errorf("RunValidation() result = %v, want nil for unsupported operation", result)
+	}
+
+	if err != nil && !strings.Contains(err.Error(), "not implemented") {
+		t.Errorf("RunValidation() error = %q, want error containing 'not implemented'", err.Error())
+	}
+}
