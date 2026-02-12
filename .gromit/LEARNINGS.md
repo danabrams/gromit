@@ -50,50 +50,54 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-11 | gromit-03lk | conventions
-When expanding a struct with new fields in the pipeline package, you must: (1) update ReadStatus() to populate the new count fields by iterating through beads and counting by status, (2) update the formatting/display logic (likely in runner/format_bead_breakdown.go) to include these new counts in status output, and (3) ensure any helper methods for counting beads are called correctly. The count fields won't be used automatically—they require explicit population and display logic.
-
-### 2026-02-11 | gromit-mz3m | conventions
-When migrating from one pattern to another (e.g., ClaudeClient → Provider), ensure structural changes are completed across all types (not just the adapter/analyzer). Search for all embedded fields and struct initializations across the codebase—not just method calls. Fields like Runner.claude need to be identified and removed after all call sites are migrated to the new interface. Acceptance test files must include the `//go:build acceptance` build tag to be properly categorized.
-
-### 2026-02-12 | gromit-gte1 | conventions
-Gromit projects enforce an acceptance test line budget (default 6000 lines across all test files). When implementing features with acceptance tests, check the current total and ensure new tests fit within the remaining budget. Use `go test ./... -run TestFinalVerification` to verify the budget before considering work complete.
-
-### 2026-02-12 | gromit-gte1 | patterns
-Provider implementations follow a pattern of capturing stdout/stderr separately into strings and returning them both in RunResult; StreamRun uses the same command building but writes output during execution rather than capturing
-
-### 2026-02-12 | gromit-qj2a | patterns
-When adding fields to result types that flow through the runner→logger pipeline, add the field to both IterationResult and IterationLog, then explicitly propagate it in writeIterationLog() — symmetric field propagation ensures observable data isn't lost during persistence
-
-### 2026-02-12 | gromit-qj2a | patterns
-New fields added to IterationResult in runner/runner.go are propagated to IterationLog in writeIterationLog() by copying the field directly; follow this pattern for any new result fields
-
-### 2026-02-12 | gromit-sacl | patterns
-Validation recovery attempts trivial auto-fixes (gofmt/goimports via injected autoFixFn) before invoking Claude, re-validating after each fix; only escalates to Claude build if auto-fix fails. Inject autoFixFn into Runner for DI-based testability, use MaxValidationRetries to cap retry depth (default 2).
-
-### 2026-02-12 | gromit-17zd | conventions
-Acceptance test budget (6000 lines across all test files) is a hard constraint in this project. When adding large test suites for new packages, audit existing test files first to identify reusable test patterns and avoid duplication. Use table-driven tests and helper functions to maximize coverage per line of code.
-
 ### 2026-02-12 | gromit-sx84 | patterns
 Provider selection in the runner is determined at invocation time via router.Select(), and provider tracking is achieved by capturing the selected provider's Name() immediately after selection and storing it in beadContext or function parameters for later use in dependent operations like review routing.
-
-### 2026-02-12 | gromit-5wop | conventions
-When changing how validation works (direct exec vs Claude CLI), ensure iteration log recording is updated to capture the validation_mode field. This field appears to be part of the contract for direct validation logging in this codebase.
-
-### 2026-02-12 | gromit-5wop | gotchas
-Contract tests use claude-cli-mock to intercept Claude invocations; when validation logic changes from using Claude CLI to direct exec.Command, contract tests need to verify command execution through shell or process tracking instead of Claude call interception
-
-### 2026-02-12 | gromit-5wop | patterns
-Contract tests for direct validation verify behavior through multiple assertion layers: Claude call counts (architecture), shell marker file side effects (execution), stdout content (observability), and exit code interpretation (semantics). This layered approach works better than mocking subprocess internals when changing from Claude CLI to direct exec.Command.
-
-### 2026-02-12 | gromit-u9qy | conventions
-Acceptance test files in this codebase are subject to a strict line count budget (6000 lines total). Before creating new acceptance tests, check the current acceptance test line total with `go test ./... TestFinalVerification/total_acceptance_test_lines_within_budget` and ensure the new tests won't push the total over the limit. Consider consolidating or removing existing tests rather than just adding new ones when the budget is exceeded.
 
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-12 | gromit-gte1, gromit-u9qy acceptance test budget duplicates | conventions
+Archived: redundant with Confirmed "Acceptance Test Line Budget" entry (same 6000-line budget information).
+
+*Archived from provisional: redundant with confirmed entry*
+
+### 2026-02-12 | gromit-qj2a IterationResult propagation duplicates | patterns
+Archived: gromit-qj2a (x2) — both describe IterationResult→IterationLog symmetric field propagation. Already captured as a rule in RULES.md Process section.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-12 | gromit-sacl validation recovery | patterns
+Archived: verbatim duplicate of RULES.md rule about validation recovery with auto-fixes. Rule is the source of truth.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-12 | gromit-03lk struct field wiring | conventions
+Archived: generic "wire new fields through all layers" advice. References "pipeline package" which doesn't exist. One-time task checklist, not a recurring pattern.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-mz3m provider migration | conventions
+Archived: ClaudeClient→Provider migration is complete. Reduces to generic "search all usages when migrating interfaces" advice. Build tag note covered by existing Test Quality rules.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-12 | gromit-gte1 stdout/stderr capture | patterns
+Archived: generic description of stdout/stderr capture in provider implementations. Not actionable — any Go developer would implement this the same way.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-5wop validation mode change | conventions
+Archived: specific to completed validation mode migration (direct exec vs Claude CLI). One-time implementation detail, not a recurring pattern.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-12 | gromit-5wop contract tests | gotchas
+Archived: specific to completed validation mode change. The claude-cli-mock vs direct exec distinction is no longer relevant since migration is done.
+
+*Archived from provisional: stale: migration complete*
 
 ### 2026-02-12 | router conversion originals | patterns
 Archived: gromit-juyb (x2), gromit-2zju (x2), gromit-557p, gromit-3gdz, gromit-gibz (x3) consolidated into Confirmed "Router Conversion Pattern" entry.
@@ -1039,4 +1043,19 @@ When adding a method to an interface that's implemented by multiple types, updat
 Extract shared logic into helpers (buildCommandArgs), but preserve method-specific responsibility at the call site—Command() returns unconfigured I/O to let the caller own stdin/stdout/stderr setup
 
 *Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-u9qy | conventions
+File utility functions in the codebase default to graceful degradation—creating directories as needed, returning empty values on errors for optional resources, and using cleanup callbacks for temporary file lifecycle management
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-5wop | patterns
+Contract tests for direct validation verify behavior through multiple assertion layers: Claude call counts (architecture), shell marker file side effects (execution), stdout content (observability), and exit code interpretation (semantics). This layered approach works better than mocking subprocess internals when changing from Claude CLI to direct exec.Command.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-17zd | conventions
+Acceptance test budget (6000 lines across all test files) is a hard constraint in this project. When adding large test suites for new packages, audit existing test files first to identify reusable test patterns and avoid duplication. Use table-driven tests and helper functions to maximize coverage per line of code.
+
+*Archived from provisional: filtered: generic engineering advice*
 

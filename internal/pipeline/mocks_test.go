@@ -13,7 +13,7 @@ var _ LogWriter = (*testLogWriter)(nil)
 // testAgentResolver is a mock for unit tests
 type testAgentResolver struct{}
 
-func (m *testAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (interface{}, error) {
+func (m *testAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (Agent, error) {
 	return nil, nil
 }
 
@@ -46,19 +46,19 @@ func (m *testBeadClient) Close(id string) error {
 // testBacklogClient is a mock for unit tests
 type testBacklogClient struct{}
 
-func (m *testBacklogClient) List() ([]interface{}, error) {
+func (m *testBacklogClient) List() ([]*Idea, error) {
 	return nil, nil
 }
 
-func (m *testBacklogClient) Get(id string) (interface{}, error) {
+func (m *testBacklogClient) Get(id string) (*Idea, error) {
 	return nil, nil
 }
 
-func (m *testBacklogClient) Add(item interface{}) error {
+func (m *testBacklogClient) Add(item *Idea) error {
 	return nil
 }
 
-func (m *testBacklogClient) Update(id string, fn func(interface{})) error {
+func (m *testBacklogClient) Update(id string, fn func(*Idea)) error {
 	return nil
 }
 

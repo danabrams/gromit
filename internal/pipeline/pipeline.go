@@ -41,7 +41,14 @@ func New(deps *Deps, paths *Paths) *Pipeline {
 
 // AgentResolver abstracts agent resolution for interactive workflows.
 type AgentResolver interface {
-	Resolve(phase string, flagOverride string, choosePicker bool) (interface{}, error)
+	Resolve(phase string, flagOverride string, choosePicker bool) (Agent, error)
+}
+
+// Agent abstracts the agent interface needed by the pipeline.
+type Agent interface {
+	Name() string
+	Launch(promptPath string) error
+	Command(promptPath string) (interface{}, error)
 }
 
 // ClaudeClient abstracts Claude CLI operations for non-interactive workflows.
@@ -59,10 +66,20 @@ type BeadClient interface {
 
 // BacklogClient abstracts backlog operations.
 type BacklogClient interface {
-	List() ([]interface{}, error)
-	Get(id string) (interface{}, error)
-	Add(item interface{}) error
-	Update(id string, fn func(interface{})) error
+	List() ([]*Idea, error)
+	Get(id string) (*Idea, error)
+	Add(item *Idea) error
+	Update(id string, fn func(*Idea)) error
+}
+
+// Idea represents a backlog idea (matches backlog.Idea).
+type Idea struct {
+	ID        string
+	Text      string
+	Type      string
+	Context   string
+	Status    string
+	SpecName  string
 }
 
 // PromptRenderer abstracts prompt rendering operations.
@@ -88,14 +105,6 @@ type LogWriter interface {
 	Write(entry interface{}) error
 }
 
-// Refine executes the refine workflow.
-func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineSession, error) {
-	if p.deps == nil || p.deps.AgentResolver == nil {
-		return nil, fmt.Errorf("pipeline: nil dependencies")
-	}
-	// TODO: implement
-	return nil, fmt.Errorf("pipeline: Refine not yet implemented")
-}
 
 // Plan executes the plan workflow.
 func (p *Pipeline) Plan(ctx context.Context, input PlanInput) (*PlanSession, error) {
