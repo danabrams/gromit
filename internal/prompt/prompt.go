@@ -148,10 +148,10 @@ type Renderer struct {
 	gromitDir     string
 	learningsFile *learnings.File
 
-	// Cache fields
-	claudeMDCache *string
-	rulesCache    *string
-	specCache     map[string]string
+	// Cache fields - files are immutable during a run, so cache after first load
+	claudeMDCache *string           // Cached CLAUDE.md content
+	rulesCache    *string           // Cached RULES.md content
+	specCache     map[string]string // Cached spec files by name
 }
 
 // NewRenderer creates a new prompt renderer
@@ -288,7 +288,7 @@ func (r *Renderer) LoadSpec(name string) (string, error) {
 		return "", err
 	}
 
-	// Lazy initialize cache if needed
+	// Lazy initialize cache if needed (tests may create Renderer directly)
 	if r.specCache == nil {
 		r.specCache = make(map[string]string)
 	}
