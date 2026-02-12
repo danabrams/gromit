@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/preflight"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // errATDDAlreadyDone is returned by verifyTestsFailWithRetry when acceptance
@@ -150,6 +151,20 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 		return nil, nil, false, err
 	}
 
+	// Determine phase and tier
+	phase := "build"
+	tier := r.selectTier(bc.bead)
+
+	// Select provider using router
+	p, modelName := r.router.Select(phase, tier)
+	if p == nil {
+		return nil, nil, false, fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
+	}
+
+	// Update bead context with router-selected model
+	bc.model = modelName
+	bc.result.Model = modelName
+
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
 
@@ -179,7 +194,36 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 		}
 	}
 
-	claudeResult, err := r.claude.StreamRun(childCtx, bc.buildPrompt, bc.model, r.output, handler, onToolCall)
+	// Convert claude handlers to provider handlers
+	var providerHandler func(line []byte)
+	if handler != nil {
+		providerHandler = func(line []byte) {
+			handler(line)
+		}
+	}
+
+	providerToolHandler := func(event provider.ToolEvent) {
+		onToolCall(claude.ToolEvent{
+			ToolName:  event.ToolName,
+			FilePath:  event.FilePath,
+			Timestamp: event.Timestamp,
+		})
+	}
+
+	// Call provider.StreamRun with the tier
+	providerResult, err := p.StreamRun(childCtx, bc.buildPrompt, tier, r.output, providerHandler, providerToolHandler)
+
+	// Convert provider.Result back to claude.Result for backward compatibility
+	var claudeResult *claude.Result
+	if providerResult != nil {
+		claudeResult = &claude.Result{
+			Success:  providerResult.Success,
+			Output:   providerResult.Output,
+			ExitCode: providerResult.ExitCode,
+			Duration: providerResult.Duration,
+			Model:    providerResult.Model,
+		}
+	}
 	stopHeartbeat()
 	childCancel()
 

@@ -898,3 +898,8 @@ Dual-layer state pattern: modify in-memory state first, then conditionally persi
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-11 | gromit-bu86 | patterns
+Instance methods on Runner use early return with nil checks for receiver and cfg, defaulting to TierMedium/sonnet rather than panicking. Constructor Run() validates all dependencies (beads, renderer, claude, router) with explicit nil checks before any logic executes.
+
+*Archived from new: filtered: generic engineering advice*
+
