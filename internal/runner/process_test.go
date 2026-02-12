@@ -78,7 +78,6 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 		},
 		beads:    &mockBeadClient{},
 		renderer: &mockRenderer{},
-		claude:   &mockClaudeClient{},
 		output:   &strings.Builder{},
 	}
 	b := &bead.Bead{ID: "test-1", Title: "Test", Priority: 1}
@@ -496,7 +495,6 @@ func TestExtractSuccessLearning_NilLearning(t *testing.T) {
 				LearnFromSuccess: &learnFromSuccessEnabled,
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
@@ -548,7 +546,6 @@ func TestExtractSuccessLearning_WithLearning(t *testing.T) {
 				LearnFromSuccess: &learnFromSuccessEnabled,
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
@@ -593,7 +590,6 @@ func TestRunAcceptanceTests_Success(t *testing.T) {
 				StallTimeoutActive: 10,
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
@@ -640,7 +636,6 @@ func TestRunAcceptanceTests_ClaudeFailed(t *testing.T) {
 				StallTimeoutActive: 10,
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
@@ -687,7 +682,6 @@ func TestRunAcceptanceTests_InvocationError(t *testing.T) {
 				StallTimeoutActive: 10,
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
@@ -740,7 +734,6 @@ func TestRunAcceptanceTests_UsesSameModel(t *testing.T) {
 				StallTimeoutActive: 10,
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: mockRend,
 		output:   &buf,
@@ -820,7 +813,6 @@ func TestVerifyTestsFail_TestsFailAsExpected(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude: mockClaude,
 		router: newMockRouterFromClaudeClient(mockClaude),
 		output: &buf,
 	}
@@ -863,7 +855,6 @@ func TestVerifyTestsFail_TestsPassUnexpectedly(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude: mockClaude,
 		router: newMockRouterFromClaudeClient(mockClaude),
 		output: &buf,
 	}
@@ -906,7 +897,6 @@ func TestVerifyTestsFail_InvocationError(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude: mockClaude,
 		router: newMockRouterFromClaudeClient(mockClaude),
 		output: &buf,
 	}
@@ -946,7 +936,6 @@ func TestVerifyTestsFail_NilResult(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude: mockClaude,
 		router: newMockRouterFromClaudeClient(mockClaude),
 		output: &buf,
 	}
@@ -982,7 +971,6 @@ func TestRunRefactorPhase_NoDiff(t *testing.T) {
 				Validation: "haiku",
 			},
 		},
-		claude:   mockClaude,
 		renderer: mockRend,
 		output:   &buf,
 	}
@@ -1035,7 +1023,6 @@ func TestRunRefactorPhase_Success(t *testing.T) {
 				Validation: "haiku",
 			},
 		},
-		claude:   mockClaude,
 		renderer: mockRend,
 		output:   &buf,
 	}
@@ -1071,7 +1058,6 @@ func TestRunRefactorPhase_RenderError(t *testing.T) {
 				Enabled: true,
 			},
 		},
-		claude:   mockClaude,
 		renderer: mockRend,
 		output:   &buf,
 	}
@@ -1105,7 +1091,6 @@ func TestRunRefactorPhase_ClaudeInvocationError(t *testing.T) {
 				Enabled: true,
 			},
 		},
-		claude:   mockClaude,
 		renderer: mockRend,
 		output:   &buf,
 	}
@@ -1142,7 +1127,6 @@ func TestRunRefactorPhase_ValidationDisabled(t *testing.T) {
 				Enabled: false,
 			},
 		},
-		claude:   mockClaude,
 		renderer: mockRend,
 		output:   &buf,
 	}
@@ -1227,7 +1211,6 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude:   mockClaude,
 		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
@@ -1354,7 +1337,6 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude:   mockClaude,
 		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
@@ -1474,7 +1456,6 @@ func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude:   mockClaude,
 		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
@@ -1602,7 +1583,6 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude:   mockClaude,
 		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
@@ -1739,7 +1719,6 @@ func TestPostSuccess_BothStagesEnabled_RunSequentially(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude:   mockClaude,
 		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
@@ -1867,7 +1846,6 @@ func TestPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude:   mockClaude,
 		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: mockRend,
 		beads:    &mockBeadClient{},
@@ -1966,7 +1944,6 @@ func TestVerifyTestsFailWithRetry_ReturnsAlreadyDone(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		analyzer: mockAnalyzerObj,
 		renderer: mockRend,
@@ -2049,7 +2026,6 @@ func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
 			},
 			Preflight: config.PreflightConfig{},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		analyzer: mockAnalyzerObj,
 		renderer: mockRend,
@@ -2101,7 +2077,6 @@ func TestRunValidationWithRecovery_PassesOnFirstTry(t *testing.T) {
 
 	r := &Runner{
 		cfg:      cfg,
-		claude:   mockClaude,
 		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: &mockRenderer{},
 		output:   &buf,
@@ -2180,7 +2155,6 @@ func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
 
 	r := &Runner{
 		cfg:      cfg,
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
@@ -2260,7 +2234,6 @@ func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
 
 	r := &Runner{
 		cfg:      cfg,
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
@@ -2315,7 +2288,6 @@ func TestRunValidationWithRecovery_InvocationErrorNotRecovered(t *testing.T) {
 
 	r := &Runner{
 		cfg:      cfg,
-		claude:   mockClaude,
 		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: &mockRenderer{},
 		output:   &buf,
@@ -2443,7 +2415,6 @@ func TestVerifyTestsFailWithRetry_DiffGuard_TestOnlyDiff(t *testing.T) {
 
 	r := &Runner{
 		cfg:      cfg,
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
@@ -2526,7 +2497,6 @@ func TestVerifyTestsFailWithRetry_DiffGuard_ImplDiff(t *testing.T) {
 
 	r := &Runner{
 		cfg:      cfg,
-		claude:   mockClaude,
 		router:   mockRouter,
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
@@ -2608,7 +2578,6 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 				StallTimeoutActive: 60,
 			},
 		},
-		claude: mockClaude,
 		router: mockRouter,
 		output: &buf,
 	}
@@ -2679,7 +2648,6 @@ func TestBuildPromptForBead_MediumComplexityKeepsSonnet(t *testing.T) {
 				Model:   "haiku",
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		beads:    &mockBeadClient{},
 		renderer: mockRend,
@@ -2737,7 +2705,6 @@ func TestBuildPromptForBead_MediumComplexityKeepsOpus(t *testing.T) {
 				Model:   "haiku",
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		beads:    &mockBeadClient{},
 		renderer: mockRend,
@@ -2795,7 +2762,6 @@ func TestBuildPromptForBead_LowComplexityKeepsSonnet(t *testing.T) {
 				Model:   "haiku",
 			},
 		},
-		claude:   mockClaude,
 		router:   mockRouter,
 		beads:    &mockBeadClient{},
 		renderer: mockRend,
