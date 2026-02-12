@@ -217,6 +217,7 @@ func TestValidationSentinelError_RunValidationReturnsCorrectError(t *testing.T) 
 	r := &Runner{
 		cfg:      cfg,
 		claude:   mockClaude,
+		router:   newMockRouterFromClaudeClient(mockClaude),
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,

@@ -2048,6 +2048,9 @@ func (m *mockClaudeProviderAdapter) RunValidation(ctx context.Context, commands 
 	if err != nil {
 		return nil, err
 	}
+	if result == nil {
+		return nil, nil
+	}
 	return &provider.Result{
 		Success:  result.Success,
 		Output:   result.Output,
