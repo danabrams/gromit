@@ -377,11 +377,24 @@ index 789..abc def`,
 
 // TestUpdateTouchedPackages verifies that updateTouchedPackages adds newly touched
 // packages to the runner's tracking map.
-// Expected failure: Runner.updateTouchedPackages method does not exist yet
 func TestUpdateTouchedPackages(t *testing.T) {
-	t.Skip("TODO: implement after updateTouchedPackages method is added")
-	// This test will be enabled after implementation adds:
-	// - Runner.updateTouchedPackages(packages []string) method
+	r := &Runner{
+		touchedPackages: map[string]bool{
+			"internal/runner": true,
+		},
+	}
+
+	r.updateTouchedPackages([]string{"internal/config", "internal/bead"})
+
+	if !r.touchedPackages["internal/config"] {
+		t.Error("expected internal/config to be added to touchedPackages")
+	}
+	if !r.touchedPackages["internal/bead"] {
+		t.Error("expected internal/bead to be added to touchedPackages")
+	}
+	if !r.touchedPackages["internal/runner"] {
+		t.Error("expected internal/runner to remain in touchedPackages")
+	}
 }
 
 // TestHasNewPackages verifies that hasNewPackages returns true if any package

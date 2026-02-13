@@ -1274,6 +1274,11 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 	bc.result.ValidationMode = "direct"
 	r.log("Validation passed")
 
+	// Update runner's touched packages map for learning extraction filtering
+	if bc.touchedPackages != nil && len(bc.touchedPackages) > 0 {
+		r.updateTouchedPackages(bc.touchedPackages)
+	}
+
 	// Run post-success stages sequentially
 	learningEnabled := r.cfg != nil && r.cfg.Loop.ShouldLearnFromSuccess()
 	reviewEnabled := r.cfg != nil && r.cfg.Review.Enabled

@@ -336,6 +336,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 	// Reset per-run state
 	r.validationFailures = []string{}
+	r.touchedPackages = make(map[string]bool)
 
 	// Set up tmux title management (no-op if not in tmux)
 	tmuxMgr, err := tmux.NewManager()
@@ -840,6 +841,14 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	// Main execution loop with retry and escalation
 	if !r.executeWithRetry(ctx, bc) {
 		return bc.result
+	}
+
+	// Capture touched packages for learning extraction filtering
+	if bc.startCommit != "" {
+		diff, err := r.getDiff(bc.startCommit)
+		if err == nil && diff != "" {
+			bc.touchedPackages = detectTouchedPackages(diff)
+		}
 	}
 
 	// Run validation if enabled (with recovery on failure)
