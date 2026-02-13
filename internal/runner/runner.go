@@ -232,7 +232,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: defaultCmdRunner,
 	}
-	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads)
+	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads, r.log)
 	return r, nil
 }
 
@@ -300,7 +300,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: defaultCmdRunner,
 	}
-	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads)
+	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log)
 	return r, nil
 }
 

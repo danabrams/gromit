@@ -9,7 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/learnings"
+
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -46,34 +46,6 @@ func (m *mockBeadClient) AddComment(id, comment string) error {
 	return nil
 }
 
-// mockPromptRenderer implements the PromptRenderer interface for escalation tests.
-type mockPromptRenderer struct {
-	renderBuildFn    func(ctx interface{}) (string, error)
-	learningsFile    *learnings.File
-	getRenderBuildFn func() (string, error)
-}
-
-func (m *mockPromptRenderer) GetLearningsFile() *learnings.File {
-	return m.learningsFile
-}
-
-// mockDecomposer implements the DecomposeFn callback type.
-type mockDecomposer struct {
-	decomposeFn    func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error)
-	createSubFn    func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error
-	decomposeCalls int
-	createSubCalls int
-}
-
-// mockLogFn captures log messages for test assertions.
-type mockLogFn struct {
-	messages []string
-}
-
-func (m *mockLogFn) Log(format string, args ...interface{}) {
-	m.messages = append(m.messages, fmt.Sprintf(format, args...))
-}
-
 // --- Helper functions ---
 
 func newTestBeadContext() *runtypes.BeadContext {
@@ -104,7 +76,6 @@ func newTestConfig() *config.Config {
 
 // --- Handler tests ---
 
-// Expected failure: Handler type does not exist in escalation/ package yet
 func TestNewHandler_AcceptsNarrowInterfaces(t *testing.T) {
 	// Verify that NewHandler constructs a Handler from narrow dependency interfaces,
 	// not from concrete runner types. This is the key extraction pattern.
@@ -113,18 +84,17 @@ func TestNewHandler_AcceptsNarrowInterfaces(t *testing.T) {
 	mbc := &mockBeadClient{}
 
 	// NewHandler should accept config, analyzer, bead client, and callback functions
-	h := NewHandler(cfg, mfa, mbc, nil, nil)
+	h := NewHandler(cfg, mfa, mbc, nil, nil, nil)
 	if h == nil {
 		t.Fatal("NewHandler returned nil")
 	}
 }
 
-// Expected failure: Handler.HandleStallTimeout method does not exist in escalation/ package yet
 func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
 	// When TotalRetriesThisBead exceeds MaxRetriesPerBead, HandleStallTimeout
 	// should return false and set an error on the result.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.TotalRetriesThisBead = 6
@@ -142,12 +112,11 @@ func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.HandleStallTimeout method does not exist in escalation/ package yet
 func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 	// When retries are available for the current model, HandleStallTimeout
 	// should return true and increment retry counters.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.RetriesThisModel = 0
@@ -166,12 +135,11 @@ func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.HandleStallTimeout method does not exist in escalation/ package yet
 func TestHandleStallTimeout_EscalatesToNextTier(t *testing.T) {
 	// When model retries are exhausted and a higher tier exists,
 	// HandleStallTimeout should escalate the tier.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -195,7 +163,6 @@ func TestHandleStallTimeout_EscalatesToNextTier(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.AnalyzeAndHandleFailure method does not exist in escalation/ package yet
 func TestAnalyzeAndHandleFailure_UnclearSpecStops(t *testing.T) {
 	// When failure analysis returns CategoryUnclearSpec, the handler should
 	// stop retrying (return false) and set a spec-related error.
@@ -209,7 +176,7 @@ func TestAnalyzeAndHandleFailure_UnclearSpecStops(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	claudeResult := &claude.Result{Output: "build failed output"}
@@ -223,7 +190,6 @@ func TestAnalyzeAndHandleFailure_UnclearSpecStops(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.AnalyzeAndHandleFailure method does not exist in escalation/ package yet
 func TestAnalyzeAndHandleFailure_TaskTooComplexStopsAndComments(t *testing.T) {
 	// When analysis returns CategoryTaskTooComplex, the handler should stop,
 	// add a comment to the bead, and set an error.
@@ -238,7 +204,7 @@ func TestAnalyzeAndHandleFailure_TaskTooComplexStopsAndComments(t *testing.T) {
 	}
 	mbc := &mockBeadClient{}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, mbc, nil, nil)
+	h := NewHandler(cfg, mfa, mbc, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	claudeResult := &claude.Result{Output: "build output"}
@@ -255,7 +221,6 @@ func TestAnalyzeAndHandleFailure_TaskTooComplexStopsAndComments(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.AnalyzeAndHandleFailure method does not exist in escalation/ package yet
 func TestAnalyzeAndHandleFailure_RecoverableRetries(t *testing.T) {
 	// When analysis returns a recoverable failure with retries available,
 	// the handler should return true (continue) and increment retry counters.
@@ -271,7 +236,7 @@ func TestAnalyzeAndHandleFailure_RecoverableRetries(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.RetriesThisModel = 0
@@ -290,7 +255,6 @@ func TestAnalyzeAndHandleFailure_RecoverableRetries(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.AnalyzeAndHandleFailure method does not exist in escalation/ package yet
 func TestAnalyzeAndHandleFailure_AnalysisErrorEscalates(t *testing.T) {
 	// When the analyzer returns an error, the handler should fall back to
 	// HandleEscalation logic (escalate tier or decompose).
@@ -300,7 +264,7 @@ func TestAnalyzeAndHandleFailure_AnalysisErrorEscalates(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -317,12 +281,11 @@ func TestAnalyzeAndHandleFailure_AnalysisErrorEscalates(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.HandleEscalation method does not exist in escalation/ package yet
 func TestHandleEscalation_EscalatesToNextTier(t *testing.T) {
 	// When a higher tier is available, HandleEscalation should escalate
 	// and return true to continue the loop.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -344,7 +307,6 @@ func TestHandleEscalation_EscalatesToNextTier(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.HandleEscalation method does not exist in escalation/ package yet
 func TestHandleEscalation_NoMoreTiersAttempsDecomposition(t *testing.T) {
 	// When at the highest tier with no further escalation, HandleEscalation
 	// should attempt decomposition.
@@ -358,6 +320,7 @@ func TestHandleEscalation_NoMoreTiersAttempsDecomposition(t *testing.T) {
 		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
 			return nil
 		},
+		nil,
 	)
 
 	bc := newTestBeadContext()
@@ -371,12 +334,11 @@ func TestHandleEscalation_NoMoreTiersAttempsDecomposition(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.HandleEscalation method does not exist in escalation/ package yet
 func TestHandleEscalation_MaxRetriesPerBeadExceededStops(t *testing.T) {
 	// When total retries exceed the per-bead limit, HandleEscalation should
 	// stop and set an error, even if a higher tier exists.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -393,7 +355,6 @@ func TestHandleEscalation_MaxRetriesPerBeadExceededStops(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.AttemptDecomposition method does not exist in escalation/ package yet
 func TestAttemptDecomposition_SuccessSetsDecomposedFlag(t *testing.T) {
 	// When decomposition succeeds, Result.Decomposed should be set to true.
 	cfg := newTestConfig()
@@ -407,6 +368,7 @@ func TestAttemptDecomposition_SuccessSetsDecomposedFlag(t *testing.T) {
 		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
 			return nil
 		},
+		nil,
 	)
 
 	bc := newTestBeadContext()
@@ -422,7 +384,6 @@ func TestAttemptDecomposition_SuccessSetsDecomposedFlag(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.AttemptDecomposition method does not exist in escalation/ package yet
 func TestAttemptDecomposition_DecomposeFailureSetsError(t *testing.T) {
 	// When the decompose callback fails, Result.Error should capture the reason.
 	cfg := newTestConfig()
@@ -430,6 +391,7 @@ func TestAttemptDecomposition_DecomposeFailureSetsError(t *testing.T) {
 		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
 			return nil, fmt.Errorf("LLM call failed")
 		},
+		nil,
 		nil,
 	)
 
@@ -441,17 +403,16 @@ func TestAttemptDecomposition_DecomposeFailureSetsError(t *testing.T) {
 	if bc.Result.Error == nil {
 		t.Fatal("expected error when decomposition fails")
 	}
-	if !bc.Result.Decomposed {
-		// Decomposed should be false since decomposition failed
+	if bc.Result.Decomposed {
+		t.Error("Result.Decomposed should be false when decomposition fails")
 	}
 }
 
-// Expected failure: Handler.EscalateTier method does not exist in escalation/ package yet
 func TestEscalateTier_UpdatesBeadContextFields(t *testing.T) {
 	// EscalateTier should update all relevant fields on BeadContext:
 	// Tier, Model, Result.Escalated, Result.EscalatedTo, RetriesThisModel.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -478,12 +439,11 @@ func TestEscalateTier_UpdatesBeadContextFields(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.ExecuteWithRetry method does not exist in escalation/ package yet
 func TestExecuteWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	// When the InvokeFn succeeds on the first attempt, ExecuteWithRetry should
 	// return true (success) without any retry or escalation.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
@@ -501,12 +461,11 @@ func TestExecuteWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.ExecuteWithRetry method does not exist in escalation/ package yet
 func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 	// When the invocation returns a stall, ExecuteWithRetry should handle it
 	// via HandleStallTimeout (retry same model or escalate).
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -541,11 +500,10 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.ExecuteWithRetry method does not exist in escalation/ package yet
 func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
 	// When the context is cancelled, ExecuteWithRetry should stop and return false.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
@@ -562,7 +520,6 @@ func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
 	}
 }
 
-// Expected failure: Handler.ExecuteWithRetry method does not exist in escalation/ package yet
 func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 	// When a build fails with a recoverable error, ExecuteWithRetry should
 	// analyze the failure and retry with failure context injected.
@@ -578,7 +535,7 @@ func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.MaxRetries = 2
@@ -604,6 +561,3 @@ func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 		t.Errorf("invokeFn called %d times, want 2", callCount)
 	}
 }
-
-// Suppress unused import warnings during test compilation.
-var _ = learnings.File{}

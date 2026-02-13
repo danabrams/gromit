@@ -41,6 +41,9 @@ type InvocationResult struct {
 // InvocationResult type.
 type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error)
 
+// LogFn is a printf-style logging callback for escalation events.
+type LogFn func(format string, args ...interface{})
+
 // Handler manages retry loops, tier escalation, failure analysis, and decomposition.
 type Handler struct {
 	cfg         *config.Config
@@ -48,16 +51,25 @@ type Handler struct {
 	beadClient  BeadClient
 	decomposeFn DecomposeFn
 	createSubFn CreateSubFn
+	logFn       LogFn
 }
 
 // NewHandler creates a Handler with narrow dependency interfaces.
-func NewHandler(cfg *config.Config, analyzer FailureAnalyzer, beadClient BeadClient, decomposeFn DecomposeFn, createSubFn CreateSubFn) *Handler {
+func NewHandler(cfg *config.Config, analyzer FailureAnalyzer, beadClient BeadClient, decomposeFn DecomposeFn, createSubFn CreateSubFn, logFn LogFn) *Handler {
 	return &Handler{
 		cfg:         cfg,
 		analyzer:    analyzer,
 		beadClient:  beadClient,
 		decomposeFn: decomposeFn,
 		createSubFn: createSubFn,
+		logFn:       logFn,
+	}
+}
+
+// log calls the logging callback if set.
+func (h *Handler) log(format string, args ...interface{}) {
+	if h.logFn != nil {
+		h.logFn(format, args...)
 	}
 }
 
@@ -135,10 +147,7 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 
 	if analysis.Category == analyzer.CategoryTaskTooComplex {
 		comment := fmt.Sprintf("Task too complex: %s\n\nThis task needs to be broken down into smaller, more manageable pieces.", analysis.RootCause)
-		if err := h.beadClient.AddComment(bc.Bead.ID, comment); err != nil {
-			// log warning but continue
-			_ = err
-		}
+		_ = h.beadClient.AddComment(bc.Bead.ID, comment) // best-effort; failure doesn't block escalation
 		bc.Result.Error = fmt.Errorf("task too complex: %s - needs breakdown", analysis.RootCause)
 		return false
 	}
