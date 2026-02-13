@@ -47,22 +47,22 @@ var defaultCodexTierToModelMap = map[string]string{
 
 // Runner orchestrates the Gromit loop
 type Runner struct {
-	cfg          *config.Config
-	beads        BeadClient
-	router       *provider.Router
-	analyzer     FailureAnalyzer
-	renderer     PromptRenderer
-	logger       IterationLogger
-	streamLogger *logger.StreamLogger
-	output       io.Writer
-	syncOut      *syncWriter // concrete type for WriteOverwrite access
-	gromitDir    string
-	stateFile    *state.File                                                                                                       // promoted from Run() for router state persistence
-	gitDiffFn    func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
-	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
-	autoFixFn            func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
-	labelFilters         []string                                                                                                          // optional spec labels to filter beads
-	validationFailures   []string                                                                                                          // recent validation failure summaries from current run, injected into build prompts
+	cfg                *config.Config
+	beads              BeadClient
+	router             *provider.Router
+	analyzer           FailureAnalyzer
+	renderer           PromptRenderer
+	logger             IterationLogger
+	streamLogger       *logger.StreamLogger
+	output             io.Writer
+	syncOut            *syncWriter // concrete type for WriteOverwrite access
+	gromitDir          string
+	stateFile          *state.File                                                                                                       // promoted from Run() for router state persistence
+	gitDiffFn          func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
+	cmdRunnerFn        func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
+	autoFixFn          func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
+	labelFilters       []string                                                                                                          // optional spec labels to filter beads
+	validationFailures []string                                                                                                          // recent validation failure summaries from current run, injected into build prompts
 }
 
 // NewRunner creates a new runner
@@ -330,6 +330,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	if r.router == nil {
 		return fmt.Errorf("runner router is nil")
 	}
+
+	// Reset per-run state
+	r.validationFailures = []string{}
 
 	// Set up tmux title management (no-op if not in tmux)
 	tmuxMgr, err := tmux.NewManager()
