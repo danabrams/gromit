@@ -1142,6 +1142,11 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 				failureOutput += "\nStderr:\n" + stderr
 			}
 
+			// Extract and accumulate validation failure summary for build prompt injection
+			if summary := extractValidationSummary(failureOutput); summary != "" {
+				r.validationFailures = append(r.validationFailures, summary)
+			}
+
 			r.log("\nValidation failed. Output:")
 			r.log("%s", failureOutput)
 
