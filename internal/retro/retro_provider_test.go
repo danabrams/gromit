@@ -2,6 +2,7 @@ package retro
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -145,7 +146,7 @@ func (m *mockProvider) Run(ctx context.Context, prompt string, tier string) (*pr
 	return &provider.Result{Success: true, Output: `{"category":"logic","recoverable":true,"root_cause":"test","suggestion":"test"}`}, nil
 }
 
-func (m *mockProvider) StreamRun(ctx context.Context, prompt string, tier string, output interface{}, handler interface{}, onToolCall interface{}) (*provider.Result, error) {
+func (m *mockProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 	return m.Run(ctx, prompt, tier)
 }
 

@@ -2,6 +2,7 @@ package retro
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/provider"
@@ -357,4 +358,8 @@ func (m *mockProviderForMigration) Run(ctx context.Context, prompt string, tier 
 		return m.runResult, nil
 	}
 	return &provider.Result{Success: true, Output: "mock output"}, nil
+}
+
+func (m *mockProviderForMigration) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return m.Run(ctx, prompt, tier)
 }

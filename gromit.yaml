@@ -54,7 +54,7 @@ scope_check:
 precheck:
   enabled: true  # defaults to true if omitted
   model: haiku  # fast check with haiku
-  timeout_seconds: 60  # enough headroom for CLI startup + file reads
+  timeout_seconds: 120  # headroom for CLI startup + file reads + tool use
 
 # Validation settings - customize for your project
 validation:
@@ -85,6 +85,7 @@ claude:
       stall_timeout_active: 900  # longer active stall for sonnet's deeper thinking
       bead_timeout: 2400       # longer bead budget for sonnet retries
     opus:
+      timeout: 1800              # retro analysis needs longer than the 900s default
       stall_timeout_active: 420  # longer than code default (300s) — opus legitimately takes longer on complex reasoning
     haiku:
       stall_timeout: 90        # shorter stall — haiku should respond quickly

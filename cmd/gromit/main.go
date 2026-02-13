@@ -232,8 +232,9 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println("Running retrospective analysis...")
 	fmt.Println("This may take a few minutes as it uses opus for quality analysis.")
 
-	// Create provider from config
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	// Create provider from config — use opus timeout since retro analysis runs on opus
+	opusTimeout, _, _, _ := cfg.Claude.TimeoutsForModel("opus")
+	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, opusTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to create claude client: %w", err)
 	}

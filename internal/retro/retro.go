@@ -3,6 +3,7 @@ package retro
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,8 @@ import (
 // It matches the subset of provider.Provider methods used by Retro.
 type ProviderRunner interface {
 	Run(ctx context.Context, prompt string, tier string) (*provider.Result, error)
+	StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
+		handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
 }
 
 // Retro manages retrospective analysis
@@ -202,9 +205,9 @@ func (r *Retro) createLearningsAdapter() interface {
 	return learnings.NewProviderRunnerAdapter(r.provider)
 }
 
-// runAnalysis executes the LLM analysis using provider
+// runAnalysis executes the LLM analysis using provider with streaming output
 func (r *Retro) runAnalysis(ctx context.Context, prompt string) (resultGetter, error) {
-	result, err := r.provider.Run(ctx, prompt, "high")
+	result, err := r.provider.StreamRun(ctx, prompt, "high", os.Stderr, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("running provider analysis: %w", err)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -175,7 +176,7 @@ func (m *mockProviderForRetroCmd) Run(ctx context.Context, prompt string, tier s
 	return &provider.Result{Success: true, Output: "mock output"}, nil
 }
 
-func (m *mockProviderForRetroCmd) StreamRun(ctx context.Context, prompt string, tier string, output interface{}, handler interface{}, onToolCall interface{}) (*provider.Result, error) {
+func (m *mockProviderForRetroCmd) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 	return m.Run(ctx, prompt, tier)
 }
 
