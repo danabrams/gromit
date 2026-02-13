@@ -49,6 +49,9 @@ type beadContext struct {
 
 	// Scope estimate (cached from scope gate to avoid duplicate LLM calls)
 	scopeEstimate *prompt.ScopeEstimate
+
+	// Package tracking (for learning extraction filtering)
+	touchedPackages []string
 }
 
 // setupBeadContext validates runner state, sets up timeouts, captures git state,

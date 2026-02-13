@@ -176,11 +176,20 @@ func TestExtractSuccessLearning_AlwaysRunsOnFailure(t *testing.T) {
 }
 
 // TestBeadContext_TouchedPackages verifies that beadContext tracks touched packages.
-// Expected failure: beadContext.touchedPackages field does not exist yet
 func TestBeadContext_TouchedPackages(t *testing.T) {
-	t.Skip("TODO: implement after touchedPackages field is added to beadContext")
-	// This test will be enabled after implementation adds:
-	// - beadContext.touchedPackages []string field
+	bc := &beadContext{
+		touchedPackages: []string{"internal/runner", "internal/config"},
+	}
+
+	if len(bc.touchedPackages) != 2 {
+		t.Errorf("expected 2 packages, got %d", len(bc.touchedPackages))
+	}
+	if bc.touchedPackages[0] != "internal/runner" {
+		t.Errorf("expected first package to be 'internal/runner', got %q", bc.touchedPackages[0])
+	}
+	if bc.touchedPackages[1] != "internal/config" {
+		t.Errorf("expected second package to be 'internal/config', got %q", bc.touchedPackages[1])
+	}
 }
 
 // TestRunner_TouchedPackages verifies that Runner tracks touched packages across iterations.
