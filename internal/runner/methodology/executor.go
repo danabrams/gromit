@@ -21,14 +21,21 @@ type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string)
 // ValidateDirectFn runs validation commands directly and returns the result.
 type ValidateDirectFn func(ctx context.Context, commands []string, workDir string) (*claude.Result, error)
 
-// Executor handles ATDD workflow phases: writing acceptance tests and
-// verifying they fail before implementation.
+// Executor handles ATDD workflow phases: writing acceptance tests,
+// verifying they fail before implementation, refactoring, and retry wrappers.
 type Executor struct {
-	cfg        *config.Config
-	output     io.Writer
-	renderFn   RenderFn
-	invokeFn   InvokeFn
-	validateFn ValidateDirectFn
+	cfg              *config.Config
+	output           io.Writer
+	renderFn         RenderFn
+	invokeFn         InvokeFn
+	validateFn       ValidateDirectFn
+	escalateTierFn   EscalateTierFn
+	analyzeFn        AnalyzeFn
+	getDiffFn        GetDiffFn
+	renderRefactorFn RenderRefactorFn
+	refactorInvokeFn RefactorInvokeFn
+	gitResetFn       GitResetFn
+	getGitHeadFn     GetGitHeadFn
 }
 
 // NewExecutor creates an Executor with narrow dependency interfaces.
