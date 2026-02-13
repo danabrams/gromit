@@ -1107,7 +1107,7 @@ func TestRenderPromptWithNilExperimentAndEfficiencyUsingRealTemplate(t *testing.
 	tmpDir := t.TempDir()
 
 	// Copy the real PROMPT_retro.md template to the temp directory
-	realTemplatePath := "/home/danabrams/gromit/.gromit/templates/PROMPT_retro.md"
+	realTemplatePath := "../../.gromit/templates/PROMPT_retro.md"
 	templateContent, err := os.ReadFile(realTemplatePath)
 	if err != nil {
 		t.Fatalf("failed to read real template: %v", err)

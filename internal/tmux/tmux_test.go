@@ -1,6 +1,7 @@
 package tmux
 
 import (
+	"os/exec"
 	"testing"
 )
 
@@ -71,6 +72,15 @@ func TestNewManager_InitializesWithDisabledFalse(t *testing.T) {
 }
 
 func TestSetTmuxTitle_CachesTitleMethodWhenSuccessful(t *testing.T) {
+	// This test requires a working tmux session with accessible socket
+	if !InTmux() {
+		t.Skip("test requires tmux session")
+	}
+	// Verify tmux commands actually work (socket may be inaccessible)
+	if err := exec.Command("tmux", "display-message", "-p", "#{pane_title}").Run(); err != nil {
+		t.Skip("tmux session exists but commands fail (socket inaccessible)")
+	}
+
 	m := &Manager{
 		inTmux:      true,
 		titleMethod: methodUnknown,
