@@ -24,6 +24,16 @@ Recent observations that may be relevant:
 {{formatLearnings .RecentLearnings}}
 {{end}}
 
+{{if .RecentValidationFailures}}
+## Recent Validation Issues
+
+The following validation failures occurred in recent beads during this run. Avoid repeating these mistakes:
+
+{{range .RecentValidationFailures}}
+- {{.}}
+{{end}}
+{{end}}
+
 ## Project Context
 
 {{if .ClaudeMD}}
@@ -82,7 +92,8 @@ Please analyze the failure and try a different approach.
 2. **Study the codebase** - understand existing patterns and where your implementation should fit
 3. **Implement the functionality** - write the minimal code needed to make the tests pass
 4. **Do NOT modify the test files** - the tests define the behavioral contract; only change implementation code
-5. **Commit your changes** with a clear commit message
+5. **Self-check** — Before completing, run the project validation commands (`go test ./...`, `go vet ./...`) on the packages you modified to catch issues early. Fix any failures before committing
+6. **Commit your changes** with a clear commit message
 
 ## Completion
 

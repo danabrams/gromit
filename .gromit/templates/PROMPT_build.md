@@ -24,6 +24,16 @@ Recent observations that may be relevant:
 {{formatLearnings .RecentLearnings}}
 {{end}}
 
+{{if .RecentValidationFailures}}
+## Recent Validation Issues
+
+The following validation failures occurred in recent beads during this run. Avoid repeating these mistakes:
+
+{{range .RecentValidationFailures}}
+- {{.}}
+{{end}}
+{{end}}
+
 ## Project Context
 
 {{if .ClaudeMD}}
@@ -79,7 +89,8 @@ Please analyze the failure and try a different approach.
 1. **Study the codebase** before making changes - don't assume code is missing
 2. **Implement the task** following existing patterns in the codebase
 3. **Write tests** if the task involves new functionality
-4. **Commit your changes** with a clear commit message
+4. **Self-check** — Before completing, run the project validation commands (`go test ./...`, `go vet ./...`) on the packages you modified to catch issues early. Fix any failures before committing
+5. **Commit your changes** with a clear commit message
 
 ## Completion
 

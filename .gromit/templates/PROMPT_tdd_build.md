@@ -24,6 +24,16 @@ Recent observations that may be relevant:
 {{formatLearnings .RecentLearnings}}
 {{end}}
 
+{{if .RecentValidationFailures}}
+## Recent Validation Issues
+
+The following validation failures occurred in recent beads during this run. Avoid repeating these mistakes:
+
+{{range .RecentValidationFailures}}
+- {{.}}
+{{end}}
+{{end}}
+
 ## Project Context
 
 {{if .ClaudeMD}}
@@ -89,6 +99,7 @@ Follow the **red-green-refactor** cycle strictly. Work in small increments.
 - Focus each test on a single behavior or requirement from the bead
 - Commit after each red-green cycle
 - Write minimum code to pass - no gold plating
+- Before completing, run the project validation commands (`go test ./...`, `go vet ./...`) on the packages you modified to catch issues early. Fix any failures before committing
 - After all requirements are covered, stop - refactoring will happen in a separate phase
 
 ## Completion
