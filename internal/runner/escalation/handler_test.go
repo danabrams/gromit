@@ -60,8 +60,8 @@ func (m *mockPromptRenderer) GetLearningsFile() *learnings.File {
 
 // mockDecomposer implements the DecomposeFn callback type.
 type mockDecomposer struct {
-	decomposeFn   func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error)
-	createSubFn   func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error
+	decomposeFn    func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error)
+	createSubFn    func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error
 	decomposeCalls int
 	createSubCalls int
 }
