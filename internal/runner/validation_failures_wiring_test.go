@@ -149,11 +149,11 @@ func TestRunValidationAccumulatesMultipleFailures(t *testing.T) {
 // entries from r.validationFailures.
 func TestBuildPromptForBeadPopulatesRecentValidationFailures(t *testing.T) {
 	tests := []struct {
-		name       string
-		failures   []string
-		wantCount  int
-		wantFirst  string // first element of the populated slice
-		wantLast   string // last element of the populated slice
+		name      string
+		failures  []string
+		wantCount int
+		wantFirst string // first element of the populated slice
+		wantLast  string // last element of the populated slice
 	}{
 		{
 			name:      "1 failure is passed through",
@@ -286,4 +286,3 @@ func TestRunResetsValidationFailures(t *testing.T) {
 		t.Errorf("validationFailures after Run() = %v, want empty slice", r.validationFailures)
 	}
 }
-

@@ -132,9 +132,9 @@ func TestThoroughReviewUsesPhaseFilteredRules(t *testing.T) {
 		Review: config.ReviewConfig{
 			Enabled: true,
 			Thorough: config.ThoroughReviewConfig{
-				Enabled:  true,
-				Timeout:  60,
-				Model:    "opus",
+				Enabled:          true,
+				Timeout:          60,
+				Model:            "opus",
 				EveryNIterations: 5,
 			},
 		},
@@ -267,9 +267,9 @@ func TestReviewInvocationsCallLoadRulesForPhaseNotLoadRules(t *testing.T) {
 			Review: config.ReviewConfig{
 				Enabled: true,
 				Thorough: config.ThoroughReviewConfig{
-					Enabled:  true,
-					Timeout:  60,
-					Model:    "opus",
+					Enabled:          true,
+					Timeout:          60,
+					Model:            "opus",
 					EveryNIterations: 5,
 				},
 			},

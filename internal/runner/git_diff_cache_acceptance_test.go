@@ -241,7 +241,7 @@ func TestAcceptance_RefactorPhaseUsesCachedDiff(t *testing.T) {
 			gitDiffCallCount++
 			return mockDiff, nil
 		},
-		output:      &strings.Builder{},
+		output: &strings.Builder{},
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			// Mock git commands
 			if strings.Contains(command, "rev-parse HEAD") {

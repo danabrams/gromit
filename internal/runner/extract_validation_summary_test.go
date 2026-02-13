@@ -7,9 +7,9 @@ import (
 
 func TestExtractValidationSummary_GoTestFailures(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         string
-		wantContains  []string
+		name           string
+		input          string
+		wantContains   []string
 		wantNotContain []string
 	}{
 		{
@@ -60,8 +60,8 @@ FAIL	github.com/example/pkg	0.015s`,
 			},
 		},
 		{
-			name:  "passing tests produce empty summary",
-			input: `ok  	github.com/example/pkg	0.010s`,
+			name:         "passing tests produce empty summary",
+			input:        `ok  	github.com/example/pkg	0.010s`,
 			wantContains: []string{},
 		},
 	}

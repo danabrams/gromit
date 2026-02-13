@@ -186,7 +186,7 @@ func TestExtractSuccessLearning_SkipsForKnownPackages(t *testing.T) {
 			Title:       "Test",
 			Description: "Test description",
 		},
-		tier:            provider.TierMedium, // non-haiku tier
+		tier:            provider.TierMedium,         // non-haiku tier
 		touchedPackages: []string{"internal/runner"}, // all packages already seen
 	}
 
@@ -249,7 +249,7 @@ func TestExtractSuccessLearning_RunsForNewPackages(t *testing.T) {
 			Title:       "Test",
 			Description: "Test description",
 		},
-		tier:            provider.TierMedium, // non-haiku tier
+		tier:            provider.TierMedium,                            // non-haiku tier
 		touchedPackages: []string{"internal/runner", "internal/config"}, // internal/config is new
 	}
 
