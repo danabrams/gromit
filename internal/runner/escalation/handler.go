@@ -95,19 +95,23 @@ func (h *Handler) HandleStallTimeout(ctx context.Context, bc *runtypes.BeadConte
 	bc.TotalRetriesThisBead++
 
 	if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
+		h.log("Stall timeout: max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
 		bc.Result.Error = fmt.Errorf("stall timeout: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
 		return false
 	}
 
 	if bc.RetriesThisModel <= bc.MaxRetries {
+		h.log("Stall timeout detected, retrying with same model (attempt %d/%d)", bc.RetriesThisModel, bc.MaxRetries)
 		return true
 	}
 
 	nextTier := h.cfg.NextEscalationTier(bc.Tier)
 	if nextTier == "" {
+		h.log("Stall timeout: no more tiers to escalate to, attempting decomposition")
 		return h.AttemptDecomposition(ctx, bc, "stall timeout")
 	}
 
+	h.log("Stall timeout detected, escalating from %s to %s", bc.Tier, nextTier)
 	h.EscalateTier(bc, nextTier)
 	return true
 }
