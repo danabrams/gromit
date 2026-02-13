@@ -1280,6 +1280,21 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext)
 	return err
 }
 
+// countChangedFiles counts the number of files in a git diff output.
+// Each file is identified by a "diff --git" line.
+func countChangedFiles(diff string) int {
+	if diff == "" {
+		return 0
+	}
+	count := 0
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, "diff --git ") {
+			count++
+		}
+	}
+	return count
+}
+
 // runPostSuccessReview runs only the review stage (when learning is disabled).
 func (r *Runner) runPostSuccessReview(ctx context.Context, bc *beadContext) error {
 	reviewStart := time.Now()

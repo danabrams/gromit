@@ -21,6 +21,7 @@ type Config struct {
 	Escalation  EscalationConfig       `yaml:"escalation"`
 	Loop        LoopConfig             `yaml:"loop"`
 	Validation  ValidationConfig       `yaml:"validation"`
+	Refactor    RefactorConfig         `yaml:"refactor"`
 	ScopeCheck  ScopeCheckConfig       `yaml:"scope_check"`
 	Precheck    PrecheckConfig         `yaml:"precheck"`
 	Preflight   PreflightConfig        `yaml:"preflight"`
@@ -65,6 +66,10 @@ type ValidationConfig struct {
 	Commands             []string `yaml:"commands"`
 	MaxFixAttempts       int      `yaml:"max_fix_attempts"`
 	MaxValidationRetries int      `yaml:"max_validation_retries"`
+}
+
+type RefactorConfig struct {
+	MinFilesChanged int `yaml:"min_files_changed"`
 }
 
 type ScopeCheckConfig struct {
