@@ -13,13 +13,16 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
 // setupDirectValidationRunner creates a Runner wired for direct validation tests.
 // It tracks both Claude CLI invocations and analyzer calls to verify that
 // validation commands run directly (not through Claude) and that the analyzer
 // is only invoked on failure.
-func setupDirectValidationRunner(t *testing.T, cfg *config.Config) (*Runner, *mockClaudeClient, *mockFailureAnalyzer) {
+// The cmdRunner parameter is wired into both the facade's cmdRunnerFn and the
+// validationRunner. If nil, a default passing runner is used.
+func setupDirectValidationRunner(t *testing.T, cfg *config.Config, cmdRunner runtypes.CmdRunnerFn) (*Runner, *mockClaudeClient, *mockFailureAnalyzer) {
 	t.Helper()
 
 	mockClaude := &mockClaudeClient{}
@@ -39,17 +42,25 @@ func setupDirectValidationRunner(t *testing.T, cfg *config.Config) (*Runner, *mo
 	}
 	cfg.SetDefaults()
 
+	if cmdRunner == nil {
+		cmdRunner = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
+		}
+	}
+
 	var buf strings.Builder
 	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
 	mockRouter := provider.NewSingleProviderRouter(mockProvider)
 
 	r := &Runner{
-		cfg:      cfg,
-		router:   mockRouter,
-		invoker:  newInvokerForTest(mockRouter, &buf, nil),
-		renderer: &mockRenderer{},
-		analyzer: mockAnalyzer,
-		output:   &buf,
+		cfg:              cfg,
+		router:           mockRouter,
+		invoker:          newInvokerForTest(mockRouter, &buf, nil),
+		renderer:         &mockRenderer{},
+		analyzer:         mockAnalyzer,
+		output:           &buf,
+		cmdRunnerFn:      cmdRunner,
+		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
 	}
 
 	return r, mockClaude, mockAnalyzer
@@ -76,7 +87,10 @@ func newBeadContext(t *testing.T) *runtypes.BeadContext {
 // which invokes Claude CLI. After implementation, it should execute commands
 // directly and never call the Claude client's RunValidation method.
 func TestDirectValidation_NoClaudeCLIInvocation(t *testing.T) {
-	r, mockClaude, _ := setupDirectValidationRunner(t, nil)
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "ok", "", 0, nil
+	}
+	r, mockClaude, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 	bc := newBeadContext(t)
 
 	// Track all Claude CLI invocations
@@ -120,15 +134,11 @@ func TestDirectValidation_NoClaudeCLIInvocation(t *testing.T) {
 // pass/fail based on command exit codes (0=pass). The Runner needs a
 // cmdRunnerFn field for injecting command execution behavior in tests.
 func TestDirectValidation_ExitCodeZeroMeansPass(t *testing.T) {
-	r, _, _ := setupDirectValidationRunner(t, nil)
-	bc := newBeadContext(t)
-
-	// Expected failure: cmdRunnerFn does not exist on Runner yet.
-	// After implementation, this injectable function will execute shell commands
-	// and return their stdout, stderr, and exit code.
-	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) {
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		return "ok", "", 0, nil
 	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+	bc := newBeadContext(t)
 
 	err := r.runValidation(context.Background(), bc)
 
@@ -147,18 +157,16 @@ func TestDirectValidation_ExitCodeZeroMeansPass(t *testing.T) {
 // implementation, a non-zero exit code from any command should cause
 // validation to fail, and the stderr should be captured in the result output.
 func TestDirectValidation_NonZeroExitCodeMeansFailWithStderr(t *testing.T) {
-	r, _, _ := setupDirectValidationRunner(t, nil)
-	bc := newBeadContext(t)
-
 	stderrMsg := "FAIL: TestSomething (0.01s)\n    expected 1, got 2"
 
-	// Expected failure: cmdRunnerFn does not exist on Runner yet.
-	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) {
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		if command == "go test ./..." {
 			return "", stderrMsg, 1, nil
 		}
 		return "ok", "", 0, nil
 	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+	bc := newBeadContext(t)
 
 	err := r.runValidation(context.Background(), bc)
 
@@ -180,19 +188,17 @@ func TestDirectValidation_NonZeroExitCodeMeansFailWithStderr(t *testing.T) {
 // implementation, when the first command fails, subsequent commands should
 // not be executed.
 func TestDirectValidation_StopsOnFirstFailure(t *testing.T) {
-	r, _, _ := setupDirectValidationRunner(t, nil)
-	bc := newBeadContext(t)
-
 	commandsExecuted := []string{}
 
-	// Expected failure: cmdRunnerFn does not exist on Runner yet.
-	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) {
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		commandsExecuted = append(commandsExecuted, command)
 		if command == "go test ./..." {
 			return "", "test failure", 1, nil
 		}
 		return "ok", "", 0, nil
 	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+	bc := newBeadContext(t)
 
 	_ = r.runValidation(context.Background(), bc)
 
@@ -237,17 +243,15 @@ func TestDirectValidation_AnalyzerOnlyCalledOnFailure(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, _, mockAnalyzer := setupDirectValidationRunner(t, nil)
-			bc := newBeadContext(t)
-			mockAnalyzer.AnalyzeCalls = 0
-
-			// Expected failure: cmdRunnerFn does not exist on Runner yet.
-			r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) {
+			cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 				if tt.exitCode != 0 {
 					return "", "command failed", tt.exitCode, nil
 				}
 				return "ok", "", 0, nil
 			}
+			r, _, mockAnalyzer := setupDirectValidationRunner(t, nil, cmdRunner)
+			bc := newBeadContext(t)
+			mockAnalyzer.AnalyzeCalls = 0
 
 			err := r.runValidation(context.Background(), bc)
 
@@ -289,16 +293,14 @@ func TestDirectValidation_ExecutesAllCommandsOnSuccess(t *testing.T) {
 		},
 	}
 
-	r, _, _ := setupDirectValidationRunner(t, cfg)
-	bc := newBeadContext(t)
-
 	commandsExecuted := []string{}
 
-	// Expected failure: cmdRunnerFn does not exist on Runner yet.
-	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) {
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		commandsExecuted = append(commandsExecuted, command)
 		return "ok", "", 0, nil
 	}
+	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
+	bc := newBeadContext(t)
 
 	err := r.runValidation(context.Background(), bc)
 
@@ -327,17 +329,16 @@ func TestDirectValidation_ExecutesAllCommandsOnSuccess(t *testing.T) {
 // implementation, commands should be executed with the bead's working
 // directory, not the runner's working directory.
 func TestDirectValidation_WorkDirPassedToCommands(t *testing.T) {
-	r, _, _ := setupDirectValidationRunner(t, nil)
-	bc := newBeadContext(t)
-
-	expectedWorkDir := bc.PromptCtx.WorkDir
 	var receivedWorkDir string
 
-	// Expected failure: cmdRunnerFn does not exist on Runner yet.
-	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) {
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		receivedWorkDir = workDir
 		return "ok", "", 0, nil
 	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+	bc := newBeadContext(t)
+
+	expectedWorkDir := bc.PromptCtx.WorkDir
 
 	_ = r.runValidation(context.Background(), bc)
 
@@ -358,9 +359,10 @@ func TestDirectValidation_WorkDirPassedToCommands(t *testing.T) {
 func TestDirectValidation_RecoveryStillWorks(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
-			Enabled:        true,
-			Commands:       []string{"go test ./..."},
-			MaxFixAttempts: 1,
+			Enabled:              true,
+			Commands:             []string{"go test ./..."},
+			MaxFixAttempts:       1,
+			MaxValidationRetries: 1,
 		},
 		Preflight: config.PreflightConfig{},
 		Claude: config.ClaudeConfig{
@@ -371,42 +373,40 @@ func TestDirectValidation_RecoveryStillWorks(t *testing.T) {
 	}
 	cfg.SetDefaults()
 
-	var buf strings.Builder
-	mockClaude := &mockClaudeClient{
-		// StreamRun is used for build (fix) attempts — Claude IS used here
-		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			return &claude.Result{Success: true, Output: "Fixed the error"}, nil
-		},
-	}
-	mockAnalyzer := &mockFailureAnalyzer{}
-	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
-	mockRouter := provider.NewSingleProviderRouter(mockProvider)
-
-	r := &Runner{
-		cfg:      cfg,
-		router:   mockRouter,
-		invoker:  newInvokerForTest(mockRouter, &buf, nil),
-		renderer: &mockRenderer{},
-		analyzer: mockAnalyzer,
-		output:   &buf,
-	}
-
-	bc := newBeadContext(t)
-	bc.MaxRetries = 1
-	bc.MaxRetriesPerBead = 5
-	bc.ParentCtx = context.Background()
-
 	validationCallCount := 0
-
-	// Expected failure: cmdRunnerFn does not exist on Runner yet.
-	// First call fails, second call (after fix) succeeds
-	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) {
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		validationCallCount++
 		if validationCallCount == 1 {
 			return "", "FAIL: TestSomething", 1, nil
 		}
 		return "ok", "", 0, nil
 	}
+
+	// Create a validation.Runner with an executeFn that simulates Claude fixing the issue
+	executeFnCalled := false
+	valRunner := validation.NewRunner(cfg, cmdRunner, nil,
+		func(ctx context.Context, bc *runtypes.BeadContext) bool {
+			executeFnCalled = true
+			return true
+		},
+	)
+
+	var buf strings.Builder
+	mockAnalyzer := &mockFailureAnalyzer{}
+
+	r := &Runner{
+		cfg:              cfg,
+		renderer:         &mockRenderer{},
+		analyzer:         mockAnalyzer,
+		output:           &buf,
+		validationRunner: valRunner,
+		cmdRunnerFn:      cmdRunner,
+	}
+
+	bc := newBeadContext(t)
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
+	bc.ParentCtx = context.Background()
 
 	err := r.runValidationWithRecovery(context.Background(), bc)
 
@@ -419,6 +419,7 @@ func TestDirectValidation_RecoveryStillWorks(t *testing.T) {
 	if !bc.Result.ValidationRetried {
 		t.Error("expected ValidationRetried=true after recovery attempt")
 	}
+	_ = executeFnCalled // Used by the validation runner's recovery
 }
 
 // TestDirectValidation_CapturesStdoutAndStderr verifies that both stdout
@@ -430,14 +431,21 @@ func TestDirectValidation_RecoveryStillWorks(t *testing.T) {
 // the command that failed and its stderr, providing useful context for
 // the analyzer and the user.
 func TestDirectValidation_CapturesStdoutAndStderr(t *testing.T) {
-	r, _, _ := setupDirectValidationRunner(t, nil)
-	bc := newBeadContext(t)
-
 	expectedStderr := "src/main.go:15:3: undefined: foo"
 	expectedCommand := "go vet ./..."
 
-	// Expected failure: cmdRunnerFn does not exist on Runner yet.
-	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./...", "go vet ./..."},
+		},
+		Preflight: config.PreflightConfig{},
+		Claude: config.ClaudeConfig{
+			AnalysisTimeout: 30,
+		},
+	}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		if command == "go test ./..." {
 			return "ok", "", 0, nil
 		}
@@ -446,9 +454,8 @@ func TestDirectValidation_CapturesStdoutAndStderr(t *testing.T) {
 		}
 		return "ok", "", 0, nil
 	}
-
-	// Adjust command order so go test runs first (passes), then go vet fails
-	r.cfg.Validation.Commands = []string{"go test ./...", "go vet ./..."}
+	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
+	bc := newBeadContext(t)
 
 	_ = r.runValidation(context.Background(), bc)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
 // TestRunValidationAppendsFailureSummary verifies that after a validation command
@@ -59,14 +60,16 @@ FAIL	github.com/example/pkg	0.023s`,
 			cfg.SetDefaults()
 			cfg.NormalizeNilFields()
 
+			cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+				return tt.stdout, tt.stderr, 1, nil // exit code 1 = failure
+			}
+
 			var buf strings.Builder
 			r := &Runner{
-				cfg:      cfg,
-				output:   &buf,
-				analyzer: &mockFailureAnalyzer{},
-				cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-					return tt.stdout, tt.stderr, 1, nil // exit code 1 = failure
-				},
+				cfg:              cfg,
+				output:           &buf,
+				analyzer:         &mockFailureAnalyzer{},
+				validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
 			}
 
 			bc := &runtypes.BeadContext{
@@ -110,16 +113,18 @@ func TestRunValidationAccumulatesMultipleFailures(t *testing.T) {
 		"--- FAIL: TestSecond (0.02s)\nFAIL\tpkg/second\t0.02s",
 	}
 
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		idx := callCount
+		callCount++
+		return failureOutputs[idx], "", 1, nil
+	}
+
 	var buf strings.Builder
 	r := &Runner{
-		cfg:      cfg,
-		output:   &buf,
-		analyzer: &mockFailureAnalyzer{},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			idx := callCount
-			callCount++
-			return failureOutputs[idx], "", 1, nil
-		},
+		cfg:              cfg,
+		output:           &buf,
+		analyzer:         &mockFailureAnalyzer{},
+		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
 	}
 
 	workDir := t.TempDir()

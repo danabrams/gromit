@@ -519,7 +519,39 @@ func isTestOnlyDiff(diff string) bool {
 
 // runDirectValidationCheck delegates to the validation.Runner's RunDirect method.
 func (r *Runner) runDirectValidationCheck(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-	return r.validationRunner.RunDirect(ctx, commands, workDir)
+	if r.validationRunner != nil {
+		return r.validationRunner.RunDirect(ctx, commands, workDir)
+	}
+	return r.runDirectValidationFallback(ctx, commands, workDir)
+}
+
+// runDirectValidationFallback runs validation commands using the facade's cmdRunnerFn.
+// Used when validationRunner is not wired (e.g., in tests that set cmdRunnerFn directly).
+func (r *Runner) runDirectValidationFallback(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+	for _, command := range commands {
+		stdout, stderr, exitCode, err := r.runCmd(ctx, command, workDir)
+		if err != nil {
+			return nil, fmt.Errorf("validation command %q: %w", command, err)
+		}
+		if exitCode != 0 {
+			failureOutput := fmt.Sprintf("Command failed: %s (exit code %d)\n", command, exitCode)
+			if stdout != "" {
+				failureOutput += "\nStdout:\n" + stdout
+			}
+			if stderr != "" {
+				failureOutput += "\nStderr:\n" + stderr
+			}
+			return &claude.Result{
+				Success:  false,
+				Output:   failureOutput,
+				ExitCode: exitCode,
+			}, nil
+		}
+	}
+	return &claude.Result{
+		Success: true,
+		Output:  "VALIDATION_PASSED",
+	}, nil
 }
 
 // runRefactorWithRouter executes a refactor invocation using the router with automatic fallback.
@@ -717,7 +749,7 @@ func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *runtyp
 }
 
 // runValidation runs the validation step (tests/lint) after a successful build.
-// Delegates core command execution and recovery to the validation.Runner,
+// Delegates core command execution and failure accumulation to the validation.Runner,
 // then handles facade concerns: preflight, logging, failure analysis, and post-success stages.
 func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) error {
 	if !r.cfg.Validation.Enabled {
@@ -736,19 +768,19 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 
 	r.log("Running validation commands directly...")
 
-	// Delegate command execution to validation runner
-	result, cmdErr := r.validationRunner.RunDirect(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
-	if cmdErr != nil {
-		return cmdErr
-	}
+	// Capture output before validation to extract failure output afterward
+	outputBefore := bc.Result.Output
 
-	if result != nil && !result.Success {
-		failureOutput := result.Output
+	// Delegate core validation (command execution + failure accumulation) to validation.Runner
+	valErr := r.validationRunner.Validate(ctx, bc)
 
-		// Extract and accumulate validation failure summary for build prompt injection
-		if summary := validation.ExtractValidationSummary(failureOutput); summary != "" {
-			r.validationFailures = append(r.validationFailures, summary)
-		}
+	// Sync failure summaries from validation.Runner to facade
+	r.validationFailures = r.validationRunner.Failures()
+
+	if valErr != nil && errors.Is(valErr, validation.ErrValidationFailed) {
+		// Extract the failure output appended by the validation runner
+		failureOutput := strings.TrimPrefix(bc.Result.Output, outputBefore)
+		failureOutput = strings.TrimPrefix(failureOutput, "\n\n=== VALIDATION OUTPUT ===\n")
 
 		r.log("\nValidation failed. Output:")
 		r.log("%s", failureOutput)
@@ -773,12 +805,12 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 			escalation.ExtractLearning(bc, analysis, r.renderer.GetLearningsFile())
 		}
 
-		bc.Result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
 		return errValidationFailed
+	} else if valErr != nil {
+		// Non-validation error (e.g., command execution failure)
+		return valErr
 	}
 
-	bc.Result.Validated = true
-	bc.Result.ValidationMode = "direct"
 	r.log("Validation passed")
 
 	// Update runner's touched packages map for learning extraction filtering
