@@ -34,11 +34,6 @@ func testBead() *bead.Bead {
 // TestBuildTemplatesRenderValidationFailuresSection verifies that all three build
 // templates render a "Recent Validation Issues" section when RecentValidationFailures
 // is populated, and omit it when empty.
-//
-// Expected failure: The build templates do not yet contain a conditional section
-// for RecentValidationFailures — the template action {{if .RecentValidationFailures}}
-// and the "Recent Validation Issues" heading have not been added to PROMPT_build.md,
-// PROMPT_atdd_build.md, or PROMPT_tdd_build.md.
 func TestBuildTemplatesRenderValidationFailuresSection(t *testing.T) {
 	r := setupRealTemplateRenderer(t)
 
@@ -61,8 +56,6 @@ func TestBuildTemplatesRenderValidationFailuresSection(t *testing.T) {
 
 	for _, tmpl := range templates {
 		t.Run(tmpl.name+" with failures present", func(t *testing.T) {
-			// Expected failure: templates do not yet render a "Recent Validation Issues"
-			// section from the RecentValidationFailures context field.
 			ctx := &Context{
 				Bead:                     testBead(),
 				Model:                    "sonnet",
@@ -88,8 +81,6 @@ func TestBuildTemplatesRenderValidationFailuresSection(t *testing.T) {
 		})
 
 		t.Run(tmpl.name+" with no failures", func(t *testing.T) {
-			// Expected failure: templates do not yet have the conditional block,
-			// so this subtest verifies the section is absent when failures are empty.
 			ctx := &Context{
 				Bead:                     testBead(),
 				Model:                    "sonnet",
@@ -112,9 +103,6 @@ func TestBuildTemplatesRenderValidationFailuresSection(t *testing.T) {
 // TestBuildTemplatesValidationFailuresSectionPlacement verifies that the
 // "Recent Validation Issues" section is placed between the Learnings sections
 // and the Project Context section in all three build templates.
-//
-// Expected failure: The "Recent Validation Issues" section does not exist in any
-// of the three build templates yet.
 func TestBuildTemplatesValidationFailuresSectionPlacement(t *testing.T) {
 	r := setupRealTemplateRenderer(t)
 
@@ -131,8 +119,6 @@ func TestBuildTemplatesValidationFailuresSectionPlacement(t *testing.T) {
 
 	for _, tmpl := range templates {
 		t.Run(tmpl.name, func(t *testing.T) {
-			// Expected failure: The "Recent Validation Issues" section has not been
-			// added to the templates, so positional checks will fail.
 			ctx := &Context{
 				Bead:      testBead(),
 				Model:     "sonnet",
@@ -168,10 +154,6 @@ func TestBuildTemplatesValidationFailuresSectionPlacement(t *testing.T) {
 // TestBuildTemplatesSelfCheckGuidance verifies that all three build templates
 // include self-check guidance in their Instructions section, instructing the
 // agent to run validation commands before completing.
-//
-// Expected failure: The Instructions sections in PROMPT_build.md, PROMPT_atdd_build.md,
-// and PROMPT_tdd_build.md do not yet contain self-check guidance about running
-// "go test" or "go vet" before completing.
 func TestBuildTemplatesSelfCheckGuidance(t *testing.T) {
 	r := setupRealTemplateRenderer(t)
 
@@ -188,8 +170,6 @@ func TestBuildTemplatesSelfCheckGuidance(t *testing.T) {
 
 	for _, tmpl := range templates {
 		t.Run(tmpl.name, func(t *testing.T) {
-			// Expected failure: The self-check guidance has not been added to the
-			// Instructions section of the build templates yet.
 			ctx := &Context{
 				Bead:                     testBead(),
 				Model:                    "sonnet",
