@@ -1007,7 +1007,7 @@ func (r *Runner) shouldRunRefactor(bc *beadContext, diff string) bool {
 	// Check file count threshold
 	minFiles := r.cfg.Refactor.MinFilesChanged
 	if minFiles == 0 {
-		// 0 means always run (no file count check)
+		// Threshold of 0 means always run refactor (no file count check)
 		return true
 	}
 
