@@ -519,39 +519,10 @@ func isTestOnlyDiff(diff string) bool {
 
 // runDirectValidationCheck delegates to the validation.Runner's RunDirect method.
 func (r *Runner) runDirectValidationCheck(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-	if r.validationRunner != nil {
-		return r.validationRunner.RunDirect(ctx, commands, workDir)
+	if r.validationRunner == nil {
+		return nil, fmt.Errorf("validationRunner not wired — all constructors must wire validationRunner")
 	}
-	return r.runDirectValidationFallback(ctx, commands, workDir)
-}
-
-// runDirectValidationFallback runs validation commands using the facade's cmdRunnerFn.
-// Used when validationRunner is not wired (e.g., in tests that set cmdRunnerFn directly).
-func (r *Runner) runDirectValidationFallback(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-	for _, command := range commands {
-		stdout, stderr, exitCode, err := r.runCmd(ctx, command, workDir)
-		if err != nil {
-			return nil, fmt.Errorf("validation command %q: %w", command, err)
-		}
-		if exitCode != 0 {
-			failureOutput := fmt.Sprintf("Command failed: %s (exit code %d)\n", command, exitCode)
-			if stdout != "" {
-				failureOutput += "\nStdout:\n" + stdout
-			}
-			if stderr != "" {
-				failureOutput += "\nStderr:\n" + stderr
-			}
-			return &claude.Result{
-				Success:  false,
-				Output:   failureOutput,
-				ExitCode: exitCode,
-			}, nil
-		}
-	}
-	return &claude.Result{
-		Success: true,
-		Output:  "VALIDATION_PASSED",
-	}, nil
+	return r.validationRunner.RunDirect(ctx, commands, workDir)
 }
 
 // runRefactorWithRouter executes a refactor invocation using the router with automatic fallback.
@@ -839,81 +810,87 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 	return nil
 }
 
-// runValidationWithRecovery wraps runValidation with a recovery mechanism.
-// On validation failure, it first attempts trivial auto-fixes (gofmt/goimports),
-// then falls back to Claude-based fixes via the validation.Runner's RunWithRecovery.
+// runValidationWithRecovery delegates validation and recovery entirely to the
+// validation.Runner's RunWithRecovery method. The facade handles only
+// orchestration concerns: preflight checking, logging, failure analysis,
+// learning extraction, and post-success stages (review).
 func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.BeadContext) error {
-	err := r.runValidation(ctx, bc)
-	if err == nil {
+	if !r.cfg.Validation.Enabled {
 		return nil
 	}
 
-	// Only recover from errValidationFailed errors, not invocation/nil-result errors
-	if !errors.Is(err, errValidationFailed) {
-		return err
+	checker, err := preflight.NewChecker(r.cfg.Preflight, r.output)
+	if err != nil {
+		return fmt.Errorf("creating preflight checker: %w", err)
+	}
+	if err := checker.Check(r.cfg.Validation.Commands); err != nil {
+		r.log("Warning: %v", err)
+		bc.Result.Validated = false
+		return nil // Skip validation, not an error
 	}
 
-	maxRetries := r.cfg.Validation.MaxValidationRetries
-	if maxRetries <= 0 {
-		return err
+	r.log("Running validation commands directly...")
+
+	// Delegate core validation + recovery to validation.Runner
+	valErr := r.validationRunner.RunWithRecovery(ctx, bc)
+
+	// Sync failure summaries from validation.Runner to facade
+	r.validationFailures = r.validationRunner.Failures()
+
+	if valErr != nil && errors.Is(valErr, validation.ErrValidationFailed) {
+		// Extract the failure output from bc.Result.Output for logging
+		r.log("\nValidation failed.")
+
+		logPath, logErr := logger.WriteValidationLog(r.cfg.Paths.Logs, bc.Result.Output)
+		if logErr != nil {
+			r.log("Warning: could not save validation log: %v", logErr)
+		} else {
+			r.log("\nFull output saved to: %s", logPath)
+		}
+
+		if bc.StartCommit != "" {
+			r.showPartialProgress(bc.Bead, bc.StartCommit)
+		}
+
+		// Run failure analysis (Claude only for failure interpretation)
+		r.log("Running failure analysis...")
+		valAnalysisCtx, valAnalysisCancel := context.WithTimeout(ctx, time.Duration(r.cfg.Claude.AnalysisTimeout)*time.Second)
+		analysis, analyzeErr := r.analyzer.Analyze(valAnalysisCtx, bc.Bead, bc.Result.Output)
+		valAnalysisCancel()
+		if analyzeErr == nil && analysis != nil && r.renderer != nil {
+			escalation.ExtractLearning(bc, analysis, r.renderer.GetLearningsFile())
+		}
+
+		return errValidationFailed
+	} else if valErr != nil {
+		return valErr
 	}
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		r.log("Validation failed, attempting fix (attempt %d/%d)...", attempt+1, maxRetries)
-		bc.Result.ValidationRetried = true
+	r.log("Validation passed")
 
-		// Step 1: Try trivial auto-fix (gofmt/goimports) before invoking Claude
-		if r.autoFixFn != nil {
-			r.log("Running auto-fix (gofmt/goimports)...")
-			if fixErr := r.autoFixFn(bc.StartCommit); fixErr != nil {
-				r.log("Warning: auto-fix failed: %v", fixErr)
-			}
+	// Update runner's touched packages map for learning extraction filtering
+	if bc.TouchedPackages != nil && len(bc.TouchedPackages) > 0 {
+		r.updateTouchedPackages(bc.TouchedPackages)
+	}
 
-			// Re-validate after auto-fix
-			if valErr := r.runValidation(ctx, bc); valErr == nil {
-				r.log("Trivial auto-fix resolved validation failure")
-				bc.Result.TrivialAutoFixed = true
-				return nil
-			}
-		}
+	// Run post-success stages sequentially
+	learningEnabled := r.cfg != nil && r.cfg.Loop.ShouldLearnFromSuccess()
+	reviewEnabled := r.cfg != nil && r.cfg.Review.Enabled
 
-		// Step 2: Auto-fix didn't resolve it — invoke Claude for a fix
-		bc.PromptCtx.IsRetry = true
-		bc.PromptCtx.PrevFailure = bc.Result.Output
-		bc.PromptCtx.FailureContext = "Validation (tests/lint) failed after your build succeeded. Fix the validation errors."
-
-		var renderErr error
-		bc.BuildPrompt, renderErr = r.renderer.RenderBuild(bc.PromptCtx)
-		if renderErr != nil {
-			return fmt.Errorf("rendering validation fix prompt: %w", renderErr)
-		}
-
-		// Save retry state and enforce single attempt
-		savedMaxRetries := bc.MaxRetries
-		savedRetriesThisModel := bc.RetriesThisModel
-		savedTotalRetries := bc.TotalRetriesThisBead
-		bc.MaxRetries = 0
-		bc.RetriesThisModel = 0
-
-		success := r.escalationHandler.ExecuteWithRetry(ctx, bc, r.makeInvokeFn())
-
-		// Restore retry state
-		bc.MaxRetries = savedMaxRetries
-		bc.RetriesThisModel = savedRetriesThisModel
-		bc.TotalRetriesThisBead = savedTotalRetries
-
-		if !success {
-			continue // Count as a failed retry, try next attempt
-		}
-
-		// Re-validate after Claude fix
-		if valErr := r.runValidation(ctx, bc); valErr == nil {
-			r.log("Validation fix succeeded")
-			return nil
+	if learningEnabled && r.renderer != nil && r.router != nil {
+		skipPackages := bc.TouchedPackages != nil && len(bc.TouchedPackages) > 0 && !r.hasNewPackages(bc.TouchedPackages)
+		if !skipPackages {
+			lf := r.renderer.GetLearningsFile()
+			adapter := &successLearningRouterAdapter{r: r.router}
+			escalation.ExtractSuccessLearning(ctx, bc, r.cfg, lf, adapter, r.log)
 		}
 	}
 
-	return err
+	if reviewEnabled {
+		return r.runPostSuccessReview(ctx, bc)
+	}
+
+	return nil
 }
 
 // countChangedFiles counts the number of files in a git diff output.

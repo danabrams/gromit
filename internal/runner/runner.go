@@ -272,6 +272,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		cmdRunnerFn: defaultCmdRunner,
 	}
 	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads, r.log)
+	r.validationRunner = validation.NewRunner(cfg, defaultCmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	return r, nil
 }
 
