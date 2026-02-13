@@ -59,10 +59,6 @@ func setupRendererWithLearnings(t *testing.T, n int, targetCharLen int) *Rendere
 }
 
 func TestBuildContext_LearningsCapApplied(t *testing.T) {
-	// Expected failure: SetMaxLearningChars method does not exist on Renderer yet.
-	// BuildContext currently calls GetConfirmed() (returning all learnings),
-	// not GetConfirmedFiltered() with a character budget.
-
 	testBead := &bead.Bead{
 		ID:              "test-1",
 		Title:           "Test bead",
@@ -135,10 +131,6 @@ func TestBuildContext_LearningsCapApplied(t *testing.T) {
 }
 
 func TestBuildContext_LearningsCapPrefersMostRecent(t *testing.T) {
-	// Expected failure: SetMaxLearningChars method does not exist on Renderer yet.
-	// After implementation, BuildContext should use GetConfirmedFiltered which
-	// selects from most recent to oldest.
-
 	r := setupRendererWithLearnings(t, 5, 100)
 	r.SetMaxLearningChars(250) // Budget fits ~2 entries of 100 chars each
 
@@ -171,10 +163,6 @@ func TestBuildContext_LearningsCapPrefersMostRecent(t *testing.T) {
 }
 
 func TestBuildContext_ZeroBudgetBackwardCompatible(t *testing.T) {
-	// Expected failure: SetMaxLearningChars method does not exist on Renderer yet.
-	// When maxLearningChars is 0 (zero-value / unset), BuildContext should
-	// return all confirmed learnings, preserving backward compatibility.
-
 	r := setupRendererWithLearnings(t, 5, 100)
 	// Explicitly set zero to confirm backward-compatible behavior
 	r.SetMaxLearningChars(0)
