@@ -313,6 +313,9 @@ func (c *Config) SetDefaults() {
 	if c.Validation.MaxValidationRetries == 0 {
 		c.Validation.MaxValidationRetries = 2
 	}
+	if c.Refactor.MinFilesChanged == 0 {
+		c.Refactor.MinFilesChanged = 3
+	}
 	if len(c.Escalation.Chain) == 0 {
 		c.Escalation.Chain = []string{ModelHaiku, ModelSonnet, ModelOpus}
 	}
