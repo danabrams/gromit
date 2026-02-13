@@ -122,6 +122,15 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iterat
 	}
 	bc.promptCtx = promptCtx
 
+	// Inject recent validation failure summaries (last 3) into prompt context
+	if n := len(r.validationFailures); n > 0 {
+		start := 0
+		if n > 3 {
+			start = n - 3
+		}
+		bc.promptCtx.RecentValidationFailures = r.validationFailures[start:]
+	}
+
 	if r.cfg.ScopeCheck.Enabled {
 		// Use cached scope estimate if available (from scope gate), otherwise call checkScope
 		scopeEstimate := bc.scopeEstimate
