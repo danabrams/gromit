@@ -141,24 +141,124 @@ func TestExtractSuccessLearning_RunsForNonHaikuTierBeads(t *testing.T) {
 
 // TestExtractSuccessLearning_SkipsForKnownPackages verifies that learning extraction
 // is skipped when the bead only touches packages that have been seen in the current run.
-// Expected failure: Runner.touchedPackages and beadContext.touchedPackages fields do not exist yet
 func TestExtractSuccessLearning_SkipsForKnownPackages(t *testing.T) {
-	t.Skip("TODO: implement after touchedPackages field is added to Runner and beadContext")
-	// This test will be enabled after implementation adds:
-	// - Runner.touchedPackages map[string]bool field
-	// - beadContext.touchedPackages []string field
-	// - extractSuccessLearning logic to check r.touchedPackages
+	var buf strings.Builder
+	providerInvoked := false
+
+	mockProvider := &mockProviderForRunner{
+		FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+			providerInvoked = true
+			return &provider.Result{
+				Success: true,
+				Output:  `{"learning": "Test learning", "category": "patterns"}`,
+			}, nil
+		},
+	}
+
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+	lf, _ := learnings.NewFile(t.TempDir())
+	mockRend := &mockPromptRenderer{
+		LearningsFile: lf,
+		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
+			return "learning prompt", nil
+		},
+	}
+
+	learnFromSuccessEnabled := true
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessEnabled,
+			},
+		},
+		router:   mockRouter,
+		renderer: mockRend,
+		output:   &buf,
+		touchedPackages: map[string]bool{
+			"internal/runner": true,
+			"internal/config": true,
+		},
+	}
+
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:          "test-1",
+			Title:       "Test",
+			Description: "Test description",
+		},
+		tier:            provider.TierMedium, // non-haiku tier
+		touchedPackages: []string{"internal/runner"}, // all packages already seen
+	}
+
+	r.extractSuccessLearning(context.Background(), bc)
+
+	// Should NOT invoke provider when all packages are already seen
+	if providerInvoked {
+		t.Error("expected learning extraction to be skipped for known packages, but provider was invoked")
+	}
+
+	// Should NOT log success learning messages
+	if strings.Contains(buf.String(), "Success learning extracted") {
+		t.Error("expected no learning extraction log for known packages")
+	}
 }
 
 // TestExtractSuccessLearning_RunsForNewPackages verifies that learning extraction
 // runs when the bead touches a package not previously seen in the current run.
-// Expected failure: Runner.touchedPackages and beadContext.touchedPackages fields do not exist yet
 func TestExtractSuccessLearning_RunsForNewPackages(t *testing.T) {
-	t.Skip("TODO: implement after touchedPackages field is added to Runner and beadContext")
-	// This test will be enabled after implementation adds:
-	// - Runner.touchedPackages map[string]bool field
-	// - beadContext.touchedPackages []string field
-	// - extractSuccessLearning logic to check hasNewPackages(bc.touchedPackages)
+	var buf strings.Builder
+	providerInvoked := false
+
+	mockProvider := &mockProviderForRunner{
+		FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+			providerInvoked = true
+			return &provider.Result{
+				Success: true,
+				Output:  `{"learning": "Test learning", "category": "patterns"}`,
+			}, nil
+		},
+	}
+
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+	lf, _ := learnings.NewFile(t.TempDir())
+	mockRend := &mockPromptRenderer{
+		LearningsFile: lf,
+		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
+			return "learning prompt", nil
+		},
+	}
+
+	learnFromSuccessEnabled := true
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				LearnFromSuccess: &learnFromSuccessEnabled,
+			},
+		},
+		router:   mockRouter,
+		renderer: mockRend,
+		output:   &buf,
+		touchedPackages: map[string]bool{
+			"internal/runner": true,
+		},
+	}
+
+	bc := &beadContext{
+		bead: &bead.Bead{
+			ID:          "test-1",
+			Title:       "Test",
+			Description: "Test description",
+		},
+		tier:            provider.TierMedium, // non-haiku tier
+		touchedPackages: []string{"internal/runner", "internal/config"}, // internal/config is new
+	}
+
+	r.extractSuccessLearning(context.Background(), bc)
+
+	// SHOULD invoke provider when at least one package is new
+	if !providerInvoked {
+		t.Error("expected learning extraction to run for new packages, but provider was not invoked")
+	}
 }
 
 // TestExtractSuccessLearning_AlwaysRunsOnFailure verifies that learning extraction

@@ -401,6 +401,11 @@ func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
 		return
 	}
 
+	// Skip learning extraction if all touched packages have been seen before
+	if bc.touchedPackages != nil && len(bc.touchedPackages) > 0 && !r.hasNewPackages(bc.touchedPackages) {
+		return
+	}
+
 	// Build a brief summary of what was done (use bead title + first line of description)
 	summary := bc.bead.Title
 	if bc.bead.Description != "" {
