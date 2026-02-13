@@ -45,9 +45,7 @@ func newTestBeadContext() *runtypes.BeadContext {
 
 // --- NewExecutor constructor tests ---
 
-// Expected failure: Executor struct and NewExecutor constructor do not exist yet
 func TestNewExecutor_ReturnsNonNil(t *testing.T) {
-	// NewExecutor should accept narrow dependencies and return a non-nil Executor.
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -57,11 +55,7 @@ func TestNewExecutor_ReturnsNonNil(t *testing.T) {
 	}
 }
 
-// Expected failure: Executor struct and NewExecutor constructor do not exist yet
 func TestNewExecutor_AcceptsNilCallbacks(t *testing.T) {
-	// EscalateTierFn and InvokeFn should be optional — passing nil is valid.
-	// This supports constructing an Executor for test-only scenarios
-	// where escalation and invocation are not needed.
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -73,12 +67,7 @@ func TestNewExecutor_AcceptsNilCallbacks(t *testing.T) {
 
 // --- RunAcceptanceTests tests ---
 
-// Expected failure: Executor.RunAcceptanceTests method does not exist yet
 func TestRunAcceptanceTests_RendersPromptAndInvokes(t *testing.T) {
-	// RunAcceptanceTests should:
-	// 1. Render the acceptance tests prompt via the provided render function
-	// 2. Invoke the LLM via InvokeFn with the rendered prompt
-	// 3. Return nil when the invocation succeeds
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -86,13 +75,11 @@ func TestRunAcceptanceTests_RendersPromptAndInvokes(t *testing.T) {
 	invokeCalled := false
 	var invokedPrompt string
 
-	// Expected failure: RenderFn type does not exist in methodology package yet
 	renderFn := func(ctx *prompt.Context) (string, error) {
 		renderCalled = true
 		return "rendered acceptance test prompt", nil
 	}
 
-	// Expected failure: InvokeFn type does not exist in methodology package yet
 	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) error {
 		invokeCalled = true
 		invokedPrompt = prompt
@@ -117,10 +104,7 @@ func TestRunAcceptanceTests_RendersPromptAndInvokes(t *testing.T) {
 	}
 }
 
-// Expected failure: Executor.RunAcceptanceTests method does not exist yet
 func TestRunAcceptanceTests_PropagatesRenderError(t *testing.T) {
-	// When the render function fails, RunAcceptanceTests should propagate
-	// the error without invoking the LLM.
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -149,9 +133,7 @@ func TestRunAcceptanceTests_PropagatesRenderError(t *testing.T) {
 	}
 }
 
-// Expected failure: Executor.RunAcceptanceTests method does not exist yet
 func TestRunAcceptanceTests_PropagatesInvocationError(t *testing.T) {
-	// When InvokeFn returns an error, RunAcceptanceTests should propagate it.
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -176,15 +158,10 @@ func TestRunAcceptanceTests_PropagatesInvocationError(t *testing.T) {
 
 // --- VerifyTestsFail tests ---
 
-// Expected failure: Executor.VerifyTestsFail method does not exist yet
 func TestVerifyTestsFail_ReturnsNilWhenTestsFail(t *testing.T) {
-	// VerifyTestsFail runs validation and expects it to FAIL.
-	// When tests fail (validation returns non-passing result), VerifyTestsFail
-	// should return nil — this is the expected ATDD behavior before implementation.
 	cfg := newTestConfig()
 	var buf strings.Builder
 
-	// Expected failure: ValidateDirectFn type does not exist in methodology package yet
 	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
 		return &claude.Result{
 			Success:  true, // Claude ran successfully
@@ -202,10 +179,7 @@ func TestVerifyTestsFail_ReturnsNilWhenTestsFail(t *testing.T) {
 	}
 }
 
-// Expected failure: Executor.VerifyTestsFail method does not exist yet
 func TestVerifyTestsFail_ReturnsErrorWhenTestsPass(t *testing.T) {
-	// When validation passes (tests succeed before implementation), VerifyTestsFail
-	// should return an error indicating the tests aren't covering new behavior.
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -229,10 +203,7 @@ func TestVerifyTestsFail_ReturnsErrorWhenTestsPass(t *testing.T) {
 	}
 }
 
-// Expected failure: Executor.VerifyTestsFail method does not exist yet
 func TestVerifyTestsFail_ReturnsErrorWhenValidationDisabled(t *testing.T) {
-	// When validation is not enabled, VerifyTestsFail cannot verify anything
-	// and should return an error.
 	cfg := newTestConfig()
 	cfg.Validation.Enabled = false
 	var buf strings.Builder
@@ -249,10 +220,7 @@ func TestVerifyTestsFail_ReturnsErrorWhenValidationDisabled(t *testing.T) {
 	}
 }
 
-// Expected failure: Executor.VerifyTestsFail method does not exist yet
 func TestVerifyTestsFail_PropagatesValidationError(t *testing.T) {
-	// When the validation function returns an error (e.g., command not found),
-	// VerifyTestsFail should propagate it.
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -272,10 +240,7 @@ func TestVerifyTestsFail_PropagatesValidationError(t *testing.T) {
 	}
 }
 
-// Expected failure: Executor.VerifyTestsFail method does not exist yet
 func TestVerifyTestsFail_NilResultReturnsError(t *testing.T) {
-	// When the validation function returns a nil result, VerifyTestsFail
-	// should return an error rather than panicking.
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -294,7 +259,6 @@ func TestVerifyTestsFail_NilResultReturnsError(t *testing.T) {
 
 // --- IsTestOnlyDiff tests ---
 
-// Expected failure: IsTestOnlyDiff function does not exist in the methodology package yet
 func TestIsTestOnlyDiff(t *testing.T) {
 	tests := []struct {
 		name string
@@ -340,7 +304,6 @@ func TestIsTestOnlyDiff(t *testing.T) {
 
 // --- ParseDiffFiles tests ---
 
-// Expected failure: ParseDiffFiles function does not exist in the methodology package yet
 func TestParseDiffFiles(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -404,21 +367,10 @@ func TestParseDiffFiles(t *testing.T) {
 
 // --- Package isolation test ---
 
-// Expected failure: methodology package does not exist yet — this test verifies
-// that the methodology package uses only narrow interfaces (function types) and
-// does not import the runner/ facade package.
+// TestPackageDoesNotImportRunner verifies structural isolation: this test file
+// compiles within the methodology package without importing runner/, proving
+// the package only depends on runtypes/ and external packages.
 func TestPackageDoesNotImportRunner(t *testing.T) {
-	// The methodology package must not import the runner/ facade.
-	// This is verified structurally: the test file imports from methodology
-	// package (package methodology), and the production code should only
-	// import runtypes/ and standard library / external packages.
-	//
-	// If this test compiles, it means the methodology package exists and
-	// can be tested independently. The import structure at the top of
-	// this file demonstrates isolation: we import runtypes, config, bead,
-	// claude, and prompt — but NOT "runner".
-
-	// Verify the Executor struct exists and can be constructed
 	cfg := newTestConfig()
 	var buf strings.Builder
 	exec := NewExecutor(cfg, &buf, nil, nil, nil)
@@ -426,9 +378,3 @@ func TestPackageDoesNotImportRunner(t *testing.T) {
 		t.Fatal("methodology.NewExecutor should return a non-nil Executor")
 	}
 }
-
-// Ensure imports are used
-var (
-	_ = claude.Result{}
-	_ = bead.Bead{}
-)
