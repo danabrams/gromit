@@ -191,6 +191,34 @@ func TestSubTask_InRuntypes(t *testing.T) {
 	}
 }
 
+// TestSubTask_NormalizeNilFields verifies that normalizeNilFields converts nil
+// slices to empty slices and is nil-safe on the receiver.
+func TestSubTask_NormalizeNilFields(t *testing.T) {
+	t.Run("nil AcceptanceCriteria becomes empty slice", func(t *testing.T) {
+		task := SubTask{Title: "Test", AcceptanceCriteria: nil}
+		task.NormalizeNilFields()
+		if task.AcceptanceCriteria == nil {
+			t.Error("AcceptanceCriteria should be non-nil after NormalizeNilFields")
+		}
+		if len(task.AcceptanceCriteria) != 0 {
+			t.Errorf("AcceptanceCriteria length = %d, want 0", len(task.AcceptanceCriteria))
+		}
+	})
+
+	t.Run("non-nil AcceptanceCriteria unchanged", func(t *testing.T) {
+		task := SubTask{AcceptanceCriteria: []string{"criterion"}}
+		task.NormalizeNilFields()
+		if len(task.AcceptanceCriteria) != 1 || task.AcceptanceCriteria[0] != "criterion" {
+			t.Errorf("AcceptanceCriteria = %v, want [criterion]", task.AcceptanceCriteria)
+		}
+	})
+
+	t.Run("nil receiver does not panic", func(t *testing.T) {
+		var task *SubTask
+		task.NormalizeNilFields() // should not panic
+	})
+}
+
 // TestCallbackFunctionTypes verifies that the callback function types are defined
 // and can be used with the correct signatures.
 func TestCallbackFunctionTypes(t *testing.T) {

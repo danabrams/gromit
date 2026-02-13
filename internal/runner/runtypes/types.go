@@ -81,6 +81,16 @@ type SubTask struct {
 	AcceptanceCriteria []string `json:"acceptance_criteria"`
 }
 
+// NormalizeNilFields ensures nil slices are replaced with empty slices.
+func (s *SubTask) NormalizeNilFields() {
+	if s == nil {
+		return
+	}
+	if s.AcceptanceCriteria == nil {
+		s.AcceptanceCriteria = []string{}
+	}
+}
+
 // GitDiffFn returns a git diff from a start commit.
 type GitDiffFn func(startCommit string) (string, error)
 
