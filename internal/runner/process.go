@@ -78,7 +78,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	// and tier is medium, escalate to high before first invocation
 	if r.cfg.ScopeCheck.Enabled && scopeEstimate != nil && scopeEstimate.Complexity == "high" && bc.Tier == provider.TierMedium {
 		r.log("Scope check: complexity=high, preemptively escalating from medium to high tier")
-		r.escalateTier(bc, provider.TierHigh)
+		r.escalationHandler.EscalateTier(bc, provider.TierHigh)
 	}
 
 	return bc, beadCtx, beadCancel, nil
@@ -113,7 +113,7 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 		if scopeEstimate != nil {
 			if scopeEstimate.Complexity == "high" {
 				r.log("Scope check: complexity=high, auto-escalating to high tier")
-				r.escalateTier(bc, provider.TierHigh)
+				r.escalationHandler.EscalateTier(bc, provider.TierHigh)
 			} else {
 				r.log("Scope check: complexity=%s", scopeEstimate.Complexity)
 			}
@@ -152,42 +152,6 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *runtypes.BeadC
 	}
 
 	return result, stats, stallFired, err
-}
-
-// handleStallTimeout handles the case where a stall timeout was detected during execution.
-// Returns true if the retry loop should continue, false if processBead should return.
-func (r *Runner) handleStallTimeout(ctx context.Context, bc *runtypes.BeadContext) (continueLoop bool) {
-	bc.RetriesThisModel++
-	bc.TotalRetriesThisBead++
-
-	if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
-		r.log("Max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
-		bc.Result.Error = fmt.Errorf("stall timeout: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
-		return false
-	}
-
-	if bc.RetriesThisModel <= bc.MaxRetries {
-		r.log("Stall timeout, retrying with same model (%d/%d)...", bc.RetriesThisModel, bc.MaxRetries)
-		return true
-	}
-
-	r.log("Stall timeout, retries exhausted for tier %s", bc.Tier)
-	nextTier := r.cfg.NextEscalationTier(bc.Tier)
-	if nextTier == "" {
-		r.log("Stall timeout, no more tiers to escalate to - attempting decomposition")
-		return r.attemptDecomposition(ctx, bc, "stall timeout")
-	}
-
-	r.log("Escalating from tier %s to %s after stall", bc.Tier, nextTier)
-	r.escalateTier(bc, nextTier)
-
-	var err error
-	bc.BuildPrompt, err = r.renderer.RenderBuild(bc.PromptCtx)
-	if err != nil {
-		bc.Result.Error = fmt.Errorf("rendering retry prompt: %w", err)
-		return false
-	}
-	return true
 }
 
 // handleScopeTooLarge processes the scope-too-large signal from Claude.
@@ -543,7 +507,7 @@ func (r *Runner) runAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes.B
 		}
 
 		r.log("Escalating acceptance tests from tier %s to %s", currentTier, nextTier)
-		r.escalateTier(bc, nextTier)
+		r.escalationHandler.EscalateTier(bc, nextTier)
 		currentTier = nextTier
 		retries = 0
 	}
