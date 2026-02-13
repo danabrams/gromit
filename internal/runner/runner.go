@@ -834,8 +834,9 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		}
 	}
 
-	// Main execution loop with retry and escalation
-	if !r.executeWithRetry(ctx, bc) {
+	// Main execution loop with retry and escalation — delegated to escalation handler
+	invokeFn := r.makeInvokeFn()
+	if !r.escalationHandler.ExecuteWithRetry(ctx, bc, invokeFn) {
 		return bc.Result
 	}
 
@@ -872,6 +873,69 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 
 	bc.Result.Success = true
 	return bc.Result
+}
+
+// makeInvokeFn creates an InvokeFn callback that wraps the Runner's Claude invocation,
+// handling cost data, scope-too-large, usage limit detection, and timeout classification.
+func (r *Runner) makeInvokeFn() escalation.InvokeFn {
+	return func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*escalation.InvocationResult, error) {
+		r.log("Running Claude with model: %s", bc.Model)
+
+		claudeResult, stats, stallFired, err := r.executeClaudeInvocation(ctx, bc)
+
+		if err != nil {
+			if stallFired && ctx.Err() == nil {
+				return &escalation.InvocationResult{StallFired: true}, err
+			}
+			// Classify timeout type
+			if ctx.Err() != nil && bc.ParentCtx.Err() == nil {
+				bc.Result.TimeoutType = "bead"
+				r.extractTimeoutLearning(bc)
+				return nil, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+			} else if bc.ParentCtx.Err() != nil {
+				return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
+			}
+			bc.Result.TimeoutType = "invocation"
+			return nil, fmt.Errorf("claude invocation: %w", err)
+		}
+
+		if claudeResult == nil {
+			return nil, fmt.Errorf("claude returned nil result")
+		}
+
+		// Populate cost/token data
+		if stats != nil {
+			costUSD, inputTokens, outputTokens := stats.CostData()
+			bc.Result.CostUSD = costUSD
+			bc.Result.InputTokens = inputTokens
+			bc.Result.OutputTokens = outputTokens
+		}
+
+		// Check scope-too-large
+		if isTooLarge, explanation := claude.IsScopeTooLarge(claudeResult); isTooLarge {
+			r.handleScopeTooLarge(bc, claudeResult, explanation)
+			return &escalation.InvocationResult{Result: claudeResult}, bc.Result.Error
+		}
+
+		// Check usage limits
+		signals := usagelimit.Signals{
+			ExitCode: claudeResult.ExitCode,
+			Output:   claudeResult.Output,
+		}
+		if stats != nil {
+			signals.RateLimitHits = stats.RateLimitHits
+		}
+		if usagelimit.Check(signals, usagelimit.ClaudePatterns()) {
+			bc.Result.UsageLimited = true
+			r.log("Warning: usage limit detected - stopping retry attempts")
+			return nil, fmt.Errorf("usage limit detected: retries or escalation will not resolve this failure (exit code: %d, rate limit events: %d)", claudeResult.ExitCode, signals.RateLimitHits)
+		}
+
+		return &escalation.InvocationResult{
+			Result:     claudeResult,
+			StallFired: false,
+		}, nil
+	}
 }
 
 // executeWithRetry runs the main Claude execution loop with retry, escalation,
