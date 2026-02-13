@@ -63,6 +63,7 @@ type Runner struct {
 	autoFixFn          func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
 	labelFilters       []string                                                                                                          // optional spec labels to filter beads
 	validationFailures []string                                                                                                          // recent validation failure summaries from current run, injected into build prompts
+	touchedPackages    map[string]bool                                                                                                   // packages touched in the current run, used to filter learning extraction
 }
 
 // NewRunner creates a new runner
@@ -1373,6 +1374,30 @@ func (r *Runner) getDiff(fromCommit string) (string, error) {
 		return r.gitDiffFn(fromCommit)
 	}
 	return getGitDiff(fromCommit)
+}
+
+// hasNewPackages returns true if any package in the list is not in the runner's
+// touched packages map. Returns true if the map is nil or empty.
+func (r *Runner) hasNewPackages(packages []string) bool {
+	if r.touchedPackages == nil || len(r.touchedPackages) == 0 {
+		return len(packages) > 0
+	}
+	for _, pkg := range packages {
+		if !r.touchedPackages[pkg] {
+			return true
+		}
+	}
+	return false
+}
+
+// updateTouchedPackages adds the given packages to the runner's touched packages map.
+func (r *Runner) updateTouchedPackages(packages []string) {
+	if r.touchedPackages == nil {
+		r.touchedPackages = make(map[string]bool)
+	}
+	for _, pkg := range packages {
+		r.touchedPackages[pkg] = true
+	}
 }
 
 // defaultCmdRunner executes a shell command and returns stdout, stderr, exit code.

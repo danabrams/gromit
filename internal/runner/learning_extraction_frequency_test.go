@@ -277,9 +277,54 @@ func TestUpdateTouchedPackages(t *testing.T) {
 
 // TestHasNewPackages verifies that hasNewPackages returns true if any package
 // in the list is not in the runner's touched packages map.
-// Expected failure: Runner.hasNewPackages method does not exist yet
 func TestHasNewPackages(t *testing.T) {
-	t.Skip("TODO: implement after hasNewPackages method is added")
-	// This test will be enabled after implementation adds:
-	// - Runner.hasNewPackages(packages []string) bool method
+	tests := []struct {
+		name            string
+		touchedPackages map[string]bool
+		packages        []string
+		expected        bool
+	}{
+		{
+			name:            "empty runner map, non-empty packages",
+			touchedPackages: map[string]bool{},
+			packages:        []string{"internal/runner"},
+			expected:        true,
+		},
+		{
+			name:            "all packages already seen",
+			touchedPackages: map[string]bool{"internal/runner": true, "internal/config": true},
+			packages:        []string{"internal/runner", "internal/config"},
+			expected:        false,
+		},
+		{
+			name:            "some packages new",
+			touchedPackages: map[string]bool{"internal/runner": true},
+			packages:        []string{"internal/runner", "internal/config"},
+			expected:        true,
+		},
+		{
+			name:            "empty packages list",
+			touchedPackages: map[string]bool{"internal/runner": true},
+			packages:        []string{},
+			expected:        false,
+		},
+		{
+			name:            "nil runner map",
+			touchedPackages: nil,
+			packages:        []string{"internal/runner"},
+			expected:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &Runner{
+				touchedPackages: tt.touchedPackages,
+			}
+			result := r.hasNewPackages(tt.packages)
+			if result != tt.expected {
+				t.Errorf("hasNewPackages() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
 }
