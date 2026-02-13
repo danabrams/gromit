@@ -1235,7 +1235,7 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.Bea
 		bc.MaxRetries = 0
 		bc.RetriesThisModel = 0
 
-		success := r.executeWithRetry(ctx, bc)
+		success := r.escalationHandler.ExecuteWithRetry(ctx, bc, r.makeInvokeFn())
 
 		// Restore retry state
 		bc.MaxRetries = savedMaxRetries
