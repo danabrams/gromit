@@ -9,7 +9,8 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
-
+	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -252,6 +253,50 @@ func TestAnalyzeAndHandleFailure_RecoverableRetries(t *testing.T) {
 	}
 	if bc.TotalRetriesThisBead != 1 {
 		t.Errorf("TotalRetriesThisBead = %d, want 1 after recoverable retry", bc.TotalRetriesThisBead)
+	}
+}
+
+func TestAnalyzeAndHandleFailure_RecoverableRetrySetsPromptContext(t *testing.T) {
+	// Expected failure: AnalyzeAndHandleFailure does not set bc.PromptCtx.IsRetry
+	// or bc.PromptCtx.FailureContext when deciding to retry a recoverable failure.
+	// The old runner-local method set these fields but the escalation extraction
+	// lost that behavior. The fix must set IsRetry=true and FailureContext to the
+	// analysis Suggestion so the retry prompt includes failure context.
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategorySyntax,
+				Recoverable: true,
+				RootCause:   "missing import",
+				Suggestion:  "Add the missing import statement",
+			}, nil
+		},
+	}
+	cfg := newTestConfig()
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.PromptCtx = &prompt.Context{
+		Model:              "sonnet",
+		ConfirmedLearnings: []learnings.Learning{},
+		RecentLearnings:    []learnings.Learning{},
+	}
+	bc.RetriesThisModel = 0
+	bc.MaxRetries = 2
+	claudeResult := &claude.Result{Success: false, Output: "compile error: missing import"}
+
+	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
+	if !continueLoop {
+		t.Fatal("expected continueLoop=true for recoverable failure")
+	}
+
+	// The handler must set prompt context fields so the retry prompt includes failure context.
+	if !bc.PromptCtx.IsRetry {
+		t.Error("expected IsRetry=true after recoverable failure; handler must set bc.PromptCtx.IsRetry")
+	}
+	if bc.PromptCtx.FailureContext != "Add the missing import statement" {
+		t.Errorf("expected FailureContext=%q, got %q; handler must set bc.PromptCtx.FailureContext to analysis.Suggestion",
+			"Add the missing import statement", bc.PromptCtx.FailureContext)
 	}
 }
 

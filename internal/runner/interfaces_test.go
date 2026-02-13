@@ -862,7 +862,7 @@ func TestAnalyzeAndHandleFailureWithMocks(t *testing.T) {
 	}
 
 	claudeResult := &claude.Result{Success: false, Output: "compile error: missing import"}
-	continueLoop := r.analyzeAndHandleFailure(context.Background(), bc, claudeResult)
+	continueLoop := r.escalationHandler.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 
 	if !continueLoop {
 		t.Error("expected continueLoop=true for recoverable failure")
@@ -1124,6 +1124,59 @@ func TestProcessBeadWithMocks_ValidationEnabled(t *testing.T) {
 	}
 	if cmdRunCount != 1 {
 		t.Errorf("expected 1 direct validation command execution, got %d", cmdRunCount)
+	}
+}
+
+func TestProcessBeadWithMocks_ValidationUsesInjectedCmdRunner(t *testing.T) {
+	// Expected failure: Deps struct does not have a CmdRunner field yet.
+	// NewRunnerWithDeps passes defaultCmdRunner directly to validation.NewRunner
+	// at construction time (line 343 of runner.go), so setting r.cmdRunnerFn after
+	// construction has no effect on the validation runner. The fix must add a
+	// CmdRunner field to Deps and wire it into validation.NewRunner so tests
+	// (and callers) can inject a mock command runner at construction time.
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "build ok"}, nil
+		},
+	}
+
+	cmdRunCount := 0
+	mockCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		cmdRunCount++
+		return "ok", "", 0, nil
+	}
+
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(
+		&config.Config{
+			Claude:     config.ClaudeConfig{BeadTimeout: 60},
+			Validation: config.ValidationConfig{Enabled: true, Commands: []string{"go test ./..."}},
+			Models:     config.ModelsConfig{Validation: "haiku"},
+		},
+		&buf, t.TempDir(),
+		Deps{
+			Beads:     &mockBeadClient{},
+			Router:    newMockRouterFromClaudeClient(mockClaude),
+			Analyzer:  &mockFailureAnalyzer{},
+			Renderer:  &mockPromptRenderer{},
+			Logger:    &mockIterationLogger{},
+			CmdRunner: mockCmdRunner, // Expected failure: CmdRunner field does not exist on Deps
+		})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps: %v", err)
+	}
+
+	b := &bead.Bead{ID: "val-inject-test", Title: "Validation Injection Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
+
+	if !result.Success {
+		t.Errorf("expected success, got error: %v", result.Error)
+	}
+	if !result.Validated {
+		t.Error("expected Validated=true when validation commands pass")
+	}
+	if cmdRunCount != 1 {
+		t.Errorf("expected injected CmdRunner called 1 time for validation, got %d", cmdRunCount)
 	}
 }
 
