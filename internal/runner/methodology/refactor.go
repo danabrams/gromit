@@ -332,8 +332,60 @@ func (e *Executor) RunAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes
 }
 
 // VerifyTestsFailWithRetry runs the verify-tests-fail phase with retry logic.
+// If tests pass (unexpected), retries once with analysis, then fails.
 func (e *Executor) VerifyTestsFailWithRetry(ctx context.Context, bc *runtypes.BeadContext) error {
-	_ = ctx
-	_ = bc
-	return fmt.Errorf("VerifyTestsFailWithRetry not yet implemented")
+	err := e.VerifyTestsFail(ctx, bc)
+	if err == nil {
+		return nil // Tests failed as expected
+	}
+
+	// Tests passed before implementation - this is unexpected
+	// Run failure analysis to understand why
+	e.log("Unexpected: tests passed before implementation. Analyzing...")
+
+	if e.analyzeFn != nil {
+		suggestion, analyzeErr := e.analyzeFn(ctx, bc.Bead, err.Error())
+		if analyzeErr != nil {
+			e.log("Warning: failure analysis failed: %v — treating as already done", analyzeErr)
+			return ErrATDDAlreadyDone
+		}
+
+		// Retry acceptance tests once with analysis context
+		e.log("Retrying acceptance tests with analysis context...")
+		bc.PromptCtx.IsRetry = true
+		bc.PromptCtx.FailureContext = suggestion
+
+		if retryErr := e.RunAcceptanceTests(ctx, bc); retryErr != nil {
+			return fmt.Errorf("acceptance tests retry failed: %w", retryErr)
+		}
+
+		// Verify tests fail again
+		err = e.VerifyTestsFail(ctx, bc)
+		if err == nil {
+			return nil // Tests now fail as expected
+		}
+	}
+
+	// Still passing after retry with analysis — check if this is a false positive
+	// by examining the git diff. If only test files changed (no implementation),
+	// the tests are likely checking existing behavior rather than new behavior.
+	if bc.StartCommit != "" && e.getDiffFn != nil {
+		diff, diffErr := e.getDiffFn(bc.StartCommit)
+		if diffErr == nil && IsTestOnlyDiff(diff) {
+			e.log("Tests pass but only test files changed — likely testing existing behavior, retrying...")
+			bc.PromptCtx.IsRetry = true
+			bc.PromptCtx.FailureContext = "Tests pass but no implementation code was changed — tests are likely checking existing behavior. Rewrite tests to assert on behavior that does not exist yet."
+
+			if retryErr := e.RunAcceptanceTests(ctx, bc); retryErr == nil {
+				// Verify tests fail again after diff-aware retry
+				if err2 := e.VerifyTestsFail(ctx, bc); err2 == nil {
+					return nil // Tests now fail as expected
+				}
+			}
+			// If retry failed or tests still pass, fall through to ErrATDDAlreadyDone
+		}
+	}
+
+	e.log("Acceptance tests pass after retry — work appears already done")
+	return ErrATDDAlreadyDone
 }
