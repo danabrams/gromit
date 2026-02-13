@@ -39,12 +39,15 @@ func TestRefactorSkippedForFewFiles(t *testing.T) {
 		},
 	}
 
-	r := &Runner{
-		cfg: &config.Config{
-			Validation: config.ValidationConfig{
-				Enabled:  false,
-			},
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled: false,
 		},
+	}
+	cfg.SetDefaults()
+
+	r := &Runner{
+		cfg:      cfg,
 		renderer: mockRend,
 		output:   &buf,
 		gitDiffFn: func(commit string) (string, error) {
@@ -235,12 +238,15 @@ func TestRefactorSkippedForHaikuTier(t *testing.T) {
 		},
 	}
 
-	r := &Runner{
-		cfg: &config.Config{
-			Validation: config.ValidationConfig{
-				Enabled:  false,
-			},
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled: false,
 		},
+	}
+	cfg.SetDefaults()
+
+	r := &Runner{
+		cfg:      cfg,
 		renderer: mockRend,
 		output:   &buf,
 		gitDiffFn: func(commit string) (string, error) {

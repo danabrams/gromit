@@ -995,6 +995,31 @@ func (r *Runner) runRefactorWithRouter(ctx context.Context, prompt string, tier 
 	return claudeResult, err
 }
 
+// shouldRunRefactor determines whether the refactor phase should run based on
+// bead complexity tier and number of files changed.
+func (r *Runner) shouldRunRefactor(bc *beadContext, diff string) bool {
+	// Skip refactor for haiku-tier beads
+	if bc.tier == provider.TierLow {
+		r.log("Skipping refactor: haiku-tier bead")
+		return false
+	}
+
+	// Check file count threshold
+	minFiles := r.cfg.Refactor.MinFilesChanged
+	if minFiles == 0 {
+		// 0 means always run (no file count check)
+		return true
+	}
+
+	filesChanged := countChangedFiles(diff)
+	if filesChanged < minFiles {
+		r.log("Skipping refactor: only %d files changed (threshold: %d)", filesChanged, minFiles)
+		return false
+	}
+
+	return true
+}
+
 // runRefactorPhase runs the refactoring phase after validation passes.
 // Returns nil on success or if refactoring is skipped. Does not return an error
 // if refactoring fails - it logs a warning and continues (working code without
@@ -1008,6 +1033,11 @@ func (r *Runner) runRefactorPhase(ctx context.Context, bc *beadContext) error {
 	}
 	if diff == "" {
 		r.log("No changes to refactor, skipping refactor phase")
+		return nil
+	}
+
+	// Check if refactor should run based on complexity and file count
+	if !r.shouldRunRefactor(bc, diff) {
 		return nil
 	}
 
