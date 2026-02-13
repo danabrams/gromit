@@ -243,6 +243,58 @@ func (f *File) Save() error {
 	return os.WriteFile(f.path, []byte(sb.String()), 0644)
 }
 
+// FilterOptions controls filtering for GetConfirmedFiltered.
+type FilterOptions struct {
+	MaxChars int      // Character budget; 0 means unlimited
+	Keywords []string // Case-insensitive substring filters (OR-matched)
+}
+
+// GetConfirmedFiltered returns confirmed learnings filtered by keywords and capped
+// by a character budget. Keywords are OR-matched (case-insensitive substring).
+// When MaxChars > 0, entries are selected from most recent to oldest until the
+// budget is exceeded. Returns a non-nil empty slice when no entries match.
+func (f *File) GetConfirmedFiltered(opts FilterOptions) []Learning {
+	if f == nil {
+		return []Learning{}
+	}
+
+	// Step 1: filter by keywords if provided
+	candidates := f.confirmed
+	if len(opts.Keywords) > 0 {
+		filtered := []Learning{}
+		for _, l := range candidates {
+			lower := strings.ToLower(l.Content)
+			for _, kw := range opts.Keywords {
+				if strings.Contains(lower, strings.ToLower(kw)) {
+					filtered = append(filtered, l)
+					break
+				}
+			}
+		}
+		candidates = filtered
+	}
+
+	// Step 2: apply character budget, preferring most recent entries
+	if opts.MaxChars > 0 {
+		budgeted := []Learning{}
+		remaining := opts.MaxChars
+		// Iterate from most recent (end) to oldest (start)
+		for i := len(candidates) - 1; i >= 0; i-- {
+			charLen := len(candidates[i].Content)
+			if charLen <= remaining {
+				budgeted = append(budgeted, candidates[i])
+				remaining -= charLen
+			}
+		}
+		return budgeted
+	}
+
+	if len(candidates) == 0 {
+		return []Learning{}
+	}
+	return candidates
+}
+
 // GetConfirmed returns all confirmed learnings
 func (f *File) GetConfirmed() []Learning {
 	if f == nil {

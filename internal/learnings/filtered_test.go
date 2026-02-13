@@ -273,7 +273,7 @@ func TestGetConfirmedFiltered_BudgetExactFit(t *testing.T) {
 		archived:    []Learning{},
 	}
 
-	content := "exactly fifty characters long padding goes here!!"
+	content := "exactly fifty characters long padding goes here!!!"
 	if len(content) != 50 {
 		t.Fatalf("test setup: content is %d chars, need 50", len(content))
 	}
