@@ -637,3 +637,242 @@ func TestFacadeRunValidationDelegatesFailureAccumulation(t *testing.T) {
 			"(not just RunDirect) to the validation.Runner, which accumulates failures internally")
 	}
 }
+
+// TestExtractValidationSummaryTestsUsesValidationPackageDirectly verifies that
+// after extraction, the tests in extract_validation_summary_test.go call
+// validation.ExtractValidationSummary from the validation package directly,
+// not the local extractValidationSummary backward-compat wrapper.
+//
+// The bead task says "Update any tests that reference extractValidationSummary
+// to use the validation package directly." This test enforces that requirement
+// by scanning the test file's AST for calls to the local function.
+//
+// Expected failure: extract_validation_summary_test.go currently calls the
+// local extractValidationSummary() wrapper (e.g., line 71, 132, 155, 168, 182).
+// After extraction, these calls should be replaced with
+// validation.ExtractValidationSummary() and the wrapper should be deleted.
+func TestExtractValidationSummaryTestsUsesValidationPackageDirectly(t *testing.T) {
+	// Locate the runner directory
+	runnerDir := "."
+	goModDirs := []string{
+		filepath.Join("..", "..", ".."),
+		filepath.Join("..", ".."),
+		".",
+		filepath.Join("internal", "runner"),
+	}
+	for _, dir := range goModDirs {
+		candidate := filepath.Join(dir, "internal", "runner")
+		if _, err := os.Stat(candidate); err == nil {
+			runnerDir = candidate
+			break
+		}
+		if _, err := os.Stat(filepath.Join(dir, "process.go")); err == nil {
+			runnerDir = dir
+			break
+		}
+	}
+
+	testFile := filepath.Join(runnerDir, "extract_validation_summary_test.go")
+	if _, err := os.Stat(testFile); os.IsNotExist(err) {
+		// If the file doesn't exist, it might have been deleted or renamed.
+		// That's acceptable — the wrapper and its tests are removed together.
+		return
+	}
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, testFile, nil, 0)
+	if err != nil {
+		t.Fatalf("failed to parse %s: %v", testFile, err)
+	}
+
+	// Walk the AST looking for calls to the local extractValidationSummary function.
+	// After extraction, all calls should be to validation.ExtractValidationSummary
+	// (which shows up as a SelectorExpr, not a plain Ident).
+	localCalls := 0
+	ast.Inspect(f, func(n ast.Node) bool {
+		callExpr, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		// Check for direct call to extractValidationSummary (a plain Ident, not pkg.Func)
+		ident, ok := callExpr.Fun.(*ast.Ident)
+		if ok && ident.Name == "extractValidationSummary" {
+			localCalls++
+		}
+		return true
+	})
+
+	// Expected failure: currently extract_validation_summary_test.go calls the
+	// local extractValidationSummary() wrapper directly (5 calls at lines
+	// 71, 132, 155, 168, 182). After extraction, these should be replaced with
+	// validation.ExtractValidationSummary() or the test file should be deleted.
+	if localCalls > 0 {
+		t.Errorf("extract_validation_summary_test.go contains %d calls to local "+
+			"extractValidationSummary() — after extraction, these should use "+
+			"validation.ExtractValidationSummary() directly or the file should be "+
+			"deleted (since validation/validation_test.go already tests the function)",
+			localCalls)
+	}
+}
+
+// TestFacadeRunValidationWithRecoveryDoesNotSetIsRetry verifies that after
+// extraction, the facade's runValidationWithRecovery does NOT set
+// bc.PromptCtx.IsRetry or bc.PromptCtx.FailureContext during recovery.
+// Currently the inline recovery loop sets these (process.go lines 887-889)
+// before invoking Claude. After extraction, the validation.Runner's
+// RunWithRecovery handles recovery via its ExecuteFn callback, and the
+// facade never touches the prompt context during recovery.
+//
+// Expected failure: the facade currently sets bc.PromptCtx.IsRetry = true
+// and bc.PromptCtx.FailureContext during each inline recovery attempt.
+// After extraction, the facade delegates to validationRunner.RunWithRecovery
+// which uses its ExecuteFn callback for Claude-based fixes.
+func TestFacadeRunValidationWithRecoveryDoesNotSetIsRetry(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:              true,
+			Commands:             []string{"go test ./..."},
+			MaxValidationRetries: 1,
+		},
+		Claude: config.ClaudeConfig{
+			BeadTimeout:        300,
+			AnalysisTimeout:    60,
+			StallTimeout:       30,
+			StallTimeoutActive: 10,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	// Validation always fails so recovery is attempted
+	valRunner := validation.NewRunner(cfg,
+		func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "--- FAIL: TestAlways (0.01s)\nFAIL\tpkg/always", 1, nil
+		},
+		func(startCommit string) error { return nil },
+		func(ctx context.Context, bc *runtypes.BeadContext) bool { return false },
+	)
+
+	var buf strings.Builder
+	logFn := func(format string, args ...interface{}) {}
+	mockAnalyzer := &mockFailureAnalyzer{}
+
+	r := &Runner{
+		cfg:               cfg,
+		output:            &buf,
+		analyzer:          mockAnalyzer,
+		renderer:          &mockRenderer{},
+		validationRunner:  valRunner,
+		autoFixFn:         func(startCommit string) error { return nil },
+		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn),
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "--- FAIL: TestAlways (0.01s)", 1, nil
+		},
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-isretry", Title: "Test IsRetry", Labels: []string{}, ExpectedOutputs: []string{}},
+		Result:      &runtypes.IterationResult{},
+		PromptCtx:   &prompt.Context{WorkDir: t.TempDir()},
+		StartCommit: "abc123",
+		ParentCtx:   context.Background(),
+	}
+
+	_ = r.runValidationWithRecovery(context.Background(), bc)
+
+	// Expected failure: currently the facade sets bc.PromptCtx.IsRetry = true
+	// during inline recovery (process.go line 887). After extraction, the
+	// facade delegates recovery to validationRunner.RunWithRecovery, which
+	// handles Claude-based fixes via its ExecuteFn callback without modifying
+	// the facade's prompt context.
+	if bc.PromptCtx.IsRetry {
+		t.Error("bc.PromptCtx.IsRetry should not be set by facade during validation recovery — " +
+			"after extraction, recovery is delegated to validation.Runner.RunWithRecovery " +
+			"which uses its ExecuteFn callback, not the facade's prompt context")
+	}
+	if bc.PromptCtx.FailureContext != "" {
+		t.Errorf("bc.PromptCtx.FailureContext = %q, want empty — "+
+			"after extraction, the facade should not set FailureContext during "+
+			"validation recovery; the validation.Runner handles this via ExecuteFn",
+			bc.PromptCtx.FailureContext)
+	}
+}
+
+// TestFacadeRunValidationDoesNotCallExtractValidationSummary verifies that
+// after extraction, the facade's runValidation does NOT call
+// validation.ExtractValidationSummary inline. Currently the facade calls
+// validation.ExtractValidationSummary(failureOutput) on line 787 and appends
+// the result to r.validationFailures. After extraction, the validation.Runner's
+// internal runValidation method calls ExtractValidationSummary and accumulates
+// in its own failures slice. The facade then reads from validationRunner.Failures()
+// to sync with r.validationFailures.
+//
+// Expected failure: the facade currently calls validation.ExtractValidationSummary
+// inline and appends to r.validationFailures. After extraction, the facade reads
+// from validationRunner.Failures() instead, so r.validationFailures should be
+// populated from the validation.Runner's accumulation (not inline extraction).
+func TestFacadeRunValidationDoesNotCallExtractValidationSummary(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+		Claude: config.ClaudeConfig{
+			BeadTimeout:     300,
+			AnalysisTimeout: 60,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	// Create a validation.Runner that fails with recognizable output.
+	// The Runner's internal runValidation accumulates failures via Failures().
+	valRunner := validation.NewRunner(cfg,
+		func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "--- FAIL: TestInlineExtract (0.01s)\nFAIL\tpkg/extract", 1, nil
+		},
+		nil, nil,
+	)
+
+	var buf strings.Builder
+	r := &Runner{
+		cfg:              cfg,
+		output:           &buf,
+		analyzer:         &mockFailureAnalyzer{},
+		validationRunner: valRunner,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "test-extract", Title: "Test extract", Labels: []string{}, ExpectedOutputs: []string{}},
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{WorkDir: t.TempDir()},
+	}
+
+	_ = r.runValidation(context.Background(), bc)
+
+	// After extraction, the facade should sync r.validationFailures from
+	// validationRunner.Failures(). If the facade is still calling
+	// validation.ExtractValidationSummary inline (current behavior), then
+	// valRunner.Failures() will be EMPTY (because RunDirect doesn't accumulate).
+	//
+	// Expected failure: currently the facade calls RunDirect (which doesn't
+	// accumulate) and then calls validation.ExtractValidationSummary inline.
+	// After extraction, the facade calls the Runner's higher-level method
+	// (which accumulates), and reads from Failures().
+	valFailures := valRunner.Failures()
+	if len(valFailures) == 0 {
+		t.Error("validation.Runner.Failures() should be populated — " +
+			"after extraction, the facade calls the Runner's full validation flow " +
+			"(not RunDirect) which accumulates failures internally; " +
+			"the facade then reads from Failures() instead of calling " +
+			"validation.ExtractValidationSummary inline")
+	}
+
+	// Verify the facade's validationFailures are sourced from the Runner's Failures(),
+	// not from an independent inline extraction
+	if len(r.validationFailures) > 0 && len(valFailures) == 0 {
+		t.Error("facade has validationFailures but validation.Runner.Failures() is empty — " +
+			"the facade is still extracting summaries inline instead of reading from " +
+			"the validation.Runner's accumulation")
+	}
+}
