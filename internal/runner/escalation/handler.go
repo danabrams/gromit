@@ -9,7 +9,6 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
-	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -29,9 +28,18 @@ type DecomposeFn func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, er
 // CreateSubFn creates sub-beads from decomposed sub-tasks.
 type CreateSubFn func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error
 
+// InvocationResult captures the outcome of a single Claude invocation.
+// This is a local type mirroring execution.InvocationResult to avoid
+// importing the execution sibling package.
+type InvocationResult struct {
+	Result     *claude.Result
+	StallFired bool
+}
+
 // InvokeFn executes a single Claude invocation. The facade wraps
-// execution.Invoker.Execute to match this signature.
-type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*execution.InvocationResult, error)
+// execution.Invoker.Execute and maps the result to this package's
+// InvocationResult type.
+type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error)
 
 // Handler manages retry loops, tier escalation, failure analysis, and decomposition.
 type Handler struct {
@@ -129,6 +137,7 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 		comment := fmt.Sprintf("Task too complex: %s\n\nThis task needs to be broken down into smaller, more manageable pieces.", analysis.RootCause)
 		if err := h.beadClient.AddComment(bc.Bead.ID, comment); err != nil {
 			// log warning but continue
+			_ = err
 		}
 		bc.Result.Error = fmt.Errorf("task too complex: %s - needs breakdown", analysis.RootCause)
 		return false

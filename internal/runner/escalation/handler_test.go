@@ -11,7 +11,6 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/provider"
-	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -487,8 +486,8 @@ func TestExecuteWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil)
 
 	bc := newTestBeadContext()
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*execution.InvocationResult, error) {
-		return &execution.InvocationResult{
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		return &InvocationResult{
 			Result: &claude.Result{Success: true, Output: "build complete"},
 		}, nil
 	}
@@ -515,17 +514,17 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 	bc.MaxRetries = 0 // exhaust retries immediately to trigger escalation
 
 	callCount := 0
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*execution.InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
 		callCount++
 		if callCount == 1 {
 			// First call: stall
-			return &execution.InvocationResult{
+			return &InvocationResult{
 				StallFired: true,
 				Result:     &claude.Result{Success: false},
 			}, nil
 		}
 		// Second call: success after escalation
-		return &execution.InvocationResult{
+		return &InvocationResult{
 			Result: &claude.Result{Success: true, Output: "ok"},
 		}, nil
 	}
@@ -552,7 +551,7 @@ func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
 	cancel() // cancel immediately
 
 	bc := newTestBeadContext()
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*execution.InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
 		t.Fatal("invokeFn should not be called when context is cancelled")
 		return nil, nil
 	}
@@ -585,14 +584,14 @@ func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 	bc.MaxRetries = 2
 
 	callCount := 0
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*execution.InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
 		callCount++
 		if callCount == 1 {
-			return &execution.InvocationResult{
+			return &InvocationResult{
 				Result: &claude.Result{Success: false, Output: "nil pointer dereference"},
 			}, nil
 		}
-		return &execution.InvocationResult{
+		return &InvocationResult{
 			Result: &claude.Result{Success: true, Output: "fixed"},
 		}, nil
 	}
@@ -607,5 +606,4 @@ func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 }
 
 // Suppress unused import warnings during test compilation.
-var _ = execution.InvocationResult{}
 var _ = learnings.File{}
