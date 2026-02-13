@@ -136,13 +136,19 @@ func (h *Handler) HandleEscalation(ctx context.Context, bc *runtypes.BeadContext
 // AnalyzeAndHandleFailure runs failure analysis and decides whether to retry, escalate, or stop.
 // Returns true if the retry loop should continue, false if processBead should return.
 func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) (continueLoop bool) {
+	h.log("Build failed, running failure analysis...")
 	analysis, err := h.analyzer.Analyze(ctx, bc.Bead, claudeResult.Output)
 	if err != nil {
+		h.log("Warning: failure analysis failed: %v", err)
 		return h.HandleEscalation(ctx, bc, claudeResult)
 	}
 	if analysis == nil {
+		h.log("Warning: failure analysis returned no result")
 		return h.HandleEscalation(ctx, bc, claudeResult)
 	}
+
+	h.log("Analysis: category=%s, recoverable=%v", analysis.Category, analysis.Recoverable)
+	h.log("Root cause: %s", analysis.RootCause)
 
 	if analysis.Category == analyzer.CategoryUnclearSpec {
 		bc.Result.Error = fmt.Errorf("spec unclear: %s - needs human review", analysis.RootCause)
@@ -161,11 +167,17 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 		bc.TotalRetriesThisBead++
 
 		if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
+			h.log("Max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
 			bc.Result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
 			return false
 		}
 
+		h.log("Failure is recoverable, retrying (attempt %d/%d)", bc.RetriesThisModel, bc.MaxRetries)
 		return true
+	}
+
+	if analysis.Recoverable {
+		h.log("Retry limit reached for model %s (%d attempts)", bc.Model, bc.RetriesThisModel)
 	}
 
 	return h.HandleEscalation(ctx, bc, claudeResult)
