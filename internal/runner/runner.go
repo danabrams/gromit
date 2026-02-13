@@ -277,11 +277,12 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 
 // Deps holds injectable dependencies for a Runner, used for testing.
 type Deps struct {
-	Beads    BeadClient
-	Router   *provider.Router
-	Analyzer FailureAnalyzer
-	Renderer PromptRenderer
-	Logger   IterationLogger
+	Beads     BeadClient
+	Router    *provider.Router
+	Analyzer  FailureAnalyzer
+	Renderer  PromptRenderer
+	Logger    IterationLogger
+	CmdRunner func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error)
 }
 
 // NewRunnerWithDeps creates a runner with explicitly provided dependencies.
@@ -325,6 +326,11 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		inv = execution.NewInvoker(nil, syncOut, nil)
 	}
 
+	cmdRunner := defaultCmdRunner
+	if deps.CmdRunner != nil {
+		cmdRunner = deps.CmdRunner
+	}
+
 	r := &Runner{
 		cfg:         cfg,
 		beads:       deps.Beads,
@@ -337,10 +343,10 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		syncOut:     syncOut,
 		gromitDir:   gromitDir,
 		gitDiffFn:   getGitDiff,
-		cmdRunnerFn: defaultCmdRunner,
+		cmdRunnerFn: cmdRunner,
 	}
 	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log)
-	r.validationRunner = validation.NewRunner(cfg, defaultCmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
+	r.validationRunner = validation.NewRunner(cfg, cmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	return r, nil
 }
 
@@ -919,6 +925,14 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 // handling cost data, scope-too-large, usage limit detection, and timeout classification.
 func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 	return func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*escalation.InvocationResult, error) {
+		// Re-render build prompt on retry so failure context is included
+		if bc.PromptCtx != nil && bc.PromptCtx.IsRetry && r.renderer != nil {
+			rendered, renderErr := r.renderer.RenderBuild(bc.PromptCtx)
+			if renderErr == nil {
+				bc.BuildPrompt = rendered
+			}
+		}
+
 		r.log("Running Claude with model: %s", bc.Model)
 
 		claudeResult, stats, stallFired, err := r.executeClaudeInvocation(ctx, bc)

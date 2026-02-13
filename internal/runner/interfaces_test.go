@@ -1096,6 +1096,14 @@ func TestProcessBeadWithMocks_ValidationEnabled(t *testing.T) {
 		},
 	}
 
+	// Validation runs commands directly via validation.Runner's CmdRunnerFn,
+	// injected through Deps.CmdRunner at construction time.
+	cmdRunCount := 0
+	mockCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		cmdRunCount++
+		return "ok", "", 0, nil
+	}
+
 	var buf strings.Builder
 	r, _ := NewRunnerWithDeps(
 		&config.Config{
@@ -1104,14 +1112,7 @@ func TestProcessBeadWithMocks_ValidationEnabled(t *testing.T) {
 			Models:     config.ModelsConfig{Validation: "haiku"},
 		},
 		&buf, t.TempDir(),
-		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
-
-	// Validation now runs commands directly via cmdRunnerFn
-	cmdRunCount := 0
-	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-		cmdRunCount++
-		return "ok", "", 0, nil
-	}
+		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}, CmdRunner: mockCmdRunner})
 
 	b := &bead.Bead{ID: "val-test", Title: "Validation Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
 	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
