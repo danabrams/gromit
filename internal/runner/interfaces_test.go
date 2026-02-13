@@ -157,6 +157,7 @@ type mockPromptRenderer struct {
 	LoadSpecFn              func(name string) (string, error)
 	LoadClaudeMDFn          func() (string, error)
 	LoadRulesFn             func() (string, error)
+	LoadRulesForPhaseFn     func(phase string) (string, error)
 	LearningsFile           *learnings.File
 }
 
@@ -247,6 +248,13 @@ func (m *mockPromptRenderer) LoadClaudeMD() (string, error) {
 func (m *mockPromptRenderer) LoadRules() (string, error) {
 	if m.LoadRulesFn != nil {
 		return m.LoadRulesFn()
+	}
+	return "", nil
+}
+
+func (m *mockPromptRenderer) LoadRulesForPhase(phase string) (string, error) {
+	if m.LoadRulesForPhaseFn != nil {
+		return m.LoadRulesForPhaseFn(phase)
 	}
 	return "", nil
 }
@@ -367,6 +375,10 @@ func (m *mockRenderer) LoadClaudeMD() (string, error) {
 }
 
 func (m *mockRenderer) LoadRules() (string, error) {
+	return "", nil
+}
+
+func (m *mockRenderer) LoadRulesForPhase(phase string) (string, error) {
 	return "", nil
 }
 

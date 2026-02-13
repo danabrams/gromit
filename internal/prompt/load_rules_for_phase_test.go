@@ -52,7 +52,6 @@ func setupRendererWithRules(t *testing.T, rulesContent string) *Renderer {
 }
 
 func TestLoadRulesForPhase(t *testing.T) {
-	// Expected failure: LoadRulesForPhase method does not exist on Renderer yet
 	r := setupRendererWithRules(t, rulesWithAnnotations())
 
 	tests := []struct {
@@ -108,7 +107,6 @@ func TestLoadRulesForPhase(t *testing.T) {
 }
 
 func TestLoadRulesForPhaseReviewExcludesProcessContent(t *testing.T) {
-	// Expected failure: LoadRulesForPhase method does not exist on Renderer yet
 	r := setupRendererWithRules(t, rulesWithAnnotations())
 
 	result, err := r.LoadRulesForPhase("review")
@@ -142,8 +140,6 @@ func TestLoadRulesForPhaseReviewExcludesProcessContent(t *testing.T) {
 }
 
 func TestLoadRulesForPhaseBuildReturnsSameAsFullRules(t *testing.T) {
-	// Expected failure: LoadRulesForPhase method does not exist on Renderer yet
-	//
 	// Since all sections are tagged with "build", LoadRulesForPhase("build")
 	// should return content containing every section from the rules file.
 	r := setupRendererWithRules(t, rulesWithAnnotations())
@@ -163,7 +159,6 @@ func TestLoadRulesForPhaseBuildReturnsSameAsFullRules(t *testing.T) {
 }
 
 func TestLoadRulesForPhaseReviewIsSmallerThanBuild(t *testing.T) {
-	// Expected failure: LoadRulesForPhase method does not exist on Renderer yet
 	r := setupRendererWithRules(t, rulesWithAnnotations())
 
 	buildResult, err := r.LoadRulesForPhase("build")
@@ -183,8 +178,6 @@ func TestLoadRulesForPhaseReviewIsSmallerThanBuild(t *testing.T) {
 }
 
 func TestLoadRulesForPhaseUnannotatedSectionsIncludedInAllPhases(t *testing.T) {
-	// Expected failure: LoadRulesForPhase method does not exist on Renderer yet
-	//
 	// Sections without phase annotations should be included for all phases.
 	rules := `# Rules
 
@@ -230,7 +223,6 @@ These are non-negotiable constraints.
 }
 
 func TestLoadRulesForPhaseNilRenderer(t *testing.T) {
-	// Expected failure: LoadRulesForPhase method does not exist on Renderer yet
 	var r *Renderer
 	_, err := r.LoadRulesForPhase("build")
 	if err == nil {
@@ -239,7 +231,6 @@ func TestLoadRulesForPhaseNilRenderer(t *testing.T) {
 }
 
 func TestLoadRulesForPhaseMissingFile(t *testing.T) {
-	// Expected failure: LoadRulesForPhase method does not exist on Renderer yet
 	r := &Renderer{
 		rulesPath: filepath.Join(t.TempDir(), "nonexistent", "RULES.md"),
 	}
@@ -254,8 +245,6 @@ func TestLoadRulesForPhaseMissingFile(t *testing.T) {
 }
 
 func TestLoadRulesForPhasePreservesAnnotationFreeOutput(t *testing.T) {
-	// Expected failure: LoadRulesForPhase method does not exist on Renderer yet
-	//
 	// The returned content should have the phase annotation comments stripped
 	// from the headers so that Claude doesn't see the meta-annotations.
 	r := setupRendererWithRules(t, rulesWithAnnotations())

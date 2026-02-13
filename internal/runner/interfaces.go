@@ -56,6 +56,7 @@ type PromptRenderer interface {
 	LoadSpec(name string) (string, error)
 	LoadClaudeMD() (string, error)
 	LoadRules() (string, error)
+	LoadRulesForPhase(phase string) (string, error)
 	GetLearningsFile() *learnings.File
 }
 

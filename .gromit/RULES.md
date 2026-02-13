@@ -2,7 +2,7 @@
 
 These are non-negotiable constraints for this project. Gromit will always follow these.
 
-## Code Style
+## Code Style <!-- phases: build, review -->
 
 - Use `go fmt` standard formatting
 - Use `error` return values, not panics, for recoverable failures. Exception: panic is acceptable in test helpers and init() where failure is unrecoverable
@@ -19,14 +19,14 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - In router-based model selection, distinguish between tier selection (complexity tiers like low/medium/high) and model names (haiku/sonnet/opus). State fields like SetEscalatedTo must contain the final model name from TierToModel/ModelForTier mapping, not the complexity tier string. Router calls use phase + tier parameters; tier determines the model via the provider's mapping
 - Mock implementations use the FnField pattern: optional function pointer fields with nil-safe defaults (returning zero values or no-op behavior). Tests set only the callbacks needed for the specific code path under test. Do not require full mock setup when only one method is being exercised
 
-## Safety
+## Safety <!-- phases: build, review -->
 
 - Never commit secrets, API keys, or credentials
 - Never delete data without explicit confirmation in the spec
 - When passing large strings to Claude CLI, write to temp files instead of using CLI arguments to avoid exceeding OS ARG_MAX limits
 - Shell scripts handling user content must use quoted <<'EOF' heredocs (not unquoted <<EOF) to prevent variable/command expansion, and pass dynamic values via arguments rather than string interpolation to avoid injection
 
-## Test Quality
+## Test Quality <!-- phases: build, review -->
 
 - Acceptance tests must test behavior through the public API or command surface — never call private/internal helper functions directly. If a test calls a private function and asserts on its return value, it's a unit test regardless of what the filename says
 - Do not test Go standard library behavior (that `os.MkdirAll` creates directories, that `os.WriteFile` writes files, that `json.Marshal` produces JSON). Trust stdlib; test your code
@@ -34,7 +34,7 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - When two or more tests share 10+ lines of identical setup, extract a shared `setupXxx(t *testing.T)` helper. When three or more tests share the same structure and differ only in inputs/assertions, use a table-driven test
 - Files named `*_acceptance_test.go` must either use `//go:build acceptance` or genuinely test end-to-end behavior through the command surface. Unit tests that happen to verify acceptance criteria belong in `*_test.go`
 
-## Process
+## Process <!-- phases: build -->
 
 - Always run tests before committing
 - Follow existing patterns in the codebase
