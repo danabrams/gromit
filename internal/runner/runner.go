@@ -92,6 +92,8 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		return nil, err
 	}
 
+	renderer.SetMaxLearningChars(cfg.Learnings.MaxLearningChars)
+
 	beadsClient, err := bead.NewClient()
 	if err != nil {
 		return nil, err
@@ -1864,7 +1866,7 @@ func (r *Runner) runLightReview(ctx context.Context, b *bead.Bead, parent *bead.
 
 	// Load CLAUDE.md and rules
 	reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
-	reviewCtx.Rules, _ = r.renderer.LoadRules()
+	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
 
 	// Load spec if present
 	specName := bead.FindSpecLabel(b.Labels)
@@ -2122,7 +2124,7 @@ func (r *Runner) runThoroughReview(ctx context.Context, sf *state.File, iteratio
 		Model: r.cfg.Review.Thorough.Model,
 	}
 	reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
-	reviewCtx.Rules, _ = r.renderer.LoadRules()
+	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
 
 	// TODO: populate CompletedBeads from iteration logs
 	// For now, leave empty - the review can still work from the diff
