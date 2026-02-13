@@ -8,6 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 )
 
 // makeTestConfig creates a standard config for tier selection tests
@@ -25,9 +26,9 @@ func makeTestConfig(labels map[string]string) *config.Config {
 	return cfg
 }
 
-// TestAcceptance_RunnerSelectTierDelegatesToConfigSelectTier verifies that
-// Runner.selectTier() calls cfg.SelectTier() with bead priority and labels.
-func TestAcceptance_RunnerSelectTierDelegatesToConfigSelectTier(t *testing.T) {
+// TestAcceptance_EscalationSelectTierDelegatesToConfigSelectTier verifies that
+// escalation.SelectTier() calls cfg.SelectTier() with bead priority and labels.
+func TestAcceptance_EscalationSelectTierDelegatesToConfigSelectTier(t *testing.T) {
 	tests := []struct {
 		name     string
 		priority int
@@ -82,48 +83,46 @@ func TestAcceptance_RunnerSelectTierDelegatesToConfigSelectTier(t *testing.T) {
 				tt.cfgMod(cfg)
 			}
 
-			r := &Runner{cfg: cfg}
 			b := &bead.Bead{ID: "test-001", Priority: tt.priority, Labels: tt.labels}
 
-			if got := r.selectTier(b); got != tt.wantTier {
-				t.Errorf("selectTier() = %q, want %q", got, tt.wantTier)
+			if got := escalation.SelectTier(cfg, b); got != tt.wantTier {
+				t.Errorf("SelectTier() = %q, want %q", got, tt.wantTier)
 			}
 		})
 	}
 }
 
-// TestAcceptance_RunnerSelectTierNilSafety verifies nil handling.
-func TestAcceptance_RunnerSelectTierNilSafety(t *testing.T) {
+// TestAcceptance_EscalationSelectTierNilSafety verifies nil handling.
+func TestAcceptance_EscalationSelectTierNilSafety(t *testing.T) {
 	tests := []struct {
-		name   string
-		runner *Runner
-		bead   *bead.Bead
+		name string
+		cfg  *config.Config
+		bead *bead.Bead
 	}{
-		{name: "nil config", runner: &Runner{cfg: nil}, bead: &bead.Bead{ID: "test", Priority: 0}},
-		{name: "nil bead", runner: &Runner{cfg: makeTestConfig(nil)}, bead: nil},
+		{name: "nil config", cfg: nil, bead: &bead.Bead{ID: "test", Priority: 0}},
+		{name: "nil bead", cfg: makeTestConfig(nil), bead: nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.runner.selectTier(tt.bead); got != provider.TierMedium {
-				t.Errorf("selectTier() = %q, want %q", got, provider.TierMedium)
+			if got := escalation.SelectTier(tt.cfg, tt.bead); got != provider.TierMedium {
+				t.Errorf("SelectTier() = %q, want %q", got, provider.TierMedium)
 			}
 		})
 	}
 }
 
-// TestAcceptance_RunnerSelectTierRespectsMultipleLabels verifies label precedence.
-func TestAcceptance_RunnerSelectTierRespectsMultipleLabels(t *testing.T) {
+// TestAcceptance_EscalationSelectTierRespectsMultipleLabels verifies label precedence.
+func TestAcceptance_EscalationSelectTierRespectsMultipleLabels(t *testing.T) {
 	cfg := makeTestConfig(map[string]string{
 		"complexity:high": provider.TierHigh,
 		"complexity:low":  provider.TierLow,
 		"spec:simple":     provider.TierLow,
 	})
-	r := &Runner{cfg: cfg}
 	b := &bead.Bead{ID: "test-001", Priority: 1, Labels: []string{"spec:simple", "other:label"}}
 
 	// First matching label wins ("spec:simple" → low tier)
-	if got := r.selectTier(b); got != provider.TierLow {
-		t.Errorf("selectTier() with multiple labels = %q, want %q", got, provider.TierLow)
+	if got := escalation.SelectTier(cfg, b); got != provider.TierLow {
+		t.Errorf("SelectTier() with multiple labels = %q, want %q", got, provider.TierLow)
 	}
 }

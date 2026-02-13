@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -966,11 +967,9 @@ func TestStuckBeadWithMocks(t *testing.T) {
 }
 
 func TestSelectModelWithMocks(t *testing.T) {
-	var buf strings.Builder
-	r, _ := NewRunnerWithDeps(
-		&config.Config{Models: config.ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku", Labels: map[string]string{"complexity:high": "opus", "complexity:low": "haiku"}}},
-		&buf, t.TempDir(),
-		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
+	cfg := &config.Config{Models: config.ModelsConfig{P0: "opus", P1: "sonnet", P2: "haiku", Labels: map[string]string{"complexity:high": "opus", "complexity:low": "haiku"}}}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
 
 	tests := []struct {
 		name     string
@@ -989,8 +988,8 @@ func TestSelectModelWithMocks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := r.selectModel(tt.bead); got != tt.expected {
-				t.Errorf("selectModel() = %q, want %q", got, tt.expected)
+			if got := escalation.SelectModel(cfg, tt.bead); got != tt.expected {
+				t.Errorf("SelectModel() = %q, want %q", got, tt.expected)
 			}
 		})
 	}

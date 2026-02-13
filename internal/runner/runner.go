@@ -979,42 +979,13 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *runtypes.BeadContext)
 	}
 }
 
-func (r *Runner) selectTier(b *bead.Bead) string {
-	if r == nil || r.cfg == nil {
-		return provider.TierMedium
-	}
-	if b == nil {
-		return provider.TierMedium
-	}
-	return r.cfg.SelectTier(b.Priority, b.Labels)
-}
-
 // selectReviewTier determines the tier for code review based on build model.
-// If buildModel is "opus", returns "high". Otherwise uses selectTier(bead).
+// If buildModel is "opus", returns "high". Otherwise uses escalation.SelectTier.
 func (r *Runner) selectReviewTier(b *bead.Bead, buildModel string) string {
 	if buildModel == "opus" {
 		return provider.TierHigh
 	}
 	return escalation.SelectTier(r.cfg, b)
-}
-
-func (r *Runner) selectModel(b *bead.Bead) string {
-	if b == nil {
-		return "sonnet"
-	}
-	if r.cfg == nil {
-		return "sonnet"
-	}
-	// Experiment: route test-only beads to haiku unless an explicit complexity label overrides
-	if bead.IsTestOnlyBead(b.Title) {
-		for _, label := range b.Labels {
-			if _, ok := r.cfg.Models.Labels[label]; ok {
-				return r.cfg.SelectModel(b.Priority, b.Labels)
-			}
-		}
-		return "haiku"
-	}
-	return r.cfg.SelectModel(b.Priority, b.Labels)
 }
 
 func (r *Runner) logResult(result *IterationResult) {

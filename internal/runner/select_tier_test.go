@@ -8,9 +8,10 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 )
 
-// TestSelectTierDelegatesToConfig verifies that selectTier calls cfg.SelectTier
+// TestSelectTierDelegatesToConfig verifies that escalation.SelectTier calls cfg.SelectTier
 func TestSelectTierDelegatesToConfig(t *testing.T) {
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
@@ -22,20 +23,16 @@ func TestSelectTierDelegatesToConfig(t *testing.T) {
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	r := &Runner{
-		cfg: cfg,
-	}
-
 	b := &bead.Bead{
 		ID:       "test-001",
 		Priority: 1,
 		Labels:   []string{},
 	}
 
-	result := r.selectTier(b)
+	result := escalation.SelectTier(cfg, b)
 
 	if result != provider.TierMedium {
-		t.Errorf("selectTier() = %q, want %q", result, provider.TierMedium)
+		t.Errorf("SelectTier() = %q, want %q", result, provider.TierMedium)
 	}
 }
 

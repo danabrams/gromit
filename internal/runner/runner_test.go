@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/state"
 )
 
@@ -217,8 +218,7 @@ func TestNilGuards(t *testing.T) {
 }
 
 func TestSelectModelNilBead(t *testing.T) {
-	r := &Runner{}
-	result := r.selectModel(nil)
+	result := escalation.SelectModel(nil, nil)
 	if result != "sonnet" {
 		t.Errorf("expected 'sonnet' for nil bead, got %q", result)
 	}
@@ -818,9 +818,8 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 }
 
 func TestSelectModelNilConfig(t *testing.T) {
-	r := &Runner{}
 	b := &bead.Bead{ID: "test-1", Title: "Test", Priority: 1}
-	result := r.selectModel(b)
+	result := escalation.SelectModel(nil, b)
 	if result != "sonnet" {
 		t.Errorf("expected 'sonnet' for nil config, got %q", result)
 	}
