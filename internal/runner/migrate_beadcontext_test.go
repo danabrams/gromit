@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -323,14 +324,14 @@ func TestExtractLearning_ReadsExportedBeadField(t *testing.T) {
 // TestHandleStallTimeout_ReadsExportedRetryFields verifies that handleStallTimeout
 // reads and mutates retry counters on *runtypes.BeadContext.
 func TestHandleStallTimeout_ReadsExportedRetryFields(t *testing.T) {
-	r := &Runner{
-		cfg: &config.Config{
-			Escalation: config.EscalationConfig{
-				Chain: []string{"low", "medium", "high"},
-			},
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Chain: []string{"low", "medium", "high"},
 		},
-		output: &strings.Builder{},
 	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil)
 
 	// Get the return from setupBeadContext and verify it has exported retry fields
 	r2 := setupMigratedRunner(t)
@@ -349,11 +350,11 @@ func TestHandleStallTimeout_ReadsExportedRetryFields(t *testing.T) {
 		}
 	}
 
-	// Verify the type is *runtypes.BeadContext so handleStallTimeout can accept it
+	// Verify the type is *runtypes.BeadContext so HandleStallTimeout can accept it
 	gotType := reflect.TypeOf(bc)
 	wantType := reflect.TypeOf((*runtypes.BeadContext)(nil))
 	if gotType != wantType {
-		t.Errorf("bc type = %v, want %v (handleStallTimeout needs *runtypes.BeadContext)", gotType, wantType)
+		t.Errorf("bc type = %v, want %v (HandleStallTimeout needs *runtypes.BeadContext)", gotType, wantType)
 	}
 
 	// After migration, this call should work with *runtypes.BeadContext
@@ -361,7 +362,7 @@ func TestHandleStallTimeout_ReadsExportedRetryFields(t *testing.T) {
 	val.FieldByName("RetriesThisModel").SetInt(0)
 	val.FieldByName("TotalRetriesThisBead").SetInt(0)
 
-	continueLoop := r.handleStallTimeout(context.Background(), bc)
+	continueLoop := h.HandleStallTimeout(context.Background(), bc)
 	if !continueLoop {
 		t.Error("expected continueLoop=true on first stall (should retry same model)")
 	}

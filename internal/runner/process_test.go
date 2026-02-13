@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -310,11 +311,10 @@ func TestExtractLearning_WithLearning(t *testing.T) {
 }
 
 func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
-	var buf strings.Builder
-	r := &Runner{
-		cfg:    &config.Config{},
-		output: &buf,
-	}
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil)
 	bc := &runtypes.BeadContext{
 		Bead:                 &bead.Bead{ID: "test-1"},
 		Result:               &IterationResult{},
@@ -324,7 +324,7 @@ func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
 		MaxRetriesPerBead:    5,
 	}
 
-	continueLoop := r.handleStallTimeout(context.Background(), bc)
+	continueLoop := h.HandleStallTimeout(context.Background(), bc)
 
 	if continueLoop {
 		t.Error("expected false when max retries per bead exceeded")
@@ -338,11 +338,10 @@ func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
 }
 
 func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
-	var buf strings.Builder
-	r := &Runner{
-		cfg:    &config.Config{},
-		output: &buf,
-	}
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil)
 	bc := &runtypes.BeadContext{
 		Bead:                 &bead.Bead{ID: "test-1"},
 		Result:               &IterationResult{},
@@ -353,7 +352,7 @@ func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 		MaxRetriesPerBead:    5,
 	}
 
-	continueLoop := r.handleStallTimeout(context.Background(), bc)
+	continueLoop := h.HandleStallTimeout(context.Background(), bc)
 
 	if !continueLoop {
 		t.Error("expected true when retries available")
@@ -367,17 +366,15 @@ func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 }
 
 func TestHandleStallTimeout_Escalates(t *testing.T) {
-	var buf strings.Builder
-	r := &Runner{
-		cfg: &config.Config{
-			Escalation: config.EscalationConfig{
-				Enabled: true,
-				Chain:   []string{"haiku", "sonnet", "opus"},
-			},
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"haiku", "sonnet", "opus"},
 		},
-		renderer: &mockRenderer{},
-		output:   &buf,
 	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil)
 	bc := &runtypes.BeadContext{
 		Bead:   &bead.Bead{ID: "test-1"},
 		Result: &IterationResult{},
@@ -394,15 +391,10 @@ func TestHandleStallTimeout_Escalates(t *testing.T) {
 		MaxRetriesPerBead:    10,
 	}
 
-	continueLoop := r.handleStallTimeout(context.Background(), bc)
+	continueLoop := h.HandleStallTimeout(context.Background(), bc)
 
-	// With mock renderer, RenderBuild succeeds, so escalation should work
 	if !continueLoop {
-		if bc.Result.Error != nil && strings.Contains(bc.Result.Error.Error(), "rendering retry prompt") {
-			// Expected if mock renderer fails - still check escalation was attempted
-		} else {
-			t.Error("expected continueLoop=true after escalation")
-		}
+		t.Error("expected continueLoop=true after escalation")
 	}
 
 	// Verify escalation was at least attempted
