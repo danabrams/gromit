@@ -110,6 +110,10 @@ methodology:
   atdd: true
   tdd: true
 
+# Learnings - control how confirmed learnings are injected into build prompts
+# learnings:
+#   max_learning_chars: 8000  # Character budget for confirmed learnings (0 = unlimited)
+
 # Paths (relative to project root)
 paths:
   templates: ".gromit/templates"
