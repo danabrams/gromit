@@ -195,8 +195,10 @@ func (h *Handler) AttemptDecomposition(ctx context.Context, bc *runtypes.BeadCon
 		return false
 	}
 
+	h.log("Attempting to decompose task after: %s", failureReason)
 	subTasks, err := h.decomposeFn(ctx, bc.Bead)
 	if err != nil {
+		h.log("Decomposition failed: %v", err)
 		bc.Result.Error = fmt.Errorf("%s and decomposition failed: %w", failureReason, err)
 		return false
 	}
@@ -207,10 +209,12 @@ func (h *Handler) AttemptDecomposition(ctx context.Context, bc *runtypes.BeadCon
 	}
 
 	if err := h.createSubFn(ctx, bc.Bead, subTasks); err != nil {
+		h.log("Failed to create sub-beads: %v", err)
 		bc.Result.Error = fmt.Errorf("%s decomposition succeeded but failed to create sub-beads: %w", failureReason, err)
 		return false
 	}
 
+	h.log("Task successfully decomposed into %d sub-tasks", len(subTasks))
 	bc.Result.Decomposed = true
 	return false
 }
