@@ -380,6 +380,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	// Reset per-run state
 	r.validationFailures = []string{}
 	r.touchedPackages = make(map[string]bool)
+	if r.validationRunner != nil {
+		r.validationRunner.ResetFailures()
+	}
 
 	// Set up tmux title management (no-op if not in tmux)
 	tmuxMgr, err := tmux.NewManager()
