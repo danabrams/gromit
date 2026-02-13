@@ -6,8 +6,6 @@ import (
 )
 
 func TestExtractValidationSummary_GoTestFailures(t *testing.T) {
-	// Expected failure: extractValidationSummary function does not exist yet
-
 	tests := []struct {
 		name          string
 		input         string
@@ -91,8 +89,6 @@ FAIL	github.com/example/pkg	0.015s`,
 }
 
 func TestExtractValidationSummary_GoVetDiagnostics(t *testing.T) {
-	// Expected failure: extractValidationSummary function does not exist yet
-
 	tests := []struct {
 		name         string
 		input        string
@@ -145,8 +141,6 @@ FAIL	github.com/example/pkg [vet]`,
 }
 
 func TestExtractValidationSummary_CappedAt500Chars(t *testing.T) {
-	// Expected failure: extractValidationSummary function does not exist yet
-
 	// Build a long output with many test failures that would exceed 500 chars
 	var builder strings.Builder
 	for i := 0; i < 50; i++ {
@@ -171,8 +165,6 @@ func TestExtractValidationSummary_CappedAt500Chars(t *testing.T) {
 }
 
 func TestExtractValidationSummary_EmptyInput(t *testing.T) {
-	// Expected failure: extractValidationSummary function does not exist yet
-
 	result := extractValidationSummary("")
 	if result != "" {
 		t.Errorf("expected empty summary for empty input, got %q", result)
@@ -180,8 +172,6 @@ func TestExtractValidationSummary_EmptyInput(t *testing.T) {
 }
 
 func TestExtractValidationSummary_MixedGoTestAndVetOutput(t *testing.T) {
-	// Expected failure: extractValidationSummary function does not exist yet
-
 	input := `=== RUN   TestHandler
 --- FAIL: TestHandler (0.03s)
     handler_test.go:45: response code mismatch

@@ -15,9 +15,6 @@ import (
 // TestRunValidationAppendsFailureSummary verifies that after a validation command
 // fails, extractValidationSummary is called on the failure output and the result
 // is appended to r.validationFailures.
-//
-// Expected failure: runValidation does not currently call extractValidationSummary
-// or append to r.validationFailures.
 func TestRunValidationAppendsFailureSummary(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -92,8 +89,6 @@ FAIL	github.com/example/pkg	0.023s`,
 
 // TestRunValidationAccumulatesMultipleFailures verifies that successive validation
 // failures from different beads accumulate in r.validationFailures, not overwrite.
-//
-// Expected failure: runValidation does not currently append to r.validationFailures.
 func TestRunValidationAccumulatesMultipleFailures(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
@@ -152,9 +147,6 @@ func TestRunValidationAccumulatesMultipleFailures(t *testing.T) {
 // TestBuildPromptForBeadPopulatesRecentValidationFailures verifies that
 // buildPromptForBead sets Context.RecentValidationFailures to the last 3
 // entries from r.validationFailures.
-//
-// Expected failure: buildPromptForBead does not currently set
-// promptCtx.RecentValidationFailures from r.validationFailures.
 func TestBuildPromptForBeadPopulatesRecentValidationFailures(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -254,8 +246,6 @@ func TestBuildPromptForBeadPopulatesRecentValidationFailures(t *testing.T) {
 // TestRunResetsValidationFailures verifies that Runner.validationFailures is
 // reset to an empty slice at the start of each Run() call, so failures from
 // a previous run don't leak into the next run's build prompts.
-//
-// Expected failure: Run() does not currently reset r.validationFailures.
 func TestRunResetsValidationFailures(t *testing.T) {
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{BeadTimeout: 300},

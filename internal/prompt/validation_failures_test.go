@@ -7,8 +7,6 @@ import (
 )
 
 func TestContextNormalizeNilFieldsInitializesRecentValidationFailures(t *testing.T) {
-	// Expected failure: RecentValidationFailures field does not exist on Context yet
-
 	ctx := &Context{
 		Iteration: 1,
 		Model:     "sonnet",
@@ -31,8 +29,6 @@ func TestContextNormalizeNilFieldsInitializesRecentValidationFailures(t *testing
 }
 
 func TestContextNormalizeNilFieldsPreservesExistingValidationFailures(t *testing.T) {
-	// Expected failure: RecentValidationFailures field does not exist on Context yet
-
 	ctx := &Context{
 		ConfirmedLearnings:       []learnings.Learning{{Content: "a"}},
 		RecentLearnings:          []learnings.Learning{{Content: "b"}},
