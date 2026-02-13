@@ -203,7 +203,7 @@ func (r *Runner) handleScopeTooLarge(bc *runtypes.BeadContext, claudeResult *cla
 	}
 
 	// Extract synthetic learning for scope-too-large
-	r.extractScopeTooLargeLearning(bc, explanation)
+	escalation.ExtractScopeTooLargeLearning(bc, explanation, r.renderer.GetLearningsFile())
 
 	bc.Result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
 }
@@ -373,7 +373,7 @@ func (r *Runner) analyzeAndHandleFailure(ctx context.Context, bc *runtypes.BeadC
 	r.log("Analysis: category=%s, recoverable=%v", analysis.Category, analysis.Recoverable)
 	r.log("Root cause: %s", analysis.RootCause)
 
-	r.extractLearning(bc, analysis)
+	escalation.ExtractLearning(bc, analysis, r.renderer.GetLearningsFile())
 
 	if analysis.Category == analyzer.CategoryUnclearSpec {
 		bc.Result.Error = fmt.Errorf("spec unclear: %s - needs human review", analysis.RootCause)
@@ -385,7 +385,7 @@ func (r *Runner) analyzeAndHandleFailure(ctx context.Context, bc *runtypes.BeadC
 		if err := r.beads.AddComment(bc.Bead.ID, comment); err != nil {
 			r.log("Warning: failed to add comment to bead: %v", err)
 		}
-		r.extractLearning(bc, analysis)
+		escalation.ExtractLearning(bc, analysis, r.renderer.GetLearningsFile())
 		bc.Result.Error = fmt.Errorf("task too complex: %s - needs breakdown", analysis.RootCause)
 		return false
 	}
@@ -1147,7 +1147,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 			analysis, analyzeErr := r.analyzer.Analyze(valAnalysisCtx, bc.Bead, failureOutput)
 			valAnalysisCancel()
 			if analyzeErr == nil && analysis != nil {
-				r.extractLearning(bc, analysis)
+				escalation.ExtractLearning(bc, analysis, r.renderer.GetLearningsFile())
 			}
 
 			bc.Result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
@@ -1169,7 +1169,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 	reviewEnabled := r.cfg != nil && r.cfg.Review.Enabled
 
 	if learningEnabled {
-		r.extractSuccessLearning(ctx, bc)
+		escalation.ExtractSuccessLearning(ctx, bc, r.cfg, r.renderer.GetLearningsFile(), nil, nil)
 	}
 
 	if reviewEnabled {

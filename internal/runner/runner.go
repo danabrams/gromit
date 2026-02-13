@@ -890,7 +890,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 			// Classify timeout type
 			if ctx.Err() != nil && bc.ParentCtx.Err() == nil {
 				bc.Result.TimeoutType = "bead"
-				r.extractTimeoutLearning(bc)
+				escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
 				return nil, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 			} else if bc.ParentCtx.Err() != nil {
 				return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
