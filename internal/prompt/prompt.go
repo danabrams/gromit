@@ -147,12 +147,13 @@ type ThoroughReviewContext struct {
 
 // Renderer loads and renders prompt templates
 type Renderer struct {
-	templatesDir  string
-	specsDir      string
-	claudeMDPath  string
-	rulesPath     string
-	gromitDir     string
-	learningsFile *learnings.File
+	templatesDir     string
+	specsDir         string
+	claudeMDPath     string
+	rulesPath        string
+	gromitDir        string
+	learningsFile    *learnings.File
+	maxLearningChars int // Character budget for confirmed learnings; 0 means no cap
 
 	// Cache fields - files are immutable during a run, so cache after first load
 	claudeMDCache *string           // Cached CLAUDE.md content
@@ -201,6 +202,15 @@ func (r *Renderer) GetGromitDir() string {
 		return ""
 	}
 	return r.gromitDir
+}
+
+// SetMaxLearningChars sets the character budget for confirmed learnings.
+// Zero means no cap (backward compatible).
+func (r *Renderer) SetMaxLearningChars(maxChars int) {
+	if r == nil {
+		return
+	}
+	r.maxLearningChars = maxChars
 }
 
 // RenderBuild renders the build prompt for a bead
@@ -383,7 +393,9 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 
 	// Load learnings
 	if r.learningsFile != nil {
-		ctx.ConfirmedLearnings = r.learningsFile.GetConfirmed()
+		ctx.ConfirmedLearnings = r.learningsFile.GetConfirmedFiltered(learnings.FilterOptions{
+			MaxChars: r.maxLearningChars,
+		})
 		ctx.RecentLearnings = r.learningsFile.GetRecent(24) // Last 24 hours
 	}
 
