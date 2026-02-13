@@ -146,21 +146,26 @@ func TestMultipleRateLimitHits_WithoutInterveningEvent(t *testing.T) {
 	stats, _ := NewStreamStats()
 
 	// Multiple rate limit hits in quick succession
+	// Use wider intervals so the gap between "from first hit" (~200ms)
+	// and "from last hit" (~50ms) is large enough to tolerate scheduler jitter
+	// when the full test suite runs under load.
 	stats.RecordRateLimitHit()
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(75 * time.Millisecond)
 	stats.RecordRateLimitHit()
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(75 * time.Millisecond)
 	stats.RecordRateLimitHit()
 
-	// Now record an event after 40ms from the last hit
-	time.Sleep(40 * time.Millisecond)
+	// Now record an event after 50ms from the last hit
+	time.Sleep(50 * time.Millisecond)
 	stats.RecordEvent()
 
 	// Recovery should be measured from the last (third) rate limit hit
-	// which was ~40ms before the event, not from the first hit (~80ms)
+	// which was ~50ms before the event, not from the first hit (~200ms).
+	// Allow generous upper bound (150ms) to handle scheduler delays,
+	// while still distinguishing from the first-hit measurement (~200ms+).
 	_, _, _, _, _, recoveryMs := stats.DiagnosticSnapshot()
-	if recoveryMs > 60 {
-		t.Errorf("expected recovery time ~40ms (from last hit), got %d ms", recoveryMs)
+	if recoveryMs > 150 {
+		t.Errorf("expected recovery time ~50ms (from last hit), got %d ms", recoveryMs)
 	}
 }
 

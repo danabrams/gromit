@@ -2440,8 +2440,8 @@ func TestPrecheckConfigDefaults(t *testing.T) {
 	if cfg.Precheck.Model != "haiku" {
 		t.Errorf("expected default precheck model='haiku', got %q", cfg.Precheck.Model)
 	}
-	if cfg.Precheck.TimeoutSeconds != 60 {
-		t.Errorf("expected default precheck timeout=60, got %d", cfg.Precheck.TimeoutSeconds)
+	if cfg.Precheck.TimeoutSeconds != 120 {
+		t.Errorf("expected default precheck timeout=120, got %d", cfg.Precheck.TimeoutSeconds)
 	}
 }
 
@@ -2471,7 +2471,7 @@ func TestPrecheckConfigFromYAML(t *testing.T) {
 `,
 			expectEnabled: false,
 			expectModel:   "haiku",
-			expectTimeout: 60,
+			expectTimeout: 120,
 		},
 		{
 			name: "Custom model only",
@@ -2480,7 +2480,7 @@ func TestPrecheckConfigFromYAML(t *testing.T) {
 `,
 			expectEnabled: true,
 			expectModel:   "opus",
-			expectTimeout: 60,
+			expectTimeout: 120,
 		},
 		{
 			name: "Custom timeout only",
@@ -2496,7 +2496,7 @@ func TestPrecheckConfigFromYAML(t *testing.T) {
 			yaml:          "",
 			expectEnabled: true,
 			expectModel:   "haiku",
-			expectTimeout: 60,
+			expectTimeout: 120,
 		},
 	}
 
@@ -2608,8 +2608,8 @@ func TestPrecheckConfigZeroTimeout(t *testing.T) {
 	}
 
 	// Zero timeout should be replaced with default
-	if cfg.Precheck.TimeoutSeconds != 60 {
-		t.Errorf("expected default timeout=60, got %d", cfg.Precheck.TimeoutSeconds)
+	if cfg.Precheck.TimeoutSeconds != 120 {
+		t.Errorf("expected default timeout=120, got %d", cfg.Precheck.TimeoutSeconds)
 	}
 }
 

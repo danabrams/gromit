@@ -393,6 +393,11 @@ func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
 		return
 	}
 
+	// Skip learning extraction for haiku-tier beads
+	if bc.tier == provider.TierLow {
+		return
+	}
+
 	// Build a brief summary of what was done (use bead title + first line of description)
 	summary := bc.bead.Title
 	if bc.bead.Description != "" {

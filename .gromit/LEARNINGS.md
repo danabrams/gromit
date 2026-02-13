@@ -40,38 +40,47 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-12 | gromit-t4ch | conventions
-When modifying command help text or descriptions in cmd/gromit, regenerate golden files for CLI contract tests using the -update flag. The test output shows 'Run with -update flag to update golden file', which is the proper workflow for help text changes.
+### 2026-02-12 | Pipeline Method Conventions | patterns
+*Related to: gromit-qfr1*
 
-### 2026-02-12 | gromit-uy56 | conventions
-When refactoring a CLI adapter to use Pipeline methods, verify that the Pipeline methods themselves handle all the integration details (agent launching, prompt file construction, temp file management) that the original code or tests expect. The Pipeline.ReviewInteractive method should be constructing and passing the prompt through the full agent launch workflow, not just rendering it. Check the existing Pipeline patterns in runner.go or other pipeline methods to understand the established convention for agent invocation and prompt handling.
+Pipeline methods follow a consistent pattern: input struct with all parameters, output struct with results, validate dependencies first, use renderer for template processing, handle agent resolution via p.agents.ResolveByName with defaults, and define post-processing logic to detect changes. Verification tests in cmd/gromit enforce file colocation — explore tests must live alongside cmd/gromit/explore.go. Always check final_verification_test.go before implementing to understand test organization expectations.
 
-### 2026-02-12 | gromit-qfr1 | conventions
-Verification tests in cmd/gromit enforce file locations for test organization - explore tests must be colocated with the cmd/gromit/explore.go adapter, not in the internal package. Always check final_verification_test.go before implementing to understand test organization expectations.
+### 2026-02-13 | Runner Per-Run State Reset | patterns
+*Related to: gromit-rj11*
 
-### 2026-02-12 | gromit-qfr1 | patterns
-Pipeline methods follow a consistent pattern: input struct with all parameters, output struct with results, validate dependencies first, use renderer for template processing, handle agent resolution via p.agents.ResolveByName with defaults, and define post-processing logic to detect changes
+State fields in Runner that accumulate per-run should be reset at the start of Run(), not in individual phases. This ensures a fresh accumulator within each invocation while allowing safe in-run mutation (append) and non-destructive consumption (slice to last N).
 
-### 2026-02-12 | gromit-914c | patterns
-Interface cleanup in this codebase removes unused interface definitions entirely rather than keeping them for backwards compatibility or as documentation — check for unused interfaces in runner/interfaces.go and similar files when making changes to understand the current API contract
-
-### 2026-02-12 | gromit-vgzh | gotchas
-When migrating from dual-mode (with fallback) to Provider-only, update ALL call sites consistently — missing even one NewRetro() call will fail at runtime. Search comprehensively before declaring migration complete.
-
-### 2026-02-12 | gromit-jxnk | patterns
-Multi-provider Router initialization happens within cfg.HasProviders() conditional branch in NewRunner(); the legacy single-client path (claudeClient) stays in the else branch to maintain backward compatibility
-
-### 2026-02-12 | gromit-glxx | patterns
-Renderer methods that load static files (CLAUDE.md, RULES.md, specs) should use sync.Once or similar to cache on first load, since these files are immutable during a run and loaded multiple times across different phases (light review, thorough review). This avoids repeated disk I/O without requiring cache invalidation logic.
-
-### 2026-02-12 | gromit-glxx | patterns
-Cache static files loaded multiple times in a run using pointer fields (*string) for single values or maps for multi-value caches—check if nil/in-map, read from disk once, store the result. This is simpler than sync.Once and avoids repeated disk I/O without invalidation logic.
+### 2026-02-13 | gromit-kf5g | patterns
+Renderer is the central coordinator for context/state setup - modifications to how data flows into rendering (like character limits) happen in NewRunner() by calling Renderer setter methods after initialization, then BuildContext() reads those configured values
 
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-13 | gromit-qfr1 consolidation originals | conventions
+Archived: gromit-qfr1 (x2) consolidated into Provisional "Pipeline Method Conventions" entry.
+
+### 2026-02-13 | gromit-uy56 | conventions
+Archived: migration-specific guidance for refactoring a CLI adapter to use Pipeline methods. The specific migration task is complete. The underlying advice is generic engineering advice — verify that abstractions you're migrating to actually do what the old code did.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-13 | gromit-914c | patterns
+Archived: generic engineering advice — "remove unused code entirely rather than keeping for backwards compatibility." Standard dead code elimination practice, not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-vgzh | gotchas
+Archived: provider dual-mode migration is complete. The advice "update ALL call sites consistently" is generic engineering advice applicable to any interface migration.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-13 | gromit-jxnk | patterns
+Archived: documents HasProviders() conditional branching for backward compatibility with legacy claudeClient path. Implementation detail of NewRunner() that becomes irrelevant once legacy path is removed.
+
+*Archived from provisional: stale: migration complete*
 
 ### 2026-02-12 | Mock Implementation Patterns | patterns
 *Related to: ge6j, atmb*
@@ -1097,6 +1106,66 @@ When removing unused interfaces, check if test mocks implement them. If they do,
 
 ### 2026-02-12 | gromit-klxl | conventions
 Use SetDefaults() to apply conditional defaults based on other config fields (e.g., apply routing defaults only when providers are configured), and only apply defaults to empty fields while preserving user-specified values
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-rj11 | gotchas
+Before running full test suite, verify that required template files exist at .gromit/templates/ and that environment dependencies (like tmux) are available. Tests that depend on external tools or fixture files should skip gracefully or be skipped in CI environments.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-bsyu | patterns
+When filtering structured content (like markdown sections), parse and strip metadata annotations from output—Claude shouldn't see internal implementation comments. Test through the public API; simple parsing helpers don't need isolation tests.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-glxx | patterns
+Cache static files loaded multiple times in a run using pointer fields (*string) for single values or maps for multi-value caches—check if nil/in-map, read from disk once, store the result. This is simpler than sync.Once and avoids repeated disk I/O without invalidation logic.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | BACKWARDS_COMPAT_STUBS_CREATE_CIRCULAR_DEPS | CODE_QUALITY
+Backwards-compatibility stubs kept solely to satisfy other tests (buildExplorePrompt stub in explore_test.go) create circular dependencies that accumulate — delete both the stub and the test that requires it
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | AST_STRUCTURAL_TESTS_NOT_BEHAVIOR | TEST_QUALITY
+Tests that parse Go AST to verify code structure (like claude_client_interface_removal_test.go) provide no runtime safety guarantees — compile-time interface satisfaction checks (var _ Interface = (*Impl)(nil)) are the correct Go pattern for this
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-t4ch | conventions
+Archived: generic Go testing workflow — regenerate golden files with -update flag. Any project with golden file tests follows this pattern. Not specific to gromit's codebase.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-glxx | patterns
+Archived: generic caching advice (use sync.Once for immutable files). Standard Go pattern, not project-specific. The pointer-field caching variant is already captured in a separate archived entry.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | INTERFACE_EMPTY_TYPE_SAFETY_GAP | ARCHITECTURE
+Archived: not a learning — it's a backlog item observation already tracked as spec:pipeline-concrete-types. Adds no operational knowledge beyond "we know about this problem."
+
+*Archived from provisional: filtered: backlog item, not learning*
+
+### 2026-02-13 | gromit-bsyu | patterns
+Use HTML comments with structured syntax (e.g., <!-- phases: build, review -->) embedded in content headers to annotate metadata. Parse and filter based on annotations, then strip them from output to keep Claude's view clean and free of internal implementation details.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-osdj | conventions
+Config structs use embedded sub-config types (e.g., Learnings LearningsConfig) with SetDefaults() applying defaults recursively through each sub-struct
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-osdj | patterns
+Use FilterOptions struct pattern for optional filtering parameters - allows flexible combinations of filters (keywords, character limits) without requiring multiple method variants
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-kf5g | patterns
+When wiring config values through the runner initialization, use SetXxx() setter methods on components (like Renderer) called immediately after construction, rather than passing config directly to NewXxx(). This maintains clean separation between config and component initialization.
 
 *Archived from new: filtered: generic engineering advice*
 
