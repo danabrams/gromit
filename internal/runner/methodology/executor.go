@@ -50,6 +50,32 @@ func NewExecutor(cfg *config.Config, output io.Writer, renderFn RenderFn, invoke
 	}
 }
 
+// SetAnalyzeFn sets the analysis callback for VerifyTestsFailWithRetry.
+func (e *Executor) SetAnalyzeFn(fn AnalyzeFn) {
+	e.analyzeFn = fn
+}
+
+// SetGetDiffFn sets the git diff callback.
+func (e *Executor) SetGetDiffFn(fn GetDiffFn) {
+	e.getDiffFn = fn
+}
+
+// SetRefactorDeps sets the refactor-phase dependencies.
+// Only sets refactor-specific fields; does not overwrite getDiffFn or validateFn
+// if they were already set by the constructor or other setters.
+func (e *Executor) SetRefactorDeps(deps RefactorDeps) {
+	if deps.getDiffFn != nil {
+		e.getDiffFn = deps.getDiffFn
+	}
+	e.renderRefactorFn = deps.renderRefactorFn
+	e.refactorInvokeFn = deps.refactorInvokeFn
+	if deps.validateFn != nil {
+		e.validateFn = deps.validateFn
+	}
+	e.gitResetFn = deps.gitResetFn
+	e.getGitHeadFn = deps.getGitHeadFn
+}
+
 // log writes a formatted message to the output writer.
 func (e *Executor) log(format string, args ...interface{}) {
 	if e.output != nil {

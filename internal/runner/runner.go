@@ -25,6 +25,7 @@ import (
 	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
+	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 	"github.com/danabrams/gromit/internal/state"
@@ -56,6 +57,7 @@ type Runner struct {
 	router             *provider.Router
 	invoker            *execution.Invoker
 	escalationHandler  *escalation.Handler
+	methodologyExec    *methodology.Executor
 	validationRunner   *validation.Runner
 	analyzer           FailureAnalyzer
 	renderer           PromptRenderer
@@ -273,6 +275,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	}
 	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads, r.log)
 	r.validationRunner = validation.NewRunner(cfg, defaultCmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
+	r.methodologyExec = r.makeMethodologyExec()
 	return r, nil
 }
 
@@ -348,6 +351,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	}
 	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log)
 	r.validationRunner = validation.NewRunner(cfg, cmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
+	r.methodologyExec = r.makeMethodologyExec()
 	return r, nil
 }
 
@@ -1028,6 +1032,110 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 
 		return success
 	}
+}
+
+// makeMethodologyExec creates a methodology.Executor wired with callbacks
+// that route through the Runner's provider, escalation, and validation infrastructure.
+func (r *Runner) makeMethodologyExec() *methodology.Executor {
+	// RenderFn wraps the renderer's acceptance tests prompt rendering
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		if r.renderer == nil {
+			return "", fmt.Errorf("renderer not configured")
+		}
+		return r.renderer.RenderAcceptanceTests(ctx)
+	}
+
+	// InvokeFn wraps the provider chain for acceptance test invocations
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+		if r.router == nil {
+			return fmt.Errorf("router not configured")
+		}
+		p, modelName := r.router.Select("build", bc.Tier)
+		if p == nil {
+			return fmt.Errorf("no providers available for phase=build tier=%s", bc.Tier)
+		}
+		bc.Model = modelName
+		if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
+			bc.Result.EscalatedTo = modelName
+		}
+		result, err := p.Run(ctx, promptText, bc.Tier)
+		if err != nil {
+			if p.IsUsageLimitError(result, err) {
+				r.router.MarkUnavailable(p.Name())
+				p2, modelName2 := r.router.Select("build", bc.Tier)
+				if p2 != nil {
+					bc.Model = modelName2
+					result, err = p2.Run(ctx, promptText, bc.Tier)
+				}
+			}
+			if err != nil {
+				return err
+			}
+		}
+		if result == nil || !result.Success {
+			return fmt.Errorf("acceptance tests failed")
+		}
+		return nil
+	}
+
+	// ValidateDirectFn wraps the validation runner's direct validation
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return r.runDirectValidationCheck(ctx, commands, workDir)
+	}
+
+	// EscalateTierFn wraps escalation.Handler.EscalateTier
+	escalateTierFn := func(bc *runtypes.BeadContext, nextTier string) {
+		if r.escalationHandler != nil {
+			r.escalationHandler.EscalateTier(bc, nextTier)
+		}
+	}
+
+	// AnalyzeFn wraps the failure analyzer, extracting the suggestion string
+	var analyzeFn methodology.AnalyzeFn
+	if r.analyzer != nil {
+		analyzeFn = func(ctx context.Context, b *bead.Bead, failureOutput string) (string, error) {
+			analysis, err := r.analyzer.Analyze(ctx, b, failureOutput)
+			if err != nil {
+				return "", err
+			}
+			if analysis == nil {
+				return "", fmt.Errorf("analysis returned nil")
+			}
+			return analysis.Suggestion, nil
+		}
+	}
+
+	// GetDiffFn wraps the runner's git diff
+	getDiffFn := func(startCommit string) (string, error) {
+		return r.getDiff(startCommit)
+	}
+
+	// Create the base executor with ATDD callbacks
+	methExec := methodology.NewExecutorWithEscalation(r.cfg, r.output, renderFn, invokeFn, validateFn, escalateTierFn)
+
+	// Wire analysis support for VerifyTestsFailWithRetry
+	methExec.SetAnalyzeFn(analyzeFn)
+	methExec.SetGetDiffFn(getDiffFn)
+
+	// Wire refactor deps
+	methExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		getDiffFn,
+		func(ctx *prompt.Context) (string, error) {
+			if r.renderer == nil {
+				return "", fmt.Errorf("renderer not configured")
+			}
+			return r.renderer.RenderRefactor(ctx)
+		},
+		r.runRefactorWithRouter,
+		validateFn,
+		func(commit string) error {
+			resetCmd := exec.Command("git", "reset", "--hard", commit)
+			return resetCmd.Run()
+		},
+		getGitHead,
+	))
+
+	return methExec
 }
 
 // selectReviewTier determines the tier for code review based on build model.
