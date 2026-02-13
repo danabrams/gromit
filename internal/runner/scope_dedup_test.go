@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestScopeCheckDedup_ScopeGateAndBuildPromptShareEstimate tests that when
@@ -97,12 +98,12 @@ func TestScopeCheckDedup_ScopeGateAndBuildPromptShareEstimate(t *testing.T) {
 	}
 
 	// Now simulate building the prompt (second potential call)
-	bc := &beadContext{
-		bead:          testBead,
-		parent:        nil,
-		result:        &IterationResult{Model: "sonnet"},
-		model:         "sonnet",
-		scopeEstimate: scopeEstimate, // Pass cached estimate from scope gate
+	bc := &runtypes.BeadContext{
+		Bead:          testBead,
+		Parent:        nil,
+		Result:        &IterationResult{Model: "sonnet"},
+		Model:         "sonnet",
+		ScopeEstimate: scopeEstimate, // Pass cached estimate from scope gate
 	}
 
 	// This should NOT trigger another checkScope call in the fixed implementation
@@ -191,11 +192,11 @@ func TestScopeCheckDedup_BlockOversizedDisabledSkipsGateButCallsBuildPrompt(t *t
 	// Skip the scope gate (block_oversized is false)
 	// Go directly to buildPromptForBead
 	ctx := context.Background()
-	bc := &beadContext{
-		bead:   testBead,
-		parent: nil,
-		result: &IterationResult{Model: "sonnet"},
-		model:  "sonnet",
+	bc := &runtypes.BeadContext{
+		Bead:   testBead,
+		Parent: nil,
+		Result: &IterationResult{Model: "sonnet"},
+		Model:  "sonnet",
 	}
 
 	err = r.buildPromptForBead(ctx, bc, 1)
@@ -300,12 +301,12 @@ func TestScopeCheckDedup_HighComplexityAutoEscalationUsesCache(t *testing.T) {
 	}
 
 	// Build prompt with auto-escalation
-	bc := &beadContext{
-		bead:          testBead,
-		parent:        nil,
-		result:        &IterationResult{Model: "sonnet"},
-		model:         "sonnet",
-		scopeEstimate: scopeEstimate, // Pass cached estimate from scope gate
+	bc := &runtypes.BeadContext{
+		Bead:          testBead,
+		Parent:        nil,
+		Result:        &IterationResult{Model: "sonnet"},
+		Model:         "sonnet",
+		ScopeEstimate: scopeEstimate, // Pass cached estimate from scope gate
 	}
 
 	err = r.buildPromptForBead(ctx, bc, 1)
@@ -322,8 +323,8 @@ func TestScopeCheckDedup_HighComplexityAutoEscalationUsesCache(t *testing.T) {
 	}
 
 	// ACCEPTANCE CRITERION: Model should be escalated to opus based on cached complexity
-	if bc.model != "opus" {
-		t.Errorf("expected model escalated to opus based on high complexity, got %s", bc.model)
+	if bc.Model != "opus" {
+		t.Errorf("expected model escalated to opus based on high complexity, got %s", bc.Model)
 	}
 }
 

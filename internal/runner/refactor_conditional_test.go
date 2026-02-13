@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestRefactorSkippedForFewFiles verifies that the refactor phase is skipped
@@ -67,17 +68,17 @@ new file mode 100644
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test",
 			Priority: 1,
 		},
-		tier:        provider.TierMedium,
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: startCommit,
-		promptCtx: &prompt.Context{
+		Tier:        provider.TierMedium,
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: startCommit,
+		PromptCtx: &prompt.Context{
 			WorkDir: tmpDir,
 		},
 	}
@@ -178,17 +179,17 @@ new file mode 100644
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test",
 			Priority: 1,
 		},
-		tier:        provider.TierMedium,
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: startCommit,
-		promptCtx: &prompt.Context{
+		Tier:        provider.TierMedium,
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: startCommit,
+		PromptCtx: &prompt.Context{
 			WorkDir: tmpDir,
 		},
 	}
@@ -258,17 +259,17 @@ diff --git a/file5.go b/file5.go`, nil
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test",
 			Priority: 2, // P2 = haiku
 		},
-		tier:        provider.TierLow, // haiku tier
-		model:       "haiku",
-		result:      &IterationResult{},
-		startCommit: startCommit,
-		promptCtx: &prompt.Context{
+		Tier:        provider.TierLow, // haiku tier
+		Model:       "haiku",
+		Result:      &IterationResult{},
+		StartCommit: startCommit,
+		PromptCtx: &prompt.Context{
 			WorkDir: tmpDir,
 		},
 	}
@@ -352,17 +353,17 @@ diff --git a/file3.go b/file3.go`, nil
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test",
 			Priority: 1, // P1 = sonnet
 		},
-		tier:        provider.TierMedium, // sonnet tier
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: startCommit,
-		promptCtx: &prompt.Context{
+		Tier:        provider.TierMedium, // sonnet tier
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: startCommit,
+		PromptCtx: &prompt.Context{
 			WorkDir: tmpDir,
 		},
 	}
@@ -490,17 +491,17 @@ func TestRefactorConfigMinFilesChanged(t *testing.T) {
 				},
 			}
 
-			bc := &beadContext{
-				bead: &bead.Bead{
+			bc := &runtypes.BeadContext{
+				Bead: &bead.Bead{
 					ID:       "test-1",
 					Title:    "Test",
 					Priority: 1, // sonnet tier
 				},
-				tier:        provider.TierMedium,
-				model:       "sonnet",
-				result:      &IterationResult{},
-				startCommit: startCommit,
-				promptCtx: &prompt.Context{
+				Tier:        provider.TierMedium,
+				Model:       "sonnet",
+				Result:      &IterationResult{},
+				StartCommit: startCommit,
+				PromptCtx: &prompt.Context{
 					WorkDir: tmpDir,
 				},
 			}
@@ -599,17 +600,17 @@ func TestRefactorConfigMinFilesChangedZeroMeansDisabled(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test",
 			Priority: 1, // sonnet tier
 		},
-		tier:        provider.TierMedium,
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: startCommit,
-		promptCtx: &prompt.Context{
+		Tier:        provider.TierMedium,
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: startCommit,
+		PromptCtx: &prompt.Context{
 			WorkDir: tmpDir,
 		},
 	}

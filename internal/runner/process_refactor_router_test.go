@@ -12,10 +12,11 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestRunRefactorPhase_UsesRouter verifies that runRefactorPhase
-// calls router.Select() with phase="build" and the tier from bc.tier.
+// calls router.Select() with phase="build" and the tier from bc.Tier.
 func TestRunRefactorPhase_UsesRouter(t *testing.T) {
 	// Create a temp git repo to avoid early returns from getDiff
 	tmpDir := t.TempDir()
@@ -77,17 +78,17 @@ func TestRunRefactorPhase_UsesRouter(t *testing.T) {
 	writeTestFile(t, tmpDir, "test.txt", "changed content")
 	commitGit(t, tmpDir, "changed content")
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test",
 			Priority: 1,
 		},
-		tier:        provider.TierMedium,
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: startCommit,
-		promptCtx: &prompt.Context{
+		Tier:        provider.TierMedium,
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: startCommit,
+		PromptCtx: &prompt.Context{
 			WorkDir: tmpDir,
 		},
 	}
@@ -110,15 +111,15 @@ func TestRunRefactorPhase_UsesRouter(t *testing.T) {
 		t.Errorf("router.Select() phase = %q, want %q", capturedPhase, "build")
 	}
 
-	// Verify tier matches bc.tier
-	if capturedTier != bc.tier {
-		t.Errorf("router.Select() tier = %q, want %q", capturedTier, bc.tier)
+	// Verify tier matches bc.Tier
+	if capturedTier != bc.Tier {
+		t.Errorf("router.Select() tier = %q, want %q", capturedTier, bc.Tier)
 	}
 }
 
 // TestHandleRefactorValidationFailure_UsesRouter verifies that
 // handleRefactorValidationFailure calls router.Select() with phase="build"
-// and the tier from bc.tier when retrying the refactor.
+// and the tier from bc.Tier when retrying the refactor.
 func TestHandleRefactorValidationFailure_UsesRouter(t *testing.T) {
 	// Create a temp git repo
 	tmpDir := t.TempDir()
@@ -180,16 +181,16 @@ func TestHandleRefactorValidationFailure_UsesRouter(t *testing.T) {
 	writeTestFile(t, tmpDir, "test.txt", "refactored content")
 	commitGit(t, tmpDir, "refactored")
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test",
 			Priority: 1,
 		},
-		tier:   provider.TierMedium,
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+		Tier:   provider.TierMedium,
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir: tmpDir,
 		},
 	}
@@ -212,9 +213,9 @@ func TestHandleRefactorValidationFailure_UsesRouter(t *testing.T) {
 		t.Errorf("router.Select() phase = %q, want %q", capturedPhase, "build")
 	}
 
-	// Verify tier matches bc.tier
-	if capturedTier != bc.tier {
-		t.Errorf("router.Select() tier = %q, want %q", capturedTier, bc.tier)
+	// Verify tier matches bc.Tier
+	if capturedTier != bc.Tier {
+		t.Errorf("router.Select() tier = %q, want %q", capturedTier, bc.Tier)
 	}
 }
 

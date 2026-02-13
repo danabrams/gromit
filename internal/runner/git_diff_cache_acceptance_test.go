@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestAcceptance_GitDiffCachedInBeadContext verifies that getDiff() caches
@@ -32,13 +33,13 @@ func TestAcceptance_GitDiffCachedInBeadContext(t *testing.T) {
 	}
 
 	// Create a beadContext with startCommit set
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test bead",
 			Priority: 1,
 		},
-		startCommit: "abc123",
+		StartCommit: "abc123",
 	}
 
 	// First call to getDiffCached - should hit gitDiffFn
@@ -98,13 +99,13 @@ func TestAcceptance_GitDiffCacheClearedBetweenBeads(t *testing.T) {
 	}
 
 	// First bead context
-	bc1 := &beadContext{
-		bead: &bead.Bead{
+	bc1 := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "bead-1",
 			Title:    "First bead",
 			Priority: 1,
 		},
-		startCommit: "commit1",
+		StartCommit: "commit1",
 	}
 
 	// Call getDiffCached for first bead
@@ -123,13 +124,13 @@ func TestAcceptance_GitDiffCacheClearedBetweenBeads(t *testing.T) {
 	currentDiff = mockDiff2
 
 	// Second bead context (different bead)
-	bc2 := &beadContext{
-		bead: &bead.Bead{
+	bc2 := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "bead-2",
 			Title:    "Second bead",
 			Priority: 1,
 		},
-		startCommit: "commit2",
+		StartCommit: "commit2",
 	}
 
 	// Call getDiffCached for second bead - should NOT use cache from bc1
@@ -173,13 +174,13 @@ func TestAcceptance_MultipleDiffCallsUseCachedVersion(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-bead",
 			Title:    "Test",
 			Priority: 1,
 		},
-		startCommit: "abc123",
+		StartCommit: "abc123",
 	}
 
 	// Simulate multiple operations within the same iteration that all need the diff:
@@ -216,7 +217,7 @@ func TestAcceptance_MultipleDiffCallsUseCachedVersion(t *testing.T) {
 // TestAcceptance_RefactorPhaseUsesCachedDiff verifies that runRefactorPhase
 // uses the cached diff instead of calling git diff directly.
 func TestAcceptance_RefactorPhaseUsesCachedDiff(t *testing.T) {
-	// Expected failure: runRefactorPhase calls getDiff(bc.startCommit) instead of getDiffCached(bc)
+	// Expected failure: runRefactorPhase calls getDiff(bc.StartCommit) instead of getDiffCached(bc)
 
 	var gitDiffCallCount int
 	mockDiff := "diff --git a/refactor.go\n+refactored code"
@@ -251,17 +252,17 @@ func TestAcceptance_RefactorPhaseUsesCachedDiff(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-bead",
 			Title:    "Test refactor",
 			Priority: 1,
 		},
-		startCommit:   "abc123",
-		model:         "sonnet",
-		tier:          provider.TierMedium,
-		buildProvider: "test-provider",
-		promptCtx:     &prompt.Context{},
+		StartCommit:   "abc123",
+		Model:         "sonnet",
+		Tier:          provider.TierMedium,
+		BuildProvider: "test-provider",
+		PromptCtx:     &prompt.Context{},
 	}
 
 	ctx := context.Background()
@@ -272,7 +273,7 @@ func TestAcceptance_RefactorPhaseUsesCachedDiff(t *testing.T) {
 		t.Fatalf("Initial cache population: expected 1 git call, got %d", gitDiffCallCount)
 	}
 
-	// Now run refactor phase - it should use getDiffCached(bc), not getDiff(bc.startCommit)
+	// Now run refactor phase - it should use getDiffCached(bc), not getDiff(bc.StartCommit)
 	_ = r.runRefactorPhase(ctx, bc)
 
 	// If runRefactorPhase uses getDiffCached, we should still have only 1 git call
@@ -286,7 +287,7 @@ func TestAcceptance_RefactorPhaseUsesCachedDiff(t *testing.T) {
 // verification (verifyTestsFailWithRetry) uses cached diff instead of
 // calling git diff directly when checking for test-only changes.
 func TestAcceptance_TestVerificationUsesCachedDiff(t *testing.T) {
-	// Expected failure: verifyTestsFailWithRetry calls getDiff(bc.startCommit) instead of getDiffCached(bc)
+	// Expected failure: verifyTestsFailWithRetry calls getDiff(bc.StartCommit) instead of getDiffCached(bc)
 
 	var gitDiffCallCount int
 	mockDiff := "diff --git a/test_test.go\n+test code"
@@ -304,14 +305,14 @@ func TestAcceptance_TestVerificationUsesCachedDiff(t *testing.T) {
 		output: &strings.Builder{},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-bead",
 			Title:    "Test verification",
 			Priority: 1,
 		},
-		startCommit: "abc123",
-		promptCtx:   &prompt.Context{},
+		StartCommit: "abc123",
+		PromptCtx:   &prompt.Context{},
 	}
 
 	// Populate cache first
@@ -322,7 +323,7 @@ func TestAcceptance_TestVerificationUsesCachedDiff(t *testing.T) {
 
 	// Note: verifyTestsFailWithRetry internally checks diff to detect test-only changes
 	// If it uses getDiffCached(bc), the call count should remain at 1
-	// If it uses getDiff(bc.startCommit), we'll see a second call
+	// If it uses getDiff(bc.StartCommit), we'll see a second call
 
 	// We can't easily test the full path without mocking validation,
 	// but we can verify the pattern by checking that after cache population,
@@ -350,13 +351,13 @@ func TestAcceptance_GetDiffCachedReturnsErrorFromGitDiff(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test",
 			Priority: 1,
 		},
-		startCommit: "abc123",
+		StartCommit: "abc123",
 	}
 
 	// First call should return error
@@ -394,13 +395,13 @@ func TestAcceptance_GetDiffCachedHandlesEmptyDiff(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:       "test-1",
 			Title:    "Test",
 			Priority: 1,
 		},
-		startCommit: "abc123",
+		StartCommit: "abc123",
 	}
 
 	// First call
@@ -499,7 +500,7 @@ func TestAcceptance_ProcessBeadClearsCacheBetweenIterations(t *testing.T) {
 	// Get diff for first bead - should populate cache
 	diff1, _ := r.getDiffCached(bc1)
 	if gitDiffCallCount != 1 {
-		t.Errorf("First bead: expected 1 git call, got %d", gitDiffCallCount)
+		t.Errorf("First Bead: expected 1 git call, got %d", gitDiffCallCount)
 	}
 
 	// Change what git returns (simulating new bead with different changes)
@@ -523,13 +524,13 @@ func TestAcceptance_ProcessBeadClearsCacheBetweenIterations(t *testing.T) {
 	// Get diff for second bead - should call git again (not use bc1's cache)
 	diff2, _ := r.getDiffCached(bc2)
 	if gitDiffCallCount != 2 {
-		t.Errorf("Second bead: expected 2 total git calls (cache cleared), got %d", gitDiffCallCount)
+		t.Errorf("Second Bead: expected 2 total git calls (cache cleared), got %d", gitDiffCallCount)
 	}
 	if diff2 == diff1 {
 		t.Errorf("Second bead returned same diff as first (cache not cleared)")
 	}
 	if diff2 != "second diff" {
-		t.Errorf("Second bead: got %q, want %q", diff2, "second diff")
+		t.Errorf("Second Bead: got %q, want %q", diff2, "second diff")
 	}
 }
 

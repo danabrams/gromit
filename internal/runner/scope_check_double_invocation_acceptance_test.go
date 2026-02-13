@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestScopeCheckNotDuplicatedInProcessBead verifies that when block_oversized is
@@ -196,20 +197,20 @@ func TestSetupBeadContextAcceptsScopeEstimate(t *testing.T) {
 	}
 
 	// ACCEPTANCE CRITERION: The scopeEstimate should be stored in beadContext
-	// The current implementation doesn't store scopeEstimate, so bc.scopeEstimate
+	// The current implementation doesn't store scopeEstimate, so bc.ScopeEstimate
 	// will be nil. The fix will store it in beadContext.scopeEstimate.
-	if bc.scopeEstimate != estimate {
-		t.Errorf("expected beadContext.scopeEstimate to be %v, got %v", estimate, bc.scopeEstimate)
+	if bc.ScopeEstimate != estimate {
+		t.Errorf("expected beadContext.scopeEstimate to be %v, got %v", estimate, bc.ScopeEstimate)
 	}
 }
 
 // TestBuildPromptForBeadSkipsScopeCheckWhenEstimateCached verifies that when
-// buildPromptForBead is called with a non-nil bc.scopeEstimate, it does not
+// buildPromptForBead is called with a non-nil bc.ScopeEstimate, it does not
 // call checkScope again.
 //
 // Expected failure: The current buildPromptForBead (process.go:103) always
-// calls checkScope when r.cfg.ScopeCheck.Enabled is true, even if bc.scopeEstimate
-// is non-nil. The fix will check if bc.scopeEstimate is non-nil before calling
+// calls checkScope when r.cfg.ScopeCheck.Enabled is true, even if bc.ScopeEstimate
+// is non-nil. The fix will check if bc.ScopeEstimate is non-nil before calling
 // checkScope at process.go:116.
 func TestBuildPromptForBeadSkipsScopeCheckWhenEstimateCached(t *testing.T) {
 	cfg := baseScopeGateConfig()
@@ -280,12 +281,12 @@ func TestBuildPromptForBeadSkipsScopeCheckWhenEstimateCached(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a beadContext with cached scopeEstimate
-	bc := &beadContext{
-		bead:          testBead,
-		parent:        nil,
-		result:        &IterationResult{Model: "sonnet"},
-		model:         "sonnet",
-		scopeEstimate: cachedEstimate, // Pre-populated from scope gate
+	bc := &runtypes.BeadContext{
+		Bead:          testBead,
+		Parent:        nil,
+		Result:        &IterationResult{Model: "sonnet"},
+		Model:         "sonnet",
+		ScopeEstimate: cachedEstimate, // Pre-populated from scope gate
 	}
 
 	// Call buildPromptForBead with cached estimate
@@ -296,7 +297,7 @@ func TestBuildPromptForBeadSkipsScopeCheckWhenEstimateCached(t *testing.T) {
 
 	// ACCEPTANCE CRITERION: RenderScope should NOT be called because estimate is cached
 	// The current implementation at process.go:117 calls checkScope regardless of
-	// whether bc.scopeEstimate is set. The fix will check if bc.scopeEstimate != nil
+	// whether bc.ScopeEstimate is set. The fix will check if bc.ScopeEstimate != nil
 	// before calling checkScope.
 	renderScopeMu.Lock()
 	finalCount := renderScopeCallCount
@@ -307,16 +308,16 @@ func TestBuildPromptForBeadSkipsScopeCheckWhenEstimateCached(t *testing.T) {
 
 	// ACCEPTANCE CRITERION: Auto-escalation should use the cached estimate
 	// If complexity is "high", model should be escalated to opus using cached data
-	bc.scopeEstimate.Complexity = "high"
-	bc.model = "sonnet" // Reset model
+	bc.ScopeEstimate.Complexity = "high"
+	bc.Model = "sonnet" // Reset model
 	err = r.buildPromptForBead(ctx, bc, 1)
 	if err != nil {
 		t.Fatalf("buildPromptForBead error on retry: %v", err)
 	}
 
 	// Model should be escalated based on cached complexity without calling checkScope
-	if bc.model != "opus" {
-		t.Errorf("expected model escalated to opus based on cached complexity=high, got %s", bc.model)
+	if bc.Model != "opus" {
+		t.Errorf("expected model escalated to opus based on cached complexity=high, got %s", bc.Model)
 	}
 
 	// Verify still no additional RenderScope calls

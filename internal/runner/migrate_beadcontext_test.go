@@ -299,7 +299,7 @@ func TestProcessBead_ReturnsCorrectResult(t *testing.T) {
 // TestExtractLearning_ReadsExportedBeadField verifies that learning extraction
 // functions read the Bead field through its exported name after migration.
 //
-// Expected failure: extractSyntheticLearning reads bc.bead (unexported);
+// Expected failure: extractSyntheticLearning reads bc.Bead (unexported);
 // after migration it reads bc.Bead (exported from runtypes.BeadContext).
 func TestExtractLearning_ReadsExportedBeadField(t *testing.T) {
 	tempDir := t.TempDir()
@@ -353,7 +353,7 @@ func TestExtractLearning_ReadsExportedBeadField(t *testing.T) {
 // TestHandleStallTimeout_ReadsExportedRetryFields verifies that handleStallTimeout
 // reads and mutates retry counters through exported field names after migration.
 //
-// Expected failure: handleStallTimeout reads bc.retriesThisModel (unexported);
+// Expected failure: handleStallTimeout reads bc.RetriesThisModel (unexported);
 // after migration it reads bc.RetriesThisModel (exported from runtypes.BeadContext).
 func TestHandleStallTimeout_ReadsExportedRetryFields(t *testing.T) {
 	r := &Runner{
@@ -408,7 +408,7 @@ func TestHandleStallTimeout_ReadsExportedRetryFields(t *testing.T) {
 // TestShouldRunRefactor_ReadsTierFromExportedField verifies that shouldRunRefactor
 // reads the Tier field from the exported field on *runtypes.BeadContext.
 //
-// Expected failure: shouldRunRefactor reads bc.tier (unexported); after migration
+// Expected failure: shouldRunRefactor reads bc.Tier (unexported); after migration
 // it reads bc.Tier (exported from runtypes.BeadContext).
 func TestShouldRunRefactor_ReadsTierFromExportedField(t *testing.T) {
 	r2 := setupMigratedRunner(t)
@@ -453,7 +453,7 @@ func TestShouldRunRefactor_ReadsTierFromExportedField(t *testing.T) {
 // buildPromptForBead sets PromptCtx and BuildPrompt through exported field
 // names after the migration.
 //
-// Expected failure: buildPromptForBead sets bc.promptCtx and bc.buildPrompt
+// Expected failure: buildPromptForBead sets bc.PromptCtx and bc.BuildPrompt
 // (unexported); after migration it sets bc.PromptCtx and bc.BuildPrompt
 // (exported from runtypes.BeadContext).
 func TestBuildPromptForBead_SetsExportedPromptFields(t *testing.T) {

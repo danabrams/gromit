@@ -10,11 +10,12 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestExtractSuccessLearning_SkipsHaikuTierBeads verifies that learning extraction
 // is skipped when the bead was processed with a haiku-tier model.
-// Expected failure: extractSuccessLearning does not check bc.tier before invoking the provider
+// Expected failure: extractSuccessLearning does not check bc.Tier before invoking the provider
 func TestExtractSuccessLearning_SkipsHaikuTierBeads(t *testing.T) {
 	var buf strings.Builder
 	providerInvoked := false
@@ -50,13 +51,13 @@ func TestExtractSuccessLearning_SkipsHaikuTierBeads(t *testing.T) {
 		output:   &buf,
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-1",
 			Title:       "Test",
 			Description: "Test description",
 		},
-		tier: provider.TierLow, // haiku tier
+		Tier: provider.TierLow, // haiku tier
 	}
 
 	r.extractSuccessLearning(context.Background(), bc)
@@ -74,7 +75,7 @@ func TestExtractSuccessLearning_SkipsHaikuTierBeads(t *testing.T) {
 
 // TestExtractSuccessLearning_RunsForNonHaikuTierBeads verifies that learning extraction
 // still runs for medium and high tier beads.
-// Expected failure: extractSuccessLearning does not check bc.tier, so this passes regardless
+// Expected failure: extractSuccessLearning does not check bc.Tier, so this passes regardless
 func TestExtractSuccessLearning_RunsForNonHaikuTierBeads(t *testing.T) {
 	tests := []struct {
 		name string
@@ -120,13 +121,13 @@ func TestExtractSuccessLearning_RunsForNonHaikuTierBeads(t *testing.T) {
 				output:   &buf,
 			}
 
-			bc := &beadContext{
-				bead: &bead.Bead{
+			bc := &runtypes.BeadContext{
+				Bead: &bead.Bead{
 					ID:          "test-1",
 					Title:       "Test",
 					Description: "Test description",
 				},
-				tier: tt.tier,
+				Tier: tt.tier,
 			}
 
 			r.extractSuccessLearning(context.Background(), bc)
@@ -180,14 +181,14 @@ func TestExtractSuccessLearning_SkipsForKnownPackages(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-1",
 			Title:       "Test",
 			Description: "Test description",
 		},
-		tier:            provider.TierMedium,         // non-haiku tier
-		touchedPackages: []string{"internal/runner"}, // all packages already seen
+		Tier:            provider.TierMedium,         // non-haiku tier
+		TouchedPackages: []string{"internal/runner"}, // all packages already seen
 	}
 
 	r.extractSuccessLearning(context.Background(), bc)
@@ -243,14 +244,14 @@ func TestExtractSuccessLearning_RunsForNewPackages(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-1",
 			Title:       "Test",
 			Description: "Test description",
 		},
-		tier:            provider.TierMedium,                            // non-haiku tier
-		touchedPackages: []string{"internal/runner", "internal/config"}, // internal/config is new
+		Tier:            provider.TierMedium,                            // non-haiku tier
+		TouchedPackages: []string{"internal/runner", "internal/config"}, // internal/config is new
 	}
 
 	r.extractSuccessLearning(context.Background(), bc)
@@ -277,18 +278,18 @@ func TestExtractSuccessLearning_AlwaysRunsOnFailure(t *testing.T) {
 
 // TestBeadContext_TouchedPackages verifies that beadContext tracks touched packages.
 func TestBeadContext_TouchedPackages(t *testing.T) {
-	bc := &beadContext{
-		touchedPackages: []string{"internal/runner", "internal/config"},
+	bc := &runtypes.BeadContext{
+		TouchedPackages: []string{"internal/runner", "internal/config"},
 	}
 
-	if len(bc.touchedPackages) != 2 {
-		t.Errorf("expected 2 packages, got %d", len(bc.touchedPackages))
+	if len(bc.TouchedPackages) != 2 {
+		t.Errorf("expected 2 packages, got %d", len(bc.TouchedPackages))
 	}
-	if bc.touchedPackages[0] != "internal/runner" {
-		t.Errorf("expected first package to be 'internal/runner', got %q", bc.touchedPackages[0])
+	if bc.TouchedPackages[0] != "internal/runner" {
+		t.Errorf("expected first package to be 'internal/runner', got %q", bc.TouchedPackages[0])
 	}
-	if bc.touchedPackages[1] != "internal/config" {
-		t.Errorf("expected second package to be 'internal/config', got %q", bc.touchedPackages[1])
+	if bc.TouchedPackages[1] != "internal/config" {
+		t.Errorf("expected second package to be 'internal/config', got %q", bc.TouchedPackages[1])
 	}
 }
 

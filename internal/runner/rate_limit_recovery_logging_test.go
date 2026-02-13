@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs verifies that
@@ -67,15 +68,15 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 		streamLogger: sl,
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-1",
 			Title:       "Test bead",
 			Description: "Test description",
 		},
-		result:      &IterationResult{BeadID: "test-1", Model: "sonnet"},
-		model:       "sonnet",
-		buildPrompt: "test prompt",
+		Result:      &IterationResult{BeadID: "test-1", Model: "sonnet"},
+		Model:       "sonnet",
+		BuildPrompt: "test prompt",
 	}
 
 	ctx := context.Background()
@@ -96,18 +97,18 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 	}
 
 	// Verify IterationResult captured the recovery time
-	if bc.result.RateLimitRecoveryMs == 0 {
+	if bc.Result.RateLimitRecoveryMs == 0 {
 		t.Error("expected IterationResult.RateLimitRecoveryMs to be set from DiagnosticSnapshot()")
 	}
 
-	if bc.result.RateLimitRecoveryMs < 100 {
-		t.Errorf("expected RateLimitRecoveryMs >= 100ms based on sleep, got %d ms", bc.result.RateLimitRecoveryMs)
+	if bc.Result.RateLimitRecoveryMs < 100 {
+		t.Errorf("expected RateLimitRecoveryMs >= 100ms based on sleep, got %d ms", bc.Result.RateLimitRecoveryMs)
 	}
 
 	// Verify it matches what DiagnosticSnapshot returned
-	if bc.result.RateLimitRecoveryMs != recoveryMs {
+	if bc.Result.RateLimitRecoveryMs != recoveryMs {
 		t.Errorf("expected IterationResult.RateLimitRecoveryMs (%d) to match DiagnosticSnapshot return value (%d)",
-			bc.result.RateLimitRecoveryMs, recoveryMs)
+			bc.Result.RateLimitRecoveryMs, recoveryMs)
 	}
 }
 
@@ -147,15 +148,15 @@ func TestExecuteClaudeInvocation_ZeroRecoveryMsWhenNoRateLimit(t *testing.T) {
 		router: mockRouter,
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-2",
 			Title:       "Test bead",
 			Description: "Test description",
 		},
-		result:      &IterationResult{BeadID: "test-2", Model: "sonnet"},
-		model:       "sonnet",
-		buildPrompt: "test prompt",
+		Result:      &IterationResult{BeadID: "test-2", Model: "sonnet"},
+		Model:       "sonnet",
+		BuildPrompt: "test prompt",
 	}
 
 	ctx := context.Background()
@@ -165,7 +166,7 @@ func TestExecuteClaudeInvocation_ZeroRecoveryMsWhenNoRateLimit(t *testing.T) {
 	}
 
 	// Verify RateLimitRecoveryMs is zero when no rate limit occurred
-	if bc.result.RateLimitRecoveryMs != 0 {
-		t.Errorf("expected RateLimitRecoveryMs=0 when no rate limit, got %d ms", bc.result.RateLimitRecoveryMs)
+	if bc.Result.RateLimitRecoveryMs != 0 {
+		t.Errorf("expected RateLimitRecoveryMs=0 when no rate limit, got %d ms", bc.Result.RateLimitRecoveryMs)
 	}
 }

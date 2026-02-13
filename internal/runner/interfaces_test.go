@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // --- Mock implementations ---
@@ -849,14 +850,14 @@ func TestAnalyzeAndHandleFailureWithMocks(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	bc := &beadContext{
-		bead:              &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}, ExpectedOutputs: []string{}},
-		result:            &IterationResult{},
-		model:             "sonnet",
-		promptCtx:         &prompt.Context{Model: "sonnet", ConfirmedLearnings: []learnings.Learning{}, RecentLearnings: []learnings.Learning{}},
-		retriesThisModel:  0,
-		maxRetries:        2,
-		maxRetriesPerBead: 5,
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}, ExpectedOutputs: []string{}},
+		Result:            &IterationResult{},
+		Model:             "sonnet",
+		PromptCtx:         &prompt.Context{Model: "sonnet", ConfirmedLearnings: []learnings.Learning{}, RecentLearnings: []learnings.Learning{}},
+		RetriesThisModel:  0,
+		MaxRetries:        2,
+		MaxRetriesPerBead: 5,
 	}
 
 	claudeResult := &claude.Result{Success: false, Output: "compile error: missing import"}
@@ -865,14 +866,14 @@ func TestAnalyzeAndHandleFailureWithMocks(t *testing.T) {
 	if !continueLoop {
 		t.Error("expected continueLoop=true for recoverable failure")
 	}
-	if bc.retriesThisModel != 1 {
-		t.Errorf("expected retriesThisModel=1, got %d", bc.retriesThisModel)
+	if bc.RetriesThisModel != 1 {
+		t.Errorf("expected retriesThisModel=1, got %d", bc.RetriesThisModel)
 	}
-	if !bc.promptCtx.IsRetry {
+	if !bc.PromptCtx.IsRetry {
 		t.Error("expected IsRetry=true after recoverable failure")
 	}
-	if bc.promptCtx.FailureContext != "Add the missing import statement" {
-		t.Errorf("expected failure context from analysis, got %q", bc.promptCtx.FailureContext)
+	if bc.PromptCtx.FailureContext != "Add the missing import statement" {
+		t.Errorf("expected failure context from analysis, got %q", bc.PromptCtx.FailureContext)
 	}
 }
 
@@ -1060,16 +1061,16 @@ func TestHandleScopeTooLargeWithMocks(t *testing.T) {
 	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "big-1", Title: "Big Task", Labels: []string{}, ExpectedOutputs: []string{}},
-		result: &IterationResult{},
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "big-1", Title: "Big Task", Labels: []string{}, ExpectedOutputs: []string{}},
+		Result: &IterationResult{},
 	}
 	claudeResult := &claude.Result{Output: "SCOPE_TOO_LARGE: This task needs to be split"}
 
 	r.handleScopeTooLarge(bc, claudeResult, "needs split")
 
-	if bc.result.Error == nil || !strings.Contains(bc.result.Error.Error(), "scope too large") {
-		t.Errorf("expected scope too large error, got: %v", bc.result.Error)
+	if bc.Result.Error == nil || !strings.Contains(bc.Result.Error.Error(), "scope too large") {
+		t.Errorf("expected scope too large error, got: %v", bc.Result.Error)
 	}
 	if len(beads.Comments) != 1 || !strings.Contains(beads.Comments[0].Comment, "Scope too large") {
 		t.Error("expected scope too large comment on bead")
@@ -1495,7 +1496,7 @@ func TestRunWithMocks_PrecheckDoesNotCountAsIteration(t *testing.T) {
 			callCount++
 			switch callCount {
 			case 1:
-				// First bead: precheck passes (should be skipped, not count as iteration)
+				// First Bead: precheck passes (should be skipped, not count as iteration)
 				return &bead.Bead{
 					ID:              "bead-1",
 					Title:           "Already completed",
@@ -1504,7 +1505,7 @@ func TestRunWithMocks_PrecheckDoesNotCountAsIteration(t *testing.T) {
 					ExpectedOutputs: []string{"feature is implemented"},
 				}, nil
 			case 2:
-				// Second bead: precheck fails, needs real work
+				// Second Bead: precheck fails, needs real work
 				return &bead.Bead{
 					ID:              "bead-2",
 					Title:           "Needs implementation",

@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // setupDirectValidationRunner creates a Runner wired for direct validation tests.
@@ -53,13 +54,13 @@ func setupDirectValidationRunner(t *testing.T, cfg *config.Config) (*Runner, *mo
 	return r, mockClaude, mockAnalyzer
 }
 
-func newBeadContext(t *testing.T) *beadContext {
+func newBeadContext(t *testing.T) *runtypes.BeadContext {
 	t.Helper()
-	return &beadContext{
-		bead:   &bead.Bead{ID: "test-direct-val", Title: "Test Direct Validation"},
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	return &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-direct-val", Title: "Test Direct Validation"},
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
@@ -133,7 +134,7 @@ func TestDirectValidation_ExitCodeZeroMeansPass(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected no error when all commands exit 0, got: %v", err)
 	}
-	if !bc.result.Validated {
+	if !bc.Result.Validated {
 		t.Error("expected Validated=true when all commands exit with code 0")
 	}
 }
@@ -166,8 +167,8 @@ func TestDirectValidation_NonZeroExitCodeMeansFailWithStderr(t *testing.T) {
 	}
 
 	// The captured stderr should appear in the result output
-	if !strings.Contains(bc.result.Output, stderrMsg) {
-		t.Errorf("expected result output to contain stderr %q, got: %q", stderrMsg, bc.result.Output)
+	if !strings.Contains(bc.Result.Output, stderrMsg) {
+		t.Errorf("expected result output to contain stderr %q, got: %q", stderrMsg, bc.Result.Output)
 	}
 }
 
@@ -328,7 +329,7 @@ func TestDirectValidation_WorkDirPassedToCommands(t *testing.T) {
 	r, _, _ := setupDirectValidationRunner(t, nil)
 	bc := newBeadContext(t)
 
-	expectedWorkDir := bc.promptCtx.WorkDir
+	expectedWorkDir := bc.PromptCtx.WorkDir
 	var receivedWorkDir string
 
 	// Expected failure: cmdRunnerFn does not exist on Runner yet.
@@ -389,9 +390,9 @@ func TestDirectValidation_RecoveryStillWorks(t *testing.T) {
 	}
 
 	bc := newBeadContext(t)
-	bc.maxRetries = 1
-	bc.maxRetriesPerBead = 5
-	bc.parentCtx = context.Background()
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
+	bc.ParentCtx = context.Background()
 
 	validationCallCount := 0
 
@@ -413,7 +414,7 @@ func TestDirectValidation_RecoveryStillWorks(t *testing.T) {
 	if validationCallCount < 2 {
 		t.Errorf("expected validation to be called at least twice (initial + after fix), got %d", validationCallCount)
 	}
-	if !bc.result.ValidationRetried {
+	if !bc.Result.ValidationRetried {
 		t.Error("expected ValidationRetried=true after recovery attempt")
 	}
 }
@@ -450,12 +451,12 @@ func TestDirectValidation_CapturesStdoutAndStderr(t *testing.T) {
 	_ = r.runValidation(context.Background(), bc)
 
 	// Result output should contain the stderr from the failed command
-	if !strings.Contains(bc.result.Output, expectedStderr) {
-		t.Errorf("expected result output to contain stderr %q, got: %q", expectedStderr, bc.result.Output)
+	if !strings.Contains(bc.Result.Output, expectedStderr) {
+		t.Errorf("expected result output to contain stderr %q, got: %q", expectedStderr, bc.Result.Output)
 	}
 
 	// Result output should identify which command failed
-	if !strings.Contains(bc.result.Output, expectedCommand) {
-		t.Errorf("expected result output to identify failed command %q, got: %q", expectedCommand, bc.result.Output)
+	if !strings.Contains(bc.Result.Output, expectedCommand) {
+		t.Errorf("expected result output to identify failed command %q, got: %q", expectedCommand, bc.Result.Output)
 	}
 }

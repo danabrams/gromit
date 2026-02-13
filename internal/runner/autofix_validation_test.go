@@ -59,10 +59,10 @@ func TestAutoFix_GofmtAndGoimportsRunBeforeClaudeReinvocation(t *testing.T) {
 	r.cfg.Validation.MaxFixAttempts = 1
 
 	bc := newBeadContext(t)
-	bc.maxRetries = 1
-	bc.maxRetriesPerBead = 5
-	bc.parentCtx = context.Background()
-	bc.startCommit = "abc123"
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
+	bc.ParentCtx = context.Background()
+	bc.StartCommit = "abc123"
 
 	autoFixCalled := false
 	claudeFixCalled := false
@@ -109,10 +109,10 @@ func TestAutoFix_PassesStartCommitToAutoFixFn(t *testing.T) {
 	r.cfg.Validation.MaxFixAttempts = 1
 
 	bc := newBeadContext(t)
-	bc.maxRetries = 1
-	bc.maxRetriesPerBead = 5
-	bc.parentCtx = context.Background()
-	bc.startCommit = "deadbeef"
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
+	bc.ParentCtx = context.Background()
+	bc.StartCommit = "deadbeef"
 
 	var receivedCommit string
 
@@ -208,10 +208,10 @@ func TestAutoFix_ValidationRetryCappedAt2(t *testing.T) {
 			}
 
 			bc := newBeadContext(t)
-			bc.maxRetries = 1
-			bc.maxRetriesPerBead = 5
-			bc.parentCtx = context.Background()
-			bc.startCommit = "abc123"
+			bc.MaxRetries = 1
+			bc.MaxRetriesPerBead = 5
+			bc.ParentCtx = context.Background()
+			bc.StartCommit = "abc123"
 
 			err := r.runValidationWithRecovery(context.Background(), bc)
 
@@ -237,10 +237,10 @@ func TestAutoFix_TrivialFixResolvedWithoutClaude(t *testing.T) {
 	r.cfg.Validation.MaxFixAttempts = 1
 
 	bc := newBeadContext(t)
-	bc.maxRetries = 1
-	bc.maxRetriesPerBead = 5
-	bc.parentCtx = context.Background()
-	bc.startCommit = "abc123"
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
+	bc.ParentCtx = context.Background()
+	bc.StartCommit = "abc123"
 
 	claudeFixCalled := false
 	mockClaude.StreamRunFn = func(ctx context.Context, p string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
@@ -278,10 +278,10 @@ func TestAutoFix_TrivialAutoFixedFieldSetOnResult(t *testing.T) {
 	r.cfg.Validation.MaxFixAttempts = 1
 
 	bc := newBeadContext(t)
-	bc.maxRetries = 1
-	bc.maxRetriesPerBead = 5
-	bc.parentCtx = context.Background()
-	bc.startCommit = "abc123"
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
+	bc.ParentCtx = context.Background()
+	bc.StartCommit = "abc123"
 
 	r.autoFixFn = func(startCommit string) error { return nil }
 
@@ -296,7 +296,7 @@ func TestAutoFix_TrivialAutoFixedFieldSetOnResult(t *testing.T) {
 
 	_ = r.runValidationWithRecovery(context.Background(), bc)
 
-	if !bc.result.TrivialAutoFixed {
+	if !bc.Result.TrivialAutoFixed {
 		t.Error("expected TrivialAutoFixed=true when auto-fix resolved validation without Claude")
 	}
 }
@@ -309,10 +309,10 @@ func TestAutoFix_RevalidatesAfterAutoFixBeforeCallingClaude(t *testing.T) {
 	r.cfg.Validation.MaxFixAttempts = 1
 
 	bc := newBeadContext(t)
-	bc.maxRetries = 1
-	bc.maxRetriesPerBead = 5
-	bc.parentCtx = context.Background()
-	bc.startCommit = "abc123"
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
+	bc.ParentCtx = context.Background()
+	bc.StartCommit = "abc123"
 
 	callSequence := []string{}
 
@@ -393,10 +393,10 @@ func TestAutoFix_BeadMarkedFailedAfterMaxRetries(t *testing.T) {
 	}
 
 	bc := newBeadContext(t)
-	bc.maxRetries = 1
-	bc.maxRetriesPerBead = 5
-	bc.parentCtx = context.Background()
-	bc.startCommit = "abc123"
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
+	bc.ParentCtx = context.Background()
+	bc.StartCommit = "abc123"
 
 	err := r.runValidationWithRecovery(context.Background(), bc)
 
@@ -404,7 +404,7 @@ func TestAutoFix_BeadMarkedFailedAfterMaxRetries(t *testing.T) {
 		t.Error("expected error when all validation retries exhausted")
 	}
 	// The bead should NOT be retried further — the error should be terminal
-	if !bc.result.ValidationRetried {
+	if !bc.Result.ValidationRetried {
 		t.Error("expected ValidationRetried=true after exhausting retries")
 	}
 }

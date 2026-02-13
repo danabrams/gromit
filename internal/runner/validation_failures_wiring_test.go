@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestRunValidationAppendsFailureSummary verifies that after a validation command
@@ -68,10 +69,10 @@ FAIL	github.com/example/pkg	0.023s`,
 				},
 			}
 
-			bc := &beadContext{
-				bead:      &bead.Bead{ID: "test-1", Title: "Test bead", Labels: []string{}, ExpectedOutputs: []string{}},
-				result:    &IterationResult{},
-				promptCtx: &prompt.Context{WorkDir: t.TempDir()},
+			bc := &runtypes.BeadContext{
+				Bead:      &bead.Bead{ID: "test-1", Title: "Test bead", Labels: []string{}, ExpectedOutputs: []string{}},
+				Result:    &IterationResult{},
+				PromptCtx: &prompt.Context{WorkDir: t.TempDir()},
 			}
 
 			// runValidation should fail but append the summary
@@ -125,10 +126,10 @@ func TestRunValidationAccumulatesMultipleFailures(t *testing.T) {
 
 	// Simulate two consecutive validation failures
 	for i := 0; i < 2; i++ {
-		bc := &beadContext{
-			bead:      &bead.Bead{ID: "test-" + string(rune('1'+i)), Title: "Bead", Labels: []string{}, ExpectedOutputs: []string{}},
-			result:    &IterationResult{},
-			promptCtx: &prompt.Context{WorkDir: workDir},
+		bc := &runtypes.BeadContext{
+			Bead:      &bead.Bead{ID: "test-" + string(rune('1'+i)), Title: "Bead", Labels: []string{}, ExpectedOutputs: []string{}},
+			Result:    &IterationResult{},
+			PromptCtx: &prompt.Context{WorkDir: workDir},
 		}
 		_ = r.runValidation(context.Background(), bc)
 	}
@@ -211,10 +212,10 @@ func TestBuildPromptForBeadPopulatesRecentValidationFailures(t *testing.T) {
 				validationFailures: tt.failures,
 			}
 
-			bc := &beadContext{
-				bead:      &bead.Bead{ID: "test-1", Title: "Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}},
-				model:     "test-model",
-				iteration: 1,
+			bc := &runtypes.BeadContext{
+				Bead:      &bead.Bead{ID: "test-1", Title: "Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}},
+				Model:     "test-model",
+				Iteration: 1,
 			}
 
 			err := r.buildPromptForBead(context.Background(), bc, 1)

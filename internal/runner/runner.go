@@ -735,20 +735,20 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		}
 	}
 	defer beadCancel()
-	defer func() { bc.result.Duration = time.Since(start) }()
+	defer func() { bc.Result.Duration = time.Since(start) }()
 	ctx = beadCtx
 
 	// Build prompt (with optional scope check)
 	if err := r.buildPromptForBead(ctx, bc, iteration); err != nil {
-		bc.result.Error = err
-		return bc.result
+		bc.Result.Error = err
+		return bc.Result
 	}
 
 	// Check if ATDD is active for this bead
-	atddActive := bead.IsMethodologyActive(bc.bead.Labels, "atdd", r.cfg.Methodology.ATDD)
+	atddActive := bead.IsMethodologyActive(bc.Bead.Labels, "atdd", r.cfg.Methodology.ATDD)
 
 	// Skip ATDD for test-only beads — their deliverable IS tests
-	if atddActive && bead.IsTestOnlyBead(bc.bead.Title) {
+	if atddActive && bead.IsTestOnlyBead(bc.Bead.Title) {
 		r.log("Skipping ATDD: bead is test-only")
 		atddActive = false
 	}
@@ -757,62 +757,62 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	if atddActive {
 		r.log("ATDD enabled, writing acceptance tests first...")
 		if err := r.runAcceptanceTestsWithRetry(ctx, bc); err != nil {
-			bc.result.Error = fmt.Errorf("acceptance tests phase failed: %w", err)
-			return bc.result
+			bc.Result.Error = fmt.Errorf("acceptance tests phase failed: %w", err)
+			return bc.Result
 		}
 
 		// ATDD Phase 2: Verify tests fail (as expected before implementation)
 		if err := r.verifyTestsFailWithRetry(ctx, bc); err != nil {
 			if errors.Is(err, errATDDAlreadyDone) {
-				bc.result.Success = true
-				bc.result.AlreadyDone = true
-				return bc.result
+				bc.Result.Success = true
+				bc.Result.AlreadyDone = true
+				return bc.Result
 			}
-			bc.result.Error = err
-			return bc.result
+			bc.Result.Error = err
+			return bc.Result
 		}
 
 		// Update build prompt to indicate acceptance tests are ready
-		bc.promptCtx.IsRetry = false // Clear any retry flags
-		bc.promptCtx.PrevFailure = ""
-		bc.promptCtx.FailureContext = "Acceptance tests have been written and committed. Your job is to make them pass."
+		bc.PromptCtx.IsRetry = false // Clear any retry flags
+		bc.PromptCtx.PrevFailure = ""
+		bc.PromptCtx.FailureContext = "Acceptance tests have been written and committed. Your job is to make them pass."
 		var err error
-		bc.buildPrompt, err = r.renderer.RenderATDDBuild(bc.promptCtx)
+		bc.BuildPrompt, err = r.renderer.RenderATDDBuild(bc.PromptCtx)
 		if err != nil {
-			bc.result.Error = fmt.Errorf("rendering ATDD build prompt: %w", err)
-			return bc.result
+			bc.Result.Error = fmt.Errorf("rendering ATDD build prompt: %w", err)
+			return bc.Result
 		}
 	}
 
 	// Check if TDD is active for this bead (after ATDD check so TDD overrides when both are active)
-	tddActive := bead.IsMethodologyActive(bc.bead.Labels, "tdd", r.cfg.Methodology.TDD)
+	tddActive := bead.IsMethodologyActive(bc.Bead.Labels, "tdd", r.cfg.Methodology.TDD)
 	if tddActive {
 		r.log("TDD enabled, using TDD build prompt with red-green-refactor cycles...")
 		var err error
-		bc.buildPrompt, err = r.renderer.RenderTDDBuild(bc.promptCtx)
+		bc.BuildPrompt, err = r.renderer.RenderTDDBuild(bc.PromptCtx)
 		if err != nil {
-			bc.result.Error = fmt.Errorf("rendering TDD build prompt: %w", err)
-			return bc.result
+			bc.Result.Error = fmt.Errorf("rendering TDD build prompt: %w", err)
+			return bc.Result
 		}
 	}
 
 	// Main execution loop with retry and escalation
 	if !r.executeWithRetry(ctx, bc) {
-		return bc.result
+		return bc.Result
 	}
 
 	// Capture touched packages for learning extraction filtering
-	if bc.startCommit != "" {
-		diff, err := r.getDiff(bc.startCommit)
+	if bc.StartCommit != "" {
+		diff, err := r.getDiff(bc.StartCommit)
 		if err == nil && diff != "" {
-			bc.touchedPackages = detectTouchedPackages(diff)
+			bc.TouchedPackages = detectTouchedPackages(diff)
 		}
 	}
 
 	// Run validation if enabled (with recovery on failure)
 	if err := r.runValidationWithRecovery(ctx, bc); err != nil {
-		bc.result.Error = err
-		return bc.result
+		bc.Result.Error = err
+		return bc.Result
 	}
 
 	// ATDD/TDD Phase 3: Refactor (if either methodology is active)
@@ -826,76 +826,76 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		// Re-validate after refactoring (with recovery on failure)
 		if r.cfg.Validation.Enabled {
 			if err := r.runValidationWithRecovery(ctx, bc); err != nil {
-				bc.result.Error = fmt.Errorf("validation failed after refactoring: %w", err)
-				return bc.result
+				bc.Result.Error = fmt.Errorf("validation failed after refactoring: %w", err)
+				return bc.Result
 			}
 		}
 	}
 
-	bc.result.Success = true
-	return bc.result
+	bc.Result.Success = true
+	return bc.Result
 }
 
 // executeWithRetry runs the main Claude execution loop with retry, escalation,
 // and decomposition logic. Returns true if the build succeeded, false if
-// processBead should return bc.result immediately.
-func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
+// processBead should return bc.Result immediately.
+func (r *Runner) executeWithRetry(ctx context.Context, bc *runtypes.BeadContext) bool {
 	for {
-		if bc.retriesThisModel > 0 || bc.totalRetriesThisBead > 0 {
-			r.log("Attempt %d/%d...", bc.totalRetriesThisBead+1, bc.maxRetriesPerBead)
+		if bc.RetriesThisModel > 0 || bc.TotalRetriesThisBead > 0 {
+			r.log("Attempt %d/%d...", bc.TotalRetriesThisBead+1, bc.MaxRetriesPerBead)
 		}
 
 		// Check for context cancellation before each invocation
 		select {
 		case <-ctx.Done():
 			r.log("Context cancelled, stopping")
-			bc.result.Error = ctx.Err()
+			bc.Result.Error = ctx.Err()
 			return false
 		default:
 		}
 
-		r.log("Running Claude with model: %s", bc.model)
+		r.log("Running Claude with model: %s", bc.Model)
 
 		claudeResult, stats, stallFired, err := r.executeClaudeInvocation(ctx, bc)
 
 		// Handle invocation error (stall, timeout, or other failure)
 		if err != nil {
 			if stallFired && ctx.Err() == nil {
-				bc.result.TimeoutType = "stall"
+				bc.Result.TimeoutType = "stall"
 				if r.handleStallTimeout(ctx, bc) {
 					continue
 				}
 				return false
 			}
 			// Distinguish bead timeout from user Ctrl+C
-			if ctx.Err() != nil && bc.parentCtx.Err() == nil {
-				bc.result.TimeoutType = "bead"
+			if ctx.Err() != nil && bc.ParentCtx.Err() == nil {
+				bc.Result.TimeoutType = "bead"
 				// Extract synthetic learning for timeout failure
 				r.extractTimeoutLearning(bc)
-				bc.result.Error = fmt.Errorf("bead timeout: exceeded %v total processing time", bc.beadTimeout)
-			} else if bc.parentCtx.Err() != nil {
+				bc.Result.Error = fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+			} else if bc.ParentCtx.Err() != nil {
 				// User-initiated cancellation (Ctrl+C) - don't extract learning
-				bc.result.Error = fmt.Errorf("context cancelled: %w", bc.parentCtx.Err())
+				bc.Result.Error = fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
 			} else {
-				bc.result.TimeoutType = "invocation"
-				bc.result.Error = fmt.Errorf("claude invocation: %w", err)
+				bc.Result.TimeoutType = "invocation"
+				bc.Result.Error = fmt.Errorf("claude invocation: %w", err)
 			}
 			return false
 		}
 
 		if claudeResult == nil {
-			bc.result.Error = fmt.Errorf("claude returned nil result")
+			bc.Result.Error = fmt.Errorf("claude returned nil result")
 			return false
 		}
 
-		bc.result.Output = claudeResult.Output
+		bc.Result.Output = claudeResult.Output
 
 		// Populate cost/token data from stream stats
 		if stats != nil {
 			costUSD, inputTokens, outputTokens := stats.CostData()
-			bc.result.CostUSD = costUSD
-			bc.result.InputTokens = inputTokens
-			bc.result.OutputTokens = outputTokens
+			bc.Result.CostUSD = costUSD
+			bc.Result.InputTokens = inputTokens
+			bc.Result.OutputTokens = outputTokens
 		}
 
 		// Check if scope is too large
@@ -918,8 +918,8 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 			signals.RateLimitHits = stats.RateLimitHits
 		}
 		if usagelimit.Check(signals, usagelimit.ClaudePatterns()) {
-			bc.result.UsageLimited = true
-			bc.result.Error = fmt.Errorf("usage limit detected: retries or escalation will not resolve this failure (exit code: %d, rate limit events: %d)", claudeResult.ExitCode, signals.RateLimitHits)
+			bc.Result.UsageLimited = true
+			bc.Result.Error = fmt.Errorf("usage limit detected: retries or escalation will not resolve this failure (exit code: %d, rate limit events: %d)", claudeResult.ExitCode, signals.RateLimitHits)
 			r.log("Warning: usage limit detected - stopping retry attempts")
 			return false
 		}
@@ -928,7 +928,7 @@ func (r *Runner) executeWithRetry(ctx context.Context, bc *beadContext) bool {
 		select {
 		case <-ctx.Done():
 			r.log("Context cancelled, stopping")
-			bc.result.Error = ctx.Err()
+			bc.Result.Error = ctx.Err()
 			return false
 		default:
 		}

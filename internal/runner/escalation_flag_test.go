@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestScopeCheckEscalation_SetsEscalatedFlag verifies that scope check
@@ -106,11 +107,11 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 				renderer: mockRend,
 				output:   &buf,
 			}
-			bc := &beadContext{
-				bead:      &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
-				model:     tt.startModel,
-				result:    &IterationResult{Model: tt.startModel},
-				promptCtx: &prompt.Context{Model: tt.startModel},
+			bc := &runtypes.BeadContext{
+				Bead:      &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
+				Model:     tt.startModel,
+				Result:    &IterationResult{Model: tt.startModel},
+				PromptCtx: &prompt.Context{Model: tt.startModel},
 			}
 
 			err := r.buildPromptForBead(context.Background(), bc, 1)
@@ -118,14 +119,14 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if bc.model != tt.wantModel {
-				t.Errorf("expected model %q, got %q", tt.wantModel, bc.model)
+			if bc.Model != tt.wantModel {
+				t.Errorf("expected model %q, got %q", tt.wantModel, bc.Model)
 			}
-			if bc.result.Escalated != tt.wantEscalated {
-				t.Errorf("expected result.Escalated=%v, got %v", tt.wantEscalated, bc.result.Escalated)
+			if bc.Result.Escalated != tt.wantEscalated {
+				t.Errorf("expected result.Escalated=%v, got %v", tt.wantEscalated, bc.Result.Escalated)
 			}
-			if bc.result.EscalatedTo != tt.wantEscalatedTo {
-				t.Errorf("expected result.EscalatedTo=%q, got %q", tt.wantEscalatedTo, bc.result.EscalatedTo)
+			if bc.Result.EscalatedTo != tt.wantEscalatedTo {
+				t.Errorf("expected result.EscalatedTo=%q, got %q", tt.wantEscalatedTo, bc.Result.EscalatedTo)
 			}
 		})
 	}
@@ -134,7 +135,7 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 // setupAcceptanceEscalation creates a Runner and beadContext configured for
 // acceptance test escalation tests. The mock Claude fails the first 2 calls
 // (haiku attempts) and succeeds on the 3rd (sonnet).
-func setupAcceptanceEscalation(t *testing.T) (*Runner, *beadContext) {
+func setupAcceptanceEscalation(t *testing.T) (*Runner, *runtypes.BeadContext) {
 	t.Helper()
 	var buf strings.Builder
 	callCount := 0
@@ -167,14 +168,14 @@ func setupAcceptanceEscalation(t *testing.T) (*Runner, *beadContext) {
 		renderer: &mockPromptRenderer{},
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:  &bead.Bead{ID: "test-1", Title: "Test"},
-		tier:  provider.TierLow, // Start with low tier (haiku)
-		model: "haiku",
-		result: &IterationResult{
+	bc := &runtypes.BeadContext{
+		Bead:  &bead.Bead{ID: "test-1", Title: "Test"},
+		Tier:  provider.TierLow, // Start with low tier (haiku)
+		Model: "haiku",
+		Result: &IterationResult{
 			Model: "haiku",
 		},
-		promptCtx: &prompt.Context{
+		PromptCtx: &prompt.Context{
 			Model:              "haiku",
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
@@ -195,19 +196,19 @@ func TestAcceptanceTestEscalation_SetsEscalatedFlag(t *testing.T) {
 	}
 
 	// Verify tier was escalated to medium
-	if bc.tier != provider.TierMedium {
-		t.Errorf("expected tier to be escalated to %q, got %q", provider.TierMedium, bc.tier)
+	if bc.Tier != provider.TierMedium {
+		t.Errorf("expected tier to be escalated to %q, got %q", provider.TierMedium, bc.Tier)
 	}
 	// Verify concrete model name from router
-	if bc.model != "sonnet" {
-		t.Errorf("expected model to be escalated to 'sonnet', got %q", bc.model)
+	if bc.Model != "sonnet" {
+		t.Errorf("expected model to be escalated to 'sonnet', got %q", bc.Model)
 	}
-	if bc.result.Escalated != true {
+	if bc.Result.Escalated != true {
 		t.Errorf("expected result.Escalated=true after acceptance test escalation, got false")
 	}
 	// EscalatedTo is updated with concrete model name by router
-	if bc.result.EscalatedTo != "sonnet" {
-		t.Errorf("expected result.EscalatedTo='sonnet', got %q", bc.result.EscalatedTo)
+	if bc.Result.EscalatedTo != "sonnet" {
+		t.Errorf("expected result.EscalatedTo='sonnet', got %q", bc.Result.EscalatedTo)
 	}
 }
 
@@ -215,15 +216,15 @@ func TestAcceptanceTestEscalation_SetsEscalatedFlag(t *testing.T) {
 // tests escalate to a higher model, retriesThisModel is reset to 0.
 func TestAcceptanceTestEscalation_ResetsRetries(t *testing.T) {
 	r, bc := setupAcceptanceEscalation(t)
-	bc.retriesThisModel = 3 // non-zero starting value
+	bc.RetriesThisModel = 3 // non-zero starting value
 
 	err := r.runAcceptanceTestsWithRetry(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if bc.retriesThisModel != 0 {
-		t.Errorf("expected retriesThisModel=0 after escalation, got %d", bc.retriesThisModel)
+	if bc.RetriesThisModel != 0 {
+		t.Errorf("expected retriesThisModel=0 after escalation, got %d", bc.RetriesThisModel)
 	}
 }
 
@@ -278,12 +279,12 @@ func TestScopeCheckEscalation_ResetsRetries(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:             &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
-		model:            "sonnet",
-		retriesThisModel: 2, // non-zero starting value
-		result:           &IterationResult{Model: "sonnet"},
-		promptCtx:        &prompt.Context{Model: "sonnet"},
+	bc := &runtypes.BeadContext{
+		Bead:             &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
+		Model:            "sonnet",
+		RetriesThisModel: 2, // non-zero starting value
+		Result:           &IterationResult{Model: "sonnet"},
+		PromptCtx:        &prompt.Context{Model: "sonnet"},
 	}
 
 	err := r.buildPromptForBead(context.Background(), bc, 1)
@@ -291,10 +292,10 @@ func TestScopeCheckEscalation_ResetsRetries(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if bc.model != "opus" {
-		t.Errorf("expected model 'opus', got %q", bc.model)
+	if bc.Model != "opus" {
+		t.Errorf("expected model 'opus', got %q", bc.Model)
 	}
-	if bc.retriesThisModel != 0 {
-		t.Errorf("expected retriesThisModel=0 after scope check escalation, got %d", bc.retriesThisModel)
+	if bc.RetriesThisModel != 0 {
+		t.Errorf("expected retriesThisModel=0 after scope check escalation, got %d", bc.RetriesThisModel)
 	}
 }

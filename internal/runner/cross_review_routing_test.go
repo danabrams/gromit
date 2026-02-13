@@ -10,22 +10,23 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestBeadContextHasBuildProviderField verifies that beadContext has a
 // buildProvider string field that tracks which provider performed the build.
 func TestBeadContextHasBuildProviderField(t *testing.T) {
-	bc := &beadContext{
-		buildProvider: "claude",
+	bc := &runtypes.BeadContext{
+		BuildProvider: "claude",
 	}
 
-	if bc.buildProvider != "claude" {
-		t.Errorf("beadContext.buildProvider = %q, want %q", bc.buildProvider, "claude")
+	if bc.BuildProvider != "claude" {
+		t.Errorf("beadContext.buildProvider = %q, want %q", bc.BuildProvider, "claude")
 	}
 
-	bc.buildProvider = "openai"
-	if bc.buildProvider != "openai" {
-		t.Errorf("beadContext.buildProvider = %q after reassignment, want %q", bc.buildProvider, "openai")
+	bc.BuildProvider = "openai"
+	if bc.BuildProvider != "openai" {
+		t.Errorf("beadContext.buildProvider = %q after reassignment, want %q", bc.BuildProvider, "openai")
 	}
 }
 
@@ -54,21 +55,21 @@ func TestExecuteClaudeInvocationSetsBuildProvider(t *testing.T) {
 		output: &buf,
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{ID: "test-1", Priority: 1},
-		result: &IterationResult{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "test-1", Priority: 1},
+		Result: &IterationResult{
 			BeadID: "test-1",
 		},
-		tier:        provider.TierMedium,
-		buildPrompt: "test prompt",
+		Tier:        provider.TierMedium,
+		BuildPrompt: "test prompt",
 	}
 
 	ctx := context.Background()
 	_, _, _, _ = r.executeClaudeInvocation(ctx, bc)
 
-	if bc.buildProvider != "test-claude" {
-		t.Errorf("bc.buildProvider = %q after executeClaudeInvocation, want %q",
-			bc.buildProvider, "test-claude")
+	if bc.BuildProvider != "test-claude" {
+		t.Errorf("bc.BuildProvider = %q after executeClaudeInvocation, want %q",
+			bc.BuildProvider, "test-claude")
 	}
 }
 

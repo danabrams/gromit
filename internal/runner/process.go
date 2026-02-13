@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/preflight"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // errATDDAlreadyDone is returned by verifyTestsFailWithRetry when acceptance
@@ -22,41 +23,9 @@ import (
 // already done (e.g., a sibling bead completed it), not that the tests are bad.
 var errATDDAlreadyDone = errors.New("atdd: acceptance tests pass — work already done")
 
-// beadContext holds the shared state for processing a single bead.
-// It is passed between the extracted methods that compose processBead.
-type beadContext struct {
-	bead          *bead.Bead
-	parent        *bead.Bead
-	result        *IterationResult
-	model         string // concrete model name for display/logging
-	tier          string // abstract tier (high/medium/low) for router selection
-	buildProvider string // name of provider that performed the build (for cross-review routing)
-	promptCtx     *prompt.Context
-	buildPrompt   string
-	startCommit   string
-	iteration     int
-
-	// Retry tracking
-	retriesThisModel     int
-	totalRetriesThisBead int
-	maxRetries           int
-	maxRetriesPerBead    int
-
-	// Context management
-	parentCtx   context.Context // original context (to distinguish bead timeout from Ctrl+C)
-	beadTimeout time.Duration
-	runDeadline time.Time // run deadline for time-budget awareness
-
-	// Scope estimate (cached from scope gate to avoid duplicate LLM calls)
-	scopeEstimate *prompt.ScopeEstimate
-
-	// Package tracking (for learning extraction filtering)
-	touchedPackages []string
-}
-
 // setupBeadContext validates runner state, sets up timeouts, captures git state,
 // fetches parent bead, and selects the initial model.
-func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration int, runDeadline time.Time, scopeEstimate *prompt.ScopeEstimate) (*beadContext, context.Context, context.CancelFunc, error) {
+func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration int, runDeadline time.Time, scopeEstimate *prompt.ScopeEstimate) (*runtypes.BeadContext, context.Context, context.CancelFunc, error) {
 	if r.cfg == nil {
 		return nil, nil, nil, fmt.Errorf("runner config is nil")
 	}
@@ -88,25 +57,25 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		r.log("Warning: failed to get parent bead: %v", err)
 	}
 
-	bc := &beadContext{
-		bead:              b,
-		parent:            parent,
-		result:            &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model},
-		model:             model, // legacy model name, will be updated by router
-		tier:              tier,
-		startCommit:       startCommit,
-		iteration:         iteration,
-		maxRetries:        r.cfg.Escalation.MaxRetriesPerModel,
-		maxRetriesPerBead: r.cfg.Escalation.MaxRetriesPerBead,
-		parentCtx:         ctx,
-		beadTimeout:       beadTimeout,
-		runDeadline:       runDeadline,
-		scopeEstimate:     scopeEstimate,
+	bc := &runtypes.BeadContext{
+		Bead:              b,
+		Parent:            parent,
+		Result:            &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model},
+		Model:             model, // legacy model name, will be updated by router
+		Tier:              tier,
+		StartCommit:       startCommit,
+		Iteration:         iteration,
+		MaxRetries:        r.cfg.Escalation.MaxRetriesPerModel,
+		MaxRetriesPerBead: r.cfg.Escalation.MaxRetriesPerBead,
+		ParentCtx:         ctx,
+		BeadTimeout:       beadTimeout,
+		RunDeadline:       runDeadline,
+		ScopeEstimate:     scopeEstimate,
 	}
 
 	// Preemptive escalation: if scope check is enabled, scope complexity is high,
 	// and tier is medium, escalate to high before first invocation
-	if r.cfg.ScopeCheck.Enabled && scopeEstimate != nil && scopeEstimate.Complexity == "high" && tier == provider.TierMedium {
+	if r.cfg.ScopeCheck.Enabled && scopeEstimate != nil && scopeEstimate.Complexity == "high" && bc.Tier == provider.TierMedium {
 		r.log("Scope check: complexity=high, preemptively escalating from medium to high tier")
 		r.escalateTier(bc, provider.TierHigh)
 	}
@@ -115,15 +84,15 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 }
 
 // buildPromptForBead performs scope checking (if enabled) and renders the build prompt.
-func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iteration int) error {
-	promptCtx, err := r.renderer.BuildContext(bc.bead, bc.parent, iteration, bc.model)
+func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContext, iteration int) error {
+	promptCtx, err := r.renderer.BuildContext(bc.Bead, bc.Parent, iteration, bc.Model)
 	if err != nil {
 		return fmt.Errorf("building prompt context: %w", err)
 	}
 	if promptCtx == nil {
 		return fmt.Errorf("building prompt context: returned nil")
 	}
-	bc.promptCtx = promptCtx
+	bc.PromptCtx = promptCtx
 
 	// Inject recent validation failure summaries (last 3) into prompt context
 	if n := len(r.validationFailures); n > 0 {
@@ -131,14 +100,14 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iterat
 		if n > 3 {
 			start = n - 3
 		}
-		bc.promptCtx.RecentValidationFailures = r.validationFailures[start:]
+		bc.PromptCtx.RecentValidationFailures = r.validationFailures[start:]
 	}
 
 	if r.cfg.ScopeCheck.Enabled {
 		// Use cached scope estimate if available (from scope gate), otherwise call checkScope
-		scopeEstimate := bc.scopeEstimate
+		scopeEstimate := bc.ScopeEstimate
 		if scopeEstimate == nil {
-			scopeEstimate = r.checkScope(ctx, bc.bead)
+			scopeEstimate = r.checkScope(ctx, bc.Bead)
 		}
 		if scopeEstimate != nil {
 			if scopeEstimate.Complexity == "high" {
@@ -150,18 +119,18 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *beadContext, iterat
 		}
 	}
 
-	buildPrompt, err := r.renderer.RenderBuild(bc.promptCtx)
+	buildPrompt, err := r.renderer.RenderBuild(bc.PromptCtx)
 	if err != nil {
 		return fmt.Errorf("rendering build prompt: %w", err)
 	}
-	bc.buildPrompt = buildPrompt
+	bc.BuildPrompt = buildPrompt
 
 	return nil
 }
 
 // executeClaudeInvocation runs a single Claude invocation with streaming, heartbeat,
 // and stall detection. Returns the Claude result, stream stats, whether a stall was detected, and any error.
-func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (*claude.Result, *logger.StreamStats, bool, error) {
+func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *runtypes.BeadContext) (*claude.Result, *logger.StreamStats, bool, error) {
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		return nil, nil, false, err
@@ -173,7 +142,7 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 
 	// Determine phase and use tier from bead context
 	phase := "build"
-	tier := bc.tier
+	tier := bc.Tier
 
 	// Select provider using router
 	p, modelName := r.router.Select(phase, tier)
@@ -182,18 +151,18 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 	}
 
 	// Update bead context with router-selected model and provider
-	bc.model = modelName
-	bc.result.Model = modelName
-	bc.buildProvider = p.Name()
+	bc.Model = modelName
+	bc.Result.Model = modelName
+	bc.BuildProvider = p.Name()
 	// If this is an escalated invocation, update EscalatedTo with the concrete model name
-	if bc.result.Escalated && bc.result.EscalatedTo != "" {
-		bc.result.EscalatedTo = modelName
+	if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
+		bc.Result.EscalatedTo = modelName
 	}
 
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
 
-	_, stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.model)
+	_, stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.Model)
 	stallTimeout := time.Duration(stallTimeoutSec) * time.Second
 	stallTimeoutActive := time.Duration(stallTimeoutActiveSec) * time.Second
 
@@ -234,7 +203,7 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 	}
 
 	// Call provider.StreamRun with the tier
-	providerResult, err := p.StreamRun(childCtx, bc.buildPrompt, tier, r.output, providerHandler, providerToolHandler)
+	providerResult, err := p.StreamRun(childCtx, bc.BuildPrompt, tier, r.output, providerHandler, providerToolHandler)
 
 	// Check for usage limit error and retry with fallback provider
 	if err != nil && p.IsUsageLimitError(providerResult, err) {
@@ -243,11 +212,11 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 		// Retry with new provider
 		p2, modelName2 := r.router.Select(phase, tier)
 		if p2 != nil {
-			bc.model = modelName2
-			bc.result.Model = modelName2
+			bc.Model = modelName2
+			bc.Result.Model = modelName2
 
 			// Retry the invocation with the fallback provider
-			providerResult, err = p2.StreamRun(childCtx, bc.buildPrompt, tier, r.output, providerHandler, providerToolHandler)
+			providerResult, err = p2.StreamRun(childCtx, bc.BuildPrompt, tier, r.output, providerHandler, providerToolHandler)
 		}
 	}
 
@@ -267,73 +236,73 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *beadContext) (
 
 	// Capture diagnostic data from stream stats
 	stallCount, stallTier, ttfe, toolCalls, rateLimitHits, rateLimitRecoveryMs := stats.DiagnosticSnapshot()
-	bc.result.StallCount = stallCount
-	bc.result.StallTier = stallTier
-	bc.result.TimeToFirstEventMs = ttfe.Milliseconds()
-	bc.result.ToolCallCount = toolCalls
-	bc.result.RateLimitHits = rateLimitHits
-	bc.result.RateLimitRecoveryMs = rateLimitRecoveryMs
+	bc.Result.StallCount = stallCount
+	bc.Result.StallTier = stallTier
+	bc.Result.TimeToFirstEventMs = ttfe.Milliseconds()
+	bc.Result.ToolCallCount = toolCalls
+	bc.Result.RateLimitHits = rateLimitHits
+	bc.Result.RateLimitRecoveryMs = rateLimitRecoveryMs
 
 	return claudeResult, stats, stallFired, err
 }
 
 // handleStallTimeout handles the case where a stall timeout was detected during execution.
 // Returns true if the retry loop should continue, false if processBead should return.
-func (r *Runner) handleStallTimeout(ctx context.Context, bc *beadContext) (continueLoop bool) {
-	bc.retriesThisModel++
-	bc.totalRetriesThisBead++
+func (r *Runner) handleStallTimeout(ctx context.Context, bc *runtypes.BeadContext) (continueLoop bool) {
+	bc.RetriesThisModel++
+	bc.TotalRetriesThisBead++
 
-	if bc.totalRetriesThisBead > bc.maxRetriesPerBead {
-		r.log("Max retries per bead exceeded (%d/%d)", bc.totalRetriesThisBead, bc.maxRetriesPerBead)
-		bc.result.Error = fmt.Errorf("stall timeout: exceeded max retries per bead (%d)", bc.maxRetriesPerBead)
+	if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
+		r.log("Max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
+		bc.Result.Error = fmt.Errorf("stall timeout: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
 		return false
 	}
 
-	if bc.retriesThisModel <= bc.maxRetries {
-		r.log("Stall timeout, retrying with same model (%d/%d)...", bc.retriesThisModel, bc.maxRetries)
+	if bc.RetriesThisModel <= bc.MaxRetries {
+		r.log("Stall timeout, retrying with same model (%d/%d)...", bc.RetriesThisModel, bc.MaxRetries)
 		return true
 	}
 
-	r.log("Stall timeout, retries exhausted for tier %s", bc.tier)
-	nextTier := r.cfg.NextEscalationTier(bc.tier)
+	r.log("Stall timeout, retries exhausted for tier %s", bc.Tier)
+	nextTier := r.cfg.NextEscalationTier(bc.Tier)
 	if nextTier == "" {
 		r.log("Stall timeout, no more tiers to escalate to - attempting decomposition")
 		return r.attemptDecomposition(ctx, bc, "stall timeout")
 	}
 
-	r.log("Escalating from tier %s to %s after stall", bc.tier, nextTier)
+	r.log("Escalating from tier %s to %s after stall", bc.Tier, nextTier)
 	r.escalateTier(bc, nextTier)
 
 	var err error
-	bc.buildPrompt, err = r.renderer.RenderBuild(bc.promptCtx)
+	bc.BuildPrompt, err = r.renderer.RenderBuild(bc.PromptCtx)
 	if err != nil {
-		bc.result.Error = fmt.Errorf("rendering retry prompt: %w", err)
+		bc.Result.Error = fmt.Errorf("rendering retry prompt: %w", err)
 		return false
 	}
 	return true
 }
 
 // handleScopeTooLarge processes the scope-too-large signal from Claude.
-// Always sets bc.result.Error and returns false (stop processing).
-func (r *Runner) handleScopeTooLarge(bc *beadContext, claudeResult *claude.Result, explanation string) {
+// Always sets bc.Result.Error and returns false (stop processing).
+func (r *Runner) handleScopeTooLarge(bc *runtypes.BeadContext, claudeResult *claude.Result, explanation string) {
 	breakdown := claude.GetScopeTooLargeBreakdown(claudeResult)
 	if breakdown == "" {
 		breakdown = explanation
 	}
 	comment := fmt.Sprintf("Scope too large: %s\n\nThis task needs to be broken down into smaller, more manageable pieces.", breakdown)
-	if err := r.beads.AddComment(bc.bead.ID, comment); err != nil {
+	if err := r.beads.AddComment(bc.Bead.ID, comment); err != nil {
 		r.log("Warning: failed to add comment to bead: %v", err)
 	}
 
 	// Extract synthetic learning for scope-too-large
 	r.extractScopeTooLargeLearning(bc, explanation)
 
-	bc.result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
+	bc.Result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
 }
 
 // extractLearning saves a learning from failure analysis to the LEARNINGS.md file.
-func (r *Runner) extractLearning(bc *beadContext, analysis *analyzer.Analysis) {
-	if bc == nil || bc.bead == nil {
+func (r *Runner) extractLearning(bc *runtypes.BeadContext, analysis *analyzer.Analysis) {
+	if bc == nil || bc.Bead == nil {
 		return
 	}
 	if analysis.Learning == nil {
@@ -344,7 +313,7 @@ func (r *Runner) extractLearning(bc *beadContext, analysis *analyzer.Analysis) {
 	if lf == nil {
 		return
 	}
-	learning, err := lf.Add(bc.bead.ID, *analysis.Learning, analysis.LearningCategory())
+	learning, err := lf.Add(bc.Bead.ID, *analysis.Learning, analysis.LearningCategory())
 	if err != nil {
 		r.log("Warning: failed to add learning: %v", err)
 	} else if learning != nil {
@@ -353,8 +322,8 @@ func (r *Runner) extractLearning(bc *beadContext, analysis *analyzer.Analysis) {
 }
 
 // extractSyntheticLearning saves a synthetic learning from a custom message.
-func (r *Runner) extractSyntheticLearning(bc *beadContext, message string) {
-	if bc == nil || bc.bead == nil {
+func (r *Runner) extractSyntheticLearning(bc *runtypes.BeadContext, message string) {
+	if bc == nil || bc.Bead == nil {
 		return
 	}
 	lf := r.renderer.GetLearningsFile()
@@ -363,7 +332,7 @@ func (r *Runner) extractSyntheticLearning(bc *beadContext, message string) {
 	}
 
 	r.log("Synthetic learning extracted: %s", message)
-	_, err := lf.Add(bc.bead.ID, message, "patterns")
+	_, err := lf.Add(bc.Bead.ID, message, "patterns")
 	if err != nil {
 		r.log("Warning: failed to add synthetic learning: %v", err)
 	} else {
@@ -372,20 +341,20 @@ func (r *Runner) extractSyntheticLearning(bc *beadContext, message string) {
 }
 
 // extractScopeTooLargeLearning saves a synthetic learning for scope-too-large failures.
-func (r *Runner) extractScopeTooLargeLearning(bc *beadContext, explanation string) {
-	learning := fmt.Sprintf("Bead '%s' was too large for %s — consider splitting beads with more than 3 acceptance criteria", bc.bead.Title, bc.model)
+func (r *Runner) extractScopeTooLargeLearning(bc *runtypes.BeadContext, explanation string) {
+	learning := fmt.Sprintf("Bead '%s' was too large for %s — consider splitting beads with more than 3 acceptance criteria", bc.Bead.Title, bc.Model)
 	r.extractSyntheticLearning(bc, learning)
 }
 
 // extractTimeoutLearning saves a synthetic learning for timeout failures.
-func (r *Runner) extractTimeoutLearning(bc *beadContext) {
-	learning := fmt.Sprintf("Bead '%s' timed out on %s — may need simpler scope or higher model tier", bc.bead.Title, bc.model)
+func (r *Runner) extractTimeoutLearning(bc *runtypes.BeadContext) {
+	learning := fmt.Sprintf("Bead '%s' timed out on %s — may need simpler scope or higher model tier", bc.Bead.Title, bc.Model)
 	r.extractSyntheticLearning(bc, learning)
 }
 
 // extractSuccessLearning calls Claude to extract a learning from a successful iteration.
 // Uses haiku with a lightweight prompt asking what codebase pattern/convention/gotcha was encountered.
-func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
+func (r *Runner) extractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext) {
 	if r == nil || bc == nil {
 		return
 	}
@@ -397,29 +366,29 @@ func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
 	}
 
 	// Skip learning extraction for haiku-tier beads
-	if bc.tier == provider.TierLow {
+	if bc.Tier == provider.TierLow {
 		return
 	}
 
 	// Skip learning extraction if all touched packages have been seen before
-	if bc.touchedPackages != nil && len(bc.touchedPackages) > 0 && !r.hasNewPackages(bc.touchedPackages) {
+	if bc.TouchedPackages != nil && len(bc.TouchedPackages) > 0 && !r.hasNewPackages(bc.TouchedPackages) {
 		return
 	}
 
 	// Build a brief summary of what was done (use bead title + first line of description)
-	summary := bc.bead.Title
-	if bc.bead.Description != "" {
+	summary := bc.Bead.Title
+	if bc.Bead.Description != "" {
 		// Take first line only
-		lines := strings.Split(bc.bead.Description, "\n")
+		lines := strings.Split(bc.Bead.Description, "\n")
 		if len(lines) > 0 && lines[0] != "" {
-			summary = bc.bead.Title + ": " + lines[0]
+			summary = bc.Bead.Title + ": " + lines[0]
 		}
 	}
 
 	learnCtx := &prompt.LearnContext{
-		BeadID:          bc.bead.ID,
-		BeadTitle:       bc.bead.Title,
-		BeadDescription: bc.bead.Description,
+		BeadID:          bc.Bead.ID,
+		BeadTitle:       bc.Bead.Title,
+		BeadDescription: bc.Bead.Description,
 		Summary:         summary,
 	}
 
@@ -467,7 +436,7 @@ func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
 		return
 	}
 
-	learning, err := lf.Add(bc.bead.ID, *successLearning.Learning, successLearning.Category)
+	learning, err := lf.Add(bc.Bead.ID, *successLearning.Learning, successLearning.Category)
 	if err != nil {
 		r.log("Warning: failed to add success learning: %v", err)
 	} else if learning != nil {
@@ -477,11 +446,11 @@ func (r *Runner) extractSuccessLearning(ctx context.Context, bc *beadContext) {
 
 // analyzeAndHandleFailure runs failure analysis and decides whether to retry, escalate, or stop.
 // Returns true if the retry loop should continue, false if processBead should return.
-func (r *Runner) analyzeAndHandleFailure(ctx context.Context, bc *beadContext, claudeResult *claude.Result) (continueLoop bool) {
+func (r *Runner) analyzeAndHandleFailure(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) (continueLoop bool) {
 	r.log("Build failed, running failure analysis...")
 	analysisTimeout := time.Duration(r.cfg.Claude.AnalysisTimeout) * time.Second
 	analysisCtx, analysisCancel := context.WithTimeout(ctx, analysisTimeout)
-	analysis, err := r.analyzer.Analyze(analysisCtx, bc.bead, claudeResult.Output)
+	analysis, err := r.analyzer.Analyze(analysisCtx, bc.Bead, claudeResult.Output)
 	analysisCancel()
 
 	if err != nil {
@@ -499,46 +468,46 @@ func (r *Runner) analyzeAndHandleFailure(ctx context.Context, bc *beadContext, c
 	r.extractLearning(bc, analysis)
 
 	if analysis.Category == analyzer.CategoryUnclearSpec {
-		bc.result.Error = fmt.Errorf("spec unclear: %s - needs human review", analysis.RootCause)
+		bc.Result.Error = fmt.Errorf("spec unclear: %s - needs human review", analysis.RootCause)
 		return false
 	}
 
 	if analysis.Category == analyzer.CategoryTaskTooComplex {
 		comment := fmt.Sprintf("Task too complex: %s\n\nThis task needs to be broken down into smaller, more manageable pieces.", analysis.RootCause)
-		if err := r.beads.AddComment(bc.bead.ID, comment); err != nil {
+		if err := r.beads.AddComment(bc.Bead.ID, comment); err != nil {
 			r.log("Warning: failed to add comment to bead: %v", err)
 		}
 		r.extractLearning(bc, analysis)
-		bc.result.Error = fmt.Errorf("task too complex: %s - needs breakdown", analysis.RootCause)
+		bc.Result.Error = fmt.Errorf("task too complex: %s - needs breakdown", analysis.RootCause)
 		return false
 	}
 
-	if analysis.Recoverable && bc.retriesThisModel < bc.maxRetries {
-		bc.retriesThisModel++
-		bc.totalRetriesThisBead++
+	if analysis.Recoverable && bc.RetriesThisModel < bc.MaxRetries {
+		bc.RetriesThisModel++
+		bc.TotalRetriesThisBead++
 
-		if bc.totalRetriesThisBead > bc.maxRetriesPerBead {
-			r.log("Max retries per bead exceeded (%d/%d)", bc.totalRetriesThisBead, bc.maxRetriesPerBead)
-			bc.result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.maxRetriesPerBead)
+		if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
+			r.log("Max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
+			bc.Result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
 			return false
 		}
 
-		r.log("Failure is recoverable, retrying with context (attempt %d/%d)...", bc.retriesThisModel, bc.maxRetries)
-		bc.promptCtx.IsRetry = true
-		bc.promptCtx.PrevFailure = claudeResult.Output
-		bc.promptCtx.FailureContext = analysis.Suggestion
+		r.log("Failure is recoverable, retrying with context (attempt %d/%d)...", bc.RetriesThisModel, bc.MaxRetries)
+		bc.PromptCtx.IsRetry = true
+		bc.PromptCtx.PrevFailure = claudeResult.Output
+		bc.PromptCtx.FailureContext = analysis.Suggestion
 
 		var err error
-		bc.buildPrompt, err = r.renderer.RenderBuild(bc.promptCtx)
+		bc.BuildPrompt, err = r.renderer.RenderBuild(bc.PromptCtx)
 		if err != nil {
-			bc.result.Error = fmt.Errorf("rendering retry prompt: %w", err)
+			bc.Result.Error = fmt.Errorf("rendering retry prompt: %w", err)
 			return false
 		}
 		return true
 	}
 
 	if analysis.Recoverable {
-		r.log("Retry limit reached for model %s (%d attempts)", bc.model, bc.retriesThisModel)
+		r.log("Retry limit reached for model %s (%d attempts)", bc.Model, bc.RetriesThisModel)
 	}
 
 	return r.handleEscalation(ctx, bc, claudeResult)
@@ -546,33 +515,33 @@ func (r *Runner) analyzeAndHandleFailure(ctx context.Context, bc *beadContext, c
 
 // handleEscalation tries to escalate to the next tier or decompose the task.
 // Returns true if the retry loop should continue, false if processBead should return.
-func (r *Runner) handleEscalation(ctx context.Context, bc *beadContext, claudeResult *claude.Result) (continueLoop bool) {
-	nextTier := r.cfg.NextEscalationTier(bc.tier)
+func (r *Runner) handleEscalation(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) (continueLoop bool) {
+	nextTier := r.cfg.NextEscalationTier(bc.Tier)
 	if nextTier == "" {
 		r.log("Build failed, no more tiers to escalate to - attempting decomposition")
 		return r.attemptDecomposition(ctx, bc, "build failed with all models")
 	}
 
-	if bc.totalRetriesThisBead > bc.maxRetriesPerBead {
-		r.log("Cannot escalate: max retries per bead reached (%d/%d)", bc.totalRetriesThisBead, bc.maxRetriesPerBead)
-		if bc.startCommit != "" {
-			r.showPartialProgress(bc.bead, bc.startCommit)
+	if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
+		r.log("Cannot escalate: max retries per bead reached (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
+		if bc.StartCommit != "" {
+			r.showPartialProgress(bc.Bead, bc.StartCommit)
 		}
-		bc.result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.maxRetriesPerBead)
+		bc.Result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
 		return false
 	}
 
-	r.log("Escalating from tier %s to %s", bc.tier, nextTier)
+	r.log("Escalating from tier %s to %s", bc.Tier, nextTier)
 	r.escalateTier(bc, nextTier)
 
-	bc.promptCtx.IsRetry = true
-	bc.promptCtx.PrevFailure = claudeResult.Output
-	bc.promptCtx.Model = bc.tier // will be resolved to concrete model name by router
+	bc.PromptCtx.IsRetry = true
+	bc.PromptCtx.PrevFailure = claudeResult.Output
+	bc.PromptCtx.Model = bc.Tier // will be resolved to concrete model name by router
 
 	var err error
-	bc.buildPrompt, err = r.renderer.RenderBuild(bc.promptCtx)
+	bc.BuildPrompt, err = r.renderer.RenderBuild(bc.PromptCtx)
 	if err != nil {
-		bc.result.Error = fmt.Errorf("rendering retry prompt: %w", err)
+		bc.Result.Error = fmt.Errorf("rendering retry prompt: %w", err)
 		return false
 	}
 	return true
@@ -581,66 +550,66 @@ func (r *Runner) handleEscalation(ctx context.Context, bc *beadContext, claudeRe
 // attemptDecomposition tries to decompose the task into sub-beads.
 // On success, sets result.Decomposed=true. On failure, sets result.Error.
 // Always returns false (processBead should return after this).
-func (r *Runner) attemptDecomposition(ctx context.Context, bc *beadContext, failureReason string) (continueLoop bool) {
-	subTasks, err := r.DecomposeTask(ctx, bc.bead)
+func (r *Runner) attemptDecomposition(ctx context.Context, bc *runtypes.BeadContext, failureReason string) (continueLoop bool) {
+	subTasks, err := r.DecomposeTask(ctx, bc.Bead)
 	if err != nil {
 		r.log("Decomposition failed: %v, falling back to error", err)
-		if bc.startCommit != "" {
-			r.showPartialProgress(bc.bead, bc.startCommit)
+		if bc.StartCommit != "" {
+			r.showPartialProgress(bc.Bead, bc.StartCommit)
 		}
-		bc.result.Error = fmt.Errorf("%s and decomposition failed: %w", failureReason, err)
+		bc.Result.Error = fmt.Errorf("%s and decomposition failed: %w", failureReason, err)
 		return false
 	}
 
-	if err := r.CreateSubBeads(ctx, bc.bead, subTasks); err != nil {
+	if err := r.CreateSubBeads(ctx, bc.Bead, subTasks); err != nil {
 		r.log("Failed to create sub-beads: %v", err)
-		if bc.startCommit != "" {
-			r.showPartialProgress(bc.bead, bc.startCommit)
+		if bc.StartCommit != "" {
+			r.showPartialProgress(bc.Bead, bc.StartCommit)
 		}
-		bc.result.Error = fmt.Errorf("%s decomposition succeeded but failed to create sub-beads: %w", failureReason, err)
+		bc.Result.Error = fmt.Errorf("%s decomposition succeeded but failed to create sub-beads: %w", failureReason, err)
 		return false
 	}
 
 	r.log("Task successfully decomposed into %d sub-tasks", len(subTasks))
-	bc.result.Decomposed = true
+	bc.Result.Decomposed = true
 	return false
 }
 
 // escalateTier updates the bead context to use a new tier after escalation.
 // The router will select the concrete model on the next invocation.
-func (r *Runner) escalateTier(bc *beadContext, nextTier string) {
-	bc.result.Escalated = true
-	bc.tier = nextTier
-	bc.retriesThisModel = 0
+func (r *Runner) escalateTier(bc *runtypes.BeadContext, nextTier string) {
+	bc.Result.Escalated = true
+	bc.Tier = nextTier
+	bc.RetriesThisModel = 0
 	// Set legacy model name for display/logging (will be updated by router to concrete name)
 	legacyModel := provider.TierToLegacyModel(nextTier)
-	bc.model = legacyModel
-	bc.result.Model = legacyModel
-	bc.result.EscalatedTo = legacyModel // Use legacy model name, will be updated by router if needed
-	if bc.promptCtx != nil {
-		bc.promptCtx.Model = legacyModel
+	bc.Model = legacyModel
+	bc.Result.Model = legacyModel
+	bc.Result.EscalatedTo = legacyModel // Use legacy model name, will be updated by router if needed
+	if bc.PromptCtx != nil {
+		bc.PromptCtx.Model = legacyModel
 	}
 }
 
 // escalateModel updates the bead context to use a new model after escalation.
 // Legacy function - prefer escalateTier for router-based code paths.
-func (r *Runner) escalateModel(bc *beadContext, nextModel string) {
-	bc.result.Escalated = true
-	bc.result.EscalatedTo = nextModel
-	bc.model = nextModel
-	bc.retriesThisModel = 0
-	bc.result.Model = bc.model
-	if bc.promptCtx != nil {
-		bc.promptCtx.Model = bc.model
+func (r *Runner) escalateModel(bc *runtypes.BeadContext, nextModel string) {
+	bc.Result.Escalated = true
+	bc.Result.EscalatedTo = nextModel
+	bc.Model = nextModel
+	bc.RetriesThisModel = 0
+	bc.Result.Model = bc.Model
+	if bc.PromptCtx != nil {
+		bc.PromptCtx.Model = bc.Model
 	}
 }
 
 // runAcceptanceTestsWithRetry runs the acceptance test phase with retry and escalation logic.
 // Returns nil on success or error on failure.
-func (r *Runner) runAcceptanceTestsWithRetry(ctx context.Context, bc *beadContext) error {
+func (r *Runner) runAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes.BeadContext) error {
 	retries := 0
 	maxRetries := r.cfg.Escalation.MaxRetriesPerModel
-	currentTier := bc.tier
+	currentTier := bc.Tier
 
 	for {
 		if retries > 0 {
@@ -675,9 +644,9 @@ func (r *Runner) runAcceptanceTestsWithRetry(ctx context.Context, bc *beadContex
 // runAcceptanceTests runs the acceptance test phase for ATDD workflow.
 // Uses the same heartbeat/stall detection pattern as executeClaudeInvocation.
 // Returns nil on success or error on failure.
-func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error {
+func (r *Runner) runAcceptanceTests(ctx context.Context, bc *runtypes.BeadContext) error {
 	// Render acceptance tests prompt
-	acceptancePrompt, err := r.renderer.RenderAcceptanceTests(bc.promptCtx)
+	acceptancePrompt, err := r.renderer.RenderAcceptanceTests(bc.PromptCtx)
 	if err != nil {
 		return fmt.Errorf("rendering acceptance tests prompt: %w", err)
 	}
@@ -694,7 +663,7 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 
 	// Determine phase and use tier from bead context
 	phase := "build"
-	tier := bc.tier
+	tier := bc.Tier
 
 	// Select provider using router
 	p, modelName := r.router.Select(phase, tier)
@@ -703,16 +672,16 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 	}
 
 	// Update bead context with router-selected model
-	bc.model = modelName
+	bc.Model = modelName
 	// If this is an escalated invocation, update EscalatedTo with the concrete model name
-	if bc.result.Escalated && bc.result.EscalatedTo != "" {
-		bc.result.EscalatedTo = modelName
+	if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
+		bc.Result.EscalatedTo = modelName
 	}
 
 	childCtx, childCancel := context.WithCancel(ctx)
 	stallFired := false
 
-	_, stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.model)
+	_, stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.Model)
 	stallTimeout := time.Duration(stallTimeoutSec) * time.Second
 	stallTimeoutActive := time.Duration(stallTimeoutActiveSec) * time.Second
 
@@ -762,10 +731,10 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 		// Retry with new provider
 		p2, modelName2 := r.router.Select(phase, tier)
 		if p2 != nil {
-			bc.model = modelName2
+			bc.Model = modelName2
 			// If this is an escalated invocation, update EscalatedTo with the concrete model name
-			if bc.result.Escalated && bc.result.EscalatedTo != "" {
-				bc.result.EscalatedTo = modelName2
+			if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
+				bc.Result.EscalatedTo = modelName2
 			}
 
 			// Retry the invocation with the fallback provider
@@ -808,7 +777,7 @@ func (r *Runner) runAcceptanceTests(ctx context.Context, bc *beadContext) error 
 
 // verifyTestsFailWithRetry runs the verify-tests-fail phase with retry logic.
 // If tests pass (unexpected), retries once with analysis, then fails.
-func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *beadContext) error {
+func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *runtypes.BeadContext) error {
 	err := r.verifyTestsFail(ctx, bc)
 	if err == nil {
 		return nil // Tests failed as expected
@@ -820,7 +789,7 @@ func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *beadContext) 
 
 	analysisTimeout := time.Duration(r.cfg.Claude.AnalysisTimeout) * time.Second
 	analysisCtx, analysisCancel := context.WithTimeout(ctx, analysisTimeout)
-	analysis, analyzeErr := r.analyzer.Analyze(analysisCtx, bc.bead, err.Error())
+	analysis, analyzeErr := r.analyzer.Analyze(analysisCtx, bc.Bead, err.Error())
 	analysisCancel()
 
 	if analyzeErr != nil {
@@ -830,8 +799,8 @@ func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *beadContext) 
 
 	// Retry acceptance tests once with analysis context
 	r.log("Retrying acceptance tests with analysis context...")
-	bc.promptCtx.IsRetry = true
-	bc.promptCtx.FailureContext = analysis.Suggestion
+	bc.PromptCtx.IsRetry = true
+	bc.PromptCtx.FailureContext = analysis.Suggestion
 
 	if retryErr := r.runAcceptanceTests(ctx, bc); retryErr != nil {
 		return fmt.Errorf("acceptance tests retry failed: %w", retryErr)
@@ -846,12 +815,12 @@ func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *beadContext) 
 	// Still passing after retry with analysis — check if this is a false positive
 	// by examining the git diff. If only test files changed (no implementation),
 	// the tests are likely checking existing behavior, not new behavior.
-	if bc.startCommit != "" {
-		diff, diffErr := r.getDiff(bc.startCommit)
+	if bc.StartCommit != "" {
+		diff, diffErr := r.getDiff(bc.StartCommit)
 		if diffErr == nil && isTestOnlyDiff(diff) {
 			r.log("Tests pass but only test files changed — likely testing existing behavior, retrying...")
-			bc.promptCtx.IsRetry = true
-			bc.promptCtx.FailureContext = "Tests pass but no implementation code was changed — tests are likely checking existing behavior. Rewrite tests to assert on behavior that does not exist yet."
+			bc.PromptCtx.IsRetry = true
+			bc.PromptCtx.FailureContext = "Tests pass but no implementation code was changed — tests are likely checking existing behavior. Rewrite tests to assert on behavior that does not exist yet."
 
 			if retryErr2 := r.runAcceptanceTests(ctx, bc); retryErr2 == nil {
 				// Verify tests fail again after diff-aware retry
@@ -870,7 +839,7 @@ func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *beadContext) 
 // verifyTestsFail runs validation and returns nil when validation fails (expected)
 // or an error when validation passes (unexpected - tests should fail before implementation).
 // This is used in the ATDD workflow to verify that acceptance tests fail before implementation.
-func (r *Runner) verifyTestsFail(ctx context.Context, bc *beadContext) error {
+func (r *Runner) verifyTestsFail(ctx context.Context, bc *runtypes.BeadContext) error {
 	if !r.cfg.Validation.Enabled {
 		return fmt.Errorf("validation is not enabled - cannot verify tests fail")
 	}
@@ -886,7 +855,7 @@ func (r *Runner) verifyTestsFail(ctx context.Context, bc *beadContext) error {
 
 	r.log("Verifying acceptance tests fail (as expected)...")
 
-	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
+	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
 	if err != nil {
 		return fmt.Errorf("validation invocation: %w", err)
 	}
@@ -1061,9 +1030,9 @@ func (r *Runner) runRefactorWithRouter(ctx context.Context, prompt string, tier 
 
 // shouldRunRefactor determines whether the refactor phase should run based on
 // bead complexity tier and number of files changed.
-func (r *Runner) shouldRunRefactor(bc *beadContext, diff string) bool {
+func (r *Runner) shouldRunRefactor(bc *runtypes.BeadContext, diff string) bool {
 	// Skip refactor for haiku-tier beads
-	if bc.tier == provider.TierLow {
+	if bc.Tier == provider.TierLow {
 		r.log("Skipping refactor: haiku-tier bead")
 		return false
 	}
@@ -1088,9 +1057,9 @@ func (r *Runner) shouldRunRefactor(bc *beadContext, diff string) bool {
 // Returns nil on success or if refactoring is skipped. Does not return an error
 // if refactoring fails - it logs a warning and continues (working code without
 // refactoring is better than broken code).
-func (r *Runner) runRefactorPhase(ctx context.Context, bc *beadContext) error {
+func (r *Runner) runRefactorPhase(ctx context.Context, bc *runtypes.BeadContext) error {
 	// Check if there are any changes to refactor
-	diff, err := r.getDiff(bc.startCommit)
+	diff, err := r.getDiff(bc.StartCommit)
 	if err != nil {
 		r.log("Warning: could not get git diff: %v", err)
 		return nil // Skip refactoring, not an error
@@ -1113,14 +1082,14 @@ func (r *Runner) runRefactorPhase(ctx context.Context, bc *beadContext) error {
 	}
 
 	// Render refactor prompt
-	refactorPrompt, err := r.renderer.RenderRefactor(bc.promptCtx)
+	refactorPrompt, err := r.renderer.RenderRefactor(bc.PromptCtx)
 	if err != nil {
 		r.log("Warning: could not render refactor prompt: %v", err)
 		return nil // Skip refactoring, not an error
 	}
 
 	// Execute refactor using router
-	claudeResult, err := r.runRefactorWithRouter(ctx, refactorPrompt, bc.tier)
+	claudeResult, err := r.runRefactorWithRouter(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		r.log("Warning: refactor invocation failed: %v", err)
 		return nil // Skip refactoring, not an error
@@ -1138,7 +1107,7 @@ func (r *Runner) runRefactorPhase(ctx context.Context, bc *beadContext) error {
 		return nil
 	}
 
-	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
+	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
 	if err != nil {
 		r.log("Warning: refactor re-validation invocation failed: %v", err)
 		return r.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "re-validation invocation failed")
@@ -1154,7 +1123,7 @@ func (r *Runner) runRefactorPhase(ctx context.Context, bc *beadContext) error {
 
 // handleRefactorValidationFailure reverts the refactor changes and retries once.
 // Returns nil (not an error) after handling - refactor failures are non-blocking.
-func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *beadContext, preRefactorCommit string, reason string) error {
+func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *runtypes.BeadContext, preRefactorCommit string, reason string) error {
 	r.log("Refactor validation failed: %s", reason)
 	r.log("Reverting to pre-refactor state: %s", preRefactorCommit)
 
@@ -1168,17 +1137,17 @@ func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *beadCo
 	r.log("Reverted to pre-refactor state, retrying refactor once...")
 
 	// Retry refactor with analysis context
-	bc.promptCtx.IsRetry = true
-	bc.promptCtx.FailureContext = fmt.Sprintf("Previous refactoring broke tests: %s. Be more conservative this time.", reason)
+	bc.PromptCtx.IsRetry = true
+	bc.PromptCtx.FailureContext = fmt.Sprintf("Previous refactoring broke tests: %s. Be more conservative this time.", reason)
 
-	refactorPrompt, err := r.renderer.RenderRefactor(bc.promptCtx)
+	refactorPrompt, err := r.renderer.RenderRefactor(bc.PromptCtx)
 	if err != nil {
 		r.log("Warning: could not render retry refactor prompt: %v", err)
 		return nil // Skip refactoring, not an error
 	}
 
 	// Execute retry refactor using router
-	claudeResult, err := r.runRefactorWithRouter(ctx, refactorPrompt, bc.tier)
+	claudeResult, err := r.runRefactorWithRouter(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		r.log("Warning: retry refactor invocation failed: %v - skipping refactoring", err)
 		return nil
@@ -1190,7 +1159,7 @@ func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *beadCo
 
 	r.log("Retry refactor complete, re-validating...")
 
-	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
+	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
 
 	if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
 		r.log("Warning: retry refactor also failed validation - skipping refactoring")
@@ -1210,7 +1179,7 @@ func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *beadCo
 // Commands are executed directly via exec.Command, not through Claude CLI (AC1).
 // Exit codes determine pass/fail: 0=pass, non-zero=fail with captured stderr (AC2).
 // Claude is only invoked for failure interpretation via the analyzer (AC3).
-func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
+func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) error {
 	if !r.cfg.Validation.Enabled {
 		return nil
 	}
@@ -1221,7 +1190,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 	}
 	if err := checker.Check(r.cfg.Validation.Commands); err != nil {
 		r.log("Warning: %v", err)
-		bc.result.Validated = false
+		bc.Result.Validated = false
 		return nil // Skip validation, not an error
 	}
 
@@ -1230,7 +1199,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 	// Execute each validation command directly
 	for _, command := range r.cfg.Validation.Commands {
 		r.log("  %s", command)
-		stdout, stderr, exitCode, err := r.runCmd(ctx, command, bc.promptCtx.WorkDir)
+		stdout, stderr, exitCode, err := r.runCmd(ctx, command, bc.PromptCtx.WorkDir)
 		if err != nil {
 			return fmt.Errorf("validation command %q: %w", command, err)
 		}
@@ -1260,31 +1229,31 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 				r.log("\nFull output saved to: %s", logPath)
 			}
 
-			if bc.startCommit != "" {
-				r.showPartialProgress(bc.bead, bc.startCommit)
+			if bc.StartCommit != "" {
+				r.showPartialProgress(bc.Bead, bc.StartCommit)
 			}
 
 			// Run failure analysis (AC3: Claude only for failure interpretation)
 			r.log("Running failure analysis...")
 			valAnalysisCtx, valAnalysisCancel := context.WithTimeout(ctx, time.Duration(r.cfg.Claude.AnalysisTimeout)*time.Second)
-			analysis, analyzeErr := r.analyzer.Analyze(valAnalysisCtx, bc.bead, failureOutput)
+			analysis, analyzeErr := r.analyzer.Analyze(valAnalysisCtx, bc.Bead, failureOutput)
 			valAnalysisCancel()
 			if analyzeErr == nil && analysis != nil {
 				r.extractLearning(bc, analysis)
 			}
 
-			bc.result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
+			bc.Result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
 			return errValidationFailed
 		}
 	}
 
-	bc.result.Validated = true
-	bc.result.ValidationMode = "direct"
+	bc.Result.Validated = true
+	bc.Result.ValidationMode = "direct"
 	r.log("Validation passed")
 
 	// Update runner's touched packages map for learning extraction filtering
-	if bc.touchedPackages != nil && len(bc.touchedPackages) > 0 {
-		r.updateTouchedPackages(bc.touchedPackages)
+	if bc.TouchedPackages != nil && len(bc.TouchedPackages) > 0 {
+		r.updateTouchedPackages(bc.TouchedPackages)
 	}
 
 	// Run post-success stages sequentially
@@ -1305,7 +1274,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *beadContext) error {
 // runValidationWithRecovery wraps runValidation with a recovery mechanism.
 // On validation failure, it first attempts trivial auto-fixes (gofmt/goimports),
 // then falls back to Claude-based fixes. Retry depth is capped by MaxValidationRetries.
-func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext) error {
+func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.BeadContext) error {
 	err := r.runValidation(ctx, bc)
 	if err == nil {
 		return nil
@@ -1323,47 +1292,47 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext)
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		r.log("Validation failed, attempting fix (attempt %d/%d)...", attempt+1, maxRetries)
-		bc.result.ValidationRetried = true
+		bc.Result.ValidationRetried = true
 
 		// Step 1: Try trivial auto-fix (gofmt/goimports) before invoking Claude
 		if r.autoFixFn != nil {
 			r.log("Running auto-fix (gofmt/goimports)...")
-			if fixErr := r.autoFixFn(bc.startCommit); fixErr != nil {
+			if fixErr := r.autoFixFn(bc.StartCommit); fixErr != nil {
 				r.log("Warning: auto-fix failed: %v", fixErr)
 			}
 
 			// Re-validate after auto-fix
 			if valErr := r.runValidation(ctx, bc); valErr == nil {
 				r.log("Trivial auto-fix resolved validation failure")
-				bc.result.TrivialAutoFixed = true
+				bc.Result.TrivialAutoFixed = true
 				return nil
 			}
 		}
 
 		// Step 2: Auto-fix didn't resolve it — invoke Claude for a fix
-		bc.promptCtx.IsRetry = true
-		bc.promptCtx.PrevFailure = bc.result.Output
-		bc.promptCtx.FailureContext = "Validation (tests/lint) failed after your build succeeded. Fix the validation errors."
+		bc.PromptCtx.IsRetry = true
+		bc.PromptCtx.PrevFailure = bc.Result.Output
+		bc.PromptCtx.FailureContext = "Validation (tests/lint) failed after your build succeeded. Fix the validation errors."
 
 		var renderErr error
-		bc.buildPrompt, renderErr = r.renderer.RenderBuild(bc.promptCtx)
+		bc.BuildPrompt, renderErr = r.renderer.RenderBuild(bc.PromptCtx)
 		if renderErr != nil {
 			return fmt.Errorf("rendering validation fix prompt: %w", renderErr)
 		}
 
 		// Save retry state and enforce single attempt
-		savedMaxRetries := bc.maxRetries
-		savedRetriesThisModel := bc.retriesThisModel
-		savedTotalRetries := bc.totalRetriesThisBead
-		bc.maxRetries = 0
-		bc.retriesThisModel = 0
+		savedMaxRetries := bc.MaxRetries
+		savedRetriesThisModel := bc.RetriesThisModel
+		savedTotalRetries := bc.TotalRetriesThisBead
+		bc.MaxRetries = 0
+		bc.RetriesThisModel = 0
 
 		success := r.executeWithRetry(ctx, bc)
 
 		// Restore retry state
-		bc.maxRetries = savedMaxRetries
-		bc.retriesThisModel = savedRetriesThisModel
-		bc.totalRetriesThisBead = savedTotalRetries
+		bc.MaxRetries = savedMaxRetries
+		bc.RetriesThisModel = savedRetriesThisModel
+		bc.TotalRetriesThisBead = savedTotalRetries
 
 		if !success {
 			continue // Count as a failed retry, try next attempt
@@ -1385,11 +1354,11 @@ func countChangedFiles(diff string) int {
 }
 
 // runPostSuccessReview runs only the review stage (when learning is disabled).
-func (r *Runner) runPostSuccessReview(ctx context.Context, bc *beadContext) error {
+func (r *Runner) runPostSuccessReview(ctx context.Context, bc *runtypes.BeadContext) error {
 	reviewStart := time.Now()
-	r.log("Running post-iteration review with model: %s", selectReviewModel(r.cfg, bc.model))
+	r.log("Running post-iteration review with model: %s", selectReviewModel(r.cfg, bc.Model))
 
-	reviewResult, err := r.runLightReview(ctx, bc.bead, bc.parent, bc.startCommit, bc.model, bc.iteration, bc.runDeadline, bc.buildProvider)
+	reviewResult, err := r.runLightReview(ctx, bc.Bead, bc.Parent, bc.StartCommit, bc.Model, bc.Iteration, bc.RunDeadline, bc.BuildProvider)
 	if err != nil {
 		r.log("Warning: review failed: %v", err)
 		return nil // Review failure is non-blocking
@@ -1403,17 +1372,17 @@ func (r *Runner) runPostSuccessReview(ctx context.Context, bc *beadContext) erro
 			r.log("Review applied %d fixes, re-validating...", len(reviewResult.FixesApplied))
 
 			if r.cfg.Validation.Enabled {
-				valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.promptCtx.WorkDir)
+				valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
 				if err != nil {
 					return fmt.Errorf("review re-validation invocation: %w", err)
 				}
 
 				if valResult == nil || !claude.IsValidationPassed(valResult) {
-					bc.result.Output += "\n\n=== REVIEW RE-VALIDATION FAILED ===\n"
+					bc.Result.Output += "\n\n=== REVIEW RE-VALIDATION FAILED ===\n"
 					if valResult != nil {
-						bc.result.Output += valResult.Output
+						bc.Result.Output += valResult.Output
 					}
-					bc.result.ReviewBrokeValidation = true
+					bc.Result.ReviewBrokeValidation = true
 					return fmt.Errorf("review fixes broke validation")
 				}
 				r.log("Re-validation passed")
@@ -1425,7 +1394,7 @@ func (r *Runner) runPostSuccessReview(ctx context.Context, bc *beadContext) erro
 
 		// Log review result
 		reviewDuration := time.Since(reviewStart)
-		r.writeReviewLog(bc.iteration, bc.bead.ID, selectReviewModel(r.cfg, bc.model), reviewResult, beadsCreated, backlogCreated, reviewDuration)
+		r.writeReviewLog(bc.Iteration, bc.Bead.ID, selectReviewModel(r.cfg, bc.Model), reviewResult, beadsCreated, backlogCreated, reviewDuration)
 	}
 
 	return nil

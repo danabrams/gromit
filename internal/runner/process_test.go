@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 func TestSetupBeadContext_NilConfig(t *testing.T) {
@@ -89,23 +90,23 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 	}
 	defer cancel()
 
-	if bc.bead != b {
+	if bc.Bead != b {
 		t.Error("beadContext.bead should reference the input bead")
 	}
-	if bc.result == nil {
+	if bc.Result == nil {
 		t.Fatal("beadContext.result should not be nil")
 	}
-	if bc.result.BeadID != "test-1" {
-		t.Errorf("expected BeadID 'test-1', got %q", bc.result.BeadID)
+	if bc.Result.BeadID != "test-1" {
+		t.Errorf("expected BeadID 'test-1', got %q", bc.Result.BeadID)
 	}
-	if bc.maxRetries != 2 {
-		t.Errorf("expected maxRetries=2, got %d", bc.maxRetries)
+	if bc.MaxRetries != 2 {
+		t.Errorf("expected maxRetries=2, got %d", bc.MaxRetries)
 	}
-	if bc.maxRetriesPerBead != 5 {
-		t.Errorf("expected maxRetriesPerBead=5, got %d", bc.maxRetriesPerBead)
+	if bc.MaxRetriesPerBead != 5 {
+		t.Errorf("expected maxRetriesPerBead=5, got %d", bc.MaxRetriesPerBead)
 	}
-	if bc.beadTimeout != 300*time.Second {
-		t.Errorf("expected beadTimeout=300s, got %v", bc.beadTimeout)
+	if bc.BeadTimeout != 300*time.Second {
+		t.Errorf("expected beadTimeout=300s, got %v", bc.BeadTimeout)
 	}
 	if beadCtx == nil {
 		t.Error("beadCtx should not be nil")
@@ -114,31 +115,31 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 
 func TestEscalateModel(t *testing.T) {
 	r := &Runner{output: &strings.Builder{}}
-	bc := &beadContext{
-		model:     "haiku",
-		result:    &IterationResult{Model: "haiku"},
-		promptCtx: &prompt.Context{Model: "haiku"},
+	bc := &runtypes.BeadContext{
+		Model:     "haiku",
+		Result:    &IterationResult{Model: "haiku"},
+		PromptCtx: &prompt.Context{Model: "haiku"},
 	}
 
 	r.escalateModel(bc, "sonnet")
 
-	if bc.model != "sonnet" {
-		t.Errorf("expected model 'sonnet', got %q", bc.model)
+	if bc.Model != "sonnet" {
+		t.Errorf("expected model 'sonnet', got %q", bc.Model)
 	}
-	if bc.result.Model != "sonnet" {
-		t.Errorf("expected result.Model 'sonnet', got %q", bc.result.Model)
+	if bc.Result.Model != "sonnet" {
+		t.Errorf("expected result.Model 'sonnet', got %q", bc.Result.Model)
 	}
-	if bc.result.Escalated != true {
+	if bc.Result.Escalated != true {
 		t.Error("expected result.Escalated to be true")
 	}
-	if bc.result.EscalatedTo != "sonnet" {
-		t.Errorf("expected result.EscalatedTo 'sonnet', got %q", bc.result.EscalatedTo)
+	if bc.Result.EscalatedTo != "sonnet" {
+		t.Errorf("expected result.EscalatedTo 'sonnet', got %q", bc.Result.EscalatedTo)
 	}
-	if bc.retriesThisModel != 0 {
-		t.Errorf("expected retriesThisModel=0, got %d", bc.retriesThisModel)
+	if bc.RetriesThisModel != 0 {
+		t.Errorf("expected retriesThisModel=0, got %d", bc.RetriesThisModel)
 	}
-	if bc.promptCtx.Model != "sonnet" {
-		t.Errorf("expected promptCtx.Model 'sonnet', got %q", bc.promptCtx.Model)
+	if bc.PromptCtx.Model != "sonnet" {
+		t.Errorf("expected promptCtx.Model 'sonnet', got %q", bc.PromptCtx.Model)
 	}
 }
 
@@ -158,10 +159,10 @@ func TestHandleScopeTooLarge(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		model:  "haiku",
-		result: &IterationResult{},
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:  "haiku",
+		Result: &IterationResult{},
 	}
 
 	result := &claude.Result{
@@ -170,11 +171,11 @@ func TestHandleScopeTooLarge(t *testing.T) {
 
 	r.handleScopeTooLarge(bc, result, "This task is too big")
 
-	if bc.result.Error == nil {
+	if bc.Result.Error == nil {
 		t.Fatal("expected error to be set")
 	}
-	if !strings.Contains(bc.result.Error.Error(), "scope too large") {
-		t.Errorf("expected 'scope too large' in error, got %q", bc.result.Error.Error())
+	if !strings.Contains(bc.Result.Error.Error(), "scope too large") {
+		t.Errorf("expected 'scope too large' in error, got %q", bc.Result.Error.Error())
 	}
 	// Verify that synthetic learning was extracted
 	if !strings.Contains(buf.String(), "Synthetic learning extracted") {
@@ -198,10 +199,10 @@ func TestExtractScopeTooLargeLearning(t *testing.T) {
 		output:   &buf,
 	}
 
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Complex Feature"},
-		model:  "haiku",
-		result: &IterationResult{},
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Complex Feature"},
+		Model:  "haiku",
+		Result: &IterationResult{},
 	}
 
 	r.extractScopeTooLargeLearning(bc, "too many acceptance criteria")
@@ -234,10 +235,10 @@ func TestExtractTimeoutLearning(t *testing.T) {
 		output:   &buf,
 	}
 
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Slow Task"},
-		model:  "sonnet",
-		result: &IterationResult{},
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Slow Task"},
+		Model:  "sonnet",
+		Result: &IterationResult{},
 	}
 
 	r.extractTimeoutLearning(bc)
@@ -263,8 +264,8 @@ func TestExtractLearning_NilLearning(t *testing.T) {
 		renderer: &mockRenderer{},
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead: &bead.Bead{ID: "test-1"},
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "test-1"},
 	}
 
 	analysis := &analyzer.Analysis{
@@ -288,8 +289,8 @@ func TestExtractLearning_WithLearning(t *testing.T) {
 		renderer: &mockRenderer{},
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead: &bead.Bead{ID: "test-1"},
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "test-1"},
 	}
 
 	learning := "Always check for nil before dereferencing"
@@ -314,13 +315,13 @@ func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
 		cfg:    &config.Config{},
 		output: &buf,
 	}
-	bc := &beadContext{
-		bead:                 &bead.Bead{ID: "test-1"},
-		result:               &IterationResult{},
-		retriesThisModel:     0,
-		totalRetriesThisBead: 5,
-		maxRetries:           2,
-		maxRetriesPerBead:    5,
+	bc := &runtypes.BeadContext{
+		Bead:                 &bead.Bead{ID: "test-1"},
+		Result:               &IterationResult{},
+		RetriesThisModel:     0,
+		TotalRetriesThisBead: 5,
+		MaxRetries:           2,
+		MaxRetriesPerBead:    5,
 	}
 
 	continueLoop := r.handleStallTimeout(context.Background(), bc)
@@ -328,11 +329,11 @@ func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
 	if continueLoop {
 		t.Error("expected false when max retries per bead exceeded")
 	}
-	if bc.result.Error == nil {
+	if bc.Result.Error == nil {
 		t.Fatal("expected error to be set")
 	}
-	if !strings.Contains(bc.result.Error.Error(), "exceeded max retries per bead") {
-		t.Errorf("expected 'exceeded max retries per bead' in error, got %q", bc.result.Error.Error())
+	if !strings.Contains(bc.Result.Error.Error(), "exceeded max retries per bead") {
+		t.Errorf("expected 'exceeded max retries per bead' in error, got %q", bc.Result.Error.Error())
 	}
 }
 
@@ -342,14 +343,14 @@ func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 		cfg:    &config.Config{},
 		output: &buf,
 	}
-	bc := &beadContext{
-		bead:                 &bead.Bead{ID: "test-1"},
-		result:               &IterationResult{},
-		model:                "haiku",
-		retriesThisModel:     0,
-		totalRetriesThisBead: 0,
-		maxRetries:           2,
-		maxRetriesPerBead:    5,
+	bc := &runtypes.BeadContext{
+		Bead:                 &bead.Bead{ID: "test-1"},
+		Result:               &IterationResult{},
+		Model:                "haiku",
+		RetriesThisModel:     0,
+		TotalRetriesThisBead: 0,
+		MaxRetries:           2,
+		MaxRetriesPerBead:    5,
 	}
 
 	continueLoop := r.handleStallTimeout(context.Background(), bc)
@@ -357,11 +358,11 @@ func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 	if !continueLoop {
 		t.Error("expected true when retries available")
 	}
-	if bc.retriesThisModel != 1 {
-		t.Errorf("expected retriesThisModel=1, got %d", bc.retriesThisModel)
+	if bc.RetriesThisModel != 1 {
+		t.Errorf("expected retriesThisModel=1, got %d", bc.RetriesThisModel)
 	}
-	if bc.totalRetriesThisBead != 1 {
-		t.Errorf("expected totalRetriesThisBead=1, got %d", bc.totalRetriesThisBead)
+	if bc.TotalRetriesThisBead != 1 {
+		t.Errorf("expected totalRetriesThisBead=1, got %d", bc.TotalRetriesThisBead)
 	}
 }
 
@@ -377,27 +378,27 @@ func TestHandleStallTimeout_Escalates(t *testing.T) {
 		renderer: &mockRenderer{},
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1"},
-		result: &IterationResult{},
-		model:  "haiku",
-		tier:   provider.TierLow, // haiku maps to low tier
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1"},
+		Result: &IterationResult{},
+		Model:  "haiku",
+		Tier:   provider.TierLow, // haiku maps to low tier
+		PromptCtx: &prompt.Context{
 			Model:              "haiku",
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
 		},
-		retriesThisModel:     2,
-		totalRetriesThisBead: 2,
-		maxRetries:           2,
-		maxRetriesPerBead:    10,
+		RetriesThisModel:     2,
+		TotalRetriesThisBead: 2,
+		MaxRetries:           2,
+		MaxRetriesPerBead:    10,
 	}
 
 	continueLoop := r.handleStallTimeout(context.Background(), bc)
 
 	// With mock renderer, RenderBuild succeeds, so escalation should work
 	if !continueLoop {
-		if bc.result.Error != nil && strings.Contains(bc.result.Error.Error(), "rendering retry prompt") {
+		if bc.Result.Error != nil && strings.Contains(bc.Result.Error.Error(), "rendering retry prompt") {
 			// Expected if mock renderer fails - still check escalation was attempted
 		} else {
 			t.Error("expected continueLoop=true after escalation")
@@ -405,8 +406,8 @@ func TestHandleStallTimeout_Escalates(t *testing.T) {
 	}
 
 	// Verify escalation was at least attempted
-	if bc.model != "sonnet" {
-		t.Errorf("expected model to be escalated to 'sonnet', got %q", bc.model)
+	if bc.Model != "sonnet" {
+		t.Errorf("expected model to be escalated to 'sonnet', got %q", bc.Model)
 	}
 }
 
@@ -429,8 +430,8 @@ func TestProcessBead_DurationIsSetOnSetupFailure(t *testing.T) {
 
 func TestExtractSuccessLearning_NilRunner(t *testing.T) {
 	var r *Runner
-	bc := &beadContext{
-		bead: &bead.Bead{ID: "test-1"},
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "test-1"},
 	}
 	// Should not panic
 	r.extractSuccessLearning(context.Background(), bc)
@@ -454,8 +455,8 @@ func TestExtractSuccessLearning_FeatureDisabled(t *testing.T) {
 		},
 		output: &buf,
 	}
-	bc := &beadContext{
-		bead: &bead.Bead{ID: "test-1", Title: "Test"},
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "test-1", Title: "Test"},
 	}
 
 	r.extractSuccessLearning(context.Background(), bc)
@@ -500,8 +501,8 @@ func TestExtractSuccessLearning_NilLearning(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-1",
 			Title:       "Test",
 			Description: "Test description",
@@ -551,8 +552,8 @@ func TestExtractSuccessLearning_WithLearning(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-1",
 			Title:       "Test",
 			Description: "Test description",
@@ -595,12 +596,12 @@ func TestRunAcceptanceTests_Success(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		tier:   provider.TierMedium,
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Tier:   provider.TierMedium,
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			Model:              "sonnet",
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
@@ -641,12 +642,12 @@ func TestRunAcceptanceTests_ClaudeFailed(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		tier:   provider.TierMedium,
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Tier:   provider.TierMedium,
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			Model:              "sonnet",
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
@@ -687,12 +688,12 @@ func TestRunAcceptanceTests_InvocationError(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		tier:   provider.TierMedium,
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Tier:   provider.TierMedium,
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			Model:              "sonnet",
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
@@ -739,12 +740,12 @@ func TestRunAcceptanceTests_UsesSameModel(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		tier:   provider.TierHigh, // Using high tier
-		model:  "opus",            // Initial model name (will be updated by router)
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Tier:   provider.TierHigh, // Using high tier
+		Model:  "opus",            // Initial model name (will be updated by router)
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			Model:              "opus",
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
@@ -759,9 +760,9 @@ func TestRunAcceptanceTests_UsesSameModel(t *testing.T) {
 	if capturedTier != provider.TierHigh {
 		t.Errorf("expected tier %q, got %q", provider.TierHigh, capturedTier)
 	}
-	// Verify bc.model was updated with concrete model name from router
-	if bc.model != "opus" {
-		t.Errorf("expected bc.model to be updated to 'opus', got %q", bc.model)
+	// Verify bc.Model was updated with concrete model name from router
+	if bc.Model != "opus" {
+		t.Errorf("expected bc.Model to be updated to 'opus', got %q", bc.Model)
 	}
 }
 
@@ -775,10 +776,10 @@ func TestVerifyTestsFail_ValidationDisabled(t *testing.T) {
 		},
 		output: &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
 		},
 	}
@@ -809,10 +810,10 @@ func TestVerifyTestsFail_TestsFailAsExpected(t *testing.T) {
 			return "", "FAIL: TestSomething", 1, nil
 		},
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
 		},
 	}
@@ -843,10 +844,10 @@ func TestVerifyTestsFail_TestsPassUnexpectedly(t *testing.T) {
 			return "ok", "", 0, nil
 		},
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
 		},
 	}
@@ -880,10 +881,10 @@ func TestVerifyTestsFail_InvocationError(t *testing.T) {
 			return "", "", -1, fmt.Errorf("network error")
 		},
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
 		},
 	}
@@ -914,10 +915,10 @@ func TestVerifyTestsFail_CommandExecutionError(t *testing.T) {
 			return "", "", -1, fmt.Errorf("exec: command not found")
 		},
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
 		},
 	}
@@ -948,12 +949,12 @@ func TestRunRefactorPhase_NoDiff(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: "abc123",
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: "abc123",
+		PromptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
 		},
 	}
@@ -986,12 +987,12 @@ func TestRunRefactorPhase_Success(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: "abc123",
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: "abc123",
+		PromptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
 		},
 	}
@@ -1020,12 +1021,12 @@ func TestRunRefactorPhase_RenderError(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: "abc123",
-		promptCtx:   &prompt.Context{},
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: "abc123",
+		PromptCtx:   &prompt.Context{},
 	}
 
 	// This test verifies that render errors don't cause the method to return an error
@@ -1048,12 +1049,12 @@ func TestRunRefactorPhase_ClaudeInvocationError(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: "abc123",
-		promptCtx:   &prompt.Context{},
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: "abc123",
+		PromptCtx:   &prompt.Context{},
 	}
 
 	// Refactor invocation errors should not cause the method to return an error
@@ -1076,12 +1077,12 @@ func TestRunRefactorPhase_ValidationDisabled(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: "abc123",
-		promptCtx:   &prompt.Context{},
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: "abc123",
+		PromptCtx:   &prompt.Context{},
 	}
 
 	// When validation is disabled, refactoring should complete without re-validation
@@ -1164,18 +1165,18 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-learning-fail",
 			Title:       "Test Learning Failure Isolation",
 			Description: "Verify review continues when learning fails",
 		},
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: "abc123",
-		iteration:   1,
-		runDeadline: time.Now().Add(5 * time.Minute),
-		promptCtx: &prompt.Context{
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: "abc123",
+		Iteration:   1,
+		RunDeadline: time.Now().Add(5 * time.Minute),
+		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
 		},
 	}
@@ -1283,18 +1284,18 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-review-revalidation-fail",
 			Title:       "Test Review Re-validation Error Propagation",
 			Description: "Verify re-validation errors propagate",
 		},
-		model:       "sonnet",
-		result:      &IterationResult{Validated: true},
-		startCommit: "abc123",
-		iteration:   1,
-		runDeadline: time.Now().Add(5 * time.Minute),
-		promptCtx: &prompt.Context{
+		Model:       "sonnet",
+		Result:      &IterationResult{Validated: true},
+		StartCommit: "abc123",
+		Iteration:   1,
+		RunDeadline: time.Now().Add(5 * time.Minute),
+		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
 		},
 	}
@@ -1397,18 +1398,18 @@ func TestPostSuccess_OnlyLearningEnabled(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-only-learning",
 			Title:       "Test Single-Stage Learning",
 			Description: "Verify learning runs inline when review is disabled",
 		},
-		model:       "sonnet",
-		result:      &IterationResult{Validated: true},
-		startCommit: "abc123",
-		iteration:   1,
-		runDeadline: time.Now().Add(5 * time.Minute),
-		promptCtx: &prompt.Context{
+		Model:       "sonnet",
+		Result:      &IterationResult{Validated: true},
+		StartCommit: "abc123",
+		Iteration:   1,
+		RunDeadline: time.Now().Add(5 * time.Minute),
+		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
 		},
 	}
@@ -1522,18 +1523,18 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-only-review",
 			Title:       "Test Single-Stage Review",
 			Description: "Verify review runs inline when learning is disabled",
 		},
-		model:       "sonnet",
-		result:      &IterationResult{Validated: true},
-		startCommit: "abc123",
-		iteration:   1,
-		runDeadline: time.Now().Add(5 * time.Minute),
-		promptCtx: &prompt.Context{
+		Model:       "sonnet",
+		Result:      &IterationResult{Validated: true},
+		StartCommit: "abc123",
+		Iteration:   1,
+		RunDeadline: time.Now().Add(5 * time.Minute),
+		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
 		},
 	}
@@ -1656,18 +1657,18 @@ func TestPostSuccess_BothStagesEnabled_RunSequentially(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-both-stages",
 			Title:       "Test Both Post-Success Stages",
 			Description: "Verify learning and review both run",
 		},
-		model:       "sonnet",
-		result:      &IterationResult{Validated: true},
-		startCommit: "abc123",
-		iteration:   1,
-		runDeadline: time.Now().Add(5 * time.Minute),
-		promptCtx: &prompt.Context{
+		Model:       "sonnet",
+		Result:      &IterationResult{Validated: true},
+		StartCommit: "abc123",
+		Iteration:   1,
+		RunDeadline: time.Now().Add(5 * time.Minute),
+		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
 		},
 	}
@@ -1781,18 +1782,18 @@ func TestPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead: &bead.Bead{
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
 			ID:          "test-concurrent-isolation",
 			Title:       "Test Concurrent Stage Isolation",
 			Description: "Verify learning failure doesn't block review",
 		},
-		model:       "sonnet",
-		result:      &IterationResult{Validated: true},
-		startCommit: "abc123",
-		iteration:   1,
-		runDeadline: time.Now().Add(5 * time.Minute),
-		promptCtx: &prompt.Context{
+		Model:       "sonnet",
+		Result:      &IterationResult{Validated: true},
+		StartCommit: "abc123",
+		Iteration:   1,
+		RunDeadline: time.Now().Add(5 * time.Minute),
+		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
 		},
 	}
@@ -1876,12 +1877,12 @@ func TestVerifyTestsFailWithRetry_ReturnsAlreadyDone(t *testing.T) {
 		output:   &buf,
 	}
 
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		tier:   provider.TierMedium,
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Tier:   provider.TierMedium,
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
 			Model:   "sonnet",
 		},
@@ -1959,12 +1960,12 @@ func TestVerifyTestsFailWithRetry_TestsFailOnRetry(t *testing.T) {
 		},
 	}
 
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		tier:   provider.TierMedium,
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Tier:   provider.TierMedium,
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir: "/test/dir",
 			Model:   "sonnet",
 		},
@@ -2000,11 +2001,11 @@ func TestRunValidationWithRecovery_PassesOnFirstTry(t *testing.T) {
 			return "ok", "", 0, nil
 		},
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
@@ -2015,7 +2016,7 @@ func TestRunValidationWithRecovery_PassesOnFirstTry(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected no error, got: %v", err)
 	}
-	if bc.result.ValidationRetried {
+	if bc.Result.ValidationRetried {
 		t.Error("ValidationRetried should be false when validation passes on first try")
 	}
 }
@@ -2069,25 +2070,25 @@ func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
 			return "ok", "", 0, nil
 		},
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
 		},
-		maxRetries:        1,
-		maxRetriesPerBead: 5,
-		parentCtx:         context.Background(),
+		MaxRetries:        1,
+		MaxRetriesPerBead: 5,
+		ParentCtx:         context.Background(),
 	}
 
 	err := r.runValidationWithRecovery(context.Background(), bc)
 	if err != nil {
 		t.Errorf("expected no error after successful fix, got: %v", err)
 	}
-	if !bc.result.ValidationRetried {
+	if !bc.Result.ValidationRetried {
 		t.Error("ValidationRetried should be true when recovery was attempted")
 	}
 	if cmdCallCount != 2 {
@@ -2140,18 +2141,18 @@ func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
 			return "", "FAIL: TestSomething", 1, nil
 		},
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
 		},
-		maxRetries:        1,
-		maxRetriesPerBead: 5,
-		parentCtx:         context.Background(),
+		MaxRetries:        1,
+		MaxRetriesPerBead: 5,
+		ParentCtx:         context.Background(),
 	}
 
 	err := r.runValidationWithRecovery(context.Background(), bc)
@@ -2161,7 +2162,7 @@ func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
 	if !strings.Contains(err.Error(), "validation failed") {
 		t.Errorf("expected 'validation failed' error, got: %v", err)
 	}
-	if !bc.result.ValidationRetried {
+	if !bc.Result.ValidationRetried {
 		t.Error("ValidationRetried should be true when recovery was attempted")
 	}
 }
@@ -2188,11 +2189,11 @@ func TestRunValidationWithRecovery_InvocationErrorNotRecovered(t *testing.T) {
 			return "", "", -1, fmt.Errorf("network error")
 		},
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},
@@ -2207,7 +2208,7 @@ func TestRunValidationWithRecovery_InvocationErrorNotRecovered(t *testing.T) {
 		t.Errorf("expected 'validation command' error, got: %v", err)
 	}
 	// Invocation errors should not trigger recovery
-	if bc.result.ValidationRetried {
+	if bc.Result.ValidationRetried {
 		t.Error("ValidationRetried should be false for invocation errors")
 	}
 }
@@ -2312,13 +2313,13 @@ func TestVerifyTestsFailWithRetry_DiffGuard_TestOnlyDiff(t *testing.T) {
 			return "", "FAIL: TestSomething", 1, nil
 		},
 	}
-	bc := &beadContext{
-		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
-		tier:        provider.TierMedium,
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: "abc123",
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		Tier:        provider.TierMedium,
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: "abc123",
+		PromptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
 			Model:              "sonnet",
 			ConfirmedLearnings: []learnings.Learning{},
@@ -2389,13 +2390,13 @@ func TestVerifyTestsFailWithRetry_DiffGuard_ImplDiff(t *testing.T) {
 			return "ok", "", 0, nil
 		},
 	}
-	bc := &beadContext{
-		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
-		tier:        provider.TierMedium,
-		model:       "sonnet",
-		result:      &IterationResult{},
-		startCommit: "abc123",
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		Tier:        provider.TierMedium,
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		StartCommit: "abc123",
+		PromptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
 			Model:              "sonnet",
 			ConfirmedLearnings: []learnings.Learning{},
@@ -2464,11 +2465,11 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 		router: mockRouter,
 		output: &buf,
 	}
-	bc := &beadContext{
-		bead:        &bead.Bead{ID: "test-1", Title: "Test"},
-		model:       "sonnet",
-		result:      &IterationResult{},
-		buildPrompt: "test prompt",
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:       "sonnet",
+		Result:      &IterationResult{},
+		BuildPrompt: "test prompt",
 	}
 
 	claudeResult, stats, stallFired, err := r.executeClaudeInvocation(context.Background(), bc)
@@ -2485,13 +2486,13 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 		t.Fatal("expected non-nil stats")
 	}
 
-	// Diagnostic fields should be populated on bc.result
-	if bc.result.TimeToFirstEventMs < 0 {
-		t.Errorf("expected non-negative TimeToFirstEventMs, got %d", bc.result.TimeToFirstEventMs)
+	// Diagnostic fields should be populated on bc.Result
+	if bc.Result.TimeToFirstEventMs < 0 {
+		t.Errorf("expected non-negative TimeToFirstEventMs, got %d", bc.Result.TimeToFirstEventMs)
 	}
 	// StallCount should be 0 for a successful run
-	if bc.result.StallCount != 0 {
-		t.Errorf("expected StallCount=0, got %d", bc.result.StallCount)
+	if bc.Result.StallCount != 0 {
+		t.Errorf("expected StallCount=0, got %d", bc.Result.StallCount)
 	}
 }
 
@@ -2536,10 +2537,10 @@ func TestBuildPromptForBead_MediumComplexityKeepsSonnet(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
-		model:  "sonnet",
-		result: &IterationResult{Model: "sonnet"},
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
+		Model:  "sonnet",
+		Result: &IterationResult{Model: "sonnet"},
 	}
 
 	err := r.buildPromptForBead(context.Background(), bc, 1)
@@ -2547,8 +2548,8 @@ func TestBuildPromptForBead_MediumComplexityKeepsSonnet(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// Sonnet should stay sonnet for medium complexity — no auto-escalation
-	if bc.model != "sonnet" {
-		t.Errorf("expected model to stay 'sonnet', got %q", bc.model)
+	if bc.Model != "sonnet" {
+		t.Errorf("expected model to stay 'sonnet', got %q", bc.Model)
 	}
 	if strings.Contains(buf.String(), "auto-escalating") {
 		t.Errorf("should not auto-escalate medium complexity on sonnet, got: %s", buf.String())
@@ -2593,10 +2594,10 @@ func TestBuildPromptForBead_MediumComplexityKeepsOpus(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
-		model:  "opus",
-		result: &IterationResult{Model: "opus"},
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
+		Model:  "opus",
+		Result: &IterationResult{Model: "opus"},
 	}
 
 	err := r.buildPromptForBead(context.Background(), bc, 1)
@@ -2604,8 +2605,8 @@ func TestBuildPromptForBead_MediumComplexityKeepsOpus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// Opus should stay opus for medium complexity
-	if bc.model != "opus" {
-		t.Errorf("expected model to stay 'opus', got %q", bc.model)
+	if bc.Model != "opus" {
+		t.Errorf("expected model to stay 'opus', got %q", bc.Model)
 	}
 	if strings.Contains(buf.String(), "auto-escalating") {
 		t.Errorf("should not escalate opus, got: %s", buf.String())
@@ -2650,10 +2651,10 @@ func TestBuildPromptForBead_LowComplexityKeepsSonnet(t *testing.T) {
 		renderer: mockRend,
 		output:   &buf,
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
-		model:  "sonnet",
-		result: &IterationResult{Model: "sonnet"},
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
+		Model:  "sonnet",
+		Result: &IterationResult{Model: "sonnet"},
 	}
 
 	err := r.buildPromptForBead(context.Background(), bc, 1)
@@ -2661,8 +2662,8 @@ func TestBuildPromptForBead_LowComplexityKeepsSonnet(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// Sonnet should stay sonnet for low complexity
-	if bc.model != "sonnet" {
-		t.Errorf("expected model to stay 'sonnet', got %q", bc.model)
+	if bc.Model != "sonnet" {
+		t.Errorf("expected model to stay 'sonnet', got %q", bc.Model)
 	}
 }
 

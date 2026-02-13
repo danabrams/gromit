@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestValidationSentinelError_RecoveryDistinguishesErrorTypes verifies that
@@ -117,18 +118,18 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 				output:      &buf,
 				cmdRunnerFn: cmdRunnerFn,
 			}
-			bc := &beadContext{
-				bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-				model:  "sonnet",
-				result: &IterationResult{},
-				promptCtx: &prompt.Context{
+			bc := &runtypes.BeadContext{
+				Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+				Model:  "sonnet",
+				Result: &IterationResult{},
+				PromptCtx: &prompt.Context{
 					WorkDir:            t.TempDir(),
 					ConfirmedLearnings: []learnings.Learning{},
 					RecentLearnings:    []learnings.Learning{},
 				},
-				maxRetries:        1,
-				maxRetriesPerBead: 5,
-				parentCtx:         context.Background(),
+				MaxRetries:        1,
+				MaxRetriesPerBead: 5,
+				ParentCtx:         context.Background(),
 			}
 
 			err := r.runValidationWithRecovery(context.Background(), bc)
@@ -137,7 +138,7 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 				if err != nil && !tt.expectWrappedPass {
 					t.Errorf("%s: expected no error after recovery, got: %v", tt.description, err)
 				}
-				if !bc.result.ValidationRetried {
+				if !bc.Result.ValidationRetried {
 					t.Errorf("%s: ValidationRetried should be true when recovery was attempted", tt.description)
 				}
 				if fixAttempts == 0 {
@@ -147,7 +148,7 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 				if err == nil {
 					t.Errorf("%s: expected error to pass through, got nil", tt.description)
 				}
-				if bc.result.ValidationRetried {
+				if bc.Result.ValidationRetried {
 					t.Errorf("%s: ValidationRetried should be false when recovery is not triggered", tt.description)
 				}
 				if fixAttempts > 0 {
@@ -210,11 +211,11 @@ func TestValidationSentinelError_RunValidationReturnsCorrectError(t *testing.T) 
 			return "", "FAIL: TestSomething", 1, nil
 		},
 	}
-	bc := &beadContext{
-		bead:   &bead.Bead{ID: "test-1", Title: "Test"},
-		model:  "sonnet",
-		result: &IterationResult{},
-		promptCtx: &prompt.Context{
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
+		Model:  "sonnet",
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
 			WorkDir:            t.TempDir(),
 			ConfirmedLearnings: []learnings.Learning{},
 			RecentLearnings:    []learnings.Learning{},

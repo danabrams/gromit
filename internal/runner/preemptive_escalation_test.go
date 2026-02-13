@@ -67,27 +67,27 @@ func TestSetupBeadContext_PreemptiveEscalationFromSonnetToOpus(t *testing.T) {
 	defer cancel()
 
 	// Verify that model was escalated from sonnet to opus
-	if bc.model != "opus" {
-		t.Errorf("expected model to be escalated to 'opus', got %q", bc.model)
+	if bc.Model != "opus" {
+		t.Errorf("expected model to be escalated to 'opus', got %q", bc.Model)
 	}
 
 	// Verify that escalation was tracked in the result
-	if !bc.result.Escalated {
+	if !bc.Result.Escalated {
 		t.Error("expected result.Escalated to be true after preemptive escalation")
 	}
 
-	if bc.result.EscalatedTo != "opus" {
-		t.Errorf("expected result.EscalatedTo='opus', got %q", bc.result.EscalatedTo)
+	if bc.Result.EscalatedTo != "opus" {
+		t.Errorf("expected result.EscalatedTo='opus', got %q", bc.Result.EscalatedTo)
 	}
 
 	// Verify that the result model was updated
-	if bc.result.Model != "opus" {
-		t.Errorf("expected result.Model='opus', got %q", bc.result.Model)
+	if bc.Result.Model != "opus" {
+		t.Errorf("expected result.Model='opus', got %q", bc.Result.Model)
 	}
 
 	// Verify that retriesThisModel was reset
-	if bc.retriesThisModel != 0 {
-		t.Errorf("expected retriesThisModel=0 after escalation, got %d", bc.retriesThisModel)
+	if bc.RetriesThisModel != 0 {
+		t.Errorf("expected retriesThisModel=0 after escalation, got %d", bc.RetriesThisModel)
 	}
 
 	// Verify logging indicates preemptive escalation
@@ -154,17 +154,17 @@ func TestSetupBeadContext_NoPreemptiveEscalationWhenComplexityMedium(t *testing.
 	defer cancel()
 
 	// Verify that model was NOT escalated - should remain sonnet
-	if bc.model != "sonnet" {
-		t.Errorf("expected model to remain 'sonnet', got %q", bc.model)
+	if bc.Model != "sonnet" {
+		t.Errorf("expected model to remain 'sonnet', got %q", bc.Model)
 	}
 
 	// Verify that escalation flags are false
-	if bc.result.Escalated {
+	if bc.Result.Escalated {
 		t.Error("expected result.Escalated to be false when complexity is medium")
 	}
 
-	if bc.result.EscalatedTo != "" {
-		t.Errorf("expected result.EscalatedTo to be empty, got %q", bc.result.EscalatedTo)
+	if bc.Result.EscalatedTo != "" {
+		t.Errorf("expected result.EscalatedTo to be empty, got %q", bc.Result.EscalatedTo)
 	}
 }
 
@@ -222,12 +222,12 @@ func TestSetupBeadContext_NoPreemptiveEscalationWhenScopeCheckDisabled(t *testin
 	defer cancel()
 
 	// Verify that model was NOT escalated when scope check is disabled
-	if bc.model != "sonnet" {
-		t.Errorf("expected model to remain 'sonnet' when scope check disabled, got %q", bc.model)
+	if bc.Model != "sonnet" {
+		t.Errorf("expected model to remain 'sonnet' when scope check disabled, got %q", bc.Model)
 	}
 
 	// Verify that escalation flags are false
-	if bc.result.Escalated {
+	if bc.Result.Escalated {
 		t.Error("expected result.Escalated to be false when scope check is disabled")
 	}
 }
@@ -287,12 +287,12 @@ func TestSetupBeadContext_NoPreemptiveEscalationFromHaiku(t *testing.T) {
 	defer cancel()
 
 	// Verify that model was NOT escalated from haiku
-	if bc.model != "haiku" {
-		t.Errorf("expected model to remain 'haiku', got %q", bc.model)
+	if bc.Model != "haiku" {
+		t.Errorf("expected model to remain 'haiku', got %q", bc.Model)
 	}
 
 	// Verify that escalation flags are false
-	if bc.result.Escalated {
+	if bc.Result.Escalated {
 		t.Error("expected result.Escalated to be false when initial model is haiku")
 	}
 }
@@ -352,17 +352,17 @@ func TestSetupBeadContext_PreemptiveEscalationFromOpusIsNoop(t *testing.T) {
 	defer cancel()
 
 	// Verify that model remains opus (no change)
-	if bc.model != "opus" {
-		t.Errorf("expected model to remain 'opus', got %q", bc.model)
+	if bc.Model != "opus" {
+		t.Errorf("expected model to remain 'opus', got %q", bc.Model)
 	}
 
 	// Verify that escalation flags are NOT set (no escalation occurred)
-	if bc.result.Escalated {
+	if bc.Result.Escalated {
 		t.Error("expected result.Escalated to be false when model is already opus")
 	}
 
-	if bc.result.EscalatedTo != "" {
-		t.Errorf("expected result.EscalatedTo to be empty when no escalation occurs, got %q", bc.result.EscalatedTo)
+	if bc.Result.EscalatedTo != "" {
+		t.Errorf("expected result.EscalatedTo to be empty when no escalation occurs, got %q", bc.Result.EscalatedTo)
 	}
 }
 
@@ -412,12 +412,12 @@ func TestSetupBeadContext_NilScopeEstimateDoesNotCausePreemptiveEscalation(t *te
 	defer cancel()
 
 	// Verify that model was NOT escalated when scopeEstimate is nil
-	if bc.model != "sonnet" {
-		t.Errorf("expected model to remain 'sonnet' when scopeEstimate is nil, got %q", bc.model)
+	if bc.Model != "sonnet" {
+		t.Errorf("expected model to remain 'sonnet' when scopeEstimate is nil, got %q", bc.Model)
 	}
 
 	// Verify that escalation flags are false
-	if bc.result.Escalated {
+	if bc.Result.Escalated {
 		t.Error("expected result.Escalated to be false when scopeEstimate is nil")
 	}
 }
@@ -557,16 +557,16 @@ func TestSetupBeadContext_PreemptiveEscalationTableDriven(t *testing.T) {
 			}
 			defer cancel()
 
-			if bc.model != tt.wantModel {
-				t.Errorf("expected model=%q, got %q", tt.wantModel, bc.model)
+			if bc.Model != tt.wantModel {
+				t.Errorf("expected model=%q, got %q", tt.wantModel, bc.Model)
 			}
 
-			if bc.result.Escalated != tt.wantEscalated {
-				t.Errorf("expected result.Escalated=%v, got %v", tt.wantEscalated, bc.result.Escalated)
+			if bc.Result.Escalated != tt.wantEscalated {
+				t.Errorf("expected result.Escalated=%v, got %v", tt.wantEscalated, bc.Result.Escalated)
 			}
 
-			if bc.result.EscalatedTo != tt.wantEscalatedTo {
-				t.Errorf("expected result.EscalatedTo=%q, got %q", tt.wantEscalatedTo, bc.result.EscalatedTo)
+			if bc.Result.EscalatedTo != tt.wantEscalatedTo {
+				t.Errorf("expected result.EscalatedTo=%q, got %q", tt.wantEscalatedTo, bc.Result.EscalatedTo)
 			}
 
 			if tt.wantLogContains != "" && !strings.Contains(strings.ToLower(buf.String()), tt.wantLogContains) {
