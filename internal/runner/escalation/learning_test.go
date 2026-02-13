@@ -22,7 +22,7 @@ func TestExtractLearning_SavesAnalysisLearning(t *testing.T) {
 	// When an analysis contains a learning string, ExtractLearning should
 	// persist it to the learnings file via lf.Add().
 	dir := t.TempDir()
-	lf, err := learnings.NewFile(filepath.Join(dir, "LEARNINGS.md"))
+	lf, err := learnings.NewFile(dir)
 	if err != nil {
 		t.Fatalf("failed to create learnings file: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestExtractLearning_SavesAnalysisLearning(t *testing.T) {
 func TestExtractLearning_NilLearningIsNoOp(t *testing.T) {
 	// When analysis.Learning is nil, ExtractLearning should not write anything.
 	dir := t.TempDir()
-	lf, err := learnings.NewFile(filepath.Join(dir, "LEARNINGS.md"))
+	lf, err := learnings.NewFile(dir)
 	if err != nil {
 		t.Fatalf("failed to create learnings file: %v", err)
 	}
@@ -74,6 +74,10 @@ func TestExtractLearning_NilLearningIsNoOp(t *testing.T) {
 	ExtractLearning(bc, analysis, lf)
 
 	content, err := os.ReadFile(filepath.Join(dir, "LEARNINGS.md"))
+	if os.IsNotExist(err) {
+		// File was never created — correct for a no-op
+		return
+	}
 	if err != nil {
 		t.Fatalf("failed to read learnings file: %v", err)
 	}
@@ -87,7 +91,7 @@ func TestExtractLearning_NilLearningIsNoOp(t *testing.T) {
 func TestExtractLearning_NilBeadContextIsNoOp(t *testing.T) {
 	// When bc or bc.Bead is nil, ExtractLearning should not panic.
 	dir := t.TempDir()
-	lf, err := learnings.NewFile(filepath.Join(dir, "LEARNINGS.md"))
+	lf, err := learnings.NewFile(dir)
 	if err != nil {
 		t.Fatalf("failed to create learnings file: %v", err)
 	}
@@ -109,7 +113,7 @@ func TestExtractSyntheticLearning_PersistsMessage(t *testing.T) {
 	// ExtractSyntheticLearning should save a custom message string to the
 	// learnings file with the "patterns" category.
 	dir := t.TempDir()
-	lf, err := learnings.NewFile(filepath.Join(dir, "LEARNINGS.md"))
+	lf, err := learnings.NewFile(dir)
 	if err != nil {
 		t.Fatalf("failed to create learnings file: %v", err)
 	}
@@ -136,7 +140,7 @@ func TestExtractScopeTooLargeLearning_FormatsCorrectly(t *testing.T) {
 	// ExtractScopeTooLargeLearning should create a learning message that
 	// includes the bead title and model name, then persist it.
 	dir := t.TempDir()
-	lf, err := learnings.NewFile(filepath.Join(dir, "LEARNINGS.md"))
+	lf, err := learnings.NewFile(dir)
 	if err != nil {
 		t.Fatalf("failed to create learnings file: %v", err)
 	}
@@ -167,7 +171,7 @@ func TestExtractTimeoutLearning_FormatsCorrectly(t *testing.T) {
 	// ExtractTimeoutLearning should create a learning message that includes
 	// the bead title and model name, then persist it.
 	dir := t.TempDir()
-	lf, err := learnings.NewFile(filepath.Join(dir, "LEARNINGS.md"))
+	lf, err := learnings.NewFile(dir)
 	if err != nil {
 		t.Fatalf("failed to create learnings file: %v", err)
 	}
@@ -198,7 +202,7 @@ func TestExtractSuccessLearning_SkipsForLowTier(t *testing.T) {
 	// ExtractSuccessLearning should skip learning extraction for haiku/low-tier
 	// beads, since they don't produce novel enough patterns to learn from.
 	dir := t.TempDir()
-	lf, err := learnings.NewFile(filepath.Join(dir, "LEARNINGS.md"))
+	lf, err := learnings.NewFile(dir)
 	if err != nil {
 		t.Fatalf("failed to create learnings file: %v", err)
 	}
@@ -218,6 +222,10 @@ func TestExtractSuccessLearning_SkipsForLowTier(t *testing.T) {
 	ExtractSuccessLearning(context.Background(), bc, cfg, lf, nil, nil)
 
 	content, err := os.ReadFile(filepath.Join(dir, "LEARNINGS.md"))
+	if os.IsNotExist(err) {
+		// File was never created — correct for a no-op
+		return
+	}
 	if err != nil {
 		t.Fatalf("failed to read learnings file: %v", err)
 	}
