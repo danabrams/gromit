@@ -1,0 +1,101 @@
+package methodology
+
+import (
+	"context"
+	"fmt"
+	"io"
+
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
+)
+
+// RenderFn renders an acceptance tests prompt from a prompt context.
+type RenderFn func(ctx *prompt.Context) (string, error)
+
+// InvokeFn executes a Claude invocation for acceptance tests.
+// The facade wraps the full heartbeat/stall/provider logic into this callback.
+type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string) error
+
+// ValidateDirectFn runs validation commands directly and returns the result.
+type ValidateDirectFn func(ctx context.Context, commands []string, workDir string) (*claude.Result, error)
+
+// Executor handles ATDD workflow phases: writing acceptance tests and
+// verifying they fail before implementation.
+type Executor struct {
+	cfg        *config.Config
+	output     io.Writer
+	renderFn   RenderFn
+	invokeFn   InvokeFn
+	validateFn ValidateDirectFn
+}
+
+// NewExecutor creates an Executor with narrow dependency interfaces.
+// renderFn, invokeFn, and validateFn may be nil for test scenarios.
+func NewExecutor(cfg *config.Config, output io.Writer, renderFn RenderFn, invokeFn InvokeFn, validateFn ValidateDirectFn) *Executor {
+	return &Executor{
+		cfg:        cfg,
+		output:     output,
+		renderFn:   renderFn,
+		invokeFn:   invokeFn,
+		validateFn: validateFn,
+	}
+}
+
+// log writes a formatted message to the output writer.
+func (e *Executor) log(format string, args ...interface{}) {
+	if e.output != nil {
+		fmt.Fprintf(e.output, format+"\n", args...)
+	}
+}
+
+// RunAcceptanceTests renders the acceptance test prompt and invokes the LLM.
+func (e *Executor) RunAcceptanceTests(ctx context.Context, bc *runtypes.BeadContext) error {
+	if e.renderFn == nil {
+		return fmt.Errorf("render function not configured")
+	}
+
+	acceptancePrompt, err := e.renderFn(bc.PromptCtx)
+	if err != nil {
+		return fmt.Errorf("rendering acceptance tests prompt: %w", err)
+	}
+
+	if e.invokeFn == nil {
+		return fmt.Errorf("invoke function not configured")
+	}
+
+	return e.invokeFn(ctx, bc, acceptancePrompt)
+}
+
+// VerifyTestsFail runs validation and returns nil when validation fails (expected)
+// or an error when validation passes (unexpected - tests should fail before implementation).
+func (e *Executor) VerifyTestsFail(ctx context.Context, bc *runtypes.BeadContext) error {
+	if !e.cfg.Validation.Enabled {
+		return fmt.Errorf("validation is not enabled - cannot verify tests fail")
+	}
+
+	if e.validateFn == nil {
+		return fmt.Errorf("validate function not configured")
+	}
+
+	e.log("Verifying acceptance tests fail (as expected)...")
+
+	valResult, err := e.validateFn(ctx, e.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
+	if err != nil {
+		return fmt.Errorf("validation invocation: %w", err)
+	}
+	if valResult == nil {
+		return fmt.Errorf("validation returned no result")
+	}
+
+	// In ATDD, we expect tests to FAIL before implementation
+	if claude.IsValidationPassed(valResult) {
+		e.log("Unexpected: acceptance tests passed before implementation")
+		e.log("Tests should fail until implementation makes them pass")
+		return fmt.Errorf("acceptance tests passed before implementation - tests may not be covering new behavior")
+	}
+
+	e.log("Acceptance tests failed as expected")
+	return nil
+}
