@@ -1364,7 +1364,7 @@ func TestSubTaskNormalizeNilFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.subTask.normalizeNilFields()
+			tt.subTask.NormalizeNilFields()
 			if tt.subTask.AcceptanceCriteria == nil {
 				t.Error("AcceptanceCriteria should not be nil after normalization")
 			}
@@ -1374,7 +1374,7 @@ func TestSubTaskNormalizeNilFields(t *testing.T) {
 
 func TestSubTaskNormalizeNilFieldsOnNilSubTask(t *testing.T) {
 	var s *SubTask
-	s.normalizeNilFields() // Should not panic
+	s.NormalizeNilFields() // Should not panic
 }
 
 func TestParseDecomposeOutputNormalizesNilFields(t *testing.T) {

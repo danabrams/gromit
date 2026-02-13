@@ -23,6 +23,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tmux"
 	"github.com/danabrams/gromit/internal/usagelimit"
@@ -265,56 +266,13 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	}, nil
 }
 
-// IterationResult captures the outcome of one loop iteration
-type IterationResult struct {
-	BeadID                string
-	BeadTitle             string
-	Model                 string
-	Success               bool
-	Validated             bool
-	Duration              time.Duration
-	Error                 error
-	Escalated             bool
-	EscalatedTo           string
-	Decomposed            bool
-	Output                string
-	CostUSD               float64
-	InputTokens           int
-	OutputTokens          int
-	ReviewBrokeValidation bool   // true when review fixes broke previously-passing validation
-	AlreadyDone           bool   // true when ATDD detected work was already complete
-	ValidationRetried     bool   // true when validation recovery was attempted
-	TrivialAutoFixed      bool   // true when auto-fix (gofmt/goimports) resolved validation without Claude
-	UsageLimited          bool   // true when invocation failed due to usage/rate limit
-	ValidationMode        string // "direct" when validation ran via shell commands
+// IterationResult captures the outcome of one loop iteration.
+// Type alias for backward compatibility — canonical definition is in runtypes.
+type IterationResult = runtypes.IterationResult
 
-	// Diagnostic fields for timeout investigation
-	TimeoutType         string // "stall", "bead", "invocation", ""
-	TimeToFirstEventMs  int64
-	ToolCallCount       int
-	StallCount          int
-	StallTier           string // "initial" or "active"
-	RateLimitHits       int
-	RateLimitRecoveryMs int64 // ms to recover from most recent rate limit
-}
-
-// SubTask represents a single sub-task from task decomposition
-type SubTask struct {
-	Title              string   `json:"title"`
-	Description        string   `json:"description"`
-	DependsOn          *int     `json:"depends_on"`
-	AcceptanceCriteria []string `json:"acceptance_criteria"`
-}
-
-// normalizeNilFields ensures nil slices are replaced with empty slices.
-func (s *SubTask) normalizeNilFields() {
-	if s == nil {
-		return
-	}
-	if s.AcceptanceCriteria == nil {
-		s.AcceptanceCriteria = []string{}
-	}
-}
+// SubTask represents a single sub-task from task decomposition.
+// Type alias for backward compatibility — canonical definition is in runtypes.
+type SubTask = runtypes.SubTask
 
 // Run executes the Gromit loop
 func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time, dryRun bool) error {
@@ -1567,7 +1525,7 @@ func parseDecomposeOutput(output string) ([]SubTask, error) {
 	}
 
 	for i := range subTasks {
-		subTasks[i].normalizeNilFields()
+		subTasks[i].NormalizeNilFields()
 	}
 
 	return subTasks, nil
