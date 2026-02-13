@@ -34,7 +34,6 @@ func setupConfirmedLearnings(t *testing.T, n int, targetCharLen int) *File {
 
 // TestGetConfirmedFiltered_CharBudgetPrefersMostRecent tests that when a character
 // budget is applied, the most recently confirmed entries are preferred over older ones.
-// Expected failure: GetConfirmedFiltered method and FilterOptions struct do not exist yet.
 func TestGetConfirmedFiltered_CharBudgetPrefersMostRecent(t *testing.T) {
 	// Create 5 learnings, each ~100 chars, with a budget of 250 chars.
 	// Should return only the 2 most recent (indices 3 and 4), since the 3rd
@@ -60,7 +59,6 @@ func TestGetConfirmedFiltered_CharBudgetPrefersMostRecent(t *testing.T) {
 
 // TestGetConfirmedFiltered_ZeroMaxCharsMeansUnlimited tests that setting MaxChars
 // to 0 returns all confirmed learnings without any truncation.
-// Expected failure: GetConfirmedFiltered method and FilterOptions struct do not exist yet.
 func TestGetConfirmedFiltered_ZeroMaxCharsMeansUnlimited(t *testing.T) {
 	f := setupConfirmedLearnings(t, 5, 100)
 
@@ -74,7 +72,6 @@ func TestGetConfirmedFiltered_ZeroMaxCharsMeansUnlimited(t *testing.T) {
 
 // TestGetConfirmedFiltered_KeywordFiltersCaseInsensitive tests that keyword filtering
 // performs case-insensitive substring matching against learning Content.
-// Expected failure: GetConfirmedFiltered method and FilterOptions struct do not exist yet.
 func TestGetConfirmedFiltered_KeywordFiltersCaseInsensitive(t *testing.T) {
 	f := &File{
 		path:        t.TempDir() + "/LEARNINGS.md",
@@ -168,7 +165,6 @@ func TestGetConfirmedFiltered_KeywordFiltersCaseInsensitive(t *testing.T) {
 
 // TestGetConfirmedFiltered_KeywordsAndCharBudgetCombined tests that keyword filtering
 // is applied first, then the character budget caps the result.
-// Expected failure: GetConfirmedFiltered method and FilterOptions struct do not exist yet.
 func TestGetConfirmedFiltered_KeywordsAndCharBudgetCombined(t *testing.T) {
 	f := &File{
 		path:        t.TempDir() + "/LEARNINGS.md",
@@ -226,7 +222,6 @@ func TestGetConfirmedFiltered_KeywordsAndCharBudgetCombined(t *testing.T) {
 
 // TestGetConfirmedFiltered_EmptyConfirmedReturnsEmpty tests that filtering
 // on an empty confirmed list returns an empty slice.
-// Expected failure: GetConfirmedFiltered method and FilterOptions struct do not exist yet.
 func TestGetConfirmedFiltered_EmptyConfirmedReturnsEmpty(t *testing.T) {
 	f := &File{
 		path:        t.TempDir() + "/LEARNINGS.md",
@@ -247,7 +242,6 @@ func TestGetConfirmedFiltered_EmptyConfirmedReturnsEmpty(t *testing.T) {
 }
 
 // TestGetConfirmedFiltered_NilReceiverReturnsEmpty tests nil-safe behavior.
-// Expected failure: GetConfirmedFiltered method and FilterOptions struct do not exist yet.
 func TestGetConfirmedFiltered_NilReceiverReturnsEmpty(t *testing.T) {
 	var f *File
 
@@ -264,7 +258,6 @@ func TestGetConfirmedFiltered_NilReceiverReturnsEmpty(t *testing.T) {
 
 // TestGetConfirmedFiltered_BudgetExactFit tests that an entry is included when it
 // exactly fills the remaining budget.
-// Expected failure: GetConfirmedFiltered method and FilterOptions struct do not exist yet.
 func TestGetConfirmedFiltered_BudgetExactFit(t *testing.T) {
 	f := &File{
 		path:        t.TempDir() + "/LEARNINGS.md",
@@ -296,7 +289,6 @@ func TestGetConfirmedFiltered_BudgetExactFit(t *testing.T) {
 
 // TestGetConfirmedFiltered_SingleEntryExceedsBudget tests that when a single entry
 // exceeds the budget, zero entries are returned.
-// Expected failure: GetConfirmedFiltered method and FilterOptions struct do not exist yet.
 func TestGetConfirmedFiltered_SingleEntryExceedsBudget(t *testing.T) {
 	f := &File{
 		path:        t.TempDir() + "/LEARNINGS.md",

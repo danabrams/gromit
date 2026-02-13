@@ -7,7 +7,6 @@ import (
 )
 
 // TestLearningsMaxLearningCharsDefault tests that SetDefaults sets MaxLearningChars to 8000.
-// Expected failure: LearningsConfig struct and Learnings field do not exist on Config yet.
 func TestLearningsMaxLearningCharsDefault(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
@@ -18,7 +17,6 @@ func TestLearningsMaxLearningCharsDefault(t *testing.T) {
 }
 
 // TestLearningsMaxLearningCharsFromYAML tests that max_learning_chars can be overridden via YAML.
-// Expected failure: LearningsConfig struct and Learnings field do not exist on Config yet.
 func TestLearningsMaxLearningCharsFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")
@@ -40,7 +38,6 @@ func TestLearningsMaxLearningCharsFromYAML(t *testing.T) {
 }
 
 // TestLearningsMaxLearningCharsZeroMeansDefault tests that omitting the field applies the default.
-// Expected failure: LearningsConfig struct and Learnings field do not exist on Config yet.
 func TestLearningsMaxLearningCharsZeroMeansDefault(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")
