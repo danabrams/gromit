@@ -30,6 +30,7 @@ type Config struct {
 	Methodology MethodologyConfig      `yaml:"methodology"`
 	Git         GitConfig              `yaml:"git"`
 	State       StateConfig            `yaml:"state"`
+	Learnings   LearningsConfig        `yaml:"learnings"`
 	Agents      AgentsConfig           `yaml:"agents"`
 	Providers   map[string]ProviderDef `yaml:"providers"`
 	Routing     RoutingConfig          `yaml:"routing"`
@@ -140,6 +141,10 @@ type GitConfig struct {
 
 type StateConfig struct {
 	StaleThreshold int `yaml:"stale_threshold"`
+}
+
+type LearningsConfig struct {
+	MaxLearningChars int `yaml:"max_learning_chars"`
 }
 
 type AgentsConfig struct {
@@ -333,7 +338,7 @@ func (c *Config) SetDefaults() {
 		c.Precheck.Model = ModelHaiku
 	}
 	if c.Precheck.TimeoutSeconds == 0 {
-		c.Precheck.TimeoutSeconds = 60
+		c.Precheck.TimeoutSeconds = 120
 	}
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
@@ -377,6 +382,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.State.StaleThreshold == 0 {
 		c.State.StaleThreshold = 60
+	}
+	if c.Learnings.MaxLearningChars == 0 {
+		c.Learnings.MaxLearningChars = 8000
 	}
 	if c.Agents.Phases.Refine == "" {
 		c.Agents.Phases.Refine = "claude"
