@@ -579,7 +579,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		r.log("Bead: %s - %s", b.ID, b.Title)
 
 		// Update tmux pane title with iteration info
-		model := r.selectModel(b)
+		model := escalation.SelectModel(r.cfg, b)
 		if tmuxMgr != nil {
 			if err := tmuxMgr.SetTitle(tmux.FormatIterationTitle(iteration, b.ID, model)); err != nil {
 				// Log but don't fail on tmux error
@@ -995,7 +995,7 @@ func (r *Runner) selectReviewTier(b *bead.Bead, buildModel string) string {
 	if buildModel == "opus" {
 		return provider.TierHigh
 	}
-	return r.selectTier(b)
+	return escalation.SelectTier(r.cfg, b)
 }
 
 func (r *Runner) selectModel(b *bead.Bead) string {

@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/preflight"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -39,8 +40,8 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		return nil, nil, nil, fmt.Errorf("runner router is nil")
 	}
 
-	tier := r.selectTier(b)
-	model := r.selectModel(b) // legacy model name for display/timeouts
+	tier := escalation.SelectTier(r.cfg, b)
+	model := escalation.SelectModel(r.cfg, b) // legacy model name for display/timeouts
 
 	_, _, _, beadTimeoutSec := r.cfg.Claude.TimeoutsForModel(model)
 	beadTimeout := time.Duration(beadTimeoutSec) * time.Second
