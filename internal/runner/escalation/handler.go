@@ -121,14 +121,17 @@ func (h *Handler) HandleStallTimeout(ctx context.Context, bc *runtypes.BeadConte
 func (h *Handler) HandleEscalation(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) (continueLoop bool) {
 	nextTier := h.cfg.NextEscalationTier(bc.Tier)
 	if nextTier == "" {
+		h.log("Build failed, no more tiers to escalate to - attempting decomposition")
 		return h.AttemptDecomposition(ctx, bc, "build failed with all models")
 	}
 
 	if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
+		h.log("Cannot escalate: max retries per bead reached (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
 		bc.Result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
 		return false
 	}
 
+	h.log("Escalating from tier %s to %s", bc.Tier, nextTier)
 	h.EscalateTier(bc, nextTier)
 	return true
 }
