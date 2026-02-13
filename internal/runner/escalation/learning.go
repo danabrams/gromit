@@ -2,7 +2,9 @@ package escalation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/config"
@@ -64,9 +66,16 @@ type SuccessLearningResult interface {
 	GetOutput() string
 }
 
+// successLearningResponse represents the JSON response from the learning extraction provider.
+type successLearningResponse struct {
+	Learning *string `json:"learning"`
+	Category string  `json:"category"`
+}
+
 // ExtractSuccessLearning calls Claude to extract a learning from a successful iteration.
-// Skips extraction for low-tier beads.
-func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *config.Config, lf *learnings.File, router interface{}, renderer interface{}) {
+// Skips extraction for low-tier beads. The router selects a provider to run the extraction;
+// if router is nil or the provider is unavailable, extraction is silently skipped.
+func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *config.Config, lf *learnings.File, router SuccessLearningRouter, renderer interface{}) {
 	if bc == nil {
 		return
 	}
@@ -74,9 +83,50 @@ func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *
 	if bc.Tier == provider.TierLow {
 		return
 	}
-	// Placeholder — full implementation requires router/renderer integration
-	_ = cfg
-	_ = lf
-	_ = router
-	_ = renderer
+	if router == nil {
+		return
+	}
+	if lf == nil {
+		return
+	}
+
+	p, tier := router.Select("build", provider.TierLow)
+	if p == nil {
+		return
+	}
+
+	// Build a simple prompt for learning extraction
+	summary := bc.Bead.Title
+	if bc.Bead.Description != "" {
+		lines := strings.Split(bc.Bead.Description, "\n")
+		if len(lines) > 0 && lines[0] != "" {
+			summary = bc.Bead.Title + ": " + lines[0]
+		}
+	}
+	prompt := fmt.Sprintf("Extract a learning from this successful bead: %s", summary)
+
+	result, err := p.Run(ctx, prompt, tier)
+	if err != nil {
+		return
+	}
+	if result == nil || !result.IsSuccess() {
+		return
+	}
+
+	output := result.GetOutput()
+	var resp successLearningResponse
+	if err := json.Unmarshal([]byte(output), &resp); err != nil {
+		return
+	}
+
+	if resp.Learning == nil {
+		return
+	}
+
+	category := resp.Category
+	if category == "" {
+		category = "patterns"
+	}
+
+	lf.Add(bc.Bead.ID, *resp.Learning, category)
 }
