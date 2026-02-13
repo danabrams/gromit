@@ -38,9 +38,9 @@ func (m *mockRouter) MarkUnavailable(name string) {
 
 // mockProvider implements the narrow Provider interface for the execution package.
 type mockProvider struct {
-	name             string
-	streamRunFn      func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
-	isUsageLimitFn   func(result *provider.Result, err error) bool
+	name           string
+	streamRunFn    func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
+	isUsageLimitFn func(result *provider.Result, err error) bool
 }
 
 func (m *mockProvider) Name() string {
