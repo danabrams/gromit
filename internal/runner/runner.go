@@ -23,6 +23,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/state"
@@ -53,6 +54,7 @@ type Runner struct {
 	beads              BeadClient
 	router             *provider.Router
 	invoker            *execution.Invoker
+	escalationHandler  *escalation.Handler
 	analyzer           FailureAnalyzer
 	renderer           PromptRenderer
 	logger             IterationLogger
@@ -215,7 +217,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 
 	inv := execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil)
 
-	return &Runner{
+	r := &Runner{
 		cfg:         cfg,
 		beads:       beadsClient,
 		router:      router,
@@ -229,7 +231,9 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		stateFile:   sf,
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: defaultCmdRunner,
-	}, nil
+	}
+	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads)
+	return r, nil
 }
 
 // Deps holds injectable dependencies for a Runner, used for testing.
@@ -282,7 +286,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		inv = execution.NewInvoker(nil, syncOut, nil)
 	}
 
-	return &Runner{
+	r := &Runner{
 		cfg:         cfg,
 		beads:       deps.Beads,
 		router:      router,
@@ -295,7 +299,9 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		gromitDir:   gromitDir,
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: defaultCmdRunner,
-	}, nil
+	}
+	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads)
+	return r, nil
 }
 
 // IterationResult captures the outcome of one loop iteration.
