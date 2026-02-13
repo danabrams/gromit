@@ -175,6 +175,12 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 			return false
 		}
 
+		// Set prompt context for retry so the next invocation includes failure context
+		if bc.PromptCtx != nil {
+			bc.PromptCtx.IsRetry = true
+			bc.PromptCtx.FailureContext = analysis.Suggestion
+		}
+
 		h.log("Failure is recoverable, retrying (attempt %d/%d)", bc.RetriesThisModel, bc.MaxRetries)
 		return true
 	}
