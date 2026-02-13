@@ -435,19 +435,15 @@ func (r *Renderer) LoadRules() (string, error) {
 // requested phase appears in their phase list. Sections without annotations are included
 // in all phases. Phase annotation comments are stripped from the output.
 func (r *Renderer) LoadRulesForPhase(phase string) (string, error) {
-	if r == nil {
-		return "", fmt.Errorf("renderer is nil")
-	}
-
-	content, err := os.ReadFile(r.rulesPath)
+	content, err := r.LoadRules()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", fmt.Errorf("reading RULES.md: %w", err)
+		return "", err
+	}
+	if content == "" {
+		return "", nil
 	}
 
-	return filterRulesByPhase(string(content), phase), nil
+	return filterRulesByPhase(content, phase), nil
 }
 
 // filterRulesByPhase parses RULES.md content, filters ## sections by phase annotations,
