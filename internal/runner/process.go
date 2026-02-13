@@ -897,6 +897,49 @@ func (r *Runner) verifyTestsFail(ctx context.Context, bc *beadContext) error {
 	return nil
 }
 
+// detectTouchedPackages extracts unique Go package paths from git diff output.
+// Only considers .go files (excludes README.md, etc.).
+// Returns a slice of package paths in the order they appear (deduplicated).
+func detectTouchedPackages(diff string) []string {
+	if diff == "" {
+		return []string{}
+	}
+
+	seen := make(map[string]bool)
+	var packages []string
+
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, "diff --git ") {
+			// Extract file path from "diff --git a/path b/path"
+			parts := strings.Fields(line)
+			if len(parts) >= 4 {
+				filePath := strings.TrimPrefix(parts[3], "b/")
+
+				// Only consider .go files
+				if !strings.HasSuffix(filePath, ".go") {
+					continue
+				}
+
+				// Extract package directory (everything except the filename)
+				lastSlash := strings.LastIndex(filePath, "/")
+				if lastSlash == -1 {
+					// File is in root directory
+					continue
+				}
+				pkgPath := filePath[:lastSlash]
+
+				// Add to results if not already seen
+				if !seen[pkgPath] {
+					seen[pkgPath] = true
+					packages = append(packages, pkgPath)
+				}
+			}
+		}
+	}
+
+	return packages
+}
+
 // isTestOnlyDiff returns true if the diff is empty or only contains changes
 // to test files (*_test.go). This is used to detect ATDD false positives where
 // tests pass because they're checking existing behavior rather than new behavior.

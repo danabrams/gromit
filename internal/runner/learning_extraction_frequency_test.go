@@ -193,12 +193,77 @@ func TestRunner_TouchedPackages(t *testing.T) {
 
 // TestDetectTouchedPackages verifies that detectTouchedPackages extracts Go package paths
 // from git diff output.
-// Expected failure: detectTouchedPackages function does not exist yet
 func TestDetectTouchedPackages(t *testing.T) {
-	t.Skip("TODO: implement after detectTouchedPackages function is added")
-	// This test will be enabled after implementation adds:
-	// - detectTouchedPackages(diffOutput string) []string function
-	// - Should parse git diff output and extract unique Go package paths
+	tests := []struct {
+		name     string
+		diff     string
+		expected []string
+	}{
+		{
+			name:     "empty diff",
+			diff:     "",
+			expected: []string{},
+		},
+		{
+			name: "single file",
+			diff: `diff --git a/internal/runner/process.go b/internal/runner/process.go
+index 123..456 789
+--- a/internal/runner/process.go
++++ b/internal/runner/process.go
+@@ -1,3 +1,4 @@`,
+			expected: []string{"internal/runner"},
+		},
+		{
+			name: "multiple files same package",
+			diff: `diff --git a/internal/runner/process.go b/internal/runner/process.go
+index 123..456 789
+--- a/internal/runner/process.go
++++ b/internal/runner/process.go
+@@ -1,3 +1,4 @@
+diff --git a/internal/runner/validate.go b/internal/runner/validate.go
+index 789..abc def`,
+			expected: []string{"internal/runner"},
+		},
+		{
+			name: "multiple files different packages",
+			diff: `diff --git a/internal/runner/process.go b/internal/runner/process.go
+index 123..456 789
+--- a/internal/runner/process.go
++++ b/internal/runner/process.go
+@@ -1,3 +1,4 @@
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 789..abc def`,
+			expected: []string{"internal/runner", "internal/config"},
+		},
+		{
+			name: "ignores non-go files",
+			diff: `diff --git a/README.md b/README.md
+index 123..456 789
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,4 @@
+diff --git a/internal/runner/process.go b/internal/runner/process.go
+index 789..abc def`,
+			expected: []string{"internal/runner"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := detectTouchedPackages(tt.diff)
+			if len(result) != len(tt.expected) {
+				t.Errorf("detectTouchedPackages() returned %d packages, expected %d", len(result), len(tt.expected))
+				t.Errorf("got: %v", result)
+				t.Errorf("want: %v", tt.expected)
+				return
+			}
+			for i, pkg := range tt.expected {
+				if result[i] != pkg {
+					t.Errorf("detectTouchedPackages()[%d] = %q, want %q", i, result[i], pkg)
+				}
+			}
+		})
+	}
 }
 
 // TestUpdateTouchedPackages verifies that updateTouchedPackages adds newly touched
