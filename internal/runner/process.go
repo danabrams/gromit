@@ -905,43 +905,57 @@ func (r *Runner) verifyTestsFail(ctx context.Context, bc *beadContext) error {
 	return nil
 }
 
-// detectTouchedPackages extracts unique Go package paths from git diff output.
-// Only considers .go files (excludes README.md, etc.).
-// Returns a slice of package paths in the order they appear (deduplicated).
-func detectTouchedPackages(diff string) []string {
+// parseDiffFiles extracts file paths from git diff output.
+// Returns a slice of file paths in the order they appear.
+func parseDiffFiles(diff string) []string {
 	if diff == "" {
-		return []string{}
+		return nil
 	}
 
-	seen := make(map[string]bool)
-	var packages []string
-
+	var files []string
 	for _, line := range strings.Split(diff, "\n") {
 		if strings.HasPrefix(line, "diff --git ") {
 			// Extract file path from "diff --git a/path b/path"
 			parts := strings.Fields(line)
 			if len(parts) >= 4 {
 				filePath := strings.TrimPrefix(parts[3], "b/")
-
-				// Only consider .go files
-				if !strings.HasSuffix(filePath, ".go") {
-					continue
-				}
-
-				// Extract package directory (everything except the filename)
-				lastSlash := strings.LastIndex(filePath, "/")
-				if lastSlash == -1 {
-					// File is in root directory
-					continue
-				}
-				pkgPath := filePath[:lastSlash]
-
-				// Add to results if not already seen
-				if !seen[pkgPath] {
-					seen[pkgPath] = true
-					packages = append(packages, pkgPath)
-				}
+				files = append(files, filePath)
 			}
+		}
+	}
+	return files
+}
+
+// detectTouchedPackages extracts unique Go package paths from git diff output.
+// Only considers .go files (excludes README.md, etc.).
+// Returns a slice of package paths in the order they appear (deduplicated).
+func detectTouchedPackages(diff string) []string {
+	files := parseDiffFiles(diff)
+	if len(files) == 0 {
+		return []string{}
+	}
+
+	seen := make(map[string]bool)
+	var packages []string
+
+	for _, filePath := range files {
+		// Only consider .go files
+		if !strings.HasSuffix(filePath, ".go") {
+			continue
+		}
+
+		// Extract package directory (everything except the filename)
+		lastSlash := strings.LastIndex(filePath, "/")
+		if lastSlash == -1 {
+			// File is in root directory
+			continue
+		}
+		pkgPath := filePath[:lastSlash]
+
+		// Add to results if not already seen
+		if !seen[pkgPath] {
+			seen[pkgPath] = true
+			packages = append(packages, pkgPath)
 		}
 	}
 
@@ -955,17 +969,11 @@ func isTestOnlyDiff(diff string) bool {
 	if strings.TrimSpace(diff) == "" {
 		return true
 	}
-	// Parse diff headers to find changed files
-	for _, line := range strings.Split(diff, "\n") {
-		if strings.HasPrefix(line, "diff --git ") {
-			// Extract the file path from "diff --git a/path b/path"
-			parts := strings.Fields(line)
-			if len(parts) >= 4 {
-				filePath := strings.TrimPrefix(parts[3], "b/")
-				if !strings.HasSuffix(filePath, "_test.go") {
-					return false
-				}
-			}
+
+	files := parseDiffFiles(diff)
+	for _, filePath := range files {
+		if !strings.HasSuffix(filePath, "_test.go") {
+			return false
 		}
 	}
 	return true
@@ -1372,18 +1380,8 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *beadContext)
 }
 
 // countChangedFiles counts the number of files in a git diff output.
-// Each file is identified by a "diff --git" line.
 func countChangedFiles(diff string) int {
-	if diff == "" {
-		return 0
-	}
-	count := 0
-	for _, line := range strings.Split(diff, "\n") {
-		if strings.HasPrefix(line, "diff --git ") {
-			count++
-		}
-	}
-	return count
+	return len(parseDiffFiles(diff))
 }
 
 // runPostSuccessReview runs only the review stage (when learning is disabled).
