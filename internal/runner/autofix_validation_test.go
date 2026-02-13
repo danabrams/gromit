@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -9,11 +10,19 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
 // setupAutoFixRunner creates a Runner wired for auto-fix validation tests.
 // It builds on setupDirectValidationRunner patterns but adds tracking for
 // auto-fix tool invocations (gofmt, goimports) and Claude build-fix calls.
+//
+// The returned Runner has a validationRunner wired with forwarding closures:
+// setting r.cmdRunnerFn and r.autoFixFn after setup affects the validation runner.
+// For Claude-based fix attempts, tests should set up the executeFn via the
+// returned wireExecuteFn callback.
 func setupAutoFixRunner(t *testing.T, cfg *config.Config) (*Runner, *mockClaudeClient, *mockFailureAnalyzer, *strings.Builder) {
 	t.Helper()
 
@@ -40,14 +49,40 @@ func setupAutoFixRunner(t *testing.T, cfg *config.Config) (*Runner, *mockClaudeC
 	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
 	mockRouter := provider.NewSingleProviderRouter(mockProvider)
 
-	r := &Runner{
-		cfg:      cfg,
-		router:   mockRouter,
-		invoker:  newInvokerForTest(mockRouter, &buf, nil),
-		renderer: &mockRenderer{},
-		analyzer: mockAnalyzer,
-		output:   &buf,
+	logFn := func(format string, args ...interface{}) {
+		fmt.Fprintf(&buf, format+"\n", args...)
 	}
+
+	r := &Runner{
+		cfg:               cfg,
+		router:            mockRouter,
+		invoker:           newInvokerForTest(mockRouter, &buf, nil),
+		renderer:          &mockRenderer{},
+		analyzer:          mockAnalyzer,
+		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn),
+		output:            &buf,
+	}
+
+	// Wire validationRunner with forwarding closures so tests can set
+	// r.cmdRunnerFn and r.autoFixFn after setup and have them take effect.
+	// The executeFn forwards to mockClaude.StreamRunFn for Claude fix tracking.
+	cmdFwd := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return r.cmdRunnerFn(ctx, command, workDir)
+	}
+	autoFixFwd := func(startCommit string) error {
+		if r.autoFixFn != nil {
+			return r.autoFixFn(startCommit)
+		}
+		return fmt.Errorf("no autofix configured")
+	}
+	executeFwd := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+		if mockClaude.StreamRunFn != nil {
+			result, err := mockClaude.StreamRunFn(ctx, "", "", nil, nil, nil)
+			return err == nil && result != nil && result.Success
+		}
+		return false
+	}
+	r.validationRunner = validation.NewRunner(cfg, cmdFwd, autoFixFwd, executeFwd)
 
 	return r, mockClaude, mockAnalyzer, &buf
 }

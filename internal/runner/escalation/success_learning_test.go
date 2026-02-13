@@ -98,7 +98,7 @@ func TestExtractSuccessLearning_PersistsLearningForMediumTier(t *testing.T) {
 	// Call ExtractSuccessLearning with typed interfaces.
 	// After implementation, this function should accept SuccessLearningRouter
 	// (not interface{}) and actually use it to extract and persist the learning.
-	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil)
+	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil, nil)
 
 	content, err := os.ReadFile(filepath.Join(dir, "LEARNINGS.md"))
 	if err != nil {
@@ -142,7 +142,7 @@ func TestExtractSuccessLearning_SkipsWhenRouterReturnsNilProvider(t *testing.T) 
 		},
 	}
 
-	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil)
+	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil, nil)
 
 	if !routerCalled {
 		t.Error("ExtractSuccessLearning should call router.Select() to get a provider — currently ignores the router parameter")
@@ -186,7 +186,7 @@ func TestExtractSuccessLearning_SkipsWhenProviderFails(t *testing.T) {
 		},
 	}
 
-	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil)
+	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil, nil)
 
 	if !providerCalled {
 		t.Error("ExtractSuccessLearning should call the provider to extract a learning — currently never calls the provider")
@@ -242,7 +242,7 @@ func TestExtractSuccessLearning_SkipsWhenProviderReturnsNoLearning(t *testing.T)
 		},
 	}
 
-	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil)
+	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil, nil)
 
 	if !providerCalled {
 		t.Error("ExtractSuccessLearning should call the provider — currently never calls it")
@@ -300,7 +300,7 @@ func TestExtractSuccessLearning_HighTierUsesRouter(t *testing.T) {
 		},
 	}
 
-	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil)
+	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil, nil)
 
 	if !routerCalled {
 		t.Error("ExtractSuccessLearning should call router.Select() for high-tier beads — currently ignores the router")

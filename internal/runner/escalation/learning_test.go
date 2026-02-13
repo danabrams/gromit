@@ -17,7 +17,6 @@ import (
 
 // --- Learning extraction tests ---
 
-// Expected failure: ExtractLearning function does not exist in escalation/ package yet
 func TestExtractLearning_SavesAnalysisLearning(t *testing.T) {
 	// When an analysis contains a learning string, ExtractLearning should
 	// persist it to the learnings file via lf.Add().
@@ -52,7 +51,6 @@ func TestExtractLearning_SavesAnalysisLearning(t *testing.T) {
 	}
 }
 
-// Expected failure: ExtractLearning function does not exist in escalation/ package yet
 func TestExtractLearning_NilLearningIsNoOp(t *testing.T) {
 	// When analysis.Learning is nil, ExtractLearning should not write anything.
 	dir := t.TempDir()
@@ -87,7 +85,6 @@ func TestExtractLearning_NilLearningIsNoOp(t *testing.T) {
 	}
 }
 
-// Expected failure: ExtractLearning function does not exist in escalation/ package yet
 func TestExtractLearning_NilBeadContextIsNoOp(t *testing.T) {
 	// When bc or bc.Bead is nil, ExtractLearning should not panic.
 	dir := t.TempDir()
@@ -108,7 +105,6 @@ func TestExtractLearning_NilBeadContextIsNoOp(t *testing.T) {
 	ExtractLearning(bc, analysis, lf)
 }
 
-// Expected failure: ExtractSyntheticLearning function does not exist in escalation/ package yet
 func TestExtractSyntheticLearning_PersistsMessage(t *testing.T) {
 	// ExtractSyntheticLearning should save a custom message string to the
 	// learnings file with the "patterns" category.
@@ -135,7 +131,6 @@ func TestExtractSyntheticLearning_PersistsMessage(t *testing.T) {
 	}
 }
 
-// Expected failure: ExtractScopeTooLargeLearning function does not exist in escalation/ package yet
 func TestExtractScopeTooLargeLearning_FormatsCorrectly(t *testing.T) {
 	// ExtractScopeTooLargeLearning should create a learning message that
 	// includes the bead title and model name, then persist it.
@@ -166,7 +161,6 @@ func TestExtractScopeTooLargeLearning_FormatsCorrectly(t *testing.T) {
 	}
 }
 
-// Expected failure: ExtractTimeoutLearning function does not exist in escalation/ package yet
 func TestExtractTimeoutLearning_FormatsCorrectly(t *testing.T) {
 	// ExtractTimeoutLearning should create a learning message that includes
 	// the bead title and model name, then persist it.
@@ -197,7 +191,6 @@ func TestExtractTimeoutLearning_FormatsCorrectly(t *testing.T) {
 	}
 }
 
-// Expected failure: ExtractSuccessLearning function does not exist in escalation/ package yet
 func TestExtractSuccessLearning_SkipsForLowTier(t *testing.T) {
 	// ExtractSuccessLearning should skip learning extraction for haiku/low-tier
 	// beads, since they don't produce novel enough patterns to learn from.
@@ -219,7 +212,7 @@ func TestExtractSuccessLearning_SkipsForLowTier(t *testing.T) {
 	}
 
 	// Should not call the router or persist any learning
-	ExtractSuccessLearning(context.Background(), bc, cfg, lf, nil, nil)
+	ExtractSuccessLearning(context.Background(), bc, cfg, lf, nil, nil, nil)
 
 	content, err := os.ReadFile(filepath.Join(dir, "LEARNINGS.md"))
 	if os.IsNotExist(err) {
@@ -233,6 +226,3 @@ func TestExtractSuccessLearning_SkipsForLowTier(t *testing.T) {
 		t.Error("should not extract success learning for low-tier beads")
 	}
 }
-
-// Suppress unused import warnings during test compilation.
-var _ = provider.TierLow

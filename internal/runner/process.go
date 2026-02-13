@@ -794,13 +794,9 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 	reviewEnabled := r.cfg != nil && r.cfg.Review.Enabled
 
 	if learningEnabled && r.renderer != nil && r.router != nil {
-		// Skip if all touched packages have been seen before
-		skipPackages := bc.TouchedPackages != nil && len(bc.TouchedPackages) > 0 && !r.hasNewPackages(bc.TouchedPackages)
-		if !skipPackages {
-			lf := r.renderer.GetLearningsFile()
-			adapter := &successLearningRouterAdapter{r: r.router}
-			escalation.ExtractSuccessLearning(ctx, bc, r.cfg, lf, adapter, r.log)
-		}
+		lf := r.renderer.GetLearningsFile()
+		adapter := &successLearningRouterAdapter{r: r.router}
+		escalation.ExtractSuccessLearning(ctx, bc, r.cfg, lf, adapter, r.log, r.touchedPackages)
 	}
 
 	if reviewEnabled {
@@ -878,12 +874,9 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.Bea
 	reviewEnabled := r.cfg != nil && r.cfg.Review.Enabled
 
 	if learningEnabled && r.renderer != nil && r.router != nil {
-		skipPackages := bc.TouchedPackages != nil && len(bc.TouchedPackages) > 0 && !r.hasNewPackages(bc.TouchedPackages)
-		if !skipPackages {
-			lf := r.renderer.GetLearningsFile()
-			adapter := &successLearningRouterAdapter{r: r.router}
-			escalation.ExtractSuccessLearning(ctx, bc, r.cfg, lf, adapter, r.log)
-		}
+		lf := r.renderer.GetLearningsFile()
+		adapter := &successLearningRouterAdapter{r: r.router}
+		escalation.ExtractSuccessLearning(ctx, bc, r.cfg, lf, adapter, r.log, r.touchedPackages)
 	}
 
 	if reviewEnabled {

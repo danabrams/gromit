@@ -10,7 +10,6 @@ import (
 
 // --- Tier/model selection tests ---
 
-// Expected failure: SelectTier function does not exist in escalation/ package yet
 func TestSelectTier_DelegatesToConfig(t *testing.T) {
 	// SelectTier should delegate to config.Config.SelectTier() and return
 	// the appropriate tier based on bead priority and labels.
@@ -61,7 +60,6 @@ func TestSelectTier_DelegatesToConfig(t *testing.T) {
 	}
 }
 
-// Expected failure: SelectTier function does not exist in escalation/ package yet
 func TestSelectTier_NilConfigReturnsMedium(t *testing.T) {
 	// SelectTier should return TierMedium as a safe default when config is nil.
 	result := SelectTier(nil, &bead.Bead{ID: "test-001", Priority: 0})
@@ -70,7 +68,6 @@ func TestSelectTier_NilConfigReturnsMedium(t *testing.T) {
 	}
 }
 
-// Expected failure: SelectTier function does not exist in escalation/ package yet
 func TestSelectTier_LabelOverride(t *testing.T) {
 	// SelectTier should respect complexity label overrides that change the
 	// tier regardless of priority.
@@ -96,7 +93,6 @@ func TestSelectTier_LabelOverride(t *testing.T) {
 	}
 }
 
-// Expected failure: SelectModel function does not exist in escalation/ package yet
 func TestSelectModel_PriorityBasedSelection(t *testing.T) {
 	// SelectModel should return the legacy model name based on bead priority.
 	cfg := &config.Config{}
@@ -140,7 +136,6 @@ func TestSelectModel_PriorityBasedSelection(t *testing.T) {
 	}
 }
 
-// Expected failure: SelectModel function does not exist in escalation/ package yet
 func TestSelectModel_TestOnlyBeadRoutesToHaiku(t *testing.T) {
 	// SelectModel should route test-only beads to haiku unless an explicit
 	// complexity label overrides the selection.
@@ -163,7 +158,6 @@ func TestSelectModel_TestOnlyBeadRoutesToHaiku(t *testing.T) {
 	}
 }
 
-// Expected failure: SelectModel function does not exist in escalation/ package yet
 func TestSelectModel_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
 	// When a test-only bead has an explicit complexity label, SelectModel
 	// should respect the label override instead of defaulting to haiku.
@@ -189,7 +183,6 @@ func TestSelectModel_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
 	}
 }
 
-// Expected failure: SelectModel function does not exist in escalation/ package yet
 func TestSelectModel_NilConfigReturnsSonnet(t *testing.T) {
 	// SelectModel should return "sonnet" as a safe default when config is nil.
 	result := SelectModel(nil, &bead.Bead{ID: "test-001", Priority: 0})

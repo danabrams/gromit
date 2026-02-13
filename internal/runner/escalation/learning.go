@@ -73,15 +73,32 @@ type successLearningResponse struct {
 }
 
 // ExtractSuccessLearning calls Claude to extract a learning from a successful iteration.
-// Skips extraction for low-tier beads. The router selects a provider to run the extraction;
+// Skips extraction for low-tier beads or when all touched packages have already been seen.
+// The seenPackages map tracks packages processed in earlier iterations of the current run;
+// if non-nil and all of bc.TouchedPackages are present, extraction is skipped.
+// The router selects a provider to run the extraction;
 // if router is nil or the provider is unavailable, extraction is silently skipped.
-func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *config.Config, lf *learnings.File, router SuccessLearningRouter, renderer interface{}) {
+// The logFn callback is optional — if nil, logging is skipped.
+func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *config.Config, lf *learnings.File, router SuccessLearningRouter, logFn LogFn, seenPackages map[string]bool) {
 	if bc == nil {
 		return
 	}
 	// Skip learning extraction for haiku-tier beads
 	if bc.Tier == provider.TierLow {
 		return
+	}
+	// Skip when all touched packages have been seen before in this run
+	if seenPackages != nil && len(bc.TouchedPackages) > 0 {
+		allSeen := true
+		for _, pkg := range bc.TouchedPackages {
+			if !seenPackages[pkg] {
+				allSeen = false
+				break
+			}
+		}
+		if allSeen {
+			return
+		}
 	}
 	if router == nil {
 		return
@@ -126,6 +143,10 @@ func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *
 	category := resp.Category
 	if category == "" {
 		category = "patterns"
+	}
+
+	if logFn != nil {
+		logFn("Success learning extracted: %s", *resp.Learning)
 	}
 
 	lf.Add(bc.Bead.ID, *resp.Learning, category)

@@ -207,7 +207,7 @@ func TestEscalateTier_MutatesExportedFields(t *testing.T) {
 	}
 	defer cancel()
 
-	r.escalateTier(bc, "high")
+	r.escalationHandler.EscalateTier(bc, "high")
 
 	// Use reflection to check exported fields were mutated
 	val := reflect.ValueOf(bc).Elem()
@@ -279,14 +279,6 @@ func TestExtractLearning_ReadsExportedBeadField(t *testing.T) {
 		t.Fatalf("creating learnings file: %v", err)
 	}
 
-	mockRend := &mockPromptRenderer{LearningsFile: lf}
-	var buf strings.Builder
-
-	r := &Runner{
-		renderer: mockRend,
-		output:   &buf,
-	}
-
 	// Call setupBeadContext and verify that the returned context has the
 	// exported Bead field used by learning extraction
 	r2 := setupMigratedRunner(t)
@@ -314,10 +306,12 @@ func TestExtractLearning_ReadsExportedBeadField(t *testing.T) {
 	}
 
 	// If the type is correct, extractSyntheticLearning will accept it
-	r.extractSyntheticLearning(bc, "test learning message")
+	escalation.ExtractSyntheticLearning(bc, "test learning message", lf)
 
-	if !strings.Contains(buf.String(), "Synthetic learning extracted") {
-		t.Error("expected synthetic learning extraction log message")
+	// Verify learning was added to the learnings file
+	provisionals := lf.GetProvisional()
+	if len(provisionals) == 0 {
+		t.Error("expected a learning to be added by extractSyntheticLearning")
 	}
 }
 

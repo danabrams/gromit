@@ -2,53 +2,70 @@ package runner
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
-	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
+
+// mockSuccessLearningResult adapts provider.Result to escalation.SuccessLearningResult.
+type mockSuccessLearningResult struct {
+	success bool
+	output  string
+}
+
+func (r *mockSuccessLearningResult) IsSuccess() bool   { return r.success }
+func (r *mockSuccessLearningResult) GetOutput() string { return r.output }
+
+// mockSuccessLearningProvider satisfies escalation.SuccessLearningProvider.
+type mockSuccessLearningProvider struct {
+	RunFn func(ctx context.Context, prompt string, tier string) (escalation.SuccessLearningResult, error)
+}
+
+func (p *mockSuccessLearningProvider) Run(ctx context.Context, prompt string, tier string) (escalation.SuccessLearningResult, error) {
+	if p.RunFn != nil {
+		return p.RunFn(ctx, prompt, tier)
+	}
+	return &mockSuccessLearningResult{success: true, output: `{}`}, nil
+}
+
+// mockSuccessLearningRouter satisfies escalation.SuccessLearningRouter.
+type mockSuccessLearningRouter struct {
+	provider *mockSuccessLearningProvider
+}
+
+func (r *mockSuccessLearningRouter) Select(phase, tier string) (escalation.SuccessLearningProvider, string) {
+	return r.provider, tier
+}
 
 // TestExtractSuccessLearning_SkipsHaikuTierBeads verifies that learning extraction
 // is skipped when the bead was processed with a haiku-tier model.
 // Expected failure: extractSuccessLearning does not check bc.Tier before invoking the provider
 func TestExtractSuccessLearning_SkipsHaikuTierBeads(t *testing.T) {
-	var buf strings.Builder
 	providerInvoked := false
 
-	mockProvider := &mockProviderForRunner{
-		FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	mp := &mockSuccessLearningProvider{
+		RunFn: func(ctx context.Context, prompt string, tier string) (escalation.SuccessLearningResult, error) {
 			providerInvoked = true
-			return &provider.Result{
-				Success: true,
-				Output:  `{"learning": "Test learning", "category": "patterns"}`,
+			return &mockSuccessLearningResult{
+				success: true,
+				output:  `{"learning": "Test learning", "category": "patterns"}`,
 			}, nil
 		},
 	}
 
-	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+	router := &mockSuccessLearningRouter{provider: mp}
 	lf, _ := learnings.NewFile(t.TempDir())
-	mockRend := &mockPromptRenderer{
-		LearningsFile: lf,
-		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
-			return "learning prompt", nil
-		},
-	}
 
 	learnFromSuccessEnabled := true
-	r := &Runner{
-		cfg: &config.Config{
-			Loop: config.LoopConfig{
-				LearnFromSuccess: &learnFromSuccessEnabled,
-			},
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			LearnFromSuccess: &learnFromSuccessEnabled,
 		},
-		router:   mockRouter,
-		renderer: mockRend,
-		output:   &buf,
 	}
 
 	bc := &runtypes.BeadContext{
@@ -60,16 +77,11 @@ func TestExtractSuccessLearning_SkipsHaikuTierBeads(t *testing.T) {
 		Tier: provider.TierLow, // haiku tier
 	}
 
-	r.extractSuccessLearning(context.Background(), bc)
+	escalation.ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil, nil)
 
 	// Should NOT invoke provider for haiku-tier beads
 	if providerInvoked {
 		t.Error("expected learning extraction to be skipped for haiku-tier bead, but provider was invoked")
-	}
-
-	// Should NOT log success learning messages
-	if strings.Contains(buf.String(), "Success learning extracted") {
-		t.Error("expected no learning extraction log for haiku-tier bead")
 	}
 }
 
@@ -87,38 +99,26 @@ func TestExtractSuccessLearning_RunsForNonHaikuTierBeads(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var buf strings.Builder
 			providerInvoked := false
 
-			mockProvider := &mockProviderForRunner{
-				FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+			mp := &mockSuccessLearningProvider{
+				RunFn: func(ctx context.Context, prompt string, tier string) (escalation.SuccessLearningResult, error) {
 					providerInvoked = true
-					return &provider.Result{
-						Success: true,
-						Output:  `{"learning": "Test learning", "category": "patterns"}`,
+					return &mockSuccessLearningResult{
+						success: true,
+						output:  `{"learning": "Test learning", "category": "patterns"}`,
 					}, nil
 				},
 			}
 
-			mockRouter := provider.NewSingleProviderRouter(mockProvider)
+			router := &mockSuccessLearningRouter{provider: mp}
 			lf, _ := learnings.NewFile(t.TempDir())
-			mockRend := &mockPromptRenderer{
-				LearningsFile: lf,
-				RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
-					return "learning prompt", nil
-				},
-			}
 
 			learnFromSuccessEnabled := true
-			r := &Runner{
-				cfg: &config.Config{
-					Loop: config.LoopConfig{
-						LearnFromSuccess: &learnFromSuccessEnabled,
-					},
+			cfg := &config.Config{
+				Loop: config.LoopConfig{
+					LearnFromSuccess: &learnFromSuccessEnabled,
 				},
-				router:   mockRouter,
-				renderer: mockRend,
-				output:   &buf,
 			}
 
 			bc := &runtypes.BeadContext{
@@ -130,7 +130,7 @@ func TestExtractSuccessLearning_RunsForNonHaikuTierBeads(t *testing.T) {
 				Tier: tt.tier,
 			}
 
-			r.extractSuccessLearning(context.Background(), bc)
+			escalation.ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil, nil)
 
 			// SHOULD invoke provider for non-haiku tiers
 			if !providerInvoked {
@@ -143,41 +143,25 @@ func TestExtractSuccessLearning_RunsForNonHaikuTierBeads(t *testing.T) {
 // TestExtractSuccessLearning_SkipsForKnownPackages verifies that learning extraction
 // is skipped when the bead only touches packages that have been seen in the current run.
 func TestExtractSuccessLearning_SkipsForKnownPackages(t *testing.T) {
-	var buf strings.Builder
 	providerInvoked := false
 
-	mockProvider := &mockProviderForRunner{
-		FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	mp := &mockSuccessLearningProvider{
+		RunFn: func(ctx context.Context, prompt string, tier string) (escalation.SuccessLearningResult, error) {
 			providerInvoked = true
-			return &provider.Result{
-				Success: true,
-				Output:  `{"learning": "Test learning", "category": "patterns"}`,
+			return &mockSuccessLearningResult{
+				success: true,
+				output:  `{"learning": "Test learning", "category": "patterns"}`,
 			}, nil
 		},
 	}
 
-	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+	router := &mockSuccessLearningRouter{provider: mp}
 	lf, _ := learnings.NewFile(t.TempDir())
-	mockRend := &mockPromptRenderer{
-		LearningsFile: lf,
-		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
-			return "learning prompt", nil
-		},
-	}
 
 	learnFromSuccessEnabled := true
-	r := &Runner{
-		cfg: &config.Config{
-			Loop: config.LoopConfig{
-				LearnFromSuccess: &learnFromSuccessEnabled,
-			},
-		},
-		router:   mockRouter,
-		renderer: mockRend,
-		output:   &buf,
-		touchedPackages: map[string]bool{
-			"internal/runner": true,
-			"internal/config": true,
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			LearnFromSuccess: &learnFromSuccessEnabled,
 		},
 	}
 
@@ -191,56 +175,40 @@ func TestExtractSuccessLearning_SkipsForKnownPackages(t *testing.T) {
 		TouchedPackages: []string{"internal/runner"}, // all packages already seen
 	}
 
-	r.extractSuccessLearning(context.Background(), bc)
+	seenPackages := map[string]bool{
+		"internal/runner": true,
+		"internal/config": true,
+	}
+	escalation.ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil, seenPackages)
 
 	// Should NOT invoke provider when all packages are already seen
 	if providerInvoked {
 		t.Error("expected learning extraction to be skipped for known packages, but provider was invoked")
-	}
-
-	// Should NOT log success learning messages
-	if strings.Contains(buf.String(), "Success learning extracted") {
-		t.Error("expected no learning extraction log for known packages")
 	}
 }
 
 // TestExtractSuccessLearning_RunsForNewPackages verifies that learning extraction
 // runs when the bead touches a package not previously seen in the current run.
 func TestExtractSuccessLearning_RunsForNewPackages(t *testing.T) {
-	var buf strings.Builder
 	providerInvoked := false
 
-	mockProvider := &mockProviderForRunner{
-		FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	mp := &mockSuccessLearningProvider{
+		RunFn: func(ctx context.Context, prompt string, tier string) (escalation.SuccessLearningResult, error) {
 			providerInvoked = true
-			return &provider.Result{
-				Success: true,
-				Output:  `{"learning": "Test learning", "category": "patterns"}`,
+			return &mockSuccessLearningResult{
+				success: true,
+				output:  `{"learning": "Test learning", "category": "patterns"}`,
 			}, nil
 		},
 	}
 
-	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+	router := &mockSuccessLearningRouter{provider: mp}
 	lf, _ := learnings.NewFile(t.TempDir())
-	mockRend := &mockPromptRenderer{
-		LearningsFile: lf,
-		RenderLearnFn: func(ctx *prompt.LearnContext) (string, error) {
-			return "learning prompt", nil
-		},
-	}
 
 	learnFromSuccessEnabled := true
-	r := &Runner{
-		cfg: &config.Config{
-			Loop: config.LoopConfig{
-				LearnFromSuccess: &learnFromSuccessEnabled,
-			},
-		},
-		router:   mockRouter,
-		renderer: mockRend,
-		output:   &buf,
-		touchedPackages: map[string]bool{
-			"internal/runner": true,
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			LearnFromSuccess: &learnFromSuccessEnabled,
 		},
 	}
 
@@ -254,7 +222,10 @@ func TestExtractSuccessLearning_RunsForNewPackages(t *testing.T) {
 		TouchedPackages: []string{"internal/runner", "internal/config"}, // internal/config is new
 	}
 
-	r.extractSuccessLearning(context.Background(), bc)
+	seenPackages := map[string]bool{
+		"internal/runner": true, // only runner is seen; config is new
+	}
+	escalation.ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, nil, seenPackages)
 
 	// SHOULD invoke provider when at least one package is new
 	if !providerInvoked {

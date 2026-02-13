@@ -128,6 +128,7 @@ func TestEscalateModel(t *testing.T) {
 	bc.Result.Escalated = true
 	bc.Result.EscalatedTo = "sonnet"
 	bc.RetriesThisModel = 0
+	bc.PromptCtx.Model = "sonnet"
 
 	if bc.Model != "sonnet" {
 		t.Errorf("expected model 'sonnet', got %q", bc.Model)
@@ -422,12 +423,12 @@ func TestExtractSuccessLearning_NilRunner(t *testing.T) {
 		Bead: &bead.Bead{ID: "test-1"},
 	}
 	// Should not panic
-	escalation.ExtractSuccessLearning(context.Background(), bc, nil, nil, nil, nil)
+	escalation.ExtractSuccessLearning(context.Background(), bc, nil, nil, nil, nil, nil)
 }
 
 func TestExtractSuccessLearning_NilBeadContext(t *testing.T) {
 	// Should not panic
-	escalation.ExtractSuccessLearning(context.Background(), nil, nil, nil, nil, nil)
+	escalation.ExtractSuccessLearning(context.Background(), nil, nil, nil, nil, nil, nil)
 }
 
 func TestExtractSuccessLearning_FeatureDisabled(t *testing.T) {
@@ -445,7 +446,7 @@ func TestExtractSuccessLearning_FeatureDisabled(t *testing.T) {
 		Bead: &bead.Bead{ID: "test-1", Title: "Test"},
 	}
 
-	escalation.ExtractSuccessLearning(context.Background(), bc, r.cfg, nil, nil, nil)
+	escalation.ExtractSuccessLearning(context.Background(), bc, r.cfg, nil, nil, nil, nil)
 
 	if strings.Contains(buf.String(), "Success learning") {
 		t.Error("should not extract learning when feature is disabled")
@@ -482,7 +483,7 @@ func TestExtractSuccessLearning_NilLearning(t *testing.T) {
 	logged := false
 	escalation.ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, func(format string, args ...interface{}) {
 		logged = true
-	})
+	}, nil)
 
 	// Should not log "Success learning extracted" when learning is null
 	if logged {
@@ -520,7 +521,7 @@ func TestExtractSuccessLearning_WithLearning(t *testing.T) {
 	logged := false
 	escalation.ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, func(format string, args ...interface{}) {
 		logged = true
-	})
+	}, nil)
 
 	// Should log "Success learning extracted"
 	if !logged {

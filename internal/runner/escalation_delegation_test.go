@@ -219,11 +219,11 @@ func TestProcessGoUsesEscalationLearningFunctions(t *testing.T) {
 	}
 
 	localLearningFns := map[string]bool{
-		"extractLearning":             false,
-		"extractSyntheticLearning":    false,
+		"extractLearning":              false,
+		"extractSyntheticLearning":     false,
 		"extractScopeTooLargeLearning": false,
-		"extractTimeoutLearning":      false,
-		"extractSuccessLearning":      false,
+		"extractTimeoutLearning":       false,
+		"extractSuccessLearning":       false,
 	}
 
 	// Check all Runner methods for calls to local extract* methods

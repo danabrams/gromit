@@ -4,24 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
 // TestValidationSentinelError_RecoveryDistinguishesErrorTypes verifies that
 // runValidationWithRecovery correctly distinguishes validation failures
 // (which should trigger recovery) from other errors (which should not).
 func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
-	// Expected failure: errValidationFailed sentinel error does not exist yet
 	tests := []struct {
 		name              string
 		validationErr     error
@@ -62,21 +59,12 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 			cmdCallCount := 0
 			fixAttempts := 0
 
-			mockClaude := &mockClaudeClient{
-				StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-					fixAttempts++
-					return &claude.Result{
-						Success: true,
-						Output:  "Fixed the validation error",
-					}, nil
-				},
-			}
-
 			cfg := &config.Config{
 				Validation: config.ValidationConfig{
-					Enabled:        true,
-					Commands:       []string{"go test ./..."},
-					MaxFixAttempts: 1,
+					Enabled:              true,
+					Commands:             []string{"go test ./..."},
+					MaxFixAttempts:       1,
+					MaxValidationRetries: 1,
 				},
 				Claude: config.ClaudeConfig{
 					StallTimeout:       30,
@@ -86,13 +74,9 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 			}
 			cfg.SetDefaults()
 
-			// Create a mock provider for the router
-			mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
-			mockRouter := provider.NewSingleProviderRouter(mockProvider)
-
 			// Build cmdRunnerFn based on test case
 			testErr := tt.validationErr
-			var cmdRunnerFn func(ctx context.Context, command string, workDir string) (string, string, int, error)
+			var cmdRunnerFn runtypes.CmdRunnerFn
 			if errors.Is(testErr, errValidationFailed) {
 				// Simulate validation failure then pass on recovery
 				cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -110,14 +94,20 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 				}
 			}
 
+			// executeFn tracks fix attempts (replaces mockClaude)
+			executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+				fixAttempts++
+				return true
+			}
+
+			valRunner := validation.NewRunner(cfg, cmdRunnerFn, nil, executeFn)
+
 			r := &Runner{
-				cfg:         cfg,
-				router:      mockRouter,
-				invoker:     newInvokerForTest(mockRouter, &buf, nil),
-				renderer:    &mockRenderer{},
-				analyzer:    &mockFailureAnalyzer{},
-				output:      &buf,
-				cmdRunnerFn: cmdRunnerFn,
+				cfg:              cfg,
+				renderer:         &mockRenderer{},
+				analyzer:         &mockFailureAnalyzer{},
+				output:           &buf,
+				validationRunner: valRunner,
 			}
 			bc := &runtypes.BeadContext{
 				Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -164,9 +154,6 @@ func TestValidationSentinelError_RecoveryDistinguishesErrorTypes(t *testing.T) {
 // errors can be wrapped with additional context and still be recognized as
 // validation failures using errors.Is().
 func TestValidationSentinelError_WrappedErrorsPreserved(t *testing.T) {
-	// Expected failure: errValidationFailed sentinel error does not exist yet
-	// Expected failure: runValidation does not return errValidationFailed yet
-
 	// Create a wrapped validation error as might happen in real code
 	wrappedErr := fmt.Errorf("post-validation processing failed: %w", errValidationFailed)
 
@@ -202,15 +189,16 @@ func TestValidationSentinelError_RunValidationReturnsCorrectError(t *testing.T) 
 	}
 	cfg.SetDefaults()
 
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "FAIL: TestSomething", 1, nil
+	}
+
 	r := &Runner{
-		cfg:      cfg,
-		renderer: &mockRenderer{},
-		analyzer: &mockFailureAnalyzer{},
-		output:   &buf,
-		// Validation command fails with non-zero exit
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			return "", "FAIL: TestSomething", 1, nil
-		},
+		cfg:              cfg,
+		renderer:         &mockRenderer{},
+		analyzer:         &mockFailureAnalyzer{},
+		output:           &buf,
+		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
 	}
 	bc := &runtypes.BeadContext{
 		Bead:   &bead.Bead{ID: "test-1", Title: "Test"},
@@ -244,9 +232,6 @@ func TestValidationSentinelError_RunValidationReturnsCorrectError(t *testing.T) 
 // simple string-based error message change would break validation recovery,
 // demonstrating why a sentinel error is necessary.
 func TestValidationSentinelError_StringComparisonWouldBreak(t *testing.T) {
-	// Expected failure: This test demonstrates that any change to the error message
-	// (like adding context) would break string comparison, but will work with errors.Is()
-
 	// Simulate what would happen if runValidation added context to the error
 	baseErr := errValidationFailed
 	contextualizedErr := fmt.Errorf("after 3 attempts: %w", baseErr)
