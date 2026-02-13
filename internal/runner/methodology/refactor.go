@@ -294,10 +294,41 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 }
 
 // RunAcceptanceTestsWithRetry runs the acceptance test phase with retry and escalation logic.
+// Returns nil on success or error on failure.
 func (e *Executor) RunAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes.BeadContext) error {
-	_ = ctx
-	_ = bc
-	return fmt.Errorf("RunAcceptanceTestsWithRetry not yet implemented")
+	retries := 0
+	maxRetries := e.cfg.Escalation.MaxRetriesPerModel
+	currentTier := bc.Tier
+
+	for {
+		if retries > 0 {
+			e.log("Retrying acceptance tests (attempt %d/%d)...", retries+1, maxRetries+1)
+		}
+
+		err := e.RunAcceptanceTests(ctx, bc)
+		if err == nil {
+			return nil
+		}
+
+		// Retry with same tier
+		if retries < maxRetries {
+			retries++
+			continue
+		}
+
+		// Escalate tier
+		nextTier := e.cfg.NextEscalationTier(currentTier)
+		if nextTier == "" {
+			return fmt.Errorf("acceptance tests failed with all tiers: %w", err)
+		}
+
+		e.log("Escalating acceptance tests from tier %s to %s", currentTier, nextTier)
+		if e.escalateTierFn != nil {
+			e.escalateTierFn(bc, nextTier)
+		}
+		currentTier = nextTier
+		retries = 0
+	}
 }
 
 // VerifyTestsFailWithRetry runs the verify-tests-fail phase with retry logic.
