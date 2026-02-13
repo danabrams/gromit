@@ -23,6 +23,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tmux"
@@ -51,6 +52,7 @@ type Runner struct {
 	cfg                *config.Config
 	beads              BeadClient
 	router             *provider.Router
+	invoker            *execution.Invoker
 	analyzer           FailureAnalyzer
 	renderer           PromptRenderer
 	logger             IterationLogger
@@ -65,6 +67,24 @@ type Runner struct {
 	labelFilters       []string                                                                                                          // optional spec labels to filter beads
 	validationFailures []string                                                                                                          // recent validation failure summaries from current run, injected into build prompts
 	touchedPackages    map[string]bool                                                                                                   // packages touched in the current run, used to filter learning extraction
+}
+
+// routerAdapter wraps *provider.Router to satisfy execution.Router.
+// The adapter narrows the return type from provider.Provider to execution.Provider.
+type routerAdapter struct {
+	r *provider.Router
+}
+
+func (a *routerAdapter) Select(phase, tier string) (execution.Provider, string) {
+	p, model := a.r.Select(phase, tier)
+	if p == nil {
+		return nil, ""
+	}
+	return p, model
+}
+
+func (a *routerAdapter) MarkUnavailable(name string) {
+	a.r.MarkUnavailable(name)
 }
 
 // NewRunner creates a new runner
@@ -193,10 +213,13 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		return nil, err
 	}
 
+	inv := execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil)
+
 	return &Runner{
 		cfg:         cfg,
 		beads:       beadsClient,
 		router:      router,
+		invoker:     inv,
 		analyzer:    analyzerObj,
 		renderer:    renderer,
 		logger:      log,
@@ -251,10 +274,19 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	// Use provided Router
 	router := deps.Router
 
+	// Create invoker with router adapter (nil-safe: if router is nil, invoker handles it)
+	var inv *execution.Invoker
+	if router != nil {
+		inv = execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil)
+	} else {
+		inv = execution.NewInvoker(nil, syncOut, nil)
+	}
+
 	return &Runner{
 		cfg:         cfg,
 		beads:       deps.Beads,
 		router:      router,
+		invoker:     inv,
 		analyzer:    deps.Analyzer,
 		renderer:    deps.Renderer,
 		logger:      iterLogger,

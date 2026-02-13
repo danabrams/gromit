@@ -65,6 +65,7 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 	r := &Runner{
 		cfg:          cfg,
 		router:       mockRouter,
+		invoker:      newInvokerForTest(mockRouter, nil, sl),
 		streamLogger: sl,
 	}
 
@@ -144,8 +145,9 @@ func TestExecuteClaudeInvocation_ZeroRecoveryMsWhenNoRateLimit(t *testing.T) {
 	mockRouter := provider.NewSingleProviderRouter(mockProvider)
 
 	r := &Runner{
-		cfg:    cfg,
-		router: mockRouter,
+		cfg:     cfg,
+		router:  mockRouter,
+		invoker: newInvokerForTest(mockRouter, nil, nil),
 	}
 
 	bc := &runtypes.BeadContext{

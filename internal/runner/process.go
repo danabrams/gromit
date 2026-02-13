@@ -130,120 +130,27 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 
 // executeClaudeInvocation runs a single Claude invocation with streaming, heartbeat,
 // and stall detection. Returns the Claude result, stream stats, whether a stall was detected, and any error.
+// Delegates the core invocation to execution.Invoker.Execute.
 func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *runtypes.BeadContext) (*claude.Result, *logger.StreamStats, bool, error) {
-	stats, err := logger.NewStreamStats()
-	if err != nil {
+	if r == nil || r.invoker == nil {
+		return nil, nil, false, fmt.Errorf("runner invoker is nil")
+	}
+
+	invResult, err := r.invoker.Execute(ctx, bc, bc.BuildPrompt)
+	if err != nil && invResult == nil {
 		return nil, nil, false, err
 	}
 
-	if r.router == nil {
-		return nil, nil, false, fmt.Errorf("runner router is nil")
-	}
-
-	// Determine phase and use tier from bead context
-	phase := "build"
-	tier := bc.Tier
-
-	// Select provider using router
-	p, modelName := r.router.Select(phase, tier)
-	if p == nil {
-		return nil, nil, false, fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
-	}
-
-	// Update bead context with router-selected model and provider
-	bc.Model = modelName
-	bc.Result.Model = modelName
-	bc.BuildProvider = p.Name()
-	// If this is an escalated invocation, update EscalatedTo with the concrete model name
-	if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
-		bc.Result.EscalatedTo = modelName
-	}
-
-	childCtx, childCancel := context.WithCancel(ctx)
+	var result *claude.Result
+	var stats *logger.StreamStats
 	stallFired := false
-
-	_, stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.Model)
-	stallTimeout := time.Duration(stallTimeoutSec) * time.Second
-	stallTimeoutActive := time.Duration(stallTimeoutActiveSec) * time.Second
-
-	toolCallEvents := make(chan claude.ToolEvent, 10)
-
-	stopHeartbeat := r.startHeartbeat(stats, stallTimeout, stallTimeoutActive, func() {
-		stallFired = true
-		childCancel()
-	}, toolCallEvents)
-
-	var handler claude.EventHandler
-	if r.streamLogger != nil {
-		sl := r.streamLogger
-		handler = func(line []byte) {
-			logger.ParseAndLogEvent(sl, stats, line)
-		}
+	if invResult != nil {
+		result = invResult.Result
+		stats = invResult.Stats
+		stallFired = invResult.StallFired
 	}
 
-	onToolCall := func(event claude.ToolEvent) {
-		select {
-		case toolCallEvents <- event:
-		default:
-		}
-	}
-
-	// Convert claude handler to provider handler type
-	var providerHandler provider.EventHandler
-	if handler != nil {
-		providerHandler = provider.EventHandler(handler)
-	}
-
-	providerToolHandler := func(event provider.ToolEvent) {
-		onToolCall(claude.ToolEvent{
-			ToolName:  event.ToolName,
-			FilePath:  event.FilePath,
-			Timestamp: event.Timestamp,
-		})
-	}
-
-	// Call provider.StreamRun with the tier
-	providerResult, err := p.StreamRun(childCtx, bc.BuildPrompt, tier, r.output, providerHandler, providerToolHandler)
-
-	// Check for usage limit error and retry with fallback provider
-	if err != nil && p.IsUsageLimitError(providerResult, err) {
-		r.router.MarkUnavailable(p.Name())
-
-		// Retry with new provider
-		p2, modelName2 := r.router.Select(phase, tier)
-		if p2 != nil {
-			bc.Model = modelName2
-			bc.Result.Model = modelName2
-
-			// Retry the invocation with the fallback provider
-			providerResult, err = p2.StreamRun(childCtx, bc.BuildPrompt, tier, r.output, providerHandler, providerToolHandler)
-		}
-	}
-
-	// Convert provider.Result back to claude.Result for backward compatibility
-	var claudeResult *claude.Result
-	if providerResult != nil {
-		claudeResult = &claude.Result{
-			Success:  providerResult.Success,
-			Output:   providerResult.Output,
-			ExitCode: providerResult.ExitCode,
-			Duration: providerResult.Duration,
-			Model:    providerResult.Model,
-		}
-	}
-	stopHeartbeat()
-	childCancel()
-
-	// Capture diagnostic data from stream stats
-	stallCount, stallTier, ttfe, toolCalls, rateLimitHits, rateLimitRecoveryMs := stats.DiagnosticSnapshot()
-	bc.Result.StallCount = stallCount
-	bc.Result.StallTier = stallTier
-	bc.Result.TimeToFirstEventMs = ttfe.Milliseconds()
-	bc.Result.ToolCallCount = toolCalls
-	bc.Result.RateLimitHits = rateLimitHits
-	bc.Result.RateLimitRecoveryMs = rateLimitRecoveryMs
-
-	return claudeResult, stats, stallFired, err
+	return result, stats, stallFired, err
 }
 
 // handleStallTimeout handles the case where a stall timeout was detected during execution.

@@ -2058,6 +2058,7 @@ func TestRunValidationWithRecovery_FailsThenFixSucceeds(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		invoker:  newInvokerForTest(mockRouter, &buf, nil),
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
@@ -2133,6 +2134,7 @@ func TestRunValidationWithRecovery_FailsThenFixStillFails(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		invoker:  newInvokerForTest(mockRouter, &buf, nil),
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
@@ -2297,6 +2299,7 @@ func TestVerifyTestsFailWithRetry_DiffGuard_TestOnlyDiff(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		invoker:  newInvokerForTest(mockRouter, &buf, nil),
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
@@ -2378,6 +2381,7 @@ func TestVerifyTestsFailWithRetry_DiffGuard_ImplDiff(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		invoker:  newInvokerForTest(mockRouter, &buf, nil),
 		renderer: &mockRenderer{},
 		analyzer: &mockFailureAnalyzer{},
 		output:   &buf,
@@ -2462,8 +2466,9 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 				StallTimeoutActive: 60,
 			},
 		},
-		router: mockRouter,
-		output: &buf,
+		router:  mockRouter,
+		invoker: newInvokerForTest(mockRouter, &buf, nil),
+		output:  &buf,
 	}
 	bc := &runtypes.BeadContext{
 		Bead:        &bead.Bead{ID: "test-1", Title: "Test"},

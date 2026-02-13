@@ -43,6 +43,7 @@ func setupAutoFixRunner(t *testing.T, cfg *config.Config) (*Runner, *mockClaudeC
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		invoker:  newInvokerForTest(mockRouter, &buf, nil),
 		renderer: &mockRenderer{},
 		analyzer: mockAnalyzer,
 		output:   &buf,

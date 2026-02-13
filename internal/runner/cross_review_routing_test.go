@@ -50,9 +50,10 @@ func TestExecuteClaudeInvocationSetsBuildProvider(t *testing.T) {
 
 	var buf strings.Builder
 	r := &Runner{
-		cfg:    cfg,
-		router: mockRouter,
-		output: &buf,
+		cfg:     cfg,
+		router:  mockRouter,
+		invoker: newInvokerForTest(mockRouter, &buf, nil),
+		output:  &buf,
 	}
 
 	bc := &runtypes.BeadContext{

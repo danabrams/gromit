@@ -46,6 +46,7 @@ func setupDirectValidationRunner(t *testing.T, cfg *config.Config) (*Runner, *mo
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		invoker:  newInvokerForTest(mockRouter, &buf, nil),
 		renderer: &mockRenderer{},
 		analyzer: mockAnalyzer,
 		output:   &buf,
@@ -384,6 +385,7 @@ func TestDirectValidation_RecoveryStillWorks(t *testing.T) {
 	r := &Runner{
 		cfg:      cfg,
 		router:   mockRouter,
+		invoker:  newInvokerForTest(mockRouter, &buf, nil),
 		renderer: &mockRenderer{},
 		analyzer: mockAnalyzer,
 		output:   &buf,
