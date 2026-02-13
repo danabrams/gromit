@@ -611,6 +611,46 @@ func searchSubstring(s, substr string) bool {
 	return false
 }
 
+// --- Validate (public runValidation) tests ---
+
+func TestValidate_PassesAndSetsValidated(t *testing.T) {
+	cfg := newTestConfig()
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "ok", "", 0, nil
+	}
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	bc := newTestBeadContext()
+
+	err := r.Validate(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("Validate returned unexpected error: %v", err)
+	}
+	if !bc.Result.Validated {
+		t.Error("Result.Validated should be true after successful validation")
+	}
+	if bc.Result.ValidationMode != "direct" {
+		t.Errorf("Result.ValidationMode = %q, want %q", bc.Result.ValidationMode, "direct")
+	}
+}
+
+func TestValidate_FailsAndAccumulatesFailures(t *testing.T) {
+	cfg := newTestConfig()
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "--- FAIL: TestBar (0.01s)\nFAIL\tpkg/bar", 1, nil
+	}
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	bc := newTestBeadContext()
+
+	err := r.Validate(context.Background(), bc)
+	if !errors.Is(err, ErrValidationFailed) {
+		t.Errorf("Validate should return ErrValidationFailed, got: %v", err)
+	}
+	failures := r.Failures()
+	if len(failures) == 0 {
+		t.Error("Failures() should be populated after validation failure")
+	}
+}
+
 // Ensure imports are used
 var (
 	_ = claude.Result{}

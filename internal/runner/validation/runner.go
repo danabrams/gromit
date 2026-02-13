@@ -136,6 +136,14 @@ func (r *Runner) RunWithRecovery(ctx context.Context, bc *runtypes.BeadContext) 
 	return err
 }
 
+// Validate runs validation commands and updates the bead context result.
+// On failure, it accumulates failure summaries accessible via Failures()
+// and returns ErrValidationFailed. On success, it sets bc.Result.Validated
+// and bc.Result.ValidationMode.
+func (r *Runner) Validate(ctx context.Context, bc *runtypes.BeadContext) error {
+	return r.runValidation(ctx, bc)
+}
+
 // runValidation runs validation commands and updates the bead context result.
 func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) error {
 	if !r.cfg.Validation.Enabled {
