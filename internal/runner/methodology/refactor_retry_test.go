@@ -56,7 +56,6 @@ func newTestBeadContextWithTier(tier string) *runtypes.BeadContext {
 
 // --- ShouldRunRefactor tests ---
 
-// Expected failure: ShouldRunRefactor method does not exist on Executor yet
 func TestShouldRunRefactor(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -112,7 +111,6 @@ func TestShouldRunRefactor(t *testing.T) {
 
 			bc := newTestBeadContextWithTier(tt.tier)
 
-			// Expected failure: ShouldRunRefactor does not exist on Executor yet
 			got := exec.ShouldRunRefactor(bc, tt.diff)
 			if got != tt.want {
 				t.Errorf("ShouldRunRefactor() = %v, want %v", got, tt.want)
@@ -123,7 +121,6 @@ func TestShouldRunRefactor(t *testing.T) {
 
 // --- RunRefactorPhase tests ---
 
-// Expected failure: RunRefactorPhase method does not exist on Executor yet
 func TestRunRefactorPhase_SkipsWhenNoDiff(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
@@ -140,7 +137,6 @@ func TestRunRefactorPhase_SkipsWhenNoDiff(t *testing.T) {
 		return "refactor prompt", nil
 	}
 
-	// Expected failure: NewExecutor does not accept getDiffFn, renderRefactorFn, etc.
 	exec := NewExecutorWithRefactor(cfg, &buf, NewRefactorDeps(
 		getDiffFn,
 		renderRefactorFn,
@@ -164,7 +160,6 @@ func TestRunRefactorPhase_SkipsWhenNoDiff(t *testing.T) {
 	}
 }
 
-// Expected failure: RunRefactorPhase method does not exist on Executor yet
 func TestRunRefactorPhase_SkipsWhenBelowFileThreshold(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 5
@@ -180,7 +175,6 @@ func TestRunRefactorPhase_SkipsWhenBelowFileThreshold(t *testing.T) {
 		return &claude.Result{Success: true}, nil
 	}
 
-	// Expected failure: NewExecutorWithRefactor does not exist yet
 	exec := NewExecutorWithRefactor(cfg, &buf, NewRefactorDeps(
 		getDiffFn,
 		nil, // renderRefactorFn
@@ -201,7 +195,6 @@ func TestRunRefactorPhase_SkipsWhenBelowFileThreshold(t *testing.T) {
 	}
 }
 
-// Expected failure: RunRefactorPhase method does not exist on Executor yet
 func TestRunRefactorPhase_ExecutesRefactorAndRevalidates(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 0 // always run
@@ -231,7 +224,6 @@ func TestRunRefactorPhase_ExecutesRefactorAndRevalidates(t *testing.T) {
 		return "deadbeef", nil
 	}
 
-	// Expected failure: NewExecutorWithRefactor does not exist yet
 	exec := NewExecutorWithRefactor(cfg, &buf, NewRefactorDeps(
 		getDiffFn,
 		renderRefactorFn,
@@ -255,7 +247,6 @@ func TestRunRefactorPhase_ExecutesRefactorAndRevalidates(t *testing.T) {
 	}
 }
 
-// Expected failure: RunRefactorPhase method does not exist on Executor yet
 func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 0
@@ -296,7 +287,6 @@ func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
 		return "pre-refactor-sha", nil
 	}
 
-	// Expected failure: NewExecutorWithRefactor does not exist yet
 	exec := NewExecutorWithRefactor(cfg, &buf, NewRefactorDeps(
 		getDiffFn,
 		renderRefactorFn,
@@ -323,7 +313,6 @@ func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
 	}
 }
 
-// Expected failure: RunRefactorPhase method does not exist on Executor yet
 func TestRunRefactorPhase_RevertsOnBothValidationFailures(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 0
@@ -356,7 +345,6 @@ func TestRunRefactorPhase_RevertsOnBothValidationFailures(t *testing.T) {
 		return "pre-refactor-sha", nil
 	}
 
-	// Expected failure: NewExecutorWithRefactor does not exist yet
 	exec := NewExecutorWithRefactor(cfg, &buf, NewRefactorDeps(
 		getDiffFn,
 		renderRefactorFn,
@@ -380,7 +368,6 @@ func TestRunRefactorPhase_RevertsOnBothValidationFailures(t *testing.T) {
 
 // --- RunAcceptanceTestsWithRetry tests ---
 
-// Expected failure: RunAcceptanceTestsWithRetry method does not exist on Executor yet
 func TestRunAcceptanceTestsWithRetry_SucceedsOnFirstAttempt(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
@@ -398,7 +385,6 @@ func TestRunAcceptanceTestsWithRetry_SucceedsOnFirstAttempt(t *testing.T) {
 
 	bc := newTestBeadContextWithTier(provider.TierLow)
 
-	// Expected failure: RunAcceptanceTestsWithRetry does not exist on Executor yet
 	err := exec.RunAcceptanceTestsWithRetry(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("RunAcceptanceTestsWithRetry should return nil on first success, got: %v", err)
@@ -408,7 +394,6 @@ func TestRunAcceptanceTestsWithRetry_SucceedsOnFirstAttempt(t *testing.T) {
 	}
 }
 
-// Expected failure: RunAcceptanceTestsWithRetry method does not exist on Executor yet
 func TestRunAcceptanceTestsWithRetry_RetriesBeforeEscalating(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	cfg.Escalation.MaxRetriesPerModel = 2
@@ -434,7 +419,6 @@ func TestRunAcceptanceTestsWithRetry_RetriesBeforeEscalating(t *testing.T) {
 		bc.Tier = nextTier
 	}
 
-	// Expected failure: NewExecutorWithEscalation does not exist on Executor yet
 	exec := NewExecutorWithEscalation(cfg, &buf, renderFn, invokeFn, nil, escalateTierFn)
 
 	bc := newTestBeadContextWithTier(provider.TierLow)
@@ -455,7 +439,6 @@ func TestRunAcceptanceTestsWithRetry_RetriesBeforeEscalating(t *testing.T) {
 	}
 }
 
-// Expected failure: RunAcceptanceTestsWithRetry method does not exist on Executor yet
 func TestRunAcceptanceTestsWithRetry_FailsWhenAllTiersExhausted(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	cfg.Escalation.MaxRetriesPerModel = 0  // no retries, escalate immediately
@@ -473,7 +456,6 @@ func TestRunAcceptanceTestsWithRetry_FailsWhenAllTiersExhausted(t *testing.T) {
 		bc.Tier = nextTier
 	}
 
-	// Expected failure: NewExecutorWithEscalation does not exist on Executor yet
 	exec := NewExecutorWithEscalation(cfg, &buf, renderFn, invokeFn, nil, escalateTierFn)
 
 	bc := newTestBeadContextWithTier(provider.TierLow)
@@ -489,7 +471,6 @@ func TestRunAcceptanceTestsWithRetry_FailsWhenAllTiersExhausted(t *testing.T) {
 
 // --- VerifyTestsFailWithRetry tests ---
 
-// Expected failure: VerifyTestsFailWithRetry method does not exist on Executor yet
 func TestVerifyTestsFailWithRetry_ReturnsNilWhenTestsFail(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
@@ -502,14 +483,12 @@ func TestVerifyTestsFailWithRetry_ReturnsNilWhenTestsFail(t *testing.T) {
 
 	bc := newTestBeadContextWithTier(provider.TierMedium)
 
-	// Expected failure: VerifyTestsFailWithRetry does not exist on Executor yet
 	err := exec.VerifyTestsFailWithRetry(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("VerifyTestsFailWithRetry should return nil when tests fail as expected, got: %v", err)
 	}
 }
 
-// Expected failure: VerifyTestsFailWithRetry method does not exist on Executor yet
 func TestVerifyTestsFailWithRetry_RetriesWithAnalysisWhenTestsPass(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
@@ -539,7 +518,6 @@ func TestVerifyTestsFailWithRetry_RetriesWithAnalysisWhenTestsPass(t *testing.T)
 		return "Tests pass because existing code already satisfies criterion", nil
 	}
 
-	// Expected failure: NewExecutorWithAnalysis does not exist yet
 	exec := NewExecutorWithAnalysis(cfg, &buf, renderFn, invokeFn, validateFn, analyzeFn, nil)
 
 	bc := newTestBeadContextWithTier(provider.TierMedium)
@@ -556,7 +534,6 @@ func TestVerifyTestsFailWithRetry_RetriesWithAnalysisWhenTestsPass(t *testing.T)
 	}
 }
 
-// Expected failure: VerifyTestsFailWithRetry method does not exist on Executor yet
 func TestVerifyTestsFailWithRetry_ReturnsAlreadyDoneWhenRetryAlsoPass(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
@@ -582,7 +559,6 @@ func TestVerifyTestsFailWithRetry_ReturnsAlreadyDoneWhenRetryAlsoPass(t *testing
 		return "diff --git a/impl.go b/impl.go\n+code", nil
 	}
 
-	// Expected failure: NewExecutorWithAnalysis does not exist yet
 	exec := NewExecutorWithAnalysis(cfg, &buf, renderFn, invokeFn, validateFn, analyzeFn, getDiffFn)
 
 	bc := newTestBeadContextWithTier(provider.TierMedium)
@@ -591,13 +567,11 @@ func TestVerifyTestsFailWithRetry_ReturnsAlreadyDoneWhenRetryAlsoPass(t *testing
 	if err == nil {
 		t.Fatal("VerifyTestsFailWithRetry should return error when tests still pass after all retries")
 	}
-	// Expected failure: ErrATDDAlreadyDone sentinel does not exist in methodology package yet
 	if !IsATDDAlreadyDone(err) {
 		t.Errorf("error should be ATDD already done sentinel, got: %v", err)
 	}
 }
 
-// Expected failure: VerifyTestsFailWithRetry method does not exist on Executor yet
 func TestVerifyTestsFailWithRetry_TestOnlyDiffTriggersExtraRetry(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
@@ -634,7 +608,6 @@ func TestVerifyTestsFailWithRetry_TestOnlyDiffTriggersExtraRetry(t *testing.T) {
 		return "diff --git a/pkg/handler_test.go b/pkg/handler_test.go\n+test code", nil
 	}
 
-	// Expected failure: NewExecutorWithAnalysis does not exist yet
 	exec := NewExecutorWithAnalysis(cfg, &buf, renderFn, invokeFn, validateFn, analyzeFn, getDiffFn)
 
 	bc := newTestBeadContextWithTier(provider.TierMedium)
@@ -653,7 +626,6 @@ func TestVerifyTestsFailWithRetry_TestOnlyDiffTriggersExtraRetry(t *testing.T) {
 	}
 }
 
-// Expected failure: VerifyTestsFailWithRetry method does not exist on Executor yet
 func TestVerifyTestsFailWithRetry_SetsRetryContextOnPrompt(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
@@ -683,7 +655,6 @@ func TestVerifyTestsFailWithRetry_SetsRetryContextOnPrompt(t *testing.T) {
 		return "rewrite tests to check new behavior", nil
 	}
 
-	// Expected failure: NewExecutorWithAnalysis does not exist yet
 	exec := NewExecutorWithAnalysis(cfg, &buf, renderFn, invokeFn, validateFn, analyzeFn, nil)
 
 	bc := newTestBeadContextWithTier(provider.TierMedium)
