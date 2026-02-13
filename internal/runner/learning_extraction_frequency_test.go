@@ -276,7 +276,7 @@ func TestExtractSuccessLearning_AlwaysRunsOnFailure(t *testing.T) {
 	// not to extractLearning (which handles failure scenarios).
 }
 
-// TestBeadContext_TouchedPackages verifies that beadContext tracks touched packages.
+// TestBeadContext_TouchedPackages verifies that BeadContext tracks touched packages.
 func TestBeadContext_TouchedPackages(t *testing.T) {
 	bc := &runtypes.BeadContext{
 		TouchedPackages: []string{"internal/runner", "internal/config"},

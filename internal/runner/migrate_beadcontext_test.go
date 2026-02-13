@@ -13,8 +13,8 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-// setupMigratedRunner creates a Runner with minimal deps for testing the
-// beadContext → runtypes.BeadContext migration.
+// setupMigratedRunner creates a Runner with minimal deps for testing
+// runtypes.BeadContext integration.
 func setupMigratedRunner(t *testing.T) *Runner {
 	t.Helper()
 	return &Runner{
@@ -35,11 +35,8 @@ func setupMigratedRunner(t *testing.T) *Runner {
 }
 
 // TestSetupBeadContext_ReturnsRuntypesBeadContext verifies that setupBeadContext
-// returns *runtypes.BeadContext instead of the old *beadContext type.
-// After the migration, the return type must be *runtypes.BeadContext so that
-// sub-packages can accept and use it without importing the runner package.
-//
-// Expected failure: setupBeadContext currently returns *beadContext, not *runtypes.BeadContext.
+// returns *runtypes.BeadContext so that sub-packages can accept and use it
+// without importing the runner package.
 func TestSetupBeadContext_ReturnsRuntypesBeadContext(t *testing.T) {
 	r := setupMigratedRunner(t)
 	b := &bead.Bead{ID: "migrate-1", Title: "Migration test", Priority: 1}
@@ -50,8 +47,7 @@ func TestSetupBeadContext_ReturnsRuntypesBeadContext(t *testing.T) {
 	}
 	defer cancel()
 
-	// Check that the returned type is *runtypes.BeadContext, not *beadContext.
-	// Currently returns *beadContext; after migration returns *runtypes.BeadContext.
+	// Check that the returned type is *runtypes.BeadContext.
 	gotType := reflect.TypeOf(bc)
 	wantType := reflect.TypeOf((*runtypes.BeadContext)(nil))
 	if gotType != wantType {
@@ -59,13 +55,9 @@ func TestSetupBeadContext_ReturnsRuntypesBeadContext(t *testing.T) {
 	}
 }
 
-// TestSetupBeadContext_ExportedFieldAccess verifies that after migration,
-// the value returned by setupBeadContext has exported fields (Bead, Model,
-// Tier, Result, etc.) that can be accessed by sub-packages.
-//
-// Expected failure: setupBeadContext returns *beadContext which has unexported
-// fields (bead, model, tier); after migration it returns *runtypes.BeadContext
-// with exported fields (Bead, Model, Tier).
+// TestSetupBeadContext_ExportedFieldAccess verifies that the value returned
+// by setupBeadContext has exported fields (Bead, Model, Tier, Result, etc.)
+// that can be accessed by sub-packages.
 func TestSetupBeadContext_ExportedFieldAccess(t *testing.T) {
 	r := setupMigratedRunner(t)
 	b := &bead.Bead{ID: "field-test", Title: "Field access test", Priority: 1}
@@ -77,7 +69,7 @@ func TestSetupBeadContext_ExportedFieldAccess(t *testing.T) {
 	defer cancel()
 
 	// Use reflection to check that all expected exported fields exist on the
-	// returned value. Currently *beadContext has unexported fields only.
+	// returned value.
 	val := reflect.ValueOf(bc).Elem()
 	typ := val.Type()
 
@@ -101,13 +93,9 @@ func TestSetupBeadContext_ExportedFieldAccess(t *testing.T) {
 	}
 }
 
-// TestSetupBeadContext_PopulatesExportedFields verifies that after migration,
-// setupBeadContext populates the exported fields of *runtypes.BeadContext
-// with the correct values from config and input parameters.
-//
-// Expected failure: setupBeadContext returns *beadContext; accessing exported
-// fields (Bead, MaxRetries, etc.) via reflection returns zero values because
-// those fields don't exist on *beadContext — only unexported equivalents do.
+// TestSetupBeadContext_PopulatesExportedFields verifies that setupBeadContext
+// populates the exported fields of *runtypes.BeadContext with the correct
+// values from config and input parameters.
 func TestSetupBeadContext_PopulatesExportedFields(t *testing.T) {
 	r := setupMigratedRunner(t)
 	b := &bead.Bead{ID: "populate-test", Title: "Populate test", Priority: 1}
@@ -121,8 +109,7 @@ func TestSetupBeadContext_PopulatesExportedFields(t *testing.T) {
 
 	val := reflect.ValueOf(bc).Elem()
 
-	// Check Bead field via reflection (exported on runtypes.BeadContext,
-	// unexported as "bead" on the current beadContext)
+	// Check Bead field via reflection
 	beadField := val.FieldByName("Bead")
 	if !beadField.IsValid() {
 		t.Fatal("exported field 'Bead' not found — migration not yet complete")
@@ -136,7 +123,7 @@ func TestSetupBeadContext_PopulatesExportedFields(t *testing.T) {
 		}
 	}
 
-	// Check MaxRetries (exported on runtypes.BeadContext, unexported as "maxRetries" on beadContext)
+	// Check MaxRetries
 	maxRetriesField := val.FieldByName("MaxRetries")
 	if !maxRetriesField.IsValid() {
 		t.Fatal("exported field 'MaxRetries' not found — migration not yet complete")
@@ -179,15 +166,10 @@ func TestSetupBeadContext_PopulatesExportedFields(t *testing.T) {
 	}
 }
 
-// TestBeadContextType_IsDeleted verifies that the old beadContext struct type
-// no longer exists in the runner package after migration. All code should use
-// runtypes.BeadContext instead.
-//
-// Expected failure: beadContext type currently exists in process.go:27-52.
+// TestBeadContextType_IsDeleted verifies that setupBeadContext returns
+// *runtypes.BeadContext (not a package-local type).
 func TestBeadContextType_IsDeleted(t *testing.T) {
-	// After migration, creating a beadContext literal should be impossible
-	// because the type is deleted. We verify this indirectly: setupBeadContext
-	// must return *runtypes.BeadContext (not *beadContext).
+	// Verify setupBeadContext returns *runtypes.BeadContext.
 	r := setupMigratedRunner(t)
 	b := &bead.Bead{ID: "delete-check", Title: "Delete check", Priority: 1}
 
@@ -197,11 +179,10 @@ func TestBeadContextType_IsDeleted(t *testing.T) {
 	}
 	defer cancel()
 
-	// The type name should be "BeadContext" (from runtypes package),
-	// not "beadContext" (unexported, from runner package).
+	// The type name should be "BeadContext" (from runtypes package).
 	typeName := reflect.TypeOf(bc).Elem().Name()
 	if typeName != "BeadContext" {
-		t.Errorf("returned type name = %q, want %q (beadContext should be deleted)", typeName, "BeadContext")
+		t.Errorf("returned type name = %q, want %q", typeName, "BeadContext")
 	}
 
 	// The package path should be the runtypes package
@@ -212,12 +193,7 @@ func TestBeadContextType_IsDeleted(t *testing.T) {
 }
 
 // TestEscalateTier_MutatesExportedFields verifies that escalateTier correctly
-// mutates the exported Tier, RetriesThisModel, Model, and Result fields on
-// the bead context after the migration to runtypes.BeadContext.
-//
-// Expected failure: escalateTier currently reads/writes unexported fields
-// (tier, retriesThisModel, model, result) on *beadContext; after migration
-// it will use exported fields (Tier, RetriesThisModel, Model, Result) on
+// mutates the Tier, RetriesThisModel, Model, and Result fields on
 // *runtypes.BeadContext.
 func TestEscalateTier_MutatesExportedFields(t *testing.T) {
 	r := setupMigratedRunner(t)
@@ -264,9 +240,6 @@ func TestEscalateTier_MutatesExportedFields(t *testing.T) {
 // TestProcessBead_ReturnsCorrectResult verifies that the full processBead
 // flow works with runtypes.BeadContext internally, propagating all fields
 // correctly through the exported struct to the returned IterationResult.
-//
-// Expected failure: processBead internally uses *beadContext; after migration
-// it uses *runtypes.BeadContext and setupBeadContext returns the new type.
 func TestProcessBead_ReturnsCorrectResult(t *testing.T) {
 	r := setupMigratedRunner(t)
 	b := &bead.Bead{ID: "process-test", Title: "Process test", Priority: 1}
@@ -297,10 +270,7 @@ func TestProcessBead_ReturnsCorrectResult(t *testing.T) {
 }
 
 // TestExtractLearning_ReadsExportedBeadField verifies that learning extraction
-// functions read the Bead field through its exported name after migration.
-//
-// Expected failure: extractSyntheticLearning reads bc.Bead (unexported);
-// after migration it reads bc.Bead (exported from runtypes.BeadContext).
+// functions read the Bead field from *runtypes.BeadContext.
 func TestExtractLearning_ReadsExportedBeadField(t *testing.T) {
 	tempDir := t.TempDir()
 	lf, err := learnings.NewFile(tempDir)
@@ -351,10 +321,7 @@ func TestExtractLearning_ReadsExportedBeadField(t *testing.T) {
 }
 
 // TestHandleStallTimeout_ReadsExportedRetryFields verifies that handleStallTimeout
-// reads and mutates retry counters through exported field names after migration.
-//
-// Expected failure: handleStallTimeout reads bc.RetriesThisModel (unexported);
-// after migration it reads bc.RetriesThisModel (exported from runtypes.BeadContext).
+// reads and mutates retry counters on *runtypes.BeadContext.
 func TestHandleStallTimeout_ReadsExportedRetryFields(t *testing.T) {
 	r := &Runner{
 		cfg: &config.Config{
@@ -406,10 +373,7 @@ func TestHandleStallTimeout_ReadsExportedRetryFields(t *testing.T) {
 }
 
 // TestShouldRunRefactor_ReadsTierFromExportedField verifies that shouldRunRefactor
-// reads the Tier field from the exported field on *runtypes.BeadContext.
-//
-// Expected failure: shouldRunRefactor reads bc.Tier (unexported); after migration
-// it reads bc.Tier (exported from runtypes.BeadContext).
+// reads the Tier field from *runtypes.BeadContext.
 func TestShouldRunRefactor_ReadsTierFromExportedField(t *testing.T) {
 	r2 := setupMigratedRunner(t)
 	b := &bead.Bead{ID: "refactor-test", Title: "Refactor test", Priority: 2}
@@ -450,12 +414,7 @@ func TestShouldRunRefactor_ReadsTierFromExportedField(t *testing.T) {
 }
 
 // TestBuildPromptForBead_SetsExportedPromptFields verifies that
-// buildPromptForBead sets PromptCtx and BuildPrompt through exported field
-// names after the migration.
-//
-// Expected failure: buildPromptForBead sets bc.PromptCtx and bc.BuildPrompt
-// (unexported); after migration it sets bc.PromptCtx and bc.BuildPrompt
-// (exported from runtypes.BeadContext).
+// buildPromptForBead sets PromptCtx and BuildPrompt on *runtypes.BeadContext.
 func TestBuildPromptForBead_SetsExportedPromptFields(t *testing.T) {
 	r := setupMigratedRunner(t)
 	b := &bead.Bead{ID: "prompt-test", Title: "Prompt test", Priority: 1}

@@ -143,12 +143,8 @@ func TestScopeCheckNotDuplicatedInProcessBead(t *testing.T) {
 }
 
 // TestSetupBeadContextAcceptsScopeEstimate verifies that setupBeadContext
-// accepts a scopeEstimate parameter and stores it in the beadContext so
+// accepts a scopeEstimate parameter and stores it in the BeadContext so
 // buildPromptForBead can access it.
-//
-// Expected failure: The current setupBeadContext signature at process.go:53
-// does not accept a scopeEstimate parameter. The fix will add this parameter
-// and store it in the returned beadContext.
 func TestSetupBeadContextAcceptsScopeEstimate(t *testing.T) {
 	cfg := baseScopeGateConfig()
 
@@ -196,11 +192,9 @@ func TestSetupBeadContextAcceptsScopeEstimate(t *testing.T) {
 		t.Fatalf("setupBeadContext error: %v", err)
 	}
 
-	// ACCEPTANCE CRITERION: The scopeEstimate should be stored in beadContext
-	// The current implementation doesn't store scopeEstimate, so bc.ScopeEstimate
-	// will be nil. The fix will store it in beadContext.scopeEstimate.
+	// ACCEPTANCE CRITERION: The scopeEstimate should be stored in BeadContext
 	if bc.ScopeEstimate != estimate {
-		t.Errorf("expected beadContext.scopeEstimate to be %v, got %v", estimate, bc.ScopeEstimate)
+		t.Errorf("expected BeadContext.ScopeEstimate to be %v, got %v", estimate, bc.ScopeEstimate)
 	}
 }
 
@@ -280,7 +274,7 @@ func TestBuildPromptForBeadSkipsScopeCheckWhenEstimateCached(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create a beadContext with cached scopeEstimate
+	// Create a BeadContext with cached ScopeEstimate
 	bc := &runtypes.BeadContext{
 		Bead:          testBead,
 		Parent:        nil,

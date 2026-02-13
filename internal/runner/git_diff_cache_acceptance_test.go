@@ -16,10 +16,10 @@ import (
 )
 
 // TestAcceptance_GitDiffCachedInBeadContext verifies that getDiff() caches
-// its result in beadContext and reuses the cached value on subsequent calls
+// its result in BeadContext and reuses the cached value on subsequent calls
 // within the same iteration, avoiding redundant git operations.
 func TestAcceptance_GitDiffCachedInBeadContext(t *testing.T) {
-	// Expected failure: beadContext.cachedDiff field does not exist yet
+	// Expected failure: BeadContext.CachedDiff field does not exist yet
 	// Expected failure: getDiffCached() method does not exist on Runner
 
 	var gitDiffCallCount int
@@ -32,7 +32,7 @@ func TestAcceptance_GitDiffCachedInBeadContext(t *testing.T) {
 		},
 	}
 
-	// Create a beadContext with startCommit set
+	// Create a BeadContext with StartCommit set
 	bc := &runtypes.BeadContext{
 		Bead: &bead.Bead{
 			ID:       "test-1",
@@ -54,7 +54,7 @@ func TestAcceptance_GitDiffCachedInBeadContext(t *testing.T) {
 		t.Errorf("First getDiffCached: expected 1 git call, got %d", gitDiffCallCount)
 	}
 
-	// Second call to getDiffCached with same beadContext - should use cache
+	// Second call to getDiffCached with same BeadContext - should use cache
 	diff2, err := r.getDiffCached(bc)
 	if err != nil {
 		t.Fatalf("Second getDiffCached failed: %v", err)
@@ -83,7 +83,7 @@ func TestAcceptance_GitDiffCachedInBeadContext(t *testing.T) {
 // diff is cleared when processing a new bead, ensuring stale diff data
 // from a previous bead is not reused.
 func TestAcceptance_GitDiffCacheClearedBetweenBeads(t *testing.T) {
-	// Expected failure: beadContext.cachedDiff field does not exist yet
+	// Expected failure: BeadContext.CachedDiff field does not exist yet
 	// Expected failure: getDiffCached() method does not exist on Runner
 
 	var gitDiffCallCount int
@@ -159,7 +159,7 @@ func TestAcceptance_GitDiffCacheClearedBetweenBeads(t *testing.T) {
 }
 
 // TestAcceptance_MultipleDiffCallsUseCachedVersion verifies that when
-// getDiffCached is called multiple times within the same beadContext,
+// getDiffCached is called multiple times within the same BeadContext,
 // the underlying git diff is only executed once.
 func TestAcceptance_MultipleDiffCallsUseCachedVersion(t *testing.T) {
 	// Expected failure: getDiffCached method does not exist
@@ -430,11 +430,11 @@ func TestAcceptance_GetDiffCachedHandlesEmptyDiff(t *testing.T) {
 }
 
 // TestAcceptance_ProcessBeadClearsCacheBetweenIterations verifies that
-// setupBeadContext creates a fresh beadContext with no cached diff,
+// setupBeadContext creates a fresh BeadContext with no cached diff,
 // preventing cache pollution across different work items in a run loop.
 func TestAcceptance_ProcessBeadClearsCacheBetweenIterations(t *testing.T) {
-	// Expected failure: setupBeadContext() doesn't initialize cachedDiff field to empty/nil
-	// Expected failure: beadContext struct lacks cachedDiff field
+	// Expected failure: setupBeadContext() doesn't initialize CachedDiff field to empty/nil
+	// Expected failure: BeadContext struct lacks CachedDiff field
 
 	var gitDiffCallCount int
 	currentDiff := "initial diff"

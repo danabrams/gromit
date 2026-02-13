@@ -91,10 +91,10 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 	defer cancel()
 
 	if bc.Bead != b {
-		t.Error("beadContext.bead should reference the input bead")
+		t.Error("BeadContext.Bead should reference the input bead")
 	}
 	if bc.Result == nil {
-		t.Fatal("beadContext.result should not be nil")
+		t.Fatal("BeadContext.Result should not be nil")
 	}
 	if bc.Result.BeadID != "test-1" {
 		t.Errorf("expected BeadID 'test-1', got %q", bc.Result.BeadID)

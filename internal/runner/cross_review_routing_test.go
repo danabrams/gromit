@@ -13,25 +13,25 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-// TestBeadContextHasBuildProviderField verifies that beadContext has a
-// buildProvider string field that tracks which provider performed the build.
+// TestBeadContextHasBuildProviderField verifies that BeadContext has a
+// BuildProvider string field that tracks which provider performed the build.
 func TestBeadContextHasBuildProviderField(t *testing.T) {
 	bc := &runtypes.BeadContext{
 		BuildProvider: "claude",
 	}
 
 	if bc.BuildProvider != "claude" {
-		t.Errorf("beadContext.buildProvider = %q, want %q", bc.BuildProvider, "claude")
+		t.Errorf("BeadContext.BuildProvider = %q, want %q", bc.BuildProvider, "claude")
 	}
 
 	bc.BuildProvider = "openai"
 	if bc.BuildProvider != "openai" {
-		t.Errorf("beadContext.buildProvider = %q after reassignment, want %q", bc.BuildProvider, "openai")
+		t.Errorf("BeadContext.BuildProvider = %q after reassignment, want %q", bc.BuildProvider, "openai")
 	}
 }
 
 // TestExecuteClaudeInvocationSetsBuildProvider verifies that after
-// executeClaudeInvocation completes, beadContext.buildProvider is set
+// executeClaudeInvocation completes, BeadContext.BuildProvider is set
 // to the name of the provider that performed the build.
 func TestExecuteClaudeInvocationSetsBuildProvider(t *testing.T) {
 	claudeProv := &mockProviderWithRouterTracking{

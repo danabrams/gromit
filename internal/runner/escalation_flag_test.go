@@ -132,7 +132,7 @@ func TestScopeCheckEscalation_SetsEscalatedFlag(t *testing.T) {
 	}
 }
 
-// setupAcceptanceEscalation creates a Runner and beadContext configured for
+// setupAcceptanceEscalation creates a Runner and BeadContext configured for
 // acceptance test escalation tests. The mock Claude fails the first 2 calls
 // (haiku attempts) and succeeds on the 3rd (sonnet).
 func setupAcceptanceEscalation(t *testing.T) (*Runner, *runtypes.BeadContext) {

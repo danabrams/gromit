@@ -9,8 +9,8 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 )
 
-// TestBeadContext_AllFieldsExported verifies that BeadContext has all 22 exported
-// fields promoted from the unexported beadContext in runner/process.go.
+// TestBeadContext_AllFieldsExported verifies that BeadContext has all expected
+// exported fields for use by runner sub-packages.
 func TestBeadContext_AllFieldsExported(t *testing.T) {
 	scopeEst := &prompt.ScopeEstimate{}
 	parentCtx := context.Background()

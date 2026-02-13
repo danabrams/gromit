@@ -9,7 +9,7 @@ import (
 )
 
 // BeadContext holds the shared state for processing a single bead.
-// Promoted from the unexported beadContext in runner/process.go.
+// Used by the runner facade and will be shared with sub-packages during extraction.
 type BeadContext struct {
 	Bead          *bead.Bead
 	Parent        *bead.Bead
