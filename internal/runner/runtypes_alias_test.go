@@ -13,9 +13,6 @@ import (
 // for runtypes.IterationResult, ensuring backward compatibility. Callers that reference
 // runner.IterationResult should transparently get runtypes.IterationResult.
 func TestIterationResult_AliasesRuntypes(t *testing.T) {
-	// Expected failure: runner.IterationResult is currently defined in runner.go,
-	// not as a type alias for runtypes.IterationResult
-
 	// Create via runtypes, use as runner type — only works if they're the same type
 	rtResult := runtypes.IterationResult{
 		BeadID:    "alias-test",
@@ -43,9 +40,6 @@ func TestIterationResult_AliasesRuntypes(t *testing.T) {
 // TestSubTask_AliasesRuntypes verifies that runner.SubTask is a type alias
 // for runtypes.SubTask, ensuring backward compatibility.
 func TestSubTask_AliasesRuntypes(t *testing.T) {
-	// Expected failure: runner.SubTask is currently defined in runner.go,
-	// not as a type alias for runtypes.SubTask
-
 	rtTask := runtypes.SubTask{
 		Title:              "Alias compat task",
 		Description:        "Verify backward compat",

@@ -12,8 +12,6 @@ import (
 // TestBeadContext_AllFieldsExported verifies that BeadContext has all 22 exported
 // fields promoted from the unexported beadContext in runner/process.go.
 func TestBeadContext_AllFieldsExported(t *testing.T) {
-	// Expected failure: runtypes package does not exist yet; BeadContext type is not defined
-
 	scopeEst := &prompt.ScopeEstimate{}
 	parentCtx := context.Background()
 	deadline := time.Now().Add(30 * time.Minute)
@@ -106,8 +104,6 @@ func TestBeadContext_AllFieldsExported(t *testing.T) {
 // TestIterationResult_InRuntypes verifies that IterationResult is defined in runtypes
 // with all expected fields matching the original runner.IterationResult.
 func TestIterationResult_InRuntypes(t *testing.T) {
-	// Expected failure: runtypes package does not exist yet; IterationResult type is not defined here
-
 	result := IterationResult{
 		BeadID:                "bead-42",
 		BeadTitle:             "Add feature X",
@@ -167,8 +163,6 @@ func TestIterationResult_InRuntypes(t *testing.T) {
 
 // TestSubTask_InRuntypes verifies that SubTask is defined in runtypes with JSON tags.
 func TestSubTask_InRuntypes(t *testing.T) {
-	// Expected failure: runtypes package does not exist yet; SubTask type is not defined here
-
 	dependsOn := 1
 	task := SubTask{
 		Title:              "Create helper function",
@@ -222,8 +216,6 @@ func TestSubTask_NormalizeNilFields(t *testing.T) {
 // TestCallbackFunctionTypes verifies that the callback function types are defined
 // and can be used with the correct signatures.
 func TestCallbackFunctionTypes(t *testing.T) {
-	// Expected failure: runtypes package does not exist yet; GitDiffFn, CmdRunnerFn, AutoFixFn types are not defined
-
 	t.Run("GitDiffFn signature", func(t *testing.T) {
 		// GitDiffFn takes a commit string and returns (diff string, error)
 		var fn GitDiffFn = func(startCommit string) (string, error) {
