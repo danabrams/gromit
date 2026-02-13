@@ -26,6 +26,7 @@ import (
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/validation"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tmux"
 	"github.com/danabrams/gromit/internal/usagelimit"
@@ -55,6 +56,7 @@ type Runner struct {
 	router             *provider.Router
 	invoker            *execution.Invoker
 	escalationHandler  *escalation.Handler
+	validationRunner   *validation.Runner
 	analyzer           FailureAnalyzer
 	renderer           PromptRenderer
 	logger             IterationLogger
@@ -88,6 +90,43 @@ func (a *routerAdapter) Select(phase, tier string) (execution.Provider, string) 
 func (a *routerAdapter) MarkUnavailable(name string) {
 	a.r.MarkUnavailable(name)
 }
+
+// successLearningRouterAdapter wraps *provider.Router to satisfy escalation.SuccessLearningRouter.
+type successLearningRouterAdapter struct {
+	r *provider.Router
+}
+
+func (a *successLearningRouterAdapter) Select(phase, tier string) (escalation.SuccessLearningProvider, string) {
+	p, model := a.r.Select(phase, tier)
+	if p == nil {
+		return nil, ""
+	}
+	return &successLearningProviderAdapter{p: p}, model
+}
+
+// successLearningProviderAdapter wraps provider.Provider to satisfy escalation.SuccessLearningProvider.
+type successLearningProviderAdapter struct {
+	p provider.Provider
+}
+
+func (a *successLearningProviderAdapter) Run(ctx context.Context, prompt string, tier string) (escalation.SuccessLearningResult, error) {
+	result, err := a.p.Run(ctx, prompt, tier)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, nil
+	}
+	return &successLearningResultAdapter{r: result}, nil
+}
+
+// successLearningResultAdapter wraps *provider.Result to satisfy escalation.SuccessLearningResult.
+type successLearningResultAdapter struct {
+	r *provider.Result
+}
+
+func (a *successLearningResultAdapter) IsSuccess() bool   { return a.r.Success }
+func (a *successLearningResultAdapter) GetOutput() string { return a.r.Output }
 
 // NewRunner creates a new runner
 func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
@@ -301,6 +340,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		cmdRunnerFn: defaultCmdRunner,
 	}
 	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log)
+	r.validationRunner = validation.NewRunner(cfg, defaultCmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	return r, nil
 }
 
@@ -935,6 +975,40 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 			Result:     claudeResult,
 			StallFired: false,
 		}, nil
+	}
+}
+
+// makeValidationExecuteFn creates a validation.ExecuteFn callback that wraps
+// the escalation handler's ExecuteWithRetry for Claude-based validation fix attempts.
+func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
+	return func(ctx context.Context, bc *runtypes.BeadContext) bool {
+		// Render a build prompt for the validation fix
+		bc.PromptCtx.IsRetry = true
+		bc.PromptCtx.PrevFailure = bc.Result.Output
+		bc.PromptCtx.FailureContext = "Validation (tests/lint) failed after your build succeeded. Fix the validation errors."
+
+		var renderErr error
+		bc.BuildPrompt, renderErr = r.renderer.RenderBuild(bc.PromptCtx)
+		if renderErr != nil {
+			r.log("Warning: rendering validation fix prompt: %v", renderErr)
+			return false
+		}
+
+		// Save retry state and enforce single attempt
+		savedMaxRetries := bc.MaxRetries
+		savedRetriesThisModel := bc.RetriesThisModel
+		savedTotalRetries := bc.TotalRetriesThisBead
+		bc.MaxRetries = 0
+		bc.RetriesThisModel = 0
+
+		success := r.escalationHandler.ExecuteWithRetry(ctx, bc, r.makeInvokeFn())
+
+		// Restore retry state
+		bc.MaxRetries = savedMaxRetries
+		bc.RetriesThisModel = savedRetriesThisModel
+		bc.TotalRetriesThisBead = savedTotalRetries
+
+		return success
 	}
 }
 
