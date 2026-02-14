@@ -343,3 +343,103 @@ func TestRenderReviewAcceptanceTests_ReturnTypeIsString(t *testing.T) {
 	var _ string = result
 	var _ error = err
 }
+
+// TestRenderReviewAcceptanceTests_OutputContainsVerdictFormat verifies that
+// the rendered output includes the verdict format per spec.
+func TestRenderReviewAcceptanceTests_OutputContainsVerdictFormat(t *testing.T) {
+	// Expected failure: RenderReviewAcceptanceTests method does not exist yet
+	// Expected failure: ReviewAcceptanceTestsContext type does not exist yet
+
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	specsDir := filepath.Join(tmpDir, "specs")
+	claudeMDPath := filepath.Join(tmpDir, "CLAUDE.md")
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+
+	os.MkdirAll(templatesDir, 0755)
+	os.MkdirAll(specsDir, 0755)
+	os.MkdirAll(gromitDir, 0755)
+
+	// Use a realistic template that matches the spec
+	templateContent := `# Acceptance Test Review
+
+You are reviewing acceptance tests written for an ATDD workflow.
+
+## Bead
+
+**Title:** {{.BeadTitle}}
+
+**Description:** {{.BeadDescription}}
+
+## Acceptance Criteria
+
+{{.AcceptanceCriteria}}
+
+## Tests Written (git diff)
+
+` + "```diff" + `
+{{.TestDiff}}
+` + "```" + `
+
+## Review Criteria
+
+For each test, evaluate:
+
+1. Does it assert on behavior that requires implementation changes to pass?
+2. Does it reference functions, methods, types, or constants that do not currently exist?
+3. Would it pass against the current codebase without any changes?
+
+A test that would pass against the current codebase is testing existing behavior, not new behavior. It must be rewritten.
+
+## Output
+
+Respond with exactly one of:
+- **VERDICT: PASS** — if all tests require new behavior
+- **VERDICT: FAIL** — followed by a description of which tests are weak and what they should test instead
+`
+
+	templatePath := filepath.Join(templatesDir, "PROMPT_review_acceptance_tests.md")
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	r := &Renderer{
+		templatesDir: templatesDir,
+		specsDir:     specsDir,
+		claudeMDPath: claudeMDPath,
+		gromitDir:    gromitDir,
+	}
+
+	ctx := &ReviewAcceptanceTestsContext{
+		BeadTitle:          "Add authentication",
+		BeadDescription:    "Implement login and logout functionality",
+		AcceptanceCriteria: "Users can log in with username and password",
+		TestDiff:           "diff --git a/auth_test.go b/auth_test.go\n+func TestLogin",
+	}
+
+	result, err := r.RenderReviewAcceptanceTests(ctx)
+	if err != nil {
+		t.Fatalf("RenderReviewAcceptanceTests failed: %v", err)
+	}
+
+	// Verify the output contains the verdict format strings
+	if !strings.Contains(result, "VERDICT: PASS") {
+		t.Error("rendered output does not contain 'VERDICT: PASS'")
+	}
+	if !strings.Contains(result, "VERDICT: FAIL") {
+		t.Error("rendered output does not contain 'VERDICT: FAIL'")
+	}
+
+	// Verify instructions are present
+	if !strings.Contains(result, "Respond with exactly one of:") {
+		t.Error("rendered output does not contain verdict instructions")
+	}
+
+	// Verify review criteria are present
+	if !strings.Contains(result, "Review Criteria") {
+		t.Error("rendered output does not contain Review Criteria section")
+	}
+	if !strings.Contains(result, "Does it assert on behavior that requires implementation changes to pass?") {
+		t.Error("rendered output does not contain first review criterion")
+	}
+}
