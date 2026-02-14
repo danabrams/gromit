@@ -184,11 +184,7 @@ func (f *File) GetFilteredHashes() map[string]bool {
 	if f == nil {
 		return nil
 	}
-	result := make(map[string]bool, len(f.state.FilteredLearningHashes))
-	for _, hash := range f.state.FilteredLearningHashes {
-		result[hash] = true
-	}
-	return result
+	return sliceToSet(f.state.FilteredLearningHashes)
 }
 
 // AddFilteredHashes merges new hashes with existing ones, deduplicating
@@ -196,18 +192,7 @@ func (f *File) AddFilteredHashes(hashes []string) {
 	if f == nil {
 		return
 	}
-	// Create a set of existing hashes for O(1) lookups
-	existing := make(map[string]bool, len(f.state.FilteredLearningHashes))
-	for _, hash := range f.state.FilteredLearningHashes {
-		existing[hash] = true
-	}
-	// Add new hashes that don't already exist
-	for _, hash := range hashes {
-		if !existing[hash] {
-			f.state.FilteredLearningHashes = append(f.state.FilteredLearningHashes, hash)
-			existing[hash] = true
-		}
-	}
+	f.state.FilteredLearningHashes = mergeHashes(f.state.FilteredLearningHashes, hashes)
 }
 
 // GetArchivedHashes returns a map of archived learning hashes for O(1) lookups
@@ -215,11 +200,7 @@ func (f *File) GetArchivedHashes() map[string]bool {
 	if f == nil {
 		return nil
 	}
-	result := make(map[string]bool, len(f.state.ArchivedLearningHashes))
-	for _, hash := range f.state.ArchivedLearningHashes {
-		result[hash] = true
-	}
-	return result
+	return sliceToSet(f.state.ArchivedLearningHashes)
 }
 
 // AddArchivedHashes merges new hashes with existing ones, deduplicating
@@ -227,18 +208,30 @@ func (f *File) AddArchivedHashes(hashes []string) {
 	if f == nil {
 		return
 	}
-	// Create a set of existing hashes for O(1) lookups
-	existing := make(map[string]bool, len(f.state.ArchivedLearningHashes))
-	for _, hash := range f.state.ArchivedLearningHashes {
-		existing[hash] = true
+	f.state.ArchivedLearningHashes = mergeHashes(f.state.ArchivedLearningHashes, hashes)
+}
+
+// sliceToSet converts a string slice to a set (map[string]bool) for O(1) lookups
+func sliceToSet(slice []string) map[string]bool {
+	result := make(map[string]bool, len(slice))
+	for _, item := range slice {
+		result[item] = true
 	}
+	return result
+}
+
+// mergeHashes merges new hashes with existing ones, deduplicating
+func mergeHashes(existing, new []string) []string {
+	// Create a set of existing hashes for O(1) lookups
+	seen := sliceToSet(existing)
 	// Add new hashes that don't already exist
-	for _, hash := range hashes {
-		if !existing[hash] {
-			f.state.ArchivedLearningHashes = append(f.state.ArchivedLearningHashes, hash)
-			existing[hash] = true
+	for _, hash := range new {
+		if !seen[hash] {
+			existing = append(existing, hash)
+			seen[hash] = true
 		}
 	}
+	return existing
 }
 
 // ReconcileFilteredHashes filters FilteredLearningHashes in-place, keeping only hashes present in currentHashes.
