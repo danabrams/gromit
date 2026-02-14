@@ -61,7 +61,6 @@ func CodexPatterns() Patterns {
 			"usage limit",
 			"rate limit",
 			"quota",
-			"exceeded",
 		},
 	}
 }

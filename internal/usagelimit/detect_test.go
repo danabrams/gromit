@@ -458,8 +458,8 @@ func TestClaudePatterns(t *testing.T) {
 		t.Fatal("ClaudePatterns() returned nil Keywords")
 	}
 
-	// Verify known Claude-specific patterns are present
-	expectedKeywords := []string{"usage limit", "rate limit", "quota", "exceeded", "capacity", "overloaded", "too many requests", "429"}
+	// Verify known Claude-specific patterns are present (narrowed to prevent false positives)
+	expectedKeywords := []string{"usage limit", "rate limit", "quota", "too many requests", "429"}
 	for _, expected := range expectedKeywords {
 		found := false
 		for _, keyword := range patterns.Keywords {
@@ -485,8 +485,8 @@ func TestCodexPatterns(t *testing.T) {
 		t.Fatal("CodexPatterns() returned nil Keywords")
 	}
 
-	// Verify common limit patterns are present
-	expectedKeywords := []string{"usage limit", "rate limit", "quota", "exceeded"}
+	// Verify common limit patterns are present (narrowed to prevent false positives)
+	expectedKeywords := []string{"usage limit", "rate limit", "quota"}
 	for _, expected := range expectedKeywords {
 		found := false
 		for _, keyword := range patterns.Keywords {
@@ -766,6 +766,36 @@ func TestClaudePatterns_NoFalsePositiveKeywords(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("ClaudePatterns() missing required specific keyword: %q", required)
+		}
+	}
+}
+
+func TestCodexPatterns_NoFalsePositiveKeywords(t *testing.T) {
+	// Verify that overly broad keywords that cause false positives are not in CodexPatterns
+	patterns := CodexPatterns()
+
+	// "exceeded" should NOT be present as it matches legitimate errors
+	forbiddenKeywords := []string{"exceeded"}
+	for _, forbidden := range forbiddenKeywords {
+		for _, keyword := range patterns.Keywords {
+			if keyword == forbidden {
+				t.Errorf("CodexPatterns() contains broad keyword %q which causes false positives", forbidden)
+			}
+		}
+	}
+
+	// These keywords SHOULD be present as they are specific to usage limits
+	requiredKeywords := []string{"usage limit", "rate limit", "quota"}
+	for _, required := range requiredKeywords {
+		found := false
+		for _, keyword := range patterns.Keywords {
+			if keyword == required {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("CodexPatterns() missing required specific keyword: %q", required)
 		}
 	}
 }
