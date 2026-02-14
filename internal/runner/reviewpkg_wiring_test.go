@@ -14,8 +14,6 @@ import (
 // TestRunnerStructHasReviewerField uses AST parsing to verify that the Runner
 // struct definition in runner.go includes a field named "reviewer" of type
 // *reviewpkg.Reviewer.
-//
-// Expected failure: Runner struct in runner.go does not have a reviewer field yet.
 func TestRunnerStructHasReviewerField(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("runner.go"), nil, parser.ParseComments)
@@ -78,8 +76,6 @@ func TestRunnerStructHasReviewerField(t *testing.T) {
 // TestNewRunnerWithDepsWiresReviewer verifies that NewRunnerWithDeps creates
 // and assigns a reviewpkg.Reviewer to the Runner's reviewer field.
 // Uses AST to check that the constructor body contains reviewer assignment.
-//
-// Expected failure: NewRunnerWithDeps does not assign a reviewer field yet.
 func TestNewRunnerWithDepsWiresReviewer(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("runner.go"), nil, parser.ParseComments)
@@ -133,8 +129,6 @@ func TestNewRunnerWithDepsWiresReviewer(t *testing.T) {
 
 // TestNewRunnerWiresReviewer verifies that the production NewRunner constructor
 // also creates and assigns a reviewer field.
-//
-// Expected failure: NewRunner does not assign a reviewer field yet.
 func TestNewRunnerWiresReviewer(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("runner.go"), nil, parser.ParseComments)
@@ -189,8 +183,6 @@ func TestNewRunnerWiresReviewer(t *testing.T) {
 
 // TestRunnerGoLocalReviewMethodsRemoved verifies that the Runner's local review
 // methods have been removed from runner.go in favor of delegation to r.reviewer.
-//
-// Expected failure: runner.go still contains these methods.
 func TestRunnerGoLocalReviewMethodsRemoved(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("runner.go"), nil, parser.ParseComments)
@@ -223,8 +215,6 @@ func TestRunnerGoLocalReviewMethodsRemoved(t *testing.T) {
 
 // TestRunnerGoLocalReviewFunctionsRemoved verifies that package-level review
 // helper functions have been removed from runner.go (they live in reviewpkg now).
-//
-// Expected failure: runner.go still contains these functions.
 func TestRunnerGoLocalReviewFunctionsRemoved(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("runner.go"), nil, parser.ParseComments)
@@ -257,8 +247,6 @@ func TestRunnerGoLocalReviewFunctionsRemoved(t *testing.T) {
 
 // TestProcessGoLocalRunPostSuccessReviewRemoved verifies that the Runner's local
 // runPostSuccessReview method has been removed from process.go.
-//
-// Expected failure: process.go still contains func (r *Runner) runPostSuccessReview(...).
 func TestProcessGoLocalRunPostSuccessReviewRemoved(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("process.go"), nil, parser.ParseComments)
@@ -286,8 +274,6 @@ func TestProcessGoLocalRunPostSuccessReviewRemoved(t *testing.T) {
 // handleValidationResult calls r.reviewer.RunPostSuccess (delegated) rather
 // than r.runPostSuccessReview (local). handleValidationResult in process.go
 // is where the post-success review call originates.
-//
-// Expected failure: handleValidationResult currently calls r.runPostSuccessReview.
 func TestHandleValidationResultDelegatesToReviewerRunPostSuccess(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("process.go"), nil, parser.ParseComments)
@@ -350,8 +336,6 @@ func TestHandleValidationResultDelegatesToReviewerRunPostSuccess(t *testing.T) {
 
 // TestRunDelegatesToReviewerRunThorough verifies that the Run method calls
 // r.reviewer.RunThorough instead of r.runThoroughReview for thorough reviews.
-//
-// Expected failure: Run() calls r.runThoroughReview (local method in runner.go).
 func TestRunDelegatesToReviewerRunThorough(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("runner.go"), nil, parser.ParseComments)
@@ -423,9 +407,6 @@ func TestRunDelegatesToReviewerRunThorough(t *testing.T) {
 
 // TestProcessGoDoesNotCallLocalReviewMethods verifies that process.go does not
 // call any local review methods that should have been replaced by reviewer delegation.
-//
-// Expected failure: process.go calls r.runLightReview, r.applyReviewResult,
-// r.writeReviewLog, and selectReviewModel.
 func TestProcessGoDoesNotCallLocalReviewMethods(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("process.go"), nil, parser.ParseComments)
@@ -477,8 +458,6 @@ func TestProcessGoDoesNotCallLocalReviewMethods(t *testing.T) {
 
 // TestRunnerGoImportsReviewpkg verifies that runner.go imports the reviewpkg
 // package, which is required for the reviewer field type declaration.
-//
-// Expected failure: runner.go does not import reviewpkg yet.
 func TestRunnerGoImportsReviewpkg(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("runner.go"), nil, parser.ParseComments)
@@ -508,9 +487,6 @@ func TestRunnerGoImportsReviewpkg(t *testing.T) {
 // These tests called selectReviewModel, buildReviewBeadLabels, buildBacklogLabels,
 // r.applyReviewResult, r.runLightReview, and r.runThoroughReview — all of which
 // have moved to reviewpkg. Keeping them causes compilation failures.
-//
-// Expected failure: runner_test.go still contains test functions that reference
-// removed methods (selectReviewModel, buildReviewBeadLabels, etc.).
 func TestOldReviewTestFunctionsRemovedFromRunnerTest(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("runner_test.go"), nil, parser.ParseComments)
@@ -551,11 +527,7 @@ func TestOldReviewTestFunctionsRemovedFromRunnerTest(t *testing.T) {
 // TestOldSelectReviewTierTestFileRemovedOrUpdated verifies that
 // select_review_tier_test.go no longer calls the removed Runner method
 // r.selectReviewTier. The selectReviewTier method has moved to
-// reviewpkg.SelectReviewTier. The old test file either needs to be deleted
-// or updated to call the reviewpkg function instead.
-//
-// Expected failure: select_review_tier_test.go still calls r.selectReviewTier
-// which no longer exists on Runner.
+// reviewpkg.SelectReviewTier.
 func TestOldSelectReviewTierTestFileRemovedOrUpdated(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("select_review_tier_test.go"), nil, parser.ParseComments)

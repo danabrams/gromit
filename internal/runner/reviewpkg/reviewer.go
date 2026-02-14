@@ -364,21 +364,17 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 		return
 	}
 
-	// Build context
-	reviewCtx := &prompt.ThoroughReviewContext{
-		Diff:  diff,
-		Model: r.cfg.Review.Thorough.Model,
-	}
-	if r.renderer != nil {
-		reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
-		reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
-	}
-
-	// Render prompt
+	// Build context and render prompt
 	if r.renderer == nil {
 		r.log("Warning: renderer is nil, cannot render thorough review prompt")
 		return
 	}
+	reviewCtx := &prompt.ThoroughReviewContext{
+		Diff:  diff,
+		Model: r.cfg.Review.Thorough.Model,
+	}
+	reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
+	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
 	reviewPrompt, err := r.renderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
 		r.log("Warning: could not render thorough review prompt: %v", err)
