@@ -1371,8 +1371,8 @@ func TestRunWithMocks_PrecheckPassed(t *testing.T) {
 	if log.Outcome != "precheck_skipped" {
 		t.Errorf("expected Outcome 'precheck_skipped', got %q", log.Outcome)
 	}
-	if log.Model != "haiku" {
-		t.Errorf("expected Model 'haiku', got %q", log.Model)
+	if log.Model != "precheck" {
+		t.Errorf("expected Model 'precheck', got %q", log.Model)
 	}
 	if !log.Success {
 		t.Error("expected Success=true for precheck_skipped")
@@ -1384,21 +1384,218 @@ func TestRunWithMocks_PrecheckPassed(t *testing.T) {
 		t.Errorf("expected Iteration=1 (not incremented), got %d", log.Iteration)
 	}
 
-	// Verify console output mentions precheck
+	// Verify console output mentions precheck (with verification since it defaults to enabled)
 	output := buf.String()
-	if !strings.Contains(output, "Pre-check: acceptance criteria already met") {
-		t.Errorf("expected precheck message in output, got: %s", output)
+	if !strings.Contains(output, "Pre-check: acceptance criteria already met (verified)") {
+		t.Errorf("expected precheck verified message in output, got: %s", output)
 	}
 	if !strings.Contains(output, "auto-closing bead precheck-test") {
 		t.Errorf("expected auto-closing message in output, got: %s", output)
 	}
 
-	// Verify Claude.Run was called (for precheck) but StreamRun was NOT called (no build)
-	if len(mockClaude.RunCalls) != 1 {
-		t.Errorf("expected 1 Claude.Run call (precheck), got %d", len(mockClaude.RunCalls))
+	// Verify Claude.Run was called twice (precheck + verification) but StreamRun was NOT called (no build)
+	if len(mockClaude.RunCalls) != 2 {
+		t.Errorf("expected 2 Claude.Run calls (precheck + verification), got %d", len(mockClaude.RunCalls))
 	}
 	if len(mockClaude.StreamRunCalls) != 0 {
 		t.Errorf("expected 0 Claude.StreamRun calls (no build), got %d", len(mockClaude.StreamRunCalls))
+	}
+}
+
+func TestRunWithMocks_PrecheckVerificationRejects(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			if callCount > 1 {
+				return nil, nil
+			}
+			return &bead.Bead{
+				ID:              "verify-reject",
+				Title:           "Needs work",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature implemented"},
+			}, nil
+		},
+	}
+
+	runCallCount := 0
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			runCallCount++
+			if runCallCount == 1 {
+				return &claude.Result{Success: true, Output: "PRECHECK_PASSED"}, nil
+			}
+			return &claude.Result{Success: true, Output: "PRECHECK_NOT_MET"}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "Build complete"}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+	precheckEnabled := true
+	verifyEnabled := true
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{
+			Claude: config.ClaudeConfig{BeadTimeout: 60},
+			Precheck: config.PrecheckConfig{
+				Enabled:        &precheckEnabled,
+				Model:          "haiku",
+				TimeoutSeconds: 30,
+				Verification: config.PrecheckVerificationConfig{
+					Enabled:        &verifyEnabled,
+					TimeoutSeconds: 30,
+				},
+			},
+		},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Bead should be closed by the normal build (not by precheck)
+	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "verify-reject" {
+		t.Errorf("expected bead 'verify-reject' to be closed by build, got: %v", beads.ClosedIDs)
+	}
+
+	if len(mockClaude.StreamRunCalls) == 0 {
+		t.Error("expected StreamRun to be called for normal build after verification rejection")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "verification rejected") {
+		t.Errorf("expected verification rejection message in output, got: %s", output)
+	}
+}
+
+func TestRunWithMocks_PrecheckVerificationConfirms(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			if callCount > 1 {
+				return nil, nil
+			}
+			return &bead.Bead{
+				ID:              "verify-confirm",
+				Title:           "Already done",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature implemented"},
+			}, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "PRECHECK_PASSED"}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+	precheckEnabled := true
+	verifyEnabled := true
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{
+			Claude: config.ClaudeConfig{BeadTimeout: 60},
+			Precheck: config.PrecheckConfig{
+				Enabled:        &precheckEnabled,
+				Model:          "haiku",
+				TimeoutSeconds: 30,
+				Verification: config.PrecheckVerificationConfig{
+					Enabled:        &verifyEnabled,
+					TimeoutSeconds: 30,
+				},
+			},
+		},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "verify-confirm" {
+		t.Errorf("expected bead 'verify-confirm' to be closed, got: %v", beads.ClosedIDs)
+	}
+
+	if len(mockClaude.RunCalls) != 2 {
+		t.Errorf("expected 2 Run calls (phase 1 + phase 2), got %d", len(mockClaude.RunCalls))
+	}
+	if len(mockClaude.StreamRunCalls) != 0 {
+		t.Errorf("expected 0 StreamRun calls, got %d", len(mockClaude.StreamRunCalls))
+	}
+}
+
+func TestRunWithMocks_PrecheckVerificationError(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			if callCount > 1 {
+				return nil, nil
+			}
+			return &bead.Bead{
+				ID:              "verify-error",
+				Title:           "Check fails",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature implemented"},
+			}, nil
+		},
+	}
+
+	runCallCount := 0
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			runCallCount++
+			if runCallCount == 1 {
+				return &claude.Result{Success: true, Output: "PRECHECK_PASSED"}, nil
+			}
+			return nil, fmt.Errorf("provider unavailable")
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "Build complete"}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+	precheckEnabled := true
+	verifyEnabled := true
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{
+			Claude: config.ClaudeConfig{BeadTimeout: 60},
+			Precheck: config.PrecheckConfig{
+				Enabled:        &precheckEnabled,
+				Model:          "haiku",
+				TimeoutSeconds: 30,
+				Verification: config.PrecheckVerificationConfig{
+					Enabled:        &verifyEnabled,
+					TimeoutSeconds: 30,
+				},
+			},
+		},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+
+	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	// Bead should be closed by the normal build (not by precheck)
+	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "verify-error" {
+		t.Errorf("expected bead 'verify-error' to be closed by build, got: %v", beads.ClosedIDs)
+	}
+
+	if len(mockClaude.StreamRunCalls) == 0 {
+		t.Error("expected StreamRun to be called for normal build after verification error")
 	}
 }
 
@@ -1592,9 +1789,10 @@ func TestRunWithMocks_PrecheckDoesNotCountAsIteration(t *testing.T) {
 	mockLog := &mockIterationLogger{}
 
 	precheckEnabled := true
+	verificationDisabled := false
 	var buf strings.Builder
 	r, _ := NewRunnerWithDeps(
-		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}, Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30}},
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}, Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30, Verification: config.PrecheckVerificationConfig{Enabled: &verificationDisabled}}},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
@@ -1874,11 +2072,12 @@ func TestRunWithMocks_ConsecutiveSkipCounterResetsAfterRealBuild(t *testing.T) {
 	mockLog := &mockIterationLogger{}
 
 	precheckEnabled := true
+	verificationDisabled := false
 	var buf strings.Builder
 	r, _ := NewRunnerWithDeps(
 		&config.Config{
 			Claude:     config.ClaudeConfig{BeadTimeout: 60},
-			Precheck:   config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30},
+			Precheck:   config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30, Verification: config.PrecheckVerificationConfig{Enabled: &verificationDisabled}},
 			Loop:       config.LoopConfig{MaxConsecutiveSkips: 3},
 			Validation: config.ValidationConfig{Enabled: false},
 		},

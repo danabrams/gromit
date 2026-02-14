@@ -612,7 +612,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 					Iteration:  iteration + 1,
 					BeadID:     b.ID,
 					BeadTitle:  b.Title,
-					Model:      "haiku",
+					Model:      "precheck",
 					Success:    true,
 					DurationMs: precheckDuration.Milliseconds(),
 					Outcome:    "precheck_skipped",
@@ -1914,6 +1914,7 @@ func (r *Runner) injectMethodologyLabels(parentLabels []string) []string {
 
 // runPrecheck calls configured model with precheck prompt to check if acceptance criteria are already met.
 // Returns true if precheck passed (criteria already satisfied), and the duration it took.
+// When verification is enabled (default), a second check with a medium-tier model must also agree.
 // Non-blocking: logs warnings on errors and returns false.
 func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Duration) {
 	start := time.Now()
@@ -1922,43 +1923,37 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Dura
 		return false, 0
 	}
 
-	// Check if precheck is enabled
 	if !r.cfg.Precheck.IsEnabled() {
 		return false, 0
 	}
 
-	// Get parent bead if exists
 	parent, err := r.beads.GetParent(b)
 	if err != nil {
 		r.log("Warning: failed to get parent bead for precheck: %v", err)
 	}
 
-	// Build precheck context
 	precheckCtx := &prompt.PrecheckContext{
 		Bead:       b,
 		ParentBead: parent,
 	}
 
-	// Render precheck prompt
 	precheckPrompt, err := r.renderer.RenderPrecheck(precheckCtx)
 	if err != nil {
 		r.log("Warning: failed to render precheck prompt: %v", err)
 		return false, time.Since(start)
 	}
 
-	// Call router to select provider and model
+	// Phase 1: Screen with low tier (haiku)
 	precheckTimeout := time.Duration(r.cfg.Precheck.TimeoutSeconds) * time.Second
 	precheckCtx2, cancel := context.WithTimeout(ctx, precheckTimeout)
 	defer cancel()
 
-	// Select provider via router (phase="precheck", tier="low")
 	p, _ := r.router.Select("precheck", provider.TierLow)
 	if p == nil {
 		r.log("Warning: no provider available for precheck")
 		return false, time.Since(start)
 	}
 
-	// Invoke provider with low tier
 	result, err := p.Run(precheckCtx2, precheckPrompt, provider.TierLow)
 	if err != nil {
 		r.log("Warning: precheck invocation failed: %v", err)
@@ -1974,16 +1969,55 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Dura
 		return false, time.Since(start)
 	}
 
-	// Check for PRECHECK_PASSED signal
 	passed := strings.Contains(result.Output, "PRECHECK_PASSED")
 
-	if passed {
-		r.log("Pre-check: acceptance criteria already met")
-	} else {
+	if !passed {
 		r.log("Pre-check: acceptance criteria not yet met")
+		return false, time.Since(start)
 	}
 
-	return passed, time.Since(start)
+	// Phase 1 passed — run verification if enabled
+	if !r.cfg.Precheck.Verification.IsVerificationEnabled() {
+		r.log("Pre-check: acceptance criteria already met")
+		return true, time.Since(start)
+	}
+
+	// Phase 2: Verify with medium tier (sonnet)
+	r.log("Pre-check: phase 1 passed, running verification")
+	verifyTimeout := time.Duration(r.cfg.Precheck.Verification.TimeoutSeconds) * time.Second
+	verifyCtx, verifyCancel := context.WithTimeout(ctx, verifyTimeout)
+	defer verifyCancel()
+
+	vp, _ := r.router.Select("precheck", provider.TierMedium)
+	if vp == nil {
+		r.log("Warning: no provider available for precheck verification, proceeding to build")
+		return false, time.Since(start)
+	}
+
+	verifyResult, err := vp.Run(verifyCtx, precheckPrompt, provider.TierMedium)
+	if err != nil {
+		r.log("Warning: precheck verification failed: %v, proceeding to build", err)
+		return false, time.Since(start)
+	}
+	if verifyResult == nil {
+		r.log("Warning: precheck verification returned nil result, proceeding to build")
+		return false, time.Since(start)
+	}
+
+	if !verifyResult.Success {
+		r.log("Warning: precheck verification exited with code %d, proceeding to build", verifyResult.ExitCode)
+		return false, time.Since(start)
+	}
+
+	verified := strings.Contains(verifyResult.Output, "PRECHECK_PASSED")
+
+	if verified {
+		r.log("Pre-check: acceptance criteria already met (verified)")
+	} else {
+		r.log("Pre-check: phase 1 passed but verification rejected, proceeding to build")
+	}
+
+	return verified, time.Since(start)
 }
 
 // checkScope calls haiku with scope prompt and returns ScopeEstimate.
