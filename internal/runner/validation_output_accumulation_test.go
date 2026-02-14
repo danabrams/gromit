@@ -12,19 +12,83 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
-	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/execution"
+	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
-// TestValidationWithRecovery_PrevFailureContainsOnlyCurrentAttempt verifies that
-// when validation recovery invokes Claude for a fix, PrevFailure contains only
-// the current validation attempt's output, not the accumulated output from all
-// previous validation attempts.
+// setupValidationAccumulationRunner creates a fully-wired Runner that uses the real
+// makeValidationExecuteFn so we can test the actual bug: PrevFailure contains
+// accumulated bc.Result.Output instead of just the current failure.
+func setupValidationAccumulationRunner(t *testing.T, cfg *config.Config) (*Runner, *mockClaudeClient, *strings.Builder) {
+	t.Helper()
+
+	if cfg == nil {
+		cfg = &config.Config{
+			Validation: config.ValidationConfig{
+				Enabled:              true,
+				Commands:             []string{"go test ./..."},
+				MaxValidationRetries: 2,
+			},
+			Claude: config.ClaudeConfig{
+				StallTimeout:       30,
+				StallTimeoutActive: 10,
+				AnalysisTimeout:    30,
+			},
+			Preflight: config.PreflightConfig{},
+		}
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	mockClaude := &mockClaudeClient{}
+	mockAnalyzer := &mockFailureAnalyzer{}
+	var logBuf strings.Builder
+
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+	mockRenderer := &mockRenderer{}
+
+	logFn := func(format string, args ...interface{}) {}
+
+	r := &Runner{
+		cfg:      cfg,
+		router:   mockRouter,
+		renderer: mockRenderer,
+		analyzer: mockAnalyzer,
+		output:   &logBuf,
+		log:      logFn,
+	}
+
+	// Wire the invoker
+	r.invoker = execution.NewInvoker(mockRouter, &logBuf, nil, logFn)
+
+	// Wire the escalation handler
+	r.escalationHandler = escalation.NewHandler(cfg, mockAnalyzer, nil, nil, mockRenderer, logFn)
+
+	// Use the REAL makeValidationExecuteFn from the runner
+	// This is the key: we're testing the actual facade method that has the bug
+	r.validationRunner = validation.NewRunner(cfg, nil, r.autoFixFn, r.makeValidationExecuteFn())
+
+	// Wire reviewer (needed for runValidationWithRecovery)
+	r.reviewer = reviewpkg.NewReviewer(cfg, mockRouter, &mockBeadClient{}, mockRenderer, r.gitDiffFn, nil)
+	r.reviewer.SetLogFn(logFn)
+
+	return r, mockClaude, &logBuf
+}
+
+// TestValidationAccumulation_PrevFailureIsolatesCurrentAttempt verifies that
+// when makeValidationExecuteFn is called during validation recovery, it sets
+// bc.PromptCtx.PrevFailure to ONLY the current validation failure, not the
+// accumulated bc.Result.Output from all previous attempts.
 //
-// Expected failure: bc.PromptCtx.PrevFailure currently receives bc.Result.Output
-// which accumulates all validation failures across attempts. After the fix,
-// it should receive only the current attempt's failure output.
-func TestValidationWithRecovery_PrevFailureContainsOnlyCurrentAttempt(t *testing.T) {
+// Expected failure: Line 1023 in runner.go currently sets:
+//
+//	bc.PromptCtx.PrevFailure = bc.Result.Output
+//
+// This means PrevFailure contains ALL accumulated validation failures.
+// After the fix, it should extract only the most recent failure.
+func TestValidationAccumulation_PrevFailureIsolatesCurrentAttempt(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
 			Enabled:              true,
@@ -34,171 +98,95 @@ func TestValidationWithRecovery_PrevFailureContainsOnlyCurrentAttempt(t *testing
 		Claude: config.ClaudeConfig{
 			StallTimeout:       30,
 			StallTimeoutActive: 10,
-			AnalysisTimeout:    30,
 		},
+		Preflight: config.PreflightConfig{},
 	}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	// Track validation failure outputs across attempts
-	attemptNumber := 0
-	cmdRunnerFn := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-		attemptNumber++
-		// Each validation attempt returns a unique failure message
-		failureMsg := "--- FAIL: TestAttempt" + string(rune('A'+attemptNumber-1)) + " (0.01s)\n"
+	r, mockClaude, _ := setupValidationAccumulationRunner(t, cfg)
+
+	// Track validation failures returned by each cmdRunner call
+	validationCallCount := 0
+	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		validationCallCount++
+		// Each validation attempt returns a unique, identifiable failure
+		failureMsg := "VALIDATION_FAILURE_ATTEMPT_" + string(rune('A'+validationCallCount-1))
 		return "", failureMsg, 1, nil
 	}
 
-	// Track what PrevFailure Claude receives on each fix invocation
-	var claudeInvocations []string
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
-		// Capture PrevFailure that Claude would see
-		claudeInvocations = append(claudeInvocations, bc.PromptCtx.PrevFailure)
-		return true // Claude "fixes" the issue (but validation will still fail)
+	// Track what PrevFailure is set when Claude is invoked
+	var capturedPrevFailures []string
+	mockClaude.StreamRunFn = func(ctx context.Context, prompt string, systemPrompt string, output io.ReadWriter, heartbeat <-chan struct{}, stall <-chan struct{}) (*claude.Result, error) {
+		// This is called by the invoker, which uses bc.BuildPrompt
+		// The bc.BuildPrompt was rendered with bc.PromptCtx.PrevFailure
+		// We need to capture what PrevFailure was set to before rendering
+		// Unfortunately, we can't directly access bc here, so we inspect the prompt
+		capturedPrevFailures = append(capturedPrevFailures, prompt)
+		return &claude.Result{Success: false, Output: "Claude attempted fix"}, nil
 	}
 
-	valRunner := validation.NewRunner(cfg, cmdRunnerFn, nil, executeFn)
+	// Set up a no-op autoFixFn
+	r.autoFixFn = func(startCommit string) error {
+		return nil // auto-fix doesn't resolve the issue
+	}
 
 	bc := newBeadContext(t)
 	bc.StartCommit = "abc123"
+	bc.ParentCtx = context.Background()
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
 
 	// Run validation with recovery
-	_ = valRunner.RunWithRecovery(context.Background(), bc)
+	_ = r.runValidationWithRecovery(context.Background(), bc)
 
-	// We should have had 3 validation attempts total:
-	// 1. Initial validation (fails)
-	// 2. Auto-fix -> re-validate (fails) -> Claude fix #1
-	// 3. Re-validate after Claude fix #1 (fails) -> Claude fix #2
-	// 4. Re-validate after Claude fix #2 (fails, exhausted retries)
-	// So we should have 2 Claude invocations
-
-	if len(claudeInvocations) != 2 {
-		t.Fatalf("expected 2 Claude invocations, got %d", len(claudeInvocations))
-	}
-
-	// Expected failure: Currently, the second Claude invocation will contain
-	// BOTH "TestAttemptA" and "TestAttemptB" failures in PrevFailure because
-	// bc.Result.Output accumulates across attempts.
-	//
-	// After the fix, each Claude invocation should see ONLY the most recent
-	// validation failure, not the accumulated output.
-
-	// First Claude invocation should see only TestAttemptA or TestAttemptB failure
-	firstInvocation := claudeInvocations[0]
-	if !strings.Contains(firstInvocation, "TestAttempt") {
-		t.Errorf("First Claude invocation should contain validation failure output, got: %q", firstInvocation)
-	}
-
-	// Second Claude invocation should see only TestAttemptC or later failure,
-	// NOT the concatenation of all previous failures
-	secondInvocation := claudeInvocations[1]
-
-	// Count how many "TestAttempt" strings appear in the second invocation
-	// Currently (before fix): will have multiple (accumulated)
-	// After fix: should have only one (current attempt)
-	attemptCount := strings.Count(secondInvocation, "TestAttempt")
-
-	if attemptCount > 1 {
-		t.Errorf("Second Claude invocation contains accumulated failures from %d attempts; should contain only current attempt.\nGot PrevFailure: %q", attemptCount, secondInvocation)
-	}
-}
-
-// TestValidationWithRecovery_OutputNotAccumulatedInPrevFailure verifies that
-// bc.Result.Output continues to accumulate all validation failures for logging
-// purposes, but PrevFailure sent to Claude contains only the current failure.
-//
-// Expected failure: makeValidationExecuteFn currently sets
-// bc.PromptCtx.PrevFailure = bc.Result.Output, which means Claude receives
-// the full accumulated output. After the fix, it should extract only the
-// current attempt's failure output.
-func TestValidationWithRecovery_OutputNotAccumulatedInPrevFailure(t *testing.T) {
-	cfg := &config.Config{
-		Validation: config.ValidationConfig{
-			Enabled:              true,
-			Commands:             []string{"go test ./..."},
-			MaxValidationRetries: 2,
-		},
-		Claude: config.ClaudeConfig{
-			StallTimeout:       30,
-			StallTimeoutActive: 10,
-		},
-	}
-	cfg.SetDefaults()
-	cfg.NormalizeNilFields()
-
-	failureOutputs := []string{
-		"FIRST VALIDATION FAILURE: TestFoo failed",
-		"SECOND VALIDATION FAILURE: TestBar failed",
-		"THIRD VALIDATION FAILURE: TestBaz failed",
-	}
-	callCount := 0
-
-	cmdRunnerFn := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-		if callCount >= len(failureOutputs) {
-			callCount++
-			return "ok", "", 0, nil
-		}
-		output := failureOutputs[callCount]
-		callCount++
-		return "", output, 1, nil
-	}
-
-	var capturedPrevFailures []string
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
-		capturedPrevFailures = append(capturedPrevFailures, bc.PromptCtx.PrevFailure)
-		// Check that bc.Result.Output still accumulates everything
-		// (this is desired for logging/analysis)
-		if !strings.Contains(bc.Result.Output, "VALIDATION OUTPUT") {
-			t.Errorf("bc.Result.Output should still contain validation output marker")
-		}
-		return true
-	}
-
-	valRunner := validation.NewRunner(cfg, cmdRunnerFn, nil, executeFn)
-
-	bc := newBeadContext(t)
-	bc.StartCommit = "abc123"
-
-	_ = valRunner.RunWithRecovery(context.Background(), bc)
-
-	// Verify that bc.Result.Output accumulated everything (for logging)
+	// After the run, bc.Result.Output should contain ALL validation failures (accumulated)
 	fullOutput := bc.Result.Output
-	for _, expectedFragment := range []string{"FIRST VALIDATION", "SECOND VALIDATION", "THIRD VALIDATION"} {
-		if !strings.Contains(fullOutput, expectedFragment) {
-			t.Errorf("bc.Result.Output should contain %q for logging, but got: %q", expectedFragment, fullOutput)
-		}
+	if !strings.Contains(fullOutput, "VALIDATION_FAILURE_ATTEMPT_A") {
+		t.Errorf("bc.Result.Output should contain first validation failure for logging")
+	}
+	if !strings.Contains(fullOutput, "VALIDATION_FAILURE_ATTEMPT_B") {
+		t.Errorf("bc.Result.Output should contain second validation failure for logging")
 	}
 
-	// Verify that each PrevFailure sent to Claude contains ONLY the current attempt
-	// Expected failure: Currently PrevFailure will contain accumulated output
-	if len(capturedPrevFailures) < 1 {
-		t.Fatal("expected at least one Claude invocation")
+	// Expected failure: Currently, the second Claude invocation will receive
+	// a prompt containing BOTH VALIDATION_FAILURE_ATTEMPT_A and VALIDATION_FAILURE_ATTEMPT_B
+	// because makeValidationExecuteFn sets PrevFailure = bc.Result.Output (accumulated).
+	//
+	// After the fix, each Claude invocation should see ONLY the most recent failure.
+	if len(capturedPrevFailures) < 2 {
+		t.Fatalf("Expected at least 2 Claude invocations, got %d", len(capturedPrevFailures))
 	}
 
-	for i, prevFailure := range capturedPrevFailures {
-		// Each PrevFailure should NOT contain failures from previous attempts
-		// Check that it contains at most one of the failure markers
-		containsCount := 0
-		for _, marker := range []string{"FIRST", "SECOND", "THIRD"} {
-			if strings.Contains(prevFailure, marker+" VALIDATION") {
-				containsCount++
-			}
-		}
-		if containsCount > 1 {
-			t.Errorf("Claude invocation #%d: PrevFailure contains %d validation failures (accumulated); should contain only current attempt's failure.\nGot: %q", i+1, containsCount, prevFailure)
-		}
+	secondPrompt := capturedPrevFailures[1]
+	attemptACount := strings.Count(secondPrompt, "VALIDATION_FAILURE_ATTEMPT_A")
+	attemptBCount := strings.Count(secondPrompt, "VALIDATION_FAILURE_ATTEMPT_B")
+
+	// The second Claude prompt should NOT contain ATTEMPT_A (it was from the first failure)
+	if attemptACount > 0 {
+		t.Errorf("Second Claude invocation's prompt should not contain VALIDATION_FAILURE_ATTEMPT_A (from first attempt). Found %d occurrences.\nPrompt excerpt: %s",
+			attemptACount, secondPrompt[:min(len(secondPrompt), 500)])
+	}
+
+	// The second Claude prompt SHOULD contain ATTEMPT_B or later (current failure)
+	if attemptBCount == 0 && !strings.Contains(secondPrompt, "VALIDATION_FAILURE_ATTEMPT_C") {
+		t.Errorf("Second Claude invocation should contain current failure (ATTEMPT_B or later).\nPrompt excerpt: %s",
+			secondPrompt[:min(len(secondPrompt), 500)])
 	}
 }
 
-// TestValidationWithRecovery_ExtractCurrentFailureFromResult verifies that
-// the validation recovery mechanism extracts the current attempt's failure
-// output from bc.Result.Output to pass to Claude, rather than passing the
-// entire accumulated output.
+// TestMakeValidationExecuteFn_DoesNotPassAccumulatedOutput verifies that
+// the makeValidationExecuteFn method in runner.go does not pass the full
+// accumulated bc.Result.Output to Claude as PrevFailure. Instead, it should
+// extract only the most recent validation failure.
 //
-// Expected failure: There is currently no extraction logic in
-// makeValidationExecuteFn or runValidationWithRecovery to isolate the
-// current failure from the accumulated bc.Result.Output.
-func TestValidationWithRecovery_ExtractCurrentFailureFromResult(t *testing.T) {
+// Expected failure: Line 1023 in runner.go sets:
+//
+//	bc.PromptCtx.PrevFailure = bc.Result.Output
+//
+// There is no extraction logic yet. After the fix, there should be logic
+// to extract the current failure from bc.Result.Output.
+func TestMakeValidationExecuteFn_DoesNotPassAccumulatedOutput(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
 			Enabled:              true,
@@ -208,119 +196,160 @@ func TestValidationWithRecovery_ExtractCurrentFailureFromResult(t *testing.T) {
 		Claude: config.ClaudeConfig{
 			StallTimeout: 30,
 		},
+		Preflight: config.PreflightConfig{},
 	}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	// Simulate validation failing twice with distinct outputs
-	callCount := 0
-	cmdRunnerFn := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-		callCount++
-		if callCount == 1 {
-			return "", "ERROR_FROM_FIRST_ATTEMPT", 1, nil
-		}
-		return "", "ERROR_FROM_SECOND_ATTEMPT", 1, nil
-	}
+	r, mockClaude, _ := setupValidationAccumulationRunner(t, cfg)
 
-	var prevFailureOnSecondAttempt string
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
-		prevFailureOnSecondAttempt = bc.PromptCtx.PrevFailure
-		return true
-	}
-
-	valRunner := validation.NewRunner(cfg, cmdRunnerFn, nil, executeFn)
-
+	// Pre-populate bc.Result.Output with old accumulated failures
+	// Then have validation fail with a new, distinct failure
+	// The makeValidationExecuteFn should extract ONLY the new failure
 	bc := newBeadContext(t)
 	bc.StartCommit = "abc123"
+	bc.ParentCtx = context.Background()
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 5
 
-	_ = valRunner.RunWithRecovery(context.Background(), bc)
+	// Simulate that bc.Result.Output already has previous validation output
+	bc.Result.Output = "=== VALIDATION OUTPUT ===\nOLD_ACCUMULATED_FAILURE_1\n\n=== VALIDATION OUTPUT ===\nOLD_ACCUMULATED_FAILURE_2"
 
-	// Expected failure: Currently prevFailureOnSecondAttempt will contain
-	// "ERROR_FROM_FIRST_ATTEMPT" + "ERROR_FROM_SECOND_ATTEMPT" (accumulated).
-	// After the fix, it should contain ONLY "ERROR_FROM_SECOND_ATTEMPT".
-
-	if strings.Contains(prevFailureOnSecondAttempt, "ERROR_FROM_FIRST_ATTEMPT") {
-		t.Errorf("PrevFailure should NOT contain first attempt's error; should contain only current attempt.\nGot: %q", prevFailureOnSecondAttempt)
+	callCount := 0
+	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		callCount++
+		// Validation fails with a NEW distinct failure
+		return "", "NEW_CURRENT_FAILURE", 1, nil
 	}
 
-	if !strings.Contains(prevFailureOnSecondAttempt, "ERROR_FROM_SECOND_ATTEMPT") {
-		t.Errorf("PrevFailure should contain second attempt's error.\nGot: %q", prevFailureOnSecondAttempt)
+	r.autoFixFn = func(startCommit string) error {
+		return nil
+	}
+
+	var capturedPrompt string
+	mockClaude.StreamRunFn = func(ctx context.Context, prompt string, systemPrompt string, output io.ReadWriter, heartbeat <-chan struct{}, stall <-chan struct{}) (*claude.Result, error) {
+		capturedPrompt = prompt
+		return &claude.Result{Success: false, Output: "Claude tried"}, nil
+	}
+
+	_ = r.runValidationWithRecovery(context.Background(), bc)
+
+	// Expected failure: capturedPrompt will contain OLD_ACCUMULATED_FAILURE_1 and
+	// OLD_ACCUMULATED_FAILURE_2 because makeValidationExecuteFn passes the full
+	// bc.Result.Output as PrevFailure.
+	//
+	// After the fix, capturedPrompt should contain ONLY NEW_CURRENT_FAILURE.
+	if strings.Contains(capturedPrompt, "OLD_ACCUMULATED_FAILURE_1") {
+		t.Errorf("Prompt should not contain old accumulated failures (OLD_ACCUMULATED_FAILURE_1).\nPrompt excerpt: %s",
+			capturedPrompt[:min(len(capturedPrompt), 500)])
+	}
+	if strings.Contains(capturedPrompt, "OLD_ACCUMULATED_FAILURE_2") {
+		t.Errorf("Prompt should not contain old accumulated failures (OLD_ACCUMULATED_FAILURE_2).\nPrompt excerpt: %s",
+			capturedPrompt[:min(len(capturedPrompt), 500)])
+	}
+	if !strings.Contains(capturedPrompt, "NEW_CURRENT_FAILURE") {
+		t.Errorf("Prompt should contain the current failure (NEW_CURRENT_FAILURE).\nPrompt excerpt: %s",
+			capturedPrompt[:min(len(capturedPrompt), 500)])
 	}
 }
 
-// TestMakeValidationExecuteFn_IsolatesCurrentFailureOutput verifies that
-// the makeValidationExecuteFn helper extracts only the current validation
-// failure output to pass as PrevFailure to Claude, rather than passing
-// the accumulated bc.Result.Output.
+// TestValidationRecovery_ExtractCurrentFailureFromAccumulatedOutput verifies
+// that when validation fails multiple times, each Claude fix invocation receives
+// only the current attempt's failure, not all previous failures concatenated.
 //
-// Expected failure: The makeValidationExecuteFn function in runner.go
-// currently sets bc.PromptCtx.PrevFailure = bc.Result.Output directly
-// without extracting the current failure. A helper function or logic
-// to extract the current failure output does not exist yet.
-func TestMakeValidationExecuteFn_IsolatesCurrentFailureOutput(t *testing.T) {
+// Expected failure: The extractCurrentValidationFailure function or equivalent
+// logic does not exist yet. The code at line 1023 in runner.go directly assigns:
+//
+//	bc.PromptCtx.PrevFailure = bc.Result.Output
+//
+// After implementation, there should be logic to extract the most recent
+// "=== VALIDATION OUTPUT ===" section from bc.Result.Output.
+func TestValidationRecovery_ExtractCurrentFailureFromAccumulatedOutput(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
 			Enabled:              true,
 			Commands:             []string{"go test ./..."},
-			MaxValidationRetries: 1,
+			MaxValidationRetries: 2,
 		},
 		Claude: config.ClaudeConfig{
-			StallTimeout:       30,
-			StallTimeoutActive: 10,
-			AnalysisTimeout:    30,
+			StallTimeout: 30,
 		},
 		Preflight: config.PreflightConfig{},
 	}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	var logBuf strings.Builder
-	r, mockClaude, _, _ := setupAutoFixRunner(t, cfg)
+	r, mockClaude, _ := setupValidationAccumulationRunner(t, cfg)
 
-	// Make Result.Output contain accumulated failures from multiple attempts
-	bc := newBeadContext(t)
-	bc.StartCommit = "abc123"
-	bc.ParentCtx = context.Background()
-	bc.Result.Output = "=== VALIDATION OUTPUT ===\nOLD_FAILURE_1\n\n=== VALIDATION OUTPUT ===\nOLD_FAILURE_2"
-
-	// Set up mock to capture what PrevFailure is passed
-	var capturedPrevFailure string
-	mockClaude.StreamRunFn = func(ctx context.Context, prompt, systemPrompt string, readerWriter io.ReadWriter, heartbeat, stall <-chan struct{}) (*claude.Result, error) {
-		// The prompt should NOT contain OLD_FAILURE_1 and OLD_FAILURE_2 anymore
-		capturedPrevFailure = bc.PromptCtx.PrevFailure
-		return &claude.Result{Success: false, Output: "Claude tried to fix"}, nil
+	failureMessages := []string{
+		"FIRST_FAILURE_MESSAGE",
+		"SECOND_FAILURE_MESSAGE",
+		"THIRD_FAILURE_MESSAGE",
 	}
+	callIndex := 0
 
-	// Set up validation to fail with NEW_FAILURE_3
 	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-		return "", "NEW_FAILURE_3", 1, nil
+		if callIndex >= len(failureMessages) {
+			// Eventually pass validation
+			return "ok", "", 0, nil
+		}
+		msg := failureMessages[callIndex]
+		callIndex++
+		return "", msg, 1, nil
 	}
 
-	// Set up autoFixFn to not resolve the issue
 	r.autoFixFn = func(startCommit string) error {
 		return nil
 	}
 
-	r.output = &logBuf
+	var claudePrompts []string
+	mockClaude.StreamRunFn = func(ctx context.Context, prompt string, systemPrompt string, output io.ReadWriter, heartbeat <-chan struct{}, stall <-chan struct{}) (*claude.Result, error) {
+		claudePrompts = append(claudePrompts, prompt)
+		return &claude.Result{Success: false, Output: "fix attempt"}, nil
+	}
 
-	// Set up mock router for validation recovery
-	mockProviderForVal := &mockProviderForProcess{claudeClient: mockClaude}
-	mockRouterForVal := provider.NewSingleProviderRouter(mockProviderForVal)
-	r.router = mockRouterForVal
-	r.escalationHandler = escalation.NewHandler(cfg, &mockFailureAnalyzer{}, nil, nil, nil, func(format string, args ...interface{}) {})
+	bc := newBeadContext(t)
+	bc.StartCommit = "abc123"
+	bc.ParentCtx = context.Background()
+	bc.MaxRetries = 2
+	bc.MaxRetriesPerBead = 5
 
-	// Run validation with recovery
 	_ = r.runValidationWithRecovery(context.Background(), bc)
 
-	// Expected failure: capturedPrevFailure will contain the full accumulated
-	// bc.Result.Output (OLD_FAILURE_1 + OLD_FAILURE_2 + NEW_FAILURE_3).
-	// After the fix, it should contain ONLY NEW_FAILURE_3.
-
-	if strings.Contains(capturedPrevFailure, "OLD_FAILURE_1") || strings.Contains(capturedPrevFailure, "OLD_FAILURE_2") {
-		t.Errorf("PrevFailure should not contain old accumulated failures, only the current failure.\nGot PrevFailure: %q", capturedPrevFailure)
+	// bc.Result.Output should contain ALL failures (for logging)
+	if !strings.Contains(bc.Result.Output, "FIRST_FAILURE_MESSAGE") {
+		t.Errorf("bc.Result.Output should accumulate first failure for logging")
+	}
+	if !strings.Contains(bc.Result.Output, "SECOND_FAILURE_MESSAGE") {
+		t.Errorf("bc.Result.Output should accumulate second failure for logging")
 	}
 
-	if !strings.Contains(capturedPrevFailure, "NEW_FAILURE_3") {
-		t.Errorf("PrevFailure should contain the current failure NEW_FAILURE_3.\nGot PrevFailure: %q", capturedPrevFailure)
+	// But each Claude invocation should see ONLY the current failure
+	// Expected failure: Currently all failures accumulate in PrevFailure
+	if len(claudePrompts) < 1 {
+		t.Fatal("Expected at least one Claude invocation")
 	}
+
+	for i, prompt := range claudePrompts {
+		// Count how many distinct failure messages appear in this prompt
+		failureCount := 0
+		for _, msg := range failureMessages {
+			if strings.Contains(prompt, msg) {
+				failureCount++
+			}
+		}
+
+		// Each prompt should contain at most ONE failure message (the current one)
+		if failureCount > 1 {
+			t.Errorf("Claude invocation %d: prompt contains %d accumulated failures; should contain only the current failure.\nPrompt excerpt: %s",
+				i+1, failureCount, prompt[:min(len(prompt), 500)])
+		}
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
