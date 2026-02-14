@@ -106,10 +106,15 @@ func TestProcessBead_ATDD_DelegatesToMethodologyExec(t *testing.T) {
 	}
 	router := provider.NewSingleProviderRouter(mockProv)
 
+	noopCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "VALIDATION_PASSED", "", 0, nil
+	}
+
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
-		Beads:    &mockBeadClient{},
-		Router:   router,
-		Renderer: &mockRenderer{},
+		Beads:     &mockBeadClient{},
+		Router:    router,
+		Renderer:  &mockRenderer{},
+		CmdRunner: noopCmdRunner,
 	})
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
@@ -426,6 +431,155 @@ func TestProcessBead_ATDD_RequiresMethodologyExec(t *testing.T) {
 	if result.Error == nil {
 		t.Error("processBead with ATDD active but nil methodologyExec should return an error " +
 			"(local ATDD methods should be deleted)")
+	}
+}
+
+// --- processBead refactor path requires methodologyExec (no fallback) ---
+
+// Expected failure: processBead currently falls back to r.runRefactorPhase (local method)
+// when methodologyExec is nil during the refactor phase. After implementation, the local
+// runRefactorPhase method will be deleted and the fallback removed, so processBead should
+// error when methodologyExec is nil and refactor is needed.
+func TestProcessBead_RefactorPhase_RequiresMethodologyExec(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	cfg.Methodology.ATDD = false
+	cfg.Methodology.TDD = true // Use TDD to trigger refactor path without ATDD
+	cfg.Refactor.MinFilesChanged = 0
+	var buf strings.Builder
+
+	mockProv := &mockProviderWithRouterTracking{
+		streamRunResult: &provider.Result{Success: true, Model: "test-model", Output: "done"},
+	}
+	router := provider.NewSingleProviderRouter(mockProv)
+
+	noopCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "VALIDATION_PASSED", "", 0, nil
+	}
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:     &mockBeadClient{},
+		Router:    router,
+		Renderer:  &mockRenderer{},
+		CmdRunner: noopCmdRunner,
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+
+	// Set methodologyExec to nil to simulate it not being wired
+	r.methodologyExec = nil
+
+	b := &bead.Bead{
+		ID:       "test-refactor-nil-001",
+		Title:    "Test refactor nil methodology",
+		Priority: 1,
+		Labels:   []string{"methodology:true"},
+	}
+
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
+
+	// After the local runRefactorPhase is deleted, nil methodologyExec in the
+	// refactor phase should produce an error (not silently fall back to the
+	// deleted local method). Currently this passes because the fallback exists.
+	if result.Error == nil {
+		t.Error("processBead with TDD active but nil methodologyExec should error during " +
+			"refactor phase (local runRefactorPhase should be deleted, no fallback)")
+	}
+	if result.Error != nil && !strings.Contains(result.Error.Error(), "methodologyExec") {
+		t.Errorf("error should mention methodologyExec not being wired, got: %v", result.Error)
+	}
+}
+
+// --- processBead refactor delegates through methodologyExec in full flow ---
+
+// Expected failure: processBead's refactor path currently has a conditional that checks
+// if methodologyExec != nil and falls back to r.runRefactorPhase otherwise. After
+// implementation, the fallback is removed and refactor always goes through methodologyExec.
+// This test exercises the full processBead flow (build → validate → refactor) and verifies
+// the refactor callback on methodologyExec is invoked.
+func TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	cfg.Methodology.ATDD = true
+	cfg.Refactor.MinFilesChanged = 0
+	var buf strings.Builder
+
+	refactorRenderCalled := false
+
+	// Create a fully-wired executor using the same factory pattern as makeMethodologyExec
+	exec := methodology.NewExecutorWithEscalation(
+		cfg,
+		&buf,
+		func(ctx *prompt.Context) (string, error) {
+			return "acceptance test prompt", nil
+		},
+		func(ctx context.Context, bc *runtypes.BeadContext, p string) error {
+			return nil // acceptance tests succeed
+		},
+		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+			// Tests fail as expected in ATDD
+			return &claude.Result{Success: true, Output: "FAIL", ExitCode: 1}, nil
+		},
+		func(bc *runtypes.BeadContext, nextTier string) {
+			// no-op escalation
+		},
+	)
+
+	// Wire refactor deps with tracking
+	exec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			return "diff --git a/foo.go b/foo.go\n+line\ndiff --git a/bar.go b/bar.go\n+line", nil
+		},
+		func(ctx *prompt.Context) (string, error) {
+			refactorRenderCalled = true
+			return "refactor prompt", nil
+		},
+		func(ctx context.Context, p string, tier string) (*claude.Result, error) {
+			return &claude.Result{Success: true}, nil
+		},
+		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
+		},
+		func(commit string) error { return nil },
+		func() (string, error) { return "abc123", nil },
+	))
+
+	mockProv := &mockProviderWithRouterTracking{
+		streamRunResult: &provider.Result{Success: true, Model: "test-model", Output: "done"},
+	}
+	router := provider.NewSingleProviderRouter(mockProv)
+
+	noopCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "VALIDATION_PASSED", "", 0, nil
+	}
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:     &mockBeadClient{},
+		Router:    router,
+		Renderer:  &mockRenderer{},
+		CmdRunner: noopCmdRunner,
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+
+	// Replace auto-wired methodologyExec with our tracking version
+	r.methodologyExec = exec
+
+	b := &bead.Bead{
+		ID:       "test-full-refactor-001",
+		Title:    "Full flow refactor delegation",
+		Priority: 1,
+		Labels:   []string{"methodology:true"},
+	}
+
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
+
+	if result.Error != nil {
+		t.Fatalf("processBead should succeed, got error: %v", result.Error)
+	}
+	if !refactorRenderCalled {
+		t.Error("processBead refactor phase should delegate to methodologyExec.RunRefactorPhase " +
+			"which calls the refactor render callback — refactor was not invoked through methodologyExec")
 	}
 }
 
