@@ -63,7 +63,9 @@ func resolveByName(name string, cfg *config.Config) (Agent, error) {
 	switch name {
 	case "claude":
 		return resolveClaudePreset(cfg), nil
-	case "codex", "gemini":
+	case "codex":
+		return resolveCodexPreset(), nil
+	case "gemini":
 		return resolvePromptFileArgPreset(name), nil
 	default:
 		return nil, fmt.Errorf("unknown agent: %s", name)
@@ -167,6 +169,12 @@ func resolveClaudePreset(cfg *config.Config) Agent {
 	}
 
 	return New("claude", binary, flags, FileRef, "", nil)
+}
+
+// resolveCodexPreset creates an agent for Codex using stdin delivery with codex-specific flags
+func resolveCodexPreset() Agent {
+	flags := []string{"exec", "--full-auto", "--skip-git-repo-check", "--color", "never"}
+	return New("codex", "codex", flags, Stdin, "", nil)
 }
 
 // resolvePromptFileArgPreset creates an agent using prompt_file_arg delivery
