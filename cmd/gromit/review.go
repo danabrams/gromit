@@ -378,12 +378,12 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		renderer: renderer,
 	}
 
-	claudeAdapter := &cliClaudeClient{
-		client: claudeClient,
+	claudeAdapter := &claudeClientAdapter{
+		Client: claudeClient,
 	}
 
-	beadAdapter := &cliBeadClient{
-		client: beadsClient,
+	beadAdapter := &beadClientAdapter{
+		Client: beadsClient,
 	}
 
 	backlogAdapter := &cliBacklogClient{
@@ -528,90 +528,6 @@ func (r *cliPromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewP
 
 func (r *cliPromptRenderer) RenderExplore(ctx interface{}) (string, error) {
 	return "", fmt.Errorf("not implemented")
-}
-
-// cliClaudeClient adapts claude.Client to pipeline.ClaudeClient interface
-type cliClaudeClient struct {
-	client *claude.Client
-}
-
-func (c *cliClaudeClient) Run(prompt string, model string) (*pipeline.ClaudeRunResult, error) {
-	// Use a long timeout context since the pipeline doesn't expose timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-
-	result, err := c.client.Run(ctx, prompt, model)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to pipeline ClaudeRunResult
-	return &pipeline.ClaudeRunResult{
-		Success:  result.Success,
-		Output:   result.Output,
-		ExitCode: result.ExitCode,
-	}, nil
-}
-
-// cliBeadClient adapts bead.Client to pipeline.BeadClient interface
-type cliBeadClient struct {
-	client *bead.Client
-}
-
-func (c *cliBeadClient) Ready() (*pipeline.BeadInfo, error) {
-	b, err := c.client.Ready()
-	if err != nil {
-		return nil, err
-	}
-	return &pipeline.BeadInfo{
-		ID:       b.ID,
-		Title:    b.Title,
-		Priority: b.Priority,
-		Labels:   b.Labels,
-	}, nil
-}
-
-func (c *cliBeadClient) Show(id string) (*pipeline.BeadInfo, error) {
-	b, err := c.client.Show(id)
-	if err != nil {
-		return nil, err
-	}
-	return &pipeline.BeadInfo{
-		ID:       b.ID,
-		Title:    b.Title,
-		Priority: b.Priority,
-		Labels:   b.Labels,
-	}, nil
-}
-
-func (c *cliBeadClient) Create(title string, priority int, labels []string, outputs []string) (*pipeline.BeadInfo, error) {
-	b, err := c.client.Create(title, priority, labels, outputs)
-	if err != nil {
-		return nil, err
-	}
-	return &pipeline.BeadInfo{
-		ID:       b.ID,
-		Title:    b.Title,
-		Priority: b.Priority,
-		Labels:   b.Labels,
-	}, nil
-}
-
-func (c *cliBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*pipeline.BeadInfo, error) {
-	b, err := c.client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
-	if err != nil {
-		return nil, err
-	}
-	return &pipeline.BeadInfo{
-		ID:       b.ID,
-		Title:    b.Title,
-		Priority: b.Priority,
-		Labels:   b.Labels,
-	}, nil
-}
-
-func (c *cliBeadClient) Close(id string) error {
-	return c.client.Close(id)
 }
 
 // cliBacklogClient adapts bead operations to pipeline.BacklogClient interface

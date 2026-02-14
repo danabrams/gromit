@@ -7,13 +7,12 @@ import (
 )
 
 // TestClaudeClientAdapter_ConstructsTypedStruct verifies claudeClientAdapter.Run returns typed struct
-// Expected failure: claudeClientAdapter.Run() currently constructs map[string]interface{} at lines 233-237
 func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
-	// Verify adapter constructs pipeline.ClaudeRunResult, not map[string]interface{}
-	decomposeAdapterPath := filepath.Join(".", "decompose.go")
-	content, err := os.ReadFile(decomposeAdapterPath)
+	// Adapters are now in adapters.go
+	adapterPath := filepath.Join(".", "adapters.go")
+	content, err := os.ReadFile(adapterPath)
 	if err != nil {
-		t.Fatalf("reading decompose.go: %v", err)
+		t.Fatalf("reading adapters.go: %v", err)
 	}
 
 	contentStr := string(content)
@@ -30,12 +29,11 @@ func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
 }
 
 // TestBeadClientAdapter_ConstructsTypedStruct verifies beadClientAdapter methods return typed structs
-// Expected failure: beadClientAdapter methods currently return interface{} wrapping *bead.Bead directly
 func TestBeadClientAdapter_ConstructsTypedStruct(t *testing.T) {
-	decomposeAdapterPath := filepath.Join(".", "decompose.go")
-	content, err := os.ReadFile(decomposeAdapterPath)
+	adapterPath := filepath.Join(".", "adapters.go")
+	content, err := os.ReadFile(adapterPath)
 	if err != nil {
-		t.Fatalf("reading decompose.go: %v", err)
+		t.Fatalf("reading adapters.go: %v", err)
 	}
 
 	contentStr := string(content)
@@ -60,39 +58,37 @@ func TestBeadClientAdapter_ConstructsTypedStruct(t *testing.T) {
 	}
 }
 
-// TestAdapterFile_ImportsTypedPipeline verifies decompose.go imports pipeline package properly
-// Expected failure: After implementation, decompose.go should use pipeline.ClaudeRunResult and pipeline.BeadInfo
+// TestAdapterFile_ImportsTypedPipeline verifies adapters.go imports pipeline package properly
 func TestAdapterFile_ImportsTypedPipeline(t *testing.T) {
-	decomposeAdapterPath := filepath.Join(".", "decompose.go")
-	content, err := os.ReadFile(decomposeAdapterPath)
+	adapterPath := filepath.Join(".", "adapters.go")
+	content, err := os.ReadFile(adapterPath)
 	if err != nil {
-		t.Fatalf("reading decompose.go: %v", err)
+		t.Fatalf("reading adapters.go: %v", err)
 	}
 
 	contentStr := string(content)
 
 	// Verify file imports pipeline package
 	if !adapterTestContainsImport(contentStr, "github.com/danabrams/gromit/internal/pipeline") {
-		t.Error("decompose.go should import github.com/danabrams/gromit/internal/pipeline")
+		t.Error("adapters.go should import github.com/danabrams/gromit/internal/pipeline")
 	}
 
 	// Verify usage of typed pipeline types (not interface{})
 	if !adapterTestContainsString(contentStr, "pipeline.ClaudeRunResult") {
-		t.Error("decompose.go should reference pipeline.ClaudeRunResult type")
+		t.Error("adapters.go should reference pipeline.ClaudeRunResult type")
 	}
 
 	if !adapterTestContainsString(contentStr, "pipeline.BeadInfo") {
-		t.Error("decompose.go should reference pipeline.BeadInfo type")
+		t.Error("adapters.go should reference pipeline.BeadInfo type")
 	}
 }
 
 // TestAdapterSimplification_NoMapConstruction verifies adapters don't construct intermediate maps
-// Expected failure: Current adapters construct map[string]interface{} as an intermediate representation
 func TestAdapterSimplification_NoMapConstruction(t *testing.T) {
-	decomposeAdapterPath := filepath.Join(".", "decompose.go")
-	content, err := os.ReadFile(decomposeAdapterPath)
+	adapterPath := filepath.Join(".", "adapters.go")
+	content, err := os.ReadFile(adapterPath)
 	if err != nil {
-		t.Fatalf("reading decompose.go: %v", err)
+		t.Fatalf("reading adapters.go: %v", err)
 	}
 
 	contentStr := string(content)
@@ -106,10 +102,10 @@ func TestAdapterSimplification_NoMapConstruction(t *testing.T) {
 		t.Error("claudeClientAdapter should construct typed structs directly, not intermediate maps")
 	}
 
-	// Extract bead adapter section (between beadClientAdapter type and next section)
+	// Extract bead adapter section (between beadClientAdapter type and end of file)
 	beadAdapterSection := adapterTestExtractBetween(contentStr,
 		"type beadClientAdapter struct",
-		"func convertToBeadDefs")
+		"")
 
 	if beadAdapterSection != "" && adapterTestContainsString(beadAdapterSection, "return a.Client") {
 		// If it's just returning a.Client directly without constructing pipeline.BeadInfo,
