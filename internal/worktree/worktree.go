@@ -110,6 +110,72 @@ func (m *Manager) CreateBranch(command string) (string, error) {
 	return branchName, nil
 }
 
+// PendingBranches returns branches created by interactive sessions
+// that haven't been merged yet (branches matching gromit/* pattern).
+func (m *Manager) PendingBranches() ([]string, error) {
+	if m == nil {
+		return nil, errors.New("nil Manager receiver")
+	}
+
+	// List all branches matching gromit/* pattern
+	output, err := m.runGit(m.MainDir, "for-each-ref", "--format=%(refname)", "refs/heads/gromit/")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list branches: %w", err)
+	}
+
+	// Parse the output
+	if output == "" {
+		return []string{}, nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	branches := make([]string, 0, len(lines))
+	for _, line := range lines {
+		// Convert refs/heads/gromit/retro-123 to gromit/retro-123
+		if strings.HasPrefix(line, "refs/heads/") {
+			branchName := strings.TrimPrefix(line, "refs/heads/")
+			if strings.HasPrefix(branchName, "gromit/") {
+				branches = append(branches, branchName)
+			}
+		}
+	}
+
+	return branches, nil
+}
+
+// MergeBack merges a completed interactive branch into the current
+// branch of the main worktree. Attempts fast-forward first, falls back
+// to merge commit if needed. Aborts on conflict and returns error.
+// Deletes the branch on successful merge.
+func (m *Manager) MergeBack(branch string) error {
+	if m == nil {
+		return errors.New("nil Manager receiver")
+	}
+	if branch == "" {
+		return errors.New("branch name cannot be empty")
+	}
+
+	// Try fast-forward merge first
+	_, err := m.runGit(m.MainDir, "merge", "--ff-only", branch)
+	if err == nil {
+		// Fast-forward successful, delete the branch
+		_, _ = m.runGit(m.MainDir, "branch", "-d", branch)
+		return nil
+	}
+
+	// Fast-forward failed, try regular merge
+	_, err = m.runGit(m.MainDir, "merge", branch)
+	if err != nil {
+		// Merge failed (likely conflict), abort the merge
+		_, _ = m.runGit(m.MainDir, "merge", "--abort")
+		return fmt.Errorf("merge conflict for branch %s: %w", branch, err)
+	}
+
+	// Regular merge successful, delete the branch
+	_, _ = m.runGit(m.MainDir, "branch", "-d", branch)
+	return nil
+}
+
 // Cleanup removes the worktree and prunes stale branches.
 // If the worktree doesn't exist, Cleanup succeeds without error.
 func (m *Manager) Cleanup() error {
