@@ -32,6 +32,27 @@ type BeadInfo struct {
 	Labels   []string
 }
 
+// RefinePromptInput holds the fields needed for rendering refine prompts.
+type RefinePromptInput struct {
+	IdeaText string
+}
+
+// PlanPromptInput holds the fields needed for rendering plan prompts.
+type PlanPromptInput struct {
+	IdeaText string
+}
+
+// DecomposePromptInput holds the fields needed for rendering decompose prompts.
+type DecomposePromptInput struct {
+	PlanName string
+	PlanBody string
+}
+
+// ExplorePromptInput holds the fields needed for rendering explore prompts.
+type ExplorePromptInput struct {
+	Query string
+}
+
 // ThoroughReviewPromptInput holds the fields needed for rendering thorough review prompts.
 type ThoroughReviewPromptInput struct {
 	FromCommit string

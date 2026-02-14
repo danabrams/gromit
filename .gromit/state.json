@@ -1,16 +1,7 @@
 {
   "last_retro": "2026-02-13T23:00:22.434648949Z",
   "last_review_commit": "68593f7588efa123fed42c546b03f5526fef6e02",
-  "iterations_since_review": 34,
+  "iterations_since_review": 36,
   "clean_exit": false,
-  "updated_at": "2026-02-14T08:36:56.872865207Z",
-  "filtered_learning_hashes": [
-    "7c5f1fb9bc192d5f",
-    "6645679acfa7854b",
-    "e6ee82691b816ffb",
-    "31735a35f6dc9dd9",
-    "a5abb8265fd9ed4f",
-    "a9444381e55ead73",
-    "994997fb0716ad33"
-  ]
+  "updated_at": "2026-02-14T09:12:02.429008839Z"
 }

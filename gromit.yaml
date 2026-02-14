@@ -16,18 +16,42 @@ models:
     "complexity:high": opus
     "complexity:low": haiku
 
-# Routing - multi-provider routing configuration (optional)
-# routing:
-#   phase_preferences:
-#     build: claude        # prefer specific provider for builds
-#     validate: any        # any provider (ratio balancer decides)
-#     review: cross        # "cross" = use opposite provider from build
-#                          # e.g., if claude built, openai reviews (and vice versa)
-#                          # falls back to build provider if no other is available
-#     analyze: any
-#     scope_check: any
-#     precheck: any
-#     decompose: claude
+# Multi-provider configuration
+providers:
+  claude:
+    binary: claude
+    flags: ["--dangerously-skip-permissions"]
+    prompt_delivery: stdin
+    models:
+      high: opus
+      medium: sonnet
+      low: haiku
+  openai:
+    binary: codex
+    flags: []
+    prompt_delivery: prompt_file_arg
+    prompt_flag: "--prompt"
+    models:
+      high: gpt-5.3-codex
+      medium: gpt-5.2-codex
+      low: gpt-5.3-codex-spark
+
+# Routing - multi-provider routing configuration
+routing:
+  phase_preferences:
+    build: any
+    validate: any
+    review: cross        # use opposite provider from build
+    analyze: any
+    scope_check: any
+    precheck: any
+    decompose: any
+  ratio:
+    openai: 90
+    claude: 10
+  fallback:
+    enabled: true
+    cooldown: 30m
 
 # Escalation chain on failure (left to right)
 escalation:
