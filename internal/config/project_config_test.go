@@ -102,3 +102,78 @@ func TestGromitYamlDocumentsCodexProvider(t *testing.T) {
 		}
 	})
 }
+
+// Expected failure: gromit.yaml does not have a commented worktree section yet
+// TestGromitYamlDocumentsWorktreeConfig verifies that the reference gromit.yaml
+// includes a commented-out worktree configuration section showing how to enable
+// concurrent interactive sessions via git worktrees.
+func TestGromitYamlDocumentsWorktreeConfig(t *testing.T) {
+	content, err := os.ReadFile("../../gromit.yaml")
+	if err != nil {
+		t.Fatalf("failed to read gromit.yaml: %v", err)
+	}
+
+	text := string(content)
+
+	// Expected failure: gromit.yaml does not have "# Worktree" comment yet
+	t.Run("has_worktree_comment_header", func(t *testing.T) {
+		// Look for a comment header describing the worktree section
+		if !strings.Contains(text, "# Worktree") && !strings.Contains(text, "# worktree") {
+			t.Error("gromit.yaml missing Worktree section comment header")
+		}
+	})
+
+	// Expected failure: gromit.yaml does not have commented worktree config yet
+	t.Run("has_commented_worktree_config", func(t *testing.T) {
+		// Look for commented-out worktree configuration
+		if !strings.Contains(text, "# worktree:") {
+			t.Error("gromit.yaml missing commented-out worktree configuration")
+		}
+	})
+
+	// Expected failure: gromit.yaml does not have worktree enabled field yet
+	t.Run("documents_enabled_field", func(t *testing.T) {
+		// Should show enabled: true with a comment
+		if !strings.Contains(text, "#   enabled:") {
+			t.Error("gromit.yaml missing enabled field in worktree configuration")
+		}
+	})
+
+	// Expected failure: gromit.yaml does not have worktree auto_merge field yet
+	t.Run("documents_auto_merge_field", func(t *testing.T) {
+		// Should show auto_merge: true with a comment
+		if !strings.Contains(text, "#   auto_merge:") {
+			t.Error("gromit.yaml missing auto_merge field in worktree configuration")
+		}
+	})
+
+	// Expected failure: gromit.yaml does not have worktree merge_failure field yet
+	t.Run("documents_merge_failure_field", func(t *testing.T) {
+		// Should show merge_failure: "warn" with a comment
+		if !strings.Contains(text, "#   merge_failure:") {
+			t.Error("gromit.yaml missing merge_failure field in worktree configuration")
+		}
+	})
+
+	// Expected failure: gromit.yaml worktree section doesn't exist to position
+	t.Run("worktree_positioned_after_git", func(t *testing.T) {
+		// Find the git section
+		gitIndex := strings.Index(text, "# Git settings")
+		if gitIndex == -1 {
+			gitIndex = strings.Index(text, "git:")
+		}
+
+		// Find the worktree section
+		worktreeIndex := strings.Index(text, "# worktree:")
+
+		if worktreeIndex == -1 {
+			t.Error("Worktree section not found in gromit.yaml")
+			return
+		}
+
+		// Verify worktree comes after git section (logically related)
+		if worktreeIndex < gitIndex {
+			t.Error("Worktree configuration should be positioned after git section")
+		}
+	})
+}
