@@ -310,7 +310,131 @@ func (r *Reviewer) WriteReviewLog(iteration int, beadID string, model string, re
 
 // RunThorough runs a periodic thorough review of all changes since the last review.
 // Uses state to track the last review commit. If deadline is set and approaching, skips.
-func (r *Reviewer) RunThorough(ctx context.Context, state StateAccess, iteration int, deadline time.Time, getGitHeadFn func() (string, error)) {
+func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration int, deadline time.Time, getGitHeadFn func() (string, error)) {
+	if r == nil || r.cfg == nil {
+		return
+	}
+
+	start := time.Now()
+
+	// Check deadline
+	thoroughTimeout := time.Duration(r.cfg.Review.Thorough.Timeout) * time.Second
+	if !deadline.IsZero() {
+		timeRemaining := time.Until(deadline)
+		if timeRemaining <= 0 {
+			r.log("Time budget expired, skipping thorough review")
+			return
+		}
+		if timeRemaining < thoroughTimeout {
+			r.log("Insufficient time remaining for thorough review (need %v, have %v), skipping", thoroughTimeout, timeRemaining)
+			return
+		}
+	}
+
+	// Guard against nil state
+	if sa == nil {
+		return
+	}
+
+	// Get diff since last review
+	fromCommit := sa.LastReviewCommit()
+	if fromCommit == "" {
+		r.log("No previous review commit found, skipping thorough review scope detection")
+		return
+	}
+
+	diff, err := r.gitDiffFn(fromCommit)
+	if err != nil {
+		r.log("Warning: could not get diff for thorough review: %v", err)
+		return
+	}
+	if strings.TrimSpace(diff) == "" {
+		r.log("No changes since last thorough review, skipping")
+		return
+	}
+
+	// Build context
+	reviewCtx := &prompt.ThoroughReviewContext{
+		Diff:  diff,
+		Model: r.cfg.Review.Thorough.Model,
+	}
+	if r.renderer != nil {
+		reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
+		reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
+	}
+
+	// Render prompt
+	if r.renderer == nil {
+		r.log("Warning: renderer is nil, cannot render thorough review prompt")
+		return
+	}
+	reviewPrompt, err := r.renderer.RenderThoroughReview(reviewCtx)
+	if err != nil {
+		r.log("Warning: could not render thorough review prompt: %v", err)
+		return
+	}
+
+	// Select provider (always high tier for thorough review)
+	p, _ := r.router.Select("review", provider.TierHigh)
+	if p == nil {
+		r.log("Warning: no provider available for thorough review")
+		return
+	}
+
+	// Call provider with timeout
+	reviewCtxTimeout, cancel := context.WithTimeout(ctx, thoroughTimeout)
+	defer cancel()
+
+	r.log("Running thorough review with tier: high")
+	providerResult, err := p.Run(reviewCtxTimeout, reviewPrompt, provider.TierHigh)
+	if err != nil {
+		r.log("Warning: thorough review failed: %v", err)
+		return
+	}
+	if providerResult == nil {
+		r.log("Warning: thorough review returned nil result")
+		return
+	}
+
+	// Parse and apply
+	result, err := review.ParseReviewResult(providerResult.Output)
+	if err != nil {
+		r.log("Warning: could not parse thorough review result: %v", err)
+		return
+	}
+
+	r.log("Thorough review: %s", result.Summary)
+	beadsCreated, backlogCreated := r.ApplyResult(result)
+
+	// Log review
+	if r.logger != nil {
+		r.logger.LogReview(&logger.ReviewLog{
+			Timestamp:      time.Now(),
+			Type:           "review",
+			ReviewType:     "thorough",
+			Iteration:      iteration,
+			Model:          providerResult.Model,
+			Passed:         result.Passed,
+			FixesApplied:   len(result.FixesApplied),
+			BeadsCreated:   beadsCreated,
+			BacklogCreated: backlogCreated,
+			DurationMs:     time.Since(start).Milliseconds(),
+		})
+	}
+
+	// Update state
+	if getGitHeadFn != nil {
+		currentCommit, err := getGitHeadFn()
+		if err != nil {
+			r.log("Warning: could not get current commit: %v", err)
+		} else {
+			if err := sa.RecordReview(currentCommit, iteration); err != nil {
+				r.log("Warning: could not record review state: %v", err)
+			} else if len(currentCommit) >= 8 {
+				r.log("Recorded thorough review at commit %s", currentCommit[:8])
+			}
+		}
+	}
 }
 
 // RunPostSuccess runs only the review stage after a successful build.
