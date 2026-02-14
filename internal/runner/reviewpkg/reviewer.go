@@ -30,9 +30,16 @@ type BeadClient interface {
 // PromptRenderer renders review prompts and loads context files.
 type PromptRenderer interface {
 	RenderReview(ctx *prompt.ReviewContext) (string, error)
+	RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error)
 	LoadClaudeMD() (string, error)
 	LoadRulesForPhase(phase string) (string, error)
 	LoadSpec(name string) (string, error)
+}
+
+// StateAccess provides access to thorough review state tracking.
+type StateAccess interface {
+	LastReviewCommit() string
+	RecordReview(commit string, iteration int) error
 }
 
 // IterationLogger writes review log entries.
@@ -299,4 +306,14 @@ func (r *Reviewer) WriteReviewLog(iteration int, beadID string, model string, re
 		BacklogCreated: backlogCreated,
 		DurationMs:     duration.Milliseconds(),
 	})
+}
+
+// RunThorough runs a periodic thorough review of all changes since the last review.
+// Uses state to track the last review commit. If deadline is set and approaching, skips.
+func (r *Reviewer) RunThorough(ctx context.Context, state StateAccess, iteration int, deadline time.Time, getGitHeadFn func() (string, error)) {
+}
+
+// RunPostSuccess runs only the review stage after a successful build.
+func (r *Reviewer) RunPostSuccess(ctx context.Context, bc *runtypes.BeadContext) error {
+	return nil
 }

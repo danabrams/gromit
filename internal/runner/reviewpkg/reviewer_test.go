@@ -62,10 +62,11 @@ func (m *mockBeadClient) CreateWithParentAndDescription(title string, priority i
 
 // mockPromptRenderer implements the PromptRenderer interface for reviewpkg tests.
 type mockPromptRenderer struct {
-	renderReviewFn func(ctx *prompt.ReviewContext) (string, error)
-	loadClaudeMDFn func() (string, error)
-	loadRulesFn    func(phase string) (string, error)
-	loadSpecFn     func(name string) (string, error)
+	renderReviewFn         func(ctx *prompt.ReviewContext) (string, error)
+	renderThoroughReviewFn func(ctx *prompt.ThoroughReviewContext) (string, error)
+	loadClaudeMDFn         func() (string, error)
+	loadRulesFn            func(phase string) (string, error)
+	loadSpecFn             func(name string) (string, error)
 }
 
 func (m *mockPromptRenderer) RenderReview(ctx *prompt.ReviewContext) (string, error) {
@@ -73,6 +74,13 @@ func (m *mockPromptRenderer) RenderReview(ctx *prompt.ReviewContext) (string, er
 		return m.renderReviewFn(ctx)
 	}
 	return "review prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error) {
+	if m.renderThoroughReviewFn != nil {
+		return m.renderThoroughReviewFn(ctx)
+	}
+	return "thorough review prompt", nil
 }
 
 func (m *mockPromptRenderer) LoadClaudeMD() (string, error) {
