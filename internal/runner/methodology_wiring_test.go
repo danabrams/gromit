@@ -209,27 +209,26 @@ func TestProcessBead_ATDD_HandlesAlreadyDoneFromMethodologyPackage(t *testing.T)
 func TestProcessBead_RefactorPhase_DelegatesToMethodologyExec(t *testing.T) {
 	cfg := newMethodologyWiringConfig()
 	cfg.Methodology.ATDD = true
-	cfg.Refactor.MinFilesChanged = 0 // Always run refactor
 	var buf strings.Builder
 
 	refactorCalled := false
 
-	// Create executor wired for both ATDD and refactor
-	exec := methodology.NewExecutorWithAnalysis(
-		cfg,
-		&buf,
-		func(ctx *prompt.Context) (string, error) {
-			return "test prompt", nil
-		},
-		func(ctx context.Context, bc *runtypes.BeadContext, p string) error {
-			return nil // acceptance tests succeed
-		},
-		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-			// Tests fail as expected
-			return &claude.Result{Success: true, Output: "FAIL", ExitCode: 1}, nil
-		},
-		nil, nil,
-	)
+	mockProv := &mockProviderWithRouterTracking{
+		streamRunResult: &provider.Result{Success: true, Model: "test-model", Output: "done"},
+	}
+	router := provider.NewSingleProviderRouter(mockProv)
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   router,
+		Renderer: &mockRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+
+	// Set MinFilesChanged after constructor (SetDefaults resets 0 → 3)
+	cfg.Refactor.MinFilesChanged = 1
 
 	// Wire refactor deps to track the call
 	refactorExec := methodology.NewExecutorWithRefactor(cfg, &buf, methodology.NewRefactorDeps(
@@ -249,26 +248,6 @@ func TestProcessBead_RefactorPhase_DelegatesToMethodologyExec(t *testing.T) {
 		func(commit string) error { return nil },
 		func() (string, error) { return "abc123", nil },
 	))
-
-	// The implementation should use a single methodologyExec with all deps wired.
-	// For this test we verify the delegation happens. Since we can't easily create
-	// a fully-wired Executor with both ATDD and refactor callbacks using current
-	// constructors, we test the refactor path separately.
-	_ = exec // ATDD executor - used in the combined flow
-
-	mockProv := &mockProviderWithRouterTracking{
-		streamRunResult: &provider.Result{Success: true, Model: "test-model", Output: "done"},
-	}
-	router := provider.NewSingleProviderRouter(mockProv)
-
-	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
-		Beads:    &mockBeadClient{},
-		Router:   router,
-		Renderer: &mockRenderer{},
-	})
-	if err != nil {
-		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
-	}
 
 	// Wire the refactor executor
 	r.methodologyExec = refactorExec
@@ -296,17 +275,28 @@ func TestProcessBead_RefactorPhase_DelegatesToMethodologyExec(t *testing.T) {
 
 // --- EscalateTierFn callback is wired to escalation.Handler ---
 
-// Expected failure: NewRunnerWithDeps does not currently wire EscalateTierFn
-// on the methodology.Executor. After implementation, the callback should wrap
+// Expected failure: makeMethodologyExec does not currently wire EscalateTierFn to
+// escalation.Handler.EscalateTier. After implementation, the callback should wrap
 // escalation.Handler.EscalateTier so that tier escalation during ATDD phases
-// flows through the same escalation logic.
+// updates bc.Tier, bc.Model, and bc.Result.EscalatedTo via the escalation handler.
 func TestMethodologyExec_EscalateTierFn_WrapsEscalationHandler(t *testing.T) {
 	cfg := newMethodologyWiringConfig()
+	cfg.Escalation.Enabled = true // Required for NextEscalationTier to return non-empty
 	var buf strings.Builder
+
+	// Use a provider that always fails, forcing retry exhaustion and escalation
+	failingProv := &mockProviderWithRouterTracking{
+		name: "failing-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{Success: false, Output: "build failed"}, nil
+		},
+		streamRunResult: &provider.Result{Success: false, Output: "build failed"},
+	}
+	router := provider.NewSingleProviderRouter(failingProv)
 
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
 		Beads:    &mockBeadClient{},
-		Router:   newMockRouter(),
+		Router:   router,
 		Renderer: &mockRenderer{},
 	})
 	if err != nil {
@@ -318,8 +308,8 @@ func TestMethodologyExec_EscalateTierFn_WrapsEscalationHandler(t *testing.T) {
 	}
 
 	// Exercise RunAcceptanceTestsWithRetry to verify the EscalateTierFn callback
-	// is wired: when acceptance tests fail and exhaust retries, escalation should
-	// update the BeadContext's tier/model via escalation.Handler.EscalateTier.
+	// is wired: when acceptance tests fail and exhaust retries at the low tier,
+	// escalation should update bc.Tier/bc.Model via escalation.Handler.EscalateTier.
 	bc := &runtypes.BeadContext{
 		Bead:      &bead.Bead{ID: "test-esc-001", Title: "Escalation test", Priority: 2},
 		Tier:      provider.TierLow,
@@ -328,14 +318,18 @@ func TestMethodologyExec_EscalateTierFn_WrapsEscalationHandler(t *testing.T) {
 		PromptCtx: &prompt.Context{WorkDir: t.TempDir()},
 	}
 
-	// This should attempt to escalate from low → medium tier after retries exhaust.
-	// The escalation updates bc.Tier and bc.Model via the wired callback.
+	// RunAcceptanceTestsWithRetry should exhaust retries at TierLow, then
+	// escalate to TierMedium via the wired EscalateTierFn callback.
 	_ = r.methodologyExec.RunAcceptanceTestsWithRetry(context.Background(), bc)
 
-	// After escalation, the tier should have moved up from low
+	// After escalation, the tier should have moved up from low → medium
 	if bc.Tier == provider.TierLow {
 		t.Error("EscalateTierFn should be wired to escalation.Handler.EscalateTier, " +
-			"updating bc.Tier from low to a higher tier after retry exhaustion")
+			"updating bc.Tier from low to medium after retry exhaustion")
+	}
+	// escalation.Handler.EscalateTier also updates bc.Model and bc.Result.EscalatedTo
+	if bc.Result.EscalatedTo == "" {
+		t.Error("EscalateTierFn should set bc.Result.EscalatedTo via escalation.Handler.EscalateTier")
 	}
 }
 
@@ -500,7 +494,6 @@ func TestProcessBead_RefactorPhase_RequiresMethodologyExec(t *testing.T) {
 func TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec(t *testing.T) {
 	cfg := newMethodologyWiringConfig()
 	cfg.Methodology.ATDD = true
-	cfg.Refactor.MinFilesChanged = 0
 	var buf strings.Builder
 
 	refactorRenderCalled := false
@@ -524,10 +517,13 @@ func TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec(t *testing.T) {
 		},
 	)
 
-	// Wire refactor deps with tracking
+	// Wire refactor deps with tracking — use 4 files to exceed any default threshold.
+	// Pass nil for validateFn so it doesn't overwrite the ATDD validateFn that returns
+	// failing tests (ATDD verify-tests-fail needs validation to fail before implementation).
 	exec.SetRefactorDeps(methodology.NewRefactorDeps(
 		func(startCommit string) (string, error) {
-			return "diff --git a/foo.go b/foo.go\n+line\ndiff --git a/bar.go b/bar.go\n+line", nil
+			return "diff --git a/a.go b/a.go\n+line\ndiff --git a/b.go b/b.go\n+line\n" +
+				"diff --git a/c.go b/c.go\n+line\ndiff --git a/d.go b/d.go\n+line", nil
 		},
 		func(ctx *prompt.Context) (string, error) {
 			refactorRenderCalled = true
@@ -536,9 +532,7 @@ func TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec(t *testing.T) {
 		func(ctx context.Context, p string, tier string) (*claude.Result, error) {
 			return &claude.Result{Success: true}, nil
 		},
-		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
-		},
+		nil, // validateFn — keep the ATDD validateFn (tests should fail before implementation)
 		func(commit string) error { return nil },
 		func() (string, error) { return "abc123", nil },
 	))
