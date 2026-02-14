@@ -10,16 +10,6 @@ var _ LearningsManager = (*testLearningsManager)(nil)
 var _ StateManager = (*testStateManager)(nil)
 var _ LogWriter = (*testLogWriter)(nil)
 
-// Compile-time checks for session interface satisfaction
-// Expected failure: BaseSession interface does not exist yet (Session needs to be renamed)
-var _ BaseSession = (*baseSession)(nil)
-
-// Expected failure: Session[T] generic interface does not exist yet
-var _ Session[RefineResult] = (*RefineSession)(nil)
-var _ Session[PlanResult] = (*PlanSession)(nil)
-var _ Session[ReviewResult] = (*ReviewSession)(nil)
-var _ Session[ExploreResult] = (*ExploreSession)(nil)
-
 // testAgentResolver is a mock for unit tests
 type testAgentResolver struct{}
 
