@@ -4,12 +4,17 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
+
+// StallTimeoutFunc returns stall detection timeouts for a given model name.
+// Returns (0, 0) to disable stall detection.
+type StallTimeoutFunc func(model string) (stallTimeout, stallTimeoutActive time.Duration)
 
 // InvocationResult captures the outcome of a single Claude invocation.
 type InvocationResult struct {
@@ -23,9 +28,11 @@ type InvocationResult struct {
 // Invoker handles a single Claude invocation: provider selection, streaming,
 // usage-limit fallback, and diagnostic capture.
 type Invoker struct {
-	router       Router
-	output       io.Writer
-	streamLogger *logger.StreamLogger
+	router         Router
+	output         io.Writer
+	streamLogger   *logger.StreamLogger
+	overwriteOut   OverwriteWriter
+	stallTimeoutFn StallTimeoutFunc
 }
 
 // NewInvoker creates an Invoker with the given narrow dependencies.
@@ -35,6 +42,16 @@ func NewInvoker(router Router, output io.Writer, streamLogger *logger.StreamLogg
 		output:       output,
 		streamLogger: streamLogger,
 	}
+}
+
+// WithHeartbeat configures the invoker to display periodic heartbeat progress
+// and optionally detect stalls. The OverwriteWriter is used for in-place
+// terminal updates. The StallTimeoutFunc provides per-model stall timeouts;
+// pass nil to disable stall detection while keeping progress display.
+func (inv *Invoker) WithHeartbeat(out OverwriteWriter, stallTimeoutFn StallTimeoutFunc) *Invoker {
+	inv.overwriteOut = out
+	inv.stallTimeoutFn = stallTimeoutFn
+	return inv
 }
 
 // Execute runs a single Claude invocation, returning the result and diagnostics.
@@ -69,6 +86,21 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 
 	stallFired := false
 
+	// Set up heartbeat for progress display and stall detection
+	var toolCallEvents chan claude.ToolEvent
+	var stopHeartbeat func()
+	if inv.overwriteOut != nil {
+		toolCallEvents = make(chan claude.ToolEvent, 100)
+		var stallTimeout, stallTimeoutActive time.Duration
+		if inv.stallTimeoutFn != nil {
+			stallTimeout, stallTimeoutActive = inv.stallTimeoutFn(modelName)
+		}
+		stopHeartbeat = StartHeartbeat(stats, stallTimeout, stallTimeoutActive, func() {
+			stallFired = true
+			childCancel()
+		}, toolCallEvents, inv.overwriteOut)
+	}
+
 	var handler claude.EventHandler
 	if inv.streamLogger != nil {
 		sl := inv.streamLogger
@@ -83,8 +115,15 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	}
 
 	providerToolHandler := func(event provider.ToolEvent) {
-		// Tool call events can be captured for heartbeat display;
-		// for now we record them in stats.
+		if toolCallEvents != nil {
+			select {
+			case toolCallEvents <- claude.ToolEvent{
+				ToolName: event.ToolName,
+				FilePath: event.FilePath,
+			}:
+			default:
+			}
+		}
 	}
 
 	providerResult, err := p.StreamRun(childCtx, bc.BuildPrompt, tier, inv.output, providerHandler, providerToolHandler)
@@ -101,6 +140,12 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 			providerResult, err = p2.StreamRun(childCtx, bc.BuildPrompt, tier, inv.output, providerHandler, providerToolHandler)
 			p = p2
 		}
+	}
+
+	// Stop heartbeat before reading stallFired — stopHeartbeat waits for the
+	// goroutine to finish, establishing a happens-before relationship.
+	if stopHeartbeat != nil {
+		stopHeartbeat()
 	}
 
 	var claudeResult *claude.Result

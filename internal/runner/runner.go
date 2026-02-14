@@ -94,6 +94,18 @@ func (a *routerAdapter) MarkUnavailable(name string) {
 	a.r.MarkUnavailable(name)
 }
 
+// makeStallTimeoutFn creates a StallTimeoutFunc that looks up per-model stall
+// timeouts from the config. Used to configure the invoker's heartbeat.
+func makeStallTimeoutFn(cfg *config.Config) execution.StallTimeoutFunc {
+	if cfg == nil {
+		return nil
+	}
+	return func(model string) (time.Duration, time.Duration) {
+		_, st, sta, _ := cfg.Claude.TimeoutsForModel(model)
+		return time.Duration(st) * time.Second, time.Duration(sta) * time.Second
+	}
+}
+
 // successLearningRouterAdapter wraps *provider.Router to satisfy escalation.SuccessLearningRouter.
 type successLearningRouterAdapter struct {
 	r *provider.Router
@@ -257,7 +269,9 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		return nil, err
 	}
 
-	inv := execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil)
+	stallTimeoutFn := makeStallTimeoutFn(cfg)
+	inv := execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
+		WithHeartbeat(syncOut, stallTimeoutFn)
 
 	r := &Runner{
 		cfg:         cfg,
@@ -327,11 +341,14 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	router := deps.Router
 
 	// Create invoker with router adapter (nil-safe: if router is nil, invoker handles it)
+	stallTimeoutFn := makeStallTimeoutFn(cfg)
 	var inv *execution.Invoker
 	if router != nil {
-		inv = execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil)
+		inv = execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
+			WithHeartbeat(syncOut, stallTimeoutFn)
 	} else {
-		inv = execution.NewInvoker(nil, syncOut, nil)
+		inv = execution.NewInvoker(nil, syncOut, nil).
+			WithHeartbeat(syncOut, stallTimeoutFn)
 	}
 
 	cmdRunner := defaultCmdRunner
