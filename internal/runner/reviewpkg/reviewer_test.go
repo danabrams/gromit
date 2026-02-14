@@ -166,7 +166,6 @@ func newTestConfig() *config.Config {
 
 // --- RunLight tests ---
 
-// Expected failure: reviewpkg.Reviewer type and NewReviewer constructor do not exist yet
 func TestRunLight_ReturnsPassingReview(t *testing.T) {
 	// When the provider returns a passing review, RunLight should return
 	// a ReviewResult with Passed=true and the summary from the output.
@@ -193,7 +192,6 @@ func TestRunLight_ReturnsPassingReview(t *testing.T) {
 		return "diff --git a/foo.go b/foo.go\n+added line", nil
 	}
 
-	// Expected failure: NewReviewer does not exist in the reviewpkg package yet
 	rev := NewReviewer(cfg, router, nil, renderer, gitDiffFn, nil)
 
 	b := &bead.Bead{ID: "test-001", Title: "Test bead", Priority: 1}
@@ -212,7 +210,6 @@ func TestRunLight_ReturnsPassingReview(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.Reviewer type does not exist yet
 func TestRunLight_SkipsWhenDeadlineExpired(t *testing.T) {
 	// When the deadline has already passed, RunLight should return nil, nil
 	// without invoking the provider.
@@ -246,7 +243,6 @@ func TestRunLight_SkipsWhenDeadlineExpired(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.Reviewer type does not exist yet
 func TestRunLight_SkipsWhenNoDiff(t *testing.T) {
 	// When the git diff returns empty, RunLight should return nil, nil
 	// without invoking the provider.
@@ -266,7 +262,6 @@ func TestRunLight_SkipsWhenNoDiff(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.Reviewer type does not exist yet
 func TestRunLight_UsesCrossReviewWhenConfigured(t *testing.T) {
 	// When routing.phase_preferences["review"] == "cross" and a buildProvider
 	// is specified, RunLight should call SelectCross instead of Select.
@@ -311,7 +306,6 @@ func TestRunLight_UsesCrossReviewWhenConfigured(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.Reviewer type does not exist yet
 func TestRunLight_LoadsSpecFromBeadOrParentLabels(t *testing.T) {
 	// When the bead or parent has a spec label, RunLight should load the spec
 	// and include it in the ReviewContext passed to the renderer.
@@ -360,7 +354,6 @@ func TestRunLight_LoadsSpecFromBeadOrParentLabels(t *testing.T) {
 
 // --- SelectReviewTier tests ---
 
-// Expected failure: reviewpkg.SelectReviewTier does not exist yet
 func TestSelectReviewTier_OpusBuildReturnsHigh(t *testing.T) {
 	// When buildModel is "opus", SelectReviewTier should always return "high"
 	// regardless of the bead's priority or labels.
@@ -373,7 +366,6 @@ func TestSelectReviewTier_OpusBuildReturnsHigh(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.SelectReviewTier does not exist yet
 func TestSelectReviewTier_NonOpusDelegatesToEscalation(t *testing.T) {
 	// When buildModel is not "opus", SelectReviewTier should delegate to
 	// escalation.SelectTier based on the bead's priority and labels.
@@ -392,7 +384,6 @@ func TestSelectReviewTier_NonOpusDelegatesToEscalation(t *testing.T) {
 
 // --- ApplyResult tests ---
 
-// Expected failure: reviewpkg.Reviewer.ApplyResult method does not exist yet
 func TestApplyResult_CreatesBeadsFromProposals(t *testing.T) {
 	// When a ReviewResult has BeadsToCreate, ApplyResult should create them
 	// with the "from-review" label prepended, and return the count.
@@ -435,7 +426,6 @@ func TestApplyResult_CreatesBeadsFromProposals(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.Reviewer.ApplyResult method does not exist yet
 func TestApplyResult_CreatesBacklogItemsAsP2(t *testing.T) {
 	// BacklogItems should be created as P2 beads with both "from-review"
 	// and "backlog" labels, combining description and reason.
@@ -481,7 +471,6 @@ func TestApplyResult_CreatesBacklogItemsAsP2(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.Reviewer.ApplyResult method does not exist yet
 func TestApplyResult_NilResultReturnsZero(t *testing.T) {
 	// When result is nil, ApplyResult should return 0, 0 without panicking.
 	cfg := newTestConfig()
@@ -493,7 +482,6 @@ func TestApplyResult_NilResultReturnsZero(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.Reviewer.ApplyResult method does not exist yet
 func TestApplyResult_DeduplicatesFromReviewLabel(t *testing.T) {
 	// When a proposal already has "from-review" in its labels, ApplyResult
 	// should not duplicate it.
@@ -526,7 +514,6 @@ func TestApplyResult_DeduplicatesFromReviewLabel(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.Reviewer.ApplyResult method does not exist yet
 func TestApplyResult_ContinuesOnCreateError(t *testing.T) {
 	// When creating one bead fails, ApplyResult should continue creating
 	// the remaining beads and not count the failed one.
@@ -559,7 +546,6 @@ func TestApplyResult_ContinuesOnCreateError(t *testing.T) {
 
 // --- WriteReviewLog tests ---
 
-// Expected failure: reviewpkg.Reviewer.WriteReviewLog method does not exist yet
 func TestWriteReviewLog_LogsCorrectFields(t *testing.T) {
 	// WriteReviewLog should call the IterationLogger with a ReviewLog
 	// containing all the correct field values.
@@ -611,7 +597,6 @@ func TestWriteReviewLog_LogsCorrectFields(t *testing.T) {
 	}
 }
 
-// Expected failure: reviewpkg.Reviewer.WriteReviewLog method does not exist yet
 func TestWriteReviewLog_NilResultIsNoOp(t *testing.T) {
 	// When result is nil, WriteReviewLog should not panic and should not log.
 	cfg := newTestConfig()

@@ -10,25 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 )
 
-// --- Mock types for thorough review dependencies ---
-
-// mockThoroughPromptRenderer extends the existing mockPromptRenderer to include
-// RenderThoroughReview, which the PromptRenderer interface must support for thorough reviews.
-type mockThoroughPromptRenderer struct {
-	mockPromptRenderer
-	renderThoroughReviewFn func(ctx *prompt.ThoroughReviewContext) (string, error)
-}
-
-// Expected failure: PromptRenderer interface does not include RenderThoroughReview yet
-func (m *mockThoroughPromptRenderer) RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error) {
-	if m.renderThoroughReviewFn != nil {
-		return m.renderThoroughReviewFn(ctx)
-	}
-	return "thorough review prompt", nil
-}
-
-// mockStateAccess implements the state access interface for thorough review tests.
-// Expected failure: StateAccess interface does not exist in reviewpkg yet
+// mockStateAccess implements the StateAccess interface for thorough review tests.
 type mockStateAccess struct {
 	lastReviewCommitFn func() string
 	recordReviewFn     func(commit string, iteration int) error
@@ -46,18 +28,6 @@ func (m *mockStateAccess) RecordReview(commit string, iteration int) error {
 		return m.recordReviewFn(commit, iteration)
 	}
 	return nil
-}
-
-// mockValidationChecker implements the validation check callback for review tests.
-type mockValidationChecker struct {
-	checkFn func(ctx context.Context, commands []string, workDir string) (passed bool, err error)
-}
-
-func (m *mockValidationChecker) Check(ctx context.Context, commands []string, workDir string) (bool, error) {
-	if m.checkFn != nil {
-		return m.checkFn(ctx, commands, workDir)
-	}
-	return true, nil
 }
 
 // --- Helper ---
@@ -87,7 +57,6 @@ func newThoroughTestConfig() *config.Config {
 
 // --- RunThorough tests ---
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_ReturnsResultFromProvider(t *testing.T) {
 	// When the provider returns a passing thorough review with findings,
 	// RunThorough should parse the result, apply it (create beads), log it,
@@ -119,7 +88,7 @@ func TestRunThorough_ReturnsResultFromProvider(t *testing.T) {
 
 	beadClient := &mockBeadClient{}
 	mockLogger := &mockIterationLogger{}
-	renderer := &mockThoroughPromptRenderer{}
+	renderer := &mockPromptRenderer{}
 
 	stateAccess := &mockStateAccess{
 		lastReviewCommitFn: func() string { return "prev-commit-abc" },
@@ -144,8 +113,6 @@ func TestRunThorough_ReturnsResultFromProvider(t *testing.T) {
 		return "new-head-commit-xyz", nil
 	}
 
-	// Expected failure: NewReviewer does not accept state, validation, or gitHead params yet;
-	// RunThorough method does not exist on Reviewer
 	rev := NewReviewer(cfg, router, beadClient, renderer, gitDiffFn, mockLogger)
 
 	rev.RunThorough(context.Background(), stateAccess, 5, time.Time{}, getGitHeadFn)
@@ -175,7 +142,6 @@ func TestRunThorough_ReturnsResultFromProvider(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_SkipsWhenDeadlineExpired(t *testing.T) {
 	// When deadline has passed, RunThorough should return without calling the provider.
 	cfg := newThoroughTestConfig()
@@ -188,7 +154,7 @@ func TestRunThorough_SkipsWhenDeadlineExpired(t *testing.T) {
 		},
 	}
 
-	rev := NewReviewer(cfg, router, nil, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
 		return "some diff", nil
 	}, nil)
 
@@ -203,7 +169,6 @@ func TestRunThorough_SkipsWhenDeadlineExpired(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_SkipsWhenInsufficientTime(t *testing.T) {
 	// When the remaining time is less than the thorough review timeout,
 	// RunThorough should skip without calling the provider.
@@ -218,7 +183,7 @@ func TestRunThorough_SkipsWhenInsufficientTime(t *testing.T) {
 		},
 	}
 
-	rev := NewReviewer(cfg, router, nil, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff", nil
 	}, nil)
 
@@ -234,7 +199,6 @@ func TestRunThorough_SkipsWhenInsufficientTime(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_SkipsWhenNilStateFile(t *testing.T) {
 	// When state access is nil, RunThorough should return without error.
 	cfg := newThoroughTestConfig()
@@ -247,7 +211,7 @@ func TestRunThorough_SkipsWhenNilStateFile(t *testing.T) {
 		},
 	}
 
-	rev := NewReviewer(cfg, router, nil, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff", nil
 	}, nil)
 
@@ -261,7 +225,6 @@ func TestRunThorough_SkipsWhenNilStateFile(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_SkipsWhenNoLastReviewCommit(t *testing.T) {
 	// When there is no previous review commit, RunThorough should skip.
 	cfg := newThoroughTestConfig()
@@ -278,7 +241,7 @@ func TestRunThorough_SkipsWhenNoLastReviewCommit(t *testing.T) {
 		lastReviewCommitFn: func() string { return "" }, // no previous review
 	}
 
-	rev := NewReviewer(cfg, router, nil, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff", nil
 	}, nil)
 
@@ -291,7 +254,6 @@ func TestRunThorough_SkipsWhenNoLastReviewCommit(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_SkipsWhenNoDiff(t *testing.T) {
 	// When the diff since the last review is empty, RunThorough should skip.
 	cfg := newThoroughTestConfig()
@@ -308,7 +270,7 @@ func TestRunThorough_SkipsWhenNoDiff(t *testing.T) {
 		lastReviewCommitFn: func() string { return "prev-commit" },
 	}
 
-	rev := NewReviewer(cfg, router, nil, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
 		return "", nil // empty diff
 	}, nil)
 
@@ -321,7 +283,6 @@ func TestRunThorough_SkipsWhenNoDiff(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_RevalidatesAfterFixesApplied(t *testing.T) {
 	// When the thorough review applies fixes, RunThorough should run validation
 	// to ensure the fixes didn't break anything.
@@ -354,11 +315,10 @@ func TestRunThorough_RevalidatesAfterFixesApplied(t *testing.T) {
 		lastReviewCommitFn: func() string { return "prev-commit" },
 	}
 
-	rev := NewReviewer(cfg, router, nil, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff content", nil
 	}, &mockIterationLogger{})
 
-	// Expected failure: RunThorough does not exist; it needs a validateFn callback
 	rev.RunThorough(context.Background(), stateAccess, 3, time.Time{}, func() (string, error) {
 		return "new-head", nil
 	})
@@ -369,7 +329,6 @@ func TestRunThorough_RevalidatesAfterFixesApplied(t *testing.T) {
 	// After implementation, we'd assert: validationCalled == true
 }
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_BuildsThoroughReviewContext(t *testing.T) {
 	// RunThorough should build a ThoroughReviewContext with the correct fields
 	// and pass it to the renderer's RenderThoroughReview method.
@@ -377,7 +336,7 @@ func TestRunThorough_BuildsThoroughReviewContext(t *testing.T) {
 	cfg.Review.Thorough.Model = "opus"
 
 	var capturedCtx *prompt.ThoroughReviewContext
-	renderer := &mockThoroughPromptRenderer{
+	renderer := &mockPromptRenderer{
 		renderThoroughReviewFn: func(ctx *prompt.ThoroughReviewContext) (string, error) {
 			capturedCtx = ctx
 			return "thorough prompt", nil
@@ -424,7 +383,6 @@ func TestRunThorough_BuildsThoroughReviewContext(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_AlwaysSelectsHighTier(t *testing.T) {
 	// RunThorough should always use tier "high" for provider selection,
 	// regardless of bead priority or config.
@@ -452,7 +410,7 @@ func TestRunThorough_AlwaysSelectsHighTier(t *testing.T) {
 		lastReviewCommitFn: func() string { return "prev-commit" },
 	}
 
-	rev := NewReviewer(cfg, router, nil, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff content", nil
 	}, &mockIterationLogger{})
 
@@ -465,7 +423,6 @@ func TestRunThorough_AlwaysSelectsHighTier(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_LogsReviewAsThoroughType(t *testing.T) {
 	// The review log entry should have ReviewType "thorough" (not "light").
 	cfg := newThoroughTestConfig()
@@ -492,7 +449,7 @@ func TestRunThorough_LogsReviewAsThoroughType(t *testing.T) {
 		lastReviewCommitFn: func() string { return "prev-commit" },
 	}
 
-	rev := NewReviewer(cfg, router, &mockBeadClient{}, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, &mockBeadClient{}, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff content", nil
 	}, mockLog)
 
@@ -518,7 +475,6 @@ func TestRunThorough_LogsReviewAsThoroughType(t *testing.T) {
 
 // --- RunThorough: Verify state recording ---
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_RecordsReviewInState(t *testing.T) {
 	// After a successful thorough review, RunThorough should call
 	// RecordReview on the state access with the current git HEAD and iteration.
@@ -552,7 +508,7 @@ func TestRunThorough_RecordsReviewInState(t *testing.T) {
 		},
 	}
 
-	rev := NewReviewer(cfg, router, nil, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff", nil
 	}, &mockIterationLogger{})
 
@@ -570,7 +526,6 @@ func TestRunThorough_RecordsReviewInState(t *testing.T) {
 
 // --- RunThorough: Provider nil handling ---
 
-// Expected failure: Reviewer.RunThorough method does not exist yet
 func TestRunThorough_HandlesNilProvider(t *testing.T) {
 	// When router.Select returns nil provider, RunThorough should log warning
 	// and return without panicking.
@@ -586,7 +541,7 @@ func TestRunThorough_HandlesNilProvider(t *testing.T) {
 		lastReviewCommitFn: func() string { return "prev-commit" },
 	}
 
-	rev := NewReviewer(cfg, router, nil, &mockThoroughPromptRenderer{}, func(string) (string, error) {
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff", nil
 	}, nil)
 
@@ -598,18 +553,8 @@ func TestRunThorough_HandlesNilProvider(t *testing.T) {
 
 // --- Verify PromptRenderer interface includes RenderThoroughReview ---
 
-// Expected failure: PromptRenderer interface in reviewpkg does not include RenderThoroughReview yet
 func TestPromptRenderer_MustSupportThoroughReview(t *testing.T) {
-	// The PromptRenderer interface should include RenderThoroughReview
-	// so that the Reviewer can render thorough review prompts.
-	// This test verifies the interface by assigning a mock that implements it.
-	var renderer PromptRenderer = &mockThoroughPromptRenderer{}
-
-	// Expected failure: PromptRenderer interface does not have RenderThoroughReview,
-	// so mockThoroughPromptRenderer cannot satisfy it until the interface is updated.
-	_ = renderer
-
-	// Verify the method is callable through the interface
+	var renderer PromptRenderer = &mockPromptRenderer{}
 	result, err := renderer.RenderThoroughReview(&prompt.ThoroughReviewContext{
 		Diff:  "test diff",
 		Model: "opus",

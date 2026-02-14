@@ -31,7 +31,6 @@ func newTestBeadContext() *runtypes.BeadContext {
 
 // --- RunPostSuccess tests ---
 
-// Expected failure: Reviewer.RunPostSuccess method does not exist yet
 func TestRunPostSuccess_RunsLightReviewAndLogs(t *testing.T) {
 	// RunPostSuccess should call RunLight, then ApplyResult, then WriteReviewLog
 	// when the review returns a result.
@@ -62,7 +61,6 @@ func TestRunPostSuccess_RunsLightReviewAndLogs(t *testing.T) {
 
 	bc := newTestBeadContext()
 
-	// Expected failure: RunPostSuccess does not exist on Reviewer
 	err := rev.RunPostSuccess(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("RunPostSuccess returned error: %v", err)
@@ -85,7 +83,6 @@ func TestRunPostSuccess_RunsLightReviewAndLogs(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunPostSuccess method does not exist yet
 func TestRunPostSuccess_ReviewFailureIsNonBlocking(t *testing.T) {
 	// When the light review itself fails (provider error), RunPostSuccess
 	// should log a warning and return nil (not propagate the error).
@@ -110,14 +107,12 @@ func TestRunPostSuccess_ReviewFailureIsNonBlocking(t *testing.T) {
 
 	bc := newTestBeadContext()
 
-	// Expected failure: RunPostSuccess does not exist
 	err := rev.RunPostSuccess(context.Background(), bc)
 	if err != nil {
 		t.Errorf("RunPostSuccess should return nil on review failure, got: %v", err)
 	}
 }
 
-// Expected failure: Reviewer.RunPostSuccess method does not exist yet
 func TestRunPostSuccess_NilReviewResultIsNoOp(t *testing.T) {
 	// When RunLight returns nil result (e.g., no diff or deadline expired),
 	// RunPostSuccess should return nil without logging or creating beads.
@@ -130,14 +125,12 @@ func TestRunPostSuccess_NilReviewResultIsNoOp(t *testing.T) {
 
 	bc := newTestBeadContext()
 
-	// Expected failure: RunPostSuccess does not exist
 	err := rev.RunPostSuccess(context.Background(), bc)
 	if err != nil {
 		t.Errorf("RunPostSuccess should return nil when review skipped, got: %v", err)
 	}
 }
 
-// Expected failure: Reviewer.RunPostSuccess method does not exist yet
 func TestRunPostSuccess_RevalidatesAfterFixesApplied(t *testing.T) {
 	// When the light review applies fixes, RunPostSuccess should re-validate.
 	// If validation passes, no error should be returned.
@@ -185,7 +178,6 @@ func TestRunPostSuccess_RevalidatesAfterFixesApplied(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunPostSuccess method does not exist yet
 func TestRunPostSuccess_SetsReviewBrokeValidation(t *testing.T) {
 	// When the light review applies fixes that break validation,
 	// RunPostSuccess should set bc.Result.ReviewBrokeValidation = true
@@ -232,7 +224,6 @@ func TestRunPostSuccess_SetsReviewBrokeValidation(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunPostSuccess method does not exist yet
 func TestRunPostSuccess_AppendsValidationOutputOnFailure(t *testing.T) {
 	// When review fixes break validation, RunPostSuccess should append
 	// the validation failure output to bc.Result.Output.
@@ -272,7 +263,6 @@ func TestRunPostSuccess_AppendsValidationOutputOnFailure(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunPostSuccess method does not exist yet
 func TestRunPostSuccess_SkipsValidationWhenNoFixes(t *testing.T) {
 	// When the review returns no fixes_applied, RunPostSuccess should not
 	// run re-validation — just apply results and log.
@@ -317,7 +307,6 @@ func TestRunPostSuccess_SkipsValidationWhenNoFixes(t *testing.T) {
 	}
 }
 
-// Expected failure: Reviewer.RunPostSuccess method does not exist yet
 func TestRunPostSuccess_UsesBeadContextFieldsCorrectly(t *testing.T) {
 	// RunPostSuccess should pass the correct fields from BeadContext
 	// to RunLight: bead, parent, startCommit, model, iteration, deadline, buildProvider.
@@ -362,7 +351,6 @@ func TestRunPostSuccess_UsesBeadContextFieldsCorrectly(t *testing.T) {
 	bc.Model = "opus"
 	bc.BuildProvider = "my-build-provider"
 
-	// Expected failure: RunPostSuccess does not exist
 	_ = rev.RunPostSuccess(context.Background(), bc)
 
 	if capturedArgs.startCommit != "my-start-commit" {
@@ -372,7 +360,6 @@ func TestRunPostSuccess_UsesBeadContextFieldsCorrectly(t *testing.T) {
 
 // --- RunPostSuccess: Signature acceptance ---
 
-// Expected failure: Reviewer.RunPostSuccess method does not exist yet
 func TestRunPostSuccess_AcceptsBeadContext(t *testing.T) {
 	// RunPostSuccess must accept a *runtypes.BeadContext and return error.
 	// This tests the method signature through the public API.
@@ -389,7 +376,6 @@ func TestRunPostSuccess_AcceptsBeadContext(t *testing.T) {
 		PromptCtx: &prompt.Context{WorkDir: "/tmp"},
 	}
 
-	// Expected failure: RunPostSuccess does not exist
 	var err error
 	err = rev.RunPostSuccess(context.Background(), bc)
 
