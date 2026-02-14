@@ -194,7 +194,7 @@ func (c *Client) Ready() (*Bead, error) {
 	}
 	// Fetch a batch and filter out epics client-side.
 	// bd doesn't handle multiple -t flags correctly, so we can't exclude epics server-side.
-	out, err := c.run("ready", "--json", "--limit", "10")
+	out, err := c.run("ready", "--json", "--limit", "3")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
@@ -295,7 +295,7 @@ func (c *Client) ReadyWithLabel(label string) (*Bead, error) {
 	}
 
 	// Fetch a batch of beads with the specified label and filter out epics client-side
-	out, err := c.run("ready", "--json", "--limit", "10", "--label", label)
+	out, err := c.run("ready", "--json", "--limit", "3", "--label", label)
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
