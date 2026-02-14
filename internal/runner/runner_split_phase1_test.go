@@ -10,8 +10,9 @@ import (
 )
 
 type splitDecls struct {
-	types map[string]bool
-	funcs map[string]bool
+	types   map[string]bool
+	funcs   map[string]bool
+	methods map[string]map[string]bool
 }
 
 func parseDecls(t *testing.T, path string) splitDecls {
@@ -24,8 +25,9 @@ func parseDecls(t *testing.T, path string) splitDecls {
 	}
 
 	decls := splitDecls{
-		types: make(map[string]bool),
-		funcs: make(map[string]bool),
+		types:   make(map[string]bool),
+		funcs:   make(map[string]bool),
+		methods: make(map[string]map[string]bool),
 	}
 
 	for _, decl := range file.Decls {
@@ -42,11 +44,34 @@ func parseDecls(t *testing.T, path string) splitDecls {
 		case *ast.FuncDecl:
 			if d.Recv == nil {
 				decls.funcs[d.Name.Name] = true
+				continue
 			}
+			if len(d.Recv.List) == 0 {
+				continue
+			}
+			recv := receiverName(d.Recv.List[0].Type)
+			if recv == "" {
+				continue
+			}
+			if decls.methods[recv] == nil {
+				decls.methods[recv] = make(map[string]bool)
+			}
+			decls.methods[recv][d.Name.Name] = true
 		}
 	}
 
 	return decls
+}
+
+func receiverName(expr ast.Expr) string {
+	switch e := expr.(type) {
+	case *ast.StarExpr:
+		return receiverName(e.X)
+	case *ast.Ident:
+		return e.Name
+	default:
+		return ""
+	}
 }
 
 func TestRunnerSplitPhase1_AdaptersExtracted(t *testing.T) {
@@ -90,5 +115,43 @@ func TestRunnerSplitPhase1_AdaptersExtracted(t *testing.T) {
 	}
 	if runnerDecls.types["successLearningResultAdapter"] {
 		t.Fatal("runner.go still contains type successLearningResultAdapter")
+	}
+}
+
+func TestRunnerSplitPhase1_CallbacksExtracted(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	runnerDir := filepath.Dir(thisFile)
+	callbacksPath := filepath.Join(runnerDir, "callbacks.go")
+	runnerPath := filepath.Join(runnerDir, "runner.go")
+
+	callbacksDecls := parseDecls(t, callbacksPath)
+	if callbacksDecls.methods["Runner"] == nil || !callbacksDecls.methods["Runner"]["makeInvokeFn"] {
+		t.Fatal("callbacks.go missing method Runner.makeInvokeFn")
+	}
+	if callbacksDecls.methods["Runner"] == nil || !callbacksDecls.methods["Runner"]["makeValidationExecuteFn"] {
+		t.Fatal("callbacks.go missing method Runner.makeValidationExecuteFn")
+	}
+	if callbacksDecls.methods["Runner"] == nil || !callbacksDecls.methods["Runner"]["makeReviewValidateFn"] {
+		t.Fatal("callbacks.go missing method Runner.makeReviewValidateFn")
+	}
+	if callbacksDecls.methods["Runner"] == nil || !callbacksDecls.methods["Runner"]["makeMethodologyExec"] {
+		t.Fatal("callbacks.go missing method Runner.makeMethodologyExec")
+	}
+
+	runnerDecls := parseDecls(t, runnerPath)
+	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["makeInvokeFn"] {
+		t.Fatal("runner.go still contains method Runner.makeInvokeFn")
+	}
+	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["makeValidationExecuteFn"] {
+		t.Fatal("runner.go still contains method Runner.makeValidationExecuteFn")
+	}
+	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["makeReviewValidateFn"] {
+		t.Fatal("runner.go still contains method Runner.makeReviewValidateFn")
+	}
+	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["makeMethodologyExec"] {
+		t.Fatal("runner.go still contains method Runner.makeMethodologyExec")
 	}
 }
