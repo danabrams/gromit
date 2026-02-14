@@ -175,8 +175,7 @@ func (r *Reviewer) RunLight(ctx context.Context, b *bead.Bead, parent *bead.Bead
 	}
 
 	// Call provider with timeout
-	timeout := time.Duration(r.cfg.Review.Timeout) * time.Second
-	reviewTimeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	reviewTimeoutCtx, cancel := context.WithTimeout(ctx, reviewTimeout)
 	defer cancel()
 
 	providerResult, err := p.Run(reviewTimeoutCtx, reviewPrompt, tier)
