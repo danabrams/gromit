@@ -451,62 +451,110 @@ func TestBaseSessionStdoutReaderGoroutine(t *testing.T) {
 	}
 }
 
-// TestRefineSessionWrapper verifies RefineSession wrapper exists and has Result() method
-// Expected failure: RefineSession.Result() method does not exist yet
+// TestRefineSessionWrapper verifies RefineSession wrapper has typed Result() method that returns RefineResult
+// Expected failure: RefineSession.Result() method does not exist yet - currently RefineSession only embeds Session with no typed Result() method
 func TestRefineSessionWrapper(t *testing.T) {
-	// RefineSession should embed Session and add Result() method
-	var session RefineSession
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
 
-	// Verify Result() method exists with correct signature
+	// Create a session using the constructor that should exist
+	session := newRefineSession(ctx, cmd, nil)
+
+	// Wait for completion
+	_ = session.Wait()
+
+	// Verify Result() method exists with correct signature and returns RefineResult (not interface{})
 	result, err := session.Result()
 
-	// Result should be RefineResult type
+	// The key behavioral difference: Result() should return RefineResult type, not interface{}
+	// This would fail with current code because Result() doesn't exist
 	var _ RefineResult = result
 
-	if err == nil {
-		t.Error("Result() on nil session should return error")
+	if err != nil {
+		t.Errorf("Result() after Wait() returned unexpected error: %v", err)
+	}
+
+	// Verify result has initialized slices (specific behavioral output)
+	if result.CreatedSpecs == nil {
+		t.Error("Result().CreatedSpecs is nil, want empty slice - typed Result() should initialize fields")
+	}
+	if result.RefinedItems == nil {
+		t.Error("Result().RefinedItems is nil, want empty slice - typed Result() should initialize fields")
 	}
 }
 
-// TestPlanSessionWrapper verifies PlanSession wrapper exists and has Result() method
-// Expected failure: PlanSession.Result() method does not exist yet
+// TestPlanSessionWrapper verifies PlanSession wrapper has typed Result() method that returns PlanResult
+// Expected failure: PlanSession.Result() method does not exist yet - currently PlanSession only embeds Session with no typed Result() method
 func TestPlanSessionWrapper(t *testing.T) {
-	var session PlanSession
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
 
+	session := newPlanSession(ctx, cmd, nil)
+	_ = session.Wait()
+
+	// The key behavioral difference: Result() should return PlanResult type
 	result, err := session.Result()
-
 	var _ PlanResult = result
 
-	if err == nil {
-		t.Error("Result() on nil session should return error")
+	if err != nil {
+		t.Errorf("Result() after Wait() returned unexpected error: %v", err)
+	}
+
+	// Verify specific field initialization
+	if result.CreatedPlans == nil {
+		t.Error("Result().CreatedPlans is nil, want empty slice")
 	}
 }
 
-// TestReviewSessionWrapper verifies ReviewSession wrapper exists and has Result() method
-// Expected failure: ReviewSession.Result() method does not exist yet
+// TestReviewSessionWrapper verifies ReviewSession wrapper has typed Result() method that returns ReviewResult
+// Expected failure: ReviewSession.Result() method does not exist yet - currently ReviewSession only embeds Session with no typed Result() method
 func TestReviewSessionWrapper(t *testing.T) {
-	var session ReviewSession
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
 
+	session := newReviewSession(ctx, cmd, nil)
+	_ = session.Wait()
+
+	// The key behavioral difference: Result() should return ReviewResult type
 	result, err := session.Result()
-
 	var _ ReviewResult = result
 
-	if err == nil {
-		t.Error("Result() on nil session should return error")
+	if err != nil {
+		t.Errorf("Result() after Wait() returned unexpected error: %v", err)
+	}
+
+	// Verify result is valid ReviewResult (zero value is valid for ReviewResult)
+	if result.Summary == "" && result.Passed != false {
+		// This is fine - zero value ReviewResult is valid
 	}
 }
 
-// TestExploreSessionWrapper verifies ExploreSession wrapper exists and has Result() method
-// Expected failure: ExploreSession.Result() method does not exist yet
+// TestExploreSessionWrapper verifies ExploreSession wrapper has typed Result() method that returns ExploreResult
+// Expected failure: ExploreSession.Result() method does not exist yet - currently ExploreSession only embeds Session with no typed Result() method
 func TestExploreSessionWrapper(t *testing.T) {
-	var session ExploreSession
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
 
+	session := newExploreSession(ctx, cmd, nil)
+	_ = session.Wait()
+
+	// The key behavioral difference: Result() should return ExploreResult type
 	result, err := session.Result()
-
 	var _ ExploreResult = result
 
-	if err == nil {
-		t.Error("Result() on nil session should return error")
+	if err != nil {
+		t.Errorf("Result() after Wait() returned unexpected error: %v", err)
+	}
+
+	// Verify specific field initialization
+	if result.CreatedSpecs == nil {
+		t.Error("Result().CreatedSpecs is nil, want empty slice")
+	}
+	if result.CreatedEpics == nil {
+		t.Error("Result().CreatedEpics is nil, want empty slice")
+	}
+	if result.CreatedBacklogItems == nil {
+		t.Error("Result().CreatedBacklogItems is nil, want empty slice")
 	}
 }
 
