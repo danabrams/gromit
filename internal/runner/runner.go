@@ -919,6 +919,14 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		return bc.Result
 	}
 
+	// ATDD: Verify acceptance tests pass after build + regular validation
+	if atddActive && r.methodologyExec != nil {
+		if err := r.methodologyExec.VerifyAcceptanceTestsPass(ctx, bc); err != nil {
+			bc.Result.Error = fmt.Errorf("post-build acceptance verification: %w", err)
+			return bc.Result
+		}
+	}
+
 	// ATDD/TDD Phase 3: Refactor (if either methodology is active)
 	if atddActive || tddActive {
 		r.log("Running refactor phase...")
@@ -934,6 +942,14 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		if r.cfg.Validation.Enabled {
 			if err := r.runValidationWithRecovery(ctx, bc); err != nil {
 				bc.Result.Error = fmt.Errorf("validation failed after refactoring: %w", err)
+				return bc.Result
+			}
+		}
+
+		// ATDD: Re-verify acceptance tests pass after refactoring
+		if atddActive && r.methodologyExec != nil {
+			if err := r.methodologyExec.VerifyAcceptanceTestsPass(ctx, bc); err != nil {
+				bc.Result.Error = fmt.Errorf("acceptance verification failed after refactoring: %w", err)
 				return bc.Result
 			}
 		}

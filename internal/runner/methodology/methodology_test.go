@@ -158,6 +158,36 @@ func TestRunAcceptanceTests_PropagatesInvocationError(t *testing.T) {
 
 // --- VerifyTestsFail tests ---
 
+func TestVerifyTestsFail_UsesAcceptanceCommands(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./...", "go vet ./..."}
+	var buf strings.Builder
+
+	var receivedCommands []string
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		receivedCommands = commands
+		return &claude.Result{
+			Success:  true,
+			Output:   "FAIL: TestSomething",
+			ExitCode: 1,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	bc := newTestBeadContext()
+	_ = exec.VerifyTestsFail(context.Background(), bc)
+
+	if len(receivedCommands) != 2 {
+		t.Fatalf("expected 2 commands, got %d", len(receivedCommands))
+	}
+	if receivedCommands[0] != "go test -tags acceptance ./..." {
+		t.Errorf("VerifyTestsFail should inject -tags acceptance, got %q", receivedCommands[0])
+	}
+	if receivedCommands[1] != "go vet ./..." {
+		t.Errorf("non-go-test commands should be unchanged, got %q", receivedCommands[1])
+	}
+}
+
 func TestVerifyTestsFail_ReturnsNilWhenTestsFail(t *testing.T) {
 	cfg := newTestConfig()
 	var buf strings.Builder
@@ -254,6 +284,136 @@ func TestVerifyTestsFail_NilResultReturnsError(t *testing.T) {
 	err := exec.VerifyTestsFail(context.Background(), bc)
 	if err == nil {
 		t.Fatal("VerifyTestsFail should return error when validation returns nil result")
+	}
+}
+
+// --- VerifyAcceptanceTestsPass tests ---
+
+func TestVerifyAcceptanceTestsPass_ReturnsNilWhenTestsPass(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	var receivedCommands []string
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		receivedCommands = commands
+		return &claude.Result{
+			Success:  true,
+			Output:   "VALIDATION_PASSED",
+			ExitCode: 0,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	bc := newTestBeadContext()
+	err := exec.VerifyAcceptanceTestsPass(context.Background(), bc)
+
+	if err != nil {
+		t.Fatalf("VerifyAcceptanceTestsPass should return nil when tests pass, got: %v", err)
+	}
+	// Should use acceptance-tagged commands
+	if len(receivedCommands) == 0 {
+		t.Fatal("expected commands to be passed to validateFn")
+	}
+	if receivedCommands[0] != "go test -tags acceptance ./..." {
+		t.Errorf("should use acceptance commands, got %q", receivedCommands[0])
+	}
+}
+
+func TestVerifyAcceptanceTestsPass_ReturnsErrorWhenTestsFail(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{
+			Success:  true,
+			Output:   "FAIL: TestSomething",
+			ExitCode: 1,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	bc := newTestBeadContext()
+	err := exec.VerifyAcceptanceTestsPass(context.Background(), bc)
+
+	if err == nil {
+		t.Fatal("VerifyAcceptanceTestsPass should return error when tests fail")
+	}
+	if !strings.Contains(err.Error(), "acceptance tests failed") {
+		t.Errorf("error should mention acceptance tests failed, got: %v", err)
+	}
+}
+
+func TestVerifyAcceptanceTestsPass_ReturnsErrorWhenValidationDisabled(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.Enabled = false
+	var buf strings.Builder
+
+	exec := NewExecutor(cfg, &buf, nil, nil, nil)
+	bc := newTestBeadContext()
+	err := exec.VerifyAcceptanceTestsPass(context.Background(), bc)
+
+	if err == nil {
+		t.Fatal("VerifyAcceptanceTestsPass should return error when validation disabled")
+	}
+}
+
+// --- AcceptanceCommands tests ---
+
+func TestAcceptanceCommands_InjectsTagsIntoGoTest(t *testing.T) {
+	commands := []string{"go test ./...", "go vet ./..."}
+	got := AcceptanceCommands(commands)
+
+	if len(got) != 2 {
+		t.Fatalf("AcceptanceCommands returned %d commands, want 2", len(got))
+	}
+	if got[0] != "go test -tags acceptance ./..." {
+		t.Errorf("AcceptanceCommands()[0] = %q, want %q", got[0], "go test -tags acceptance ./...")
+	}
+	if got[1] != "go vet ./..." {
+		t.Errorf("AcceptanceCommands()[1] = %q, want unchanged %q", got[1], "go vet ./...")
+	}
+}
+
+func TestAcceptanceCommands_HandlesGoTestWithExistingFlags(t *testing.T) {
+	commands := []string{"go test -v -count=1 ./..."}
+	got := AcceptanceCommands(commands)
+
+	if len(got) != 1 {
+		t.Fatalf("AcceptanceCommands returned %d commands, want 1", len(got))
+	}
+	if got[0] != "go test -tags acceptance -v -count=1 ./..." {
+		t.Errorf("AcceptanceCommands()[0] = %q, want %q", got[0], "go test -tags acceptance -v -count=1 ./...")
+	}
+}
+
+func TestAcceptanceCommands_PreservesNonGoTestCommands(t *testing.T) {
+	commands := []string{"golangci-lint run ./...", "go vet ./..."}
+	got := AcceptanceCommands(commands)
+
+	if len(got) != 2 {
+		t.Fatalf("AcceptanceCommands returned %d commands, want 2", len(got))
+	}
+	if got[0] != "golangci-lint run ./..." {
+		t.Errorf("AcceptanceCommands()[0] = %q, want unchanged", got[0])
+	}
+	if got[1] != "go vet ./..." {
+		t.Errorf("AcceptanceCommands()[1] = %q, want unchanged", got[1])
+	}
+}
+
+func TestAcceptanceCommands_EmptySlice(t *testing.T) {
+	got := AcceptanceCommands([]string{})
+	if len(got) != 0 {
+		t.Fatalf("AcceptanceCommands of empty slice should return empty, got %d", len(got))
+	}
+}
+
+func TestAcceptanceCommands_SkipsIfAlreadyTagged(t *testing.T) {
+	commands := []string{"go test -tags acceptance ./..."}
+	got := AcceptanceCommands(commands)
+
+	if got[0] != "go test -tags acceptance ./..." {
+		t.Errorf("AcceptanceCommands should not double-tag, got %q", got[0])
 	}
 }
 

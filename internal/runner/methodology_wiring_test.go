@@ -96,6 +96,10 @@ func TestProcessBead_ATDD_DelegatesToMethodologyExec(t *testing.T) {
 	var acceptancePromptReceived string
 	verifyTestsFailInvoked := false
 
+	// Track calls to validateFn: first call is VerifyTestsFail (should return failure),
+	// subsequent calls are VerifyAcceptanceTestsPass (should return success).
+	validateCallCount := 0
+
 	// Create a methodology.Executor with tracking callbacks
 	exec := methodology.NewExecutorWithAnalysis(
 		cfg,
@@ -108,9 +112,14 @@ func TestProcessBead_ATDD_DelegatesToMethodologyExec(t *testing.T) {
 			return nil
 		},
 		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-			verifyTestsFailInvoked = true
-			// Return failure (tests fail as expected in ATDD)
-			return &claude.Result{Success: true, Output: "FAIL", ExitCode: 1}, nil
+			validateCallCount++
+			if validateCallCount == 1 {
+				verifyTestsFailInvoked = true
+				// First call: VerifyTestsFail — tests fail as expected in ATDD
+				return &claude.Result{Success: true, Output: "FAIL", ExitCode: 1}, nil
+			}
+			// Subsequent calls: VerifyAcceptanceTestsPass — tests pass after implementation
+			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
 		nil, // analyzeFn
 		nil, // getDiffFn
@@ -233,6 +242,9 @@ func TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec(t *testing.T) {
 
 	var refactorPromptRendered string
 
+	// Track calls: first is VerifyTestsFail (failure), subsequent are VerifyAcceptanceTestsPass (success)
+	fullFlowValidateCallCount := 0
+
 	// Create a fully-wired executor using the same factory pattern as makeMethodologyExec
 	exec := methodology.NewExecutorWithEscalation(
 		cfg,
@@ -244,8 +256,13 @@ func TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec(t *testing.T) {
 			return nil // acceptance tests succeed
 		},
 		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-			// Tests fail as expected in ATDD
-			return &claude.Result{Success: true, Output: "FAIL", ExitCode: 1}, nil
+			fullFlowValidateCallCount++
+			if fullFlowValidateCallCount == 1 {
+				// First call: VerifyTestsFail — tests fail as expected in ATDD
+				return &claude.Result{Success: true, Output: "FAIL", ExitCode: 1}, nil
+			}
+			// Subsequent calls: VerifyAcceptanceTestsPass — tests pass after implementation
+			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
 		func(bc *runtypes.BeadContext, nextTier string) {
 			// no-op escalation
@@ -548,6 +565,9 @@ func TestProcessBead_ATDD_SwitchesToATDDBuildPrompt(t *testing.T) {
 	cfg.Methodology.ATDD = true
 	var buf strings.Builder
 
+	// Track calls: first is VerifyTestsFail (failure), subsequent are VerifyAcceptanceTestsPass (success)
+	buildPromptValidateCallCount := 0
+
 	// Create executor where ATDD phases succeed (tests fail as expected)
 	exec := methodology.NewExecutorWithAnalysis(
 		cfg,
@@ -559,7 +579,11 @@ func TestProcessBead_ATDD_SwitchesToATDDBuildPrompt(t *testing.T) {
 			return nil
 		},
 		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-			return &claude.Result{Success: true, Output: "FAIL", ExitCode: 1}, nil
+			buildPromptValidateCallCount++
+			if buildPromptValidateCallCount == 1 {
+				return &claude.Result{Success: true, Output: "FAIL", ExitCode: 1}, nil
+			}
+			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
 		nil, nil,
 	)
