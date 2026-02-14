@@ -802,7 +802,7 @@ func TestProcessCodexStreamFunctionSignature(t *testing.T) {
 	}
 
 	// Call processCodexStream
-	resultText, usage, err := processCodexStream(mockStream, &outputBuf, handler, toolHandler)
+	resultText, usage, _, err := processCodexStream(mockStream, &outputBuf, handler, toolHandler)
 
 	if err != nil {
 		t.Errorf("processCodexStream() error = %v, want nil", err)

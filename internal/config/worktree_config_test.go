@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-// Expected failure: WorktreeConfig type does not exist yet
 func TestWorktreeConfigUnmarshal(t *testing.T) {
 	yamlContent := `
 models:
@@ -28,7 +27,6 @@ worktree:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	// Expected failure: WorktreeConfig struct and its fields do not exist
 	if cfg.Worktree.Enabled == nil || !*cfg.Worktree.Enabled {
 		t.Errorf("Worktree.Enabled = %v, want true", cfg.Worktree.Enabled)
 	}
@@ -40,74 +38,56 @@ worktree:
 	}
 }
 
-// Expected failure: WorktreeConfig type and IsEnabled() method do not exist
 func TestWorktreeIsEnabledNilPointer(t *testing.T) {
 	cfg := WorktreeConfig{}
-	// Expected failure: IsEnabled() method does not exist on WorktreeConfig
 	if !cfg.IsEnabled() {
 		t.Errorf("expected IsEnabled() to return true for nil pointer (default enabled)")
 	}
 }
 
-// Expected failure: WorktreeConfig type and IsEnabled() method do not exist
 func TestWorktreeIsEnabledExplicitTrue(t *testing.T) {
 	trueVal := true
-	// Expected failure: WorktreeConfig struct and Enabled field do not exist
 	cfg := WorktreeConfig{Enabled: &trueVal}
-	// Expected failure: IsEnabled() method does not exist on WorktreeConfig
 	if !cfg.IsEnabled() {
 		t.Errorf("expected IsEnabled() to return true for explicit true")
 	}
 }
 
-// Expected failure: WorktreeConfig type and IsEnabled() method do not exist
 func TestWorktreeIsEnabledExplicitFalse(t *testing.T) {
 	falseVal := false
-	// Expected failure: WorktreeConfig struct and Enabled field do not exist
 	cfg := WorktreeConfig{Enabled: &falseVal}
-	// Expected failure: IsEnabled() method does not exist on WorktreeConfig
 	if cfg.IsEnabled() {
 		t.Errorf("expected IsEnabled() to return false for explicit false")
 	}
 }
 
-// Expected failure: WorktreeConfig type and IsAutoMergeEnabled() method do not exist
 func TestWorktreeIsAutoMergeEnabledNilPointer(t *testing.T) {
 	cfg := WorktreeConfig{}
-	// Expected failure: IsAutoMergeEnabled() method does not exist on WorktreeConfig
 	if !cfg.IsAutoMergeEnabled() {
 		t.Errorf("expected IsAutoMergeEnabled() to return true for nil pointer (default enabled)")
 	}
 }
 
-// Expected failure: WorktreeConfig type and IsAutoMergeEnabled() method do not exist
 func TestWorktreeIsAutoMergeEnabledExplicitTrue(t *testing.T) {
 	trueVal := true
-	// Expected failure: WorktreeConfig struct and AutoMerge field do not exist
 	cfg := WorktreeConfig{AutoMerge: &trueVal}
-	// Expected failure: IsAutoMergeEnabled() method does not exist on WorktreeConfig
 	if !cfg.IsAutoMergeEnabled() {
 		t.Errorf("expected IsAutoMergeEnabled() to return true for explicit true")
 	}
 }
 
-// Expected failure: WorktreeConfig type and IsAutoMergeEnabled() method do not exist
 func TestWorktreeIsAutoMergeEnabledExplicitFalse(t *testing.T) {
 	falseVal := false
-	// Expected failure: WorktreeConfig struct and AutoMerge field do not exist
 	cfg := WorktreeConfig{AutoMerge: &falseVal}
-	// Expected failure: IsAutoMergeEnabled() method does not exist on WorktreeConfig
 	if cfg.IsAutoMergeEnabled() {
 		t.Errorf("expected IsAutoMergeEnabled() to return false for explicit false")
 	}
 }
 
-// Expected failure: Config.Worktree field does not exist
 func TestWorktreeConfigDefaults(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
 
-	// Expected failure: Config.Worktree field does not exist
 	// Defaults should be: Enabled=true, AutoMerge=true, MergeFailure="warn"
 	if cfg.Worktree.Enabled == nil {
 		t.Errorf("expected Worktree.Enabled to have default value (true), got nil")
@@ -126,10 +106,8 @@ func TestWorktreeConfigDefaults(t *testing.T) {
 	}
 }
 
-// Expected failure: Config.Worktree field does not exist
 func TestWorktreeConfigDefaultsNotOverriddenWhenSet(t *testing.T) {
 	falseVal := false
-	// Expected failure: Config.Worktree field does not exist
 	cfg := &Config{
 		Worktree: WorktreeConfig{
 			Enabled:      &falseVal,
@@ -140,7 +118,6 @@ func TestWorktreeConfigDefaultsNotOverriddenWhenSet(t *testing.T) {
 	cfg.SetDefaults()
 
 	// Verify SetDefaults doesn't override explicit values
-	// Expected failure: Config.Worktree field does not exist
 	if cfg.Worktree.Enabled == nil || *cfg.Worktree.Enabled {
 		t.Errorf("expected Worktree.Enabled to remain false, got %v", cfg.Worktree.Enabled)
 	}
@@ -152,7 +129,6 @@ func TestWorktreeConfigDefaultsNotOverriddenWhenSet(t *testing.T) {
 	}
 }
 
-// Expected failure: Config.Worktree field does not exist
 func TestWorktreeConfigInFullConfig(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")
@@ -174,7 +150,6 @@ worktree:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	// Expected failure: Config.Worktree field does not exist
 	if cfg.Worktree.Enabled == nil {
 		t.Fatal("expected Worktree.Enabled to be non-nil")
 	}
@@ -194,18 +169,15 @@ worktree:
 	}
 
 	// Verify convenience methods work correctly
-	// Expected failure: IsEnabled() method does not exist on WorktreeConfig
 	if cfg.Worktree.IsEnabled() {
 		t.Errorf("expected IsEnabled() to return false, got true")
 	}
 
-	// Expected failure: IsAutoMergeEnabled() method does not exist on WorktreeConfig
 	if !cfg.Worktree.IsAutoMergeEnabled() {
 		t.Errorf("expected IsAutoMergeEnabled() to return true, got false")
 	}
 }
 
-// Expected failure: Config.Worktree field does not exist
 func TestWorktreeConfigOmittedFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")
@@ -224,7 +196,6 @@ func TestWorktreeConfigOmittedFromYAML(t *testing.T) {
 	}
 
 	// When worktree section is omitted, defaults should be applied
-	// Expected failure: Config.Worktree field and convenience methods do not exist
 	if !cfg.Worktree.IsEnabled() {
 		t.Errorf("expected Worktree.IsEnabled() to return true (default), got false")
 	}

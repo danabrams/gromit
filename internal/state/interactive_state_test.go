@@ -8,7 +8,6 @@ import (
 )
 
 // TestNewInteractiveFile verifies that NewInteractiveFile creates an InteractiveFile instance with correct path
-// Expected failure: NewInteractiveFile function does not exist yet
 func TestNewInteractiveFile(t *testing.T) {
 	f, err := NewInteractiveFile("/tmp/test-gromit")
 	if err != nil {
@@ -22,7 +21,6 @@ func TestNewInteractiveFile(t *testing.T) {
 }
 
 // TestInteractiveFileLoadNonExistent verifies that Load returns nil error when file doesn't exist
-// Expected failure: InteractiveFile.Load method does not exist yet
 func TestInteractiveFileLoadNonExistent(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -37,7 +35,6 @@ func TestInteractiveFileLoadNonExistent(t *testing.T) {
 }
 
 // TestInteractiveFileRecordRetroAndLoad verifies that RecordRetro records timestamp and persists
-// Expected failure: InteractiveFile.RecordRetro method does not exist yet
 func TestInteractiveFileRecordRetroAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -72,7 +69,6 @@ func TestInteractiveFileRecordRetroAndLoad(t *testing.T) {
 }
 
 // TestInteractiveFileLastReviewCommit verifies that LastReviewCommit is accessible
-// Expected failure: InteractiveFile.LastReviewCommit method does not exist yet
 func TestInteractiveFileLastReviewCommit(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -93,7 +89,6 @@ func TestInteractiveFileLastReviewCommit(t *testing.T) {
 }
 
 // TestInteractiveFileLastReviewIteration verifies that LastReviewIteration is accessible
-// Expected failure: InteractiveFile.LastReviewIteration method does not exist yet
 func TestInteractiveFileLastReviewIteration(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -114,7 +109,6 @@ func TestInteractiveFileLastReviewIteration(t *testing.T) {
 }
 
 // TestInteractiveFileRecordReview verifies that RecordReview stores commit and iteration
-// Expected failure: InteractiveFile.RecordReview method does not exist yet
 func TestInteractiveFileRecordReview(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -139,7 +133,6 @@ func TestInteractiveFileRecordReview(t *testing.T) {
 }
 
 // TestInteractiveFileGetFilteredHashes verifies that GetFilteredHashes returns a map
-// Expected failure: InteractiveFile.GetFilteredHashes method does not exist yet
 func TestInteractiveFileGetFilteredHashes(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -172,7 +165,6 @@ func TestInteractiveFileGetFilteredHashes(t *testing.T) {
 }
 
 // TestInteractiveFileAddFilteredHashes verifies that AddFilteredHashes adds hashes with deduplication
-// Expected failure: InteractiveFile.AddFilteredHashes method does not exist yet
 func TestInteractiveFileAddFilteredHashes(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -204,7 +196,6 @@ func TestInteractiveFileAddFilteredHashes(t *testing.T) {
 }
 
 // TestInteractiveFileFilteredHashesPersistence verifies that filtered hashes persist across save/load
-// Expected failure: InteractiveFile.Save method does not exist yet
 func TestInteractiveFileFilteredHashesPersistence(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -232,7 +223,6 @@ func TestInteractiveFileFilteredHashesPersistence(t *testing.T) {
 }
 
 // TestInteractiveFileSaveAutoStampsUpdatedAt verifies that Save auto-stamps UpdatedAt field
-// Expected failure: InteractiveFile.Save method does not exist yet
 func TestInteractiveFileSaveAutoStampsUpdatedAt(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -263,7 +253,6 @@ func TestInteractiveFileSaveAutoStampsUpdatedAt(t *testing.T) {
 }
 
 // TestInteractiveStateStruct verifies that InteractiveState struct has required fields
-// Expected failure: InteractiveState type does not exist yet
 func TestInteractiveStateStruct(t *testing.T) {
 	// Create an InteractiveState with all fields populated
 	state := InteractiveState{
@@ -293,7 +282,6 @@ func TestInteractiveStateStruct(t *testing.T) {
 }
 
 // TestInteractiveStateJSONSerialization verifies that InteractiveState has proper JSON tags
-// Expected failure: InteractiveState type does not have JSON tags yet
 func TestInteractiveStateJSONSerialization(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -347,7 +335,6 @@ func TestInteractiveStateJSONSerialization(t *testing.T) {
 }
 
 // TestInteractiveFileNilSafety verifies that InteractiveFile methods handle nil receiver safely
-// Expected failure: InteractiveFile type does not exist yet
 func TestInteractiveFileNilSafety(t *testing.T) {
 	var f *InteractiveFile
 
@@ -372,7 +359,6 @@ func TestInteractiveFileNilSafety(t *testing.T) {
 }
 
 // TestInteractiveFileLoadCorruptFile verifies that Load returns error for corrupt JSON
-// Expected failure: InteractiveFile.Load method does not exist yet
 func TestInteractiveFileLoadCorruptFile(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "interactive-state.json"), []byte("not json"), 0644); err != nil {
@@ -386,7 +372,6 @@ func TestInteractiveFileLoadCorruptFile(t *testing.T) {
 }
 
 // TestInteractiveFileIsolatedFromStateFile verifies that InteractiveFile uses separate file
-// Expected failure: NewInteractiveFile does not create interactive-state.json path yet
 func TestInteractiveFileIsolatedFromStateFile(t *testing.T) {
 	dir := t.TempDir()
 
@@ -437,7 +422,6 @@ func TestInteractiveFileIsolatedFromStateFile(t *testing.T) {
 }
 
 // TestInteractiveStateNormalizeNilFields verifies that NormalizeNilFields initializes slices
-// Expected failure: InteractiveState.NormalizeNilFields method does not exist yet
 func TestInteractiveStateNormalizeNilFields(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
@@ -466,7 +450,6 @@ func TestInteractiveStateNormalizeNilFields(t *testing.T) {
 }
 
 // TestInteractiveFileRoundTrip verifies complete round-trip of all interactive state fields
-// Expected failure: InteractiveFile type does not exist yet
 func TestInteractiveFileRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)

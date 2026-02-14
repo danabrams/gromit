@@ -11,7 +11,6 @@ import (
 
 // TestProcessCodexStreamMapsThreadStartedToSystem verifies that processCodexStream
 // maps thread.started events to StreamEvent type "system" and calls EventHandler.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamMapsThreadStartedToSystem(t *testing.T) {
 	input := `{"type":"thread.started","data":{"thread_id":"t-abc"}}` + "\n"
 	reader := strings.NewReader(input)
@@ -24,7 +23,7 @@ func TestProcessCodexStreamMapsThreadStartedToSystem(t *testing.T) {
 		receivedEvents = append(receivedEvents, cp)
 	}
 
-	_, _, err := processCodexStream(reader, &output, handler, nil)
+	_, _, _, err := processCodexStream(reader, &output, handler, nil)
 	if err != nil {
 		t.Fatalf("processCodexStream() error = %v", err)
 	}
@@ -48,7 +47,6 @@ func TestProcessCodexStreamMapsThreadStartedToSystem(t *testing.T) {
 // TestProcessCodexStreamMapsAgentMessageToAssistant verifies that item.completed
 // events with type "agent_message" are mapped to StreamEvent type "assistant"
 // with a text content block.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamMapsAgentMessageToAssistant(t *testing.T) {
 	input := `{"type":"item.completed","item":{"type":"agent_message","text":"Hello from agent"}}` + "\n"
 	reader := strings.NewReader(input)
@@ -61,7 +59,7 @@ func TestProcessCodexStreamMapsAgentMessageToAssistant(t *testing.T) {
 		receivedEvents = append(receivedEvents, cp)
 	}
 
-	resultText, _, err := processCodexStream(reader, &output, handler, nil)
+	resultText, _, _, err := processCodexStream(reader, &output, handler, nil)
 	if err != nil {
 		t.Fatalf("processCodexStream() error = %v", err)
 	}
@@ -104,7 +102,6 @@ func TestProcessCodexStreamMapsAgentMessageToAssistant(t *testing.T) {
 
 // TestProcessCodexStreamMapsTurnCompletedToResult verifies that turn.completed
 // events with usage data are mapped to StreamEvent type "result" with token counts.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamMapsTurnCompletedToResult(t *testing.T) {
 	input := `{"type":"turn.completed","usage":{"input_tokens":2500,"output_tokens":1200,"cached_input_tokens":400}}` + "\n"
 	reader := strings.NewReader(input)
@@ -117,7 +114,7 @@ func TestProcessCodexStreamMapsTurnCompletedToResult(t *testing.T) {
 		receivedEvents = append(receivedEvents, cp)
 	}
 
-	_, usage, err := processCodexStream(reader, &output, handler, nil)
+	_, usage, _, err := processCodexStream(reader, &output, handler, nil)
 	if err != nil {
 		t.Fatalf("processCodexStream() error = %v", err)
 	}
@@ -163,7 +160,6 @@ func TestProcessCodexStreamMapsTurnCompletedToResult(t *testing.T) {
 
 // TestProcessCodexStreamToolCallHandlers verifies that processCodexStream invokes
 // ToolCallHandler with correct ToolEvent fields for each tool-related item type.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamToolCallHandlers(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -202,7 +198,7 @@ func TestProcessCodexStreamToolCallHandlers(t *testing.T) {
 				receivedToolCalls = append(receivedToolCalls, event)
 			}
 
-			_, _, err := processCodexStream(reader, &output, func([]byte) {}, toolHandler)
+			_, _, _, err := processCodexStream(reader, &output, func([]byte) {}, toolHandler)
 			if err != nil {
 				t.Fatalf("processCodexStream() error = %v", err)
 			}
@@ -227,7 +223,6 @@ func TestProcessCodexStreamToolCallHandlers(t *testing.T) {
 
 // TestProcessCodexStreamExtractsLastAgentMessageAsResult verifies that when
 // multiple agent_message events are present, the last one's text becomes the result.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamExtractsLastAgentMessageAsResult(t *testing.T) {
 	input := strings.Join([]string{
 		`{"type":"item.completed","item":{"type":"agent_message","text":"First thought"}}`,
@@ -238,7 +233,7 @@ func TestProcessCodexStreamExtractsLastAgentMessageAsResult(t *testing.T) {
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
 
-	resultText, _, err := processCodexStream(reader, &output, func([]byte) {}, nil)
+	resultText, _, _, err := processCodexStream(reader, &output, func([]byte) {}, nil)
 	if err != nil {
 		t.Fatalf("processCodexStream() error = %v", err)
 	}
@@ -250,13 +245,12 @@ func TestProcessCodexStreamExtractsLastAgentMessageAsResult(t *testing.T) {
 
 // TestProcessCodexStreamWritesAgentTextToOutput verifies that agent message text
 // is written to the output writer as it arrives.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamWritesAgentTextToOutput(t *testing.T) {
 	input := `{"type":"item.completed","item":{"type":"agent_message","text":"Response text here"}}` + "\n"
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
 
-	_, _, err := processCodexStream(reader, &output, func([]byte) {}, nil)
+	_, _, _, err := processCodexStream(reader, &output, func([]byte) {}, nil)
 	if err != nil {
 		t.Fatalf("processCodexStream() error = %v", err)
 	}
@@ -268,7 +262,6 @@ func TestProcessCodexStreamWritesAgentTextToOutput(t *testing.T) {
 
 // TestProcessCodexStreamSkipsMalformedLines verifies that non-JSON lines are
 // silently skipped without returning an error.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamSkipsMalformedLines(t *testing.T) {
 	input := strings.Join([]string{
 		"this is not json",
@@ -279,7 +272,7 @@ func TestProcessCodexStreamSkipsMalformedLines(t *testing.T) {
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
 
-	resultText, _, err := processCodexStream(reader, &output, func([]byte) {}, nil)
+	resultText, _, _, err := processCodexStream(reader, &output, func([]byte) {}, nil)
 	if err != nil {
 		t.Fatalf("processCodexStream() should skip malformed lines, got error: %v", err)
 	}
@@ -291,12 +284,11 @@ func TestProcessCodexStreamSkipsMalformedLines(t *testing.T) {
 
 // TestProcessCodexStreamEmptyInput verifies that processCodexStream handles
 // empty input gracefully.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamEmptyInput(t *testing.T) {
 	reader := strings.NewReader("")
 	var output bytes.Buffer
 
-	resultText, usage, err := processCodexStream(reader, &output, func([]byte) {}, nil)
+	resultText, usage, _, err := processCodexStream(reader, &output, func([]byte) {}, nil)
 	if err != nil {
 		t.Fatalf("processCodexStream() error on empty input = %v", err)
 	}
@@ -311,7 +303,6 @@ func TestProcessCodexStreamEmptyInput(t *testing.T) {
 
 // TestProcessCodexStreamDetectsUsageLimitExceeded verifies that turn.completed
 // events with status "failed" and UsageLimitExceeded error type are detected.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamDetectsUsageLimitExceeded(t *testing.T) {
 	input := `{"type":"turn.completed","status":"failed","error":{"type":"UsageLimitExceeded","message":"Rate limit exceeded"}}` + "\n"
 	reader := strings.NewReader(input)
@@ -324,7 +315,7 @@ func TestProcessCodexStreamDetectsUsageLimitExceeded(t *testing.T) {
 		receivedEvents = append(receivedEvents, cp)
 	}
 
-	_, _, err := processCodexStream(reader, &output, handler, nil)
+	_, _, _, err := processCodexStream(reader, &output, handler, nil)
 	if err != nil {
 		t.Fatalf("processCodexStream() error = %v", err)
 	}
@@ -351,7 +342,6 @@ func TestProcessCodexStreamDetectsUsageLimitExceeded(t *testing.T) {
 
 // TestProcessCodexStreamNilHandlers verifies that processCodexStream handles
 // nil EventHandler and ToolCallHandler gracefully without panicking.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamNilHandlers(t *testing.T) {
 	input := strings.Join([]string{
 		`{"type":"thread.started"}`,
@@ -364,7 +354,7 @@ func TestProcessCodexStreamNilHandlers(t *testing.T) {
 	var output bytes.Buffer
 
 	// Both handlers nil - should not panic
-	resultText, usage, err := processCodexStream(reader, &output, nil, nil)
+	resultText, usage, _, err := processCodexStream(reader, &output, nil, nil)
 	if err != nil {
 		t.Fatalf("processCodexStream() with nil handlers error = %v", err)
 	}
@@ -383,7 +373,6 @@ func TestProcessCodexStreamNilHandlers(t *testing.T) {
 
 // TestProcessCodexStreamFullConversation verifies end-to-end processing of a
 // realistic Codex JSONL stream with multiple event types in sequence.
-// Expected failure: processCodexStream function does not exist yet
 func TestProcessCodexStreamFullConversation(t *testing.T) {
 	input := strings.Join([]string{
 		`{"type":"thread.started","data":{"thread_id":"t-123"}}`,
@@ -408,7 +397,7 @@ func TestProcessCodexStreamFullConversation(t *testing.T) {
 		toolCalls = append(toolCalls, event)
 	}
 
-	resultText, usage, err := processCodexStream(reader, &output, handler, toolHandler)
+	resultText, usage, _, err := processCodexStream(reader, &output, handler, toolHandler)
 	if err != nil {
 		t.Fatalf("processCodexStream() error = %v", err)
 	}
@@ -456,7 +445,6 @@ func TestProcessCodexStreamFullConversation(t *testing.T) {
 // TestCodexEventStructParsesAllFields verifies that codexEvent struct correctly
 // parses all expected fields from Codex JSONL events including nested item,
 // usage, status, and error info.
-// Expected failure: codexEvent struct does not exist yet
 func TestCodexEventStructParsesAllFields(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -574,7 +562,6 @@ func TestCodexEventStructParsesAllFields(t *testing.T) {
 
 // TestCodexErrorInfoTypes verifies that codexErrorInfo correctly parses different
 // error types from Codex events.
-// Expected failure: codexErrorInfo struct does not exist yet
 func TestCodexErrorInfoTypes(t *testing.T) {
 	tests := []struct {
 		name        string

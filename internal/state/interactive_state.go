@@ -5,8 +5,28 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
+
+// withFileLock acquires an exclusive advisory lock on a lock file adjacent to path,
+// executes fn, then releases the lock. This prevents concurrent processes from
+// reading/writing the state file simultaneously.
+func withFileLock(path string, fn func() error) error {
+	lockPath := path + ".lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf("opening lock file: %w", err)
+	}
+	defer lockFile.Close()
+
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("acquiring file lock: %w", err)
+	}
+	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+
+	return fn()
+}
 
 // InteractiveState represents persistent state for interactive commands stored in .gromit/interactive-state.json
 type InteractiveState struct {
@@ -30,27 +50,29 @@ func NewInteractiveFile(gromitDir string) (*InteractiveFile, error) {
 	}, nil
 }
 
-// Load reads the interactive state from disk
+// Load reads the interactive state from disk under an advisory file lock.
 func (f *InteractiveFile) Load() error {
 	if f == nil {
 		return fmt.Errorf("interactive state file is nil")
 	}
-	data, err := os.ReadFile(f.path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // No state yet
+	return withFileLock(f.path, func() error {
+		data, err := os.ReadFile(f.path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil // No state yet
+			}
+			return fmt.Errorf("reading interactive state file: %w", err)
 		}
-		return fmt.Errorf("reading interactive state file: %w", err)
-	}
 
-	if err := json.Unmarshal(data, &f.state); err != nil {
-		return fmt.Errorf("parsing interactive state file: %w", err)
-	}
+		if err := json.Unmarshal(data, &f.state); err != nil {
+			return fmt.Errorf("parsing interactive state file: %w", err)
+		}
 
-	return nil
+		return nil
+	})
 }
 
-// Save writes the interactive state to disk
+// Save writes the interactive state to disk under an advisory file lock.
 func (f *InteractiveFile) Save() error {
 	if f == nil {
 		return fmt.Errorf("interactive state file is nil")
@@ -60,15 +82,17 @@ func (f *InteractiveFile) Save() error {
 		return fmt.Errorf("creating interactive state directory: %w", err)
 	}
 
-	// Auto-stamp UpdatedAt before marshalling
-	f.state.UpdatedAt = time.Now()
+	return withFileLock(f.path, func() error {
+		// Auto-stamp UpdatedAt before marshalling
+		f.state.UpdatedAt = time.Now()
 
-	data, err := json.MarshalIndent(f.state, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshalling interactive state: %w", err)
-	}
+		data, err := json.MarshalIndent(f.state, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshalling interactive state: %w", err)
+		}
 
-	return os.WriteFile(f.path, data, 0644)
+		return os.WriteFile(f.path, data, 0644)
+	})
 }
 
 // LastRetro returns the time of the last retrospective

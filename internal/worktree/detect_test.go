@@ -9,7 +9,6 @@ import (
 
 // TestIsRunLoopActive_NoStatusFile verifies that IsRunLoopActive returns false
 // when status.json does not exist.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_NoStatusFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -17,7 +16,6 @@ func TestIsRunLoopActive_NoStatusFile(t *testing.T) {
 		t.Fatalf("failed to create gromit dir: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true when status.json does not exist, want false")
@@ -26,7 +24,6 @@ func TestIsRunLoopActive_NoStatusFile(t *testing.T) {
 
 // TestIsRunLoopActive_RunningFalse verifies that IsRunLoopActive returns false
 // when status.json exists but Running field is false.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_RunningFalse(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -48,7 +45,6 @@ func TestIsRunLoopActive_RunningFalse(t *testing.T) {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true when Running is false, want false")
@@ -57,7 +53,6 @@ func TestIsRunLoopActive_RunningFalse(t *testing.T) {
 
 // TestIsRunLoopActive_RunningTrueButDeadPID verifies that IsRunLoopActive returns false
 // when status.json has Running=true but the PID is no longer alive.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_RunningTrueButDeadPID(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -80,7 +75,6 @@ func TestIsRunLoopActive_RunningTrueButDeadPID(t *testing.T) {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true when PID is dead, want false")
@@ -89,7 +83,6 @@ func TestIsRunLoopActive_RunningTrueButDeadPID(t *testing.T) {
 
 // TestIsRunLoopActive_RunningTrueAndAlivePID verifies that IsRunLoopActive returns true
 // when status.json has Running=true and the PID is alive.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_RunningTrueAndAlivePID(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -111,7 +104,6 @@ func TestIsRunLoopActive_RunningTrueAndAlivePID(t *testing.T) {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if !active {
 		t.Error("IsRunLoopActive() = false when Running is true and PID is alive, want true")
@@ -120,7 +112,6 @@ func TestIsRunLoopActive_RunningTrueAndAlivePID(t *testing.T) {
 
 // TestIsRunLoopActive_MalformedJSON verifies that IsRunLoopActive returns false
 // when status.json exists but contains invalid JSON.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_MalformedJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -134,7 +125,6 @@ func TestIsRunLoopActive_MalformedJSON(t *testing.T) {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true when status.json is malformed, want false")
@@ -143,9 +133,7 @@ func TestIsRunLoopActive_MalformedJSON(t *testing.T) {
 
 // TestIsRunLoopActive_EmptyGromitDir verifies that IsRunLoopActive returns false
 // when given an empty gromit directory path.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_EmptyGromitDir(t *testing.T) {
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive("")
 	if active {
 		t.Error("IsRunLoopActive(\"\") = true, want false")
@@ -154,12 +142,10 @@ func TestIsRunLoopActive_EmptyGromitDir(t *testing.T) {
 
 // TestIsRunLoopActive_NonexistentGromitDir verifies that IsRunLoopActive returns false
 // when the gromit directory does not exist.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_NonexistentGromitDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, "does-not-exist")
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true for nonexistent directory, want false")
@@ -168,7 +154,6 @@ func TestIsRunLoopActive_NonexistentGromitDir(t *testing.T) {
 
 // TestIsRunLoopActive_TableDriven verifies IsRunLoopActive behavior across
 // multiple scenarios using a table-driven approach.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_TableDriven(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -257,7 +242,6 @@ func TestIsRunLoopActive_TableDriven(t *testing.T) {
 				}
 			}
 
-			// Expected failure: IsRunLoopActive function does not exist
 			active := IsRunLoopActive(gromitDir)
 			if active != tt.expectedActive {
 				t.Errorf("IsRunLoopActive() = %v, want %v", active, tt.expectedActive)
@@ -268,7 +252,6 @@ func TestIsRunLoopActive_TableDriven(t *testing.T) {
 
 // TestIsRunLoopActive_ZeroPID verifies that IsRunLoopActive returns false
 // when the PID field is zero (invalid PID).
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_ZeroPID(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -290,7 +273,6 @@ func TestIsRunLoopActive_ZeroPID(t *testing.T) {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true when PID is 0, want false")
@@ -299,7 +281,6 @@ func TestIsRunLoopActive_ZeroPID(t *testing.T) {
 
 // TestIsRunLoopActive_NegativePID verifies that IsRunLoopActive returns false
 // when the PID field is negative (invalid PID).
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_NegativePID(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -321,7 +302,6 @@ func TestIsRunLoopActive_NegativePID(t *testing.T) {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true when PID is negative, want false")
@@ -330,7 +310,6 @@ func TestIsRunLoopActive_NegativePID(t *testing.T) {
 
 // TestIsRunLoopActive_MissingPIDField verifies that IsRunLoopActive returns false
 // when status.json is valid JSON but missing the PID field.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_MissingPIDField(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -351,7 +330,6 @@ func TestIsRunLoopActive_MissingPIDField(t *testing.T) {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true when PID field is missing, want false")
@@ -360,7 +338,6 @@ func TestIsRunLoopActive_MissingPIDField(t *testing.T) {
 
 // TestIsRunLoopActive_MissingRunningField verifies that IsRunLoopActive returns false
 // when status.json is valid JSON but missing the Running field.
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_MissingRunningField(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -381,7 +358,6 @@ func TestIsRunLoopActive_MissingRunningField(t *testing.T) {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true when Running field is missing (defaults to false), want false")
@@ -390,7 +366,6 @@ func TestIsRunLoopActive_MissingRunningField(t *testing.T) {
 
 // TestIsRunLoopActive_StatusFileIsDirectory verifies that IsRunLoopActive returns false
 // when status.json is actually a directory (edge case).
-// Expected failure: IsRunLoopActive function does not exist yet.
 func TestIsRunLoopActive_StatusFileIsDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -404,7 +379,6 @@ func TestIsRunLoopActive_StatusFileIsDirectory(t *testing.T) {
 		t.Fatalf("failed to create status.json directory: %v", err)
 	}
 
-	// Expected failure: IsRunLoopActive function does not exist
 	active := IsRunLoopActive(gromitDir)
 	if active {
 		t.Error("IsRunLoopActive() = true when status.json is a directory, want false")

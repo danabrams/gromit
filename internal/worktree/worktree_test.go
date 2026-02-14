@@ -11,7 +11,6 @@ import (
 
 // TestNewManager_CreatesManagerWithCorrectFields verifies that NewManager
 // creates a Manager with the correct MainDir and WorktreeDir fields.
-// Expected failure: Manager type and NewManager function do not exist yet.
 func TestNewManager_CreatesManagerWithCorrectFields(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -19,7 +18,6 @@ func TestNewManager_CreatesManagerWithCorrectFields(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	// Expected failure: NewManager function does not exist
 	m, err := NewManager(mainDir)
 	if err != nil {
 		t.Fatalf("NewManager() error = %v, want nil", err)
@@ -28,13 +26,11 @@ func TestNewManager_CreatesManagerWithCorrectFields(t *testing.T) {
 		t.Fatal("NewManager() returned nil manager")
 	}
 
-	// Expected failure: Manager.MainDir field does not exist
 	if m.MainDir != mainDir {
 		t.Errorf("Manager.MainDir = %q, want %q", m.MainDir, mainDir)
 	}
 
 	// WorktreeDir should be a sibling directory with "-gromit-interactive" suffix
-	// Expected failure: Manager.WorktreeDir field does not exist
 	expectedWorktreeDir := mainDir + "-gromit-interactive"
 	if m.WorktreeDir != expectedWorktreeDir {
 		t.Errorf("Manager.WorktreeDir = %q, want %q", m.WorktreeDir, expectedWorktreeDir)
@@ -43,7 +39,6 @@ func TestNewManager_CreatesManagerWithCorrectFields(t *testing.T) {
 
 // TestNewManager_NilGitRunFn verifies that NewManager can create a manager
 // without a gitRunFn (defaults to running real git commands).
-// Expected failure: Manager type and NewManager function do not exist yet.
 func TestNewManager_NilGitRunFn(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -51,13 +46,11 @@ func TestNewManager_NilGitRunFn(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	// Expected failure: NewManager function does not exist
 	m, err := NewManager(mainDir)
 	if err != nil {
 		t.Fatalf("NewManager() error = %v, want nil", err)
 	}
 
-	// Expected failure: Manager.gitRunFn field does not exist
 	// When gitRunFn is nil, methods should still work (they'll call real git)
 	if m.gitRunFn == nil {
 		// This is expected - nil means "use real git"
@@ -66,7 +59,6 @@ func TestNewManager_NilGitRunFn(t *testing.T) {
 
 // TestNewManager_WithGitRunFn verifies that NewManager correctly stores
 // a provided gitRunFn for testing.
-// Expected failure: Manager type, NewManager function, and WithGitRunFn option do not exist yet.
 func TestNewManager_WithGitRunFn(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -80,13 +72,11 @@ func TestNewManager_WithGitRunFn(t *testing.T) {
 		return "", nil
 	}
 
-	// Expected failure: NewManager function and WithGitRunFn option do not exist
 	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
 	if err != nil {
 		t.Fatalf("NewManager() error = %v, want nil", err)
 	}
 
-	// Expected failure: Manager.gitRunFn field does not exist
 	if m.gitRunFn == nil {
 		t.Error("expected gitRunFn to be set, got nil")
 	}
@@ -94,7 +84,6 @@ func TestNewManager_WithGitRunFn(t *testing.T) {
 
 // TestEnsureWorktree_CreatesWorktreeWhenMissing verifies that EnsureWorktree
 // creates a new worktree when it doesn't exist.
-// Expected failure: Manager.EnsureWorktree method does not exist yet.
 func TestEnsureWorktree_CreatesWorktreeWhenMissing(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -120,7 +109,6 @@ func TestEnsureWorktree_CreatesWorktreeWhenMissing(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: EnsureWorktree method does not exist
 	worktreePath, err := m.EnsureWorktree()
 	if err != nil {
 		t.Fatalf("EnsureWorktree() error = %v, want nil", err)
@@ -146,7 +134,6 @@ func TestEnsureWorktree_CreatesWorktreeWhenMissing(t *testing.T) {
 
 // TestEnsureWorktree_ReusesExistingWorktree verifies that EnsureWorktree
 // returns the path without creating a new worktree when one already exists.
-// Expected failure: Manager.EnsureWorktree method does not exist yet.
 func TestEnsureWorktree_ReusesExistingWorktree(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -175,7 +162,6 @@ func TestEnsureWorktree_ReusesExistingWorktree(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: EnsureWorktree method does not exist
 	worktreePath, err := m.EnsureWorktree()
 	if err != nil {
 		t.Fatalf("EnsureWorktree() error = %v, want nil", err)
@@ -195,7 +181,6 @@ func TestEnsureWorktree_ReusesExistingWorktree(t *testing.T) {
 
 // TestCreateBranch_GeneratesCorrectBranchName verifies that CreateBranch
 // generates a branch name with the format gromit/<command>-<timestamp>.
-// Expected failure: Manager.CreateBranch method does not exist yet.
 func TestCreateBranch_GeneratesCorrectBranchName(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -214,7 +199,6 @@ func TestCreateBranch_GeneratesCorrectBranchName(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: CreateBranch method does not exist
 	branchName, err := m.CreateBranch("retro")
 	if err != nil {
 		t.Fatalf("CreateBranch() error = %v, want nil", err)
@@ -240,7 +224,6 @@ func TestCreateBranch_GeneratesCorrectBranchName(t *testing.T) {
 
 // TestCreateBranch_DifferentCommands verifies that CreateBranch handles
 // different command names correctly.
-// Expected failure: Manager.CreateBranch method does not exist yet.
 func TestCreateBranch_DifferentCommands(t *testing.T) {
 	tests := []struct {
 		command    string
@@ -268,7 +251,6 @@ func TestCreateBranch_DifferentCommands(t *testing.T) {
 				t.Fatalf("NewManager() error = %v", err)
 			}
 
-			// Expected failure: CreateBranch method does not exist
 			branchName, err := m.CreateBranch(tt.command)
 			if err != nil {
 				t.Fatalf("CreateBranch(%q) error = %v, want nil", tt.command, err)
@@ -283,7 +265,6 @@ func TestCreateBranch_DifferentCommands(t *testing.T) {
 
 // TestCleanup_RemovesWorktree verifies that Cleanup removes the worktree
 // directory and cleans up git worktree state.
-// Expected failure: Manager.Cleanup method does not exist yet.
 func TestCleanup_RemovesWorktree(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -312,7 +293,6 @@ func TestCleanup_RemovesWorktree(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: Cleanup method does not exist
 	err = m.Cleanup()
 	if err != nil {
 		t.Fatalf("Cleanup() error = %v, want nil", err)
@@ -338,7 +318,6 @@ func TestCleanup_RemovesWorktree(t *testing.T) {
 
 // TestCleanup_HandlesNonexistentWorktree verifies that Cleanup doesn't fail
 // when called on a worktree that doesn't exist.
-// Expected failure: Manager.Cleanup method does not exist yet.
 func TestCleanup_HandlesNonexistentWorktree(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -359,7 +338,6 @@ func TestCleanup_HandlesNonexistentWorktree(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: Cleanup method does not exist
 	// Cleanup should succeed even if worktree doesn't exist
 	err = m.Cleanup()
 	if err != nil {
@@ -368,11 +346,9 @@ func TestCleanup_HandlesNonexistentWorktree(t *testing.T) {
 }
 
 // TestManager_NilReceiver verifies that Manager methods handle nil receiver safely.
-// Expected failure: Manager type and its methods do not exist yet.
 func TestManager_NilReceiver(t *testing.T) {
 	var m *Manager
 
-	// Expected failure: EnsureWorktree method does not exist
 	_, err := m.EnsureWorktree()
 	if err == nil {
 		t.Error("EnsureWorktree() on nil receiver should return error")
@@ -381,7 +357,6 @@ func TestManager_NilReceiver(t *testing.T) {
 		t.Errorf("EnsureWorktree() error should mention nil receiver, got: %v", err)
 	}
 
-	// Expected failure: CreateBranch method does not exist
 	_, err = m.CreateBranch("test")
 	if err == nil {
 		t.Error("CreateBranch() on nil receiver should return error")
@@ -390,7 +365,6 @@ func TestManager_NilReceiver(t *testing.T) {
 		t.Errorf("CreateBranch() error should mention nil receiver, got: %v", err)
 	}
 
-	// Expected failure: Cleanup method does not exist
 	err = m.Cleanup()
 	if err == nil {
 		t.Error("Cleanup() on nil receiver should return error")
@@ -401,9 +375,7 @@ func TestManager_NilReceiver(t *testing.T) {
 }
 
 // TestManager_EmptyMainDir verifies that NewManager rejects empty MainDir.
-// Expected failure: NewManager function does not exist yet.
 func TestManager_EmptyMainDir(t *testing.T) {
-	// Expected failure: NewManager function does not exist
 	_, err := NewManager("")
 	if err == nil {
 		t.Error("NewManager(\"\") should return error for empty MainDir")
@@ -415,7 +387,6 @@ func TestManager_EmptyMainDir(t *testing.T) {
 
 // TestEnsureWorktree_GitRunFnCalledWithCorrectDir verifies that EnsureWorktree
 // calls gitRunFn with the correct working directory.
-// Expected failure: Manager.EnsureWorktree method does not exist yet.
 func TestEnsureWorktree_GitRunFnCalledWithCorrectDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -443,7 +414,6 @@ func TestEnsureWorktree_GitRunFnCalledWithCorrectDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: EnsureWorktree method does not exist
 	_, err = m.EnsureWorktree()
 	if err != nil {
 		t.Fatalf("EnsureWorktree() error = %v, want nil", err)
@@ -457,7 +427,6 @@ func TestEnsureWorktree_GitRunFnCalledWithCorrectDir(t *testing.T) {
 
 // TestCreateBranch_GitRunFnCalledInWorktreeDir verifies that CreateBranch
 // executes git commands in the worktree directory, not the main directory.
-// Expected failure: Manager.CreateBranch method does not exist yet.
 func TestCreateBranch_GitRunFnCalledInWorktreeDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -481,7 +450,6 @@ func TestCreateBranch_GitRunFnCalledInWorktreeDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: CreateBranch method does not exist
 	_, err = m.CreateBranch("retro")
 	if err != nil {
 		t.Fatalf("CreateBranch() error = %v, want nil", err)
@@ -495,7 +463,6 @@ func TestCreateBranch_GitRunFnCalledInWorktreeDir(t *testing.T) {
 
 // TestCleanup_GitRunFnCalledWithCorrectDir verifies that Cleanup calls
 // gitRunFn with the correct working directory.
-// Expected failure: Manager.Cleanup method does not exist yet.
 func TestCleanup_GitRunFnCalledWithCorrectDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -522,7 +489,6 @@ func TestCleanup_GitRunFnCalledWithCorrectDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: Cleanup method does not exist
 	err = m.Cleanup()
 	if err != nil {
 		t.Fatalf("Cleanup() error = %v, want nil", err)
@@ -536,7 +502,6 @@ func TestCleanup_GitRunFnCalledWithCorrectDir(t *testing.T) {
 
 // TestManager_FieldsAreAccessible verifies that Manager fields can be read
 // after creation (for inspection/debugging).
-// Expected failure: Manager type and its fields do not exist yet.
 func TestManager_FieldsAreAccessible(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -544,19 +509,16 @@ func TestManager_FieldsAreAccessible(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	// Expected failure: NewManager function does not exist
 	m, err := NewManager(mainDir)
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
 	// Fields should be accessible for reading
-	// Expected failure: Manager.MainDir field does not exist
 	if m.MainDir == "" {
 		t.Error("Manager.MainDir should not be empty")
 	}
 
-	// Expected failure: Manager.WorktreeDir field does not exist
 	if m.WorktreeDir == "" {
 		t.Error("Manager.WorktreeDir should not be empty")
 	}
@@ -567,13 +529,11 @@ func TestManager_FieldsAreAccessible(t *testing.T) {
 
 // TestWithGitRunFn_IsOptionFunction verifies that WithGitRunFn returns
 // a valid option function that can be passed to NewManager.
-// Expected failure: WithGitRunFn function does not exist yet.
 func TestWithGitRunFn_IsOptionFunction(t *testing.T) {
 	mockGitRun := func(dir string, args ...string) (string, error) {
 		return "", nil
 	}
 
-	// Expected failure: WithGitRunFn function does not exist
 	opt := WithGitRunFn(mockGitRun)
 	if opt == nil {
 		t.Fatal("WithGitRunFn() returned nil option")
@@ -586,7 +546,6 @@ func TestWithGitRunFn_IsOptionFunction(t *testing.T) {
 	}
 
 	// Should be able to pass the option to NewManager
-	// Expected failure: NewManager function does not exist
 	_, err := NewManager(mainDir, opt)
 	if err != nil {
 		t.Errorf("NewManager() with WithGitRunFn option error = %v, want nil", err)
@@ -618,7 +577,6 @@ func helperMockGitRun(t *testing.T, worktreePath string) func(string, ...string)
 }
 
 // TestEnsureWorktree_UsesHelperMock demonstrates the helper function usage.
-// Expected failure: Manager.EnsureWorktree method does not exist yet.
 func TestEnsureWorktree_UsesHelperMock(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -633,7 +591,6 @@ func TestEnsureWorktree_UsesHelperMock(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: EnsureWorktree method does not exist
 	path, err := m.EnsureWorktree()
 	if err != nil {
 		t.Fatalf("EnsureWorktree() error = %v, want nil", err)
@@ -651,7 +608,6 @@ func TestEnsureWorktree_UsesHelperMock(t *testing.T) {
 
 // TestPendingBranches_ReturnsEmptyWhenNoBranches verifies that PendingBranches
 // returns an empty slice when no gromit/* branches exist.
-// Expected failure: Manager.PendingBranches method does not exist yet.
 func TestPendingBranches_ReturnsEmptyWhenNoBranches(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -672,7 +628,6 @@ func TestPendingBranches_ReturnsEmptyWhenNoBranches(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: PendingBranches method does not exist
 	branches, err := m.PendingBranches()
 	if err != nil {
 		t.Fatalf("PendingBranches() error = %v, want nil", err)
@@ -685,7 +640,6 @@ func TestPendingBranches_ReturnsEmptyWhenNoBranches(t *testing.T) {
 
 // TestPendingBranches_ReturnsGromitBranches verifies that PendingBranches
 // returns only branches matching the gromit/* pattern.
-// Expected failure: Manager.PendingBranches method does not exist yet.
 func TestPendingBranches_ReturnsGromitBranches(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -706,7 +660,6 @@ func TestPendingBranches_ReturnsGromitBranches(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: PendingBranches method does not exist
 	branches, err := m.PendingBranches()
 	if err != nil {
 		t.Fatalf("PendingBranches() error = %v, want nil", err)
@@ -727,7 +680,6 @@ func TestPendingBranches_ReturnsGromitBranches(t *testing.T) {
 
 // TestPendingBranches_FiltersNonGromitBranches verifies that PendingBranches
 // excludes branches that don't match the gromit/* pattern.
-// Expected failure: Manager.PendingBranches method does not exist yet.
 func TestPendingBranches_FiltersNonGromitBranches(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -748,7 +700,6 @@ func TestPendingBranches_FiltersNonGromitBranches(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: PendingBranches method does not exist
 	branches, err := m.PendingBranches()
 	if err != nil {
 		t.Fatalf("PendingBranches() error = %v, want nil", err)
@@ -768,7 +719,6 @@ func TestPendingBranches_FiltersNonGromitBranches(t *testing.T) {
 
 // TestMergeBack_FastForwardSuccess verifies that MergeBack performs a
 // fast-forward merge when possible and deletes the branch on success.
-// Expected failure: Manager.MergeBack method does not exist yet.
 func TestMergeBack_FastForwardSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -795,7 +745,6 @@ func TestMergeBack_FastForwardSuccess(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: MergeBack method does not exist
 	err = m.MergeBack("gromit/retro-1234567890")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil", err)
@@ -828,7 +777,6 @@ func TestMergeBack_FastForwardSuccess(t *testing.T) {
 
 // TestMergeBack_FallbackToMergeCommit verifies that MergeBack falls back
 // to a regular merge commit when fast-forward merge fails.
-// Expected failure: Manager.MergeBack method does not exist yet.
 func TestMergeBack_FallbackToMergeCommit(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -859,7 +807,6 @@ func TestMergeBack_FallbackToMergeCommit(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: MergeBack method does not exist
 	err = m.MergeBack("gromit/review-1234567890")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil (should succeed with merge commit)", err)
@@ -898,7 +845,6 @@ func TestMergeBack_FallbackToMergeCommit(t *testing.T) {
 
 // TestMergeBack_ConflictReturnsError verifies that MergeBack returns an error
 // when a merge conflict occurs and does NOT delete the branch.
-// Expected failure: Manager.MergeBack method does not exist yet.
 func TestMergeBack_ConflictReturnsError(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -929,7 +875,6 @@ func TestMergeBack_ConflictReturnsError(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: MergeBack method does not exist
 	err = m.MergeBack("gromit/review-1234567890")
 	if err == nil {
 		t.Fatal("MergeBack() should return error on merge conflict, got nil")
@@ -962,7 +907,6 @@ func TestMergeBack_ConflictReturnsError(t *testing.T) {
 
 // TestMergeBack_InvalidBranchName verifies that MergeBack returns an error
 // for invalid branch names (empty string).
-// Expected failure: Manager.MergeBack method does not exist yet.
 func TestMergeBack_InvalidBranchName(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -979,7 +923,6 @@ func TestMergeBack_InvalidBranchName(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: MergeBack method does not exist
 	err = m.MergeBack("")
 	if err == nil {
 		t.Error("MergeBack(\"\") should return error for empty branch name")
@@ -987,11 +930,9 @@ func TestMergeBack_InvalidBranchName(t *testing.T) {
 }
 
 // TestMergeBack_NilReceiver verifies that MergeBack handles nil receiver safely.
-// Expected failure: Manager.MergeBack method does not exist yet.
 func TestMergeBack_NilReceiver(t *testing.T) {
 	var m *Manager
 
-	// Expected failure: MergeBack method does not exist
 	err := m.MergeBack("gromit/retro-123")
 	if err == nil {
 		t.Error("MergeBack() on nil receiver should return error")
@@ -1002,11 +943,9 @@ func TestMergeBack_NilReceiver(t *testing.T) {
 }
 
 // TestPendingBranches_NilReceiver verifies that PendingBranches handles nil receiver safely.
-// Expected failure: Manager.PendingBranches method does not exist yet.
 func TestPendingBranches_NilReceiver(t *testing.T) {
 	var m *Manager
 
-	// Expected failure: PendingBranches method does not exist
 	_, err := m.PendingBranches()
 	if err == nil {
 		t.Error("PendingBranches() on nil receiver should return error")
@@ -1018,7 +957,6 @@ func TestPendingBranches_NilReceiver(t *testing.T) {
 
 // TestMergeBack_GitRunFnCalledInMainDir verifies that MergeBack executes
 // git commands in the main directory, not the worktree directory.
-// Expected failure: Manager.MergeBack method does not exist yet.
 func TestMergeBack_GitRunFnCalledInMainDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -1045,7 +983,6 @@ func TestMergeBack_GitRunFnCalledInMainDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: MergeBack method does not exist
 	err = m.MergeBack("gromit/retro-123")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil", err)
@@ -1061,7 +998,6 @@ func TestMergeBack_GitRunFnCalledInMainDir(t *testing.T) {
 
 // TestPendingBranches_GitRunFnCalledInMainDir verifies that PendingBranches
 // executes git commands in the main directory.
-// Expected failure: Manager.PendingBranches method does not exist yet.
 func TestPendingBranches_GitRunFnCalledInMainDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -1083,7 +1019,6 @@ func TestPendingBranches_GitRunFnCalledInMainDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: PendingBranches method does not exist
 	_, err = m.PendingBranches()
 	if err != nil {
 		t.Fatalf("PendingBranches() error = %v, want nil", err)
@@ -1097,7 +1032,6 @@ func TestPendingBranches_GitRunFnCalledInMainDir(t *testing.T) {
 
 // TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge verifies that
 // MergeBack deletes the branch only when the merge succeeds.
-// Expected failure: Manager.MergeBack method does not exist yet.
 func TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
@@ -1122,7 +1056,6 @@ func TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	// Expected failure: MergeBack method does not exist
 	err = m.MergeBack("gromit/retro-123")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil", err)

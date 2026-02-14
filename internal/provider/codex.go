@@ -76,10 +76,11 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 		return nil, fmt.Errorf("failed to start codex command: %w", err)
 	}
 
-	// Write prompt to stdin in a goroutine to avoid blocking
+	// Write prompt to stdin in a goroutine to avoid blocking.
+	// Errors (e.g. broken pipe if process exits early) are non-fatal.
 	go func() {
 		defer stdin.Close()
-		io.WriteString(stdin, prompt)
+		_, _ = io.WriteString(stdin, prompt)
 	}()
 
 	// Wait for command to complete
@@ -146,7 +147,7 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		}()
 
 		// Process the JSONL stream
-		resultText, _, err := processCodexStream(stdout, output, handler, onToolCall)
+		resultText, _, streamErrInfo, err := processCodexStream(stdout, output, handler, onToolCall)
 		if err != nil {
 			cmd.Wait()
 			return nil, fmt.Errorf("failed to process codex stream: %w", err)
@@ -165,6 +166,18 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		}
 
 		duration := time.Since(startTime)
+
+		// If the turn ended with an error (e.g. UsageLimitExceeded), report failure
+		if streamErrInfo != nil {
+			return &Result{
+				Success:  false,
+				Output:   resultText,
+				ExitCode: 0,
+				Duration: duration,
+				Model:    model,
+			}, nil
+		}
+
 		return &Result{
 			Success:  true,
 			Output:   resultText,
@@ -338,11 +351,12 @@ type codexEvent struct {
 
 // processCodexStream reads Codex JSONL events from reader, converts them to StreamEvent format,
 // and calls handlers for each event. Returns the final result text (from last agent_message),
-// token usage data (from turn.completed), and any error encountered.
-func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler, toolHandler ToolCallHandler) (string, *codexUsage, error) {
+// token usage data (from turn.completed), error info (from failed turn.completed), and any error encountered.
+func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler, toolHandler ToolCallHandler) (string, *codexUsage, *codexErrorInfo, error) {
 	scanner := bufio.NewScanner(reader)
 	var lastAgentText string
 	var usage *codexUsage
+	var errInfo *codexErrorInfo
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -425,6 +439,22 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				usage = event.Usage
 			}
 
+			// Capture error info from failed turns
+			if event.ErrorInfo != nil {
+				errInfo = event.ErrorInfo
+			}
+
+			// Emit error event for failure conditions
+			if handler != nil && event.ErrorInfo != nil {
+				streamEvent := map[string]interface{}{
+					"type":    "error",
+					"subtype": event.ErrorInfo.Type,
+					"message": event.ErrorInfo.Message,
+				}
+				eventJSON, _ := json.Marshal(streamEvent)
+				handler(eventJSON)
+			}
+
 			// Emit result event with token usage
 			if handler != nil && event.Usage != nil {
 				streamEvent := map[string]interface{}{
@@ -439,8 +469,8 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 
-	return lastAgentText, usage, nil
+	return lastAgentText, usage, errInfo, nil
 }

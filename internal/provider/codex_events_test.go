@@ -6,7 +6,6 @@ import (
 )
 
 // TestCodexUsageStruct verifies that codexUsage struct can parse token usage data.
-// Red: codexUsage struct does not exist yet
 func TestCodexUsageStruct(t *testing.T) {
 	jsonData := `{"input_tokens":100,"cached_input_tokens":50,"output_tokens":75}`
 
@@ -28,7 +27,6 @@ func TestCodexUsageStruct(t *testing.T) {
 }
 
 // TestCodexErrorInfoStruct verifies that codexErrorInfo struct can parse error data.
-// Red: codexErrorInfo struct does not exist yet
 func TestCodexErrorInfoStruct(t *testing.T) {
 	jsonData := `{"type":"UsageLimitExceeded","message":"Rate limit exceeded"}`
 
@@ -47,7 +45,6 @@ func TestCodexErrorInfoStruct(t *testing.T) {
 }
 
 // TestCodexItemStruct verifies that codexItem struct can parse different item types.
-// Red: codexItem struct does not exist yet
 func TestCodexItemStruct(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -117,7 +114,6 @@ func TestCodexItemStruct(t *testing.T) {
 }
 
 // TestCodexEventStruct verifies that codexEvent struct can parse complete events.
-// Red: codexEvent struct does not exist yet
 func TestCodexEventStruct(t *testing.T) {
 	tests := []struct {
 		name     string

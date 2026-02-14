@@ -67,24 +67,29 @@ func (m *Manager) EnsureWorktree() (string, error) {
 		}
 	}
 
-	// Create the worktree
+	// Create the worktree with a new branch
 	_, err = m.runGit(m.MainDir, "worktree", "add", m.WorktreeDir, "-b", "gromit/interactive")
 	if err != nil {
-		return "", fmt.Errorf("failed to create worktree: %w", err)
+		// Branch may already exist from a previous worktree that was removed.
+		// Retry without -b to checkout the existing branch.
+		_, err = m.runGit(m.MainDir, "worktree", "add", m.WorktreeDir, "gromit/interactive")
+		if err != nil {
+			return "", fmt.Errorf("failed to create worktree: %w", err)
+		}
 	}
 
 	return m.WorktreeDir, nil
 }
 
 // containsPath checks if the git worktree list output contains the given path.
-// git worktree list format: each line starts with the worktree path.
+// git worktree list format: each line starts with the worktree path followed by a space.
 func containsPath(gitWorktreeListOutput, path string) bool {
-	// Simple substring check is sufficient since worktree paths are absolute
-	// and git worktree list outputs the full path
-	return len(gitWorktreeListOutput) > 0 &&
-		(gitWorktreeListOutput == path ||
-			strings.Contains(gitWorktreeListOutput, path+"\n") ||
-			strings.HasPrefix(gitWorktreeListOutput, path+" "))
+	for _, line := range strings.Split(gitWorktreeListOutput, "\n") {
+		if line == path || strings.HasPrefix(line, path+" ") {
+			return true
+		}
+	}
+	return false
 }
 
 // CreateBranch creates a new branch in the worktree for an interactive session.
