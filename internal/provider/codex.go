@@ -243,3 +243,12 @@ type codexErrorInfo struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
 }
+
+// codexItem represents an item from Codex item.started or item.completed events
+type codexItem struct {
+	Type     string `json:"type"`
+	Text     string `json:"text"`
+	Command  string `json:"command"`
+	Path     string `json:"path"`
+	ToolName string `json:"tool_name"`
+}
