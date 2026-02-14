@@ -1592,9 +1592,11 @@ func TestClientHasOpenChildrenValidation(t *testing.T) {
 }
 
 // TestHasOpenChildrenWithMockedRun tests HasOpenChildren with a mocked run function
-// to verify it uses the correct bd command arguments.
-// Expected failure: HasOpenChildren currently uses c.List() which calls bd list without --parent.
-// After implementation, it should call c.run with --parent flag.
+// to verify it uses the correct bd command arguments with --parent flag.
+// Expected failure: Client.runFn field does not exist yet (compilation will fail).
+// After implementation, this field will allow injecting a mock run function to verify
+// command arguments without spawning subprocesses. The test verifies HasOpenChildren
+// calls run() with: bd list --json --status open --parent <id> --limit 1
 func TestHasOpenChildrenWithMockedRun(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1628,83 +1630,54 @@ func TestHasOpenChildrenWithMockedRun(t *testing.T) {
 			wantErr:  false,
 			wantArgs: []string{"list", "--json", "--status", "open", "--parent", "epic-789", "--limit", "1"},
 		},
+		{
+			name:     "multiple children in output returns true",
+			parentID: "epic-999",
+			bdOutput: `[{"id":"task-001","title":"Child 1","priority":1,"issue_type":"task","status":"open","parent":"epic-999"},{"id":"task-002","title":"Child 2","priority":1,"issue_type":"task","status":"open","parent":"epic-999"}]`,
+			want:     true,
+			wantErr:  false,
+			wantArgs: []string{"list", "--json", "--status", "open", "--parent", "epic-999", "--limit", "1"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// This test will fail because we can't currently mock c.run()
-			// After implementation, we'll need a way to inject a mock runner
-			// or use a Client field that we can set for testing.
-			t.Skip("Expected failure: Cannot verify bd command arguments without run function injection. Implementation needs to support testing.")
+			var capturedArgs []string
+			mockRun := func(args ...string) (string, error) {
+				capturedArgs = args
+				return tt.bdOutput, nil
+			}
+
+			c := &Client{
+				binary: "bd",
+				runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+			}
+
+			got, err := c.HasOpenChildren(tt.parentID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HasOpenChildren(%q) error = %v, wantErr %v", tt.parentID, err, tt.wantErr)
+				return
+			}
+
+			if got != tt.want {
+				t.Errorf("HasOpenChildren(%q) = %v, want %v", tt.parentID, got, tt.want)
+			}
+
+			// Verify the command arguments match expected
+			if len(capturedArgs) != len(tt.wantArgs) {
+				t.Errorf("HasOpenChildren(%q) called run() with %d args, want %d\nGot:  %v\nWant: %v",
+					tt.parentID, len(capturedArgs), len(tt.wantArgs), capturedArgs, tt.wantArgs)
+				return
+			}
+
+			for i := range capturedArgs {
+				if capturedArgs[i] != tt.wantArgs[i] {
+					t.Errorf("HasOpenChildren(%q) arg[%d] = %q, want %q\nGot:  %v\nWant: %v",
+						tt.parentID, i, capturedArgs[i], tt.wantArgs[i], capturedArgs, tt.wantArgs)
+				}
+			}
 		})
 	}
-}
-
-// TestParseHasChildrenOutput tests parsing the JSON output from bd list --parent command.
-// Expected failure: parseHasChildrenOutput function does not exist yet - test will not compile.
-// After implementation, this helper should parse the bd output and return a boolean.
-// Since this references a non-existent function, it satisfies the requirement that tests
-// must reference at least one function/method/type/constant that doesn't exist in the codebase.
-func TestParseHasChildrenOutput(t *testing.T) {
-	t.Skip("Expected failure: parseHasChildrenOutput function does not exist yet. Will be uncommented after implementation.")
-
-	// The actual test code will be:
-	// tests := []struct {
-	// 	name    string
-	// 	output  string
-	// 	want    bool
-	// 	wantErr bool
-	// }{
-	// 	{
-	// 		name:    "non-empty array means has children",
-	// 		output:  `[{"id":"task-001","title":"Child","priority":1,"issue_type":"task","status":"open"}]`,
-	// 		want:    true,
-	// 		wantErr: false,
-	// 	},
-	// 	{
-	// 		name:    "empty array means no children",
-	// 		output:  `[]`,
-	// 		want:    false,
-	// 		wantErr: false,
-	// 	},
-	// 	{
-	// 		name:    "empty string means no children",
-	// 		output:  ``,
-	// 		want:    false,
-	// 		wantErr: false,
-	// 	},
-	// 	{
-	// 		name:    "whitespace only means no children",
-	// 		output:  `   `,
-	// 		want:    false,
-	// 		wantErr: false,
-	// 	},
-	// 	{
-	// 		name:    "multiple beads returns true",
-	// 		output:  `[{"id":"task-001","title":"Child 1","priority":1,"issue_type":"task","status":"open"},{"id":"task-002","title":"Child 2","priority":1,"issue_type":"task","status":"open"}]`,
-	// 		want:    true,
-	// 		wantErr: false,
-	// 	},
-	// 	{
-	// 		name:    "invalid JSON returns error",
-	// 		output:  `{not valid json}`,
-	// 		want:    false,
-	// 		wantErr: true,
-	// 	},
-	// }
-	//
-	// for _, tt := range tests {
-	// 	t.Run(tt.name, func(t *testing.T) {
-	// 		got, err := parseHasChildrenOutput(tt.output)
-	// 		if (err != nil) != tt.wantErr {
-	// 			t.Errorf("parseHasChildrenOutput() error = %v, wantErr %v", err, tt.wantErr)
-	// 			return
-	// 		}
-	// 		if got != tt.want {
-	// 			t.Errorf("parseHasChildrenOutput() = %v, want %v", got, tt.want)
-	// 		}
-	// 	})
-	// }
 }
 
 // TestClientListReadyIDsNilClient tests that ListReadyIDs() returns error on nil client
