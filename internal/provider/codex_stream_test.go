@@ -116,3 +116,33 @@ func TestProcessCodexStreamToolCallCommand(t *testing.T) {
 		t.Error("Timestamp should be non-zero")
 	}
 }
+
+// TestProcessCodexStreamUsageExtraction verifies that turn.completed extracts usage.
+// Red: processCodexStream does not extract usage from turn.completed yet
+func TestProcessCodexStreamUsageExtraction(t *testing.T) {
+	input := `{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":200,"output_tokens":500}}` + "\n"
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+
+	_, usage, err := processCodexStream(reader, &output, nil, nil)
+
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v, want nil", err)
+	}
+
+	if usage == nil {
+		t.Fatal("usage is nil, want non-nil")
+	}
+
+	if usage.InputTokens != 1000 {
+		t.Errorf("InputTokens = %d, want 1000", usage.InputTokens)
+	}
+
+	if usage.CachedInputTokens != 200 {
+		t.Errorf("CachedInputTokens = %d, want 200", usage.CachedInputTokens)
+	}
+
+	if usage.OutputTokens != 500 {
+		t.Errorf("OutputTokens = %d, want 500", usage.OutputTokens)
+	}
+}

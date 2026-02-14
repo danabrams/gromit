@@ -346,9 +346,24 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 					handler(eventJSON)
 				}
 			}
-		}
 
-		_ = usage
+		case "turn.completed":
+			// Extract usage data
+			if event.Usage != nil {
+				usage = event.Usage
+			}
+
+			// Emit result event with token usage
+			if handler != nil && event.Usage != nil {
+				streamEvent := map[string]interface{}{
+					"type":          "result",
+					"input_tokens":  event.Usage.InputTokens,
+					"output_tokens": event.Usage.OutputTokens,
+				}
+				eventJSON, _ := json.Marshal(streamEvent)
+				handler(eventJSON)
+			}
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
