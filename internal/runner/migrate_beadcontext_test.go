@@ -367,47 +367,6 @@ func TestHandleStallTimeout_ReadsExportedRetryFields(t *testing.T) {
 	}
 }
 
-// TestShouldRunRefactor_ReadsTierFromExportedField verifies that shouldRunRefactor
-// reads the Tier field from *runtypes.BeadContext.
-func TestShouldRunRefactor_ReadsTierFromExportedField(t *testing.T) {
-	r2 := setupMigratedRunner(t)
-	b := &bead.Bead{ID: "refactor-test", Title: "Refactor test", Priority: 2}
-
-	bc, _, cancel, err := r2.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	defer cancel()
-
-	// Verify the type and exported Tier field
-	gotType := reflect.TypeOf(bc)
-	wantType := reflect.TypeOf((*runtypes.BeadContext)(nil))
-	if gotType != wantType {
-		t.Fatalf("bc type = %v, want %v", gotType, wantType)
-	}
-
-	val := reflect.ValueOf(bc).Elem()
-	tierField := val.FieldByName("Tier")
-	if !tierField.IsValid() {
-		t.Fatal("exported field 'Tier' not found — migration not yet complete")
-	}
-
-	// Set tier to "low" and verify shouldRunRefactor skips it
-	tierField.SetString("low")
-
-	r := &Runner{
-		cfg: &config.Config{
-			Refactor: config.RefactorConfig{MinFilesChanged: 0},
-		},
-		output: &strings.Builder{},
-	}
-
-	got := r.shouldRunRefactor(bc, "diff --git a/file.go b/file.go")
-	if got != false {
-		t.Error("shouldRunRefactor should return false for low tier")
-	}
-}
-
 // TestBuildPromptForBead_SetsExportedPromptFields verifies that
 // buildPromptForBead sets PromptCtx and BuildPrompt on *runtypes.BeadContext.
 func TestBuildPromptForBead_SetsExportedPromptFields(t *testing.T) {

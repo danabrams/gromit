@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -18,11 +17,6 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
-
-// errATDDAlreadyDone is returned by verifyTestsFailWithRetry when acceptance
-// tests pass before implementation after retry. This signals that the work is
-// already done (e.g., a sibling bead completed it), not that the tests are bad.
-var errATDDAlreadyDone = errors.New("atdd: acceptance tests pass — work already done")
 
 // setupBeadContext validates runner state, sets up timeouts, captures git state,
 // fetches parent bead, and selects the initial model.
@@ -173,276 +167,6 @@ func (r *Runner) handleScopeTooLarge(bc *runtypes.BeadContext, claudeResult *cla
 	bc.Result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
 }
 
-// runAcceptanceTestsWithRetry runs the acceptance test phase with retry and escalation logic.
-// Returns nil on success or error on failure.
-func (r *Runner) runAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes.BeadContext) error {
-	retries := 0
-	maxRetries := r.cfg.Escalation.MaxRetriesPerModel
-	currentTier := bc.Tier
-
-	for {
-		if retries > 0 {
-			r.log("Retrying acceptance tests (attempt %d/%d)...", retries+1, maxRetries+1)
-		}
-
-		err := r.runAcceptanceTests(ctx, bc)
-		if err == nil {
-			return nil
-		}
-
-		// Retry with same tier
-		if retries < maxRetries {
-			retries++
-			// Could add failure analysis here if needed
-			continue
-		}
-
-		// Escalate tier
-		nextTier := r.cfg.NextEscalationTier(currentTier)
-		if nextTier == "" {
-			return fmt.Errorf("acceptance tests failed with all tiers: %w", err)
-		}
-
-		r.log("Escalating acceptance tests from tier %s to %s", currentTier, nextTier)
-		r.escalationHandler.EscalateTier(bc, nextTier)
-		currentTier = nextTier
-		retries = 0
-	}
-}
-
-// runAcceptanceTests runs the acceptance test phase for ATDD workflow.
-// Uses the same heartbeat/stall detection pattern as executeClaudeInvocation.
-// Returns nil on success or error on failure.
-func (r *Runner) runAcceptanceTests(ctx context.Context, bc *runtypes.BeadContext) error {
-	// Render acceptance tests prompt
-	acceptancePrompt, err := r.renderer.RenderAcceptanceTests(bc.PromptCtx)
-	if err != nil {
-		return fmt.Errorf("rendering acceptance tests prompt: %w", err)
-	}
-
-	// Setup streaming stats and heartbeat monitoring
-	stats, err := logger.NewStreamStats()
-	if err != nil {
-		return err
-	}
-
-	if r.router == nil {
-		return fmt.Errorf("runner router is nil")
-	}
-
-	// Determine phase and use tier from bead context
-	phase := "build"
-	tier := bc.Tier
-
-	// Select provider using router
-	p, modelName := r.router.Select(phase, tier)
-	if p == nil {
-		return fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
-	}
-
-	// Update bead context with router-selected model
-	bc.Model = modelName
-	// If this is an escalated invocation, update EscalatedTo with the concrete model name
-	if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
-		bc.Result.EscalatedTo = modelName
-	}
-
-	childCtx, childCancel := context.WithCancel(ctx)
-	stallFired := false
-
-	_, stallTimeoutSec, stallTimeoutActiveSec, _ := r.cfg.Claude.TimeoutsForModel(bc.Model)
-	stallTimeout := time.Duration(stallTimeoutSec) * time.Second
-	stallTimeoutActive := time.Duration(stallTimeoutActiveSec) * time.Second
-
-	toolCallEvents := make(chan claude.ToolEvent, 10)
-
-	stopHeartbeat := r.startHeartbeat(stats, stallTimeout, stallTimeoutActive, func() {
-		stallFired = true
-		childCancel()
-	}, toolCallEvents)
-
-	var handler claude.EventHandler
-	if r.streamLogger != nil {
-		sl := r.streamLogger
-		handler = func(line []byte) {
-			logger.ParseAndLogEvent(sl, stats, line)
-		}
-	}
-
-	onToolCall := func(event claude.ToolEvent) {
-		select {
-		case toolCallEvents <- event:
-		default:
-		}
-	}
-
-	// Convert claude handler to provider handler type
-	var providerHandler provider.EventHandler
-	if handler != nil {
-		providerHandler = provider.EventHandler(handler)
-	}
-
-	providerToolHandler := func(event provider.ToolEvent) {
-		onToolCall(claude.ToolEvent{
-			ToolName:  event.ToolName,
-			FilePath:  event.FilePath,
-			Timestamp: event.Timestamp,
-		})
-	}
-
-	// Call provider.StreamRun with the tier
-	providerResult, err := p.StreamRun(childCtx, acceptancePrompt, tier, r.output, providerHandler, providerToolHandler)
-
-	// Check for usage limit error and retry with fallback provider
-	if err != nil && p.IsUsageLimitError(providerResult, err) {
-		r.router.MarkUnavailable(p.Name())
-
-		// Retry with new provider
-		p2, modelName2 := r.router.Select(phase, tier)
-		if p2 != nil {
-			bc.Model = modelName2
-			// If this is an escalated invocation, update EscalatedTo with the concrete model name
-			if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
-				bc.Result.EscalatedTo = modelName2
-			}
-
-			// Retry the invocation with the fallback provider
-			providerResult, err = p2.StreamRun(childCtx, acceptancePrompt, tier, r.output, providerHandler, providerToolHandler)
-		}
-	}
-
-	// Convert provider.Result back to claude.Result for backward compatibility
-	var claudeResult *claude.Result
-	if providerResult != nil {
-		claudeResult = &claude.Result{
-			Success:  providerResult.Success,
-			Output:   providerResult.Output,
-			ExitCode: providerResult.ExitCode,
-			Duration: providerResult.Duration,
-			Model:    providerResult.Model,
-		}
-	}
-
-	stopHeartbeat()
-	childCancel()
-
-	// Handle stall timeout
-	if stallFired {
-		return fmt.Errorf("stall timeout during acceptance tests")
-	}
-
-	// Handle invocation errors
-	if err != nil {
-		return fmt.Errorf("acceptance tests invocation: %w", err)
-	}
-
-	// Check if Claude succeeded
-	if claudeResult == nil || !claudeResult.Success {
-		return fmt.Errorf("acceptance tests failed")
-	}
-
-	return nil
-}
-
-// verifyTestsFailWithRetry runs the verify-tests-fail phase with retry logic.
-// If tests pass (unexpected), retries once with analysis, then fails.
-func (r *Runner) verifyTestsFailWithRetry(ctx context.Context, bc *runtypes.BeadContext) error {
-	err := r.verifyTestsFail(ctx, bc)
-	if err == nil {
-		return nil // Tests failed as expected
-	}
-
-	// Tests passed before implementation - this is unexpected
-	// Run failure analysis to understand why
-	r.log("Unexpected: tests passed before implementation. Analyzing...")
-
-	analysisTimeout := time.Duration(r.cfg.Claude.AnalysisTimeout) * time.Second
-	analysisCtx, analysisCancel := context.WithTimeout(ctx, analysisTimeout)
-	analysis, analyzeErr := r.analyzer.Analyze(analysisCtx, bc.Bead, err.Error())
-	analysisCancel()
-
-	if analyzeErr != nil {
-		r.log("Warning: failure analysis failed: %v — treating as already done", analyzeErr)
-		return errATDDAlreadyDone
-	}
-
-	// Retry acceptance tests once with analysis context
-	r.log("Retrying acceptance tests with analysis context...")
-	bc.PromptCtx.IsRetry = true
-	bc.PromptCtx.FailureContext = analysis.Suggestion
-
-	if retryErr := r.runAcceptanceTests(ctx, bc); retryErr != nil {
-		return fmt.Errorf("acceptance tests retry failed: %w", retryErr)
-	}
-
-	// Verify tests fail again
-	err = r.verifyTestsFail(ctx, bc)
-	if err == nil {
-		return nil // Tests now fail as expected
-	}
-
-	// Still passing after retry with analysis — check if this is a false positive
-	// by examining the git diff. If only test files changed (no implementation),
-	// the tests are likely checking existing behavior, not new behavior.
-	if bc.StartCommit != "" {
-		diff, diffErr := r.getDiff(bc.StartCommit)
-		if diffErr == nil && isTestOnlyDiff(diff) {
-			r.log("Tests pass but only test files changed — likely testing existing behavior, retrying...")
-			bc.PromptCtx.IsRetry = true
-			bc.PromptCtx.FailureContext = "Tests pass but no implementation code was changed — tests are likely checking existing behavior. Rewrite tests to assert on behavior that does not exist yet."
-
-			if retryErr2 := r.runAcceptanceTests(ctx, bc); retryErr2 == nil {
-				// Verify tests fail again after diff-aware retry
-				if err2 := r.verifyTestsFail(ctx, bc); err2 == nil {
-					return nil // Tests now fail as expected
-				}
-			}
-			// If retry failed or tests still pass, fall through to errATDDAlreadyDone
-		}
-	}
-
-	r.log("Acceptance tests pass after retry — work appears already done")
-	return errATDDAlreadyDone
-}
-
-// verifyTestsFail runs validation and returns nil when validation fails (expected)
-// or an error when validation passes (unexpected - tests should fail before implementation).
-// This is used in the ATDD workflow to verify that acceptance tests fail before implementation.
-func (r *Runner) verifyTestsFail(ctx context.Context, bc *runtypes.BeadContext) error {
-	if !r.cfg.Validation.Enabled {
-		return fmt.Errorf("validation is not enabled - cannot verify tests fail")
-	}
-
-	checker, err := preflight.NewChecker(r.cfg.Preflight, r.output)
-	if err != nil {
-		return fmt.Errorf("creating preflight checker: %w", err)
-	}
-	if err := checker.Check(r.cfg.Validation.Commands); err != nil {
-		r.log("Warning: %v", err)
-		return fmt.Errorf("preflight check failed: %w", err)
-	}
-
-	r.log("Verifying acceptance tests fail (as expected)...")
-
-	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
-	if err != nil {
-		return fmt.Errorf("validation invocation: %w", err)
-	}
-	if valResult == nil {
-		return fmt.Errorf("validation returned no result")
-	}
-
-	// In ATDD, we expect tests to FAIL before implementation
-	if claude.IsValidationPassed(valResult) {
-		r.log("\nUnexpected: acceptance tests passed before implementation")
-		r.log("Tests should fail until implementation makes them pass")
-		return fmt.Errorf("acceptance tests passed before implementation - tests may not be covering new behavior")
-	}
-
-	r.log("Acceptance tests failed as expected")
-	return nil
-}
-
 // parseDiffFiles extracts file paths from git diff output.
 // Returns a slice of file paths in the order they appear.
 func parseDiffFiles(diff string) []string {
@@ -500,23 +224,6 @@ func detectTouchedPackages(diff string) []string {
 	return packages
 }
 
-// isTestOnlyDiff returns true if the diff is empty or only contains changes
-// to test files (*_test.go). This is used to detect ATDD false positives where
-// tests pass because they're checking existing behavior rather than new behavior.
-func isTestOnlyDiff(diff string) bool {
-	if strings.TrimSpace(diff) == "" {
-		return true
-	}
-
-	files := parseDiffFiles(diff)
-	for _, filePath := range files {
-		if !strings.HasSuffix(filePath, "_test.go") {
-			return false
-		}
-	}
-	return true
-}
-
 // runDirectValidationCheck delegates to the validation.Runner's RunDirect method.
 func (r *Runner) runDirectValidationCheck(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
 	if r.validationRunner == nil {
@@ -527,7 +234,7 @@ func (r *Runner) runDirectValidationCheck(ctx context.Context, commands []string
 
 // runRefactorWithRouter executes a refactor invocation using the router with automatic fallback.
 // Returns the result and any error. This helper centralizes the router selection and usage limit
-// fallback pattern used in both runRefactorPhase and handleRefactorValidationFailure.
+// fallback pattern used by the methodology.Executor's refactor callback.
 func (r *Runner) runRefactorWithRouter(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
 	if r.router == nil {
 		return nil, fmt.Errorf("runner router is nil")
@@ -572,189 +279,38 @@ func (r *Runner) runRefactorWithRouter(ctx context.Context, prompt string, tier 
 	return claudeResult, err
 }
 
-// shouldRunRefactor determines whether the refactor phase should run based on
-// bead complexity tier and number of files changed.
-func (r *Runner) shouldRunRefactor(bc *runtypes.BeadContext, diff string) bool {
-	// Skip refactor for haiku-tier beads
-	if bc.Tier == provider.TierLow {
-		r.log("Skipping refactor: haiku-tier bead")
-		return false
-	}
-
-	// Check file count threshold
-	minFiles := r.cfg.Refactor.MinFilesChanged
-	if minFiles == 0 {
-		// Threshold of 0 means always run refactor (no file count check)
-		return true
-	}
-
-	filesChanged := countChangedFiles(diff)
-	if filesChanged < minFiles {
-		r.log("Skipping refactor: only %d files changed (threshold: %d)", filesChanged, minFiles)
-		return false
-	}
-
-	return true
-}
-
-// runRefactorPhase runs the refactoring phase after validation passes.
-// Returns nil on success or if refactoring is skipped. Does not return an error
-// if refactoring fails - it logs a warning and continues (working code without
-// refactoring is better than broken code).
-func (r *Runner) runRefactorPhase(ctx context.Context, bc *runtypes.BeadContext) error {
-	// Check if there are any changes to refactor
-	diff, err := r.getDiff(bc.StartCommit)
-	if err != nil {
-		r.log("Warning: could not get git diff: %v", err)
-		return nil // Skip refactoring, not an error
-	}
-	if diff == "" {
-		r.log("No changes to refactor, skipping refactor phase")
-		return nil
-	}
-
-	// Check if refactor should run based on complexity and file count
-	if !r.shouldRunRefactor(bc, diff) {
-		return nil
-	}
-
-	// Capture pre-refactor commit for potential revert
-	preRefactorCommit, err := getGitHead()
-	if err != nil {
-		r.log("Warning: could not capture pre-refactor commit: %v", err)
-		return nil // Skip refactoring, not an error
-	}
-
-	// Render refactor prompt
-	refactorPrompt, err := r.renderer.RenderRefactor(bc.PromptCtx)
-	if err != nil {
-		r.log("Warning: could not render refactor prompt: %v", err)
-		return nil // Skip refactoring, not an error
-	}
-
-	// Execute refactor using router
-	claudeResult, err := r.runRefactorWithRouter(ctx, refactorPrompt, bc.Tier)
-	if err != nil {
-		r.log("Warning: refactor invocation failed: %v", err)
-		return nil // Skip refactoring, not an error
-	}
-	if claudeResult == nil || !claudeResult.Success {
-		r.log("Warning: refactor phase failed")
-		return nil // Skip refactoring, not an error
-	}
-
-	r.log("Refactor phase complete, re-validating...")
-
-	// Re-validate after refactoring
+// validationPreflight checks whether validation should run and verifies prerequisites.
+// Returns true if validation should proceed, false if it should be skipped.
+func (r *Runner) validationPreflight(bc *runtypes.BeadContext) (bool, error) {
 	if !r.cfg.Validation.Enabled {
-		r.log("Validation not enabled, cannot verify refactoring")
-		return nil
-	}
-
-	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
-	if err != nil {
-		r.log("Warning: refactor re-validation invocation failed: %v", err)
-		return r.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "re-validation invocation failed")
-	}
-
-	if valResult == nil || !claude.IsValidationPassed(valResult) {
-		return r.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "tests failed after refactoring")
-	}
-
-	r.log("Refactor re-validation passed")
-	return nil
-}
-
-// handleRefactorValidationFailure reverts the refactor changes and retries once.
-// Returns nil (not an error) after handling - refactor failures are non-blocking.
-func (r *Runner) handleRefactorValidationFailure(ctx context.Context, bc *runtypes.BeadContext, preRefactorCommit string, reason string) error {
-	r.log("Refactor validation failed: %s", reason)
-	r.log("Reverting to pre-refactor state: %s", preRefactorCommit)
-
-	// Revert to pre-refactor commit
-	revertCmd := exec.Command("git", "reset", "--hard", preRefactorCommit)
-	if err := revertCmd.Run(); err != nil {
-		r.log("Warning: could not revert refactor changes: %v", err)
-		return nil // Can't revert, but don't fail the bead
-	}
-
-	r.log("Reverted to pre-refactor state, retrying refactor once...")
-
-	// Retry refactor with analysis context
-	bc.PromptCtx.IsRetry = true
-	bc.PromptCtx.FailureContext = fmt.Sprintf("Previous refactoring broke tests: %s. Be more conservative this time.", reason)
-
-	refactorPrompt, err := r.renderer.RenderRefactor(bc.PromptCtx)
-	if err != nil {
-		r.log("Warning: could not render retry refactor prompt: %v", err)
-		return nil // Skip refactoring, not an error
-	}
-
-	// Execute retry refactor using router
-	claudeResult, err := r.runRefactorWithRouter(ctx, refactorPrompt, bc.Tier)
-	if err != nil {
-		r.log("Warning: retry refactor invocation failed: %v - skipping refactoring", err)
-		return nil
-	}
-	if claudeResult == nil || !claudeResult.Success {
-		r.log("Warning: retry refactor failed - skipping refactoring")
-		return nil
-	}
-
-	r.log("Retry refactor complete, re-validating...")
-
-	valResult, err := r.runDirectValidationCheck(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
-
-	if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
-		r.log("Warning: retry refactor also failed validation - skipping refactoring")
-		// Revert again
-		revertCmd := exec.Command("git", "reset", "--hard", preRefactorCommit)
-		if err := revertCmd.Run(); err != nil {
-			r.log("Warning: could not revert retry refactor changes: %v", err)
-		}
-		return nil
-	}
-
-	r.log("Retry refactor re-validation passed")
-	return nil
-}
-
-// runValidation runs the validation step (tests/lint) after a successful build.
-// Delegates core command execution and failure accumulation to the validation.Runner,
-// then handles facade concerns: preflight, logging, failure analysis, and post-success stages.
-func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) error {
-	if !r.cfg.Validation.Enabled {
-		return nil
+		return false, nil
 	}
 
 	checker, err := preflight.NewChecker(r.cfg.Preflight, r.output)
 	if err != nil {
-		return fmt.Errorf("creating preflight checker: %w", err)
+		return false, fmt.Errorf("creating preflight checker: %w", err)
 	}
 	if err := checker.Check(r.cfg.Validation.Commands); err != nil {
 		r.log("Warning: %v", err)
 		bc.Result.Validated = false
-		return nil // Skip validation, not an error
+		return false, nil // Skip validation, not an error
 	}
 
-	r.log("Running validation commands directly...")
+	return true, nil
+}
 
-	// Capture output before validation to extract failure output afterward
-	outputBefore := bc.Result.Output
-
-	// Delegate core validation (command execution + failure accumulation) to validation.Runner
-	valErr := r.validationRunner.Validate(ctx, bc)
-
+// handleValidationResult processes the result of a validation run, handling both
+// failure (logging, analysis, learning extraction) and success (touched packages,
+// success learning, review). failureOutput is the text passed to the log and analyzer.
+func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadContext, valErr error, failureOutput string) error {
 	// Sync failure summaries from validation.Runner to facade
 	r.validationFailures = r.validationRunner.Failures()
 
 	if valErr != nil && errors.Is(valErr, validation.ErrValidationFailed) {
-		// Extract the failure output appended by the validation runner
-		failureOutput := strings.TrimPrefix(bc.Result.Output, outputBefore)
-		failureOutput = strings.TrimPrefix(failureOutput, "\n\n=== VALIDATION OUTPUT ===\n")
-
-		r.log("\nValidation failed. Output:")
-		r.log("%s", failureOutput)
+		r.log("\nValidation failed.")
+		if failureOutput != "" {
+			r.log("%s", failureOutput)
+		}
 
 		logPath, logErr := logger.WriteValidationLog(r.cfg.Paths.Logs, failureOutput)
 		if logErr != nil {
@@ -806,23 +362,38 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 	return nil
 }
 
+// runValidation runs the validation step (tests/lint) after a successful build.
+// Delegates core command execution and failure accumulation to the validation.Runner,
+// then handles facade concerns: preflight, logging, failure analysis, and post-success stages.
+func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) error {
+	proceed, err := r.validationPreflight(bc)
+	if !proceed || err != nil {
+		return err
+	}
+
+	r.log("Running validation commands directly...")
+
+	// Capture output before validation to extract failure output afterward
+	outputBefore := bc.Result.Output
+
+	// Delegate core validation (command execution + failure accumulation) to validation.Runner
+	valErr := r.validationRunner.Validate(ctx, bc)
+
+	// Extract the failure output appended by the validation runner
+	failureOutput := strings.TrimPrefix(bc.Result.Output, outputBefore)
+	failureOutput = strings.TrimPrefix(failureOutput, "\n\n=== VALIDATION OUTPUT ===\n")
+
+	return r.handleValidationResult(ctx, bc, valErr, failureOutput)
+}
+
 // runValidationWithRecovery delegates validation and recovery entirely to the
 // validation.Runner's RunWithRecovery method. The facade handles only
 // orchestration concerns: preflight checking, logging, failure analysis,
 // learning extraction, and post-success stages (review).
 func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.BeadContext) error {
-	if !r.cfg.Validation.Enabled {
-		return nil
-	}
-
-	checker, err := preflight.NewChecker(r.cfg.Preflight, r.output)
-	if err != nil {
-		return fmt.Errorf("creating preflight checker: %w", err)
-	}
-	if err := checker.Check(r.cfg.Validation.Commands); err != nil {
-		r.log("Warning: %v", err)
-		bc.Result.Validated = false
-		return nil // Skip validation, not an error
+	proceed, err := r.validationPreflight(bc)
+	if !proceed || err != nil {
+		return err
 	}
 
 	r.log("Running validation commands directly...")
@@ -830,65 +401,7 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.Bea
 	// Delegate core validation + recovery to validation.Runner
 	valErr := r.validationRunner.RunWithRecovery(ctx, bc)
 
-	// Sync failure summaries from validation.Runner to facade
-	r.validationFailures = r.validationRunner.Failures()
-
-	if valErr != nil && errors.Is(valErr, validation.ErrValidationFailed) {
-		// Extract the failure output from bc.Result.Output for logging
-		r.log("\nValidation failed.")
-
-		logPath, logErr := logger.WriteValidationLog(r.cfg.Paths.Logs, bc.Result.Output)
-		if logErr != nil {
-			r.log("Warning: could not save validation log: %v", logErr)
-		} else {
-			r.log("\nFull output saved to: %s", logPath)
-		}
-
-		if bc.StartCommit != "" {
-			r.showPartialProgress(bc.Bead, bc.StartCommit)
-		}
-
-		// Run failure analysis (Claude only for failure interpretation)
-		r.log("Running failure analysis...")
-		valAnalysisCtx, valAnalysisCancel := context.WithTimeout(ctx, time.Duration(r.cfg.Claude.AnalysisTimeout)*time.Second)
-		analysis, analyzeErr := r.analyzer.Analyze(valAnalysisCtx, bc.Bead, bc.Result.Output)
-		valAnalysisCancel()
-		if analyzeErr == nil && analysis != nil && r.renderer != nil {
-			escalation.ExtractLearning(bc, analysis, r.renderer.GetLearningsFile())
-		}
-
-		return errValidationFailed
-	} else if valErr != nil {
-		return valErr
-	}
-
-	r.log("Validation passed")
-
-	// Update runner's touched packages map for learning extraction filtering
-	if bc.TouchedPackages != nil && len(bc.TouchedPackages) > 0 {
-		r.updateTouchedPackages(bc.TouchedPackages)
-	}
-
-	// Run post-success stages sequentially
-	learningEnabled := r.cfg != nil && r.cfg.Loop.ShouldLearnFromSuccess()
-	reviewEnabled := r.cfg != nil && r.cfg.Review.Enabled
-
-	if learningEnabled && r.renderer != nil && r.router != nil {
-		lf := r.renderer.GetLearningsFile()
-		adapter := &successLearningRouterAdapter{r: r.router}
-		escalation.ExtractSuccessLearning(ctx, bc, r.cfg, lf, adapter, r.log, r.touchedPackages)
-	}
-
-	if reviewEnabled {
-		return r.runPostSuccessReview(ctx, bc)
-	}
-
-	return nil
-}
-
-// countChangedFiles counts the number of files in a git diff output.
-func countChangedFiles(diff string) int {
-	return len(parseDiffFiles(diff))
+	return r.handleValidationResult(ctx, bc, valErr, bc.Result.Output)
 }
 
 // runPostSuccessReview runs only the review stage (when learning is disabled).

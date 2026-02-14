@@ -10,8 +10,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -211,126 +209,6 @@ func TestAcceptance_MultipleDiffCallsUseCachedVersion(t *testing.T) {
 	if gitDiffCallCount != 1 {
 		t.Errorf("Expected 1 git diff call for 3 getDiffCached calls, got %d (caching not working)",
 			gitDiffCallCount)
-	}
-}
-
-// TestAcceptance_RefactorPhaseUsesCachedDiff verifies that runRefactorPhase
-// uses the cached diff instead of calling git diff directly.
-func TestAcceptance_RefactorPhaseUsesCachedDiff(t *testing.T) {
-	// Expected failure: runRefactorPhase calls getDiff(bc.StartCommit) instead of getDiffCached(bc)
-
-	var gitDiffCallCount int
-	mockDiff := "diff --git a/refactor.go\n+refactored code"
-
-	cfg := &config.Config{}
-	cfg.SetDefaults()
-	cfg.NormalizeNilFields()
-
-	mockRenderer := &mockPromptRenderer{
-		RenderRefactorFn: func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-	}
-
-	mockRouter := newMockRouter()
-
-	r := &Runner{
-		cfg:      cfg,
-		renderer: mockRenderer,
-		router:   mockRouter,
-		gitDiffFn: func(fromCommit string) (string, error) {
-			gitDiffCallCount++
-			return mockDiff, nil
-		},
-		output: &strings.Builder{},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			// Mock git commands
-			if strings.Contains(command, "rev-parse HEAD") {
-				return "abc123", "", 0, nil
-			}
-			return "", "", 0, nil
-		},
-	}
-
-	bc := &runtypes.BeadContext{
-		Bead: &bead.Bead{
-			ID:       "test-bead",
-			Title:    "Test refactor",
-			Priority: 1,
-		},
-		StartCommit:   "abc123",
-		Model:         "sonnet",
-		Tier:          provider.TierMedium,
-		BuildProvider: "test-provider",
-		PromptCtx:     &prompt.Context{},
-	}
-
-	ctx := context.Background()
-
-	// Populate cache first
-	_, _ = r.getDiffCached(bc)
-	if gitDiffCallCount != 1 {
-		t.Fatalf("Initial cache population: expected 1 git call, got %d", gitDiffCallCount)
-	}
-
-	// Now run refactor phase - it should use getDiffCached(bc), not getDiff(bc.StartCommit)
-	_ = r.runRefactorPhase(ctx, bc)
-
-	// If runRefactorPhase uses getDiffCached, we should still have only 1 git call
-	// If it calls getDiff directly, we'll have 2 calls
-	if gitDiffCallCount > 1 {
-		t.Errorf("runRefactorPhase: expected 1 git call total (using cache), got %d (not using cache)", gitDiffCallCount)
-	}
-}
-
-// TestAcceptance_TestVerificationUsesCachedDiff verifies that ATDD test
-// verification (verifyTestsFailWithRetry) uses cached diff instead of
-// calling git diff directly when checking for test-only changes.
-func TestAcceptance_TestVerificationUsesCachedDiff(t *testing.T) {
-	// Expected failure: verifyTestsFailWithRetry calls getDiff(bc.StartCommit) instead of getDiffCached(bc)
-
-	var gitDiffCallCount int
-	mockDiff := "diff --git a/test_test.go\n+test code"
-
-	cfg := &config.Config{}
-	cfg.SetDefaults()
-	cfg.NormalizeNilFields()
-
-	r := &Runner{
-		cfg: cfg,
-		gitDiffFn: func(fromCommit string) (string, error) {
-			gitDiffCallCount++
-			return mockDiff, nil
-		},
-		output: &strings.Builder{},
-	}
-
-	bc := &runtypes.BeadContext{
-		Bead: &bead.Bead{
-			ID:       "test-bead",
-			Title:    "Test verification",
-			Priority: 1,
-		},
-		StartCommit: "abc123",
-		PromptCtx:   &prompt.Context{},
-	}
-
-	// Populate cache first
-	_, _ = r.getDiffCached(bc)
-	if gitDiffCallCount != 1 {
-		t.Fatalf("Initial cache population: expected 1 git call, got %d", gitDiffCallCount)
-	}
-
-	// Note: verifyTestsFailWithRetry internally checks diff to detect test-only changes
-	// If it uses getDiffCached(bc), the call count should remain at 1
-	// If it uses getDiff(bc.StartCommit), we'll see a second call
-
-	// We can't easily test the full path without mocking validation,
-	// but we can verify the pattern by checking that after cache population,
-	// subsequent getDiffCached calls don't increment the counter
-	_, _ = r.getDiffCached(bc)
-	if gitDiffCallCount != 1 {
-		t.Errorf("Subsequent getDiffCached: expected still 1 git call (cached), got %d", gitDiffCallCount)
 	}
 }
 
