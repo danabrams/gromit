@@ -115,3 +115,82 @@ func TestCodexItemStruct(t *testing.T) {
 		})
 	}
 }
+
+// TestCodexEventStruct verifies that codexEvent struct can parse complete events.
+// Red: codexEvent struct does not exist yet
+func TestCodexEventStruct(t *testing.T) {
+	tests := []struct {
+		name     string
+		jsonData string
+		checkFn  func(t *testing.T, event codexEvent)
+	}{
+		{
+			name:     "thread.started",
+			jsonData: `{"type":"thread.started"}`,
+			checkFn: func(t *testing.T, event codexEvent) {
+				if event.Type != "thread.started" {
+					t.Errorf("Type = %q, want %q", event.Type, "thread.started")
+				}
+			},
+		},
+		{
+			name:     "item.started with nested item",
+			jsonData: `{"type":"item.started","item":{"type":"command_execution","command":"ls"}}`,
+			checkFn: func(t *testing.T, event codexEvent) {
+				if event.Type != "item.started" {
+					t.Errorf("Type = %q, want %q", event.Type, "item.started")
+				}
+				if event.Item == nil {
+					t.Fatal("Item is nil")
+				}
+				if event.Item.Type != "command_execution" {
+					t.Errorf("Item.Type = %q, want %q", event.Item.Type, "command_execution")
+				}
+			},
+		},
+		{
+			name:     "turn.completed with usage and status",
+			jsonData: `{"type":"turn.completed","status":"completed","usage":{"input_tokens":100,"output_tokens":50}}`,
+			checkFn: func(t *testing.T, event codexEvent) {
+				if event.Type != "turn.completed" {
+					t.Errorf("Type = %q, want %q", event.Type, "turn.completed")
+				}
+				if event.Status != "completed" {
+					t.Errorf("Status = %q, want %q", event.Status, "completed")
+				}
+				if event.Usage == nil {
+					t.Fatal("Usage is nil")
+				}
+				if event.Usage.InputTokens != 100 {
+					t.Errorf("Usage.InputTokens = %d, want 100", event.Usage.InputTokens)
+				}
+			},
+		},
+		{
+			name:     "turn.completed with error",
+			jsonData: `{"type":"turn.completed","status":"failed","error":{"type":"UsageLimitExceeded","message":"Limit hit"}}`,
+			checkFn: func(t *testing.T, event codexEvent) {
+				if event.Status != "failed" {
+					t.Errorf("Status = %q, want %q", event.Status, "failed")
+				}
+				if event.ErrorInfo == nil {
+					t.Fatal("ErrorInfo is nil")
+				}
+				if event.ErrorInfo.Type != "UsageLimitExceeded" {
+					t.Errorf("ErrorInfo.Type = %q, want %q", event.ErrorInfo.Type, "UsageLimitExceeded")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var event codexEvent
+			err := json.Unmarshal([]byte(tt.jsonData), &event)
+			if err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+			tt.checkFn(t, event)
+		})
+	}
+}

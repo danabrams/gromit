@@ -252,3 +252,12 @@ type codexItem struct {
 	Path     string `json:"path"`
 	ToolName string `json:"tool_name"`
 }
+
+// codexEvent represents a top-level Codex JSONL event
+type codexEvent struct {
+	Type      string          `json:"type"`
+	Item      *codexItem      `json:"item,omitempty"`
+	Status    string          `json:"status,omitempty"`
+	Usage     *codexUsage     `json:"usage,omitempty"`
+	ErrorInfo *codexErrorInfo `json:"error,omitempty"`
+}
