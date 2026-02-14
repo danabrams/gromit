@@ -385,7 +385,7 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 // - Run bd commands
 // - Create specs
 // - Select and persist experiments
-func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment) error {
+func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment, dir string) error {
 	// Build the prompt with analysis and instructions
 	var prompt strings.Builder
 
@@ -469,6 +469,11 @@ func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, expe
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// Set working directory if specified
+	if dir != "" {
+		cmd.Dir = dir
+	}
 
 	// Set the prompt as a positional argument
 	cmd.Args = append(cmd.Args, prompt.String())

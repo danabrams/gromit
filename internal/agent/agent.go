@@ -26,6 +26,9 @@ type Agent interface {
 	Name() string
 	// Launch executes the agent with the given prompt file path
 	Launch(promptPath string) error
+	// LaunchInDir executes the agent with the given prompt file path in the specified directory.
+	// If dir is empty, behaves identically to Launch.
+	LaunchInDir(promptPath, dir string) error
 	// Command builds a configured *exec.Cmd for the agent without starting it
 	Command(promptPath string) (*exec.Cmd, error)
 }
@@ -98,6 +101,54 @@ func (a *cliAgent) Launch(promptPath string) error {
 	cmd := exec.Command(a.binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// For Stdin delivery, read prompt file and pipe to stdin
+	if a.promptDelivery == Stdin {
+		content, err := os.ReadFile(promptPath)
+		if err != nil {
+			return fmt.Errorf("failed to read prompt file: %w", err)
+		}
+		r, w, err := os.Pipe()
+		if err != nil {
+			return fmt.Errorf("failed to create pipe: %w", err)
+		}
+		cmd.Stdin = r
+		go func() {
+			defer w.Close()
+			_, _ = w.Write(content) // Best-effort write; command will fail if it can't read
+		}()
+	} else {
+		cmd.Stdin = os.Stdin
+	}
+
+	// Run the command
+	err = cmd.Run()
+
+	// Treat exec.ExitError as graceful exit (agent returned non-zero)
+	if _, ok := err.(*exec.ExitError); ok {
+		return nil
+	}
+
+	return err
+}
+
+// LaunchInDir executes the agent with the given prompt file path in the specified directory.
+// If dir is empty, behaves identically to Launch.
+func (a *cliAgent) LaunchInDir(promptPath, dir string) error {
+	args, err := a.buildCommandArgs(promptPath)
+	if err != nil {
+		return err
+	}
+
+	// Create command
+	cmd := exec.Command(a.binary, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Set working directory if specified
+	if dir != "" {
+		cmd.Dir = dir
+	}
 
 	// For Stdin delivery, read prompt file and pipe to stdin
 	if a.promptDelivery == Stdin {

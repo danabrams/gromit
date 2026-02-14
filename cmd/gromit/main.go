@@ -283,7 +283,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 
 	// Default: Launch Claude Code for interactive review and application
 	fmt.Println("\nLaunching Claude Code for interactive review...")
-	if err := retro.LaunchClaudeCode(result.Analysis, result.Efficiency, result.Experiment); err != nil {
+	if err := retro.LaunchClaudeCode(result.Analysis, result.Efficiency, result.Experiment, ""); err != nil {
 		return fmt.Errorf("launching Claude Code: %w", err)
 	}
 

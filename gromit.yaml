@@ -28,7 +28,7 @@ providers:
       low: haiku
   openai:
     binary: codex
-    flags: []
+    flags: ["--dangerously-bypass-approvals-and-sandbox"]
     prompt_delivery: prompt_file_arg
     prompt_flag: "--prompt"
     models:
@@ -47,8 +47,8 @@ routing:
     precheck: any
     decompose: any
   ratio:
-    openai: 0
-    claude: 100
+    openai: 95
+    claude: 5
   fallback:
     enabled: true
     cooldown: 30m

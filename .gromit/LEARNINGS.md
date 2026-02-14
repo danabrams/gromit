@@ -40,21 +40,20 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-12 | Pipeline Method Conventions | patterns
-*Related to: gromit-qfr1*
-
-Pipeline methods follow a consistent pattern: input struct with all parameters, output struct with results, validate dependencies first, use renderer for template processing, handle agent resolution via p.agents.ResolveByName with defaults, and define post-processing logic to detect changes. Verification tests in cmd/gromit enforce file colocation — explore tests must live alongside cmd/gromit/explore.go. Always check final_verification_test.go before implementing to understand test organization expectations.
-
-### 2026-02-14 | Contract Test Infrastructure Requirements | gotchas
-*Related to: gromit-6426*
-
-Contract tests in test/contracts/ verify git call sequences during gromit run iterations and require a properly initialized test environment. When modifying bead-related logic or build/failure handling: (1) ensure the test harness initializes via gromit init, mocks/stubs template rendering, or uses a pre-initialized fixture directory, and (2) verify that git diff --stat is called at the expected point in the workflow. The test mocks git calls and tracks their order, so any changes to when/how git is invoked will break these tests.
+*No provisional learnings at this time.*
 
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-14 | Pipeline Method Conventions | patterns
+*Related to: gromit-qfr1*
+
+Archived: promoted to RULES.md Process section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
 
 ### 2026-02-14 | Runner Per-Run State Reset | patterns
 *Related to: gromit-rj11*
@@ -1211,6 +1210,13 @@ When migrating a struct to an external type, promote all field names to public (
 When extracting package logic: (1) Always remove old methods from source files after extraction is complete—stub out → extract → remove old implementation; (2) Update ALL call sites that invoke the old methods to use the new package functions; (3) If the extracted function signature changes (e.g., adding a *learnings.File parameter), audit all callers. Use grep to find old method names and verify they're gone.
 
 *Archived from new: filtered: generic engineering advice*
+
+### 2026-02-14 | Contract Test Infrastructure Requirements | gotchas
+*Related to: gromit-6426*
+
+Archived: promoted to RULES.md Process section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
 
 ### 2026-02-14 | gromit-6j5y | conventions
 Archived: Title violates LEARNINGS.md format rule (uses bead ID instead of descriptive title). Content describes a one-time implementation detail about pipeline session type-wrapper pattern that is now visible in the code itself (internal/pipeline/types.go). The pattern is established and the learning provides no additional value beyond reading the code.

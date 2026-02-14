@@ -1,11 +1,5 @@
 {
-  "last_retro": "2026-02-14T13:17:05.847707628Z",
-  "last_review_commit": "c2fb30166fbbb537953ec366cd095c4f6b45a2b5",
-  "iterations_since_review": 1,
+  "last_retro": "2026-02-14T18:57:19.149553279Z",
   "clean_exit": false,
-  "updated_at": "2026-02-14T14:41:56.050568442Z",
-  "provider_counts": {
-    "claude": 10,
-    "openai": 1
-  }
+  "updated_at": "2026-02-14T18:57:27.319238588Z"
 }

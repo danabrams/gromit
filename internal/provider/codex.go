@@ -287,12 +287,28 @@ func (cp *CodexProvider) IsScopeTooLarge(result *Result) (bool, string) {
 }
 
 // buildCommandArgs constructs the command arguments for the Codex CLI invocation.
-// Returns: ['exec', user_flags..., '--full-auto', '--skip-git-repo-check', '--color', 'never', '--model', model, [--json], '-']
+// Returns: ['exec', user_flags..., '--full-auto'|”, '--skip-git-repo-check', '--color', 'never', '--model', model, [--json], '-']
+// If user flags include --dangerously-bypass-approvals-and-sandbox, --full-auto is
+// omitted because the two flags are mutually exclusive in the Codex CLI.
 func (cp *CodexProvider) buildCommandArgs(model string, jsonMode bool) []string {
 	args := make([]string, 0, len(cp.flags)+12)
 	args = append(args, "exec")
 	args = append(args, cp.flags...)
-	args = append(args, "--full-auto")
+
+	// --dangerously-bypass-approvals-and-sandbox and --full-auto are mutually
+	// exclusive in the Codex CLI; only add --full-auto when the bypass flag
+	// is not already present in user flags.
+	hasBypass := false
+	for _, f := range cp.flags {
+		if f == "--dangerously-bypass-approvals-and-sandbox" {
+			hasBypass = true
+			break
+		}
+	}
+	if !hasBypass {
+		args = append(args, "--full-auto")
+	}
+
 	args = append(args, "--skip-git-repo-check")
 	args = append(args, "--color", "never")
 	args = append(args, "--model", model)

@@ -17,8 +17,9 @@ func TestAgentInterface(t *testing.T) {
 // testAgent is a minimal implementation for interface verification
 type testAgent struct{}
 
-func (a *testAgent) Name() string                   { return "test" }
-func (a *testAgent) Launch(promptPath string) error { return nil }
+func (a *testAgent) Name() string                             { return "test" }
+func (a *testAgent) Launch(promptPath string) error           { return nil }
+func (a *testAgent) LaunchInDir(promptPath, dir string) error { return nil }
 func (a *testAgent) Command(promptPath string) (*exec.Cmd, error) {
 	return exec.Command("echo", "test"), nil
 }
