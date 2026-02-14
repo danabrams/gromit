@@ -500,3 +500,97 @@ func TestRunnerGoImportsReviewpkg(t *testing.T) {
 			"required for the reviewer *reviewpkg.Reviewer field")
 	}
 }
+
+// --- Old test functions calling removed methods must be cleaned up ---
+
+// TestOldReviewTestFunctionsRemovedFromRunnerTest verifies that test functions
+// in runner_test.go that call the removed local review methods have been deleted.
+// These tests called selectReviewModel, buildReviewBeadLabels, buildBacklogLabels,
+// r.applyReviewResult, r.runLightReview, and r.runThoroughReview — all of which
+// have moved to reviewpkg. Keeping them causes compilation failures.
+//
+// Expected failure: runner_test.go still contains test functions that reference
+// removed methods (selectReviewModel, buildReviewBeadLabels, etc.).
+func TestOldReviewTestFunctionsRemovedFromRunnerTest(t *testing.T) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filepath.Join("runner_test.go"), nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("failed to parse runner_test.go: %v", err)
+	}
+
+	// These test functions call removed local methods and must be deleted
+	removedTests := map[string]string{
+		"TestSelectReviewModel":                          "selectReviewModel (moved to reviewpkg)",
+		"TestSelectReviewModelNilConfig":                 "selectReviewModel (moved to reviewpkg)",
+		"TestBuildReviewBeadLabels":                      "buildReviewBeadLabels (moved to reviewpkg)",
+		"TestBuildBacklogLabels":                         "buildBacklogLabels (moved to reviewpkg)",
+		"TestApplyReviewResultNilRunner":                 "r.applyReviewResult (moved to reviewpkg.ApplyResult)",
+		"TestApplyReviewResultNilResult":                 "r.applyReviewResult (moved to reviewpkg.ApplyResult)",
+		"TestApplyReviewResultNilBeads":                  "r.applyReviewResult (moved to reviewpkg.ApplyResult)",
+		"TestApplyReviewResultCreatesBeads":              "r.applyReviewResult (moved to reviewpkg.ApplyResult)",
+		"TestApplyReviewResultCreatesBacklogItems":       "r.applyReviewResult (moved to reviewpkg.ApplyResult)",
+		"TestApplyReviewResultHandlesCreateErrors":       "r.applyReviewResult (moved to reviewpkg.ApplyResult)",
+		"TestRunLightReviewSkipsWhenDeadlineExpired":     "r.runLightReview (moved to reviewpkg.RunLight)",
+		"TestRunLightReviewSkipsWhenInsufficientTime":    "r.runLightReview (moved to reviewpkg.RunLight)",
+		"TestRunThoroughReviewSkipsWhenDeadlineExpired":  "r.runThoroughReview (moved to reviewpkg.RunThorough)",
+		"TestRunThoroughReviewSkipsWhenInsufficientTime": "r.runThoroughReview (moved to reviewpkg.RunThorough)",
+	}
+
+	for _, decl := range node.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if reason, found := removedTests[funcDecl.Name.Name]; found {
+			t.Errorf("runner_test.go still contains %s — this test calls %s and must be deleted",
+				funcDecl.Name.Name, reason)
+		}
+	}
+}
+
+// TestOldSelectReviewTierTestFileRemovedOrUpdated verifies that
+// select_review_tier_test.go no longer calls the removed Runner method
+// r.selectReviewTier. The selectReviewTier method has moved to
+// reviewpkg.SelectReviewTier. The old test file either needs to be deleted
+// or updated to call the reviewpkg function instead.
+//
+// Expected failure: select_review_tier_test.go still calls r.selectReviewTier
+// which no longer exists on Runner.
+func TestOldSelectReviewTierTestFileRemovedOrUpdated(t *testing.T) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filepath.Join("select_review_tier_test.go"), nil, parser.ParseComments)
+	if err != nil {
+		// File was deleted — that's valid
+		return
+	}
+
+	for _, decl := range node.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if funcDecl.Body == nil {
+			continue
+		}
+
+		// Check if any function calls r.selectReviewTier (removed method)
+		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			if sel.Sel.Name == "selectReviewTier" {
+				if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "r" {
+					t.Errorf("select_review_tier_test.go function %s calls r.selectReviewTier — "+
+						"this method has moved to reviewpkg.SelectReviewTier",
+						funcDecl.Name.Name)
+				}
+			}
+			return true
+		})
+	}
+}
