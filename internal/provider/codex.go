@@ -295,6 +295,30 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				handler(eventJSON)
 			}
 
+		case "item.started":
+			if event.Item != nil && toolHandler != nil {
+				var toolName, filePath string
+				switch event.Item.Type {
+				case "command_execution":
+					toolName = "Bash"
+					filePath = event.Item.Command
+				case "file_change":
+					toolName = "Write"
+					filePath = event.Item.Path
+				case "mcp_tool_call":
+					toolName = event.Item.ToolName
+					filePath = ""
+				}
+
+				if toolName != "" {
+					toolHandler(ToolEvent{
+						ToolName:  toolName,
+						FilePath:  filePath,
+						Timestamp: time.Now(),
+					})
+				}
+			}
+
 		case "item.completed":
 			if event.Item != nil && event.Item.Type == "agent_message" {
 				// Extract agent text
@@ -325,7 +349,6 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 		}
 
 		_ = usage
-		_ = toolHandler
 	}
 
 	if err := scanner.Err(); err != nil {

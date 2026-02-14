@@ -81,3 +81,38 @@ func TestProcessCodexStreamAgentMessageEvent(t *testing.T) {
 		t.Errorf("output = %q, want it to contain agent message text", output.String())
 	}
 }
+
+// TestProcessCodexStreamToolCallCommand verifies that command_execution invokes ToolCallHandler.
+// Red: processCodexStream does not handle command_execution events yet
+func TestProcessCodexStreamToolCallCommand(t *testing.T) {
+	input := `{"type":"item.started","item":{"type":"command_execution","command":"go test"}}` + "\n"
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+	var receivedToolCalls []ToolEvent
+
+	toolHandler := func(event ToolEvent) {
+		receivedToolCalls = append(receivedToolCalls, event)
+	}
+
+	_, _, err := processCodexStream(reader, &output, nil, toolHandler)
+
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v, want nil", err)
+	}
+
+	if len(receivedToolCalls) != 1 {
+		t.Fatalf("len(receivedToolCalls) = %d, want 1", len(receivedToolCalls))
+	}
+
+	if receivedToolCalls[0].ToolName != "Bash" {
+		t.Errorf("ToolName = %q, want %q", receivedToolCalls[0].ToolName, "Bash")
+	}
+
+	if !strings.Contains(receivedToolCalls[0].FilePath, "go test") {
+		t.Errorf("FilePath = %q, want it to contain command", receivedToolCalls[0].FilePath)
+	}
+
+	if receivedToolCalls[0].Timestamp.IsZero() {
+		t.Error("Timestamp should be non-zero")
+	}
+}
