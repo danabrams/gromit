@@ -79,7 +79,6 @@ func TestResolveClaudePresetWithDefaults(t *testing.T) {
 
 // TestResolveCodexPreset verifies codex preset uses stdin delivery with codex-specific flags
 func TestResolveCodexPreset(t *testing.T) {
-	// Expected failure: resolveCodexPreset function does not exist yet, and codex case in resolveByName still calls resolvePromptFileArgPreset
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 
@@ -105,12 +104,10 @@ func TestResolveCodexPreset(t *testing.T) {
 		t.Errorf("codex agent binary = %q, want %q", ca.binary, "codex")
 	}
 
-	// Expected failure: codex still uses PromptFileArg, should be Stdin after implementation
 	if ca.promptDelivery != Stdin {
 		t.Errorf("codex agent promptDelivery = %q, want %q", ca.promptDelivery, Stdin)
 	}
 
-	// Expected failure: codex currently has no flags, should have codex-specific flags after implementation
 	expectedFlags := []string{"exec", "--full-auto", "--skip-git-repo-check", "--color", "never"}
 	if len(ca.flags) != len(expectedFlags) {
 		t.Fatalf("codex agent flags length = %d, want %d", len(ca.flags), len(expectedFlags))
@@ -121,7 +118,6 @@ func TestResolveCodexPreset(t *testing.T) {
 		}
 	}
 
-	// Expected failure: codex currently has "--prompt" as promptFlag, should be empty after implementation
 	if ca.promptFlag != "" {
 		t.Errorf("codex agent promptFlag = %q, want empty string", ca.promptFlag)
 	}
