@@ -356,7 +356,7 @@ func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadCo
 	}
 
 	if reviewEnabled {
-		return r.runPostSuccessReview(ctx, bc)
+		return r.reviewer.RunPostSuccess(ctx, bc)
 	}
 
 	return nil

@@ -280,6 +280,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	r.methodologyExec = r.makeMethodologyExec()
 	r.reviewer = reviewpkg.NewReviewer(cfg, router, beadsClient, renderer, r.gitDiffFn, log)
 	r.reviewer.SetLogFn(r.log)
+	r.reviewer.SetValidateFn(r.makeReviewValidateFn())
 	return r, nil
 }
 
@@ -358,6 +359,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	r.methodologyExec = r.makeMethodologyExec()
 	r.reviewer = reviewpkg.NewReviewer(cfg, router, deps.Beads, deps.Renderer, r.gitDiffFn, iterLogger)
 	r.reviewer.SetLogFn(r.log)
+	r.reviewer.SetValidateFn(r.makeReviewValidateFn())
 	return r, nil
 }
 
@@ -1044,6 +1046,18 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 		bc.TotalRetriesThisBead = savedTotalRetries
 
 		return success
+	}
+}
+
+// makeReviewValidateFn creates a ValidateFn that wraps runDirectValidationCheck
+// for use by the reviewpkg.Reviewer's re-validation after review fixes.
+func (r *Runner) makeReviewValidateFn() reviewpkg.ValidateFn {
+	return func(ctx context.Context, commands []string, workDir string) (bool, error) {
+		result, err := r.runDirectValidationCheck(ctx, commands, workDir)
+		if err != nil {
+			return false, err
+		}
+		return result != nil && claude.IsValidationPassed(result), nil
 	}
 }
 
