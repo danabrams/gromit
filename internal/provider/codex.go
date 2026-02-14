@@ -237,3 +237,9 @@ type codexUsage struct {
 	CachedInputTokens int `json:"cached_input_tokens"`
 	OutputTokens      int `json:"output_tokens"`
 }
+
+// codexErrorInfo represents error information from Codex turn.completed events
+type codexErrorInfo struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}

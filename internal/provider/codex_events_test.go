@@ -26,3 +26,22 @@ func TestCodexUsageStruct(t *testing.T) {
 		t.Errorf("OutputTokens = %d, want 75", usage.OutputTokens)
 	}
 }
+
+// TestCodexErrorInfoStruct verifies that codexErrorInfo struct can parse error data.
+// Red: codexErrorInfo struct does not exist yet
+func TestCodexErrorInfoStruct(t *testing.T) {
+	jsonData := `{"type":"UsageLimitExceeded","message":"Rate limit exceeded"}`
+
+	var errInfo codexErrorInfo
+	err := json.Unmarshal([]byte(jsonData), &errInfo)
+	if err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if errInfo.Type != "UsageLimitExceeded" {
+		t.Errorf("Type = %q, want %q", errInfo.Type, "UsageLimitExceeded")
+	}
+	if errInfo.Message != "Rate limit exceeded" {
+		t.Errorf("Message = %q, want %q", errInfo.Message, "Rate limit exceeded")
+	}
+}
