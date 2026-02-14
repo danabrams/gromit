@@ -618,19 +618,13 @@ func (w *cliLogWriter) Write(entry any) error {
 	}
 	defer log.Close()
 
-	entryMap, ok := entry.(map[string]interface{})
+	logEntry, ok := entry.(*pipeline.LogEntry)
 	if !ok {
 		return fmt.Errorf("unexpected entry type")
 	}
 
-	// Extract fields with defaults for optional values
-	passed, _ := entryMap["passed"].(bool)
-	fixesApplied, _ := entryMap["fixes_applied"].(int)
-	beadsCreated, _ := entryMap["beads_created"].(int)
-	backlogCreated, _ := entryMap["backlog_created"].(int)
-
-	// Extract optional fields
-	model, _ := entryMap["model"].(string)
+	// Use model from entry or default to opus
+	model := logEntry.Model
 	if model == "" {
 		model = "opus" // Default for thorough reviews
 	}
@@ -641,10 +635,10 @@ func (w *cliLogWriter) Write(entry any) error {
 		ReviewType:     "thorough-cli",
 		Iteration:      0,
 		Model:          model,
-		Passed:         passed,
-		FixesApplied:   fixesApplied,
-		BeadsCreated:   beadsCreated,
-		BacklogCreated: backlogCreated,
+		Passed:         logEntry.Passed,
+		FixesApplied:   logEntry.FixesApplied,
+		BeadsCreated:   logEntry.BeadsCreated,
+		BacklogCreated: logEntry.BacklogCreated,
 		DurationMs:     0, // Duration tracked by caller if needed
 	}
 

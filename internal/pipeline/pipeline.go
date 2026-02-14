@@ -61,8 +61,13 @@ type ThoroughReviewPromptInput struct {
 
 // LogEntry holds the fields for a log entry.
 type LogEntry struct {
-	Type   string
-	BeadID string
+	Type           string
+	BeadID         string
+	Passed         bool
+	FixesApplied   int
+	BeadsCreated   int
+	BacklogCreated int
+	Model          string
 }
 
 // Deps contains all dependencies for pipeline workflows.
@@ -307,12 +312,13 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	}
 
 	// Log review
-	logEntry := map[string]interface{}{
-		"type":            "review",
-		"passed":          reviewResult.Passed,
-		"fixes_applied":   len(reviewResult.FixesApplied),
-		"beads_created":   beadsCreated,
-		"backlog_created": backlogCreated,
+	logEntry := &LogEntry{
+		Type:           "review",
+		Passed:         reviewResult.Passed,
+		FixesApplied:   len(reviewResult.FixesApplied),
+		BeadsCreated:   beadsCreated,
+		BacklogCreated: backlogCreated,
+		Model:          input.Model,
 	}
 	if err := p.deps.LogWriter.Write(logEntry); err != nil {
 		return nil, fmt.Errorf("writing review log: %w", err)
