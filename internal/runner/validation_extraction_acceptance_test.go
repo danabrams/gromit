@@ -86,7 +86,7 @@ func TestFacadeRunValidationWithRecoveryDelegatesToValidationRunner(t *testing.T
 			facadeAutoFixCalled = true
 			return nil
 		},
-		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn, nil),
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			// Facade's cmdRunner: first call fails, second passes
 			return "", "--- FAIL: TestFoo (0.01s)", 1, nil
@@ -383,7 +383,7 @@ func TestFacadeRecoveryDoesNotCallRenderBuild(t *testing.T) {
 		invoker:           newInvokerForTest(mockRouter, &buf, nil),
 		validationRunner:  valRunner,
 		autoFixFn:         func(startCommit string) error { return nil },
-		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn, nil),
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			return "", "--- FAIL: TestAlways (0.01s)", 1, nil
 		},
@@ -467,7 +467,7 @@ func TestFacadeRecoveryUsesValidationRunnerExecuteFn(t *testing.T) {
 		invoker:           newInvokerForTest(mockRouter, &buf, nil),
 		validationRunner:  valRunner,
 		autoFixFn:         func(startCommit string) error { return nil },
-		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn, nil),
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			return "", "--- FAIL: TestAlways (0.01s)", 1, nil
 		},
@@ -766,7 +766,7 @@ func TestFacadeRunValidationWithRecoveryDoesNotSetIsRetry(t *testing.T) {
 		renderer:          &mockRenderer{},
 		validationRunner:  valRunner,
 		autoFixFn:         func(startCommit string) error { return nil },
-		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn, nil),
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			return "", "--- FAIL: TestAlways (0.01s)", 1, nil
 		},

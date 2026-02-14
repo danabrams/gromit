@@ -312,7 +312,7 @@ func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
-	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil)
+	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil, nil)
 	bc := &runtypes.BeadContext{
 		Bead:                 &bead.Bead{ID: "test-1"},
 		Result:               &IterationResult{},
@@ -339,7 +339,7 @@ func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
-	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil)
+	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil, nil)
 	bc := &runtypes.BeadContext{
 		Bead:                 &bead.Bead{ID: "test-1"},
 		Result:               &IterationResult{},
@@ -372,7 +372,7 @@ func TestHandleStallTimeout_Escalates(t *testing.T) {
 	}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
-	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil)
+	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil, nil)
 	bc := &runtypes.BeadContext{
 		Bead:   &bead.Bead{ID: "test-1"},
 		Result: &IterationResult{},

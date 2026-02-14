@@ -54,6 +54,7 @@ func newTestEscalationHandler(cfg *config.Config) *escalation.Handler {
 		nil, // decomposeFn
 		nil, // createSubFn
 		func(format string, args ...interface{}) {}, // logFn (no-op)
+		nil, // showPartialProgressFn
 	)
 }
 

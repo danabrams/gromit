@@ -61,6 +61,12 @@ All acceptance test files in this codebase must include //go:build acceptance at
 ### 2026-02-14 | gromit-6j5y | conventions
 The pipeline package uses a type-wrapper pattern (RefineSession embeds baseSession, not implements Session[T]). Compile-time checks should verify: (1) baseSession exists and implements BaseSession interface, (2) each typed session (RefineSession, etc.) embeds baseSession and has a Result() method, (3) avoid assuming Go generics are used unless the interface is explicitly defined with [T any] syntax. Check session_test.go for the acceptance test pattern before writing compile-time checks.
 
+### 2026-02-14 | gromit-6426 | gotchas
+Contract tests in cmd/gromit need to either: (1) initialize the test environment with gromit init before running, (2) mock/stub template rendering, or (3) use a pre-initialized test fixture directory. The tests are failing not because of the HasOpenChildren changes, but because the test harness itself is incomplete.
+
+### 2026-02-14 | gromit-6426 | conventions
+Contract tests in test/contracts/ verify git call sequences during gromit run iterations. When modifying bead-related logic or build/failure handling, verify that git diff --stat is called at the expected point in the workflow (likely after build failure detection). The test mocks git calls and tracks their order, so any changes to when/how git is invoked will break these tests.
+
 ---
 
 ## Archived

@@ -26,7 +26,7 @@ func TestHandlerLogCallbackProducesOutput(t *testing.T) {
 	logFn := func(format string, args ...interface{}) {
 		logMessages = append(logMessages, format)
 	}
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, logFn)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, logFn, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = "low"
@@ -70,7 +70,7 @@ func TestHandlerLogCallbackOnAnalyzeFailure(t *testing.T) {
 			}, nil
 		},
 	}
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, logFn)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, logFn, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = "low"
@@ -97,7 +97,7 @@ func TestHandlerLogCallbackOnEscalation(t *testing.T) {
 	logFn := func(format string, args ...interface{}) {
 		logMessages = append(logMessages, format)
 	}
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, logFn)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, logFn, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = "low"
@@ -133,6 +133,7 @@ func TestHandlerLogCallbackOnDecomposition(t *testing.T) {
 			return nil
 		},
 		logFn,
+		nil,
 	)
 
 	bc := newTestBeadContext()

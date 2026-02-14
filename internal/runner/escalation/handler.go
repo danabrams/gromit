@@ -44,25 +44,30 @@ type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string)
 // LogFn is a printf-style logging callback for escalation events.
 type LogFn func(format string, args ...interface{})
 
+// ShowPartialProgressFn displays git diff and expected outputs on failure.
+type ShowPartialProgressFn func(b *bead.Bead, startCommit string)
+
 // Handler manages retry loops, tier escalation, failure analysis, and decomposition.
 type Handler struct {
-	cfg         *config.Config
-	analyzer    FailureAnalyzer
-	beadClient  BeadClient
-	decomposeFn DecomposeFn
-	createSubFn CreateSubFn
-	logFn       LogFn
+	cfg                   *config.Config
+	analyzer              FailureAnalyzer
+	beadClient            BeadClient
+	decomposeFn           DecomposeFn
+	createSubFn           CreateSubFn
+	logFn                 LogFn
+	showPartialProgressFn ShowPartialProgressFn
 }
 
 // NewHandler creates a Handler with narrow dependency interfaces.
-func NewHandler(cfg *config.Config, analyzer FailureAnalyzer, beadClient BeadClient, decomposeFn DecomposeFn, createSubFn CreateSubFn, logFn LogFn) *Handler {
+func NewHandler(cfg *config.Config, analyzer FailureAnalyzer, beadClient BeadClient, decomposeFn DecomposeFn, createSubFn CreateSubFn, logFn LogFn, showPartialProgressFn ShowPartialProgressFn) *Handler {
 	return &Handler{
-		cfg:         cfg,
-		analyzer:    analyzer,
-		beadClient:  beadClient,
-		decomposeFn: decomposeFn,
-		createSubFn: createSubFn,
-		logFn:       logFn,
+		cfg:                   cfg,
+		analyzer:              analyzer,
+		beadClient:            beadClient,
+		decomposeFn:           decomposeFn,
+		createSubFn:           createSubFn,
+		logFn:                 logFn,
+		showPartialProgressFn: showPartialProgressFn,
 	}
 }
 
@@ -261,6 +266,11 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 
 		if claudeResult.Success {
 			return true
+		}
+
+		// Show partial progress on build failure (git diff --stat)
+		if h.showPartialProgressFn != nil && bc.StartCommit != "" {
+			h.showPartialProgressFn(bc.Bead, bc.StartCommit)
 		}
 
 		// Check for context cancellation before analysis

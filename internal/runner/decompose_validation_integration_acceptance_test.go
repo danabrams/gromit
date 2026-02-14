@@ -82,7 +82,7 @@ func TestDecomposeTask_ValidationAfterReturn(t *testing.T) {
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{
@@ -163,7 +163,7 @@ func TestCreateSubBeads_ValidationBeforeCreation(t *testing.T) {
 		cfg:               cfg,
 		beads:             mockBeads,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{
@@ -318,7 +318,7 @@ func TestRunnerDecomposePath_RepromptOnViolations(t *testing.T) {
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{
@@ -410,7 +410,7 @@ func TestRunnerDecomposePath_MaxRetriesEnforced(t *testing.T) {
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{
@@ -544,7 +544,7 @@ func TestRunnerDecomposePath_LogsValidationWarnings(t *testing.T) {
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{
@@ -626,7 +626,7 @@ func TestRunnerDecomposePath_ProceedsAfterMaxRetries(t *testing.T) {
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{

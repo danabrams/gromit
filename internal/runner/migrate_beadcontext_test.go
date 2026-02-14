@@ -325,7 +325,7 @@ func TestHandleStallTimeout_ReadsExportedRetryFields(t *testing.T) {
 	}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
-	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil)
+	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil, nil)
 
 	// Get the return from setupBeadContext and verify it has exported retry fields
 	r2 := setupMigratedRunner(t)

@@ -85,7 +85,7 @@ func TestNewHandler_AcceptsNarrowInterfaces(t *testing.T) {
 	mbc := &mockBeadClient{}
 
 	// NewHandler should accept config, analyzer, bead client, and callback functions
-	h := NewHandler(cfg, mfa, mbc, nil, nil, nil)
+	h := NewHandler(cfg, mfa, mbc, nil, nil, nil, nil)
 	if h == nil {
 		t.Fatal("NewHandler returned nil")
 	}
@@ -95,7 +95,7 @@ func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
 	// When TotalRetriesThisBead exceeds MaxRetriesPerBead, HandleStallTimeout
 	// should return false and set an error on the result.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.TotalRetriesThisBead = 6
@@ -117,7 +117,7 @@ func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 	// When retries are available for the current model, HandleStallTimeout
 	// should return true and increment retry counters.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.RetriesThisModel = 0
@@ -140,7 +140,7 @@ func TestHandleStallTimeout_EscalatesToNextTier(t *testing.T) {
 	// When model retries are exhausted and a higher tier exists,
 	// HandleStallTimeout should escalate the tier.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -177,7 +177,7 @@ func TestAnalyzeAndHandleFailure_UnclearSpecStops(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	claudeResult := &claude.Result{Output: "build failed output"}
@@ -205,7 +205,7 @@ func TestAnalyzeAndHandleFailure_TaskTooComplexStopsAndComments(t *testing.T) {
 	}
 	mbc := &mockBeadClient{}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, mbc, nil, nil, nil)
+	h := NewHandler(cfg, mfa, mbc, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	claudeResult := &claude.Result{Output: "build output"}
@@ -237,7 +237,7 @@ func TestAnalyzeAndHandleFailure_RecoverableRetries(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.RetriesThisModel = 0
@@ -273,7 +273,7 @@ func TestAnalyzeAndHandleFailure_RecoverableRetrySetsPromptContext(t *testing.T)
 		},
 	}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.PromptCtx = &prompt.Context{
@@ -309,7 +309,7 @@ func TestAnalyzeAndHandleFailure_AnalysisErrorEscalates(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -330,7 +330,7 @@ func TestHandleEscalation_EscalatesToNextTier(t *testing.T) {
 	// When a higher tier is available, HandleEscalation should escalate
 	// and return true to continue the loop.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -366,6 +366,7 @@ func TestHandleEscalation_NoMoreTiersAttempsDecomposition(t *testing.T) {
 			return nil
 		},
 		nil,
+		nil,
 	)
 
 	bc := newTestBeadContext()
@@ -383,7 +384,7 @@ func TestHandleEscalation_MaxRetriesPerBeadExceededStops(t *testing.T) {
 	// When total retries exceed the per-bead limit, HandleEscalation should
 	// stop and set an error, even if a higher tier exists.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -414,6 +415,7 @@ func TestAttemptDecomposition_SuccessSetsDecomposedFlag(t *testing.T) {
 			return nil
 		},
 		nil,
+		nil,
 	)
 
 	bc := newTestBeadContext()
@@ -438,6 +440,7 @@ func TestAttemptDecomposition_DecomposeFailureSetsError(t *testing.T) {
 		},
 		nil,
 		nil,
+		nil,
 	)
 
 	bc := newTestBeadContext()
@@ -457,7 +460,7 @@ func TestEscalateTier_UpdatesBeadContextFields(t *testing.T) {
 	// EscalateTier should update all relevant fields on BeadContext:
 	// Tier, Model, Result.Escalated, Result.EscalatedTo, RetriesThisModel.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -488,7 +491,7 @@ func TestExecuteWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	// When the InvokeFn succeeds on the first attempt, ExecuteWithRetry should
 	// return true (success) without any retry or escalation.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
@@ -510,7 +513,7 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 	// When the invocation returns a stall, ExecuteWithRetry should handle it
 	// via HandleStallTimeout (retry same model or escalate).
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -548,7 +551,7 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
 	// When the context is cancelled, ExecuteWithRetry should stop and return false.
 	cfg := newTestConfig()
-	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
@@ -580,7 +583,7 @@ func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig()
-	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.MaxRetries = 2

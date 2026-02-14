@@ -274,7 +274,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: defaultCmdRunner,
 	}
-	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads, r.log)
+	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads, r.log, r.showPartialProgress)
 	r.validationRunner = validation.NewRunner(cfg, defaultCmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	r.methodologyExec = r.makeMethodologyExec()
 	r.reviewer = reviewpkg.NewReviewer(cfg, router, beadsClient, renderer, r.gitDiffFn, log)
@@ -353,7 +353,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: cmdRunner,
 	}
-	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log)
+	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log, r.showPartialProgress)
 	r.validationRunner = validation.NewRunner(cfg, cmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	r.methodologyExec = r.makeMethodologyExec()
 	r.reviewer = reviewpkg.NewReviewer(cfg, router, deps.Beads, deps.Renderer, r.gitDiffFn, iterLogger)

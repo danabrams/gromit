@@ -59,7 +59,7 @@ func setupAutoFixRunner(t *testing.T, cfg *config.Config) (*Runner, *mockClaudeC
 		invoker:           newInvokerForTest(mockRouter, &buf, nil),
 		renderer:          &mockRenderer{},
 		analyzer:          mockAnalyzer,
-		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, mockAnalyzer, nil, nil, nil, logFn, nil),
 		output:            &buf,
 	}
 

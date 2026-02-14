@@ -90,7 +90,7 @@ func TestRunnerDecomposeValidation_IntegrationBetweenDecomposeAndCreate(t *testi
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{
@@ -239,7 +239,7 @@ func TestRunnerDecomposeValidation_RepromptWithViolations(t *testing.T) {
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{
@@ -327,7 +327,7 @@ func TestRunnerDecomposeValidation_RespectsConfigEnabled(t *testing.T) {
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{
@@ -414,7 +414,7 @@ func TestRunnerDecomposeValidation_RespectsMaxRetries(t *testing.T) {
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{
@@ -497,7 +497,7 @@ func TestRunnerDecomposeValidation_LogsViolationsAndRetries(t *testing.T) {
 		router:   mockRouter,
 		renderer: mockPromptRenderer,
 		output:   &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, func(format string, args ...interface{}) {
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, func(format string, args ...interface{}, nil) {
 			// Capture log output
 			buf.WriteString(fmt.Sprintf(format, args...))
 			buf.WriteString("\n")
@@ -583,7 +583,7 @@ func TestRunnerDecomposeValidation_ProceedsWithWarningAfterMaxRetries(t *testing
 		router:            mockRouter,
 		renderer:          mockPromptRenderer,
 		output:            &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn, nil),
 	}
 
 	parentBead := &bead.Bead{

@@ -64,7 +64,7 @@ func setupValidationAccumulationRunner(t *testing.T, cfg *config.Config) (*Runne
 	r.invoker = execution.NewInvoker(mockRouter, &logBuf, nil, logFn)
 
 	// Wire the escalation handler
-	r.escalationHandler = escalation.NewHandler(cfg, mockAnalyzer, nil, nil, mockRenderer, logFn)
+	r.escalationHandler = escalation.NewHandler(cfg, mockAnalyzer, nil, nil, mockRenderer, logFn, nil)
 
 	// Use the REAL makeValidationExecuteFn from the runner
 	// This is the key: we're testing the actual facade method that has the bug
