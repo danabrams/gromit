@@ -53,6 +53,16 @@ routing:
     enabled: true
     cooldown: 30m
 
+# Example: Codex provider configuration
+# codex:
+#     binary: codex
+#     flags: []
+#     prompt_delivery: stdin
+#     models:
+#       high: gpt-5.3-codex
+#       medium: gpt-5.3-codex
+#       low: gpt-5.3-codex
+
 # Escalation chain on failure (left to right)
 escalation:
   enabled: true
