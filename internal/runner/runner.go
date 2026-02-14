@@ -278,6 +278,8 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads, r.log)
 	r.validationRunner = validation.NewRunner(cfg, defaultCmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	r.methodologyExec = r.makeMethodologyExec()
+	r.reviewer = reviewpkg.NewReviewer(cfg, router, beadsClient, renderer, r.gitDiffFn, log)
+	r.reviewer.SetLogFn(r.log)
 	return r, nil
 }
 
