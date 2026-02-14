@@ -284,11 +284,20 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			continue
 		}
 
-		// Process events here (will add in next iterations)
-		_ = event
+		// Handle different event types
+		switch event.Type {
+		case "thread.started":
+			if handler != nil {
+				streamEvent := map[string]interface{}{
+					"type": "system",
+				}
+				eventJSON, _ := json.Marshal(streamEvent)
+				handler(eventJSON)
+			}
+		}
+
 		_ = lastAgentText
 		_ = usage
-		_ = handler
 		_ = toolHandler
 		_ = output
 	}
