@@ -31,6 +31,7 @@ import (
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tmux"
 	"github.com/danabrams/gromit/internal/usagelimit"
+	"github.com/danabrams/gromit/internal/worktree"
 )
 
 var errValidationFailed = errors.New("validation failed")
@@ -74,6 +75,7 @@ type Runner struct {
 	labelFilters       []string                                                                                                          // optional spec labels to filter beads
 	validationFailures []string                                                                                                          // recent validation failure summaries from current run, injected into build prompts
 	touchedPackages    map[string]bool                                                                                                   // packages touched in the current run, used to filter learning extraction
+	worktreeManager    WorktreeManager                                                                                                   // manages interactive worktrees (optional)
 }
 
 // routerAdapter wraps *provider.Router to satisfy execution.Router.
@@ -159,6 +161,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 
 	// Determine gromit directory (parent of templates dir)
 	gromitDir := filepath.Dir(cfg.Paths.Templates)
+	mainDir := filepath.Dir(gromitDir)
 
 	renderer, err := prompt.NewRenderer(
 		cfg.Paths.Templates,
@@ -287,6 +290,13 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		stateFile:   sf,
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: defaultCmdRunner,
+	}
+	if cfg.Worktree.IsEnabled() {
+		manager, mgrErr := worktree.NewManager(mainDir)
+		if mgrErr != nil {
+			return nil, mgrErr
+		}
+		r.worktreeManager = manager
 	}
 	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads, r.log, r.showPartialProgress)
 	r.validationRunner = validation.NewRunner(cfg, defaultCmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
@@ -745,6 +755,10 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		// Push to remote if configured
 		if err := r.runGitAutoPush(); err != nil {
 			return fmt.Errorf("git auto-push failed: %w", err)
+		}
+
+		if err := r.mergeInteractiveBranches(); err != nil {
+			return err
 		}
 
 		// Run between-iterations command if configured
@@ -2059,6 +2073,44 @@ func (r *Runner) runGitAutoPush() error {
 		return nil
 	}
 
+	return nil
+}
+
+func (r *Runner) mergeInteractiveBranches() error {
+	if r == nil || r.cfg == nil {
+		return nil
+	}
+	if !r.cfg.Worktree.IsEnabled() || !r.cfg.Worktree.IsAutoMergeEnabled() {
+		return nil
+	}
+	if r.worktreeManager == nil {
+		return nil
+	}
+
+	branches, err := r.worktreeManager.PendingBranches()
+	if err != nil {
+		return r.handleMergeFailure(fmt.Errorf("list pending branches: %w", err))
+	}
+
+	for _, branch := range branches {
+		if err := r.worktreeManager.MergeBack(branch); err != nil {
+			if err := r.handleMergeFailure(fmt.Errorf("merge back %s: %w", branch, err)); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *Runner) handleMergeFailure(err error) error {
+	if r == nil || r.cfg == nil {
+		return err
+	}
+	if strings.EqualFold(r.cfg.Worktree.MergeFailure, "stop") {
+		return err
+	}
+	r.log("Warning: merge back failed: %v", err)
 	return nil
 }
 

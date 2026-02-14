@@ -1517,6 +1517,53 @@ func TestRunBetweenIterationsCommandNilConfig(t *testing.T) {
 	}
 }
 
+type recordingWorktreeManager struct {
+	pendingCalls int
+	mergeCalls   int
+}
+
+func (m *recordingWorktreeManager) EnsureWorktree() (string, error) { return "", nil }
+func (m *recordingWorktreeManager) CreateBranch(command string) (string, error) {
+	return "", nil
+}
+func (m *recordingWorktreeManager) MergeBack(branch string) error {
+	m.mergeCalls++
+	return nil
+}
+func (m *recordingWorktreeManager) PendingBranches() ([]string, error) {
+	m.pendingCalls++
+	return []string{"gromit/review-1"}, nil
+}
+func (m *recordingWorktreeManager) Cleanup() error { return nil }
+
+func TestMergeInteractiveBranchesSkipsWhenAutoMergeDisabled(t *testing.T) {
+	enabled := true
+	autoMerge := false
+	cfg := &config.Config{
+		Worktree: config.WorktreeConfig{
+			Enabled:   &enabled,
+			AutoMerge: &autoMerge,
+		},
+	}
+
+	manager := &recordingWorktreeManager{}
+	r := &Runner{
+		cfg:             cfg,
+		worktreeManager: manager,
+	}
+
+	if err := r.mergeInteractiveBranches(); err != nil {
+		t.Fatalf("mergeInteractiveBranches returned error: %v", err)
+	}
+
+	if manager.pendingCalls != 0 {
+		t.Fatalf("expected PendingBranches not to be called, got %d", manager.pendingCalls)
+	}
+	if manager.mergeCalls != 0 {
+		t.Fatalf("expected MergeBack not to be called, got %d", manager.mergeCalls)
+	}
+}
+
 func TestRunGitAutoPush(t *testing.T) {
 	tests := []struct {
 		name             string
