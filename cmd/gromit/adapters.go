@@ -35,17 +35,22 @@ type beadClientAdapter struct {
 	Client *bead.Client
 }
 
-func (a *beadClientAdapter) Ready() (*pipeline.BeadInfo, error) {
-	b, err := a.Client.Ready()
-	if err != nil {
-		return nil, err
-	}
+// toBeadInfo converts a bead.Bead to pipeline.BeadInfo.
+func toBeadInfo(b *bead.Bead) *pipeline.BeadInfo {
 	return &pipeline.BeadInfo{
 		ID:       b.ID,
 		Title:    b.Title,
 		Priority: b.Priority,
 		Labels:   b.Labels,
-	}, nil
+	}
+}
+
+func (a *beadClientAdapter) Ready() (*pipeline.BeadInfo, error) {
+	b, err := a.Client.Ready()
+	if err != nil {
+		return nil, err
+	}
+	return toBeadInfo(b), nil
 }
 
 func (a *beadClientAdapter) Show(id string) (*pipeline.BeadInfo, error) {
@@ -53,12 +58,7 @@ func (a *beadClientAdapter) Show(id string) (*pipeline.BeadInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &pipeline.BeadInfo{
-		ID:       b.ID,
-		Title:    b.Title,
-		Priority: b.Priority,
-		Labels:   b.Labels,
-	}, nil
+	return toBeadInfo(b), nil
 }
 
 func (a *beadClientAdapter) Create(title string, priority int, labels []string, outputs []string) (*pipeline.BeadInfo, error) {
@@ -66,12 +66,7 @@ func (a *beadClientAdapter) Create(title string, priority int, labels []string, 
 	if err != nil {
 		return nil, err
 	}
-	return &pipeline.BeadInfo{
-		ID:       b.ID,
-		Title:    b.Title,
-		Priority: b.Priority,
-		Labels:   b.Labels,
-	}, nil
+	return toBeadInfo(b), nil
 }
 
 func (a *beadClientAdapter) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*pipeline.BeadInfo, error) {
@@ -79,12 +74,7 @@ func (a *beadClientAdapter) CreateWithDepsAndDescription(title string, priority 
 	if err != nil {
 		return nil, err
 	}
-	return &pipeline.BeadInfo{
-		ID:       b.ID,
-		Title:    b.Title,
-		Priority: b.Priority,
-		Labels:   b.Labels,
-	}, nil
+	return toBeadInfo(b), nil
 }
 
 func (a *beadClientAdapter) Close(id string) error {
