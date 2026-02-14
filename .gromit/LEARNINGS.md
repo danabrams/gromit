@@ -58,6 +58,9 @@ Renderer is the central coordinator for context/state setup - modifications to h
 ### 2026-02-14 | gromit-ownd | conventions
 All acceptance test files in this codebase must include //go:build acceptance at the top. This is verified by final_verification_test.go:47 as part of the standard test suite. Check for this tag requirement when creating acceptance tests in internal/runner/reviewpkg/ or any other package.
 
+### 2026-02-14 | gromit-6j5y | conventions
+The pipeline package uses a type-wrapper pattern (RefineSession embeds baseSession, not implements Session[T]). Compile-time checks should verify: (1) baseSession exists and implements BaseSession interface, (2) each typed session (RefineSession, etc.) embeds baseSession and has a Result() method, (3) avoid assuming Go generics are used unless the interface is explicitly defined with [T any] syntax. Check session_test.go for the acceptance test pattern before writing compile-time checks.
+
 ---
 
 ## Archived
