@@ -130,6 +130,12 @@ git:
   auto_push: true  # Push to remote after each successful bead (default: true)
   push_failure: "warn"  # What to do when push fails: "warn" | "stop" (default: "warn")
 
+# Worktree - enable concurrent interactive sessions via git worktrees
+# worktree:
+#   enabled: true  # Enable worktree isolation for interactive commands (default: true)
+#   auto_merge: true  # Merge interactive branches between iterations (default: true)
+#   merge_failure: "warn"  # What to do on merge conflict: "warn" | "stop" (default: "warn")
+
 # State file staleness protection - detects and auto-heals corrupted state from crashes
 state:
   # How old (in minutes) state.json can be before it's considered stale

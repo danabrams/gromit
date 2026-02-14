@@ -35,6 +35,7 @@ type Config struct {
 	Agents      AgentsConfig           `yaml:"agents"`
 	Providers   map[string]ProviderDef `yaml:"providers"`
 	Routing     RoutingConfig          `yaml:"routing"`
+	Worktree    WorktreeConfig         `yaml:"worktree"`
 }
 
 type ModelsConfig struct {
@@ -187,6 +188,12 @@ type RoutingConfig struct {
 type FallbackConfig struct {
 	Enabled  bool   `yaml:"enabled"`
 	Cooldown string `yaml:"cooldown"`
+}
+
+type WorktreeConfig struct {
+	Enabled      *bool  `yaml:"enabled"`
+	AutoMerge    *bool  `yaml:"auto_merge"`
+	MergeFailure string `yaml:"merge_failure"`
 }
 
 func Load(path string) (*Config, error) {
@@ -433,6 +440,19 @@ func (c *Config) SetDefaults() {
 			c.Routing.Fallback.Enabled = true
 		}
 	}
+
+	// Worktree defaults
+	if c.Worktree.Enabled == nil {
+		t := true
+		c.Worktree.Enabled = &t
+	}
+	if c.Worktree.AutoMerge == nil {
+		t := true
+		c.Worktree.AutoMerge = &t
+	}
+	if c.Worktree.MergeFailure == "" {
+		c.Worktree.MergeFailure = "warn"
+	}
 }
 
 // IsTierName returns true if the string is a valid tier name (high, medium, low).
@@ -623,4 +643,20 @@ func (s ScopeCheckConfig) ShouldBlockOversized() bool {
 // HasProviders returns true when providers section is non-empty
 func (c *Config) HasProviders() bool {
 	return len(c.Providers) > 0
+}
+
+// IsEnabled returns whether worktree isolation is enabled (defaults to true)
+func (w WorktreeConfig) IsEnabled() bool {
+	if w.Enabled == nil {
+		return true
+	}
+	return *w.Enabled
+}
+
+// IsAutoMergeEnabled returns whether automatic merge-back is enabled (defaults to true)
+func (w WorktreeConfig) IsAutoMergeEnabled() bool {
+	if w.AutoMerge == nil {
+		return true
+	}
+	return *w.AutoMerge
 }

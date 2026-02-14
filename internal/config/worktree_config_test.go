@@ -29,10 +29,10 @@ worktree:
 	}
 
 	// Expected failure: WorktreeConfig struct and its fields do not exist
-	if !cfg.Worktree.Enabled {
+	if cfg.Worktree.Enabled == nil || !*cfg.Worktree.Enabled {
 		t.Errorf("Worktree.Enabled = %v, want true", cfg.Worktree.Enabled)
 	}
-	if cfg.Worktree.AutoMerge {
+	if cfg.Worktree.AutoMerge == nil || *cfg.Worktree.AutoMerge {
 		t.Errorf("Worktree.AutoMerge = %v, want false", cfg.Worktree.AutoMerge)
 	}
 	if cfg.Worktree.MergeFailure != "stop" {
