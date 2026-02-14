@@ -1026,6 +1026,249 @@ func TestProviderCountsWithZeroValues(t *testing.T) {
 	}
 }
 
+// TestGetArchivedHashes verifies that archived learning hashes can be retrieved as a map
+// Expected failure: GetArchivedHashes method does not exist on File yet
+func TestGetArchivedHashes(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Empty state returns empty map
+	hashes := f.GetArchivedHashes()
+	if hashes == nil {
+		t.Error("GetArchivedHashes should return empty map, not nil")
+	}
+	if len(hashes) != 0 {
+		t.Errorf("expected empty map, got %d entries", len(hashes))
+	}
+
+	// Add some archived hashes directly to state
+	f.state.ArchivedLearningHashes = []string{"archived1", "archived2", "archived3"}
+	hashes = f.GetArchivedHashes()
+
+	if len(hashes) != 3 {
+		t.Errorf("expected 3 hashes, got %d", len(hashes))
+	}
+	if !hashes["archived1"] {
+		t.Error("archived1 should be in map")
+	}
+	if !hashes["archived2"] {
+		t.Error("archived2 should be in map")
+	}
+	if !hashes["archived3"] {
+		t.Error("archived3 should be in map")
+	}
+}
+
+// TestGetArchivedHashesNilSafe verifies that GetArchivedHashes handles nil receiver safely
+// Expected failure: GetArchivedHashes method does not exist on File yet
+func TestGetArchivedHashesNilSafe(t *testing.T) {
+	var f *File
+	hashes := f.GetArchivedHashes()
+	if hashes != nil {
+		t.Error("nil File should return nil map")
+	}
+}
+
+// TestAddArchivedHashes verifies that archived hashes can be added with deduplication
+// Expected failure: AddArchivedHashes method does not exist on File yet
+func TestAddArchivedHashes(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Add initial hashes
+	f.AddArchivedHashes([]string{"archived1", "archived2"})
+
+	if len(f.state.ArchivedLearningHashes) != 2 {
+		t.Errorf("expected 2 hashes, got %d", len(f.state.ArchivedLearningHashes))
+	}
+
+	// Add more hashes with one duplicate
+	f.AddArchivedHashes([]string{"archived2", "archived3", "archived4"})
+
+	// Should have 4 unique hashes total
+	if len(f.state.ArchivedLearningHashes) != 4 {
+		t.Errorf("expected 4 hashes after deduplication, got %d", len(f.state.ArchivedLearningHashes))
+	}
+
+	// Verify all unique hashes are present
+	hashMap := f.GetArchivedHashes()
+	expectedHashes := []string{"archived1", "archived2", "archived3", "archived4"}
+	for _, hash := range expectedHashes {
+		if !hashMap[hash] {
+			t.Errorf("expected hash %s to be present", hash)
+		}
+	}
+}
+
+// TestAddArchivedHashesNilSafe verifies that AddArchivedHashes handles nil receiver safely
+// Expected failure: AddArchivedHashes method does not exist on File yet
+func TestAddArchivedHashesNilSafe(t *testing.T) {
+	var f *File
+	// Should not panic
+	f.AddArchivedHashes([]string{"archived1", "archived2"})
+}
+
+// TestArchivedLearningHashesPersistence verifies that archived hashes persist across save/load
+// Expected failure: ArchivedLearningHashes field does not exist on State struct yet
+func TestArchivedLearningHashesPersistence(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Add hashes and save
+	f.AddArchivedHashes([]string{"archived1", "archived2", "archived3"})
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Load in a new File and verify persistence
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	if len(f2.state.ArchivedLearningHashes) != 3 {
+		t.Errorf("expected 3 hashes after load, got %d", len(f2.state.ArchivedLearningHashes))
+	}
+
+	hashMap := f2.GetArchivedHashes()
+	if !hashMap["archived1"] || !hashMap["archived2"] || !hashMap["archived3"] {
+		t.Error("all hashes should be present after load")
+	}
+}
+
+// TestNormalizeNilFieldsInitializesArchivedHashes verifies that NormalizeNilFields initializes archived hashes slice
+// Expected failure: NormalizeNilFields does not initialize ArchivedLearningHashes field yet
+func TestNormalizeNilFieldsInitializesArchivedHashes(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Manually set state to have nil slice (simulating deserialization of old state files)
+	f.state.ArchivedLearningHashes = nil
+
+	// Call NormalizeNilFields to initialize it
+	f.state.NormalizeNilFields()
+
+	// Verify slice is initialized (not nil)
+	if f.state.ArchivedLearningHashes == nil {
+		t.Error("ArchivedLearningHashes should be initialized to empty slice, not nil")
+	}
+
+	// Verify it's an empty slice
+	if len(f.state.ArchivedLearningHashes) != 0 {
+		t.Errorf("expected empty slice, got %d entries", len(f.state.ArchivedLearningHashes))
+	}
+
+	// Should be able to append without panic
+	f.AddArchivedHashes([]string{"archived1"})
+	if len(f.state.ArchivedLearningHashes) != 1 {
+		t.Errorf("expected 1 hash after adding, got %d", len(f.state.ArchivedLearningHashes))
+	}
+}
+
+// TestArchivedHashesJSONTag verifies that ArchivedLearningHashes has correct JSON serialization
+// Expected failure: ArchivedLearningHashes field does not have JSON tag yet
+func TestArchivedHashesJSONTag(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Add archived hashes
+	f.AddArchivedHashes([]string{"archived1", "archived2"})
+
+	// Save and verify JSON contains the field
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Read raw JSON
+	data, err := os.ReadFile(filepath.Join(dir, "state.json"))
+	if err != nil {
+		t.Fatalf("reading state file: %v", err)
+	}
+
+	jsonStr := string(data)
+	// Verify field is present in JSON with correct name
+	if !contains(jsonStr, "archived_learning_hashes") {
+		t.Error("JSON should contain 'archived_learning_hashes' field")
+	}
+
+	// Verify values are in JSON
+	if !contains(jsonStr, "archived1") {
+		t.Error("JSON should contain 'archived1' value")
+	}
+	if !contains(jsonStr, "archived2") {
+		t.Error("JSON should contain 'archived2' value")
+	}
+}
+
+// TestArchivedAndFilteredHashesIndependence verifies that archived and filtered hashes are tracked independently
+// Expected failure: ArchivedLearningHashes field does not exist on State struct yet
+func TestArchivedAndFilteredHashesIndependence(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Add filtered hashes
+	f.AddFilteredHashes([]string{"filtered1", "filtered2"})
+
+	// Add archived hashes (using same values to test independence)
+	f.AddArchivedHashes([]string{"filtered1", "archived1"})
+
+	// Verify filtered hashes
+	filteredMap := f.GetFilteredHashes()
+	if len(filteredMap) != 2 {
+		t.Errorf("expected 2 filtered hashes, got %d", len(filteredMap))
+	}
+	if !filteredMap["filtered1"] || !filteredMap["filtered2"] {
+		t.Error("filtered hashes should contain filtered1 and filtered2")
+	}
+
+	// Verify archived hashes
+	archivedMap := f.GetArchivedHashes()
+	if len(archivedMap) != 2 {
+		t.Errorf("expected 2 archived hashes, got %d", len(archivedMap))
+	}
+	if !archivedMap["filtered1"] || !archivedMap["archived1"] {
+		t.Error("archived hashes should contain filtered1 and archived1")
+	}
+
+	// Verify they are truly independent - filtered1 appears in both
+	if !filteredMap["filtered1"] {
+		t.Error("filtered1 should be in filtered hashes")
+	}
+	if !archivedMap["filtered1"] {
+		t.Error("filtered1 should be in archived hashes")
+	}
+}
+
+// TestArchivedHashesEmptySliceSerialization verifies that empty archived hashes serialize correctly
+// Expected failure: ArchivedLearningHashes field does not exist on State struct yet
+func TestArchivedHashesEmptySliceSerialization(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	// Initialize with NormalizeNilFields
+	f.state.NormalizeNilFields()
+
+	// Save without adding any archived hashes
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state: %v", err)
+	}
+
+	// Load in new File
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	// After normalization, should have empty slice not nil
+	f2.state.NormalizeNilFields()
+	if f2.state.ArchivedLearningHashes == nil {
+		t.Error("ArchivedLearningHashes should be empty slice after load and normalization, not nil")
+	}
+	if len(f2.state.ArchivedLearningHashes) != 0 {
+		t.Errorf("expected 0 archived hashes, got %d", len(f2.state.ArchivedLearningHashes))
+	}
+}
+
 // Helper function for substring matching
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
