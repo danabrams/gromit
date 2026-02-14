@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
@@ -606,15 +607,23 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 		Preflight: config.PreflightConfig{},
 	}
 	syncOut := newSyncWriter(&buf)
+	mockRouter := newMockRouterFromClaudeClient(mockClaude)
+	mockBeads := &mockBeadClient{}
+	gitDiffFn := func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
+	reviewer := reviewpkg.NewReviewer(postSuccessCfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
+	reviewer.SetLogFn(func(format string, args ...interface{}) {
+		fmt.Fprintf(syncOut, format+"\n", args...)
+	})
 	r := &Runner{
-		cfg:      postSuccessCfg,
-		router:   newMockRouterFromClaudeClient(mockClaude),
-		renderer: mockRend,
-		beads:    &mockBeadClient{},
-		output:   syncOut,
-		gitDiffFn: func(fromCommit string) (string, error) {
-			return "diff --git a/file.go b/file.go\n+some change", nil
-		},
+		cfg:              postSuccessCfg,
+		router:           mockRouter,
+		renderer:         mockRend,
+		beads:            mockBeads,
+		output:           syncOut,
+		reviewer:         reviewer,
+		gitDiffFn:        gitDiffFn,
 		validationRunner: validation.NewRunner(postSuccessCfg, cmdRunner, nil, nil),
 	}
 
@@ -726,15 +735,29 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 		Preflight: config.PreflightConfig{},
 	}
 	syncOut := newSyncWriter(&buf)
+	mockRouter := newMockRouterFromClaudeClient(mockClaude)
+	mockBeads := &mockBeadClient{}
+	gitDiffFn := func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
+	reviewer := reviewpkg.NewReviewer(revalCfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
+	reviewer.SetLogFn(func(format string, args ...interface{}) {
+		fmt.Fprintf(syncOut, format+"\n", args...)
+	})
+	// Re-validation after review fixes should fail
+	revalCallCount := 0
+	reviewer.SetValidateFn(func(ctx context.Context, commands []string, workDir string) (bool, error) {
+		revalCallCount++
+		return false, nil // re-validation fails
+	})
 	r := &Runner{
-		cfg:      revalCfg,
-		router:   newMockRouterFromClaudeClient(mockClaude),
-		renderer: mockRend,
-		beads:    &mockBeadClient{},
-		output:   syncOut,
-		gitDiffFn: func(fromCommit string) (string, error) {
-			return "diff --git a/file.go b/file.go\n+some change", nil
-		},
+		cfg:              revalCfg,
+		router:           mockRouter,
+		renderer:         mockRend,
+		beads:            mockBeads,
+		output:           syncOut,
+		reviewer:         reviewer,
+		gitDiffFn:        gitDiffFn,
 		validationRunner: validation.NewRunner(revalCfg, cmdRunner, nil, nil),
 	}
 
@@ -971,16 +994,23 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		return "ok", "", 0, nil
 	}
+	mockRouter := newMockRouterFromClaudeClient(mockClaude)
+	mockBeads := &mockBeadClient{}
+	gitDiffFn := func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
+	reviewer := reviewpkg.NewReviewer(cfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
+	reviewer.SetLogFn(func(format string, args ...interface{}) {
+		fmt.Fprintf(syncOut, format+"\n", args...)
+	})
 	r := &Runner{
-		cfg:      cfg,
-		router:   newMockRouterFromClaudeClient(mockClaude),
-		renderer: mockRend,
-		beads:    &mockBeadClient{},
-		output:   syncOut,
-		gitDiffFn: func(fromCommit string) (string, error) {
-			return "diff --git a/file.go b/file.go\n+some change", nil
-		},
-		// Validation commands run directly — simulate all passing
+		cfg:              cfg,
+		router:           mockRouter,
+		renderer:         mockRend,
+		beads:            mockBeads,
+		output:           syncOut,
+		reviewer:         reviewer,
+		gitDiffFn:        gitDiffFn,
 		cmdRunnerFn:      cmdRunner,
 		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
 	}
@@ -1108,15 +1138,23 @@ func TestPostSuccess_BothStagesEnabled_RunSequentially(t *testing.T) {
 		Preflight: config.PreflightConfig{},
 	}
 	syncOut := newSyncWriter(&buf)
+	mockRouter := newMockRouterFromClaudeClient(mockClaude)
+	mockBeads := &mockBeadClient{}
+	gitDiffFn := func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
+	reviewer := reviewpkg.NewReviewer(postSuccessCfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
+	reviewer.SetLogFn(func(format string, args ...interface{}) {
+		fmt.Fprintf(syncOut, format+"\n", args...)
+	})
 	r := &Runner{
-		cfg:      postSuccessCfg,
-		router:   newMockRouterFromClaudeClient(mockClaude),
-		renderer: mockRend,
-		beads:    &mockBeadClient{},
-		output:   syncOut,
-		gitDiffFn: func(fromCommit string) (string, error) {
-			return "diff --git a/file.go b/file.go\n+some change", nil
-		},
+		cfg:              postSuccessCfg,
+		router:           mockRouter,
+		renderer:         mockRend,
+		beads:            mockBeads,
+		output:           syncOut,
+		reviewer:         reviewer,
+		gitDiffFn:        gitDiffFn,
 		validationRunner: validation.NewRunner(postSuccessCfg, cmdRunner, nil, nil),
 	}
 
@@ -1234,15 +1272,23 @@ func TestPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
 		Preflight: config.PreflightConfig{},
 	}
 	syncOut := newSyncWriter(&buf)
+	mockRouter := newMockRouterFromClaudeClient(mockClaude)
+	mockBeads := &mockBeadClient{}
+	gitDiffFn := func(fromCommit string) (string, error) {
+		return "diff --git a/file.go b/file.go\n+some change", nil
+	}
+	reviewer := reviewpkg.NewReviewer(postSuccessCfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
+	reviewer.SetLogFn(func(format string, args ...interface{}) {
+		fmt.Fprintf(syncOut, format+"\n", args...)
+	})
 	r := &Runner{
-		cfg:      postSuccessCfg,
-		router:   newMockRouterFromClaudeClient(mockClaude),
-		renderer: mockRend,
-		beads:    &mockBeadClient{},
-		output:   syncOut,
-		gitDiffFn: func(fromCommit string) (string, error) {
-			return "diff --git a/file.go b/file.go\n+some change", nil
-		},
+		cfg:              postSuccessCfg,
+		router:           mockRouter,
+		renderer:         mockRend,
+		beads:            mockBeads,
+		output:           syncOut,
+		reviewer:         reviewer,
+		gitDiffFn:        gitDiffFn,
 		validationRunner: validation.NewRunner(postSuccessCfg, cmdRunner, nil, nil),
 	}
 
