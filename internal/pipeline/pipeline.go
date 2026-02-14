@@ -136,7 +136,7 @@ type StateManager interface {
 
 // LogWriter abstracts log writing operations.
 type LogWriter interface {
-	Write(entry *LogEntry) error
+	Write(entry any) error
 }
 
 // Plan executes the plan workflow.
@@ -286,9 +286,12 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	}
 
 	// Log review
-	logEntry := &LogEntry{
-		Type:   "review",
-		BeadID: "", // Review entries don't have a specific bead ID
+	logEntry := map[string]interface{}{
+		"type":            "review",
+		"passed":          reviewResult.Passed,
+		"fixes_applied":   len(reviewResult.FixesApplied),
+		"beads_created":   beadsCreated,
+		"backlog_created": backlogCreated,
 	}
 	if err := p.deps.LogWriter.Write(logEntry); err != nil {
 		return nil, fmt.Errorf("writing review log: %w", err)

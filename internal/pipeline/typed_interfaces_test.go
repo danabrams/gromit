@@ -360,20 +360,20 @@ func TestPromptRenderer_ThoroughReview_TypedInput(t *testing.T) {
 	}
 }
 
-// TestLogWriter_TypedEntry verifies LogWriter.Write accepts typed LogEntry parameter
-// Expected failure: LogWriter.Write currently accepts interface{} and LogEntry type may not exist
-func TestLogWriter_TypedEntry(t *testing.T) {
-	var capturedEntry *LogEntry
+// TestLogWriter_AcceptsAny verifies LogWriter.Write accepts any parameter
+// Per Decision 3: LogWriter remains as 'any' for fire-and-forget serialization
+func TestLogWriter_AcceptsAny(t *testing.T) {
+	var capturedEntry any
 	mockLog := &typedInterfacesLogWriter{
-		writeFn: func(entry *LogEntry) error {
+		writeFn: func(entry any) error {
 			capturedEntry = entry
 			return nil
 		},
 	}
 
-	entry := &LogEntry{
-		Type:   "test",
-		BeadID: "bead-123",
+	entry := map[string]interface{}{
+		"type":    "test",
+		"bead_id": "bead-123",
 	}
 
 	err := mockLog.Write(entry)
@@ -385,12 +385,17 @@ func TestLogWriter_TypedEntry(t *testing.T) {
 		t.Fatal("LogWriter did not receive entry")
 	}
 
-	if capturedEntry.Type != "test" {
-		t.Errorf("Entry.Type = %q, want %q", capturedEntry.Type, "test")
+	entryMap, ok := capturedEntry.(map[string]interface{})
+	if !ok {
+		t.Fatal("Entry is not a map")
 	}
 
-	if capturedEntry.BeadID != "bead-123" {
-		t.Errorf("Entry.BeadID = %q, want %q", capturedEntry.BeadID, "bead-123")
+	if entryMap["type"] != "test" {
+		t.Errorf("Entry type = %v, want %q", entryMap["type"], "test")
+	}
+
+	if entryMap["bead_id"] != "bead-123" {
+		t.Errorf("Entry bead_id = %v, want %q", entryMap["bead_id"], "bead-123")
 	}
 }
 
@@ -414,7 +419,7 @@ func TestReviewNonInteractive_UsesTypedClaudeResult(t *testing.T) {
 	mockLearnings := &typedInterfacesLearningsManager{}
 	mockState := &typedInterfacesStateManager{}
 	mockLog := &typedInterfacesLogWriter{
-		writeFn: func(entry *LogEntry) error {
+		writeFn: func(entry any) error {
 			return nil
 		},
 	}
@@ -539,10 +544,10 @@ func (m *typedInterfacesPromptRenderer) RenderExplore(ctx interface{}) (string, 
 }
 
 type typedInterfacesLogWriter struct {
-	writeFn func(entry *LogEntry) error
+	writeFn func(entry any) error
 }
 
-func (m *typedInterfacesLogWriter) Write(entry *LogEntry) error {
+func (m *typedInterfacesLogWriter) Write(entry any) error {
 	if m.writeFn != nil {
 		return m.writeFn(entry)
 	}

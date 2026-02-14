@@ -55,17 +55,13 @@ State fields in Runner that accumulate per-run should be reset at the start of R
 
 Renderer is the central coordinator for context/state setup - modifications to how data flows into rendering (like character limits) happen in NewRunner() by calling Renderer setter methods after initialization, then BuildContext() reads those configured values
 
-### 2026-02-14 | gromit-ownd | conventions
-All acceptance test files in this codebase must include //go:build acceptance at the top. This is verified by final_verification_test.go:47 as part of the standard test suite. Check for this tag requirement when creating acceptance tests in internal/runner/reviewpkg/ or any other package.
-
 ### 2026-02-14 | gromit-6j5y | conventions
 The pipeline package uses a type-wrapper pattern (RefineSession embeds baseSession, not implements Session[T]). Compile-time checks should verify: (1) baseSession exists and implements BaseSession interface, (2) each typed session (RefineSession, etc.) embeds baseSession and has a Result() method, (3) avoid assuming Go generics are used unless the interface is explicitly defined with [T any] syntax. Check session_test.go for the acceptance test pattern before writing compile-time checks.
 
-### 2026-02-14 | gromit-6426 | gotchas
-Contract tests in cmd/gromit need to either: (1) initialize the test environment with gromit init before running, (2) mock/stub template rendering, or (3) use a pre-initialized test fixture directory. The tests are failing not because of the HasOpenChildren changes, but because the test harness itself is incomplete.
+### 2026-02-14 | Contract Test Infrastructure Requirements | gotchas
+*Related to: gromit-6426*
 
-### 2026-02-14 | gromit-6426 | conventions
-Contract tests in test/contracts/ verify git call sequences during gromit run iterations. When modifying bead-related logic or build/failure handling, verify that git diff --stat is called at the expected point in the workflow (likely after build failure detection). The test mocks git calls and tracks their order, so any changes to when/how git is invoked will break these tests.
+Contract tests in test/contracts/ verify git call sequences during gromit run iterations and require a properly initialized test environment. When modifying bead-related logic or build/failure handling: (1) ensure the test harness initializes via gromit init, mocks/stubs template rendering, or uses a pre-initialized fixture directory, and (2) verify that git diff --stat is called at the expected point in the workflow. The test mocks git calls and tracks their order, so any changes to when/how git is invoked will break these tests.
 
 ---
 
@@ -1214,4 +1210,14 @@ When migrating a struct to an external type, promote all field names to public (
 When extracting package logic: (1) Always remove old methods from source files after extraction is complete—stub out → extract → remove old implementation; (2) Update ALL call sites that invoke the old methods to use the new package functions; (3) If the extracted function signature changes (e.g., adding a *learnings.File parameter), audit all callers. Use grep to find old method names and verify they're gone.
 
 *Archived from new: filtered: generic engineering advice*
+
+### 2026-02-14 | gromit-ownd | conventions
+Archived: acceptance test build tag requirement already in RULES.md Test Quality section (line 35). Redundant.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-14 | gromit-6426 consolidation originals | gotchas
+Archived: gromit-6426 (x2) consolidated into Provisional "Contract Test Infrastructure Requirements" entry.
+
+*Archived from provisional: consolidated*
 

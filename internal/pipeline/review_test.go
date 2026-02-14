@@ -156,7 +156,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 
 	logWritten := false
 	mockLog := &reviewAcceptanceMockLogWriter{
-		writeFunc: func(entry *LogEntry) error {
+		writeFunc: func(entry any) error {
 			logWritten = true
 			return nil
 		},
@@ -650,10 +650,10 @@ func (m *reviewAcceptanceMockLearningsManager) Add(content string) error {
 }
 
 type reviewAcceptanceMockLogWriter struct {
-	writeFunc func(entry *LogEntry) error
+	writeFunc func(entry any) error
 }
 
-func (m *reviewAcceptanceMockLogWriter) Write(entry *LogEntry) error {
+func (m *reviewAcceptanceMockLogWriter) Write(entry any) error {
 	if m.writeFunc != nil {
 		return m.writeFunc(entry)
 	}

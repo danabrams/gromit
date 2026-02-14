@@ -176,7 +176,7 @@ func (r *explorePromptRenderer) RenderDecompose(input interface{}) (string, erro
 	return "", fmt.Errorf("not implemented")
 }
 
-func (r *explorePromptRenderer) RenderThoroughReview(ctx interface{}) (string, error) {
+func (r *explorePromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewPromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 

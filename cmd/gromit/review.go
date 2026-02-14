@@ -506,19 +506,10 @@ func (r *cliPromptRenderer) RenderDecompose(input interface{}) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
-func (r *cliPromptRenderer) RenderThoroughReview(ctx interface{}) (string, error) {
-	// Build ThoroughReviewContext from the map
-	ctxMap, ok := ctx.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("unexpected context type")
-	}
-
-	diff, _ := ctxMap["Diff"].(string)
-	model, _ := ctxMap["Model"].(string)
-
+func (r *cliPromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewPromptInput) (string, error) {
+	// Build ThoroughReviewContext from pipeline input
 	reviewCtx := &prompt.ThoroughReviewContext{
-		Diff:  diff,
-		Model: model,
+		Diff: input.Diff,
 	}
 
 	// Load ClaudeMD and Rules (warnings only)
@@ -544,7 +535,7 @@ type cliClaudeClient struct {
 	client *claude.Client
 }
 
-func (c *cliClaudeClient) Run(prompt string, model string) (interface{}, error) {
+func (c *cliClaudeClient) Run(prompt string, model string) (*pipeline.ClaudeRunResult, error) {
 	// Use a long timeout context since the pipeline doesn't expose timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
@@ -554,11 +545,11 @@ func (c *cliClaudeClient) Run(prompt string, model string) (interface{}, error) 
 		return nil, err
 	}
 
-	// Convert to map format expected by pipeline
-	return map[string]interface{}{
-		"Success":  true,
-		"Output":   result.Output,
-		"ExitCode": 0,
+	// Convert to pipeline ClaudeRunResult
+	return &pipeline.ClaudeRunResult{
+		Success:  result.Success,
+		Output:   result.Output,
+		ExitCode: result.ExitCode,
 	}, nil
 }
 
@@ -567,20 +558,56 @@ type cliBeadClient struct {
 	client *bead.Client
 }
 
-func (c *cliBeadClient) Ready() (interface{}, error) {
-	return c.client.Ready()
+func (c *cliBeadClient) Ready() (*pipeline.BeadInfo, error) {
+	b, err := c.client.Ready()
+	if err != nil {
+		return nil, err
+	}
+	return &pipeline.BeadInfo{
+		ID:       b.ID,
+		Title:    b.Title,
+		Priority: b.Priority,
+		Labels:   b.Labels,
+	}, nil
 }
 
-func (c *cliBeadClient) Show(id string) (interface{}, error) {
-	return c.client.Show(id)
+func (c *cliBeadClient) Show(id string) (*pipeline.BeadInfo, error) {
+	b, err := c.client.Show(id)
+	if err != nil {
+		return nil, err
+	}
+	return &pipeline.BeadInfo{
+		ID:       b.ID,
+		Title:    b.Title,
+		Priority: b.Priority,
+		Labels:   b.Labels,
+	}, nil
 }
 
-func (c *cliBeadClient) Create(title string, priority int, labels []string, outputs []string) (interface{}, error) {
-	return c.client.Create(title, priority, labels, outputs)
+func (c *cliBeadClient) Create(title string, priority int, labels []string, outputs []string) (*pipeline.BeadInfo, error) {
+	b, err := c.client.Create(title, priority, labels, outputs)
+	if err != nil {
+		return nil, err
+	}
+	return &pipeline.BeadInfo{
+		ID:       b.ID,
+		Title:    b.Title,
+		Priority: b.Priority,
+		Labels:   b.Labels,
+	}, nil
 }
 
-func (c *cliBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
-	return c.client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
+func (c *cliBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*pipeline.BeadInfo, error) {
+	b, err := c.client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
+	if err != nil {
+		return nil, err
+	}
+	return &pipeline.BeadInfo{
+		ID:       b.ID,
+		Title:    b.Title,
+		Priority: b.Priority,
+		Labels:   b.Labels,
+	}, nil
 }
 
 func (c *cliBeadClient) Close(id string) error {
@@ -668,7 +695,7 @@ type cliLogWriter struct {
 	logsDir string
 }
 
-func (w *cliLogWriter) Write(entry interface{}) error {
+func (w *cliLogWriter) Write(entry any) error {
 	log, err := logger.NewLogger(w.logsDir)
 	if err != nil {
 		return err
