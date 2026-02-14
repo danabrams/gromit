@@ -47,15 +47,19 @@ type IterationLogger interface {
 	LogReview(log *logger.ReviewLog) error
 }
 
+// ValidateFn runs validation commands and returns whether they passed.
+type ValidateFn func(ctx context.Context, commands []string, workDir string) (passed bool, err error)
+
 // Reviewer handles light code reviews, result application, and review logging.
 type Reviewer struct {
-	cfg       *config.Config
-	router    Router
-	beads     BeadClient
-	renderer  PromptRenderer
-	gitDiffFn runtypes.GitDiffFn
-	logger    IterationLogger
-	logFn     func(format string, args ...interface{})
+	cfg        *config.Config
+	router     Router
+	beads      BeadClient
+	renderer   PromptRenderer
+	gitDiffFn  runtypes.GitDiffFn
+	logger     IterationLogger
+	logFn      func(format string, args ...interface{})
+	validateFn ValidateFn
 }
 
 // NewReviewer creates a Reviewer with narrow dependency interfaces.
@@ -67,6 +71,13 @@ func NewReviewer(cfg *config.Config, router Router, beads BeadClient, renderer P
 		renderer:  renderer,
 		gitDiffFn: gitDiffFn,
 		logger:    iterLogger,
+	}
+}
+
+// SetValidateFn sets the validation callback for re-validation after review fixes.
+func (r *Reviewer) SetValidateFn(fn ValidateFn) {
+	if r != nil {
+		r.validateFn = fn
 	}
 }
 
@@ -438,6 +449,50 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 }
 
 // RunPostSuccess runs only the review stage after a successful build.
+// Calls RunLight, applies the review result, logs it, and re-validates if fixes were applied.
 func (r *Reviewer) RunPostSuccess(ctx context.Context, bc *runtypes.BeadContext) error {
+	if r == nil || bc == nil {
+		return nil
+	}
+
+	reviewStart := time.Now()
+	r.log("Running post-iteration review with model: %s", selectReviewModel(r.cfg, bc.Model))
+
+	reviewResult, err := r.RunLight(ctx, bc.Bead, bc.Parent, bc.StartCommit, bc.Model, bc.Iteration, bc.RunDeadline, bc.BuildProvider)
+	if err != nil {
+		r.log("Warning: review failed: %v", err)
+		return nil // Review failure is non-blocking
+	}
+
+	if reviewResult == nil {
+		return nil
+	}
+
+	r.log("Review: %s", reviewResult.Summary)
+
+	// If fixes were applied, re-validate
+	if len(reviewResult.FixesApplied) > 0 && r.cfg.Validation.Enabled && r.validateFn != nil {
+		r.log("Review applied %d fixes, re-validating...", len(reviewResult.FixesApplied))
+
+		passed, err := r.validateFn(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
+		if err != nil {
+			return fmt.Errorf("review re-validation invocation: %w", err)
+		}
+
+		if !passed {
+			bc.Result.Output += "\n\n=== REVIEW RE-VALIDATION FAILED ===\n"
+			bc.Result.ReviewBrokeValidation = true
+			return fmt.Errorf("review fixes broke validation")
+		}
+		r.log("Re-validation passed")
+	}
+
+	// Create beads/backlog from review findings
+	beadsCreated, backlogCreated := r.ApplyResult(reviewResult)
+
+	// Log review result
+	reviewDuration := time.Since(reviewStart)
+	r.WriteReviewLog(bc.Iteration, bc.Bead.ID, selectReviewModel(r.cfg, bc.Model), reviewResult, beadsCreated, backlogCreated, reviewDuration)
+
 	return nil
 }

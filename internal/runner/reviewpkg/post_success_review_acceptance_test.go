@@ -171,18 +171,18 @@ func TestRunPostSuccess_RevalidatesAfterFixesApplied(t *testing.T) {
 	rev := NewReviewer(cfg, router, &mockBeadClient{}, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff content", nil
 	}, &mockIterationLogger{})
+	rev.SetValidateFn(validateFn)
 
 	bc := newTestBeadContext()
 
-	// Expected failure: RunPostSuccess does not exist; needs validateFn wired in
 	err := rev.RunPostSuccess(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("RunPostSuccess returned unexpected error: %v", err)
 	}
 
-	// After implementation, the validateFn would be wired into the Reviewer
-	_ = validateFn
-	_ = validationCalled
+	if !validationCalled {
+		t.Error("RunPostSuccess should call validation when fixes were applied")
+	}
 }
 
 // Expected failure: Reviewer.RunPostSuccess method does not exist yet
@@ -216,18 +216,17 @@ func TestRunPostSuccess_SetsReviewBrokeValidation(t *testing.T) {
 	rev := NewReviewer(cfg, router, &mockBeadClient{}, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff content", nil
 	}, &mockIterationLogger{})
+	rev.SetValidateFn(validateFn)
 
 	bc := newTestBeadContext()
 
-	// Expected failure: RunPostSuccess does not exist; after implementation,
-	// it should set ReviewBrokeValidation when fixes break validation
 	err := rev.RunPostSuccess(context.Background(), bc)
 
-	// After implementation:
-	// - err should be non-nil (review fixes broke validation)
-	// - bc.Result.ReviewBrokeValidation should be true
-	_ = validateFn
-	_ = err
+	// err should be non-nil (review fixes broke validation)
+	if err == nil {
+		t.Error("RunPostSuccess should return error when review fixes break validation")
+	}
+	// bc.Result.ReviewBrokeValidation should be true
 	if !bc.Result.ReviewBrokeValidation {
 		t.Error("bc.Result.ReviewBrokeValidation should be true when review fixes break validation")
 	}
@@ -258,12 +257,13 @@ func TestRunPostSuccess_AppendsValidationOutputOnFailure(t *testing.T) {
 	rev := NewReviewer(cfg, router, &mockBeadClient{}, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff content", nil
 	}, &mockIterationLogger{})
+	rev.SetValidateFn(func(ctx context.Context, commands []string, workDir string) (bool, error) {
+		return false, nil // validation fails
+	})
 
 	bc := newTestBeadContext()
 	originalOutput := bc.Result.Output
 
-	// Expected failure: RunPostSuccess does not exist. After implementation,
-	// when validation fails, bc.Result.Output should contain the validation marker
 	_ = rev.RunPostSuccess(context.Background(), bc)
 
 	// The output should have been appended to with validation failure info
@@ -303,17 +303,15 @@ func TestRunPostSuccess_SkipsValidationWhenNoFixes(t *testing.T) {
 	rev := NewReviewer(cfg, router, &mockBeadClient{}, &mockPromptRenderer{}, func(string) (string, error) {
 		return "diff content", nil
 	}, &mockIterationLogger{})
+	rev.SetValidateFn(validateFn)
 
 	bc := newTestBeadContext()
 
-	// Expected failure: RunPostSuccess does not exist
 	err := rev.RunPostSuccess(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("RunPostSuccess returned unexpected error: %v", err)
 	}
 
-	// After implementation, validation should NOT have been called
-	_ = validateFn
 	if validationCalled {
 		t.Error("RunPostSuccess should not call validation when no fixes were applied")
 	}
