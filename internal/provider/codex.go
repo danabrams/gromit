@@ -230,3 +230,10 @@ func (cp *CodexProvider) extractExitCode(err error) (int, error) {
 
 	return 0, fmt.Errorf("failed to execute codex command: %w", err)
 }
+
+// codexUsage represents token usage data from Codex turn.completed events
+type codexUsage struct {
+	InputTokens       int `json:"input_tokens"`
+	CachedInputTokens int `json:"cached_input_tokens"`
+	OutputTokens      int `json:"output_tokens"`
+}
