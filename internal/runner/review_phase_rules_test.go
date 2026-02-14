@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/state"
 )
 
@@ -62,20 +62,15 @@ func TestLightReviewUsesPhaseFilteredRules(t *testing.T) {
 	}
 	cfg.SetDefaults()
 
-	var buf strings.Builder
-	r := &Runner{
-		cfg:      cfg,
-		router:   router,
-		renderer: mockRend,
-		output:   &buf,
-		gitDiffFn: func(commit string) (string, error) {
-			return "diff --git a/code.go b/code.go\n+println(\"hello\")", nil
-		},
+	gitDiffFn := func(commit string) (string, error) {
+		return "diff --git a/code.go b/code.go\n+println(\"hello\")", nil
 	}
+
+	reviewer := reviewpkg.NewReviewer(cfg, router, nil, mockRend, gitDiffFn, nil)
 
 	b := &bead.Bead{ID: "test-1", Priority: 1, Title: "Test bead"}
 
-	_, _ = r.runLightReview(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{}, "")
+	_, _ = reviewer.RunLight(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{}, "")
 
 	// The rules passed to the review context should be the phase-filtered
 	// version (excluding Process section), not the full rules.
@@ -151,19 +146,15 @@ func TestThoroughReviewUsesPhaseFilteredRules(t *testing.T) {
 		t.Fatalf("Failed to record review: %v", err)
 	}
 
-	var buf strings.Builder
-	r := &Runner{
-		cfg:       cfg,
-		router:    router,
-		renderer:  mockRend,
-		output:    &buf,
-		gromitDir: tmpDir,
-		gitDiffFn: func(commit string) (string, error) {
-			return "diff --git a/code.go b/code.go\n+changes", nil
-		},
+	gitDiffFn := func(commit string) (string, error) {
+		return "diff --git a/code.go b/code.go\n+changes", nil
 	}
 
-	r.runThoroughReview(context.Background(), sf, 5, time.Time{})
+	reviewer := reviewpkg.NewReviewer(cfg, router, nil, mockRend, gitDiffFn, nil)
+
+	reviewer.RunThorough(context.Background(), sf, 5, time.Time{}, func() (string, error) {
+		return "abc123", nil
+	})
 
 	// The rules passed to the thorough review context should be phase-filtered.
 	if capturedRules != reviewPhaseRules {
@@ -218,19 +209,14 @@ func TestReviewInvocationsCallLoadRulesForPhaseNotLoadRules(t *testing.T) {
 		}
 		cfg.SetDefaults()
 
-		var buf strings.Builder
-		r := &Runner{
-			cfg:      cfg,
-			router:   router,
-			renderer: mockRend,
-			output:   &buf,
-			gitDiffFn: func(commit string) (string, error) {
-				return "diff --git a/code.go b/code.go\n+code", nil
-			},
+		gitDiffFn := func(commit string) (string, error) {
+			return "diff --git a/code.go b/code.go\n+code", nil
 		}
 
+		reviewer := reviewpkg.NewReviewer(cfg, router, nil, mockRend, gitDiffFn, nil)
+
 		b := &bead.Bead{ID: "test-lr", Priority: 1, Title: "Test"}
-		_, _ = r.runLightReview(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{}, "")
+		_, _ = reviewer.RunLight(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{}, "")
 
 		if !loadRulesForPhaseCalled {
 			t.Error("runLightReview did not call LoadRulesForPhase")
@@ -285,19 +271,15 @@ func TestReviewInvocationsCallLoadRulesForPhaseNotLoadRules(t *testing.T) {
 			t.Fatalf("Failed to record review: %v", err)
 		}
 
-		var buf strings.Builder
-		r := &Runner{
-			cfg:       cfg,
-			router:    router,
-			renderer:  mockRend,
-			output:    &buf,
-			gromitDir: tmpDir,
-			gitDiffFn: func(commit string) (string, error) {
-				return "diff --git a/code.go b/code.go\n+code", nil
-			},
+		gitDiffFn := func(commit string) (string, error) {
+			return "diff --git a/code.go b/code.go\n+code", nil
 		}
 
-		r.runThoroughReview(context.Background(), sf, 5, time.Time{})
+		reviewer := reviewpkg.NewReviewer(cfg, router, nil, mockRend, gitDiffFn, nil)
+
+		reviewer.RunThorough(context.Background(), sf, 5, time.Time{}, func() (string, error) {
+			return "abc123", nil
+		})
 
 		if !loadRulesForPhaseCalled {
 			t.Error("runThoroughReview did not call LoadRulesForPhase")

@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -140,22 +141,17 @@ func TestCrossReviewRoutesToOppositeProvider(t *testing.T) {
 		},
 	}
 
-	var buf strings.Builder
-	r := &Runner{
-		cfg:      cfg,
-		router:   router,
-		renderer: mockRend,
-		output:   &buf,
-		gitDiffFn: func(commit string) (string, error) {
-			return "diff --git a/code.go b/code.go\n+println(\"hello\")", nil
-		},
+	gitDiffFn := func(commit string) (string, error) {
+		return "diff --git a/code.go b/code.go\n+println(\"hello\")", nil
 	}
+
+	reviewer := reviewpkg.NewReviewer(cfg, router, nil, mockRend, gitDiffFn, nil)
 
 	b := &bead.Bead{ID: "test-1", Priority: 1}
 
 	// The build was done by "claude" (model "sonnet"), so cross-review
 	// should route to "openai".
-	_, _ = r.runLightReview(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{}, "claude")
+	_, _ = reviewer.RunLight(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{}, "claude")
 
 	if reviewProviderName != "openai" {
 		t.Errorf("cross-review routed to %q, want %q (opposite of build provider 'claude')",
@@ -226,21 +222,16 @@ func TestCrossReviewReverseDirection(t *testing.T) {
 		},
 	}
 
-	var buf strings.Builder
-	r := &Runner{
-		cfg:      cfg,
-		router:   router,
-		renderer: mockRend,
-		output:   &buf,
-		gitDiffFn: func(commit string) (string, error) {
-			return "diff --git a/code.go b/code.go\n+changes", nil
-		},
+	gitDiffFn := func(commit string) (string, error) {
+		return "diff --git a/code.go b/code.go\n+changes", nil
 	}
+
+	reviewer := reviewpkg.NewReviewer(cfg, router, nil, mockRend, gitDiffFn, nil)
 
 	b := &bead.Bead{ID: "test-2", Priority: 1}
 
 	// Build was by "openai" (model "gpt-4o"), cross-review should go to "claude"
-	_, _ = r.runLightReview(context.Background(), b, nil, "def456", "gpt-4o", 1, time.Time{}, "openai")
+	_, _ = reviewer.RunLight(context.Background(), b, nil, "def456", "gpt-4o", 1, time.Time{}, "openai")
 
 	if reviewProviderName != "claude" {
 		t.Errorf("cross-review routed to %q, want %q (opposite of build provider 'openai')",
