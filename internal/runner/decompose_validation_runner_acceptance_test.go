@@ -497,7 +497,7 @@ func TestRunnerDecomposeValidation_LogsViolationsAndRetries(t *testing.T) {
 		router:   mockRouter,
 		renderer: mockPromptRenderer,
 		output:   &buf,
-		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, func(format string, args ...interface{}, nil) {
+		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, func(format string, args ...interface{}) {
 			// Capture log output
 			buf.WriteString(fmt.Sprintf(format, args...))
 			buf.WriteString("\n")
