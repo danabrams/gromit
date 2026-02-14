@@ -137,11 +137,11 @@ type Idea struct {
 
 // PromptRenderer abstracts prompt rendering operations.
 type PromptRenderer interface {
-	RenderRefine(input interface{}) (string, error)
-	RenderPlan(input interface{}) (string, error)
-	RenderDecompose(input interface{}) (string, error)
+	RenderRefine(input *RefinePromptInput) (string, error)
+	RenderPlan(input *PlanPromptInput) (string, error)
+	RenderDecompose(input *DecomposePromptInput) (string, error)
 	RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error)
-	RenderExplore(ctx interface{}) (string, error)
+	RenderExplore(input *ExplorePromptInput) (string, error)
 }
 
 // LearningsManager abstracts learning persistence operations.

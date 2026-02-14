@@ -494,15 +494,15 @@ type cliPromptRenderer struct {
 	renderer *prompt.Renderer
 }
 
-func (r *cliPromptRenderer) RenderRefine(input interface{}) (string, error) {
+func (r *cliPromptRenderer) RenderRefine(input *pipeline.RefinePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
-func (r *cliPromptRenderer) RenderPlan(input interface{}) (string, error) {
+func (r *cliPromptRenderer) RenderPlan(input *pipeline.PlanPromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
-func (r *cliPromptRenderer) RenderDecompose(input interface{}) (string, error) {
+func (r *cliPromptRenderer) RenderDecompose(input *pipeline.DecomposePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
@@ -526,7 +526,7 @@ func (r *cliPromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewP
 	return r.renderer.RenderThoroughReview(reviewCtx)
 }
 
-func (r *cliPromptRenderer) RenderExplore(ctx interface{}) (string, error) {
+func (r *cliPromptRenderer) RenderExplore(input *pipeline.ExplorePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 

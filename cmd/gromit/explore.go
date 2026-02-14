@@ -164,15 +164,15 @@ type explorePromptRenderer struct {
 	renderer *prompt.Renderer
 }
 
-func (r *explorePromptRenderer) RenderRefine(input interface{}) (string, error) {
+func (r *explorePromptRenderer) RenderRefine(input *pipeline.RefinePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
-func (r *explorePromptRenderer) RenderPlan(input interface{}) (string, error) {
+func (r *explorePromptRenderer) RenderPlan(input *pipeline.PlanPromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
-func (r *explorePromptRenderer) RenderDecompose(input interface{}) (string, error) {
+func (r *explorePromptRenderer) RenderDecompose(input *pipeline.DecomposePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
@@ -180,14 +180,9 @@ func (r *explorePromptRenderer) RenderThoroughReview(input *pipeline.ThoroughRev
 	return "", fmt.Errorf("not implemented")
 }
 
-func (r *explorePromptRenderer) RenderExplore(ctx interface{}) (string, error) {
-	// Extract context
-	ctxMap, ok := ctx.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("unexpected context type")
-	}
-
-	topic, _ := ctxMap["Topic"].(string)
+func (r *explorePromptRenderer) RenderExplore(input *pipeline.ExplorePromptInput) (string, error) {
+	// Extract topic from typed input
+	topic := input.Query
 
 	// Load ClaudeMD and Rules
 	claudeMD, err := r.renderer.LoadClaudeMD()

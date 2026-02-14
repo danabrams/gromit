@@ -36,8 +36,8 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	}
 
 	// Build explore prompt using renderer
-	exploreContext := map[string]interface{}{
-		"Topic": input.Topic,
+	exploreContext := &ExplorePromptInput{
+		Query: input.Topic,
 	}
 	renderedPrompt, err := p.deps.PromptRenderer.RenderExplore(exploreContext)
 	if err != nil {
