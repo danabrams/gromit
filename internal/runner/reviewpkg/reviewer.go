@@ -12,7 +12,6 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
-	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -95,12 +94,15 @@ func (r *Reviewer) log(format string, args ...interface{}) {
 }
 
 // SelectReviewTier determines the tier for code review based on build model.
-// If buildModel is "opus", returns "high". Otherwise uses escalation.SelectTier.
+// If buildModel is "opus", returns "high". Otherwise uses config tier selection.
 func SelectReviewTier(cfg *config.Config, b *bead.Bead, buildModel string) string {
 	if buildModel == "opus" {
 		return provider.TierHigh
 	}
-	return escalation.SelectTier(cfg, b)
+	if cfg == nil || b == nil {
+		return provider.TierMedium
+	}
+	return cfg.SelectTier(b.Priority, b.Labels)
 }
 
 // RunLight runs a post-iteration code review.

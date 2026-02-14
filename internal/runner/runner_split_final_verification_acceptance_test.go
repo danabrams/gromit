@@ -69,6 +69,64 @@ func finalVerificationParseImports(t *testing.T, path string) map[string]bool {
 	return imports
 }
 
+func finalVerificationAllowedSubpackageImport(importPath string) bool {
+	const runnerPath = "github.com/danabrams/gromit/internal/runner"
+	const runtypesPath = "github.com/danabrams/gromit/internal/runner/runtypes"
+
+	if importPath == runtypesPath {
+		return true
+	}
+	if importPath == runnerPath {
+		return false
+	}
+	if strings.HasPrefix(importPath, runnerPath+"/") {
+		return false
+	}
+	return true
+}
+
+func TestFinalVerificationAllowedSubpackageImport(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		importPath string
+		want       bool
+	}{
+		{
+			name:       "allows_runtypes",
+			importPath: "github.com/danabrams/gromit/internal/runner/runtypes",
+			want:       true,
+		},
+		{
+			name:       "rejects_runner_facade",
+			importPath: "github.com/danabrams/gromit/internal/runner",
+			want:       false,
+		},
+		{
+			name:       "rejects_runner_subpackage",
+			importPath: "github.com/danabrams/gromit/internal/runner/validation",
+			want:       false,
+		},
+		{
+			name:       "allows_non_runner_import",
+			importPath: "os",
+			want:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := finalVerificationAllowedSubpackageImport(tt.importPath)
+			if got != tt.want {
+				t.Fatalf("finalVerificationAllowedSubpackageImport(%q) = %t, want %t", tt.importPath, got, tt.want)
+			}
+		})
+	}
+}
+
 func finalVerificationVerifyLayout(t *testing.T) {
 	t.Helper()
 
@@ -103,12 +161,7 @@ func finalVerificationVerifyLayout(t *testing.T) {
 			imports := finalVerificationParseImports(t, path)
 			for importPath := range imports {
 				unquoted := strings.Trim(importPath, "\"")
-				if !strings.HasPrefix(unquoted, "github.com/danabrams/gromit/internal/runner/") {
-					continue
-				}
-
-				allowed := unquoted == "github.com/danabrams/gromit/internal/runner/runtypes"
-				if !allowed {
+				if !finalVerificationAllowedSubpackageImport(unquoted) {
 					t.Fatalf("%s imports forbidden runner package path %s", path, unquoted)
 				}
 			}
