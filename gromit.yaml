@@ -89,6 +89,9 @@ precheck:
   enabled: true  # defaults to true if omitted
   model: haiku  # fast check with haiku
   timeout_seconds: 120  # headroom for CLI startup + file reads + tool use
+  verification:
+    enabled: true  # run sonnet verification when haiku says PASSED
+    timeout_seconds: 120
 
 # Validation settings - customize for your project
 validation:
