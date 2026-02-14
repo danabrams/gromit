@@ -52,7 +52,6 @@ func TestGromitYamlDocumentsModelTimeouts(t *testing.T) {
 // TestGromitYamlDocumentsCodexProvider verifies that the reference gromit.yaml
 // includes a commented-out Codex provider configuration example showing how to
 // configure Codex as an alternative provider.
-// Expected failure: gromit.yaml does not yet contain a commented Codex provider example
 func TestGromitYamlDocumentsCodexProvider(t *testing.T) {
 	content, err := os.ReadFile("../../gromit.yaml")
 	if err != nil {
