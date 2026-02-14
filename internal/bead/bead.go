@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -127,6 +128,7 @@ func rejectControlChars(s, fieldName string) error {
 type Client struct {
 	binary string
 	Dir    string // working directory for bd commands; if empty, uses current directory
+	runFn  func(args ...string) (string, error)
 }
 
 // NewClient creates a new bd client
@@ -695,17 +697,25 @@ func (c *Client) HasOpenChildren(parentID string) (bool, error) {
 		return false, fmt.Errorf("invalid parent ID %q", parentID)
 	}
 
-	// List all open beads and check if any have this parent
-	beads, err := c.List()
+	// Use targeted query with --parent flag to filter server-side
+	out, err := c.run("list", "--json", "--status", "open", "--parent", parentID, "--limit", "1")
 	if err != nil {
 		return false, err
 	}
-	for _, b := range beads {
-		if b.Parent == parentID {
-			return true, nil
-		}
+
+	// Parse the output - if non-empty array, parent has open children
+	out = strings.TrimSpace(out)
+	if out == "" || out == "[]" {
+		return false, nil
 	}
-	return false, nil
+
+	// Verify it's a valid JSON array (basic sanity check)
+	var beads []Bead
+	if err := json.Unmarshal([]byte(out), &beads); err != nil {
+		return false, fmt.Errorf("failed to parse bd output: %w", err)
+	}
+
+	return len(beads) > 0, nil
 }
 
 // FindSpecLabel returns the spec name from labels (spec:<name>) or empty string
@@ -775,6 +785,9 @@ func IsMethodologyActive(labels []string, methodologyName string, globalDefault 
 }
 
 func (c *Client) run(args ...string) (string, error) {
+	if c.runFn != nil {
+		return c.runFn(args...)
+	}
 	cmd := exec.Command(c.binary, args...)
 	if c.Dir != "" {
 		cmd.Dir = c.Dir
