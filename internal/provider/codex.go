@@ -294,12 +294,38 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				eventJSON, _ := json.Marshal(streamEvent)
 				handler(eventJSON)
 			}
+
+		case "item.completed":
+			if event.Item != nil && event.Item.Type == "agent_message" {
+				// Extract agent text
+				lastAgentText = event.Item.Text
+
+				// Write to output
+				if output != nil && event.Item.Text != "" {
+					output.Write([]byte(event.Item.Text))
+				}
+
+				// Emit assistant event
+				if handler != nil {
+					streamEvent := map[string]interface{}{
+						"type": "assistant",
+						"message": map[string]interface{}{
+							"content": []map[string]interface{}{
+								{
+									"type": "text",
+									"text": event.Item.Text,
+								},
+							},
+						},
+					}
+					eventJSON, _ := json.Marshal(streamEvent)
+					handler(eventJSON)
+				}
+			}
 		}
 
-		_ = lastAgentText
 		_ = usage
 		_ = toolHandler
-		_ = output
 	}
 
 	if err := scanner.Err(); err != nil {
