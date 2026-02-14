@@ -117,3 +117,46 @@ func TestRunnerSplitPhase2_HeartbeatExtracted(t *testing.T) {
 		t.Fatal("runner.go still contains method Runner.overwriteHeartbeat")
 	}
 }
+
+func TestRunnerSplitPhase2_DecomposeExtracted(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	runnerDir := filepath.Dir(thisFile)
+
+	decomposePath := filepath.Join(runnerDir, "decompose.go")
+	runnerPath := filepath.Join(runnerDir, "runner.go")
+
+	if _, err := os.Stat(decomposePath); err != nil {
+		t.Fatalf("expected decompose.go to exist: %v", err)
+	}
+
+	decomposeDecls := parseDecls(t, decomposePath)
+	if decomposeDecls.methods["Runner"] == nil || !decomposeDecls.methods["Runner"]["DecomposeTask"] {
+		t.Fatal("decompose.go missing method Runner.DecomposeTask")
+	}
+	if !decomposeDecls.funcs["parseDecomposeOutput"] {
+		t.Fatal("decompose.go missing function parseDecomposeOutput")
+	}
+	if decomposeDecls.methods["Runner"] == nil || !decomposeDecls.methods["Runner"]["CreateSubBeads"] {
+		t.Fatal("decompose.go missing method Runner.CreateSubBeads")
+	}
+	if decomposeDecls.methods["Runner"] == nil || !decomposeDecls.methods["Runner"]["injectMethodologyLabels"] {
+		t.Fatal("decompose.go missing method Runner.injectMethodologyLabels")
+	}
+
+	runnerDecls := parseDecls(t, runnerPath)
+	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["DecomposeTask"] {
+		t.Fatal("runner.go still contains method Runner.DecomposeTask")
+	}
+	if runnerDecls.funcs["parseDecomposeOutput"] {
+		t.Fatal("runner.go still contains function parseDecomposeOutput")
+	}
+	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["CreateSubBeads"] {
+		t.Fatal("runner.go still contains method Runner.CreateSubBeads")
+	}
+	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["injectMethodologyLabels"] {
+		t.Fatal("runner.go still contains method Runner.injectMethodologyLabels")
+	}
+}
