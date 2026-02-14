@@ -134,6 +134,12 @@ func (m *mockProvider) RunValidation(ctx context.Context, commands []string, tie
 	return nil, nil
 }
 func (m *mockProvider) IsUsageLimitError(result *provider.Result, err error) bool { return false }
+func (m *mockProvider) IsValidationPassed(result *provider.Result) bool {
+	return result.Success
+}
+func (m *mockProvider) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	return false, ""
+}
 
 // mockIterationLogger implements the IterationLogger interface for reviewpkg tests.
 type mockIterationLogger struct {

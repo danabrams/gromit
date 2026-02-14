@@ -64,6 +64,26 @@ func (m *mockProvider) IsUsageLimitError(result *provider.Result, err error) boo
 	return false
 }
 
+func (m *mockProvider) ModelForTier(tier string) string {
+	return "test-model"
+}
+
+func (m *mockProvider) Run(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+	return &provider.Result{Success: true, Model: "test-model"}, nil
+}
+
+func (m *mockProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	return &provider.Result{Success: true, Model: "test-model"}, nil
+}
+
+func (m *mockProvider) IsValidationPassed(result *provider.Result) bool {
+	return result.Success
+}
+
+func (m *mockProvider) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	return false, ""
+}
+
 // --- Helper ---
 
 func newTestBeadContext() *runtypes.BeadContext {

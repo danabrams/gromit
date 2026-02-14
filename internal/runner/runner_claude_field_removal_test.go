@@ -173,6 +173,14 @@ func (m *mockProviderForRunner) IsUsageLimitError(result *provider.Result, err e
 	return false
 }
 
+func (m *mockProviderForRunner) IsValidationPassed(result *provider.Result) bool {
+	return result.Success
+}
+
+func (m *mockProviderForRunner) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	return false, ""
+}
+
 type mockRouterForRunner struct {
 	FnSelect           func(phase string, tier string) (provider.Provider, string)
 	FnMarkUnavailable  func(name string)

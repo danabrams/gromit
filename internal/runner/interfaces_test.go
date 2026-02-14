@@ -2087,6 +2087,14 @@ func (m *mockClaudeProviderAdapter) IsUsageLimitError(result *provider.Result, e
 	return false
 }
 
+func (m *mockClaudeProviderAdapter) IsValidationPassed(result *provider.Result) bool {
+	return result.Success
+}
+
+func (m *mockClaudeProviderAdapter) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	return false, ""
+}
+
 // newMockRouterFromClaudeClient creates a router wrapping a mockClaudeClient for unit tests
 func newMockRouterFromClaudeClient(client *mockClaudeClient) *provider.Router {
 	adapter := &mockClaudeProviderAdapter{client: client}

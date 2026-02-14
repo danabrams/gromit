@@ -1950,3 +1950,11 @@ func (m *mockProviderForProcess) RunValidation(ctx context.Context, commands []s
 func (m *mockProviderForProcess) IsUsageLimitError(result *provider.Result, err error) bool {
 	return false
 }
+
+func (m *mockProviderForProcess) IsValidationPassed(result *provider.Result) bool {
+	return result.Success
+}
+
+func (m *mockProviderForProcess) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	return false, ""
+}

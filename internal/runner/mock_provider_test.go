@@ -62,6 +62,14 @@ func (m *mockProviderWithRouterTracking) IsUsageLimitError(result *provider.Resu
 	return false
 }
 
+func (m *mockProviderWithRouterTracking) IsValidationPassed(result *provider.Result) bool {
+	return result.Success
+}
+
+func (m *mockProviderWithRouterTracking) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	return false, ""
+}
+
 // newMockRouter creates a simple mock router with a basic provider for tests
 // that don't care about router functionality
 func newMockRouter() *provider.Router {

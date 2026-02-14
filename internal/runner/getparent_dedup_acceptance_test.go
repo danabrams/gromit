@@ -52,6 +52,26 @@ func (m *mockProvider) StreamRun(ctx context.Context, prompt string, tier string
 	return m.Run(ctx, prompt, tier)
 }
 
+func (m *mockProvider) ModelForTier(tier string) string {
+	return "mock-model"
+}
+
+func (m *mockProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	return &provider.Result{Success: true, ExitCode: 0, Output: "VALIDATION_PASSED"}, nil
+}
+
+func (m *mockProvider) IsUsageLimitError(result *provider.Result, err error) bool {
+	return false
+}
+
+func (m *mockProvider) IsValidationPassed(result *provider.Result) bool {
+	return result.Success
+}
+
+func (m *mockProvider) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	return false, ""
+}
+
 // TestGetParent_CalledOncePerIteration verifies that GetParent is called
 // at most once per iteration when a bead has a parent, even when precheck,
 // scope check, and build all run.
