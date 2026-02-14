@@ -546,15 +546,15 @@ type reviewAcceptanceMockPromptRenderer struct {
 	renderThoroughReviewFunc func(input *ThoroughReviewPromptInput) (string, error)
 }
 
-func (m *reviewAcceptanceMockPromptRenderer) RenderRefine(input interface{}) (string, error) {
+func (m *reviewAcceptanceMockPromptRenderer) RenderRefine(input *RefinePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
-func (m *reviewAcceptanceMockPromptRenderer) RenderPlan(input interface{}) (string, error) {
+func (m *reviewAcceptanceMockPromptRenderer) RenderPlan(input *PlanPromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
-func (m *reviewAcceptanceMockPromptRenderer) RenderDecompose(input interface{}) (string, error) {
+func (m *reviewAcceptanceMockPromptRenderer) RenderDecompose(input *DecomposePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
@@ -565,7 +565,7 @@ func (m *reviewAcceptanceMockPromptRenderer) RenderThoroughReview(input *Thoroug
 	return "", fmt.Errorf("not implemented")
 }
 
-func (m *reviewAcceptanceMockPromptRenderer) RenderExplore(ctx interface{}) (string, error) {
+func (m *reviewAcceptanceMockPromptRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 

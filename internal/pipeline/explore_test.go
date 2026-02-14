@@ -131,7 +131,7 @@ func TestPipeline_ExploreRecordsExistingArtifacts(t *testing.T) {
 	}
 
 	mockRenderer := &mockPromptRenderer{
-		RenderExploreFn: func(ctx interface{}) (string, error) {
+		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
 			recordedEpics, _ = ListMarkdownFiles(epicsDir)
 			recordedSpecs, _ = ListMarkdownFiles(specsDir)
 			return "explore prompt", nil
@@ -180,11 +180,11 @@ func TestPipeline_ExploreBuildsPromptWithContext(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 
-	var capturedContext interface{}
+	var capturedContext *ExplorePromptInput
 
 	mockRenderer := &mockPromptRenderer{
-		RenderExploreFn: func(ctx interface{}) (string, error) {
-			capturedContext = ctx
+		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
+			capturedContext = input
 			return "explore prompt with full context", nil
 		},
 	}
@@ -224,14 +224,9 @@ func TestPipeline_ExploreBuildsPromptWithContext(t *testing.T) {
 		t.Fatal("Explore should pass context to PromptRenderer.RenderExplore")
 	}
 
-	// Verify the context includes the topic
-	contextMap, ok := capturedContext.(map[string]interface{})
-	if !ok {
-		t.Fatalf("context should be a map, got %T", capturedContext)
-	}
-
-	if topic, ok := contextMap["Topic"].(string); !ok || topic != "Improve developer onboarding" {
-		t.Errorf("context Topic = %q, want %q", topic, "Improve developer onboarding")
+	// Verify the context includes the query (previously called Topic)
+	if capturedContext.Query != "Improve developer onboarding" {
+		t.Errorf("context Query = %q, want %q", capturedContext.Query, "Improve developer onboarding")
 	}
 }
 
@@ -269,7 +264,7 @@ func TestPipeline_ExploreWritesTempFile(t *testing.T) {
 	}
 
 	mockRenderer := &mockPromptRenderer{
-		RenderExploreFn: func(ctx interface{}) (string, error) {
+		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
 			return "test explore prompt content", nil
 		},
 	}
@@ -600,28 +595,28 @@ func (m *mockBacklogClient) Update(id string, fn func(*Idea)) error {
 }
 
 type mockPromptRenderer struct {
-	RenderRefineFn         func(input interface{}) (string, error)
-	RenderPlanFn           func(input interface{}) (string, error)
-	RenderDecomposeFn      func(input interface{}) (string, error)
-	RenderThoroughReviewFn func(ctx interface{}) (string, error)
-	RenderExploreFn        func(ctx interface{}) (string, error)
+	RenderRefineFn         func(input *RefinePromptInput) (string, error)
+	RenderPlanFn           func(input *PlanPromptInput) (string, error)
+	RenderDecomposeFn      func(input *DecomposePromptInput) (string, error)
+	RenderThoroughReviewFn func(input *ThoroughReviewPromptInput) (string, error)
+	RenderExploreFn        func(input *ExplorePromptInput) (string, error)
 }
 
-func (m *mockPromptRenderer) RenderRefine(input interface{}) (string, error) {
+func (m *mockPromptRenderer) RenderRefine(input *RefinePromptInput) (string, error) {
 	if m.RenderRefineFn != nil {
 		return m.RenderRefineFn(input)
 	}
 	return "refine prompt", nil
 }
 
-func (m *mockPromptRenderer) RenderPlan(input interface{}) (string, error) {
+func (m *mockPromptRenderer) RenderPlan(input *PlanPromptInput) (string, error) {
 	if m.RenderPlanFn != nil {
 		return m.RenderPlanFn(input)
 	}
 	return "plan prompt", nil
 }
 
-func (m *mockPromptRenderer) RenderDecompose(input interface{}) (string, error) {
+func (m *mockPromptRenderer) RenderDecompose(input *DecomposePromptInput) (string, error) {
 	if m.RenderDecomposeFn != nil {
 		return m.RenderDecomposeFn(input)
 	}
@@ -636,9 +631,9 @@ func (m *mockPromptRenderer) RenderThoroughReview(input *ThoroughReviewPromptInp
 }
 
 // RenderExplore is a new method that doesn't exist yet in the PromptRenderer interface
-func (m *mockPromptRenderer) RenderExplore(ctx interface{}) (string, error) {
+func (m *mockPromptRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
 	if m.RenderExploreFn != nil {
-		return m.RenderExploreFn(ctx)
+		return m.RenderExploreFn(input)
 	}
 	return "explore prompt", nil
 }

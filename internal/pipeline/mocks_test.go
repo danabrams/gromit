@@ -69,15 +69,15 @@ func (m *testBacklogClient) Update(id string, fn func(*Idea)) error {
 // testPromptRenderer is a mock for unit tests
 type testPromptRenderer struct{}
 
-func (m *testPromptRenderer) RenderRefine(input interface{}) (string, error) {
+func (m *testPromptRenderer) RenderRefine(input *RefinePromptInput) (string, error) {
 	return "", nil
 }
 
-func (m *testPromptRenderer) RenderPlan(input interface{}) (string, error) {
+func (m *testPromptRenderer) RenderPlan(input *PlanPromptInput) (string, error) {
 	return "", nil
 }
 
-func (m *testPromptRenderer) RenderDecompose(input interface{}) (string, error) {
+func (m *testPromptRenderer) RenderDecompose(input *DecomposePromptInput) (string, error) {
 	return "", nil
 }
 
@@ -85,7 +85,7 @@ func (m *testPromptRenderer) RenderThoroughReview(input *ThoroughReviewPromptInp
 	return "", nil
 }
 
-func (m *testPromptRenderer) RenderExplore(ctx interface{}) (string, error) {
+func (m *testPromptRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
 	return "", nil
 }
 

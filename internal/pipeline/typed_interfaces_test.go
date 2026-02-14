@@ -520,15 +520,15 @@ type typedInterfacesPromptRenderer struct {
 	renderThoroughReviewFn func(input *ThoroughReviewPromptInput) (string, error)
 }
 
-func (m *typedInterfacesPromptRenderer) RenderRefine(input interface{}) (string, error) {
+func (m *typedInterfacesPromptRenderer) RenderRefine(input *RefinePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
-func (m *typedInterfacesPromptRenderer) RenderPlan(input interface{}) (string, error) {
+func (m *typedInterfacesPromptRenderer) RenderPlan(input *PlanPromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
-func (m *typedInterfacesPromptRenderer) RenderDecompose(input interface{}) (string, error) {
+func (m *typedInterfacesPromptRenderer) RenderDecompose(input *DecomposePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
@@ -539,7 +539,7 @@ func (m *typedInterfacesPromptRenderer) RenderThoroughReview(input *ThoroughRevi
 	return "", fmt.Errorf("not implemented")
 }
 
-func (m *typedInterfacesPromptRenderer) RenderExplore(ctx interface{}) (string, error) {
+func (m *typedInterfacesPromptRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
