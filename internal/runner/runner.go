@@ -196,7 +196,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 				if len(tierMap) == 0 {
 					tierMap = defaultCodexTierToModelMap
 				}
-				providers[name] = provider.NewCodexProvider(def.Binary, def.Flags, def.PromptDelivery, def.PromptFlag, tierMap)
+				providers[name] = provider.NewCodexProvider(def.Binary, def.Flags, tierMap)
 			default:
 				return nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\" and \"codex\"", name)
 			}

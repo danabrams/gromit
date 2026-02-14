@@ -346,8 +346,16 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 		io.WriteString(stdin, prompt)
 	}()
 
-	// Wrap stdout with a monitor that warns if no data arrives within 30s
-	monitoredStdout := newStartupMonitor(stdout, 30*time.Second, output)
+	// Derive startup warning from invocation timeout: timeout/10, clamped to [30s, 120s].
+	// With default timeout=900s this gives 90s — reasonable for Opus with large prompts.
+	startupWarn := c.timeout / 10
+	if startupWarn < 30*time.Second {
+		startupWarn = 30 * time.Second
+	}
+	if startupWarn > 120*time.Second {
+		startupWarn = 120 * time.Second
+	}
+	monitoredStdout := newStartupMonitor(stdout, startupWarn, output)
 
 	// Read and process stdout
 	var resultText string
