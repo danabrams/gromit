@@ -1,8 +1,10 @@
 package provider
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -260,4 +262,40 @@ type codexEvent struct {
 	Status    string          `json:"status,omitempty"`
 	Usage     *codexUsage     `json:"usage,omitempty"`
 	ErrorInfo *codexErrorInfo `json:"error,omitempty"`
+}
+
+// processCodexStream reads Codex JSONL events from reader, converts them to StreamEvent format,
+// and calls handlers for each event. Returns the final result text (from last agent_message),
+// token usage data (from turn.completed), and any error encountered.
+func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler, toolHandler ToolCallHandler) (string, *codexUsage, error) {
+	scanner := bufio.NewScanner(reader)
+	var lastAgentText string
+	var usage *codexUsage
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var event codexEvent
+		if err := json.Unmarshal(line, &event); err != nil {
+			// Skip malformed lines silently
+			continue
+		}
+
+		// Process events here (will add in next iterations)
+		_ = event
+		_ = lastAgentText
+		_ = usage
+		_ = handler
+		_ = toolHandler
+		_ = output
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", nil, err
+	}
+
+	return lastAgentText, usage, nil
 }
