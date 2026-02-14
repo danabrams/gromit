@@ -50,14 +50,31 @@ Pipeline methods follow a consistent pattern: input struct with all parameters, 
 
 State fields in Runner that accumulate per-run should be reset at the start of Run(), not in individual phases. This ensures a fresh accumulator within each invocation while allowing safe in-run mutation (append) and non-destructive consumption (slice to last N).
 
-### 2026-02-13 | gromit-kf5g | patterns
+### 2026-02-13 | Renderer Config Wiring via Setter Methods | patterns
+*Related to: gromit-kf5g*
+
 Renderer is the central coordinator for context/state setup - modifications to how data flows into rendering (like character limits) happen in NewRunner() by calling Renderer setter methods after initialization, then BuildContext() reads those configured values
+
+### 2026-02-14 | gromit-ownd | conventions
+All acceptance test files in this codebase must include //go:build acceptance at the top. This is verified by final_verification_test.go:47 as part of the standard test suite. Check for this tag requirement when creating acceptance tests in internal/runner/reviewpkg/ or any other package.
 
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-13 | Package Extraction Timeouts | patterns
+*Related to: gromit-8s79, gromit-c4x5*
+
+Archived: already captured in RULES.md Process section (package extraction decomposition steps). Rule is the source of truth.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-13 | gromit-fa4v | conventions
+Archived: acceptance test build tag requirement already in RULES.md Test Quality section. Redundant.
+
+*Archived from provisional: redundant with rules*
 
 ### 2026-02-13 | gromit-qfr1 consolidation originals | conventions
 Archived: gromit-qfr1 (x2) consolidated into Provisional "Pipeline Method Conventions" entry.
@@ -1166,6 +1183,26 @@ Use FilterOptions struct pattern for optional filtering parameters - allows flex
 
 ### 2026-02-13 | gromit-kf5g | patterns
 When wiring config values through the runner initialization, use SetXxx() setter methods on components (like Renderer) called immediately after construction, rather than passing config directly to NewXxx(). This maintains clean separation between config and component initialization.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-meya | patterns
+When promoting internal types to exported types during refactoring, use type aliases (type Old = New) for backward compatibility rather than updating all references immediately. This allows incremental migration across the codebase.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-meya | patterns
+Type aliases (type X = Y) in Go are used for backward compatibility when moving types to new packages—establish aliases in the source location pointing to the new package to avoid breaking existing references
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-jz5w | patterns
+When migrating a struct to an external type, promote all field names to public (capitalized) across all usage sites in dependent packages (~150+ occurrences); this is safer than creating accessor methods and prevents field visibility mismatches
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-8s79 | conventions
+When extracting package logic: (1) Always remove old methods from source files after extraction is complete—stub out → extract → remove old implementation; (2) Update ALL call sites that invoke the old methods to use the new package functions; (3) If the extracted function signature changes (e.g., adding a *learnings.File parameter), audit all callers. Use grep to find old method names and verify they're gone.
 
 *Archived from new: filtered: generic engineering advice*
 
