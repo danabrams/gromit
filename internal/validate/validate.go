@@ -2,6 +2,20 @@ package validate
 
 import "strings"
 
+const (
+	// minOverlapLength is the minimum number of characters required for a
+	// substantial overlap between acceptance criteria to be considered a violation
+	minOverlapLength = 15
+)
+
+// scopeSignals contains keywords that may indicate over-scoping
+var scopeSignals = []string{
+	"refactor entire",
+	"update all",
+	"across all packages",
+	"and also",
+}
+
 // BeadCandidate represents a bead definition to be validated
 type BeadCandidate struct {
 	Title              string
@@ -61,19 +75,11 @@ func CheckBeads(beads []BeadCandidate) []Violation {
 // containsScopeSignal checks if text contains scope signal keywords
 func containsScopeSignal(text string) bool {
 	lower := strings.ToLower(text)
-	signals := []string{
-		"refactor entire",
-		"update all",
-		"across all packages",
-		"and also",
-	}
-
-	for _, signal := range signals {
+	for _, signal := range scopeSignals {
 		if strings.Contains(lower, signal) {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -94,14 +100,10 @@ func isSubstringMatch(a, b string) bool {
 	lowerA := strings.ToLower(a)
 	lowerB := strings.ToLower(b)
 
-	// Check if one is a substantial substring of the other
-	// We need at least a meaningful overlap (not just a word or two)
-	minLength := 15 // Require at least 15 characters of overlap
-
-	if len(lowerA) >= minLength && strings.Contains(lowerB, lowerA) {
+	if len(lowerA) >= minOverlapLength && strings.Contains(lowerB, lowerA) {
 		return true
 	}
-	if len(lowerB) >= minLength && strings.Contains(lowerA, lowerB) {
+	if len(lowerB) >= minOverlapLength && strings.Contains(lowerA, lowerB) {
 		return true
 	}
 

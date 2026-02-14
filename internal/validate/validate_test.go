@@ -6,7 +6,6 @@ import (
 )
 
 // TestCheckBeads_NoCriteria tests that beads with zero criteria are not flagged by criteria count rule
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_NoCriteria(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -24,7 +23,6 @@ func TestCheckBeads_NoCriteria(t *testing.T) {
 }
 
 // TestCheckBeads_ThreeCriteria tests that beads with exactly 3 criteria are not flagged
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_ThreeCriteria(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -46,7 +44,6 @@ func TestCheckBeads_ThreeCriteria(t *testing.T) {
 }
 
 // TestCheckBeads_FourCriteria tests that beads with more than 3 criteria are flagged
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_FourCriteria(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -80,7 +77,6 @@ func TestCheckBeads_FourCriteria(t *testing.T) {
 }
 
 // TestCheckBeads_SiblingOverlap_ExactSubstring tests that overlapping criteria are detected
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_SiblingOverlap_ExactSubstring(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -124,7 +120,6 @@ func TestCheckBeads_SiblingOverlap_ExactSubstring(t *testing.T) {
 }
 
 // TestCheckBeads_SiblingOverlap_CaseInsensitive tests that overlap detection is case-insensitive
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_SiblingOverlap_CaseInsensitive(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -158,7 +153,6 @@ func TestCheckBeads_SiblingOverlap_CaseInsensitive(t *testing.T) {
 }
 
 // TestCheckBeads_NoSiblingOverlap tests that distinct criteria are not flagged
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_NoSiblingOverlap(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -187,7 +181,6 @@ func TestCheckBeads_NoSiblingOverlap(t *testing.T) {
 }
 
 // TestCheckBeads_ScopeSignals_TitleKeywords tests that scope signal keywords in title are detected
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_ScopeSignals_TitleKeywords(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -251,7 +244,6 @@ func TestCheckBeads_ScopeSignals_TitleKeywords(t *testing.T) {
 }
 
 // TestCheckBeads_ScopeSignals_DescriptionKeywords tests that scope signal keywords in description are detected
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_ScopeSignals_DescriptionKeywords(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -279,7 +271,6 @@ func TestCheckBeads_ScopeSignals_DescriptionKeywords(t *testing.T) {
 }
 
 // TestCheckBeads_MultipleViolations tests that a single bead can have multiple violations
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_MultipleViolations(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -318,7 +309,6 @@ func TestCheckBeads_MultipleViolations(t *testing.T) {
 }
 
 // TestCheckBeads_MultipleBeads tests violation tracking across multiple beads
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_MultipleBeads(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -356,7 +346,6 @@ func TestCheckBeads_MultipleBeads(t *testing.T) {
 }
 
 // TestCheckBeads_EmptyList tests that empty bead list returns no violations
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_EmptyList(t *testing.T) {
 	beads := []BeadCandidate{}
 
@@ -368,7 +357,6 @@ func TestCheckBeads_EmptyList(t *testing.T) {
 }
 
 // TestViolation_FieldsPresent tests that Violation struct has required fields
-// Expected failure: Violation struct does not exist yet
 func TestViolation_FieldsPresent(t *testing.T) {
 	v := Violation{
 		BeadIndex: 1,
@@ -388,7 +376,6 @@ func TestViolation_FieldsPresent(t *testing.T) {
 }
 
 // TestBeadCandidate_FieldsPresent tests that BeadCandidate struct has required fields
-// Expected failure: BeadCandidate struct does not exist yet
 func TestBeadCandidate_FieldsPresent(t *testing.T) {
 	bc := BeadCandidate{
 		Title:       "Test title",
@@ -411,7 +398,6 @@ func TestBeadCandidate_FieldsPresent(t *testing.T) {
 }
 
 // TestCheckBeads_ScopeSignals_CaseInsensitive tests that scope signal detection is case-insensitive
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_ScopeSignals_CaseInsensitive(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -436,7 +422,6 @@ func TestCheckBeads_ScopeSignals_CaseInsensitive(t *testing.T) {
 }
 
 // TestCheckBeads_SiblingOverlap_SingleBead tests that single-bead input has no sibling overlap
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_SiblingOverlap_SingleBead(t *testing.T) {
 	beads := []BeadCandidate{
 		{
@@ -459,7 +444,6 @@ func TestCheckBeads_SiblingOverlap_SingleBead(t *testing.T) {
 }
 
 // TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings tests that partial word matches don't trigger false positives
-// Expected failure: CheckBeads function does not exist yet
 func TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings(t *testing.T) {
 	beads := []BeadCandidate{
 		{
