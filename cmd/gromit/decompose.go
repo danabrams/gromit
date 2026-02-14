@@ -225,15 +225,15 @@ type claudeClientAdapter struct {
 	Client *claude.Client
 }
 
-func (a *claudeClientAdapter) Run(prompt string, model string) (interface{}, error) {
+func (a *claudeClientAdapter) Run(prompt string, model string) (*pipeline.ClaudeRunResult, error) {
 	result, err := a.Client.Run(context.Background(), prompt, model)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{
-		"Success":  result.Success,
-		"ExitCode": result.ExitCode,
-		"Output":   result.Output,
+	return &pipeline.ClaudeRunResult{
+		Success:  result.Success,
+		ExitCode: result.ExitCode,
+		Output:   result.Output,
 	}, nil
 }
 
@@ -242,20 +242,56 @@ type beadClientAdapter struct {
 	Client *bead.Client
 }
 
-func (a *beadClientAdapter) Ready() (interface{}, error) {
-	return a.Client.Ready()
+func (a *beadClientAdapter) Ready() (*pipeline.BeadInfo, error) {
+	b, err := a.Client.Ready()
+	if err != nil {
+		return nil, err
+	}
+	return &pipeline.BeadInfo{
+		ID:       b.ID,
+		Title:    b.Title,
+		Priority: b.Priority,
+		Labels:   b.Labels,
+	}, nil
 }
 
-func (a *beadClientAdapter) Show(id string) (interface{}, error) {
-	return a.Client.Show(id)
+func (a *beadClientAdapter) Show(id string) (*pipeline.BeadInfo, error) {
+	b, err := a.Client.Show(id)
+	if err != nil {
+		return nil, err
+	}
+	return &pipeline.BeadInfo{
+		ID:       b.ID,
+		Title:    b.Title,
+		Priority: b.Priority,
+		Labels:   b.Labels,
+	}, nil
 }
 
-func (a *beadClientAdapter) Create(title string, priority int, labels []string, outputs []string) (interface{}, error) {
-	return a.Client.Create(title, priority, labels, outputs)
+func (a *beadClientAdapter) Create(title string, priority int, labels []string, outputs []string) (*pipeline.BeadInfo, error) {
+	b, err := a.Client.Create(title, priority, labels, outputs)
+	if err != nil {
+		return nil, err
+	}
+	return &pipeline.BeadInfo{
+		ID:       b.ID,
+		Title:    b.Title,
+		Priority: b.Priority,
+		Labels:   b.Labels,
+	}, nil
 }
 
-func (a *beadClientAdapter) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
-	return a.Client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
+func (a *beadClientAdapter) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*pipeline.BeadInfo, error) {
+	b, err := a.Client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
+	if err != nil {
+		return nil, err
+	}
+	return &pipeline.BeadInfo{
+		ID:       b.ID,
+		Title:    b.Title,
+		Priority: b.Priority,
+		Labels:   b.Labels,
+	}, nil
 }
 
 func (a *beadClientAdapter) Close(id string) error {
