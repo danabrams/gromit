@@ -15,20 +15,9 @@ func TestCodexProviderRunValidation(t *testing.T) {
 
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
-# Echo the prompt file content
-PROMPT_FILE=""
-for i in "$@"; do
-    if [ "$prev" = "--prompt" ]; then
-        PROMPT_FILE="$i"
-        break
-    fi
-    prev="$i"
-done
-
-if [ -f "$PROMPT_FILE" ]; then
-    cat "$PROMPT_FILE"
-    echo "VALIDATION_PASSED"
-fi
+# Echo the prompt from stdin
+cat
+echo "VALIDATION_PASSED"
 exit 0
 `
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {

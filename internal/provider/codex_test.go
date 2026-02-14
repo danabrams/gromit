@@ -131,102 +131,6 @@ func TestCodexProviderNameMethod(t *testing.T) {
 	}
 }
 
-// TestCodexProviderRunBuildsCommandWithModelFlag verifies that Run() constructs
-// the command with the --model flag using the tier-to-model mapping.
-// Expected failure: CodexProvider Run() method does not exist yet
-func TestCodexProviderRunBuildsCommandWithModelFlag(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Create a mock codex binary that echoes its arguments
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo "MODEL_FLAG: $1"
-echo "MODEL_VALUE: $2"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
-
-	tierMap := map[string]string{
-		TierHigh:   "o3",
-		TierMedium: "gpt-4o",
-		TierLow:    "gpt-4o-mini",
-	}
-
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
-
-	ctx := context.Background()
-	result, err := cp.Run(ctx, "test prompt", TierMedium)
-
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-
-	if result == nil {
-		t.Fatal("Run() returned nil result")
-	}
-
-	// Verify that the command was built with --model gpt-4o
-	if !strings.Contains(result.Output, "MODEL_FLAG: --model") {
-		t.Errorf("Run() output missing --model flag, got: %s", result.Output)
-	}
-	if !strings.Contains(result.Output, "MODEL_VALUE: gpt-4o") {
-		t.Errorf("Run() output missing model value gpt-4o, got: %s", result.Output)
-	}
-}
-
-// TestCodexProviderRunWritesPromptToTempFile verifies that Run() writes the
-// prompt to a temporary file when promptDelivery is "prompt_file_arg".
-// Expected failure: CodexProvider Run() method does not exist yet
-func TestCodexProviderRunWritesPromptToTempFile(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Create a mock codex binary that reads and echoes the prompt file
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-# The prompt file should be passed via --prompt flag
-PROMPT_FILE=""
-for i in "$@"; do
-    if [ "$prev" = "--prompt" ]; then
-        PROMPT_FILE="$i"
-        break
-    fi
-    prev="$i"
-done
-
-if [ -f "$PROMPT_FILE" ]; then
-    echo "PROMPT_CONTENT:"
-    cat "$PROMPT_FILE"
-else
-    echo "ERROR: Prompt file not found or not passed"
-    exit 1
-fi
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
-
-	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
-
-	ctx := context.Background()
-	testPrompt := "This is a test prompt for Codex"
-	result, err := cp.Run(ctx, testPrompt, TierMedium)
-
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-
-	if !strings.Contains(result.Output, "PROMPT_CONTENT:") {
-		t.Errorf("Run() did not pass prompt file correctly, output: %s", result.Output)
-	}
-
-	if !strings.Contains(result.Output, testPrompt) {
-		t.Errorf("Run() prompt file missing expected content, output: %s", result.Output)
-	}
-}
-
 // TestCodexProviderRunCapturesStdout verifies that Run() captures the
 // standard output from the codex CLI invocation.
 // Expected failure: CodexProvider Run() method does not exist yet
@@ -891,7 +795,16 @@ func TestCodexProviderEmptyTierToModelMap(t *testing.T) {
 
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
-echo "MODEL: $2"
+# Extract model value from arguments
+MODEL=""
+while [[ $# -gt 0 ]]; do
+    if [ "$1" = "--model" ]; then
+        MODEL="$2"
+        break
+    fi
+    shift
+done
+echo "MODEL: $MODEL"
 exit 0
 `
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
@@ -925,22 +838,17 @@ func TestCodexProviderIntegrationWithRealBinary(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	// Create a realistic mock codex binary
+	// Create a realistic mock codex binary that reads from stdin
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
 
 # Parse arguments
 MODEL=""
-PROMPT_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --model)
             MODEL="$2"
-            shift 2
-            ;;
-        --prompt)
-            PROMPT_FILE="$2"
             shift 2
             ;;
         *)
@@ -949,16 +857,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Verify prompt file exists
-if [ ! -f "$PROMPT_FILE" ]; then
-    echo "Error: Prompt file not found: $PROMPT_FILE" >&2
-    exit 1
-fi
-
 # Simulate codex response
 echo "Processing with model: $MODEL"
 echo "Prompt content:"
-cat "$PROMPT_FILE"
+cat  # Read from stdin
 echo ""
 echo "Response: This is a simulated Codex response."
 
