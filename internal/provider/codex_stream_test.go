@@ -2,6 +2,9 @@ package provider
 
 import (
 	"bytes"
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -144,5 +147,81 @@ func TestProcessCodexStreamUsageExtraction(t *testing.T) {
 
 	if usage.OutputTokens != 500 {
 		t.Errorf("OutputTokens = %d, want 500", usage.OutputTokens)
+	}
+}
+
+// TestStreamRunWithHandlerAddsJSONFlag verifies that StreamRun adds --json flag when handler is non-nil.
+// Red: StreamRun does not add --json flag conditionally yet
+func TestStreamRunWithHandlerAddsJSONFlag(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Mock binary that emits JSON only if --json is present
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+if [[ "$*" == *"--json"* ]]; then
+    echo '{"type":"thread.started"}'
+else
+    echo "plain text"
+fi
+exit 0
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	tierMap := map[string]string{TierMedium: "gpt-4o"}
+	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+
+	ctx := context.Background()
+	var output bytes.Buffer
+	var handlerCalled bool
+
+	// With handler, should add --json and call handler
+	result, err := cp.StreamRun(ctx, "test", TierMedium, &output, func([]byte) {
+		handlerCalled = true
+	}, nil)
+
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v", err)
+	}
+
+	if !handlerCalled {
+		t.Error("StreamRun() with handler should call EventHandler when --json produces events")
+	}
+
+	if result == nil {
+		t.Fatal("StreamRun() returned nil result")
+	}
+}
+
+// TestStreamRunWithoutHandlerOmitsJSONFlag verifies that StreamRun does not add --json when handler is nil.
+// Red: StreamRun does not conditionally omit --json yet
+func TestStreamRunWithoutHandlerOmitsJSONFlag(t *testing.T) {
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+echo "ARGS: $@"
+exit 0
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	tierMap := map[string]string{TierMedium: "gpt-4o"}
+	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+
+	ctx := context.Background()
+	var output bytes.Buffer
+
+	// Without handler, should NOT add --json
+	result, err := cp.StreamRun(ctx, "test", TierMedium, &output, nil, nil)
+
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v", err)
+	}
+
+	if strings.Contains(result.Output, "--json") {
+		t.Errorf("StreamRun() without handler should not add --json flag, output: %s", result.Output)
 	}
 }

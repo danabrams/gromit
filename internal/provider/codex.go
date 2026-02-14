@@ -98,7 +98,7 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 }
 
 // StreamRun executes an LLM invocation with streaming output.
-// EventHandler and ToolCallHandler are no-ops for Codex (no stream-json format).
+// When EventHandler is non-nil, invokes codex with --json and parses JSONL events.
 func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
 	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	if cp == nil {
@@ -113,9 +113,60 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	defer cleanup()
 
 	args := cp.buildCommandArgs(model, tmpFile)
+
+	// Add --json flag when EventHandler is present
+	if handler != nil {
+		args = append(args, "--json")
+	}
+
 	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
 
-	// Stream output to both the provided writer and our capture buffer
+	startTime := time.Now()
+
+	// When handler is present, use processCodexStream to parse JSONL
+	if handler != nil {
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+		}
+
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+
+		if err := cmd.Start(); err != nil {
+			return nil, fmt.Errorf("failed to start codex command: %w", err)
+		}
+
+		// Process the JSONL stream
+		resultText, _, err := processCodexStream(stdout, output, handler, onToolCall)
+		if err != nil {
+			cmd.Wait()
+			return nil, fmt.Errorf("failed to process codex stream: %w", err)
+		}
+
+		if err := cmd.Wait(); err != nil {
+			duration := time.Since(startTime)
+			exitCode, _ := cp.extractExitCode(err)
+			return &Result{
+				Success:  false,
+				Output:   resultText + stderr.String(),
+				ExitCode: exitCode,
+				Duration: duration,
+				Model:    model,
+			}, nil
+		}
+
+		duration := time.Since(startTime)
+		return &Result{
+			Success:  true,
+			Output:   resultText,
+			ExitCode: 0,
+			Duration: duration,
+			Model:    model,
+		}, nil
+	}
+
+	// Without handler, use plain text capture (existing behavior)
 	var captureBuffer bytes.Buffer
 	var multiWriter io.Writer
 	if output != nil {
@@ -128,7 +179,6 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	cmd.Stdout = multiWriter
 	cmd.Stderr = &stderr
 
-	startTime := time.Now()
 	err = cmd.Run()
 	duration := time.Since(startTime)
 
@@ -141,9 +191,6 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	if err != nil {
 		return nil, err
 	}
-
-	// EventHandler and ToolCallHandler are intentionally not called for Codex
-	// as it doesn't produce Claude-style stream-json events
 
 	return &Result{
 		Success:  exitCode == 0,
