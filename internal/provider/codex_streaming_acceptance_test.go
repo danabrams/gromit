@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,10 +20,12 @@ import (
 func TestCodexProviderStreamRunWithJSONFlag(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Create a mock codex binary that echoes its arguments
+	// Create a mock codex binary that echoes arguments as JSON (for handler mode)
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
-echo "ARGS: $@"
+cat > /dev/null  # Consume stdin
+# Emit JSON with args embedded
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"ARGS: '"$*"'"}}'
 exit 0
 `
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
@@ -109,7 +112,7 @@ func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
 		},
 	}
 	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := "#!/bin/bash\necho '" + string(eventJSON) + "'\nexit 0\n"
+	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -159,11 +162,12 @@ func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 		"type": "item.completed",
 		"item": map[string]interface{}{
 			"type": "agent_message",
-			"text": "This is the agent's response.",
+			"text": "This is the agent response.",
 		},
 	}
 	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := "#!/bin/bash\necho '" + string(eventJSON) + "'\nexit 0\n"
+	// Use printf with %s to avoid bash quoting issues with JSON content
+	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -215,8 +219,8 @@ func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 		t.Errorf("content block type = %q, want %q", streamEvent.Message.Content[0].Type, "text")
 	}
 
-	if !strings.Contains(streamEvent.Message.Content[0].Text, "agent's response") {
-		t.Errorf("content text = %q, want it to contain %q", streamEvent.Message.Content[0].Text, "agent's response")
+	if !strings.Contains(streamEvent.Message.Content[0].Text, "agent response") {
+		t.Errorf("content text = %q, want it to contain %q", streamEvent.Message.Content[0].Text, "agent response")
 	}
 }
 
@@ -235,7 +239,7 @@ func TestCodexProviderInvokesToolCallHandlerForCommandExecution(t *testing.T) {
 		},
 	}
 	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := "#!/bin/bash\necho '" + string(eventJSON) + "'\nexit 0\n"
+	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -285,7 +289,7 @@ func TestCodexProviderInvokesToolCallHandlerForFileChange(t *testing.T) {
 		},
 	}
 	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := "#!/bin/bash\necho '" + string(eventJSON) + "'\nexit 0\n"
+	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -335,7 +339,7 @@ func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
 		},
 	}
 	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := "#!/bin/bash\necho '" + string(eventJSON) + "'\nexit 0\n"
+	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -381,7 +385,7 @@ func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
 		},
 	}
 	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := "#!/bin/bash\necho '" + string(eventJSON) + "'\nexit 0\n"
+	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -463,20 +467,9 @@ func TestCodexProviderRunValidationConstructsPrompt(t *testing.T) {
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
-	// Mock binary that echoes the prompt file content to verify prompt structure
+	// Mock binary that echoes stdin to verify prompt structure
 	mockScript := `#!/bin/bash
-PROMPT_FILE=""
-for i in "$@"; do
-    if [ "$prev" = "--prompt" ]; then
-        PROMPT_FILE="$i"
-        break
-    fi
-    prev="$i"
-done
-
-if [ -f "$PROMPT_FILE" ]; then
-    cat "$PROMPT_FILE"
-fi
+cat
 exit 0
 `
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
@@ -913,7 +906,7 @@ func TestCodexProviderStreamRunCreatesTimestampedToolEvents(t *testing.T) {
 		},
 	}
 	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := "#!/bin/bash\necho '" + string(eventJSON) + "'\nexit 0\n"
+	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}

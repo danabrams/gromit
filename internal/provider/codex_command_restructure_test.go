@@ -476,14 +476,18 @@ func TestCodexProviderStreamRunWithJSONFlagAndStdin(t *testing.T) {
 
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
+# Read stdin
+STDIN_CONTENT=$(cat)
+
 # Check if --json flag is present
 if [[ "$*" == *"--json"* ]]; then
+    # Emit JSON with markers
+    echo '{"type":"item.completed","item":{"type":"agent_message","text":"HAS_JSON_FLAG STDIN_CONTENT:'"$STDIN_CONTENT"'"}}'
+else
+    # Plain text mode
     echo "HAS_JSON_FLAG"
+    echo "STDIN_CONTENT:$STDIN_CONTENT"
 fi
-
-# Read and echo stdin
-echo "STDIN_CONTENT:"
-cat
 exit 0
 `
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
