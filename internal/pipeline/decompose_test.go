@@ -83,23 +83,17 @@ created: 2026-02-11
 		},
 	}
 
-	var createdBeads []decomposeAcceptanceBeadDef
+	var createdBeads []*BeadInfo
 	mockBead := &decomposeAcceptanceBeadClient{
 		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
-			bead := decomposeAcceptanceBeadDef{
+			bead := &BeadInfo{
 				ID:       fmt.Sprintf("bead-%d", len(createdBeads)+1),
 				Title:    title,
 				Priority: priority,
 				Labels:   labels,
-				Deps:     deps,
 			}
 			createdBeads = append(createdBeads, bead)
-			return &BeadInfo{
-				ID:       bead.ID,
-				Title:    bead.Title,
-				Priority: bead.Priority,
-				Labels:   bead.Labels,
-			}, nil
+			return bead, nil
 		},
 	}
 
@@ -979,12 +973,4 @@ func (m *decomposeAcceptanceBeadClient) CreateWithDepsAndDescription(title strin
 
 func (m *decomposeAcceptanceBeadClient) Close(id string) error {
 	return nil
-}
-
-type decomposeAcceptanceBeadDef struct {
-	ID       string
-	Title    string
-	Priority int
-	Labels   []string
-	Deps     []string
 }
