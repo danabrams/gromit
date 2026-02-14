@@ -356,10 +356,16 @@ type codexItem struct {
 	ToolName string `json:"tool_name"`
 }
 
+// codexDelta represents incremental text from Codex delta events
+type codexDelta struct {
+	Text string `json:"text"`
+}
+
 // codexEvent represents a top-level Codex JSONL event
 type codexEvent struct {
 	Type      string          `json:"type"`
 	Item      *codexItem      `json:"item,omitempty"`
+	Delta     *codexDelta     `json:"delta,omitempty"`
 	Status    string          `json:"status,omitempty"`
 	Usage     *codexUsage     `json:"usage,omitempty"`
 	ErrorInfo *codexErrorInfo `json:"error,omitempty"`
@@ -373,6 +379,7 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 	var lastAgentText string
 	var usage *codexUsage
 	var errInfo *codexErrorInfo
+	var sawDeltas bool
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -421,13 +428,23 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				}
 			}
 
+		case "item.agentMessage.delta":
+			// Stream incremental text to terminal in real-time
+			if event.Delta != nil && event.Delta.Text != "" {
+				sawDeltas = true
+				if output != nil {
+					output.Write([]byte(event.Delta.Text))
+				}
+			}
+
 		case "item.completed":
 			if event.Item != nil && event.Item.Type == "agent_message" {
-				// Extract agent text
+				// Extract agent text (used as final result)
 				lastAgentText = event.Item.Text
 
-				// Write to output
-				if output != nil && event.Item.Text != "" {
+				// Write to output only if no delta events were seen
+				// (deltas already streamed text incrementally)
+				if !sawDeltas && output != nil && event.Item.Text != "" {
 					output.Write([]byte(event.Item.Text))
 				}
 
