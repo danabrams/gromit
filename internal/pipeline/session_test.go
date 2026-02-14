@@ -35,10 +35,10 @@ func TestNewBaseSessionConstructor(t *testing.T) {
 	}
 }
 
-// TestBaseSessionImplementsSessionInterface verifies baseSession implements Session
-// Expected failure: baseSession does not implement Session interface yet
-func TestBaseSessionImplementsSessionInterface(t *testing.T) {
-	var _ Session = (*baseSession)(nil)
+// TestBaseSessionImplementsBaseSessionInterface verifies baseSession implements BaseSession
+// Expected failure: BaseSession interface does not exist yet (Session needs to be renamed to BaseSession)
+func TestBaseSessionImplementsBaseSessionInterface(t *testing.T) {
+	var _ BaseSession = (*baseSession)(nil)
 }
 
 // TestBaseSessionEventsChannel verifies Events() returns readable channel
@@ -511,15 +511,14 @@ func TestExploreSessionWrapper(t *testing.T) {
 }
 
 // TestRefineSessionResultAfterCompletion verifies Result() returns parsed results after session ends
-// Expected failure: RefineSession.Result() does not parse and return results yet
+// Expected failure: newRefineSession constructor does not exist yet
 func TestRefineSessionResultAfterCompletion(t *testing.T) {
 	ctx := context.Background()
 	// Mock command that completes successfully
 	cmd := exec.Command("echo", "session complete")
 
-	// Create a refine session (this will need the actual constructor when implemented)
-	baseSession := newBaseSession(ctx, cmd, nil)
-	refineSession := &RefineSession{Session: baseSession}
+	// Create a refine session using the constructor
+	refineSession := newRefineSession(ctx, cmd, nil)
 
 	// Wait for completion
 	err := refineSession.Wait()
@@ -723,5 +722,361 @@ func TestBaseSessionWithStdinPromptDelivery(t *testing.T) {
 
 	if !sawOutput {
 		t.Error("Did not receive expected output")
+	}
+}
+
+// TestGenericSessionInterface verifies Session[T any] generic interface exists
+// Expected failure: Session[T] generic interface does not exist yet
+func TestGenericSessionInterface(t *testing.T) {
+	// Session[T] should embed BaseSession and add Result() method
+	// This test verifies the generic interface can be used with different result types
+
+	// Test that RefineSession satisfies Session[RefineResult]
+	var _ Session[RefineResult] = (*RefineSession)(nil)
+
+	// Test that PlanSession satisfies Session[PlanResult]
+	var _ Session[PlanResult] = (*PlanSession)(nil)
+
+	// Test that ReviewSession satisfies Session[ReviewResult]
+	var _ Session[ReviewResult] = (*ReviewSession)(nil)
+
+	// Test that ExploreSession satisfies Session[ExploreResult]
+	var _ Session[ExploreResult] = (*ExploreSession)(nil)
+}
+
+// TestResultBeforeWaitCompletes verifies Result() returns error when called before Wait() completes
+// Expected failure: typed sessions do not return "session not complete" error yet
+func TestResultBeforeWaitCompletes(t *testing.T) {
+	ctx := context.Background()
+	// Use a long-running command
+	cmd := exec.Command("sleep", "1")
+
+	tests := []struct {
+		name    string
+		session interface {
+			Wait() error
+			Cancel()
+		}
+		resultFunc func() error
+	}{
+		{
+			name:    "RefineSession",
+			session: newRefineSession(ctx, cmd, nil),
+			resultFunc: func() error {
+				_, err := newRefineSession(ctx, exec.Command("sleep", "1"), nil).Result()
+				return err
+			},
+		},
+		{
+			name:    "PlanSession",
+			session: newPlanSession(ctx, cmd, nil),
+			resultFunc: func() error {
+				_, err := newPlanSession(ctx, exec.Command("sleep", "1"), nil).Result()
+				return err
+			},
+		},
+		{
+			name:    "ReviewSession",
+			session: newReviewSession(ctx, cmd, nil),
+			resultFunc: func() error {
+				_, err := newReviewSession(ctx, exec.Command("sleep", "1"), nil).Result()
+				return err
+			},
+		},
+		{
+			name:    "ExploreSession",
+			session: newExploreSession(ctx, cmd, nil),
+			resultFunc: func() error {
+				_, err := newExploreSession(ctx, exec.Command("sleep", "1"), nil).Result()
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer tt.session.Cancel()
+
+			// Call Result() before Wait() completes
+			err := tt.resultFunc()
+
+			if err == nil {
+				t.Error("Result() before Wait() returned nil error, want error")
+			}
+
+			if err != nil && !strings.Contains(err.Error(), "not complete") {
+				t.Errorf("Result() error = %q, want error containing 'not complete'", err.Error())
+			}
+		})
+	}
+}
+
+// TestPlanSessionResultAfterCompletion verifies PlanSession.Result() returns parsed results
+// Expected failure: PlanSession does not have result field and Result() implementation yet
+func TestPlanSessionResultAfterCompletion(t *testing.T) {
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
+
+	// Create PlanSession with post-processing that populates result
+	session := newPlanSession(ctx, cmd, nil)
+
+	// Wait for completion
+	err := session.Wait()
+	if err != nil {
+		t.Fatalf("Wait() failed: %v", err)
+	}
+
+	// Result() should return parsed PlanResult
+	result, err := session.Result()
+	if err != nil {
+		t.Errorf("Result() after completion failed: %v", err)
+	}
+
+	// Result should have initialized slices
+	if result.CreatedPlans == nil {
+		t.Error("Result.CreatedPlans is nil, want empty slice")
+	}
+}
+
+// TestReviewSessionResultAfterCompletion verifies ReviewSession.Result() returns parsed results
+// Expected failure: ReviewSession does not have result field and Result() implementation yet
+func TestReviewSessionResultAfterCompletion(t *testing.T) {
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
+
+	session := newReviewSession(ctx, cmd, nil)
+
+	err := session.Wait()
+	if err != nil {
+		t.Fatalf("Wait() failed: %v", err)
+	}
+
+	result, err := session.Result()
+	if err != nil {
+		t.Errorf("Result() after completion failed: %v", err)
+	}
+
+	// ReviewResult has no slice fields but should be valid
+	var _ ReviewResult = result
+}
+
+// TestExploreSessionResultAfterCompletion verifies ExploreSession.Result() returns parsed results
+// Expected failure: ExploreSession does not have result field and Result() implementation yet
+func TestExploreSessionResultAfterCompletion(t *testing.T) {
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
+
+	session := newExploreSession(ctx, cmd, nil)
+
+	err := session.Wait()
+	if err != nil {
+		t.Fatalf("Wait() failed: %v", err)
+	}
+
+	result, err := session.Result()
+	if err != nil {
+		t.Errorf("Result() after completion failed: %v", err)
+	}
+
+	// Result should have initialized slices
+	if result.CreatedSpecs == nil {
+		t.Error("Result.CreatedSpecs is nil, want empty slice")
+	}
+	if result.CreatedEpics == nil {
+		t.Error("Result.CreatedEpics is nil, want empty slice")
+	}
+	if result.CreatedBacklogItems == nil {
+		t.Error("Result.CreatedBacklogItems is nil, want empty slice")
+	}
+}
+
+// TestTypedSessionsEmbedBaseSession verifies typed sessions embed baseSession
+// Expected failure: typed sessions do not embed baseSession yet
+func TestTypedSessionsEmbedBaseSession(t *testing.T) {
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
+
+	tests := []struct {
+		name    string
+		session interface {
+			Events() <-chan Event
+			SendInput(string) error
+			Cancel()
+			Wait() error
+		}
+	}{
+		{
+			name:    "RefineSession embeds baseSession",
+			session: newRefineSession(ctx, cmd, nil),
+		},
+		{
+			name:    "PlanSession embeds baseSession",
+			session: newPlanSession(ctx, cmd, nil),
+		},
+		{
+			name:    "ReviewSession embeds baseSession",
+			session: newReviewSession(ctx, cmd, nil),
+		},
+		{
+			name:    "ExploreSession embeds baseSession",
+			session: newExploreSession(ctx, cmd, nil),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer tt.session.Cancel()
+
+			// Verify baseSession methods are available
+			events := tt.session.Events()
+			if events == nil {
+				t.Error("Events() returned nil, want non-nil channel")
+			}
+
+			// Wait for process to complete
+			_ = tt.session.Wait()
+		})
+	}
+}
+
+// TestBaseSessionPostProcessCallbackSignature verifies postProcess callback signature
+// Expected failure: baseSession does not accept postProcess callback parameter yet
+func TestBaseSessionPostProcessCallbackSignature(t *testing.T) {
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
+
+	// postProcess callback should have signature: func() error
+	var postProcessCalled bool
+	postProcessFn := func() error {
+		postProcessCalled = true
+		return nil
+	}
+
+	session := newBaseSession(ctx, cmd, postProcessFn)
+
+	err := session.Wait()
+	if err != nil {
+		t.Fatalf("Wait() failed: %v", err)
+	}
+
+	if !postProcessCalled {
+		t.Error("postProcess callback was not called")
+	}
+}
+
+// TestTypedSessionsHaveResultFields verifies typed sessions have result and resultErr fields
+// Expected failure: typed sessions do not have result/resultErr fields yet
+func TestTypedSessionsHaveResultFields(t *testing.T) {
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
+
+	// RefineSession
+	refineSession := newRefineSession(ctx, cmd, func() error {
+		return nil
+	})
+	_ = refineSession.Wait()
+	refineResult, refineErr := refineSession.Result()
+	if refineErr != nil {
+		t.Errorf("RefineSession.Result() failed: %v", refineErr)
+	}
+	// Verify result is the correct type
+	var _ RefineResult = refineResult
+
+	// PlanSession
+	planSession := newPlanSession(ctx, cmd, func() error {
+		return nil
+	})
+	_ = planSession.Wait()
+	planResult, planErr := planSession.Result()
+	if planErr != nil {
+		t.Errorf("PlanSession.Result() failed: %v", planErr)
+	}
+	var _ PlanResult = planResult
+
+	// ReviewSession
+	reviewSession := newReviewSession(ctx, cmd, func() error {
+		return nil
+	})
+	_ = reviewSession.Wait()
+	reviewResult, reviewErr := reviewSession.Result()
+	if reviewErr != nil {
+		t.Errorf("ReviewSession.Result() failed: %v", reviewErr)
+	}
+	var _ ReviewResult = reviewResult
+
+	// ExploreSession
+	exploreSession := newExploreSession(ctx, cmd, func() error {
+		return nil
+	})
+	_ = exploreSession.Wait()
+	exploreResult, exploreErr := exploreSession.Result()
+	if exploreErr != nil {
+		t.Errorf("ExploreSession.Result() failed: %v", exploreErr)
+	}
+	var _ ExploreResult = exploreResult
+}
+
+// TestWaitInvokesPostProcessAfterSubprocessExits verifies postProcess runs after subprocess exits successfully
+// Expected failure: baseSession does not call postProcess at the correct time yet
+func TestWaitInvokesPostProcessAfterSubprocessExits(t *testing.T) {
+	ctx := context.Background()
+	cmd := exec.Command("echo", "output")
+
+	var postProcessOrder []string
+	postProcessFn := func() error {
+		postProcessOrder = append(postProcessOrder, "postProcess")
+		return nil
+	}
+
+	session := newBaseSession(ctx, cmd, postProcessFn)
+	events := session.Events()
+
+	// Drain events to detect when subprocess exits
+	go func() {
+		for event := range events {
+			if event.Type == EventSessionEnded {
+				postProcessOrder = append(postProcessOrder, "subprocess_exited")
+			}
+		}
+	}()
+
+	err := session.Wait()
+	if err != nil {
+		t.Fatalf("Wait() failed: %v", err)
+	}
+
+	// postProcess should have been called after subprocess exited
+	if len(postProcessOrder) < 2 {
+		t.Fatal("Expected both subprocess_exited and postProcess events")
+	}
+
+	// The order should be: subprocess_exited, then postProcess
+	// (postProcess is called by Wait() after subprocess exits but before Wait() returns)
+	if !strings.Contains(strings.Join(postProcessOrder, ","), "postProcess") {
+		t.Error("postProcess was not called")
+	}
+}
+
+// TestPostProcessErrorPropagatesFromWait verifies Wait() returns postProcess errors
+// Expected failure: baseSession does not propagate postProcess errors correctly yet
+func TestPostProcessErrorPropagatesFromWait(t *testing.T) {
+	ctx := context.Background()
+	cmd := exec.Command("echo", "test")
+
+	expectedErr := fmt.Errorf("parsing failed: invalid output format")
+	postProcessFn := func() error {
+		return expectedErr
+	}
+
+	session := newBaseSession(ctx, cmd, postProcessFn)
+
+	err := session.Wait()
+
+	if err == nil {
+		t.Fatal("Wait() returned nil, want postProcess error")
+	}
+
+	if !strings.Contains(err.Error(), "parsing failed") {
+		t.Errorf("Wait() error = %q, want error containing 'parsing failed'", err.Error())
 	}
 }
