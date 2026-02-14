@@ -28,19 +28,19 @@ func TestDecomposeTask_ValidationAfterReturn(t *testing.T) {
 	cfg.Decompose.MaxValidationRetries = 2
 
 	mockBeads := &mockBeadClient{
-		FnGetParent: func(b *bead.Bead) (*bead.Bead, error) {
+		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
 			return nil, nil // No parent
 		},
-		FnCreate: func(title string, priority int, labels []string, outputs []string) (*bead.Bead, error) {
-			return &bead.Bead{ID: "child-1", Title: title}, nil
+		CreateWithParentFn: func(title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
+			return &bead.Bead{ID: "child-1", Title: title, Labels: []string{}, ExpectedOutputs: []string{}}, nil
 		},
 	}
 
 	decomposeCalled := false
-	mockRouter := &mockRouter{
+	mockRouter := &mockRouterForRunner{
 		FnSelect: func(phase, tier string) (provider.Provider, string) {
 			if phase == "decompose" {
-				return &mockProvider{
+				return &mockProviderForRunner{
 					FnRun: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
 						decomposeCalled = true
 						// Return sub-tasks with violations (4 criteria)
@@ -67,8 +67,8 @@ func TestDecomposeTask_ValidationAfterReturn(t *testing.T) {
 		},
 	}
 
-	mockRenderer := &mockRenderer{
-		FnRenderDecompose: func(ctx interface{}) (string, error) {
+	mockPromptRenderer := &mockPromptRenderer{
+		RenderDecomposeFn: func(ctx interface{}) (string, error) {
 			return "decompose prompt", nil
 		},
 	}
@@ -80,7 +80,7 @@ func TestDecomposeTask_ValidationAfterReturn(t *testing.T) {
 		cfg:               cfg,
 		beads:             mockBeads,
 		router:            mockRouter,
-		renderer:          mockRenderer,
+		renderer:          mockPromptRenderer,
 		output:            &buf,
 		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
 	}
@@ -144,14 +144,14 @@ func TestCreateSubBeads_ValidationBeforeCreation(t *testing.T) {
 
 	createCalled := false
 	mockBeads := &mockBeadClient{
-		FnCreate: func(title string, priority int, labels []string, outputs []string) (*bead.Bead, error) {
+		CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, outputs []string) (*bead.Bead, error) {
 			createCalled = true
 			return &bead.Bead{ID: "child-1", Title: title}, nil
 		},
-		FnAddComment: func(beadID, comment string) error {
+		AddCommentFn: func(beadID, comment string) error {
 			return nil
 		},
-		FnClose: func(beadID string) error {
+		CloseFn: func(beadID string) error {
 			return nil
 		},
 	}
@@ -303,8 +303,8 @@ func TestRunnerDecomposePath_RepromptOnViolations(t *testing.T) {
 		},
 	}
 
-	mockRenderer := &mockRenderer{
-		FnRenderDecompose: func(ctx interface{}) (string, error) {
+	mockPromptRenderer := &mockPromptRenderer{
+		RenderDecomposeFn: func(ctx interface{}) (string, error) {
 			return "original decompose prompt", nil
 		},
 	}
@@ -316,7 +316,7 @@ func TestRunnerDecomposePath_RepromptOnViolations(t *testing.T) {
 		cfg:               cfg,
 		beads:             mockBeads,
 		router:            mockRouter,
-		renderer:          mockRenderer,
+		renderer:          mockPromptRenderer,
 		output:            &buf,
 		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
 	}
@@ -395,8 +395,8 @@ func TestRunnerDecomposePath_MaxRetriesEnforced(t *testing.T) {
 		},
 	}
 
-	mockRenderer := &mockRenderer{
-		FnRenderDecompose: func(ctx interface{}) (string, error) {
+	mockPromptRenderer := &mockPromptRenderer{
+		RenderDecomposeFn: func(ctx interface{}) (string, error) {
 			return "decompose prompt", nil
 		},
 	}
@@ -408,7 +408,7 @@ func TestRunnerDecomposePath_MaxRetriesEnforced(t *testing.T) {
 		cfg:               cfg,
 		beads:             mockBeads,
 		router:            mockRouter,
-		renderer:          mockRenderer,
+		renderer:          mockPromptRenderer,
 		output:            &buf,
 		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
 	}
@@ -529,8 +529,8 @@ func TestRunnerDecomposePath_LogsValidationWarnings(t *testing.T) {
 		},
 	}
 
-	mockRenderer := &mockRenderer{
-		FnRenderDecompose: func(ctx interface{}) (string, error) {
+	mockPromptRenderer := &mockPromptRenderer{
+		RenderDecomposeFn: func(ctx interface{}) (string, error) {
 			return "decompose prompt", nil
 		},
 	}
@@ -542,7 +542,7 @@ func TestRunnerDecomposePath_LogsValidationWarnings(t *testing.T) {
 		cfg:               cfg,
 		beads:             mockBeads,
 		router:            mockRouter,
-		renderer:          mockRenderer,
+		renderer:          mockPromptRenderer,
 		output:            &buf,
 		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
 	}
@@ -611,8 +611,8 @@ func TestRunnerDecomposePath_ProceedsAfterMaxRetries(t *testing.T) {
 		},
 	}
 
-	mockRenderer := &mockRenderer{
-		FnRenderDecompose: func(ctx interface{}) (string, error) {
+	mockPromptRenderer := &mockPromptRenderer{
+		RenderDecomposeFn: func(ctx interface{}) (string, error) {
 			return "decompose prompt", nil
 		},
 	}
@@ -624,7 +624,7 @@ func TestRunnerDecomposePath_ProceedsAfterMaxRetries(t *testing.T) {
 		cfg:               cfg,
 		beads:             mockBeads,
 		router:            mockRouter,
-		renderer:          mockRenderer,
+		renderer:          mockPromptRenderer,
 		output:            &buf,
 		escalationHandler: escalation.NewHandler(cfg, nil, mockBeads, nil, nil, logFn),
 	}
