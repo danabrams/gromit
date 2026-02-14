@@ -648,3 +648,515 @@ func TestEnsureWorktree_UsesHelperMock(t *testing.T) {
 		t.Error("expected worktree directory to be created")
 	}
 }
+
+// TestPendingBranches_ReturnsEmptyWhenNoBranches verifies that PendingBranches
+// returns an empty slice when no gromit/* branches exist.
+// Expected failure: Manager.PendingBranches method does not exist yet.
+func TestPendingBranches_ReturnsEmptyWhenNoBranches(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		// Simulate git for-each-ref returning no branches
+		if args[0] == "for-each-ref" {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: PendingBranches method does not exist
+	branches, err := m.PendingBranches()
+	if err != nil {
+		t.Fatalf("PendingBranches() error = %v, want nil", err)
+	}
+
+	if len(branches) != 0 {
+		t.Errorf("PendingBranches() returned %d branches, want 0", len(branches))
+	}
+}
+
+// TestPendingBranches_ReturnsGromitBranches verifies that PendingBranches
+// returns only branches matching the gromit/* pattern.
+// Expected failure: Manager.PendingBranches method does not exist yet.
+func TestPendingBranches_ReturnsGromitBranches(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		// Simulate git for-each-ref returning multiple branches
+		if args[0] == "for-each-ref" {
+			return "refs/heads/gromit/retro-1234567890\nrefs/heads/gromit/review-9876543210\nrefs/heads/main\nrefs/heads/feature-branch\n", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: PendingBranches method does not exist
+	branches, err := m.PendingBranches()
+	if err != nil {
+		t.Fatalf("PendingBranches() error = %v, want nil", err)
+	}
+
+	// Should only return gromit/* branches, not main or feature-branch
+	expectedBranches := []string{"gromit/retro-1234567890", "gromit/review-9876543210"}
+	if len(branches) != len(expectedBranches) {
+		t.Fatalf("PendingBranches() returned %d branches, want %d: %v", len(branches), len(expectedBranches), branches)
+	}
+
+	for i, branch := range branches {
+		if branch != expectedBranches[i] {
+			t.Errorf("PendingBranches()[%d] = %q, want %q", i, branch, expectedBranches[i])
+		}
+	}
+}
+
+// TestPendingBranches_FiltersNonGromitBranches verifies that PendingBranches
+// excludes branches that don't match the gromit/* pattern.
+// Expected failure: Manager.PendingBranches method does not exist yet.
+func TestPendingBranches_FiltersNonGromitBranches(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if args[0] == "for-each-ref" {
+			// Mix of gromit and non-gromit branches
+			return "refs/heads/main\nrefs/heads/develop\nrefs/heads/gromit/retro-123\nrefs/heads/feature/new-ui\nrefs/heads/gromit/review-456\n", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: PendingBranches method does not exist
+	branches, err := m.PendingBranches()
+	if err != nil {
+		t.Fatalf("PendingBranches() error = %v, want nil", err)
+	}
+
+	// Should only return the two gromit/* branches
+	if len(branches) != 2 {
+		t.Errorf("PendingBranches() returned %d branches, want 2: %v", len(branches), branches)
+	}
+
+	for _, branch := range branches {
+		if !strings.HasPrefix(branch, "gromit/") {
+			t.Errorf("PendingBranches() returned non-gromit branch: %q", branch)
+		}
+	}
+}
+
+// TestMergeBack_FastForwardSuccess verifies that MergeBack performs a
+// fast-forward merge when possible and deletes the branch on success.
+// Expected failure: Manager.MergeBack method does not exist yet.
+func TestMergeBack_FastForwardSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	gitCalls := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, strings.Join(args, " "))
+		// Simulate successful fast-forward merge
+		if args[0] == "merge" && contains(args, "--ff-only") {
+			return "Fast-forward merge successful", nil
+		}
+		// Simulate successful branch deletion
+		if args[0] == "branch" && args[1] == "-d" {
+			return "Deleted branch", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: MergeBack method does not exist
+	err = m.MergeBack("gromit/retro-1234567890")
+	if err != nil {
+		t.Fatalf("MergeBack() error = %v, want nil", err)
+	}
+
+	// Verify git merge --ff-only was called
+	foundFFMerge := false
+	for _, call := range gitCalls {
+		if strings.Contains(call, "merge") && strings.Contains(call, "--ff-only") {
+			foundFFMerge = true
+			break
+		}
+	}
+	if !foundFFMerge {
+		t.Errorf("expected 'git merge --ff-only' to be called, got calls: %v", gitCalls)
+	}
+
+	// Verify branch was deleted
+	foundBranchDelete := false
+	for _, call := range gitCalls {
+		if strings.Contains(call, "branch -d") {
+			foundBranchDelete = true
+			break
+		}
+	}
+	if !foundBranchDelete {
+		t.Errorf("expected 'git branch -d' to be called, got calls: %v", gitCalls)
+	}
+}
+
+// TestMergeBack_FallbackToMergeCommit verifies that MergeBack falls back
+// to a regular merge commit when fast-forward merge fails.
+// Expected failure: Manager.MergeBack method does not exist yet.
+func TestMergeBack_FallbackToMergeCommit(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	gitCalls := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, strings.Join(args, " "))
+		// Fast-forward merge fails (not possible)
+		if args[0] == "merge" && contains(args, "--ff-only") {
+			return "", errors.New("fatal: Not possible to fast-forward, aborting")
+		}
+		// Regular merge succeeds
+		if args[0] == "merge" && !contains(args, "--ff-only") {
+			return "Merge made by the 'recursive' strategy", nil
+		}
+		// Branch deletion succeeds
+		if args[0] == "branch" && args[1] == "-d" {
+			return "Deleted branch", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: MergeBack method does not exist
+	err = m.MergeBack("gromit/review-1234567890")
+	if err != nil {
+		t.Fatalf("MergeBack() error = %v, want nil (should succeed with merge commit)", err)
+	}
+
+	// Verify both merge attempts were made
+	foundFFAttempt := false
+	foundRegularMerge := false
+	for _, call := range gitCalls {
+		if strings.Contains(call, "merge") && strings.Contains(call, "--ff-only") {
+			foundFFAttempt = true
+		}
+		if strings.Contains(call, "merge") && !strings.Contains(call, "--ff-only") {
+			foundRegularMerge = true
+		}
+	}
+	if !foundFFAttempt {
+		t.Errorf("expected fast-forward merge attempt, got calls: %v", gitCalls)
+	}
+	if !foundRegularMerge {
+		t.Errorf("expected regular merge fallback, got calls: %v", gitCalls)
+	}
+
+	// Verify branch was deleted after successful merge
+	foundBranchDelete := false
+	for _, call := range gitCalls {
+		if strings.Contains(call, "branch -d") {
+			foundBranchDelete = true
+			break
+		}
+	}
+	if !foundBranchDelete {
+		t.Errorf("expected branch deletion after successful merge, got calls: %v", gitCalls)
+	}
+}
+
+// TestMergeBack_ConflictReturnsError verifies that MergeBack returns an error
+// when a merge conflict occurs and does NOT delete the branch.
+// Expected failure: Manager.MergeBack method does not exist yet.
+func TestMergeBack_ConflictReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	gitCalls := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, strings.Join(args, " "))
+		// Fast-forward merge fails
+		if args[0] == "merge" && contains(args, "--ff-only") {
+			return "", errors.New("fatal: Not possible to fast-forward")
+		}
+		// Regular merge also fails with conflict
+		if args[0] == "merge" && !contains(args, "--ff-only") {
+			return "", errors.New("CONFLICT (content): Merge conflict in file.txt")
+		}
+		// Simulate abort succeeds
+		if args[0] == "merge" && args[1] == "--abort" {
+			return "Merge aborted", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: MergeBack method does not exist
+	err = m.MergeBack("gromit/review-1234567890")
+	if err == nil {
+		t.Fatal("MergeBack() should return error on merge conflict, got nil")
+	}
+
+	// Error message should indicate conflict
+	if !strings.Contains(err.Error(), "conflict") && !strings.Contains(err.Error(), "CONFLICT") && !strings.Contains(err.Error(), "merge") {
+		t.Errorf("MergeBack() error should mention conflict, got: %v", err)
+	}
+
+	// Verify merge --abort was called
+	foundAbort := false
+	for _, call := range gitCalls {
+		if strings.Contains(call, "merge --abort") {
+			foundAbort = true
+			break
+		}
+	}
+	if !foundAbort {
+		t.Errorf("expected 'git merge --abort' after conflict, got calls: %v", gitCalls)
+	}
+
+	// Verify branch was NOT deleted (conflict not resolved)
+	for _, call := range gitCalls {
+		if strings.Contains(call, "branch -d") {
+			t.Errorf("should NOT delete branch after merge conflict, got calls: %v", gitCalls)
+		}
+	}
+}
+
+// TestMergeBack_InvalidBranchName verifies that MergeBack returns an error
+// for invalid branch names (empty string).
+// Expected failure: Manager.MergeBack method does not exist yet.
+func TestMergeBack_InvalidBranchName(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: MergeBack method does not exist
+	err = m.MergeBack("")
+	if err == nil {
+		t.Error("MergeBack(\"\") should return error for empty branch name")
+	}
+}
+
+// TestMergeBack_NilReceiver verifies that MergeBack handles nil receiver safely.
+// Expected failure: Manager.MergeBack method does not exist yet.
+func TestMergeBack_NilReceiver(t *testing.T) {
+	var m *Manager
+
+	// Expected failure: MergeBack method does not exist
+	err := m.MergeBack("gromit/retro-123")
+	if err == nil {
+		t.Error("MergeBack() on nil receiver should return error")
+	}
+	if err != nil && !strings.Contains(err.Error(), "nil") {
+		t.Errorf("MergeBack() error should mention nil receiver, got: %v", err)
+	}
+}
+
+// TestPendingBranches_NilReceiver verifies that PendingBranches handles nil receiver safely.
+// Expected failure: Manager.PendingBranches method does not exist yet.
+func TestPendingBranches_NilReceiver(t *testing.T) {
+	var m *Manager
+
+	// Expected failure: PendingBranches method does not exist
+	_, err := m.PendingBranches()
+	if err == nil {
+		t.Error("PendingBranches() on nil receiver should return error")
+	}
+	if err != nil && !strings.Contains(err.Error(), "nil") {
+		t.Errorf("PendingBranches() error should mention nil receiver, got: %v", err)
+	}
+}
+
+// TestMergeBack_GitRunFnCalledInMainDir verifies that MergeBack executes
+// git commands in the main directory, not the worktree directory.
+// Expected failure: Manager.MergeBack method does not exist yet.
+func TestMergeBack_GitRunFnCalledInMainDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	capturedDirs := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		capturedDirs = append(capturedDirs, dir)
+		// Simulate successful fast-forward merge
+		if args[0] == "merge" {
+			return "Fast-forward", nil
+		}
+		// Simulate successful branch deletion
+		if args[0] == "branch" && args[1] == "-d" {
+			return "Deleted", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: MergeBack method does not exist
+	err = m.MergeBack("gromit/retro-123")
+	if err != nil {
+		t.Fatalf("MergeBack() error = %v, want nil", err)
+	}
+
+	// All git commands should run in the main directory
+	for i, dir := range capturedDirs {
+		if dir != mainDir {
+			t.Errorf("git command %d called with dir %q, want %q", i, dir, mainDir)
+		}
+	}
+}
+
+// TestPendingBranches_GitRunFnCalledInMainDir verifies that PendingBranches
+// executes git commands in the main directory.
+// Expected failure: Manager.PendingBranches method does not exist yet.
+func TestPendingBranches_GitRunFnCalledInMainDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	var capturedDir string
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		capturedDir = dir
+		if args[0] == "for-each-ref" {
+			return "refs/heads/gromit/retro-123\n", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: PendingBranches method does not exist
+	_, err = m.PendingBranches()
+	if err != nil {
+		t.Fatalf("PendingBranches() error = %v, want nil", err)
+	}
+
+	// Git command should run in the main directory
+	if capturedDir != mainDir {
+		t.Errorf("PendingBranches() called gitRunFn with dir %q, want %q", capturedDir, mainDir)
+	}
+}
+
+// TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge verifies that
+// MergeBack deletes the branch only when the merge succeeds.
+// Expected failure: Manager.MergeBack method does not exist yet.
+func TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	callOrder := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		callOrder = append(callOrder, args[0])
+		if args[0] == "merge" {
+			return "Merged successfully", nil
+		}
+		if args[0] == "branch" {
+			return "Deleted branch", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Expected failure: MergeBack method does not exist
+	err = m.MergeBack("gromit/retro-123")
+	if err != nil {
+		t.Fatalf("MergeBack() error = %v, want nil", err)
+	}
+
+	// Verify order: merge happens before branch deletion
+	mergeIndex := -1
+	branchIndex := -1
+	for i, call := range callOrder {
+		if call == "merge" && mergeIndex == -1 {
+			mergeIndex = i
+		}
+		if call == "branch" {
+			branchIndex = i
+		}
+	}
+
+	if mergeIndex == -1 {
+		t.Error("expected merge command to be called")
+	}
+	if branchIndex == -1 {
+		t.Error("expected branch deletion command to be called")
+	}
+	if mergeIndex >= branchIndex {
+		t.Errorf("branch deletion should happen after merge (merge at %d, branch at %d)", mergeIndex, branchIndex)
+	}
+}
+
+// contains checks if a string slice contains a specific string.
+func contains(slice []string, target string) bool {
+	for _, s := range slice {
+		if s == target {
+			return true
+		}
+	}
+	return false
+}
