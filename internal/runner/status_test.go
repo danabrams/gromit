@@ -867,14 +867,21 @@ func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 		t.Fatalf("Failed to write status: %v", err)
 	}
 
-	// Create state.json with last retro/review data
-	stateContent := fmt.Sprintf(`{
-		"last_retro": "%s",
+	// Create state.json with review data
+	stateContent := `{
 		"iterations_since_review": 5
-	}`, time.Now().Add(-2*time.Hour).Format(time.RFC3339))
+	}`
 	err = os.WriteFile(filepath.Join(tmpDir, "state.json"), []byte(stateContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write state.json: %v", err)
+	}
+	// Create interactive-state.json with last retro data
+	interactiveContent := fmt.Sprintf(`{
+		"last_retro": "%s"
+	}`, time.Now().Add(-2*time.Hour).Format(time.RFC3339))
+	err = os.WriteFile(filepath.Join(tmpDir, "interactive-state.json"), []byte(interactiveContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write interactive-state.json: %v", err)
 	}
 
 	// Execute

@@ -465,6 +465,16 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 	}
 
+	// Load interactive state for review baseline and retro tracking
+	var interactiveFile *state.InteractiveFile
+	interactiveFile, err = state.NewInteractiveFile(r.gromitDir)
+	if err != nil {
+		r.log("Warning: could not create interactive state file: %v", err)
+		interactiveFile = nil
+	} else if err := interactiveFile.Load(); err != nil {
+		r.log("Warning: could not load interactive state: %v", err)
+	}
+
 	// Check for stale state and auto-heal if needed
 	if sf != nil {
 		if isStale, reason := sf.CheckStaleness(r.cfg.State.StaleThreshold); isStale {
@@ -480,10 +490,10 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	// Initialize review baseline if not set
-	if sf != nil && sf.LastReviewCommit() == "" {
+	if interactiveFile != nil && interactiveFile.LastReviewCommit() == "" {
 		currentCommit, err := getGitHead()
 		if err == nil && currentCommit != "" {
-			if err := sf.RecordReview(currentCommit, 0); err != nil {
+			if err := interactiveFile.RecordReview(currentCommit, 0); err != nil {
 				r.log("Warning: could not initialize review baseline: %v", err)
 			} else {
 				r.log("Initialized review baseline at commit %s", currentCommit[:8])
@@ -730,8 +740,8 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 				r.log("Warning: could not check epic children: %v", err)
 			} else if !hasChildren {
 				r.log("\n=== Thorough Review (epic %s complete) ===", b.Parent)
-				if sf != nil {
-					r.reviewer.RunThorough(ctx, sf, iteration, deadline, getGitHead)
+				if interactiveFile != nil {
+					r.reviewer.RunThorough(ctx, interactiveFile, iteration, deadline, getGitHead)
 				}
 			}
 		}
@@ -746,7 +756,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			// Check thorough review trigger
 			if r.cfg.Review.Thorough.Enabled && sf.IterationsSinceReview() >= r.cfg.Review.Thorough.EveryNIterations {
 				r.log("\n=== Thorough Review (every %d iterations) ===", r.cfg.Review.Thorough.EveryNIterations)
-				r.reviewer.RunThorough(ctx, sf, iteration, deadline, getGitHead)
+				if interactiveFile != nil {
+					r.reviewer.RunThorough(ctx, interactiveFile, iteration, deadline, getGitHead)
+				}
 			}
 		}
 	}
@@ -1386,13 +1398,13 @@ func (r *Runner) checkRetroSuggestion() {
 		return // Silently skip if learnings can't be loaded
 	}
 
-	// Load state for last retro time
-	sf, err := state.NewFile(r.gromitDir)
+	// Load interactive state for last retro time
+	interactiveFile, err := state.NewInteractiveFile(r.gromitDir)
 	if err != nil {
-		return // Silently skip if state can't be created
+		return // Silently skip if interactive state can't be created
 	}
-	if err := sf.Load(); err != nil {
-		return // Silently skip if state can't be loaded
+	if err := interactiveFile.Load(); err != nil {
+		return // Silently skip if interactive state can't be loaded
 	}
 
 	// Compute failure rate from logs
@@ -1401,7 +1413,7 @@ func (r *Runner) checkRetroSuggestion() {
 		stats = logger.RunStats{} // Use zero stats on error
 	}
 
-	should, reason := lf.ShouldSuggestRetro(sf.LastRetro(), stats.FailureRate())
+	should, reason := lf.ShouldSuggestRetro(interactiveFile.LastRetro(), stats.FailureRate())
 	if !should {
 		return
 	}
@@ -1483,6 +1495,15 @@ func (r *Runner) Status() error {
 		return fmt.Errorf("loading state file: %w", err)
 	}
 
+	// Load interactive state file for last retro data
+	interactiveFile, err := state.NewInteractiveFile(r.gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating interactive state file: %w", err)
+	}
+	if err := interactiveFile.Load(); err != nil {
+		return fmt.Errorf("loading interactive state file: %w", err)
+	}
+
 	// Read model performance stats
 	modelStats, err := logger.ReadModelStats(r.cfg.Paths.Logs)
 	if err != nil {
@@ -1496,7 +1517,7 @@ func (r *Runner) Status() error {
 	r.log("")
 	r.log("%s", formatRun(status))
 	r.log("")
-	r.log("%s", formatHealth(stateFile.LastRetro(), stateFile.IterationsSinceReview()))
+	r.log("%s", formatHealth(interactiveFile.LastRetro(), stateFile.IterationsSinceReview()))
 	r.log("")
 	r.log("%s", formatModelPerformance(modelStats))
 	r.log("")

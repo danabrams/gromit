@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-
-	"github.com/danabrams/gromit/internal/runner"
+	"syscall"
 )
 
 // IsRunLoopActive returns true when the run loop is currently active.
@@ -39,5 +38,15 @@ func IsRunLoopActive(gromitDir string) bool {
 		return false
 	}
 
-	return runner.IsProcessAlive(status.PID)
+	return isProcessAlive(status.PID)
+}
+
+func isProcessAlive(pid int) bool {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+
+	err = process.Signal(syscall.Signal(0))
+	return err == nil
 }

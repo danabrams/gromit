@@ -105,10 +105,10 @@ func TestCompileTimeChecksExcludeClaudeClient(t *testing.T) {
 					// Count how many checks are in this block
 					checksCount := len(genDecl.Specs)
 
-					// After ClaudeClient removal, should be 4 checks (BeadClient, FailureAnalyzer, PromptRenderer, IterationLogger)
-					// Currently there are 5 (including ClaudeClient)
-					if checksCount >= 5 {
-						t.Errorf("Compile-time checks block has %d checks - expected 4 after ClaudeClient removal (BeadClient, FailureAnalyzer, PromptRenderer, IterationLogger)", checksCount)
+					// After ClaudeClient removal, should be 5 checks (BeadClient, FailureAnalyzer, PromptRenderer, IterationLogger, WorktreeManager)
+					// Currently there are 6 (including ClaudeClient)
+					if checksCount >= 6 {
+						t.Errorf("Compile-time checks block has %d checks - expected 5 after ClaudeClient removal (BeadClient, FailureAnalyzer, PromptRenderer, IterationLogger, WorktreeManager)", checksCount)
 					}
 				}
 			}
@@ -211,10 +211,10 @@ func TestInterfaceCountReducedAfterRemoval(t *testing.T) {
 		}
 	}
 
-	// After removal, should have 4 interfaces: BeadClient, FailureAnalyzer, PromptRenderer, IterationLogger
-	// Currently has 5 interfaces (including ClaudeClient)
-	if interfaceCount != 4 {
-		t.Errorf("interfaces.go has %d interfaces (%v), expected 4 after ClaudeClient removal (BeadClient, FailureAnalyzer, PromptRenderer, IterationLogger)", interfaceCount, interfaceNames)
+	// After removal, should have 5 interfaces: BeadClient, FailureAnalyzer, PromptRenderer, IterationLogger, WorktreeManager
+	// Currently has 6 interfaces (including ClaudeClient)
+	if interfaceCount != 5 {
+		t.Errorf("interfaces.go has %d interfaces (%v), expected 5 after ClaudeClient removal (BeadClient, FailureAnalyzer, PromptRenderer, IterationLogger, WorktreeManager)", interfaceCount, interfaceNames)
 	}
 
 	// Verify ClaudeClient is not in the list

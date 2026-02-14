@@ -8,6 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/worktree"
 )
 
 // Compile-time interface satisfaction checks.
@@ -16,6 +17,7 @@ var (
 	_ FailureAnalyzer = (*analyzer.Analyzer)(nil)
 	_ PromptRenderer  = (*prompt.Renderer)(nil)
 	_ IterationLogger = (*logger.Logger)(nil)
+	_ WorktreeManager = (*worktree.Manager)(nil)
 )
 
 // BeadClient abstracts the bead (bd) CLI operations used by the runner.
@@ -67,4 +69,13 @@ type IterationLogger interface {
 	Close() error
 	FilePath() string
 	RunID() string
+}
+
+// WorktreeManager abstracts the worktree lifecycle used by interactive commands.
+type WorktreeManager interface {
+	EnsureWorktree() (string, error)
+	CreateBranch(command string) (string, error)
+	MergeBack(branch string) error
+	PendingBranches() ([]string, error)
+	Cleanup() error
 }
