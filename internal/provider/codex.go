@@ -201,10 +201,23 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	}, nil
 }
 
-// RunValidation is not implemented for CodexProvider.
-// Codex CLI does not support the structured validation prompt pattern used by Claude.
+// RunValidation constructs a validation prompt and runs it via Codex.
+// Uses the same prompt pattern as ClaudeProvider for consistency.
 func (cp *CodexProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error) {
-	return nil, fmt.Errorf("RunValidation is not implemented for Codex provider")
+	if cp == nil {
+		return nil, fmt.Errorf("codex provider is nil")
+	}
+
+	// Validate commands
+	if err := ValidateCommands(commands); err != nil {
+		return nil, err
+	}
+
+	// Build validation prompt
+	prompt := BuildValidationPrompt(commands, workDir)
+
+	// Run the validation prompt
+	return cp.Run(ctx, prompt, tier)
 }
 
 // IsUsageLimitError detects Codex-specific usage limit errors.
@@ -230,6 +243,16 @@ func (cp *CodexProvider) IsUsageLimitError(result *Result, err error) bool {
 	}
 
 	return false
+}
+
+// IsValidationPassed delegates to the shared helper function.
+func (cp *CodexProvider) IsValidationPassed(result *Result) bool {
+	return IsValidationPassed(result)
+}
+
+// IsScopeTooLarge delegates to the shared helper function.
+func (cp *CodexProvider) IsScopeTooLarge(result *Result) (bool, string) {
+	return IsScopeTooLarge(result)
 }
 
 // createPromptFile writes the prompt to a temporary file and returns the filename

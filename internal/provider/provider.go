@@ -45,6 +45,8 @@ type Provider interface {
 		handler EventHandler, onToolCall ToolCallHandler) (*Result, error)
 	RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error)
 	IsUsageLimitError(result *Result, err error) bool
+	IsValidationPassed(result *Result) bool
+	IsScopeTooLarge(result *Result) (bool, string)
 }
 
 // TierFromLegacyModel maps known model names to abstract tier constants.

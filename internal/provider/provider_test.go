@@ -51,6 +51,14 @@ func (m *mockProvider) IsUsageLimitError(result *Result, err error) bool {
 	return false
 }
 
+func (m *mockProvider) IsValidationPassed(result *Result) bool {
+	return IsValidationPassed(result)
+}
+
+func (m *mockProvider) IsScopeTooLarge(result *Result) (bool, string) {
+	return IsScopeTooLarge(result)
+}
+
 // TestProviderInterfaceDefinition verifies that the Provider interface exists
 // and can be used in type assertions and interface satisfaction checks.
 // Expected failure: Provider interface does not exist yet

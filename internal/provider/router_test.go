@@ -1050,3 +1050,11 @@ func (m *mockProviderWithModels) RunValidation(ctx context.Context, commands []s
 func (m *mockProviderWithModels) IsUsageLimitError(result *Result, err error) bool {
 	return false
 }
+
+func (m *mockProviderWithModels) IsValidationPassed(result *Result) bool {
+	return IsValidationPassed(result)
+}
+
+func (m *mockProviderWithModels) IsScopeTooLarge(result *Result) (bool, string) {
+	return IsScopeTooLarge(result)
+}

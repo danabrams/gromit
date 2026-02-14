@@ -181,18 +181,12 @@ func (cp *ClaudeProvider) IsUsageLimitError(result *Result, err error) bool {
 // IsValidationPassed checks if the result indicates validation passed.
 // Delegates to claude.IsValidationPassed() to check for the VALIDATION_PASSED marker.
 func (cp *ClaudeProvider) IsValidationPassed(result *Result) bool {
-	if result == nil {
-		return false
-	}
-	return claude.IsValidationPassed(convertToClaudeResult(result))
+	return IsValidationPassed(result)
 }
 
 // IsScopeTooLarge checks if the result indicates the task scope is too large.
-// Delegates to claude.IsScopeTooLarge() to check for the SCOPE_TOO_LARGE marker.
+// Delegates to the shared helper function to check for the SCOPE_TOO_LARGE marker.
 // Returns true and the explanation text if the marker is found.
 func (cp *ClaudeProvider) IsScopeTooLarge(result *Result) (bool, string) {
-	if result == nil {
-		return false, ""
-	}
-	return claude.IsScopeTooLarge(convertToClaudeResult(result))
+	return IsScopeTooLarge(result)
 }
