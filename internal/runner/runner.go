@@ -354,6 +354,8 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log)
 	r.validationRunner = validation.NewRunner(cfg, cmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	r.methodologyExec = r.makeMethodologyExec()
+	r.reviewer = reviewpkg.NewReviewer(cfg, router, deps.Beads, deps.Renderer, r.gitDiffFn, iterLogger)
+	r.reviewer.SetLogFn(r.log)
 	return r, nil
 }
 
