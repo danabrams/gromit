@@ -17,6 +17,7 @@ type State struct {
 	CleanExit                bool                 `json:"clean_exit"`
 	UpdatedAt                time.Time            `json:"updated_at"`
 	FilteredLearningHashes   []string             `json:"filtered_learning_hashes,omitempty"`
+	ArchivedLearningHashes   []string             `json:"archived_learning_hashes,omitempty"`
 	ProviderCounts           map[string]int       `json:"provider_counts,omitempty"`
 	ProviderUnavailableUntil map[string]time.Time `json:"provider_unavailable_until,omitempty"`
 }
@@ -209,6 +210,37 @@ func (f *File) AddFilteredHashes(hashes []string) {
 	}
 }
 
+// GetArchivedHashes returns a map of archived learning hashes for O(1) lookups
+func (f *File) GetArchivedHashes() map[string]bool {
+	if f == nil {
+		return nil
+	}
+	result := make(map[string]bool, len(f.state.ArchivedLearningHashes))
+	for _, hash := range f.state.ArchivedLearningHashes {
+		result[hash] = true
+	}
+	return result
+}
+
+// AddArchivedHashes merges new hashes with existing ones, deduplicating
+func (f *File) AddArchivedHashes(hashes []string) {
+	if f == nil {
+		return
+	}
+	// Create a set of existing hashes for O(1) lookups
+	existing := make(map[string]bool, len(f.state.ArchivedLearningHashes))
+	for _, hash := range f.state.ArchivedLearningHashes {
+		existing[hash] = true
+	}
+	// Add new hashes that don't already exist
+	for _, hash := range hashes {
+		if !existing[hash] {
+			f.state.ArchivedLearningHashes = append(f.state.ArchivedLearningHashes, hash)
+			existing[hash] = true
+		}
+	}
+}
+
 // ReconcileFilteredHashes filters FilteredLearningHashes in-place, keeping only hashes present in currentHashes.
 // Returns true if any hashes were pruned.
 func (f *File) ReconcileFilteredHashes(currentHashes map[string]bool) bool {
@@ -235,6 +267,9 @@ func (f *File) ReconcileFilteredHashes(currentHashes map[string]bool) bool {
 func (s *State) NormalizeNilFields() {
 	if s.FilteredLearningHashes == nil {
 		s.FilteredLearningHashes = []string{}
+	}
+	if s.ArchivedLearningHashes == nil {
+		s.ArchivedLearningHashes = []string{}
 	}
 	if s.ProviderCounts == nil {
 		s.ProviderCounts = make(map[string]int)
