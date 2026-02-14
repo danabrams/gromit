@@ -370,6 +370,13 @@ func TestRunDelegatesToReviewerRunThorough(t *testing.T) {
 		if funcDecl.Name.Name != "Run" {
 			continue
 		}
+		// Ensure we're looking at func (r *Runner) Run, not other types' Run methods
+		recvType := funcDecl.Recv.List[0].Type
+		if starExpr, ok := recvType.(*ast.StarExpr); ok {
+			if ident, ok := starExpr.X.(*ast.Ident); ok && ident.Name != "Runner" {
+				continue
+			}
+		}
 
 		hasLocalThoroughCall := false
 		hasReviewerDelegation := false

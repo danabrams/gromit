@@ -732,7 +732,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			} else if !hasChildren {
 				r.log("\n=== Thorough Review (epic %s complete) ===", b.Parent)
 				if sf != nil {
-					r.runThoroughReview(ctx, sf, iteration, deadline)
+					r.reviewer.RunThorough(ctx, sf, iteration, deadline, getGitHead)
 				}
 			}
 		}
@@ -747,7 +747,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			// Check thorough review trigger
 			if r.cfg.Review.Thorough.Enabled && sf.IterationsSinceReview() >= r.cfg.Review.Thorough.EveryNIterations {
 				r.log("\n=== Thorough Review (every %d iterations) ===", r.cfg.Review.Thorough.EveryNIterations)
-				r.runThoroughReview(ctx, sf, iteration, deadline)
+				r.reviewer.RunThorough(ctx, sf, iteration, deadline, getGitHead)
 			}
 		}
 	}
