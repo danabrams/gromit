@@ -220,7 +220,7 @@ Run each command and report results.
 
 	// Verify the expected bd calls were made
 	// During a run, gromit calls:
-	// 1. bd ready --json --limit 10 (to get next bead, filtering epics client-side)
+	// 1. bd ready --json --limit 3 (to get next bead, filtering epics client-side)
 	// 2. bd close <id> (after successful build + validation)
 	// 3. bd sync (after successful close)
 	//
@@ -238,16 +238,16 @@ Run each command and report results.
 		if strings.Contains(call, "bd ready --json --limit") {
 			foundReady = true
 			t.Logf("✓ Found bd ready call: %s", call)
-			// Verify limit is 10 (gromit fetches batch to filter epics)
-			if !strings.Contains(call, "--limit 10") {
-				t.Errorf("Expected 'bd ready --json --limit 10', got: %s", call)
+			// Verify limit is 3 (reduced from 10 for performance optimization)
+			if !strings.Contains(call, "--limit 3") {
+				t.Errorf("Expected 'bd ready --json --limit 3', got: %s", call)
 			}
 			break
 		}
 	}
 
 	if !foundReady {
-		t.Errorf("Expected 'bd ready --json --limit 10' call not found")
+		t.Errorf("Expected 'bd ready --json --limit 3' call not found")
 	}
 
 	// Note: We don't verify close/sync because validation failed in this test.
@@ -336,14 +336,14 @@ paths:
 		t.Fatalf("Failed to read call log: %v", err)
 	}
 
-	// Verify bd ready was called with limit 10 (gromit's default for filtering epics)
+	// Verify bd ready was called with limit 3 (optimized from 10 for performance)
 	foundReady := false
 	for _, call := range calls {
 		if strings.Contains(call, "bd ready --json --limit") {
 			foundReady = true
-			// Verify it's limit 10 specifically
-			if !strings.Contains(call, "--limit 10") && !strings.Contains(call, "--limit 1") {
-				t.Errorf("Expected 'bd ready --json --limit 10' or '--limit 1', got: %s", call)
+			// Verify it's limit 3 specifically
+			if !strings.Contains(call, "--limit 3") && !strings.Contains(call, "--limit 1") {
+				t.Errorf("Expected 'bd ready --json --limit 3' or '--limit 1', got: %s", call)
 			}
 			t.Logf("✓ Found ready call with limit: %s", call)
 		}
@@ -592,7 +592,7 @@ Create a test file and commit it.
 
 	// Verify the sequence: ready, close, sync
 	expectedSequence := []string{
-		"bd ready --json --limit 10",
+		"bd ready --json --limit 3",
 		"bd close test-bead-1",
 		"bd sync",
 	}
@@ -739,12 +739,12 @@ func TestBDContract_ReadyWithLabel(t *testing.T) {
 			strings.Contains(call, "--label") &&
 			strings.Contains(call, "spec:auth") {
 			foundReadyWithLabel = true
-			// Verify it includes --json and --limit 10
+			// Verify it includes --json and --limit 3
 			if !strings.Contains(call, "--json") {
 				t.Errorf("Expected --json flag in call: %s", call)
 			}
-			if !strings.Contains(call, "--limit 10") {
-				t.Errorf("Expected --limit 10 in call: %s", call)
+			if !strings.Contains(call, "--limit 3") {
+				t.Errorf("Expected --limit 3 in call: %s", call)
 			}
 			t.Logf("✓ Found ready with label call: %s", call)
 			break
@@ -752,7 +752,7 @@ func TestBDContract_ReadyWithLabel(t *testing.T) {
 	}
 
 	if !foundReadyWithLabel {
-		t.Errorf("Expected 'bd ready --json --limit 10 --label spec:auth' call not found. Calls: %v", calls)
+		t.Errorf("Expected 'bd ready --json --limit 3 --label spec:auth' call not found. Calls: %v", calls)
 	}
 
 	// Verify the program found a task (not the epic)
