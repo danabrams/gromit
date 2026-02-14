@@ -740,6 +740,36 @@ FAIL	github.com/example/pkg	0.023s`,
 	}
 }
 
+func TestClaudePatterns_NoFalsePositiveKeywords(t *testing.T) {
+	// Verify that overly broad keywords that cause false positives are not in ClaudePatterns
+	patterns := ClaudePatterns()
+
+	// These keywords should NOT be present as they match legitimate errors
+	forbiddenKeywords := []string{"exceeded", "capacity", "overloaded"}
+	for _, forbidden := range forbiddenKeywords {
+		for _, keyword := range patterns.Keywords {
+			if keyword == forbidden {
+				t.Errorf("ClaudePatterns() contains broad keyword %q which causes false positives", forbidden)
+			}
+		}
+	}
+
+	// These keywords SHOULD be present as they are specific to usage limits
+	requiredKeywords := []string{"usage limit", "rate limit", "quota", "too many requests", "429"}
+	for _, required := range requiredKeywords {
+		found := false
+		for _, keyword := range patterns.Keywords {
+			if keyword == required {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("ClaudePatterns() missing required specific keyword: %q", required)
+		}
+	}
+}
+
 func TestSignals_Struct(t *testing.T) {
 	// Verifies Signals struct has the expected fields
 	s := Signals{
