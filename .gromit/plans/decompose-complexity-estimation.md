@@ -1,8 +1,9 @@
 ---
+created: 2026-02-14T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-14T09:39:00Z"
 id: decompose-complexity-estimation
 source_spec: decompose-complexity-estimation
-created: 2026-02-14
-decomposed: false
 ---
 
 # Pre-Build Complexity Estimation via File Count

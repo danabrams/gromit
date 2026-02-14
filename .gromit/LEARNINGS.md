@@ -45,19 +45,6 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 Pipeline methods follow a consistent pattern: input struct with all parameters, output struct with results, validate dependencies first, use renderer for template processing, handle agent resolution via p.agents.ResolveByName with defaults, and define post-processing logic to detect changes. Verification tests in cmd/gromit enforce file colocation — explore tests must live alongside cmd/gromit/explore.go. Always check final_verification_test.go before implementing to understand test organization expectations.
 
-### 2026-02-13 | Runner Per-Run State Reset | patterns
-*Related to: gromit-rj11*
-
-State fields in Runner that accumulate per-run should be reset at the start of Run(), not in individual phases. This ensures a fresh accumulator within each invocation while allowing safe in-run mutation (append) and non-destructive consumption (slice to last N).
-
-### 2026-02-13 | Renderer Config Wiring via Setter Methods | patterns
-*Related to: gromit-kf5g*
-
-Renderer is the central coordinator for context/state setup - modifications to how data flows into rendering (like character limits) happen in NewRunner() by calling Renderer setter methods after initialization, then BuildContext() reads those configured values
-
-### 2026-02-14 | gromit-6j5y | conventions
-The pipeline package uses a type-wrapper pattern (RefineSession embeds baseSession, not implements Session[T]). Compile-time checks should verify: (1) baseSession exists and implements BaseSession interface, (2) each typed session (RefineSession, etc.) embeds baseSession and has a Result() method, (3) avoid assuming Go generics are used unless the interface is explicitly defined with [T any] syntax. Check session_test.go for the acceptance test pattern before writing compile-time checks.
-
 ### 2026-02-14 | Contract Test Infrastructure Requirements | gotchas
 *Related to: gromit-6426*
 
@@ -68,6 +55,20 @@ Contract tests in test/contracts/ verify git call sequences during gromit run it
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-14 | Runner Per-Run State Reset | patterns
+*Related to: gromit-rj11*
+
+Archived: promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-14 | Renderer Config Wiring via Setter Methods | patterns
+*Related to: gromit-kf5g*
+
+Archived: promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
 
 ### 2026-02-13 | Package Extraction Timeouts | patterns
 *Related to: gromit-8s79, gromit-c4x5*
@@ -1210,6 +1211,11 @@ When migrating a struct to an external type, promote all field names to public (
 When extracting package logic: (1) Always remove old methods from source files after extraction is complete—stub out → extract → remove old implementation; (2) Update ALL call sites that invoke the old methods to use the new package functions; (3) If the extracted function signature changes (e.g., adding a *learnings.File parameter), audit all callers. Use grep to find old method names and verify they're gone.
 
 *Archived from new: filtered: generic engineering advice*
+
+### 2026-02-14 | gromit-6j5y | conventions
+Archived: Title violates LEARNINGS.md format rule (uses bead ID instead of descriptive title). Content describes a one-time implementation detail about pipeline session type-wrapper pattern that is now visible in the code itself (internal/pipeline/types.go). The pattern is established and the learning provides no additional value beyond reading the code.
+
+*Archived from provisional: stale: pattern established in code*
 
 ### 2026-02-14 | gromit-ownd | conventions
 Archived: acceptance test build tag requirement already in RULES.md Test Quality section (line 35). Redundant.
