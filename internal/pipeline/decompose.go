@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"time"
 
@@ -55,11 +54,11 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		return nil, fmt.Errorf("invoking Claude: %w", err)
 	}
 
-	// Extract output from result
-	output, err := extractClaudeOutput(claudeResult)
-	if err != nil {
-		return nil, err
+	// Extract output from typed result
+	if !claudeResult.Success {
+		return nil, fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", claudeResult.ExitCode, claudeResult.Output)
 	}
+	output := claudeResult.Output
 	var beadDefs []beadDef
 	if err := jsonutil.ExtractJSON(output, &beadDefs); err != nil {
 		return nil, fmt.Errorf("parsing bead definitions: %w", err)
@@ -118,16 +117,11 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			return nil, fmt.Errorf("creating bead %d: %w", i, err)
 		}
 
-		// Extract ID from bead creation result
-		beadID, err := extractBeadID(beadResult)
-		if err != nil {
-			return nil, fmt.Errorf("extracting ID from bead %d: %w", i, err)
-		}
-
-		createdIDs = append(createdIDs, beadID)
+		// Extract ID from typed bead creation result
+		createdIDs = append(createdIDs, beadResult.ID)
 
 		// Add to result
-		bead := newCreatedBeadFromDef(def, input.PlanName, beadID)
+		bead := newCreatedBeadFromDef(def, input.PlanName, beadResult.ID)
 		result.CreatedBeads = append(result.CreatedBeads, bead)
 	}
 
@@ -192,56 +186,4 @@ func newCreatedBeadFromDef(def beadDef, planName, beadID string) CreatedBead {
 	bead.Priority = parsePriority(def.Priority)
 	bead.Labels = []string{fmt.Sprintf("spec:%s", planName)}
 	return bead
-}
-
-// extractClaudeOutput validates and extracts the output string from a Claude result.
-func extractClaudeOutput(result interface{}) (string, error) {
-	resultMap, ok := result.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("unexpected Claude result type")
-	}
-
-	success, _ := resultMap["Success"].(bool)
-	if !success {
-		exitCode, _ := resultMap["ExitCode"].(int)
-		output, _ := resultMap["Output"].(string)
-		return "", fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", exitCode, output)
-	}
-
-	output, _ := resultMap["Output"].(string)
-	return output, nil
-}
-
-// extractBeadID extracts the ID field from a bead creation result.
-// Handles map[string]interface{}, structs with GetID() method, and structs with ID field.
-func extractBeadID(result interface{}) (string, error) {
-	// Try map first (most common case)
-	if m, ok := result.(map[string]interface{}); ok {
-		if id, ok := m["ID"].(string); ok {
-			return id, nil
-		}
-		return "", fmt.Errorf("map missing ID field")
-	}
-
-	// Try GetID() method
-	if getter, ok := result.(interface{ GetID() string }); ok {
-		return getter.GetID(), nil
-	}
-
-	// Try struct with ID field via reflection
-	val := reflect.ValueOf(result)
-	for val.Kind() == reflect.Ptr {
-		if val.IsNil() {
-			return "", fmt.Errorf("nil pointer")
-		}
-		val = val.Elem()
-	}
-
-	if val.Kind() == reflect.Struct {
-		if idField := val.FieldByName("ID"); idField.IsValid() && idField.Kind() == reflect.String {
-			return idField.String(), nil
-		}
-	}
-
-	return "", fmt.Errorf("cannot extract ID from type %T", result)
 }

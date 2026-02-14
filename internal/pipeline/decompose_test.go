@@ -42,7 +42,7 @@ created: 2026-02-11
 
 	// Mock Claude client that returns bead definitions
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
 			// Verify prompt contains plan body (not frontmatter)
 			if !strings.Contains(prompt, "Database Schema") {
 				return nil, fmt.Errorf("prompt missing plan body content")
@@ -75,17 +75,17 @@ created: 2026-02-11
 					"depends_on_index": [0]
 				}
 			]`
-			return map[string]interface{}{
-				"Success":  true,
-				"ExitCode": 0,
-				"Output":   jsonOutput,
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output:   jsonOutput,
 			}, nil
 		},
 	}
 
 	var createdBeads []decomposeAcceptanceBeadDef
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			bead := decomposeAcceptanceBeadDef{
 				ID:       fmt.Sprintf("bead-%d", len(createdBeads)+1),
 				Title:    title,
@@ -94,7 +94,12 @@ created: 2026-02-11
 				Deps:     deps,
 			}
 			createdBeads = append(createdBeads, bead)
-			return bead, nil
+			return &BeadInfo{
+				ID:       bead.ID,
+				Title:    bead.Title,
+				Priority: bead.Priority,
+				Labels:   bead.Labels,
+			}, nil
 		},
 	}
 
@@ -164,11 +169,11 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
-			return map[string]interface{}{
-				"Success":  true,
-				"ExitCode": 0,
-				"Output": `[{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
 					"title": "Add cache interface",
 					"description": "Define cache interface",
 					"priority": "P1",
@@ -181,9 +186,9 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 
 	var capturedLabels []string
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedLabels = labels
-			return decomposeAcceptanceBeadDef{ID: "bead-1", Title: title, Labels: labels}, nil
+			return &BeadInfo{ID: "bead-1", Title: title, Priority: priority, Labels: labels}, nil
 		},
 	}
 
@@ -236,12 +241,12 @@ func TestDecomposeWorkflow_HandlesDependencyMapping(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
 			// Return 3 beads with dependency chain: bead2 depends on bead0, bead1 has no deps
-			return map[string]interface{}{
-				"Success":  true,
-				"ExitCode": 0,
-				"Output": `[
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
 					{
 						"title": "Task A",
 						"description": "First task",
@@ -274,11 +279,13 @@ func TestDecomposeWorkflow_HandlesDependencyMapping(t *testing.T) {
 	}
 	var capturedBeads []beadCapture
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedBeads = append(capturedBeads, beadCapture{title: title, deps: deps})
-			return decomposeAcceptanceBeadDef{
-				ID:    fmt.Sprintf("bead-%d", len(capturedBeads)),
-				Title: title,
+			return &BeadInfo{
+				ID:       fmt.Sprintf("bead-%d", len(capturedBeads)),
+				Title:    title,
+				Priority: priority,
+				Labels:   labels,
 			}, nil
 		},
 	}
@@ -343,12 +350,12 @@ func TestDecomposeWorkflow_SkipsSelfDependencies(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
 			// Return bead with self-dependency (index 0 depends on index 0)
-			return map[string]interface{}{
-				"Success":  true,
-				"ExitCode": 0,
-				"Output": `[{
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
 					"title": "Task with self-dep",
 					"description": "Bad dependency",
 					"priority": "P1",
@@ -361,9 +368,9 @@ func TestDecomposeWorkflow_SkipsSelfDependencies(t *testing.T) {
 
 	var capturedDeps []string
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedDeps = deps
-			return decomposeAcceptanceBeadDef{ID: "bead-1"}, nil
+			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
 
@@ -409,12 +416,12 @@ func TestDecomposeWorkflow_SkipsOutOfRangeDependencies(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
 			// Return 2 beads, second depends on index 5 (out of range)
-			return map[string]interface{}{
-				"Success":  true,
-				"ExitCode": 0,
-				"Output": `[
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
 					{
 						"title": "Task A",
 						"description": "First",
@@ -440,9 +447,9 @@ func TestDecomposeWorkflow_SkipsOutOfRangeDependencies(t *testing.T) {
 	}
 	var capturedBeads []beadCapture
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedBeads = append(capturedBeads, beadCapture{title: title, deps: deps})
-			return decomposeAcceptanceBeadDef{ID: fmt.Sprintf("bead-%d", len(capturedBeads))}, nil
+			return &BeadInfo{ID: fmt.Sprintf("bead-%d", len(capturedBeads))}, nil
 		},
 	}
 
@@ -491,11 +498,11 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
-			return map[string]interface{}{
-				"Success":  true,
-				"ExitCode": 0,
-				"Output": `[{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
 					"title": "Test task",
 					"description": "Test",
 					"priority": "P1",
@@ -508,9 +515,9 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 
 	beadCreateCalled := false
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			beadCreateCalled = true
-			return decomposeAcceptanceBeadDef{ID: "bead-1"}, nil
+			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
 
@@ -577,11 +584,11 @@ Already decomposed
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
-			return map[string]interface{}{
-				"Success":  true,
-				"ExitCode": 0,
-				"Output": `[{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
 					"title": "New task",
 					"description": "From redecompose",
 					"priority": "P1",
@@ -593,8 +600,8 @@ Already decomposed
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
-			return decomposeAcceptanceBeadDef{ID: "bead-1"}, nil
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
 
@@ -693,7 +700,7 @@ func TestDecomposeWorkflow_RespectsContextCancellation(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
 			time.Sleep(5 * time.Second) // Long operation
 			return nil, nil
 		},
@@ -750,11 +757,11 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
-			return map[string]interface{}{
-				"Success":  true,
-				"ExitCode": 0,
-				"Output": `[{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
 					"title": "Task",
 					"description": "Test",
 					"priority": "P1",
@@ -766,8 +773,8 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
-			return decomposeAcceptanceBeadDef{ID: "bead-1"}, nil
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
 
@@ -833,11 +840,11 @@ func TestDecomposeWorkflow_ParsesPriorityCorrectly(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (interface{}, error) {
-			return map[string]interface{}{
-				"Success":  true,
-				"ExitCode": 0,
-				"Output": `[
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
 					{
 						"title": "High priority task",
 						"description": "P0",
@@ -870,9 +877,9 @@ func TestDecomposeWorkflow_ParsesPriorityCorrectly(t *testing.T) {
 	}
 	var capturedBeads []beadCapture
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedBeads = append(capturedBeads, beadCapture{title: title, priority: priority})
-			return decomposeAcceptanceBeadDef{ID: fmt.Sprintf("bead-%d", len(capturedBeads))}, nil
+			return &BeadInfo{ID: fmt.Sprintf("bead-%d", len(capturedBeads))}, nil
 		},
 	}
 
@@ -935,10 +942,10 @@ func TestDecomposeWorkflow_NilDependenciesError(t *testing.T) {
 // Mock types for acceptance tests
 
 type decomposeAcceptanceClaudeClient struct {
-	runFunc func(prompt string, model string) (interface{}, error)
+	runFunc func(prompt string, model string) (*ClaudeRunResult, error)
 }
 
-func (m *decomposeAcceptanceClaudeClient) Run(prompt string, model string) (interface{}, error) {
+func (m *decomposeAcceptanceClaudeClient) Run(prompt string, model string) (*ClaudeRunResult, error) {
 	if m.runFunc != nil {
 		return m.runFunc(prompt, model)
 	}
@@ -946,24 +953,24 @@ func (m *decomposeAcceptanceClaudeClient) Run(prompt string, model string) (inte
 }
 
 type decomposeAcceptanceBeadClient struct {
-	createFunc func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error)
+	createFunc func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
 }
 
-func (m *decomposeAcceptanceBeadClient) Ready() (interface{}, error) {
+func (m *decomposeAcceptanceBeadClient) Ready() (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *decomposeAcceptanceBeadClient) Show(id string) (interface{}, error) {
+func (m *decomposeAcceptanceBeadClient) Show(id string) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *decomposeAcceptanceBeadClient) Create(title string, priority int, labels []string, outputs []string) (interface{}, error) {
+func (m *decomposeAcceptanceBeadClient) Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 	// Decompose workflow should use CreateWithDepsAndDescription, not Create
 	// This is here to satisfy the BeadClient interface
 	return nil, fmt.Errorf("decompose should use CreateWithDepsAndDescription")
 }
 
-func (m *decomposeAcceptanceBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+func (m *decomposeAcceptanceBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 	if m.createFunc != nil {
 		return m.createFunc(title, priority, labels, criteria, deps, desc)
 	}

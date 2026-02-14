@@ -20,26 +20,26 @@ func (m *testAgentResolver) Resolve(phase string, flagOverride string, choosePic
 // testClaudeClient is a mock for unit tests
 type testClaudeClient struct{}
 
-func (m *testClaudeClient) Run(prompt string, model string) (interface{}, error) {
+func (m *testClaudeClient) Run(prompt string, model string) (*ClaudeRunResult, error) {
 	return nil, nil
 }
 
 // testBeadClient is a mock for unit tests
 type testBeadClient struct{}
 
-func (m *testBeadClient) Ready() (interface{}, error) {
+func (m *testBeadClient) Ready() (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *testBeadClient) Show(id string) (interface{}, error) {
+func (m *testBeadClient) Show(id string) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *testBeadClient) Create(title string, priority int, labels []string, outputs []string) (interface{}, error) {
+func (m *testBeadClient) Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *testBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+func (m *testBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 	return nil, nil
 }
 
@@ -81,7 +81,7 @@ func (m *testPromptRenderer) RenderDecompose(input interface{}) (string, error) 
 	return "", nil
 }
 
-func (m *testPromptRenderer) RenderThoroughReview(ctx interface{}) (string, error) {
+func (m *testPromptRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
 	return "", nil
 }
 
@@ -110,6 +110,6 @@ func (m *testStateManager) SetLastReviewCommit(commit string) error {
 // testLogWriter is a mock for unit tests
 type testLogWriter struct{}
 
-func (m *testLogWriter) Write(entry interface{}) error {
+func (m *testLogWriter) Write(entry *LogEntry) error {
 	return nil
 }

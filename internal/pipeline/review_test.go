@@ -26,7 +26,7 @@ func TestReviewInteractiveWorkflow_BuildsContextAndReturnsSession(t *testing.T) 
 
 	promptRendered := false
 	mockRenderer := &reviewAcceptanceMockPromptRenderer{
-		renderThoroughReviewFunc: func(ctx interface{}) (string, error) {
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			promptRendered = true
 			// Verify context contains Diff and Model
 			return "# Review Prompt\n\nDiff content here", nil
@@ -89,13 +89,13 @@ func TestReviewInteractiveWorkflow_NilDependenciesError(t *testing.T) {
 // Expected failure: Pipeline.ReviewNonInteractive method does not exist yet
 func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 	mockRenderer := &reviewAcceptanceMockPromptRenderer{
-		renderThoroughReviewFunc: func(ctx interface{}) (string, error) {
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			return "# Review Prompt", nil
 		},
 	}
 
 	mockClaude := &reviewAcceptanceMockClaudeClient{
-		runFunc: func(prompt string, model string, timeout time.Duration) (interface{}, error) {
+		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
 			// Return Claude output with JSON review result
 			jsonOutput := `{
 				"passed": false,
@@ -118,23 +118,23 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 				"summary": "Found 1 critical bug and 1 optimization opportunity",
 				"learnings": ["Always validate config before use"]
 			}`
-			return map[string]interface{}{
-				"Success":  true,
-				"Output":   jsonOutput,
-				"ExitCode": 0,
+			return &ClaudeRunResult{
+				Success:  true,
+				Output:   jsonOutput,
+				ExitCode: 0,
 			}, nil
 		},
 	}
 
 	createdBeads := []reviewAcceptanceBeadRecord{}
 	mockBead := &reviewAcceptanceMockBeadClient{
-		createFunc: func(title string, priority int, labels []string, outputs []string) (interface{}, error) {
+		createFunc: func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 			createdBeads = append(createdBeads, reviewAcceptanceBeadRecord{
 				title:    title,
 				priority: priority,
 				labels:   labels,
 			})
-			return map[string]interface{}{"ID": fmt.Sprintf("bead-%d", len(createdBeads))}, nil
+			return &BeadInfo{ID: fmt.Sprintf("bead-%d", len(createdBeads))}, nil
 		},
 	}
 
@@ -156,7 +156,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 
 	logWritten := false
 	mockLog := &reviewAcceptanceMockLogWriter{
-		writeFunc: func(entry interface{}) error {
+		writeFunc: func(entry *LogEntry) error {
 			logWritten = true
 			return nil
 		},
@@ -271,13 +271,13 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 // Expected failure: Pipeline.ReviewNonInteractive method does not exist yet
 func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing.T) {
 	mockRenderer := &reviewAcceptanceMockPromptRenderer{
-		renderThoroughReviewFunc: func(ctx interface{}) (string, error) {
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			return "# Review", nil
 		},
 	}
 
 	mockClaude := &reviewAcceptanceMockClaudeClient{
-		runFunc: func(prompt string, model string, timeout time.Duration) (interface{}, error) {
+		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
 			jsonOutput := `{
 				"passed": true,
 				"fixes_applied": [],
@@ -292,18 +292,18 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 				"backlog_items": [],
 				"summary": "Minor fixes needed"
 			}`
-			return map[string]interface{}{
-				"Success": true,
-				"Output":  jsonOutput,
+			return &ClaudeRunResult{
+				Success: true,
+				Output:  jsonOutput,
 			}, nil
 		},
 	}
 
 	var capturedLabels []string
 	mockBead := &reviewAcceptanceMockBeadClient{
-		createFunc: func(title string, priority int, labels []string, outputs []string) (interface{}, error) {
+		createFunc: func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 			capturedLabels = labels
-			return map[string]interface{}{"ID": "bead-1"}, nil
+			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
 
@@ -359,13 +359,13 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 // Expected failure: Pipeline.ReviewNonInteractive method does not exist yet
 func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 	mockRenderer := &reviewAcceptanceMockPromptRenderer{
-		renderThoroughReviewFunc: func(ctx interface{}) (string, error) {
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			return "# Review", nil
 		},
 	}
 
 	mockClaude := &reviewAcceptanceMockClaudeClient{
-		runFunc: func(prompt string, model string, timeout time.Duration) (interface{}, error) {
+		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
 			jsonOutput := `{
 				"passed": true,
 				"fixes_applied": [],
@@ -379,9 +379,9 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 				],
 				"summary": "Looks good"
 			}`
-			return map[string]interface{}{
-				"Success": true,
-				"Output":  jsonOutput,
+			return &ClaudeRunResult{
+				Success: true,
+				Output:  jsonOutput,
 			}, nil
 		},
 	}
@@ -439,17 +439,17 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 // is expected to be managed via context at a higher level (e.g., in the CLI adapter)
 func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
 	mockRenderer := &reviewAcceptanceMockPromptRenderer{
-		renderThoroughReviewFunc: func(ctx interface{}) (string, error) {
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			return "# Review", nil
 		},
 	}
 
 	mockClaude := &reviewAcceptanceMockClaudeClient{
-		runFunc: func(prompt string, model string, timeout time.Duration) (interface{}, error) {
+		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
 			jsonOutput := `{"passed": true, "summary": "OK", "fixes_applied": [], "beads_to_create": [], "backlog_items": []}`
-			return map[string]interface{}{
-				"Success": true,
-				"Output":  jsonOutput,
+			return &ClaudeRunResult{
+				Success: true,
+				Output:  jsonOutput,
 			}, nil
 		},
 	}
@@ -543,7 +543,7 @@ func (m *reviewAcceptanceMockAgentResolver) Resolve(phase string, flagOverride s
 }
 
 type reviewAcceptanceMockPromptRenderer struct {
-	renderThoroughReviewFunc func(ctx interface{}) (string, error)
+	renderThoroughReviewFunc func(input *ThoroughReviewPromptInput) (string, error)
 }
 
 func (m *reviewAcceptanceMockPromptRenderer) RenderRefine(input interface{}) (string, error) {
@@ -558,9 +558,9 @@ func (m *reviewAcceptanceMockPromptRenderer) RenderDecompose(input interface{}) 
 	return "", fmt.Errorf("not implemented")
 }
 
-func (m *reviewAcceptanceMockPromptRenderer) RenderThoroughReview(ctx interface{}) (string, error) {
+func (m *reviewAcceptanceMockPromptRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
 	if m.renderThoroughReviewFunc != nil {
-		return m.renderThoroughReviewFunc(ctx)
+		return m.renderThoroughReviewFunc(input)
 	}
 	return "", fmt.Errorf("not implemented")
 }
@@ -570,10 +570,10 @@ func (m *reviewAcceptanceMockPromptRenderer) RenderExplore(ctx interface{}) (str
 }
 
 type reviewAcceptanceMockClaudeClient struct {
-	runFunc func(prompt string, model string, timeout time.Duration) (interface{}, error)
+	runFunc func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error)
 }
 
-func (m *reviewAcceptanceMockClaudeClient) Run(prompt string, model string) (interface{}, error) {
+func (m *reviewAcceptanceMockClaudeClient) Run(prompt string, model string) (*ClaudeRunResult, error) {
 	// Call runFunc with a zero timeout since the ClaudeClient interface doesn't expose timeout
 	// The timeout should be handled via context at a higher level
 	if m.runFunc != nil {
@@ -589,25 +589,25 @@ type reviewAcceptanceBeadRecord struct {
 }
 
 type reviewAcceptanceMockBeadClient struct {
-	createFunc func(title string, priority int, labels []string, outputs []string) (interface{}, error)
+	createFunc func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error)
 }
 
-func (m *reviewAcceptanceMockBeadClient) Ready() (interface{}, error) {
+func (m *reviewAcceptanceMockBeadClient) Ready() (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *reviewAcceptanceMockBeadClient) Show(id string) (interface{}, error) {
+func (m *reviewAcceptanceMockBeadClient) Show(id string) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *reviewAcceptanceMockBeadClient) Create(title string, priority int, labels []string, outputs []string) (interface{}, error) {
+func (m *reviewAcceptanceMockBeadClient) Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 	if m.createFunc != nil {
 		return m.createFunc(title, priority, labels, outputs)
 	}
-	return map[string]interface{}{"ID": "bead-1"}, nil
+	return &BeadInfo{ID: "bead-1"}, nil
 }
 
-func (m *reviewAcceptanceMockBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error) {
+func (m *reviewAcceptanceMockBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 	return nil, fmt.Errorf("not used by review workflow")
 }
 
@@ -650,10 +650,10 @@ func (m *reviewAcceptanceMockLearningsManager) Add(content string) error {
 }
 
 type reviewAcceptanceMockLogWriter struct {
-	writeFunc func(entry interface{}) error
+	writeFunc func(entry *LogEntry) error
 }
 
-func (m *reviewAcceptanceMockLogWriter) Write(entry interface{}) error {
+func (m *reviewAcceptanceMockLogWriter) Write(entry *LogEntry) error {
 	if m.writeFunc != nil {
 		return m.writeFunc(entry)
 	}

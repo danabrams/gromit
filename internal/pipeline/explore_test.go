@@ -628,9 +628,9 @@ func (m *mockPromptRenderer) RenderDecompose(input interface{}) (string, error) 
 	return "decompose prompt", nil
 }
 
-func (m *mockPromptRenderer) RenderThoroughReview(ctx interface{}) (string, error) {
+func (m *mockPromptRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
 	if m.RenderThoroughReviewFn != nil {
-		return m.RenderThoroughReviewFn(ctx)
+		return m.RenderThoroughReviewFn(input)
 	}
 	return "review prompt", nil
 }

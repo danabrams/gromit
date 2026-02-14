@@ -17,6 +17,33 @@ type Paths struct {
 	EpicsDir  string
 }
 
+// ClaudeRunResult holds the fields the pipeline needs from a Claude invocation.
+type ClaudeRunResult struct {
+	Success  bool
+	ExitCode int
+	Output   string
+}
+
+// BeadInfo holds the fields the pipeline needs from a bead operation.
+type BeadInfo struct {
+	ID       string
+	Title    string
+	Priority int
+	Labels   []string
+}
+
+// ThoroughReviewPromptInput holds the fields needed for rendering thorough review prompts.
+type ThoroughReviewPromptInput struct {
+	FromCommit string
+	Diff       string
+}
+
+// LogEntry holds the fields for a log entry.
+type LogEntry struct {
+	Type   string
+	BeadID string
+}
+
 // Deps contains all dependencies for pipeline workflows.
 type Deps struct {
 	AgentResolver    AgentResolver
@@ -57,15 +84,15 @@ type Agent interface {
 
 // ClaudeClient abstracts Claude CLI operations for non-interactive workflows.
 type ClaudeClient interface {
-	Run(prompt string, model string) (interface{}, error)
+	Run(prompt string, model string) (*ClaudeRunResult, error)
 }
 
 // BeadClient abstracts bead (bd) CLI operations.
 type BeadClient interface {
-	Ready() (interface{}, error)
-	Show(id string) (interface{}, error)
-	Create(title string, priority int, labels []string, outputs []string) (interface{}, error)
-	CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (interface{}, error)
+	Ready() (*BeadInfo, error)
+	Show(id string) (*BeadInfo, error)
+	Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error)
+	CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
 	Close(id string) error
 }
 
@@ -92,7 +119,7 @@ type PromptRenderer interface {
 	RenderRefine(input interface{}) (string, error)
 	RenderPlan(input interface{}) (string, error)
 	RenderDecompose(input interface{}) (string, error)
-	RenderThoroughReview(ctx interface{}) (string, error)
+	RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error)
 	RenderExplore(ctx interface{}) (string, error)
 }
 
@@ -109,7 +136,7 @@ type StateManager interface {
 
 // LogWriter abstracts log writing operations.
 type LogWriter interface {
-	Write(entry interface{}) error
+	Write(entry *LogEntry) error
 }
 
 // Plan executes the plan workflow.
@@ -135,7 +162,10 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 	}
 
 	// Build ThoroughReviewContext
-	reviewCtx := buildThoroughReviewContext(input)
+	reviewCtx := &ThoroughReviewPromptInput{
+		FromCommit: input.FromCommit,
+		Diff:       input.Diff,
+	}
 
 	// Render prompt
 	renderedPrompt, err := p.deps.PromptRenderer.RenderThoroughReview(reviewCtx)
@@ -195,7 +225,10 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	}
 
 	// Build and render prompt
-	reviewCtx := buildThoroughReviewContext(input)
+	reviewCtx := &ThoroughReviewPromptInput{
+		FromCommit: input.FromCommit,
+		Diff:       input.Diff,
+	}
 	renderedPrompt, err := p.deps.PromptRenderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
 		return nil, fmt.Errorf("rendering review prompt: %w", err)
@@ -209,19 +242,11 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 		return nil, fmt.Errorf("review invocation: %w", err)
 	}
 
-	// Extract result fields from Claude response
-	resultMap, ok := claudeResult.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("unexpected Claude result type")
+	// Check result from Claude
+	if !claudeResult.Success {
+		return nil, fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", claudeResult.ExitCode, claudeResult.Output)
 	}
-
-	success, _ := resultMap["Success"].(bool)
-	output, _ := resultMap["Output"].(string)
-
-	if !success {
-		exitCode, _ := resultMap["ExitCode"].(int)
-		return nil, fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", exitCode, output)
-	}
+	output := claudeResult.Output
 
 	// Parse result via review.ParseReviewResult
 	reviewResult, err := review.ParseReviewResult(output)
@@ -261,12 +286,9 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	}
 
 	// Log review
-	logEntry := map[string]interface{}{
-		"type":            "review",
-		"passed":          reviewResult.Passed,
-		"fixes_applied":   len(reviewResult.FixesApplied),
-		"beads_created":   beadsCreated,
-		"backlog_created": backlogCreated,
+	logEntry := &LogEntry{
+		Type:   "review",
+		BeadID: "", // Review entries don't have a specific bead ID
 	}
 	if err := p.deps.LogWriter.Write(logEntry); err != nil {
 		return nil, fmt.Errorf("writing review log: %w", err)
