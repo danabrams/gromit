@@ -74,6 +74,86 @@ func TestCheckExpectedOutputs(t *testing.T) {
 	}
 }
 
+func TestExtractExpectedFiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		want        []string
+	}{
+		{
+			name:        "no file creation patterns",
+			description: "Fix the bug in the authentication handler.",
+			want:        nil,
+		},
+		{
+			name: "single Create pattern",
+			description: `1. Create internal/runner/adapters.go with these moved from runner.go:
+   - routerAdapter struct`,
+			want: []string{"internal/runner/adapters.go"},
+		},
+		{
+			name: "multiple Create patterns",
+			description: `1. Create internal/runner/adapters.go with adapter types
+2. Create internal/runner/callbacks.go with callback methods
+3. Delete the moved functions from runner.go.`,
+			want: []string{"internal/runner/adapters.go", "internal/runner/callbacks.go"},
+		},
+		{
+			name:        "Create in middle of sentence ignored",
+			description: "You should Create internal/foo.go after the refactor is done",
+			want:        nil,
+		},
+		{
+			name: "cmd and pkg paths work",
+			description: `1. Create cmd/gromit/newcmd.go with the new command
+2. Create pkg/utils/helper.go with helpers`,
+			want: []string{"cmd/gromit/newcmd.go", "pkg/utils/helper.go"},
+		},
+		{
+			name:        "test paths work",
+			description: "1. Create test/contracts/new_test.go with contract tests",
+			want:        []string{"test/contracts/new_test.go"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractExpectedFiles(tt.description)
+			if len(got) != len(tt.want) {
+				t.Fatalf("extractExpectedFiles() = %v, want %v", got, tt.want)
+			}
+			for i, g := range got {
+				if g != tt.want[i] {
+					t.Errorf("extractExpectedFiles()[%d] = %q, want %q", i, g, tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestAnyFileMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	existingFile := filepath.Join(tmpDir, "exists.go")
+	os.WriteFile(existingFile, []byte("package x"), 0644)
+
+	tests := []struct {
+		name  string
+		paths []string
+		want  bool
+	}{
+		{name: "all exist", paths: []string{existingFile}, want: false},
+		{name: "one missing", paths: []string{filepath.Join(tmpDir, "nope.go")}, want: true},
+		{name: "mixed", paths: []string{existingFile, filepath.Join(tmpDir, "nope.go")}, want: true},
+		{name: "empty", paths: nil, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := anyFileMissing(tt.paths); got != tt.want {
+				t.Errorf("anyFileMissing() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCheckExpectedOutputsEmpty(t *testing.T) {
 	got := checkExpectedOutputs(nil)
 	if got != "" {

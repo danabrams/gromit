@@ -42,13 +42,21 @@ This task is part of: **{{.ParentBead.Title}}**
 - A false positive (saying PASSED when criteria aren't met) would skip needed work — this is bad
 - When in doubt, choose `PRECHECK_NOT_MET`
 
+### Code Organization / Refactoring Tasks
+
+Tasks that create new files, move code between files, or reorganize the codebase require extra scrutiny:
+
+- **If the task describes creating new files**, you MUST verify those files exist by attempting to read them. If any expected output file does not exist, output `PRECHECK_NOT_MET` immediately
+- **If the task describes moving or removing code from existing files**, you MUST read the source file and verify the code has actually been moved/removed
+- **Do NOT assume structural changes are complete** just because the code would compile — refactoring tasks often pass build/test criteria before and after the work, so build/test status tells you nothing about whether the reorganization happened
+
 ## Important
 
 - This is a quick check, not a full code review
 - Focus on whether the acceptance criteria are met, not code quality
 - Do NOT write or modify any code
 - Do NOT run any commands or tests
-- Just read files and report your verdict
+- Read files to verify structural criteria — especially check that expected output files exist
 
 ## Output Format
 

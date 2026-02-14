@@ -121,3 +121,77 @@ func TestProcessBead_SkipsATDDForTestOnlyBead_LogsReason(t *testing.T) {
 		t.Errorf("expected log message 'Skipping ATDD: bead is test-only' in output, got:\n%s", output)
 	}
 }
+
+// TestProcessBead_SkipsVerifyFailForFileCreationBead verifies that when ATDD is
+// globally enabled and the bead describes creating files that don't exist yet,
+// the "verify tests fail" phase (Phase 2) is skipped but ATDD otherwise proceeds
+// normally. ATDD's verify-fail phase triggers false "already done" auto-closes
+// for refactoring beads because acceptance criteria are tautologically true
+// before AND after structural changes.
+func TestProcessBead_SkipsVerifyFailForFileCreationBead(t *testing.T) {
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+	}
+
+	var buf strings.Builder
+	noopCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "VALIDATION_PASSED", "", 0, nil
+	}
+
+	r, err := NewRunnerWithDeps(
+		&config.Config{
+			Methodology: config.MethodologyConfig{ATDD: true},
+			Claude:      config.ClaudeConfig{BeadTimeout: 60},
+			Validation: config.ValidationConfig{
+				Enabled:  true,
+				Commands: []string{"go test ./..."},
+			},
+		},
+		&buf, t.TempDir(),
+		Deps{
+			Beads:     &mockBeadClient{},
+			Router:    newMockRouterFromClaudeClient(mockClaude),
+			Analyzer:  &mockFailureAnalyzer{},
+			Renderer:  &mockPromptRenderer{},
+			Logger:    &mockIterationLogger{},
+			CmdRunner: noopCmdRunner,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps: %v", err)
+	}
+
+	b := &bead.Bead{
+		ID:       "file-create-1",
+		Title:    "Split runner.go 1/4: extract adapters.go and callbacks.go",
+		Priority: 1,
+		Labels:   []string{},
+		// Description mentions creating files that don't exist
+		Description: `1. Create internal/runner/adapters.go with these moved from runner.go:
+   - routerAdapter struct
+2. Create internal/runner/callbacks.go with callback methods`,
+		ExpectedOutputs: []string{},
+	}
+
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
+
+	// The bead should succeed — not be falsely marked "already done"
+	if !result.Success {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+	if result.AlreadyDone {
+		t.Error("bead should NOT be marked as already done — verify-fail should be skipped for file-creation beads")
+	}
+
+	output := buf.String()
+	// ATDD should still be active (acceptance tests written)
+	if !strings.Contains(output, "ATDD enabled") {
+		t.Errorf("expected ATDD to still be active (only verify-fail skipped), got:\n%s", output)
+	}
+	// But verify-fail should be skipped
+	if !strings.Contains(output, "Skipping ATDD verify-fail") {
+		t.Errorf("expected log message about skipping verify-fail for file creation, got:\n%s", output)
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -908,14 +909,25 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		}
 
 		// ATDD Phase 2: Verify tests fail (as expected before implementation)
-		if err := r.methodologyExec.VerifyTestsFailWithRetry(ctx, bc); err != nil {
-			if methodology.IsATDDAlreadyDone(err) {
-				bc.Result.Success = true
-				bc.Result.AlreadyDone = true
+		// Skip for file-creation beads — acceptance criteria like "build passes"
+		// are tautologically true before AND after refactoring, so verify-fail
+		// always triggers false "already done" auto-closes.
+		skipVerifyFail := false
+		if parsed := extractExpectedFiles(bc.Bead.Description); len(parsed) > 0 && anyFileMissing(parsed) {
+			r.log("Skipping ATDD verify-fail: bead creates files that don't exist yet (structural change)")
+			skipVerifyFail = true
+		}
+
+		if !skipVerifyFail {
+			if err := r.methodologyExec.VerifyTestsFailWithRetry(ctx, bc); err != nil {
+				if methodology.IsATDDAlreadyDone(err) {
+					bc.Result.Success = true
+					bc.Result.AlreadyDone = true
+					return bc.Result
+				}
+				bc.Result.Error = err
 				return bc.Result
 			}
-			bc.Result.Error = err
-			return bc.Result
 		}
 
 		// Update build prompt to indicate acceptance tests are ready
@@ -1647,6 +1659,34 @@ func (r *Runner) runCmd(ctx context.Context, command string, workDir string) (st
 	return defaultCmdRunner(ctx, command, workDir)
 }
 
+// extractExpectedFiles parses a bead description for file creation patterns
+// like "Create internal/runner/adapters.go" and returns the file paths.
+// This enables deterministic precheck rejection for beads that describe
+// creating files that don't yet exist.
+var fileCreationPattern = regexp.MustCompile(`(?:^|\n)\s*\d*\.?\s*Create\s+((?:internal|cmd|pkg|test)/\S+\.go)`)
+
+func extractExpectedFiles(description string) []string {
+	matches := fileCreationPattern.FindAllStringSubmatch(description, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	files := make([]string, 0, len(matches))
+	for _, m := range matches {
+		files = append(files, m[1])
+	}
+	return files
+}
+
+// anyFileMissing returns true if any of the given paths don't exist on disk.
+func anyFileMissing(paths []string) bool {
+	for _, p := range paths {
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			return true
+		}
+	}
+	return false
+}
+
 // checkExpectedOutputs checks if expected files exist and returns a summary
 func checkExpectedOutputs(expectedOutputs []string) string {
 	if len(expectedOutputs) == 0 {
@@ -1925,6 +1965,15 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Dura
 
 	if !r.cfg.Precheck.IsEnabled() {
 		return false, 0
+	}
+
+	// Deterministic file existence check — reject before invoking any model
+	// if the bead describes creating files that don't exist yet. Models
+	// (especially Codex) unreliably verify file existence for refactoring beads
+	// where build/test criteria pass both before and after the change.
+	if parsed := extractExpectedFiles(b.Description); len(parsed) > 0 && anyFileMissing(parsed) {
+		r.log("Pre-check: description mentions files to create that don't exist, skipping model check")
+		return false, time.Since(start)
 	}
 
 	parent, err := r.beads.GetParent(b)
