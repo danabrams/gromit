@@ -847,15 +847,19 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 
 	// ATDD Phase 1: Write acceptance tests (if ATDD active)
 	if atddActive {
+		if r.methodologyExec == nil {
+			bc.Result.Error = fmt.Errorf("ATDD active but methodologyExec not wired")
+			return bc.Result
+		}
 		r.log("ATDD enabled, writing acceptance tests first...")
-		if err := r.runAcceptanceTestsWithRetry(ctx, bc); err != nil {
+		if err := r.methodologyExec.RunAcceptanceTestsWithRetry(ctx, bc); err != nil {
 			bc.Result.Error = fmt.Errorf("acceptance tests phase failed: %w", err)
 			return bc.Result
 		}
 
 		// ATDD Phase 2: Verify tests fail (as expected before implementation)
-		if err := r.verifyTestsFailWithRetry(ctx, bc); err != nil {
-			if errors.Is(err, errATDDAlreadyDone) {
+		if err := r.methodologyExec.VerifyTestsFailWithRetry(ctx, bc); err != nil {
+			if methodology.IsATDDAlreadyDone(err) {
 				bc.Result.Success = true
 				bc.Result.AlreadyDone = true
 				return bc.Result
@@ -911,8 +915,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	// ATDD/TDD Phase 3: Refactor (if either methodology is active)
 	if atddActive || tddActive {
 		r.log("Running refactor phase...")
-		if err := r.runRefactorPhase(ctx, bc); err != nil {
-			// Refactor failures are non-blocking, just log
+		if r.methodologyExec == nil {
+			bc.Result.Error = fmt.Errorf("refactor phase active but methodologyExec not wired")
+			return bc.Result
+		}
+		if err := r.methodologyExec.RunRefactorPhase(ctx, bc); err != nil {
 			r.log("Warning: refactor phase encountered issues: %v", err)
 		}
 
