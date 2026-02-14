@@ -5,6 +5,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -46,7 +47,7 @@ func (m *mockProvider) Run(ctx context.Context, prompt string, tier string) (*pr
 	return &provider.Result{Success: true, ExitCode: 0, Output: "mock output"}, nil
 }
 
-func (m *mockProvider) StreamRun(ctx context.Context, prompt string, tier string, writer provider.StreamWriter) (*provider.Result, error) {
+func (m *mockProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 	// For acceptance tests, just call Run
 	return m.Run(ctx, prompt, tier)
 }
@@ -457,7 +458,8 @@ func TestRunPrecheck_AcceptsParentParameter(t *testing.T) {
 	// and should NOT call GetParent internally
 
 	ctx := context.Background()
-	passed, _ := r.runPrecheck(ctx, testBead)
+	// Expected failure: This will not compile because runPrecheck does not accept parent parameter yet
+	passed, _ := r.runPrecheck(ctx, testBead, parentBead)
 
 	if !passed {
 		t.Error("runPrecheck should return true for PRECHECK_PASSED")
@@ -555,7 +557,8 @@ func TestCheckScope_AcceptsParentParameter(t *testing.T) {
 	// and should NOT call GetParent internally
 
 	ctx := context.Background()
-	estimate := r.checkScope(ctx, testBead)
+	// Expected failure: This will not compile because checkScope does not accept parent parameter yet
+	estimate := r.checkScope(ctx, testBead, parentBead)
 
 	if estimate == nil {
 		t.Fatal("checkScope returned nil")
@@ -649,7 +652,8 @@ func TestSetupBeadContext_AcceptsParentParameter(t *testing.T) {
 	// and BuildContext should be called with parent already fetched
 
 	ctx := context.Background()
-	bc, _, cancel, err := r.setupBeadContext(ctx, testBead, 1, time.Time{}, nil)
+	// Expected failure: This will not compile because setupBeadContext does not accept parent parameter yet
+	bc, _, cancel, err := r.setupBeadContext(ctx, testBead, parentBead, 1, time.Time{}, nil)
 	if cancel != nil {
 		defer cancel()
 	}
