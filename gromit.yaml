@@ -47,8 +47,8 @@ routing:
     precheck: any
     decompose: any
   ratio:
-    openai: 90
-    claude: 10
+    openai: 0
+    claude: 100
   fallback:
     enabled: true
     cooldown: 30m

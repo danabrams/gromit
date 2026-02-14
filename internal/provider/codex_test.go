@@ -520,15 +520,22 @@ exit 0
 	}
 }
 
-// TestCodexProviderStreamRunEventHandlerIsNoop verifies that StreamRun()
-// accepts an EventHandler but treats it as a no-op for Codex (since Codex
-// does not produce Claude-style stream-json events).
-// Expected failure: CodexProvider StreamRun() method does not exist yet
-func TestCodexProviderStreamRunEventHandlerIsNoop(t *testing.T) {
+// TestCodexProviderStreamRunEventHandlerCalledWithJSON verifies that StreamRun()
+// invokes EventHandler when a non-nil handler is provided and the binary emits JSONL.
+// Expected failure: CodexProvider StreamRun() does not add --json flag or call handler yet
+func TestCodexProviderStreamRunEventHandlerCalledWithJSON(t *testing.T) {
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := "#!/bin/bash\necho 'output'\nexit 0\n"
+	// Mock binary that emits a JSONL event when --json flag is present
+	mockScript := `#!/bin/bash
+if [[ "$*" == *"--json"* ]]; then
+    echo '{"type":"thread.started","data":{"thread_id":"t-123"}}'
+else
+    echo 'plain text output'
+fi
+exit 0
+`
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -539,7 +546,7 @@ func TestCodexProviderStreamRunEventHandlerIsNoop(t *testing.T) {
 	ctx := context.Background()
 	var output bytes.Buffer
 
-	// EventHandler should not be called for Codex (no stream-json format)
+	// EventHandler SHOULD be called when non-nil and --json is active
 	handlerCalled := false
 	handler := func(line []byte) {
 		handlerCalled = true
@@ -555,20 +562,28 @@ func TestCodexProviderStreamRunEventHandlerIsNoop(t *testing.T) {
 		t.Fatal("StreamRun() returned nil result")
 	}
 
-	// EventHandler should NOT be called for Codex - it's a no-op
-	if handlerCalled {
-		t.Error("StreamRun() called EventHandler, but it should be a no-op for Codex")
+	// EventHandler SHOULD be called when non-nil (after implementation)
+	if !handlerCalled {
+		t.Error("StreamRun() with non-nil EventHandler should invoke handler for JSONL events")
 	}
 }
 
-// TestCodexProviderStreamRunToolCallHandlerIsNoop verifies that StreamRun()
-// accepts a ToolCallHandler but treats it as a no-op for Codex.
-// Expected failure: CodexProvider StreamRun() method does not exist yet
-func TestCodexProviderStreamRunToolCallHandlerIsNoop(t *testing.T) {
+// TestCodexProviderStreamRunToolCallHandlerCalledForToolEvents verifies that StreamRun()
+// invokes ToolCallHandler when tool-related events are emitted in JSONL format.
+// Expected failure: CodexProvider StreamRun() does not parse tool events or call handler yet
+func TestCodexProviderStreamRunToolCallHandlerCalledForToolEvents(t *testing.T) {
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := "#!/bin/bash\necho 'output'\nexit 0\n"
+	// Mock binary that emits a command_execution event when --json is present
+	mockScript := `#!/bin/bash
+if [[ "$*" == *"--json"* ]]; then
+    echo '{"type":"item.started","item":{"type":"command_execution","command":"go test"}}'
+else
+    echo 'plain text output'
+fi
+exit 0
+`
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -579,13 +594,15 @@ func TestCodexProviderStreamRunToolCallHandlerIsNoop(t *testing.T) {
 	ctx := context.Background()
 	var output bytes.Buffer
 
-	// ToolCallHandler should not be called for Codex (no tool events)
+	// ToolCallHandler SHOULD be called for tool-related item.started events
 	handlerCalled := false
+	var receivedEvent ToolEvent
 	toolHandler := func(event ToolEvent) {
 		handlerCalled = true
+		receivedEvent = event
 	}
 
-	result, err := cp.StreamRun(ctx, "test", TierLow, &output, nil, toolHandler)
+	result, err := cp.StreamRun(ctx, "test", TierLow, &output, func(line []byte) {}, toolHandler)
 
 	if err != nil {
 		t.Fatalf("StreamRun() error = %v, want nil", err)
@@ -595,9 +612,14 @@ func TestCodexProviderStreamRunToolCallHandlerIsNoop(t *testing.T) {
 		t.Fatal("StreamRun() returned nil result")
 	}
 
-	// ToolCallHandler should NOT be called for Codex - it's a no-op
-	if handlerCalled {
-		t.Error("StreamRun() called ToolCallHandler, but it should be a no-op for Codex")
+	// ToolCallHandler SHOULD be called when non-nil and tool events are present
+	if !handlerCalled {
+		t.Error("StreamRun() with non-nil ToolCallHandler should invoke handler for tool events")
+	}
+
+	// Verify the tool event has correct fields
+	if handlerCalled && receivedEvent.ToolName != "Bash" {
+		t.Errorf("ToolEvent.ToolName = %q, want %q for command_execution", receivedEvent.ToolName, "Bash")
 	}
 }
 
