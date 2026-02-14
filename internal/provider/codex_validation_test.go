@@ -36,7 +36,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	commands := []string{"go test", "go vet"}

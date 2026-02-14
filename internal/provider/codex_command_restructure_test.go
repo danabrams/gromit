@@ -29,7 +29,7 @@ exit 0
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	flags := []string{"--cd", "/workspace"}
-	cp := NewCodexProvider(mockBinary, flags, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, flags, tierMap)
 
 	ctx := context.Background()
 	result, err := cp.Run(ctx, "test prompt", TierMedium)
@@ -75,7 +75,7 @@ exit 0
 // Expected failure: CodexProvider still has promptDelivery field
 func TestCodexProviderDoesNotHavePromptDeliveryField(t *testing.T) {
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider("/bin/codex", []string{}, "", "", tierMap)
+	cp := NewCodexProvider("/bin/codex", []string{}, tierMap)
 
 	// This test verifies that the constructor signature doesn't require promptDelivery
 	// by passing empty strings where promptDelivery and promptFlag used to be.
@@ -95,7 +95,7 @@ func TestCodexProviderDoesNotHavePromptDeliveryField(t *testing.T) {
 // Expected failure: CodexProvider still has promptFlag field
 func TestCodexProviderDoesNotHavePromptFlagField(t *testing.T) {
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider("/bin/codex", []string{}, "", "", tierMap)
+	cp := NewCodexProvider("/bin/codex", []string{}, tierMap)
 
 	if cp == nil {
 		t.Fatal("NewCodexProvider returned nil")
@@ -124,7 +124,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	testPrompt := "This is the test prompt content that should be sent via stdin"
@@ -161,7 +161,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -201,7 +201,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	// Count temp files before Run()
 	tempPattern := filepath.Join(os.TempDir(), "codex-prompt-*.txt")
@@ -243,7 +243,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	tempPattern := filepath.Join(os.TempDir(), "codex-prompt-*.txt")
 	beforeFiles, _ := filepath.Glob(tempPattern)
@@ -280,7 +280,7 @@ func TestCodexProviderConstructorDoesNotRequirePromptParams(t *testing.T) {
 
 	// After refactor, constructor should only need: binaryPath, flags, tierToModel
 	// The empty strings here represent removed promptDelivery and promptFlag
-	cp := NewCodexProvider(binaryPath, flags, "", "", tierMap)
+	cp := NewCodexProvider(binaryPath, flags, tierMap)
 
 	if cp == nil {
 		t.Fatal("NewCodexProvider returned nil")
@@ -317,7 +317,7 @@ exit 0
 
 	userFlags := []string{"--cd", "/workspace", "--verbose"}
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, userFlags, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, userFlags, tierMap)
 
 	ctx := context.Background()
 	result, err := cp.Run(ctx, "test", TierMedium)
@@ -364,7 +364,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	// Create a large prompt (100KB) that would fail with ARG_MAX
 	largePrompt := strings.Repeat("This is a large prompt. ", 5000) // ~125KB
@@ -401,8 +401,8 @@ func TestCodexProviderBuildCommandArgsProducesCorrectOrder(t *testing.T) {
 	}
 
 	model := "gpt-4o"
-	// Note: buildCommandArgs signature changed - no longer takes promptFile parameter
-	args := cp.buildCommandArgs(model)
+	// Note: buildCommandArgs signature changed - takes model and jsonMode boolean
+	args := cp.buildCommandArgs(model, false)
 
 	// Verify first arg is 'exec'
 	if len(args) == 0 || args[0] != "exec" {
@@ -491,7 +491,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -547,7 +547,7 @@ exit 1
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	largePrompt := strings.Repeat("data ", 100000) // Large prompt to trigger write
@@ -585,7 +585,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "", "", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -637,15 +637,15 @@ func TestCodexProviderBuildCommandArgsSignatureDoesNotRequirePromptFile(t *testi
 
 	model := "gpt-4o"
 
-	// After refactor, buildCommandArgs should only need model parameter
-	args := cp.buildCommandArgs(model)
+	// After refactor, buildCommandArgs takes model and jsonMode boolean
+	args := cp.buildCommandArgs(model, false)
 
 	if len(args) == 0 {
 		t.Error("buildCommandArgs() returned empty slice")
 	}
 
 	// Old signature was: buildCommandArgs(model, promptFile string) []string
-	// New signature should be: buildCommandArgs(model string) []string
+	// New signature is: buildCommandArgs(model string, jsonMode bool) []string
 	// This test verifies the new signature by not passing promptFile
 
 	_ = args // Use the result to avoid unused variable error

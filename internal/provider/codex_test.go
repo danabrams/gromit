@@ -58,32 +58,6 @@ func TestCodexProviderHasFlagsField(t *testing.T) {
 	}
 }
 
-// TestCodexProviderHasPromptDeliveryField verifies that CodexProvider has a
-// promptDelivery field specifying how to pass prompts (stdin, file_ref, prompt_file_arg).
-// Expected failure: CodexProvider struct and promptDelivery field do not exist yet
-func TestCodexProviderHasPromptDeliveryField(t *testing.T) {
-	cp := &CodexProvider{
-		promptDelivery: "prompt_file_arg",
-	}
-
-	if cp.promptDelivery != "prompt_file_arg" {
-		t.Errorf("promptDelivery = %q, want %q", cp.promptDelivery, "prompt_file_arg")
-	}
-}
-
-// TestCodexProviderHasPromptFlagField verifies that CodexProvider has a
-// promptFlag field for the CLI flag name to use when passing prompt file paths.
-// Expected failure: CodexProvider struct and promptFlag field do not exist yet
-func TestCodexProviderHasPromptFlagField(t *testing.T) {
-	cp := &CodexProvider{
-		promptFlag: "--prompt",
-	}
-
-	if cp.promptFlag != "--prompt" {
-		t.Errorf("promptFlag = %q, want %q", cp.promptFlag, "--prompt")
-	}
-}
-
 // TestCodexProviderHasTierToModelMap verifies that CodexProvider has a
 // tierToModel map field for mapping abstract tiers to Codex-specific model names.
 // Expected failure: CodexProvider struct and tierToModel field do not exist yet
@@ -119,15 +93,13 @@ func TestCodexProviderHasTierToModelMap(t *testing.T) {
 func TestNewCodexProviderConstructor(t *testing.T) {
 	binaryPath := "/usr/local/bin/codex"
 	flags := []string{"--no-color"}
-	promptDelivery := "prompt_file_arg"
-	promptFlag := "--prompt"
 	tierMap := map[string]string{
 		TierHigh:   "o3",
 		TierMedium: "gpt-4o",
 		TierLow:    "gpt-4o-mini",
 	}
 
-	cp := NewCodexProvider(binaryPath, flags, promptDelivery, promptFlag, tierMap)
+	cp := NewCodexProvider(binaryPath, flags, tierMap)
 
 	if cp == nil {
 		t.Fatal("NewCodexProvider() returned nil")
@@ -139,14 +111,6 @@ func TestNewCodexProviderConstructor(t *testing.T) {
 
 	if len(cp.flags) != len(flags) || cp.flags[0] != flags[0] {
 		t.Errorf("flags = %v, want %v", cp.flags, flags)
-	}
-
-	if cp.promptDelivery != promptDelivery {
-		t.Errorf("promptDelivery = %q, want %q", cp.promptDelivery, promptDelivery)
-	}
-
-	if cp.promptFlag != promptFlag {
-		t.Errorf("promptFlag = %q, want %q", cp.promptFlag, promptFlag)
 	}
 
 	if cp.tierToModel[TierHigh] != "o3" {
@@ -190,7 +154,7 @@ exit 0
 		TierLow:    "gpt-4o-mini",
 	}
 
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	result, err := cp.Run(ctx, "test prompt", TierMedium)
@@ -244,7 +208,7 @@ fi
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	testPrompt := "This is a test prompt for Codex"
@@ -280,7 +244,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	result, err := cp.Run(ctx, "test", TierLow)
@@ -313,7 +277,7 @@ exit 1
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	result, err := cp.Run(ctx, "test", TierLow)
@@ -353,7 +317,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	result, err := cp.Run(ctx, "test", TierLow)
@@ -408,7 +372,7 @@ func TestCodexProviderRunSetsSuccessBasedOnExitCode(t *testing.T) {
 			}
 
 			tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-			cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+			cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 			ctx := context.Background()
 			result, err := cp.Run(ctx, "test", TierLow)
@@ -446,7 +410,7 @@ func TestCodexProviderRunPopulatesModelInResult(t *testing.T) {
 		TierMedium: "gpt-4o",
 		TierLow:    "gpt-4o-mini",
 	}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	tests := []struct {
 		tier      string
@@ -494,7 +458,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -541,7 +505,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -589,7 +553,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -636,7 +600,7 @@ func TestCodexProviderStreamRunReturnsResultWithMetadata(t *testing.T) {
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -802,7 +766,7 @@ func TestCodexProviderRunWithContextCancellation(t *testing.T) {
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -840,7 +804,7 @@ exit 0
 
 	flags := []string{"--verbose", "--no-color"}
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, flags, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, flags, tierMap)
 
 	ctx := context.Background()
 	result, err := cp.Run(ctx, "test", TierLow)
@@ -896,7 +860,7 @@ func TestCodexProviderNilReceiverSafety(t *testing.T) {
 func TestCodexProviderBinaryNotFound(t *testing.T) {
 	nonexistentPath := "/nonexistent/path/to/codex"
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(nonexistentPath, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(nonexistentPath, []string{}, tierMap)
 
 	ctx := context.Background()
 	result, err := cp.Run(ctx, "test", TierLow)
@@ -936,7 +900,7 @@ exit 0
 
 	// Empty tier map
 	emptyTierMap := map[string]string{}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", emptyTierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, emptyTierMap)
 
 	ctx := context.Background()
 	result, err := cp.Run(ctx, "test", TierMedium)
@@ -1010,7 +974,7 @@ exit 0
 		TierMedium: "gpt-4o",
 		TierLow:    "gpt-4o-mini",
 	}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	// Verify Name()
 	if name := cp.Name(); name != "codex" {

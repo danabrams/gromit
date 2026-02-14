@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -20,24 +19,20 @@ const (
 
 // CodexProvider wraps the Codex CLI and implements the Provider interface
 type CodexProvider struct {
-	binaryPath     string
-	flags          []string
-	promptDelivery string
-	promptFlag     string
-	tierToModel    map[string]string
+	binaryPath  string
+	flags       []string
+	tierToModel map[string]string
 }
 
 // Compile-time check to verify CodexProvider implements Provider interface
 var _ Provider = (*CodexProvider)(nil)
 
 // NewCodexProvider creates a new CodexProvider with the given configuration
-func NewCodexProvider(binaryPath string, flags []string, promptDelivery string, promptFlag string, tierToModel map[string]string) *CodexProvider {
+func NewCodexProvider(binaryPath string, flags []string, tierToModel map[string]string) *CodexProvider {
 	return &CodexProvider{
-		binaryPath:     binaryPath,
-		flags:          flags,
-		promptDelivery: promptDelivery,
-		promptFlag:     promptFlag,
-		tierToModel:    tierToModel,
+		binaryPath:  binaryPath,
+		flags:       flags,
+		tierToModel: tierToModel,
 	}
 }
 
@@ -61,21 +56,34 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 	}
 
 	model := cp.ModelForTier(tier)
-	tmpFile, cleanup, err := cp.createPromptFile(prompt)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
-	args := cp.buildCommandArgs(model, tmpFile)
+	args := cp.buildCommandArgs(model, false)
 	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
+
+	// Set up stdin pipe for prompt delivery
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	startTime := time.Now()
-	err = cmd.Run()
+
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start codex command: %w", err)
+	}
+
+	// Write prompt to stdin in a goroutine to avoid blocking
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, prompt)
+	}()
+
+	// Wait for command to complete
+	err = cmd.Wait()
 	duration := time.Since(startTime)
 
 	if ctx.Err() != nil {
@@ -106,20 +114,14 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	}
 
 	model := cp.ModelForTier(tier)
-	tmpFile, cleanup, err := cp.createPromptFile(prompt)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
-	args := cp.buildCommandArgs(model, tmpFile)
-
-	// Add --json flag when EventHandler is present
-	if handler != nil {
-		args = append(args, "--json")
-	}
-
+	args := cp.buildCommandArgs(model, handler != nil)
 	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
+
+	// Set up stdin pipe for prompt delivery
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
+	}
 
 	startTime := time.Now()
 
@@ -136,6 +138,12 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		if err := cmd.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start codex command: %w", err)
 		}
+
+		// Write prompt to stdin in goroutine
+		go func() {
+			defer stdin.Close()
+			io.WriteString(stdin, prompt)
+		}()
 
 		// Process the JSONL stream
 		resultText, _, err := processCodexStream(stdout, output, handler, onToolCall)
@@ -166,7 +174,7 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		}, nil
 	}
 
-	// Without handler, use plain text capture (existing behavior)
+	// Without handler, use plain text capture
 	var captureBuffer bytes.Buffer
 	var multiWriter io.Writer
 	if output != nil {
@@ -179,7 +187,17 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	cmd.Stdout = multiWriter
 	cmd.Stderr = &stderr
 
-	err = cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start codex command: %w", err)
+	}
+
+	// Write prompt to stdin in goroutine
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, prompt)
+	}()
+
+	err = cmd.Wait()
 	duration := time.Since(startTime)
 
 	if ctx.Err() != nil {
@@ -255,36 +273,20 @@ func (cp *CodexProvider) IsScopeTooLarge(result *Result) (bool, string) {
 	return IsScopeTooLarge(result)
 }
 
-// createPromptFile writes the prompt to a temporary file and returns the filename
-// and a cleanup function. The cleanup function should be called via defer.
-func (cp *CodexProvider) createPromptFile(prompt string) (string, func(), error) {
-	tmpFile, err := os.CreateTemp("", "codex-prompt-*.txt")
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to create temp file for prompt: %w", err)
-	}
-
-	cleanup := func() { os.Remove(tmpFile.Name()) }
-
-	if _, err := tmpFile.WriteString(prompt); err != nil {
-		tmpFile.Close()
-		cleanup()
-		return "", nil, fmt.Errorf("failed to write prompt to temp file: %w", err)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("failed to close temp file: %w", err)
-	}
-
-	return tmpFile.Name(), cleanup, nil
-}
-
-// buildCommandArgs constructs the command arguments for the Codex CLI invocation
-func (cp *CodexProvider) buildCommandArgs(model, promptFile string) []string {
-	args := make([]string, 0, len(cp.flags)+4)
+// buildCommandArgs constructs the command arguments for the Codex CLI invocation.
+// Returns: ['exec', user_flags..., '--full-auto', '--skip-git-repo-check', '--color', 'never', '--model', model, [--json], '-']
+func (cp *CodexProvider) buildCommandArgs(model string, jsonMode bool) []string {
+	args := make([]string, 0, len(cp.flags)+12)
+	args = append(args, "exec")
 	args = append(args, cp.flags...)
+	args = append(args, "--full-auto")
+	args = append(args, "--skip-git-repo-check")
+	args = append(args, "--color", "never")
 	args = append(args, "--model", model)
-	args = append(args, cp.promptFlag, promptFile)
+	if jsonMode {
+		args = append(args, "--json")
+	}
+	args = append(args, "-")
 	return args
 }
 

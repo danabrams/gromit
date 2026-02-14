@@ -30,15 +30,14 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
 
 	// EventHandler is non-nil, so --json flag should be added
-	handlerCalled := false
 	handler := func(line []byte) {
-		handlerCalled = true
+		// Handler called for events
 	}
 
 	result, err := cp.StreamRun(ctx, "test prompt", TierMedium, &output, handler, nil)
@@ -73,7 +72,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -116,7 +115,7 @@ func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -170,7 +169,7 @@ func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -242,7 +241,7 @@ func TestCodexProviderInvokesToolCallHandlerForCommandExecution(t *testing.T) {
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -292,7 +291,7 @@ func TestCodexProviderInvokesToolCallHandlerForFileChange(t *testing.T) {
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -342,7 +341,7 @@ func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -388,7 +387,7 @@ func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -485,7 +484,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	commands := []string{"go test ./...", "go vet ./...", "golangci-lint run"}
@@ -544,7 +543,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	commands := []string{"go test ./..."}
@@ -578,7 +577,7 @@ exit 1
 	}
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	commands := []string{"go test ./..."}
@@ -618,7 +617,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -655,7 +654,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -693,7 +692,7 @@ exit 0
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -805,9 +804,8 @@ func TestProcessCodexStreamFunctionSignature(t *testing.T) {
 		handlerCalled = true
 	}
 
-	toolHandlerCalled := false
 	toolHandler := func(event ToolEvent) {
-		toolHandlerCalled = true
+		// Tool handler for events
 	}
 
 	// Call processCodexStream
@@ -921,7 +919,7 @@ func TestCodexProviderStreamRunCreatesTimestampedToolEvents(t *testing.T) {
 	}
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, "prompt_file_arg", "--prompt", tierMap)
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
