@@ -101,12 +101,12 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}, toolCallEvents, inv.overwriteOut)
 	}
 
-	var handler claude.EventHandler
-	if inv.streamLogger != nil {
-		sl := inv.streamLogger
-		handler = func(line []byte) {
-			logger.ParseAndLogEvent(sl, stats, line)
-		}
+	// Always install an event handler so providers that gate structured streaming
+	// on handler presence (Codex --json mode) still stream live output/events even
+	// when stream logging to file is disabled.
+	sl := inv.streamLogger
+	handler := func(line []byte) {
+		logger.ParseAndLogEvent(sl, stats, line)
 	}
 
 	var providerHandler provider.EventHandler

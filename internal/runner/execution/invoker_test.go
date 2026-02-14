@@ -391,6 +391,39 @@ func TestInvokerExecute_StreamRunErrorPropagates(t *testing.T) {
 	}
 }
 
+func TestInvokerExecute_PassesEventHandlerWithoutStreamLogger(t *testing.T) {
+	// Even when stream logger is nil, invoker should still pass a non-nil event
+	// handler so providers can run in structured streaming mode.
+	var handlerWasNil bool
+	mp := &mockProvider{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			handlerWasNil = handler == nil
+			if handler != nil {
+				handler([]byte(`{"type":"system","subtype":"init"}`))
+			}
+			return &provider.Result{Success: true, Model: "m"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "m"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+	invResult, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if invResult == nil {
+		t.Fatal("expected invocation result")
+	}
+	if handlerWasNil {
+		t.Fatal("expected non-nil event handler when stream logger is nil")
+	}
+}
+
 // Expected failure: InvocationResult type does not exist in execution/ package yet
 func TestInvocationResult_ContainsStreamStats(t *testing.T) {
 	// InvocationResult should include StreamStats for the caller to inspect.

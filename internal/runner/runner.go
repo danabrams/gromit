@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -895,32 +894,4 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 
 	bc.Result.Success = true
 	return bc.Result
-}
-
-// extractExpectedFiles parses a bead description for file creation patterns
-// like "Create internal/runner/adapters.go" and returns the file paths.
-// This enables deterministic precheck rejection for beads that describe
-// creating files that don't yet exist.
-var fileCreationPattern = regexp.MustCompile(`(?:^|\n)\s*\d*\.?\s*Create\s+((?:internal|cmd|pkg|test)/\S+\.go)`)
-
-func extractExpectedFiles(description string) []string {
-	matches := fileCreationPattern.FindAllStringSubmatch(description, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-	files := make([]string, 0, len(matches))
-	for _, m := range matches {
-		files = append(files, m[1])
-	}
-	return files
-}
-
-// anyFileMissing returns true if any of the given paths don't exist on disk.
-func anyFileMissing(paths []string) bool {
-	for _, p := range paths {
-		if _, err := os.Stat(p); os.IsNotExist(err) {
-			return true
-		}
-	}
-	return false
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -101,6 +102,24 @@ func (r *Runner) runCmd(ctx context.Context, command string, workDir string) (st
 	return defaultCmdRunner(ctx, command, workDir)
 }
 
+// extractExpectedFiles parses a bead description for file creation patterns
+// like "Create internal/runner/adapters.go" and returns the file paths.
+// This enables deterministic precheck rejection for beads that describe
+// creating files that don't yet exist.
+var fileCreationPattern = regexp.MustCompile(`(?:^|\n)\s*\d*\.?\s*Create\s+((?:internal|cmd|pkg|test)/\S+\.go)`)
+
+func extractExpectedFiles(description string) []string {
+	matches := fileCreationPattern.FindAllStringSubmatch(description, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	files := make([]string, 0, len(matches))
+	for _, m := range matches {
+		files = append(files, m[1])
+	}
+	return files
+}
+
 // checkExpectedOutputs checks if expected files exist and returns a summary
 func checkExpectedOutputs(expectedOutputs []string) string {
 	if len(expectedOutputs) == 0 {
@@ -122,6 +141,16 @@ func checkExpectedOutputs(expectedOutputs []string) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// anyFileMissing returns true if any of the given paths don't exist on disk.
+func anyFileMissing(paths []string) bool {
+	for _, p := range paths {
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			return true
+		}
+	}
+	return false
 }
 
 // showPartialProgress displays git diff and expected outputs on failure
