@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -55,11 +56,15 @@ func (m *Manager) EnsureWorktree() (string, error) {
 		return "", errors.New("nil Manager receiver")
 	}
 
-	// Check if worktree already exists
+	// Check if our specific worktree already exists by listing all worktrees
+	// and checking if ours is in the list
 	output, err := m.runGit(m.MainDir, "worktree", "list")
-	if err == nil && output != "" {
-		// Worktree exists, return the path
-		return m.WorktreeDir, nil
+	if err == nil {
+		// Parse the worktree list to see if our worktree exists
+		// git worktree list outputs one worktree per line with the path as the first column
+		if containsPath(output, m.WorktreeDir) {
+			return m.WorktreeDir, nil
+		}
 	}
 
 	// Create the worktree
@@ -71,11 +76,25 @@ func (m *Manager) EnsureWorktree() (string, error) {
 	return m.WorktreeDir, nil
 }
 
+// containsPath checks if the git worktree list output contains the given path.
+// git worktree list format: each line starts with the worktree path.
+func containsPath(gitWorktreeListOutput, path string) bool {
+	// Simple substring check is sufficient since worktree paths are absolute
+	// and git worktree list outputs the full path
+	return len(gitWorktreeListOutput) > 0 &&
+		(gitWorktreeListOutput == path ||
+			strings.Contains(gitWorktreeListOutput, path+"\n") ||
+			strings.HasPrefix(gitWorktreeListOutput, path+" "))
+}
+
 // CreateBranch creates a new branch in the worktree for an interactive session.
 // Branch name: gromit/<command>-<timestamp>
 func (m *Manager) CreateBranch(command string) (string, error) {
 	if m == nil {
 		return "", errors.New("nil Manager receiver")
+	}
+	if command == "" {
+		return "", errors.New("command cannot be empty")
 	}
 
 	// Generate branch name with timestamp
@@ -92,17 +111,16 @@ func (m *Manager) CreateBranch(command string) (string, error) {
 }
 
 // Cleanup removes the worktree and prunes stale branches.
+// If the worktree doesn't exist, Cleanup succeeds without error.
 func (m *Manager) Cleanup() error {
 	if m == nil {
 		return errors.New("nil Manager receiver")
 	}
 
-	// Remove the worktree
-	_, err := m.runGit(m.MainDir, "worktree", "remove", m.WorktreeDir)
-	if err != nil {
-		// If worktree doesn't exist, that's fine
-		return nil
-	}
+	// Remove the worktree. Ignore errors since worktree may not exist.
+	// This is intentionally lenient - cleanup should not fail if there's
+	// nothing to clean up.
+	_, _ = m.runGit(m.MainDir, "worktree", "remove", m.WorktreeDir)
 
 	return nil
 }
