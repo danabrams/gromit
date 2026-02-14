@@ -3178,6 +3178,101 @@ func TestProjectGromitYAML_HasModelTimeouts(t *testing.T) {
 	})
 }
 
+func TestPrecheckVerificationDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Precheck.Verification.Enabled == nil {
+		t.Fatal("Verification.Enabled should not be nil after SetDefaults")
+	}
+	if !*cfg.Precheck.Verification.Enabled {
+		t.Error("Verification.Enabled should default to true")
+	}
+	if cfg.Precheck.Verification.TimeoutSeconds != 120 {
+		t.Errorf("Verification.TimeoutSeconds should default to 120, got %d", cfg.Precheck.Verification.TimeoutSeconds)
+	}
+}
+
+func TestPrecheckVerificationIsEnabledNilPointer(t *testing.T) {
+	v := PrecheckVerificationConfig{}
+	if !v.IsVerificationEnabled() {
+		t.Errorf("expected IsVerificationEnabled() to return true for nil pointer")
+	}
+}
+
+func TestPrecheckVerificationIsEnabledExplicitTrue(t *testing.T) {
+	trueVal := true
+	v := PrecheckVerificationConfig{Enabled: &trueVal}
+	if !v.IsVerificationEnabled() {
+		t.Errorf("expected IsVerificationEnabled() to return true for explicit true")
+	}
+}
+
+func TestPrecheckVerificationIsEnabledExplicitFalse(t *testing.T) {
+	falseVal := false
+	v := PrecheckVerificationConfig{Enabled: &falseVal}
+	if v.IsVerificationEnabled() {
+		t.Errorf("expected IsVerificationEnabled() to return false for explicit false")
+	}
+}
+
+func TestPrecheckVerificationFromYAML(t *testing.T) {
+	tests := []struct {
+		name          string
+		yaml          string
+		expectEnabled bool
+		expectTimeout int
+	}{
+		{
+			name: "Verification explicit",
+			yaml: `precheck:
+  verification:
+    enabled: false
+    timeout_seconds: 60
+`,
+			expectEnabled: false,
+			expectTimeout: 60,
+		},
+		{
+			name:          "Verification uses defaults",
+			yaml:          "",
+			expectEnabled: true,
+			expectTimeout: 120,
+		},
+		{
+			name: "Verification timeout only",
+			yaml: `precheck:
+  verification:
+    timeout_seconds: 90
+`,
+			expectEnabled: true,
+			expectTimeout: 90,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			cfg, err := Load(cfgPath)
+			if err != nil {
+				t.Fatalf("loading config: %v", err)
+			}
+
+			if cfg.Precheck.Verification.IsVerificationEnabled() != tt.expectEnabled {
+				t.Errorf("expected verification enabled=%v, got %v", tt.expectEnabled, cfg.Precheck.Verification.IsVerificationEnabled())
+			}
+			if cfg.Precheck.Verification.TimeoutSeconds != tt.expectTimeout {
+				t.Errorf("expected verification timeout=%d, got %d", tt.expectTimeout, cfg.Precheck.Verification.TimeoutSeconds)
+			}
+		})
+	}
+}
+
 // findProjectRoot walks up from the current working directory to find the
 // project root (directory containing gromit.yaml).
 func findProjectRoot(t *testing.T) string {

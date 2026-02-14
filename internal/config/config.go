@@ -80,9 +80,15 @@ type ScopeCheckConfig struct {
 }
 
 type PrecheckConfig struct {
-	Enabled        *bool  `yaml:"enabled"`
-	Model          string `yaml:"model"`
-	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	Enabled        *bool                      `yaml:"enabled"`
+	Model          string                     `yaml:"model"`
+	TimeoutSeconds int                        `yaml:"timeout_seconds"`
+	Verification   PrecheckVerificationConfig `yaml:"verification"`
+}
+
+type PrecheckVerificationConfig struct {
+	Enabled        *bool `yaml:"enabled"`
+	TimeoutSeconds int   `yaml:"timeout_seconds"`
 }
 
 type PreflightConfig struct {
@@ -355,6 +361,13 @@ func (c *Config) SetDefaults() {
 	if c.Precheck.TimeoutSeconds == 0 {
 		c.Precheck.TimeoutSeconds = 120
 	}
+	if c.Precheck.Verification.Enabled == nil {
+		t := true
+		c.Precheck.Verification.Enabled = &t
+	}
+	if c.Precheck.Verification.TimeoutSeconds == 0 {
+		c.Precheck.Verification.TimeoutSeconds = 120
+	}
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
 	}
@@ -589,6 +602,14 @@ func (l LoopConfig) ShouldLearnFromSuccess() bool {
 		return true
 	}
 	return *l.LearnFromSuccess
+}
+
+// IsVerificationEnabled returns whether precheck verification should run (defaults to true)
+func (v PrecheckVerificationConfig) IsVerificationEnabled() bool {
+	if v.Enabled == nil {
+		return true
+	}
+	return *v.Enabled
 }
 
 // IsEnabled returns whether precheck should run (defaults to true)
