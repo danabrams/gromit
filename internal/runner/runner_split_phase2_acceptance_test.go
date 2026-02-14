@@ -13,12 +13,12 @@ import (
 	"testing"
 )
 
-type phase2ValueDecls struct {
+type phase2AcceptanceValueDecls struct {
 	consts map[string]bool
 	vars   map[string]bool
 }
 
-func parsePhase2ValueDecls(t *testing.T, path string) phase2ValueDecls {
+func parsePhase2AcceptanceValueDecls(t *testing.T, path string) phase2AcceptanceValueDecls {
 	t.Helper()
 
 	fset := token.NewFileSet()
@@ -27,7 +27,7 @@ func parsePhase2ValueDecls(t *testing.T, path string) phase2ValueDecls {
 		t.Fatalf("failed to parse %s: %v", path, err)
 	}
 
-	decls := phase2ValueDecls{
+	decls := phase2AcceptanceValueDecls{
 		consts: make(map[string]bool),
 		vars:   make(map[string]bool),
 	}
@@ -79,7 +79,7 @@ func verifyRunnerSplitPhase2Layout(t *testing.T) string {
 	}
 
 	heartbeatDecls := parseSplitFileDecls(t, heartbeatPath)
-	heartbeatValues := parsePhase2ValueDecls(t, heartbeatPath)
+	heartbeatValues := parsePhase2AcceptanceValueDecls(t, heartbeatPath)
 	if !heartbeatValues.consts["heartbeatInterval"] {
 		t.Fatalf("heartbeat_facade.go is missing required const heartbeatInterval")
 	}
@@ -111,7 +111,7 @@ func verifyRunnerSplitPhase2Layout(t *testing.T) string {
 	mustHaveImport(t, decomposeDecls, "github.com/danabrams/gromit/internal/runner/runtypes", "decompose.go")
 
 	runnerDecls := parseSplitFileDecls(t, runnerPath)
-	runnerValues := parsePhase2ValueDecls(t, runnerPath)
+	runnerValues := parsePhase2AcceptanceValueDecls(t, runnerPath)
 	if runnerValues.consts["heartbeatInterval"] {
 		t.Fatalf("runner.go still contains const heartbeatInterval")
 	}

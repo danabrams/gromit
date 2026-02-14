@@ -132,6 +132,35 @@ func TestInteractiveFileRecordReview(t *testing.T) {
 	}
 }
 
+func TestInteractiveFileRecordMethods_DoNotClobberConcurrentFields(t *testing.T) {
+	dir := t.TempDir()
+
+	f1, _ := NewInteractiveFile(dir)
+	f2, _ := NewInteractiveFile(dir)
+
+	if err := f1.RecordReview("commit-a", 2); err != nil {
+		t.Fatalf("RecordReview: %v", err)
+	}
+	if err := f2.RecordRetro(); err != nil {
+		t.Fatalf("RecordRetro: %v", err)
+	}
+
+	f3, _ := NewInteractiveFile(dir)
+	if err := f3.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if f3.LastReviewCommit() != "commit-a" {
+		t.Fatalf("LastReviewCommit = %q, want %q", f3.LastReviewCommit(), "commit-a")
+	}
+	if f3.LastReviewIteration() != 2 {
+		t.Fatalf("LastReviewIteration = %d, want %d", f3.LastReviewIteration(), 2)
+	}
+	if f3.LastRetro().IsZero() {
+		t.Fatal("LastRetro should be set")
+	}
+}
+
 // TestInteractiveFileGetFilteredHashes verifies that GetFilteredHashes returns a map
 func TestInteractiveFileGetFilteredHashes(t *testing.T) {
 	dir := t.TempDir()

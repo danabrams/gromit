@@ -83,15 +83,7 @@ func (f *InteractiveFile) Save() error {
 	}
 
 	return withFileLock(f.path, func() error {
-		// Auto-stamp UpdatedAt before marshalling
-		f.state.UpdatedAt = time.Now()
-
-		data, err := json.MarshalIndent(f.state, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshalling interactive state: %w", err)
-		}
-
-		return os.WriteFile(f.path, data, 0644)
+		return f.writeLocked()
 	})
 }
 
@@ -108,8 +100,9 @@ func (f *InteractiveFile) RecordRetro() error {
 	if f == nil {
 		return fmt.Errorf("interactive state file is nil")
 	}
-	f.state.LastRetro = time.Now()
-	return f.Save()
+	return f.mutateAndSaveLocked(func(s *InteractiveState) {
+		s.LastRetro = time.Now()
+	})
 }
 
 // LastReviewCommit returns the commit hash of the last review
@@ -133,9 +126,10 @@ func (f *InteractiveFile) RecordReview(commit string, iteration int) error {
 	if f == nil {
 		return fmt.Errorf("interactive state file is nil")
 	}
-	f.state.LastReviewCommit = commit
-	f.state.LastReviewIteration = iteration
-	return f.Save()
+	return f.mutateAndSaveLocked(func(s *InteractiveState) {
+		s.LastReviewCommit = commit
+		s.LastReviewIteration = iteration
+	})
 }
 
 // GetFilteredHashes returns a map of filtered learning hashes for O(1) lookups
@@ -159,4 +153,48 @@ func (s *InteractiveState) NormalizeNilFields() {
 	if s.FilteredLearningHashes == nil {
 		s.FilteredLearningHashes = []string{}
 	}
+}
+
+func (f *InteractiveFile) mutateAndSaveLocked(mutateFn func(*InteractiveState)) error {
+	if f == nil {
+		return fmt.Errorf("interactive state file is nil")
+	}
+
+	dir := filepath.Dir(f.path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("creating interactive state directory: %w", err)
+	}
+
+	return withFileLock(f.path, func() error {
+		if err := f.loadLocked(); err != nil {
+			return err
+		}
+		mutateFn(&f.state)
+		return f.writeLocked()
+	})
+}
+
+func (f *InteractiveFile) loadLocked() error {
+	data, err := os.ReadFile(f.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("reading interactive state file: %w", err)
+	}
+
+	if err := json.Unmarshal(data, &f.state); err != nil {
+		return fmt.Errorf("parsing interactive state file: %w", err)
+	}
+	return nil
+}
+
+func (f *InteractiveFile) writeLocked() error {
+	f.state.UpdatedAt = time.Now()
+
+	data, err := json.MarshalIndent(f.state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshalling interactive state: %w", err)
+	}
+	return os.WriteFile(f.path, data, 0644)
 }

@@ -140,6 +140,9 @@ func (m *Manager) PendingBranches() ([]string, error) {
 		if strings.HasPrefix(line, "refs/heads/") {
 			branchName := strings.TrimPrefix(line, "refs/heads/")
 			if strings.HasPrefix(branchName, "gromit/") {
+				if branchName == "gromit/interactive" {
+					continue
+				}
 				branches = append(branches, branchName)
 			}
 		}
