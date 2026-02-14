@@ -828,7 +828,7 @@ func TestTierFromLegacyModelCaseInsensitive(t *testing.T) {
 // Expected failure: TierFromLegacyModel() function does not exist yet
 func TestTierFromLegacyModelAllKnownModels(t *testing.T) {
 	// Complete mapping from the spec: opus→high, sonnet→medium, haiku→low,
-	// o3→high, gpt-4o→medium, gpt-4o-mini→low
+	// o3→high, gpt-4o→medium, gpt-4o-mini→low, gpt-5.3-codex→medium
 	tests := []struct {
 		modelName    string
 		expectedTier string
@@ -841,6 +841,8 @@ func TestTierFromLegacyModelAllKnownModels(t *testing.T) {
 		{"o3", TierHigh},
 		{"gpt-4o", TierMedium},
 		{"gpt-4o-mini", TierLow},
+		// Codex models
+		{"gpt-5.3-codex", TierMedium},
 	}
 
 	for _, tt := range tests {
@@ -892,6 +894,68 @@ func TestTierFromLegacyModelIdempotent(t *testing.T) {
 				t.Errorf("TierFromLegacyModel not idempotent when applied to result: "+
 					"TierFromLegacyModel(%q)=%q, but TierFromLegacyModel(%q)=%q",
 					tt.modelName, first, first, third)
+			}
+		})
+	}
+}
+
+// TestTierFromLegacyModelCodexModels verifies that TierFromLegacyModel() maps
+// Codex model names (gpt-5.3-codex) to the correct tier constants.
+// Expected failure: gpt-5.3-codex is not yet in the TierFromLegacyModel mapping
+func TestTierFromLegacyModelCodexModels(t *testing.T) {
+	tests := []struct {
+		name         string
+		modelName    string
+		expectedTier string
+	}{
+		{
+			name:         "gpt-5.3-codex maps to medium tier",
+			modelName:    "gpt-5.3-codex",
+			expectedTier: TierMedium,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TierFromLegacyModel(tt.modelName)
+			if got != tt.expectedTier {
+				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
+			}
+		})
+	}
+}
+
+// TestTierFromLegacyModelCodexCaseInsensitive verifies that TierFromLegacyModel()
+// handles gpt-5.3-codex model name case-insensitively.
+// Expected failure: gpt-5.3-codex is not yet in the TierFromLegacyModel mapping
+func TestTierFromLegacyModelCodexCaseInsensitive(t *testing.T) {
+	tests := []struct {
+		name         string
+		modelName    string
+		expectedTier string
+	}{
+		{
+			name:         "GPT-5.3-CODEX uppercase maps to medium tier",
+			modelName:    "GPT-5.3-CODEX",
+			expectedTier: TierMedium,
+		},
+		{
+			name:         "Gpt-5.3-Codex mixed case maps to medium tier",
+			modelName:    "Gpt-5.3-Codex",
+			expectedTier: TierMedium,
+		},
+		{
+			name:         "gpt-5.3-codex lowercase maps to medium tier",
+			modelName:    "gpt-5.3-codex",
+			expectedTier: TierMedium,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TierFromLegacyModel(tt.modelName)
+			if got != tt.expectedTier {
+				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
 			}
 		})
 	}
