@@ -455,6 +455,41 @@ func TestInvokerExecute_PassesEventHandlerWithoutStreamLogger(t *testing.T) {
 }
 
 // Expected failure: InvocationLifecycleMarkerStart constant does not exist yet
+func TestInvokerExecute_EmitsStartMarker(t *testing.T) {
+	logsDir := t.TempDir()
+	sl, err := logger.NewStreamLogger(logsDir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+
+	mp := &mockProvider{
+		name: "provider-start",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{Success: true, Model: "model-start"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-start"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, sl)
+	bc := newTestBeadContext()
+
+	_, err = invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	lines := readStreamLogLines(t, sl)
+	startIndex := lineIndex(lines, InvocationLifecycleMarkerStart)
+	if startIndex == -1 {
+		t.Fatalf("missing start marker %q", InvocationLifecycleMarkerStart)
+	}
+}
+
+// Expected failure: InvocationLifecycleMarkerStart constant does not exist yet
 func TestInvokerExecute_EmitsLifecycleMarkersWithoutStreamEvents(t *testing.T) {
 	// Ensure lifecycle markers are emitted even when no stream events are parsed.
 	// This test expects start, selection, and completion markers in the stream log.
@@ -503,7 +538,7 @@ func TestInvokerExecute_EmitsLifecycleMarkersWithoutStreamEvents(t *testing.T) {
 	if completeIndex == -1 {
 		t.Fatalf("missing completion marker %q", InvocationLifecycleMarkerComplete)
 	}
-	if !(startIndex < selectIndex && selectIndex < completeIndex) {
+	if startIndex >= selectIndex || selectIndex >= completeIndex {
 		t.Fatalf("expected marker order start < selection < completion, got %d < %d < %d", startIndex, selectIndex, completeIndex)
 	}
 

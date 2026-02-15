@@ -18,11 +18,12 @@ type StallTimeoutFunc func(model string) (stallTimeout, stallTimeoutActive time.
 
 // InvocationResult captures the outcome of a single Claude invocation.
 type InvocationResult struct {
-	Result       *claude.Result
-	Stats        *logger.StreamStats
-	StallFired   bool
-	ModelName    string
-	ProviderName string
+	Result         *claude.Result
+	Stats          *logger.StreamStats
+	StallFired     bool
+	ModelName      string
+	ProviderName   string
+	ProviderResult *provider.Result
 }
 
 // Invoker handles a single Claude invocation: provider selection, streaming,
@@ -69,10 +70,14 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	phase := "build"
 	tier := bc.Tier
 
+	inv.logLifecycleStart(tier)
+
 	p, modelName := inv.router.Select(phase, tier)
 	if p == nil {
 		return nil, fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
 	}
+
+	inv.logLifecycleSelection(p.Name(), modelName, tier)
 
 	bc.Model = modelName
 	bc.Result.Model = modelName
@@ -130,6 +135,8 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 
 		p2, modelName2 := inv.router.Select(phase, tier)
 		if p2 != nil {
+			inv.logLifecycleSelection(p2.Name(), modelName2, tier)
+
 			bc.Model = modelName2
 			bc.Result.Model = modelName2
 			modelName = modelName2
@@ -162,6 +169,8 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}
 	}
 
+	inv.logLifecycleCompletion(p, modelName, tier, providerResult, err)
+
 	stallCount, stallTier, ttfe, toolCalls, rateLimitHits, rateLimitRecoveryMs := stats.DiagnosticSnapshot()
 	bc.Result.StallCount = stallCount
 	bc.Result.StallTier = stallTier
@@ -171,10 +180,47 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	bc.Result.RateLimitRecoveryMs = rateLimitRecoveryMs
 
 	return &InvocationResult{
-		Result:       claudeResult,
-		Stats:        stats,
-		StallFired:   stallFired,
-		ModelName:    modelName,
-		ProviderName: p.Name(),
+		Result:         claudeResult,
+		Stats:          stats,
+		StallFired:     stallFired,
+		ModelName:      modelName,
+		ProviderName:   p.Name(),
+		ProviderResult: providerResult,
 	}, err
+}
+
+func (inv *Invoker) logLifecycleStart(tier string) {
+	if inv == nil {
+		return
+	}
+	inv.streamLogger.LogEvent("%s tier=%s", InvocationLifecycleMarkerStart, tier)
+}
+
+func (inv *Invoker) logLifecycleSelection(providerName, modelName, tier string) {
+	if inv == nil {
+		return
+	}
+	inv.streamLogger.LogEvent("%s provider=%s model=%s tier=%s", InvocationLifecycleMarkerSelection, providerName, modelName, tier)
+}
+
+func (inv *Invoker) logLifecycleCompletion(p Provider, modelName, tier string, result *provider.Result, err error) {
+	if inv == nil {
+		return
+	}
+	if err != nil {
+		inv.streamLogger.LogEvent("%s provider=%s model=%s tier=%s error=%v", InvocationLifecycleMarkerFailure, safeProviderName(p), modelName, tier, err)
+		return
+	}
+	success := false
+	if result != nil {
+		success = result.Success
+	}
+	inv.streamLogger.LogEvent("%s provider=%s model=%s tier=%s success=%t", InvocationLifecycleMarkerComplete, safeProviderName(p), modelName, tier, success)
+}
+
+func safeProviderName(p Provider) string {
+	if p == nil {
+		return ""
+	}
+	return p.Name()
 }
