@@ -105,3 +105,23 @@ func TestMakeInvokeFn_PropagatesProviderResult_OnInvocationError(t *testing.T) {
 		t.Fatalf("ProviderResult = %+v, want %+v", result.ProviderResult, expected)
 	}
 }
+
+func TestMakeInvokeFn_DeadlineExceededSetsPhaseTimeout(t *testing.T) {
+	invokeFn, bc := setupInvokeFnWithProvider(t, func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		return &provider.Result{Success: false, Model: "test-model"}, context.DeadlineExceeded
+	})
+
+	result, err := invokeFn(context.Background(), bc, "prompt")
+	if err == nil {
+		t.Fatal("expected error for invocation deadline")
+	}
+	if result == nil {
+		t.Fatal("expected non-nil invocation result")
+	}
+	if result.TimeoutType != runtypes.TimeoutTypePhase {
+		t.Fatalf("TimeoutType = %q, want %q", result.TimeoutType, runtypes.TimeoutTypePhase)
+	}
+	if bc.Result.TimeoutType != runtypes.TimeoutTypePhase {
+		t.Fatalf("bc.Result.TimeoutType = %q, want %q", bc.Result.TimeoutType, runtypes.TimeoutTypePhase)
+	}
+}

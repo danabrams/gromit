@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -36,6 +37,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		r.log("Running Claude with model: %s", bc.Model)
 
+		invocationStart := time.Now()
 		claudeResult, stats, providerResult, stallFired, err := r.executeClaudeInvocation(ctx, bc)
 
 		if err != nil {
@@ -49,6 +51,11 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 				return &escalation.InvocationResult{TimeoutType: "bead", ProviderResult: providerResult}, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 			} else if bc.ParentCtx.Err() != nil {
 				return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				bc.Result.TimeoutType = runtypes.TimeoutTypePhase
+				r.log("Phase timeout fired: bead=%s model=%s elapsed=%s", bc.Bead.ID, bc.Model, time.Since(invocationStart).Round(time.Millisecond))
+				return &escalation.InvocationResult{TimeoutType: runtypes.TimeoutTypePhase, ProviderResult: providerResult}, fmt.Errorf("claude invocation: %w", err)
 			}
 			bc.Result.TimeoutType = "invocation"
 			return &escalation.InvocationResult{TimeoutType: "invocation", ProviderResult: providerResult}, fmt.Errorf("claude invocation: %w", err)
