@@ -1061,8 +1061,8 @@ func TestLoadEmptyFile(t *testing.T) {
 	if cfg.Claude.Binary != "claude" {
 		t.Errorf("expected Binary='claude', got %q", cfg.Claude.Binary)
 	}
-	if cfg.Claude.Timeout != 600 {
-		t.Errorf("expected Timeout=600, got %d", cfg.Claude.Timeout)
+	if cfg.Claude.Timeout != 900 {
+		t.Errorf("expected Timeout=900, got %d", cfg.Claude.Timeout)
 	}
 	if cfg.Claude.StallTimeout != 120 {
 		t.Errorf("expected StallTimeout=120, got %d", cfg.Claude.StallTimeout)
@@ -1346,8 +1346,8 @@ func TestLoadZeroTimeouts(t *testing.T) {
 	}
 
 	// Zero values should be replaced with defaults
-	if cfg.Claude.Timeout != 600 {
-		t.Errorf("expected Timeout=600, got %d", cfg.Claude.Timeout)
+	if cfg.Claude.Timeout != 900 {
+		t.Errorf("expected Timeout=900, got %d", cfg.Claude.Timeout)
 	}
 	if cfg.Claude.StallTimeout != 120 {
 		t.Errorf("expected StallTimeout=120, got %d", cfg.Claude.StallTimeout)

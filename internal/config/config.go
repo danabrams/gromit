@@ -302,7 +302,7 @@ func (c *Config) SetDefaults() {
 		c.Claude.Binary = "claude"
 	}
 	if c.Claude.Timeout == 0 {
-		c.Claude.Timeout = 600
+		c.Claude.Timeout = 900
 	}
 	if c.Claude.StallTimeout == 0 {
 		c.Claude.StallTimeout = 120
