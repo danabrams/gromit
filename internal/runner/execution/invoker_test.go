@@ -209,6 +209,42 @@ func TestInvokerExecute_PropagatesModelAndProviderToBeadContext(t *testing.T) {
 	}
 }
 
+func TestInvokerExecute_SetsInvocationTimeoutDeadline(t *testing.T) {
+	var observed time.Duration
+	mp := &mockProvider{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				return nil, fmt.Errorf("missing deadline")
+			}
+			observed = time.Until(deadline)
+			return &provider.Result{Success: true, Model: "test-model"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "test-model"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil).
+		WithInvocationTimeout(func(model string) time.Duration {
+			return 2 * time.Second
+		})
+	bc := newTestBeadContext()
+
+	_, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if observed == 0 {
+		t.Fatal("expected invocation deadline to be set")
+	}
+	if observed < time.Second || observed > 4*time.Second {
+		t.Fatalf("invocation deadline = %v, want ~2s", observed)
+	}
+}
+
 // Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_NilRouterReturnsError(t *testing.T) {
 	invoker := NewInvoker(nil, &bytes.Buffer{}, nil)

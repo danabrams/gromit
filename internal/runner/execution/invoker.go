@@ -29,11 +29,12 @@ type InvocationResult struct {
 // Invoker handles a single Claude invocation: provider selection, streaming,
 // usage-limit fallback, and diagnostic capture.
 type Invoker struct {
-	router         Router
-	output         io.Writer
-	streamLogger   *logger.StreamLogger
-	overwriteOut   OverwriteWriter
-	stallTimeoutFn StallTimeoutFunc
+	router              Router
+	output              io.Writer
+	streamLogger        *logger.StreamLogger
+	overwriteOut        OverwriteWriter
+	stallTimeoutFn      StallTimeoutFunc
+	invocationTimeoutFn func(model string) time.Duration
 }
 
 // NewInvoker creates an Invoker with the given narrow dependencies.
@@ -52,6 +53,13 @@ func NewInvoker(router Router, output io.Writer, streamLogger *logger.StreamLogg
 func (inv *Invoker) WithHeartbeat(out OverwriteWriter, stallTimeoutFn StallTimeoutFunc) *Invoker {
 	inv.overwriteOut = out
 	inv.stallTimeoutFn = stallTimeoutFn
+	return inv
+}
+
+// WithInvocationTimeout configures per-model invocation timeouts for each provider call.
+// Returning 0 or less disables the timeout and uses the parent context only.
+func (inv *Invoker) WithInvocationTimeout(timeoutFn func(model string) time.Duration) *Invoker {
+	inv.invocationTimeoutFn = timeoutFn
 	return inv
 }
 
@@ -86,8 +94,18 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		bc.Result.EscalatedTo = modelName
 	}
 
-	childCtx, childCancel := context.WithCancel(ctx)
-	defer childCancel()
+	var invocationCtx context.Context
+	var invocationCancel context.CancelFunc
+	if inv.invocationTimeoutFn != nil {
+		if timeout := inv.invocationTimeoutFn(modelName); timeout > 0 {
+			invocationCtx, invocationCancel = context.WithTimeout(ctx, timeout)
+		} else {
+			invocationCtx, invocationCancel = context.WithCancel(ctx)
+		}
+	} else {
+		invocationCtx, invocationCancel = context.WithCancel(ctx)
+	}
+	defer invocationCancel()
 
 	stallFired := false
 
@@ -102,7 +120,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}
 		stopHeartbeat = StartHeartbeat(stats, stallTimeout, stallTimeoutActive, func() {
 			stallFired = true
-			childCancel()
+			invocationCancel()
 		}, toolCallEvents, inv.overwriteOut)
 	}
 
@@ -128,7 +146,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}
 	}
 
-	providerResult, err := p.StreamRun(childCtx, bc.BuildPrompt, tier, inv.output, providerHandler, providerToolHandler)
+	providerResult, err := p.StreamRun(invocationCtx, bc.BuildPrompt, tier, inv.output, providerHandler, providerToolHandler)
 
 	if err != nil && p.IsUsageLimitError(providerResult, err) {
 		inv.router.MarkUnavailable(p.Name())
@@ -141,7 +159,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 			bc.Result.Model = modelName2
 			modelName = modelName2
 
-			providerResult, err = p2.StreamRun(childCtx, bc.BuildPrompt, tier, inv.output, providerHandler, providerToolHandler)
+			providerResult, err = p2.StreamRun(invocationCtx, bc.BuildPrompt, tier, inv.output, providerHandler, providerToolHandler)
 			p = p2
 		}
 	}
