@@ -23,10 +23,9 @@ func lintBaselineRepoRoot(t *testing.T) string {
 // TestRunnerLintBaseline_ErrcheckUnusedStaticcheck verifies that running
 // golangci-lint with errcheck/unused/staticcheck enabled on the runner package
 // returns clean.
-//
-// Expected failure: existing errcheck/unused/staticcheck findings remain and
-// the lint sentinel `RunnerLintBaselineClean` is not in the codebase yet.
 func TestRunnerLintBaseline_ErrcheckUnusedStaticcheck(t *testing.T) {
+	_ = RunnerLintBaselineAcceptanceMarker
+
 	repoRoot := lintBaselineRepoRoot(t)
 
 	cmd := exec.Command(
