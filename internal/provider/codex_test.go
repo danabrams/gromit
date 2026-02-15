@@ -560,6 +560,9 @@ exit 0
 	}
 
 	outputStr := output.String()
+	if !strings.Contains(outputStr, "prompt length:") || !strings.Contains(outputStr, "cmd:") {
+		t.Errorf("StreamRun() should include invocation metadata, got: %s", outputStr)
+	}
 	if !strings.Contains(outputStr, "Line 1") {
 		t.Errorf("StreamRun() output missing 'Line 1', got: %s", outputStr)
 	}
@@ -568,6 +571,35 @@ exit 0
 	}
 	if !strings.Contains(outputStr, "Line 3") {
 		t.Errorf("StreamRun() output missing 'Line 3', got: %s", outputStr)
+	}
+}
+
+func TestCodexProviderStreamRunUsesAutoColor(t *testing.T) {
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+echo "ARGS: $@"
+exit 0
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-4o"})
+
+	var output bytes.Buffer
+	result, err := cp.StreamRun(context.Background(), "test", TierMedium, &output, nil, nil)
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v, want nil", err)
+	}
+
+	got := result.Output + output.String()
+	if !strings.Contains(got, "--color auto") {
+		t.Errorf("StreamRun() should use '--color auto', got: %s", got)
+	}
+	if strings.Contains(got, "--color never") {
+		t.Errorf("StreamRun() should not force '--color never', got: %s", got)
 	}
 }
 

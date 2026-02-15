@@ -320,8 +320,6 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, c.binary, args...)
-
-	// Log the exact command for debugging
 	fmt.Fprintf(output, "  cmd: %s %s\n", c.binary, strings.Join(args, " "))
 	fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))
 

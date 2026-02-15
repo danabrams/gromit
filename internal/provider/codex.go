@@ -28,7 +28,7 @@ type CodexProvider struct {
 	tierToModel map[string]string
 }
 
-const codexTransientRetryMax = 3
+const codexTransientRetryMax = 2
 
 // Compile-time check to verify CodexProvider implements Provider interface
 var _ Provider = (*CodexProvider)(nil)
@@ -89,15 +89,43 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 
 // StreamRun executes an LLM invocation with streaming output.
 // When EventHandler is non-nil, invokes codex with --json and parses JSONL events.
+// Transient failures (transport_disconnect, rate_limited) are retried with bounded backoff.
 func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
 	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	if cp == nil {
 		return nil, fmt.Errorf("codex provider is nil")
 	}
 
+	var last *Result
+	for attempt := 0; attempt <= codexTransientRetryMax; attempt++ {
+		result, err := cp.streamRunOnce(ctx, prompt, tier, output, handler, onToolCall)
+		if err != nil {
+			return nil, err
+		}
+		last = result
+		if result == nil || result.Success {
+			return result, nil
+		}
+		if attempt == codexTransientRetryMax || !isTransientCodexFailure(result.FailureCategory) {
+			return result, nil
+		}
+		if sleepErr := sleepWithContext(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
+			return result, nil
+		}
+	}
+	return last, nil
+}
+
+// streamRunOnce executes a single streaming invocation attempt.
+func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier string, output io.Writer,
+	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	model := cp.ModelForTier(tier)
-	args := cp.buildCommandArgs(model, handler != nil)
+	args := cp.buildStreamCommandArgs(model, handler != nil)
 	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
+	if output != nil {
+		fmt.Fprintf(output, "  cmd: %s %s\n", cp.binaryPath, strings.Join(args, " "))
+		fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))
+	}
 	env, effectiveCodexHome, err := prepareCodexEnv()
 	if err != nil {
 		return nil, err
@@ -555,6 +583,34 @@ func (cp *CodexProvider) buildCommandArgs(model string, jsonMode bool) []string 
 
 	args = append(args, "--skip-git-repo-check")
 	args = append(args, "--color", "never")
+	args = append(args, "--model", model)
+	if jsonMode {
+		args = append(args, "--json")
+	}
+	args = append(args, "-")
+	return args
+}
+
+// buildStreamCommandArgs constructs command arguments for streaming invocations.
+// Stream mode keeps terminal formatting/color when the terminal supports it.
+func (cp *CodexProvider) buildStreamCommandArgs(model string, jsonMode bool) []string {
+	args := make([]string, 0, len(cp.flags)+12)
+	args = append(args, "exec")
+	args = append(args, cp.flags...)
+
+	hasBypass := false
+	for _, f := range cp.flags {
+		if f == "--dangerously-bypass-approvals-and-sandbox" {
+			hasBypass = true
+			break
+		}
+	}
+	if !hasBypass {
+		args = append(args, "--full-auto")
+	}
+
+	args = append(args, "--skip-git-repo-check")
+	args = append(args, "--color", "auto")
 	args = append(args, "--model", model)
 	if jsonMode {
 		args = append(args, "--json")

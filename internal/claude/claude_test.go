@@ -1041,6 +1041,9 @@ func TestStreamRunWithNilHandler(t *testing.T) {
 	if !strings.Contains(result.Output, "test output") {
 		t.Errorf("StreamRun() result.Output = %q, should contain 'test output'", result.Output)
 	}
+	if !strings.Contains(outputStr, "prompt length:") || !strings.Contains(outputStr, "cmd:") {
+		t.Errorf("StreamRun() should include invocation metadata, got: %q", outputStr)
+	}
 }
 
 func TestStreamRunWithHandler(t *testing.T) {
