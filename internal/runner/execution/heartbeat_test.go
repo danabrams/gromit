@@ -18,6 +18,7 @@ type mockOverwriteWriter struct {
 	mu             sync.Mutex
 	normalWrites   []string
 	overwriteCalls []string
+	writeErr       error
 }
 
 func (m *mockOverwriteWriter) Write(p []byte) (int, error) {
@@ -30,6 +31,9 @@ func (m *mockOverwriteWriter) Write(p []byte) (int, error) {
 func (m *mockOverwriteWriter) WriteOverwrite(p []byte) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.writeErr != nil {
+		return 0, m.writeErr
+	}
 	m.overwriteCalls = append(m.overwriteCalls, string(p))
 	return len(p), nil
 }
@@ -121,6 +125,27 @@ func TestStartHeartbeat_TwoTierStallTimeout(t *testing.T) {
 		t.Fatal("stall detection did not fire within timeout")
 	}
 }
+
+func TestOverwriteHeartbeat_WriteOverwriteErrorKeepsLastLine(t *testing.T) {
+	stats, err := logger.NewStreamStats()
+	if err != nil {
+		t.Fatalf("failed to create StreamStats: %v", err)
+	}
+	stats.RecordToolCall("Edit", "/tmp/file.go")
+
+	out := &mockOverwriteWriter{writeErr: assertErr{}}
+	lastLine := "previous heartbeat line"
+
+	got := overwriteHeartbeat(stats, lastLine, out)
+
+	if got != lastLine {
+		t.Fatalf("overwriteHeartbeat() = %q, want %q on write error", got, lastLine)
+	}
+}
+
+type assertErr struct{}
+
+func (assertErr) Error() string { return "write failed" }
 
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
 func TestStartHeartbeat_ToolCallEventsUpdateDisplay(t *testing.T) {

@@ -148,7 +148,9 @@ func overwriteHeartbeat(stats *logger.StreamStats, lastLine string, out Overwrit
 	if len(lastLine) > len(newLine) {
 		padding = strings.Repeat(" ", len(lastLine)-len(newLine))
 	}
-	out.WriteOverwrite([]byte(fmt.Sprintf("\r%s%s", newLine, padding)))
+	if _, err := out.WriteOverwrite([]byte(fmt.Sprintf("\r%s%s", newLine, padding))); err != nil {
+		return lastLine
+	}
 
 	return newLine
 }
