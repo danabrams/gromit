@@ -632,6 +632,32 @@ func TestExecuteWithRetry_InvocationTimeoutEscalatesAndThenSucceeds(t *testing.T
 	}
 }
 
+func TestExecuteWithRetry_PhaseTimeoutEscalatesAndThenSucceeds(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierLow
+	bc.Model = "haiku"
+
+	callCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		callCount++
+		if callCount == 1 {
+			return &InvocationResult{TimeoutType: runtypes.TimeoutTypePhase}, fmt.Errorf("context deadline exceeded")
+		}
+		return &InvocationResult{Result: &claude.Result{Success: true, Output: "ok"}}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if !success {
+		t.Fatal("expected success after one phase timeout escalation")
+	}
+	if bc.Tier != provider.TierMedium {
+		t.Fatalf("expected escalation to %s, got %s", provider.TierMedium, bc.Tier)
+	}
+}
+
 func TestExecuteWithRetry_StopsWhenAttemptBudgetExceeded(t *testing.T) {
 	cfg := newTestConfig()
 	mfa := &mockFailureAnalyzer{
