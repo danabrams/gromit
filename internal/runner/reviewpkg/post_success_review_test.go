@@ -376,8 +376,7 @@ func TestRunPostSuccess_AcceptsBeadContext(t *testing.T) {
 		PromptCtx: &prompt.Context{WorkDir: "/tmp"},
 	}
 
-	var err error
-	err = rev.RunPostSuccess(context.Background(), bc)
+	err := rev.RunPostSuccess(context.Background(), bc)
 
 	// The method must compile and return an error type
 	_ = err
