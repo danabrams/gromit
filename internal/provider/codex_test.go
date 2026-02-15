@@ -3,9 +3,11 @@ package provider
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -939,6 +941,152 @@ exit 0
 	if result.CostUSD != 0.042 {
 		t.Errorf("CostUSD = %v, want 0.042", result.CostUSD)
 	}
+}
+
+// Expected failure: codexStreamTransientRetryCategories constant does not exist yet and StreamRun does not retry transient failures.
+func TestCodexProviderStreamRun_RetriesTransientFailuresAndPreservesJSONSemantics(t *testing.T) {
+	tests := []struct {
+		name                string
+		firstAttemptStderr  string
+		wantFailureCategory string
+	}{
+		{
+			name:                "transport_disconnect_is_retried",
+			firstAttemptStderr:  "ERROR: stream disconnected before completion",
+			wantFailureCategory: FailureCategoryTransportDisconnect,
+		},
+		{
+			name:                "rate_limited_is_retried",
+			firstAttemptStderr:  "429 too many requests",
+			wantFailureCategory: FailureCategoryRateLimited,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			counterFile := filepath.Join(tempDir, "attempt-counter")
+			mockBinary := filepath.Join(tempDir, "codex")
+			mockScript := fmt.Sprintf(`#!/bin/bash
+COUNT=0
+if [ -f %q ]; then
+  COUNT=$(cat %q)
+fi
+COUNT=$((COUNT+1))
+echo "$COUNT" > %q
+cat > /dev/null
+if [ "$COUNT" -eq 1 ]; then
+  echo %q >&2
+  exit 1
+fi
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"done after retry"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":123,"cached_input_tokens":45,"output_tokens":67,"total_cost_usd":0.5}}'
+exit 0
+`, counterFile, counterFile, counterFile, tt.firstAttemptStderr)
+
+			writeTestExecutable(t, mockBinary, mockScript)
+
+			cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
+			var events [][]byte
+			result, err := cp.StreamRun(
+				context.Background(),
+				"prompt",
+				TierMedium,
+				nil,
+				func(line []byte) { events = append(events, append([]byte(nil), line...)) },
+				nil,
+			)
+
+			if err != nil {
+				t.Fatalf("StreamRun() error = %v, want nil", err)
+			}
+			if result == nil {
+				t.Fatal("StreamRun() returned nil result")
+			}
+			if !result.Success {
+				t.Fatalf("StreamRun() Success = false, want true after transient retry. Result: %+v", result)
+			}
+
+			attempts := readAttemptCount(t, counterFile)
+			if attempts != 2 {
+				t.Fatalf("transient failure should be retried exactly once before success, attempts=%d", attempts)
+			}
+			if result.FailureCategory != FailureCategoryNone {
+				t.Fatalf("FailureCategory = %q, want %q on retry success", result.FailureCategory, FailureCategoryNone)
+			}
+			if result.InputTokens != 123 || result.CachedInputTokens != 45 || result.OutputTokens != 67 || result.CostUSD != 0.5 {
+				t.Fatalf("usage fields not preserved after retry: %+v", result)
+			}
+			if len(events) == 0 {
+				t.Fatal("expected streamed JSON events after retry success, got none")
+			}
+			if !strings.Contains(result.Stdout, "done after retry") {
+				t.Fatalf("stdout should contain second-attempt streamed assistant text, got %q", result.Stdout)
+			}
+		})
+	}
+}
+
+// Expected failure: codexStreamTransientRetryTotalAttempts constant does not exist yet and StreamRun currently stops after the first failed attempt.
+func TestCodexProviderStreamRun_BoundedTransientRetryBudgetAndFailureClassification(t *testing.T) {
+	tempDir := t.TempDir()
+	counterFile := filepath.Join(tempDir, "attempt-counter")
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := fmt.Sprintf(`#!/bin/bash
+COUNT=0
+if [ -f %q ]; then
+  COUNT=$(cat %q)
+fi
+COUNT=$((COUNT+1))
+echo "$COUNT" > %q
+cat > /dev/null
+echo "429 too many requests" >&2
+exit 1
+`, counterFile, counterFile, counterFile)
+	writeTestExecutable(t, mockBinary, mockScript)
+
+	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
+	result, err := cp.StreamRun(context.Background(), "prompt", TierMedium, nil, func([]byte) {}, nil)
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v, want nil", err)
+	}
+	if result == nil {
+		t.Fatal("StreamRun() returned nil result")
+	}
+
+	attempts := readAttemptCount(t, counterFile)
+	if attempts < 2 || attempts > 3 {
+		t.Fatalf("transient retry budget should be bounded to 2-3 total attempts, got %d", attempts)
+	}
+	if result.Success {
+		t.Fatalf("StreamRun() Success = true, want false when all retry attempts fail")
+	}
+	if result.FailureCategory != FailureCategoryRateLimited {
+		t.Fatalf("FailureCategory = %q, want %q after retry exhaustion", result.FailureCategory, FailureCategoryRateLimited)
+	}
+	if result.ExitCode != 1 {
+		t.Fatalf("ExitCode = %d, want 1", result.ExitCode)
+	}
+}
+
+func writeTestExecutable(t *testing.T, path, script string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(script), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+}
+
+func readAttemptCount(t *testing.T, path string) int {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read attempt counter: %v", err)
+	}
+	count, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("failed to parse attempt counter %q: %v", strings.TrimSpace(string(data)), err)
+	}
+	return count
 }
 
 // TestCodexProviderRunWithAdditionalFlags verifies that Run() includes
