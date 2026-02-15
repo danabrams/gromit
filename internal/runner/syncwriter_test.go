@@ -107,9 +107,9 @@ func TestSyncWriter_Concurrent(t *testing.T) {
 			for j := 0; j < writesPerWriter; j++ {
 				// Alternate between normal writes and overwrites
 				if j%2 == 0 {
-					sw.Write([]byte("a"))
+					_, _ = sw.Write([]byte("a"))
 				} else {
-					sw.WriteOverwrite([]byte("b"))
+					_, _ = sw.WriteOverwrite([]byte("b"))
 				}
 			}
 		}(i)
@@ -140,11 +140,11 @@ func TestSyncWriter_StateReset(t *testing.T) {
 	sw := newSyncWriter(&buf)
 
 	// Overwrite
-	sw.WriteOverwrite([]byte("overwrite"))
+	_, _ = sw.WriteOverwrite([]byte("overwrite"))
 	// Normal write (should add newline)
-	sw.Write([]byte("text1"))
+	_, _ = sw.Write([]byte("text1"))
 	// Another normal write (should NOT add newline)
-	sw.Write([]byte("text2"))
+	_, _ = sw.Write([]byte("text2"))
 
 	want := "overwrite\ntext1text2"
 	got := buf.String()

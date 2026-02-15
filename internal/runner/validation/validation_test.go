@@ -13,19 +13,6 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-// --- Mock types for narrow interfaces ---
-
-type mockCmdRunner struct {
-	runFn func(ctx context.Context, command string, workDir string) (string, string, int, error)
-}
-
-func (m *mockCmdRunner) run(ctx context.Context, command string, workDir string) (string, string, int, error) {
-	if m.runFn != nil {
-		return m.runFn(ctx, command, workDir)
-	}
-	return "", "", 0, nil
-}
-
 // --- Helper functions ---
 
 func newTestConfig() *config.Config {
@@ -274,7 +261,10 @@ func TestRunWithRecovery_ExecuteFnCalledWhenAutoFixFails(t *testing.T) {
 	bc := newTestBeadContext()
 	bc.StartCommit = "abc123"
 	// Even though Claude succeeds, if re-validation still fails, the overall result is failure
-	r.RunWithRecovery(context.Background(), bc)
+	err := r.RunWithRecovery(context.Background(), bc)
+	if err == nil {
+		t.Error("RunWithRecovery should return error when validation remains failing")
+	}
 
 	if !executeFnCalled {
 		t.Error("ExecuteFn should be called when auto-fix doesn't resolve validation failure")
@@ -520,7 +510,7 @@ func TestNewRunner_NilExecuteFnIsAllowed(t *testing.T) {
 
 	bc := newTestBeadContext()
 	bc.StartCommit = "abc123"
-	r2.RunWithRecovery(context.Background(), bc)
+	_ = r2.RunWithRecovery(context.Background(), bc)
 
 	if !autoFixCalled {
 		t.Error("auto-fix should be attempted even when ExecuteFn is nil")
@@ -542,7 +532,7 @@ func TestRunDirect_FailureAccumulatesValidationSummary(t *testing.T) {
 	r := NewRunner(cfg, cmdRunner, nil, nil)
 
 	bc := newTestBeadContext()
-	r.RunWithRecovery(context.Background(), bc)
+	_ = r.RunWithRecovery(context.Background(), bc)
 
 	// Expected failure: Failures() method does not exist yet
 	failures := r.Failures()

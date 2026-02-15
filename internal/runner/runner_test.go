@@ -133,7 +133,9 @@ func TestExtractExpectedFiles(t *testing.T) {
 func TestAnyFileMissing(t *testing.T) {
 	tmpDir := t.TempDir()
 	existingFile := filepath.Join(tmpDir, "exists.go")
-	os.WriteFile(existingFile, []byte("package x"), 0644)
+	if err := os.WriteFile(existingFile, []byte("package x"), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
 
 	tests := []struct {
 		name  string
@@ -367,7 +369,7 @@ func TestNilGuards(t *testing.T) {
 			fn: func() error {
 				r := &Runner{output: os.Stdout}
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1, time.Time{}, nil)
+				result := r.processBead(context.TODO(), b, 1, time.Time{}, nil)
 				if result.Error == nil {
 					return fmt.Errorf("expected error for nil config in processBead")
 				}
@@ -664,10 +666,8 @@ func TestHeartbeatNoNewlineAfterPrintMode(t *testing.T) {
 
 	// When overwrite was not used, no additional newline should be written
 	// (printHeartbeat already adds one via r.log)
-	added := finalLen - initialLen
-	if added > 0 {
-		// This is acceptable - stop() might write a newline if system is uncertain
-		// The key is that if overwrite WAS used, we MUST have a newline
+	if finalLen < initialLen {
+		t.Fatalf("buffer shrank after stop: initial=%d final=%d", initialLen, finalLen)
 	}
 }
 
@@ -837,7 +837,7 @@ func TestCreateSubBeads_VerifyLogging(t *testing.T) {
 		},
 	}
 
-	err := r.CreateSubBeads(nil, b, subTasks)
+	err := r.CreateSubBeads(context.TODO(), b, subTasks)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -887,9 +887,9 @@ func TestCreateSubBeadsErrors(t *testing.T) {
 			var err error
 			if tt.nilRunner {
 				var r *Runner
-				err = r.CreateSubBeads(nil, tt.bead, tt.subTasks)
+				err = r.CreateSubBeads(context.TODO(), tt.bead, tt.subTasks)
 			} else {
-				err = tt.runner.CreateSubBeads(nil, tt.bead, tt.subTasks)
+				err = tt.runner.CreateSubBeads(context.TODO(), tt.bead, tt.subTasks)
 			}
 			if err == nil || !strings.Contains(err.Error(), tt.expectedErr) {
 				t.Errorf("expected %q in error, got: %v", tt.expectedErr, err)
@@ -913,7 +913,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			method: func(r *Runner) error {
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1, time.Time{}, nil)
+				result := r.processBead(context.TODO(), b, 1, time.Time{}, nil)
 				return result.Error
 			},
 			expectedError: "beads client is nil",
@@ -927,7 +927,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			method: func(r *Runner) error {
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1, time.Time{}, nil)
+				result := r.processBead(context.TODO(), b, 1, time.Time{}, nil)
 				return result.Error
 			},
 			expectedError: "renderer is nil",
@@ -942,7 +942,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 			},
 			method: func(r *Runner) error {
 				b := &bead.Bead{ID: "test-1", Title: "Test"}
-				result := r.processBead(nil, b, 1, time.Time{}, nil)
+				result := r.processBead(context.TODO(), b, 1, time.Time{}, nil)
 				return result.Error
 			},
 			expectedError: "router is nil",
@@ -1033,7 +1033,7 @@ func TestDecomposeTaskNilDependencies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &bead.Bead{ID: "test-1", Title: "Test"}
-			_, err := tt.runner.DecomposeTask(nil, b)
+			_, err := tt.runner.DecomposeTask(context.TODO(), b)
 			if err == nil {
 				t.Errorf("expected error for %s", tt.name)
 				return
@@ -1049,7 +1049,7 @@ func TestCreateSubBeadsNilBeadsClient(t *testing.T) {
 	r := &Runner{output: os.Stdout}
 	b := &bead.Bead{ID: "test-1"}
 	subTasks := []SubTask{{Title: "Task 1"}}
-	err := r.CreateSubBeads(nil, b, subTasks)
+	err := r.CreateSubBeads(context.TODO(), b, subTasks)
 	if err == nil || !strings.Contains(err.Error(), "beads client is nil") {
 		t.Errorf("expected error for nil beads client, got: %v", err)
 	}
@@ -1332,12 +1332,12 @@ func TestCheckScopeNilDependencies(t *testing.T) {
 
 			if tt.runner == nil {
 				var r *Runner
-				result := r.checkScope(nil, b)
+				result := r.checkScope(context.TODO(), b)
 				if result != nil {
 					t.Errorf("expected nil, got %v", result)
 				}
 			} else {
-				result := tt.runner.checkScope(nil, b)
+				result := tt.runner.checkScope(context.TODO(), b)
 				if result != nil {
 					t.Errorf("expected nil, got %v", result)
 				}
