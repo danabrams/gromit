@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/claude"
@@ -94,7 +95,11 @@ func (e *Executor) SetRefactorDeps(deps RefactorDeps) {
 // AcceptanceCommands returns a copy of the given commands with "-tags acceptance"
 // injected into any "go test" command. Non-go-test commands are preserved as-is.
 // If a command already contains "-tags acceptance", it is not modified.
-func AcceptanceCommands(commands []string) []string {
+//
+// When touchedPackages is non-empty, any command ending with "./..." is scoped to
+// those packages (e.g. "./internal/runner/..."), which prevents unrelated package
+// acceptance failures from blocking the current bead.
+func AcceptanceCommands(commands []string, touchedPackages []string) []string {
 	result := make([]string, len(commands))
 	for i, cmd := range commands {
 		if strings.HasPrefix(cmd, "go test ") && !strings.Contains(cmd, "-tags acceptance") {
@@ -103,8 +108,53 @@ func AcceptanceCommands(commands []string) []string {
 		} else {
 			result[i] = cmd
 		}
+		result[i] = scopeAcceptanceGoTestCommand(result[i], touchedPackages)
 	}
 	return result
+}
+
+func scopeAcceptanceGoTestCommand(cmd string, touchedPackages []string) string {
+	trimmed := strings.TrimSpace(cmd)
+	if len(touchedPackages) == 0 {
+		return trimmed
+	}
+	if !strings.HasPrefix(trimmed, "go test ") {
+		return trimmed
+	}
+	if !strings.HasSuffix(trimmed, " ./...") {
+		return trimmed
+	}
+
+	scopedTargets := buildScopedGoTestTargets(touchedPackages)
+	if len(scopedTargets) == 0 {
+		return trimmed
+	}
+
+	prefix := strings.TrimSuffix(trimmed, "./...")
+	return strings.TrimSpace(prefix) + " " + strings.Join(scopedTargets, " ")
+}
+
+func buildScopedGoTestTargets(touchedPackages []string) []string {
+	targets := make([]string, 0, len(touchedPackages))
+	seen := make(map[string]struct{}, len(touchedPackages))
+
+	for _, pkg := range touchedPackages {
+		pkg = strings.TrimSpace(pkg)
+		pkg = strings.TrimPrefix(pkg, "./")
+		pkg = strings.TrimSuffix(pkg, "/...")
+		pkg = strings.TrimSuffix(pkg, "/")
+		if pkg == "" || pkg == "." || strings.ContainsAny(pkg, " \t\n\r") {
+			continue
+		}
+		if _, ok := seen[pkg]; ok {
+			continue
+		}
+		seen[pkg] = struct{}{}
+		targets = append(targets, "./"+pkg+"/...")
+	}
+
+	slices.Sort(targets)
+	return targets
 }
 
 // log writes a formatted message to the output writer.
@@ -145,7 +195,7 @@ func (e *Executor) VerifyTestsFail(ctx context.Context, bc *runtypes.BeadContext
 
 	e.log("Verifying acceptance tests fail (as expected)...")
 
-	valResult, err := e.validateFn(ctx, AcceptanceCommands(e.cfg.Validation.Commands), bc.PromptCtx.WorkDir)
+	valResult, err := e.validateFn(ctx, AcceptanceCommands(e.cfg.Validation.Commands, bc.TouchedPackages), bc.PromptCtx.WorkDir)
 	if err != nil {
 		return fmt.Errorf("validation invocation: %w", err)
 	}
@@ -177,7 +227,7 @@ func (e *Executor) VerifyAcceptanceTestsPass(ctx context.Context, bc *runtypes.B
 
 	e.log("Verifying acceptance tests pass after implementation...")
 
-	valResult, err := e.validateFn(ctx, AcceptanceCommands(e.cfg.Validation.Commands), bc.PromptCtx.WorkDir)
+	valResult, err := e.validateFn(ctx, AcceptanceCommands(e.cfg.Validation.Commands, bc.TouchedPackages), bc.PromptCtx.WorkDir)
 	if err != nil {
 		return fmt.Errorf("acceptance validation invocation: %w", err)
 	}

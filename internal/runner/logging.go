@@ -62,6 +62,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		RateLimitHits:             result.RateLimitHits,
 		RateLimitRecoveryMs:       result.RateLimitRecoveryMs,
 		AcceptanceFailureSummary:  result.AcceptanceFailureSummary,
+		AcceptanceFailureOutput:   result.AcceptanceFailureOutput,
 		AcceptanceFailureArtifact: artifactPath,
 	})
 }
@@ -129,7 +130,23 @@ func (r *Runner) logResult(result *IterationResult) {
 		}
 	} else {
 		r.log("FAILED: %s - %v", result.BeadID, result.Error)
+		if result.AcceptanceFailureSummary != "" {
+			r.log("  acceptance summary: %s", result.AcceptanceFailureSummary)
+		}
+		if line := firstNonEmptyLine(result.AcceptanceFailureOutput); line != "" {
+			r.log("  acceptance output: %s", line)
+		}
 	}
+}
+
+func firstNonEmptyLine(s string) string {
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			return line
+		}
+	}
+	return ""
 }
 
 func (r *Runner) log(format string, args ...any) {

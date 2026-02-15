@@ -247,6 +247,9 @@ func TestWriteIterationLog_WritesAcceptanceFailureArtifact(t *testing.T) {
 	if logEntry.AcceptanceFailureSummary == "" {
 		t.Fatal("expected acceptance_failure_summary in JSONL")
 	}
+	if logEntry.AcceptanceFailureOutput == "" {
+		t.Fatal("expected acceptance_failure_output in JSONL")
+	}
 	if logEntry.AcceptanceFailureArtifact == "" {
 		t.Fatal("expected acceptance_failure_artifact in JSONL")
 	}

@@ -370,7 +370,7 @@ func TestVerifyAcceptanceTestsPass_ReturnsErrorWhenValidationDisabled(t *testing
 
 func TestAcceptanceCommands_InjectsTagsIntoGoTest(t *testing.T) {
 	commands := []string{"go test ./...", "go vet ./..."}
-	got := AcceptanceCommands(commands)
+	got := AcceptanceCommands(commands, nil)
 
 	if len(got) != 2 {
 		t.Fatalf("AcceptanceCommands returned %d commands, want 2", len(got))
@@ -385,7 +385,7 @@ func TestAcceptanceCommands_InjectsTagsIntoGoTest(t *testing.T) {
 
 func TestAcceptanceCommands_HandlesGoTestWithExistingFlags(t *testing.T) {
 	commands := []string{"go test -v -count=1 ./..."}
-	got := AcceptanceCommands(commands)
+	got := AcceptanceCommands(commands, nil)
 
 	if len(got) != 1 {
 		t.Fatalf("AcceptanceCommands returned %d commands, want 1", len(got))
@@ -397,7 +397,7 @@ func TestAcceptanceCommands_HandlesGoTestWithExistingFlags(t *testing.T) {
 
 func TestAcceptanceCommands_PreservesNonGoTestCommands(t *testing.T) {
 	commands := []string{"golangci-lint run ./...", "go vet ./..."}
-	got := AcceptanceCommands(commands)
+	got := AcceptanceCommands(commands, nil)
 
 	if len(got) != 2 {
 		t.Fatalf("AcceptanceCommands returned %d commands, want 2", len(got))
@@ -411,7 +411,7 @@ func TestAcceptanceCommands_PreservesNonGoTestCommands(t *testing.T) {
 }
 
 func TestAcceptanceCommands_EmptySlice(t *testing.T) {
-	got := AcceptanceCommands([]string{})
+	got := AcceptanceCommands([]string{}, nil)
 	if len(got) != 0 {
 		t.Fatalf("AcceptanceCommands of empty slice should return empty, got %d", len(got))
 	}
@@ -419,10 +419,38 @@ func TestAcceptanceCommands_EmptySlice(t *testing.T) {
 
 func TestAcceptanceCommands_SkipsIfAlreadyTagged(t *testing.T) {
 	commands := []string{"go test -tags acceptance ./..."}
-	got := AcceptanceCommands(commands)
+	got := AcceptanceCommands(commands, nil)
 
 	if got[0] != "go test -tags acceptance ./..." {
 		t.Errorf("AcceptanceCommands should not double-tag, got %q", got[0])
+	}
+}
+
+func TestAcceptanceCommands_ScopesGoTestWhenTouchedPackagesPresent(t *testing.T) {
+	commands := []string{"go test ./...", "go vet ./..."}
+	got := AcceptanceCommands(commands, []string{"internal/runner"})
+
+	if len(got) != 2 {
+		t.Fatalf("AcceptanceCommands returned %d commands, want 2", len(got))
+	}
+	if got[0] != "go test -tags acceptance ./internal/runner/..." {
+		t.Errorf("AcceptanceCommands()[0] = %q, want scoped go test command", got[0])
+	}
+	if got[1] != "go vet ./..." {
+		t.Errorf("AcceptanceCommands()[1] = %q, want unchanged %q", got[1], "go vet ./...")
+	}
+}
+
+func TestAcceptanceCommands_ScopesGoTestToMultipleTouchedPackages(t *testing.T) {
+	commands := []string{"go test -count=1 ./..."}
+	got := AcceptanceCommands(commands, []string{"internal/config", "internal/runner", "internal/runner"})
+
+	if len(got) != 1 {
+		t.Fatalf("AcceptanceCommands returned %d commands, want 1", len(got))
+	}
+	want := "go test -tags acceptance -count=1 ./internal/config/... ./internal/runner/..."
+	if got[0] != want {
+		t.Errorf("AcceptanceCommands()[0] = %q, want %q", got[0], want)
 	}
 }
 

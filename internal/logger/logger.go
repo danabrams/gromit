@@ -41,6 +41,7 @@ type IterationLog struct {
 	RateLimitRecoveryMs int64  `json:"rate_limit_recovery_ms,omitempty"` // ms to recover from most recent rate limit
 
 	AcceptanceFailureSummary  string `json:"acceptance_failure_summary,omitempty"`
+	AcceptanceFailureOutput   string `json:"acceptance_failure_output,omitempty"`
 	AcceptanceFailureArtifact string `json:"acceptance_failure_artifact,omitempty"`
 }
 
