@@ -306,7 +306,7 @@ func (r *Reviewer) WriteReviewLog(iteration int, beadID string, model string, re
 	if r == nil || r.logger == nil || result == nil {
 		return
 	}
-	r.logger.LogReview(&logger.ReviewLog{
+	_ = r.logger.LogReview(&logger.ReviewLog{
 		Timestamp:      time.Now(),
 		Type:           "review",
 		ReviewType:     "light",
@@ -417,7 +417,7 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 
 	// Log review
 	if r.logger != nil {
-		r.logger.LogReview(&logger.ReviewLog{
+		_ = r.logger.LogReview(&logger.ReviewLog{
 			Timestamp:      time.Now(),
 			Type:           "review",
 			ReviewType:     "thorough",

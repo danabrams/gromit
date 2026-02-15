@@ -109,10 +109,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		logger.ParseAndLogEvent(sl, stats, line)
 	}
 
-	var providerHandler provider.EventHandler
-	if handler != nil {
-		providerHandler = provider.EventHandler(handler)
-	}
+	providerHandler := provider.EventHandler(handler)
 
 	providerToolHandler := func(event provider.ToolEvent) {
 		if toolCallEvents != nil {

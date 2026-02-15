@@ -24,7 +24,7 @@ func ExtractLearning(bc *runtypes.BeadContext, analysis *analyzer.Analysis, lf *
 	if lf == nil {
 		return
 	}
-	lf.Add(bc.Bead.ID, *analysis.Learning, analysis.LearningCategory())
+	_, _ = lf.Add(bc.Bead.ID, *analysis.Learning, analysis.LearningCategory())
 }
 
 // ExtractSyntheticLearning saves a synthetic learning from a custom message.
@@ -35,7 +35,7 @@ func ExtractSyntheticLearning(bc *runtypes.BeadContext, message string, lf *lear
 	if lf == nil {
 		return
 	}
-	lf.Add(bc.Bead.ID, message, "patterns")
+	_, _ = lf.Add(bc.Bead.ID, message, "patterns")
 }
 
 // ExtractScopeTooLargeLearning saves a synthetic learning for scope-too-large failures.
@@ -149,5 +149,5 @@ func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *
 		logFn("Success learning extracted: %s", *resp.Learning)
 	}
 
-	lf.Add(bc.Bead.ID, *resp.Learning, category)
+	_, _ = lf.Add(bc.Bead.ID, *resp.Learning, category)
 }

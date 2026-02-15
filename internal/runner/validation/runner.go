@@ -107,9 +107,7 @@ func (r *Runner) RunWithRecovery(ctx context.Context, bc *runtypes.BeadContext) 
 
 		// Step 1: Try trivial auto-fix before invoking Claude
 		if r.autoFixFn != nil {
-			if fixErr := r.autoFixFn(bc.StartCommit); fixErr != nil {
-				// auto-fix failed, continue to Claude
-			}
+			_ = r.autoFixFn(bc.StartCommit)
 
 			// Re-validate after auto-fix
 			if valErr := r.runValidation(ctx, bc); valErr == nil {
