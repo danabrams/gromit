@@ -164,7 +164,9 @@ func (r *Runner) overwriteHeartbeat(stats *logger.StreamStats, lastLine string) 
 	if len(lastLine) > len(newLine) {
 		padding = strings.Repeat(" ", len(lastLine)-len(newLine))
 	}
-	r.syncOut.WriteOverwrite([]byte(fmt.Sprintf("\r%s%s", newLine, padding)))
+	if _, err := r.syncOut.WriteOverwrite([]byte(fmt.Sprintf("\r%s%s", newLine, padding))); err != nil {
+		r.log("Warning: failed to overwrite heartbeat: %v", err)
+	}
 
 	return newLine
 }
