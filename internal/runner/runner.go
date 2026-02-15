@@ -84,7 +84,7 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	// Create logger (ignore error - logging is optional)
 	log, err := logger.NewLogger(cfg.Paths.Logs)
 	if err != nil {
-		fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
+		_, _ = fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
 	}
 
 	// Determine gromit directory (parent of templates dir)
@@ -159,9 +159,9 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		// Create and load state file for router initialization
 		sf, err = state.NewFile(gromitDir)
 		if err != nil {
-			fmt.Fprintf(output, "Warning: could not create state file: %v\n", err)
+			_, _ = fmt.Fprintf(output, "Warning: could not create state file: %v\n", err)
 		} else if loadErr := sf.Load(); loadErr != nil {
-			fmt.Fprintf(output, "Warning: could not load state: %v\n", loadErr)
+			_, _ = fmt.Fprintf(output, "Warning: could not load state: %v\n", loadErr)
 		}
 
 		router = provider.NewRouter(providers, cfg.Routing.PhasePreferences, cfg.Routing.Ratio, cooldown, sf)
@@ -269,7 +269,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		log, err := logger.NewLogger(cfg.Paths.Logs)
 		if err != nil {
 			// Log warning but continue - logging is optional
-			fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
+			_, _ = fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
 		} else {
 			iterLogger = log
 		}
@@ -381,7 +381,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 	// Ensure logger is closed when done
 	if r.logger != nil {
-		defer r.logger.Close()
+		defer func() { _ = r.logger.Close() }()
 		r.log("Logging to: %s", r.logger.FilePath())
 	}
 
@@ -391,7 +391,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		r.log("Warning: could not create stream logger: %v", err)
 	} else {
 		r.streamLogger = sl
-		defer sl.Close()
+		defer func() { _ = sl.Close() }()
 		r.log("Streaming to: %s (tail -f to watch)", sl.Path())
 	}
 
@@ -537,16 +537,16 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 			// Write iteration log with precheck_skipped outcome
 			// Note: we don't increment iteration counter for skipped beads
-				r.logIterationWithWarning(&logger.IterationLog{
-					Timestamp:  time.Now(),
-					Iteration:  iteration,
-					BeadID:     b.ID,
-					BeadTitle:  b.Title,
-					Model:      "precheck",
-					Success:    true,
-					DurationMs: precheckDuration.Milliseconds(),
-					Outcome:    "precheck_skipped",
-				})
+			r.logIterationWithWarning(&logger.IterationLog{
+				Timestamp:  time.Now(),
+				Iteration:  iteration,
+				BeadID:     b.ID,
+				BeadTitle:  b.Title,
+				Model:      "precheck",
+				Success:    true,
+				DurationMs: precheckDuration.Milliseconds(),
+				Outcome:    "precheck_skipped",
+			})
 
 			// Increment consecutive skip counter and check limit
 			consecutiveSkips++
@@ -580,15 +580,15 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 						r.log("Warning: failed to add comment to blocked bead: %v", err)
 					}
 					skippedBeads[b.ID] = true
-						r.logIterationWithWarning(&logger.IterationLog{
-							Timestamp: time.Now(),
-							Iteration: iteration + 1,
-							BeadID:    b.ID,
-							BeadTitle: b.Title,
-							Model:     r.cfg.ScopeCheck.Model,
-							Success:   false,
-							Outcome:   "scope_blocked",
-						})
+					r.logIterationWithWarning(&logger.IterationLog{
+						Timestamp: time.Now(),
+						Iteration: iteration + 1,
+						BeadID:    b.ID,
+						BeadTitle: b.Title,
+						Model:     r.cfg.ScopeCheck.Model,
+						Success:   false,
+						Outcome:   "scope_blocked",
+					})
 					continue
 				}
 			}
