@@ -862,6 +862,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	// ATDD: Verify acceptance tests pass after build + regular validation
 	if atddActive && r.methodologyExec != nil {
 		if err := r.methodologyExec.VerifyAcceptanceTestsPass(ctx, bc); err != nil {
+			var acceptanceErr *methodology.AcceptanceVerificationError
+			if errors.As(err, &acceptanceErr) {
+				bc.Result.AcceptanceFailureSummary = acceptanceErr.Error()
+				bc.Result.AcceptanceFailureOutput = acceptanceErr.Output
+			}
 			bc.Result.Error = fmt.Errorf("post-build acceptance verification: %w", err)
 			return bc.Result
 		}
@@ -889,6 +894,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		// ATDD: Re-verify acceptance tests pass after refactoring
 		if atddActive && r.methodologyExec != nil {
 			if err := r.methodologyExec.VerifyAcceptanceTestsPass(ctx, bc); err != nil {
+				var acceptanceErr *methodology.AcceptanceVerificationError
+				if errors.As(err, &acceptanceErr) {
+					bc.Result.AcceptanceFailureSummary = acceptanceErr.Error()
+					bc.Result.AcceptanceFailureOutput = acceptanceErr.Output
+				}
 				bc.Result.Error = fmt.Errorf("acceptance verification failed after refactoring: %w", err)
 				return bc.Result
 			}

@@ -71,6 +71,10 @@ type IterationResult struct {
 	StallTier           string // "initial" or "active"
 	RateLimitHits       int
 	RateLimitRecoveryMs int64 // ms to recover from most recent rate limit
+
+	AcceptanceFailureSummary  string // short summary for JSONL
+	AcceptanceFailureOutput   string // captured validation output from failed acceptance verification
+	AcceptanceFailureArtifact string // path to persisted failure artifact log
 }
 
 // SubTask represents a single sub-task from task decomposition.

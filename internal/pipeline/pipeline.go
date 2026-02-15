@@ -132,12 +132,12 @@ type BacklogClient interface {
 
 // Idea represents a backlog idea (matches backlog.Idea).
 type Idea struct {
-	ID       string
-	Text     string
-	Type     string
-	Context  string
-	Status   string
-	SpecName string
+	ID       string `json:"id"`
+	Text     string `json:"text"`
+	Type     string `json:"type"`
+	Context  string `json:"context"`
+	Status   string `json:"status"`
+	SpecName string `json:"spec_name"`
 }
 
 // PromptRenderer abstracts prompt rendering operations.

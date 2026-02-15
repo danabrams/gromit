@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 )
 
@@ -133,5 +134,66 @@ func TestWriteIterationLog_UsageLimitedFalseNotPropagated(t *testing.T) {
 	}
 	if logEntry.Success != true {
 		t.Error("expected Success=true")
+	}
+}
+
+func TestWriteIterationLog_WritesAcceptanceFailureArtifact(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	r := &Runner{
+		logger: l,
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+		},
+	}
+
+	result := &IterationResult{
+		BeadID:                   "bead-accept-1",
+		BeadTitle:                "ATDD verify",
+		Model:                    "sonnet",
+		Success:                  false,
+		Duration:                 2 * time.Second,
+		Error:                    fmt.Errorf("post-build acceptance verification failed"),
+		AcceptanceFailureSummary: "acceptance tests failed after implementation",
+		AcceptanceFailureOutput:  "VALIDATION_FAILED\n--- FAIL: TestSomething",
+	}
+
+	r.writeIterationLog(3, result)
+
+	if result.AcceptanceFailureArtifact == "" {
+		t.Fatal("expected acceptance failure artifact path to be set")
+	}
+	if _, err := os.Stat(result.AcceptanceFailureArtifact); err != nil {
+		t.Fatalf("expected artifact file to exist: %v", err)
+	}
+
+	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("globbing log files: %v", err)
+	}
+	if len(logFiles) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(logFiles))
+	}
+
+	data, err := os.ReadFile(logFiles[0])
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	var logEntry logger.IterationLog
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
+	if err := json.Unmarshal([]byte(line), &logEntry); err != nil {
+		t.Fatalf("unmarshaling log entry: %v", err)
+	}
+	if logEntry.AcceptanceFailureSummary == "" {
+		t.Fatal("expected acceptance_failure_summary in JSONL")
+	}
+	if logEntry.AcceptanceFailureArtifact == "" {
+		t.Fatal("expected acceptance_failure_artifact in JSONL")
 	}
 }

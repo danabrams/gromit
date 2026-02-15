@@ -2,6 +2,7 @@ package methodology
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -340,6 +341,14 @@ func TestVerifyAcceptanceTestsPass_ReturnsErrorWhenTestsFail(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "acceptance tests failed") {
 		t.Errorf("error should mention acceptance tests failed, got: %v", err)
+	}
+
+	var acceptanceErr *AcceptanceVerificationError
+	if !errors.As(err, &acceptanceErr) {
+		t.Fatalf("expected AcceptanceVerificationError, got %T", err)
+	}
+	if acceptanceErr.Output == "" {
+		t.Fatal("expected acceptance failure output to be captured")
 	}
 }
 

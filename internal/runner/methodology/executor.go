@@ -39,6 +39,20 @@ type Executor struct {
 	getGitHeadFn     GetGitHeadFn
 }
 
+// AcceptanceVerificationError captures failure details when post-build
+// acceptance verification fails.
+type AcceptanceVerificationError struct {
+	Message string
+	Output  string
+}
+
+func (e *AcceptanceVerificationError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
 // NewExecutor creates an Executor with narrow dependency interfaces.
 // renderFn, invokeFn, and validateFn may be nil for test scenarios.
 func NewExecutor(cfg *config.Config, output io.Writer, renderFn RenderFn, invokeFn InvokeFn, validateFn ValidateDirectFn) *Executor {
@@ -173,9 +187,24 @@ func (e *Executor) VerifyAcceptanceTestsPass(ctx context.Context, bc *runtypes.B
 
 	if !claude.IsValidationPassed(valResult) {
 		e.log("Acceptance tests failed after implementation")
-		return fmt.Errorf("acceptance tests failed after implementation - implementation may not satisfy acceptance criteria")
+		return &AcceptanceVerificationError{
+			Message: "acceptance tests failed after implementation - implementation may not satisfy acceptance criteria",
+			Output:  summarizeAcceptanceFailureOutput(valResult.Output),
+		}
 	}
 
 	e.log("Acceptance tests passed")
 	return nil
+}
+
+func summarizeAcceptanceFailureOutput(output string) string {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return ""
+	}
+	const maxChars = 4000
+	if len(trimmed) <= maxChars {
+		return trimmed
+	}
+	return trimmed[:maxChars] + "\n...[truncated]"
 }

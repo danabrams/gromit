@@ -2,11 +2,16 @@ package runner
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/logger"
 )
+
+var artifactBeadIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
 func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 	if r == nil || r.logger == nil || result == nil {
@@ -21,6 +26,12 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 	outcome := ""
 	if result.AlreadyDone {
 		outcome = "atdd_already_done"
+	}
+
+	artifactPath := result.AcceptanceFailureArtifact
+	if artifactPath == "" && result.AcceptanceFailureOutput != "" {
+		artifactPath = r.writeAcceptanceFailureArtifact(iteration, result)
+		result.AcceptanceFailureArtifact = artifactPath
 	}
 
 	r.logger.LogIteration(&logger.IterationLog{
@@ -50,7 +61,45 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		StallTier:           result.StallTier,
 		RateLimitHits:       result.RateLimitHits,
 		RateLimitRecoveryMs: result.RateLimitRecoveryMs,
+		AcceptanceFailureSummary:  result.AcceptanceFailureSummary,
+		AcceptanceFailureArtifact: artifactPath,
 	})
+}
+
+func (r *Runner) writeAcceptanceFailureArtifact(iteration int, result *IterationResult) string {
+	if r == nil || result == nil || result.AcceptanceFailureOutput == "" || r.cfg == nil {
+		return ""
+	}
+
+	failuresDir := filepath.Join(r.cfg.Paths.Logs, "failures")
+	if err := os.MkdirAll(failuresDir, 0755); err != nil {
+		r.log("Warning: failed to create acceptance failure logs directory: %v", err)
+		return ""
+	}
+
+	safeBeadID := artifactBeadIDSanitizer.ReplaceAllString(result.BeadID, "_")
+	if safeBeadID == "" {
+		safeBeadID = "unknown-bead"
+	}
+	filename := fmt.Sprintf("acceptance-%s-it%d-%s.log", time.Now().UTC().Format("20060102-150405"), iteration, safeBeadID)
+	fullPath := filepath.Join(failuresDir, filename)
+
+	body := strings.TrimSpace(fmt.Sprintf(
+		"timestamp: %s\niteration: %d\nbead_id: %s\nbead_title: %s\nsummary: %s\nerror: %v\n\nvalidation_output:\n%s\n",
+		time.Now().UTC().Format(time.RFC3339),
+		iteration,
+		result.BeadID,
+		result.BeadTitle,
+		result.AcceptanceFailureSummary,
+		result.Error,
+		result.AcceptanceFailureOutput,
+	))
+	if err := os.WriteFile(fullPath, []byte(body+"\n"), 0644); err != nil {
+		r.log("Warning: failed to write acceptance failure artifact: %v", err)
+		return ""
+	}
+
+	return fullPath
 }
 
 func (r *Runner) logResult(result *IterationResult) {

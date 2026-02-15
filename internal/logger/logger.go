@@ -39,6 +39,9 @@ type IterationLog struct {
 	StallTier           string `json:"stall_tier,omitempty"`             // "initial" or "active"
 	RateLimitHits       int    `json:"rate_limit_hits,omitempty"`        // rate limit events detected
 	RateLimitRecoveryMs int64  `json:"rate_limit_recovery_ms,omitempty"` // ms to recover from most recent rate limit
+
+	AcceptanceFailureSummary  string `json:"acceptance_failure_summary,omitempty"`
+	AcceptanceFailureArtifact string `json:"acceptance_failure_artifact,omitempty"`
 }
 
 // ReviewLog represents a review's outcome (light or thorough)
