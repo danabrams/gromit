@@ -28,7 +28,13 @@ type CodexProvider struct {
 	tierToModel map[string]string
 }
 
-const codexTransientRetryMax = 2
+const (
+	codexTransientRetryMax = 2
+
+	codexRetryBackoffFirst   = 250 * time.Millisecond
+	codexRetryBackoffSecond  = 750 * time.Millisecond
+	codexRetryBackoffDefault = 1500 * time.Millisecond
+)
 
 // Compile-time check to verify CodexProvider implements Provider interface
 var _ Provider = (*CodexProvider)(nil)
@@ -77,7 +83,7 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 		if result == nil || result.Success {
 			return result, nil
 		}
-		if attempt == codexTransientRetryMax || !isTransientCodexFailure(result.FailureCategory) {
+		if !shouldRetryCodexAttempt(result, attempt) {
 			return result, nil
 		}
 		if sleepErr := sleepWithContext(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
@@ -106,7 +112,7 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		if result == nil || result.Success {
 			return result, nil
 		}
-		if attempt == codexTransientRetryMax || !isTransientCodexFailure(result.FailureCategory) {
+		if !shouldRetryCodexAttempt(result, attempt) {
 			return result, nil
 		}
 		if sleepErr := sleepWithContext(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
@@ -453,14 +459,24 @@ func isTransientCodexFailure(failureCategory string) bool {
 	}
 }
 
+func shouldRetryCodexAttempt(result *Result, attempt int) bool {
+	if result == nil {
+		return false
+	}
+	if attempt >= codexTransientRetryMax {
+		return false
+	}
+	return isTransientCodexFailure(result.FailureCategory)
+}
+
 func codexRetryBackoff(attempt int) time.Duration {
 	switch attempt {
 	case 0:
-		return 250 * time.Millisecond
+		return codexRetryBackoffFirst
 	case 1:
-		return 750 * time.Millisecond
+		return codexRetryBackoffSecond
 	default:
-		return 1500 * time.Millisecond
+		return codexRetryBackoffDefault
 	}
 }
 
@@ -563,26 +579,26 @@ func (cp *CodexProvider) IsScopeTooLarge(result *Result) (bool, string) {
 // If user flags include --dangerously-bypass-approvals-and-sandbox, --full-auto is
 // omitted because the two flags are mutually exclusive in the Codex CLI.
 func (cp *CodexProvider) buildCommandArgs(model string, jsonMode bool) []string {
+	return cp.buildExecCommandArgs(model, "never", jsonMode)
+}
+
+// buildStreamCommandArgs constructs command arguments for streaming invocations.
+// Stream mode keeps terminal formatting/color when the terminal supports it.
+func (cp *CodexProvider) buildStreamCommandArgs(model string, jsonMode bool) []string {
+	return cp.buildExecCommandArgs(model, "auto", jsonMode)
+}
+
+func (cp *CodexProvider) buildExecCommandArgs(model string, colorMode string, jsonMode bool) []string {
 	args := make([]string, 0, len(cp.flags)+12)
 	args = append(args, "exec")
 	args = append(args, cp.flags...)
 
-	// --dangerously-bypass-approvals-and-sandbox and --full-auto are mutually
-	// exclusive in the Codex CLI; only add --full-auto when the bypass flag
-	// is not already present in user flags.
-	hasBypass := false
-	for _, f := range cp.flags {
-		if f == "--dangerously-bypass-approvals-and-sandbox" {
-			hasBypass = true
-			break
-		}
-	}
-	if !hasBypass {
+	if !hasBypassApprovalsAndSandbox(cp.flags) {
 		args = append(args, "--full-auto")
 	}
 
 	args = append(args, "--skip-git-repo-check")
-	args = append(args, "--color", "never")
+	args = append(args, "--color", colorMode)
 	args = append(args, "--model", model)
 	if jsonMode {
 		args = append(args, "--json")
@@ -591,32 +607,13 @@ func (cp *CodexProvider) buildCommandArgs(model string, jsonMode bool) []string 
 	return args
 }
 
-// buildStreamCommandArgs constructs command arguments for streaming invocations.
-// Stream mode keeps terminal formatting/color when the terminal supports it.
-func (cp *CodexProvider) buildStreamCommandArgs(model string, jsonMode bool) []string {
-	args := make([]string, 0, len(cp.flags)+12)
-	args = append(args, "exec")
-	args = append(args, cp.flags...)
-
-	hasBypass := false
-	for _, f := range cp.flags {
+func hasBypassApprovalsAndSandbox(flags []string) bool {
+	for _, f := range flags {
 		if f == "--dangerously-bypass-approvals-and-sandbox" {
-			hasBypass = true
-			break
+			return true
 		}
 	}
-	if !hasBypass {
-		args = append(args, "--full-auto")
-	}
-
-	args = append(args, "--skip-git-repo-check")
-	args = append(args, "--color", "auto")
-	args = append(args, "--model", model)
-	if jsonMode {
-		args = append(args, "--json")
-	}
-	args = append(args, "-")
-	return args
+	return false
 }
 
 // extractExitCode extracts the exit code from a command execution error.
