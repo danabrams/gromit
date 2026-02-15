@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -53,8 +55,7 @@ func setupInvocationTimeoutRunner(t *testing.T, cfg *config.Config, p provider.P
 }
 
 func TestRunnerInvocationTimeout_UsesClaudeTimeout(t *testing.T) {
-	// Expected failure: invoker does not wrap invocation context with cfg.Claude.Timeout yet.
-	_ = runtypes.TimeoutTypePhase
+	_ = config.DefaultInvocationTimeoutSeconds
 
 	var observed time.Duration
 	provider := &mockProviderWithRouterTracking{
@@ -92,8 +93,7 @@ func TestRunnerInvocationTimeout_UsesClaudeTimeout(t *testing.T) {
 }
 
 func TestRunnerInvocationTimeout_RespectsModelOverride(t *testing.T) {
-	// Expected failure: per-model invocation timeout overrides are not applied to invocation context yet.
-	_ = runtypes.TimeoutTypePhase
+	_ = config.DefaultInvocationTimeoutSeconds
 
 	var observed time.Duration
 	provider := &mockProviderWithRouterTracking{
@@ -134,8 +134,7 @@ func TestRunnerInvocationTimeout_RespectsModelOverride(t *testing.T) {
 }
 
 func TestRunnerLogsPhaseTimeoutWithElapsedDuration(t *testing.T) {
-	// Expected failure: phase timeout logging does not emit timeout_type=phase_timeout yet.
-	_ = runtypes.TimeoutTypePhase
+	_ = config.DefaultInvocationTimeoutSeconds
 
 	provider := &mockProviderWithRouterTracking{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
@@ -168,5 +167,87 @@ func TestRunnerLogsPhaseTimeoutWithElapsedDuration(t *testing.T) {
 	}
 	if entry.DurationMs <= 0 || entry.DurationMs > 1500 {
 		t.Fatalf("DurationMs = %d, want elapsed <= 1500ms", entry.DurationMs)
+	}
+}
+
+func TestRunnerInvocationTimeout_DefaultTimeoutApplied(t *testing.T) {
+	var observed time.Duration
+	provider := &mockProviderWithRouterTracking{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				return nil, fmt.Errorf("missing invocation deadline")
+			}
+			observed = time.Until(deadline)
+			return &provider.Result{Success: true, Model: "test-sonnet", Output: "ok"}, nil
+		},
+	}
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+		t.Fatalf("writing empty config: %v", err)
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	cfg.Validation = config.ValidationConfig{Enabled: false}
+	cfg.Review = config.ReviewConfig{Enabled: false}
+
+	r, _ := setupInvocationTimeoutRunner(t, cfg, provider)
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+	if observed == 0 {
+		t.Fatal("expected StreamRun to observe an invocation deadline")
+	}
+	expected := time.Duration(config.DefaultInvocationTimeoutSeconds) * time.Second
+	if observed < expected-30*time.Second || observed > expected+30*time.Second {
+		t.Fatalf("invocation deadline = %v, want ~%v", observed, expected)
+	}
+}
+
+func TestRunnerInvocationTimeout_DeadlineTriggersEscalation(t *testing.T) {
+	var tiers []string
+	callCount := 0
+	mockProvider := &mockProviderWithRouterTracking{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			tiers = append(tiers, tier)
+			callCount++
+			if callCount == 1 {
+				return &provider.Result{Success: false, Model: "test-sonnet", Output: "timeout"}, context.DeadlineExceeded
+			}
+			return &provider.Result{Success: true, Model: "test-opus", Output: "ok"}, nil
+		},
+	}
+
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Timeout:            config.DefaultInvocationTimeoutSeconds,
+			StallTimeout:       1,
+			StallTimeoutActive: 1,
+			BeadTimeout:        30,
+			ModelTimeouts: map[string]config.ModelTimeoutOverrides{
+				"test-sonnet": {Timeout: 1},
+			},
+		},
+		Escalation: config.EscalationConfig{
+			Enabled: true,
+			Chain:   []string{"sonnet", "opus"},
+		},
+		Validation: config.ValidationConfig{Enabled: false},
+		Review:     config.ReviewConfig{Enabled: false},
+	}
+
+	r, _ := setupInvocationTimeoutRunner(t, cfg, mockProvider)
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+	if len(tiers) < 2 {
+		t.Fatalf("expected retry after phase timeout, got %d invocation(s)", len(tiers))
+	}
+	if tiers[0] != provider.TierMedium || tiers[1] != provider.TierHigh {
+		t.Fatalf("invocation tiers = %v, want [%s %s]", tiers, provider.TierMedium, provider.TierHigh)
 	}
 }

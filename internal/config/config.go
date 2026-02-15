@@ -15,6 +15,8 @@ const (
 	ModelOpus   = "opus"
 	ModelSonnet = "sonnet"
 	ModelHaiku  = "haiku"
+
+	DefaultInvocationTimeoutSeconds = 900 // 15 minutes
 )
 
 type Config struct {
@@ -302,7 +304,7 @@ func (c *Config) SetDefaults() {
 		c.Claude.Binary = "claude"
 	}
 	if c.Claude.Timeout == 0 {
-		c.Claude.Timeout = 900
+		c.Claude.Timeout = DefaultInvocationTimeoutSeconds
 	}
 	if c.Claude.StallTimeout == 0 {
 		c.Claude.StallTimeout = 120
