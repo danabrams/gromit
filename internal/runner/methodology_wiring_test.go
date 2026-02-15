@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -772,5 +773,113 @@ func TestProcessBead_ATDD_SwitchesToATDDBuildPrompt(t *testing.T) {
 	if !strings.Contains(failureContextReceived, "Acceptance tests") {
 		t.Errorf("processBead should set FailureContext indicating acceptance tests are ready; "+
 			"got %q", failureContextReceived)
+	}
+}
+
+func TestProcessBead_ATDD_RetriesWhenAcceptanceVerificationFailsAfterRefactor(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	cfg.Methodology.ATDD = true
+	cfg.Escalation.MaxRetriesPerModel = 1
+	cfg.Escalation.MaxRetriesPerBead = 3
+	var buf strings.Builder
+
+	validateCallCount := 0
+	exec := methodology.NewExecutorWithAnalysis(
+		cfg,
+		&buf,
+		func(ctx *prompt.Context) (string, error) {
+			return "acceptance test prompt", nil
+		},
+		func(ctx context.Context, bc *runtypes.BeadContext, p string) error {
+			return nil
+		},
+		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+			validateCallCount++
+			switch validateCallCount {
+			case 1:
+				// VerifyTestsFail: tests should fail before implementation.
+				return &claude.Result{Success: true, Output: "FAIL", ExitCode: 1}, nil
+			case 2:
+				// First post-build acceptance verification: pass.
+				return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
+			case 3:
+				// First post-refactor acceptance verification: fail and trigger retry.
+				return &claude.Result{Success: true, Output: "FAIL after refactor", ExitCode: 1}, nil
+			case 4:
+				// Retry post-build acceptance verification: pass.
+				return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
+			case 5:
+				// Retry post-refactor acceptance verification: pass.
+				return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
+			default:
+				return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
+			}
+		},
+		nil, nil,
+	)
+
+	streamRunCalls := 0
+	mockProv := &mockProviderWithRouterTracking{}
+	mockProv.streamRunFn = func(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		streamRunCalls++
+		return &provider.Result{Success: true, Model: "test-model", Output: "done"}, nil
+	}
+
+	analyzeCalls := 0
+	mockAnalyzerObj := &mockFailureAnalyzer{
+		AnalyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			analyzeCalls++
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				RootCause:   "acceptance regression after refactor",
+				Suggestion:  "Fix acceptance failure and retry implementation.",
+			}, nil
+		},
+	}
+
+	router := provider.NewSingleProviderRouter(mockProv)
+	noopCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "VALIDATION_PASSED", "", 0, nil
+	}
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:     &mockBeadClient{},
+		Router:    router,
+		Analyzer:  mockAnalyzerObj,
+		Renderer:  &mockPromptRenderer{},
+		CmdRunner: noopCmdRunner,
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+
+	r.methodologyExec = exec
+
+	b := &bead.Bead{
+		ID:       "test-atdd-retry-after-refactor-001",
+		Title:    "ATDD retry after refactor acceptance failure",
+		Priority: 1,
+		Labels:   []string{"methodology:true"},
+	}
+
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
+	if result.Error != nil {
+		t.Fatalf("processBead should recover and succeed after retry, got error: %v", result.Error)
+	}
+	if !result.Success {
+		t.Fatal("processBead should report success after retry path succeeds")
+	}
+	if streamRunCalls < 2 {
+		t.Errorf("expected at least 2 build invocations (initial + retry), got %d", streamRunCalls)
+	}
+	if analyzeCalls == 0 {
+		t.Error("expected failure analysis to run for post-refactor acceptance verification failure")
+	}
+	if validateCallCount < 5 {
+		t.Errorf("expected acceptance validation sequence to include retry path, got %d validate calls", validateCallCount)
+	}
+	if result.AcceptanceFailureSummary != "" {
+		t.Errorf("expected acceptance failure summary to be cleared on eventual success, got %q", result.AcceptanceFailureSummary)
 	}
 }

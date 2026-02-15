@@ -911,74 +911,103 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		}
 	}
 
-	// Main execution loop with retry and escalation — delegated to escalation handler
+	// Main execution loop with retry and escalation — delegated to escalation handler.
+	// Post-build ATDD acceptance verification failures are routed through the same
+	// analysis/retry path so recoverable failures can get a fresh invocation context.
 	invokeFn := r.makeInvokeFn()
-	if !r.escalationHandler.ExecuteWithRetry(ctx, bc, invokeFn) {
-		return bc.Result
-	}
+	for {
+		bc.Result.Error = nil
+		bc.Result.AcceptanceFailureSummary = ""
+		bc.Result.AcceptanceFailureOutput = ""
 
-	// Capture touched packages for learning extraction filtering
-	if bc.StartCommit != "" {
-		diff, err := r.getDiff(bc.StartCommit)
-		if err == nil && diff != "" {
-			bc.TouchedPackages = detectTouchedPackages(diff)
-		}
-	}
-
-	// Run validation if enabled (with recovery on failure)
-	if err := r.runValidationWithRecovery(ctx, bc); err != nil {
-		bc.Result.Error = err
-		return bc.Result
-	}
-
-	// ATDD: Verify acceptance tests pass after build + regular validation
-	if atddActive && r.methodologyExec != nil {
-		if err := r.methodologyExec.VerifyAcceptanceTestsPass(ctx, bc); err != nil {
-			var acceptanceErr *methodology.AcceptanceVerificationError
-			if errors.As(err, &acceptanceErr) {
-				bc.Result.AcceptanceFailureSummary = acceptanceErr.Error()
-				bc.Result.AcceptanceFailureOutput = acceptanceErr.Output
-			}
-			bc.Result.Error = fmt.Errorf("post-build acceptance verification: %w", err)
+		if !r.escalationHandler.ExecuteWithRetry(ctx, bc, invokeFn) {
 			return bc.Result
 		}
-	}
 
-	// ATDD/TDD Phase 3: Refactor (if either methodology is active)
-	if atddActive || tddActive {
-		r.log("Running refactor phase...")
-		if r.methodologyExec == nil {
-			bc.Result.Error = fmt.Errorf("refactor phase active but methodologyExec not wired")
-			return bc.Result
-		}
-		if err := r.methodologyExec.RunRefactorPhase(ctx, bc); err != nil {
-			r.log("Warning: refactor phase encountered issues: %v", err)
-		}
-
-		// Re-validate after refactoring (with recovery on failure)
-		if r.cfg.Validation.Enabled {
-			if err := r.runValidationWithRecovery(ctx, bc); err != nil {
-				bc.Result.Error = wrapRefactorValidationError(err)
-				return bc.Result
+		// Capture touched packages for learning extraction filtering
+		if bc.StartCommit != "" {
+			diff, err := r.getDiff(bc.StartCommit)
+			if err == nil && diff != "" {
+				bc.TouchedPackages = detectTouchedPackages(diff)
 			}
 		}
 
-		// ATDD: Re-verify acceptance tests pass after refactoring
+		// Run validation if enabled (with recovery on failure)
+		if err := r.runValidationWithRecovery(ctx, bc); err != nil {
+			bc.Result.Error = err
+			return bc.Result
+		}
+
+		// ATDD: Verify acceptance tests pass after build + regular validation
 		if atddActive && r.methodologyExec != nil {
 			if err := r.methodologyExec.VerifyAcceptanceTestsPass(ctx, bc); err != nil {
-				var acceptanceErr *methodology.AcceptanceVerificationError
-				if errors.As(err, &acceptanceErr) {
-					bc.Result.AcceptanceFailureSummary = acceptanceErr.Error()
-					bc.Result.AcceptanceFailureOutput = acceptanceErr.Output
+				if r.handleAcceptanceVerificationFailure(ctx, bc, "post-build acceptance verification", err) {
+					continue
 				}
-				bc.Result.Error = fmt.Errorf("acceptance verification failed after refactoring: %w", err)
 				return bc.Result
 			}
 		}
+
+		// ATDD/TDD Phase 3: Refactor (if either methodology is active)
+		if atddActive || tddActive {
+			r.log("Running refactor phase...")
+			if r.methodologyExec == nil {
+				bc.Result.Error = fmt.Errorf("refactor phase active but methodologyExec not wired")
+				return bc.Result
+			}
+			if err := r.methodologyExec.RunRefactorPhase(ctx, bc); err != nil {
+				r.log("Warning: refactor phase encountered issues: %v", err)
+			}
+
+			// Re-validate after refactoring (with recovery on failure)
+			if r.cfg.Validation.Enabled {
+				if err := r.runValidationWithRecovery(ctx, bc); err != nil {
+					bc.Result.Error = wrapRefactorValidationError(err)
+					return bc.Result
+				}
+			}
+
+			// ATDD: Re-verify acceptance tests pass after refactoring
+			if atddActive && r.methodologyExec != nil {
+				if err := r.methodologyExec.VerifyAcceptanceTestsPass(ctx, bc); err != nil {
+					if r.handleAcceptanceVerificationFailure(ctx, bc, "acceptance verification failed after refactoring", err) {
+						continue
+					}
+					return bc.Result
+				}
+			}
+		}
+
+		bc.Result.Success = true
+		return bc.Result
+	}
+}
+
+func (r *Runner) handleAcceptanceVerificationFailure(ctx context.Context, bc *runtypes.BeadContext, stage string, err error) bool {
+	var acceptanceErr *methodology.AcceptanceVerificationError
+	if !errors.As(err, &acceptanceErr) {
+		bc.Result.Error = fmt.Errorf("%s: %w", stage, err)
+		return false
 	}
 
-	bc.Result.Success = true
-	return bc.Result
+	bc.Result.AcceptanceFailureSummary = acceptanceErr.Error()
+	bc.Result.AcceptanceFailureOutput = acceptanceErr.Output
+	bc.Result.Error = fmt.Errorf("%s: %w", stage, err)
+
+	if r.escalationHandler == nil {
+		return false
+	}
+
+	failureOutput := acceptanceErr.Output
+	if strings.TrimSpace(failureOutput) == "" {
+		failureOutput = acceptanceErr.Error()
+	}
+
+	r.log("%s, running failure analysis for retry/escalation...", stage)
+	return r.escalationHandler.AnalyzeAndHandleFailure(ctx, bc, &claude.Result{
+		Success: false,
+		Output:  failureOutput,
+	})
 }
 
 func wrapRefactorValidationError(err error) error {

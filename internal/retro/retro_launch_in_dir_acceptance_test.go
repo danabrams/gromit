@@ -1,3 +1,5 @@
+//go:build acceptance
+
 package retro
 
 import (
@@ -8,8 +10,16 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 )
 
+func requireInteractiveLaunch(t *testing.T) {
+	t.Helper()
+	if os.Getenv("GROMIT_RUN_INTERACTIVE_ACCEPTANCE") != "1" {
+		t.Skip("set GROMIT_RUN_INTERACTIVE_ACCEPTANCE=1 to run interactive launch acceptance tests")
+	}
+}
+
 // TestLaunchClaudeCodeAcceptsDirParameter verifies LaunchClaudeCode accepts a dir parameter
 func TestLaunchClaudeCodeAcceptsDirParameter(t *testing.T) {
+	requireInteractiveLaunch(t)
 	// Expected failure: LaunchClaudeCode function signature does not include dir parameter yet
 	// Current signature: LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment) error
 	// New signature: LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment, dir string) error
@@ -32,6 +42,7 @@ func TestLaunchClaudeCodeAcceptsDirParameter(t *testing.T) {
 
 // TestLaunchClaudeCodeEmptyDirUsesCurrentDirectory verifies empty dir parameter uses current directory
 func TestLaunchClaudeCodeEmptyDirUsesCurrentDirectory(t *testing.T) {
+	requireInteractiveLaunch(t)
 	// Expected failure: LaunchClaudeCode function signature does not include dir parameter yet
 
 	analysis := "Test analysis"
@@ -46,6 +57,7 @@ func TestLaunchClaudeCodeEmptyDirUsesCurrentDirectory(t *testing.T) {
 
 // TestLaunchClaudeCodeWithEfficiencyAndExperimentInDir verifies dir parameter works with all arguments
 func TestLaunchClaudeCodeWithEfficiencyAndExperimentInDir(t *testing.T) {
+	requireInteractiveLaunch(t)
 	// Expected failure: LaunchClaudeCode function signature does not include dir parameter yet
 
 	tmpDir := t.TempDir()
@@ -76,6 +88,7 @@ func TestLaunchClaudeCodeWithEfficiencyAndExperimentInDir(t *testing.T) {
 
 // TestLaunchClaudeCodeNonexistentDirFailsAtExecLevel verifies nonexistent dir fails at exec level
 func TestLaunchClaudeCodeNonexistentDirFailsAtExecLevel(t *testing.T) {
+	requireInteractiveLaunch(t)
 	// Expected failure: LaunchClaudeCode function signature does not include dir parameter yet
 
 	tmpDir := t.TempDir()
@@ -94,6 +107,7 @@ func TestLaunchClaudeCodeNonexistentDirFailsAtExecLevel(t *testing.T) {
 
 // TestLaunchClaudeCodePreservesExistingPromptBehavior verifies prompt construction unchanged
 func TestLaunchClaudeCodePreservesExistingPromptBehavior(t *testing.T) {
+	requireInteractiveLaunch(t)
 	// Expected failure: LaunchClaudeCode function signature does not include dir parameter yet
 
 	// This test verifies that adding the dir parameter doesn't break
@@ -115,6 +129,7 @@ func TestLaunchClaudeCodePreservesExistingPromptBehavior(t *testing.T) {
 
 // TestLaunchClaudeCodeDirParameterPosition verifies dir is the fourth parameter
 func TestLaunchClaudeCodeDirParameterPosition(t *testing.T) {
+	requireInteractiveLaunch(t)
 	// Expected failure: LaunchClaudeCode function signature does not include dir parameter yet
 	// The spec says: "retro.LaunchClaudeCode in internal/retro/retro.go to accept dir parameter"
 	// Based on worktree spec, dir should be added as a parameter to allow launching in worktree

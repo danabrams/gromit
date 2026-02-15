@@ -1,4 +1,4 @@
-.PHONY: build install install-skill lint install-hooks
+.PHONY: build install install-skill lint install-hooks test-touched test-timing
 
 GOLANGCI_LINT_VERSION := $(shell cat .golangci-version)
 
@@ -20,3 +20,9 @@ install-hooks:
 	chmod +x .githooks/pre-commit
 	@echo "Installed git hooks path: .githooks"
 	@echo "Pinned golangci-lint version: $(GOLANGCI_LINT_VERSION)"
+
+test-touched:
+	./scripts/test_touched.sh
+
+test-timing:
+	./scripts/test_timing.sh

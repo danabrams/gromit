@@ -18,6 +18,22 @@ import (
 	"github.com/danabrams/gromit/internal/state"
 )
 
+var runInteractiveClaude = func(promptText, dir string, stdin io.Reader, stdout, stderr io.Writer) error {
+	// Launch claude binary in interactive mode.
+	cmd := exec.Command("claude")
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Args = append(cmd.Args, promptText)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("running claude: %w", err)
+	}
+	return nil
+}
+
 // ProviderRunner is an interface for running LLM prompts.
 // It matches the subset of provider.Provider methods used by Retro.
 type ProviderRunner interface {
@@ -386,6 +402,11 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 // - Create specs
 // - Select and persist experiments
 func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment, dir string) error {
+	promptText := buildClaudeCodePrompt(analysis, efficiency, experiment)
+	return runInteractiveClaude(promptText, dir, os.Stdin, os.Stdout, os.Stderr)
+}
+
+func buildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment) string {
 	// Build the prompt with analysis and instructions
 	var prompt strings.Builder
 
@@ -460,28 +481,5 @@ func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, expe
 	prompt.WriteString("- Experiment recommendations should focus on concrete, testable process changes\n")
 	prompt.WriteString("- Apply Five Whys analysis when investigating efficiency anomalies to identify root causes\n")
 	prompt.WriteString("\nPlease review the analysis and take appropriate actions.\n")
-
-	// Launch claude binary in interactive mode
-	// Note: We don't use -p flag here since we want interactive mode
-	cmd := exec.Command("claude")
-
-	// Connect stdin/stdout/stderr to the parent process for full interactivity
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	// Set working directory if specified
-	if dir != "" {
-		cmd.Dir = dir
-	}
-
-	// Set the prompt as a positional argument
-	cmd.Args = append(cmd.Args, prompt.String())
-
-	// Run and wait for completion
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("running claude: %w", err)
-	}
-
-	return nil
+	return prompt.String()
 }

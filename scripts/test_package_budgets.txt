@@ -1,0 +1,5 @@
+# package max_seconds
+github.com/danabrams/gromit/cmd/gromit 60
+github.com/danabrams/gromit/internal/bead 90
+github.com/danabrams/gromit/internal/retro 120
+github.com/danabrams/gromit/internal/runner 60

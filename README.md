@@ -84,6 +84,15 @@ make install-hooks
 
 `make install-hooks` configures `core.hooksPath=.githooks`, so pre-commit runs `make lint`.
 
+### Test Loops
+
+```bash
+make test-touched  # Run go test only for packages touched in current git diff
+make test-timing   # Run go test -json, print slowest tests/packages, enforce package budgets
+```
+
+`make test-timing` uses `scripts/test_package_budgets.txt` and defaults to a 45s budget for packages without an explicit override.
+
 ### Example Output
 
 ```
