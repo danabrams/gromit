@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,6 +94,34 @@ func newTestBeadContext() *runtypes.BeadContext {
 		BuildPrompt: "test prompt",
 		Result:      &runtypes.IterationResult{},
 	}
+}
+
+func readStreamLogLines(t *testing.T, sl *logger.StreamLogger) []string {
+	t.Helper()
+	if sl == nil {
+		t.Fatal("stream logger is nil")
+	}
+	if err := sl.Close(); err != nil {
+		t.Fatalf("closing stream logger: %v", err)
+	}
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+	trimmed := strings.TrimSpace(string(content))
+	if trimmed == "" {
+		return nil
+	}
+	return strings.Split(trimmed, "\n")
+}
+
+func lineIndex(lines []string, substring string) int {
+	for i, line := range lines {
+		if strings.Contains(line, substring) {
+			return i
+		}
+	}
+	return -1
 }
 
 // --- Invoker.Execute tests ---
@@ -421,6 +451,114 @@ func TestInvokerExecute_PassesEventHandlerWithoutStreamLogger(t *testing.T) {
 	}
 	if handlerWasNil {
 		t.Fatal("expected non-nil event handler when stream logger is nil")
+	}
+}
+
+// Expected failure: InvocationLifecycleMarkerStart constant does not exist yet
+func TestInvokerExecute_EmitsLifecycleMarkersWithoutStreamEvents(t *testing.T) {
+	// Ensure lifecycle markers are emitted even when no stream events are parsed.
+	// This test expects start, selection, and completion markers in the stream log.
+	logsDir := t.TempDir()
+	sl, err := logger.NewStreamLogger(logsDir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+
+	mp := &mockProvider{
+		name: "provider-a",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			// Do not emit any events via handler.
+			return &provider.Result{Success: true, Model: "model-a"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-a"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, sl)
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierHigh
+
+	_, err = invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	lines := readStreamLogLines(t, sl)
+	if len(lines) < 3 {
+		t.Fatalf("expected at least 3 lifecycle lines, got %d", len(lines))
+	}
+
+	startIndex := lineIndex(lines, InvocationLifecycleMarkerStart)
+	selectIndex := lineIndex(lines, InvocationLifecycleMarkerSelection)
+	completeIndex := lineIndex(lines, InvocationLifecycleMarkerComplete)
+	if startIndex == -1 {
+		t.Fatalf("missing start marker %q", InvocationLifecycleMarkerStart)
+	}
+	if selectIndex == -1 {
+		t.Fatalf("missing selection marker %q", InvocationLifecycleMarkerSelection)
+	}
+	if completeIndex == -1 {
+		t.Fatalf("missing completion marker %q", InvocationLifecycleMarkerComplete)
+	}
+	if !(startIndex < selectIndex && selectIndex < completeIndex) {
+		t.Fatalf("expected marker order start < selection < completion, got %d < %d < %d", startIndex, selectIndex, completeIndex)
+	}
+
+	if !strings.Contains(lines[selectIndex], "provider=provider-a") {
+		t.Fatalf("selection marker missing provider: %s", lines[selectIndex])
+	}
+	if !strings.Contains(lines[selectIndex], "model=model-a") {
+		t.Fatalf("selection marker missing model: %s", lines[selectIndex])
+	}
+	if !strings.Contains(lines[selectIndex], "tier="+provider.TierHigh) {
+		t.Fatalf("selection marker missing tier: %s", lines[selectIndex])
+	}
+	if !strings.Contains(lines[completeIndex], "success=true") {
+		t.Fatalf("completion marker missing success=true: %s", lines[completeIndex])
+	}
+}
+
+// Expected failure: InvocationLifecycleMarkerFailure constant does not exist yet
+func TestInvokerExecute_EmitsFailureSummaryMarker(t *testing.T) {
+	logsDir := t.TempDir()
+	sl, err := logger.NewStreamLogger(logsDir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+
+	mp := &mockProvider{
+		name: "provider-b",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+		isUsageLimitFn: func(result *provider.Result, err error) bool {
+			return false
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-b"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, sl)
+	bc := newTestBeadContext()
+
+	_, err = invoker.Execute(context.Background(), bc, "prompt")
+	if err == nil {
+		t.Fatal("expected error from StreamRun")
+	}
+
+	lines := readStreamLogLines(t, sl)
+	failureIndex := lineIndex(lines, InvocationLifecycleMarkerFailure)
+	if failureIndex == -1 {
+		t.Fatalf("missing failure marker %q", InvocationLifecycleMarkerFailure)
+	}
+	if !strings.Contains(lines[failureIndex], "error=connection refused") {
+		t.Fatalf("failure marker missing error summary: %s", lines[failureIndex])
 	}
 }
 
