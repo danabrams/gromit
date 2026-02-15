@@ -71,6 +71,8 @@ type Runner struct {
 	validationFailures []string                                                                                                          // recent validation failure summaries from current run, injected into build prompts
 	touchedPackages    map[string]bool                                                                                                   // packages touched in the current run, used to filter learning extraction
 	worktreeManager    WorktreeManager                                                                                                   // manages interactive worktrees (optional)
+	successfulBeads    int                                                                                                               // count of successful bead completions in the current run
+	successesSinceFull int                                                                                                               // successful beads since last full validation gate
 }
 
 // NewRunner creates a new runner
@@ -346,6 +348,8 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	// Reset per-run state
 	r.validationFailures = []string{}
 	r.touchedPackages = make(map[string]bool)
+	r.successfulBeads = 0
+	r.successesSinceFull = 0
 	if r.validationRunner != nil {
 		r.validationRunner.ResetFailures()
 	}
@@ -662,6 +666,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			continue
 		}
 
+		r.successfulBeads++
+		r.successesSinceFull++
+		if err := r.maybeRunPeriodicFullValidation(ctx, b.ID, iteration); err != nil {
+			return err
+		}
+
 		// Mark bead as complete
 		if err := r.beads.Close(b.ID); err != nil {
 			r.log("Warning: failed to close bead: %v", err)
@@ -722,6 +732,10 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	r.log("\nGromit loop complete. Processed %d iterations.", iteration)
+
+	if err := r.maybeRunFinalFullValidation(ctx); err != nil {
+		return err
+	}
 
 	// Update global stats if at least one iteration processed
 	if iteration > 0 && r.logger != nil {

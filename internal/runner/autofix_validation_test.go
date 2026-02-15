@@ -177,29 +177,29 @@ func TestAutoFix_PassesStartCommitToAutoFixFn(t *testing.T) {
 	}
 }
 
-// TestAutoFix_ValidationRetryCappedAt2 verifies AC2: validation retry is
-// capped at 2 attempts per bead; after 2 failures the bead is marked failed.
-func TestAutoFix_ValidationRetryCappedAt2(t *testing.T) {
+// TestAutoFix_ValidationRecoveryCappedAtOne verifies validation recovery is
+// capped at one recovery loop per bead.
+func TestAutoFix_ValidationRecoveryCappedAtOne(t *testing.T) {
 	tests := []struct {
-		name                 string
-		maxRetries           int
-		validationAlwaysFail bool
-		expectClaudeCalls    int
-		expectError          bool
+		name              string
+		maxRetries        int
+		failUntilCall     int
+		expectClaudeCalls int
+		expectError       bool
 	}{
 		{
-			name:                 "capped at 2 retries - all fail",
-			maxRetries:           2,
-			validationAlwaysFail: true,
-			expectClaudeCalls:    2,
-			expectError:          true,
+			name:              "all attempts fail",
+			maxRetries:        5,
+			failUntilCall:     10,
+			expectClaudeCalls: 1,
+			expectError:       true,
 		},
 		{
-			name:                 "succeeds on second retry",
-			maxRetries:           2,
-			validationAlwaysFail: false, // will succeed on attempt 3
-			expectClaudeCalls:    2,
-			expectError:          false,
+			name:              "succeeds after Claude fix within one recovery loop",
+			maxRetries:        5,
+			failUntilCall:     2, // initial fail + after autofix fail; pass after Claude re-validation
+			expectClaudeCalls: 1,
+			expectError:       false,
 		},
 	}
 
@@ -233,11 +233,7 @@ func TestAutoFix_ValidationRetryCappedAt2(t *testing.T) {
 			validationCallCount := 0
 			r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 				validationCallCount++
-				if tt.validationAlwaysFail {
-					return "", "FAIL: test", 1, nil
-				}
-				// Fail first 2, pass on 3rd
-				if validationCallCount <= 2 {
+				if validationCallCount <= tt.failUntilCall {
 					return "", "FAIL: test", 1, nil
 				}
 				return "ok", "", 0, nil
@@ -259,7 +255,7 @@ func TestAutoFix_ValidationRetryCappedAt2(t *testing.T) {
 			}
 
 			if claudeCallCount > tt.expectClaudeCalls {
-				t.Errorf("expected at most %d Claude fix calls, got %d — retry cap not enforced",
+				t.Errorf("expected at most %d Claude fix calls, got %d — recovery cap not enforced",
 					tt.expectClaudeCalls, claudeCallCount)
 			}
 		})

@@ -202,7 +202,7 @@ func TestRunWithRecovery_AutoFixResolvesFailure(t *testing.T) {
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		callCount++
 		// First validation run: fail. After auto-fix: pass.
-		if callCount <= len(cfg.Validation.Commands) {
+		if callCount == 1 {
 			return "", "format error", 1, nil
 		}
 		return "ok", "", 0, nil
@@ -272,8 +272,8 @@ func TestRunWithRecovery_ExecuteFnCalledWhenAutoFixFails(t *testing.T) {
 }
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
-func TestRunWithRecovery_RespectsMaxRetries(t *testing.T) {
-	// RunWithRecovery should not attempt more than MaxValidationRetries recovery attempts.
+func TestRunWithRecovery_RespectsSingleRecoveryCap(t *testing.T) {
+	// RunWithRecovery caps recovery to one attempt, even if configured higher.
 	cfg := newTestConfig()
 	cfg.Validation.MaxValidationRetries = 2
 
@@ -294,8 +294,8 @@ func TestRunWithRecovery_RespectsMaxRetries(t *testing.T) {
 	if err == nil {
 		t.Error("RunWithRecovery should return error when all retries exhausted")
 	}
-	if executeFnCallCount > 2 {
-		t.Errorf("ExecuteFn called %d times, want <= 2 (MaxValidationRetries)", executeFnCallCount)
+	if executeFnCallCount > 1 {
+		t.Errorf("ExecuteFn called %d times, want <= 1 (single recovery cap)", executeFnCallCount)
 	}
 }
 
@@ -638,6 +638,88 @@ func TestValidate_FailsAndAccumulatesFailures(t *testing.T) {
 	failures := r.Failures()
 	if len(failures) == 0 {
 		t.Error("Failures() should be populated after validation failure")
+	}
+}
+
+func TestRunWithRecovery_CapsToSingleRecoveryAttempt(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.MaxValidationRetries = 5
+
+	cmdCalls := 0
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		cmdCalls++
+		return "", "always failing output", 1, nil
+	}
+
+	autoFixCalls := 0
+	autoFix := func(startCommit string) error {
+		autoFixCalls++
+		return nil
+	}
+
+	execCalls := 0
+	execFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+		execCalls++
+		return true
+	}
+
+	r := NewRunner(cfg, cmdRunner, autoFix, execFn)
+	bc := newTestBeadContext()
+
+	err := r.RunWithRecovery(context.Background(), bc)
+	if err == nil {
+		t.Fatal("expected validation failure")
+	}
+	if autoFixCalls > 1 {
+		t.Fatalf("autoFix called %d times, want <= 1", autoFixCalls)
+	}
+	if execCalls > 1 {
+		t.Fatalf("executeFn called %d times, want <= 1", execCalls)
+	}
+	// Initial failure + one re-validation after auto-fix + one after executeFn.
+	if cmdCalls > 6 {
+		t.Fatalf("validation commands executed too many times: %d", cmdCalls)
+	}
+}
+
+func TestValidate_DetectsInteractivePromptWhenNonInteractive(t *testing.T) {
+	cfg := newTestConfig()
+	tBool := true
+	cfg.Validation.NonInteractive = &tBool
+	cfg.Validation.Commands = []string{"go test ./..."}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "Password:", "", 0, nil
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	bc := newTestBeadContext()
+
+	err := r.Validate(context.Background(), bc)
+	if err == nil {
+		t.Fatal("expected interactive-prompt detection error")
+	}
+	if !containsSubstring(err.Error(), "attempted interactive prompt") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidate_AllowsPromptPatternWhenNonInteractiveDisabled(t *testing.T) {
+	cfg := newTestConfig()
+	fBool := false
+	cfg.Validation.NonInteractive = &fBool
+	cfg.Validation.Commands = []string{"go test ./..."}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "Password:", "", 0, nil
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	bc := newTestBeadContext()
+
+	err := r.Validate(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("unexpected error with non_interactive disabled: %v", err)
 	}
 }
 

@@ -68,6 +68,7 @@ escalation:
   enabled: true
   chain: [haiku, sonnet, opus]
   max_retries_per_model: 1
+  max_retries_per_bead: 10  # hard cap; max attempts is retries+1, timeout escalations are capped to 1/bead
 
 # Loop settings
 loop:
@@ -96,10 +97,20 @@ precheck:
 # Validation settings - customize for your project
 validation:
   enabled: true
+  non_interactive: true  # fail validation if commands attempt to prompt for input
+  fast_commands:  # per-bead gate in the main loop (keeps iteration latency low)
+    - "go test ./..."
+    - "go vet ./..."
+  full_commands:  # heavier gate at controlled checkpoints
+    - "go test ./..."
+    - "go vet ./..."
+    - "go build ./..."
+  full_validation_every_n_successes: 0  # 0 disables periodic full gate; final full gate still runs at session end
   commands:
     - "go test ./..."
     - "go vet ./..."
     - "go build ./..."
+  max_validation_retries: 1  # one recovery loop; unchanged failures stop immediately
 
 # Pre-flight checks - verify required tools before validation
 preflight:

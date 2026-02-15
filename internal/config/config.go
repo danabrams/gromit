@@ -65,6 +65,10 @@ type LoopConfig struct {
 type ValidationConfig struct {
 	Enabled              bool     `yaml:"enabled"`
 	Commands             []string `yaml:"commands"`
+	FastCommands         []string `yaml:"fast_commands"`
+	FullCommands         []string `yaml:"full_commands"`
+	FullValidationEveryN int      `yaml:"full_validation_every_n_successes"`
+	NonInteractive       *bool    `yaml:"non_interactive"`
 	MaxFixAttempts       int      `yaml:"max_fix_attempts"`
 	MaxValidationRetries int      `yaml:"max_validation_retries"`
 }
@@ -229,6 +233,12 @@ func (c *Config) NormalizeNilFields() {
 	if c.Validation.Commands == nil {
 		c.Validation.Commands = []string{}
 	}
+	if c.Validation.FastCommands == nil {
+		c.Validation.FastCommands = []string{}
+	}
+	if c.Validation.FullCommands == nil {
+		c.Validation.FullCommands = []string{}
+	}
 	if c.Preflight.Tools == nil {
 		c.Preflight.Tools = []string{}
 	}
@@ -326,6 +336,10 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Validation.MaxValidationRetries == 0 {
 		c.Validation.MaxValidationRetries = 2
+	}
+	if c.Validation.NonInteractive == nil {
+		t := true
+		c.Validation.NonInteractive = &t
 	}
 	if c.Refactor.MinFilesChanged == 0 {
 		c.Refactor.MinFilesChanged = 3
@@ -470,6 +484,31 @@ func (c *Config) SetDefaults() {
 	if c.Worktree.MergeFailure == "" {
 		c.Worktree.MergeFailure = "warn"
 	}
+}
+
+func (v ValidationConfig) IsNonInteractive() bool {
+	if v.NonInteractive == nil {
+		return true
+	}
+	return *v.NonInteractive
+}
+
+// FastCommandsOrDefault returns the per-bead validation command set.
+// `fast_commands` takes precedence, then falls back to legacy `commands`.
+func (v ValidationConfig) FastCommandsOrDefault() []string {
+	if len(v.FastCommands) > 0 {
+		return v.FastCommands
+	}
+	return v.Commands
+}
+
+// FullCommandsOrDefault returns the full verification command set.
+// `full_commands` takes precedence, then falls back to legacy `commands`.
+func (v ValidationConfig) FullCommandsOrDefault() []string {
+	if len(v.FullCommands) > 0 {
+		return v.FullCommands
+	}
+	return v.Commands
 }
 
 // IsTierName returns true if the string is a valid tier name (high, medium, low).

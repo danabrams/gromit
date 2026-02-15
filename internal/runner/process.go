@@ -376,13 +376,14 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 		return err
 	}
 
-	r.log("Running validation commands directly...")
+	r.log("Running fast validation commands directly...")
+	commands := r.cfg.Validation.FastCommandsOrDefault()
 
 	// Capture output before validation to extract failure output afterward
 	outputBefore := bc.Result.Output
 
 	// Delegate core validation (command execution + failure accumulation) to validation.Runner
-	valErr := r.validationRunner.Validate(ctx, bc)
+	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, "fast")
 
 	// Extract the failure output appended by the validation runner
 	failureOutput := strings.TrimPrefix(bc.Result.Output, outputBefore)
@@ -401,10 +402,77 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.Bea
 		return err
 	}
 
-	r.log("Running validation commands directly...")
+	r.log("Running fast validation commands directly...")
+	commands := r.cfg.Validation.FastCommandsOrDefault()
 
 	// Delegate core validation + recovery to validation.Runner
-	valErr := r.validationRunner.RunWithRecovery(ctx, bc)
+	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, "fast")
 
+	return r.handleValidationResult(ctx, bc, valErr, bc.Result.Output)
+}
+
+func (r *Runner) maybeRunPeriodicFullValidation(ctx context.Context, beadID string, iteration int) error {
+	if r == nil || r.cfg == nil || !r.cfg.Validation.Enabled {
+		return nil
+	}
+	everyN := r.cfg.Validation.FullValidationEveryN
+	if everyN <= 0 {
+		return nil
+	}
+	if r.successesSinceFull < everyN {
+		return nil
+	}
+	if err := r.runFullValidationGate(ctx, beadID, iteration); err != nil {
+		return err
+	}
+	r.successesSinceFull = 0
+	return nil
+}
+
+func (r *Runner) maybeRunFinalFullValidation(ctx context.Context) error {
+	if r == nil || r.cfg == nil || !r.cfg.Validation.Enabled {
+		return nil
+	}
+	if r.successfulBeads == 0 || len(r.cfg.Validation.FullCommandsOrDefault()) == 0 {
+		return nil
+	}
+	if r.successesSinceFull == 0 {
+		return nil
+	}
+	return r.runFullValidationGate(ctx, "final", 0)
+}
+
+func (r *Runner) runFullValidationGate(ctx context.Context, beadID string, iteration int) error {
+	workDir := "."
+	b := &bead.Bead{ID: beadID, Title: "full validation gate"}
+	bc := &runtypes.BeadContext{
+		Bead:      b,
+		ParentCtx: ctx,
+		PromptCtx: &prompt.Context{WorkDir: workDir},
+		Result: &runtypes.IterationResult{
+			BeadID:    beadID,
+			BeadTitle: "full validation gate",
+		},
+	}
+
+	commands := r.cfg.Validation.FullCommandsOrDefault()
+	if len(commands) == 0 {
+		return nil
+	}
+
+	label := "periodic"
+	if iteration == 0 {
+		label = "final"
+	}
+	r.log("Running %s full validation gate (%d commands)", label, len(commands))
+	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, "full")
+	if valErr == nil {
+		if label == "final" {
+			r.log("Final full validation gate passed")
+		} else {
+			r.log("Periodic full validation gate passed")
+		}
+		return nil
+	}
 	return r.handleValidationResult(ctx, bc, valErr, bc.Result.Output)
 }

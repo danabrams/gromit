@@ -431,6 +431,86 @@ func TestExtractSuccessLearning_NilBeadContext(t *testing.T) {
 	escalation.ExtractSuccessLearning(context.Background(), nil, nil, nil, nil, nil, nil)
 }
 
+func TestRunValidationWithRecovery_UsesFastMode(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:      true,
+			FastCommands: []string{"fast-check"},
+			FullCommands: []string{"full-check"},
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	called := ""
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		called = command
+		return "ok", "", 0, nil
+	}
+	r := &Runner{
+		cfg:              cfg,
+		output:           &strings.Builder{},
+		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
+		analyzer:         &mockFailureAnalyzer{},
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "b1", Title: "bead"},
+		Result: &IterationResult{},
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+	}
+
+	if err := r.runValidationWithRecovery(context.Background(), bc); err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+	if called != "fast-check" {
+		t.Fatalf("expected fast command, got %q", called)
+	}
+	if bc.Result.ValidationMode != "direct" {
+		t.Fatalf("expected validation mode direct, got %q", bc.Result.ValidationMode)
+	}
+}
+
+func TestMaybeRunPeriodicFullValidation_UsesCadenceAndFullCommands(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:              true,
+			FastCommands:         []string{"fast-check"},
+			FullCommands:         []string{"full-check"},
+			FullValidationEveryN: 2,
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	var commands []string
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		commands = append(commands, command)
+		return "ok", "", 0, nil
+	}
+	r := &Runner{
+		cfg:                cfg,
+		output:             &strings.Builder{},
+		validationRunner:   validation.NewRunner(cfg, cmdRunner, nil, nil),
+		analyzer:           &mockFailureAnalyzer{},
+		successesSinceFull: 2,
+	}
+
+	if err := r.maybeRunPeriodicFullValidation(context.Background(), "b1", 2); err != nil {
+		t.Fatalf("unexpected periodic full validation error: %v", err)
+	}
+	if len(commands) != 1 || commands[0] != "full-check" {
+		t.Fatalf("expected one full validation command, got %v", commands)
+	}
+	if r.successesSinceFull != 0 {
+		t.Fatalf("expected successesSinceFull reset to 0, got %d", r.successesSinceFull)
+	}
+}
+
 func TestExtractSuccessLearning_FeatureDisabled(t *testing.T) {
 	var buf strings.Builder
 	learnFromSuccessDisabled := false

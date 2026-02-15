@@ -3276,6 +3276,46 @@ func TestPrecheckVerificationFromYAML(t *testing.T) {
 	}
 }
 
+func TestValidationConfig_FastCommandsFallback(t *testing.T) {
+	cfg := &Config{
+		Validation: ValidationConfig{
+			Commands: []string{"legacy"},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	got := cfg.Validation.FastCommandsOrDefault()
+	if len(got) != 1 || got[0] != "legacy" {
+		t.Fatalf("FastCommandsOrDefault = %v, want [legacy]", got)
+	}
+}
+
+func TestValidationConfig_FullCommandsFallback(t *testing.T) {
+	cfg := &Config{
+		Validation: ValidationConfig{
+			Commands: []string{"legacy"},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	got := cfg.Validation.FullCommandsOrDefault()
+	if len(got) != 1 || got[0] != "legacy" {
+		t.Fatalf("FullCommandsOrDefault = %v, want [legacy]", got)
+	}
+}
+
+func TestValidationConfig_NonInteractiveDefaultTrue(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	if !cfg.Validation.IsNonInteractive() {
+		t.Fatal("expected validation non_interactive default to true")
+	}
+}
+
 // findProjectRoot walks up from the current working directory to find the
 // project root (directory containing gromit.yaml).
 func findProjectRoot(t *testing.T) string {

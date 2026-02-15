@@ -81,7 +81,14 @@ func (r *Runner) updateTouchedPackages(packages []string) {
 func defaultCmdRunner(ctx context.Context, command string, workDir string) (string, string, int, error) {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = workDir
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Stdin = bytes.NewReader(nil)
+	cmd.Env = append(
+		os.Environ(),
+		"GIT_TERMINAL_PROMPT=0",
+		"CI=1",
+		"NONINTERACTIVE=1",
+		"TERM=dumb",
+	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
