@@ -1,7 +1,9 @@
 package runner
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +14,46 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 )
+
+type errIterationLogger struct {
+	err error
+}
+
+func (e *errIterationLogger) LogIteration(log *logger.IterationLog) error {
+	return e.err
+}
+
+func (e *errIterationLogger) LogReview(log *logger.ReviewLog) error {
+	return nil
+}
+
+func (e *errIterationLogger) Close() error {
+	return nil
+}
+
+func (e *errIterationLogger) FilePath() string {
+	return ""
+}
+
+func (e *errIterationLogger) RunID() string {
+	return ""
+}
+
+func TestLogIterationWithWarning_LogsError(t *testing.T) {
+	buf := &bytes.Buffer{}
+	r := &Runner{
+		logger: &errIterationLogger{err: errors.New("write failed")},
+		output: buf,
+	}
+
+	r.logIterationWithWarning(&logger.IterationLog{
+		BeadID: "test-1",
+	})
+
+	if !strings.Contains(buf.String(), "Warning: failed to write iteration log: write failed") {
+		t.Fatalf("expected warning in output, got %q", buf.String())
+	}
+}
 
 // TestWriteIterationLog_PropagatesUsageLimited verifies that when
 // IterationResult has UsageLimited=true, it propagates to IterationLog.

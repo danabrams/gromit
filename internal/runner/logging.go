@@ -34,7 +34,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		result.AcceptanceFailureArtifact = artifactPath
 	}
 
-	r.logger.LogIteration(&logger.IterationLog{
+	r.logIterationWithWarning(&logger.IterationLog{
 		Timestamp:           time.Now(),
 		Iteration:           iteration,
 		BeadID:              result.BeadID,
@@ -64,6 +64,15 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		AcceptanceFailureSummary:  result.AcceptanceFailureSummary,
 		AcceptanceFailureArtifact: artifactPath,
 	})
+}
+
+func (r *Runner) logIterationWithWarning(log *logger.IterationLog) {
+	if r == nil || r.logger == nil || log == nil {
+		return
+	}
+	if err := r.logger.LogIteration(log); err != nil {
+		r.log("Warning: failed to write iteration log: %v", err)
+	}
 }
 
 func (r *Runner) writeAcceptanceFailureArtifact(iteration int, result *IterationResult) string {

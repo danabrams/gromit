@@ -537,8 +537,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 			// Write iteration log with precheck_skipped outcome
 			// Note: we don't increment iteration counter for skipped beads
-			if r.logger != nil {
-				r.logger.LogIteration(&logger.IterationLog{
+				r.logIterationWithWarning(&logger.IterationLog{
 					Timestamp:  time.Now(),
 					Iteration:  iteration,
 					BeadID:     b.ID,
@@ -548,7 +547,6 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 					DurationMs: precheckDuration.Milliseconds(),
 					Outcome:    "precheck_skipped",
 				})
-			}
 
 			// Increment consecutive skip counter and check limit
 			consecutiveSkips++
@@ -582,8 +580,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 						r.log("Warning: failed to add comment to blocked bead: %v", err)
 					}
 					skippedBeads[b.ID] = true
-					if r.logger != nil {
-						r.logger.LogIteration(&logger.IterationLog{
+						r.logIterationWithWarning(&logger.IterationLog{
 							Timestamp: time.Now(),
 							Iteration: iteration + 1,
 							BeadID:    b.ID,
@@ -592,7 +589,6 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 							Success:   false,
 							Outcome:   "scope_blocked",
 						})
-					}
 					continue
 				}
 			}
