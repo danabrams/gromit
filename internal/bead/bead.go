@@ -300,7 +300,24 @@ func (c *Client) ReadyWithLabel(label string) (*Bead, error) {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
 
-	return parseBeadOutputExcluding(out, "epic")
+	bead, err := parseBeadOutputExcluding(out, "epic")
+	if err != nil || bead == nil {
+		return bead, err
+	}
+
+	// Some bd versions omit labels from ready output; fetch full details when needed.
+	if !HasLabel(bead.Labels, label) {
+		full, err := c.Show(bead.ID)
+		if err != nil {
+			return nil, err
+		}
+		if full != nil && HasLabel(full.Labels, label) {
+			return full, nil
+		}
+		return nil, nil
+	}
+
+	return bead, nil
 }
 
 // Show returns full details for a bead

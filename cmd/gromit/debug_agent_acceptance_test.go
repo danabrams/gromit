@@ -36,8 +36,7 @@ func setupDebugAgentTestProject(t *testing.T, configContent string) string {
 	return tmpDir
 }
 
-// Expected failure: debug command does not define debugAgent/debugChooseAgent flags yet,
-// so help output does not include --agent or --choose-agent.
+// TestDebugHelpIncludesAgentFlags verifies debug help exposes agent selection flags.
 func TestDebugHelpIncludesAgentFlags(t *testing.T) {
 	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(
 		binaryPath,
@@ -63,8 +62,7 @@ func TestDebugHelpIncludesAgentFlags(t *testing.T) {
 	}
 }
 
-// Expected failure: debug command does not accept --agent yet and still launches claude directly,
-// so the custom agent override (debugAgent) is ignored.
+// TestDebugAgentOverrideUsesAgentBinary verifies --agent selects the specified agent.
 func TestDebugAgentOverrideUsesAgentBinary(t *testing.T) {
 	configContent := `
 paths:
@@ -108,8 +106,7 @@ agents:
 	}
 }
 
-// Expected failure: debug command does not accept --choose-agent yet and does not prompt
-// for agent selection, so debugChooseAgent behavior is missing.
+// TestDebugChooseAgentUsesPicker verifies the interactive picker is shown when requested.
 func TestDebugChooseAgentUsesPicker(t *testing.T) {
 	configContent := `
 paths:
@@ -154,5 +151,51 @@ agents:
 
 	if !strings.Contains(stdout, "--prompt") {
 		t.Errorf("expected selected agent to receive --prompt arg, got: %s", stdout)
+	}
+}
+
+// TestDebugPhaseConfigUsesAgent verifies agents.phases.debug is honored by debug.
+func TestDebugPhaseConfigUsesAgent(t *testing.T) {
+	configContent := `
+paths:
+  gromit_dir: .gromit
+claude:
+  binary: "nonexistent-debug-claude"
+agents:
+  phases:
+    debug: "phase-agent"
+  definitions:
+    phase-agent:
+      binary: "echo"
+      flags:
+        - "--from-phase"
+`
+	tmpDir := setupDebugAgentTestProject(t, configContent)
+
+	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(
+		binaryPath,
+		tmpDir,
+		nil,
+		"",
+		"debug", "phase-configured debug session",
+	)
+	if err != nil {
+		t.Fatalf("failed to run gromit debug with phase agent: %v", err)
+	}
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr: %s)", exitCode, stderr)
+	}
+
+	if strings.Contains(stderr, "unknown flag") {
+		t.Fatalf("unexpected flag error: %s", stderr)
+	}
+
+	if !strings.Contains(stdout, "--from-phase") {
+		t.Errorf("expected phase agent flags to be passed through, got: %s", stdout)
+	}
+
+	if !strings.Contains(stdout, "--prompt") {
+		t.Errorf("expected phase agent to receive --prompt arg, got: %s", stdout)
 	}
 }
