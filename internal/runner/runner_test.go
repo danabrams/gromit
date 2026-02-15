@@ -2928,3 +2928,145 @@ func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 		})
 	}
 }
+
+func setupRunStopChTestRunner(t *testing.T, beads *mockBeadClient) *Runner {
+	t.Helper()
+
+	precheckDisabled := false
+	autoPushDisabled := false
+
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled: false,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Review: config.ReviewConfig{
+			Enabled: false,
+		},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "validation passed"}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    beads,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("Failed to create runner: %v", err)
+	}
+
+	return r
+}
+
+func TestRunStopChClosedBeforeStart(t *testing.T) {
+	readyCalls := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			readyCalls++
+			return &bead.Bead{ID: "bead-1", Title: "first", Priority: 1}, nil
+		},
+	}
+	r := setupRunStopChTestRunner(t, beads)
+
+	stopCh := make(chan struct{})
+	close(stopCh)
+
+	// Expected failure: Run(ctx, maxIterations, deadline, stopCh, dryRun) overload does not exist yet.
+	err := r.Run(context.Background(), 10, time.Time{}, stopCh, false)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+	if readyCalls != 0 {
+		t.Fatalf("expected Ready() not to be called when stopCh is already closed, got %d calls", readyCalls)
+	}
+	if len(beads.ClosedIDs) != 0 {
+		t.Fatalf("expected no beads to be closed when stopCh is already closed, got %v", beads.ClosedIDs)
+	}
+}
+
+func TestRunStopChClosedDuringIteration(t *testing.T) {
+	beadQueue := []*bead.Bead{
+		{ID: "bead-1", Title: "first", Priority: 1},
+		{ID: "bead-2", Title: "second", Priority: 1},
+	}
+	stopCh := make(chan struct{})
+	stopClosed := false
+
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			if len(beadQueue) == 0 {
+				return nil, nil
+			}
+			next := beadQueue[0]
+			beadQueue = beadQueue[1:]
+			return next, nil
+		},
+		CloseFn: func(id string) error {
+			if !stopClosed {
+				stopClosed = true
+				close(stopCh)
+			}
+			return nil
+		},
+	}
+	r := setupRunStopChTestRunner(t, beads)
+
+	// Expected failure: Run(ctx, maxIterations, deadline, stopCh, dryRun) overload does not exist yet.
+	err := r.Run(context.Background(), 10, time.Time{}, stopCh, false)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+	if len(beads.ClosedIDs) != 1 {
+		t.Fatalf("expected exactly one bead closed before stopCh halted loop, got %d (%v)", len(beads.ClosedIDs), beads.ClosedIDs)
+	}
+	if beads.ClosedIDs[0] != "bead-1" {
+		t.Fatalf("expected bead-1 to be the only processed bead, got %v", beads.ClosedIDs)
+	}
+}
+
+func TestRunNilStopChProcessesUntilQueueEmpty(t *testing.T) {
+	beadQueue := []*bead.Bead{
+		{ID: "bead-1", Title: "first", Priority: 1},
+		{ID: "bead-2", Title: "second", Priority: 1},
+	}
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			if len(beadQueue) == 0 {
+				return nil, nil
+			}
+			next := beadQueue[0]
+			beadQueue = beadQueue[1:]
+			return next, nil
+		},
+	}
+	r := setupRunStopChTestRunner(t, beads)
+
+	// Expected failure: Run(ctx, maxIterations, deadline, stopCh, dryRun) overload does not exist yet.
+	err := r.Run(context.Background(), 10, time.Time{}, nil, false)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+	if len(beads.ClosedIDs) != 2 {
+		t.Fatalf("expected both beads to be processed with nil stopCh, got %d (%v)", len(beads.ClosedIDs), beads.ClosedIDs)
+	}
+}
