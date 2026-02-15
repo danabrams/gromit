@@ -7,8 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,6 +27,8 @@ type CodexProvider struct {
 	flags       []string
 	tierToModel map[string]string
 }
+
+const codexTransientRetryMax = 3
 
 // Compile-time check to verify CodexProvider implements Provider interface
 var _ Provider = (*CodexProvider)(nil)
@@ -57,53 +63,28 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 
 	model := cp.ModelForTier(tier)
 	args := cp.buildCommandArgs(model, false)
-	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
-
-	// Set up stdin pipe for prompt delivery
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
-	}
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	startTime := time.Now()
-
-	// Start the command
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start codex command: %w", err)
-	}
-
-	// Write prompt to stdin in a goroutine to avoid blocking.
-	// Errors (e.g. broken pipe if process exits early) are non-fatal.
-	go func() {
-		defer stdin.Close()
-		_, _ = io.WriteString(stdin, prompt)
-	}()
-
-	// Wait for command to complete
-	err = cmd.Wait()
-	duration := time.Since(startTime)
-
-	if ctx.Err() != nil {
-		return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
-	}
-
-	output := stdout.String() + stderr.String()
-	exitCode, err := cp.extractExitCode(err)
+	env, effectiveCodexHome, err := prepareCodexEnv()
 	if err != nil {
 		return nil, err
 	}
-
-	return &Result{
-		Success:  exitCode == 0,
-		Output:   output,
-		ExitCode: exitCode,
-		Duration: duration,
-		Model:    model,
-	}, nil
+	var last *Result
+	for attempt := 0; attempt <= codexTransientRetryMax; attempt++ {
+		result, runErr := cp.runOnce(ctx, prompt, model, args, env, effectiveCodexHome)
+		if runErr != nil {
+			return nil, runErr
+		}
+		last = result
+		if result == nil || result.Success {
+			return result, nil
+		}
+		if attempt == codexTransientRetryMax || !isTransientCodexFailure(result.FailureCategory) {
+			return result, nil
+		}
+		if sleepErr := sleepWithContext(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
+			return result, nil
+		}
+	}
+	return last, nil
 }
 
 // StreamRun executes an LLM invocation with streaming output.
@@ -117,6 +98,11 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	model := cp.ModelForTier(tier)
 	args := cp.buildCommandArgs(model, handler != nil)
 	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
+	env, effectiveCodexHome, err := prepareCodexEnv()
+	if err != nil {
+		return nil, err
+	}
+	cmd.Env = env
 
 	// Set up stdin pipe for prompt delivery
 	stdin, err := cmd.StdinPipe()
@@ -128,6 +114,7 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 
 	// When handler is present, use processCodexStream to parse JSONL
 	if handler != nil {
+		codexDebugf(output, "provider debug: StreamRun start model=%s tier=%s args=%q", model, tier, strings.Join(args, " "))
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
@@ -139,6 +126,7 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		if err := cmd.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start codex command: %w", err)
 		}
+		codexDebugf(output, "provider debug: StreamRun cmd started pid=%d", cmd.Process.Pid)
 
 		// Write prompt to stdin in goroutine
 		go func() {
@@ -147,13 +135,18 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		}()
 
 		// Process the JSONL stream
+		codexDebugf(output, "provider debug: processCodexStream begin")
 		resultText, usage, streamErrInfo, err := processCodexStream(stdout, output, handler, onToolCall)
+		codexDebugf(output, "provider debug: processCodexStream end err=%v result_chars=%d usage_nil=%t error_info_nil=%t", err, len(resultText), usage == nil, streamErrInfo == nil)
 		if err != nil {
+			codexDebugf(output, "provider debug: waiting for process after stream error")
 			cmd.Wait()
 			return nil, fmt.Errorf("failed to process codex stream: %w", err)
 		}
 
+		codexDebugf(output, "provider debug: waiting for cmd.Wait after successful stream parse")
 		if err := cmd.Wait(); err != nil {
+			codexDebugf(output, "provider debug: cmd.Wait returned err=%v", err)
 			if ctx.Err() != nil {
 				return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
 			}
@@ -162,6 +155,10 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 			return &Result{
 				Success:           false,
 				Output:            resultText + stderr.String(),
+				Stdout:            resultText,
+				Stderr:            stderr.String(),
+				Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
+				FailureCategory:   classifyCodexFailure(exitCode, resultText, stderr.String()),
 				ExitCode:          exitCode,
 				Duration:          duration,
 				Model:             model,
@@ -171,6 +168,7 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 				OutputTokens:      usageOutputTokens(usage),
 			}, nil
 		}
+		codexDebugf(output, "provider debug: cmd.Wait returned success")
 
 		duration := time.Since(startTime)
 
@@ -179,6 +177,9 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 			return &Result{
 				Success:           false,
 				Output:            resultText,
+				Stdout:            resultText,
+				Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, ""),
+				FailureCategory:   classifyCodexFailure(0, resultText, ""),
 				ExitCode:          0,
 				Duration:          duration,
 				Model:             model,
@@ -192,6 +193,8 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		return &Result{
 			Success:           true,
 			Output:            resultText,
+			Stdout:            resultText,
+			Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, ""),
 			ExitCode:          0,
 			Duration:          duration,
 			Model:             model,
@@ -239,12 +242,238 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 	}
 
 	return &Result{
-		Success:  exitCode == 0,
-		Output:   combinedOutput,
-		ExitCode: exitCode,
-		Duration: duration,
-		Model:    model,
+		Success:         exitCode == 0,
+		Output:          combinedOutput,
+		Stdout:          captureBuffer.String(),
+		Stderr:          stderr.String(),
+		Diagnostics:     buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
+		FailureCategory: classifyCodexFailure(exitCode, captureBuffer.String(), stderr.String()),
+		ExitCode:        exitCode,
+		Duration:        duration,
+		Model:           model,
 	}, nil
+}
+
+func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args, env []string, effectiveCodexHome string) (*Result, error) {
+	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
+	cmd.Env = env
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	startTime := time.Now()
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start codex command: %w", err)
+	}
+
+	go func() {
+		defer stdin.Close()
+		_, _ = io.WriteString(stdin, prompt)
+	}()
+
+	err = cmd.Wait()
+	duration := time.Since(startTime)
+
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
+	}
+
+	output := stdout.String() + stderr.String()
+	exitCode, err := cp.extractExitCode(err)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Result{
+		Success:         exitCode == 0,
+		Output:          output,
+		Stdout:          stdout.String(),
+		Stderr:          stderr.String(),
+		Diagnostics:     buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
+		FailureCategory: classifyCodexFailure(exitCode, stdout.String(), stderr.String()),
+		ExitCode:        exitCode,
+		Duration:        duration,
+		Model:           model,
+	}, nil
+}
+
+func prepareCodexEnv() ([]string, string, error) {
+	env := os.Environ()
+	codexHome, ok := os.LookupEnv("CODEX_HOME")
+	if !ok || strings.TrimSpace(codexHome) == "" {
+		return env, "", nil
+	}
+	codexHome = strings.TrimSpace(codexHome)
+	if isUnderTempDir(codexHome) {
+		safeHome, err := resolveSafeCodexHome()
+		if err != nil {
+			return nil, "", fmt.Errorf("resolving safe CODEX_HOME from temp path (%s): %w", codexHome, err)
+		}
+		codexHome = safeHome
+	}
+	if err := os.MkdirAll(codexHome, 0755); err != nil {
+		fallback, resolveErr := resolveSafeCodexHome()
+		if resolveErr != nil || fallback == codexHome {
+			return nil, "", fmt.Errorf("ensuring CODEX_HOME exists (%s): %w", codexHome, err)
+		}
+		if mkFallbackErr := os.MkdirAll(fallback, 0755); mkFallbackErr != nil {
+			return nil, "", fmt.Errorf("ensuring CODEX_HOME exists (%s): %w", codexHome, err)
+		}
+		codexHome = fallback
+	}
+	env = upsertEnv(env, "CODEX_HOME", codexHome)
+	return env, codexHome, nil
+}
+
+func resolveSafeCodexHome() (string, error) {
+	home, err := os.UserHomeDir()
+	if err == nil && strings.TrimSpace(home) != "" {
+		return filepath.Join(home, ".codex"), nil
+	}
+	cwd, err := os.Getwd()
+	if err != nil || strings.TrimSpace(cwd) == "" {
+		return "", fmt.Errorf("resolving fallback CODEX_HOME: %w", err)
+	}
+	return filepath.Join(cwd, ".codex-home"), nil
+}
+
+func isUnderTempDir(path string) bool {
+	temp := filepath.Clean(os.TempDir())
+	cleaned := filepath.Clean(path)
+	if cleaned == temp {
+		return true
+	}
+	rel, err := filepath.Rel(temp, cleaned)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func upsertEnv(env []string, key, value string) []string {
+	prefix := key + "="
+	for i, kv := range env {
+		if strings.HasPrefix(kv, prefix) {
+			env[i] = prefix + value
+			return env
+		}
+	}
+	return append(env, prefix+value)
+}
+
+func classifyCodexFailure(exitCode int, stdout, stderr string) string {
+	if exitCode == 0 {
+		return FailureCategoryNone
+	}
+	text := strings.ToLower(strings.TrimSpace(stdout + "\n" + stderr))
+	if text == "" {
+		return FailureCategoryOther
+	}
+	authPatterns := []string{
+		"unauthorized",
+		"invalid api key",
+		"authentication",
+		"forbidden",
+	}
+	for _, p := range authPatterns {
+		if strings.Contains(text, p) {
+			return FailureCategoryAuth
+		}
+	}
+	transportPatterns := []string{
+		"stream disconnected",
+		"could not resolve host",
+		"temporary failure in name resolution",
+		"name or service not known",
+		"connection reset",
+		"connection refused",
+		"connection timed out",
+		"timeout",
+		"temporarily unavailable",
+		"internal server error",
+		"service unavailable",
+		"broken pipe",
+		"econnreset",
+		"reconnecting",
+	}
+	for _, p := range transportPatterns {
+		if strings.Contains(text, p) {
+			return FailureCategoryTransportDisconnect
+		}
+	}
+	ratePatterns := []string{"rate limit", "too many requests", "quota exceeded", "429", "503"}
+	for _, p := range ratePatterns {
+		if strings.Contains(text, p) {
+			return FailureCategoryRateLimited
+		}
+	}
+	return FailureCategoryOther
+}
+
+func isTransientCodexFailure(failureCategory string) bool {
+	switch failureCategory {
+	case FailureCategoryTransportDisconnect, FailureCategoryRateLimited:
+		return true
+	default:
+		return false
+	}
+}
+
+func codexRetryBackoff(attempt int) time.Duration {
+	switch attempt {
+	case 0:
+		return 250 * time.Millisecond
+	case 1:
+		return 750 * time.Millisecond
+	default:
+		return 1500 * time.Millisecond
+	}
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func buildCodexDiagnostics(args []string, codexHome, stderr string) string {
+	sb := &strings.Builder{}
+	sb.WriteString("codex_args=")
+	sb.WriteString(strings.Join(args, " "))
+	sb.WriteString(" codex_home=")
+	if strings.TrimSpace(codexHome) == "" {
+		sb.WriteString("unset")
+	} else {
+		sb.WriteString(codexHome)
+	}
+	head, tail := splitHeadTail(stderr, 2048)
+	sb.WriteString(" stderr_head=")
+	sb.WriteString(head)
+	sb.WriteString(" stderr_tail=")
+	sb.WriteString(tail)
+	return sb.String()
+}
+
+func splitHeadTail(s string, n int) (string, string) {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return "empty", "empty"
+	}
+	if len(trimmed) <= n {
+		return trimmed, trimmed
+	}
+	return trimmed[:n] + "...[truncated]", "...[truncated]" + trimmed[len(trimmed)-n:]
 }
 
 // RunValidation constructs a validation prompt and runs it via Codex.
@@ -351,9 +580,9 @@ func (cp *CodexProvider) extractExitCode(err error) (int, error) {
 
 // codexUsage represents token usage data from Codex turn.completed events
 type codexUsage struct {
-	InputTokens       int `json:"input_tokens"`
-	CachedInputTokens int `json:"cached_input_tokens"`
-	OutputTokens      int `json:"output_tokens"`
+	InputTokens       int     `json:"input_tokens"`
+	CachedInputTokens int     `json:"cached_input_tokens"`
+	OutputTokens      int     `json:"output_tokens"`
 	TotalCostUSD      float64 `json:"total_cost_usd,omitempty"`
 }
 
@@ -393,21 +622,55 @@ type codexEvent struct {
 // token usage data (from turn.completed), error info (from failed turn.completed), and any error encountered.
 func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler, toolHandler ToolCallHandler) (string, *codexUsage, *codexErrorInfo, error) {
 	scanner := bufio.NewScanner(reader)
+	const maxTokenSize = 10 * 1024 * 1024
+	scanner.Buffer(make([]byte, 0, 64*1024), maxTokenSize)
 	var lastAgentText string
 	var usage *codexUsage
 	var errInfo *codexErrorInfo
 	var sawDeltas bool
+	var eventCount int
+	started := time.Now()
+	lastEvent := started
+	var lastEventUnixNano int64 = started.UnixNano()
+	var eventsSeen int64
+
+	stopWatchdog := make(chan struct{})
+	if codexDebugEnabled() {
+		go func() {
+			ticker := time.NewTicker(10 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					last := time.Unix(0, atomic.LoadInt64(&lastEventUnixNano))
+					idle := time.Since(last).Round(time.Millisecond)
+					codexDebugf(output, "provider debug: scanner watchdog events=%d idle=%s", atomic.LoadInt64(&eventsSeen), idle)
+				case <-stopWatchdog:
+					return
+				}
+			}
+		}()
+	}
+	defer close(stopWatchdog)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
 		}
+		eventCount++
+		lastEvent = time.Now()
+		atomic.StoreInt64(&lastEventUnixNano, lastEvent.UnixNano())
+		atomic.StoreInt64(&eventsSeen, int64(eventCount))
 
 		var event codexEvent
 		if err := json.Unmarshal(line, &event); err != nil {
 			// Skip malformed lines silently
+			codexDebugf(output, "provider debug: malformed json event ignored len=%d", len(line))
 			continue
+		}
+		if eventCount <= 5 || eventCount%50 == 0 {
+			codexDebugf(output, "provider debug: stream event #%d type=%s", eventCount, event.Type)
 		}
 
 		// Handle different event types
@@ -511,9 +774,13 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 
 			// Emit result event with token usage
 			if handler != nil && event.Usage != nil {
+				totalCostUSD := event.TotalCostUSD
+				if totalCostUSD == 0 && event.Usage.TotalCostUSD > 0 {
+					totalCostUSD = event.Usage.TotalCostUSD
+				}
 				streamEvent := map[string]interface{}{
 					"type":           "result",
-					"total_cost_usd": event.TotalCostUSD,
+					"total_cost_usd": totalCostUSD,
 					"input_tokens":   event.Usage.InputTokens,
 					"output_tokens":  event.Usage.OutputTokens,
 				}
@@ -524,10 +791,41 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 	}
 
 	if err := scanner.Err(); err != nil {
+		codexDebugf(output, "provider debug: scanner err after %d events and %s since last event: %v", eventCount, time.Since(lastEvent).Round(time.Millisecond), err)
 		return "", nil, nil, err
 	}
+	codexDebugf(output, "provider debug: scanner completed events=%d duration=%s last_event_ago=%s", eventCount, time.Since(started).Round(time.Millisecond), time.Since(lastEvent).Round(time.Millisecond))
 
 	return lastAgentText, usage, errInfo, nil
+}
+
+func codexDebugf(output io.Writer, format string, args ...interface{}) {
+	if !codexDebugEnabled() {
+		return
+	}
+	msg := fmt.Sprintf(format, args...)
+	line := "\n[codex-debug] " + msg + "\n"
+	if output != nil {
+		_, _ = io.WriteString(output, line)
+		return
+	}
+	_, _ = io.WriteString(os.Stderr, line)
+}
+
+func codexDebugEnabled() bool {
+	raw := strings.TrimSpace(os.Getenv("GROMIT_CODEX_DEBUG"))
+	if raw == "" {
+		return false
+	}
+	if b, err := strconv.ParseBool(raw); err == nil {
+		return b
+	}
+	switch strings.ToLower(raw) {
+	case "1", "on", "yes", "y":
+		return true
+	default:
+		return false
+	}
 }
 
 func usageCost(usage *codexUsage) float64 {

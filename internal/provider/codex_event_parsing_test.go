@@ -103,7 +103,7 @@ func TestProcessCodexStreamMapsAgentMessageToAssistant(t *testing.T) {
 // TestProcessCodexStreamMapsTurnCompletedToResult verifies that turn.completed
 // events with usage data are mapped to StreamEvent type "result" with token counts.
 func TestProcessCodexStreamMapsTurnCompletedToResult(t *testing.T) {
-	input := `{"type":"turn.completed","usage":{"input_tokens":2500,"output_tokens":1200,"cached_input_tokens":400}}` + "\n"
+	input := `{"type":"turn.completed","usage":{"input_tokens":2500,"output_tokens":1200,"cached_input_tokens":400,"total_cost_usd":0.042}}` + "\n"
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
 	var receivedEvents [][]byte
@@ -140,6 +140,7 @@ func TestProcessCodexStreamMapsTurnCompletedToResult(t *testing.T) {
 
 	var parsed struct {
 		Type         string `json:"type"`
+		TotalCostUSD float64 `json:"total_cost_usd"`
 		InputTokens  int    `json:"input_tokens"`
 		OutputTokens int    `json:"output_tokens"`
 	}
@@ -149,6 +150,9 @@ func TestProcessCodexStreamMapsTurnCompletedToResult(t *testing.T) {
 
 	if parsed.Type != "result" {
 		t.Errorf("turn.completed mapped to type %q, want %q", parsed.Type, "result")
+	}
+	if parsed.TotalCostUSD != 0.042 {
+		t.Errorf("emitted event TotalCostUSD = %f, want 0.042", parsed.TotalCostUSD)
 	}
 	if parsed.InputTokens != 2500 {
 		t.Errorf("emitted event InputTokens = %d, want 2500", parsed.InputTokens)

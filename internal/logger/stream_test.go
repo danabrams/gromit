@@ -476,6 +476,38 @@ func TestParseAndLogEventCapturesCostData(t *testing.T) {
 	}
 }
 
+func TestParseAndLogEventCapturesNestedUsageCostData(t *testing.T) {
+	dir := t.TempDir()
+	sl, err := NewStreamLogger(dir)
+	if err != nil {
+		t.Fatalf("creating stream logger: %v", err)
+	}
+	stats, _ := NewStreamStats()
+
+	line := []byte(`{"type":"result","subtype":"success","usage":{"total_cost_usd":0.1234,"input_tokens":3456,"output_tokens":789}}`)
+	ParseAndLogEvent(sl, stats, line)
+	sl.Close()
+
+	cost, inputTokens, outputTokens := stats.CostData()
+	if cost != 0.1234 {
+		t.Errorf("expected nested usage cost=0.1234, got %f", cost)
+	}
+	if inputTokens != 3456 {
+		t.Errorf("expected nested usage inputTokens=3456, got %d", inputTokens)
+	}
+	if outputTokens != 789 {
+		t.Errorf("expected nested usage outputTokens=789, got %d", outputTokens)
+	}
+
+	content, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+	if !strings.Contains(string(content), "RESULT: subtype=success, cost=$0.1234") {
+		t.Errorf("expected RESULT log entry with nested usage cost, got: %s", string(content))
+	}
+}
+
 func TestParseAndLogEventCostDataNilStats(t *testing.T) {
 	dir := t.TempDir()
 	sl, err := NewStreamLogger(dir)

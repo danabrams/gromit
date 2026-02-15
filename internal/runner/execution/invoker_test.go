@@ -456,6 +456,44 @@ func TestInvocationResult_ContainsStreamStats(t *testing.T) {
 	}
 }
 
+// Expected failure: InvocationResult.ProviderResult field does not exist yet
+func TestInvokerExecute_ExposesProviderResult(t *testing.T) {
+	expected := &provider.Result{
+		Success:      true,
+		Output:       "provider output",
+		ExitCode:     7,
+		Model:        "test-model",
+		CostUSD:      2.34,
+		InputTokens:  11,
+		OutputTokens: 22,
+	}
+	mp := &mockProvider{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return expected, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "test-model"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+
+	result, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ProviderResult == nil {
+		t.Fatal("InvocationResult.ProviderResult should not be nil")
+	}
+	if result.ProviderResult != expected {
+		t.Fatalf("InvocationResult.ProviderResult = %+v, want %+v", result.ProviderResult, expected)
+	}
+}
+
 func TestInvokerExecute_MergesProviderUsageIntoStatsWhenStreamHasNoResultEvent(t *testing.T) {
 	mp := &mockProvider{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {

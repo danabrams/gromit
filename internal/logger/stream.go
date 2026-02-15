@@ -26,6 +26,11 @@ type StreamEvent struct {
 	TotalCost    float64 `json:"total_cost_usd,omitempty"`
 	InputTokens  int     `json:"input_tokens,omitempty"`
 	OutputTokens int     `json:"output_tokens,omitempty"`
+	Usage        *struct {
+		InputTokens  int     `json:"input_tokens,omitempty"`
+		OutputTokens int     `json:"output_tokens,omitempty"`
+		TotalCost    float64 `json:"total_cost_usd,omitempty"`
+	} `json:"usage,omitempty"`
 }
 
 // StreamMessage is an assistant or user message in stream-json
@@ -371,14 +376,29 @@ func ParseAndLogEvent(sl *StreamLogger, stats *StreamStats, line []byte) {
 		}
 
 	case "result":
+		totalCost := event.TotalCost
+		inputTokens := event.InputTokens
+		outputTokens := event.OutputTokens
+		// Some providers emit usage metrics under a nested "usage" object.
+		if event.Usage != nil {
+			if totalCost == 0 && event.Usage.TotalCost > 0 {
+				totalCost = event.Usage.TotalCost
+			}
+			if inputTokens == 0 && event.Usage.InputTokens > 0 {
+				inputTokens = event.Usage.InputTokens
+			}
+			if outputTokens == 0 && event.Usage.OutputTokens > 0 {
+				outputTokens = event.Usage.OutputTokens
+			}
+		}
 		if stats != nil {
 			stats.mu.Lock()
-			stats.TotalCost = event.TotalCost
-			stats.InputTokens = event.InputTokens
-			stats.OutputTokens = event.OutputTokens
+			stats.TotalCost = totalCost
+			stats.InputTokens = inputTokens
+			stats.OutputTokens = outputTokens
 			stats.mu.Unlock()
 		}
-		sl.LogEvent("RESULT: subtype=%s, cost=$%.4f", event.Subtype, event.TotalCost)
+		sl.LogEvent("RESULT: subtype=%s, cost=$%.4f", event.Subtype, totalCost)
 
 	case "error":
 		if isRateLimitEvent(event) {
