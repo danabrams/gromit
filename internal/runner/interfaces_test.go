@@ -404,35 +404,6 @@ func (m *mockRenderer) RenderRefactor(ctx *prompt.Context) (string, error) {
 	return "mock refactor prompt", nil
 }
 
-type mockStateFile struct{}
-
-func (m *mockStateFile) LastReviewCommit() string {
-	return "abc123"
-}
-
-func (m *mockStateFile) IterationsSinceReview() int {
-	return 0
-}
-
-func (m *mockStateFile) IncrementIterationsSinceReview() {
-}
-
-func (m *mockStateFile) RecordReview(commit string, iteration int) error {
-	return nil
-}
-
-func (m *mockStateFile) Save() error {
-	return nil
-}
-
-func (m *mockStateFile) Load() error {
-	return nil
-}
-
-func (m *mockStateFile) LastRetro() time.Time {
-	return time.Time{}
-}
-
 // --- Tests ---
 
 // TestBeadClientInterfaceIncludesReadyWithLabel verifies that BeadClient interface
@@ -453,7 +424,7 @@ func TestBeadClientInterfaceIncludesReadyWithLabel(t *testing.T) {
 		t.Errorf("ReadyWithLabel() returned error: %v", err)
 	}
 	if result == nil {
-		t.Error("ReadyWithLabel() returned nil bead")
+		t.Fatal("ReadyWithLabel() returned nil bead")
 	}
 	if result.ID != "test-1" {
 		t.Errorf("ReadyWithLabel() bead ID = %q, want 'test-1'", result.ID)

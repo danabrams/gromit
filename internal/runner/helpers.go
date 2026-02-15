@@ -55,7 +55,7 @@ func (r *Runner) getDiff(fromCommit string) (string, error) {
 // hasNewPackages returns true if any package in the list is not in the runner's
 // touched packages map. Returns true if the map is nil or empty.
 func (r *Runner) hasNewPackages(packages []string) bool {
-	if r.touchedPackages == nil || len(r.touchedPackages) == 0 {
+	if len(r.touchedPackages) == 0 {
 		return len(packages) > 0
 	}
 	for _, pkg := range packages {

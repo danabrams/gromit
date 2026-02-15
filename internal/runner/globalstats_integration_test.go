@@ -223,7 +223,11 @@ func TestRun_LogsWarningOnGlobalStatsUpdateFailure(t *testing.T) {
 	if err := os.MkdirAll(gromitDir, 0555); err != nil { // Read-only directory
 		t.Fatalf("Failed to create read-only directory: %v", err)
 	}
-	defer os.Chmod(gromitDir, 0755) // Restore for cleanup
+	t.Cleanup(func() {
+		if err := os.Chmod(gromitDir, 0755); err != nil {
+			t.Fatalf("Failed to restore permissions: %v", err)
+		}
+	})
 
 	// Setup bead queue with one successful bead
 	beadQueue := []*bead.Bead{

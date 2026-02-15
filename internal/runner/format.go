@@ -196,7 +196,7 @@ func formatRecommendation(rec string) string {
 
 // formatModelPerformance formats model performance stats for display
 func formatModelPerformance(stats map[string]logger.ModelStats) string {
-	if stats == nil || len(stats) == 0 {
+	if len(stats) == 0 {
 		return "Model Performance: (no data)"
 	}
 

@@ -336,7 +336,7 @@ func TestNilGuards(t *testing.T) {
 			name: "RunNilRunner",
 			fn: func() error {
 				var r *Runner
-				return r.Run(nil, 0, time.Time{}, false)
+				return r.Run(context.Background(), 0, time.Time{}, false)
 			},
 			wantErr: true,
 		},
@@ -352,7 +352,7 @@ func TestNilGuards(t *testing.T) {
 			name: "RunNilConfig",
 			fn: func() error {
 				r := &Runner{output: os.Stdout}
-				err := r.Run(nil, 0, time.Time{}, false)
+				err := r.Run(context.Background(), 0, time.Time{}, false)
 				if err == nil {
 					return fmt.Errorf("expected error for nil config")
 				}
@@ -954,7 +954,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 				output: os.Stdout,
 			},
 			method: func(r *Runner) error {
-				return r.Run(nil, 0, time.Time{}, false)
+				return r.Run(context.Background(), 0, time.Time{}, false)
 			},
 			expectedError: "beads client is nil",
 		},
@@ -966,7 +966,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 				output: os.Stdout,
 			},
 			method: func(r *Runner) error {
-				return r.Run(nil, 0, time.Time{}, false)
+				return r.Run(context.Background(), 0, time.Time{}, false)
 			},
 			expectedError: "renderer is nil",
 		},
@@ -979,7 +979,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 				output:   os.Stdout,
 			},
 			method: func(r *Runner) error {
-				return r.Run(nil, 0, time.Time{}, false)
+				return r.Run(context.Background(), 0, time.Time{}, false)
 			},
 			expectedError: "router is nil",
 		},

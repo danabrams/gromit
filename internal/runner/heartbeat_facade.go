@@ -25,6 +25,8 @@ var defaultHeartbeatConfig = heartbeatConfig{
 	StallCheckRate: 10 * time.Second,
 }
 
+var _ = (*Runner).startHeartbeat
+
 // startHeartbeat launches a goroutine that prints periodic status updates and listens
 // for tool call events to update the display in real-time. It also optionally detects
 // stalls using two-tier timeouts:
