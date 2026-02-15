@@ -154,6 +154,9 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		}
 
 		if err := cmd.Wait(); err != nil {
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
+			}
 			duration := time.Since(startTime)
 			exitCode, _ := cp.extractExitCode(err)
 			return &Result{

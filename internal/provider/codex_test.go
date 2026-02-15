@@ -690,6 +690,37 @@ func TestCodexProviderRunWithContextCancellation(t *testing.T) {
 	_ = result
 }
 
+// TestCodexProviderStreamRunWithContextCancellationJSONMode verifies that
+// StreamRun() in JSON mode (non-nil handler) returns a context cancellation
+// error when the invocation context expires.
+func TestCodexProviderStreamRunWithContextCancellationJSONMode(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping context cancellation test in short mode")
+	}
+
+	tempDir := t.TempDir()
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := "#!/bin/bash\nsleep 10\necho '{\"type\":\"turn.completed\"}'\nexit 0\n"
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	var output bytes.Buffer
+	_, err := cp.StreamRun(ctx, "test", TierLow, &output, func([]byte) {}, nil)
+	if err == nil {
+		t.Fatal("StreamRun() error = nil, want context cancellation error")
+	}
+	if !strings.Contains(err.Error(), "context") && !strings.Contains(err.Error(), "deadline") {
+		t.Fatalf("StreamRun() error = %q, want context cancellation/deadline error", err.Error())
+	}
+}
+
 // TestCodexProviderRunWithAdditionalFlags verifies that Run() includes
 // any additional flags configured in the CodexProvider.flags field.
 // Expected failure: CodexProvider Run() method does not exist yet
