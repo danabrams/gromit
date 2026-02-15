@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -91,14 +91,6 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("building debug prompt: %w", err)
 	}
 
-	// Determine binary and flags from config
-	claudeBinary := "claude"
-	var claudeFlags []string
-	if cfg != nil {
-		claudeBinary = cfg.Claude.Binary
-		claudeFlags = cfg.Claude.Flags
-	}
-
 	// Write system prompt to a temp file to avoid "argument list too long" errors
 	tmpDir := filepath.Join(gromitDir, "tmp")
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
@@ -118,28 +110,27 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	}
 	promptFile.Close()
 
-	// Launch Claude Code with a short initial prompt that references the temp file
-	initialPrompt := fmt.Sprintf("Read and follow the debug instructions in %s", promptPath)
+	agentFlag, _ := cmd.Flags().GetString("agent")
+	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
 
-	// Build command args: flags + model + initial message
-	cmdArgs := append([]string{}, claudeFlags...)
-	if debugModel != "" {
-		cmdArgs = append(cmdArgs, "--model", debugModel)
+	selectedAgent, err := agent.Resolve(cfg, "debug", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	if err != nil {
+		return fmt.Errorf("resolving agent: %w", err)
 	}
-	cmdArgs = append(cmdArgs, initialPrompt)
 
-	claudeCmd := exec.Command(claudeBinary, cmdArgs...)
-	claudeCmd.Stdin = os.Stdin
-	claudeCmd.Stdout = os.Stdout
-	claudeCmd.Stderr = os.Stderr
-
-	if err := claudeCmd.Run(); err != nil {
-		// Don't treat Claude exit code as an error - it's normal when user exits
-		if _, ok := err.(*exec.ExitError); ok {
-			// User exited gracefully, not an error
-			return nil
+	if debugModel != "" && selectedAgent.Name() == "claude" {
+		binary := "claude"
+		var flags []string
+		if cfg != nil {
+			binary = cfg.Claude.Binary
+			flags = cfg.Claude.Flags
 		}
-		return fmt.Errorf("launching Claude Code: %w", err)
+		flags = append(append([]string{}, flags...), "--model", debugModel)
+		selectedAgent = agent.New("claude", binary, flags, agent.FileRef, "", nil)
+	}
+
+	if err := selectedAgent.Launch(promptPath); err != nil {
+		return fmt.Errorf("launching agent: %w", err)
 	}
 
 	// Post-session artifact detection
