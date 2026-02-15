@@ -50,3 +50,9 @@ func TestDebugUsesAgentLaunchNotDirectExec(t *testing.T) {
 		t.Error("debug.go still contains direct exec.Command(claudeBinary...) - old code not removed")
 	}
 }
+
+func TestDebugHelpIncludesCodexExample(t *testing.T) {
+	if !strings.Contains(debugCmd.Long, "--agent codex") {
+		t.Fatalf("debug help missing codex example, got: %s", debugCmd.Long)
+	}
+}

@@ -31,7 +31,8 @@ produce appropriate outcomes:
 Examples:
   gromit debug                              # Blank session
   gromit debug "login fails with + in email" # Pre-seeded description
-  gromit debug --model sonnet "API returns 500" # Override model`,
+  gromit debug --model sonnet "API returns 500" # Override model
+  gromit debug --agent codex "Cache miss flapping" # Use Codex agent`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runDebug,
 }
