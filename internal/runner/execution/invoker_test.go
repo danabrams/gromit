@@ -456,6 +456,50 @@ func TestInvocationResult_ContainsStreamStats(t *testing.T) {
 	}
 }
 
+func TestInvokerExecute_MergesProviderUsageIntoStatsWhenStreamHasNoResultEvent(t *testing.T) {
+	mp := &mockProvider{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			// Emit a non-result event so stream stats record activity but no usage.
+			if handler != nil {
+				handler([]byte(`{"type":"system","subtype":"init"}`))
+			}
+			return &provider.Result{
+				Success:      true,
+				Model:        "test-model",
+				CostUSD:      1.23,
+				InputTokens:  4321,
+				OutputTokens: 210,
+			}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "test-model"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+	invResult, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if invResult == nil || invResult.Stats == nil {
+		t.Fatal("expected invocation stats")
+	}
+
+	cost, in, out := invResult.Stats.CostData()
+	if cost != 1.23 {
+		t.Errorf("CostData cost = %v, want 1.23", cost)
+	}
+	if in != 4321 {
+		t.Errorf("CostData input tokens = %d, want 4321", in)
+	}
+	if out != 210 {
+		t.Errorf("CostData output tokens = %d, want 210", out)
+	}
+}
+
 // Expected failure: InvocationResult type does not exist in execution/ package yet
 func TestInvocationResult_ConvertsClaudeResult(t *testing.T) {
 	// The Result field in InvocationResult should be a *claude.Result,

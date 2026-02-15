@@ -147,7 +147,7 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		}()
 
 		// Process the JSONL stream
-		resultText, _, streamErrInfo, err := processCodexStream(stdout, output, handler, onToolCall)
+		resultText, usage, streamErrInfo, err := processCodexStream(stdout, output, handler, onToolCall)
 		if err != nil {
 			cmd.Wait()
 			return nil, fmt.Errorf("failed to process codex stream: %w", err)
@@ -160,11 +160,15 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 			duration := time.Since(startTime)
 			exitCode, _ := cp.extractExitCode(err)
 			return &Result{
-				Success:  false,
-				Output:   resultText + stderr.String(),
-				ExitCode: exitCode,
-				Duration: duration,
-				Model:    model,
+				Success:           false,
+				Output:            resultText + stderr.String(),
+				ExitCode:          exitCode,
+				Duration:          duration,
+				Model:             model,
+				CostUSD:           usageCost(usage),
+				InputTokens:       usageInputTokens(usage),
+				CachedInputTokens: usageCachedInputTokens(usage),
+				OutputTokens:      usageOutputTokens(usage),
 			}, nil
 		}
 
@@ -173,20 +177,28 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		// If the turn ended with an error (e.g. UsageLimitExceeded), report failure
 		if streamErrInfo != nil {
 			return &Result{
-				Success:  false,
-				Output:   resultText,
-				ExitCode: 0,
-				Duration: duration,
-				Model:    model,
+				Success:           false,
+				Output:            resultText,
+				ExitCode:          0,
+				Duration:          duration,
+				Model:             model,
+				CostUSD:           usageCost(usage),
+				InputTokens:       usageInputTokens(usage),
+				CachedInputTokens: usageCachedInputTokens(usage),
+				OutputTokens:      usageOutputTokens(usage),
 			}, nil
 		}
 
 		return &Result{
-			Success:  true,
-			Output:   resultText,
-			ExitCode: 0,
-			Duration: duration,
-			Model:    model,
+			Success:           true,
+			Output:            resultText,
+			ExitCode:          0,
+			Duration:          duration,
+			Model:             model,
+			CostUSD:           usageCost(usage),
+			InputTokens:       usageInputTokens(usage),
+			CachedInputTokens: usageCachedInputTokens(usage),
+			OutputTokens:      usageOutputTokens(usage),
 		}, nil
 	}
 
@@ -342,6 +354,7 @@ type codexUsage struct {
 	InputTokens       int `json:"input_tokens"`
 	CachedInputTokens int `json:"cached_input_tokens"`
 	OutputTokens      int `json:"output_tokens"`
+	TotalCostUSD      float64 `json:"total_cost_usd,omitempty"`
 }
 
 // codexErrorInfo represents error information from Codex turn.completed events
@@ -366,12 +379,13 @@ type codexDelta struct {
 
 // codexEvent represents a top-level Codex JSONL event
 type codexEvent struct {
-	Type      string          `json:"type"`
-	Item      *codexItem      `json:"item,omitempty"`
-	Delta     *codexDelta     `json:"delta,omitempty"`
-	Status    string          `json:"status,omitempty"`
-	Usage     *codexUsage     `json:"usage,omitempty"`
-	ErrorInfo *codexErrorInfo `json:"error,omitempty"`
+	Type         string          `json:"type"`
+	Item         *codexItem      `json:"item,omitempty"`
+	Delta        *codexDelta     `json:"delta,omitempty"`
+	Status       string          `json:"status,omitempty"`
+	Usage        *codexUsage     `json:"usage,omitempty"`
+	ErrorInfo    *codexErrorInfo `json:"error,omitempty"`
+	TotalCostUSD float64         `json:"total_cost_usd,omitempty"`
 }
 
 // processCodexStream reads Codex JSONL events from reader, converts them to StreamEvent format,
@@ -473,6 +487,10 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			// Extract usage data
 			if event.Usage != nil {
 				usage = event.Usage
+				// Prefer cost nested in usage, but accept top-level for compatibility.
+				if usage.TotalCostUSD == 0 && event.TotalCostUSD > 0 {
+					usage.TotalCostUSD = event.TotalCostUSD
+				}
 			}
 
 			// Capture error info from failed turns
@@ -494,9 +512,10 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			// Emit result event with token usage
 			if handler != nil && event.Usage != nil {
 				streamEvent := map[string]interface{}{
-					"type":          "result",
-					"input_tokens":  event.Usage.InputTokens,
-					"output_tokens": event.Usage.OutputTokens,
+					"type":           "result",
+					"total_cost_usd": event.TotalCostUSD,
+					"input_tokens":   event.Usage.InputTokens,
+					"output_tokens":  event.Usage.OutputTokens,
 				}
 				eventJSON, _ := json.Marshal(streamEvent)
 				handler(eventJSON)
@@ -509,4 +528,32 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 	}
 
 	return lastAgentText, usage, errInfo, nil
+}
+
+func usageCost(usage *codexUsage) float64 {
+	if usage == nil {
+		return 0
+	}
+	return usage.TotalCostUSD
+}
+
+func usageInputTokens(usage *codexUsage) int {
+	if usage == nil {
+		return 0
+	}
+	return usage.InputTokens
+}
+
+func usageCachedInputTokens(usage *codexUsage) int {
+	if usage == nil {
+		return 0
+	}
+	return usage.CachedInputTokens
+}
+
+func usageOutputTokens(usage *codexUsage) int {
+	if usage == nil {
+		return 0
+	}
+	return usage.OutputTokens
 }

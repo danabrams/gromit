@@ -721,6 +721,45 @@ func TestCodexProviderStreamRunWithContextCancellationJSONMode(t *testing.T) {
 	}
 }
 
+func TestCodexProviderStreamRun_PropagatesUsageToResult(t *testing.T) {
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+cat > /dev/null
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"done"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":1234,"cached_input_tokens":567,"output_tokens":890,"total_cost_usd":0.042}}'
+exit 0
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock codex binary: %v", err)
+	}
+
+	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
+	ctx := context.Background()
+
+	// Non-nil handler enables --json mode and usage extraction.
+	result, err := cp.StreamRun(ctx, "prompt", TierMedium, nil, func([]byte) {}, nil)
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v, want nil", err)
+	}
+	if result == nil {
+		t.Fatal("StreamRun() returned nil result")
+	}
+	if result.InputTokens != 1234 {
+		t.Errorf("InputTokens = %d, want 1234", result.InputTokens)
+	}
+	if result.CachedInputTokens != 567 {
+		t.Errorf("CachedInputTokens = %d, want 567", result.CachedInputTokens)
+	}
+	if result.OutputTokens != 890 {
+		t.Errorf("OutputTokens = %d, want 890", result.OutputTokens)
+	}
+	if result.CostUSD != 0.042 {
+		t.Errorf("CostUSD = %v, want 0.042", result.CostUSD)
+	}
+}
+
 // TestCodexProviderRunWithAdditionalFlags verifies that Run() includes
 // any additional flags configured in the CodexProvider.flags field.
 // Expected failure: CodexProvider Run() method does not exist yet

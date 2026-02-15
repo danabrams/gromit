@@ -139,6 +139,12 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}
 	}
 
+	// Prefer stream-event cost/token data, but fall back to provider-level usage
+	// (e.g., when the provider exposes usage only in terminal turn metadata).
+	if stats != nil && providerResult != nil {
+		stats.MergeCostData(providerResult.CostUSD, providerResult.InputTokens, providerResult.OutputTokens)
+	}
+
 	// Stop heartbeat before reading stallFired — stopHeartbeat waits for the
 	// goroutine to finish, establishing a happens-before relationship.
 	if stopHeartbeat != nil {

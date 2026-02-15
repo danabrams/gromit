@@ -180,6 +180,25 @@ func (s *StreamStats) CostData() (totalCost float64, inputTokens int, outputToke
 	return s.TotalCost, s.InputTokens, s.OutputTokens
 }
 
+// MergeCostData fills missing cost/token fields from a provider-level result.
+// Existing non-zero fields are preserved to prefer stream-event data.
+func (s *StreamStats) MergeCostData(totalCost float64, inputTokens int, outputTokens int) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.TotalCost == 0 && totalCost > 0 {
+		s.TotalCost = totalCost
+	}
+	if s.InputTokens == 0 && inputTokens > 0 {
+		s.InputTokens = inputTokens
+	}
+	if s.OutputTokens == 0 && outputTokens > 0 {
+		s.OutputTokens = outputTokens
+	}
+}
+
 // TimeToFirstEvent returns the duration from stream start to the first event.
 // Returns 0 if no events have been received.
 func (s *StreamStats) TimeToFirstEvent() time.Duration {

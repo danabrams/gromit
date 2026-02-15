@@ -16,11 +16,15 @@ const (
 
 // Result represents the outcome of a provider invocation
 type Result struct {
-	Success  bool
-	Output   string
-	ExitCode int
-	Duration time.Duration
-	Model    string
+	Success           bool
+	Output            string
+	ExitCode          int
+	Duration          time.Duration
+	Model             string
+	CostUSD           float64
+	InputTokens       int
+	CachedInputTokens int
+	OutputTokens      int
 }
 
 // ToolEvent represents a tool call event from the provider
