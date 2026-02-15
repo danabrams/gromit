@@ -1,0 +1,66 @@
+package main
+
+import (
+	"os"
+	"strings"
+	"testing"
+)
+
+func readExploreSource(t *testing.T) string {
+	t.Helper()
+
+	sourcePath := "explore.go"
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", sourcePath, err)
+	}
+	return string(data)
+}
+
+// TestExploreCommandHasAgentFlag verifies explore command has --agent flag.
+func TestExploreCommandHasAgentFlag(t *testing.T) {
+	// Expected failure: explore command does not define --agent flag or exploreAgentFlagName constant yet
+	flag := exploreCmd.Flags().Lookup("agent")
+	if flag == nil {
+		t.Error("explore command missing --agent flag")
+	}
+
+	if flag != nil && flag.Value.Type() != "string" {
+		t.Errorf("--agent flag type = %q, want %q", flag.Value.Type(), "string")
+	}
+}
+
+// TestExploreCommandHasChooseAgentFlag verifies explore command has --choose-agent flag.
+func TestExploreCommandHasChooseAgentFlag(t *testing.T) {
+	// Expected failure: explore command does not define --choose-agent flag or exploreChooseAgentFlagName constant yet
+	flag := exploreCmd.Flags().Lookup("choose-agent")
+	if flag == nil {
+		t.Error("explore command missing --choose-agent flag")
+	}
+
+	if flag != nil && flag.Value.Type() != "bool" {
+		t.Errorf("--choose-agent flag type = %q, want %q", flag.Value.Type(), "bool")
+	}
+}
+
+// TestExploreCommand_WiresAgentFlagsIntoExploreInput verifies runExplore wires agent flags into ExploreInput.
+func TestExploreCommand_WiresAgentFlagsIntoExploreInput(t *testing.T) {
+	// Expected failure: runExplore does not read --agent/--choose-agent or populate ExploreInput.ChooseAgent yet
+	source := readExploreSource(t)
+
+	if !strings.Contains(source, `GetString("agent")`) {
+		t.Error("explore.go does not read --agent flag via GetString(\"agent\")")
+	}
+
+	if !strings.Contains(source, `GetBool("choose-agent")`) {
+		t.Error("explore.go does not read --choose-agent flag via GetBool(\"choose-agent\")")
+	}
+
+	if strings.Contains(source, `AgentName: ""`) {
+		t.Error("explore.go still hardcodes AgentName to empty string instead of flag value")
+	}
+
+	if !strings.Contains(source, "ChooseAgent:") {
+		t.Error("explore.go does not populate ExploreInput.ChooseAgent from --choose-agent flag")
+	}
+}
