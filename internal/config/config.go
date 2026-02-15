@@ -68,6 +68,7 @@ type ValidationConfig struct {
 	Commands             []string      `yaml:"commands"`
 	FastCommands         []string      `yaml:"fast_commands"`
 	FullCommands         []string      `yaml:"full_commands"`
+	MaxParallelCommands  int           `yaml:"max_parallel_commands"`
 	CommandTimeout       time.Duration `yaml:"command_timeout"`
 	FullValidationEveryN int           `yaml:"full_validation_every_n_successes"`
 	NonInteractive       *bool         `yaml:"non_interactive"`
@@ -338,6 +339,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Validation.MaxValidationRetries == 0 {
 		c.Validation.MaxValidationRetries = 2
+	}
+	if c.Validation.MaxParallelCommands == 0 {
+		c.Validation.MaxParallelCommands = 1
 	}
 	if c.Validation.NonInteractive == nil {
 		t := true

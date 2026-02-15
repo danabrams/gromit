@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
@@ -33,6 +34,14 @@ type Runner struct {
 	lastFailureOutput string
 }
 
+type commandResult struct {
+	command  string
+	stdout   string
+	stderr   string
+	exitCode int
+	err      error
+}
+
 // NewRunner creates a Runner with narrow dependency interfaces.
 // autoFixFn and executeFn may be nil (no auto-fix or Claude-based recovery).
 func NewRunner(cfg *config.Config, cmdRunner runtypes.CmdRunnerFn, autoFixFn runtypes.AutoFixFn, executeFn ExecuteFn) *Runner {
@@ -57,22 +66,25 @@ func (r *Runner) ResetFailures() {
 // RunDirect executes validation commands directly via the injected command runner.
 // Returns a claude.Result for compatibility with the existing runner facade.
 func (r *Runner) RunDirect(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-	for _, command := range commands {
-		stdout, stderr, exitCode, err := r.cmdRunner(ctx, command, workDir)
-		if err != nil {
-			return nil, fmt.Errorf("validation command %q: %w", command, err)
+	results, err := r.runCommands(ctx, commands, workDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, result := range results {
+		if result.err != nil {
+			return nil, fmt.Errorf("validation command %q: %w", result.command, result.err)
 		}
 		if r.cfg.Validation.IsNonInteractive() {
-			if prompt := detectInteractivePrompt(stdout, stderr); prompt != "" {
-				return nil, fmt.Errorf("validation command %q attempted interactive prompt: %s", command, prompt)
+			if prompt := detectInteractivePrompt(result.stdout, result.stderr); prompt != "" {
+				return nil, fmt.Errorf("validation command %q attempted interactive prompt: %s", result.command, prompt)
 			}
 		}
-		if exitCode != 0 {
-			failureOutput := formatFailureOutput(command, exitCode, stdout, stderr)
+		if result.exitCode != 0 {
+			failureOutput := formatFailureOutput(result.command, result.exitCode, result.stdout, result.stderr)
 			return &claude.Result{
 				Success:  false,
 				Output:   failureOutput,
-				ExitCode: exitCode,
+				ExitCode: result.exitCode,
 			}, nil
 		}
 	}
@@ -164,41 +176,31 @@ func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.Bea
 	if !r.cfg.Validation.Enabled {
 		return nil
 	}
-
-	for _, command := range commands {
-		commandCtx := ctx
-		cancel := func() {}
-		if r.cfg.Validation.CommandTimeout > 0 {
-			commandCtx, cancel = context.WithTimeout(ctx, r.cfg.Validation.CommandTimeout)
-		}
-
-		stdout, stderr, exitCode, err := r.cmdRunner(commandCtx, command, bc.PromptCtx.WorkDir)
-		cancel()
-
-		if err != nil {
-			if errors.Is(commandCtx.Err(), context.DeadlineExceeded) {
-				failureOutput := formatTimeoutFailureOutput(command, r.cfg.Validation.CommandTimeout, stdout, stderr)
+	results, err := r.runCommands(ctx, commands, bc.PromptCtx.WorkDir)
+	if err != nil {
+		return err
+	}
+	for _, result := range results {
+		if result.err != nil {
+			if errors.Is(result.err, context.DeadlineExceeded) {
+				failureOutput := formatTimeoutFailureOutput(result.command, r.cfg.Validation.CommandTimeout, result.stdout, result.stderr)
 				r.lastFailureOutput = failureOutput
 				bc.Result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
 				return ErrValidationFailed
 			}
-			return fmt.Errorf("validation command %q: %w", command, err)
+			return fmt.Errorf("validation command %q: %w", result.command, result.err)
 		}
 		if r.cfg.Validation.IsNonInteractive() {
-			if prompt := detectInteractivePrompt(stdout, stderr); prompt != "" {
-				return fmt.Errorf("validation command %q attempted interactive prompt: %s", command, prompt)
+			if prompt := detectInteractivePrompt(result.stdout, result.stderr); prompt != "" {
+				return fmt.Errorf("validation command %q attempted interactive prompt: %s", result.command, prompt)
 			}
 		}
-
-		if exitCode != 0 {
-			failureOutput := formatFailureOutput(command, exitCode, stdout, stderr)
-
-			// Extract and accumulate validation failure summary
+		if result.exitCode != 0 {
+			failureOutput := formatFailureOutput(result.command, result.exitCode, result.stdout, result.stderr)
 			if summary := ExtractValidationSummary(failureOutput); summary != "" {
 				r.failures = append(r.failures, summary)
 			}
 			r.lastFailureOutput = failureOutput
-
 			bc.Result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
 			return ErrValidationFailed
 		}
@@ -211,6 +213,65 @@ func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.Bea
 	}
 	bc.Result.ValidationMode = mode
 	return nil
+}
+
+func (r *Runner) runCommands(ctx context.Context, commands []string, workDir string) ([]commandResult, error) {
+	if len(commands) == 0 {
+		return nil, nil
+	}
+	maxParallel := r.cfg.Validation.MaxParallelCommands
+	if maxParallel <= 1 || len(commands) == 1 {
+		results := make([]commandResult, 0, len(commands))
+		for _, command := range commands {
+			result := r.runSingleCommand(ctx, command, workDir)
+			results = append(results, result)
+			if result.err != nil || result.exitCode != 0 {
+				break
+			}
+		}
+		return results, nil
+	}
+	if maxParallel > len(commands) {
+		maxParallel = len(commands)
+	}
+
+	results := make([]commandResult, len(commands))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxParallel)
+	for i, command := range commands {
+		i := i
+		command := command
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			results[i] = r.runSingleCommand(ctx, command, workDir)
+			<-sem
+		}()
+	}
+	wg.Wait()
+	return results, nil
+}
+
+func (r *Runner) runSingleCommand(ctx context.Context, command, workDir string) commandResult {
+	commandCtx := ctx
+	cancel := func() {}
+	if r.cfg.Validation.CommandTimeout > 0 {
+		commandCtx, cancel = context.WithTimeout(ctx, r.cfg.Validation.CommandTimeout)
+	}
+	defer cancel()
+
+	stdout, stderr, exitCode, err := r.cmdRunner(commandCtx, command, workDir)
+	if err != nil && errors.Is(commandCtx.Err(), context.DeadlineExceeded) {
+		err = context.DeadlineExceeded
+	}
+	return commandResult{
+		command:  command,
+		stdout:   stdout,
+		stderr:   stderr,
+		exitCode: exitCode,
+		err:      err,
+	}
 }
 
 // maxValidationSummaryLen caps the length of extracted validation summaries.

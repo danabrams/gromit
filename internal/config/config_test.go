@@ -3317,6 +3317,36 @@ func TestValidationConfig_NonInteractiveDefaultTrue(t *testing.T) {
 	}
 }
 
+func TestValidationConfig_MaxParallelCommandsDefaultOne(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	if cfg.Validation.MaxParallelCommands != 1 {
+		t.Fatalf("MaxParallelCommands = %d, want 1", cfg.Validation.MaxParallelCommands)
+	}
+}
+
+func TestValidationConfig_MaxParallelCommandsYAML(t *testing.T) {
+	yamlContent := `
+validation:
+  max_parallel_commands: 3
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Validation.MaxParallelCommands != 3 {
+		t.Fatalf("MaxParallelCommands = %d, want 3", cfg.Validation.MaxParallelCommands)
+	}
+}
+
 func TestValidationConfig_CommandTimeoutYAML(t *testing.T) {
 	yamlContent := `
 validation:

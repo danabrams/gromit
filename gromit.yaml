@@ -98,16 +98,17 @@ precheck:
 validation:
   enabled: true
   non_interactive: true  # fail validation if commands attempt to prompt for input
+  max_parallel_commands: 3  # safe upper bound here: full gate has 3 commands, so all can run concurrently
   fast_commands:  # per-bead gate in the main loop (keeps iteration latency low)
-    - "go test ./..."
+    - "go test -vet=off -short -p 8 -parallel 8 ./..."
     - "go vet ./..."
   full_commands:  # heavier gate at controlled checkpoints
-    - "go test ./..."
+    - "go test -vet=off -p 8 -parallel 8 ./..."
     - "go vet ./..."
     - "go build ./..."
   full_validation_every_n_successes: 0  # 0 disables periodic full gate; final full gate still runs at session end
   commands:
-    - "go test ./..."
+    - "go test -vet=off -p 8 -parallel 8 ./..."
     - "go vet ./..."
     - "go build ./..."
   max_validation_retries: 1  # one recovery loop; unchanged failures stop immediately

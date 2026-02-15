@@ -479,7 +479,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 	r.log("")
 
-loop:
+runLoop:
 	for {
 		// Check for context cancellation or graceful stop
 		select {
@@ -488,7 +488,7 @@ loop:
 			return ctx.Err()
 		case <-stopCh:
 			r.log("Graceful stop requested, exiting after current bead")
-			break loop
+			break runLoop
 		default:
 		}
 

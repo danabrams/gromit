@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -166,6 +167,39 @@ func TestRunDirect_StopsAfterFirstFailure(t *testing.T) {
 	}
 	if len(commandsRun) != 1 {
 		t.Errorf("ran %d commands, want 1 (should stop after first failure)", len(commandsRun))
+	}
+}
+
+func TestRunDirect_ParallelCommands_BoundedConcurrency(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.MaxParallelCommands = 2
+	commands := []string{"cmd-1", "cmd-2", "cmd-3", "cmd-4"}
+
+	var inFlight int32
+	var peak int32
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		current := atomic.AddInt32(&inFlight, 1)
+		for {
+			prev := atomic.LoadInt32(&peak)
+			if current <= prev || atomic.CompareAndSwapInt32(&peak, prev, current) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		atomic.AddInt32(&inFlight, -1)
+		return "ok", "", 0, nil
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	result, err := r.RunDirect(context.Background(), commands, "/tmp/test")
+	if err != nil {
+		t.Fatalf("RunDirect returned unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected success, got %+v", result)
+	}
+	if got := atomic.LoadInt32(&peak); got != 2 {
+		t.Fatalf("peak parallelism=%d, want 2", got)
 	}
 }
 

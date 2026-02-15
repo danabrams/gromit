@@ -139,10 +139,10 @@ func TestProcessCodexStreamMapsTurnCompletedToResult(t *testing.T) {
 	}
 
 	var parsed struct {
-		Type         string `json:"type"`
+		Type         string  `json:"type"`
 		TotalCostUSD float64 `json:"total_cost_usd"`
-		InputTokens  int    `json:"input_tokens"`
-		OutputTokens int    `json:"output_tokens"`
+		InputTokens  int     `json:"input_tokens"`
+		OutputTokens int     `json:"output_tokens"`
 	}
 	if err := json.Unmarshal(receivedEvents[0], &parsed); err != nil {
 		t.Fatalf("failed to parse emitted event: %v", err)

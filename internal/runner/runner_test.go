@@ -2978,6 +2978,17 @@ func setupRunStopChTestRunner(t *testing.T, beads *mockBeadClient) *Runner {
 	return r
 }
 
+func makeReadyFromQueue(queue []*bead.Bead) func() (*bead.Bead, error) {
+	return func() (*bead.Bead, error) {
+		if len(queue) == 0 {
+			return nil, nil
+		}
+		next := queue[0]
+		queue = queue[1:]
+		return next, nil
+	}
+}
+
 func TestRunStopChClosedBeforeStart(t *testing.T) {
 	readyCalls := 0
 	beads := &mockBeadClient{
@@ -3012,14 +3023,7 @@ func TestRunStopChClosedDuringIteration(t *testing.T) {
 	stopClosed := false
 
 	beads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
-			if len(beadQueue) == 0 {
-				return nil, nil
-			}
-			next := beadQueue[0]
-			beadQueue = beadQueue[1:]
-			return next, nil
-		},
+		ReadyFn: makeReadyFromQueue(beadQueue),
 		CloseFn: func(id string) error {
 			if !stopClosed {
 				stopClosed = true
@@ -3048,14 +3052,7 @@ func TestRunNilStopChProcessesUntilQueueEmpty(t *testing.T) {
 		{ID: "bead-2", Title: "second", Priority: 1},
 	}
 	beads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
-			if len(beadQueue) == 0 {
-				return nil, nil
-			}
-			next := beadQueue[0]
-			beadQueue = beadQueue[1:]
-			return next, nil
-		},
+		ReadyFn: makeReadyFromQueue(beadQueue),
 	}
 	r := setupRunStopChTestRunner(t, beads)
 
