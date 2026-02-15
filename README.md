@@ -72,6 +72,18 @@ gromit run --dry-run             # Preview what would run, without executing
 gromit status                    # Show the next task and which model it would use
 ```
 
+### Linting And Hooks
+
+Gromit pins `golangci-lint` in `.golangci-version` and enforces that version in `make lint`.
+
+```bash
+GOBIN="$(go env GOPATH)/bin" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(cat .golangci-version)
+make lint
+make install-hooks
+```
+
+`make install-hooks` configures `core.hooksPath=.githooks`, so pre-commit runs `make lint`.
+
 ### Example Output
 
 ```
