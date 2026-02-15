@@ -110,7 +110,7 @@ func AcceptanceCommands(commands []string) []string {
 // log writes a formatted message to the output writer.
 func (e *Executor) log(format string, args ...interface{}) {
 	if e.output != nil {
-		fmt.Fprintf(e.output, format+"\n", args...)
+		_, _ = fmt.Fprintf(e.output, format+"\n", args...) // best-effort logging, explicitly discard error
 	}
 }
 
