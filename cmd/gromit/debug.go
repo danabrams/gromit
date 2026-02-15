@@ -40,6 +40,8 @@ var debugModel string
 
 func init() {
 	debugCmd.Flags().StringVar(&debugModel, "model", "opus", "Claude model to use (opus, sonnet, haiku)")
+	debugCmd.Flags().String("agent", "", "Override the default agent for this debug session")
+	debugCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
 	rootCmd.AddCommand(debugCmd)
 }
 
