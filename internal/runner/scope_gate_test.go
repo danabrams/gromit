@@ -105,7 +105,7 @@ func TestScopeGate_BlocksCannotCompleteInSingleIteration(t *testing.T) {
 
 	r, mockBeads, mockLogger := scopeGateTestSetup(t, cfg, estimate)
 
-	err := r.Run(context.Background(), 1, time.Time{}, false)
+	err := r.Run(context.Background(), 1, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -139,7 +139,7 @@ func TestScopeGate_BlocksHighComplexityWithBlockers(t *testing.T) {
 
 	r, mockBeads, mockLogger := scopeGateTestSetup(t, cfg, estimate)
 
-	err := r.Run(context.Background(), 1, time.Time{}, false)
+	err := r.Run(context.Background(), 1, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -172,7 +172,7 @@ func TestScopeGate_PassesMediumComplexitySingleIteration(t *testing.T) {
 	r, _, mockLogger := scopeGateTestSetup(t, cfg, estimate)
 
 	// Use dry-run to avoid needing the full processBead flow
-	err := r.Run(context.Background(), 1, time.Time{}, true)
+	err := r.Run(context.Background(), 1, time.Time{}, nil, true)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -196,7 +196,7 @@ func TestScopeGate_PassesHighComplexityNoBlockers(t *testing.T) {
 
 	r, _, mockLogger := scopeGateTestSetup(t, cfg, estimate)
 
-	err := r.Run(context.Background(), 1, time.Time{}, true)
+	err := r.Run(context.Background(), 1, time.Time{}, nil, true)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -222,7 +222,7 @@ func TestScopeGate_SkippedWhenBlockOversizedFalse(t *testing.T) {
 
 	r, _, mockLogger := scopeGateTestSetup(t, cfg, estimate)
 
-	err := r.Run(context.Background(), 1, time.Time{}, true)
+	err := r.Run(context.Background(), 1, time.Time{}, nil, true)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -248,7 +248,7 @@ func TestScopeGate_SkippedWhenScopeCheckDisabled(t *testing.T) {
 
 	r, _, mockLogger := scopeGateTestSetup(t, cfg, estimate)
 
-	err := r.Run(context.Background(), 1, time.Time{}, true)
+	err := r.Run(context.Background(), 1, time.Time{}, nil, true)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -271,7 +271,7 @@ func TestScopeGate_CommentAddedToBlockedBead(t *testing.T) {
 
 	r, mockBeads, _ := scopeGateTestSetup(t, cfg, estimate)
 
-	err := r.Run(context.Background(), 1, time.Time{}, false)
+	err := r.Run(context.Background(), 1, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}

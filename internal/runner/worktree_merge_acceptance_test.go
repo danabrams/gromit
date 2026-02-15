@@ -42,7 +42,7 @@ func TestRunnerRun_MergeInteractiveBranchesWarnsOnFailure(t *testing.T) {
 	r := setupRunnerForWorktreeMerge(t, cfg)
 	r.worktreeManager = mockWorktrees
 
-	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), false)
+	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false)
 	if err != nil {
 		t.Fatalf("expected merge failure to warn and continue, got error: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestRunnerRun_MergeInteractiveBranchesStopsOnFailure(t *testing.T) {
 	r := setupRunnerForWorktreeMerge(t, cfg)
 	r.worktreeManager = mockWorktrees
 
-	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), false)
+	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false)
 	if err == nil {
 		t.Fatal("expected merge failure to stop the loop, got nil error")
 	}
@@ -111,7 +111,7 @@ func TestRunnerRun_SkipsMergeWhenAutoMergeDisabled(t *testing.T) {
 	r := setupRunnerForWorktreeMerge(t, cfg)
 	r.worktreeManager = mockWorktrees
 
-	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), false)
+	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error from Run: %v", err)
 	}

@@ -341,7 +341,7 @@ type IterationResult = runtypes.IterationResult
 type SubTask = runtypes.SubTask
 
 // Run executes the Gromit loop
-func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time, dryRun bool) error {
+func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time, stopCh <-chan struct{}, dryRun bool) error {
 	if r == nil {
 		return fmt.Errorf("runner is nil")
 	}
@@ -479,12 +479,16 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 	r.log("")
 
+loop:
 	for {
-		// Check for context cancellation
+		// Check for context cancellation or graceful stop
 		select {
 		case <-ctx.Done():
 			r.log("Context cancelled, stopping")
 			return ctx.Err()
+		case <-stopCh:
+			r.log("Graceful stop requested, exiting after current bead")
+			break loop
 		default:
 		}
 

@@ -51,7 +51,7 @@ func TestRunValidatesRouterNotNil(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := r.Run(ctx, 0, time.Time{}, true)
+	err := r.Run(ctx, 0, time.Time{}, nil, true)
 
 	if err == nil {
 		t.Error("Run() with nil router should return error, got nil")

@@ -107,7 +107,7 @@ func TestRunner_UsesLabelFiltersInLoop(t *testing.T) {
 	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
 
 	// Run the loop
-	err = r.Run(context.Background(), 0, time.Time{}, false)
+	err = r.Run(context.Background(), 0, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -198,7 +198,7 @@ func TestRunner_NoFiltersUsesReady(t *testing.T) {
 	// Do NOT set label filters (leave it empty/nil)
 
 	// Run the loop
-	err = r.Run(context.Background(), 0, time.Time{}, false)
+	err = r.Run(context.Background(), 0, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}

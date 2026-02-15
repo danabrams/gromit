@@ -50,7 +50,7 @@ func TestIntegration_MultiBeadProcessing(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -135,7 +135,7 @@ func TestIntegration_EscalationChainFullFlow(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	)
 
-	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -191,7 +191,7 @@ func TestIntegration_ValidationFailureKeepsBeadOpen(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	)
 
-	err := r.Run(context.Background(), 1, time.Time{}, false)
+	err := r.Run(context.Background(), 1, time.Time{}, nil, false)
 	// With default StopOnFailure=false, Run should not error
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
@@ -251,7 +251,7 @@ func TestIntegration_StuckBeadSkipWithContinuation(t *testing.T) {
 	// is called with stats read from logs. Since logsDir is empty,
 	// stuck-1 won't actually be detected as stuck. Let's verify the flow
 	// processes both beads when neither is stuck.
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -314,7 +314,7 @@ func TestIntegration_DecompositionOnExhaustedEscalation(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	)
 
-	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -382,7 +382,7 @@ func TestIntegration_RecoverableRetryThenSuccess(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	)
 
-	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -444,7 +444,7 @@ func TestIntegration_StopOnFailure(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}},
 	)
 
-	err := r.Run(context.Background(), 0, time.Time{}, false)
+	err := r.Run(context.Background(), 0, time.Time{}, nil, false)
 	if err == nil {
 		t.Fatal("expected error from StopOnFailure")
 	}
@@ -511,7 +511,7 @@ func TestIntegration_MixedResultsMultiBead(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: mockAnalyzerObj, Renderer: mockRenderer, Logger: mockLog},
 	)
 
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -564,7 +564,7 @@ func TestIntegration_ScopeTooLargeDetection(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	)
 
-	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -632,7 +632,7 @@ func TestIntegration_FullFlowBuildValidateCloseNext(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	)
 
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -715,7 +715,7 @@ func TestIntegration_UnclearSpecStopsProcessing(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	)
 
-	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -797,7 +797,7 @@ func TestIntegration_MultipleEscalationsWithRetries(t *testing.T) {
 	// 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	// 	)
 
-	// 	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	// 	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 	// 		t.Fatalf("Run() failed: %v", err)
 	// 	}
 
@@ -864,7 +864,7 @@ func TestIntegration_DryRunMultipleBeads(t *testing.T) {
 	// 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}},
 	// 	)
 
-	// 	if err := r.Run(context.Background(), 0, time.Time{}, true); err != nil {
+	// 	if err := r.Run(context.Background(), 0, time.Time{}, nil, true); err != nil {
 	// 		t.Fatalf("Run() failed: %v", err)
 	// 	}
 
@@ -938,7 +938,7 @@ func TestIntegration_LabelOverrideModelSelection(t *testing.T) {
 	// 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	// 	)
 
-	// 	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	// 	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 	// 		t.Fatalf("Run() failed: %v", err)
 	// 	}
 
@@ -989,7 +989,7 @@ func TestIntegration_ContextCancellationDuringLoop(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}},
 	)
 
-	err := r.Run(ctx, 0, time.Time{}, false)
+	err := r.Run(ctx, 0, time.Time{}, nil, false)
 	if err == nil {
 		t.Fatal("expected error from cancelled context")
 	}
@@ -1029,7 +1029,7 @@ func TestHeartbeatTrailingNewline(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouter(), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog},
 	)
 
-	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1103,7 +1103,7 @@ func TestIntegration_BetweenIterationsCommand(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 

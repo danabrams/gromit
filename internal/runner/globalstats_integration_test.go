@@ -72,7 +72,7 @@ func TestRun_UpdatesGlobalStatsAfterCompletion(t *testing.T) {
 	}
 
 	// Run the loop
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -158,7 +158,7 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	if err := r1.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r1.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("First run failed: %v", err)
 	}
 
@@ -188,7 +188,7 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps failed for second run: %v", err)
 	}
 
-	if err := r2.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r2.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Second run failed: %v", err)
 	}
 
@@ -281,7 +281,7 @@ func TestRun_LogsWarningOnGlobalStatsUpdateFailure(t *testing.T) {
 	}
 
 	// Run the loop (should complete despite global stats update failure)
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() should not fail due to global stats update error: %v", err)
 	}
 
@@ -347,7 +347,7 @@ func TestRun_AccumulatesStatsFromMultipleIterations(t *testing.T) {
 	}
 
 	// Run the loop
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -462,7 +462,7 @@ func TestRun_MergesWithExistingGlobalStats(t *testing.T) {
 	}
 
 	// Run the loop
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -546,7 +546,7 @@ func TestRun_UsesUserHomeDirForGlobalStatsPath(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	if err := r.Run(context.Background(), 0, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 

@@ -417,7 +417,7 @@ func TestProcessBeadReceivesScopeEstimateFromRun(t *testing.T) {
 	ctx := context.Background()
 
 	// Run a single iteration (max 1 iteration)
-	err = r.Run(ctx, 1, time.Time{}, false)
+	err = r.Run(ctx, 1, time.Time{}, nil, false)
 	if err != nil {
 		// Errors are expected in test setup (e.g., git operations), don't fail
 		t.Logf("Run error (expected in test): %v", err)

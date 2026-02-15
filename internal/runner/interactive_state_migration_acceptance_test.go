@@ -94,7 +94,7 @@ func TestRunnerRun_ReviewBaselineUsesInteractiveState(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps: %v", err)
 	}
 
-	if err := r.Run(context.Background(), 1, time.Now().Add(-time.Minute), false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Now().Add(-time.Minute), nil, false); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestRunnerRun_RetroSuggestionUsesInteractiveState(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps: %v", err)
 	}
 
-	if err := r.Run(context.Background(), 1, time.Now().Add(-time.Minute), false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Now().Add(-time.Minute), nil, false); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 

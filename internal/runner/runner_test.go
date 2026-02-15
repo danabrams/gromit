@@ -338,7 +338,7 @@ func TestNilGuards(t *testing.T) {
 			name: "RunNilRunner",
 			fn: func() error {
 				var r *Runner
-				return r.Run(context.Background(), 0, time.Time{}, false)
+				return r.Run(context.Background(), 0, time.Time{}, nil, false)
 			},
 			wantErr: true,
 		},
@@ -354,7 +354,7 @@ func TestNilGuards(t *testing.T) {
 			name: "RunNilConfig",
 			fn: func() error {
 				r := &Runner{output: os.Stdout}
-				err := r.Run(context.Background(), 0, time.Time{}, false)
+				err := r.Run(context.Background(), 0, time.Time{}, nil, false)
 				if err == nil {
 					return fmt.Errorf("expected error for nil config")
 				}
@@ -954,7 +954,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 				output: os.Stdout,
 			},
 			method: func(r *Runner) error {
-				return r.Run(context.Background(), 0, time.Time{}, false)
+				return r.Run(context.Background(), 0, time.Time{}, nil, false)
 			},
 			expectedError: "beads client is nil",
 		},
@@ -966,7 +966,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 				output: os.Stdout,
 			},
 			method: func(r *Runner) error {
-				return r.Run(context.Background(), 0, time.Time{}, false)
+				return r.Run(context.Background(), 0, time.Time{}, nil, false)
 			},
 			expectedError: "renderer is nil",
 		},
@@ -979,7 +979,7 @@ func TestProcessBeadAndRunNilDependencies(t *testing.T) {
 				output:   os.Stdout,
 			},
 			method: func(r *Runner) error {
-				return r.Run(context.Background(), 0, time.Time{}, false)
+				return r.Run(context.Background(), 0, time.Time{}, nil, false)
 			},
 			expectedError: "router is nil",
 		},
@@ -2544,7 +2544,7 @@ func TestScopedRun_FullLoopWithLabelFilters(t *testing.T) {
 	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
 
 	ctx := context.Background()
-	err = r.Run(ctx, 10, time.Time{}, false)
+	err = r.Run(ctx, 10, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
@@ -2991,7 +2991,6 @@ func TestRunStopChClosedBeforeStart(t *testing.T) {
 	stopCh := make(chan struct{})
 	close(stopCh)
 
-	// Expected failure: Run(ctx, maxIterations, deadline, stopCh, dryRun) overload does not exist yet.
 	err := r.Run(context.Background(), 10, time.Time{}, stopCh, false)
 	if err != nil {
 		t.Fatalf("Run() returned error: %v", err)
@@ -3031,7 +3030,6 @@ func TestRunStopChClosedDuringIteration(t *testing.T) {
 	}
 	r := setupRunStopChTestRunner(t, beads)
 
-	// Expected failure: Run(ctx, maxIterations, deadline, stopCh, dryRun) overload does not exist yet.
 	err := r.Run(context.Background(), 10, time.Time{}, stopCh, false)
 	if err != nil {
 		t.Fatalf("Run() returned error: %v", err)
@@ -3061,7 +3059,6 @@ func TestRunNilStopChProcessesUntilQueueEmpty(t *testing.T) {
 	}
 	r := setupRunStopChTestRunner(t, beads)
 
-	// Expected failure: Run(ctx, maxIterations, deadline, stopCh, dryRun) overload does not exist yet.
 	err := r.Run(context.Background(), 10, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() returned error: %v", err)

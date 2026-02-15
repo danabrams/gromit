@@ -160,7 +160,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create runner: %w", err)
 	}
-	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, dryRun)
+	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, nil, dryRun)
 }
 
 func showStatus(cmd *cobra.Command, args []string) error {

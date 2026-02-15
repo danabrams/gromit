@@ -309,7 +309,7 @@ func TestValidationRunnerResetFailuresCalledByRun(t *testing.T) {
 	}
 
 	// Run with no beads — should reset validationRunner failures
-	err = r.Run(context.Background(), 1, time.Time{}, false)
+	err = r.Run(context.Background(), 1, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}

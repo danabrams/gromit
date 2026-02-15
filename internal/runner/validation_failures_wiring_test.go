@@ -283,7 +283,7 @@ func TestRunResetsValidationFailures(t *testing.T) {
 	r.validationFailures = []string{"old failure 1", "old failure 2"}
 
 	// Run with no beads — should reset validationFailures and exit immediately
-	err = r.Run(context.Background(), 1, time.Time{}, false)
+	err = r.Run(context.Background(), 1, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}

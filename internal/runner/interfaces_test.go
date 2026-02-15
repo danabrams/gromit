@@ -620,7 +620,7 @@ func TestRunWithMocks_DryRun(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}},
 	)
 
-	err := r.Run(context.Background(), 5, time.Time{}, true)
+	err := r.Run(context.Background(), 5, time.Time{}, nil, true)
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
@@ -641,7 +641,7 @@ func TestRunWithMocks_NoWork(t *testing.T) {
 	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	err := r.Run(context.Background(), 0, time.Time{}, false)
+	err := r.Run(context.Background(), 0, time.Time{}, nil, false)
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
@@ -661,7 +661,7 @@ func TestRunWithMocks_MaxIterations(t *testing.T) {
 	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	err := r.Run(context.Background(), 2, time.Time{}, true)
+	err := r.Run(context.Background(), 2, time.Time{}, nil, true)
 	if err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
@@ -863,7 +863,7 @@ func TestRunWithMocks_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := r.Run(ctx, 0, time.Time{}, false)
+	err := r.Run(ctx, 0, time.Time{}, nil, false)
 	if err == nil {
 		t.Fatal("expected error from cancelled context")
 	}
@@ -897,7 +897,7 @@ func TestIterationLogWithMocks(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1054,7 +1054,7 @@ func TestRunWithMocks_BeadReadyError(t *testing.T) {
 	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	err := r.Run(context.Background(), 1, time.Time{}, false)
+	err := r.Run(context.Background(), 1, time.Time{}, nil, false)
 	if err == nil || !strings.Contains(err.Error(), "getting next bead") {
 		t.Errorf("expected 'getting next bead' error, got: %v", err)
 	}
@@ -1272,7 +1272,7 @@ func TestRunWithMocks_ClosesBeadOnSuccess(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "close-test" {
@@ -1317,7 +1317,7 @@ func TestRunWithMocks_PrecheckPassed(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 5, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1425,7 +1425,7 @@ func TestRunWithMocks_PrecheckVerificationRejects(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 5, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1488,7 +1488,7 @@ func TestRunWithMocks_PrecheckVerificationConfirms(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 5, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1556,7 +1556,7 @@ func TestRunWithMocks_PrecheckVerificationError(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 5, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1608,7 +1608,7 @@ func TestRunWithMocks_PrecheckNotMet(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 5, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1675,7 +1675,7 @@ func TestRunWithMocks_PrecheckError(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	if err := r.Run(context.Background(), 5, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 5, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1769,7 +1769,7 @@ func TestRunWithMocks_PrecheckCountsAsIteration(t *testing.T) {
 
 	// Run with maxIterations=1. First bead passes precheck and consumes the run budget.
 	// The second bead should not be processed in this run.
-	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1852,7 +1852,7 @@ func TestRunWithMocks_PrecheckPassedCloseFailsLoopTerminates(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
 	// Run should terminate after the second loop iteration (first iteration adds to skippedBeads, second detects it)
-	if err := r.Run(context.Background(), 10, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 10, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -1930,7 +1930,7 @@ func TestRunWithMocks_ConsecutivePrecheckSkipsHitsLimit(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
 	// Run should fail after 3 consecutive precheck skips
-	err := r.Run(context.Background(), 10, time.Time{}, false)
+	err := r.Run(context.Background(), 10, time.Time{}, nil, false)
 	if err == nil {
 		t.Fatal("expected error from consecutive skip limit, got nil")
 	}
@@ -2037,7 +2037,7 @@ func TestRunWithMocks_ConsecutiveSkipCounterResetsAfterRealBuild(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
 	// Run should complete without hitting consecutive skip limit
-	if err := r.Run(context.Background(), 10, time.Time{}, false); err != nil {
+	if err := r.Run(context.Background(), 10, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
@@ -2113,7 +2113,7 @@ func TestRunWithMocks_CustomConsecutiveSkipLimit(t *testing.T) {
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
 	// Run should fail after 2 consecutive precheck skips (custom limit)
-	err := r.Run(context.Background(), 10, time.Time{}, false)
+	err := r.Run(context.Background(), 10, time.Time{}, nil, false)
 	if err == nil {
 		t.Fatal("expected error from consecutive skip limit, got nil")
 	}
