@@ -341,7 +341,7 @@ func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadCo
 	r.log("Validation passed")
 
 	// Update runner's touched packages map for learning extraction filtering
-	if bc.TouchedPackages != nil && len(bc.TouchedPackages) > 0 {
+	if len(bc.TouchedPackages) > 0 {
 		r.updateTouchedPackages(bc.TouchedPackages)
 	}
 
