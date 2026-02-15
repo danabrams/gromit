@@ -130,6 +130,7 @@ func TestCLIContract_HelpText(t *testing.T) {
 		{"refine", []string{"refine", "--help"}},
 		{"plan", []string{"plan", "--help"}},
 		{"review", []string{"review", "--help"}},
+		{"explore", []string{"explore", "--help"}},
 		{"decompose", []string{"decompose", "--help"}},
 		{"install-skill", []string{"install-skill", "--help"}},
 	}
@@ -268,6 +269,14 @@ func TestCLIContract_Flags(t *testing.T) {
 				"dry-run":         "bool",   // --dry-run
 				"agent":           "string", // --agent
 				"choose-agent":    "bool",   // --choose-agent
+			},
+		},
+		{
+			name: "explore",
+			flags: map[string]string{
+				"model":        "string", // --model
+				"agent":        "string", // --agent
+				"choose-agent": "bool",   // --choose-agent
 			},
 		},
 		{
