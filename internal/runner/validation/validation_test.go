@@ -781,6 +781,62 @@ func TestValidate_CommandTimeoutReturnsValidationFailure(t *testing.T) {
 	}
 }
 
+func TestValidate_ParentDeadlineExceededReturnsExecutionError(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.CommandTimeout = 0
+	cfg.Validation.Commands = []string{"go test ./..."}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		<-ctx.Done()
+		return "", "", 0, ctx.Err()
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	bc := newTestBeadContext()
+
+	parentCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	err := r.Validate(parentCtx, bc)
+	if err == nil {
+		t.Fatal("expected parent deadline error")
+	}
+	if errors.Is(err, ErrValidationFailed) {
+		t.Fatalf("expected non-sentinel execution error, got: %v", err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded error, got: %v", err)
+	}
+}
+
+func TestValidate_ParentCanceledReturnsExecutionError(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.CommandTimeout = 0
+	cfg.Validation.Commands = []string{"go test ./..."}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		<-ctx.Done()
+		return "", "", 0, ctx.Err()
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	bc := newTestBeadContext()
+
+	parentCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := r.Validate(parentCtx, bc)
+	if err == nil {
+		t.Fatal("expected parent canceled error")
+	}
+	if errors.Is(err, ErrValidationFailed) {
+		t.Fatalf("expected non-sentinel execution error, got: %v", err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context canceled error, got: %v", err)
+	}
+}
+
 // Ensure imports are used
 var (
 	_ = claude.Result{}

@@ -176,17 +176,27 @@ func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.Bea
 	if !r.cfg.Validation.Enabled {
 		return nil
 	}
+
 	results, err := r.runCommands(ctx, commands, bc.PromptCtx.WorkDir)
 	if err != nil {
 		return err
 	}
 	for _, result := range results {
 		if result.err != nil {
+			// If the parent bead context has already expired/canceled, surface that
+			// directly so callers can distinguish bead budget exhaustion from a
+			// command-level validation timeout.
+			if parentErr := ctx.Err(); parentErr != nil {
+				return fmt.Errorf("validation command %q aborted: %w", result.command, parentErr)
+			}
 			if errors.Is(result.err, context.DeadlineExceeded) {
 				failureOutput := formatTimeoutFailureOutput(result.command, r.cfg.Validation.CommandTimeout, result.stdout, result.stderr)
 				r.lastFailureOutput = failureOutput
 				bc.Result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
 				return ErrValidationFailed
+			}
+			if errors.Is(result.err, context.Canceled) {
+				return fmt.Errorf("validation command %q aborted: %w", result.command, context.Canceled)
 			}
 			return fmt.Errorf("validation command %q: %w", result.command, result.err)
 		}

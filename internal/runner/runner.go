@@ -953,7 +953,7 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		// Re-validate after refactoring (with recovery on failure)
 		if r.cfg.Validation.Enabled {
 			if err := r.runValidationWithRecovery(ctx, bc); err != nil {
-				bc.Result.Error = fmt.Errorf("validation failed after refactoring: %w", err)
+				bc.Result.Error = wrapRefactorValidationError(err)
 				return bc.Result
 			}
 		}
@@ -974,4 +974,17 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 
 	bc.Result.Success = true
 	return bc.Result
+}
+
+func wrapRefactorValidationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("validation after refactoring aborted due to timeout budget exhaustion: %w", err)
+	}
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("validation after refactoring aborted: %w", err)
+	}
+	return fmt.Errorf("validation failed after refactoring: %w", err)
 }
