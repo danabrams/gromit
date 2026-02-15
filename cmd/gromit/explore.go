@@ -19,7 +19,7 @@ import (
 var exploreCmd = &cobra.Command{
 	Use:   "explore [topic]",
 	Short: "Launch interactive exploration session",
-	Long: `Launch an interactive brainstorming session for exploring a big idea or problem space.
+	Long: fmt.Sprintf(`Launch an interactive brainstorming session for exploring a big idea or problem space.
 
 The session receives full project context and guides collaborative exploration
 to break down ideas into concrete artifacts: backlog items (via gromit add),
@@ -28,15 +28,20 @@ specs, or epics — whatever granularity makes sense.
 Examples:
   gromit explore                              # Open-ended brainstorm
   gromit explore "Improve developer onboarding" # Pre-seeded topic
-  gromit explore --model sonnet "Add dark mode" # Override model`,
+  gromit explore --model sonnet "Add dark mode" # Override model
+%s`, exploreCodexHelpExample),
 	Args: cobra.MaximumNArgs(1),
 	RunE: runExplore,
 }
 
 var exploreModel string
 
+const exploreCodexHelpExample = `  gromit explore --agent codex "Audit onboarding flow" # Use Codex for the session`
+
 func init() {
 	exploreCmd.Flags().StringVar(&exploreModel, "model", "opus", "Claude model to use (opus, sonnet, haiku)")
+	exploreCmd.Flags().String("agent", "", "Override the default agent for this explore session")
+	exploreCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
 	rootCmd.AddCommand(exploreCmd)
 }
 
@@ -64,10 +69,13 @@ func runExplore(cmd *cobra.Command, args []string) error {
 
 	// Execute explore workflow
 	ctx := context.Background()
+	agentFlag, _ := cmd.Flags().GetString("agent")
+	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
 	input := pipeline.ExploreInput{
-		Topic:     topic,
-		AgentName: "", // Use default agent
-		Model:     exploreModel,
+		Topic:       topic,
+		AgentName:   agentFlag,
+		ChooseAgent: chooseAgent,
+		Model:       exploreModel,
 	}
 
 	result, err := p.Explore(ctx, input)
