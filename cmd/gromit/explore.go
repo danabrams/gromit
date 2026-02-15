@@ -30,8 +30,9 @@ Examples:
   gromit explore "Improve developer onboarding" # Pre-seeded topic
   gromit explore --model sonnet "Add dark mode" # Override model
 %s
+%s
 
-%s`, exploreCodexHelpExample, exploreAgentSelectionHelpSentence),
+%s`, exploreCodexHelpExample, exploreChooseAgentHelpExample, exploreAgentSelectionHelpSentence),
 	Args: cobra.MaximumNArgs(1),
 	RunE: runExplore,
 }
@@ -39,6 +40,7 @@ Examples:
 var exploreModel string
 
 const exploreCodexHelpExample = `  gromit explore --agent codex "Audit onboarding flow" # Use Codex for the session`
+const exploreChooseAgentHelpExample = `  gromit explore --choose-agent "Audit onboarding flow" # Pick an agent interactively`
 const exploreAgentSelectionHelpSentence = "Agent selection priority: --agent, --choose-agent, agents.phases.explore, then default \"claude\"."
 const exploreAgentOverrideFlag = "--from-override"
 const explorePhaseConfigFlag = "--from-phase-config"

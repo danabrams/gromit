@@ -16,3 +16,9 @@ func TestExploreHelpDocumentsAgentSelection(t *testing.T) {
 		t.Fatalf("expected explore help to include agent selection guidance %q", exploreAgentSelectionHelpSentence)
 	}
 }
+
+func TestExploreHelpIncludesChooseAgentExample(t *testing.T) {
+	if !strings.Contains(exploreCmd.Long, exploreChooseAgentHelpExample) {
+		t.Fatalf("expected explore help to include choose-agent example %q", exploreChooseAgentHelpExample)
+	}
+}
