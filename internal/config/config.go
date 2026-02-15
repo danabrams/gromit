@@ -175,6 +175,7 @@ type PhasesConfig struct {
 	Plan    string `yaml:"plan"`
 	Review  string `yaml:"review"`
 	Explore string `yaml:"explore"`
+	Debug   string `yaml:"debug"`
 }
 
 type ProviderDef struct {
@@ -425,6 +426,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Agents.Phases.Explore == "" {
 		c.Agents.Phases.Explore = "claude"
+	}
+	if c.Agents.Phases.Debug == "" {
+		c.Agents.Phases.Debug = "claude"
 	}
 
 	// Routing defaults — only when providers are configured

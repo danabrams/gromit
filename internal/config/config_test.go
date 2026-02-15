@@ -110,6 +110,9 @@ func TestSetDefaultsInitializesPhasesToClaude(t *testing.T) {
 	if cfg.Agents.Phases.Explore != "claude" {
 		t.Errorf("Phases.Explore = %q, want %q", cfg.Agents.Phases.Explore, "claude")
 	}
+	if cfg.Agents.Phases.Debug != "claude" {
+		t.Errorf("Phases.Debug = %q, want %q", cfg.Agents.Phases.Debug, "claude")
+	}
 }
 
 func TestSelectModelBasics(t *testing.T) {
