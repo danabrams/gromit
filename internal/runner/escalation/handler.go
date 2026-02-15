@@ -3,6 +3,7 @@ package escalation
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
@@ -32,8 +33,9 @@ type CreateSubFn func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTas
 // This is a local type mirroring execution.InvocationResult to avoid
 // importing the execution sibling package.
 type InvocationResult struct {
-	Result     *claude.Result
-	StallFired bool
+	Result      *claude.Result
+	StallFired  bool
+	TimeoutType string // "stall", "invocation", "bead", ""
 }
 
 // InvokeFn executes a single Claude invocation. The facade wraps
@@ -96,29 +98,76 @@ func (h *Handler) EscalateTier(bc *runtypes.BeadContext, nextTier string) {
 // HandleStallTimeout handles the case where a stall timeout was detected during execution.
 // Returns true if the retry loop should continue, false if processBead should return.
 func (h *Handler) HandleStallTimeout(ctx context.Context, bc *runtypes.BeadContext) (continueLoop bool) {
-	bc.RetriesThisModel++
-	bc.TotalRetriesThisBead++
-
-	if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
+	_ = ctx
+	if bc.MaxRetriesPerBead > 0 && bc.TotalRetriesThisBead >= bc.MaxRetriesPerBead {
 		h.log("Stall timeout: max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
 		bc.Result.Error = fmt.Errorf("stall timeout: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
 		return false
 	}
 
-	if bc.RetriesThisModel <= bc.MaxRetries {
-		h.log("Stall timeout detected, retrying with same model (attempt %d/%d)", bc.RetriesThisModel, bc.MaxRetries)
+	hasToolActivity := bc != nil && bc.Result != nil && bc.Result.ToolCallCount > 0
+
+	// Only allow a same-tier stall retry when there has been no tool activity,
+	// and cap that to a single retry.
+	if !hasToolActivity && !bc.StallRetryWithoutToolUsed {
+		bc.StallRetryWithoutToolUsed = true
+		bc.RetriesThisModel++
+		bc.TotalRetriesThisBead++
+		h.log("Stall timeout detected with no tool activity, retrying once on same tier")
 		return true
 	}
 
+	return h.handleTimeoutEscalationOrFail(bc, "stall timeout")
+}
+
+// HandleInvocationTimeout escalates once on invocation timeout and otherwise fails fast.
+func (h *Handler) HandleInvocationTimeout(bc *runtypes.BeadContext) (continueLoop bool) {
+	return h.handleTimeoutEscalationOrFail(bc, "invocation timeout")
+}
+
+func (h *Handler) handleTimeoutEscalationOrFail(bc *runtypes.BeadContext, failureLabel string) bool {
+	if bc == nil || bc.Result == nil {
+		return false
+	}
+	if bc.TimeoutEscalationsThisBead >= 1 {
+		bc.Result.Error = fmt.Errorf("%s: timeout escalation limit reached (1 per bead)", failureLabel)
+		return false
+	}
 	nextTier := h.cfg.NextEscalationTier(bc.Tier)
 	if nextTier == "" {
-		h.log("Stall timeout: no more tiers to escalate to, attempting decomposition")
-		return h.AttemptDecomposition(ctx, bc, "stall timeout")
+		bc.Result.Error = fmt.Errorf("%s: no higher tier available", failureLabel)
+		return false
 	}
-
-	h.log("Stall timeout detected, escalating from %s to %s", bc.Tier, nextTier)
+	bc.TimeoutEscalationsThisBead++
+	h.log("%s detected, escalating from %s to %s", failureLabel, bc.Tier, nextTier)
 	h.EscalateTier(bc, nextTier)
 	return true
+}
+
+func (h *Handler) checkRetryBudgetBeforeAttempt(bc *runtypes.BeadContext) error {
+	if bc == nil {
+		return fmt.Errorf("bead context is nil")
+	}
+	if bc.MaxAttemptsPerBead > 0 && bc.AttemptsThisBead >= bc.MaxAttemptsPerBead {
+		return fmt.Errorf("retry budget exceeded: attempts %d/%d", bc.AttemptsThisBead, bc.MaxAttemptsPerBead)
+	}
+	if bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() && time.Since(bc.BeadStartTime) >= bc.BeadTimeout {
+		return fmt.Errorf("retry budget exceeded: bead wall-clock %s reached (timeout=%s)", time.Since(bc.BeadStartTime).Round(time.Second), bc.BeadTimeout)
+	}
+	return nil
+}
+
+func (h *Handler) checkRetryBudgetAfterFailure(bc *runtypes.BeadContext) error {
+	if bc == nil {
+		return fmt.Errorf("bead context is nil")
+	}
+	if bc.MaxAttemptsPerBead > 0 && bc.AttemptsThisBead >= bc.MaxAttemptsPerBead {
+		return fmt.Errorf("retry budget exceeded after failed attempt: %d/%d", bc.AttemptsThisBead, bc.MaxAttemptsPerBead)
+	}
+	if bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() && time.Since(bc.BeadStartTime) >= bc.BeadTimeout {
+		return fmt.Errorf("retry budget exceeded after failed attempt: bead wall-clock %s reached (timeout=%s)", time.Since(bc.BeadStartTime).Round(time.Second), bc.BeadTimeout)
+	}
+	return nil
 }
 
 // HandleEscalation tries to escalate to the next tier or decompose the task.
@@ -242,6 +291,12 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		default:
 		}
 
+		if budgetErr := h.checkRetryBudgetBeforeAttempt(bc); budgetErr != nil {
+			bc.Result.Error = budgetErr
+			return false
+		}
+		bc.AttemptsThisBead++
+
 		invResult, err := invokeFn(ctx, bc, bc.BuildPrompt)
 
 		if err != nil {
@@ -250,6 +305,18 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 				if h.HandleStallTimeout(ctx, bc) {
 					continue
 				}
+				return false
+			}
+			if invResult != nil && invResult.TimeoutType == "invocation" {
+				bc.Result.TimeoutType = "invocation"
+				if h.HandleInvocationTimeout(bc) {
+					continue
+				}
+				return false
+			}
+			if invResult != nil && invResult.TimeoutType == "bead" {
+				bc.Result.TimeoutType = "bead"
+				bc.Result.Error = fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 				return false
 			}
 			bc.Result.Error = fmt.Errorf("claude invocation: %w", err)
@@ -266,6 +333,11 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 
 		if claudeResult.Success {
 			return true
+		}
+
+		if budgetErr := h.checkRetryBudgetAfterFailure(bc); budgetErr != nil {
+			bc.Result.Error = budgetErr
+			return false
 		}
 
 		// Show partial progress on build failure (git diff --stat)

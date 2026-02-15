@@ -36,18 +36,18 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		if err != nil {
 			if stallFired && ctx.Err() == nil {
-				return &escalation.InvocationResult{StallFired: true}, err
+				return &escalation.InvocationResult{StallFired: true, TimeoutType: "stall"}, err
 			}
 			// Classify timeout type
 			if ctx.Err() != nil && bc.ParentCtx.Err() == nil {
 				bc.Result.TimeoutType = "bead"
 				escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
-				return nil, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+				return &escalation.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 			} else if bc.ParentCtx.Err() != nil {
 				return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
 			}
 			bc.Result.TimeoutType = "invocation"
-			return nil, fmt.Errorf("claude invocation: %w", err)
+			return &escalation.InvocationResult{TimeoutType: "invocation"}, fmt.Errorf("claude invocation: %w", err)
 		}
 
 		if claudeResult == nil {

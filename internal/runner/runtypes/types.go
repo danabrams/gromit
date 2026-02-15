@@ -27,11 +27,18 @@ type BeadContext struct {
 	TotalRetriesThisBead int
 	MaxRetries           int
 	MaxRetriesPerBead    int
+	AttemptsThisBead     int
+	MaxAttemptsPerBead   int
 
 	// Context management
-	ParentCtx   context.Context
-	BeadTimeout time.Duration
-	RunDeadline time.Time
+	ParentCtx     context.Context
+	BeadTimeout   time.Duration
+	RunDeadline   time.Time
+	BeadStartTime time.Time
+
+	// Timeout policy tracking
+	TimeoutEscalationsThisBead int
+	StallRetryWithoutToolUsed  bool
 
 	// Scope estimate (cached from scope gate)
 	ScopeEstimate *prompt.ScopeEstimate

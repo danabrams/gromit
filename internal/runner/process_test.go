@@ -375,7 +375,7 @@ func TestHandleStallTimeout_Escalates(t *testing.T) {
 	h := escalation.NewHandler(cfg, nil, nil, nil, nil, nil, nil)
 	bc := &runtypes.BeadContext{
 		Bead:   &bead.Bead{ID: "test-1"},
-		Result: &IterationResult{},
+		Result: &IterationResult{ToolCallCount: 1},
 		Model:  "haiku",
 		Tier:   provider.TierLow, // haiku maps to low tier
 		PromptCtx: &prompt.Context{

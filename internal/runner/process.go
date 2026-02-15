@@ -53,19 +53,24 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	}
 
 	bc := &runtypes.BeadContext{
-		Bead:              b,
-		Parent:            parent,
-		Result:            &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model},
-		Model:             model, // legacy model name, will be updated by router
-		Tier:              tier,
-		StartCommit:       startCommit,
-		Iteration:         iteration,
-		MaxRetries:        r.cfg.Escalation.MaxRetriesPerModel,
-		MaxRetriesPerBead: r.cfg.Escalation.MaxRetriesPerBead,
-		ParentCtx:         ctx,
-		BeadTimeout:       beadTimeout,
-		RunDeadline:       runDeadline,
-		ScopeEstimate:     scopeEstimate,
+		Bead:               b,
+		Parent:             parent,
+		Result:             &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model},
+		Model:              model, // legacy model name, will be updated by router
+		Tier:               tier,
+		StartCommit:        startCommit,
+		Iteration:          iteration,
+		MaxRetries:         r.cfg.Escalation.MaxRetriesPerModel,
+		MaxRetriesPerBead:  r.cfg.Escalation.MaxRetriesPerBead,
+		MaxAttemptsPerBead: r.cfg.Escalation.MaxRetriesPerBead + 1,
+		ParentCtx:          ctx,
+		BeadTimeout:        beadTimeout,
+		RunDeadline:        runDeadline,
+		BeadStartTime:      time.Now(),
+		ScopeEstimate:      scopeEstimate,
+	}
+	if bc.MaxAttemptsPerBead < 1 {
+		bc.MaxAttemptsPerBead = 1
 	}
 
 	// Preemptive escalation: if scope check is enabled, scope complexity is high,

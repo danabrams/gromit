@@ -3,6 +3,7 @@ package escalation
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/analyzer"
@@ -120,6 +121,7 @@ func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
+	bc.Result.ToolCallCount = 0 // no activity => one same-tier retry allowed
 	bc.RetriesThisModel = 0
 	bc.TotalRetriesThisBead = 0
 	bc.MaxRetries = 2
@@ -145,7 +147,8 @@ func TestHandleStallTimeout_EscalatesToNextTier(t *testing.T) {
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
 	bc.Model = "haiku"
-	bc.RetriesThisModel = 3 // exceeds MaxRetries=2
+	bc.Result.ToolCallCount = 1 // tool activity => no same-tier retry
+	bc.RetriesThisModel = 3     // exceeds MaxRetries=2
 	bc.MaxRetries = 2
 	bc.TotalRetriesThisBead = 3
 
@@ -161,6 +164,60 @@ func TestHandleStallTimeout_EscalatesToNextTier(t *testing.T) {
 	}
 	if bc.RetriesThisModel != 0 {
 		t.Errorf("RetriesThisModel = %d, want 0 after escalation", bc.RetriesThisModel)
+	}
+}
+
+func TestHandleStallTimeout_OnlyOneNoToolRetry(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierLow
+	bc.Model = "haiku"
+	bc.Result.ToolCallCount = 0
+
+	if !h.HandleStallTimeout(context.Background(), bc) {
+		t.Fatal("expected first no-tool stall to retry once")
+	}
+	if bc.StallRetryWithoutToolUsed != true {
+		t.Fatal("expected StallRetryWithoutToolUsed=true after first no-tool stall")
+	}
+	if bc.Tier != provider.TierLow {
+		t.Fatalf("tier changed too early: got %s", bc.Tier)
+	}
+
+	// Second no-tool stall should consume timeout escalation (no second same-tier retry).
+	if !h.HandleStallTimeout(context.Background(), bc) {
+		t.Fatal("expected second no-tool stall to escalate once")
+	}
+	if bc.Tier != provider.TierMedium {
+		t.Fatalf("expected escalation to %s, got %s", provider.TierMedium, bc.Tier)
+	}
+}
+
+func TestHandleInvocationTimeout_EscalatesOnlyOncePerBead(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierLow
+	bc.Model = "haiku"
+
+	if !h.HandleInvocationTimeout(bc) {
+		t.Fatal("expected first invocation timeout to escalate")
+	}
+	if bc.Tier != provider.TierMedium {
+		t.Fatalf("expected tier=%s after first escalation, got %s", provider.TierMedium, bc.Tier)
+	}
+	if bc.TimeoutEscalationsThisBead != 1 {
+		t.Fatalf("TimeoutEscalationsThisBead=%d, want 1", bc.TimeoutEscalationsThisBead)
+	}
+
+	if h.HandleInvocationTimeout(bc) {
+		t.Fatal("expected second invocation timeout to stop (escalation limit reached)")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected error when timeout escalation limit is reached")
 	}
 }
 
@@ -525,6 +582,7 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 		callCount++
 		if callCount == 1 {
 			// First call: stall
+			bc.Result.ToolCallCount = 1 // treat as active stall => escalate, not same-tier retry
 			return &InvocationResult{
 				StallFired: true,
 				Result:     &claude.Result{Success: false},
@@ -545,6 +603,60 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 	}
 	if bc.Tier != provider.TierMedium {
 		t.Errorf("Tier = %q, want %q after stall escalation", bc.Tier, provider.TierMedium)
+	}
+}
+
+func TestExecuteWithRetry_InvocationTimeoutEscalatesAndThenSucceeds(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierLow
+	bc.Model = "haiku"
+
+	callCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		callCount++
+		if callCount == 1 {
+			return &InvocationResult{TimeoutType: "invocation"}, fmt.Errorf("context deadline exceeded")
+		}
+		return &InvocationResult{Result: &claude.Result{Success: true, Output: "ok"}}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if !success {
+		t.Fatal("expected success after one timeout escalation")
+	}
+	if bc.Tier != provider.TierMedium {
+		t.Fatalf("expected escalation to %s, got %s", provider.TierMedium, bc.Tier)
+	}
+}
+
+func TestExecuteWithRetry_StopsWhenAttemptBudgetExceeded(t *testing.T) {
+	cfg := newTestConfig()
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{Category: analyzer.CategoryLogic, Recoverable: true, Suggestion: "retry"}, nil
+		},
+	}
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.MaxAttemptsPerBead = 1
+
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		return &InvocationResult{Result: &claude.Result{Success: false, Output: "fail"}}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected failure when attempt budget is exhausted")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected retry budget error")
+	}
+	if got := bc.Result.Error.Error(); got == "" || !strings.Contains(got, "retry budget exceeded") {
+		t.Fatalf("unexpected error: %v", bc.Result.Error)
 	}
 }
 
