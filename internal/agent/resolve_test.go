@@ -555,6 +555,18 @@ func TestResolveWithPhaseConfigPriority(t *testing.T) {
 			wantName: "gemini",
 		},
 		{
+			name: "debug phase uses configured agent",
+			cfg: &config.Config{
+				Agents: config.AgentsConfig{
+					Phases: config.PhasesConfig{
+						Debug: "codex",
+					},
+				},
+			},
+			phase:    "debug",
+			wantName: "codex",
+		},
+		{
 			name: "phase config uses custom agent definition",
 			cfg: &config.Config{
 				Agents: config.AgentsConfig{

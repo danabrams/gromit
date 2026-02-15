@@ -87,6 +87,8 @@ func getPhaseAgent(cfg *config.Config, phase string) string {
 		return cfg.Agents.Phases.Review
 	case "explore":
 		return cfg.Agents.Phases.Explore
+	case "debug":
+		return cfg.Agents.Phases.Debug
 	default:
 		return ""
 	}
