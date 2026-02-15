@@ -301,6 +301,10 @@ func (e *Executor) RunAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes
 	currentTier := bc.Tier
 
 	for {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("acceptance tests phase aborted: %w", err)
+		}
+
 		if retries > 0 {
 			e.log("Retrying acceptance tests (attempt %d/%d)...", retries+1, maxRetries+1)
 		}
@@ -311,6 +315,9 @@ func (e *Executor) RunAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes
 			return nil
 		}
 		e.log("ATDD acceptance attempt failed: %v", err)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("acceptance tests phase aborted: %w", err)
+		}
 
 		// Retry with same tier
 		if retries < maxRetries {

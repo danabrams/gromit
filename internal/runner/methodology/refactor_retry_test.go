@@ -2,6 +2,7 @@ package methodology
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -466,6 +467,37 @@ func TestRunAcceptanceTestsWithRetry_FailsWhenAllTiersExhausted(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "all tiers") {
 		t.Errorf("error should mention all tiers exhausted, got: %v", err)
+	}
+}
+
+func TestRunAcceptanceTestsWithRetry_FailsFastOnCanceledContext(t *testing.T) {
+	cfg := newTestConfigWithEscalation()
+	var buf strings.Builder
+
+	invokeCount := 0
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		return "acceptance prompt", nil
+	}
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) error {
+		invokeCount++
+		return nil
+	}
+
+	exec := NewExecutor(cfg, &buf, renderFn, invokeFn, nil)
+	bc := newTestBeadContextWithTier(provider.TierLow)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := exec.RunAcceptanceTestsWithRetry(ctx, bc)
+	if err == nil {
+		t.Fatal("RunAcceptanceTestsWithRetry should fail when context is canceled")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got: %v", err)
+	}
+	if invokeCount != 0 {
+		t.Errorf("expected no invocation attempt when context already canceled, got %d", invokeCount)
 	}
 }
 

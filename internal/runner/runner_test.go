@@ -3,7 +3,9 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 )
 
@@ -2732,6 +2735,83 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRunWritesFinalStatusOnContextCancellation(t *testing.T) {
+	autoPushDisabled := false
+	precheckDisabled := false
+
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled: false,
+		},
+		Review: config.ReviewConfig{
+			Enabled: false,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	beadReady := false
+	mockBeads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			if beadReady {
+				return nil, nil
+			}
+			beadReady = true
+			return &bead.Bead{ID: "cancel-1", Title: "cancel test", Priority: 1}, nil
+		},
+		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) { return nil, nil },
+		SyncFn:      func() error { return nil },
+		CloseFn:     func(id string) error { return nil },
+	}
+
+	mockProvider := &mockProviderWithRouterTracking{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			<-ctx.Done()
+			return &provider.Result{Success: false, Model: "test-sonnet", Output: "cancelled"}, ctx.Err()
+		},
+	}
+
+	gromitDir := t.TempDir()
+	r, err := NewRunnerWithDeps(cfg, io.Discard, gromitDir, Deps{
+		Beads:    mockBeads,
+		Router:   provider.NewSingleProviderRouter(mockProvider),
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+
+	runCtx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	err = r.Run(runCtx, 1, time.Time{}, nil, false)
+	if err == nil {
+		t.Fatal("expected run to return context cancellation error")
+	}
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context cancellation or deadline error, got: %v", err)
+	}
+
+	status, readErr := ReadStatus(gromitDir)
+	if readErr != nil {
+		t.Fatalf("ReadStatus failed: %v", readErr)
+	}
+	if status == nil {
+		t.Fatal("expected final status.json to exist")
+	}
+	if status.Running {
+		t.Fatalf("expected final status with running=false, got running=%v", status.Running)
 	}
 }
 

@@ -381,16 +381,18 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		defer r.restoreTmuxTitle(tmuxMgr.RestoreTitle)
 	}
 
+	iteration := 0
+
 	// Set up status file management
 	statusWriter, err := NewStatusWriter(r.gromitDir)
 	if err != nil {
 		r.log("Warning: could not create status writer: %v", err)
 	}
-	var finalIteration *int
+	statusWritten := false
 	if statusWriter != nil {
 		defer func() {
-			if finalIteration != nil {
-				_ = statusWriter.WriteFinal(*finalIteration)
+			if statusWritten {
+				_ = statusWriter.WriteFinal(iteration)
 			}
 		}()
 	}
@@ -421,7 +423,6 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		return err
 	}
 
-	iteration := 0
 	consecutiveSkips := 0
 
 	// Read per-bead statistics once before the main loop for efficiency
@@ -647,6 +648,8 @@ runLoop:
 		if statusWriter != nil {
 			if err := statusWriter.Write(iteration, b.ID, b.Title, model, true, maxIterations, timeBudgetMinutes); err != nil {
 				r.log("Warning: failed to write status.json: %v", err)
+			} else {
+				statusWritten = true
 			}
 
 			stopCh := make(chan struct{})
@@ -794,9 +797,6 @@ runLoop:
 	if iteration > 0 && r.logger != nil {
 		r.updateGlobalStats()
 	}
-
-	// Set final iteration count for deferred status write
-	finalIteration = &iteration
 
 	// Mark clean exit before returning
 	if sf != nil {
