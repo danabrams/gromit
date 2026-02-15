@@ -125,7 +125,7 @@ func PrintHeartbeat(stats *logger.StreamStats, output io.Writer) string {
 	} else {
 		line = fmt.Sprintf("[%dm%02ds] %d tool calls, %d files modified", minutes, seconds, toolCalls, filesModified)
 	}
-	fmt.Fprintf(output, "%s\n", line)
+	_, _ = fmt.Fprintf(output, "%s\n", line) // best-effort output, explicitly discard error
 	return line
 }
 
