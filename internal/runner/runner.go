@@ -356,7 +356,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		r.log("Warning: could not create tmux manager: %v", err)
 	}
 	if tmuxMgr != nil {
-		defer tmuxMgr.RestoreTitle()
+		defer r.restoreTmuxTitle(tmuxMgr.RestoreTitle)
 	}
 
 	// Set up status file management
@@ -743,6 +743,15 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	r.checkRetroSuggestion()
 
 	return nil
+}
+
+func (r *Runner) restoreTmuxTitle(restoreFn func() error) {
+	if r == nil || restoreFn == nil {
+		return
+	}
+	if err := restoreFn(); err != nil {
+		r.log("Warning: failed to restore tmux title: %v", err)
+	}
 }
 
 func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, deadline time.Time, scopeEstimate *prompt.ScopeEstimate) *IterationResult {
