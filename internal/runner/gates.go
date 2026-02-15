@@ -25,12 +25,10 @@ func (r *Runner) runPrecheck(ctx context.Context, b *bead.Bead) (bool, time.Dura
 		return false, 0
 	}
 
-	// Deterministic file existence check — reject before invoking any model
-	// if the bead describes creating files that don't exist yet. Models
-	// (especially Codex) unreliably verify file existence for refactoring beads
-	// where build/test criteria pass both before and after the change.
-	if parsed := extractExpectedFiles(b.Description); len(parsed) > 0 && anyFileMissing(parsed) {
-		r.log("Pre-check: description mentions files to create that don't exist, skipping model check")
+	// Deterministic structural checks — reject before invoking any model for
+	// obvious create/delete/refactor criteria that are still unmet.
+	if reason := deterministicPrecheckReason(b.Description); reason != "" {
+		r.log("Pre-check: %s, skipping model check", reason)
 		return false, time.Since(start)
 	}
 

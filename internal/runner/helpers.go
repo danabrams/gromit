@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -107,6 +108,10 @@ func (r *Runner) runCmd(ctx context.Context, command string, workDir string) (st
 // This enables deterministic precheck rejection for beads that describe
 // creating files that don't yet exist.
 var fileCreationPattern = regexp.MustCompile(`(?:^|\n)\s*\d*\.?\s*Create\s+((?:internal|cmd|pkg|test)/\S+\.go)`)
+var fileDeletionPattern = regexp.MustCompile(`(?:^|\n)\s*\d*\.?\s*(?:Delete|Remove)\s+((?:internal|cmd|pkg|test)/\S+)`)
+var filePathPattern = regexp.MustCompile(`(?:internal|cmd|pkg|test)/[^\s,;:()]+`)
+var buildTagPattern = regexp.MustCompile(`//go:build\s+([A-Za-z0-9_!&|() -]+)`)
+var testNamePattern = regexp.MustCompile(`\bTest[A-Za-z0-9_]+\b`)
 
 func extractExpectedFiles(description string) []string {
 	matches := fileCreationPattern.FindAllStringSubmatch(description, -1)
@@ -118,6 +123,32 @@ func extractExpectedFiles(description string) []string {
 		files = append(files, m[1])
 	}
 	return files
+}
+
+// extractDeletedFiles parses a bead description for file deletion patterns.
+func extractDeletedFiles(description string) []string {
+	matches := fileDeletionPattern.FindAllStringSubmatch(description, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	files := make([]string, 0, len(matches))
+	for _, m := range matches {
+		files = append(files, strings.TrimRight(m[1], ".,"))
+	}
+	return files
+}
+
+func extractFilePaths(description string) []string {
+	raw := filePathPattern.FindAllString(description, -1)
+	if len(raw) == 0 {
+		return nil
+	}
+	paths := make([]string, 0, len(raw))
+	for _, p := range raw {
+		trimmed := strings.TrimRight(p, ".,;:)")
+		paths = append(paths, trimmed)
+	}
+	return slices.Compact(paths)
 }
 
 // checkExpectedOutputs checks if expected files exist and returns a summary
@@ -151,6 +182,95 @@ func anyFileMissing(paths []string) bool {
 		}
 	}
 	return false
+}
+
+func anyFileExists(paths []string) bool {
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func filesMissingBuildTag(paths []string, tag string) []string {
+	var missing []string
+	wantPrefix := "//go:build " + strings.TrimSpace(tag)
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			missing = append(missing, p)
+			continue
+		}
+		lines := strings.Split(string(data), "\n")
+		firstNonEmpty := ""
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			firstNonEmpty = strings.TrimSpace(line)
+			break
+		}
+		if !strings.HasPrefix(firstNonEmpty, wantPrefix) {
+			missing = append(missing, p)
+		}
+	}
+	return missing
+}
+
+func filesStillContainTestNames(paths []string, testNames []string) []string {
+	var present []string
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		for _, name := range testNames {
+			if strings.Contains(content, "func "+name+"(") {
+				present = append(present, name)
+			}
+		}
+	}
+	return slices.Compact(present)
+}
+
+// deterministicPrecheckReason performs lightweight deterministic checks to
+// reject obvious false-positive auto-closes for structural/refactor tasks.
+func deterministicPrecheckReason(description string) string {
+	created := extractExpectedFiles(description)
+	if len(created) > 0 && anyFileMissing(created) {
+		return "description mentions files to create that don't exist"
+	}
+
+	deleted := extractDeletedFiles(description)
+	if len(deleted) > 0 && anyFileExists(deleted) {
+		return "description mentions files to delete that still exist"
+	}
+
+	m := buildTagPattern.FindStringSubmatch(description)
+	if len(m) > 1 {
+		tag := strings.TrimSpace(m[1])
+		paths := extractFilePaths(description)
+		if len(paths) > 0 {
+			if missing := filesMissingBuildTag(paths, tag); len(missing) > 0 {
+				return fmt.Sprintf("description requires //go:build %s but tag is missing in at least one target file", tag)
+			}
+		}
+	}
+
+	lower := strings.ToLower(description)
+	if strings.Contains(lower, "delete") || strings.Contains(lower, "remove") {
+		testNames := slices.Compact(testNamePattern.FindAllString(description, -1))
+		paths := extractFilePaths(description)
+		if len(testNames) > 0 && len(paths) > 0 {
+			if present := filesStillContainTestNames(paths, testNames); len(present) > 0 {
+				return "description says tests should be deleted, but named tests are still present"
+			}
+		}
+	}
+
+	return ""
 }
 
 // showPartialProgress displays git diff and expected outputs on failure

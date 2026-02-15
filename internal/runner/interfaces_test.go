@@ -1739,7 +1739,7 @@ func TestRunWithMocks_PrecheckError(t *testing.T) {
 	}
 }
 
-func TestRunWithMocks_PrecheckDoesNotCountAsIteration(t *testing.T) {
+func TestRunWithMocks_PrecheckCountsAsIteration(t *testing.T) {
 	callCount := 0
 	beads := &mockBeadClient{
 		ReadyFn: func() (*bead.Bead, error) {
@@ -1796,28 +1796,23 @@ func TestRunWithMocks_PrecheckDoesNotCountAsIteration(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	// Run with maxIterations=1. First bead passes precheck (skipped), second bead does real work.
-	// Both should complete because precheck skip doesn't count as an iteration.
+	// Run with maxIterations=1. First bead passes precheck and consumes the run budget.
+	// The second bead should not be processed in this run.
 	if err := r.Run(context.Background(), 1, time.Time{}, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
-	// Verify both beads were closed
-	if len(beads.ClosedIDs) != 2 {
-		t.Errorf("expected 2 beads closed, got %d: %v", len(beads.ClosedIDs), beads.ClosedIDs)
+	// Verify only the precheck-skipped bead was closed
+	if len(beads.ClosedIDs) != 1 {
+		t.Errorf("expected 1 bead closed, got %d: %v", len(beads.ClosedIDs), beads.ClosedIDs)
 	}
-	if len(beads.ClosedIDs) >= 2 {
-		if beads.ClosedIDs[0] != "bead-1" {
-			t.Errorf("expected first closed bead to be 'bead-1', got %q", beads.ClosedIDs[0])
-		}
-		if beads.ClosedIDs[1] != "bead-2" {
-			t.Errorf("expected second closed bead to be 'bead-2', got %q", beads.ClosedIDs[1])
-		}
+	if len(beads.ClosedIDs) == 1 && beads.ClosedIDs[0] != "bead-1" {
+		t.Errorf("expected closed bead to be 'bead-1', got %q", beads.ClosedIDs[0])
 	}
 
-	// Verify two iteration logs: one precheck_skipped, one normal
-	if len(mockLog.Logs) != 2 {
-		t.Fatalf("expected 2 iteration logs, got %d", len(mockLog.Logs))
+	// Verify one iteration log: precheck_skipped
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 iteration log, got %d", len(mockLog.Logs))
 	}
 
 	// First log should be precheck_skipped for bead-1
@@ -1831,35 +1826,21 @@ func TestRunWithMocks_PrecheckDoesNotCountAsIteration(t *testing.T) {
 		t.Errorf("expected first log Iteration=1, got %d", mockLog.Logs[0].Iteration)
 	}
 
-	// Second log should be normal for bead-2
-	if mockLog.Logs[1].BeadID != "bead-2" {
-		t.Errorf("expected second log BeadID 'bead-2', got %q", mockLog.Logs[1].BeadID)
-	}
-	if mockLog.Logs[1].Outcome == "precheck_skipped" {
-		t.Errorf("expected second log to have normal outcome, got 'precheck_skipped'")
-	}
-	if mockLog.Logs[1].Iteration != 1 {
-		t.Errorf("expected second log Iteration=1 (not incremented from precheck skip), got %d", mockLog.Logs[1].Iteration)
-	}
-
-	// Verify console output mentions both beads
+	// Verify console output shows max-iteration stop after precheck close.
 	output := buf.String()
 	if !strings.Contains(output, "auto-closing bead bead-1") {
 		t.Errorf("expected auto-closing message for bead-1 in output, got: %s", output)
 	}
-	if !strings.Contains(output, "Iteration 1") {
-		t.Errorf("expected 'Iteration 1' in output (for bead-2), got: %s", output)
-	}
-	if strings.Contains(output, "Iteration 2") {
-		t.Errorf("unexpected 'Iteration 2' in output (precheck should not count), got: %s", output)
+	if !strings.Contains(output, "Reached max iterations (1), stopping") {
+		t.Errorf("expected max-iteration stop message in output, got: %s", output)
 	}
 
-	// Verify 2 precheck calls and 1 build call
-	if len(mockClaude.RunCalls) != 2 {
-		t.Errorf("expected 2 Claude.Run calls (2 prechecks), got %d", len(mockClaude.RunCalls))
+	// Verify only one precheck call and no build call
+	if len(mockClaude.RunCalls) != 1 {
+		t.Errorf("expected 1 Claude.Run call (1 precheck), got %d", len(mockClaude.RunCalls))
 	}
-	if len(mockClaude.StreamRunCalls) != 1 {
-		t.Errorf("expected 1 Claude.StreamRun call (1 build), got %d", len(mockClaude.StreamRunCalls))
+	if len(mockClaude.StreamRunCalls) != 0 {
+		t.Errorf("expected 0 Claude.StreamRun calls (no build), got %d", len(mockClaude.StreamRunCalls))
 	}
 }
 

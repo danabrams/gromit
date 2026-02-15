@@ -154,6 +154,110 @@ func TestAnyFileMissing(t *testing.T) {
 	}
 }
 
+func TestExtractDeletedFiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		want        []string
+	}{
+		{
+			name: "delete patterns extracted",
+			description: `1. Delete cmd/gromit/explore_pipeline_adapter_test.go
+2. Remove internal/runner/integration_test.go`,
+			want: []string{"cmd/gromit/explore_pipeline_adapter_test.go", "internal/runner/integration_test.go"},
+		},
+		{
+			name:        "no delete pattern",
+			description: "Refactor runner state handling.",
+			want:        nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractDeletedFiles(tt.description)
+			if len(got) != len(tt.want) {
+				t.Fatalf("extractDeletedFiles() = %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("extractDeletedFiles()[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestDeterministicPrecheckReason(t *testing.T) {
+	tmpDir := t.TempDir()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() failed: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir() failed: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(wd)
+	}()
+
+	t.Run("missing created file", func(t *testing.T) {
+		desc := "1. Create internal/foo/new_file.go with implementation."
+		reason := deterministicPrecheckReason(desc)
+		if reason == "" || !strings.Contains(reason, "create") {
+			t.Fatalf("expected create-file rejection reason, got %q", reason)
+		}
+	})
+
+	t.Run("file slated for deletion still exists", func(t *testing.T) {
+		path := filepath.Join("internal", "foo", "old_file.go")
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("MkdirAll() failed: %v", err)
+		}
+		if err := os.WriteFile(path, []byte("package foo\n"), 0644); err != nil {
+			t.Fatalf("WriteFile() failed: %v", err)
+		}
+
+		desc := "1. Delete internal/foo/old_file.go"
+		reason := deterministicPrecheckReason(desc)
+		if reason == "" || !strings.Contains(reason, "delete") {
+			t.Fatalf("expected delete-file rejection reason, got %q", reason)
+		}
+	})
+
+	t.Run("missing go build tag on target file", func(t *testing.T) {
+		path := filepath.Join("internal", "foo", "tagged_test.go")
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("MkdirAll() failed: %v", err)
+		}
+		if err := os.WriteFile(path, []byte("package foo\n"), 0644); err != nil {
+			t.Fatalf("WriteFile() failed: %v", err)
+		}
+
+		desc := "Add '//go:build acceptance' as first line to internal/foo/tagged_test.go"
+		reason := deterministicPrecheckReason(desc)
+		if reason == "" || !strings.Contains(reason, "//go:build acceptance") {
+			t.Fatalf("expected build-tag rejection reason, got %q", reason)
+		}
+	})
+
+	t.Run("test names still present in listed file", func(t *testing.T) {
+		path := filepath.Join("internal", "foo", "remove_tests_test.go")
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("MkdirAll() failed: %v", err)
+		}
+		content := "package foo\n\nfunc TestDeadCase(t *testing.T) {}\n"
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("WriteFile() failed: %v", err)
+		}
+
+		desc := "Delete TestDeadCase from internal/foo/remove_tests_test.go."
+		reason := deterministicPrecheckReason(desc)
+		if reason == "" || !strings.Contains(reason, "tests should be deleted") {
+			t.Fatalf("expected test-removal rejection reason, got %q", reason)
+		}
+	})
+}
+
 func TestCheckExpectedOutputsEmpty(t *testing.T) {
 	got := checkExpectedOutputs(nil)
 	if got != "" {

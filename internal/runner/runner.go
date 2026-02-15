@@ -518,6 +518,9 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		// Run precheck to see if acceptance criteria are already met
 		passed, precheckDuration := r.runPrecheck(ctx, b)
 		if passed {
+			// Precheck skips count as iterations so -n limits bound total work
+			// (real builds + auto-closes), preventing large unexpected cascades.
+			iteration++
 			r.log("auto-closing bead %s", b.ID)
 
 			// Close the bead
@@ -537,7 +540,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			if r.logger != nil {
 				r.logger.LogIteration(&logger.IterationLog{
 					Timestamp:  time.Now(),
-					Iteration:  iteration + 1,
+					Iteration:  iteration,
 					BeadID:     b.ID,
 					BeadTitle:  b.Title,
 					Model:      "precheck",
