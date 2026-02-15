@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAgentsConfigUnmarshal(t *testing.T) {
@@ -3313,6 +3314,26 @@ func TestValidationConfig_NonInteractiveDefaultTrue(t *testing.T) {
 
 	if !cfg.Validation.IsNonInteractive() {
 		t.Fatal("expected validation non_interactive default to true")
+	}
+}
+
+func TestValidationConfig_CommandTimeoutYAML(t *testing.T) {
+	yamlContent := `
+validation:
+  command_timeout: 30s
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Validation.CommandTimeout != 30*time.Second {
+		t.Fatalf("CommandTimeout = %s, want %s", cfg.Validation.CommandTimeout, 30*time.Second)
 	}
 }
 

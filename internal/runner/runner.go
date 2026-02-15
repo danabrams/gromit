@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
@@ -67,6 +70,8 @@ type Runner struct {
 	gitDiffFn          func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
 	cmdRunnerFn        func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
 	autoFixFn          func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
+	lookupHostFn       func(ctx context.Context, host string) ([]string, error)                                                          // injectable DNS lookup for codex preflight
+	lookPathFn         func(file string) (string, error)                                                                                 // injectable binary lookup for codex preflight
 	labelFilters       []string                                                                                                          // optional spec labels to filter beads
 	validationFailures []string                                                                                                          // recent validation failure summaries from current run, injected into build prompts
 	touchedPackages    map[string]bool                                                                                                   // packages touched in the current run, used to filter learning extraction
@@ -220,6 +225,10 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 		stateFile:   sf,
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: defaultCmdRunner,
+		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
+			return net.DefaultResolver.LookupHost(ctx, host)
+		},
+		lookPathFn: exec.LookPath,
 	}
 	if cfg.Worktree.IsEnabled() {
 		manager, mgrErr := worktree.NewManager(mainDir)
@@ -309,6 +318,10 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 		gromitDir:   gromitDir,
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: cmdRunner,
+		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
+			return net.DefaultResolver.LookupHost(ctx, host)
+		},
+		lookPathFn: exec.LookPath,
 	}
 	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log, r.showPartialProgress)
 	r.validationRunner = validation.NewRunner(cfg, cmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
@@ -397,6 +410,10 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		r.streamLogger = sl
 		defer func() { _ = sl.Close() }()
 		r.log("Streaming to: %s (tail -f to watch)", sl.Path())
+	}
+
+	if err := r.preflightCodex(ctx); err != nil {
+		return err
 	}
 
 	iteration := 0
@@ -617,19 +634,46 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 
 		// Write status.json at iteration start
+		var stopStatusHeartbeat func()
 		if statusWriter != nil {
 			if err := statusWriter.Write(iteration, b.ID, b.Title, model, true, maxIterations, timeBudgetMinutes); err != nil {
 				r.log("Warning: failed to write status.json: %v", err)
 			}
+
+			stopCh := make(chan struct{})
+			var stopOnce sync.Once
+			stopStatusHeartbeat = func() {
+				stopOnce.Do(func() { close(stopCh) })
+			}
+			go func(iteration int, beadID, beadTitle, model string) {
+				ticker := time.NewTicker(5 * time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ticker.C:
+						if err := statusWriter.Write(iteration, beadID, beadTitle, model, true, maxIterations, timeBudgetMinutes); err != nil {
+							r.log("Warning: failed to write status.json: %v", err)
+						}
+					case <-stopCh:
+						return
+					}
+				}
+			}(iteration, b.ID, b.Title, model)
 		}
 
 		if dryRun {
+			if stopStatusHeartbeat != nil {
+				stopStatusHeartbeat()
+			}
 			r.log("[DRY RUN] Would process bead %s with model %s", b.ID, model)
 			continue
 		}
 
 		// Process the bead (pass cached scope estimate to avoid duplicate LLM calls)
 		result := r.processBead(ctx, b, iteration, deadline, scopeEstimate)
+		if stopStatusHeartbeat != nil {
+			stopStatusHeartbeat()
+		}
 
 		r.log("")
 

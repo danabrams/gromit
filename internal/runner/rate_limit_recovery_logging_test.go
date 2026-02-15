@@ -85,7 +85,7 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, stats, _, err := r.executeClaudeInvocation(ctx, bc)
+	_, stats, _, _, err := r.executeClaudeInvocation(ctx, bc)
 	if err != nil {
 		t.Fatalf("executeClaudeInvocation failed: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestExecuteClaudeInvocation_ZeroRecoveryMsWhenNoRateLimit(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, _, _, err := r.executeClaudeInvocation(ctx, bc)
+	_, _, _, _, err := r.executeClaudeInvocation(ctx, bc)
 	if err != nil {
 		t.Fatalf("executeClaudeInvocation failed: %v", err)
 	}

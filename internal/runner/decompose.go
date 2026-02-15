@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/jsonutil"
@@ -66,13 +67,18 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 		return nil, fmt.Errorf("decomposition returned nil result")
 	}
 
-	if !result.Success {
+	// Some providers may return non-zero exit codes even when they emit valid JSON.
+	// Try to salvage parsable decomposition output before failing hard.
+	if !result.Success && strings.TrimSpace(result.Output) == "" {
 		return nil, fmt.Errorf("decomposition failed with exit code %d", result.ExitCode)
 	}
 
 	// Parse the output
 	subTasks, err := parseDecomposeOutput(result.Output)
 	if err != nil {
+		if !result.Success {
+			return nil, fmt.Errorf("decomposition failed with exit code %d and parsing failed: %v", result.ExitCode, err)
+		}
 		return nil, fmt.Errorf("parsing decomposition: %w", err)
 	}
 
@@ -87,8 +93,32 @@ func parseDecomposeOutput(output string) ([]SubTask, error) {
 	}
 
 	var subTasks []SubTask
-	if err := jsonutil.ExtractArray(output, &subTasks); err != nil {
-		return nil, fmt.Errorf("parsing decompose output: %w", err)
+	parseArrayErr := jsonutil.ExtractArray(output, &subTasks)
+	if parseArrayErr != nil {
+		// Fallback for wrapper formats:
+		// {"sub_tasks":[...]} / {"subtasks":[...]} / {"tasks":[...]} / {"items":[...]}
+		var wrapped struct {
+			SubTasks []SubTask `json:"sub_tasks"`
+			Subtasks []SubTask `json:"subtasks"`
+			Tasks    []SubTask `json:"tasks"`
+			Items    []SubTask `json:"items"`
+		}
+		if err := jsonutil.ExtractObject(output, &wrapped); err == nil {
+			switch {
+			case len(wrapped.SubTasks) > 0:
+				subTasks = wrapped.SubTasks
+			case len(wrapped.Subtasks) > 0:
+				subTasks = wrapped.Subtasks
+			case len(wrapped.Tasks) > 0:
+				subTasks = wrapped.Tasks
+			case len(wrapped.Items) > 0:
+				subTasks = wrapped.Items
+			default:
+				return nil, fmt.Errorf("parsing decompose output: %w", parseArrayErr)
+			}
+		} else {
+			return nil, fmt.Errorf("parsing decompose output: %w", parseArrayErr)
+		}
 	}
 
 	if len(subTasks) == 0 {

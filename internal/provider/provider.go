@@ -14,10 +14,22 @@ const (
 	TierLow    = "low"
 )
 
+const (
+	FailureCategoryNone                = ""
+	FailureCategoryTransportDisconnect = "transport_disconnect"
+	FailureCategoryRateLimited         = "rate_limited"
+	FailureCategoryAuth                = "auth"
+	FailureCategoryOther               = "other"
+)
+
 // Result represents the outcome of a provider invocation
 type Result struct {
 	Success           bool
 	Output            string
+	Stdout            string
+	Stderr            string
+	Diagnostics       string
+	FailureCategory   string
 	ExitCode          int
 	Duration          time.Duration
 	Model             string

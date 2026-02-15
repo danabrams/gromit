@@ -33,9 +33,10 @@ type CreateSubFn func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTas
 // This is a local type mirroring execution.InvocationResult to avoid
 // importing the execution sibling package.
 type InvocationResult struct {
-	Result      *claude.Result
-	StallFired  bool
-	TimeoutType string // "stall", "invocation", "bead", ""
+	Result         *claude.Result
+	StallFired     bool
+	TimeoutType    string // "stall", "invocation", "bead", ""
+	ProviderResult *provider.Result
 }
 
 // InvokeFn executes a single Claude invocation. The facade wraps

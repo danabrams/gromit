@@ -77,7 +77,7 @@ func TestResolveClaudePresetWithDefaults(t *testing.T) {
 	}
 }
 
-// TestResolveCodexPreset verifies codex preset uses stdin delivery with codex-specific flags
+// TestResolveCodexPreset verifies codex preset uses interactive launch settings.
 func TestResolveCodexPreset(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
@@ -104,18 +104,12 @@ func TestResolveCodexPreset(t *testing.T) {
 		t.Errorf("codex agent binary = %q, want %q", ca.binary, "codex")
 	}
 
-	if ca.promptDelivery != Stdin {
-		t.Errorf("codex agent promptDelivery = %q, want %q", ca.promptDelivery, Stdin)
+	if ca.promptDelivery != FileRef {
+		t.Errorf("codex agent promptDelivery = %q, want %q", ca.promptDelivery, FileRef)
 	}
 
-	expectedFlags := []string{"exec", "--full-auto", "--skip-git-repo-check", "--color", "never"}
-	if len(ca.flags) != len(expectedFlags) {
-		t.Fatalf("codex agent flags length = %d, want %d", len(ca.flags), len(expectedFlags))
-	}
-	for i, expected := range expectedFlags {
-		if ca.flags[i] != expected {
-			t.Errorf("codex agent flags[%d] = %q, want %q", i, ca.flags[i], expected)
-		}
+	if len(ca.flags) != 0 {
+		t.Fatalf("codex agent flags length = %d, want 0", len(ca.flags))
 	}
 
 	if ca.promptFlag != "" {

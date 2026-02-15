@@ -147,6 +147,44 @@ created: 2026-02-11
 	}
 }
 
+func TestDecomposeWorkflow_ClaudeReturnsEmptyOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	planPath := filepath.Join(plansDir, "empty-output.md")
+	if err := os.WriteFile(planPath, []byte("# Empty Output Plan\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output:   "   \n\t",
+			}, nil
+		},
+	}
+
+	p := New(&Deps{
+		ClaudeClient: mockClaude,
+	}, &Paths{
+		GromitDir: tmpDir,
+		PlansDir:  plansDir,
+	})
+
+	_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "empty-output"})
+	if err == nil {
+		t.Fatal("Decompose() with empty Claude output returned nil error, want error")
+	}
+	if !strings.Contains(err.Error(), "Claude returned empty output for decompose") {
+		t.Fatalf("Decompose() error = %v, want message about empty Claude output", err)
+	}
+}
+
 // TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels verifies beads get spec:<name> label
 // Expected failure: Pipeline.Decompose() does not add spec label to created beads
 func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {

@@ -3,6 +3,7 @@ package analyzer
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
@@ -180,6 +181,9 @@ func (a *Analyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput stri
 	// Parse JSON from output
 	analysis, err := parseAnalysisOutput(result.Output)
 	if err != nil {
+		if fallback := parseAnalysisOutputHeuristic(result.Output); fallback != nil {
+			return fallback, nil
+		}
 		// Parsing failed - return a default
 		return &Analysis{
 			Category:    CategoryLogic,
@@ -209,4 +213,90 @@ func parseAnalysisOutput(output string) (*Analysis, error) {
 	}
 
 	return &analysis, nil
+}
+
+func parseAnalysisOutputHeuristic(output string) *Analysis {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return nil
+	}
+
+	category := inferCategoryFromText(trimmed)
+	recoverable, hasRecoverable := inferRecoverableFromText(trimmed)
+	rootCause := extractPrefixedLineValue(trimmed, "root cause:", "root_cause:", "cause:")
+	suggestion := extractPrefixedLineValue(trimmed, "suggestion:", "fix:", "next step:")
+
+	// If we can't infer anything useful, don't claim success.
+	if rootCause == "" && suggestion == "" && category == CategoryLogic && !hasRecoverable {
+		return nil
+	}
+
+	if rootCause == "" {
+		rootCause = "Analysis output was not valid JSON"
+	}
+	if suggestion == "" {
+		suggestion = "Escalate to stronger model"
+	}
+
+	return &Analysis{
+		Category:    category,
+		Recoverable: recoverable,
+		RootCause:   rootCause,
+		Suggestion:  suggestion,
+	}
+}
+
+func inferCategoryFromText(text string) Category {
+	lower := strings.ToLower(text)
+	switch {
+	case strings.Contains(lower, "task_too_complex"), strings.Contains(lower, "task too complex"):
+		return CategoryTaskTooComplex
+	case strings.Contains(lower, "unclear_spec"), strings.Contains(lower, "unclear spec"):
+		return CategoryUnclearSpec
+	case strings.Contains(lower, "missing_context"), strings.Contains(lower, "missing context"):
+		return CategoryMissingContext
+	case strings.Contains(lower, "test_flake"), strings.Contains(lower, "test flake"):
+		return CategoryTestFlake
+	case strings.Contains(lower, "environment"):
+		return CategoryEnvironment
+	case strings.Contains(lower, "syntax"):
+		return CategorySyntax
+	case strings.Contains(lower, "logic"):
+		return CategoryLogic
+	default:
+		return CategoryLogic
+	}
+}
+
+func inferRecoverableFromText(text string) (recoverable bool, found bool) {
+	lower := strings.ToLower(text)
+	switch {
+	case strings.Contains(lower, "recoverable=true"),
+		strings.Contains(lower, "recoverable: true"),
+		strings.Contains(lower, "recoverable = true"):
+		return true, true
+	case strings.Contains(lower, "recoverable=false"),
+		strings.Contains(lower, "recoverable: false"),
+		strings.Contains(lower, "recoverable = false"):
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+func extractPrefixedLineValue(text string, prefixes ...string) string {
+	for _, rawLine := range strings.Split(text, "\n") {
+		line := strings.TrimSpace(rawLine)
+		line = strings.TrimLeft(line, "-*0123456789. \t")
+		lower := strings.ToLower(line)
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(lower, prefix) {
+				value := strings.TrimSpace(line[len(prefix):])
+				if value != "" {
+					return value
+				}
+			}
+		}
+	}
+	return ""
 }

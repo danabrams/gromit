@@ -42,7 +42,7 @@ func TestExecuteClaudeInvocation_ReturnsProviderResult(t *testing.T) {
 		ParentCtx:   context.Background(),
 	}
 
-	claudeResult, stats, stallFired, providerResult, err := r.executeClaudeInvocation(context.Background(), bc)
+	claudeResult, stats, providerResult, stallFired, err := r.executeClaudeInvocation(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

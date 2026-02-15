@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/provider"
 	"gopkg.in/yaml.v3"
@@ -63,14 +64,15 @@ type LoopConfig struct {
 }
 
 type ValidationConfig struct {
-	Enabled              bool     `yaml:"enabled"`
-	Commands             []string `yaml:"commands"`
-	FastCommands         []string `yaml:"fast_commands"`
-	FullCommands         []string `yaml:"full_commands"`
-	FullValidationEveryN int      `yaml:"full_validation_every_n_successes"`
-	NonInteractive       *bool    `yaml:"non_interactive"`
-	MaxFixAttempts       int      `yaml:"max_fix_attempts"`
-	MaxValidationRetries int      `yaml:"max_validation_retries"`
+	Enabled              bool          `yaml:"enabled"`
+	Commands             []string      `yaml:"commands"`
+	FastCommands         []string      `yaml:"fast_commands"`
+	FullCommands         []string      `yaml:"full_commands"`
+	CommandTimeout       time.Duration `yaml:"command_timeout"`
+	FullValidationEveryN int           `yaml:"full_validation_every_n_successes"`
+	NonInteractive       *bool         `yaml:"non_interactive"`
+	MaxFixAttempts       int           `yaml:"max_fix_attempts"`
+	MaxValidationRetries int           `yaml:"max_validation_retries"`
 }
 
 type RefactorConfig struct {

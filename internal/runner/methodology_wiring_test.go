@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -410,7 +411,7 @@ func TestMethodologyExec_InvokeFn_WrapsExecutionInvoker(t *testing.T) {
 		name:            "test-provider",
 		streamRunResult: &provider.Result{Success: true, Model: "test-model", Output: "done"},
 	}
-	mockProv.runFn = func(ctx context.Context, p, tier string) (*provider.Result, error) {
+	mockProv.streamRunFn = func(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 		promptReceivedByProvider = p
 		tierReceivedByProvider = tier
 		return &provider.Result{Success: true, Model: "test-model"}, nil
@@ -456,6 +457,135 @@ func TestMethodologyExec_InvokeFn_WrapsExecutionInvoker(t *testing.T) {
 	if tierReceivedByProvider != "medium" {
 		t.Errorf("InvokeFn should pass bc.Tier=%q to the provider; got %q",
 			"medium", tierReceivedByProvider)
+	}
+}
+
+func TestMethodologyExec_InvokeFn_FailureIncludesProviderStderr(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	cfg.Escalation.MaxRetriesPerModel = 0
+	cfg.Escalation.Chain = []string{provider.TierLow}
+	var buf strings.Builder
+
+	mockProv := &mockProviderWithRouterTracking{name: "test-provider"}
+	mockProv.streamRunFn = func(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		return &provider.Result{
+			Success:  false,
+			Model:    "test-model",
+			ExitCode: 7,
+			Stdout:   "stdout details",
+			Stderr:   "stderr details",
+			Output:   "combined details",
+		}, nil
+	}
+	router := provider.NewSingleProviderRouter(mockProv)
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   router,
+		Renderer: &mockRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+	if r.methodologyExec == nil {
+		t.Fatal("methodologyExec must be wired")
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "test-invoke-fail-001", Title: "Invoke fail test"},
+		Tier:      provider.TierLow,
+		Model:     "haiku",
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{WorkDir: t.TempDir()},
+	}
+
+	err = r.methodologyExec.RunAcceptanceTestsWithRetry(context.Background(), bc)
+	if err == nil {
+		t.Fatal("RunAcceptanceTestsWithRetry should fail when provider returns unsuccessful result")
+	}
+	if !strings.Contains(err.Error(), "stderr=stderr details") {
+		t.Fatalf("expected stderr details in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "output=combined details") {
+		t.Fatalf("expected output details in error, got: %v", err)
+	}
+}
+
+func TestMethodologyExec_InvokeFn_CodexTransportFailureFallsBackToAlternateProvider(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	cfg.Escalation.MaxRetriesPerModel = 0
+	cfg.Escalation.Chain = []string{provider.TierLow}
+	var buf strings.Builder
+
+	codexCalls := 0
+	claudeCalls := 0
+
+	codexProv := &mockProviderWithRouterTracking{name: "codex"}
+	codexProv.streamRunFn = func(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		codexCalls++
+		return &provider.Result{
+			Success:         false,
+			Model:           "gpt-5.3-codex",
+			ExitCode:        1,
+			FailureCategory: provider.FailureCategoryTransportDisconnect,
+			Stderr:          "stream disconnected before completion",
+			Output:          "stream disconnected before completion",
+		}, nil
+	}
+
+	claudeProv := &mockProviderWithRouterTracking{name: "claude"}
+	claudeProv.streamRunFn = func(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		claudeCalls++
+		return &provider.Result{
+			Success: true,
+			Model:   "sonnet",
+			Output:  "ok",
+		}, nil
+	}
+
+	router := provider.NewRouter(
+		map[string]provider.Provider{
+			"codex":  codexProv,
+			"claude": claudeProv,
+		},
+		map[string]string{"build": "codex"},
+		map[string]int{"codex": 100, "claude": 100},
+		time.Minute,
+		&crossReviewMockStateFile{},
+	)
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   router,
+		Renderer: &mockRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+	if r.methodologyExec == nil {
+		t.Fatal("methodologyExec must be wired")
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "test-invoke-fallback-001", Title: "Invoke fallback test"},
+		Tier:      provider.TierLow,
+		Model:     "haiku",
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{WorkDir: t.TempDir()},
+	}
+
+	err = r.methodologyExec.RunAcceptanceTestsWithRetry(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("RunAcceptanceTestsWithRetry should succeed via fallback, got error: %v", err)
+	}
+	if codexCalls != 1 {
+		t.Fatalf("expected codex to be called once, got %d", codexCalls)
+	}
+	if claudeCalls != 1 {
+		t.Fatalf("expected fallback provider to be called once, got %d", claudeCalls)
+	}
+	if bc.Model == "haiku" {
+		t.Fatalf("expected fallback to update bead context model, got %q", bc.Model)
 	}
 }
 

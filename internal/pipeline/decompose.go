@@ -58,7 +58,10 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	if !claudeResult.Success {
 		return nil, fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", claudeResult.ExitCode, claudeResult.Output)
 	}
-	output := claudeResult.Output
+	output := strings.TrimSpace(claudeResult.Output)
+	if output == "" {
+		return nil, fmt.Errorf("Claude returned empty output for decompose; check Claude CLI connectivity and retry")
+	}
 	var beadDefs []beadDef
 	if err := jsonutil.ExtractJSON(output, &beadDefs); err != nil {
 		return nil, fmt.Errorf("parsing bead definitions: %w", err)

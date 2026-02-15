@@ -474,6 +474,124 @@ func TestRunValidationWithRecovery_UsesFastMode(t *testing.T) {
 	}
 }
 
+func TestScopeValidationCommands_ScopesGoTestWildcard(t *testing.T) {
+	commands := []string{"go test ./...", "golangci-lint run ./..."}
+	touched := []string{"internal/runner", "internal/provider"}
+
+	got := scopeValidationCommands(commands, touched)
+	want := []string{
+		"go test ./internal/runner/... ./internal/provider/...",
+		"golangci-lint run ./...",
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("got %d commands, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("command[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestScopeValidationCommands_EmptyTouchedPackagesReturnsUnchanged(t *testing.T) {
+	commands := []string{"go test ./...", "go vet ./..."}
+	got := scopeValidationCommands(commands, nil)
+
+	if len(got) != len(commands) {
+		t.Fatalf("got %d commands, want %d", len(got), len(commands))
+	}
+	for i := range commands {
+		if got[i] != commands[i] {
+			t.Fatalf("command[%d] = %q, want %q", i, got[i], commands[i])
+		}
+	}
+}
+
+func TestRunValidation_ScopesFastCommandsWhenTouchedPackagesPresent(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:      true,
+			Commands:     []string{"go test ./..."},
+			FastCommands: []string{"go test ./...", "go vet ./..."},
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	var called []string
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		called = append(called, command)
+		return "ok", "", 0, nil
+	}
+
+	r := &Runner{
+		cfg:              cfg,
+		output:           &strings.Builder{},
+		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:            &bead.Bead{ID: "b1", Title: "bead"},
+		Result:          &IterationResult{},
+		TouchedPackages: []string{"internal/runner", "internal/provider"},
+		PromptCtx:       &prompt.Context{WorkDir: t.TempDir()},
+	}
+
+	if err := r.runValidation(context.Background(), bc); err != nil {
+		t.Fatalf("runValidation returned error: %v", err)
+	}
+
+	want := []string{
+		"go test ./internal/runner/... ./internal/provider/...",
+		"go vet ./...",
+	}
+	if len(called) != len(want) {
+		t.Fatalf("ran %d commands, want %d (%v)", len(called), len(want), called)
+	}
+	for i := range want {
+		if called[i] != want[i] {
+			t.Fatalf("command[%d] = %q, want %q", i, called[i], want[i])
+		}
+	}
+}
+
+func TestRunFullValidationGate_LeavesFullCommandsUnscoped(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:      true,
+			FullCommands: []string{"go test ./..."},
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	var called []string
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		called = append(called, command)
+		return "ok", "", 0, nil
+	}
+
+	r := &Runner{
+		cfg:              cfg,
+		output:           &strings.Builder{},
+		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
+	}
+
+	if err := r.runFullValidationGate(context.Background(), "b1", 1); err != nil {
+		t.Fatalf("runFullValidationGate returned error: %v", err)
+	}
+
+	if len(called) != 1 {
+		t.Fatalf("expected one command, got %v", called)
+	}
+	if called[0] != "go test ./..." {
+		t.Fatalf("full validation command should stay unscoped, got %q", called[0])
+	}
+}
+
 func TestMaybeRunPeriodicFullValidation_UsesCadenceAndFullCommands(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
@@ -1700,7 +1818,7 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 		BuildPrompt: "test prompt",
 	}
 
-	claudeResult, stats, stallFired, err := r.executeClaudeInvocation(context.Background(), bc)
+	claudeResult, stats, _, stallFired, err := r.executeClaudeInvocation(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

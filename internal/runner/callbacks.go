@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
@@ -32,22 +36,22 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		r.log("Running Claude with model: %s", bc.Model)
 
-		claudeResult, stats, stallFired, err := r.executeClaudeInvocation(ctx, bc)
+		claudeResult, stats, providerResult, stallFired, err := r.executeClaudeInvocation(ctx, bc)
 
 		if err != nil {
 			if stallFired && ctx.Err() == nil {
-				return &escalation.InvocationResult{StallFired: true, TimeoutType: "stall"}, err
+				return &escalation.InvocationResult{StallFired: true, TimeoutType: "stall", ProviderResult: providerResult}, err
 			}
 			// Classify timeout type
 			if ctx.Err() != nil && bc.ParentCtx.Err() == nil {
 				bc.Result.TimeoutType = "bead"
 				escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
-				return &escalation.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+				return &escalation.InvocationResult{TimeoutType: "bead", ProviderResult: providerResult}, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 			} else if bc.ParentCtx.Err() != nil {
 				return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
 			}
 			bc.Result.TimeoutType = "invocation"
-			return &escalation.InvocationResult{TimeoutType: "invocation"}, fmt.Errorf("claude invocation: %w", err)
+			return &escalation.InvocationResult{TimeoutType: "invocation", ProviderResult: providerResult}, fmt.Errorf("claude invocation: %w", err)
 		}
 
 		if claudeResult == nil {
@@ -65,7 +69,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		// Check scope-too-large
 		if isTooLarge, explanation := claude.IsScopeTooLarge(claudeResult); isTooLarge {
 			r.handleScopeTooLarge(bc, claudeResult, explanation)
-			return &escalation.InvocationResult{Result: claudeResult}, bc.Result.Error
+			return &escalation.InvocationResult{Result: claudeResult, ProviderResult: providerResult}, bc.Result.Error
 		}
 
 		// Check usage limits
@@ -83,8 +87,9 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		}
 
 		return &escalation.InvocationResult{
-			Result:     claudeResult,
-			StallFired: false,
+			Result:         claudeResult,
+			StallFired:     false,
+			ProviderResult: providerResult,
 		}, nil
 	}
 }
@@ -151,6 +156,101 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if r.router == nil {
 			return fmt.Errorf("router not configured")
 		}
+		streamInvoke := func(p provider.Provider, modelName string, attempt string) (*provider.Result, error) {
+			startedAt := time.Now()
+			var eventCount int64
+			var lastEventUnixNano = startedAt.UnixNano()
+			heartbeatStop := make(chan struct{})
+			go func() {
+				ticker := time.NewTicker(15 * time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ticker.C:
+						lastEvent := time.Unix(0, atomic.LoadInt64(&lastEventUnixNano))
+						r.log(
+							"ATDD progress: elapsed=%s events=%d idle=%s (%s provider=%s model=%s tier=%s)",
+							time.Since(startedAt).Round(time.Second),
+							atomic.LoadInt64(&eventCount),
+							time.Since(lastEvent).Round(time.Second),
+							attempt,
+							p.Name(),
+							modelName,
+							bc.Tier,
+						)
+					case <-heartbeatStop:
+						return
+					}
+				}
+			}()
+			defer close(heartbeatStop)
+
+			var firstEventOnce sync.Once
+			streamHandler := provider.EventHandler(func(line []byte) {
+				atomic.AddInt64(&eventCount, 1)
+				atomic.StoreInt64(&lastEventUnixNano, time.Now().UnixNano())
+				firstEventOnce.Do(func() {
+					r.log(
+						"ATDD stream connected after %s (%s provider=%s model=%s tier=%s)",
+						time.Since(startedAt).Round(time.Millisecond),
+						attempt,
+						p.Name(),
+						modelName,
+						bc.Tier,
+					)
+				})
+			})
+
+			r.log(
+				"ATDD stream started (%s provider=%s model=%s tier=%s prompt_chars=%d)",
+				attempt,
+				p.Name(),
+				modelName,
+				bc.Tier,
+				len(promptText),
+			)
+			result, err := p.StreamRun(ctx, promptText, bc.Tier, r.output, streamHandler, nil)
+			elapsed := time.Since(startedAt).Round(time.Millisecond)
+			if err != nil {
+				r.log(
+					"ATDD stream error after %s (%s provider=%s model=%s tier=%s events=%d): %v",
+					elapsed,
+					attempt,
+					p.Name(),
+					modelName,
+					bc.Tier,
+					atomic.LoadInt64(&eventCount),
+					err,
+				)
+				return result, err
+			}
+			if result == nil {
+				r.log(
+					"ATDD stream returned nil result after %s (%s provider=%s model=%s tier=%s events=%d)",
+					elapsed,
+					attempt,
+					p.Name(),
+					modelName,
+					bc.Tier,
+					atomic.LoadInt64(&eventCount),
+				)
+				return nil, nil
+			}
+			r.log(
+				"ATDD stream completed after %s (%s provider=%s model=%s tier=%s events=%d success=%t exit=%d failure_category=%s)",
+				elapsed,
+				attempt,
+				p.Name(),
+				modelName,
+				bc.Tier,
+				atomic.LoadInt64(&eventCount),
+				result.Success,
+				result.ExitCode,
+				result.FailureCategory,
+			)
+			return result, nil
+		}
+
 		p, modelName := r.router.Select("build", bc.Tier)
 		if p == nil {
 			return fmt.Errorf("no providers available for phase=build tier=%s", bc.Tier)
@@ -159,22 +259,59 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
 			bc.Result.EscalatedTo = modelName
 		}
-		result, err := p.Run(ctx, promptText, bc.Tier)
+		result, err := streamInvoke(p, modelName, "primary")
 		if err != nil {
 			if p.IsUsageLimitError(result, err) {
 				r.router.MarkUnavailable(p.Name())
 				p2, modelName2 := r.router.Select("build", bc.Tier)
 				if p2 != nil {
 					bc.Model = modelName2
-					result, err = p2.Run(ctx, promptText, bc.Tier)
+					result, err = streamInvoke(p2, modelName2, "usage-limit-fallback")
 				}
 			}
 			if err != nil {
-				return err
+				return fmt.Errorf("acceptance tests provider invocation failed (provider=%s model=%s): %w", p.Name(), modelName, err)
 			}
 		}
-		if result == nil || !result.Success {
-			return fmt.Errorf("acceptance tests failed")
+		if result == nil {
+			return fmt.Errorf("acceptance tests failed (provider=%s model=%s): nil result", p.Name(), modelName)
+		}
+		if !result.Success && p.Name() == "codex" && result.FailureCategory == provider.FailureCategoryTransportDisconnect {
+			r.log("ATDD fallback: codex transport failure, retrying with alternate provider")
+			r.router.MarkUnavailable(p.Name())
+			p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
+			if p2 != nil && p2.Name() != p.Name() {
+				fallbackResult, fallbackErr := streamInvoke(p2, modelName2, "codex-transport-fallback")
+				if fallbackErr != nil {
+					return fmt.Errorf(
+						"acceptance tests failed after codex transport fallback (provider=%s model=%s): primary={%s} fallback_err=%v",
+						p2.Name(),
+						modelName2,
+						formatATDDProviderFailure(p, modelName, result),
+						fallbackErr,
+					)
+				}
+				if fallbackResult == nil {
+					return fmt.Errorf(
+						"acceptance tests failed after codex transport fallback (provider=%s model=%s): primary={%s} fallback=nil result",
+						p2.Name(),
+						modelName2,
+						formatATDDProviderFailure(p, modelName, result),
+					)
+				}
+				if fallbackResult.Success {
+					bc.Model = modelName2
+					return nil
+				}
+				return fmt.Errorf(
+					"acceptance tests failed after codex transport fallback: primary={%s} fallback={%s}",
+					formatATDDProviderFailure(p, modelName, result),
+					formatATDDProviderFailure(p2, modelName2, fallbackResult),
+				)
+			}
+		}
+		if !result.Success {
+			return fmt.Errorf("acceptance tests failed: %s", formatATDDProviderFailure(p, modelName, result))
 		}
 		return nil
 	}
@@ -241,3 +378,32 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 
 var _ provider.Provider = nil
 var _ execution.Provider = nil
+
+func summarizeATDDProviderOutput(output string) string {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return "no provider output"
+	}
+	const maxChars = 1400
+	if len(trimmed) <= maxChars {
+		return trimmed
+	}
+	const side = 650
+	return trimmed[:side] + "...[truncated]..." + trimmed[len(trimmed)-side:]
+}
+
+func formatATDDProviderFailure(p provider.Provider, modelName string, result *provider.Result) string {
+	if result == nil {
+		return fmt.Sprintf("provider=%s model=%s nil result", p.Name(), modelName)
+	}
+	return fmt.Sprintf(
+		"provider=%s model=%s exit_code=%d failure_category=%s stderr=%s output=%s diagnostics=%s",
+		p.Name(),
+		modelName,
+		result.ExitCode,
+		result.FailureCategory,
+		summarizeATDDProviderOutput(result.Stderr),
+		summarizeATDDProviderOutput(result.Output),
+		summarizeATDDProviderOutput(result.Diagnostics),
+	)
+}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -166,12 +167,16 @@ func (e *Executor) log(format string, args ...interface{}) {
 
 // RunAcceptanceTests renders the acceptance test prompt and invokes the LLM.
 func (e *Executor) RunAcceptanceTests(ctx context.Context, bc *runtypes.BeadContext) error {
+	start := time.Now()
+	e.log("ATDD acceptance generation started (tier=%s bead=%s)", bc.Tier, bc.Bead.ID)
+
 	if e.renderFn == nil {
 		return fmt.Errorf("render function not configured")
 	}
 
 	acceptancePrompt, err := e.renderFn(bc.PromptCtx)
 	if err != nil {
+		e.log("ATDD acceptance generation failed after %s: render error: %v", time.Since(start).Round(time.Millisecond), err)
 		return fmt.Errorf("rendering acceptance tests prompt: %w", err)
 	}
 
@@ -179,7 +184,12 @@ func (e *Executor) RunAcceptanceTests(ctx context.Context, bc *runtypes.BeadCont
 		return fmt.Errorf("invoke function not configured")
 	}
 
-	return e.invokeFn(ctx, bc, acceptancePrompt)
+	if err := e.invokeFn(ctx, bc, acceptancePrompt); err != nil {
+		e.log("ATDD acceptance generation failed after %s: %v", time.Since(start).Round(time.Millisecond), err)
+		return err
+	}
+	e.log("ATDD acceptance generation completed in %s", time.Since(start).Round(time.Millisecond))
+	return nil
 }
 
 // VerifyTestsFail runs validation and returns nil when validation fails (expected)
@@ -195,18 +205,26 @@ func (e *Executor) VerifyTestsFail(ctx context.Context, bc *runtypes.BeadContext
 
 	e.log("Verifying acceptance tests fail (as expected)...")
 
-	valResult, err := e.validateFn(ctx, AcceptanceCommands(e.cfg.Validation.Commands, bc.TouchedPackages), bc.PromptCtx.WorkDir)
+	acceptanceCommands := AcceptanceCommands(e.cfg.Validation.Commands, bc.TouchedPackages)
+	e.log("ATDD verify command set: %s", strings.Join(acceptanceCommands, " && "))
+	start := time.Now()
+
+	valResult, err := e.validateFn(ctx, acceptanceCommands, bc.PromptCtx.WorkDir)
 	if err != nil {
+		e.log("ATDD verify invocation failed after %s: %v", time.Since(start).Round(time.Millisecond), err)
 		return fmt.Errorf("validation invocation: %w", err)
 	}
 	if valResult == nil {
+		e.log("ATDD verify invocation failed after %s: nil validation result", time.Since(start).Round(time.Millisecond))
 		return fmt.Errorf("validation returned no result")
 	}
+	e.log("ATDD verify invocation completed in %s (exit_code=%d)", time.Since(start).Round(time.Millisecond), valResult.ExitCode)
 
 	// In ATDD, we expect tests to FAIL before implementation
 	if claude.IsValidationPassed(valResult) {
 		e.log("Unexpected: acceptance tests passed before implementation")
 		e.log("Tests should fail until implementation makes them pass")
+		e.log("Validation output on unexpected pass: %s", summarizeAcceptanceFailureOutput(valResult.Output))
 		return fmt.Errorf("acceptance tests passed before implementation - tests may not be covering new behavior")
 	}
 
@@ -252,9 +270,10 @@ func summarizeAcceptanceFailureOutput(output string) string {
 	if trimmed == "" {
 		return ""
 	}
-	const maxChars = 4000
+	const maxChars = 2000
 	if len(trimmed) <= maxChars {
 		return trimmed
 	}
-	return trimmed[:maxChars] + "\n...[truncated]"
+	const side = 900
+	return trimmed[:side] + "\n...[truncated]...\n" + trimmed[len(trimmed)-side:]
 }

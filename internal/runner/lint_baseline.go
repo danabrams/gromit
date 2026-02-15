@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 )
 
@@ -17,6 +18,7 @@ type RunnerLintBaselineRequest struct {
 // RunnerLintBaselineResult contains the result of running the lint baseline.
 type RunnerLintBaselineResult struct {
 	ExitCode int
+	Output   string
 }
 
 // RunRunnerLintBaseline executes golangci-lint with the specified linters
@@ -38,17 +40,18 @@ func RunRunnerLintBaseline(ctx context.Context, req RunnerLintBaselineRequest) (
 	cmd := exec.CommandContext(ctx, req.GolangciLintPath, args...)
 	cmd.Dir = req.RepoRoot
 
-	err := cmd.Run()
+	out, err := cmd.CombinedOutput()
 	exitCode := 0
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
-			return nil, err
+			return nil, fmt.Errorf("run runner lint baseline: %w\noutput:\n%s", err, string(out))
 		}
 	}
 
 	return &RunnerLintBaselineResult{
 		ExitCode: exitCode,
+		Output:   string(out),
 	}, nil
 }

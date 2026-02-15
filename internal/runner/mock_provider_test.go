@@ -13,6 +13,7 @@ type mockProviderWithRouterTracking struct {
 	name            string
 	onSelect        func(phase, tier string)
 	runFn           func(ctx context.Context, prompt, tier string) (*provider.Result, error)
+	streamRunFn     func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
 	streamRunResult *provider.Result
 }
 
@@ -48,6 +49,9 @@ func (m *mockProviderWithRouterTracking) Run(ctx context.Context, prompt string,
 }
 
 func (m *mockProviderWithRouterTracking) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	if m.streamRunFn != nil {
+		return m.streamRunFn(ctx, prompt, tier, output, handler, onToolCall)
+	}
 	if m.streamRunResult != nil {
 		return m.streamRunResult, nil
 	}

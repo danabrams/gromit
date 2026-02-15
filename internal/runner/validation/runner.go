@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -165,8 +166,22 @@ func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.Bea
 	}
 
 	for _, command := range commands {
-		stdout, stderr, exitCode, err := r.cmdRunner(ctx, command, bc.PromptCtx.WorkDir)
+		commandCtx := ctx
+		cancel := func() {}
+		if r.cfg.Validation.CommandTimeout > 0 {
+			commandCtx, cancel = context.WithTimeout(ctx, r.cfg.Validation.CommandTimeout)
+		}
+
+		stdout, stderr, exitCode, err := r.cmdRunner(commandCtx, command, bc.PromptCtx.WorkDir)
+		cancel()
+
 		if err != nil {
+			if errors.Is(commandCtx.Err(), context.DeadlineExceeded) {
+				failureOutput := formatTimeoutFailureOutput(command, r.cfg.Validation.CommandTimeout, stdout, stderr)
+				r.lastFailureOutput = failureOutput
+				bc.Result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
+				return ErrValidationFailed
+			}
 			return fmt.Errorf("validation command %q: %w", command, err)
 		}
 		if r.cfg.Validation.IsNonInteractive() {
@@ -225,6 +240,17 @@ func detectInteractivePrompt(stdout, stderr string) string {
 
 func formatFailureOutput(command string, exitCode int, stdout, stderr string) string {
 	failureOutput := fmt.Sprintf("Command failed: %s (exit code %d)\n", command, exitCode)
+	if stdout != "" {
+		failureOutput += "\nStdout:\n" + stdout
+	}
+	if stderr != "" {
+		failureOutput += "\nStderr:\n" + stderr
+	}
+	return failureOutput
+}
+
+func formatTimeoutFailureOutput(command string, timeout time.Duration, stdout, stderr string) string {
+	failureOutput := fmt.Sprintf("Command timed out: %s (timeout %s)\n", command, timeout)
 	if stdout != "" {
 		failureOutput += "\nStdout:\n" + stdout
 	}

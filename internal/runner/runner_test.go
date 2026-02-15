@@ -1617,6 +1617,66 @@ Done.`
 	}
 }
 
+func TestParseDecomposeOutputFromObjectWrapper(t *testing.T) {
+	output := `{
+  "sub_tasks": [
+    {
+      "title": "Extract helper",
+      "description": "Move parser helper into jsonutil",
+      "depends_on": null,
+      "acceptance_criteria": ["helper extracted", "tests pass"]
+    }
+  ]
+}`
+
+	subTasks, err := parseDecomposeOutput(output)
+	if err != nil {
+		t.Fatalf("parseDecomposeOutput() failed: %v", err)
+	}
+	if len(subTasks) != 1 {
+		t.Fatalf("expected 1 sub-task, got %d", len(subTasks))
+	}
+	if subTasks[0].Title != "Extract helper" {
+		t.Fatalf("unexpected title: %q", subTasks[0].Title)
+	}
+}
+
+func TestDecomposeTaskSalvagesOutputWhenProviderReturnsNonSuccess(t *testing.T) {
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{
+				Success:  false,
+				ExitCode: 1,
+				Output: `[
+{"title":"Subtask from output","description":"Still parseable","depends_on":null,"acceptance_criteria":["parsed despite exit 1"]}
+]`,
+			}, nil
+		},
+	}
+	r := &Runner{
+		cfg:      &config.Config{},
+		beads:    &mockBeadClient{},
+		router:   newMockRouterFromClaudeClient(mockClaude),
+		renderer: &mockPromptRenderer{},
+	}
+	b := &bead.Bead{
+		ID:       "decompose-parseable-failure",
+		Title:    "Recover parseable decomposition",
+		Priority: 1,
+	}
+
+	subTasks, err := r.DecomposeTask(context.Background(), b)
+	if err != nil {
+		t.Fatalf("DecomposeTask() failed: %v", err)
+	}
+	if len(subTasks) != 1 {
+		t.Fatalf("expected 1 sub-task, got %d", len(subTasks))
+	}
+	if subTasks[0].Title != "Subtask from output" {
+		t.Fatalf("unexpected sub-task title: %q", subTasks[0].Title)
+	}
+}
+
 func TestRunBetweenIterationsCommandEmptyNoOp(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{

@@ -173,10 +173,13 @@ func resolveClaudePreset(cfg *config.Config) Agent {
 	return New("claude", binary, flags, FileRef, "", nil)
 }
 
-// resolveCodexPreset creates an agent for Codex using stdin delivery with codex-specific flags
+// resolveCodexPreset creates an agent for Codex interactive sessions.
+// We intentionally avoid "codex exec" (non-interactive) and stdin prompt
+// piping so Codex can detect a TTY and open its interactive UI.
 func resolveCodexPreset() Agent {
-	flags := []string{"exec", "--full-auto", "--skip-git-repo-check", "--color", "never"}
-	return New("codex", "codex", flags, Stdin, "", nil)
+	// Keep interactive invocation minimal so it stays compatible across
+	// Codex CLI versions.
+	return New("codex", "codex", nil, FileRef, "", nil)
 }
 
 // resolvePromptFileArgPreset creates an agent using prompt_file_arg delivery

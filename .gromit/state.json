@@ -1,5 +1,13 @@
 {
   "last_retro": "2026-02-14T23:43:41.123048017Z",
-  "clean_exit": false,
-  "updated_at": "2026-02-15T11:08:56.593377814Z"
+  "iterations_since_review": 1,
+  "clean_exit": true,
+  "updated_at": "2026-02-15T20:26:44.164730285Z",
+  "provider_counts": {
+    "claude": 2,
+    "openai": 6
+  },
+  "provider_unavailable_until": {
+    "codex": "2026-02-15T17:40:14.386463771Z"
+  }
 }

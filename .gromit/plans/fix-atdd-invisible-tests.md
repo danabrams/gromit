@@ -1,8 +1,9 @@
 ---
+created: 2026-02-14T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-15T19:54:31Z"
 id: fix-atdd-invisible-tests
 spec: null
-created: 2026-02-14
-decomposed: false
 ---
 
 # Fix: ATDD tests invisible to validation (beads closing without implementation)

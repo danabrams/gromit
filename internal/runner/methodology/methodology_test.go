@@ -105,6 +105,33 @@ func TestRunAcceptanceTests_RendersPromptAndInvokes(t *testing.T) {
 	}
 }
 
+func TestRunAcceptanceTests_LogsLifecycle(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		return "rendered acceptance test prompt", nil
+	}
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) error {
+		return nil
+	}
+
+	exec := NewExecutor(cfg, &buf, renderFn, invokeFn, nil)
+	bc := newTestBeadContext()
+
+	if err := exec.RunAcceptanceTests(context.Background(), bc); err != nil {
+		t.Fatalf("RunAcceptanceTests returned unexpected error: %v", err)
+	}
+
+	logs := buf.String()
+	if !strings.Contains(logs, "ATDD acceptance generation started") {
+		t.Fatalf("expected start lifecycle log, got: %q", logs)
+	}
+	if !strings.Contains(logs, "ATDD acceptance generation completed in") {
+		t.Fatalf("expected completion lifecycle log, got: %q", logs)
+	}
+}
+
 func TestRunAcceptanceTests_PropagatesRenderError(t *testing.T) {
 	cfg := newTestConfig()
 	var buf strings.Builder
@@ -232,6 +259,9 @@ func TestVerifyTestsFail_ReturnsErrorWhenTestsPass(t *testing.T) {
 	if !strings.Contains(err.Error(), "acceptance tests passed before implementation") {
 		t.Errorf("error should indicate tests passed unexpectedly, got: %v", err)
 	}
+	if !strings.Contains(buf.String(), "Validation output on unexpected pass: VALIDATION_PASSED") {
+		t.Errorf("expected unexpected-pass validation output to be logged, got log: %q", buf.String())
+	}
 }
 
 func TestVerifyTestsFail_ReturnsErrorWhenValidationDisabled(t *testing.T) {
@@ -268,6 +298,54 @@ func TestVerifyTestsFail_PropagatesValidationError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "binary not found") {
 		t.Errorf("error should contain invocation error, got: %v", err)
+	}
+}
+
+func TestVerifyTestsFail_LogsAcceptanceCommandSet(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./...", "go vet ./..."}
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{
+			Success:  true,
+			Output:   "FAIL: TestSomething",
+			ExitCode: 1,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	bc := newTestBeadContext()
+	_ = exec.VerifyTestsFail(context.Background(), bc)
+
+	got := buf.String()
+	if !strings.Contains(got, "ATDD verify command set: go test -tags acceptance ./... && go vet ./...") {
+		t.Errorf("expected acceptance command set to be logged, got: %q", got)
+	}
+}
+
+func TestVerifyTestsFail_LogsInvocationCompletion(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{
+			Success:  true,
+			Output:   "FAIL: TestSomething",
+			ExitCode: 1,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	bc := newTestBeadContext()
+	_ = exec.VerifyTestsFail(context.Background(), bc)
+
+	got := buf.String()
+	if !strings.Contains(got, "ATDD verify invocation completed in") {
+		t.Fatalf("expected ATDD verify completion log, got: %q", got)
+	}
+	if !strings.Contains(got, "(exit_code=1)") {
+		t.Fatalf("expected verify completion log to include exit code, got: %q", got)
 	}
 }
 

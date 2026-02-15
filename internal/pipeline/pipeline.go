@@ -140,6 +140,9 @@ type Idea struct {
 	SpecName string `json:"spec_name"`
 }
 
+// IdeaJSONKeys defines the expected snake_case JSON keys for Idea.
+var IdeaJSONKeys = []string{"id", "text", "type", "context", "status", "spec_name"}
+
 // PromptRenderer abstracts prompt rendering operations.
 type PromptRenderer interface {
 	RenderRefine(input *RefinePromptInput) (string, error)

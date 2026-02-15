@@ -7,6 +7,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // TestParseAnalysisOutputValidJSON tests parsing valid JSON output
@@ -506,4 +507,95 @@ func TestAnalyzeNilRenderer(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for nil renderer")
 	}
+}
+
+func TestParseAnalysisOutputHeuristic(t *testing.T) {
+	output := `
+category=task_too_complex
+recoverable=false
+root cause: touches too many files
+suggestion: split into smaller tasks
+`
+
+	analysis := parseAnalysisOutputHeuristic(output)
+	if analysis == nil {
+		t.Fatal("expected heuristic parse result")
+	}
+	if analysis.Category != CategoryTaskTooComplex {
+		t.Fatalf("expected CategoryTaskTooComplex, got %q", analysis.Category)
+	}
+	if analysis.Recoverable {
+		t.Fatal("expected Recoverable=false")
+	}
+	if analysis.RootCause != "touches too many files" {
+		t.Fatalf("unexpected RootCause: %q", analysis.RootCause)
+	}
+	if analysis.Suggestion != "split into smaller tasks" {
+		t.Fatalf("unexpected Suggestion: %q", analysis.Suggestion)
+	}
+}
+
+func TestAnalyzeFallsBackToHeuristicWhenJSONParseFails(t *testing.T) {
+	providerStub := &testProviderRunner{
+		runFn: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output: `category=logic
+recoverable=true
+root cause: nil check missing
+suggestion: add nil guard`,
+			}, nil
+		},
+	}
+	rendererStub := &testAnalyzeRenderer{
+		renderFn: func(ctx *prompt.AnalyzeContext) (string, error) {
+			return "analyze prompt", nil
+		},
+	}
+	a, err := NewAnalyzer(providerStub, "low", rendererStub)
+	if err != nil {
+		t.Fatalf("NewAnalyzer failed: %v", err)
+	}
+
+	analysis, err := a.Analyze(context.Background(), &bead.Bead{ID: "b-1", Title: "Test"}, "failed output")
+	if err != nil {
+		t.Fatalf("Analyze failed: %v", err)
+	}
+	if analysis == nil {
+		t.Fatal("expected non-nil analysis")
+	}
+	if analysis.Category != CategoryLogic {
+		t.Fatalf("expected CategoryLogic, got %q", analysis.Category)
+	}
+	if !analysis.Recoverable {
+		t.Fatal("expected Recoverable=true")
+	}
+	if analysis.RootCause != "nil check missing" {
+		t.Fatalf("unexpected RootCause: %q", analysis.RootCause)
+	}
+	if analysis.Suggestion != "add nil guard" {
+		t.Fatalf("unexpected Suggestion: %q", analysis.Suggestion)
+	}
+}
+
+type testProviderRunner struct {
+	runFn func(ctx context.Context, prompt string, tier string) (*provider.Result, error)
+}
+
+func (t *testProviderRunner) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	if t.runFn == nil {
+		return &provider.Result{Success: true, Output: "{}"}, nil
+	}
+	return t.runFn(ctx, prompt, tier)
+}
+
+type testAnalyzeRenderer struct {
+	renderFn func(ctx *prompt.AnalyzeContext) (string, error)
+}
+
+func (t *testAnalyzeRenderer) RenderAnalyze(ctx *prompt.AnalyzeContext) (string, error) {
+	if t.renderFn == nil {
+		return "analyze prompt", nil
+	}
+	return t.renderFn(ctx)
 }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
@@ -720,6 +722,28 @@ func TestValidate_AllowsPromptPatternWhenNonInteractiveDisabled(t *testing.T) {
 	err := r.Validate(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("unexpected error with non_interactive disabled: %v", err)
+	}
+}
+
+func TestValidate_CommandTimeoutReturnsValidationFailure(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.CommandTimeout = 20 * time.Millisecond
+	cfg.Validation.Commands = []string{"go test ./..."}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		<-ctx.Done()
+		return "", "", 0, ctx.Err()
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	bc := newTestBeadContext()
+
+	err := r.Validate(context.Background(), bc)
+	if !errors.Is(err, ErrValidationFailed) {
+		t.Fatalf("expected ErrValidationFailed on timeout, got: %v", err)
+	}
+	if !strings.Contains(bc.Result.Output, "Command timed out: go test ./...") {
+		t.Fatalf("expected timeout output in result, got: %q", bc.Result.Output)
 	}
 }
 

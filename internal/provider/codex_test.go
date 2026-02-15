@@ -163,6 +163,12 @@ exit 0
 	if !strings.Contains(result.Output, "Test output line 2") {
 		t.Errorf("Run() output missing expected stdout line 2, got: %s", result.Output)
 	}
+	if !strings.Contains(result.Stdout, "Test output line 1") || !strings.Contains(result.Stdout, "Test output line 2") {
+		t.Errorf("Run() stdout missing expected content, got: %q", result.Stdout)
+	}
+	if strings.TrimSpace(result.Stderr) != "" {
+		t.Errorf("Run() stderr should be empty for stdout-only command, got: %q", result.Stderr)
+	}
 }
 
 // TestCodexProviderRunCapturesStderr verifies that Run() captures the
@@ -194,6 +200,12 @@ exit 1
 	if !strings.Contains(result.Output, "Error message") {
 		t.Errorf("Run() output missing stderr content, got: %s", result.Output)
 	}
+	if !strings.Contains(result.Stderr, "Error message") {
+		t.Errorf("Run() stderr missing expected content, got: %q", result.Stderr)
+	}
+	if strings.TrimSpace(result.Stdout) != "" {
+		t.Errorf("Run() stdout should be empty for stderr-only command, got: %q", result.Stdout)
+	}
 
 	if result.ExitCode != 1 {
 		t.Errorf("Run() ExitCode = %d, want 1", result.ExitCode)
@@ -201,6 +213,175 @@ exit 1
 
 	if result.Success {
 		t.Error("Run() Success should be false for non-zero exit code")
+	}
+}
+
+func TestCodexProviderRun_CreatesMissingCODEXHOME(t *testing.T) {
+	tempDir := t.TempDir()
+	missingHome := filepath.Join(tempDir, "codex-home-missing")
+	t.Setenv("CODEX_HOME", missingHome)
+	t.Setenv("EXPECTED_BAD_CODEX_HOME", missingHome)
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+echo "CODEX_HOME=$CODEX_HOME"
+if [ ! -d "$CODEX_HOME" ]; then
+  echo "missing CODEX_HOME directory: $CODEX_HOME" >&2
+  exit 9
+fi
+if [ "$CODEX_HOME" = "$EXPECTED_BAD_CODEX_HOME" ]; then
+  echo "CODEX_HOME was not rewritten from temp path" >&2
+  exit 8
+fi
+echo "ok"
+exit 0
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: "gpt-4o-mini"})
+	result, err := cp.Run(context.Background(), "test", TierLow)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if result == nil || !result.Success {
+		t.Fatalf("Run() should succeed after creating CODEX_HOME, got result=%+v", result)
+	}
+	lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+	if len(lines) == 0 || !strings.HasPrefix(lines[0], "CODEX_HOME=") {
+		t.Fatalf("expected stdout to start with CODEX_HOME=..., got: %q", result.Stdout)
+	}
+	actualHome := strings.TrimPrefix(lines[0], "CODEX_HOME=")
+	if actualHome == missingHome {
+		t.Fatalf("expected CODEX_HOME to be rewritten away from temp path %q", missingHome)
+	}
+	if _, err := os.Stat(actualHome); err != nil {
+		t.Fatalf("expected rewritten CODEX_HOME dir to exist after run: %v", err)
+	}
+}
+
+func TestCodexProviderRun_RetriesTransientFailureOnce(t *testing.T) {
+	tempDir := t.TempDir()
+	counterFile := filepath.Join(tempDir, "attempt-counter")
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+COUNT=0
+if [ -f "` + counterFile + `" ]; then
+  COUNT=$(cat "` + counterFile + `")
+fi
+COUNT=$((COUNT+1))
+echo "$COUNT" > "` + counterFile + `"
+if [ "$COUNT" -eq 1 ]; then
+  echo "stream disconnected during request" >&2
+  exit 1
+fi
+echo "ok after retry"
+exit 0
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: "gpt-4o-mini"})
+	result, err := cp.Run(context.Background(), "test", TierLow)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if result == nil || !result.Success {
+		t.Fatalf("Run() should succeed after transient retry, got result=%+v", result)
+	}
+	if !strings.Contains(result.Stdout, "ok after retry") {
+		t.Fatalf("expected stdout from retry success, got: %q", result.Stdout)
+	}
+	data, err := os.ReadFile(counterFile)
+	if err != nil {
+		t.Fatalf("failed to read attempt counter: %v", err)
+	}
+	if strings.TrimSpace(string(data)) != "2" {
+		t.Fatalf("expected 2 attempts, got %q", strings.TrimSpace(string(data)))
+	}
+}
+
+func TestCodexProviderRun_FailureIncludesDiagnostics(t *testing.T) {
+	tempDir := t.TempDir()
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+echo "fatal transport issue" >&2
+exit 4
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	cp := NewCodexProvider(mockBinary, []string{"--dangerously-bypass-approvals-and-sandbox"}, map[string]string{TierLow: "gpt-4o-mini"})
+	result, err := cp.Run(context.Background(), "test", TierLow)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if result == nil || result.Success {
+		t.Fatalf("Run() should fail, got result=%+v", result)
+	}
+	if !strings.Contains(result.Diagnostics, "codex_args=exec") {
+		t.Fatalf("Diagnostics missing args, got: %q", result.Diagnostics)
+	}
+	if !strings.Contains(result.Diagnostics, "stderr_head=") || !strings.Contains(result.Diagnostics, "stderr_tail=") {
+		t.Fatalf("Diagnostics missing stderr head/tail, got: %q", result.Diagnostics)
+	}
+}
+
+func TestClassifyCodexFailure(t *testing.T) {
+	cases := []struct {
+		name     string
+		exitCode int
+		stdout   string
+		stderr   string
+		want     string
+	}{
+		{
+			name:     "success has no category",
+			exitCode: 0,
+			want:     FailureCategoryNone,
+		},
+		{
+			name:     "transport disconnect",
+			exitCode: 1,
+			stderr:   "ERROR: stream disconnected before completion",
+			want:     FailureCategoryTransportDisconnect,
+		},
+		{
+			name:     "dns resolution failure is transport",
+			exitCode: 1,
+			stderr:   "ERROR: could not resolve host: api.openai.com",
+			want:     FailureCategoryTransportDisconnect,
+		},
+		{
+			name:     "rate limited",
+			exitCode: 1,
+			stderr:   "429 too many requests",
+			want:     FailureCategoryRateLimited,
+		},
+		{
+			name:     "auth",
+			exitCode: 1,
+			stderr:   "invalid api key",
+			want:     FailureCategoryAuth,
+		},
+		{
+			name:     "other",
+			exitCode: 2,
+			stderr:   "some unknown failure",
+			want:     FailureCategoryOther,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := classifyCodexFailure(tc.exitCode, tc.stdout, tc.stderr)
+			if got != tc.want {
+				t.Fatalf("classifyCodexFailure(%d, %q, %q) = %q, want %q", tc.exitCode, tc.stdout, tc.stderr, got, tc.want)
+			}
+		})
 	}
 }
 

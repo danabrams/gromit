@@ -52,12 +52,8 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	}
 	defer cleanup()
 
-	// Resolve agent (defaulting to "claude" if not specified)
-	agentName := input.AgentName
-	if agentName == "" {
-		agentName = "claude"
-	}
-	agent, err := p.deps.AgentResolver.Resolve("explore", agentName, false)
+	// Resolve agent
+	agent, err := p.deps.AgentResolver.Resolve("explore", input.AgentName, input.ChooseAgent)
 	if err != nil {
 		return nil, fmt.Errorf("resolving agent: %w", err)
 	}

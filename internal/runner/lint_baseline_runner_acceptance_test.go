@@ -29,6 +29,6 @@ func TestRunnerLintBaseline_RunViaRunnerAPI(t *testing.T) {
 		t.Fatalf("RunRunnerLintBaseline: %v", err)
 	}
 	if result.ExitCode != 0 {
-		t.Fatalf("expected lint baseline exit code 0, got %d", result.ExitCode)
+		t.Fatalf("expected lint baseline exit code 0, got %d\nlint output:\n%s", result.ExitCode, result.Output)
 	}
 }

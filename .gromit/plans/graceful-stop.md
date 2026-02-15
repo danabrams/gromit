@@ -1,6 +1,7 @@
 ---
 created: 2026-02-13T00:00:00Z
-decomposed: false
+decomposed: true
+decomposed_at: "2026-02-15T19:55:31Z"
 id: graceful-stop
 source_spec: graceful-stop
 ---

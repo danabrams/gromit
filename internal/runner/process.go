@@ -129,28 +129,30 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 }
 
 // executeClaudeInvocation runs a single Claude invocation with streaming, heartbeat,
-// and stall detection. Returns the Claude result, stream stats, whether a stall was detected, and any error.
+// and stall detection. Returns the Claude result, stream stats, provider result, whether a stall was detected, and any error.
 // Delegates the core invocation to execution.Invoker.Execute.
-func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *runtypes.BeadContext) (*claude.Result, *logger.StreamStats, bool, error) {
+func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *runtypes.BeadContext) (*claude.Result, *logger.StreamStats, *provider.Result, bool, error) {
 	if r == nil || r.invoker == nil {
-		return nil, nil, false, fmt.Errorf("runner invoker is nil")
+		return nil, nil, nil, false, fmt.Errorf("runner invoker is nil")
 	}
 
 	invResult, err := r.invoker.Execute(ctx, bc, bc.BuildPrompt)
 	if err != nil && invResult == nil {
-		return nil, nil, false, err
+		return nil, nil, nil, false, err
 	}
 
 	var result *claude.Result
 	var stats *logger.StreamStats
+	var providerResult *provider.Result
 	stallFired := false
 	if invResult != nil {
 		result = invResult.Result
 		stats = invResult.Stats
+		providerResult = invResult.ProviderResult
 		stallFired = invResult.StallFired
 	}
 
-	return result, stats, stallFired, err
+	return result, stats, providerResult, stallFired, err
 }
 
 // handleScopeTooLarge processes the scope-too-large signal from Claude.
@@ -227,6 +229,54 @@ func detectTouchedPackages(diff string) []string {
 	}
 
 	return packages
+}
+
+// scopeValidationCommands scopes "go test ./..." commands to touched packages.
+// Non-go-test commands and commands without "./..." are returned unchanged.
+func scopeValidationCommands(commands []string, touchedPackages []string) []string {
+	if len(commands) == 0 || len(touchedPackages) == 0 {
+		return commands
+	}
+
+	scopedPackages := make([]string, 0, len(touchedPackages))
+	seen := make(map[string]bool, len(touchedPackages))
+	for _, pkg := range touchedPackages {
+		if pkg == "" || seen[pkg] {
+			continue
+		}
+		seen[pkg] = true
+		scopedPackages = append(scopedPackages, "./"+strings.TrimPrefix(pkg, "./")+"/...")
+	}
+	if len(scopedPackages) == 0 {
+		return commands
+	}
+
+	scoped := make([]string, 0, len(commands))
+	for _, command := range commands {
+		fields := strings.Fields(command)
+		if len(fields) < 3 || fields[0] != "go" || fields[1] != "test" {
+			scoped = append(scoped, command)
+			continue
+		}
+
+		replaced := false
+		rebuilt := make([]string, 0, len(fields)+len(scopedPackages))
+		for _, token := range fields {
+			if token == "./..." {
+				rebuilt = append(rebuilt, scopedPackages...)
+				replaced = true
+				continue
+			}
+			rebuilt = append(rebuilt, token)
+		}
+		if replaced {
+			scoped = append(scoped, strings.Join(rebuilt, " "))
+			continue
+		}
+		scoped = append(scoped, command)
+	}
+
+	return scoped
 }
 
 // runDirectValidationCheck delegates to the validation.Runner's RunDirect method.
@@ -378,6 +428,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 
 	r.log("Running validation commands directly (fast gate)...")
 	commands := r.cfg.Validation.FastCommandsOrDefault()
+	commands = scopeValidationCommands(commands, bc.TouchedPackages)
 
 	// Capture output before validation to extract failure output afterward
 	outputBefore := bc.Result.Output
@@ -404,6 +455,7 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.Bea
 
 	r.log("Running validation commands directly (fast gate)...")
 	commands := r.cfg.Validation.FastCommandsOrDefault()
+	commands = scopeValidationCommands(commands, bc.TouchedPackages)
 
 	// Delegate core validation + recovery to validation.Runner
 	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, "fast")

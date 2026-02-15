@@ -73,6 +73,7 @@ func convertResult(claudeResult *claude.Result) *Result {
 	return &Result{
 		Success:  claudeResult.Success,
 		Output:   claudeResult.Output,
+		Stdout:   claudeResult.Output,
 		ExitCode: claudeResult.ExitCode,
 		Duration: claudeResult.Duration,
 		Model:    claudeResult.Model,

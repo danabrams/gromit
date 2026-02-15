@@ -304,11 +304,13 @@ func (e *Executor) RunAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes
 		if retries > 0 {
 			e.log("Retrying acceptance tests (attempt %d/%d)...", retries+1, maxRetries+1)
 		}
+		e.log("ATDD acceptance attempt context: tier=%s retry_index=%d", currentTier, retries)
 
 		err := e.RunAcceptanceTests(ctx, bc)
 		if err == nil {
 			return nil
 		}
+		e.log("ATDD acceptance attempt failed: %v", err)
 
 		// Retry with same tier
 		if retries < maxRetries {
@@ -356,6 +358,7 @@ func (e *Executor) VerifyTestsFailWithRetry(ctx context.Context, bc *runtypes.Be
 		bc.PromptCtx.FailureContext = suggestion
 
 		if retryErr := e.RunAcceptanceTests(ctx, bc); retryErr != nil {
+			e.log("ATDD retry with analysis failed: %v", retryErr)
 			return fmt.Errorf("acceptance tests retry failed: %w", retryErr)
 		}
 
@@ -381,6 +384,8 @@ func (e *Executor) VerifyTestsFailWithRetry(ctx context.Context, bc *runtypes.Be
 				if err2 := e.VerifyTestsFail(ctx, bc); err2 == nil {
 					return nil // Tests now fail as expected
 				}
+			} else {
+				e.log("ATDD diff-aware retry failed: %v", retryErr)
 			}
 			// If retry failed or tests still pass, fall through to ErrATDDAlreadyDone
 		}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -27,6 +28,7 @@ type Status struct {
 type StatusWriter struct {
 	path      string
 	startTime time.Time
+	mu        sync.Mutex
 }
 
 // NewStatusWriter creates a new status writer for the given gromit directory
@@ -42,6 +44,8 @@ func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, ru
 	if sw == nil {
 		return nil // No-op if writer is nil
 	}
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
 
 	status := Status{
 		Running:           running,
@@ -74,6 +78,8 @@ func (sw *StatusWriter) Delete() error {
 	if sw == nil {
 		return nil // No-op if writer is nil
 	}
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
 
 	err := os.Remove(sw.path)
 	if err != nil && !os.IsNotExist(err) {
@@ -89,6 +95,8 @@ func (sw *StatusWriter) WriteFinal(iteration int) error {
 	if sw == nil {
 		return nil // No-op if writer is nil
 	}
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
 
 	status := Status{
 		Running:   false,
