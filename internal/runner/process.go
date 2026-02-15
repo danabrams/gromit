@@ -376,7 +376,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 		return err
 	}
 
-	r.log("Running fast validation commands directly...")
+	r.log("Running validation commands directly (fast gate)...")
 	commands := r.cfg.Validation.FastCommandsOrDefault()
 
 	// Capture output before validation to extract failure output afterward
@@ -402,7 +402,7 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.Bea
 		return err
 	}
 
-	r.log("Running fast validation commands directly...")
+	r.log("Running validation commands directly (fast gate)...")
 	commands := r.cfg.Validation.FastCommandsOrDefault()
 
 	// Delegate core validation + recovery to validation.Runner
