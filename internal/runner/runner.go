@@ -208,8 +208,10 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 	}
 
 	stallTimeoutFn := makeStallTimeoutFn(cfg)
+	invocationTimeoutFn := makeInvocationTimeoutFn(cfg)
 	inv := execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
-		WithHeartbeat(syncOut, stallTimeoutFn)
+		WithHeartbeat(syncOut, stallTimeoutFn).
+		WithInvocationTimeout(invocationTimeoutFn)
 
 	r := &Runner{
 		cfg:         cfg,
@@ -291,13 +293,16 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 
 	// Create invoker with router adapter (nil-safe: if router is nil, invoker handles it)
 	stallTimeoutFn := makeStallTimeoutFn(cfg)
+	invocationTimeoutFn := makeInvocationTimeoutFn(cfg)
 	var inv *execution.Invoker
 	if router != nil {
 		inv = execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
-			WithHeartbeat(syncOut, stallTimeoutFn)
+			WithHeartbeat(syncOut, stallTimeoutFn).
+			WithInvocationTimeout(invocationTimeoutFn)
 	} else {
 		inv = execution.NewInvoker(nil, syncOut, nil).
-			WithHeartbeat(syncOut, stallTimeoutFn)
+			WithHeartbeat(syncOut, stallTimeoutFn).
+			WithInvocationTimeout(invocationTimeoutFn)
 	}
 
 	cmdRunner := defaultCmdRunner
