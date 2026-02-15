@@ -40,6 +40,8 @@ var exploreModel string
 
 const exploreCodexHelpExample = `  gromit explore --agent codex "Audit onboarding flow" # Use Codex for the session`
 const exploreAgentSelectionHelpSentence = "Agent selection priority: --agent, --choose-agent, agents.phases.explore, then default \"claude\"."
+const exploreAgentOverrideFlag = "--from-override"
+const explorePhaseConfigFlag = "--from-phase-config"
 
 func init() {
 	exploreCmd.Flags().StringVar(&exploreModel, "model", "opus", "Claude model to use (opus, sonnet, haiku)")
