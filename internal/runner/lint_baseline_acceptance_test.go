@@ -27,17 +27,17 @@ func TestRunnerLintBaseline_ErrcheckUnusedStaticcheck(t *testing.T) {
 	_ = RunnerLintBaselineAcceptanceMarker
 
 	repoRoot := lintBaselineRepoRoot(t)
+	golangciLint := resolveGolangCILintV2Path(t)
 
 	cmd := exec.Command(
-		"golangci-lint",
+		golangciLint,
 		"run",
-		"--disable-all",
-		"--enable", "errcheck",
-		"--enable", "unused",
-		"--enable", "staticcheck",
+		"--default=none",
+		"--enable-only", "errcheck,unused,staticcheck",
 		"./internal/runner/...",
 	)
 	cmd.Dir = repoRoot
+	cmd.Env = golangciLintAcceptanceEnv(t)
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {

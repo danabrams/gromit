@@ -57,7 +57,11 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create StreamLogger: %v", err)
 	}
-	defer sl.Close()
+	defer func() {
+		if err := sl.Close(); err != nil {
+			t.Fatalf("failed to close StreamLogger: %v", err)
+		}
+	}()
 
 	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
 	mockRouter := provider.NewSingleProviderRouter(mockProvider)

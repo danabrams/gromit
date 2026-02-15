@@ -12,7 +12,7 @@ source_spec: typed-session-results
 
 **Architecture:** Three-layer type system — `BaseSession` interface (renamed from `Session`) for lifecycle, `Session[T any]` generic interface for typed results, and non-generic `baseSession` struct for shared subprocess plumbing. Each typed wrapper embeds `*baseSession` and adds its own result fields.
 
-**Tech Stack:** Go 1.25.7 (generics), os/exec for subprocess management, io pipes, goroutines for async stdout reading
+**Tech Stack:** Go 1.26.0 (generics), os/exec for subprocess management, io pipes, goroutines for async stdout reading
 
 **Spec:** `.gromit/specs/typed-session-results.md`
 

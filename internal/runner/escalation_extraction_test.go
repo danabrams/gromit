@@ -155,7 +155,11 @@ func countFileLines(t *testing.T, path string) int {
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Fatalf("failed to close %s: %v", path, err)
+		}
+	}()
 
 	count := 0
 	scanner := bufio.NewScanner(f)

@@ -63,7 +63,11 @@ func TestWriteIterationLog_PropagatesUsageLimited(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
 
 	// Create runner with logger
 	r := &Runner{
@@ -127,7 +131,11 @@ func TestWriteIterationLog_UsageLimitedFalseNotPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
 
 	// Create runner with logger
 	r := &Runner{
@@ -185,7 +193,11 @@ func TestWriteIterationLog_WritesAcceptanceFailureArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
 
 	r := &Runner{
 		logger: l,

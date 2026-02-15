@@ -614,7 +614,7 @@ func TestPostSuccess_LearningFailure_ReviewStillCompletes(t *testing.T) {
 	}
 	reviewer := reviewpkg.NewReviewer(postSuccessCfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
 	reviewer.SetLogFn(func(format string, args ...interface{}) {
-		fmt.Fprintf(syncOut, format+"\n", args...)
+		_, _ = fmt.Fprintf(syncOut, format+"\n", args...)
 	})
 	r := &Runner{
 		cfg:              postSuccessCfg,
@@ -742,7 +742,7 @@ func TestPostSuccess_ReviewRevalidationError_Propagates(t *testing.T) {
 	}
 	reviewer := reviewpkg.NewReviewer(revalCfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
 	reviewer.SetLogFn(func(format string, args ...interface{}) {
-		fmt.Fprintf(syncOut, format+"\n", args...)
+		_, _ = fmt.Fprintf(syncOut, format+"\n", args...)
 	})
 	// Re-validation after review fixes should fail
 	revalCallCount := 0
@@ -1001,7 +1001,7 @@ func TestPostSuccess_OnlyReviewEnabled(t *testing.T) {
 	}
 	reviewer := reviewpkg.NewReviewer(cfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
 	reviewer.SetLogFn(func(format string, args ...interface{}) {
-		fmt.Fprintf(syncOut, format+"\n", args...)
+		_, _ = fmt.Fprintf(syncOut, format+"\n", args...)
 	})
 	r := &Runner{
 		cfg:              cfg,
@@ -1145,7 +1145,7 @@ func TestPostSuccess_BothStagesEnabled_RunSequentially(t *testing.T) {
 	}
 	reviewer := reviewpkg.NewReviewer(postSuccessCfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
 	reviewer.SetLogFn(func(format string, args ...interface{}) {
-		fmt.Fprintf(syncOut, format+"\n", args...)
+		_, _ = fmt.Fprintf(syncOut, format+"\n", args...)
 	})
 	r := &Runner{
 		cfg:              postSuccessCfg,
@@ -1279,7 +1279,7 @@ func TestPostSuccess_LearningFailureDoesNotBlockReview(t *testing.T) {
 	}
 	reviewer := reviewpkg.NewReviewer(postSuccessCfg, mockRouter, mockBeads, mockRend, gitDiffFn, nil)
 	reviewer.SetLogFn(func(format string, args ...interface{}) {
-		fmt.Fprintf(syncOut, format+"\n", args...)
+		_, _ = fmt.Fprintf(syncOut, format+"\n", args...)
 	})
 	r := &Runner{
 		cfg:              postSuccessCfg,

@@ -254,9 +254,11 @@ func TestSplitRunnerFinalVerification_RunnerPackageTestsPass(t *testing.T) {
 func TestSplitRunnerFinalVerification_RunnerLintPasses(t *testing.T) {
 	finalVerificationVerifyLayout(t)
 	repoRoot := finalVerificationRepoRoot(t)
+	golangciLint := resolveGolangCILintV2Path(t)
 
-	cmd := exec.Command("golangci-lint", "run", "./internal/runner/...")
+	cmd := exec.Command(golangciLint, "run", "./internal/runner/...")
 	cmd.Dir = repoRoot
+	cmd.Env = golangciLintAcceptanceEnv(t)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("golangci-lint run ./internal/runner/... failed: %v\n%s", err, string(out))

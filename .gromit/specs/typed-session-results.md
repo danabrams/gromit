@@ -66,5 +66,5 @@ result, err := session.Result()
 - **`internal/pipeline/session_test.go`** — Acceptance tests (build tag `acceptance`) that expect `baseSession`, typed constructors, and `Result()` methods. These tests are written to fail against the current code and will serve as the implementation target.
 - **`internal/pipeline/helpers.go`** — Utility functions (`ListMarkdownFiles`, `DiffFiles`, `ExtractSpecTitle`, `WriteTempPrompt`) used by pipeline workflows.
 - **`internal/pipeline/mocks_test.go`** — Compile-time interface satisfaction checks for all 8 dependency interfaces.
-- **Go version is 1.25.7** — Generics fully supported. This will be the first use of generics in the codebase.
+- **Go version is 1.26.0** — Generics fully supported. This will be the first use of generics in the codebase.
 - **No `cmd/` integration yet** — All five command handlers work inline without using the pipeline package, so the `Session` → `BaseSession` rename has zero downstream impact today.
