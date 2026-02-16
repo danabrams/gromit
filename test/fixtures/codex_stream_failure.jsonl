@@ -1,4 +1,5 @@
 # provenance: representative Codex JSONL failure stream payload captured from fake CLI output contract shape; refresh with provider fixture workflow.
+# refresh: update from latest codex stream fixture capture and keep terminal error shape deterministic for contract tests.
 {"type":"response.started","response":{"id":"resp_codex_fail"}}
 {"type":"assistant","message":{"id":"msg_codex_fail","content":[{"type":"text","text":"Attempted build but validation failed."}]}}
 {"type":"response.error","error":"go test ./... failed"}
