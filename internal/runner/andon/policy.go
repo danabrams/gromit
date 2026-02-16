@@ -45,6 +45,17 @@ func ChooseNextAction(state RecoveryState, thresholds AndonThresholds, now time.
 	})
 }
 
+// EvaluateFailure classifies a failure signal and selects the next action.
+func EvaluateFailure(signal FailureSignal, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
+	class := ClassifyFailure(signal)
+	state.Class = class
+
+	return PolicyEvaluation{
+		Class:    class,
+		Decision: ChooseNextAction(state, thresholds, now),
+	}
+}
+
 // ChooseNextActionPure computes the next bounded recovery step for a failure state.
 func ChooseNextActionPure(input PolicyInput) PolicyDecision {
 	thresholds := normalizeThresholds(input.Thresholds)

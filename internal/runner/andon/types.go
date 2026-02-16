@@ -105,6 +105,12 @@ type PolicyDecision struct {
 	Action    Decision
 }
 
+// PolicyEvaluation is the classification plus selected decision.
+type PolicyEvaluation struct {
+	Class    FailureClass
+	Decision PolicyDecision
+}
+
 // RecoveryState tracks bounded recovery progress for a failure.
 type RecoveryState struct {
 	Class           FailureClass

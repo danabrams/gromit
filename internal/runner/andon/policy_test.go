@@ -227,3 +227,32 @@ func TestChooseNextAction_HasDecisionPathPerFailureClass(t *testing.T) {
 		})
 	}
 }
+
+func TestEvaluateFailure_ClassifiesTransientAndChoosesDecision(t *testing.T) {
+	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+	thresholds := DefaultThresholds()
+
+	got := EvaluateFailure(
+		FailureSignal{
+			Kind:   FailureKindTimeout,
+			Output: "context deadline exceeded",
+		},
+		RecoveryState{
+			Level:      LevelL1,
+			L1Attempts: 0,
+			L1Started:  now,
+		},
+		thresholds,
+		now,
+	)
+
+	if got.Class != FailureClassTransient {
+		t.Fatalf("Class = %q, want %q", got.Class, FailureClassTransient)
+	}
+	if got.Decision.NextLevel != LevelL1 {
+		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL1)
+	}
+	if got.Decision.Action != DecisionRetry {
+		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionRetry)
+	}
+}
