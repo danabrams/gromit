@@ -10,17 +10,17 @@ import (
 func TestDefaultThresholds_SpecAligned(t *testing.T) {
 	thresholds := DefaultThresholds()
 
-	if thresholds.L1MaxRetries != 2 {
-		t.Fatalf("L1MaxRetries = %d, want 2", thresholds.L1MaxRetries)
+	if thresholds.L1MaxRetries != defaultL1MaxRetries {
+		t.Fatalf("L1MaxRetries = %d, want %d", thresholds.L1MaxRetries, defaultL1MaxRetries)
 	}
-	if thresholds.L1MaxDuration != 2*time.Minute {
-		t.Fatalf("L1MaxDuration = %v, want %v", thresholds.L1MaxDuration, 2*time.Minute)
+	if thresholds.L1MaxDuration != defaultL1MaxDuration {
+		t.Fatalf("L1MaxDuration = %v, want %v", thresholds.L1MaxDuration, defaultL1MaxDuration)
 	}
-	if thresholds.L2MaxDuration != 15*time.Minute {
-		t.Fatalf("L2MaxDuration = %v, want %v", thresholds.L2MaxDuration, 15*time.Minute)
+	if thresholds.L2MaxDuration != defaultL2MaxDuration {
+		t.Fatalf("L2MaxDuration = %v, want %v", thresholds.L2MaxDuration, defaultL2MaxDuration)
 	}
-	if thresholds.MaxAssumptions != 2 {
-		t.Fatalf("MaxAssumptions = %d, want 2", thresholds.MaxAssumptions)
+	if thresholds.MaxAssumptions != defaultMaxAssumptions {
+		t.Fatalf("MaxAssumptions = %d, want %d", thresholds.MaxAssumptions, defaultMaxAssumptions)
 	}
 }
 
