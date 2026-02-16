@@ -478,6 +478,28 @@ func TestInteractiveStateNormalizeNilFields(t *testing.T) {
 	}
 }
 
+func TestInteractiveFileLoad_BackwardCompatiblePendingBranches(t *testing.T) {
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "interactive-state.json")
+	legacyJSON := `{"last_review_commit":"abc123","filtered_learning_hashes":["hash1"],"updated_at":"2024-01-02T03:04:05Z"}`
+
+	if err := os.WriteFile(statePath, []byte(legacyJSON), 0644); err != nil {
+		t.Fatalf("writing legacy interactive-state: %v", err)
+	}
+
+	f, _ := NewInteractiveFile(dir)
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("listing pending branches: %v", err)
+	}
+	if branches == nil {
+		t.Fatal("expected empty pending branches slice, got nil")
+	}
+	if len(branches) != 0 {
+		t.Fatalf("expected 0 pending branches, got %d", len(branches))
+	}
+}
+
 func TestInteractiveFilePendingWorktreeBranchesPersistence(t *testing.T) {
 	// Expected failure: AddPendingWorktreeBranch/ListPendingWorktreeBranches and
 	// PendingWorktreeBranches are not implemented on InteractiveFile/InteractiveState yet.
