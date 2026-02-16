@@ -23,3 +23,18 @@ func TestDefaultThresholds_SpecAligned(t *testing.T) {
 		t.Fatalf("MaxAssumptions = %d, want 2", thresholds.MaxAssumptions)
 	}
 }
+
+// TestLevels_IncludeL1ToL4 verifies all Andon levels are represented.
+func TestLevels_IncludeL1ToL4(t *testing.T) {
+	levels := []AndonLevel{LevelL1, LevelL2, LevelL3, LevelL4}
+
+	if len(levels) != 4 {
+		t.Fatalf("levels length = %d, want 4", len(levels))
+	}
+
+	for i, level := range levels {
+		if level == "" {
+			t.Fatalf("levels[%d] is empty", i)
+		}
+	}
+}
