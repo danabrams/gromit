@@ -165,7 +165,15 @@ func (f *InteractiveFile) RemovePendingWorktreeBranch(branch string) error {
 	if f == nil {
 		return fmt.Errorf("interactive state file is nil")
 	}
-	return nil
+	return f.mutateAndSaveLocked(func(s *InteractiveState) {
+		kept := s.PendingWorktreeBranches[:0]
+		for _, existing := range s.PendingWorktreeBranches {
+			if existing != branch {
+				kept = append(kept, existing)
+			}
+		}
+		s.PendingWorktreeBranches = kept
+	})
 }
 
 // ListPendingWorktreeBranches returns the pending branches persisted in state.
