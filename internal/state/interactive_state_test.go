@@ -478,6 +478,157 @@ func TestInteractiveStateNormalizeNilFields(t *testing.T) {
 	}
 }
 
+func TestInteractiveFilePendingWorktreeBranchesPersistence(t *testing.T) {
+	// Expected failure: AddPendingWorktreeBranch/ListPendingWorktreeBranches and
+	// PendingWorktreeBranches are not implemented on InteractiveFile/InteractiveState yet.
+
+	dir := t.TempDir()
+	f, _ := NewInteractiveFile(dir)
+
+	if err := f.AddPendingWorktreeBranch("feature/one"); err != nil {
+		t.Fatalf("AddPendingWorktreeBranch: %v", err)
+	}
+	if err := f.AddPendingWorktreeBranch("feature/two"); err != nil {
+		t.Fatalf("AddPendingWorktreeBranch: %v", err)
+	}
+
+	f2, _ := NewInteractiveFile(dir)
+	branches, err := f2.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+
+	branchSet := pendingBranchSet(branches)
+	if len(branchSet) != 2 {
+		t.Fatalf("expected 2 pending branches, got %d", len(branchSet))
+	}
+	if !branchSet["feature/one"] || !branchSet["feature/two"] {
+		t.Fatalf("pending branches = %v, want feature/one and feature/two", branches)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "interactive-state.json"))
+	if err != nil {
+		t.Fatalf("reading interactive-state file: %v", err)
+	}
+	jsonStr := string(data)
+	if !contains(jsonStr, "pending_worktree_branches") {
+		t.Error("JSON should contain 'pending_worktree_branches' field")
+	}
+	if !contains(jsonStr, "feature/one") {
+		t.Error("JSON should contain 'feature/one' branch")
+	}
+}
+
+func TestInteractiveFilePendingWorktreeBranchesBackwardCompatibility(t *testing.T) {
+	// Expected failure: ListPendingWorktreeBranches does not exist and
+	// NormalizeNilFields does not handle PendingWorktreeBranches yet.
+
+	dir := t.TempDir()
+	legacyJSON := `{"last_review_commit":"abc123","last_review_iteration":4,"filtered_learning_hashes":[],"updated_at":"2024-01-01T00:00:00Z"}`
+	if err := os.WriteFile(filepath.Join(dir, "interactive-state.json"), []byte(legacyJSON), 0644); err != nil {
+		t.Fatalf("writing legacy interactive-state.json: %v", err)
+	}
+
+	f, _ := NewInteractiveFile(dir)
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+	if branches == nil {
+		t.Fatal("expected empty slice for pending branches, got nil")
+	}
+	if len(branches) != 0 {
+		t.Fatalf("expected 0 pending branches, got %d", len(branches))
+	}
+}
+
+func TestInteractiveFilePendingWorktreeBranchesDeduplication(t *testing.T) {
+	// Expected failure: AddPendingWorktreeBranch/ListPendingWorktreeBranches do not
+	// deduplicate branches yet.
+
+	dir := t.TempDir()
+	f, _ := NewInteractiveFile(dir)
+
+	if err := f.AddPendingWorktreeBranch("feature/dup"); err != nil {
+		t.Fatalf("AddPendingWorktreeBranch: %v", err)
+	}
+	if err := f.AddPendingWorktreeBranch("feature/dup"); err != nil {
+		t.Fatalf("AddPendingWorktreeBranch: %v", err)
+	}
+
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+
+	branchSet := pendingBranchSet(branches)
+	if len(branchSet) != 1 || !branchSet["feature/dup"] {
+		t.Fatalf("pending branches = %v, want only feature/dup", branches)
+	}
+}
+
+func TestInteractiveFilePendingWorktreeBranchesRemove(t *testing.T) {
+	// Expected failure: RemovePendingWorktreeBranch does not exist yet.
+
+	dir := t.TempDir()
+	f, _ := NewInteractiveFile(dir)
+
+	if err := f.AddPendingWorktreeBranch("feature/remove"); err != nil {
+		t.Fatalf("AddPendingWorktreeBranch: %v", err)
+	}
+	if err := f.AddPendingWorktreeBranch("feature/keep"); err != nil {
+		t.Fatalf("AddPendingWorktreeBranch: %v", err)
+	}
+	if err := f.RemovePendingWorktreeBranch("feature/remove"); err != nil {
+		t.Fatalf("RemovePendingWorktreeBranch: %v", err)
+	}
+
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+
+	branchSet := pendingBranchSet(branches)
+	if len(branchSet) != 1 || !branchSet["feature/keep"] {
+		t.Fatalf("pending branches = %v, want only feature/keep", branches)
+	}
+}
+
+func TestInteractiveFilePendingWorktreeBranchesFileLocking(t *testing.T) {
+	// Expected failure: AddPendingWorktreeBranch does not use file-locked load/mutate/save
+	// so concurrent updates can clobber pending_worktree_branches.
+
+	dir := t.TempDir()
+	f1, _ := NewInteractiveFile(dir)
+	f2, _ := NewInteractiveFile(dir)
+
+	if err := f1.AddPendingWorktreeBranch("feature/a"); err != nil {
+		t.Fatalf("AddPendingWorktreeBranch: %v", err)
+	}
+	if err := f2.AddPendingWorktreeBranch("feature/b"); err != nil {
+		t.Fatalf("AddPendingWorktreeBranch: %v", err)
+	}
+
+	f3, _ := NewInteractiveFile(dir)
+	branches, err := f3.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+
+	branchSet := pendingBranchSet(branches)
+	if len(branchSet) != 2 || !branchSet["feature/a"] || !branchSet["feature/b"] {
+		t.Fatalf("pending branches = %v, want feature/a and feature/b", branches)
+	}
+}
+
+func pendingBranchSet(branches []string) map[string]bool {
+	set := make(map[string]bool, len(branches))
+	for _, branch := range branches {
+		set[branch] = true
+	}
+	return set
+}
+
 // TestInteractiveFileRoundTrip verifies complete round-trip of all interactive state fields
 func TestInteractiveFileRoundTrip(t *testing.T) {
 	dir := t.TempDir()
