@@ -20,26 +20,35 @@ type PolicyInput struct {
 
 // ClassifyFailure maps an observed signal to an Andon failure class.
 func ClassifyFailure(signal FailureSignal) FailureClass {
+	class, _ := classifyFailure(signal)
+	return class
+}
+
+func classifyFailure(signal FailureSignal) (FailureClass, bool) {
 	switch signal.Kind {
 	case FailureKindTimeout:
-		return FailureClassTransient
+		return FailureClassTransient, false
 	case FailureKindWorkflow:
-		return FailureClassWorkflow
+		return FailureClassWorkflow, false
 	case FailureKindQualityGate:
-		return FailureClassQuality
+		return FailureClassQuality, false
 	case FailureKindAmbiguousIntent:
-		return FailureClassIntent
+		return FailureClassIntent, false
 	case FailureKindIntegrity:
-		return FailureClassData
+		return FailureClassData, false
 	default:
 		// Unknown signals route through the workflow class so policy output remains canonical.
-		return defaultFailureClass
+		return defaultFailureClass, true
 	}
 }
 
 // ClassifyFailureEntry classifies a failure signal for policy-level decisioning.
 func ClassifyFailureEntry(signal FailureSignal) PolicyClassification {
-	return PolicyClassification{Class: ClassifyFailure(signal)}
+	class, fallback := classifyFailure(signal)
+	return PolicyClassification{
+		Class:                  class,
+		IsWorkflowFallbackKind: fallback,
+	}
 }
 
 // ChooseNextAction computes the next bounded recovery step for a failure state.
@@ -54,41 +63,51 @@ func ChooseNextAction(state RecoveryState, thresholds AndonThresholds, now time.
 
 // EvaluateFailure classifies a failure signal and selects the next action.
 func EvaluateFailure(signal FailureSignal, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
-	return evaluateFailureClass(ClassifyFailure(signal), state, thresholds, now)
+	classification := ClassifyFailureEntry(signal)
+	return EvaluateClassifiedFailure(classification, state, thresholds, now)
 }
 
 // EvaluateClassifiedFailure selects policy action from a pre-classified failure.
 func EvaluateClassifiedFailure(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
-	return evaluateFailureClass(classification.Class, state, thresholds, now)
+	return evaluateFailureClass(classification, state, thresholds, now)
 }
 
-func evaluateFailureClass(class FailureClass, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
-	state.Class = class
-	decision, path := chooseDecisionForClass(state, thresholds, now)
+func evaluateFailureClass(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
+	state.Class = classification.Class
+	decision, path := chooseDecisionForClass(classification, state, thresholds, now)
 
 	return PolicyEvaluation{
-		Class:    class,
+		Class:    classification.Class,
 		Decision: decision,
 		Path:     path,
 	}
 }
 
-func chooseDecisionForClass(state RecoveryState, thresholds AndonThresholds, now time.Time) (PolicyDecision, DecisionPath) {
+func chooseDecisionForClass(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) (PolicyDecision, DecisionPath) {
 	decision := ChooseNextAction(state, thresholds, now)
 
-	switch state.Class {
-	case FailureClassTransient:
-		return decision, DecisionPathTransientL1Retry
-	case FailureClassWorkflow:
-		return decision, DecisionPathWorkflowEscalateAfterDeterministicAttempt
-	case FailureClassQuality:
-		return decision, DecisionPathQualityStopLineAfterTimebox
-	case FailureClassIntent:
-		return decision, DecisionPathIntentEscalateAfterAssumptionBudget
-	case FailureClassData:
-		return decision, DecisionPathDataImmediateStopLine
-	default:
+	if classification.IsWorkflowFallbackKind {
 		return decision, DecisionPathWorkflowFallbackForUnknownKind
+	}
+
+	return decision, DecisionPathForClass(state.Class)
+}
+
+// DecisionPathForClass returns the canonical decision path branch for a failure class.
+func DecisionPathForClass(class FailureClass) DecisionPath {
+	switch class {
+	case FailureClassTransient:
+		return DecisionPathTransientL1Retry
+	case FailureClassWorkflow:
+		return DecisionPathWorkflowEscalateAfterDeterministicAttempt
+	case FailureClassQuality:
+		return DecisionPathQualityStopLineAfterTimebox
+	case FailureClassIntent:
+		return DecisionPathIntentEscalateAfterAssumptionBudget
+	case FailureClassData:
+		return DecisionPathDataImmediateStopLine
+	default:
+		return DecisionPathWorkflowFallbackForUnknownKind
 	}
 }
 

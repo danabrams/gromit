@@ -126,7 +126,8 @@ type PolicyEvaluation struct {
 
 // PolicyClassification is the classifier output consumed by policy decisions.
 type PolicyClassification struct {
-	Class FailureClass
+	Class                  FailureClass
+	IsWorkflowFallbackKind bool
 }
 
 // RecoveryState tracks bounded recovery progress for a failure.

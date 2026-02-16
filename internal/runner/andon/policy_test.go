@@ -427,3 +427,54 @@ func TestEvaluateClassifiedFailure_HasExplicitPathPerClass(t *testing.T) {
 		})
 	}
 }
+
+func TestEvaluateFailure_UnknownKindUsesDeterministicWorkflowFallbackPath(t *testing.T) {
+	now, thresholds := setupPolicyTest(t)
+	signal := FailureSignal{
+		Kind:   FailureKind("new_kind_not_yet_classified"),
+		Output: "unrecognized envelope",
+	}
+	state := RecoveryState{
+		Level:      LevelL1,
+		L1Attempts: 1,
+		L1Started:  now,
+	}
+
+	first := EvaluateFailure(signal, state, thresholds, now)
+	second := EvaluateFailure(signal, state, thresholds, now)
+
+	if first != second {
+		t.Fatalf("EvaluateFailure must be deterministic for unknown kind: first=%+v second=%+v", first, second)
+	}
+	if first.Class != FailureClassWorkflow {
+		t.Fatalf("Class = %q, want %q", first.Class, FailureClassWorkflow)
+	}
+	if first.Path != DecisionPathWorkflowFallbackForUnknownKind {
+		t.Fatalf("Path = %q, want %q", first.Path, DecisionPathWorkflowFallbackForUnknownKind)
+	}
+	assertDecision(t, first.Decision, LevelL2, DecisionEscalate)
+}
+
+func TestDecisionPathForClass_ReturnsCanonicalPathPerClass(t *testing.T) {
+	tests := []struct {
+		name  string
+		class FailureClass
+		want  DecisionPath
+	}{
+		{name: "transient", class: FailureClassTransient, want: DecisionPathTransientL1Retry},
+		{name: "workflow", class: FailureClassWorkflow, want: DecisionPathWorkflowEscalateAfterDeterministicAttempt},
+		{name: "quality", class: FailureClassQuality, want: DecisionPathQualityStopLineAfterTimebox},
+		{name: "intent", class: FailureClassIntent, want: DecisionPathIntentEscalateAfterAssumptionBudget},
+		{name: "data", class: FailureClassData, want: DecisionPathDataImmediateStopLine},
+		{name: "unknown", class: FailureClass("unknown"), want: DecisionPathWorkflowFallbackForUnknownKind},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DecisionPathForClass(tt.class)
+			if got != tt.want {
+				t.Fatalf("DecisionPathForClass(%q) = %q, want %q", tt.class, got, tt.want)
+			}
+		})
+	}
+}
