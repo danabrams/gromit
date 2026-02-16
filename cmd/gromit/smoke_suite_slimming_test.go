@@ -78,6 +78,20 @@ func TestCmdAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 		}
 	}
 
+	forbiddenHelpTests := []string{
+		"func TestDebugHelpIncludesAgentFlags(",
+		"func TestExploreHelpIncludesCodexAgentExample(",
+		"func TestExploreHelpDocumentsAgentSelectionBehavior(",
+	}
+	for _, token := range forbiddenHelpTests {
+		for rel := range allowedFiles {
+			src := loadCmdAcceptanceFile(t, projectRoot, rel)
+			if strings.Contains(src, token) {
+				t.Fatalf("%s still contains non-E2E help assertion %q", rel, token)
+			}
+		}
+	}
+
 	if totalTests > 9 {
 		t.Fatalf("cmd acceptance smoke suite has %d tests, expected <= 9", totalTests)
 	}

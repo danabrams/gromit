@@ -51,26 +51,6 @@ func setupExploreAgentTestProject(t *testing.T, configContent string) string {
 	return tmpDir
 }
 
-func TestExploreHelpIncludesCodexAgentExample(t *testing.T) {
-	// Expected failure: exploreCodexHelpExample constant does not exist yet and explore help lacks codex selection example
-	stdout := runExploreHelp(t)
-	expectedExample := exploreCodexHelpExample
-
-	if !strings.Contains(stdout, expectedExample) {
-		t.Fatalf("expected explore help to include codex example %q, got: %s", expectedExample, stdout)
-	}
-}
-
-func TestExploreHelpDocumentsAgentSelectionBehavior(t *testing.T) {
-	// Expected failure: exploreAgentSelectionHelpSentence constant does not exist yet and help lacks agent selection guidance
-	stdout := runExploreHelp(t)
-	expectedSentence := exploreAgentSelectionHelpSentence
-
-	if !strings.Contains(stdout, expectedSentence) {
-		t.Fatalf("expected explore help to include agent selection guidance %q, got: %s", expectedSentence, stdout)
-	}
-}
-
 func TestCmdSmoke_ExploreAgentSelectionEndToEnd(t *testing.T) {
 	// Expected failure: exploreAgentOverrideFlag constant does not exist yet and explore does not honor --agent override
 	configContent := `

@@ -36,32 +36,6 @@ func setupDebugAgentTestProject(t *testing.T, configContent string) string {
 	return tmpDir
 }
 
-// TestDebugHelpIncludesAgentFlags verifies debug help exposes agent selection flags.
-func TestDebugHelpIncludesAgentFlags(t *testing.T) {
-	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(
-		binaryPath,
-		"",
-		nil,
-		"",
-		"debug", "--help",
-	)
-	if err != nil {
-		t.Fatalf("failed to run gromit debug --help: %v", err)
-	}
-
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d (stderr: %s)", exitCode, stderr)
-	}
-
-	if !strings.Contains(stdout, "--agent") {
-		t.Errorf("expected debug help to include --agent, got: %s", stdout)
-	}
-
-	if !strings.Contains(stdout, "--choose-agent") {
-		t.Errorf("expected debug help to include --choose-agent, got: %s", stdout)
-	}
-}
-
 // TestDebugAgentOverrideUsesAgentBinary verifies --agent selects the specified agent.
 func TestCmdSmoke_DebugAgentResolutionEndToEnd(t *testing.T) {
 	configContent := `
