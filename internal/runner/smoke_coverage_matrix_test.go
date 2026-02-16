@@ -114,8 +114,6 @@ func listRunnerAcceptanceFiles(t *testing.T, projectRoot string) []string {
 }
 
 func TestRunnerSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
-	// Expected failure: RunnerSmokeCoverageMatrixEntry annotations and
-	// parseRunnerSmokeCoverageDecision conventions are not defined yet.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
 	files := listRunnerAcceptanceFiles(t, projectRoot)
@@ -138,8 +136,6 @@ func TestRunnerSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
 }
 
 func TestRunnerSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
-	// Expected failure: runnerSmokeCoverageKeepSet rules are not declared yet,
-	// so high-value E2E keep decisions are missing from acceptance files.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
 	files := listRunnerAcceptanceFiles(t, projectRoot)
@@ -175,8 +171,6 @@ func TestRunnerSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
 }
 
 func TestRunnerSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites(t *testing.T) {
-	// Expected failure: ReclassifyRunnerMoveDestinations and
-	// TestRunnerSmokeCoverageMatrixDestinationResolution do not exist yet.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
 	files := listRunnerAcceptanceFiles(t, projectRoot)

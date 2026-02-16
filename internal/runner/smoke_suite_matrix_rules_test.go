@@ -10,8 +10,6 @@ import (
 )
 
 func TestRunnerSmokeSuite_ApprovedMatrixCasesOnly(t *testing.T) {
-	// Expected failure: RunnerSmokeApprovedMatrixCases does not exist yet and
-	// acceptance files still include non-smoke scenarios outside the approved set.
 	approved := RunnerSmokeApprovedMatrixCases()
 	if len(approved) == 0 {
 		t.Fatalf("approved smoke matrix is empty")
@@ -38,8 +36,6 @@ func TestRunnerSmokeSuite_ApprovedMatrixCasesOnly(t *testing.T) {
 }
 
 func TestRunnerSmokeSuite_NoSubpackageAcceptanceFiles(t *testing.T) {
-	// Expected failure: RunnerSmokeSuiteApprovedRoots does not exist yet and
-	// acceptance tests still live under internal/runner subpackages like andon.
 	allowedRoots := RunnerSmokeSuiteApprovedRoots()
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 	files := listRunnerAcceptanceFiles(t, projectRoot)
@@ -56,8 +52,6 @@ func TestRunnerSmokeSuite_NoSubpackageAcceptanceFiles(t *testing.T) {
 }
 
 func TestRunnerSmokeSuite_MovedBehaviorHasUnitCoverage(t *testing.T) {
-	// Expected failure: RunnerSmokeMatrixMovedCases does not exist yet and
-	// reclassified unit tests are not yet present for all moved behavior.
 	moved := RunnerSmokeMatrixMovedCases()
 	if len(moved) == 0 {
 		t.Fatalf("moved smoke cases list is empty")
