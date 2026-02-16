@@ -83,18 +83,9 @@ func listCmdUnitTests(t *testing.T, projectRoot string) string {
 func TestCmdSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
 	// Expected failure: SmokeCoverageMatrixEntry annotations and parseSmokeCoverageMatrixLine
 	// conventions do not exist in cmd acceptance tests yet.
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
+	projectRoot := loadProjectRoot(t)
 
-	files := []string{
-		"cmd/gromit/debug_agent_acceptance_test.go",
-		"cmd/gromit/explore_codex_help_acceptance_test.go",
-		"cmd/gromit/review_spec_validation_acceptance_test.go",
-	}
-
-	for _, rel := range files {
+	for _, rel := range cmdAcceptanceTestFiles() {
 		entries, tests := parseCmdSmokeMatrixForFile(t, projectRoot, rel)
 		for _, testName := range tests {
 			entry, ok := entries[testName]
@@ -114,16 +105,7 @@ func TestCmdSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
 func TestCmdSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
 	// Expected failure: cmdSmokeCoverageMatrixFromAnnotations has not been applied,
 	// so keep/move decisions for high-value E2E outcomes are not encoded yet.
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
-
-	files := []string{
-		"cmd/gromit/debug_agent_acceptance_test.go",
-		"cmd/gromit/explore_codex_help_acceptance_test.go",
-		"cmd/gromit/review_spec_validation_acceptance_test.go",
-	}
+	projectRoot := loadProjectRoot(t)
 
 	expectedKeep := map[string]bool{
 		"TestCmdSmoke_DebugAgentResolutionEndToEnd":  true,
@@ -132,7 +114,7 @@ func TestCmdSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
 	}
 
 	actualKeep := make(map[string]bool)
-	for _, rel := range files {
+	for _, rel := range cmdAcceptanceTestFiles() {
 		entries, tests := parseCmdSmokeMatrixForFile(t, projectRoot, rel)
 		for _, testName := range tests {
 			entry, ok := entries[testName]
@@ -158,16 +140,7 @@ func TestCmdSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
 func TestCmdSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites(t *testing.T) {
 	// Expected failure: MoveToUnitSuiteDestination mappings and moveCoverageDestinations
 	// are not defined yet for cmd acceptance cases.
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
-
-	files := []string{
-		"cmd/gromit/debug_agent_acceptance_test.go",
-		"cmd/gromit/explore_codex_help_acceptance_test.go",
-		"cmd/gromit/review_spec_validation_acceptance_test.go",
-	}
+	projectRoot := loadProjectRoot(t)
 	unitTests := listCmdUnitTests(t, projectRoot)
 
 	expectedMovedDestinations := map[string]string{
@@ -176,7 +149,7 @@ func TestCmdSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites(t *testing.T
 		"TestExplorePhaseConfigSelectsAgent": "cmd/gromit/explore_agent_test.go:TestExplorePhaseConfigSelectsAgent_Reclassified",
 	}
 
-	for _, rel := range files {
+	for _, rel := range cmdAcceptanceTestFiles() {
 		entries, tests := parseCmdSmokeMatrixForFile(t, projectRoot, rel)
 		for _, testName := range tests {
 			expectedDest, shouldMove := expectedMovedDestinations[testName]

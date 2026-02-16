@@ -16,10 +16,7 @@ func cmdAcceptanceTestFiles() []string {
 func loadCmdSmokeMatrix(t *testing.T) (string, map[string]CmdSmokeMatrixEntry) {
 	t.Helper()
 
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
+	projectRoot := loadProjectRoot(t)
 
 	matrix, err := LoadCmdSmokeMatrix(projectRoot)
 	if err != nil {
@@ -27,6 +24,17 @@ func loadCmdSmokeMatrix(t *testing.T) (string, map[string]CmdSmokeMatrixEntry) {
 	}
 
 	return projectRoot, matrix
+}
+
+func loadProjectRoot(t *testing.T) string {
+	t.Helper()
+
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+
+	return projectRoot
 }
 
 func TestCmdSmokeMatrix_AllCmdCasesHaveDecisions(t *testing.T) {

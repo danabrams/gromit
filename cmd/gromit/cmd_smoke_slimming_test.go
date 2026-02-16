@@ -30,23 +30,9 @@ import (
 // Expected failure: current acceptance test files still contain "move" cases
 // that should be removed per the smoke matrix reclassification.
 func TestCmdAcceptanceTests_OnlyContainSmokeMatrixKeepCases(t *testing.T) {
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
+	projectRoot, smokeMatrix := loadCmdSmokeMatrix(t)
 
-	smokeMatrix, err := LoadCmdSmokeMatrix(projectRoot)
-	if err != nil {
-		t.Fatalf("LoadCmdSmokeMatrix: %v", err)
-	}
-
-	acceptanceFiles := []string{
-		"cmd/gromit/debug_agent_acceptance_test.go",
-		"cmd/gromit/explore_codex_help_acceptance_test.go",
-		"cmd/gromit/review_spec_validation_acceptance_test.go",
-	}
-
-	for _, relPath := range acceptanceFiles {
+	for _, relPath := range cmdAcceptanceTestFiles() {
 		fullPath := filepath.Join(projectRoot, relPath)
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
@@ -97,15 +83,7 @@ func TestCmdAcceptanceTests_OnlyContainSmokeMatrixKeepCases(t *testing.T) {
 // Expected failure: acceptance tests have not yet been updated to match the
 // canonical smoke matrix keep set.
 func TestCmdAcceptanceTests_AllKeepCasesPresent(t *testing.T) {
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
-
-	smokeMatrix, err := LoadCmdSmokeMatrix(projectRoot)
-	if err != nil {
-		t.Fatalf("LoadCmdSmokeMatrix: %v", err)
-	}
+	projectRoot, smokeMatrix := loadCmdSmokeMatrix(t)
 
 	// Build set of expected keep tests
 	expectedKeep := make(map[string]CmdSmokeMatrixEntry)
@@ -141,15 +119,7 @@ func TestCmdAcceptanceTests_AllKeepCasesPresent(t *testing.T) {
 // at their destination.
 // Expected failure: unit test destinations do not yet exist for all moved cases.
 func TestCmdAcceptanceTests_RemovedCasesHaveUnitCoverage(t *testing.T) {
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
-
-	smokeMatrix, err := LoadCmdSmokeMatrix(projectRoot)
-	if err != nil {
-		t.Fatalf("LoadCmdSmokeMatrix: %v", err)
-	}
+	projectRoot, smokeMatrix := loadCmdSmokeMatrix(t)
 
 	// Find all "move" cases
 	for caseID, entry := range smokeMatrix {
@@ -187,19 +157,10 @@ func TestCmdAcceptanceTests_RemovedCasesHaveUnitCoverage(t *testing.T) {
 // Expected failure: current acceptance tests still contain many non-smoke cases,
 // so total line count remains high.
 func TestCmdAcceptanceTests_TotalLineCountReducedSignificantly(t *testing.T) {
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
-
-	acceptanceFiles := []string{
-		"cmd/gromit/debug_agent_acceptance_test.go",
-		"cmd/gromit/explore_codex_help_acceptance_test.go",
-		"cmd/gromit/review_spec_validation_acceptance_test.go",
-	}
+	projectRoot := loadProjectRoot(t)
 
 	totalLines := 0
-	for _, relPath := range acceptanceFiles {
+	for _, relPath := range cmdAcceptanceTestFiles() {
 		fullPath := filepath.Join(projectRoot, relPath)
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
@@ -225,18 +186,9 @@ func TestCmdAcceptanceTests_TotalLineCountReducedSignificantly(t *testing.T) {
 // Expected failure: current acceptance files contain TestDebug*, TestExplore*
 // and other non-smoke-prefixed test functions.
 func TestCmdAcceptanceTests_OnlyTestCmdSmokePatternFunctions(t *testing.T) {
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
+	projectRoot := loadProjectRoot(t)
 
-	acceptanceFiles := []string{
-		"cmd/gromit/debug_agent_acceptance_test.go",
-		"cmd/gromit/explore_codex_help_acceptance_test.go",
-		"cmd/gromit/review_spec_validation_acceptance_test.go",
-	}
-
-	for _, relPath := range acceptanceFiles {
+	for _, relPath := range cmdAcceptanceTestFiles() {
 		fullPath := filepath.Join(projectRoot, relPath)
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
@@ -273,18 +225,9 @@ func TestCmdAcceptanceTests_OnlyTestCmdSmokePatternFunctions(t *testing.T) {
 // file contains at most one smoke test (one keep case per file per matrix).
 // Expected failure: current files contain multiple tests including move cases.
 func TestCmdAcceptanceTests_MaxThreeTestsPerFile(t *testing.T) {
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
+	projectRoot := loadProjectRoot(t)
 
-	acceptanceFiles := []string{
-		"cmd/gromit/debug_agent_acceptance_test.go",
-		"cmd/gromit/explore_codex_help_acceptance_test.go",
-		"cmd/gromit/review_spec_validation_acceptance_test.go",
-	}
-
-	for _, relPath := range acceptanceFiles {
+	for _, relPath := range cmdAcceptanceTestFiles() {
 		fullPath := filepath.Join(projectRoot, relPath)
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
@@ -308,23 +251,9 @@ func TestCmdAcceptanceTests_MaxThreeTestsPerFile(t *testing.T) {
 // Expected failure: acceptance tests have not yet been annotated with the canonical
 // smoke-matrix comment format showing keep/move decisions.
 func TestCmdAcceptanceTests_SmokeAnnotationsMatchMatrix(t *testing.T) {
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
+	projectRoot, smokeMatrix := loadCmdSmokeMatrix(t)
 
-	smokeMatrix, err := LoadCmdSmokeMatrix(projectRoot)
-	if err != nil {
-		t.Fatalf("LoadCmdSmokeMatrix: %v", err)
-	}
-
-	acceptanceFiles := []string{
-		"cmd/gromit/debug_agent_acceptance_test.go",
-		"cmd/gromit/explore_codex_help_acceptance_test.go",
-		"cmd/gromit/review_spec_validation_acceptance_test.go",
-	}
-
-	for _, relPath := range acceptanceFiles {
+	for _, relPath := range cmdAcceptanceTestFiles() {
 		fullPath := filepath.Join(projectRoot, relPath)
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
