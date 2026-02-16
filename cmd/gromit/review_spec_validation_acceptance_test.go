@@ -39,6 +39,7 @@ func setupReviewSpecSmokeProject(t *testing.T) string {
 	return tmpDir
 }
 
+// smoke-matrix: keep | rationale: Retains high-value failure-path E2E coverage for strict spec validation and suggestion output. | destination: cmd/gromit/review_spec_validation_acceptance_test.go:TestCmdSmoke_ReviewSpecValidationEndToEnd
 func TestCmdSmoke_ReviewSpecValidationEndToEnd(t *testing.T) {
 	tmpDir := setupReviewSpecSmokeProject(t)
 

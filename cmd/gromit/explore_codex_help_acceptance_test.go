@@ -51,6 +51,7 @@ func setupExploreAgentTestProject(t *testing.T, configContent string) string {
 	return tmpDir
 }
 
+// smoke-matrix: keep | rationale: Verifies critical end-to-end explore invocation with explicit agent override and prompt forwarding. | destination: cmd/gromit/explore_codex_help_acceptance_test.go:TestCmdSmoke_ExploreAgentSelectionEndToEnd
 func TestCmdSmoke_ExploreAgentSelectionEndToEnd(t *testing.T) {
 	// Expected failure: exploreAgentOverrideFlag constant does not exist yet and explore does not honor --agent override
 	configContent := `
@@ -96,6 +97,7 @@ agents:
 	}
 }
 
+// smoke-matrix: move | rationale: Explore phase-configured agent selection is deterministic command behavior better covered in focused unit tests. | destination: cmd/gromit/explore_agent_test.go:TestExplorePhaseConfigSelectsAgent_Reclassified
 func TestExplorePhaseConfigSelectsAgent(t *testing.T) {
 	// Expected failure: explorePhaseConfigFlag constant does not exist yet and explore ignores agents.phases.explore
 	configContent := `

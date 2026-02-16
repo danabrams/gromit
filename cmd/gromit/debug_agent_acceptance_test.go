@@ -37,6 +37,7 @@ func setupDebugAgentTestProject(t *testing.T, configContent string) string {
 }
 
 // TestDebugAgentOverrideUsesAgentBinary verifies --agent selects the specified agent.
+// smoke-matrix: keep | rationale: Covers critical end-to-end agent override wiring from CLI flag through process launch. | destination: cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd
 func TestCmdSmoke_DebugAgentResolutionEndToEnd(t *testing.T) {
 	configContent := `
 paths:
@@ -81,6 +82,7 @@ agents:
 }
 
 // TestDebugChooseAgentUsesPicker verifies the interactive picker is shown when requested.
+// smoke-matrix: move | rationale: Picker rendering and selection flow is behavior-level logic and does not require full acceptance coverage. | destination: cmd/gromit/debug_agent_test.go:TestDebugChooseAgentUsesPicker_Reclassified
 func TestDebugChooseAgentUsesPicker(t *testing.T) {
 	configContent := `
 paths:
@@ -129,6 +131,7 @@ agents:
 }
 
 // TestDebugPhaseConfigUsesAgent verifies agents.phases.debug is honored by debug.
+// smoke-matrix: move | rationale: Phase-based agent resolution can be validated deterministically in unit tests without end-to-end process execution. | destination: cmd/gromit/debug_agent_test.go:TestDebugPhaseConfigUsesAgent_Reclassified
 func TestDebugPhaseConfigUsesAgent(t *testing.T) {
 	configContent := `
 paths:
