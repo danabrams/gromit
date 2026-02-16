@@ -589,3 +589,22 @@ func TestEvaluateClassifiedFailureWithTrace_UsesProvidedClassWithoutBypass(t *te
 		t.Fatalf("EvaluateClassifiedFailureWithTrace(...).Decision = %+v, want workflow escalation", trace.Decision)
 	}
 }
+
+func TestEvaluateClassifiedFailureWithTrace_SetsClassifiedEntryInputSource(t *testing.T) {
+	now, thresholds := setupPolicyTest(t)
+
+	trace := EvaluateClassifiedFailureWithTrace(
+		PolicyClassification{Class: FailureClassWorkflow},
+		RecoveryState{
+			Level:      LevelL1,
+			L1Attempts: 1,
+			L1Started:  now,
+		},
+		thresholds,
+		now,
+	)
+
+	if trace.DecisionInputSource != DecisionInputSourceClassifiedEntry {
+		t.Fatalf("EvaluateClassifiedFailureWithTrace(...).DecisionInputSource = %q, want %q", trace.DecisionInputSource, DecisionInputSourceClassifiedEntry)
+	}
+}

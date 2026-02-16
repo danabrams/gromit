@@ -76,7 +76,8 @@ func EvaluateFailureWithTrace(signal FailureSignal, state RecoveryState, thresho
 		Classification:      classification,
 		Decision:            evaluation.Decision,
 		Path:                evaluation.Path,
-		DecisionInputSource: DecisionInputSourceClassifier,
+		DecisionInputSource: DecisionInputSourceTraceClassifier,
+		BoundaryTransition:  detectBoundaryTransition(state.Level, evaluation.Decision.NextLevel),
 	}
 }
 
@@ -93,8 +94,17 @@ func EvaluateClassifiedFailureWithTrace(classification PolicyClassification, sta
 		Classification:      classification,
 		Decision:            evaluation.Decision,
 		Path:                evaluation.Path,
-		DecisionInputSource: DecisionInputSourceClassifier,
+		DecisionInputSource: DecisionInputSourceClassifiedEntry,
+		BoundaryTransition:  detectBoundaryTransition(state.Level, evaluation.Decision.NextLevel),
 	}
+}
+
+func detectBoundaryTransition(from, to AndonLevel) BoundaryTransitionType {
+	if from == LevelL1 && to == LevelL2 {
+		return BoundaryL1ToL2
+	}
+
+	return ""
 }
 
 func evaluateFailureClass(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {

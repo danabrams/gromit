@@ -128,7 +128,16 @@ type PolicyEvaluation struct {
 type DecisionInputSource string
 
 const (
-	DecisionInputSourceClassifier DecisionInputSource = "classifier"
+	DecisionInputSourceTraceClassifier DecisionInputSource = "trace_classifier"
+	DecisionInputSourceClassifiedEntry DecisionInputSource = "classified_entry"
+	DecisionInputSourceClassifier      DecisionInputSource = DecisionInputSourceTraceClassifier
+)
+
+// BoundaryTransitionType identifies policy transitions across bounded recovery levels.
+type BoundaryTransitionType string
+
+const (
+	BoundaryL1ToL2 BoundaryTransitionType = "l1_to_l2"
 )
 
 // PolicyDecisionTrace captures decisioning details for policy entry points.
@@ -137,6 +146,7 @@ type PolicyDecisionTrace struct {
 	Decision            PolicyDecision
 	Path                DecisionPath
 	DecisionInputSource DecisionInputSource
+	BoundaryTransition  BoundaryTransitionType
 }
 
 // PolicyClassification is the classifier output consumed by policy decisions.
