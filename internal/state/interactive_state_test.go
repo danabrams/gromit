@@ -554,9 +554,6 @@ func TestInteractiveFilePendingWorktreeBranches_PersistedToJSON(t *testing.T) {
 }
 
 func TestInteractiveFilePendingWorktreeBranchesPersistence(t *testing.T) {
-	// Expected failure: AddPendingWorktreeBranch/ListPendingWorktreeBranches and
-	// PendingWorktreeBranches are not implemented on InteractiveFile/InteractiveState yet.
-
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
 
@@ -595,9 +592,6 @@ func TestInteractiveFilePendingWorktreeBranchesPersistence(t *testing.T) {
 }
 
 func TestInteractiveFilePendingWorktreeBranchesBackwardCompatibility(t *testing.T) {
-	// Expected failure: ListPendingWorktreeBranches does not exist and
-	// NormalizeNilFields does not handle PendingWorktreeBranches yet.
-
 	dir := t.TempDir()
 	legacyJSON := `{"last_review_commit":"abc123","last_review_iteration":4,"filtered_learning_hashes":[],"updated_at":"2024-01-01T00:00:00Z"}`
 	if err := os.WriteFile(filepath.Join(dir, "interactive-state.json"), []byte(legacyJSON), 0644); err != nil {
@@ -618,9 +612,6 @@ func TestInteractiveFilePendingWorktreeBranchesBackwardCompatibility(t *testing.
 }
 
 func TestInteractiveFilePendingWorktreeBranchesDeduplication(t *testing.T) {
-	// Expected failure: AddPendingWorktreeBranch/ListPendingWorktreeBranches do not
-	// deduplicate branches yet.
-
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
 
@@ -643,8 +634,6 @@ func TestInteractiveFilePendingWorktreeBranchesDeduplication(t *testing.T) {
 }
 
 func TestInteractiveFilePendingWorktreeBranchesRemove(t *testing.T) {
-	// Expected failure: RemovePendingWorktreeBranch does not exist yet.
-
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
 
@@ -670,9 +659,6 @@ func TestInteractiveFilePendingWorktreeBranchesRemove(t *testing.T) {
 }
 
 func TestInteractiveFilePendingWorktreeBranchesFileLocking(t *testing.T) {
-	// Expected failure: AddPendingWorktreeBranch does not use file-locked load/mutate/save
-	// so concurrent updates can clobber pending_worktree_branches.
-
 	dir := t.TempDir()
 	f1, _ := NewInteractiveFile(dir)
 	f2, _ := NewInteractiveFile(dir)
