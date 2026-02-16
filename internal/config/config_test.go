@@ -2760,6 +2760,35 @@ func TestMethodologyConfigParsing(t *testing.T) {
 	}
 }
 
+func TestMethodologyPhaseTimeoutsParseFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `methodology:
+  phase_timeouts:
+    red_seconds: 111
+    green_seconds: 222
+    refactor_seconds: 333
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Methodology.PhaseTimeouts.RedSeconds != 111 {
+		t.Errorf("expected red_seconds=111, got %d", cfg.Methodology.PhaseTimeouts.RedSeconds)
+	}
+	if cfg.Methodology.PhaseTimeouts.GreenSeconds != 222 {
+		t.Errorf("expected green_seconds=222, got %d", cfg.Methodology.PhaseTimeouts.GreenSeconds)
+	}
+	if cfg.Methodology.PhaseTimeouts.RefactorSeconds != 333 {
+		t.Errorf("expected refactor_seconds=333, got %d", cfg.Methodology.PhaseTimeouts.RefactorSeconds)
+	}
+}
+
 // Tests for GitConfig
 func TestGitConfigDefaults(t *testing.T) {
 	cfg := &Config{}

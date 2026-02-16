@@ -153,8 +153,15 @@ type ThoroughReviewConfig struct {
 }
 
 type MethodologyConfig struct {
-	ATDD bool `yaml:"atdd"`
-	TDD  bool `yaml:"tdd"`
+	ATDD          bool                    `yaml:"atdd"`
+	TDD           bool                    `yaml:"tdd"`
+	PhaseTimeouts MethodologyPhaseTimeout `yaml:"phase_timeouts"`
+}
+
+type MethodologyPhaseTimeout struct {
+	RedSeconds      int `yaml:"red_seconds"`
+	GreenSeconds    int `yaml:"green_seconds"`
+	RefactorSeconds int `yaml:"refactor_seconds"`
 }
 
 type GitConfig struct {
