@@ -6,6 +6,33 @@ import (
 	"testing"
 )
 
+func TestCodexSuccessTextFixtureDeterministicTranscript(t *testing.T) {
+	content := readFixtureFile(t, "codex_success.txt")
+	lines := nonEmptyLines(content)
+
+	if len(lines) != 6 {
+		t.Fatalf("codex_success.txt has %d non-empty lines, want 6", len(lines))
+	}
+	if !strings.HasPrefix(lines[0], "# provenance:") {
+		t.Fatalf("first non-empty line = %q, want '# provenance:' header", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], "# refresh:") {
+		t.Fatalf("second non-empty line = %q, want '# refresh:' header", lines[1])
+	}
+
+	keyValues := parseKeyValueLines(t, "codex_success.txt", lines[2:])
+	expectedKeys := []string{"command", "status", "exit_code", "output_summary"}
+	for i, key := range expectedKeys {
+		if keyValues[i].key != key {
+			t.Fatalf("key at index %d = %q, want %q", i, keyValues[i].key, key)
+		}
+	}
+
+	if keyValues[1].value != "success" {
+		t.Fatalf("status = %q, want success", keyValues[1].value)
+	}
+}
+
 func TestCodexTextFixturesUseDeterministicKeyValueTranscript(t *testing.T) {
 	// Expected failure: fixturecatalog.ParseDeterministicCodexKV() does not exist yet,
 	// and codex text fixtures are still freeform text instead of deterministic key/value transcripts.
