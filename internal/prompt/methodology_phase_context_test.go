@@ -193,3 +193,30 @@ func TestMethodologyPhaseContextShaping_RedGreenRefactor(t *testing.T) {
 		})
 	}
 }
+
+func TestShapeRedPhaseContext_PreservesSignalAndTrimsNoise(t *testing.T) {
+	r := &Renderer{}
+	base := testMethodologyContext()
+
+	shaped := invokePhaseShaper(t, r, "ShapeRedPhaseContext", base)
+
+	if shaped.Rules == "" {
+		t.Fatal("expected RULES.md content to be preserved")
+	}
+	if shaped.Spec == "" || shaped.SpecName == "" {
+		t.Fatal("expected specification context to be preserved")
+	}
+	if len(shaped.Bead.ExpectedOutputs) == 0 {
+		t.Fatal("expected acceptance criteria to be preserved")
+	}
+	guardrails := strings.ToLower(shaped.FailureContext + "\n" + shaped.PrevFailure)
+	if !strings.Contains(guardrails, "test-only") || !strings.Contains(guardrails, "implementation") {
+		t.Fatal("expected red-phase guardrails to enforce test-only changes")
+	}
+	if shaped.ClaudeMD != "" {
+		t.Fatal("expected low-signal project history to be trimmed")
+	}
+	if len(shaped.ConfirmedLearnings) != 0 || len(shaped.RecentLearnings) != 0 {
+		t.Fatal("expected learning history to be trimmed")
+	}
+}
