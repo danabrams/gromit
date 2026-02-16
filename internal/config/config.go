@@ -208,9 +208,11 @@ type FallbackConfig struct {
 }
 
 type WorktreeConfig struct {
-	Enabled      *bool  `yaml:"enabled"`
-	AutoMerge    *bool  `yaml:"auto_merge"`
-	MergeFailure string `yaml:"merge_failure"`
+	Enabled            *bool  `yaml:"enabled"`
+	AutoMerge          *bool  `yaml:"auto_merge"`
+	MergeFailure       string `yaml:"merge_failure"`
+	ConflictResolution string `yaml:"conflict_resolution"`
+	RetryCap           int    `yaml:"retry_cap"`
 }
 
 func Load(path string) (*Config, error) {
@@ -496,6 +498,12 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Worktree.MergeFailure == "" {
 		c.Worktree.MergeFailure = "warn"
+	}
+	if c.Worktree.ConflictResolution == "" {
+		c.Worktree.ConflictResolution = "abort"
+	}
+	if c.Worktree.RetryCap == 0 {
+		c.Worktree.RetryCap = 3
 	}
 }
 

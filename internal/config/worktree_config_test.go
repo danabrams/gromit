@@ -38,6 +38,40 @@ worktree:
 	}
 }
 
+func TestWorktreeConfigUnmarshal_ConflictResolutionAndRetryCap(t *testing.T) {
+	// Expected failure: WorktreeConfig lacks ConflictResolution/RetryCap fields
+	// so parsing these settings is not supported yet.
+
+	yamlContent := `
+models:
+  p0: opus
+  p1: sonnet
+worktree:
+  enabled: true
+  auto_merge: false
+  merge_failure: "stop"
+  conflict_resolution: "abort"
+  retry_cap: 4
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Worktree.ConflictResolution != "abort" {
+		t.Errorf("Worktree.ConflictResolution = %q, want %q", cfg.Worktree.ConflictResolution, "abort")
+	}
+	if cfg.Worktree.RetryCap != 4 {
+		t.Errorf("Worktree.RetryCap = %d, want %d", cfg.Worktree.RetryCap, 4)
+	}
+}
+
 func TestWorktreeIsEnabledNilPointer(t *testing.T) {
 	cfg := WorktreeConfig{}
 	if !cfg.IsEnabled() {
@@ -103,6 +137,20 @@ func TestWorktreeConfigDefaults(t *testing.T) {
 
 	if cfg.Worktree.MergeFailure != "warn" {
 		t.Errorf("expected Worktree.MergeFailure default to be %q, got %q", "warn", cfg.Worktree.MergeFailure)
+	}
+}
+
+func TestWorktreeConfigDefaults_ConflictResolutionAndRetryCap(t *testing.T) {
+	// Expected failure: WorktreeConfig defaults do not include conflict resolution or retry cap yet.
+
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Worktree.ConflictResolution != "abort" {
+		t.Errorf("expected Worktree.ConflictResolution default to be %q, got %q", "abort", cfg.Worktree.ConflictResolution)
+	}
+	if cfg.Worktree.RetryCap != 3 {
+		t.Errorf("expected Worktree.RetryCap default to be %d, got %d", 3, cfg.Worktree.RetryCap)
 	}
 }
 
