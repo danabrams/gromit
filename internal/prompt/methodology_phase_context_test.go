@@ -271,3 +271,16 @@ func TestShapeRefactorPhaseContext_PreservesGuardrailsAndDropsBuildPayload(t *te
 		t.Fatal("expected broad project history to be trimmed")
 	}
 }
+
+func TestShapeRefactorPhaseContext_AddsBehaviorPreservationGuardrailPhrase(t *testing.T) {
+	r := &Renderer{}
+	base := testMethodologyContext()
+	base.FailureContext = ""
+	base.PrevFailure = ""
+
+	shaped := invokePhaseShaper(t, r, "ShapeRefactorPhaseContext", base)
+	guardrails := shaped.FailureContext + "\n" + shaped.PrevFailure
+	if !strings.Contains(guardrails, "Do not change behavior") {
+		t.Fatal("expected refactor shaping to include exact behavior-preservation phrase")
+	}
+}

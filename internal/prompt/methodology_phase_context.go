@@ -52,9 +52,31 @@ func (r *Renderer) ShapeRefactorPhaseContext(ctx *Context) *Context {
 	if shaped.Bead != nil {
 		shaped.Bead.ExpectedOutputs = []string{}
 	}
+	ensureBehaviorGuardrails(shaped)
 	shaped.normalizeNilFields()
 
 	return shaped
+}
+
+func ensureBehaviorGuardrails(ctx *Context) {
+	const guardrail = "Do not change behavior."
+	if !strings.Contains(strings.ToLower(ctx.Rules), "do not change behavior") {
+		if strings.TrimSpace(ctx.Rules) == "" {
+			ctx.Rules = guardrail
+		} else {
+			ctx.Rules = strings.TrimSpace(ctx.Rules) + "\n- " + guardrail
+		}
+	}
+
+	lower := strings.ToLower(ctx.FailureContext + "\n" + ctx.PrevFailure)
+	if strings.Contains(lower, "do not change behavior") {
+		return
+	}
+	if strings.TrimSpace(ctx.FailureContext) == "" {
+		ctx.FailureContext = guardrail
+		return
+	}
+	ctx.FailureContext = strings.TrimSpace(ctx.FailureContext) + "\n" + guardrail
 }
 
 func cloneMethodologyContext(ctx *Context) *Context {
