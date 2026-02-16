@@ -26,6 +26,11 @@ const (
 	DefaultAndonConfigDocSectionTitle = "# Andon autonomy controls"
 )
 
+var defaultAndonBulkDeleteAllowlist = []string{
+	".gromit/logs/**",
+	".gromit/tmp/**",
+}
+
 type Config struct {
 	Models      ModelsConfig           `yaml:"models"`
 	Escalation  EscalationConfig       `yaml:"escalation"`
@@ -113,6 +118,12 @@ func (h *AndonHardStopsConfig) UnmarshalYAML(value *yaml.Node) error {
 	}
 
 	return nil
+}
+
+func defaultBulkDeleteAllowlist() []string {
+	allowlist := make([]string, len(defaultAndonBulkDeleteAllowlist))
+	copy(allowlist, defaultAndonBulkDeleteAllowlist)
+	return allowlist
 }
 
 type LoopConfig struct {
@@ -483,10 +494,7 @@ func (c *Config) SetDefaults() {
 		c.Andon.HardStops.BlockCredentialChanges = true
 	}
 	if len(c.Andon.HardStops.BulkDeleteAllowlist) == 0 {
-		c.Andon.HardStops.BulkDeleteAllowlist = []string{
-			".gromit/logs/**",
-			".gromit/tmp/**",
-		}
+		c.Andon.HardStops.BulkDeleteAllowlist = defaultBulkDeleteAllowlist()
 	}
 	if c.Preflight.AutoInstall == "" {
 		c.Preflight.AutoInstall = "ask"

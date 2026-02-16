@@ -8,7 +8,6 @@ import (
 )
 
 func TestSetDefaultsAppliesAndonThresholdDefaults(t *testing.T) {
-	// Expected failure: AndonConfig and default Andon constants are not implemented on Config yet.
 	cfg := &Config{}
 	cfg.SetDefaults()
 
@@ -40,7 +39,6 @@ func TestSetDefaultsAppliesAndonThresholdDefaults(t *testing.T) {
 }
 
 func TestLoadAndonConfigOverridesFromYAML(t *testing.T) {
-	// Expected failure: AndonConfig YAML surface is not wired into Load()/yaml parsing yet.
 	yamlContent := `
 andon:
   assumption_budget: 3
@@ -101,12 +99,10 @@ andon:
 }
 
 func TestGromitYAMLDocumentsAndonConfig(t *testing.T) {
-	// Expected failure: DefaultAndonConfigDocSectionTitle constant and Andon docs are not implemented yet.
 	if DefaultAndonConfigDocSectionTitle == "" {
 		t.Fatal("DefaultAndonConfigDocSectionTitle must be non-empty")
 	}
 
-	// Expected failure: gromit.yaml does not document the Andon config section and conventions yet.
 	projectRoot := findProjectRoot(t)
 	cfgPath := filepath.Join(projectRoot, "gromit.yaml")
 
