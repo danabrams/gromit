@@ -30,6 +30,7 @@ type IterationLog struct {
 	TrivialAutoFixed  bool      `json:"trivial_auto_fixed,omitempty"`
 	UsageLimited      bool      `json:"usage_limited,omitempty"`
 	ValidationMode    string    `json:"validation_mode,omitempty"`
+	CompilationErrors bool      `json:"compilation_errors,omitempty"`
 
 	// Diagnostic fields for timeout investigation
 	TimeoutType         string `json:"timeout_type,omitempty"`           // "stall", "bead", "invocation", ""

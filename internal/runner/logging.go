@@ -54,6 +54,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		TrivialAutoFixed:          result.TrivialAutoFixed,
 		UsageLimited:              result.UsageLimited,
 		ValidationMode:            result.ValidationMode,
+		CompilationErrors:         result.CompilationErrors,
 		TimeoutType:               result.TimeoutType,
 		TimeToFirstEventMs:        result.TimeToFirstEventMs,
 		ToolCallCount:             result.ToolCallCount,

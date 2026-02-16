@@ -73,6 +73,7 @@ type IterationResult struct {
 	TrivialAutoFixed      bool   // true when auto-fix resolved validation without Claude
 	UsageLimited          bool   // true when invocation failed due to usage/rate limit
 	ValidationMode        string // "direct" when validation ran via shell commands
+	CompilationErrors     bool   // true when pre-build compilation check found errors
 
 	// Diagnostic fields for timeout investigation
 	TimeoutType         string // "stall", "bead", "invocation", ""
