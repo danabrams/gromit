@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -107,14 +108,32 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	}
 
 	if r.cfg.Validation.Enabled {
-		if err := r.runValidationWithRecovery(ctx, bc); err != nil {
+		validationCtx := ctx
+		if bc != nil && bc.ParentCtx != nil {
+			validationCtx = bc.ParentCtx
+		}
+		if err := r.runValidationWithRecovery(validationCtx, bc); err != nil {
 			bc.Result.Error = wrapRefactorValidationError(err)
 			return false, bc.Result
 		}
 	}
 
 	if atddActive && r.methodologyExec != nil {
-		if err := r.methodologyExec.VerifyAcceptanceTestsPass(ctx, bc); err != nil {
+		if bc != nil && bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
+			elapsed := time.Since(bc.BeadStartTime)
+			remaining := bc.BeadTimeout - elapsed
+			if remaining <= 0 {
+				r.log("Warning: bead timeout budget exhausted before post-refactor acceptance verification; using parent context fallback")
+			} else {
+				r.log("Post-refactor acceptance verification budget: %s remaining (elapsed %s of %s)", remaining.Round(time.Second), elapsed.Round(time.Second), bc.BeadTimeout.Round(time.Second))
+			}
+		}
+
+		acceptanceCtx := ctx
+		if bc != nil && bc.ParentCtx != nil {
+			acceptanceCtx = bc.ParentCtx
+		}
+		if err := r.methodologyExec.VerifyAcceptanceTestsPass(acceptanceCtx, bc); err != nil {
 			if r.handleAcceptanceVerificationFailure(ctx, bc, "acceptance verification failed after refactoring", err) {
 				return true, nil
 			}
