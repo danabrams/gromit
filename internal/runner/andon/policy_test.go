@@ -341,3 +341,30 @@ func TestEvaluateFailure_ClassifiesIntentAndEscalatesWhenAssumptionsExhausted(t 
 		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionEscalate)
 	}
 }
+
+func TestEvaluateFailure_ClassifiesDataAndStopsLineImmediately(t *testing.T) {
+	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+	thresholds := DefaultThresholds()
+
+	got := EvaluateFailure(
+		FailureSignal{
+			Kind:   FailureKindIntegrity,
+			Output: "state divergence detected",
+		},
+		RecoveryState{
+			Level: LevelL1,
+		},
+		thresholds,
+		now,
+	)
+
+	if got.Class != FailureClassData {
+		t.Fatalf("Class = %q, want %q", got.Class, FailureClassData)
+	}
+	if got.Decision.NextLevel != LevelL3 {
+		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL3)
+	}
+	if got.Decision.Action != DecisionStopLine {
+		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionStopLine)
+	}
+}
