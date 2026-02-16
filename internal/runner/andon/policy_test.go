@@ -256,3 +256,32 @@ func TestEvaluateFailure_ClassifiesTransientAndChoosesDecision(t *testing.T) {
 		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionRetry)
 	}
 }
+
+func TestEvaluateFailure_ClassifiesWorkflowAndEscalatesFromL1(t *testing.T) {
+	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+	thresholds := DefaultThresholds()
+
+	got := EvaluateFailure(
+		FailureSignal{
+			Kind:   FailureKindWorkflow,
+			Output: "bd sync required before close",
+		},
+		RecoveryState{
+			Level:      LevelL1,
+			L1Attempts: 1,
+			L1Started:  now,
+		},
+		thresholds,
+		now,
+	)
+
+	if got.Class != FailureClassWorkflow {
+		t.Fatalf("Class = %q, want %q", got.Class, FailureClassWorkflow)
+	}
+	if got.Decision.NextLevel != LevelL2 {
+		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL2)
+	}
+	if got.Decision.Action != DecisionEscalate {
+		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionEscalate)
+	}
+}
