@@ -1,0 +1,4 @@
+# provenance: snapshot from `codex run --model sonnet` fake CLI shape; refresh by rerunning provider contract fixture tests and replacing this file.
+Implemented the requested change and updated unit coverage.
+- touched: internal/provider/router.go
+- tests: go test ./internal/provider

@@ -1,0 +1,3 @@
+# provenance: representative Claude stream-json success payload captured from fake CLI output contract shape; refresh with provider fixture workflow.
+{"type":"assistant","message":{"id":"msg_claude_ok","content":[{"type":"text","text":"Completed implementation and updated tests."}]}}
+{"type":"result","result":{"status":"success","stop_reason":"end_turn","duration_ms":781}}
