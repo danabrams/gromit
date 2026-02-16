@@ -20,4 +20,18 @@ if [[ ! -f "$fixture_file" ]]; then
     exit 1
 fi
 
-cat "$fixture_file"
+jsonl_mode=0
+for arg in "$@"; do
+    if [[ "$arg" == "--jsonl" ]] || [[ "$arg" == "--json" ]]; then
+        jsonl_mode=1
+    fi
+done
+
+if [[ $jsonl_mode -eq 1 ]]; then
+    content=$(cat "$fixture_file")
+    escaped_content=$(echo "$content" | jq -Rs .)
+    echo "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":$escaped_content}]}}"
+    echo "{\"type\":\"result\",\"result\":$escaped_content}"
+else
+    cat "$fixture_file"
+fi
