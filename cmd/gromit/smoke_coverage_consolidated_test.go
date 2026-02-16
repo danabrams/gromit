@@ -168,6 +168,10 @@ func TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete(t *testing.T) {
 		collectAcceptanceTests(t, projectRoot, cmdFiles),
 		collectAcceptanceTests(t, projectRoot, runnerFiles)...,
 	)
+	acceptanceSet := make(map[string]bool)
+	for _, caseID := range cases {
+		acceptanceSet[caseID] = true
+	}
 	entries := loadConsolidatedSmokeMatrix(t, projectRoot)
 
 	for _, caseID := range cases {
@@ -183,16 +187,12 @@ func TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete(t *testing.T) {
 		}
 	}
 
-	for caseID := range entries {
-		found := false
-		for _, known := range cases {
-			if caseID == known {
-				found = true
-				break
-			}
+	for caseID, entry := range entries {
+		if acceptanceSet[caseID] {
+			continue
 		}
-		if !found {
-			t.Fatalf("consolidated smoke matrix includes unknown case %s", caseID)
+		if entry.Decision != "move" {
+			t.Fatalf("consolidated smoke matrix includes non-acceptance case %s with decision %q", caseID, entry.Decision)
 		}
 	}
 }

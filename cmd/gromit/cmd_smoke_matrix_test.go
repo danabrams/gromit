@@ -33,29 +33,29 @@ func TestCmdSmokeMatrix_AllCmdCasesHaveDecisions(t *testing.T) {
 	projectRoot, matrix := loadCmdSmokeMatrix(t)
 
 	cases := collectAcceptanceTests(t, projectRoot, cmdAcceptanceTestFiles())
+	acceptanceSet := make(map[string]bool)
+	for _, caseID := range cases {
+		acceptanceSet[caseID] = true
+	}
 	for _, caseID := range cases {
 		entry, ok := matrix[caseID]
 		if !ok {
 			t.Fatalf("cmd smoke matrix missing case %s", caseID)
 		}
-		if entry.Decision != "keep" && entry.Decision != "move" {
-			t.Fatalf("%s has invalid decision %q", caseID, entry.Decision)
+		if entry.Decision != "keep" {
+			t.Fatalf("%s must be keep for acceptance coverage, got %q", caseID, entry.Decision)
 		}
 		if entry.Rationale == "" || entry.Rationale == "-" {
 			t.Fatalf("%s has empty rationale", caseID)
 		}
 	}
 
-	for caseID := range matrix {
-		found := false
-		for _, known := range cases {
-			if caseID == known {
-				found = true
-				break
-			}
+	for caseID, entry := range matrix {
+		if acceptanceSet[caseID] {
+			continue
 		}
-		if !found {
-			t.Fatalf("cmd smoke matrix includes unknown case %s", caseID)
+		if entry.Decision != "move" {
+			t.Fatalf("cmd smoke matrix includes non-acceptance case %s with decision %q", caseID, entry.Decision)
 		}
 	}
 }
