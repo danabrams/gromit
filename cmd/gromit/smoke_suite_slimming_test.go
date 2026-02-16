@@ -59,6 +59,24 @@ func TestCmdDebugAcceptanceFile_OnlyContainsSmokeTest(t *testing.T) {
 	}
 }
 
+func TestCmdExploreAcceptanceFile_OnlyContainsSmokeTest(t *testing.T) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+
+	src := loadCmdAcceptanceFile(t, projectRoot, "cmd/gromit/explore_codex_help_acceptance_test.go")
+	tests := listCmdAcceptanceTests(src)
+	if len(tests) != 1 {
+		t.Fatalf("explore_codex_help_acceptance_test.go has %d tests, expected 1", len(tests))
+	}
+	for _, name := range tests {
+		if !strings.HasPrefix(name, "TestCmdSmoke_") {
+			t.Fatalf("explore_codex_help_acceptance_test.go contains non-smoke test %s", name)
+		}
+	}
+}
+
 func TestCmdAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 	// Expected failure: future smoke-only tests such as
 	// TestCmdSmoke_DebugAgentResolutionEndToEnd and
