@@ -162,55 +162,15 @@ created: 2026-02-11
 	}
 }
 
-func TestReviewCommand_SpecValidationScenarios(t *testing.T) {
+func TestReviewSpecValidationScenarios_TableDriven(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name         string
-		reviewSpec   string
-		specFiles    []string
-		otherFiles   []string
-		wantContains []string
-		wantExcludes []string
-	}{
-		{
-			name:         "typo includes available specs",
-			reviewSpec:   "user-managment",
-			specFiles:    []string{"auth-service.md", "user-management.md", "api-gateway.md"},
-			wantContains: []string{"not found", "auth-service", "user-management", "api-gateway"},
-			wantExcludes: []string{"no beads found"},
-		},
-		{
-			name:         "empty specs directory reports missing specs",
-			reviewSpec:   "any-spec",
-			specFiles:    nil,
-			otherFiles:   nil,
-			wantContains: []string{"no spec"},
-			wantExcludes: []string{"no beads found"},
-		},
-		{
-			name:         "non markdown files are ignored",
-			reviewSpec:   "missing-spec",
-			specFiles:    []string{"feature-a.md", "feature-b.md"},
-			otherFiles:   []string{"README.txt", "notes.json", "template.yaml"},
-			wantContains: []string{"feature-a", "feature-b"},
-			wantExcludes: []string{"readme", "notes", "template"},
-		},
-	}
+	cases := buildReviewSpecValidationCases()
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			errMsg := runReviewSpecValidationScenario(t, tc.reviewSpec, tc.specFiles, tc.otherFiles)
-			for _, want := range tc.wantContains {
-				if !strings.Contains(strings.ToLower(errMsg), strings.ToLower(want)) {
-					t.Fatalf("error should contain %q, got: %s", want, errMsg)
-				}
-			}
-			for _, avoid := range tc.wantExcludes {
-				if strings.Contains(strings.ToLower(errMsg), strings.ToLower(avoid)) {
-					t.Fatalf("error should not contain %q, got: %s", avoid, errMsg)
-				}
-			}
+			assertSpecValidationError(t, errMsg, tc.wantContains, tc.wantExcludes)
 		})
 	}
 }
@@ -332,7 +292,60 @@ This spec exists but has no beads tagged with it.
 	}
 }
 
+type reviewSpecValidationCase struct {
+	name         string
+	reviewSpec   string
+	specFiles    []string
+	otherFiles   []string
+	wantContains []string
+	wantExcludes []string
+}
+
+func buildReviewSpecValidationCases() []reviewSpecValidationCase {
+	return []reviewSpecValidationCase{
+		{
+			name:         "nonexistent spec typo includes available specs",
+			reviewSpec:   "user-managment",
+			specFiles:    []string{"auth-service.md", "user-management.md", "api-gateway.md"},
+			wantContains: []string{"not found", "auth-service", "user-management", "api-gateway"},
+			wantExcludes: []string{"no beads found"},
+		},
+		{
+			name:         "empty specs directory reports missing specs",
+			reviewSpec:   "any-spec",
+			specFiles:    nil,
+			otherFiles:   nil,
+			wantContains: []string{"no spec"},
+			wantExcludes: []string{"no beads found"},
+		},
+		{
+			name:         "non-markdown files are ignored for existing spec listing",
+			reviewSpec:   "missing-spec",
+			specFiles:    []string{"feature-a.md", "feature-b.md"},
+			otherFiles:   []string{"README.txt", "notes.json", "template.yaml"},
+			wantContains: []string{"feature-a", "feature-b"},
+			wantExcludes: []string{"readme", "notes", "template"},
+		},
+	}
+}
+
 func runReviewSpecValidationScenario(t *testing.T, specName string, specFiles []string, otherFiles []string) string {
+	cfg := setupReviewSpecValidationFixture(t, specFiles, otherFiles)
+
+	saveReviewFlags(t)
+	reviewSpec = specName
+	reviewSince = ""
+	reviewEpic = ""
+
+	_, err := determineReviewScope(cfg)
+	if err == nil {
+		t.Fatal("determineReviewScope should return error for invalid spec")
+	}
+
+	return err.Error()
+}
+
+func setupReviewSpecValidationFixture(t *testing.T, specFiles []string, otherFiles []string) *config.Config {
 	t.Helper()
 
 	tempDir := t.TempDir()
@@ -364,18 +377,21 @@ created: 2026-02-11
 
 	cfg := &config.Config{}
 	cfg.Paths.Specs = specsDir
+	return cfg
+}
 
-	saveReviewFlags(t)
-	reviewSpec = specName
-	reviewSince = ""
-	reviewEpic = ""
-
-	_, err := determineReviewScope(cfg)
-	if err == nil {
-		t.Fatal("determineReviewScope should return error for invalid spec")
+func assertSpecValidationError(t *testing.T, errMsg string, wantContains []string, wantExcludes []string) {
+	t.Helper()
+	for _, want := range wantContains {
+		if !strings.Contains(strings.ToLower(errMsg), strings.ToLower(want)) {
+			t.Fatalf("error should contain %q, got: %s", want, errMsg)
+		}
 	}
-
-	return err.Error()
+	for _, avoid := range wantExcludes {
+		if strings.Contains(strings.ToLower(errMsg), strings.ToLower(avoid)) {
+			t.Fatalf("error should not contain %q, got: %s", avoid, errMsg)
+		}
+	}
 }
 
 func writeSpecFixtures(t *testing.T, specsDir string, names []string) {
