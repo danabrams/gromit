@@ -124,6 +124,24 @@ func listPackageTests(t *testing.T, projectRoot, pkg string) string {
 	return string(out)
 }
 
+func TestSmokeCoverageMatrix_ConsolidatedFileHasHeader(t *testing.T) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+
+	matrixPath := filepath.Join(projectRoot, "docs", "smoke_coverage_matrix.md")
+	data, err := os.ReadFile(matrixPath)
+	if err != nil {
+		t.Fatalf("read consolidated smoke matrix: %v", err)
+	}
+
+	header := "| case | decision | rationale | destination |"
+	if !strings.Contains(string(data), header) {
+		t.Fatalf("consolidated smoke matrix missing header %q", header)
+	}
+}
+
 func TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete(t *testing.T) {
 	// Expected failure: Consolidated smoke coverage matrix file and
 	// BuildConsolidatedSmokeMatrix generator do not exist yet.
