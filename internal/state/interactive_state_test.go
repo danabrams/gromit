@@ -500,6 +500,29 @@ func TestInteractiveFileLoad_BackwardCompatiblePendingBranches(t *testing.T) {
 	}
 }
 
+func TestInteractiveFileAddPendingWorktreeBranch_Deduplicates(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewInteractiveFile(dir)
+
+	if err := f.AddPendingWorktreeBranch("feature/one"); err != nil {
+		t.Fatalf("adding branch: %v", err)
+	}
+	if err := f.AddPendingWorktreeBranch("feature/one"); err != nil {
+		t.Fatalf("adding duplicate branch: %v", err)
+	}
+
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("listing pending branches: %v", err)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("expected 1 pending branch, got %d", len(branches))
+	}
+	if branches[0] != "feature/one" {
+		t.Fatalf("expected branch %q, got %q", "feature/one", branches[0])
+	}
+}
+
 func TestInteractiveFilePendingWorktreeBranchesPersistence(t *testing.T) {
 	// Expected failure: AddPendingWorktreeBranch/ListPendingWorktreeBranches and
 	// PendingWorktreeBranches are not implemented on InteractiveFile/InteractiveState yet.
