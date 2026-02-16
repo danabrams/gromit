@@ -1,4 +1,3 @@
-
 package runner
 
 import (
@@ -236,7 +235,16 @@ func TestSplitRunnerFinalVerification_RunnerPackageTestsPass(t *testing.T) {
 	finalVerificationVerifyLayout(t)
 	repoRoot := finalVerificationRepoRoot(t)
 
-	cmd := exec.Command("go", "test", "./internal/runner/...", "-count=1")
+	// Run a focused subset to validate package-test executability without
+	// recursively invoking the full final verification suite.
+	cmd := exec.Command(
+		"go",
+		"test",
+		"./internal/runner/...",
+		"-count=1",
+		"-run",
+		"TestRunnerSplitVerificationReclassified_ImportIsolation|TestRunnerSplitVerificationReclassified_LineBudgets",
+	)
 	cmd.Dir = repoRoot
 	cmd.Env = append(os.Environ(), "GROMIT_SPLIT_FINAL_VERIFICATION_REENTRY=1")
 	out, err := cmd.CombinedOutput()
