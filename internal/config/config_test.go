@@ -2837,6 +2837,46 @@ func TestValidationPhaseTimeoutSecondsParseAndResolve(t *testing.T) {
 	}
 }
 
+func TestPhaseTimeoutResolversBackwardCompatibleWhenOmitted(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `claude:
+  bead_timeout: 456
+methodology:
+  atdd: true
+validation:
+  enabled: true
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Methodology.PhaseTimeouts.RedSeconds != 0 {
+		t.Fatalf("expected red_seconds default to remain zero, got %d", cfg.Methodology.PhaseTimeouts.RedSeconds)
+	}
+	if cfg.Validation.PhaseTimeoutSeconds != 0 {
+		t.Fatalf("expected validation.phase_timeout_seconds default to remain zero, got %d", cfg.Validation.PhaseTimeoutSeconds)
+	}
+
+	if got := cfg.Methodology.ResolvePhaseTimeoutSeconds("red", cfg.Claude.BeadTimeout); got != 456 {
+		t.Errorf("methodology red fallback timeout = %d, want 456", got)
+	}
+	if got := cfg.Methodology.ResolvePhaseTimeoutSeconds("green", cfg.Claude.BeadTimeout); got != 456 {
+		t.Errorf("methodology green fallback timeout = %d, want 456", got)
+	}
+	if got := cfg.Methodology.ResolvePhaseTimeoutSeconds("refactor", cfg.Claude.BeadTimeout); got != 456 {
+		t.Errorf("methodology refactor fallback timeout = %d, want 456", got)
+	}
+	if got := cfg.Validation.ResolvePhaseTimeoutSeconds(cfg.Claude.BeadTimeout); got != 456 {
+		t.Errorf("validation fallback timeout = %d, want 456", got)
+	}
+}
+
 // Tests for GitConfig
 func TestGitConfigDefaults(t *testing.T) {
 	cfg := &Config{}

@@ -98,6 +98,7 @@ precheck:
 validation:
   enabled: true
   non_interactive: true  # fail validation if commands attempt to prompt for input
+  # phase_timeout_seconds: 900  # optional per-validation phase budget; defaults to claude.bead_timeout when omitted
   max_parallel_commands: 3  # safe upper bound here: full gate has 3 commands, so all can run concurrently
   fast_commands:  # per-bead gate in the main loop (keeps iteration latency low)
     - "go test -vet=off -short -p 4 -parallel 4 ./..."
@@ -174,6 +175,11 @@ state:
 methodology:
   atdd: true
   tdd: true
+  # Optional phase-specific time budgets (seconds). Any zero/omitted value falls back to claude.bead_timeout.
+  # phase_timeouts:
+  #   red_seconds: 900
+  #   green_seconds: 900
+  #   refactor_seconds: 900
 
 # Learnings - control how confirmed learnings are injected into build prompts
 # learnings:
