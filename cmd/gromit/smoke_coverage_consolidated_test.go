@@ -159,6 +159,9 @@ func TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete(t *testing.T) {
 		"internal/runner/validation_extraction_acceptance_test.go",
 		"internal/runner/invocation_timeout_acceptance_test.go",
 		"internal/runner/worktree_merge_acceptance_test.go",
+		"internal/runner/andon/policy_classification_acceptance_test.go",
+		"internal/runner/andon/policy_class_aware_selection_acceptance_test.go",
+		"internal/runner/andon/types_acceptance_test.go",
 	}
 
 	cases := append(
@@ -261,7 +264,7 @@ func TestSmokeCoverageMatrix_MoveCasesHaveConcreteUnitDestinations(t *testing.T)
 
 	entries := loadConsolidatedSmokeMatrix(t, projectRoot)
 	cmdUnitTests := listPackageTests(t, projectRoot, "./cmd/gromit")
-	runnerUnitTests := listPackageTests(t, projectRoot, "./internal/runner")
+	runnerUnitTests := listPackageTests(t, projectRoot, "./internal/runner/...")
 
 	for caseID, entry := range entries {
 		if entry.Decision != "move" {
