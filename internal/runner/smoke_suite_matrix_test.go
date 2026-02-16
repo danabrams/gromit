@@ -1,6 +1,9 @@
 package runner
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRunnerSmokeApprovedMatrixCases_IncludesExpected(t *testing.T) {
 	approved := RunnerSmokeApprovedMatrixCases()
@@ -41,6 +44,16 @@ func TestRunnerSmokeMatrixMovedCases_IncludesAndonCoverage(t *testing.T) {
 	for source, destination := range expected {
 		if moved[source] != destination {
 			t.Fatalf("moved smoke case %s = %q, want %q", source, moved[source], destination)
+		}
+	}
+}
+
+func TestRunnerAcceptanceFiles_ExcludeAndonSubdir(t *testing.T) {
+	projectRoot := runnerSmokeSuiteRepoRoot(t)
+	files := listRunnerAcceptanceFiles(t, projectRoot)
+	for _, rel := range files {
+		if strings.Contains(rel, "/andon/") {
+			t.Fatalf("runner acceptance file still in andon subdir: %s", rel)
 		}
 	}
 }
