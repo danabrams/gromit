@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 )
@@ -44,7 +45,7 @@ func TestRunnerAcceptanceSurfaceOnly_ValidationFlow(t *testing.T) {
 		t.Fatal("expected NewRunner to return a runner")
 	}
 
-	if err := runner.Run(context.Background(), 1, cfg.TimeBudget, nil, false); err != nil {
+	if err := runner.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 }
