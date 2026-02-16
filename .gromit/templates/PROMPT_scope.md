@@ -22,7 +22,7 @@ This task is part of: **{{.ParentBead.Title}}**{{if .ParentBead.Description}}
 
 ## Your Job
 
-Estimate the scope of this task and determine if it can be completed in a single Claude iteration. Consider:
+Estimate the scope of this task and determine if it can be completed in a single iteration. Consider:
 
 1. **Codebase familiarity** - How much existing code needs to be understood?
 2. **Number of files** - How many files will likely need changes?

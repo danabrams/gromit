@@ -1,8 +1,8 @@
 # Gromit
 
-**Autonomous task execution for Claude Code, with built-in learning.**
+**Autonomous task execution for AI coding agents, with built-in learning.**
 
-Gromit processes a queue of coding tasks, handing each one to Claude Code with fresh context, validating the results independently, and escalating on failure. Along the way, it builds a persistent knowledge base of what works and what doesn't -- so each iteration gets smarter than the last.
+Gromit processes a queue of coding tasks, handing each one to a configured provider with fresh context, validating the results independently, and escalating on failure. Along the way, it builds a persistent knowledge base of what works and what doesn't -- so each iteration gets smarter than the last.
 
 ## Why Gromit?
 
@@ -10,7 +10,7 @@ Long-running agent sessions drift. Context bloats, the model latches onto stale 
 
 Gromit fixes this:
 
-- **Fresh context every iteration** -- each task gets a new Claude process with exactly the context it needs, nothing more
+- **Fresh context every iteration** -- each task gets a new provider process with exactly the context it needs, nothing more
 - **Independent validation** -- tests and lints run in a separate step, not by the build model
 - **Automatic failure analysis** -- when something breaks, Gromit figures out why and decides whether to retry, escalate, or skip
 - **Persistent learnings** -- mistakes become knowledge that feeds into future prompts
@@ -149,7 +149,7 @@ Gromit separates **planning** (human-guided) from **execution** (autonomous):
 
 **Capture** -- `gromit add "idea"` saves rough ideas to the backlog. No structure needed.
 
-**Refine** -- `gromit refine` launches an interactive Claude session to turn an idea into a proper spec with acceptance criteria. Specs are saved to `.gromit/specs/`.
+**Refine** -- `gromit refine` launches an interactive agent session to turn an idea into a proper spec with acceptance criteria. Specs are saved to `.gromit/specs/`.
 
 **Plan** -- `gromit plan <spec>` creates an implementation plan: what to build, in what order, with what dependencies. Plans are saved to `.gromit/plans/`.
 
@@ -174,7 +174,7 @@ For simple projects, you can also manage tasks directly and skip straight to `gr
                          └──────┬──────┘
                                 │
                     ┌───────────▼───────────┐
-                    │  Claude Code (fresh)  │ ── new process, full context
+                    │   Agent CLI (fresh)   │ ── new process, full context
                     │  + rules + learnings  │
                     └───────────┬───────────┘
                                 │
@@ -198,7 +198,7 @@ For each task in the queue:
 1. **Get next task** -- returns the highest-priority unblocked task
 2. **Select model** -- based on priority and labels (see [Model Selection](#model-selection))
 3. **Build prompt** -- assembles rules, learnings, spec, task details, and any failure context
-4. **Run Claude** -- fresh process with full context, streamed output
+4. **Run provider** -- fresh process with full context, streamed output
 5. **Validate** -- runs your test/lint commands via a separate haiku invocation
 6. **On success** -- closes the task, moves to next
 7. **On failure** -- analyzes the failure, extracts a learning, and either retries or escalates
@@ -227,7 +227,7 @@ The prompt for retries includes the previous failure output and analysis, so the
 
 ### Fresh Context
 
-This is the key design decision. Each Claude invocation is a **new process**. There's no conversation history carrying forward, no confused context from previous iterations.
+This is the key design decision. Each provider invocation is a **new process**. There's no conversation history carrying forward, no confused context from previous iterations.
 
 State lives in files:
 
@@ -236,7 +236,7 @@ State lives in files:
 - **LEARNINGS.md** -- accumulated knowledge
 - **RULES.md** -- project constraints
 
-The prompt template assembles everything Claude needs for each task, from scratch, every time.
+The prompt template assembles everything the active provider needs for each task, from scratch, every time.
 
 ## Self-Improvement
 
@@ -293,7 +293,7 @@ This invokes opus to analyze all accumulated learnings and:
 - **Archive** stale or obsolete learnings
 - **Suggest** rule changes
 
-By default, retro runs interactively -- it launches Claude Code so you can discuss and apply changes together. Use `gromit retro --non-interactive` to write proposals to a file instead.
+By default, retro runs interactively -- it launches an agent session so you can discuss and apply changes together. Use `gromit retro --non-interactive` to write proposals to a file instead.
 
 Gromit also tells you when it's time for a retro. At the end of each run, it checks for conditions like many unreviewed learnings, high failure rates, or time since last retro, and suggests running one.
 
@@ -334,7 +334,7 @@ validation:
     - "go vet ./..."
     - "go build ./cmd/myapp"
 
-# Claude CLI settings
+# Provider CLI settings (legacy-compatible `claude` key)
 claude:
   timeout: 600                 # Seconds per invocation
   stall_timeout: 120           # Seconds of silence before auto-retry
@@ -373,7 +373,7 @@ validation:
 
 ### Stall Detection
 
-If Claude goes silent for a configurable period, Gromit automatically kills the stalled process and retries or escalates. No manual Ctrl+C needed. Stall retries count against `max_retries_per_model` -- once exhausted, Gromit escalates to the next model.
+If the provider goes silent for a configurable period, Gromit automatically kills the stalled process and retries or escalates. No manual Ctrl+C needed. Stall retries count against `max_retries_per_model` -- once exhausted, Gromit escalates to the next model.
 
 ### Time Budgets
 
@@ -389,7 +389,7 @@ When the deadline passes, Gromit finishes the current task and exits gracefully.
 
 ### Failure Analysis
 
-Every failure gets analyzed by a separate Claude call that categorizes it:
+Every failure gets analyzed by a separate provider call that categorizes it:
 
 | Category | Meaning | Action |
 |----------|---------|--------|
@@ -422,7 +422,7 @@ Before validation, Gromit checks that required tools are available (e.g., `pnpm`
 
 ## Safety and Permissions
 
-Gromit runs Claude Code with `--dangerously-skip-permissions` by default, meaning Claude can modify files and run commands without asking. This is configurable in `gromit.yaml` under `claude.flags`.
+Gromit runs the configured provider CLI with `--dangerously-skip-permissions` by default, meaning the agent can modify files and run commands without asking. This is configurable in `gromit.yaml` under `claude.flags`.
 
 Recommended practices:
 
@@ -436,7 +436,7 @@ Gromit auto-pushes to the remote after each successful task by default. Disable 
 
 ## When NOT to Use Gromit
 
-- **Interactive pairing** -- if you want a back-and-forth coding conversation, use Claude Code directly
+- **Interactive pairing** -- if you want a back-and-forth coding conversation, use your agent CLI directly
 - **No local test suite** -- Gromit's value depends on independent validation; without tests, it's just a loop
 - **One-off exploration** -- if you're exploring an approach rather than executing a defined task, Gromit adds overhead
 - **Tasks requiring human judgment mid-execution** -- Gromit runs autonomously; it can't pause and ask you questions during a task

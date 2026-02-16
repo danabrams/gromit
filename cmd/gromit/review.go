@@ -37,7 +37,7 @@ var reviewCmd = &cobra.Command{
 	Short: "Run a thorough code review",
 	Long: `Run a thorough review of recent changes.
 
-Interactive mode (default): Launches a Claude Code session for collaborative review.
+Interactive mode (default): Launches an interactive agent session for collaborative review.
 Non-interactive mode (--non-interactive): Runs autonomously, creates beads for issues found.
 
 Scope options:

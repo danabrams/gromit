@@ -6,9 +6,9 @@ The retro command:
 3. Identifies duplicate or related learnings
 4. Proposes promoting patterns to RULES.md
 5. Suggests archiving stale learnings
-6. Launches Claude Code for interactive review and application
+6. Launches an interactive agent session for review and application
 
-Use --non-interactive to skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md instead.
+Use --non-interactive to skip the interactive session and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md instead.
 
 Scoping:
   --spec <name>      Filter retro to a spec's beads only
@@ -24,7 +24,7 @@ Usage:
 Flags:
       --epic string       Scope retro to a specific epic
   -h, --help              help for retro
-      --non-interactive   Skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md
+      --non-interactive   Skip interactive session and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md
       --spec string       Scope retro to a specific spec
 
 Global Flags:

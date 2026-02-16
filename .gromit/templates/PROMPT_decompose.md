@@ -58,7 +58,7 @@ Example format:
 - Soft file limit of 4-5 — if touching 6+ files across unrelated packages, consider splitting. But touching interface.go, impl.go, mock_test.go, and impl_test.go for one method addition is fine — that's one change, not four
 - **Never split these natural units:**
   - **Interface + implementation + mock updates** — In Go, changing an interface requires updating all implementations and mocks to compile. This is one change, not three beads
-  - **Implementation + its tests** — Claude writes tests alongside implementation. Under ATDD, they're explicitly the same workflow. Never create a separate "write tests for X" bead
+  - **Implementation + its tests** — The implementation agent writes tests alongside implementation. Under ATDD, they're explicitly the same workflow. Never create a separate "write tests for X" bead
   - **Companion methods in same package** — Methods that follow the same pattern in the same file are one bead. If you'd copy-paste-modify to create the second, they belong together
   - **Command flags + wiring that makes them work** — A CLI flag that does nothing isn't a deliverable. The flag, its plumbing, and its effect are one bead
   - **Template + registration** — Adding a template file and registering it in the renderer are one action, not two

@@ -13,7 +13,7 @@ import (
 	"github.com/danabrams/gromit/skills"
 )
 
-// beadDef represents a bead definition from Claude's JSON output.
+// beadDef represents a bead definition from the provider's JSON output.
 type beadDef struct {
 	Title              string   `json:"title"`
 	Description        string   `json:"description"`
@@ -48,19 +48,19 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	// Build prompt with embedded skill content
 	prompt := buildDecomposePrompt(input.PlanName, planBody, skills.DecomposeSkill)
 
-	// Run Claude non-interactively
+	// Run provider non-interactively
 	claudeResult, err := p.deps.ClaudeClient.Run(prompt, "sonnet")
 	if err != nil {
-		return nil, fmt.Errorf("invoking Claude: %w", err)
+		return nil, fmt.Errorf("invoking provider: %w", err)
 	}
 
 	// Extract output from typed result
 	if !claudeResult.Success {
-		return nil, fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", claudeResult.ExitCode, claudeResult.Output)
+		return nil, fmt.Errorf("provider invocation failed (exit code %d)\nOutput:\n%s", claudeResult.ExitCode, claudeResult.Output)
 	}
 	output := strings.TrimSpace(claudeResult.Output)
 	if output == "" {
-		return nil, fmt.Errorf("Claude returned empty output for decompose; check Claude CLI connectivity and retry")
+		return nil, fmt.Errorf("provider returned empty output for decompose; check CLI connectivity and retry")
 	}
 	var beadDefs []beadDef
 	if err := jsonutil.ExtractJSON(output, &beadDefs); err != nil {
@@ -161,7 +161,7 @@ Each bead must include: title, description, priority, acceptance_criteria, depen
 The spec label will be added automatically: spec:%s
 `
 
-// buildDecomposePrompt constructs the prompt for Claude.
+// buildDecomposePrompt constructs the prompt for the configured provider.
 func buildDecomposePrompt(planName, planBody, skillContent string) string {
 	return fmt.Sprintf(decomposePromptTemplate, planName, planBody, skillContent, planName)
 }

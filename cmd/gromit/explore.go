@@ -41,12 +41,12 @@ var exploreModel string
 
 const exploreCodexHelpExample = `  gromit explore --agent codex "Audit onboarding flow" # Use Codex for the session`
 const exploreChooseAgentHelpExample = `  gromit explore --choose-agent "Audit onboarding flow" # Pick an agent interactively`
-const exploreAgentSelectionHelpSentence = "Agent selection priority: --agent, --choose-agent, agents.phases.explore, then default \"claude\"."
+const exploreAgentSelectionHelpSentence = "Agent selection priority: --agent, --choose-agent, agents.phases.explore, then the configured default agent."
 const exploreAgentOverrideFlag = "--from-override"
 const explorePhaseConfigFlag = "--from-phase-config"
 
 func init() {
-	exploreCmd.Flags().StringVar(&exploreModel, "model", "opus", "Claude model to use (opus, sonnet, haiku)")
+	exploreCmd.Flags().StringVar(&exploreModel, "model", "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
 	exploreCmd.Flags().String("agent", "", "Override the default agent for this explore session")
 	exploreCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
 	rootCmd.AddCommand(exploreCmd)

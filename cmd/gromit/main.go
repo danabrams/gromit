@@ -56,7 +56,7 @@ var runCmd = &cobra.Command{
 Each iteration:
 1. Gets the next unblocked bead from bd
 2. Selects the appropriate model based on priority/labels
-3. Invokes Claude with a fresh context
+3. Invokes the selected provider with a fresh context
 4. Runs validation (optional)
 5. Closes the bead on success
 6. Escalates to a stronger model on failure`,
@@ -81,9 +81,9 @@ The retro command:
 3. Identifies duplicate or related learnings
 4. Proposes promoting patterns to RULES.md
 5. Suggests archiving stale learnings
-6. Launches Claude Code for interactive review and application
+6. Launches an interactive agent session for review and application
 
-Use --non-interactive to skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md instead.
+Use --non-interactive to skip the interactive session and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md instead.
 
 Scoping:
   --spec <name>      Filter retro to a spec's beads only
@@ -103,7 +103,7 @@ func init() {
 	runCmd.Flags().IntVarP(&timeBudgetMinutes, "time-budget", "t", 0, "Time budget in minutes (0 = unlimited)")
 	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
 
-	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip Claude Code and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md")
+	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip interactive session and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md")
 	retroCmd.Flags().StringVar(&retroSpecFlag, "spec", "", "Scope retro to a specific spec")
 	retroCmd.Flags().StringVar(&retroEpicFlag, "epic", "", "Scope retro to a specific epic")
 
@@ -281,10 +281,10 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Default: Launch Claude Code for interactive review and application
-	fmt.Println("\nLaunching Claude Code for interactive review...")
+	// Default: launch interactive review and application session
+	fmt.Println("\nLaunching interactive review session...")
 	if err := retro.LaunchClaudeCode(result.Analysis, result.Efficiency, result.Experiment, ""); err != nil {
-		return fmt.Errorf("launching Claude Code: %w", err)
+		return fmt.Errorf("launching interactive review session: %w", err)
 	}
 
 	// Record retro time in state

@@ -3,7 +3,7 @@ Execute the Gromit loop, processing beads one at a time with fresh context.
 Each iteration:
 1. Gets the next unblocked bead from bd
 2. Selects the appropriate model based on priority/labels
-3. Invokes Claude with a fresh context
+3. Invokes the selected provider with a fresh context
 4. Runs validation (optional)
 5. Closes the bead on success
 6. Escalates to a stronger model on failure

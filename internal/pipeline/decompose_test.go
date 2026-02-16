@@ -147,7 +147,7 @@ created: 2026-02-11
 	}
 }
 
-func TestDecomposeWorkflow_ClaudeReturnsEmptyOutput(t *testing.T) {
+func TestDecomposeWorkflow_ProviderReturnsEmptyOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
 
@@ -178,10 +178,10 @@ func TestDecomposeWorkflow_ClaudeReturnsEmptyOutput(t *testing.T) {
 
 	_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "empty-output"})
 	if err == nil {
-		t.Fatal("Decompose() with empty Claude output returned nil error, want error")
+		t.Fatal("Decompose() with empty provider output returned nil error, want error")
 	}
-	if !strings.Contains(err.Error(), "Claude returned empty output for decompose") {
-		t.Fatalf("Decompose() error = %v, want message about empty Claude output", err)
+	if !strings.Contains(err.Error(), "provider returned empty output for decompose") {
+		t.Fatalf("Decompose() error = %v, want message about empty provider output", err)
 	}
 }
 

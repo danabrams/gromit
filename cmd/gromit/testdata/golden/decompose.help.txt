@@ -1,6 +1,6 @@
 Decompose an implementation plan into bd beads automatically.
 
-This command reads a plan file, invokes Claude non-interactively to extract
+This command reads a plan file, invokes the configured decomposition provider non-interactively to extract
 tasks and map them to beads following bead sizing rules, then creates the
 beads via bd create.
 
@@ -18,7 +18,7 @@ After successful decomposition, the plan frontmatter is updated with:
 Each bead is created with:
   - spec:<plan-name> label for traceability
   - Dependencies mapped from the plan's task dependencies
-  - Priority and acceptance criteria from Claude's analysis
+  - Priority and acceptance criteria from the decomposition analysis
 
 Usage:
   gromit decompose [plan-name] [flags]

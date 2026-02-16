@@ -19,7 +19,7 @@ import (
 var debugCmd = &cobra.Command{
 	Use:   "debug [description]",
 	Short: "Launch interactive bug investigation session",
-	Long: `Launch an interactive Claude Code session for investigating bugs.
+	Long: `Launch an interactive agent session for investigating bugs.
 
 The session receives full project context (CLAUDE.md, RULES.md, LEARNINGS.md)
 and guides free-form investigation to identify root cause, triage severity, and
@@ -40,7 +40,7 @@ Examples:
 var debugModel string
 
 func init() {
-	debugCmd.Flags().StringVar(&debugModel, "model", "opus", "Claude model to use (opus, sonnet, haiku)")
+	debugCmd.Flags().StringVar(&debugModel, "model", "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
 	debugCmd.Flags().String("agent", "", "Override the default agent for this debug session")
 	debugCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
 	rootCmd.AddCommand(debugCmd)

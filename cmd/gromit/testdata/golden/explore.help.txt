@@ -11,7 +11,7 @@ Examples:
   gromit explore --agent codex "Audit onboarding flow" # Use Codex for the session
   gromit explore --choose-agent "Audit onboarding flow" # Pick an agent interactively
 
-Agent selection priority: --agent, --choose-agent, agents.phases.explore, then default "claude".
+Agent selection priority: --agent, --choose-agent, agents.phases.explore, then the configured default agent.
 
 Usage:
   gromit explore [topic] [flags]
@@ -20,7 +20,7 @@ Flags:
       --agent string   Override the default agent for this explore session
       --choose-agent   Show interactive picker to choose agent
   -h, --help           help for explore
-      --model string   Claude model to use (opus, sonnet, haiku) (default "opus")
+      --model string   Model to use when the Claude agent is selected (opus, sonnet, haiku) (default "opus")
 
 Global Flags:
   -c, --config string   Path to config file (default "gromit.yaml")

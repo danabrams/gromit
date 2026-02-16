@@ -301,10 +301,10 @@ review:
     model: opus
     timeout: 900
 
-# Claude CLI settings
+# Provider CLI settings (legacy-compatible "claude" section)
 claude:
   binary: "claude"
-  timeout: 600           # seconds per Claude invocation
+  timeout: 600           # seconds per provider invocation
   stall_timeout: 120     # seconds with no output before auto-retry (initial, pre-activity)
   stall_timeout_active: 300  # seconds with no output after tool activity (longer, allows thinking)
   bead_timeout: 1200     # seconds max per bead (all retries + analysis + validation)
@@ -652,7 +652,7 @@ This task is part of: **{{.ParentBead.Title}}**{{if .ParentBead.Description}}
 
 ## Your Job
 
-Estimate the scope of this task and determine if it can be completed in a single Claude iteration. Consider:
+Estimate the scope of this task and determine if it can be completed in a single iteration. Consider:
 
 1. **Codebase familiarity** - How much existing code needs to be understood?
 2. **Number of files** - How many files will likely need changes?
@@ -1668,7 +1668,7 @@ const defaultClaudeMD = "# Your Project\n\n" +
 	"- **One concern per bead** — a single file or two tightly coupled files\n" +
 	"- **1-3 acceptance criteria** — concrete, testable criteria only; split if more than 3\n" +
 	"- **Self-contained** — understandable without reading other beads\n" +
-	"- **No ambiguity** — Claude implements without making design decisions\n" +
+	"- **No ambiguity** — The implementation agent executes without making design decisions\n" +
 	"- **Max 2 files touched** — if more, consider splitting the bead\n" +
 	"- **Clear definition of done** — each criterion has an obvious pass/fail test\n\n" +
 	"## Capturing Ideas vs Creating Beads\n\n" +

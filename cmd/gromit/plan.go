@@ -22,13 +22,13 @@ var (
 var planCmd = &cobra.Command{
 	Use:   "plan [spec-name]",
 	Short: "Create an implementation plan from a spec",
-	Long: `Start an interactive Claude Code session to create an implementation plan from a spec.
+	Long: `Start an interactive agent session to create an implementation plan from a spec.
 
 Two input modes:
   gromit plan                    # Interactive picker for available specs
   gromit plan <spec-name>        # Plan a specific spec
 
-The command launches Claude with:
+The command launches the selected agent with:
 - Full spec content as context
 - Plans directory path for output
 - Spec name for naming the plan file
