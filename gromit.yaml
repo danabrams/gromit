@@ -123,7 +123,7 @@ claude:
   timeout: 900           # seconds per Claude invocation
   stall_timeout: 180     # seconds with no output before auto-retry (initial, pre-activity)
   stall_timeout_active: 600  # seconds with no output after tool activity (longer, allows thinking)
-  bead_timeout: 1800     # seconds max per bead (all retries + analysis + validation)
+  bead_timeout: 2700     # seconds max per bead (all retries + analysis + validation)
   analysis_timeout: 180  # seconds max per failure analysis invocation
   flags:
     - "--dangerously-skip-permissions"
