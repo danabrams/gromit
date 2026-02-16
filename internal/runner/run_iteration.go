@@ -61,7 +61,7 @@ func (r *Runner) handlePrecheckSkip(b *bead.Bead, st *runLoopState, precheckDura
 }
 
 func (r *Runner) runScopeGate(ctx context.Context, b *bead.Bead, st *runLoopState) (*prompt.ScopeEstimate, bool) {
-	if !(r.cfg.ScopeCheck.Enabled && r.cfg.ScopeCheck.ShouldBlockOversized()) {
+	if !r.cfg.ScopeCheck.Enabled || !r.cfg.ScopeCheck.ShouldBlockOversized() {
 		return nil, false
 	}
 
