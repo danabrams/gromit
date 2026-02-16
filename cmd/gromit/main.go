@@ -154,8 +154,6 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	if timeBudgetMinutes > 0 || timeBudgetHours > 0 {
 		totalMinutes := timeBudgetMinutes + timeBudgetHours*60
 		deadline = time.Now().Add(time.Duration(totalMinutes) * time.Minute)
-		ctx, cancel = context.WithDeadline(ctx, deadline)
-		defer cancel()
 	}
 
 	r, err := runner.NewRunner(cfg, os.Stdout)
