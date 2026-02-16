@@ -3,6 +3,7 @@ package prompt
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -862,5 +863,97 @@ Model: {{.Model}}`
 	}
 	if !strings.Contains(result, "sonnet") {
 		t.Error("expected model in output")
+	}
+}
+
+func TestMethodologyPhaseShaping_TemplateCompatibility(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	if _, err := os.Stat(filepath.Join(templatesDir, "PROMPT_acceptance_tests.md")); os.IsNotExist(err) {
+		t.Skipf("skipping: real templates not found at %s", templatesDir)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+	base := testMethodologyContext()
+
+	tests := []struct {
+		name         string
+		methodName   string
+		renderName   string
+		renderFn     func(*Context) (string, error)
+		wantContains []string
+	}{
+		{
+			name:       "red shaped context renders acceptance template",
+			methodName: "ShapeRedPhaseContext",
+			renderName: "RenderAcceptanceTests",
+			renderFn:   r.RenderAcceptanceTests,
+			wantContains: []string{
+				"Rules (Non-Negotiable)",
+				"Current Task",
+				"Specification",
+			},
+		},
+		{
+			name:       "green shaped context renders atdd build template",
+			methodName: "ShapeGreenPhaseContext",
+			renderName: "RenderATDDBuild",
+			renderFn:   r.RenderATDDBuild,
+			wantContains: []string{
+				"Rules (Non-Negotiable)",
+				"Current Task",
+				"Acceptance tests have been written",
+			},
+		},
+		{
+			name:       "refactor shaped context renders refactor template",
+			methodName: "ShapeRefactorPhaseContext",
+			renderName: "RenderRefactor",
+			renderFn:   r.RenderRefactor,
+			wantContains: []string{
+				"Refactoring Phase",
+				"Rules (Non-Negotiable)",
+				"Do not change behavior",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Expected failure: Renderer.ShapeRedPhaseContext / Renderer.ShapeGreenPhaseContext / Renderer.ShapeRefactorPhaseContext are not exposed in prompt.go yet.
+			method := reflect.ValueOf(r).MethodByName(tt.methodName)
+			if !method.IsValid() {
+				t.Fatalf("Renderer.%s method not found for %s compatibility test", tt.methodName, tt.renderName)
+			}
+
+			if method.Type().NumIn() != 1 || method.Type().In(0) != reflect.TypeOf(&Context{}) {
+				t.Fatalf("Renderer.%s should accept *Context", tt.methodName)
+			}
+
+			results := method.Call([]reflect.Value{reflect.ValueOf(base)})
+			if len(results) == 0 {
+				t.Fatalf("Renderer.%s returned no values", tt.methodName)
+			}
+
+			shaped, ok := results[0].Interface().(*Context)
+			if !ok || shaped == nil {
+				t.Fatalf("Renderer.%s first return value must be non-nil *Context", tt.methodName)
+			}
+
+			if len(results) == 2 && !results[1].IsNil() {
+				err, _ := results[1].Interface().(error)
+				t.Fatalf("Renderer.%s returned error: %v", tt.methodName, err)
+			}
+
+			rendered, err := tt.renderFn(shaped)
+			if err != nil {
+				t.Fatalf("%s() error with shaped context: %v", tt.renderName, err)
+			}
+
+			for _, needle := range tt.wantContains {
+				if !strings.Contains(rendered, needle) {
+					t.Errorf("%s output missing expected content %q after %s shaping", tt.renderName, needle, tt.methodName)
+				}
+			}
+		})
 	}
 }
