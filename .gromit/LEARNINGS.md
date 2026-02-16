@@ -41,34 +41,20 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
 
-### 2026-02-16 | gromit-kk13.1 | patterns
-*Related to: gromit-kk13*
-
-Bead 'Define smoke coverage matrix for cmd and runner' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
-
 ---
 
 ## Provisional
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-16 | gromit-f8x2 | patterns
-Bead 'Add Andon domain types and policy skeleton' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
+### 2026-02-16 | Codex Provider Timeout Pattern | patterns
+*Related to: gromit-kk13.1, gromit-f8x2, gromit-kk13.3, gromit-gdsr, gromit-f8x2.3*
 
-### 2026-02-16 | gromit-f8x2.3 | patterns
-Bead 'Add class-aware classification and coverage' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
-
-### 2026-02-16 | gromit-kk13.1.3 | conventions
-When auditing acceptance test coverage, must search exhaustively across all *_acceptance_test.go files including subdirectories like internal/runner/andon/. The smoke coverage matrix validator is the source of truth—test failures reveal which cases are actually missing from the matrix, not just visual inspection of test files.
+Codex models (gpt-5.2-codex, gpt-5.3-codex) exhibit a 58% timeout rate (19/33 iterations >15min) compared to 12% for Claude models. Average Codex input tokens are ~1.1M vs near-zero reported for Claude. Beads involving acceptance test reclassification, domain type creation, and coverage matrix definition consistently time out on Codex. Decomposing into smaller sub-beads does not reliably prevent timeouts when the provider itself runs slowly. Consider using Claude models (opus/sonnet) for complex beads and reserving Codex for simpler, well-scoped tasks.
 
 ---
 
 ## Archived
 
-*No longer relevant or superseded.*
-
-### 2026-02-16 | gromit-gdsr | patterns
-Bead 'Reclassify runner acceptance tests to unit tests' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
-
-*Archived from new: filtered: generic engineering advice*
+*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
 

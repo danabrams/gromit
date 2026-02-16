@@ -5,6 +5,38 @@ These entries are no longer active — they've been promoted to rules, consolida
 
 ---
 
+### 2026-02-16 | gromit-kk13.1 | patterns
+*Related to: gromit-kk13*
+
+Bead 'Define smoke coverage matrix for cmd and runner' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
+
+*Archived from confirmed: consolidated into Provisional "Codex Provider Timeout Pattern" entry*
+
+### 2026-02-16 | gromit-f8x2 | patterns
+Bead 'Add Andon domain types and policy skeleton' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
+
+*Archived from provisional: consolidated into Provisional "Codex Provider Timeout Pattern" entry*
+
+### 2026-02-16 | gromit-kk13.3 | patterns
+Bead 'Slim runner acceptance tests to smoke-only flows' timed out on gpt-5.2-codex — may need simpler scope or higher model tier
+
+*Archived from provisional: consolidated into Provisional "Codex Provider Timeout Pattern" entry*
+
+### 2026-02-16 | gromit-kk13.1.3 | conventions
+When auditing acceptance test coverage, must search exhaustively across all *_acceptance_test.go files including subdirectories like internal/runner/andon/. The smoke coverage matrix validator is the source of truth—test failures reveal which cases are actually missing from the matrix, not just visual inspection of test files.
+
+*Archived from provisional: filtered: generic engineering advice — "search exhaustively" is universal advice; the smoke matrix validator enforces this by code*
+
+### 2026-02-16 | gromit-gdsr | patterns
+Bead 'Reclassify runner acceptance tests to unit tests' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
+
+*Archived from archived: consolidated into Provisional "Codex Provider Timeout Pattern" entry*
+
+### 2026-02-16 | gromit-f8x2.3 | patterns
+Bead 'Add class-aware classification and coverage' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
+
+*Archived from archived: consolidated into Provisional "Codex Provider Timeout Pattern" entry*
+
 ### 2026-02-16 | gromit-evne | patterns
 Archived: too vague to be actionable. The real insight (963K input tokens from unbounded retry context growth) is captured in the debug report at .gromit/reports/debug-20260216-014254.md.
 
