@@ -117,6 +117,10 @@ func (r *Runner) logResult(result *IterationResult) {
 	if r == nil || result == nil {
 		return
 	}
+	if result.Decomposed && result.Error == nil {
+		r.log("DECOMPOSED: %s into sub-beads in %v", result.BeadID, result.Duration)
+		return
+	}
 	if result.AlreadyDone {
 		r.log("ALREADY DONE: %s — ATDD tests pass, work previously completed (%v)", result.BeadID, result.Duration)
 		return

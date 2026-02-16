@@ -1290,6 +1290,25 @@ func TestNilCallsShouldNotPanic(t *testing.T) {
 	}
 }
 
+func TestLogResult_DecomposedWithoutErrorLogsDecomposed(t *testing.T) {
+	var buf strings.Builder
+	r := &Runner{output: &buf}
+
+	r.logResult(&IterationResult{
+		BeadID:     "gromit-kk13",
+		Decomposed: true,
+		Duration:   25 * time.Minute,
+	})
+
+	out := buf.String()
+	if !strings.Contains(out, "DECOMPOSED: gromit-kk13") {
+		t.Fatalf("expected DECOMPOSED log line, got: %q", out)
+	}
+	if strings.Contains(out, "FAILED:") {
+		t.Fatalf("did not expect FAILED log line, got: %q", out)
+	}
+}
+
 func TestShowPartialProgressNilRunner(t *testing.T) {
 	var r *Runner
 	b := &bead.Bead{ID: "test-1"}

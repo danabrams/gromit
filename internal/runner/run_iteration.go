@@ -172,6 +172,10 @@ func (r *Runner) processSingleBead(
 	r.writeIterationLog(st.iteration, result)
 
 	st.consecutiveSkips = 0
+	if result.Decomposed && result.Error == nil {
+		r.log("Continuing after decomposition of bead %s", b.ID)
+		return false, nil
+	}
 	if !result.Success {
 		stats := st.beadStats[b.ID]
 		stats.BeadID = b.ID

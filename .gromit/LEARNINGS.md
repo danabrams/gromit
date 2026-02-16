@@ -47,7 +47,8 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-*No provisional learnings.*
+### 2026-02-16 | gromit-kk13 | patterns
+Bead 'Define slim E2E smoke suite for runner and cmd' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
 
 ---
 
