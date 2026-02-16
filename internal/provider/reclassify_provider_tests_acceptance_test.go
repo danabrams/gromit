@@ -4,6 +4,7 @@ package provider
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,14 +81,45 @@ func TestProviderReclassifiedBehaviorRunsInUnitSuite(t *testing.T) {
 // internal/provider are reduced to a slim E2E surface.
 // Expected failure: codexProviderAcceptanceMaxTests constant does not exist yet.
 func TestProviderAcceptanceSuiteHasReducedFootprint(t *testing.T) {
+	AssertProviderAcceptanceReclassificationImplemented(t)
+
 	maxAllowed := codexProviderAcceptanceMaxTests
 
-	cmd := exec.Command("go", "test", "-tags", "acceptance", "-list", "^Test", "./internal/provider")
+	baseline, err := listProviderTests(t, false)
+	if err != nil {
+		t.Fatalf("list baseline unit tests: %v", err)
+	}
+
+	withAcceptance, err := listProviderTests(t, true)
+	if err != nil {
+		t.Fatalf("list acceptance-tag test set: %v", err)
+	}
+
+	if len(withAcceptance) < len(baseline) {
+		t.Fatalf("acceptance-tag run listed fewer tests than baseline: baseline=%d acceptance=%d", len(baseline), len(withAcceptance))
+	}
+
+	additional := len(withAcceptance) - len(baseline)
+	if additional > maxAllowed {
+		t.Errorf("acceptance-specific test footprint too large: got %d additional tests, max %d", additional, maxAllowed)
+	}
+}
+
+func listProviderTests(t *testing.T, withAcceptance bool) ([]string, error) {
+	t.Helper()
+
+	args := []string{"test", "-list", "^Test"}
+	if withAcceptance {
+		args = append(args, "-tags", "acceptance")
+	}
+	args = append(args, "./internal/provider")
+
+	cmd := exec.Command("go", args...)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("go test -tags acceptance -list failed: %v\noutput:\n%s", err, out.String())
+		return nil, fmt.Errorf("go %s failed: %w\noutput:\n%s", strings.Join(args, " "), err, out.String())
 	}
 
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
@@ -98,8 +130,5 @@ func TestProviderAcceptanceSuiteHasReducedFootprint(t *testing.T) {
 			tests = append(tests, trimmed)
 		}
 	}
-
-	if len(tests) > maxAllowed {
-		t.Errorf("acceptance test footprint too large: got %d tests, max %d", len(tests), maxAllowed)
-	}
+	return tests, nil
 }
