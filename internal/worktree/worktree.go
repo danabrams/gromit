@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+const (
+	interactiveBranchName   = "gromit/interactive"
+	interactiveWorktreeSufx = "-gromit-interactive"
+	branchPrefix            = "gromit/"
+)
+
 // GitRunFn is a function type for executing git commands.
 // dir is the working directory, args are the git command arguments.
 type GitRunFn func(dir string, args ...string) (string, error)
@@ -44,7 +50,7 @@ func NewManager(mainDir string, opts ...Option) (*Manager, error) {
 
 	m := &Manager{
 		MainDir:     mainDir,
-		WorktreeDir: mainDir + "-gromit-interactive",
+		WorktreeDir: mainDir + interactiveWorktreeSufx,
 	}
 
 	// Apply options
@@ -74,11 +80,11 @@ func (m *Manager) EnsureWorktree() (string, error) {
 	}
 
 	// Create the worktree with a new branch
-	_, err = m.runGit(m.MainDir, "worktree", "add", m.WorktreeDir, "-b", "gromit/interactive")
+	_, err = m.runGit(m.MainDir, "worktree", "add", m.WorktreeDir, "-b", interactiveBranchName)
 	if err != nil {
 		// Branch may already exist from a previous worktree that was removed.
 		// Retry without -b to checkout the existing branch.
-		_, err = m.runGit(m.MainDir, "worktree", "add", m.WorktreeDir, "gromit/interactive")
+		_, err = m.runGit(m.MainDir, "worktree", "add", m.WorktreeDir, interactiveBranchName)
 		if err != nil {
 			return "", fmt.Errorf("failed to create worktree: %w", err)
 		}
@@ -110,7 +116,7 @@ func (m *Manager) CreateBranch(command string) (string, error) {
 
 	// Generate branch name with timestamp
 	timestamp := time.Now().Unix()
-	branchName := fmt.Sprintf("gromit/%s-%d", command, timestamp)
+	branchName := sessionBranchName(command, timestamp)
 
 	// Create and checkout the branch in the worktree directory
 	_, err := m.runGit(m.WorktreeDir, "checkout", "-b", branchName)
@@ -133,8 +139,8 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 
 	// Generate unique session identifier with nanosecond precision for uniqueness
 	timestamp := time.Now().UnixNano()
-	branchName := fmt.Sprintf("gromit/%s-%d", command, timestamp)
-	worktreeDir := fmt.Sprintf("%s-gromit-%s-%d", m.MainDir, command, timestamp)
+	branchName := sessionBranchName(command, timestamp)
+	worktreeDir := sessionWorktreeDir(m.MainDir, command, timestamp)
 
 	// Create the worktree with the new branch
 	_, err := m.runGit(m.MainDir, "worktree", "add", worktreeDir, "-b", branchName)
@@ -172,8 +178,8 @@ func (m *Manager) PendingBranches() ([]string, error) {
 		// Convert refs/heads/gromit/retro-123 to gromit/retro-123
 		if strings.HasPrefix(line, "refs/heads/") {
 			branchName := strings.TrimPrefix(line, "refs/heads/")
-			if strings.HasPrefix(branchName, "gromit/") {
-				if branchName == "gromit/interactive" {
+			if strings.HasPrefix(branchName, branchPrefix) {
+				if branchName == interactiveBranchName {
 					continue
 				}
 				branches = append(branches, branchName)
@@ -243,4 +249,12 @@ func (m *Manager) runGit(dir string, args ...string) (string, error) {
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
 	return string(output), err
+}
+
+func sessionBranchName(command string, timestamp int64) string {
+	return fmt.Sprintf("%s%s-%d", branchPrefix, command, timestamp)
+}
+
+func sessionWorktreeDir(mainDir, command string, timestamp int64) string {
+	return fmt.Sprintf("%s-gromit-%s-%d", mainDir, command, timestamp)
 }
