@@ -3,14 +3,32 @@
 
 set -euo pipefail
 
-if [[ -n "${TEST_CALL_LOG:-}" ]]; then
-    echo "codex $*" >> "$TEST_CALL_LOG"
-fi
+readonly jsonl_assistant_template='{"type":"assistant","message":{"content":[{"type":"text","text":%s}]}}'
+readonly jsonl_result_template='{"type":"result","result":%s}'
+
+record_call() {
+    if [[ -n "${TEST_CALL_LOG:-}" ]]; then
+        echo "codex $*" >> "$TEST_CALL_LOG"
+    fi
+}
+
+emit_jsonl_fixture() {
+    local fixture_path="$1"
+    local content escaped_content
+
+    content=$(cat "$fixture_path")
+    escaped_content=$(echo "$content" | jq -Rs .)
+    printf "$jsonl_assistant_template\n" "$escaped_content"
+    printf "$jsonl_result_template\n" "$escaped_content"
+}
+
+record_call "$@"
 
 if [[ -n "${CODEX_DELAY:-}" ]]; then
     sleep "${CODEX_DELAY}"
 fi
 
+# Read and discard stdin (codex expects prompt on stdin)
 cat > /dev/null
 
 if [[ -n "${CODEX_FAIL:-}" ]] && [[ "${CODEX_FAIL}" != "0" ]]; then
@@ -41,10 +59,7 @@ for arg in "$@"; do
 done
 
 if [[ $jsonl_mode -eq 1 ]]; then
-    content=$(cat "$fixture_file")
-    escaped_content=$(echo "$content" | jq -Rs .)
-    echo "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":$escaped_content}]}}"
-    echo "{\"type\":\"result\",\"result\":$escaped_content}"
+    emit_jsonl_fixture "$fixture_file"
 else
     cat "$fixture_file"
 fi

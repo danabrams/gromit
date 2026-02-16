@@ -92,15 +92,8 @@ func TestFakes_CodexFixtureModes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Expected failure: codexFakeNotImplementedSentinel does not exist until fake codex ergonomics are implemented.
-			_ = codexFakeNotImplementedSentinel
-
-			testEnv := append([]string{}, env.Env...)
-			testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_FIXTURE", fixtureFile)
-
-			cmd := exec.Command(filepath.Join(fakesDir, "codex"), tt.args...)
-			cmd.Dir = env.Dir
-			cmd.Env = testEnv
+			testEnv := codexTestEnvWithFixture(env.Env, fixtureFile)
+			cmd := newCodexFakeCommand(env.Dir, testEnv, tt.args...)
 			cmd.Stdin = strings.NewReader("acceptance prompt input\n")
 
 			output, err := cmd.CombinedOutput()
@@ -137,16 +130,10 @@ func TestFakes_CodexErrorAndDelayModes(t *testing.T) {
 	}
 
 	t.Run("non-zero failure", func(t *testing.T) {
-		// Expected failure: codexFailureExitCodeEnvVar constant does not exist until codex fake failure mode is implemented.
-		_ = codexFailureExitCodeEnvVar
+		testEnv := codexTestEnvWithFixture(env.Env, fixtureFile)
+		testEnv = testutil.ReplaceOrAppend(testEnv, codexFailureExitCodeEnvVar, "23")
 
-		testEnv := append([]string{}, env.Env...)
-		testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_FIXTURE", fixtureFile)
-		testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_FAIL", "23")
-
-		cmd := exec.Command(filepath.Join(fakesDir, "codex"), "run", "--model", "sonnet")
-		cmd.Dir = env.Dir
-		cmd.Env = testEnv
+		cmd := newCodexFakeCommand(env.Dir, testEnv, "run", "--model", "sonnet")
 		cmd.Stdin = strings.NewReader("prompt\n")
 
 		output, err := cmd.CombinedOutput()
@@ -163,16 +150,10 @@ func TestFakes_CodexErrorAndDelayModes(t *testing.T) {
 	})
 
 	t.Run("delay", func(t *testing.T) {
-		// Expected failure: codexDelayEnvVar constant does not exist until codex fake delay mode is implemented.
-		_ = codexDelayEnvVar
+		testEnv := codexTestEnvWithFixture(env.Env, fixtureFile)
+		testEnv = testutil.ReplaceOrAppend(testEnv, codexDelayEnvVar, "0.2")
 
-		testEnv := append([]string{}, env.Env...)
-		testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_FIXTURE", fixtureFile)
-		testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_DELAY", "0.2")
-
-		cmd := exec.Command(filepath.Join(fakesDir, "codex"), "run", "--model", "sonnet")
-		cmd.Dir = env.Dir
-		cmd.Env = testEnv
+		cmd := newCodexFakeCommand(env.Dir, testEnv, "run", "--model", "sonnet")
 		cmd.Stdin = strings.NewReader("prompt\n")
 
 		start := testNowUnixMilli()
@@ -193,19 +174,14 @@ func TestFakes_CodexErrorAndDelayModes(t *testing.T) {
 func TestFakes_CodexRequiresFixture(t *testing.T) {
 	env := setupTestEnv(t)
 
-	// Expected failure: codexFixtureRequiredErrorToken does not exist until codex fixture validation behavior is implemented.
-	_ = codexFixtureRequiredErrorToken
-
-	cmd := exec.Command(filepath.Join(fakesDir, "codex"), "run", "--model", "sonnet")
-	cmd.Dir = env.Dir
-	cmd.Env = env.Env
+	cmd := newCodexFakeCommand(env.Dir, env.Env, "run", "--model", "sonnet")
 	cmd.Stdin = strings.NewReader("prompt\n")
 
 	output, err := cmd.CombinedOutput()
 	if err == nil {
 		t.Fatalf("Expected codex to fail when CODEX_FIXTURE is unset, output: %s", output)
 	}
-	if !strings.Contains(string(output), "CODEX_FIXTURE") {
+	if !strings.Contains(string(output), codexFixtureRequiredErrorToken) {
 		t.Fatalf("Expected error output to mention CODEX_FIXTURE, got: %s", output)
 	}
 }
