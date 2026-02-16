@@ -7,6 +7,10 @@ if [[ -n "${TEST_CALL_LOG:-}" ]]; then
     echo "codex $*" >> "$TEST_CALL_LOG"
 fi
 
+if [[ -n "${CODEX_DELAY:-}" ]]; then
+    sleep "${CODEX_DELAY}"
+fi
+
 cat > /dev/null
 
 if [[ -n "${CODEX_FAIL:-}" ]] && [[ "${CODEX_FAIL}" != "0" ]]; then
