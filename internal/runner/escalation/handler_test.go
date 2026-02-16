@@ -658,6 +658,98 @@ func TestExecuteWithRetry_PhaseTimeoutEscalatesAndThenSucceeds(t *testing.T) {
 	}
 }
 
+func TestExecuteWithRetry_BeadTimeoutAttemptsDecomposition(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+	createSubCalled := false
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			if err := ctx.Err(); err != nil {
+				t.Fatalf("decompose context should be active, got error: %v", err)
+			}
+			return []runtypes.SubTask{{Title: "subtask 1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			if len(tasks) != 1 {
+				t.Fatalf("expected 1 subtask, got %d", len(tasks))
+			}
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected failure return after decomposition path (bead processing stops)")
+	}
+	if !decomposeCalled {
+		t.Fatal("expected bead timeout to trigger decomposition attempt")
+	}
+	if !createSubCalled {
+		t.Fatal("expected bead timeout decomposition to create sub-beads")
+	}
+	if !bc.Result.Decomposed {
+		t.Fatal("expected result to mark decomposition success")
+	}
+	if bc.Result.Error != nil {
+		t.Fatalf("expected nil error after successful decomposition, got: %v", bc.Result.Error)
+	}
+}
+
+func TestExecuteWithRetry_BeadTimeoutWithCanceledParentContextSkipsDecomposition(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return nil, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		nil,
+		nil,
+	)
+
+	parentCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = parentCtx
+
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected failure return when parent context is canceled")
+	}
+	if decomposeCalled {
+		t.Fatal("did not expect decomposition attempt when parent context is canceled")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected error when parent context is canceled")
+	}
+	if got := bc.Result.Error.Error(); !strings.Contains(got, "decomposition skipped: parent context canceled") {
+		t.Fatalf("unexpected error: %v", bc.Result.Error)
+	}
+}
+
 func TestExecuteWithRetry_StopsWhenAttemptBudgetExceeded(t *testing.T) {
 	cfg := newTestConfig()
 	mfa := &mockFailureAnalyzer{

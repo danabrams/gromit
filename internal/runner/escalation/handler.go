@@ -317,8 +317,16 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			}
 			if invResult != nil && invResult.TimeoutType == "bead" {
 				bc.Result.TimeoutType = "bead"
-				bc.Result.Error = fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
-				return false
+				failureReason := fmt.Sprintf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+				decomposeCtx := bc.ParentCtx
+				if decomposeCtx == nil {
+					decomposeCtx = context.Background()
+				}
+				if decomposeCtx.Err() != nil {
+					bc.Result.Error = fmt.Errorf("%s (decomposition skipped: parent context canceled: %w)", failureReason, decomposeCtx.Err())
+					return false
+				}
+				return h.AttemptDecomposition(decomposeCtx, bc, failureReason)
 			}
 			bc.Result.Error = fmt.Errorf("claude invocation: %w", err)
 			return false
