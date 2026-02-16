@@ -20,6 +20,13 @@ func assertDecision(t *testing.T, got PolicyDecision, wantLevel AndonLevel, want
 	}
 }
 
+func assertFailureClass(t *testing.T, got FailureClass, want FailureClass) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("Class = %q, want %q", got, want)
+	}
+}
+
 // TestDefaultThresholds_SpecAligned verifies the default Andon bounds used by the
 // policy for L1/L2 autonomy.
 func TestDefaultThresholds_SpecAligned(t *testing.T) {
@@ -238,9 +245,7 @@ func TestEvaluateFailure_ClassifiesTransientAndChoosesDecision(t *testing.T) {
 		now,
 	)
 
-	if got.Class != FailureClassTransient {
-		t.Fatalf("Class = %q, want %q", got.Class, FailureClassTransient)
-	}
+	assertFailureClass(t, got.Class, FailureClassTransient)
 	assertDecision(t, got.Decision, LevelL1, DecisionRetry)
 }
 
@@ -261,9 +266,7 @@ func TestEvaluateFailure_ClassifiesWorkflowAndEscalatesFromL1(t *testing.T) {
 		now,
 	)
 
-	if got.Class != FailureClassWorkflow {
-		t.Fatalf("Class = %q, want %q", got.Class, FailureClassWorkflow)
-	}
+	assertFailureClass(t, got.Class, FailureClassWorkflow)
 	assertDecision(t, got.Decision, LevelL2, DecisionEscalate)
 }
 
@@ -283,9 +286,7 @@ func TestEvaluateFailure_ClassifiesQualityAndStopsLineFromL2(t *testing.T) {
 		now,
 	)
 
-	if got.Class != FailureClassQuality {
-		t.Fatalf("Class = %q, want %q", got.Class, FailureClassQuality)
-	}
+	assertFailureClass(t, got.Class, FailureClassQuality)
 	assertDecision(t, got.Decision, LevelL3, DecisionStopLine)
 }
 
@@ -305,9 +306,7 @@ func TestEvaluateFailure_ClassifiesIntentAndEscalatesWhenAssumptionsExhausted(t 
 		now,
 	)
 
-	if got.Class != FailureClassIntent {
-		t.Fatalf("Class = %q, want %q", got.Class, FailureClassIntent)
-	}
+	assertFailureClass(t, got.Class, FailureClassIntent)
 	assertDecision(t, got.Decision, LevelL3, DecisionEscalate)
 }
 
@@ -326,9 +325,7 @@ func TestEvaluateFailure_ClassifiesDataAndStopsLineImmediately(t *testing.T) {
 		now,
 	)
 
-	if got.Class != FailureClassData {
-		t.Fatalf("Class = %q, want %q", got.Class, FailureClassData)
-	}
+	assertFailureClass(t, got.Class, FailureClassData)
 	assertDecision(t, got.Decision, LevelL3, DecisionStopLine)
 }
 
@@ -349,9 +346,7 @@ func TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap(t *testing.T) {
 		now,
 	)
 
-	if got.Class != FailureClassTransient {
-		t.Fatalf("Class = %q, want %q", got.Class, FailureClassTransient)
-	}
+	assertFailureClass(t, got.Class, FailureClassTransient)
 	assertDecision(t, got.Decision, LevelL2, DecisionEscalate)
 }
 
@@ -479,7 +474,6 @@ func TestDecisionPathForClass_ReturnsCanonicalPathPerClass(t *testing.T) {
 	}
 }
 
-// Expected failure: EvaluateFailureWithTrace, PolicyDecisionTrace, and DecisionInputSourceClassifier do not exist yet.
 func TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass(t *testing.T) {
 	now, thresholds := setupPolicyTest(t)
 
@@ -543,7 +537,6 @@ func TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass(t *testing.T) {
 	}
 }
 
-// Expected failure: EvaluateFailureWithTrace and DecisionInputSourceClassifier do not exist yet.
 func TestEvaluateFailureWithTrace_EnforcesL1ToL2ThresholdBoundaryAtPublicEntryPoint(t *testing.T) {
 	now, thresholds := setupPolicyTest(t)
 
@@ -572,7 +565,6 @@ func TestEvaluateFailureWithTrace_EnforcesL1ToL2ThresholdBoundaryAtPublicEntryPo
 	}
 }
 
-// Expected failure: EvaluateClassifiedFailureWithTrace and PolicyDecisionTrace do not exist yet.
 func TestEvaluateClassifiedFailureWithTrace_UsesProvidedClassWithoutBypass(t *testing.T) {
 	now, thresholds := setupPolicyTest(t)
 
