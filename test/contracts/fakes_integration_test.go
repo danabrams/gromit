@@ -188,6 +188,28 @@ func TestFakes_CodexErrorAndDelayModes(t *testing.T) {
 	})
 }
 
+// TestFakes_CodexRequiresFixture verifies that fake codex fails with a clear
+// error when CODEX_FIXTURE is not configured.
+func TestFakes_CodexRequiresFixture(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Expected failure: codexFixtureRequiredErrorToken does not exist until codex fixture validation behavior is implemented.
+	_ = codexFixtureRequiredErrorToken
+
+	cmd := exec.Command(filepath.Join(fakesDir, "codex"), "run", "--model", "sonnet")
+	cmd.Dir = env.Dir
+	cmd.Env = env.Env
+	cmd.Stdin = strings.NewReader("prompt\n")
+
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("Expected codex to fail when CODEX_FIXTURE is unset, output: %s", output)
+	}
+	if !strings.Contains(string(output), "CODEX_FIXTURE") {
+		t.Fatalf("Expected error output to mention CODEX_FIXTURE, got: %s", output)
+	}
+}
+
 // TestFakes_BDStateful verifies that the fake bd maintains state
 func TestFakes_BDStateful(t *testing.T) {
 	env := setupTestEnv(t)
