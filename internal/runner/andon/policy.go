@@ -45,11 +45,13 @@ func ChooseNextAction(state RecoveryState, thresholds AndonThresholds, now time.
 
 // ChooseNextActionPure computes the next bounded recovery step for a failure state.
 func ChooseNextActionPure(input PolicyInput) PolicyDecision {
+	thresholds := normalizeThresholds(input.Thresholds)
+
 	if input.State.Class == FailureClassData {
 		return PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine}
 	}
 
-	if input.State.Class == FailureClassIntent && input.State.AssumptionsUsed >= input.Thresholds.MaxAssumptions {
+	if input.State.Class == FailureClassIntent && input.State.AssumptionsUsed >= thresholds.MaxAssumptions {
 		return PolicyDecision{NextLevel: LevelL3, Action: DecisionEscalate}
 	}
 
@@ -58,14 +60,14 @@ func ChooseNextActionPure(input PolicyInput) PolicyDecision {
 	}
 
 	if input.State.Level == LevelL2 {
-		if input.L2Elapsed >= input.Thresholds.L2MaxDuration {
+		if input.L2Elapsed >= thresholds.L2MaxDuration {
 			return PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine}
 		}
 
 		return PolicyDecision{NextLevel: LevelL2, Action: DecisionRetry}
 	}
 
-	if input.State.L1Attempts >= input.Thresholds.L1MaxRetries || input.L1Elapsed >= input.Thresholds.L1MaxDuration {
+	if input.State.L1Attempts >= thresholds.L1MaxRetries || input.L1Elapsed >= thresholds.L1MaxDuration {
 		return PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate}
 	}
 
@@ -78,4 +80,23 @@ func elapsed(start, now time.Time) time.Duration {
 	}
 
 	return now.Sub(start)
+}
+
+func normalizeThresholds(thresholds AndonThresholds) AndonThresholds {
+	defaults := DefaultThresholdDefinition()
+
+	if thresholds.L1MaxRetries == 0 {
+		thresholds.L1MaxRetries = defaults.L1MaxRetries
+	}
+	if thresholds.L1MaxDuration == 0 {
+		thresholds.L1MaxDuration = defaults.L1MaxDuration
+	}
+	if thresholds.L2MaxDuration == 0 {
+		thresholds.L2MaxDuration = defaults.L2MaxDuration
+	}
+	if thresholds.MaxAssumptions == 0 {
+		thresholds.MaxAssumptions = defaults.MaxAssumptions
+	}
+
+	return thresholds
 }
