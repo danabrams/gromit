@@ -7,6 +7,14 @@ func DefaultThresholds() AndonThresholds {
 	return DefaultThresholdDefinition()
 }
 
+// PolicyInput is the deterministic policy input without command or clock dependencies.
+type PolicyInput struct {
+	State      RecoveryState
+	Thresholds AndonThresholds
+	L1Elapsed  time.Duration
+	L2Elapsed  time.Duration
+}
+
 // ClassifyFailure maps an observed signal to an Andon failure class.
 func ClassifyFailure(signal FailureSignal) FailureClass {
 	switch signal.Kind {
@@ -27,27 +35,37 @@ func ClassifyFailure(signal FailureSignal) FailureClass {
 
 // ChooseNextAction computes the next bounded recovery step for a failure state.
 func ChooseNextAction(state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyDecision {
-	if state.Class == FailureClassData {
+	return ChooseNextActionPure(PolicyInput{
+		State:      state,
+		Thresholds: thresholds,
+		L1Elapsed:  elapsed(state.L1Started, now),
+		L2Elapsed:  elapsed(state.L2Started, now),
+	})
+}
+
+// ChooseNextActionPure computes the next bounded recovery step for a failure state.
+func ChooseNextActionPure(input PolicyInput) PolicyDecision {
+	if input.State.Class == FailureClassData {
 		return PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine}
 	}
 
-	if state.Class == FailureClassIntent && state.AssumptionsUsed >= thresholds.MaxAssumptions {
+	if input.State.Class == FailureClassIntent && input.State.AssumptionsUsed >= input.Thresholds.MaxAssumptions {
 		return PolicyDecision{NextLevel: LevelL3, Action: DecisionEscalate}
 	}
 
-	if state.Class == FailureClassWorkflow && state.Level == LevelL1 && state.L1Attempts >= 1 {
+	if input.State.Class == FailureClassWorkflow && input.State.Level == LevelL1 && input.State.L1Attempts >= 1 {
 		return PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate}
 	}
 
-	if state.Level == LevelL2 {
-		if elapsed(state.L2Started, now) > thresholds.L2MaxDuration {
+	if input.State.Level == LevelL2 {
+		if input.L2Elapsed >= input.Thresholds.L2MaxDuration {
 			return PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine}
 		}
 
 		return PolicyDecision{NextLevel: LevelL2, Action: DecisionRetry}
 	}
 
-	if state.L1Attempts >= thresholds.L1MaxRetries || elapsed(state.L1Started, now) > thresholds.L1MaxDuration {
+	if input.State.L1Attempts >= input.Thresholds.L1MaxRetries || input.L1Elapsed >= input.Thresholds.L1MaxDuration {
 		return PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate}
 	}
 
