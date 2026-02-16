@@ -68,3 +68,26 @@ func TestChooseNextActionPure_UsesDefaultBoundsWhenThresholdsUnset(t *testing.T)
 		t.Fatalf("ChooseNextActionPure(%+v) = %+v, want %+v", input, got, want)
 	}
 }
+
+func TestChooseNextActionPure_UsesDefaultBoundsWhenThresholdsNonPositive(t *testing.T) {
+	input := PolicyInput{
+		State: RecoveryState{
+			Class:      FailureClassTransient,
+			Level:      LevelL1,
+			L1Attempts: 1,
+		},
+		L1Elapsed: 30 * time.Second,
+		Thresholds: AndonThresholds{
+			L1MaxRetries:   -1,
+			L1MaxDuration:  -1 * time.Second,
+			L2MaxDuration:  -1 * time.Second,
+			MaxAssumptions: -1,
+		},
+	}
+
+	got := ChooseNextActionPure(input)
+	want := PolicyDecision{NextLevel: LevelL1, Action: DecisionRetry}
+	if got != want {
+		t.Fatalf("ChooseNextActionPure(%+v) = %+v, want %+v", input, got, want)
+	}
+}

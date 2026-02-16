@@ -85,16 +85,16 @@ func elapsed(start, now time.Time) time.Duration {
 func normalizeThresholds(thresholds AndonThresholds) AndonThresholds {
 	defaults := DefaultThresholdDefinition()
 
-	if thresholds.L1MaxRetries == 0 {
+	if thresholds.L1MaxRetries <= 0 {
 		thresholds.L1MaxRetries = defaults.L1MaxRetries
 	}
-	if thresholds.L1MaxDuration == 0 {
+	if thresholds.L1MaxDuration <= 0 {
 		thresholds.L1MaxDuration = defaults.L1MaxDuration
 	}
-	if thresholds.L2MaxDuration == 0 {
+	if thresholds.L2MaxDuration <= 0 {
 		thresholds.L2MaxDuration = defaults.L2MaxDuration
 	}
-	if thresholds.MaxAssumptions == 0 {
+	if thresholds.MaxAssumptions <= 0 {
 		thresholds.MaxAssumptions = defaults.MaxAssumptions
 	}
 
