@@ -84,6 +84,24 @@ func TestRunnerAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 		}
 	}
 
+	forbiddenNonE2ETests := []string{
+		"func TestRunnerInvocationTimeout_UsesClaudeTimeout(",
+		"func TestRunnerInvocationTimeout_RespectsModelOverride(",
+		"func TestRunnerLogsPhaseTimeoutWithElapsedDuration(",
+		"func TestRunnerInvocationTimeout_DefaultTimeoutApplied(",
+		"func TestRunnerRun_MergeInteractiveBranchesStopsOnFailure(",
+		"func TestRunnerRun_SkipsMergeWhenAutoMergeDisabled(",
+		"func TestNewRunner_WiresWorktreeManagerWhenEnabled(",
+	}
+	for _, token := range forbiddenNonE2ETests {
+		for rel := range allowedFiles {
+			src := readRunnerAcceptanceFile(t, projectRoot, rel)
+			if strings.Contains(src, token) {
+				t.Fatalf("%s still contains non-E2E test %q", rel, token)
+			}
+		}
+	}
+
 	if totalTests > 12 {
 		t.Fatalf("runner acceptance smoke suite has %d tests, expected <= 12", totalTests)
 	}
