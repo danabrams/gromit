@@ -16,3 +16,10 @@ func TestRunnerSmokeApprovedMatrixCases_IncludesExpected(t *testing.T) {
 		}
 	}
 }
+
+func TestRunnerSmokeSuiteApprovedRoots_IncludesRunnerRoot(t *testing.T) {
+	roots := RunnerSmokeSuiteApprovedRoots()
+	if !roots["internal/runner"] {
+		t.Fatal("expected internal/runner to be an approved smoke suite root")
+	}
+}

@@ -8,3 +8,11 @@ func RunnerSmokeApprovedMatrixCases() map[string]bool {
 		"TestRunnerSmoke_WorktreeMergeModesEndToEnd":     true,
 	}
 }
+
+// RunnerSmokeSuiteApprovedRoots returns the only directories that should contain
+// runner-level acceptance tests in the smoke suite.
+func RunnerSmokeSuiteApprovedRoots() map[string]bool {
+	return map[string]bool{
+		"internal/runner": true,
+	}
+}
