@@ -42,13 +42,16 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 *Seen once - may be specific to one task.*
 
-*No provisional learnings at this time.*
-
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-16 | gromit-evne | patterns
+Archived: too vague to be actionable. The real insight (963K input tokens from unbounded retry context growth) is captured in the debug report at .gromit/reports/debug-20260216-014254.md.
+
+*Archived from provisional: filtered: real insight in debug report*
 
 ### 2026-02-14 | Pipeline Method Conventions | patterns
 *Related to: gromit-qfr1*
