@@ -382,6 +382,14 @@ func TestSetDefaultsPreservesExistingLabels(t *testing.T) {
 	}
 }
 
+func TestSetDefaults_CompileCheckDefaultsTrue(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+	if cfg.Preflight.CompileCheck == nil || !*cfg.Preflight.CompileCheck {
+		t.Fatal("expected Preflight.CompileCheck to default to true")
+	}
+}
+
 func TestSelectModelNilLabelsMap(t *testing.T) {
 	// Config with nil Labels map should not panic
 	cfg := &Config{

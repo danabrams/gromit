@@ -101,8 +101,9 @@ type PrecheckVerificationConfig struct {
 }
 
 type PreflightConfig struct {
-	AutoInstall string   `yaml:"auto_install"` // ask | always | never
-	Tools       []string `yaml:"tools"`        // optional explicit list
+	AutoInstall  string   `yaml:"auto_install"`  // ask | always | never
+	Tools        []string `yaml:"tools"`         // optional explicit list
+	CompileCheck *bool    `yaml:"compile_check"` // run go build ./... before each invocation
 }
 
 type ClaudeConfig struct {
@@ -363,6 +364,10 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Preflight.AutoInstall == "" {
 		c.Preflight.AutoInstall = "ask"
+	}
+	if c.Preflight.CompileCheck == nil {
+		t := true
+		c.Preflight.CompileCheck = &t
 	}
 	if c.Models.Labels == nil {
 		c.Models.Labels = make(map[string]string)
