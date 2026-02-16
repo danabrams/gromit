@@ -71,7 +71,7 @@ func TestExploreHelpDocumentsAgentSelectionBehavior(t *testing.T) {
 	}
 }
 
-func TestExploreAgentOverrideUsesConfiguredAgent(t *testing.T) {
+func TestCmdSmoke_ExploreAgentSelectionEndToEnd(t *testing.T) {
 	// Expected failure: exploreAgentOverrideFlag constant does not exist yet and explore does not honor --agent override
 	configContent := `
 paths:

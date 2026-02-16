@@ -53,7 +53,7 @@ func TestReviewSpecValidationRefactor_UsesTableDrivenScenarioGroups(t *testing.T
 	}
 }
 
-func TestReviewSpecValidationRefactor_ExtractsSharedFixtureAndAssertionHelpers(t *testing.T) {
+func TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers(t *testing.T) {
 	// Expected failure: setupReviewSpecValidationFixture and
 	// assertSpecValidationError helper functions do not exist yet.
 	src := loadReviewSpecValidationAcceptanceSource(t)

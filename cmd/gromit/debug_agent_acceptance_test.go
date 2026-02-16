@@ -63,7 +63,7 @@ func TestDebugHelpIncludesAgentFlags(t *testing.T) {
 }
 
 // TestDebugAgentOverrideUsesAgentBinary verifies --agent selects the specified agent.
-func TestDebugAgentOverrideUsesAgentBinary(t *testing.T) {
+func TestCmdSmoke_DebugAgentResolutionEndToEnd(t *testing.T) {
 	configContent := `
 paths:
   gromit_dir: .gromit
