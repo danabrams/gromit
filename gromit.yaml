@@ -70,6 +70,20 @@ escalation:
   max_retries_per_model: 1
   max_retries_per_bead: 3  # cap repeated retries on flaky beads to reduce iteration churn
 
+# Andon autonomy controls
+andon:
+  assumption_budget: 2  # allow up to 2 reasonable assumptions before escalation
+  l1_retry_cap: 2  # L1 quick-fix retry budget before escalating to L2
+  l1_time_cap_minutes: 2  # L1 quick-fix time cap
+  l2_time_cap_minutes: 15  # L2 focused recovery hard cap from spec
+  hard_stops:
+    block_bulk_delete: true  # require explicit approval for bulk deletion operations
+    block_irreversible_migrations: true  # require explicit approval for irreversible migrations
+    block_credential_changes: true  # require explicit approval for secrets/credential changes
+    bulk_delete_allowlist:  # allowlist conventions: keep narrow, path-scoped globs only
+      - ".gromit/logs/**"
+      - ".gromit/tmp/**"
+
 # Loop settings
 loop:
   max_iterations: 0  # 0 = unlimited
