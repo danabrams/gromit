@@ -313,3 +313,31 @@ func TestEvaluateFailure_ClassifiesQualityAndStopsLineFromL2(t *testing.T) {
 		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionStopLine)
 	}
 }
+
+func TestEvaluateFailure_ClassifiesIntentAndEscalatesWhenAssumptionsExhausted(t *testing.T) {
+	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+	thresholds := DefaultThresholds()
+
+	got := EvaluateFailure(
+		FailureSignal{
+			Kind:   FailureKindAmbiguousIntent,
+			Output: "spec leaves behavior undefined",
+		},
+		RecoveryState{
+			Level:           LevelL1,
+			AssumptionsUsed: thresholds.MaxAssumptions,
+		},
+		thresholds,
+		now,
+	)
+
+	if got.Class != FailureClassIntent {
+		t.Fatalf("Class = %q, want %q", got.Class, FailureClassIntent)
+	}
+	if got.Decision.NextLevel != LevelL3 {
+		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL3)
+	}
+	if got.Decision.Action != DecisionEscalate {
+		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionEscalate)
+	}
+}
