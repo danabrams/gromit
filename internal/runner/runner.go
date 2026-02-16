@@ -844,6 +844,9 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		return bc.Result
 	}
 
+	// Pre-compilation check: surface existing build errors in the prompt
+	r.runCompilationCheck(ctx, bc)
+
 	// Check if ATDD is active for this bead
 	atddActive := bead.IsMethodologyActive(bc.Bead.Labels, "atdd", r.cfg.Methodology.ATDD)
 
