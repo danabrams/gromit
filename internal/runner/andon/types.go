@@ -25,6 +25,16 @@ type AndonThresholds struct {
 	MaxAssumptions int
 }
 
+// DefaultThresholdDefinition returns the default policy bounds from the Andon spec.
+func DefaultThresholdDefinition() AndonThresholds {
+	return AndonThresholds{
+		L1MaxRetries:   2,
+		L1MaxDuration:  2 * time.Minute,
+		L2MaxDuration:  15 * time.Minute,
+		MaxAssumptions: 2,
+	}
+}
+
 // FailureClass groups failures into Andon policy categories.
 type FailureClass string
 

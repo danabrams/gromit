@@ -1,6 +1,9 @@
 package andon
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestAllFailureClasses_CanonicalOrderAndLabels(t *testing.T) {
 	got := AllFailureClasses()
@@ -42,5 +45,29 @@ func TestAllAndonLevels_CanonicalOrder(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("AllAndonLevels()[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestDefaultThresholdDefinition_IsPureAndPolicyConsumable(t *testing.T) {
+	first := DefaultThresholdDefinition()
+	first.L1MaxRetries = 99
+	first.L1MaxDuration = 99 * time.Minute
+
+	second := DefaultThresholdDefinition()
+	if second.L1MaxRetries == 99 || second.L1MaxDuration == 99*time.Minute {
+		t.Fatalf("DefaultThresholdDefinition should return fresh defaults, got %+v", second)
+	}
+
+	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+	state := RecoveryState{
+		Class:      FailureClassTransient,
+		Level:      LevelL1,
+		L1Attempts: second.L1MaxRetries,
+		L1Started:  now,
+	}
+
+	decision := ChooseNextAction(state, second, now)
+	if decision.NextLevel != LevelL2 || decision.Action != DecisionEscalate {
+		t.Fatalf("ChooseNextAction(..., DefaultThresholdDefinition(), ...) = %+v, want L2/escalate", decision)
 	}
 }
