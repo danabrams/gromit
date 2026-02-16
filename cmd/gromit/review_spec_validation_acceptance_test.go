@@ -12,107 +12,58 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 )
 
-// TestGetSpecBaseCommit_ValidatesSpecBeforeResolution tests that getSpecBaseCommit
-// validates the spec file exists before attempting to resolve it to beads
-func TestGetSpecBaseCommit_ValidatesSpecBeforeResolution(t *testing.T) {
-	// Expected failure: getSpecBaseCommit does not accept specsDir parameter yet
-	// Current signature: func getSpecBaseCommit(specName string) (string, error)
-	// Expected signature: func getSpecBaseCommit(specName string, specsDir string) (string, error)
-	//
-	// This test verifies that getSpecBaseCommit calls ValidateSpec before ResolveSpec,
-	// providing better error messages when spec files don't exist.
+func TestGetSpecBaseCommit_InvalidSpecValidationScenarios(t *testing.T) {
+	t.Parallel()
 
-	tempDir := t.TempDir()
-	specsDir := filepath.Join(tempDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
+	cases := []struct {
+		name            string
+		existingSpecs   []string
+		requestedSpec   string
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{
+			name:            "missing spec lists available spec",
+			existingSpecs:   []string{"existing-spec"},
+			requestedSpec:   "nonexistent-spec",
+			wantContains:    []string{"not found", "existing-spec"},
+			wantNotContains: []string{"no beads found"},
+		},
+		{
+			name:            "typoed spec lists multiple alternatives",
+			existingSpecs:   []string{"auth", "profile", "settings"},
+			requestedSpec:   "authh",
+			wantContains:    []string{"auth", "profile", "settings"},
+			wantNotContains: []string{"no beads found"},
+		},
 	}
 
-	// Create a spec file
-	specPath := filepath.Join(specsDir, "existing-spec.md")
-	specContent := `---
-id: existing-spec
-created: 2026-02-11
----
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			specsDir := filepath.Join(tempDir, "specs")
+			if err := os.MkdirAll(specsDir, 0755); err != nil {
+				t.Fatalf("Failed to create specs dir: %v", err)
+			}
+			writeSpecFixtures(t, specsDir, tc.existingSpecs)
 
-# Existing Spec
-`
-	if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
-		t.Fatalf("Failed to write spec file: %v", err)
-	}
+			_, err := getSpecBaseCommit(tc.requestedSpec, specsDir)
+			if err == nil {
+				t.Fatal("getSpecBaseCommit should return error for missing spec")
+			}
 
-	// Test with nonexistent spec - should fail with helpful error
-	_, err := getSpecBaseCommit("nonexistent-spec", specsDir)
-	if err == nil {
-		t.Fatal("getSpecBaseCommit with nonexistent spec should return error")
-	}
-
-	errMsg := err.Error()
-	// Error should indicate spec not found
-	if !strings.Contains(strings.ToLower(errMsg), "not found") {
-		t.Errorf("Error should indicate spec not found, got: %v", err)
-	}
-
-	// Error should list available specs
-	if !strings.Contains(errMsg, "existing-spec") {
-		t.Errorf("Error should list available spec 'existing-spec', got: %v", err)
-	}
-
-	// Error should NOT be the generic "no beads found" message
-	if strings.Contains(errMsg, "no beads found") {
-		t.Errorf("Error should be about spec validation, not bead listing. Got: %v", err)
-	}
-}
-
-// TestGetSpecBaseCommit_ValidatesBeforeBeadLookup tests that spec validation
-// happens before attempting to query beads
-func TestGetSpecBaseCommit_ValidatesBeforeBeadLookup(t *testing.T) {
-	// Expected failure: getSpecBaseCommit does not call ValidateSpec yet
-	//
-	// This test verifies that when a spec file doesn't exist, we get a validation error
-	// before attempting to call bead.ListWithLabel, which would return "no beads found".
-
-	tempDir := t.TempDir()
-	specsDir := filepath.Join(tempDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
-	}
-
-	// Create several spec files
-	for _, name := range []string{"auth", "profile", "settings"} {
-		specPath := filepath.Join(specsDir, name+".md")
-		content := fmt.Sprintf(`---
-id: %s
-created: 2026-02-11
----
-
-# Spec
-`, name)
-		if err := os.WriteFile(specPath, []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to write spec file: %v", err)
-		}
-	}
-
-	// Try to get base commit for typo'd spec name
-	_, err := getSpecBaseCommit("authh", specsDir)
-	if err == nil {
-		t.Fatal("getSpecBaseCommit with typo'd spec name should return error")
-	}
-
-	errMsg := err.Error()
-
-	// Should get spec validation error (listing available specs)
-	// Not bead lookup error ("no beads found")
-	if strings.Contains(errMsg, "no beads found") {
-		t.Errorf("Should fail at validation stage (not bead lookup). Got: %v", err)
-	}
-
-	// Should suggest available specs
-	availableSpecs := []string{"auth", "profile", "settings"}
-	for _, spec := range availableSpecs {
-		if !strings.Contains(errMsg, spec) {
-			t.Errorf("Error should list available spec %q, got: %v", spec, err)
-		}
+			errMsg := strings.ToLower(err.Error())
+			for _, want := range tc.wantContains {
+				if !strings.Contains(errMsg, strings.ToLower(want)) {
+					t.Fatalf("error should contain %q, got: %v", want, err)
+				}
+			}
+			for _, avoid := range tc.wantNotContains {
+				if strings.Contains(errMsg, strings.ToLower(avoid)) {
+					t.Fatalf("error should not contain %q, got: %v", avoid, err)
+				}
+			}
+		})
 	}
 }
 
@@ -425,4 +376,21 @@ created: 2026-02-11
 	}
 
 	return err.Error()
+}
+
+func writeSpecFixtures(t *testing.T, specsDir string, names []string) {
+	t.Helper()
+	for _, name := range names {
+		specPath := filepath.Join(specsDir, name+".md")
+		content := fmt.Sprintf(`---
+id: %s
+created: 2026-02-11
+---
+
+# Spec
+`, name)
+		if err := os.WriteFile(specPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write spec file: %v", err)
+		}
+	}
 }
