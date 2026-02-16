@@ -2,6 +2,8 @@ package andon
 
 import "time"
 
+const workflowEscalationAttemptThreshold = 1
+
 // DefaultThresholds returns the default policy bounds from the Andon spec.
 func DefaultThresholds() AndonThresholds {
 	return DefaultThresholdDefinition()
@@ -46,20 +48,23 @@ func ChooseNextAction(state RecoveryState, thresholds AndonThresholds, now time.
 // ChooseNextActionPure computes the next bounded recovery step for a failure state.
 func ChooseNextActionPure(input PolicyInput) PolicyDecision {
 	thresholds := normalizeThresholds(input.Thresholds)
+	state := input.State
 
-	if input.State.Class == FailureClassData {
+	if state.Class == FailureClassData {
 		return PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine}
 	}
 
-	if input.State.Class == FailureClassIntent && input.State.AssumptionsUsed >= thresholds.MaxAssumptions {
+	if state.Class == FailureClassIntent && state.AssumptionsUsed >= thresholds.MaxAssumptions {
 		return PolicyDecision{NextLevel: LevelL3, Action: DecisionEscalate}
 	}
 
-	if input.State.Class == FailureClassWorkflow && input.State.Level == LevelL1 && input.State.L1Attempts >= 1 {
+	if state.Class == FailureClassWorkflow &&
+		state.Level == LevelL1 &&
+		state.L1Attempts >= workflowEscalationAttemptThreshold {
 		return PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate}
 	}
 
-	if input.State.Level == LevelL2 {
+	if state.Level == LevelL2 {
 		if input.L2Elapsed >= thresholds.L2MaxDuration {
 			return PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine}
 		}
@@ -67,7 +72,7 @@ func ChooseNextActionPure(input PolicyInput) PolicyDecision {
 		return PolicyDecision{NextLevel: LevelL2, Action: DecisionRetry}
 	}
 
-	if input.State.L1Attempts >= thresholds.L1MaxRetries || input.L1Elapsed >= thresholds.L1MaxDuration {
+	if state.L1Attempts >= thresholds.L1MaxRetries || input.L1Elapsed >= thresholds.L1MaxDuration {
 		return PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate}
 	}
 
