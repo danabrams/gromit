@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// smoke-matrix: move | rationale: Decision path selection per failure class is deterministic logic covered in unit policy tests. | destination: internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass
 // Expected failure: PolicyEvaluation.Path and DecisionPath* constants do not exist yet.
 func TestEvaluateFailure_UsesClassifiedDecisionPathAtPublicEntryPoint(t *testing.T) {
 	now, thresholds := setupPolicyEvaluationAcceptance(t)
@@ -68,6 +69,7 @@ func TestEvaluateFailure_UsesClassifiedDecisionPathAtPublicEntryPoint(t *testing
 	}
 }
 
+// smoke-matrix: move | rationale: Explicit class-to-path mappings are validated in unit tests without needing acceptance-level coverage. | destination: internal/runner/andon/policy_test.go:TestEvaluateClassifiedFailure_HasExplicitPathPerClass
 // Expected failure: DecisionPathForClass helper does not exist yet and class-to-path mapping is not exposed.
 func TestEvaluateClassifiedFailure_HasExplicitDecisionPathPerFailureClass(t *testing.T) {
 	now, thresholds := setupPolicyEvaluationAcceptance(t)
@@ -102,6 +104,7 @@ func TestEvaluateClassifiedFailure_HasExplicitDecisionPathPerFailureClass(t *tes
 	}
 }
 
+// smoke-matrix: move | rationale: Unknown-signal fallback determinism is covered by targeted unit tests of the policy evaluator. | destination: internal/runner/andon/policy_test.go:TestEvaluateFailure_UnknownKindUsesDeterministicWorkflowFallbackPath
 // Expected failure: DecisionPathWorkflowFallbackForUnknownKind constant and Path field do not exist yet.
 func TestEvaluateFailure_UnknownSignalRemainsDeterministicWithWorkflowFallbackPath(t *testing.T) {
 	now, thresholds := setupPolicyEvaluationAcceptance(t)

@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// smoke-matrix: move | rationale: Catalog ordering/labels are deterministic data checks already covered in unit tests without end-to-end wiring. | destination: internal/runner/andon/types_test.go:TestAllFailureClasses_CanonicalOrderAndLabels
 func TestFailureClasses_CanonicalCatalog(t *testing.T) {
 	got := AllFailureClasses()
 	want := []FailureClass{
@@ -36,6 +37,7 @@ func TestFailureClasses_CanonicalCatalog(t *testing.T) {
 	}
 }
 
+// smoke-matrix: move | rationale: Level catalog validation is a pure data invariant that belongs in unit coverage, not acceptance flow. | destination: internal/runner/andon/types_test.go:TestAllAndonLevels_CanonicalOrder
 func TestLevels_CanonicalCatalog(t *testing.T) {
 	got := AllAndonLevels()
 	want := []AndonLevel{LevelL1, LevelL2, LevelL3, LevelL4}
@@ -45,6 +47,7 @@ func TestLevels_CanonicalCatalog(t *testing.T) {
 	}
 }
 
+// smoke-matrix: move | rationale: Default threshold purity and policy consumption are deterministic and exercised via unit tests. | destination: internal/runner/andon/types_test.go:TestDefaultThresholdDefinition_IsPureAndPolicyConsumable
 func TestDefaultThresholdDefinition_IsPureAndPolicyConsumable_Acceptance(t *testing.T) {
 	first := DefaultThresholdDefinition()
 	first.L1MaxRetries = 99

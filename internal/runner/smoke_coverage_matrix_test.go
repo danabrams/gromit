@@ -72,7 +72,7 @@ func parseRunnerSmokeMatrixForFile(t *testing.T, projectRoot, rel string) (map[s
 func listRunnerUnitTests(t *testing.T, projectRoot string) string {
 	t.Helper()
 
-	cmd := exec.Command("go", "test", "./internal/runner", "-list", "Test")
+	cmd := exec.Command("go", "test", "./internal/runner/...", "-list", "Test")
 	cmd.Dir = projectRoot
 	out, err := cmd.CombinedOutput()
 	if err != nil {

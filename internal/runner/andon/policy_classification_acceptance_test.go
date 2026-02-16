@@ -12,6 +12,7 @@ func setupPolicyEvaluationAcceptance(t *testing.T) (time.Time, AndonThresholds) 
 	return time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC), DefaultThresholdDefinition()
 }
 
+// smoke-matrix: move | rationale: Policy classification and decision selection are deterministic logic with comprehensive unit coverage. | destination: internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass
 func TestEvaluateFailure_ClassifiesAndSelectsDecisionForAllClasses(t *testing.T) {
 	now, thresholds := setupPolicyEvaluationAcceptance(t)
 
@@ -112,6 +113,7 @@ func TestEvaluateFailure_ClassifiesAndSelectsDecisionForAllClasses(t *testing.T)
 	}
 }
 
+// smoke-matrix: move | rationale: L1/L2 boundary enforcement is a pure policy rule covered by targeted unit tests. | destination: internal/runner/andon/policy_test.go:TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap
 func TestEvaluateFailure_EnforcesL1L2BoundaryAtPublicEntryPoint(t *testing.T) {
 	now, thresholds := setupPolicyEvaluationAcceptance(t)
 
