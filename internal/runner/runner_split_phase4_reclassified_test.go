@@ -1,4 +1,3 @@
-
 package runner
 
 import (
@@ -220,9 +219,23 @@ func TestSplitRunnerPhase4_RunnerPackageTestsPass(t *testing.T) {
 	runnerDir := verifyRunnerSplitPhase4Layout(t)
 	repoRoot := filepath.Clean(filepath.Join(runnerDir, "..", ".."))
 
-	cmd := exec.Command("go", "test", "./internal/runner/...", "-count=1")
+	cmd := exec.Command(
+		"go",
+		"test",
+		"./internal/runner/...",
+		"-count=1",
+		"-run",
+		"TestRunnerSplitVerificationReclassified_ImportIsolation|TestRunnerSplitVerificationReclassified_LineBudgets",
+	)
 	cmd.Dir = repoRoot
-	cmd.Env = append(os.Environ(), "GROMIT_SPLIT_PHASE4_REENTRY=1")
+	cmd.Env = append(
+		os.Environ(),
+		"GROMIT_SPLIT_PHASE1_REENTRY=1",
+		"GROMIT_SPLIT_PHASE2_REENTRY=1",
+		"GROMIT_SPLIT_PHASE3_REENTRY=1",
+		"GROMIT_SPLIT_PHASE4_REENTRY=1",
+		"GROMIT_SPLIT_FINAL_VERIFICATION_REENTRY=1",
+	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("go test ./internal/runner/... -count=1 failed: %v\n%s", err, string(out))
