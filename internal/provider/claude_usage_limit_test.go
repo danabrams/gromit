@@ -1,14 +1,13 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 )
 
 // TestClaudeProviderIsUsageLimitErrorDetection verifies that
 // IsUsageLimitError() detects Claude-specific usage limit errors
 // with exit code 2 and specific error messages (case-insensitive).
-// Expected failure: IsUsageLimitError() always returns false currently,
-// but should detect exit code 2 + "usage limit"/"rate limit"/"quota exceeded" patterns
 func TestClaudeProviderIsUsageLimitErrorDetection(t *testing.T) {
 	cp := &ClaudeProvider{}
 
@@ -169,7 +168,6 @@ func TestClaudeProviderIsUsageLimitErrorDetection(t *testing.T) {
 // TestClaudeProviderIsUsageLimitErrorExitCodeRequired verifies that
 // IsUsageLimitError() REQUIRES exit code 2 - other exit codes should not
 // be treated as usage limit errors even if the message contains keywords.
-// Expected failure: current implementation always returns false, should check exit code 2
 func TestClaudeProviderIsUsageLimitErrorExitCodeRequired(t *testing.T) {
 	cp := &ClaudeProvider{}
 
@@ -177,7 +175,7 @@ func TestClaudeProviderIsUsageLimitErrorExitCodeRequired(t *testing.T) {
 	exitCodes := []int{0, 1, 3, 127, 255}
 
 	for _, exitCode := range exitCodes {
-		t.Run(string(rune('0'+exitCode)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("exit_code_%d", exitCode), func(t *testing.T) {
 			result := &Result{
 				Success:  false,
 				ExitCode: exitCode,
@@ -195,7 +193,6 @@ func TestClaudeProviderIsUsageLimitErrorExitCodeRequired(t *testing.T) {
 // TestClaudeProviderIsUsageLimitErrorKeywordRequired verifies that
 // IsUsageLimitError() REQUIRES one of the usage limit keywords,
 // not just exit code 2 alone.
-// Expected failure: current implementation always returns false, should check for keywords
 func TestClaudeProviderIsUsageLimitErrorKeywordRequired(t *testing.T) {
 	cp := &ClaudeProvider{}
 

@@ -7,7 +7,6 @@ import (
 
 // TestClaudeProviderIsValidationPassedHelper verifies that ClaudeProvider
 // has an IsValidationPassed() helper that delegates to claude.IsValidationPassed().
-// Expected failure: IsValidationPassed() method does not exist on ClaudeProvider
 func TestClaudeProviderIsValidationPassedHelper(t *testing.T) {
 	cp := &ClaudeProvider{}
 
@@ -62,7 +61,6 @@ func TestClaudeProviderIsValidationPassedHelper(t *testing.T) {
 
 // TestClaudeProviderIsScopeTooLargeHelper verifies that ClaudeProvider
 // has an IsScopeTooLarge() helper that delegates to claude.IsScopeTooLarge().
-// Expected failure: IsScopeTooLarge() method does not exist on ClaudeProvider
 func TestClaudeProviderIsScopeTooLargeHelper(t *testing.T) {
 	cp := &ClaudeProvider{}
 

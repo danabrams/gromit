@@ -15,7 +15,6 @@ import (
 // TestProviderAcceptanceSurfaceOnlyStreamingE2E verifies the provider acceptance
 // file contains only true StreamRun end-to-end behavior and excludes internal
 // event parsing/wiring tests.
-// Expected failure: AssertProviderAcceptanceReclassificationImplemented helper does not exist yet.
 func TestProviderAcceptanceSurfaceOnlyStreamingE2E(t *testing.T) {
 	AssertProviderAcceptanceReclassificationImplemented(t)
 
@@ -52,7 +51,6 @@ func TestProviderAcceptanceSurfaceOnlyStreamingE2E(t *testing.T) {
 
 // TestProviderReclassifiedBehaviorRunsInUnitSuite verifies internal parsing and
 // wiring behavior tests are visible under normal go test (without acceptance tag).
-// Expected failure: AssertProviderAcceptanceReclassificationImplemented helper does not exist yet.
 func TestProviderReclassifiedBehaviorRunsInUnitSuite(t *testing.T) {
 	AssertProviderAcceptanceReclassificationImplemented(t)
 
@@ -79,7 +77,6 @@ func TestProviderReclassifiedBehaviorRunsInUnitSuite(t *testing.T) {
 
 // TestProviderAcceptanceSuiteHasReducedFootprint verifies acceptance-tag runs in
 // internal/provider are reduced to a slim E2E surface.
-// Expected failure: codexProviderAcceptanceMaxTests constant does not exist yet.
 func TestProviderAcceptanceSuiteHasReducedFootprint(t *testing.T) {
 	AssertProviderAcceptanceReclassificationImplemented(t)
 

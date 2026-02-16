@@ -12,7 +12,6 @@ import (
 // TestCodexProviderBuildsExecCommand verifies that buildCommandArgs produces
 // the correct Codex CLI command structure: ['exec', flags..., '--full-auto',
 // '--skip-git-repo-check', '--color', 'never', '--model', model, '-'].
-// Expected failure: buildCommandArgs does not produce the correct exec command structure yet
 func TestCodexProviderBuildsExecCommand(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -70,7 +69,6 @@ exit 0
 
 // TestCodexProviderDoesNotHavePromptDeliveryField verifies that CodexProvider
 // struct no longer has the promptDelivery field.
-// Expected failure: CodexProvider still has promptDelivery field
 func TestCodexProviderDoesNotHavePromptDeliveryField(t *testing.T) {
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider("/bin/codex", []string{}, tierMap)
@@ -90,7 +88,6 @@ func TestCodexProviderDoesNotHavePromptDeliveryField(t *testing.T) {
 
 // TestCodexProviderDoesNotHavePromptFlagField verifies that CodexProvider
 // struct no longer has the promptFlag field.
-// Expected failure: CodexProvider still has promptFlag field
 func TestCodexProviderDoesNotHavePromptFlagField(t *testing.T) {
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider("/bin/codex", []string{}, tierMap)
@@ -106,7 +103,6 @@ func TestCodexProviderDoesNotHavePromptFlagField(t *testing.T) {
 
 // TestCodexProviderRunDeliversPromptViaStdin verifies that Run() pipes the
 // prompt content to the codex binary via stdin instead of using a temp file.
-// Expected failure: Run() still uses temp files instead of stdin
 func TestCodexProviderRunDeliversPromptViaStdin(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -144,7 +140,6 @@ exit 0
 
 // TestCodexProviderStreamRunDeliversPromptViaStdin verifies that StreamRun()
 // pipes the prompt content to the codex binary via stdin.
-// Expected failure: StreamRun() still uses temp files instead of stdin
 func TestCodexProviderStreamRunDeliversPromptViaStdin(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -182,7 +177,6 @@ exit 0
 
 // TestCodexProviderRunDoesNotCreateTempFile verifies that Run() no longer
 // creates temporary prompt files in the system temp directory.
-// Expected failure: Run() still creates temp files
 func TestCodexProviderRunDoesNotCreateTempFile(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -226,7 +220,6 @@ exit 0
 
 // TestCodexProviderStreamRunDoesNotCreateTempFile verifies that StreamRun()
 // no longer creates temporary prompt files.
-// Expected failure: StreamRun() still creates temp files
 func TestCodexProviderStreamRunDoesNotCreateTempFile(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -266,7 +259,6 @@ exit 0
 
 // TestCodexProviderConstructorDoesNotRequirePromptParams verifies that
 // NewCodexProvider no longer requires promptDelivery and promptFlag parameters.
-// Expected failure: NewCodexProvider still requires these parameters
 func TestCodexProviderConstructorDoesNotRequirePromptParams(t *testing.T) {
 	binaryPath := "/usr/local/bin/codex"
 	flags := []string{"--cd", "/workspace"}
@@ -300,7 +292,6 @@ func TestCodexProviderConstructorDoesNotRequirePromptParams(t *testing.T) {
 
 // TestCodexProviderCommandIncludesUserFlags verifies that buildCommandArgs
 // includes user-provided flags from the flags field before the standard flags.
-// Expected failure: buildCommandArgs does not preserve user flags or order correctly
 func TestCodexProviderCommandIncludesUserFlags(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -346,7 +337,6 @@ exit 0
 
 // TestCodexProviderStdinDeliveryWithLargePrompt verifies that stdin delivery
 // works correctly with large prompts that would exceed ARG_MAX if passed as arguments.
-// Expected failure: stdin delivery is not implemented yet
 func TestCodexProviderStdinDeliveryWithLargePrompt(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -388,7 +378,6 @@ exit 0
 // TestCodexProviderBuildCommandArgsProducesCorrectOrder verifies that
 // buildCommandArgs produces arguments in the correct order for Codex CLI:
 // ['exec', user_flags..., '--full-auto', '--skip-git-repo-check', '--color', 'never', '--model', model, '-']
-// Expected failure: buildCommandArgs does not exist or does not produce correct order
 func TestCodexProviderBuildCommandArgsProducesCorrectOrder(t *testing.T) {
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	userFlags := []string{"--cd", "/workspace"}
@@ -468,7 +457,6 @@ func TestCodexProviderBuildCommandArgsProducesCorrectOrder(t *testing.T) {
 
 // TestCodexProviderStreamRunWithJSONFlagAndStdin verifies that when EventHandler
 // is present, StreamRun adds --json flag AND uses stdin for prompt delivery.
-// Expected failure: StreamRun does not combine --json flag with stdin delivery yet
 func TestCodexProviderStreamRunWithJSONFlagAndStdin(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -532,7 +520,6 @@ exit 0
 
 // TestCodexProviderRunHandlesStdinWriteError verifies that Run() properly
 // handles errors when writing to stdin pipe fails.
-// Expected failure: Run() does not handle stdin write errors yet
 func TestCodexProviderRunHandlesStdinWriteError(t *testing.T) {
 	// This test verifies error handling for stdin write failures
 	// When the binary exits early or closes stdin, writing to stdin should error gracefully
@@ -573,7 +560,6 @@ exit 1
 
 // TestCodexProviderStreamRunHandlesStdinPipeError verifies that StreamRun()
 // properly handles errors when creating or writing to stdin pipe.
-// Expected failure: StreamRun() does not handle stdin pipe creation errors yet
 func TestCodexProviderStreamRunHandlesStdinPipeError(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -611,7 +597,6 @@ exit 0
 
 // TestCodexProviderRemovesCreatePromptFileMethod verifies that the
 // createPromptFile helper method no longer exists in CodexProvider.
-// Expected failure: createPromptFile method still exists
 func TestCodexProviderRemovesCreatePromptFileMethod(t *testing.T) {
 	// This test documents that createPromptFile() should be removed
 	// after refactoring to stdin delivery.
@@ -628,7 +613,6 @@ func TestCodexProviderRemovesCreatePromptFileMethod(t *testing.T) {
 
 // TestCodexProviderBuildCommandArgsSignatureDoesNotRequirePromptFile verifies
 // that buildCommandArgs no longer accepts a promptFile parameter.
-// Expected failure: buildCommandArgs still requires promptFile parameter
 func TestCodexProviderBuildCommandArgsSignatureDoesNotRequirePromptFile(t *testing.T) {
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := &CodexProvider{

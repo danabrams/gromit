@@ -7,7 +7,6 @@ import (
 
 // TestIsValidationPassedDetectsMarker verifies that IsValidationPassed()
 // detects the VALIDATION_PASSED marker in result output.
-// Expected failure: IsValidationPassed() function does not exist in provider package yet
 func TestIsValidationPassedDetectsMarker(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -68,7 +67,6 @@ func TestIsValidationPassedDetectsMarker(t *testing.T) {
 
 // TestIsScopeTooLargeDetectsStartOfLineMarker verifies that IsScopeTooLarge()
 // detects the SCOPE_TOO_LARGE marker only at the start of a line.
-// Expected failure: IsScopeTooLarge() function does not exist in provider package yet
 func TestIsScopeTooLargeDetectsStartOfLineMarker(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -135,7 +133,6 @@ func TestIsScopeTooLargeDetectsStartOfLineMarker(t *testing.T) {
 
 // TestGetScopeTooLargeBreakdownExtractsFullContent verifies that
 // GetScopeTooLargeBreakdown() extracts the full breakdown content after the marker.
-// Expected failure: GetScopeTooLargeBreakdown() function does not exist in provider package yet
 func TestGetScopeTooLargeBreakdownExtractsFullContent(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -190,7 +187,6 @@ func TestGetScopeTooLargeBreakdownExtractsFullContent(t *testing.T) {
 
 // TestFindStartOfLineMarkerMatchesOnlyAtLineStart verifies that
 // findStartOfLineMarker() only matches SCOPE_TOO_LARGE: at the start of a line.
-// Expected failure: findStartOfLineMarker() function does not exist in provider package yet
 func TestFindStartOfLineMarkerMatchesOnlyAtLineStart(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -260,7 +256,6 @@ func TestFindStartOfLineMarkerMatchesOnlyAtLineStart(t *testing.T) {
 
 // TestValidateCommandsRejectsInvalidCommands verifies that ValidateCommands()
 // rejects commands with unsafe patterns like newlines or excessive length.
-// Expected failure: ValidateCommands() function does not exist in provider package yet
 func TestValidateCommandsRejectsInvalidCommands(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -327,7 +322,6 @@ func TestValidateCommandsRejectsInvalidCommands(t *testing.T) {
 
 // TestBuildValidationPromptFormatsCommandsCorrectly verifies that
 // BuildValidationPrompt() constructs a validation prompt with numbered commands.
-// Expected failure: BuildValidationPrompt() function does not exist in provider package yet
 func TestBuildValidationPromptFormatsCommandsCorrectly(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -394,7 +388,6 @@ func TestBuildValidationPromptFormatsCommandsCorrectly(t *testing.T) {
 
 // TestProviderInterfaceHasValidationHelpers verifies that the Provider interface
 // includes IsValidationPassed and IsScopeTooLarge methods.
-// Expected failure: Provider interface does not include these methods yet
 func TestProviderInterfaceHasValidationHelpers(t *testing.T) {
 	// Verify that a concrete provider (CodexProvider) implements these methods
 	cp := &CodexProvider{}
@@ -406,7 +399,6 @@ func TestProviderInterfaceHasValidationHelpers(t *testing.T) {
 
 // TestClaudeProviderUsesSharedHelpers verifies that ClaudeProvider's
 // IsValidationPassed and IsScopeTooLarge methods delegate to shared helpers.
-// Expected failure: ClaudeProvider does not delegate to provider package helpers yet
 func TestClaudeProviderUsesSharedHelpers(t *testing.T) {
 	cp := &ClaudeProvider{}
 
@@ -438,7 +430,6 @@ func TestClaudeProviderUsesSharedHelpers(t *testing.T) {
 
 // TestCodexProviderImplementsValidationHelpers verifies that CodexProvider
 // implements IsValidationPassed and IsScopeTooLarge methods using shared helpers.
-// Expected failure: CodexProvider does not implement these methods yet
 func TestCodexProviderImplementsValidationHelpers(t *testing.T) {
 	cp := &CodexProvider{}
 
@@ -513,7 +504,6 @@ func TestCodexProviderImplementsValidationHelpers(t *testing.T) {
 
 // TestSharedHelpersMatchClaudeBehavior verifies that the shared provider helpers
 // produce identical results to the original claude package functions.
-// Expected failure: Shared helpers do not exist yet
 func TestSharedHelpersMatchClaudeBehavior(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -16,7 +16,6 @@ import (
 
 // TestCodexProviderStreamRunWithJSONFlag verifies that StreamRun() invokes
 // codex exec with --json flag when EventHandler is non-nil.
-// Expected failure: CodexProvider.StreamRun does not add --json flag based on EventHandler presence yet
 func TestCodexProviderStreamRunWithJSONFlag(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -61,7 +60,6 @@ exit 0
 
 // TestCodexProviderStreamRunWithoutJSONFlag verifies that StreamRun() does NOT
 // add --json flag when EventHandler is nil.
-// Expected failure: CodexProvider.StreamRun does not conditionally add --json flag yet
 func TestCodexProviderStreamRunWithoutJSONFlag(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -100,7 +98,6 @@ exit 0
 
 // TestCodexProviderParsesThreadStartedEvent verifies that processCodexStream
 // converts thread.started events to StreamEvent with type "system".
-// Expected failure: processCodexStream function does not exist yet
 func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -153,7 +150,6 @@ func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
 
 // TestCodexProviderParsesAgentMessageEvent verifies that item.completed events
 // with type "agent_message" are converted to StreamEvent type "assistant".
-// Expected failure: processCodexStream does not convert agent_message events to assistant type yet
 func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -226,7 +222,6 @@ func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 
 // TestCodexProviderInvokesToolCallHandlerForCommandExecution verifies that
 // item.started events with type "command_execution" trigger ToolCallHandler.
-// Expected failure: processCodexStream does not invoke ToolCallHandler for command_execution events yet
 func TestCodexProviderInvokesToolCallHandlerForCommandExecution(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -276,7 +271,6 @@ func TestCodexProviderInvokesToolCallHandlerForCommandExecution(t *testing.T) {
 
 // TestCodexProviderInvokesToolCallHandlerForFileChange verifies that
 // item.started events with type "file_change" trigger ToolCallHandler with "Write".
-// Expected failure: processCodexStream does not invoke ToolCallHandler for file_change events yet
 func TestCodexProviderInvokesToolCallHandlerForFileChange(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -326,7 +320,6 @@ func TestCodexProviderInvokesToolCallHandlerForFileChange(t *testing.T) {
 
 // TestCodexProviderInvokesToolCallHandlerForMCPTool verifies that
 // item.started events with type "mcp_tool_call" trigger ToolCallHandler.
-// Expected failure: processCodexStream does not invoke ToolCallHandler for mcp_tool_call events yet
 func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -372,7 +365,6 @@ func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
 
 // TestCodexProviderExtractsTokenUsageFromTurnCompleted verifies that
 // turn.completed events with usage data populate Result's token fields.
-// Expected failure: processCodexStream does not extract token usage from turn.completed events yet
 func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -439,7 +431,6 @@ func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
 
 // TestCodexProviderExtractsAgentTextFromItemCompleted verifies that
 // Result.Output contains the text from item.completed agent_message events.
-// Expected failure: processCodexStream does not extract text from agent_message events to Result.Output yet
 func TestCodexProviderExtractsAgentTextFromItemCompleted(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -475,7 +466,6 @@ exit 0
 
 // TestCodexProviderStreamsAgentTextToWriter verifies that agent message text
 // is written to the output writer in real-time as events arrive.
-// Expected failure: processCodexStream does not write agent text to output writer yet
 func TestCodexProviderStreamsAgentTextToWriter(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -514,7 +504,6 @@ exit 0
 
 // TestCodexProviderHandlesMultipleEventTypes verifies that processCodexStream
 // correctly handles a mix of different Codex event types in a single stream.
-// Expected failure: processCodexStream does not exist or does not handle all event types correctly yet
 func TestCodexProviderHandlesMultipleEventTypes(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -568,7 +557,6 @@ exit 0
 
 // TestCodexProviderStreamRunCreatesTimestampedToolEvents verifies that
 // ToolEvent structs created from Codex events have a Timestamp field populated.
-// Expected failure: processCodexStream does not populate ToolEvent.Timestamp yet
 func TestCodexProviderStreamRunCreatesTimestampedToolEvents(t *testing.T) {
 	tempDir := t.TempDir()
 
