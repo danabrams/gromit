@@ -553,14 +553,46 @@ func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
 		return commands
 	}
 
-	scopedPackages := make([]string, 0, len(touchedPackages))
+	uniqueTouched := make([]string, 0, len(touchedPackages))
 	seen := make(map[string]bool, len(touchedPackages))
 	for _, pkg := range touchedPackages {
-		if pkg == "" || seen[pkg] {
+		normalized := strings.Trim(strings.TrimPrefix(pkg, "./"), "/")
+		if normalized == "" || seen[normalized] {
 			continue
 		}
-		seen[pkg] = true
-		scopedPackages = append(scopedPackages, "./"+strings.TrimPrefix(pkg, "./")+"/...")
+		seen[normalized] = true
+		uniqueTouched = append(uniqueTouched, normalized)
+	}
+
+	// Collapse nested package scopes to avoid duplicate work.
+	// Example: when both internal/runner and internal/runner/andon are touched,
+	// only keep internal/runner because it already includes children via /...
+	collapsed := make([]string, 0, len(uniqueTouched))
+	for _, pkg := range uniqueTouched {
+		coveredByParent := false
+		for _, parent := range collapsed {
+			if pkg == parent || strings.HasPrefix(pkg, parent+"/") {
+				coveredByParent = true
+				break
+			}
+		}
+		if coveredByParent {
+			continue
+		}
+
+		filtered := collapsed[:0]
+		for _, existing := range collapsed {
+			if existing == pkg || strings.HasPrefix(existing, pkg+"/") {
+				continue
+			}
+			filtered = append(filtered, existing)
+		}
+		collapsed = append(filtered, pkg)
+	}
+
+	scopedPackages := make([]string, 0, len(collapsed))
+	for _, pkg := range collapsed {
+		scopedPackages = append(scopedPackages, "./"+pkg+"/...")
 	}
 	if len(scopedPackages) == 0 {
 		return commands
