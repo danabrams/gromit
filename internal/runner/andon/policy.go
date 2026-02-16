@@ -67,9 +67,34 @@ func EvaluateFailure(signal FailureSignal, state RecoveryState, thresholds Andon
 	return EvaluateClassifiedFailure(classification, state, thresholds, now)
 }
 
+// EvaluateFailureWithTrace classifies a failure and returns trace metadata for policy decisioning.
+func EvaluateFailureWithTrace(signal FailureSignal, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyDecisionTrace {
+	classification := ClassifyFailureEntry(signal)
+	evaluation := EvaluateClassifiedFailure(classification, state, thresholds, now)
+
+	return PolicyDecisionTrace{
+		Classification:      classification,
+		Decision:            evaluation.Decision,
+		Path:                evaluation.Path,
+		DecisionInputSource: DecisionInputSourceClassifier,
+	}
+}
+
 // EvaluateClassifiedFailure selects policy action from a pre-classified failure.
 func EvaluateClassifiedFailure(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
 	return evaluateFailureClass(classification, state, thresholds, now)
+}
+
+// EvaluateClassifiedFailureWithTrace evaluates a pre-classified failure and returns trace metadata.
+func EvaluateClassifiedFailureWithTrace(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyDecisionTrace {
+	evaluation := EvaluateClassifiedFailure(classification, state, thresholds, now)
+
+	return PolicyDecisionTrace{
+		Classification:      classification,
+		Decision:            evaluation.Decision,
+		Path:                evaluation.Path,
+		DecisionInputSource: DecisionInputSourceClassifier,
+	}
 }
 
 func evaluateFailureClass(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {

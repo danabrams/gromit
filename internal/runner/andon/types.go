@@ -109,12 +109,12 @@ type PolicyDecision struct {
 type DecisionPath string
 
 const (
-	DecisionPathTransientL1Retry                            DecisionPath = "transient_l1_retry"
+	DecisionPathTransientL1Retry                          DecisionPath = "transient_l1_retry"
 	DecisionPathWorkflowEscalateAfterDeterministicAttempt DecisionPath = "workflow_escalate_after_deterministic_attempt"
-	DecisionPathQualityStopLineAfterTimebox                DecisionPath = "quality_stop_line_after_timebox"
-	DecisionPathIntentEscalateAfterAssumptionBudget        DecisionPath = "intent_escalate_after_assumption_budget"
-	DecisionPathDataImmediateStopLine                      DecisionPath = "data_immediate_stop_line"
-	DecisionPathWorkflowFallbackForUnknownKind             DecisionPath = "workflow_fallback_for_unknown_kind"
+	DecisionPathQualityStopLineAfterTimebox               DecisionPath = "quality_stop_line_after_timebox"
+	DecisionPathIntentEscalateAfterAssumptionBudget       DecisionPath = "intent_escalate_after_assumption_budget"
+	DecisionPathDataImmediateStopLine                     DecisionPath = "data_immediate_stop_line"
+	DecisionPathWorkflowFallbackForUnknownKind            DecisionPath = "workflow_fallback_for_unknown_kind"
 )
 
 // PolicyEvaluation is the classification plus selected decision.
@@ -122,6 +122,21 @@ type PolicyEvaluation struct {
 	Class    FailureClass
 	Decision PolicyDecision
 	Path     DecisionPath
+}
+
+// DecisionInputSource identifies which policy input selected the decision path.
+type DecisionInputSource string
+
+const (
+	DecisionInputSourceClassifier DecisionInputSource = "classifier"
+)
+
+// PolicyDecisionTrace captures decisioning details for policy entry points.
+type PolicyDecisionTrace struct {
+	Classification      PolicyClassification
+	Decision            PolicyDecision
+	Path                DecisionPath
+	DecisionInputSource DecisionInputSource
 }
 
 // PolicyClassification is the classifier output consumed by policy decisions.
