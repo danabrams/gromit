@@ -108,8 +108,6 @@ func TestCodexStreamFixturesHaveProvenanceAndRefreshComments(t *testing.T) {
 // claude_stream_success.jsonl uses a minimal deterministic stream lifecycle
 // with start, delta/assistant, and terminal success events.
 func TestClaudeStreamSuccessFixtureHasCanonicalLifecycle(t *testing.T) {
-	// Expected failure: fixturecatalog.AssertClaudeStreamSuccessLifecycle() does not exist yet,
-	// and claude_stream_success.jsonl is not normalized to start/delta/end contract shape.
 	content := readFixtureFile(t, "claude_stream_success.jsonl")
 	events := parseJSONLEvents(t, content)
 
@@ -147,8 +145,6 @@ func TestClaudeStreamSuccessFixtureHasCanonicalLifecycle(t *testing.T) {
 // claude_stream_success.jsonl carries the same two-line metadata convention as
 // codex stream fixtures.
 func TestClaudeStreamSuccessFixtureHasProvenanceAndRefreshComments(t *testing.T) {
-	// Expected failure: fixturecatalog.RequiredFixtureCommentHeaders() does not exist yet,
-	// and claude_stream_success.jsonl currently lacks the required # refresh metadata header.
 	content := readFixtureFile(t, "claude_stream_success.jsonl")
 	commentLines := extractCommentLines(content)
 
