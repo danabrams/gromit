@@ -3375,6 +3375,53 @@ validation:
 	}
 }
 
+func TestValidationConfig_RunFinalFullGateDefaultTrue(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	if !cfg.Validation.ShouldRunFinalFullGate() {
+		t.Fatal("expected run_final_full_gate default to true")
+	}
+}
+
+func TestValidationConfig_RunFinalFullGateYAML(t *testing.T) {
+	yamlContent := `
+validation:
+  run_final_full_gate: false
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Validation.ShouldRunFinalFullGate() {
+		t.Fatal("expected run_final_full_gate=false from yaml")
+	}
+}
+
+func TestScopeGoTestCommands(t *testing.T) {
+	commands := []string{"go test -count=1 ./...", "go vet ./..."}
+	touched := []string{"internal/runner", "internal/provider", "internal/runner"}
+
+	got := ScopeGoTestCommands(commands, touched)
+	want0 := "go test -count=1 ./internal/runner/... ./internal/provider/..."
+	if len(got) != 2 {
+		t.Fatalf("ScopeGoTestCommands returned %d commands, want 2", len(got))
+	}
+	if got[0] != want0 {
+		t.Fatalf("scoped go test command = %q, want %q", got[0], want0)
+	}
+	if got[1] != "go vet ./..." {
+		t.Fatalf("non-go-test command should be unchanged, got %q", got[1])
+	}
+}
+
 // findProjectRoot walks up from the current working directory to find the
 // project root (directory containing gromit.yaml).
 func findProjectRoot(t *testing.T) string {

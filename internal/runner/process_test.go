@@ -629,6 +629,41 @@ func TestMaybeRunPeriodicFullValidation_UsesCadenceAndFullCommands(t *testing.T)
 	}
 }
 
+func TestMaybeRunFinalFullValidation_SkipsWhenDisabled(t *testing.T) {
+	runFinalFull := false
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:          true,
+			FullCommands:     []string{"full-check"},
+			RunFinalFullGate: &runFinalFull,
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	var commands []string
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		commands = append(commands, command)
+		return "ok", "", 0, nil
+	}
+
+	r := &Runner{
+		cfg:                cfg,
+		output:             &strings.Builder{},
+		validationRunner:   validation.NewRunner(cfg, cmdRunner, nil, nil),
+		successfulBeads:    1,
+		successesSinceFull: 1,
+	}
+
+	if err := r.maybeRunFinalFullValidation(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("expected final full gate to be skipped, ran commands: %v", commands)
+	}
+}
+
 func TestExtractSuccessLearning_FeatureDisabled(t *testing.T) {
 	var buf strings.Builder
 	learnFromSuccessDisabled := false

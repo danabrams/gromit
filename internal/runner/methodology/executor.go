@@ -205,7 +205,7 @@ func (e *Executor) VerifyTestsFail(ctx context.Context, bc *runtypes.BeadContext
 
 	e.log("Verifying acceptance tests fail (as expected)...")
 
-	acceptanceCommands := AcceptanceCommands(e.cfg.Validation.Commands, bc.TouchedPackages)
+	acceptanceCommands := AcceptanceCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
 	e.log("ATDD verify command set: %s", strings.Join(acceptanceCommands, " && "))
 	start := time.Now()
 
@@ -245,7 +245,7 @@ func (e *Executor) VerifyAcceptanceTestsPass(ctx context.Context, bc *runtypes.B
 
 	e.log("Verifying acceptance tests pass after implementation...")
 
-	valResult, err := e.validateFn(ctx, AcceptanceCommands(e.cfg.Validation.Commands, bc.TouchedPackages), bc.PromptCtx.WorkDir)
+	valResult, err := e.validateFn(ctx, AcceptanceCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages), bc.PromptCtx.WorkDir)
 	if err != nil {
 		return fmt.Errorf("acceptance validation invocation: %w", err)
 	}

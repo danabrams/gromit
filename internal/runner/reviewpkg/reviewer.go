@@ -171,7 +171,7 @@ func (r *Reviewer) RunLight(ctx context.Context, b *bead.Bead, parent *bead.Bead
 
 	// Add validation commands to context
 	if r.cfg.Validation.Enabled {
-		reviewCtx.ValidationCommands = r.cfg.Validation.Commands
+		reviewCtx.ValidationCommands = r.cfg.Validation.FastCommandsOrDefault()
 	}
 
 	// Render review prompt
@@ -472,7 +472,8 @@ func (r *Reviewer) RunPostSuccess(ctx context.Context, bc *runtypes.BeadContext)
 	if len(reviewResult.FixesApplied) > 0 && r.cfg.Validation.Enabled && r.validateFn != nil {
 		r.log("Review applied %d fixes, re-validating...", len(reviewResult.FixesApplied))
 
-		passed, err := r.validateFn(ctx, r.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
+		validationCommands := config.ScopeGoTestCommands(r.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+		passed, err := r.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
 		if err != nil {
 			return fmt.Errorf("review re-validation invocation: %w", err)
 		}

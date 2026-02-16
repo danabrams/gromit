@@ -214,7 +214,8 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 		return nil
 	}
 
-	valResult, err := e.validateFn(ctx, e.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
+	validationCommands := config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
 	if err != nil {
 		e.log("Warning: refactor re-validation invocation failed: %v", err)
 		return e.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "re-validation invocation failed")
@@ -276,7 +277,8 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 	if e.validateFn == nil {
 		return nil
 	}
-	valResult, err := e.validateFn(ctx, e.cfg.Validation.Commands, bc.PromptCtx.WorkDir)
+	validationCommands := config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
 
 	if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
 		e.log("Warning: retry refactor also failed validation - skipping refactoring")

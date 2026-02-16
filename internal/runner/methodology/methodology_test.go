@@ -188,7 +188,8 @@ func TestRunAcceptanceTests_PropagatesInvocationError(t *testing.T) {
 
 func TestVerifyTestsFail_UsesAcceptanceCommands(t *testing.T) {
 	cfg := newTestConfig()
-	cfg.Validation.Commands = []string{"go test ./...", "go vet ./..."}
+	cfg.Validation.Commands = []string{"full-check"}
+	cfg.Validation.FastCommands = []string{"go test ./...", "go vet ./..."}
 	var buf strings.Builder
 
 	var receivedCommands []string

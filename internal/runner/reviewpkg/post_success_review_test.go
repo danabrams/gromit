@@ -135,6 +135,8 @@ func TestRunPostSuccess_RevalidatesAfterFixesApplied(t *testing.T) {
 	// When the light review applies fixes, RunPostSuccess should re-validate.
 	// If validation passes, no error should be returned.
 	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"full-check"}
+	cfg.Validation.FastCommands = []string{"go test ./...", "go vet ./..."}
 
 	prov := &mockProvider{
 		name: "test",
@@ -158,6 +160,15 @@ func TestRunPostSuccess_RevalidatesAfterFixesApplied(t *testing.T) {
 		if workDir != "/tmp/test-work" {
 			t.Errorf("validation workDir = %q, want %q", workDir, "/tmp/test-work")
 		}
+		want := []string{"go test ./internal/foo/... ./internal/bar/...", "go vet ./..."}
+		if len(commands) != len(want) {
+			t.Fatalf("validation commands = %v, want %v", commands, want)
+		}
+		for i := range want {
+			if commands[i] != want[i] {
+				t.Fatalf("validation command[%d] = %q, want %q", i, commands[i], want[i])
+			}
+		}
 		return true, nil // passes
 	}
 
@@ -167,6 +178,7 @@ func TestRunPostSuccess_RevalidatesAfterFixesApplied(t *testing.T) {
 	rev.SetValidateFn(validateFn)
 
 	bc := newTestBeadContext()
+	bc.TouchedPackages = []string{"internal/foo", "internal/bar", "internal/foo"}
 
 	err := rev.RunPostSuccess(context.Background(), bc)
 	if err != nil {

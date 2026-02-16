@@ -73,6 +73,7 @@ type ValidationConfig struct {
 	MaxParallelCommands  int           `yaml:"max_parallel_commands"`
 	CommandTimeout       time.Duration `yaml:"command_timeout"`
 	FullValidationEveryN int           `yaml:"full_validation_every_n_successes"`
+	RunFinalFullGate     *bool         `yaml:"run_final_full_gate"`
 	NonInteractive       *bool         `yaml:"non_interactive"`
 	MaxFixAttempts       int           `yaml:"max_fix_attempts"`
 	MaxValidationRetries int           `yaml:"max_validation_retries"`
@@ -352,6 +353,10 @@ func (c *Config) SetDefaults() {
 		t := true
 		c.Validation.NonInteractive = &t
 	}
+	if c.Validation.RunFinalFullGate == nil {
+		t := true
+		c.Validation.RunFinalFullGate = &t
+	}
 	if c.Refactor.MinFilesChanged == 0 {
 		c.Refactor.MinFilesChanged = 3
 	}
@@ -530,6 +535,63 @@ func (v ValidationConfig) FullCommandsOrDefault() []string {
 		return v.FullCommands
 	}
 	return v.Commands
+}
+
+// ShouldRunFinalFullGate returns whether the session-ending full validation
+// gate should run (defaults to true).
+func (v ValidationConfig) ShouldRunFinalFullGate() bool {
+	if v.RunFinalFullGate == nil {
+		return true
+	}
+	return *v.RunFinalFullGate
+}
+
+// ScopeGoTestCommands scopes "go test ./..." commands to touched packages.
+// Non-go-test commands and commands without "./..." are returned unchanged.
+func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
+	if len(commands) == 0 || len(touchedPackages) == 0 {
+		return commands
+	}
+
+	scopedPackages := make([]string, 0, len(touchedPackages))
+	seen := make(map[string]bool, len(touchedPackages))
+	for _, pkg := range touchedPackages {
+		if pkg == "" || seen[pkg] {
+			continue
+		}
+		seen[pkg] = true
+		scopedPackages = append(scopedPackages, "./"+strings.TrimPrefix(pkg, "./")+"/...")
+	}
+	if len(scopedPackages) == 0 {
+		return commands
+	}
+
+	scoped := make([]string, 0, len(commands))
+	for _, command := range commands {
+		fields := strings.Fields(command)
+		if len(fields) < 3 || fields[0] != "go" || fields[1] != "test" {
+			scoped = append(scoped, command)
+			continue
+		}
+
+		replaced := false
+		rebuilt := make([]string, 0, len(fields)+len(scopedPackages))
+		for _, token := range fields {
+			if token == "./..." {
+				rebuilt = append(rebuilt, scopedPackages...)
+				replaced = true
+				continue
+			}
+			rebuilt = append(rebuilt, token)
+		}
+		if replaced {
+			scoped = append(scoped, strings.Join(rebuilt, " "))
+			continue
+		}
+		scoped = append(scoped, command)
+	}
+
+	return scoped
 }
 
 // IsTierName returns true if the string is a valid tier name (high, medium, low).

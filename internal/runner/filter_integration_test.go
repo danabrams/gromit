@@ -1,3 +1,5 @@
+//go:build integration
+
 package runner
 
 import (
@@ -51,7 +53,7 @@ func TestNewRunnerWiresFilterIntoLearningsFile(t *testing.T) {
 	// but we can verify the wiring happened without errors.
 }
 
-// byteWriter is a simple writer for test purposes
+// byteWriter is a simple writer for test purposes.
 type byteWriter struct {
 	buf *[]byte
 }

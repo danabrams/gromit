@@ -1,3 +1,5 @@
+//go:build contract
+
 package main
 
 import (
@@ -14,67 +16,9 @@ import (
 )
 
 var (
-	// binaryPath is the path to the built gromit binary
-	binaryPath string
-
 	// update is a flag to regenerate golden files
 	update = flag.Bool("update", false, "update golden files")
 )
-
-// TestMain builds the gromit binary once before running tests
-func TestMain(m *testing.M) {
-	// Parse flags
-	flag.Parse()
-
-	// Create a temporary directory for the test binary
-	tmpDir, err := os.MkdirTemp("", "gromit-cli-test-*")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create temp dir: %v\n", err)
-		os.Exit(1)
-	}
-	// Build the gromit binary
-	binaryPath = filepath.Join(tmpDir, "gromit")
-	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to build gromit binary: %v\n", err)
-		os.RemoveAll(tmpDir)
-		os.Exit(1)
-	}
-
-	// Run the tests
-	exitCode := m.Run()
-
-	// Clean up before exit (os.Exit doesn't run defers)
-	os.RemoveAll(tmpDir)
-	os.Exit(exitCode)
-}
-
-// runGromit executes the gromit binary with the given arguments and returns stdout, stderr, and exit code
-func runGromit(t *testing.T, args ...string) (stdout, stderr string, exitCode int) {
-	t.Helper()
-
-	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(binaryPath, "", nil, "", args...)
-	if err != nil {
-		t.Fatalf("Failed to run gromit %v: %v", args, err)
-	}
-
-	return stdout, stderr, exitCode
-}
-
-// runGromitWithStdin executes the gromit binary with the given arguments and stdin input,
-// returning stdout, stderr, and exit code. This is useful for testing interactive commands.
-func runGromitWithStdin(t *testing.T, stdin string, args ...string) (stdout, stderr string, exitCode int) {
-	t.Helper()
-
-	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(binaryPath, "", nil, stdin, args...)
-	if err != nil {
-		t.Fatalf("Failed to run gromit %v with stdin: %v", args, err)
-	}
-
-	return stdout, stderr, exitCode
-}
 
 // goldenPath returns the path to a golden file for the given command
 func goldenPath(command string) string {
