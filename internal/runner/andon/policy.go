@@ -73,8 +73,10 @@ func EvaluateClassifiedFailure(classification PolicyClassification, state Recove
 }
 
 func evaluateFailureClass(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
-	state.Class = classification.Class
-	decision, path := chooseDecisionForClass(classification, state, thresholds, now)
+	// Apply classification to a local copy so decisioning stays pure from the caller's perspective.
+	classifiedState := state
+	classifiedState.Class = classification.Class
+	decision, path := chooseDecisionForClass(classification, classifiedState, thresholds, now)
 
 	return PolicyEvaluation{
 		Class:    classification.Class,
@@ -90,7 +92,7 @@ func chooseDecisionForClass(classification PolicyClassification, state RecoveryS
 		return decision, DecisionPathWorkflowFallbackForUnknownKind
 	}
 
-	return decision, DecisionPathForClass(state.Class)
+	return decision, DecisionPathForClass(classification.Class)
 }
 
 // DecisionPathForClass returns the canonical decision path branch for a failure class.
