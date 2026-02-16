@@ -220,3 +220,27 @@ func TestShapeRedPhaseContext_PreservesSignalAndTrimsNoise(t *testing.T) {
 		t.Fatal("expected learning history to be trimmed")
 	}
 }
+
+func TestShapeGreenPhaseContext_PreservesFailureSignalAndRequiredBehavior(t *testing.T) {
+	r := &Renderer{}
+	base := testMethodologyContext()
+
+	shaped := invokePhaseShaper(t, r, "ShapeGreenPhaseContext", base)
+
+	if len(shaped.Bead.ExpectedOutputs) == 0 {
+		t.Fatal("expected required behavior to be preserved")
+	}
+	if shaped.Spec == "" {
+		t.Fatal("expected spec context to be preserved")
+	}
+	failureSignal := strings.ToLower(shaped.PrevFailure + "\n" + strings.Join(shaped.RecentValidationFailures, "\n"))
+	if !strings.Contains(failureSignal, "fail") {
+		t.Fatal("expected failing-test signal to be preserved")
+	}
+	if shaped.ClaudeMD != "" {
+		t.Fatal("expected full-history context to be trimmed")
+	}
+	if len(shaped.ConfirmedLearnings) != 0 {
+		t.Fatal("expected confirmed learnings to be trimmed")
+	}
+}

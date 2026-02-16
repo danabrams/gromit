@@ -23,6 +23,21 @@ func (r *Renderer) ShapeRedPhaseContext(ctx *Context) *Context {
 	return shaped
 }
 
+// ShapeGreenPhaseContext preserves required behavior and failure signal while trimming noise.
+func (r *Renderer) ShapeGreenPhaseContext(ctx *Context) *Context {
+	shaped := cloneMethodologyContext(ctx)
+	if shaped == nil {
+		return nil
+	}
+
+	shaped.ClaudeMD = ""
+	shaped.ConfirmedLearnings = []learnings.Learning{}
+	shaped.RecentLearnings = []learnings.Learning{}
+	shaped.normalizeNilFields()
+
+	return shaped
+}
+
 func cloneMethodologyContext(ctx *Context) *Context {
 	if ctx == nil {
 		return nil
