@@ -13,8 +13,9 @@ func cmdAcceptanceTestFiles() []string {
 	}
 }
 
-func TestCmdSmokeMatrix_AllCmdCasesHaveDecisions(t *testing.T) {
-	// Expected failure: LoadCmdSmokeMatrix and CmdSmokeMatrixEntry are not implemented yet.
+func loadCmdSmokeMatrix(t *testing.T) (string, map[string]CmdSmokeMatrixEntry) {
+	t.Helper()
+
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -24,6 +25,12 @@ func TestCmdSmokeMatrix_AllCmdCasesHaveDecisions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadCmdSmokeMatrix: %v", err)
 	}
+
+	return projectRoot, matrix
+}
+
+func TestCmdSmokeMatrix_AllCmdCasesHaveDecisions(t *testing.T) {
+	projectRoot, matrix := loadCmdSmokeMatrix(t)
 
 	cases := collectAcceptanceTests(t, projectRoot, cmdAcceptanceTestFiles())
 	for _, caseID := range cases {
@@ -54,16 +61,7 @@ func TestCmdSmokeMatrix_AllCmdCasesHaveDecisions(t *testing.T) {
 }
 
 func TestCmdSmokeMatrix_MovedCasesHaveConcreteUnitDestinations(t *testing.T) {
-	// Expected failure: LoadCmdSmokeMatrix and cmd smoke move destination validation do not exist yet.
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
-
-	matrix, err := LoadCmdSmokeMatrix(projectRoot)
-	if err != nil {
-		t.Fatalf("LoadCmdSmokeMatrix: %v", err)
-	}
+	projectRoot, matrix := loadCmdSmokeMatrix(t)
 	unitTests := listCmdUnitTests(t, projectRoot)
 
 	for caseID, entry := range matrix {
@@ -87,15 +85,7 @@ func TestCmdSmokeMatrix_MovedCasesHaveConcreteUnitDestinations(t *testing.T) {
 }
 
 func TestLoadCmdSmokeMatrix_IncludesKnownCase(t *testing.T) {
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("findProjectRoot: %v", err)
-	}
-
-	matrix, err := LoadCmdSmokeMatrix(projectRoot)
-	if err != nil {
-		t.Fatalf("LoadCmdSmokeMatrix: %v", err)
-	}
+	_, matrix := loadCmdSmokeMatrix(t)
 
 	entry, ok := matrix["cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd"]
 	if !ok {
