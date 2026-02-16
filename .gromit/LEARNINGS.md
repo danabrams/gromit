@@ -55,6 +55,9 @@ Bead 'Define smoke coverage matrix for cmd and runner' timed out on gpt-5.3-code
 ### 2026-02-16 | gromit-f8x2 | patterns
 Bead 'Add Andon domain types and policy skeleton' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
 
+### 2026-02-16 | gromit-f8x2.3 | patterns
+Bead 'Add class-aware classification and coverage' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
+
 ---
 
 ## Archived
