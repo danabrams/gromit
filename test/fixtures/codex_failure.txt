@@ -1,3 +1,7 @@
-# provenance: snapshot from `codex run --model sonnet` failure shape; refresh via provider contract fixture workflow.
-Build failed: unresolved symbol `SelectModel` in internal/runner/escalation/handler.go:118
-Suggested next step: run `go test ./...` and update caller wiring.
+# provenance: canonical snapshot from codex fake CLI failure transcript.
+# refresh: rerun contract fixture generation and replace this deterministic transcript.
+command: codex run --model sonnet --sandbox workspace-write --json
+status: failure
+exit_code: 1
+error_code: build_failed
+error_message: unresolved symbol SelectModel in internal/runner/escalation/handler.go:118

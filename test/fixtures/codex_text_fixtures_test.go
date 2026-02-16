@@ -33,6 +33,36 @@ func TestCodexSuccessTextFixtureDeterministicTranscript(t *testing.T) {
 	}
 }
 
+func TestCodexFailureTextFixtureDeterministicTranscript(t *testing.T) {
+	content := readFixtureFile(t, "codex_failure.txt")
+	lines := nonEmptyLines(content)
+
+	if len(lines) != 7 {
+		t.Fatalf("codex_failure.txt has %d non-empty lines, want 7", len(lines))
+	}
+	if !strings.HasPrefix(lines[0], "# provenance:") {
+		t.Fatalf("first non-empty line = %q, want '# provenance:' header", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], "# refresh:") {
+		t.Fatalf("second non-empty line = %q, want '# refresh:' header", lines[1])
+	}
+
+	keyValues := parseKeyValueLines(t, "codex_failure.txt", lines[2:])
+	expectedKeys := []string{"command", "status", "exit_code", "error_code", "error_message"}
+	for i, key := range expectedKeys {
+		if keyValues[i].key != key {
+			t.Fatalf("key at index %d = %q, want %q", i, keyValues[i].key, key)
+		}
+		if strings.TrimSpace(keyValues[i].value) == "" {
+			t.Fatalf("key %q must have non-empty value", key)
+		}
+	}
+
+	if keyValues[1].value != "failure" {
+		t.Fatalf("status = %q, want failure", keyValues[1].value)
+	}
+}
+
 func TestCodexTextFixturesUseDeterministicKeyValueTranscript(t *testing.T) {
 	// Expected failure: fixturecatalog.ParseDeterministicCodexKV() does not exist yet,
 	// and codex text fixtures are still freeform text instead of deterministic key/value transcripts.
