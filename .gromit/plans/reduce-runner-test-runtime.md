@@ -1,8 +1,9 @@
 ---
+created: 2026-02-16T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-16T02:32:45Z"
 id: reduce-runner-test-runtime
 source_spec: reduce-runner-test-runtime
-created: 2026-02-16
-decomposed: false
 ---
 
 # Reduce `internal/runner` Test Runtime — Implementation Plan

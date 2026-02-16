@@ -3,6 +3,7 @@
 package contracts
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -203,6 +204,187 @@ func TestProviderContractFixtures_NamingIsScenarioDriven(t *testing.T) {
 			t.Fatalf("required fixture %q does not match provider[_stream]_(success|failure).(txt|jsonl)", name)
 		}
 	}
+}
+
+func TestProviderContractFixtures_CodexStreamFixturesUseLifecycleAndErrorShapes(t *testing.T) {
+	// Expected failure: fixturecatalog.AssertCodexJSONLStreamLifecycle() does not exist yet,
+	// and codex stream fixtures do not yet encode the required start/delta/end ordering and explicit error termination.
+	tests := []struct {
+		name                        string
+		fixtureName                 string
+		requireLifecycleStart       bool
+		requireTerminalErrorEvent   bool
+		requireTerminalResultStatus bool
+	}{
+		{
+			name:                  "codex stream success has start delta end lifecycle",
+			fixtureName:           "codex_stream_success.jsonl",
+			requireLifecycleStart: true,
+		},
+		{
+			name:                      "codex stream failure ends with explicit error event",
+			fixtureName:               "codex_stream_failure.jsonl",
+			requireLifecycleStart:     true,
+			requireTerminalErrorEvent: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Expected failure: fixturecatalog.ParseCodexJSONLEvents() does not exist yet,
+			// so fixture validation fails until codex stream fixtures adopt canonical JSONL event ordering.
+			path := filepath.Join(fixturesDir, tt.fixtureName)
+			contentBytes, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("failed to read fixture %q: %v", tt.fixtureName, err)
+			}
+
+			commentLines, events := parseJSONLFixture(t, string(contentBytes))
+			if len(commentLines) < 2 {
+				t.Fatalf("fixture %q must start with two comment lines (# provenance: and # refresh:)", tt.fixtureName)
+			}
+			if !strings.HasPrefix(commentLines[0], "# provenance:") {
+				t.Fatalf("fixture %q first comment must start with '# provenance:'", tt.fixtureName)
+			}
+			if !strings.HasPrefix(commentLines[1], "# refresh:") {
+				t.Fatalf("fixture %q second comment must start with '# refresh:'", tt.fixtureName)
+			}
+
+			if len(events) < 3 {
+				t.Fatalf("fixture %q must contain at least 3 JSON events (start, delta, end/error)", tt.fixtureName)
+			}
+
+			if tt.requireLifecycleStart {
+				firstType := eventType(events[0])
+				if !isStartEventType(firstType) {
+					t.Fatalf("fixture %q first event type = %q, want a start event type", tt.fixtureName, firstType)
+				}
+
+				hasDelta := false
+				for _, event := range events[1 : len(events)-1] {
+					if isDeltaEventType(eventType(event)) {
+						hasDelta = true
+						break
+					}
+				}
+				if !hasDelta {
+					t.Fatalf("fixture %q must include at least one delta/message event between start and terminal events", tt.fixtureName)
+				}
+			}
+
+			last := events[len(events)-1]
+			lastType := eventType(last)
+			if tt.requireTerminalErrorEvent {
+				if !isErrorEventType(lastType) {
+					t.Fatalf("fixture %q terminal event type = %q, want explicit error event type", tt.fixtureName, lastType)
+				}
+				if !hasNonEmptyString(last, "error") {
+					t.Fatalf("fixture %q terminal error event must include non-empty 'error' field", tt.fixtureName)
+				}
+			} else {
+				if !isEndEventType(lastType) {
+					t.Fatalf("fixture %q terminal event type = %q, want end/result event type", tt.fixtureName, lastType)
+				}
+				if hasNestedString(last, "result", "status") != "success" {
+					t.Fatalf("fixture %q terminal result status must be success", tt.fixtureName)
+				}
+			}
+		})
+	}
+}
+
+func parseJSONLFixture(t *testing.T, content string) ([]string, []map[string]any) {
+	t.Helper()
+
+	rawLines := strings.Split(strings.TrimSpace(content), "\n")
+	commentLines := make([]string, 0, 2)
+	events := make([]map[string]any, 0, len(rawLines))
+
+	for _, raw := range rawLines {
+		line := strings.TrimSpace(raw)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "#") {
+			commentLines = append(commentLines, line)
+			continue
+		}
+
+		var event map[string]any
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("invalid JSONL event line %q: %v", line, err)
+		}
+		events = append(events, event)
+	}
+
+	return commentLines, events
+}
+
+func eventType(event map[string]any) string {
+	v, ok := event["type"]
+	if !ok {
+		return ""
+	}
+	typeStr, _ := v.(string)
+	return typeStr
+}
+
+func isStartEventType(typ string) bool {
+	switch typ {
+	case "start", "stream_start", "thread.started", "response.started":
+		return true
+	default:
+		return false
+	}
+}
+
+func isDeltaEventType(typ string) bool {
+	switch typ {
+	case "delta", "assistant", "message.delta", "response.output_text.delta":
+		return true
+	default:
+		return false
+	}
+}
+
+func isEndEventType(typ string) bool {
+	switch typ {
+	case "end", "stream_end", "result", "response.completed":
+		return true
+	default:
+		return false
+	}
+}
+
+func isErrorEventType(typ string) bool {
+	switch typ {
+	case "error", "stream_error", "response.error":
+		return true
+	default:
+		return false
+	}
+}
+
+func hasNonEmptyString(event map[string]any, key string) bool {
+	v, ok := event[key]
+	if !ok {
+		return false
+	}
+	s, ok := v.(string)
+	return ok && strings.TrimSpace(s) != ""
+}
+
+func hasNestedString(event map[string]any, parent string, child string) string {
+	v, ok := event[parent]
+	if !ok {
+		return ""
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return ""
+	}
+	childValue, _ := m[child].(string)
+	return childValue
 }
 
 func newClaudeFixtureCommand(testDir string, env []string, args ...string) *exec.Cmd {

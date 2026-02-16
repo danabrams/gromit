@@ -1,0 +1,116 @@
+package runner
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/execution"
+	"github.com/danabrams/gromit/internal/runner/reviewpkg"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/validation"
+)
+
+// Deps holds injectable dependencies for a Runner, used for testing.
+type Deps struct {
+	Beads     BeadClient
+	Router    *provider.Router
+	Analyzer  FailureAnalyzer
+	Renderer  PromptRenderer
+	Logger    IterationLogger
+	CmdRunner func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error)
+}
+
+// newRunnerWithDepsImpl creates a runner with explicitly provided dependencies.
+// This is primarily intended for testing, where you want to inject mocks.
+func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir string, deps Deps) (*Runner, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	// Apply config defaults to ensure consistent behavior even when config is
+	// partially initialized in tests. This prevents accidental precheck execution
+	// or other features in tests that don't explicitly test them.
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	if output == nil {
+		output = os.Stdout
+	}
+	// Wrap output in synchronized writer for thread-safe writes
+	syncOut := newSyncWriter(output)
+
+	// Create logger if not provided and Logs path is configured
+	iterLogger := deps.Logger
+	if iterLogger == nil && cfg.Paths.Logs != "" {
+		log, err := logger.NewLogger(cfg.Paths.Logs)
+		if err != nil {
+			// Log warning but continue - logging is optional
+			_, _ = fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
+		} else {
+			iterLogger = log
+		}
+	}
+
+	// Use provided Router
+	router := deps.Router
+
+	// Create invoker with router adapter (nil-safe: if router is nil, invoker handles it)
+	stallTimeoutFn := makeStallTimeoutFn(cfg)
+	invocationTimeoutFn := makeInvocationTimeoutFn(cfg)
+	var inv *execution.Invoker
+	if router != nil {
+		inv = execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
+			WithHeartbeat(syncOut, stallTimeoutFn).
+			WithInvocationTimeout(invocationTimeoutFn)
+	} else {
+		inv = execution.NewInvoker(nil, syncOut, nil).
+			WithHeartbeat(syncOut, stallTimeoutFn).
+			WithInvocationTimeout(invocationTimeoutFn)
+	}
+
+	cmdRunner := defaultCmdRunner
+	if deps.CmdRunner != nil {
+		cmdRunner = deps.CmdRunner
+	}
+
+	r := &Runner{
+		cfg:         cfg,
+		beads:       deps.Beads,
+		router:      router,
+		invoker:     inv,
+		analyzer:    deps.Analyzer,
+		renderer:    deps.Renderer,
+		logger:      iterLogger,
+		output:      syncOut,
+		syncOut:     syncOut,
+		gromitDir:   gromitDir,
+		gitDiffFn:   getGitDiff,
+		cmdRunnerFn: cmdRunner,
+		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
+			return net.DefaultResolver.LookupHost(ctx, host)
+		},
+		lookPathFn: exec.LookPath,
+	}
+	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log, r.showPartialProgress)
+	r.validationRunner = validation.NewRunner(cfg, cmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
+	r.methodologyExec = r.makeMethodologyExec()
+	r.reviewer = reviewpkg.NewReviewer(cfg, router, deps.Beads, deps.Renderer, r.gitDiffFn, iterLogger)
+	r.reviewer.SetLogFn(r.log)
+	r.reviewer.SetValidateFn(r.makeReviewValidateFn())
+	return r, nil
+}
+
+// IterationResult captures the outcome of one loop iteration.
+// Type alias for backward compatibility — canonical definition is in runtypes.
+type IterationResult = runtypes.IterationResult
+
+// SubTask represents a single sub-task from task decomposition.
+// Type alias for backward compatibility — canonical definition is in runtypes.
+type SubTask = runtypes.SubTask

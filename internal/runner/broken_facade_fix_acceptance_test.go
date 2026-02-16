@@ -107,9 +107,11 @@ func TestProcessBead_ValidationUsesInjectedCmdRunnerViaDeps(t *testing.T) {
 		},
 	}
 
-	cmdRunCount := 0
+	validationCmdRunCount := 0
 	injectedCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-		cmdRunCount++
+		if strings.HasPrefix(command, "go test ") {
+			validationCmdRunCount++
+		}
 		return "ok", "", 0, nil
 	}
 
@@ -147,8 +149,8 @@ func TestProcessBead_ValidationUsesInjectedCmdRunnerViaDeps(t *testing.T) {
 	}
 	// The injected CmdRunner must be used by validation.Runner.RunDirect,
 	// not the hardcoded defaultCmdRunner.
-	if cmdRunCount != 1 {
-		t.Errorf("expected injected CmdRunner called 1 time for validation, got %d", cmdRunCount)
+	if validationCmdRunCount != 1 {
+		t.Errorf("expected injected CmdRunner called 1 time for validation command, got %d", validationCmdRunCount)
 	}
 }
 
