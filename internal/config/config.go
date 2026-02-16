@@ -17,11 +17,19 @@ const (
 	ModelHaiku  = "haiku"
 
 	DefaultInvocationTimeoutSeconds = 900 // 15 minutes
+
+	DefaultAndonAssumptionBudget = 2
+	DefaultAndonL1RetryCap       = 2
+	DefaultAndonL1TimeCapMinutes = 2
+	DefaultAndonL2TimeCapMinutes = 15
+
+	DefaultAndonConfigDocSectionTitle = "# Andon autonomy controls"
 )
 
 type Config struct {
 	Models      ModelsConfig           `yaml:"models"`
 	Escalation  EscalationConfig       `yaml:"escalation"`
+	Andon       AndonConfig            `yaml:"andon"`
 	Loop        LoopConfig             `yaml:"loop"`
 	Validation  ValidationConfig       `yaml:"validation"`
 	Refactor    RefactorConfig         `yaml:"refactor"`
@@ -54,6 +62,57 @@ type EscalationConfig struct {
 	Chain              []string `yaml:"chain"`
 	MaxRetriesPerModel int      `yaml:"max_retries_per_model"`
 	MaxRetriesPerBead  int      `yaml:"max_retries_per_bead"`
+}
+
+type AndonConfig struct {
+	AssumptionBudget int                  `yaml:"assumption_budget"`
+	L1RetryCap       int                  `yaml:"l1_retry_cap"`
+	L1TimeCapMinutes int                  `yaml:"l1_time_cap_minutes"`
+	L2TimeCapMinutes int                  `yaml:"l2_time_cap_minutes"`
+	HardStops        AndonHardStopsConfig `yaml:"hard_stops"`
+}
+
+type AndonHardStopsConfig struct {
+	BlockBulkDelete             bool     `yaml:"block_bulk_delete"`
+	BlockIrreversibleMigrations bool     `yaml:"block_irreversible_migrations"`
+	BlockCredentialChanges      bool     `yaml:"block_credential_changes"`
+	BulkDeleteAllowlist         []string `yaml:"bulk_delete_allowlist"`
+
+	blockBulkDeleteSet             bool `yaml:"-"`
+	blockIrreversibleMigrationsSet bool `yaml:"-"`
+	blockCredentialChangesSet      bool `yaml:"-"`
+}
+
+func (h *AndonHardStopsConfig) UnmarshalYAML(value *yaml.Node) error {
+	type andonHardStopsDecode struct {
+		BlockBulkDelete             *bool    `yaml:"block_bulk_delete"`
+		BlockIrreversibleMigrations *bool    `yaml:"block_irreversible_migrations"`
+		BlockCredentialChanges      *bool    `yaml:"block_credential_changes"`
+		BulkDeleteAllowlist         []string `yaml:"bulk_delete_allowlist"`
+	}
+
+	var decoded andonHardStopsDecode
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+
+	if decoded.BlockBulkDelete != nil {
+		h.BlockBulkDelete = *decoded.BlockBulkDelete
+		h.blockBulkDeleteSet = true
+	}
+	if decoded.BlockIrreversibleMigrations != nil {
+		h.BlockIrreversibleMigrations = *decoded.BlockIrreversibleMigrations
+		h.blockIrreversibleMigrationsSet = true
+	}
+	if decoded.BlockCredentialChanges != nil {
+		h.BlockCredentialChanges = *decoded.BlockCredentialChanges
+		h.blockCredentialChangesSet = true
+	}
+	if decoded.BulkDeleteAllowlist != nil {
+		h.BulkDeleteAllowlist = decoded.BulkDeleteAllowlist
+	}
+
+	return nil
 }
 
 type LoopConfig struct {
@@ -278,6 +337,9 @@ func (c *Config) NormalizeNilFields() {
 	if c.Validation.FullCommands == nil {
 		c.Validation.FullCommands = []string{}
 	}
+	if c.Andon.HardStops.BulkDeleteAllowlist == nil {
+		c.Andon.HardStops.BulkDeleteAllowlist = []string{}
+	}
 	if c.Preflight.Tools == nil {
 		c.Preflight.Tools = []string{}
 	}
@@ -398,6 +460,33 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Escalation.MaxRetriesPerBead == 0 {
 		c.Escalation.MaxRetriesPerBead = 10
+	}
+	if c.Andon.AssumptionBudget == 0 {
+		c.Andon.AssumptionBudget = DefaultAndonAssumptionBudget
+	}
+	if c.Andon.L1RetryCap == 0 {
+		c.Andon.L1RetryCap = DefaultAndonL1RetryCap
+	}
+	if c.Andon.L1TimeCapMinutes == 0 {
+		c.Andon.L1TimeCapMinutes = DefaultAndonL1TimeCapMinutes
+	}
+	if c.Andon.L2TimeCapMinutes == 0 {
+		c.Andon.L2TimeCapMinutes = DefaultAndonL2TimeCapMinutes
+	}
+	if !c.Andon.HardStops.blockBulkDeleteSet {
+		c.Andon.HardStops.BlockBulkDelete = true
+	}
+	if !c.Andon.HardStops.blockIrreversibleMigrationsSet {
+		c.Andon.HardStops.BlockIrreversibleMigrations = true
+	}
+	if !c.Andon.HardStops.blockCredentialChangesSet {
+		c.Andon.HardStops.BlockCredentialChanges = true
+	}
+	if len(c.Andon.HardStops.BulkDeleteAllowlist) == 0 {
+		c.Andon.HardStops.BulkDeleteAllowlist = []string{
+			".gromit/logs/**",
+			".gromit/tmp/**",
+		}
 	}
 	if c.Preflight.AutoInstall == "" {
 		c.Preflight.AutoInstall = "ask"
