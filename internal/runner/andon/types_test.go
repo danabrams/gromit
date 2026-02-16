@@ -29,3 +29,18 @@ func TestAllFailureClasses_CanonicalOrderAndLabels(t *testing.T) {
 		}
 	}
 }
+
+func TestAllAndonLevels_CanonicalOrder(t *testing.T) {
+	got := AllAndonLevels()
+	want := []AndonLevel{LevelL1, LevelL2, LevelL3, LevelL4}
+
+	if len(got) != len(want) {
+		t.Fatalf("len(AllAndonLevels()) = %d, want %d", len(got), len(want))
+	}
+
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("AllAndonLevels()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}

@@ -12,6 +12,11 @@ const (
 	LevelL4 AndonLevel = "L4"
 )
 
+// AllAndonLevels returns the canonical level catalog in escalation order.
+func AllAndonLevels() []AndonLevel {
+	return []AndonLevel{LevelL1, LevelL2, LevelL3, LevelL4}
+}
+
 // AndonThresholds defines policy limits for autonomous recovery.
 type AndonThresholds struct {
 	L1MaxRetries   int
