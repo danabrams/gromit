@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-const reviewSpecValidationAcceptanceFile = "cmd/gromit/review_spec_validation_acceptance_test.go"
+const reviewSpecValidationReclassifiedFile = "cmd/gromit/review_spec_validation_reclassified_test.go"
 
-func loadReviewSpecValidationAcceptanceSource(t *testing.T) string {
+func loadReviewSpecValidationReclassifiedSource(t *testing.T) string {
 	t.Helper()
 
 	projectRoot, err := findProjectRoot()
@@ -18,10 +18,10 @@ func loadReviewSpecValidationAcceptanceSource(t *testing.T) string {
 		t.Fatalf("could not find project root: %v", err)
 	}
 
-	targetPath := filepath.Join(projectRoot, reviewSpecValidationAcceptanceFile)
+	targetPath := filepath.Join(projectRoot, reviewSpecValidationReclassifiedFile)
 	src, err := os.ReadFile(targetPath)
 	if err != nil {
-		t.Fatalf("could not read %s: %v", reviewSpecValidationAcceptanceFile, err)
+		t.Fatalf("could not read %s: %v", reviewSpecValidationReclassifiedFile, err)
 	}
 
 	return string(src)
@@ -37,26 +37,26 @@ func lineCount(src string) int {
 func TestReviewSpecValidationRefactor_UsesTableDrivenScenarioGroups(t *testing.T) {
 	// Expected failure: TestReviewSpecValidationScenarios_TableDriven and
 	// buildReviewSpecValidationCases do not exist yet in
-	// cmd/gromit/review_spec_validation_acceptance_test.go.
-	src := loadReviewSpecValidationAcceptanceSource(t)
+	// cmd/gromit/review_spec_validation_reclassified_test.go.
+	src := loadReviewSpecValidationReclassifiedSource(t)
 
 	if !strings.Contains(src, "func TestReviewSpecValidationScenarios_TableDriven") {
-		t.Fatalf("%s should define TestReviewSpecValidationScenarios_TableDriven", reviewSpecValidationAcceptanceFile)
+		t.Fatalf("%s should define TestReviewSpecValidationScenarios_TableDriven", reviewSpecValidationReclassifiedFile)
 	}
 
 	if !strings.Contains(src, "buildReviewSpecValidationCases") {
-		t.Fatalf("%s should use buildReviewSpecValidationCases to construct table scenarios", reviewSpecValidationAcceptanceFile)
+		t.Fatalf("%s should use buildReviewSpecValidationCases to construct table scenarios", reviewSpecValidationReclassifiedFile)
 	}
 
 	if !strings.Contains(src, "for _, tc := range cases") {
-		t.Fatalf("%s should iterate table cases with for _, tc := range cases", reviewSpecValidationAcceptanceFile)
+		t.Fatalf("%s should iterate table cases with for _, tc := range cases", reviewSpecValidationReclassifiedFile)
 	}
 }
 
 func TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers(t *testing.T) {
 	// Expected failure: setupReviewSpecValidationFixture and
 	// assertSpecValidationError helper functions do not exist yet.
-	src := loadReviewSpecValidationAcceptanceSource(t)
+	src := loadReviewSpecValidationReclassifiedSource(t)
 
 	requiredHelpers := []string{
 		"func setupReviewSpecValidationFixture(",
@@ -65,7 +65,7 @@ func TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers(t *testing.T
 
 	for _, helper := range requiredHelpers {
 		if !strings.Contains(src, helper) {
-			t.Fatalf("%s should contain helper %q", reviewSpecValidationAcceptanceFile, helper)
+			t.Fatalf("%s should contain helper %q", reviewSpecValidationReclassifiedFile, helper)
 		}
 	}
 }
@@ -73,11 +73,11 @@ func TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers(t *testing.T
 func TestReviewSpecValidationRefactor_ReducesLinesAndKeepsDeterministicCoverage(t *testing.T) {
 	// Expected failure: maxReviewSpecValidationAcceptanceLines and
 	// reviewSpecValidationCoverageSentinels are not enforced yet via consolidated structure.
-	src := loadReviewSpecValidationAcceptanceSource(t)
+	src := loadReviewSpecValidationReclassifiedSource(t)
 
 	const maxReviewSpecValidationAcceptanceLines = 420
 	if got := lineCount(src); got > maxReviewSpecValidationAcceptanceLines {
-		t.Fatalf("%s should be <= %d lines after consolidation, got %d", reviewSpecValidationAcceptanceFile, maxReviewSpecValidationAcceptanceLines, got)
+		t.Fatalf("%s should be <= %d lines after consolidation, got %d", reviewSpecValidationReclassifiedFile, maxReviewSpecValidationAcceptanceLines, got)
 	}
 
 	requiredCoverageSentinels := []string{
@@ -89,7 +89,7 @@ func TestReviewSpecValidationRefactor_ReducesLinesAndKeepsDeterministicCoverage(
 	}
 	for _, sentinel := range requiredCoverageSentinels {
 		if !strings.Contains(strings.ToLower(src), sentinel) {
-			t.Fatalf("%s should preserve scenario coverage marker %q", reviewSpecValidationAcceptanceFile, sentinel)
+			t.Fatalf("%s should preserve scenario coverage marker %q", reviewSpecValidationReclassifiedFile, sentinel)
 		}
 	}
 
@@ -100,7 +100,7 @@ func TestReviewSpecValidationRefactor_ReducesLinesAndKeepsDeterministicCoverage(
 	}
 	for _, pattern := range forbiddenNondeterminism {
 		if strings.Contains(src, pattern) {
-			t.Fatalf("%s should remain deterministic; found %q", reviewSpecValidationAcceptanceFile, pattern)
+			t.Fatalf("%s should remain deterministic; found %q", reviewSpecValidationReclassifiedFile, pattern)
 		}
 	}
 }
