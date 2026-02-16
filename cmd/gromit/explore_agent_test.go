@@ -64,3 +64,17 @@ func TestExploreCommand_WiresAgentFlagsIntoExploreInput(t *testing.T) {
 		t.Error("explore.go does not populate ExploreInput.ChooseAgent from --choose-agent flag")
 	}
 }
+
+func TestExplorePhaseConfigSelectsAgent_Reclassified(t *testing.T) {
+	source := readExploreSource(t)
+
+	if !strings.Contains(source, "type exploreAgentResolver struct") {
+		t.Fatal("explore.go missing exploreAgentResolver adapter")
+	}
+	if !strings.Contains(source, "func (r *exploreAgentResolver) Resolve(phase string") {
+		t.Fatal("exploreAgentResolver.Resolve missing")
+	}
+	if !strings.Contains(source, "agent.Resolve(r.cfg, phase, flagOverride, choosePicker") {
+		t.Fatal("explore agent resolver must pass through phase for phase-config selection")
+	}
+}

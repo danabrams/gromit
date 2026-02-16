@@ -56,3 +56,29 @@ func TestDebugHelpIncludesCodexExample(t *testing.T) {
 		t.Fatalf("debug help missing codex example, got: %s", debugCmd.Long)
 	}
 }
+
+func TestDebugChooseAgentUsesPicker_Reclassified(t *testing.T) {
+	debugSource, err := os.ReadFile("debug.go")
+	if err != nil {
+		t.Fatalf("Reading debug.go: %v", err)
+	}
+
+	src := string(debugSource)
+	if !strings.Contains(src, `GetBool("choose-agent")`) {
+		t.Fatal("debug.go missing choose-agent flag read")
+	}
+	if !strings.Contains(src, `agent.Resolve(cfg, "debug", agentFlag, chooseAgent`) {
+		t.Fatal("debug.go missing agent.Resolve call with chooseAgent")
+	}
+}
+
+func TestDebugPhaseConfigUsesAgent_Reclassified(t *testing.T) {
+	debugSource, err := os.ReadFile("debug.go")
+	if err != nil {
+		t.Fatalf("Reading debug.go: %v", err)
+	}
+
+	if !strings.Contains(string(debugSource), `agent.Resolve(cfg, "debug", agentFlag, chooseAgent`) {
+		t.Fatal("debug.go must resolve with debug phase to honor agents.phases.debug")
+	}
+}
