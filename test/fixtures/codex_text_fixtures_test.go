@@ -13,12 +13,7 @@ func TestCodexSuccessTextFixtureDeterministicTranscript(t *testing.T) {
 	if len(lines) != 6 {
 		t.Fatalf("codex_success.txt has %d non-empty lines, want 6", len(lines))
 	}
-	if !strings.HasPrefix(lines[0], "# provenance:") {
-		t.Fatalf("first non-empty line = %q, want '# provenance:' header", lines[0])
-	}
-	if !strings.HasPrefix(lines[1], "# refresh:") {
-		t.Fatalf("second non-empty line = %q, want '# refresh:' header", lines[1])
-	}
+	requireTranscriptHeaders(t, lines)
 
 	keyValues := parseKeyValueLines(t, "codex_success.txt", lines[2:])
 	expectedKeys := []string{"command", "status", "exit_code", "output_summary"}
@@ -40,12 +35,7 @@ func TestCodexFailureTextFixtureDeterministicTranscript(t *testing.T) {
 	if len(lines) != 7 {
 		t.Fatalf("codex_failure.txt has %d non-empty lines, want 7", len(lines))
 	}
-	if !strings.HasPrefix(lines[0], "# provenance:") {
-		t.Fatalf("first non-empty line = %q, want '# provenance:' header", lines[0])
-	}
-	if !strings.HasPrefix(lines[1], "# refresh:") {
-		t.Fatalf("second non-empty line = %q, want '# refresh:' header", lines[1])
-	}
+	requireTranscriptHeaders(t, lines)
 
 	keyValues := parseKeyValueLines(t, "codex_failure.txt", lines[2:])
 	expectedKeys := []string{"command", "status", "exit_code", "error_code", "error_message"}
@@ -64,8 +54,6 @@ func TestCodexFailureTextFixtureDeterministicTranscript(t *testing.T) {
 }
 
 func TestCodexTextFixturesUseDeterministicKeyValueTranscript(t *testing.T) {
-	// Expected failure: fixturecatalog.ParseDeterministicCodexKV() does not exist yet,
-	// and codex text fixtures are still freeform text instead of deterministic key/value transcripts.
 	tests := []struct {
 		name           string
 		fixtureName    string
@@ -88,8 +76,6 @@ func TestCodexTextFixturesUseDeterministicKeyValueTranscript(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Expected failure: fixturecatalog.RequiredCodexTranscriptKeys() does not exist yet,
-			// so fixtures fail until they adopt the deterministic transcript shape.
 			content := readFixtureFile(t, tt.fixtureName)
 			lines := nonEmptyLines(content)
 
@@ -98,12 +84,7 @@ func TestCodexTextFixturesUseDeterministicKeyValueTranscript(t *testing.T) {
 				t.Fatalf("fixture %q has %d non-empty lines, want %d", tt.fixtureName, len(lines), expectedLineCount)
 			}
 
-			if !strings.HasPrefix(lines[0], "# provenance:") {
-				t.Fatalf("first non-empty line = %q, want '# provenance:' header", lines[0])
-			}
-			if !strings.HasPrefix(lines[1], "# refresh:") {
-				t.Fatalf("second non-empty line = %q, want '# refresh:' header", lines[1])
-			}
+			requireTranscriptHeaders(t, lines)
 
 			keyValues := parseKeyValueLines(t, tt.fixtureName, lines[2:])
 			for i, key := range tt.expectedKeys {
@@ -123,8 +104,6 @@ func TestCodexTextFixturesUseDeterministicKeyValueTranscript(t *testing.T) {
 }
 
 func TestCodexTextFixturesHaveRequiredCommandAndExitFields(t *testing.T) {
-	// Expected failure: fixturecatalog.ValidateCodexTextFixtureFields() does not exist yet,
-	// and codex text fixtures do not consistently provide deterministic command/exit/error fields.
 	tests := []struct {
 		name                     string
 		fixtureName              string
@@ -146,14 +125,9 @@ func TestCodexTextFixturesHaveRequiredCommandAndExitFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Expected failure: fixturecatalog.LookupCodexTranscriptField() does not exist yet,
-			// and current fixtures are not structured as deterministic field maps.
 			content := readFixtureFile(t, tt.fixtureName)
 			keyValues := parseKeyValueLines(t, tt.fixtureName, nonEmptyLines(content)[2:])
-			fields := make(map[string]string, len(keyValues))
-			for _, kv := range keyValues {
-				fields[kv.key] = kv.value
-			}
+			fields := keyValueMap(keyValues)
 
 			command := fields["command"]
 			if !strings.HasPrefix(command, "codex run --model sonnet") {
@@ -212,4 +186,22 @@ func parseKeyValueLines(t *testing.T, fixtureName string, lines []string) []keyV
 		parsed = append(parsed, keyValueLine{key: key, value: value})
 	}
 	return parsed
+}
+
+func requireTranscriptHeaders(t *testing.T, lines []string) {
+	t.Helper()
+	if !strings.HasPrefix(lines[0], "# provenance:") {
+		t.Fatalf("first non-empty line = %q, want '# provenance:' header", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], "# refresh:") {
+		t.Fatalf("second non-empty line = %q, want '# refresh:' header", lines[1])
+	}
+}
+
+func keyValueMap(keyValues []keyValueLine) map[string]string {
+	fields := make(map[string]string, len(keyValues))
+	for _, kv := range keyValues {
+		fields[kv.key] = kv.value
+	}
+	return fields
 }
