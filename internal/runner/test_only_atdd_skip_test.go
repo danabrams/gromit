@@ -122,13 +122,10 @@ func TestProcessBead_SkipsATDDForTestOnlyBead_LogsReason(t *testing.T) {
 	}
 }
 
-// TestProcessBead_SkipsVerifyFailForFileCreationBead verifies that when ATDD is
-// globally enabled and the bead describes creating files that don't exist yet,
-// the "verify tests fail" phase (Phase 2) is skipped but ATDD otherwise proceeds
-// normally. ATDD's verify-fail phase triggers false "already done" auto-closes
-// for refactoring beads because acceptance criteria are tautologically true
-// before AND after structural changes.
-func TestProcessBead_SkipsVerifyFailForFileCreationBead(t *testing.T) {
+// TestProcessBead_FileCreationBeadNotMarkedAlreadyDone verifies that ATDD
+// no longer uses a verify-fail phase and therefore does not mark structural
+// file-creation beads as already done before implementation.
+func TestProcessBead_FileCreationBeadNotMarkedAlreadyDone(t *testing.T) {
 	mockClaude := &mockClaudeClient{
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "done"}, nil
@@ -182,16 +179,12 @@ func TestProcessBead_SkipsVerifyFailForFileCreationBead(t *testing.T) {
 		t.Fatalf("expected success, got error: %v", result.Error)
 	}
 	if result.AlreadyDone {
-		t.Error("bead should NOT be marked as already done — verify-fail should be skipped for file-creation beads")
+		t.Error("bead should NOT be marked as already done for file-creation beads")
 	}
 
 	output := buf.String()
-	// ATDD should still be active (acceptance tests written)
+	// ATDD should still be active (acceptance tests written).
 	if !strings.Contains(output, "ATDD enabled") {
-		t.Errorf("expected ATDD to still be active (only verify-fail skipped), got:\n%s", output)
-	}
-	// But verify-fail should be skipped
-	if !strings.Contains(output, "Skipping ATDD verify-fail") {
-		t.Errorf("expected log message about skipping verify-fail for file creation, got:\n%s", output)
+		t.Errorf("expected ATDD to still be active, got:\n%s", output)
 	}
 }

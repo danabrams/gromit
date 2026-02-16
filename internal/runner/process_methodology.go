@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -48,24 +47,6 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 		return false
 	}
 
-	skipVerifyFail := false
-	if parsed := extractExpectedFiles(bc.Bead.Description); len(parsed) > 0 && anyFileMissing(parsed) {
-		r.log("Skipping ATDD verify-fail: bead creates files that don't exist yet (structural change)")
-		skipVerifyFail = true
-	}
-
-	if !skipVerifyFail {
-		if err := r.methodologyExec.VerifyTestsFailWithRetry(ctx, bc); err != nil {
-			if methodology.IsATDDAlreadyDone(err) {
-				bc.Result.Success = true
-				bc.Result.AlreadyDone = true
-				return false
-			}
-			bc.Result.Error = err
-			return false
-		}
-	}
-
 	bc.PromptCtx.IsRetry = false
 	bc.PromptCtx.PrevFailure = ""
 	bc.PromptCtx.FailureContext = "Acceptance tests have been written and committed. Your job is to make them pass."
@@ -98,15 +79,6 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		if err := r.runValidationWithRecovery(ctx, bc); err != nil {
 			bc.Result.Error = err
 			return bc.Result
-		}
-
-		if atddActive && r.methodologyExec != nil {
-			if err := r.methodologyExec.VerifyAcceptanceTestsPass(ctx, bc); err != nil {
-				if r.handleAcceptanceVerificationFailure(ctx, bc, "post-build acceptance verification", err) {
-					continue
-				}
-				return bc.Result
-			}
 		}
 
 		if atddActive || tddActive {
