@@ -478,3 +478,122 @@ func TestDecisionPathForClass_ReturnsCanonicalPathPerClass(t *testing.T) {
 		})
 	}
 }
+
+// Expected failure: EvaluateFailureWithTrace, PolicyDecisionTrace, and DecisionInputSourceClassifier do not exist yet.
+func TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass(t *testing.T) {
+	now, thresholds := setupPolicyTest(t)
+
+	tests := []struct {
+		name     string
+		signal   FailureSignal
+		state    RecoveryState
+		wantPath DecisionPath
+		want     PolicyDecision
+	}{
+		{
+			name:     "Transient path",
+			signal:   FailureSignal{Kind: FailureKindTimeout, Output: "context deadline exceeded"},
+			state:    RecoveryState{Level: LevelL1, L1Attempts: 0, L1Started: now},
+			wantPath: DecisionPathTransientL1Retry,
+			want:     PolicyDecision{NextLevel: LevelL1, Action: DecisionRetry},
+		},
+		{
+			name:     "Workflow path",
+			signal:   FailureSignal{Kind: FailureKindWorkflow, Output: "missing bd sync before close"},
+			state:    RecoveryState{Level: LevelL1, L1Attempts: 1, L1Started: now},
+			wantPath: DecisionPathWorkflowEscalateAfterDeterministicAttempt,
+			want:     PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate},
+		},
+		{
+			name:     "Quality path",
+			signal:   FailureSignal{Kind: FailureKindQualityGate, Output: "go test ./... failed"},
+			state:    RecoveryState{Level: LevelL2, L2Started: now.Add(-16 * time.Minute)},
+			wantPath: DecisionPathQualityStopLineAfterTimebox,
+			want:     PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine},
+		},
+		{
+			name:     "Intent path",
+			signal:   FailureSignal{Kind: FailureKindAmbiguousIntent, Output: "requirements conflict"},
+			state:    RecoveryState{Level: LevelL1, AssumptionsUsed: thresholds.MaxAssumptions},
+			wantPath: DecisionPathIntentEscalateAfterAssumptionBudget,
+			want:     PolicyDecision{NextLevel: LevelL3, Action: DecisionEscalate},
+		},
+		{
+			name:     "Data path",
+			signal:   FailureSignal{Kind: FailureKindIntegrity, Output: "state divergence detected"},
+			state:    RecoveryState{Level: LevelL1},
+			wantPath: DecisionPathDataImmediateStopLine,
+			want:     PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			trace := EvaluateFailureWithTrace(tt.signal, tt.state, thresholds, now)
+			if trace.Decision != tt.want {
+				t.Fatalf("EvaluateFailureWithTrace(...).Decision = %+v, want %+v", trace.Decision, tt.want)
+			}
+			if trace.Path != tt.wantPath {
+				t.Fatalf("EvaluateFailureWithTrace(...).Path = %q, want %q", trace.Path, tt.wantPath)
+			}
+			if trace.DecisionInputSource != DecisionInputSourceClassifier {
+				t.Fatalf("EvaluateFailureWithTrace(...).DecisionInputSource = %q, want %q", trace.DecisionInputSource, DecisionInputSourceClassifier)
+			}
+		})
+	}
+}
+
+// Expected failure: EvaluateFailureWithTrace and DecisionInputSourceClassifier do not exist yet.
+func TestEvaluateFailureWithTrace_EnforcesL1ToL2ThresholdBoundaryAtPublicEntryPoint(t *testing.T) {
+	now, thresholds := setupPolicyTest(t)
+
+	trace := EvaluateFailureWithTrace(
+		FailureSignal{Kind: FailureKindTimeout, Output: "transient timeout"},
+		RecoveryState{
+			Level:      LevelL1,
+			L1Attempts: thresholds.L1MaxRetries,
+			L1Started:  now,
+		},
+		thresholds,
+		now,
+	)
+
+	if trace.Classification.Class != FailureClassTransient {
+		t.Fatalf("EvaluateFailureWithTrace(...).Classification.Class = %q, want %q", trace.Classification.Class, FailureClassTransient)
+	}
+	if trace.Decision.NextLevel != LevelL2 {
+		t.Fatalf("EvaluateFailureWithTrace(...).Decision.NextLevel = %q, want %q", trace.Decision.NextLevel, LevelL2)
+	}
+	if trace.Decision.Action != DecisionEscalate {
+		t.Fatalf("EvaluateFailureWithTrace(...).Decision.Action = %q, want %q", trace.Decision.Action, DecisionEscalate)
+	}
+	if trace.DecisionInputSource != DecisionInputSourceClassifier {
+		t.Fatalf("EvaluateFailureWithTrace(...).DecisionInputSource = %q, want %q", trace.DecisionInputSource, DecisionInputSourceClassifier)
+	}
+}
+
+// Expected failure: EvaluateClassifiedFailureWithTrace and PolicyDecisionTrace do not exist yet.
+func TestEvaluateClassifiedFailureWithTrace_UsesProvidedClassWithoutBypass(t *testing.T) {
+	now, thresholds := setupPolicyTest(t)
+
+	trace := EvaluateClassifiedFailureWithTrace(
+		PolicyClassification{Class: FailureClassWorkflow},
+		RecoveryState{
+			Class:      FailureClassTransient,
+			Level:      LevelL1,
+			L1Attempts: 1,
+			L1Started:  now,
+		},
+		thresholds,
+		now,
+	)
+
+	var _ PolicyDecisionTrace
+
+	if trace.Classification.Class != FailureClassWorkflow {
+		t.Fatalf("EvaluateClassifiedFailureWithTrace(...).Classification.Class = %q, want %q", trace.Classification.Class, FailureClassWorkflow)
+	}
+	if trace.Decision != (PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate}) {
+		t.Fatalf("EvaluateClassifiedFailureWithTrace(...).Decision = %+v, want workflow escalation", trace.Decision)
+	}
+}
