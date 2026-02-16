@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Fake codex CLI for testing
+
+set -euo pipefail
+
+if [[ -n "${TEST_CALL_LOG:-}" ]]; then
+    echo "codex $*" >> "$TEST_CALL_LOG"
+fi
+
+cat > /dev/null
+
+fixture_file="${CODEX_FIXTURE:-}"
+if [[ -z "$fixture_file" ]]; then
+    echo "codex: CODEX_FIXTURE env var not set" >&2
+    exit 1
+fi
+
+if [[ ! -f "$fixture_file" ]]; then
+    echo "codex: fixture file not found: $fixture_file" >&2
+    exit 1
+fi
+
+cat "$fixture_file"
