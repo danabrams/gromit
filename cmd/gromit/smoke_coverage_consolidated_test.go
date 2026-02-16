@@ -231,6 +231,26 @@ func TestSmokeCoverageMatrix_KeepSetIsMinimalHighValue(t *testing.T) {
 	}
 }
 
+func TestSmokeCoverageMatrix_KeepCasesHaveConcreteDestinations(t *testing.T) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+
+	entries := loadConsolidatedSmokeMatrix(t, projectRoot)
+	for caseID, entry := range entries {
+		if entry.Decision != "keep" {
+			continue
+		}
+		if entry.Destination == "" || entry.Destination == "-" {
+			t.Fatalf("keep case %s missing concrete destination", caseID)
+		}
+		if entry.Destination != caseID {
+			t.Fatalf("keep case %s destination=%q, want %q", caseID, entry.Destination, caseID)
+		}
+	}
+}
+
 func TestSmokeCoverageMatrix_MoveCasesHaveConcreteUnitDestinations(t *testing.T) {
 	// Expected failure: Consolidated move destinations are not validated against
 	// unit test suites, and ConsolidatedMoveDestinationResolution is missing.
