@@ -87,7 +87,7 @@ scope_check:
 
 # Pre-check - verify if acceptance criteria are already met before starting work
 precheck:
-  enabled: true  # fast skip for already-done work before expensive methodology phases
+  enabled: false  # disabled to avoid auto-closing on acceptance-criteria precheck
   model: haiku  # fast check with haiku
   timeout_seconds: 120  # headroom for CLI startup + file reads + tool use
   verification:
