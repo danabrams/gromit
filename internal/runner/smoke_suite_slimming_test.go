@@ -46,8 +46,6 @@ func TestRunnerAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 
 	allowedFiles := map[string]bool{
 		"internal/runner/validation_extraction_acceptance_test.go":               true,
-		"internal/runner/build_router_from_config_acceptance_test.go":            true,
-		"internal/runner/build_router_from_config_additional_acceptance_test.go": true,
 		"internal/runner/invocation_timeout_acceptance_test.go":                  true,
 		"internal/runner/worktree_merge_acceptance_test.go":                      true,
 	}

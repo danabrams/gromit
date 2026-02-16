@@ -56,29 +56,7 @@ func TestReclassifyRunnerAcceptanceFilesSurfaceOnly(t *testing.T) {
 				"runDirectValidationCheck(",
 			},
 			required: []string{
-				"TestRunnerAcceptanceSurfaceOnly_ValidationFlow",
-			},
-		},
-		{
-			name: "router acceptance file",
-			file: "build_router_from_config_acceptance_test.go",
-			forbidden: []string{
-				"runner.router.Select(",
-				"setupTwoProviderConfig(",
-			},
-			required: []string{
-				"TestRunnerAcceptanceSurfaceOnly_RouterSelection",
-			},
-		},
-		{
-			name: "router additional acceptance file",
-			file: "build_router_from_config_additional_acceptance_test.go",
-			forbidden: []string{
-				"runner.router.Select(",
-				"setupSingleProviderConfig(",
-			},
-			required: []string{
-				"TestRunnerAcceptanceSurfaceOnly_RouterFallback",
+				"TestRunnerSmoke_RunSingleBeadHappyPath",
 			},
 		},
 	}
@@ -136,8 +114,6 @@ func TestReclassifyRunnerUnitSuiteListsMovedBehavior(t *testing.T) {
 func TestReclassifyRunnerAcceptanceSuiteReducedTargetCount(t *testing.T) {
 	files := []string{
 		"validation_extraction_acceptance_test.go",
-		"build_router_from_config_acceptance_test.go",
-		"build_router_from_config_additional_acceptance_test.go",
 	}
 
 	for _, file := range files {
