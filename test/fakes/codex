@@ -9,6 +9,15 @@ fi
 
 cat > /dev/null
 
+if [[ -n "${CODEX_FAIL:-}" ]] && [[ "${CODEX_FAIL}" != "0" ]]; then
+    exit_code="${CODEX_FAIL}"
+    if ! [[ "$exit_code" =~ ^[0-9]+$ ]]; then
+        exit_code=1
+    fi
+    echo "codex: simulated failure" >&2
+    exit "$exit_code"
+fi
+
 fixture_file="${CODEX_FIXTURE:-}"
 if [[ -z "$fixture_file" ]]; then
     echo "codex: CODEX_FIXTURE env var not set" >&2
