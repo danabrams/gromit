@@ -186,7 +186,6 @@ func TestMethodologyPhaseContextShaping_RedGreenRefactor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Expected failure: Renderer.ShapeRedPhaseContext / Renderer.ShapeGreenPhaseContext / Renderer.ShapeRefactorPhaseContext are not implemented yet.
 			base := testMethodologyContext()
 			shaped := invokePhaseShaper(t, r, tt.methodName, base)
 			tt.assertShaping(t, shaped)

@@ -919,7 +919,6 @@ func TestMethodologyPhaseShaping_TemplateCompatibility(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Expected failure: Renderer.ShapeRedPhaseContext / Renderer.ShapeGreenPhaseContext / Renderer.ShapeRefactorPhaseContext are not exposed in prompt.go yet.
 			method := reflect.ValueOf(r).MethodByName(tt.methodName)
 			if !method.IsValid() {
 				t.Fatalf("Renderer.%s method not found for %s compatibility test", tt.methodName, tt.renderName)

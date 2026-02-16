@@ -7,6 +7,12 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
+const (
+	behaviorGuardrailPhrase = "Do not change behavior."
+	behaviorGuardrailNeedle = "do not change behavior"
+	testOnlyGuardrailPhrase = "TEST-ONLY guardrails: change tests only and do not modify implementation code in this phase."
+)
+
 // ShapeRedPhaseContext trims low-signal context while preserving acceptance and guardrails.
 func (r *Renderer) ShapeRedPhaseContext(ctx *Context) *Context {
 	shaped := cloneMethodologyContext(ctx)
@@ -14,9 +20,7 @@ func (r *Renderer) ShapeRedPhaseContext(ctx *Context) *Context {
 		return nil
 	}
 
-	shaped.ClaudeMD = ""
-	shaped.ConfirmedLearnings = []learnings.Learning{}
-	shaped.RecentLearnings = []learnings.Learning{}
+	trimSharedLowSignalContext(shaped)
 	ensureTestOnlyGuardrails(shaped)
 	shaped.normalizeNilFields()
 
@@ -30,9 +34,7 @@ func (r *Renderer) ShapeGreenPhaseContext(ctx *Context) *Context {
 		return nil
 	}
 
-	shaped.ClaudeMD = ""
-	shaped.ConfirmedLearnings = []learnings.Learning{}
-	shaped.RecentLearnings = []learnings.Learning{}
+	trimSharedLowSignalContext(shaped)
 	shaped.normalizeNilFields()
 
 	return shaped
@@ -45,9 +47,7 @@ func (r *Renderer) ShapeRefactorPhaseContext(ctx *Context) *Context {
 		return nil
 	}
 
-	shaped.ClaudeMD = ""
-	shaped.ConfirmedLearnings = []learnings.Learning{}
-	shaped.RecentLearnings = []learnings.Learning{}
+	trimSharedLowSignalContext(shaped)
 	shaped.RecentValidationFailures = []string{}
 	if shaped.Bead != nil {
 		shaped.Bead.ExpectedOutputs = []string{}
@@ -58,25 +58,30 @@ func (r *Renderer) ShapeRefactorPhaseContext(ctx *Context) *Context {
 	return shaped
 }
 
+func trimSharedLowSignalContext(ctx *Context) {
+	ctx.ClaudeMD = ""
+	ctx.ConfirmedLearnings = []learnings.Learning{}
+	ctx.RecentLearnings = []learnings.Learning{}
+}
+
 func ensureBehaviorGuardrails(ctx *Context) {
-	const guardrail = "Do not change behavior."
-	if !strings.Contains(strings.ToLower(ctx.Rules), "do not change behavior") {
+	if !strings.Contains(strings.ToLower(ctx.Rules), behaviorGuardrailNeedle) {
 		if strings.TrimSpace(ctx.Rules) == "" {
-			ctx.Rules = guardrail
+			ctx.Rules = behaviorGuardrailPhrase
 		} else {
-			ctx.Rules = strings.TrimSpace(ctx.Rules) + "\n- " + guardrail
+			ctx.Rules = strings.TrimSpace(ctx.Rules) + "\n- " + behaviorGuardrailPhrase
 		}
 	}
 
 	lower := strings.ToLower(ctx.FailureContext + "\n" + ctx.PrevFailure)
-	if strings.Contains(lower, "do not change behavior") {
+	if strings.Contains(lower, behaviorGuardrailNeedle) {
 		return
 	}
 	if strings.TrimSpace(ctx.FailureContext) == "" {
-		ctx.FailureContext = guardrail
+		ctx.FailureContext = behaviorGuardrailPhrase
 		return
 	}
-	ctx.FailureContext = strings.TrimSpace(ctx.FailureContext) + "\n" + guardrail
+	ctx.FailureContext = strings.TrimSpace(ctx.FailureContext) + "\n" + behaviorGuardrailPhrase
 }
 
 func cloneMethodologyContext(ctx *Context) *Context {
@@ -114,14 +119,13 @@ func cloneBead(b *bead.Bead) *bead.Bead {
 }
 
 func ensureTestOnlyGuardrails(ctx *Context) {
-	const guardrail = "TEST-ONLY guardrails: change tests only and do not modify implementation code in this phase."
 	lower := strings.ToLower(ctx.FailureContext + "\n" + ctx.PrevFailure)
 	if strings.Contains(lower, "test-only") && strings.Contains(lower, "implementation") {
 		return
 	}
 	if strings.TrimSpace(ctx.FailureContext) == "" {
-		ctx.FailureContext = guardrail
+		ctx.FailureContext = testOnlyGuardrailPhrase
 		return
 	}
-	ctx.FailureContext = strings.TrimSpace(ctx.FailureContext) + "\n" + guardrail
+	ctx.FailureContext = strings.TrimSpace(ctx.FailureContext) + "\n" + testOnlyGuardrailPhrase
 }
