@@ -262,8 +262,16 @@ func (r *Runner) runRefactorWithRouter(ctx context.Context, prompt string, tier 
 
 	r.log("Running refactor with model: %s", modelName)
 
-	// Call provider.Run with the prompt
-	providerResult, err := p.Run(ctx, prompt, tier)
+	// Stream refactor events so this phase has the same live visibility as build.
+	stats, statsErr := logger.NewStreamStats()
+	if statsErr != nil {
+		r.log("Warning: could not create stream stats for refactor: %v", statsErr)
+	}
+	streamHandler := provider.EventHandler(func(line []byte) {
+		logger.ParseAndLogEvent(r.streamLogger, stats, line)
+	})
+
+	providerResult, err := p.StreamRun(ctx, prompt, tier, r.output, streamHandler, nil)
 
 	// Check for usage limit error and retry with fallback provider
 	if err != nil && p.IsUsageLimitError(providerResult, err) {
@@ -273,7 +281,7 @@ func (r *Runner) runRefactorWithRouter(ctx context.Context, prompt string, tier 
 		p2, modelName2 := r.router.Select(phase, tier)
 		if p2 != nil {
 			r.log("Retrying refactor with model: %s", modelName2)
-			providerResult, err = p2.Run(ctx, prompt, tier)
+			providerResult, err = p2.StreamRun(ctx, prompt, tier, r.output, streamHandler, nil)
 			modelName = modelName2
 		}
 	}
