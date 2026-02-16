@@ -24,12 +24,23 @@ type AndonThresholds struct {
 type FailureClass string
 
 const (
-	FailureClassTransient FailureClass = "transient"
-	FailureClassWorkflow  FailureClass = "workflow"
-	FailureClassQuality   FailureClass = "quality"
-	FailureClassIntent    FailureClass = "intent"
-	FailureClassData      FailureClass = "data"
+	FailureClassTransient FailureClass = "Transient"
+	FailureClassWorkflow  FailureClass = "Workflow"
+	FailureClassQuality   FailureClass = "Quality"
+	FailureClassIntent    FailureClass = "Intent"
+	FailureClassData      FailureClass = "Data"
 )
+
+// AllFailureClasses returns the canonical class catalog in spec order.
+func AllFailureClasses() []FailureClass {
+	return []FailureClass{
+		FailureClassTransient,
+		FailureClassWorkflow,
+		FailureClassQuality,
+		FailureClassIntent,
+		FailureClassData,
+	}
+}
 
 // FailureKind captures the source pattern for classification.
 type FailureKind string
