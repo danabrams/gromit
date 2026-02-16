@@ -211,76 +211,6 @@ created: 2026-02-11
 	}
 }
 
-// TestReviewCommand_SpecValidationErrorShowsAvailableSpecs tests the end-to-end
-// behavior when using gromit review --spec with a nonexistent spec
-func TestReviewCommand_SpecValidationErrorShowsAvailableSpecs(t *testing.T) {
-	// Expected failure: review command doesn't validate spec files before querying beads
-	//
-	// This is an end-to-end test verifying that:
-	// 1. determineReviewScope is called with cfg
-	// 2. getSpecBaseCommit receives specsDir from cfg.Paths.Specs
-	// 3. ValidateSpec is called before ResolveSpec
-	// 4. User gets helpful error listing available specs
-
-	tempDir := t.TempDir()
-	specsDir := filepath.Join(tempDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
-	}
-
-	// Create several spec files
-	specNames := []string{"auth-service", "user-management", "api-gateway"}
-	for _, name := range specNames {
-		path := filepath.Join(specsDir, name+".md")
-		content := fmt.Sprintf(`---
-id: %s
-created: 2026-02-11
----
-
-# %s
-`, name, name)
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to write spec: %v", err)
-		}
-	}
-
-	// Create config pointing to our specs directory
-	cfg := &config.Config{}
-	cfg.Paths.Specs = specsDir
-
-	// Set flags for nonexistent spec
-	saveReviewFlags(t)
-	reviewSpec = "user-managment" // typo: should be "user-management"
-	reviewSince = ""
-	reviewEpic = ""
-
-	// Determine review scope
-	_, err := determineReviewScope(cfg)
-	if err == nil {
-		t.Fatal("determineReviewScope should return error for nonexistent spec")
-	}
-
-	errMsg := err.Error()
-
-	// Error should indicate spec not found
-	if !strings.Contains(strings.ToLower(errMsg), "not found") {
-		t.Errorf("Error should indicate spec not found, got: %v", err)
-	}
-
-	// Error should list all available specs
-	for _, name := range specNames {
-		if !strings.Contains(errMsg, name) {
-			t.Errorf("Error should list available spec %q, got: %v", name, err)
-		}
-	}
-
-	// Error should help user spot their typo
-	if strings.Contains(errMsg, "user-managment") {
-		// If error includes the typo'd name, that's good - helps user see what they typed
-		t.Logf("Error includes user's input %q, which is helpful", "user-managment")
-	}
-}
-
 func TestReviewCommand_SpecValidationScenarios(t *testing.T) {
 	t.Parallel()
 
@@ -288,6 +218,7 @@ func TestReviewCommand_SpecValidationScenarios(t *testing.T) {
 		name         string
 		reviewSpec   string
 		specFiles    []string
+		otherFiles   []string
 		wantContains []string
 		wantExcludes []string
 	}{
@@ -302,14 +233,23 @@ func TestReviewCommand_SpecValidationScenarios(t *testing.T) {
 			name:         "empty specs directory reports missing specs",
 			reviewSpec:   "any-spec",
 			specFiles:    nil,
+			otherFiles:   nil,
 			wantContains: []string{"no spec"},
 			wantExcludes: []string{"no beads found"},
+		},
+		{
+			name:         "non markdown files are ignored",
+			reviewSpec:   "missing-spec",
+			specFiles:    []string{"feature-a.md", "feature-b.md"},
+			otherFiles:   []string{"README.txt", "notes.json", "template.yaml"},
+			wantContains: []string{"feature-a", "feature-b"},
+			wantExcludes: []string{"readme", "notes", "template"},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			errMsg := runReviewSpecValidationScenario(t, tc.reviewSpec, tc.specFiles)
+			errMsg := runReviewSpecValidationScenario(t, tc.reviewSpec, tc.specFiles, tc.otherFiles)
 			for _, want := range tc.wantContains {
 				if !strings.Contains(strings.ToLower(errMsg), strings.ToLower(want)) {
 					t.Fatalf("error should contain %q, got: %s", want, errMsg)
@@ -321,114 +261,6 @@ func TestReviewCommand_SpecValidationScenarios(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-// TestReviewCommand_SpecValidationWithEmptySpecsDirectory tests behavior
-// when specs directory exists but is empty
-func TestReviewCommand_SpecValidationWithEmptySpecsDirectory(t *testing.T) {
-	// Expected failure: getSpecBaseCommit doesn't validate spec files
-	//
-	// This test verifies that when the specs directory is empty, we get a clear
-	// error message instead of the confusing "no beads found" message.
-
-	tempDir := t.TempDir()
-	specsDir := filepath.Join(tempDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
-	}
-
-	cfg := &config.Config{}
-	cfg.Paths.Specs = specsDir
-
-	saveReviewFlags(t)
-	reviewSpec = "any-spec"
-	reviewSince = ""
-	reviewEpic = ""
-
-	_, err := determineReviewScope(cfg)
-	if err == nil {
-		t.Fatal("determineReviewScope should return error when specs directory is empty")
-	}
-
-	errMsg := err.Error()
-
-	// Should indicate no specs are available
-	if !strings.Contains(strings.ToLower(errMsg), "no spec") {
-		t.Errorf("Error should indicate no specs available, got: %v", err)
-	}
-
-	// Should NOT be the generic "no beads found" message
-	if strings.Contains(errMsg, "no beads found") {
-		t.Errorf("Error should be about missing spec file, not missing beads. Got: %v", err)
-	}
-}
-
-// TestReviewCommand_SpecValidationIgnoresNonMarkdownFiles tests that only
-// .md files are listed as available specs
-func TestReviewCommand_SpecValidationIgnoresNonMarkdownFiles(t *testing.T) {
-	// Expected failure: getSpecBaseCommit doesn't call ValidateSpec which filters to .md files
-	//
-	// This test verifies that when listing available specs, only .md files are shown,
-	// not .txt, .json, or other files that might be in the specs directory.
-
-	tempDir := t.TempDir()
-	specsDir := filepath.Join(tempDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
-	}
-
-	// Create .md spec files
-	mdSpecs := []string{"feature-a", "feature-b"}
-	for _, name := range mdSpecs {
-		path := filepath.Join(specsDir, name+".md")
-		content := fmt.Sprintf(`---
-id: %s
----
-# Spec`, name)
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to write .md file: %v", err)
-		}
-	}
-
-	// Create non-.md files (should be ignored)
-	nonMdFiles := []string{"README.txt", "notes.json", "template.yaml"}
-	for _, name := range nonMdFiles {
-		path := filepath.Join(specsDir, name)
-		if err := os.WriteFile(path, []byte("content"), 0644); err != nil {
-			t.Fatalf("Failed to write non-.md file: %v", err)
-		}
-	}
-
-	cfg := &config.Config{}
-	cfg.Paths.Specs = specsDir
-
-	saveReviewFlags(t)
-	reviewSpec = "nonexistent"
-	reviewSince = ""
-	reviewEpic = ""
-
-	_, err := determineReviewScope(cfg)
-	if err == nil {
-		t.Fatal("determineReviewScope should return error for nonexistent spec")
-	}
-
-	errMsg := err.Error()
-
-	// Should list .md specs
-	for _, name := range mdSpecs {
-		if !strings.Contains(errMsg, name) {
-			t.Errorf("Error should list .md spec %q, got: %v", name, err)
-		}
-	}
-
-	// Should NOT list non-.md files
-	for _, name := range nonMdFiles {
-		baseName := strings.TrimSuffix(name, filepath.Ext(name))
-		// Check that the base name isn't listed as an available spec
-		if strings.Contains(errMsg, baseName) && !strings.Contains(errMsg, "."+filepath.Ext(name)) {
-			t.Errorf("Error should not list non-.md file %q as available spec, got: %v", baseName, err)
-		}
 	}
 }
 
@@ -549,7 +381,7 @@ This spec exists but has no beads tagged with it.
 	}
 }
 
-func runReviewSpecValidationScenario(t *testing.T, specName string, specFiles []string) string {
+func runReviewSpecValidationScenario(t *testing.T, specName string, specFiles []string, otherFiles []string) string {
 	t.Helper()
 
 	tempDir := t.TempDir()
@@ -570,6 +402,12 @@ created: 2026-02-11
 		path := filepath.Join(specsDir, file)
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			t.Fatalf("Failed to write spec: %v", err)
+		}
+	}
+	for _, file := range otherFiles {
+		path := filepath.Join(specsDir, file)
+		if err := os.WriteFile(path, []byte("not a spec"), 0644); err != nil {
+			t.Fatalf("Failed to write non-spec file: %v", err)
 		}
 	}
 
