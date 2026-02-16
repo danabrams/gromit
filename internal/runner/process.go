@@ -494,6 +494,27 @@ func (r *Runner) maybeRunFinalFullValidation(ctx context.Context) error {
 	return r.runFullValidationGate(ctx, "final", 0)
 }
 
+// runCompilationCheck runs "go build ./..." before Claude invocation.
+// If compilation fails, the errors are appended to the build prompt so the
+// agent can fix them. Non-blocking: never prevents the bead from proceeding.
+func (r *Runner) runCompilationCheck(ctx context.Context, bc *runtypes.BeadContext) {
+	if r.cfg.Preflight.CompileCheck != nil && !*r.cfg.Preflight.CompileCheck {
+		return
+	}
+
+	buildCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	_, stderr, exitCode, _ := r.runCmd(buildCtx, "go build ./...", ".")
+	if exitCode == 0 {
+		return
+	}
+
+	r.log("Pre-build compilation check found errors, injecting into prompt")
+	bc.Result.CompilationErrors = true
+	bc.BuildPrompt += fmt.Sprintf("\n\n<compilation-errors>\nThe codebase currently has compilation errors. You must fix these as part of your work:\n\n%s\n</compilation-errors>", stderr)
+}
+
 func (r *Runner) runFullValidationGate(ctx context.Context, beadID string, iteration int) error {
 	workDir := "."
 	b := &bead.Bead{ID: beadID, Title: "full validation gate"}
