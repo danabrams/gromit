@@ -45,7 +45,7 @@ func TestLevels_CanonicalCatalog(t *testing.T) {
 	}
 }
 
-func TestDefaultThresholdDefinition_IsPureAndPolicyConsumable(t *testing.T) {
+func TestDefaultThresholdDefinition_IsPureAndPolicyConsumable_Acceptance(t *testing.T) {
 	first := DefaultThresholdDefinition()
 	first.L1MaxRetries = 99
 	first.L1MaxDuration = 99 * time.Minute
