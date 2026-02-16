@@ -29,3 +29,46 @@ func TestClassifyFailureEntry_ReturnsOnlyCanonicalClasses(t *testing.T) {
 
 	var _ PolicyClassification
 }
+
+func TestClassifyFailureEntry_MapsRepresentativeSignals(t *testing.T) {
+	tests := []struct {
+		name   string
+		signal FailureSignal
+		want   FailureClass
+	}{
+		{
+			name:   "timeout maps to Transient",
+			signal: FailureSignal{Kind: FailureKindTimeout, Output: "command timed out"},
+			want:   FailureClassTransient,
+		},
+		{
+			name:   "workflow issue maps to Workflow",
+			signal: FailureSignal{Kind: FailureKindWorkflow, Output: "needs manual branch cleanup"},
+			want:   FailureClassWorkflow,
+		},
+		{
+			name:   "quality gate failure maps to Quality",
+			signal: FailureSignal{Kind: FailureKindQualityGate, Output: "go vet ./... failed"},
+			want:   FailureClassQuality,
+		},
+		{
+			name:   "ambiguous intent maps to Intent",
+			signal: FailureSignal{Kind: FailureKindAmbiguousIntent, Output: "requirements conflict"},
+			want:   FailureClassIntent,
+		},
+		{
+			name:   "data integrity issue maps to Data",
+			signal: FailureSignal{Kind: FailureKindIntegrity, Output: "status file deserialization mismatch"},
+			want:   FailureClassData,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			classified := ClassifyFailureEntry(tt.signal)
+			if classified.Class != tt.want {
+				t.Fatalf("ClassifyFailureEntry(%+v).Class = %q, want %q", tt.signal, classified.Class, tt.want)
+			}
+		})
+	}
+}
