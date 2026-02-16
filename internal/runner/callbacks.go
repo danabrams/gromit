@@ -117,19 +117,39 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 			return false
 		}
 
-		// Save retry state and enforce single attempt
+		// Save retry state and enforce bounded validation recovery attempts.
+		// Validation repair should run a quick first pass, then one escalated pass.
 		savedMaxRetries := bc.MaxRetries
 		savedRetriesThisModel := bc.RetriesThisModel
 		savedTotalRetries := bc.TotalRetriesThisBead
+		savedTier := bc.Tier
+		savedEscalationEnabled := r.cfg.Escalation.Enabled
 		bc.MaxRetries = 0
 		bc.RetriesThisModel = 0
 
-		success := r.escalationHandler.ExecuteWithRetry(ctx, bc, r.makeInvokeFn())
+		runSingleAttempt := func() bool {
+			// Disable escalation inside ExecuteWithRetry so each call is exactly one attempt.
+			r.cfg.Escalation.Enabled = false
+			defer func() {
+				r.cfg.Escalation.Enabled = savedEscalationEnabled
+			}()
+			return r.escalationHandler.ExecuteWithRetry(ctx, bc, r.makeInvokeFn())
+		}
+
+		success := runSingleAttempt()
+		if !success {
+			// If quick recovery fails, run one escalated-tier attempt.
+			if nextTier := r.cfg.NextEscalationTier(savedTier); nextTier != "" {
+				r.escalationHandler.EscalateTier(bc, nextTier)
+				success = runSingleAttempt()
+			}
+		}
 
 		// Restore retry state
 		bc.MaxRetries = savedMaxRetries
 		bc.RetriesThisModel = savedRetriesThisModel
 		bc.TotalRetriesThisBead = savedTotalRetries
+		r.cfg.Escalation.Enabled = savedEscalationEnabled
 
 		return success
 	}

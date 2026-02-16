@@ -40,8 +40,9 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "gromit",
-	Short: "Gromit - Execute the Gromit loop correctly",
+	Use:           "gromit",
+	Short:         "Gromit - Execute the Gromit loop correctly",
+	SilenceErrors: true,
 	Long: `Gromit executes AI coding tasks with fresh context on each iteration.
 
 It integrates with bd (beads) for task management and uses model escalation
@@ -49,8 +50,9 @@ for handling failures efficiently.`,
 }
 
 var runCmd = &cobra.Command{
-	Use:   "run",
-	Short: "Run the Gromit loop",
+	Use:          "run",
+	Short:        "Run the Gromit loop",
+	SilenceUsage: true,
 	Long: `Execute the Gromit loop, processing beads one at a time with fresh context.
 
 Each iteration:

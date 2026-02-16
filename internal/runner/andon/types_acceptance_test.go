@@ -9,7 +9,6 @@ import (
 )
 
 func TestFailureClasses_CanonicalCatalog(t *testing.T) {
-	// Expected failure: AllFailureClasses function does not exist yet and failure class values are not canonicalized to spec labels.
 	got := AllFailureClasses()
 	want := []FailureClass{
 		FailureClassTransient,
@@ -38,7 +37,6 @@ func TestFailureClasses_CanonicalCatalog(t *testing.T) {
 }
 
 func TestLevels_CanonicalCatalog(t *testing.T) {
-	// Expected failure: AllAndonLevels function does not exist yet.
 	got := AllAndonLevels()
 	want := []AndonLevel{LevelL1, LevelL2, LevelL3, LevelL4}
 
@@ -48,7 +46,6 @@ func TestLevels_CanonicalCatalog(t *testing.T) {
 }
 
 func TestDefaultThresholdDefinition_IsPureAndPolicyConsumable(t *testing.T) {
-	// Expected failure: DefaultThresholdDefinition function does not exist yet.
 	first := DefaultThresholdDefinition()
 	first.L1MaxRetries = 99
 	first.L1MaxDuration = 99 * time.Minute

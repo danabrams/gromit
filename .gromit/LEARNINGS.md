@@ -41,14 +41,19 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
 
+### 2026-02-16 | gromit-kk13.1 | patterns
+*Related to: gromit-kk13*
+
+Bead 'Define smoke coverage matrix for cmd and runner' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
+
 ---
 
 ## Provisional
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-16 | gromit-kk13 | patterns
-Bead 'Define slim E2E smoke suite for runner and cmd' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
+### 2026-02-16 | gromit-f8x2 | patterns
+Bead 'Add Andon domain types and policy skeleton' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
 
 ---
 

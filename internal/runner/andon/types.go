@@ -12,9 +12,16 @@ const (
 	LevelL4 AndonLevel = "L4"
 )
 
+var andonLevels = []AndonLevel{
+	LevelL1,
+	LevelL2,
+	LevelL3,
+	LevelL4,
+}
+
 // AllAndonLevels returns the canonical level catalog in escalation order.
 func AllAndonLevels() []AndonLevel {
-	return []AndonLevel{LevelL1, LevelL2, LevelL3, LevelL4}
+	return append([]AndonLevel(nil), andonLevels...)
 }
 
 // AndonThresholds defines policy limits for autonomous recovery.
@@ -25,13 +32,20 @@ type AndonThresholds struct {
 	MaxAssumptions int
 }
 
+const (
+	defaultL1MaxRetries   = 2
+	defaultL1MaxDuration  = 2 * time.Minute
+	defaultL2MaxDuration  = 15 * time.Minute
+	defaultMaxAssumptions = 2
+)
+
 // DefaultThresholdDefinition returns the default policy bounds from the Andon spec.
 func DefaultThresholdDefinition() AndonThresholds {
 	return AndonThresholds{
-		L1MaxRetries:   2,
-		L1MaxDuration:  2 * time.Minute,
-		L2MaxDuration:  15 * time.Minute,
-		MaxAssumptions: 2,
+		L1MaxRetries:   defaultL1MaxRetries,
+		L1MaxDuration:  defaultL1MaxDuration,
+		L2MaxDuration:  defaultL2MaxDuration,
+		MaxAssumptions: defaultMaxAssumptions,
 	}
 }
 
@@ -46,15 +60,17 @@ const (
 	FailureClassData      FailureClass = "Data"
 )
 
+var failureClasses = []FailureClass{
+	FailureClassTransient,
+	FailureClassWorkflow,
+	FailureClassQuality,
+	FailureClassIntent,
+	FailureClassData,
+}
+
 // AllFailureClasses returns the canonical class catalog in spec order.
 func AllFailureClasses() []FailureClass {
-	return []FailureClass{
-		FailureClassTransient,
-		FailureClassWorkflow,
-		FailureClassQuality,
-		FailureClassIntent,
-		FailureClassData,
-	}
+	return append([]FailureClass(nil), failureClasses...)
 }
 
 // FailureKind captures the source pattern for classification.
