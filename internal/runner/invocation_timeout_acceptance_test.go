@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 )
 
+// smoke-matrix: keep | rationale: Retains high-value E2E failure-path coverage for timeout-triggered retry with tier escalation behavior. | destination: internal/runner/invocation_timeout_acceptance_test.go:TestRunnerSmoke_ValidationFailureEscalatesTier
 func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
 	var tiers []string
 	callCount := 0

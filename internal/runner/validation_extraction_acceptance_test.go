@@ -33,6 +33,7 @@ func validationAcceptanceConfig(t *testing.T) *config.Config {
 	return cfg
 }
 
+// smoke-matrix: keep | rationale: Preserves core end-to-end success path that validates runner wiring from construction through a full run invocation. | destination: internal/runner/validation_extraction_acceptance_test.go:TestRunnerSmoke_RunSingleBeadHappyPath
 func TestRunnerSmoke_RunSingleBeadHappyPath(t *testing.T) {
 	cfg := validationAcceptanceConfig(t)
 	runner, err := NewRunner(cfg, os.Stdout)
