@@ -376,3 +376,54 @@ func TestEvaluateFailure_UsesWorkflowDecisionPath(t *testing.T) {
 		t.Fatalf("Path = %q, want %q", got.Path, DecisionPathWorkflowEscalateAfterDeterministicAttempt)
 	}
 }
+
+func TestEvaluateClassifiedFailure_HasExplicitPathPerClass(t *testing.T) {
+	now, thresholds := setupPolicyTest(t)
+
+	tests := []struct {
+		name           string
+		classification PolicyClassification
+		state          RecoveryState
+		wantPath       DecisionPath
+	}{
+		{
+			name:           "transient",
+			classification: PolicyClassification{Class: FailureClassTransient},
+			state:          RecoveryState{Level: LevelL1, L1Attempts: 0, L1Started: now},
+			wantPath:       DecisionPathTransientL1Retry,
+		},
+		{
+			name:           "workflow",
+			classification: PolicyClassification{Class: FailureClassWorkflow},
+			state:          RecoveryState{Level: LevelL1, L1Attempts: 1, L1Started: now},
+			wantPath:       DecisionPathWorkflowEscalateAfterDeterministicAttempt,
+		},
+		{
+			name:           "quality",
+			classification: PolicyClassification{Class: FailureClassQuality},
+			state:          RecoveryState{Level: LevelL2, L2Started: now.Add(-16 * time.Minute)},
+			wantPath:       DecisionPathQualityStopLineAfterTimebox,
+		},
+		{
+			name:           "intent",
+			classification: PolicyClassification{Class: FailureClassIntent},
+			state:          RecoveryState{Level: LevelL1, AssumptionsUsed: thresholds.MaxAssumptions},
+			wantPath:       DecisionPathIntentEscalateAfterAssumptionBudget,
+		},
+		{
+			name:           "data",
+			classification: PolicyClassification{Class: FailureClassData},
+			state:          RecoveryState{Level: LevelL1},
+			wantPath:       DecisionPathDataImmediateStopLine,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := EvaluateClassifiedFailure(tt.classification, tt.state, thresholds, now)
+			if got.Path != tt.wantPath {
+				t.Fatalf("Path = %q, want %q", got.Path, tt.wantPath)
+			}
+		})
+	}
+}

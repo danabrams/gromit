@@ -76,13 +76,20 @@ func evaluateFailureClass(class FailureClass, state RecoveryState, thresholds An
 func chooseDecisionForClass(state RecoveryState, thresholds AndonThresholds, now time.Time) (PolicyDecision, DecisionPath) {
 	decision := ChooseNextAction(state, thresholds, now)
 
-	if state.Class == FailureClassWorkflow &&
-		state.Level == LevelL1 &&
-		state.L1Attempts >= workflowEscalationAttemptThreshold {
+	switch state.Class {
+	case FailureClassTransient:
+		return decision, DecisionPathTransientL1Retry
+	case FailureClassWorkflow:
 		return decision, DecisionPathWorkflowEscalateAfterDeterministicAttempt
+	case FailureClassQuality:
+		return decision, DecisionPathQualityStopLineAfterTimebox
+	case FailureClassIntent:
+		return decision, DecisionPathIntentEscalateAfterAssumptionBudget
+	case FailureClassData:
+		return decision, DecisionPathDataImmediateStopLine
+	default:
+		return decision, DecisionPathWorkflowFallbackForUnknownKind
 	}
-
-	return decision, ""
 }
 
 // ChooseNextActionPure computes the next bounded recovery step for a failure state.
