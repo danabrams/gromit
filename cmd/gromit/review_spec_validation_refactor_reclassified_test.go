@@ -1,4 +1,3 @@
-//go:build acceptance
 
 package main
 
