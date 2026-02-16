@@ -3,6 +3,7 @@ package andon
 import "time"
 
 const workflowEscalationAttemptThreshold = 1
+const defaultFailureClass = FailureClassWorkflow
 
 // DefaultThresholds returns the default policy bounds from the Andon spec.
 func DefaultThresholds() AndonThresholds {
@@ -31,7 +32,8 @@ func ClassifyFailure(signal FailureSignal) FailureClass {
 	case FailureKindIntegrity:
 		return FailureClassData
 	default:
-		return FailureClassWorkflow
+		// Unknown signals route through the workflow class so policy output remains canonical.
+		return defaultFailureClass
 	}
 }
 
@@ -52,21 +54,19 @@ func ChooseNextAction(state RecoveryState, thresholds AndonThresholds, now time.
 
 // EvaluateFailure classifies a failure signal and selects the next action.
 func EvaluateFailure(signal FailureSignal, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
-	class := ClassifyFailure(signal)
-	state.Class = class
-
-	return PolicyEvaluation{
-		Class:    class,
-		Decision: ChooseNextAction(state, thresholds, now),
-	}
+	return evaluateFailureClass(ClassifyFailure(signal), state, thresholds, now)
 }
 
 // EvaluateClassifiedFailure selects policy action from a pre-classified failure.
 func EvaluateClassifiedFailure(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
-	state.Class = classification.Class
+	return evaluateFailureClass(classification.Class, state, thresholds, now)
+}
+
+func evaluateFailureClass(class FailureClass, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
+	state.Class = class
 
 	return PolicyEvaluation{
-		Class:    classification.Class,
+		Class:    class,
 		Decision: ChooseNextAction(state, thresholds, now),
 	}
 }
