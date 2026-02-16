@@ -13,6 +13,70 @@ import (
 	"github.com/danabrams/gromit/test/testutil"
 )
 
+func TestProviderContractFixtures_CodexTextFixturesHaveDeterministicCLIShape(t *testing.T) {
+	// Expected failure: fixturecatalog.AssertCodexTextFixtureShape() does not exist yet,
+	// and codex text fixtures have not been updated to the deterministic CLI transcript format.
+	tests := []struct {
+		name               string
+		fixtureName        string
+		requiredSubstrings []string
+	}{
+		{
+			name:        "codex success text fixture",
+			fixtureName: "codex_success.txt",
+			requiredSubstrings: []string{
+				"# provenance:",
+				"# refresh:",
+				"codex run --model sonnet",
+				"status: success",
+				"exit_code: 0",
+			},
+		},
+		{
+			name:        "codex failure text fixture",
+			fixtureName: "codex_failure.txt",
+			requiredSubstrings: []string{
+				"# provenance:",
+				"# refresh:",
+				"codex run --model sonnet",
+				"status: failure",
+				"error_code:",
+				"error_message:",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Expected failure: fixturecatalog.CodexTextScenarios() does not exist yet,
+			// so these subtests fail until codex text fixtures are normalized to this shape.
+			path := filepath.Join(fixturesDir, tt.fixtureName)
+			contentBytes, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("failed to read fixture %q: %v", tt.fixtureName, err)
+			}
+			content := string(contentBytes)
+
+			for _, required := range tt.requiredSubstrings {
+				if !strings.Contains(content, required) {
+					t.Fatalf("fixture %q must contain %q", tt.fixtureName, required)
+				}
+			}
+
+			lines := strings.Split(strings.TrimSpace(content), "\n")
+			if len(lines) < 3 {
+				t.Fatalf("fixture %q must include a two-line comment header plus body content", tt.fixtureName)
+			}
+			if !strings.HasPrefix(lines[0], "# provenance:") {
+				t.Fatalf("fixture %q first line must be '# provenance:'", tt.fixtureName)
+			}
+			if !strings.HasPrefix(lines[1], "# refresh:") {
+				t.Fatalf("fixture %q second line must be '# refresh:'", tt.fixtureName)
+			}
+		})
+	}
+}
+
 func TestProviderContractFixtures_ExistWithProvenance(t *testing.T) {
 	// Expected failure: fixturecatalog.LoadCanonicalProviderFixtures() does not exist yet,
 	// and canonical Codex/Claude fixture snapshots have not been added under test/fixtures.
