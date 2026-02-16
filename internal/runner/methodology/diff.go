@@ -37,3 +37,35 @@ func IsTestOnlyDiff(diff string) bool {
 	}
 	return true
 }
+
+// DetectTouchedPackages extracts unique Go package paths from git diff output.
+// Only .go files are considered; non-Go files are ignored.
+func DetectTouchedPackages(diff string) []string {
+	files := ParseDiffFiles(diff)
+	if len(files) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]bool)
+	packages := make([]string, 0, len(files))
+
+	for _, filePath := range files {
+		if !strings.HasSuffix(filePath, ".go") {
+			continue
+		}
+
+		lastSlash := strings.LastIndex(filePath, "/")
+		pkgPath := "."
+		if lastSlash > 0 {
+			pkgPath = filePath[:lastSlash]
+		}
+
+		if seen[pkgPath] {
+			continue
+		}
+		seen[pkgPath] = true
+		packages = append(packages, pkgPath)
+	}
+
+	return packages
+}

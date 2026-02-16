@@ -77,7 +77,10 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 			}
 		}
 
-		if err := r.runValidationWithRecovery(ctx, bc); err != nil {
+		// In methodology mode, this validation is an intermediate gate before refactor.
+		// Defer post-success stages (review/learning) until final validation completes.
+		runPostSuccess := !atddActive && !tddActive
+		if err := r.runValidationWithRecoveryForStage(ctx, bc, runPostSuccess); err != nil {
 			bc.Result.Error = err
 			return bc.Result
 		}
@@ -108,11 +111,20 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	}
 
 	if r.cfg.Validation.Enabled {
+		if bc.StartCommit != "" {
+			diff, err := r.getDiff(bc.StartCommit)
+			if err == nil && diff != "" {
+				bc.TouchedPackages = detectTouchedPackages(diff)
+			}
+		}
+
 		validationCtx := ctx
 		if bc != nil && bc.ParentCtx != nil {
 			validationCtx = bc.ParentCtx
 		}
-		if err := r.runValidationWithRecovery(validationCtx, bc); err != nil {
+		// This is the final validation pass after refactor, so post-success stages
+		// must run here.
+		if err := r.runValidationWithRecoveryForStage(validationCtx, bc, true); err != nil {
 			bc.Result.Error = wrapRefactorValidationError(err)
 			return false, bc.Result
 		}

@@ -214,6 +214,12 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 		return nil
 	}
 
+	if diff, diffErr := e.getDiffFn(bc.StartCommit); diffErr == nil {
+		if touched := DetectTouchedPackages(diff); len(touched) > 0 {
+			bc.TouchedPackages = touched
+		}
+	}
+
 	validationCommands := config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
 	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
 	if err != nil {
@@ -278,6 +284,12 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 		return nil
 	}
 	validationCommands := config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+	if diff, diffErr := e.getDiffFn(bc.StartCommit); diffErr == nil {
+		if touched := DetectTouchedPackages(diff); len(touched) > 0 {
+			bc.TouchedPackages = touched
+			validationCommands = config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+		}
+	}
 	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
 
 	if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {

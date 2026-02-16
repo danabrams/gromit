@@ -144,18 +144,38 @@ func buildScopedGoTestTargets(touchedPackages []string) []string {
 		pkg = strings.TrimPrefix(pkg, "./")
 		pkg = strings.TrimSuffix(pkg, "/...")
 		pkg = strings.TrimSuffix(pkg, "/")
-		if pkg == "" || pkg == "." || strings.ContainsAny(pkg, " \t\n\r") {
+		if pkg == "" || strings.ContainsAny(pkg, " \t\n\r") {
 			continue
+		}
+		target := "."
+		if pkg != "." {
+			target = "./" + pkg + "/..."
 		}
 		if _, ok := seen[pkg]; ok {
 			continue
 		}
 		seen[pkg] = struct{}{}
-		targets = append(targets, "./"+pkg+"/...")
+		targets = append(targets, target)
 	}
 
 	slices.Sort(targets)
 	return targets
+}
+
+func (e *Executor) refreshTouchedPackages(bc *runtypes.BeadContext) {
+	if e == nil || bc == nil || e.getDiffFn == nil || strings.TrimSpace(bc.StartCommit) == "" {
+		return
+	}
+
+	diff, err := e.getDiffFn(bc.StartCommit)
+	if err != nil || strings.TrimSpace(diff) == "" {
+		return
+	}
+
+	touched := DetectTouchedPackages(diff)
+	if len(touched) > 0 {
+		bc.TouchedPackages = touched
+	}
 }
 
 // log writes a formatted message to the output writer.
@@ -204,6 +224,7 @@ func (e *Executor) VerifyTestsFail(ctx context.Context, bc *runtypes.BeadContext
 	}
 
 	e.log("Verifying acceptance tests fail (as expected)...")
+	e.refreshTouchedPackages(bc)
 
 	acceptanceCommands := AcceptanceCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
 	e.log("ATDD verify command set: %s", strings.Join(acceptanceCommands, " && "))
@@ -244,6 +265,7 @@ func (e *Executor) VerifyAcceptanceTestsPass(ctx context.Context, bc *runtypes.B
 	}
 
 	e.log("Verifying acceptance tests pass after implementation...")
+	e.refreshTouchedPackages(bc)
 
 	valResult, err := e.validateFn(ctx, AcceptanceCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages), bc.PromptCtx.WorkDir)
 	if err != nil {

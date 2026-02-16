@@ -101,7 +101,6 @@ func TestEvaluateFailure_ClassifiesAndSelectsDecisionForAllClasses(t *testing.T)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Expected failure: EvaluateFailure and PolicyEvaluation do not exist yet as public classification+decision entry points.
 			got := EvaluateFailure(tt.signal, tt.state, thresholds, now)
 			if got.Class != tt.want.Class {
 				t.Fatalf("EvaluateFailure(...).Class = %q, want %q", got.Class, tt.want.Class)
@@ -126,7 +125,6 @@ func TestEvaluateFailure_EnforcesL1L2BoundaryAtPublicEntryPoint(t *testing.T) {
 		L1Started:  now,
 	}
 
-	// Expected failure: EvaluateFailure is not implemented, so L1/L2 boundary behavior is not testable through a single public entry point.
 	got := EvaluateFailure(signal, state, thresholds, now)
 	if got.Class != FailureClassTransient {
 		t.Fatalf("EvaluateFailure(...).Class = %q, want %q", got.Class, FailureClassTransient)

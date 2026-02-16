@@ -5,6 +5,21 @@ import (
 	"time"
 )
 
+func setupPolicyTest(t *testing.T) (time.Time, AndonThresholds) {
+	t.Helper()
+	return time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC), DefaultThresholds()
+}
+
+func assertDecision(t *testing.T, got PolicyDecision, wantLevel AndonLevel, wantAction Decision) {
+	t.Helper()
+	if got.NextLevel != wantLevel {
+		t.Fatalf("NextLevel = %q, want %q", got.NextLevel, wantLevel)
+	}
+	if got.Action != wantAction {
+		t.Fatalf("Action = %q, want %q", got.Action, wantAction)
+	}
+}
+
 // TestDefaultThresholds_SpecAligned verifies the default Andon bounds used by the
 // policy for L1/L2 autonomy.
 func TestDefaultThresholds_SpecAligned(t *testing.T) {
@@ -102,8 +117,7 @@ func TestClassifyFailure_SupportsAllAndonClasses(t *testing.T) {
 // TestChooseNextAction_EnforcesL1AndL2Bounds verifies L1 and L2 thresholds are
 // represented and enforced in policy decisions.
 func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
-	thresholds := DefaultThresholds()
-	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+	now, thresholds := setupPolicyTest(t)
 
 	t.Run("L1 within retry/time bounds stays in L1", func(t *testing.T) {
 		state := RecoveryState{
@@ -114,12 +128,7 @@ func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
 		}
 
 		decision := ChooseNextAction(state, thresholds, now)
-		if decision.NextLevel != LevelL1 {
-			t.Fatalf("NextLevel = %q, want %q", decision.NextLevel, LevelL1)
-		}
-		if decision.Action != DecisionRetry {
-			t.Fatalf("Action = %q, want %q", decision.Action, DecisionRetry)
-		}
+		assertDecision(t, decision, LevelL1, DecisionRetry)
 	})
 
 	t.Run("L1 retry cap escalates to L2", func(t *testing.T) {
@@ -131,12 +140,7 @@ func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
 		}
 
 		decision := ChooseNextAction(state, thresholds, now)
-		if decision.NextLevel != LevelL2 {
-			t.Fatalf("NextLevel = %q, want %q", decision.NextLevel, LevelL2)
-		}
-		if decision.Action != DecisionEscalate {
-			t.Fatalf("Action = %q, want %q", decision.Action, DecisionEscalate)
-		}
+		assertDecision(t, decision, LevelL2, DecisionEscalate)
 	})
 
 	t.Run("L2 timebox exhaustion escalates to L3", func(t *testing.T) {
@@ -147,20 +151,14 @@ func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
 		}
 
 		decision := ChooseNextAction(state, thresholds, now)
-		if decision.NextLevel != LevelL3 {
-			t.Fatalf("NextLevel = %q, want %q", decision.NextLevel, LevelL3)
-		}
-		if decision.Action != DecisionStopLine {
-			t.Fatalf("Action = %q, want %q", decision.Action, DecisionStopLine)
-		}
+		assertDecision(t, decision, LevelL3, DecisionStopLine)
 	})
 }
 
 // TestChooseNextAction_HasDecisionPathPerFailureClass verifies at least one policy
 // decision path for each Andon failure class.
 func TestChooseNextAction_HasDecisionPathPerFailureClass(t *testing.T) {
-	thresholds := DefaultThresholds()
-	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+	now, thresholds := setupPolicyTest(t)
 
 	tests := []struct {
 		name  string
@@ -218,19 +216,13 @@ func TestChooseNextAction_HasDecisionPathPerFailureClass(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			decision := ChooseNextAction(tt.state, thresholds, now)
-			if decision.NextLevel != tt.want.NextLevel {
-				t.Fatalf("NextLevel = %q, want %q", decision.NextLevel, tt.want.NextLevel)
-			}
-			if decision.Action != tt.want.Action {
-				t.Fatalf("Action = %q, want %q", decision.Action, tt.want.Action)
-			}
+			assertDecision(t, decision, tt.want.NextLevel, tt.want.Action)
 		})
 	}
 }
 
 func TestEvaluateFailure_ClassifiesTransientAndChoosesDecision(t *testing.T) {
-	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
-	thresholds := DefaultThresholds()
+	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
 		FailureSignal{
@@ -249,17 +241,11 @@ func TestEvaluateFailure_ClassifiesTransientAndChoosesDecision(t *testing.T) {
 	if got.Class != FailureClassTransient {
 		t.Fatalf("Class = %q, want %q", got.Class, FailureClassTransient)
 	}
-	if got.Decision.NextLevel != LevelL1 {
-		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL1)
-	}
-	if got.Decision.Action != DecisionRetry {
-		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionRetry)
-	}
+	assertDecision(t, got.Decision, LevelL1, DecisionRetry)
 }
 
 func TestEvaluateFailure_ClassifiesWorkflowAndEscalatesFromL1(t *testing.T) {
-	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
-	thresholds := DefaultThresholds()
+	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
 		FailureSignal{
@@ -278,17 +264,11 @@ func TestEvaluateFailure_ClassifiesWorkflowAndEscalatesFromL1(t *testing.T) {
 	if got.Class != FailureClassWorkflow {
 		t.Fatalf("Class = %q, want %q", got.Class, FailureClassWorkflow)
 	}
-	if got.Decision.NextLevel != LevelL2 {
-		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL2)
-	}
-	if got.Decision.Action != DecisionEscalate {
-		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionEscalate)
-	}
+	assertDecision(t, got.Decision, LevelL2, DecisionEscalate)
 }
 
 func TestEvaluateFailure_ClassifiesQualityAndStopsLineFromL2(t *testing.T) {
-	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
-	thresholds := DefaultThresholds()
+	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
 		FailureSignal{
@@ -306,17 +286,11 @@ func TestEvaluateFailure_ClassifiesQualityAndStopsLineFromL2(t *testing.T) {
 	if got.Class != FailureClassQuality {
 		t.Fatalf("Class = %q, want %q", got.Class, FailureClassQuality)
 	}
-	if got.Decision.NextLevel != LevelL3 {
-		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL3)
-	}
-	if got.Decision.Action != DecisionStopLine {
-		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionStopLine)
-	}
+	assertDecision(t, got.Decision, LevelL3, DecisionStopLine)
 }
 
 func TestEvaluateFailure_ClassifiesIntentAndEscalatesWhenAssumptionsExhausted(t *testing.T) {
-	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
-	thresholds := DefaultThresholds()
+	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
 		FailureSignal{
@@ -334,17 +308,11 @@ func TestEvaluateFailure_ClassifiesIntentAndEscalatesWhenAssumptionsExhausted(t 
 	if got.Class != FailureClassIntent {
 		t.Fatalf("Class = %q, want %q", got.Class, FailureClassIntent)
 	}
-	if got.Decision.NextLevel != LevelL3 {
-		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL3)
-	}
-	if got.Decision.Action != DecisionEscalate {
-		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionEscalate)
-	}
+	assertDecision(t, got.Decision, LevelL3, DecisionEscalate)
 }
 
 func TestEvaluateFailure_ClassifiesDataAndStopsLineImmediately(t *testing.T) {
-	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
-	thresholds := DefaultThresholds()
+	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
 		FailureSignal{
@@ -361,17 +329,11 @@ func TestEvaluateFailure_ClassifiesDataAndStopsLineImmediately(t *testing.T) {
 	if got.Class != FailureClassData {
 		t.Fatalf("Class = %q, want %q", got.Class, FailureClassData)
 	}
-	if got.Decision.NextLevel != LevelL3 {
-		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL3)
-	}
-	if got.Decision.Action != DecisionStopLine {
-		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionStopLine)
-	}
+	assertDecision(t, got.Decision, LevelL3, DecisionStopLine)
 }
 
 func TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap(t *testing.T) {
-	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
-	thresholds := DefaultThresholds()
+	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
 		FailureSignal{
@@ -390,10 +352,5 @@ func TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap(t *testing.T) {
 	if got.Class != FailureClassTransient {
 		t.Fatalf("Class = %q, want %q", got.Class, FailureClassTransient)
 	}
-	if got.Decision.NextLevel != LevelL2 {
-		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL2)
-	}
-	if got.Decision.Action != DecisionEscalate {
-		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionEscalate)
-	}
+	assertDecision(t, got.Decision, LevelL2, DecisionEscalate)
 }

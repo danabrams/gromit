@@ -556,7 +556,11 @@ func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
 	uniqueTouched := make([]string, 0, len(touchedPackages))
 	seen := make(map[string]bool, len(touchedPackages))
 	for _, pkg := range touchedPackages {
-		normalized := strings.Trim(strings.TrimPrefix(pkg, "./"), "/")
+		trimmed := strings.TrimSpace(pkg)
+		normalized := strings.Trim(strings.TrimPrefix(trimmed, "./"), "/")
+		if trimmed == "." || strings.TrimSpace(normalized) == "." {
+			normalized = "."
+		}
 		if normalized == "" || seen[normalized] {
 			continue
 		}
@@ -592,6 +596,10 @@ func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
 
 	scopedPackages := make([]string, 0, len(collapsed))
 	for _, pkg := range collapsed {
+		if pkg == "." {
+			scopedPackages = append(scopedPackages, ".")
+			continue
+		}
 		scopedPackages = append(scopedPackages, "./"+pkg+"/...")
 	}
 	if len(scopedPackages) == 0 {

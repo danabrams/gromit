@@ -324,7 +324,7 @@ func (r *Runner) validationPreflight(bc *runtypes.BeadContext) (bool, error) {
 // handleValidationResult processes the result of a validation run, handling both
 // failure (logging, analysis, learning extraction) and success (touched packages,
 // success learning, review). failureOutput is the text passed to the log and analyzer.
-func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadContext, valErr error, failureOutput string) error {
+func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadContext, valErr error, failureOutput string, runPostSuccess bool) error {
 	// Sync failure summaries from validation.Runner to facade
 	r.validationFailures = r.validationRunner.Failures()
 
@@ -367,6 +367,13 @@ func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadCo
 		r.updateTouchedPackages(bc.TouchedPackages)
 	}
 
+	// Run post-success stages sequentially.
+	// For methodology flows, the first validation pass is an intermediate gate;
+	// post-success stages (learning/review) should run only after final validation.
+	if !runPostSuccess {
+		return nil
+	}
+
 	// Run post-success stages sequentially
 	learningEnabled := r.cfg != nil && r.cfg.Loop.ShouldLearnFromSuccess()
 	reviewEnabled := r.cfg != nil && r.cfg.Review.Enabled
@@ -407,7 +414,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 	failureOutput := strings.TrimPrefix(bc.Result.Output, outputBefore)
 	failureOutput = strings.TrimPrefix(failureOutput, "\n\n=== VALIDATION OUTPUT ===\n")
 
-	return r.handleValidationResult(ctx, bc, valErr, failureOutput)
+	return r.handleValidationResult(ctx, bc, valErr, failureOutput, true)
 }
 
 // runValidationWithRecovery delegates validation and recovery entirely to the
@@ -415,6 +422,12 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 // orchestration concerns: preflight checking, logging, failure analysis,
 // learning extraction, and post-success stages (review).
 func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.BeadContext) error {
+	return r.runValidationWithRecoveryForStage(ctx, bc, true)
+}
+
+// runValidationWithRecoveryForStage runs validation and controls whether
+// post-success stages (success learning + light review) should execute.
+func (r *Runner) runValidationWithRecoveryForStage(ctx context.Context, bc *runtypes.BeadContext, runPostSuccess bool) error {
 	proceed, err := r.validationPreflight(bc)
 	if !proceed || err != nil {
 		return err
@@ -427,7 +440,7 @@ func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.Bea
 	// Delegate core validation + recovery to validation.Runner
 	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, "fast")
 
-	return r.handleValidationResult(ctx, bc, valErr, bc.Result.Output)
+	return r.handleValidationResult(ctx, bc, valErr, bc.Result.Output, runPostSuccess)
 }
 
 func (r *Runner) maybeRunPeriodicFullValidation(ctx context.Context, beadID string, iteration int) error {
@@ -517,5 +530,5 @@ func (r *Runner) runFullValidationGate(ctx context.Context, beadID string, itera
 		}
 		return nil
 	}
-	return r.handleValidationResult(ctx, bc, valErr, bc.Result.Output)
+	return r.handleValidationResult(ctx, bc, valErr, bc.Result.Output, false)
 }

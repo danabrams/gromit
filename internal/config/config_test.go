@@ -3437,6 +3437,21 @@ func TestScopeGoTestCommands_CollapsesNestedPackages(t *testing.T) {
 	}
 }
 
+func TestScopeGoTestCommands_IncludesRootPackage(t *testing.T) {
+	commands := []string{"go test -count=1 ./..."}
+	touched := []string{".", "internal/runner"}
+
+	got := ScopeGoTestCommands(commands, touched)
+	want := "go test -count=1 . ./internal/runner/..."
+
+	if len(got) != 1 {
+		t.Fatalf("ScopeGoTestCommands returned %d commands, want 1", len(got))
+	}
+	if got[0] != want {
+		t.Fatalf("scoped go test command = %q, want %q", got[0], want)
+	}
+}
+
 // findProjectRoot walks up from the current working directory to find the
 // project root (directory containing gromit.yaml).
 func findProjectRoot(t *testing.T) string {

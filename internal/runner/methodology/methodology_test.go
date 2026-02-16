@@ -217,6 +217,42 @@ func TestVerifyTestsFail_UsesAcceptanceCommands(t *testing.T) {
 	}
 }
 
+func TestVerifyTestsFail_RefreshesTouchedPackagesFromDiff(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.FastCommands = []string{"go test ./..."}
+	var buf strings.Builder
+
+	var receivedCommands []string
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		receivedCommands = append([]string{}, commands...)
+		return &claude.Result{
+			Success:  true,
+			Output:   "FAIL: acceptance still red",
+			ExitCode: 1,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	exec.SetGetDiffFn(func(startCommit string) (string, error) {
+		return "diff --git a/internal/runner/foo.go b/internal/runner/foo.go\n", nil
+	})
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+	bc.TouchedPackages = nil
+
+	if err := exec.VerifyTestsFail(context.Background(), bc); err != nil {
+		t.Fatalf("VerifyTestsFail returned unexpected error: %v", err)
+	}
+
+	if len(receivedCommands) != 1 {
+		t.Fatalf("expected 1 command, got %d", len(receivedCommands))
+	}
+	if receivedCommands[0] != "go test -tags acceptance ./internal/runner/..." {
+		t.Fatalf("expected scoped acceptance command, got %q", receivedCommands[0])
+	}
+}
+
 func TestVerifyTestsFail_ReturnsNilWhenTestsFail(t *testing.T) {
 	cfg := newTestConfig()
 	var buf strings.Builder
@@ -528,6 +564,20 @@ func TestAcceptanceCommands_ScopesGoTestToMultipleTouchedPackages(t *testing.T) 
 		t.Fatalf("AcceptanceCommands returned %d commands, want 1", len(got))
 	}
 	want := "go test -tags acceptance -count=1 ./internal/config/... ./internal/runner/..."
+	if got[0] != want {
+		t.Errorf("AcceptanceCommands()[0] = %q, want %q", got[0], want)
+	}
+}
+
+func TestAcceptanceCommands_IncludesRootPackage(t *testing.T) {
+	commands := []string{"go test -count=1 ./..."}
+	got := AcceptanceCommands(commands, []string{".", "internal/runner"})
+
+	if len(got) != 1 {
+		t.Fatalf("AcceptanceCommands returned %d commands, want 1", len(got))
+	}
+
+	want := "go test -tags acceptance -count=1 . ./internal/runner/..."
 	if got[0] != want {
 		t.Errorf("AcceptanceCommands()[0] = %q, want %q", got[0], want)
 	}
