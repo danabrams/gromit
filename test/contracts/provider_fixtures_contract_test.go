@@ -207,14 +207,11 @@ func TestProviderContractFixtures_NamingIsScenarioDriven(t *testing.T) {
 }
 
 func TestProviderContractFixtures_CodexStreamFixturesUseLifecycleAndErrorShapes(t *testing.T) {
-	// Expected failure: fixturecatalog.AssertCodexJSONLStreamLifecycle() does not exist yet,
-	// and codex stream fixtures do not yet encode the required start/delta/end ordering and explicit error termination.
 	tests := []struct {
-		name                        string
-		fixtureName                 string
-		requireLifecycleStart       bool
-		requireTerminalErrorEvent   bool
-		requireTerminalResultStatus bool
+		name                      string
+		fixtureName               string
+		requireLifecycleStart     bool
+		requireTerminalErrorEvent bool
 	}{
 		{
 			name:                  "codex stream success has start delta end lifecycle",
@@ -231,8 +228,6 @@ func TestProviderContractFixtures_CodexStreamFixturesUseLifecycleAndErrorShapes(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Expected failure: fixturecatalog.ParseCodexJSONLEvents() does not exist yet,
-			// so fixture validation fails until codex stream fixtures adopt canonical JSONL event ordering.
 			path := filepath.Join(fixturesDir, tt.fixtureName)
 			contentBytes, err := os.ReadFile(path)
 			if err != nil {
@@ -395,8 +390,6 @@ func newClaudeFixtureCommand(testDir string, env []string, args ...string) *exec
 }
 
 func TestProviderContractFixtures_AreConsumedByFakeCLI(t *testing.T) {
-	// Expected failure: fixturecatalog.PathForProviderScenario() helper does not exist yet,
-	// and contract tests still rely on inline fixture payloads instead of canonical snapshots.
 	env := setupTestEnv(t)
 
 	tests := []struct {
