@@ -1115,6 +1115,58 @@ func TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge(t *testing.T) {
 	}
 }
 
+func TestCreateSessionWorktree_UniqueNames(t *testing.T) {
+	// Expected failure: CreateSessionWorktree does not exist yet and session-specific
+	// worktree/branch naming is not implemented.
+
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	first, err := m.CreateSessionWorktree("review")
+	if err != nil {
+		t.Fatalf("CreateSessionWorktree() error = %v, want nil", err)
+	}
+
+	second, err := m.CreateSessionWorktree("review")
+	if err != nil {
+		t.Fatalf("CreateSessionWorktree() error = %v, want nil", err)
+	}
+
+	if first.BranchName == "" || second.BranchName == "" {
+		t.Fatalf("expected non-empty branch names, got %q and %q", first.BranchName, second.BranchName)
+	}
+	if first.WorktreeDir == "" || second.WorktreeDir == "" {
+		t.Fatalf("expected non-empty worktree dirs, got %q and %q", first.WorktreeDir, second.WorktreeDir)
+	}
+	if first.BranchName == second.BranchName {
+		t.Errorf("expected unique branch names per session, got %q", first.BranchName)
+	}
+	if first.WorktreeDir == second.WorktreeDir {
+		t.Errorf("expected unique worktree paths per session, got %q", first.WorktreeDir)
+	}
+	if !strings.Contains(first.BranchName, "review") || !strings.Contains(second.BranchName, "review") {
+		t.Errorf("expected branch names to include command %q, got %q and %q", "review", first.BranchName, second.BranchName)
+	}
+	if !strings.Contains(filepath.Base(first.WorktreeDir), "review") || !strings.Contains(filepath.Base(second.WorktreeDir), "review") {
+		t.Errorf("expected worktree dirs to include command %q, got %q and %q", "review", first.WorktreeDir, second.WorktreeDir)
+	}
+	if first.WorktreeDir == mainDir+"-gromit-interactive" || second.WorktreeDir == mainDir+"-gromit-interactive" {
+		t.Errorf("expected session worktrees to avoid legacy path %q", mainDir+"-gromit-interactive")
+	}
+}
+
 // contains checks if a string slice contains a specific string.
 func contains(slice []string, target string) bool {
 	for _, s := range slice {

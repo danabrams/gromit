@@ -12,6 +12,12 @@ import (
 // dir is the working directory, args are the git command arguments.
 type GitRunFn func(dir string, args ...string) (string, error)
 
+// SessionWorktree holds the result of creating a session-specific worktree.
+type SessionWorktree struct {
+	BranchName  string
+	WorktreeDir string
+}
+
 // Manager manages git worktree lifecycle for interactive commands.
 type Manager struct {
 	MainDir     string   // path to main worktree (project root)
@@ -113,6 +119,33 @@ func (m *Manager) CreateBranch(command string) (string, error) {
 	}
 
 	return branchName, nil
+}
+
+// CreateSessionWorktree creates a session-specific worktree with unique branch and path names.
+// Returns a SessionWorktree containing the branch name and worktree directory path.
+func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error) {
+	if m == nil {
+		return nil, errors.New("nil Manager receiver")
+	}
+	if command == "" {
+		return nil, errors.New("command cannot be empty")
+	}
+
+	// Generate unique session identifier with nanosecond precision for uniqueness
+	timestamp := time.Now().UnixNano()
+	branchName := fmt.Sprintf("gromit/%s-%d", command, timestamp)
+	worktreeDir := fmt.Sprintf("%s-gromit-%s-%d", m.MainDir, command, timestamp)
+
+	// Create the worktree with the new branch
+	_, err := m.runGit(m.MainDir, "worktree", "add", worktreeDir, "-b", branchName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session worktree: %w", err)
+	}
+
+	return &SessionWorktree{
+		BranchName:  branchName,
+		WorktreeDir: worktreeDir,
+	}, nil
 }
 
 // PendingBranches returns branches created by interactive sessions
