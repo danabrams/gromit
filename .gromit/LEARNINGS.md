@@ -36,14 +36,27 @@ Acceptance tests (//go:build acceptance) are subject to line count audits — to
 
 Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating. Template files follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks. When modifying sections, maintain blank lines between sections and ensure downstream blocks remain unchanged. Acceptance tests for template changes must match the exact content being added, including specific phrases and subsection structure.
 
+### 2026-02-16 | Provider Contract Fixtures | patterns
+*Related to: gromit-d7j9*
+
+Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
+
 ---
 
 ## Provisional
 
 *Seen once - may be specific to one task.*
 
+*No provisional learnings.*
+
 ---
 
 ## Archived
 
-*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
+*No longer relevant or superseded.*
+
+### 2026-02-16 | gromit-gdsr | patterns
+Bead 'Reclassify runner acceptance tests to unit tests' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
+
+*Archived from new: filtered: generic engineering advice*
+
