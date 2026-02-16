@@ -32,6 +32,18 @@ func ClassifyFailure(signal FailureSignal) FailureClass {
 
 // ChooseNextAction computes the next bounded recovery step for a failure state.
 func ChooseNextAction(state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyDecision {
+	if state.Class == FailureClassData {
+		return PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine}
+	}
+
+	if state.Class == FailureClassIntent && state.AssumptionsUsed >= thresholds.MaxAssumptions {
+		return PolicyDecision{NextLevel: LevelL3, Action: DecisionEscalate}
+	}
+
+	if state.Class == FailureClassWorkflow && state.Level == LevelL1 && state.L1Attempts >= 1 {
+		return PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate}
+	}
+
 	if state.Level == LevelL2 {
 		if elapsed(state.L2Started, now) > thresholds.L2MaxDuration {
 			return PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine}

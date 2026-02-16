@@ -155,3 +155,75 @@ func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
 		}
 	})
 }
+
+// TestChooseNextAction_HasDecisionPathPerFailureClass verifies at least one policy
+// decision path for each Andon failure class.
+func TestChooseNextAction_HasDecisionPathPerFailureClass(t *testing.T) {
+	thresholds := DefaultThresholds()
+	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name  string
+		state RecoveryState
+		want  PolicyDecision
+	}{
+		{
+			name: "Transient retries in L1 when below limits",
+			state: RecoveryState{
+				Class:      FailureClassTransient,
+				Level:      LevelL1,
+				L1Attempts: 0,
+				L1Started:  now,
+			},
+			want: PolicyDecision{NextLevel: LevelL1, Action: DecisionRetry},
+		},
+		{
+			name: "Workflow escalates from L1 to L2 after deterministic repair",
+			state: RecoveryState{
+				Class:      FailureClassWorkflow,
+				Level:      LevelL1,
+				L1Attempts: 1,
+				L1Started:  now,
+			},
+			want: PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate},
+		},
+		{
+			name: "Quality in L2 beyond 15 minutes escalates to L3",
+			state: RecoveryState{
+				Class:     FailureClassQuality,
+				Level:     LevelL2,
+				L2Started: now.Add(-16 * time.Minute),
+			},
+			want: PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine},
+		},
+		{
+			name: "Intent unresolved after assumption budget escalates to L3",
+			state: RecoveryState{
+				Class:           FailureClassIntent,
+				Level:           LevelL1,
+				AssumptionsUsed: thresholds.MaxAssumptions,
+			},
+			want: PolicyDecision{NextLevel: LevelL3, Action: DecisionEscalate},
+		},
+		{
+			name: "Data integrity risk triggers immediate stop-line",
+			state: RecoveryState{
+				Class: FailureClassData,
+				Level: LevelL1,
+			},
+			want: PolicyDecision{NextLevel: LevelL3, Action: DecisionStopLine},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decision := ChooseNextAction(tt.state, thresholds, now)
+			if decision.NextLevel != tt.want.NextLevel {
+				t.Fatalf("NextLevel = %q, want %q", decision.NextLevel, tt.want.NextLevel)
+			}
+			if decision.Action != tt.want.Action {
+				t.Fatalf("Action = %q, want %q", decision.Action, tt.want.Action)
+			}
+		})
+	}
+}
