@@ -244,3 +244,30 @@ func TestShapeGreenPhaseContext_PreservesFailureSignalAndRequiredBehavior(t *tes
 		t.Fatal("expected confirmed learnings to be trimmed")
 	}
 }
+
+func TestShapeRefactorPhaseContext_PreservesGuardrailsAndDropsBuildPayload(t *testing.T) {
+	r := &Renderer{}
+	base := testMethodologyContext()
+
+	shaped := invokePhaseShaper(t, r, "ShapeRefactorPhaseContext", base)
+
+	if shaped.Rules == "" {
+		t.Fatal("expected RULES.md constraints to be preserved")
+	}
+	if shaped.Spec == "" {
+		t.Fatal("expected spec constraints to be preserved")
+	}
+	guardrails := strings.ToLower(shaped.FailureContext + "\n" + shaped.PrevFailure)
+	if !strings.Contains(guardrails, "do not change") && !strings.Contains(guardrails, "preserve") {
+		t.Fatal("expected behavior-preservation guardrails to be preserved")
+	}
+	if len(shaped.RecentValidationFailures) != 0 {
+		t.Fatal("expected redundant build failures to be removed")
+	}
+	if len(shaped.Bead.ExpectedOutputs) != 0 {
+		t.Fatal("expected redundant acceptance payload to be removed")
+	}
+	if shaped.ClaudeMD != "" {
+		t.Fatal("expected broad project history to be trimmed")
+	}
+}

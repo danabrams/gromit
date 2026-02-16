@@ -38,6 +38,25 @@ func (r *Renderer) ShapeGreenPhaseContext(ctx *Context) *Context {
 	return shaped
 }
 
+// ShapeRefactorPhaseContext keeps constraints and guardrails while dropping build payload.
+func (r *Renderer) ShapeRefactorPhaseContext(ctx *Context) *Context {
+	shaped := cloneMethodologyContext(ctx)
+	if shaped == nil {
+		return nil
+	}
+
+	shaped.ClaudeMD = ""
+	shaped.ConfirmedLearnings = []learnings.Learning{}
+	shaped.RecentLearnings = []learnings.Learning{}
+	shaped.RecentValidationFailures = []string{}
+	if shaped.Bead != nil {
+		shaped.Bead.ExpectedOutputs = []string{}
+	}
+	shaped.normalizeNilFields()
+
+	return shaped
+}
+
 func cloneMethodologyContext(ctx *Context) *Context {
 	if ctx == nil {
 		return nil
