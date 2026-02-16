@@ -4,6 +4,10 @@
 
 Retain an acceptance case as E2E smoke only when it validates a critical success or critical failure outcome. Everything else moves to behavior-level tests so routine logic stays fast, deterministic, and local.
 
+## Matrix Template
+
+Template fields: source case, keep/move, rationale, destination suite/file.
+
 | case | decision | rationale | destination |
 | --- | --- | --- | --- |
 | cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd | keep | Covers critical end-to-end agent override wiring from CLI flag through process launch. | cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd |
