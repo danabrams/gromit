@@ -91,3 +91,22 @@ func TestChooseNextActionPure_UsesDefaultBoundsWhenThresholdsNonPositive(t *test
 		t.Fatalf("ChooseNextActionPure(%+v) = %+v, want %+v", input, got, want)
 	}
 }
+
+func TestChooseNextActionPure_IsDeterministicForIdenticalInput(t *testing.T) {
+	input := PolicyInput{
+		State: RecoveryState{
+			Class:      FailureClassTransient,
+			Level:      LevelL1,
+			L1Attempts: 1,
+		},
+		L1Elapsed:  30 * time.Second,
+		Thresholds: DefaultThresholdDefinition(),
+	}
+
+	first := ChooseNextActionPure(input)
+	for i := 0; i < 10; i++ {
+		if got := ChooseNextActionPure(input); got != first {
+			t.Fatalf("iteration %d: ChooseNextActionPure(%+v) = %+v, want stable %+v", i, input, got, first)
+		}
+	}
+}
