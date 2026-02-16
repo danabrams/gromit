@@ -19,10 +19,15 @@ func validationAcceptanceConfig(t *testing.T) *config.Config {
 	if err := os.MkdirAll(templatesDir, 0755); err != nil {
 		t.Fatalf("failed to create templates dir: %v", err)
 	}
+	copyRunnerTemplates(t, templatesDir)
+	logsDir := filepath.Join(tmpDir, ".gromit", "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
 
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{Binary: "claude", Timeout: 300},
-		Paths:  config.PathsConfig{Templates: templatesDir},
+		Paths:  config.PathsConfig{Templates: templatesDir, Logs: logsDir},
 		Validation: config.ValidationConfig{
 			Enabled:  true,
 			Commands: []string{"go test ./..."},
@@ -31,6 +36,33 @@ func validationAcceptanceConfig(t *testing.T) *config.Config {
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 	return cfg
+}
+
+func copyRunnerTemplates(t *testing.T, templatesDir string) {
+	t.Helper()
+
+	projectRoot := runnerSmokeSuiteRepoRoot(t)
+	sourceDir := filepath.Join(projectRoot, ".gromit", "templates")
+	entries, err := os.ReadDir(sourceDir)
+	if err != nil {
+		t.Fatalf("read templates dir: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		sourcePath := filepath.Join(sourceDir, name)
+		destPath := filepath.Join(templatesDir, name)
+		data, err := os.ReadFile(sourcePath)
+		if err != nil {
+			t.Fatalf("read template %s: %v", name, err)
+		}
+		if err := os.WriteFile(destPath, data, 0644); err != nil {
+			t.Fatalf("write template %s: %v", name, err)
+		}
+	}
 }
 
 // smoke-matrix: keep | rationale: Preserves core end-to-end success path that validates runner wiring from construction through a full run invocation. | destination: internal/runner/validation_extraction_acceptance_test.go:TestRunnerSmoke_RunSingleBeadHappyPath
