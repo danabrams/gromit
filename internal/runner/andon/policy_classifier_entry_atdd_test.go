@@ -1,6 +1,14 @@
 package andon
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func setupPolicyClassifierEntryATDD(t *testing.T) (time.Time, AndonThresholds) {
+	t.Helper()
+	return time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC), DefaultThresholdDefinition()
+}
 
 // Expected failure: PolicyClassification and ClassifyFailureEntry do not exist yet.
 func TestClassifyFailureEntry_ReturnsOnlyCanonicalClasses(t *testing.T) {
@@ -70,5 +78,25 @@ func TestClassifyFailureEntry_MapsRepresentativeSignals(t *testing.T) {
 				t.Fatalf("ClassifyFailureEntry(%+v).Class = %q, want %q", tt.signal, classified.Class, tt.want)
 			}
 		})
+	}
+}
+
+func TestEvaluateClassifiedFailure_UsesClassificationForDecisionSelection(t *testing.T) {
+	now, thresholds := setupPolicyClassifierEntryATDD(t)
+
+	classification := PolicyClassification{Class: FailureClassWorkflow}
+	state := RecoveryState{
+		Level:      LevelL1,
+		L1Attempts: 1,
+		L1Started:  now,
+	}
+
+	got := EvaluateClassifiedFailure(classification, state, thresholds, now)
+	want := PolicyDecision{NextLevel: LevelL2, Action: DecisionEscalate}
+	if got.Decision != want {
+		t.Fatalf("EvaluateClassifiedFailure(%+v, %+v, %+v, %v).Decision = %+v, want %+v", classification, state, thresholds, now, got.Decision, want)
+	}
+	if got.Class != FailureClassWorkflow {
+		t.Fatalf("EvaluateClassifiedFailure(...).Class = %q, want %q", got.Class, FailureClassWorkflow)
 	}
 }
