@@ -47,3 +47,28 @@ type FailureSignal struct {
 	Kind   FailureKind
 	Output string
 }
+
+// Decision is the next operation selected by Andon policy.
+type Decision string
+
+const (
+	DecisionRetry    Decision = "retry"
+	DecisionEscalate Decision = "escalate"
+	DecisionStopLine Decision = "stop_line"
+)
+
+// PolicyDecision is the chosen action and level transition.
+type PolicyDecision struct {
+	NextLevel AndonLevel
+	Action    Decision
+}
+
+// RecoveryState tracks bounded recovery progress for a failure.
+type RecoveryState struct {
+	Class           FailureClass
+	Level           AndonLevel
+	L1Attempts      int
+	L1Started       time.Time
+	L2Started       time.Time
+	AssumptionsUsed int
+}

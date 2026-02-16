@@ -98,3 +98,60 @@ func TestClassifyFailure_SupportsAllAndonClasses(t *testing.T) {
 		})
 	}
 }
+
+// TestChooseNextAction_EnforcesL1AndL2Bounds verifies L1 and L2 thresholds are
+// represented and enforced in policy decisions.
+func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
+	thresholds := DefaultThresholds()
+	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+
+	t.Run("L1 within retry/time bounds stays in L1", func(t *testing.T) {
+		state := RecoveryState{
+			Class:      FailureClassTransient,
+			Level:      LevelL1,
+			L1Attempts: 1,
+			L1Started:  now.Add(-1 * time.Minute),
+		}
+
+		decision := ChooseNextAction(state, thresholds, now)
+		if decision.NextLevel != LevelL1 {
+			t.Fatalf("NextLevel = %q, want %q", decision.NextLevel, LevelL1)
+		}
+		if decision.Action != DecisionRetry {
+			t.Fatalf("Action = %q, want %q", decision.Action, DecisionRetry)
+		}
+	})
+
+	t.Run("L1 retry cap escalates to L2", func(t *testing.T) {
+		state := RecoveryState{
+			Class:      FailureClassTransient,
+			Level:      LevelL1,
+			L1Attempts: thresholds.L1MaxRetries,
+			L1Started:  now.Add(-1 * time.Minute),
+		}
+
+		decision := ChooseNextAction(state, thresholds, now)
+		if decision.NextLevel != LevelL2 {
+			t.Fatalf("NextLevel = %q, want %q", decision.NextLevel, LevelL2)
+		}
+		if decision.Action != DecisionEscalate {
+			t.Fatalf("Action = %q, want %q", decision.Action, DecisionEscalate)
+		}
+	})
+
+	t.Run("L2 timebox exhaustion escalates to L3", func(t *testing.T) {
+		state := RecoveryState{
+			Class:     FailureClassQuality,
+			Level:     LevelL2,
+			L2Started: now.Add(-16 * time.Minute),
+		}
+
+		decision := ChooseNextAction(state, thresholds, now)
+		if decision.NextLevel != LevelL3 {
+			t.Fatalf("NextLevel = %q, want %q", decision.NextLevel, LevelL3)
+		}
+		if decision.Action != DecisionStopLine {
+			t.Fatalf("Action = %q, want %q", decision.Action, DecisionStopLine)
+		}
+	})
+}
