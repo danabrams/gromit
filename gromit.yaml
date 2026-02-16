@@ -68,7 +68,7 @@ escalation:
   enabled: true
   chain: [haiku, sonnet, opus]
   max_retries_per_model: 1
-  max_retries_per_bead: 10  # hard cap; max attempts is retries+1, timeout escalations are capped to 1/bead
+  max_retries_per_bead: 3  # cap repeated retries on flaky beads to reduce iteration churn
 
 # Loop settings
 loop:
@@ -87,7 +87,7 @@ scope_check:
 
 # Pre-check - verify if acceptance criteria are already met before starting work
 precheck:
-  enabled: false  # disabled: always proceed directly to build
+  enabled: true  # fast skip for already-done work before expensive methodology phases
   model: haiku  # fast check with haiku
   timeout_seconds: 120  # headroom for CLI startup + file reads + tool use
   verification:
@@ -123,7 +123,7 @@ claude:
   timeout: 900           # seconds per Claude invocation
   stall_timeout: 180     # seconds with no output before auto-retry (initial, pre-activity)
   stall_timeout_active: 600  # seconds with no output after tool activity (longer, allows thinking)
-  bead_timeout: 1800     # seconds max per bead (all retries + analysis + validation)
+  bead_timeout: 1500     # seconds max per bead (all retries + analysis + validation)
   analysis_timeout: 180  # seconds max per failure analysis invocation
   flags:
     - "--dangerously-skip-permissions"
@@ -132,7 +132,7 @@ claude:
     sonnet:
       timeout: 1200            # longer invocation timeout — sonnet consistently needs >900s
       stall_timeout_active: 900  # longer active stall for sonnet's deeper thinking
-      bead_timeout: 2400       # longer bead budget for sonnet retries
+      bead_timeout: 2400       # longer bead budget — sonnet retries need extra headroom
     opus:
       timeout: 1800              # retro analysis needs longer than the 900s default
       stall_timeout_active: 420  # longer than code default (300s) — opus legitimately takes longer on complex reasoning

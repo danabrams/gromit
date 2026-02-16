@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -30,10 +31,9 @@ func TestNewRunnerWiresMaxLearningCharsIntoRenderer(t *testing.T) {
 		},
 	}
 
-	var buf []byte
-	bufWriter := &byteWriter{buf: &buf}
+	var bufWriter bytes.Buffer
 
-	r, err := NewRunner(cfg, bufWriter)
+	r, err := NewRunner(cfg, &bufWriter)
 	if err != nil {
 		t.Fatalf("NewRunner() failed: %v", err)
 	}

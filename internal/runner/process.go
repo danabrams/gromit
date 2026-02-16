@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/preflight"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -234,49 +235,7 @@ func detectTouchedPackages(diff string) []string {
 // scopeValidationCommands scopes "go test ./..." commands to touched packages.
 // Non-go-test commands and commands without "./..." are returned unchanged.
 func scopeValidationCommands(commands []string, touchedPackages []string) []string {
-	if len(commands) == 0 || len(touchedPackages) == 0 {
-		return commands
-	}
-
-	scopedPackages := make([]string, 0, len(touchedPackages))
-	seen := make(map[string]bool, len(touchedPackages))
-	for _, pkg := range touchedPackages {
-		if pkg == "" || seen[pkg] {
-			continue
-		}
-		seen[pkg] = true
-		scopedPackages = append(scopedPackages, "./"+strings.TrimPrefix(pkg, "./")+"/...")
-	}
-	if len(scopedPackages) == 0 {
-		return commands
-	}
-
-	scoped := make([]string, 0, len(commands))
-	for _, command := range commands {
-		fields := strings.Fields(command)
-		if len(fields) < 3 || fields[0] != "go" || fields[1] != "test" {
-			scoped = append(scoped, command)
-			continue
-		}
-
-		replaced := false
-		rebuilt := make([]string, 0, len(fields)+len(scopedPackages))
-		for _, token := range fields {
-			if token == "./..." {
-				rebuilt = append(rebuilt, scopedPackages...)
-				replaced = true
-				continue
-			}
-			rebuilt = append(rebuilt, token)
-		}
-		if replaced {
-			scoped = append(scoped, strings.Join(rebuilt, " "))
-			continue
-		}
-		scoped = append(scoped, command)
-	}
-
-	return scoped
+	return config.ScopeGoTestCommands(commands, touchedPackages)
 }
 
 // runDirectValidationCheck delegates to the validation.Runner's RunDirect method.
@@ -345,7 +304,7 @@ func (r *Runner) validationPreflight(bc *runtypes.BeadContext) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("creating preflight checker: %w", err)
 	}
-	if err := checker.Check(r.cfg.Validation.Commands); err != nil {
+	if err := checker.Check(r.cfg.Validation.FastCommandsOrDefault()); err != nil {
 		r.log("Warning: %v", err)
 		bc.Result.Validated = false
 		return false, nil // Skip validation, not an error
@@ -483,6 +442,9 @@ func (r *Runner) maybeRunPeriodicFullValidation(ctx context.Context, beadID stri
 
 func (r *Runner) maybeRunFinalFullValidation(ctx context.Context) error {
 	if r == nil || r.cfg == nil || !r.cfg.Validation.Enabled {
+		return nil
+	}
+	if !r.cfg.Validation.ShouldRunFinalFullGate() {
 		return nil
 	}
 	if r.successfulBeads == 0 || len(r.cfg.Validation.FullCommandsOrDefault()) == 0 {
