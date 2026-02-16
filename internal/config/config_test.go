@@ -2809,6 +2809,34 @@ func TestMethodologyConfigResolvePhaseTimeoutSeconds(t *testing.T) {
 	}
 }
 
+func TestValidationPhaseTimeoutSecondsParseAndResolve(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `validation:
+  phase_timeout_seconds: 77
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Validation.PhaseTimeoutSeconds != 77 {
+		t.Fatalf("expected phase_timeout_seconds=77, got %d", cfg.Validation.PhaseTimeoutSeconds)
+	}
+	if got := cfg.Validation.ResolvePhaseTimeoutSeconds(300); got != 77 {
+		t.Errorf("ResolvePhaseTimeoutSeconds() = %d, want 77", got)
+	}
+
+	cfg.Validation.PhaseTimeoutSeconds = 0
+	if got := cfg.Validation.ResolvePhaseTimeoutSeconds(300); got != 300 {
+		t.Errorf("ResolvePhaseTimeoutSeconds() with zero override = %d, want fallback 300", got)
+	}
+}
+
 // Tests for GitConfig
 func TestGitConfigDefaults(t *testing.T) {
 	cfg := &Config{}

@@ -70,6 +70,7 @@ type ValidationConfig struct {
 	Commands             []string      `yaml:"commands"`
 	FastCommands         []string      `yaml:"fast_commands"`
 	FullCommands         []string      `yaml:"full_commands"`
+	PhaseTimeoutSeconds  int           `yaml:"phase_timeout_seconds"`
 	MaxParallelCommands  int           `yaml:"max_parallel_commands"`
 	CommandTimeout       time.Duration `yaml:"command_timeout"`
 	FullValidationEveryN int           `yaml:"full_validation_every_n_successes"`
@@ -571,6 +572,15 @@ func (v ValidationConfig) ShouldRunFinalFullGate() bool {
 		return true
 	}
 	return *v.RunFinalFullGate
+}
+
+// ResolvePhaseTimeoutSeconds returns validation's phase timeout override, or
+// beadTimeoutSeconds when phase_timeout_seconds is unset/zero.
+func (v ValidationConfig) ResolvePhaseTimeoutSeconds(beadTimeoutSeconds int) int {
+	if v.PhaseTimeoutSeconds > 0 {
+		return v.PhaseTimeoutSeconds
+	}
+	return beadTimeoutSeconds
 }
 
 // ScopeGoTestCommands scopes "go test ./..." commands to touched packages.
