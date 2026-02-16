@@ -523,6 +523,36 @@ func TestInteractiveFileAddPendingWorktreeBranch_Deduplicates(t *testing.T) {
 	}
 }
 
+func TestInteractiveFilePendingWorktreeBranches_PersistedToJSON(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewInteractiveFile(dir)
+
+	if err := f.AddPendingWorktreeBranch("feature/persist"); err != nil {
+		t.Fatalf("adding branch: %v", err)
+	}
+
+	f2, _ := NewInteractiveFile(dir)
+	branches, err := f2.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("listing pending branches: %v", err)
+	}
+	if len(branches) != 1 || branches[0] != "feature/persist" {
+		t.Fatalf("expected persisted branch %q, got %v", "feature/persist", branches)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "interactive-state.json"))
+	if err != nil {
+		t.Fatalf("reading interactive-state.json: %v", err)
+	}
+	jsonStr := string(data)
+	if !contains(jsonStr, "pending_worktree_branches") {
+		t.Fatal("JSON should contain 'pending_worktree_branches' field")
+	}
+	if !contains(jsonStr, "feature/persist") {
+		t.Fatal("JSON should contain pending branch value")
+	}
+}
+
 func TestInteractiveFilePendingWorktreeBranchesPersistence(t *testing.T) {
 	// Expected failure: AddPendingWorktreeBranch/ListPendingWorktreeBranches and
 	// PendingWorktreeBranches are not implemented on InteractiveFile/InteractiveState yet.
