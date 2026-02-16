@@ -105,10 +105,18 @@ type PolicyDecision struct {
 	Action    Decision
 }
 
+// DecisionPath identifies the class-aware policy branch selected for a decision.
+type DecisionPath string
+
+const (
+	DecisionPathWorkflowEscalateAfterDeterministicAttempt DecisionPath = "workflow_escalate_after_deterministic_attempt"
+)
+
 // PolicyEvaluation is the classification plus selected decision.
 type PolicyEvaluation struct {
 	Class    FailureClass
 	Decision PolicyDecision
+	Path     DecisionPath
 }
 
 // PolicyClassification is the classifier output consumed by policy decisions.

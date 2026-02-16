@@ -64,11 +64,25 @@ func EvaluateClassifiedFailure(classification PolicyClassification, state Recove
 
 func evaluateFailureClass(class FailureClass, state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyEvaluation {
 	state.Class = class
+	decision, path := chooseDecisionForClass(state, thresholds, now)
 
 	return PolicyEvaluation{
 		Class:    class,
-		Decision: ChooseNextAction(state, thresholds, now),
+		Decision: decision,
+		Path:     path,
 	}
+}
+
+func chooseDecisionForClass(state RecoveryState, thresholds AndonThresholds, now time.Time) (PolicyDecision, DecisionPath) {
+	decision := ChooseNextAction(state, thresholds, now)
+
+	if state.Class == FailureClassWorkflow &&
+		state.Level == LevelL1 &&
+		state.L1Attempts >= workflowEscalationAttemptThreshold {
+		return decision, DecisionPathWorkflowEscalateAfterDeterministicAttempt
+	}
+
+	return decision, ""
 }
 
 // ChooseNextActionPure computes the next bounded recovery step for a failure state.

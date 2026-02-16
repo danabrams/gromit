@@ -354,3 +354,25 @@ func TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap(t *testing.T) {
 	}
 	assertDecision(t, got.Decision, LevelL2, DecisionEscalate)
 }
+
+func TestEvaluateFailure_UsesWorkflowDecisionPath(t *testing.T) {
+	now, thresholds := setupPolicyTest(t)
+
+	got := EvaluateFailure(
+		FailureSignal{
+			Kind:   FailureKindWorkflow,
+			Output: "missing bd sync before close",
+		},
+		RecoveryState{
+			Level:      LevelL1,
+			L1Attempts: 1,
+			L1Started:  now,
+		},
+		thresholds,
+		now,
+	)
+
+	if got.Path != DecisionPathWorkflowEscalateAfterDeterministicAttempt {
+		t.Fatalf("Path = %q, want %q", got.Path, DecisionPathWorkflowEscalateAfterDeterministicAttempt)
+	}
+}
