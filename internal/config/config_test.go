@@ -2789,6 +2789,26 @@ func TestMethodologyPhaseTimeoutsParseFromYAML(t *testing.T) {
 	}
 }
 
+func TestMethodologyConfigResolvePhaseTimeoutSeconds(t *testing.T) {
+	m := MethodologyConfig{
+		PhaseTimeouts: MethodologyPhaseTimeout{
+			RedSeconds:      45,
+			GreenSeconds:    90,
+			RefactorSeconds: 0,
+		},
+	}
+
+	if got := m.ResolvePhaseTimeoutSeconds("red", 300); got != 45 {
+		t.Errorf("ResolvePhaseTimeoutSeconds(red) = %d, want 45", got)
+	}
+	if got := m.ResolvePhaseTimeoutSeconds("green", 300); got != 90 {
+		t.Errorf("ResolvePhaseTimeoutSeconds(green) = %d, want 90", got)
+	}
+	if got := m.ResolvePhaseTimeoutSeconds("refactor", 300); got != 300 {
+		t.Errorf("ResolvePhaseTimeoutSeconds(refactor) = %d, want fallback 300", got)
+	}
+}
+
 // Tests for GitConfig
 func TestGitConfigDefaults(t *testing.T) {
 	cfg := &Config{}

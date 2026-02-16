@@ -223,6 +223,26 @@ type WorktreeConfig struct {
 	RetryCap           int    `yaml:"retry_cap"`
 }
 
+// ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
+// phase, or falls back to beadTimeoutSeconds when unset/zero.
+func (m MethodologyConfig) ResolvePhaseTimeoutSeconds(phase string, beadTimeoutSeconds int) int {
+	switch strings.ToLower(phase) {
+	case "red":
+		if m.PhaseTimeouts.RedSeconds > 0 {
+			return m.PhaseTimeouts.RedSeconds
+		}
+	case "green":
+		if m.PhaseTimeouts.GreenSeconds > 0 {
+			return m.PhaseTimeouts.GreenSeconds
+		}
+	case "refactor":
+		if m.PhaseTimeouts.RefactorSeconds > 0 {
+			return m.PhaseTimeouts.RefactorSeconds
+		}
+	}
+	return beadTimeoutSeconds
+}
+
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
