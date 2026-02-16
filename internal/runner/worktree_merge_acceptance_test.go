@@ -15,7 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 )
 
-func TestRunnerRun_MergeInteractiveBranchesWarnsOnFailure(t *testing.T) {
+func TestRunnerSmoke_WorktreeMergeModesEndToEnd(t *testing.T) {
 	// Expected failure: Runner does not wire a worktree manager or call
 	// mergeInteractiveBranches between iterations, so merge failures never
 	// flow through merge_failure=warn handling.

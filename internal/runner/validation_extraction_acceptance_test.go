@@ -33,7 +33,7 @@ func validationAcceptanceConfig(t *testing.T) *config.Config {
 	return cfg
 }
 
-func TestRunnerAcceptanceSurfaceOnly_ValidationFlow(t *testing.T) {
+func TestRunnerSmoke_RunSingleBeadHappyPath(t *testing.T) {
 	cfg := validationAcceptanceConfig(t)
 	runner, err := NewRunner(cfg, os.Stdout)
 	if err != nil {

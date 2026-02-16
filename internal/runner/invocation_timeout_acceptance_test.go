@@ -208,7 +208,7 @@ func TestRunnerInvocationTimeout_DefaultTimeoutApplied(t *testing.T) {
 	}
 }
 
-func TestRunnerInvocationTimeout_DeadlineTriggersEscalation(t *testing.T) {
+func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
 	var tiers []string
 	callCount := 0
 	mockProvider := &mockProviderWithRouterTracking{

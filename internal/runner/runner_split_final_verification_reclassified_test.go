@@ -84,7 +84,7 @@ func finalVerificationAllowedSubpackageImport(importPath string) bool {
 	return true
 }
 
-func TestFinalVerificationAllowedSubpackageImport(t *testing.T) {
+func TestRunnerSplitVerificationReclassified_ImportIsolation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -269,7 +269,7 @@ func TestSplitRunnerFinalVerification_RunnerLintPasses(t *testing.T) {
 //
 // Expected failure: `finalVerificationVerifyLayout` fails first while
 // `RunnerSplitFinalVerificationLineBudget` is not in the codebase yet.
-func TestSplitRunnerFinalVerification_LineBudgetsInTextOutput(t *testing.T) {
+func TestRunnerSplitVerificationReclassified_LineBudgets(t *testing.T) {
 	finalVerificationVerifyLayout(t)
 	runnerDir := finalVerificationRunnerDir(t)
 

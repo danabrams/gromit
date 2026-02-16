@@ -205,7 +205,7 @@ func TestSetupBeadContextAcceptsScopeEstimate(t *testing.T) {
 // calls checkScope when r.cfg.ScopeCheck.Enabled is true, even if bc.ScopeEstimate
 // is non-nil. The fix will check if bc.ScopeEstimate is non-nil before calling
 // checkScope at process.go:116.
-func TestBuildPromptForBeadSkipsScopeCheckWhenEstimateCached(t *testing.T) {
+func TestScopeCheckReclassified_CachedEstimateSkipsDuplicateInvocation(t *testing.T) {
 	cfg := baseScopeGateConfig()
 
 	testBead := &bead.Bead{
