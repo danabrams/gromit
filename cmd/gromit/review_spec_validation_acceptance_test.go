@@ -281,6 +281,49 @@ created: 2026-02-11
 	}
 }
 
+func TestReviewCommand_SpecValidationScenarios(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		reviewSpec   string
+		specFiles    []string
+		wantContains []string
+		wantExcludes []string
+	}{
+		{
+			name:         "typo includes available specs",
+			reviewSpec:   "user-managment",
+			specFiles:    []string{"auth-service.md", "user-management.md", "api-gateway.md"},
+			wantContains: []string{"not found", "auth-service", "user-management", "api-gateway"},
+			wantExcludes: []string{"no beads found"},
+		},
+		{
+			name:         "empty specs directory reports missing specs",
+			reviewSpec:   "any-spec",
+			specFiles:    nil,
+			wantContains: []string{"no spec"},
+			wantExcludes: []string{"no beads found"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			errMsg := runReviewSpecValidationScenario(t, tc.reviewSpec, tc.specFiles)
+			for _, want := range tc.wantContains {
+				if !strings.Contains(strings.ToLower(errMsg), strings.ToLower(want)) {
+					t.Fatalf("error should contain %q, got: %s", want, errMsg)
+				}
+			}
+			for _, avoid := range tc.wantExcludes {
+				if strings.Contains(strings.ToLower(errMsg), strings.ToLower(avoid)) {
+					t.Fatalf("error should not contain %q, got: %s", avoid, errMsg)
+				}
+			}
+		})
+	}
+}
+
 // TestReviewCommand_SpecValidationWithEmptySpecsDirectory tests behavior
 // when specs directory exists but is empty
 func TestReviewCommand_SpecValidationWithEmptySpecsDirectory(t *testing.T) {
@@ -504,4 +547,44 @@ This spec exists but has no beads tagged with it.
 	if strings.Contains(existingMsg, "Available") && strings.Contains(existingMsg, "spec") {
 		t.Errorf("Existing spec error should not suggest alternatives (spec exists!), got: %v", existingErr)
 	}
+}
+
+func runReviewSpecValidationScenario(t *testing.T, specName string, specFiles []string) string {
+	t.Helper()
+
+	tempDir := t.TempDir()
+	specsDir := filepath.Join(tempDir, "specs")
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("Failed to create specs dir: %v", err)
+	}
+
+	for _, file := range specFiles {
+		baseName := strings.TrimSuffix(file, filepath.Ext(file))
+		content := fmt.Sprintf(`---
+id: %s
+created: 2026-02-11
+---
+
+# %s
+`, baseName, baseName)
+		path := filepath.Join(specsDir, file)
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write spec: %v", err)
+		}
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = specsDir
+
+	saveReviewFlags(t)
+	reviewSpec = specName
+	reviewSince = ""
+	reviewEpic = ""
+
+	_, err := determineReviewScope(cfg)
+	if err == nil {
+		t.Fatal("determineReviewScope should return error for invalid spec")
+	}
+
+	return err.Error()
 }
