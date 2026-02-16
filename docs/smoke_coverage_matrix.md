@@ -8,6 +8,13 @@ Retain an acceptance case as E2E smoke only when it validates a critical success
 
 Template fields: source case, keep/move, rationale, destination suite/file.
 
+## Destination Conventions
+
+Use `file:testname` (or `file:suite` for suite-level destinations) and keep the path within the relevant domain:
+
+- cmd/gromit destinations live under `cmd/gromit/*_test.go`
+- internal/runner destinations live under `internal/runner/*_test.go`
+
 | case | decision | rationale | destination |
 | --- | --- | --- | --- |
 | cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd | keep | Covers critical end-to-end agent override wiring from CLI flag through process launch. | cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd |
