@@ -58,3 +58,21 @@ func TestBuildRouterPrimaryAcceptanceFileSurfaceOnly(t *testing.T) {
 		t.Fatal("build_router_from_config_acceptance_test.go missing surface-only acceptance test")
 	}
 }
+
+func TestBuildRouterAdditionalAcceptanceFileSurfaceOnly(t *testing.T) {
+	src := readRunnerTestFile(t, "build_router_from_config_additional_acceptance_test.go")
+
+	forbidden := []string{
+		"runner.router.Select(",
+		"setupSingleProviderConfig(",
+	}
+	for _, token := range forbidden {
+		if strings.Contains(src, token) {
+			t.Fatalf("build_router_from_config_additional_acceptance_test.go contains internal-behavior token %q", token)
+		}
+	}
+
+	if !strings.Contains(src, "TestRunnerAcceptanceSurfaceOnly_RouterFallback") {
+		t.Fatal("build_router_from_config_additional_acceptance_test.go missing surface-only acceptance test")
+	}
+}
