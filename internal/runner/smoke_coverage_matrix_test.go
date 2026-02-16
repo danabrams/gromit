@@ -2,10 +2,12 @@ package runner
 
 import (
 	"bufio"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -80,16 +82,43 @@ func listRunnerUnitTests(t *testing.T, projectRoot string) string {
 	return string(out)
 }
 
+func listRunnerAcceptanceFiles(t *testing.T, projectRoot string) []string {
+	t.Helper()
+
+	root := filepath.Join(projectRoot, "internal", "runner")
+	files := make([]string, 0)
+
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, "_acceptance_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(projectRoot, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk runner acceptance files: %v", err)
+	}
+
+	sort.Strings(files)
+	return files
+}
+
 func TestRunnerSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
 	// Expected failure: RunnerSmokeCoverageMatrixEntry annotations and
 	// parseRunnerSmokeCoverageDecision conventions are not defined yet.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
-	files := []string{
-		"internal/runner/validation_extraction_acceptance_test.go",
-		"internal/runner/invocation_timeout_acceptance_test.go",
-		"internal/runner/worktree_merge_acceptance_test.go",
-	}
+	files := listRunnerAcceptanceFiles(t, projectRoot)
 
 	for _, rel := range files {
 		entries, tests := parseRunnerSmokeMatrixForFile(t, projectRoot, rel)
@@ -113,11 +142,7 @@ func TestRunnerSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
 	// so high-value E2E keep decisions are missing from acceptance files.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
-	files := []string{
-		"internal/runner/validation_extraction_acceptance_test.go",
-		"internal/runner/invocation_timeout_acceptance_test.go",
-		"internal/runner/worktree_merge_acceptance_test.go",
-	}
+	files := listRunnerAcceptanceFiles(t, projectRoot)
 
 	expectedKeep := map[string]bool{
 		"TestRunnerSmoke_RunSingleBeadHappyPath":         true,
@@ -154,11 +179,7 @@ func TestRunnerSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites(t *testin
 	// TestRunnerSmokeCoverageMatrixDestinationResolution do not exist yet.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
-	files := []string{
-		"internal/runner/validation_extraction_acceptance_test.go",
-		"internal/runner/invocation_timeout_acceptance_test.go",
-		"internal/runner/worktree_merge_acceptance_test.go",
-	}
+	files := listRunnerAcceptanceFiles(t, projectRoot)
 	unitTests := listRunnerUnitTests(t, projectRoot)
 
 	for _, rel := range files {
