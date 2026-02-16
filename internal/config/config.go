@@ -227,21 +227,23 @@ type WorktreeConfig struct {
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
 // phase, or falls back to beadTimeoutSeconds when unset/zero.
 func (m MethodologyConfig) ResolvePhaseTimeoutSeconds(phase string, beadTimeoutSeconds int) int {
-	switch strings.ToLower(phase) {
-	case "red":
-		if m.PhaseTimeouts.RedSeconds > 0 {
-			return m.PhaseTimeouts.RedSeconds
-		}
-	case "green":
-		if m.PhaseTimeouts.GreenSeconds > 0 {
-			return m.PhaseTimeouts.GreenSeconds
-		}
-	case "refactor":
-		if m.PhaseTimeouts.RefactorSeconds > 0 {
-			return m.PhaseTimeouts.RefactorSeconds
-		}
+	if timeoutSeconds := m.PhaseTimeouts.forPhase(phase); timeoutSeconds > 0 {
+		return timeoutSeconds
 	}
 	return beadTimeoutSeconds
+}
+
+func (t MethodologyPhaseTimeout) forPhase(phase string) int {
+	switch strings.ToLower(phase) {
+	case "red":
+		return t.RedSeconds
+	case "green":
+		return t.GreenSeconds
+	case "refactor":
+		return t.RefactorSeconds
+	default:
+		return 0
+	}
 }
 
 func Load(path string) (*Config, error) {
