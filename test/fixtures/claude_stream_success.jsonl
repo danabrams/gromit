@@ -1,3 +1,5 @@
 # provenance: representative Claude stream-json success payload captured from fake CLI output contract shape; refresh with provider fixture workflow.
+# refresh: update from latest claude stream fixture capture and keep event ordering deterministic for contract tests.
+{"type":"start","response":{"id":"resp_claude_ok"}}
 {"type":"assistant","message":{"id":"msg_claude_ok","content":[{"type":"text","text":"Completed implementation and updated tests."}]}}
 {"type":"result","result":{"status":"success","stop_reason":"end_turn","duration_ms":781}}
