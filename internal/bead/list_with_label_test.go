@@ -76,7 +76,13 @@ func TestListWithLabel_InvalidLabel(t *testing.T) {
 
 // TestListWithLabel_ValidLabels tests that ListWithLabel() accepts valid label formats
 func TestListWithLabel_ValidLabels(t *testing.T) {
-	c, _ := NewClient()
+	var gotArgs []string
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			return "[]", nil
+		},
+	}
 
 	tests := []struct {
 		name  string
@@ -111,15 +117,13 @@ func TestListWithLabel_ValidLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := c.ListWithLabel(tt.label)
-			// Will fail because bd isn't running, but should not reject label format
 			if err != nil {
-				if strings.Contains(err.Error(), "invalid") {
-					t.Errorf("ListWithLabel(%q) should accept valid label, got validation error: %v", tt.label, err)
-				}
-				// bd command errors are expected in unit tests
-				if !strings.Contains(err.Error(), "bd list") {
-					t.Errorf("ListWithLabel(%q) unexpected error type: %v", tt.label, err)
-				}
+				t.Errorf("ListWithLabel(%q) unexpected error: %v", tt.label, err)
+				return
+			}
+			want := []string{"list", "--json", "--label", tt.label, "--sort", "priority", "--all", "--limit", "0"}
+			if !hasSubsequence(gotArgs, want) {
+				t.Errorf("ListWithLabel(%q) args = %v, want subsequence %v", tt.label, gotArgs, want)
 			}
 		})
 	}
@@ -397,11 +401,18 @@ func TestListWithLabel_HandlesJSONParseErrors(t *testing.T) {
 
 // TestListWithLabel_ErrorWrapping tests that ListWithLabel() wraps command errors with context
 func TestListWithLabel_ErrorWrapping(t *testing.T) {
-	c, _ := NewClient()
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			return "", fmt.Errorf("boom")
+		},
+	}
 
 	// Test that errors contain context when bd command fails
 	_, err := c.ListWithLabel("spec:test")
-	if err != nil && !strings.Contains(err.Error(), "bd list") {
+	if err == nil {
+		t.Fatal("ListWithLabel() expected error")
+	}
+	if !strings.Contains(err.Error(), "bd list") {
 		t.Errorf("ListWithLabel() error should contain 'bd list' context: %v", err)
 	}
 }
@@ -531,124 +542,48 @@ func parseListWithLabelOutputExcludingEpics(out string) ([]*Bead, error) {
 
 // TestListWithLabel_IntegrationReturnsPrioritySortedBeads tests that ListWithLabel returns beads sorted by priority
 func TestListWithLabel_IntegrationReturnsPrioritySortedBeads(t *testing.T) {
-	// Expected failure: ListWithLabel at internal/bead/bead.go:616 does not pass --sort priority
-	// Current command: c.run("list", "--json", "--label", label)
-	// Expected command: c.run("list", "--json", "--label", label, "--sort", "priority")
-	//
-	// This test verifies that beads returned by ListWithLabel are sorted by priority (P0 < P1 < P2)
-	// in ascending order, matching the behavior of List() which uses --sort priority.
-
-	c := newIsolatedClient(t)
-
-	// Create beads with the same label but different priorities
 	testLabel := "spec:priority-sort-test"
-
-	// Create P2 bead first
-	bead1, err := c.Create("Low priority task", 2, []string{testLabel}, []string{})
-	if err != nil {
-		t.Skipf("Cannot create P2 bead: %v", err)
+	var gotArgs []string
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			return `[{"id":"task-2","title":"P0","priority":0,"labels":["` + testLabel + `"],"issue_type":"task","status":"open"},
+				{"id":"task-3","title":"P1","priority":1,"labels":["` + testLabel + `"],"issue_type":"task","status":"open"},
+				{"id":"task-1","title":"P2","priority":2,"labels":["` + testLabel + `"],"issue_type":"task","status":"open"}]`, nil
+		},
 	}
-	id1 := bead1.ID
 
-	// Create P0 bead second
-	bead2, err := c.Create("High priority task", 0, []string{testLabel}, []string{})
-	if err != nil {
-		t.Skipf("Cannot create P0 bead: %v", err)
-	}
-	id2 := bead2.ID
-
-	// Create P1 bead third
-	bead3, err := c.Create("Medium priority task", 1, []string{testLabel}, []string{})
-	if err != nil {
-		t.Skipf("Cannot create P1 bead: %v", err)
-	}
-	id3 := bead3.ID
-
-	// Call ListWithLabel - should return beads sorted by priority
 	beads, err := c.ListWithLabel(testLabel)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
 
-	if len(beads) < 3 {
-		t.Fatalf("Expected at least 3 beads, got %d", len(beads))
+	if len(beads) != 3 {
+		t.Fatalf("Expected 3 beads, got %d", len(beads))
 	}
 
-	// Verify beads are sorted by priority: P0, P1, P2
-	// Find our test beads in the result
-	beadsByID := make(map[string]*Bead)
-	for _, b := range beads {
-		beadsByID[b.ID] = b
-	}
-
-	// Verify priorities match
-	if b := beadsByID[id2]; b == nil || b.Priority != 0 {
-		t.Errorf("P0 bead %s not found or has wrong priority", id2)
-	}
-	if b := beadsByID[id3]; b == nil || b.Priority != 1 {
-		t.Errorf("P1 bead %s not found or has wrong priority", id3)
-	}
-	if b := beadsByID[id1]; b == nil || b.Priority != 2 {
-		t.Errorf("P2 bead %s not found or has wrong priority", id1)
-	}
-
-	// Verify beads appear in priority order (P0 before P1 before P2)
-	priorities := []int{}
-	for _, b := range beads {
-		if b.ID == id1 || b.ID == id2 || b.ID == id3 {
-			priorities = append(priorities, b.Priority)
+	for i := 1; i < len(beads); i++ {
+		if beads[i].Priority < beads[i-1].Priority {
+			t.Fatalf("ListWithLabel() beads not sorted by priority: %+v", beads)
 		}
 	}
 
-	// Check that priorities are in ascending order
-	for i := 1; i < len(priorities); i++ {
-		if priorities[i] < priorities[i-1] {
-			t.Errorf("Beads not sorted by priority. Expected ascending order, got: %v", priorities)
-			break
-		}
-	}
-
-	// The specific failure mode when --sort priority is missing:
-	// Beads will be returned in insertion order (P2, P0, P1) instead of priority order (P0, P1, P2)
-	if len(priorities) == 3 {
-		expected := []int{0, 1, 2}
-		match := true
-		for i := range expected {
-			if priorities[i] != expected[i] {
-				match = false
-				break
-			}
-		}
-		if !match {
-			t.Errorf("ListWithLabel returned beads in wrong order. Expected priority order [0,1,2], got %v. This indicates --sort priority flag is missing.", priorities)
-		}
+	want := []string{"list", "--json", "--label", testLabel, "--sort", "priority", "--all", "--limit", "0"}
+	if !hasSubsequence(gotArgs, want) {
+		t.Errorf("ListWithLabel() args = %v, want subsequence %v", gotArgs, want)
 	}
 }
 
 // TestListWithLabel_IntegrationConsistentWithListMethod tests ordering consistency between List() and ListWithLabel()
 func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
-	// Expected failure: ListWithLabel does not include --sort priority like List() does
-	//
-	// List() uses: c.run("list", "--json", "--sort", "priority", "--limit", "0")
-	// ListWithLabel() should use: c.run("list", "--json", "--label", label, "--sort", "priority")
-	//
-	// This test verifies that both methods return beads in the same priority-sorted order.
-
-	c := newIsolatedClient(t)
-
-	// Create beads with various priorities (no label filter for List())
-	priorities := []int{2, 0, 1, 2, 0}
-	createdIDs := make([]string, len(priorities))
-
-	for i, p := range priorities {
-		bead, err := c.Create(fmt.Sprintf("Task %d", i), p, []string{"test-label"}, []string{})
-		if err != nil {
-			t.Skipf("Cannot create bead %d: %v", i, err)
-		}
-		createdIDs[i] = bead.ID
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			return `[{"id":"task-a","title":"P0","priority":0,"labels":["test-label"],"issue_type":"task","status":"open"},
+				{"id":"task-b","title":"P1","priority":1,"labels":["test-label"],"issue_type":"task","status":"open"},
+				{"id":"task-c","title":"P2","priority":2,"labels":["test-label"],"issue_type":"task","status":"open"}]`, nil
+		},
 	}
 
-	// Get beads from both methods
 	allBeads, err := c.List()
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
@@ -659,32 +594,18 @@ func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
 
-	// Extract just our test beads from List() result
-	var allBeadsFiltered []*Bead
-	for _, b := range allBeads {
-		for _, id := range createdIDs {
-			if b.ID == id {
-				allBeadsFiltered = append(allBeadsFiltered, b)
-				break
-			}
-		}
-	}
-
-	// Both should have the same beads in the same priority order
-	if len(allBeadsFiltered) != len(labelBeads) {
-		t.Errorf("List() and ListWithLabel() returned different bead counts: %d vs %d", len(allBeadsFiltered), len(labelBeads))
+	if len(allBeads) != len(labelBeads) {
+		t.Errorf("List() and ListWithLabel() returned different bead counts: %d vs %d", len(allBeads), len(labelBeads))
 		return
 	}
 
-	// Verify priority order matches
-	for i := range allBeadsFiltered {
-		if allBeadsFiltered[i].Priority != labelBeads[i].Priority {
+	for i := range allBeads {
+		if allBeads[i].Priority != labelBeads[i].Priority {
 			t.Errorf("Priority order mismatch at position %d: List() has P%d, ListWithLabel() has P%d",
-				i, allBeadsFiltered[i].Priority, labelBeads[i].Priority)
+				i, allBeads[i].Priority, labelBeads[i].Priority)
 		}
 	}
 
-	// Verify priorities are in ascending order for both
 	for i := 1; i < len(labelBeads); i++ {
 		if labelBeads[i].Priority < labelBeads[i-1].Priority {
 			t.Errorf("ListWithLabel() beads not in priority order at position %d: P%d comes after P%d",
@@ -696,73 +617,38 @@ func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
 // TestListWithLabel_CommandArgumentsIncludeAllAndLimit verifies that the bd list command
 // is invoked with --all and --limit 0 flags, ensuring complete results are returned.
 func TestListWithLabel_CommandArgumentsIncludeAllAndLimit(t *testing.T) {
-	// Expected failure: ListWithLabel at internal/bead/bead.go:616 does not pass --all and --limit 0
-	// Current command: c.run("list", "--json", "--label", label, "--sort", "priority")
-	// Expected command: c.run("list", "--json", "--label", label, "--sort", "priority", "--all", "--limit", "0")
-	//
-	// This test verifies that the command invocation includes the required flags.
-	// Since we can't easily mock the bd binary in unit tests, we verify this behaviorally
-	// by confirming that closed beads and unlimited results are returned when they should be.
-
-	c := newIsolatedClient(t)
-
+	var gotArgs []string
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			return "[]", nil
+		},
+	}
 	testLabel := "spec:command-args-test"
 
-	// Create an open bead
-	openBead, err := c.Create("Open task", 1, []string{testLabel}, []string{})
-	if err != nil {
-		t.Skipf("Cannot create open bead: %v", err)
-	}
-	openID := openBead.ID
-
-	// Create and close a bead
-	closedBead, err := c.Create("Closed task", 1, []string{testLabel}, []string{})
-	if err != nil {
-		t.Skipf("Cannot create closed bead: %v", err)
-	}
-	closedID := closedBead.ID
-	if err := c.Close(closedID); err != nil {
-		t.Skipf("Cannot close bead: %v", err)
-	}
-
-	// Call ListWithLabel
-	beads, err := c.ListWithLabel(testLabel)
+	_, err := c.ListWithLabel(testLabel)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
 
-	// Map beads by ID
-	beadsByID := make(map[string]*Bead)
-	for _, b := range beads {
-		beadsByID[b.ID] = b
+	want := []string{"list", "--json", "--label", testLabel, "--sort", "priority", "--all", "--limit", "0"}
+	if !hasSubsequence(gotArgs, want) {
+		t.Errorf("ListWithLabel() args = %v, want subsequence %v", gotArgs, want)
 	}
+}
 
-	// Verify open bead is present (this should always work)
-	if _, found := beadsByID[openID]; !found {
-		t.Errorf("Open bead %s not found in results", openID)
+func hasSubsequence(args []string, seq []string) bool {
+	if len(seq) == 0 {
+		return true
 	}
-
-	// Verify closed bead is present (requires --all flag)
-	// Expected failure: closed bead will be missing without --all
-	if _, found := beadsByID[closedID]; !found {
-		t.Errorf("Closed bead %s not found in results. This confirms --all flag is missing from command invocation.", closedID)
+	j := 0
+	for _, arg := range args {
+		if arg == seq[j] {
+			j++
+			if j == len(seq) {
+				return true
+			}
+		}
 	}
-
-	// Verify we have both statuses represented
-	statuses := make(map[string]int)
-	for _, b := range beads {
-		statuses[b.Status]++
-	}
-
-	if statuses["open"] == 0 {
-		t.Error("No open beads in results")
-	}
-	if statuses["closed"] == 0 {
-		t.Error("No closed beads in results. Without --all flag, bd list filters out closed beads.")
-	}
-
-	// Additional check: verify at least 2 beads returned (open + closed)
-	if len(beads) < 2 {
-		t.Errorf("Expected at least 2 beads (1 open + 1 closed), got %d. Missing --all flag causes closed beads to be filtered.", len(beads))
-	}
+	return false
 }

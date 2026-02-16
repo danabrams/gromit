@@ -1036,8 +1036,6 @@ func newIsolatedClient(t *testing.T) *Client {
 
 // TestClientCreate tests the Create() method
 func TestClientCreate(t *testing.T) {
-	c := newIsolatedClient(t)
-
 	tests := []struct {
 		name            string
 		title           string
@@ -1082,11 +1080,32 @@ func TestClientCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var gotArgs []string
+			c := &Client{
+				runFn: func(args ...string) (string, error) {
+					gotArgs = append([]string(nil), args...)
+					return `{"id":"task-001","title":"` + tt.title + `","priority":` + fmt.Sprintf("%d", tt.priority) + `,"issue_type":"task","status":"open"}`, nil
+				},
+			}
+
 			_, err := c.Create(tt.title, tt.priority, tt.labels, tt.expectedOutputs)
-			// bd may reject unknown flags (e.g. --expected-output); that's a
-			// separate issue. We only fail on truly unexpected errors.
-			if err != nil && !strings.Contains(err.Error(), "bd create") && !strings.Contains(err.Error(), "parsing") {
-				t.Errorf("Create() unexpected error type: %v", err)
+			if err != nil {
+				t.Fatalf("Create() unexpected error: %v", err)
+			}
+			wantBase := []string{"create", tt.title, "--priority", fmt.Sprintf("%d", tt.priority), "--json"}
+			if !hasSubsequence(gotArgs, wantBase) {
+				t.Errorf("Create() args = %v, want subsequence %v", gotArgs, wantBase)
+			}
+			for _, label := range tt.labels {
+				if !hasSubsequence(gotArgs, []string{"--label", label}) {
+					t.Errorf("Create() missing label flag for %q in args %v", label, gotArgs)
+				}
+			}
+			if len(tt.expectedOutputs) > 0 {
+				wantAcceptance := strings.Join(tt.expectedOutputs, "\n")
+				if !hasSubsequence(gotArgs, []string{"--acceptance", wantAcceptance}) {
+					t.Errorf("Create() missing expected outputs in args %v", gotArgs)
+				}
 			}
 		})
 	}
@@ -1146,40 +1165,49 @@ func TestClientGetParent(t *testing.T) {
 
 // TestClientSync tests that Sync doesn't panic
 func TestClientSync(t *testing.T) {
-	c, _ := NewClient()
+	var gotArgs []string
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			return "", nil
+		},
+	}
 	err := c.Sync()
-	// May succeed if bd is available, or fail if not - either is fine
-	// Just testing it doesn't panic
-	if err != nil && !strings.Contains(err.Error(), "bd sync") {
-		t.Errorf("Sync() unexpected error type: %v", err)
+	if err != nil {
+		t.Fatalf("Sync() unexpected error: %v", err)
+	}
+	if !hasSubsequence(gotArgs, []string{"sync"}) {
+		t.Errorf("Sync() args = %v, want sync", gotArgs)
 	}
 }
 
 // TestErrorWrapping tests that CLI errors are properly wrapped
 func TestErrorWrapping(t *testing.T) {
-	c, _ := NewClient()
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			return "", fmt.Errorf("boom")
+		},
+	}
 
 	// Test that errors contain context
 	_, err := c.Ready()
-	if err != nil && !strings.Contains(err.Error(), "bd ready") {
+	if err == nil || !strings.Contains(err.Error(), "bd ready") {
 		t.Errorf("Ready() error should contain context: %v", err)
 	}
 
 	_, err = c.ReadyAny()
-	if err != nil && !strings.Contains(err.Error(), "bd ready") {
+	if err == nil || !strings.Contains(err.Error(), "bd ready") {
 		t.Errorf("ReadyAny() error should contain context: %v", err)
 	}
 
 	err = c.Close("test-id")
-	if err != nil && !strings.Contains(err.Error(), "bd close") {
+	if err == nil || !strings.Contains(err.Error(), "bd close") {
 		t.Errorf("Close() error should contain context: %v", err)
 	}
 }
 
 // TestClientCreateWithParent tests the CreateWithParent() method
 func TestClientCreateWithParent(t *testing.T) {
-	c := newIsolatedClient(t)
-
 	tests := []struct {
 		name               string
 		title              string
@@ -1236,6 +1264,13 @@ func TestClientCreateWithParent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var gotArgs []string
+			c := &Client{
+				runFn: func(args ...string) (string, error) {
+					gotArgs = append([]string(nil), args...)
+					return `{"id":"task-001","title":"` + tt.title + `","priority":` + fmt.Sprintf("%d", tt.priority) + `,"issue_type":"task","status":"open"}`, nil
+				},
+			}
 			_, err := c.CreateWithParent(tt.title, tt.priority, tt.labels, tt.expectedOutputs, tt.parentID)
 
 			if tt.shouldValidateFail {
@@ -1248,12 +1283,11 @@ func TestClientCreateWithParent(t *testing.T) {
 				return
 			}
 
-			// For valid inputs, errors are expected if bd isn't running,
-			// but the method should build arguments correctly
 			if err != nil {
-				if !strings.Contains(err.Error(), "bd create") {
-					t.Errorf("CreateWithParent() unexpected error type: %v", err)
-				}
+				t.Fatalf("CreateWithParent() unexpected error: %v", err)
+			}
+			if tt.parentID != "" && !hasSubsequence(gotArgs, []string{"--parent", tt.parentID}) {
+				t.Errorf("CreateWithParent() args missing parent %q: %v", tt.parentID, gotArgs)
 			}
 		})
 	}
@@ -1261,25 +1295,33 @@ func TestClientCreateWithParent(t *testing.T) {
 
 // TestClientCreateWithParentInheritance tests that Create() delegates to CreateWithParent
 func TestClientCreateInheritsCreateWithParent(t *testing.T) {
-	c := newIsolatedClient(t)
+	var createArgs []string
+	createClient := &Client{
+		runFn: func(args ...string) (string, error) {
+			createArgs = append([]string(nil), args...)
+			return `{"id":"task-001","title":"Test","priority":1,"issue_type":"task","status":"open"}`, nil
+		},
+	}
+	var parentArgs []string
+	parentClient := &Client{
+		runFn: func(args ...string) (string, error) {
+			parentArgs = append([]string(nil), args...)
+			return `{"id":"task-002","title":"Test","priority":1,"issue_type":"task","status":"open"}`, nil
+		},
+	}
 
-	// Create() should call CreateWithParent with empty parentID
-	_, err1 := c.Create("Test", 1, []string{}, []string{})
-	_, err2 := c.CreateWithParent("Test", 1, []string{}, []string{}, "")
-
-	// Both should have the same error behavior (or lack thereof)
-	hasErr1 := err1 != nil
-	hasErr2 := err2 != nil
-
-	if hasErr1 != hasErr2 {
-		t.Errorf("Create() and CreateWithParent(\"\") should behave identically: Create err=%v, CreateWithParent err=%v", err1, err2)
+	_, err1 := createClient.Create("Test", 1, []string{}, []string{})
+	_, err2 := parentClient.CreateWithParent("Test", 1, []string{}, []string{}, "")
+	if err1 != nil || err2 != nil {
+		t.Fatalf("Create() / CreateWithParent(\"\") unexpected errors: %v / %v", err1, err2)
+	}
+	if strings.Join(createArgs, " ") != strings.Join(parentArgs, " ") {
+		t.Errorf("Create() args and CreateWithParent(\"\") args differ: %v vs %v", createArgs, parentArgs)
 	}
 }
 
 // TestClientCreateWithDeps tests CreateWithDepsAndDescription with multiple dependencies
 func TestClientCreateWithDeps(t *testing.T) {
-	c := newIsolatedClient(t)
-
 	tests := []struct {
 		name               string
 		title              string
@@ -1349,6 +1391,13 @@ func TestClientCreateWithDeps(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var gotArgs []string
+			c := &Client{
+				runFn: func(args ...string) (string, error) {
+					gotArgs = append([]string(nil), args...)
+					return `{"id":"task-001","title":"` + tt.title + `","priority":` + fmt.Sprintf("%d", tt.priority) + `,"issue_type":"task","status":"open"}`, nil
+				},
+			}
 			_, err := c.CreateWithDepsAndDescription(tt.title, tt.priority, tt.labels, tt.expectedOutputs, tt.dependencies, tt.description)
 
 			if tt.shouldValidateFail {
@@ -1361,11 +1410,13 @@ func TestClientCreateWithDeps(t *testing.T) {
 				return
 			}
 
-			// For valid inputs, errors are expected if bd isn't running,
-			// but the method should build arguments correctly
 			if err != nil {
-				if !strings.Contains(err.Error(), "bd create") {
-					t.Errorf("CreateWithDepsAndDescription() unexpected error type: %v", err)
+				t.Fatalf("CreateWithDepsAndDescription() unexpected error: %v", err)
+			}
+			if len(tt.dependencies) > 0 {
+				wantDeps := strings.Join(tt.dependencies, ",")
+				if !hasSubsequence(gotArgs, []string{"--deps", wantDeps}) {
+					t.Errorf("CreateWithDepsAndDescription() args missing deps %q: %v", wantDeps, gotArgs)
 				}
 			}
 		})
@@ -1884,7 +1935,11 @@ func TestClientListReadyIDsErrorWrapping(t *testing.T) {
 
 // TestClientReadyWithLabelValidation tests that ReadyWithLabel validates label parameter
 func TestClientReadyWithLabelValidation(t *testing.T) {
-	c, _ := NewClient()
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			return "[]", nil
+		},
+	}
 
 	tests := []struct {
 		name    string
@@ -2110,7 +2165,11 @@ func TestClientReadyWithLabelExcludesEpics(t *testing.T) {
 
 // TestClientListWithLabelValidation tests that ListWithLabel validates label parameter
 func TestClientListWithLabelValidation(t *testing.T) {
-	c, _ := NewClient()
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			return "[]", nil
+		},
+	}
 
 	tests := []struct {
 		name    string

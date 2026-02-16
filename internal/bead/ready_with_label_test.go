@@ -73,7 +73,13 @@ func TestReadyWithLabel_InvalidLabel(t *testing.T) {
 
 // TestReadyWithLabel_ValidLabels tests that ReadyWithLabel() accepts valid label formats
 func TestReadyWithLabel_ValidLabels(t *testing.T) {
-	c, _ := NewClient()
+	var gotArgs []string
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			return "[]", nil
+		},
+	}
 
 	tests := []struct {
 		name  string
@@ -108,15 +114,19 @@ func TestReadyWithLabel_ValidLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := c.ReadyWithLabel(tt.label)
-			// Will fail because bd isn't running, but should not reject label format
 			if err != nil {
-				if strings.Contains(err.Error(), "invalid") {
-					t.Errorf("ReadyWithLabel(%q) should accept valid label, got validation error: %v", tt.label, err)
-				}
-				// bd command errors are expected in unit tests
-				if !strings.Contains(err.Error(), "bd ready") {
-					t.Errorf("ReadyWithLabel(%q) unexpected error type: %v", tt.label, err)
-				}
+				t.Errorf("ReadyWithLabel(%q) unexpected error: %v", tt.label, err)
+				return
+			}
+			if len(gotArgs) == 0 {
+				t.Fatalf("ReadyWithLabel(%q) did not invoke runFn", tt.label)
+			}
+			if gotArgs[0] != "ready" {
+				t.Errorf("ReadyWithLabel(%q) command = %q, want %q", tt.label, gotArgs[0], "ready")
+			}
+			want := []string{"ready", "--json", "--limit", "3", "--label", tt.label}
+			if !hasSubsequence(gotArgs, want) {
+				t.Errorf("ReadyWithLabel(%q) args = %v, want subsequence %v", tt.label, gotArgs, want)
 			}
 		})
 	}
