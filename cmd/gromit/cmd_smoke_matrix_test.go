@@ -85,3 +85,23 @@ func TestCmdSmokeMatrix_MovedCasesHaveConcreteUnitDestinations(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadCmdSmokeMatrix_IncludesKnownCase(t *testing.T) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+
+	matrix, err := LoadCmdSmokeMatrix(projectRoot)
+	if err != nil {
+		t.Fatalf("LoadCmdSmokeMatrix: %v", err)
+	}
+
+	entry, ok := matrix["cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd"]
+	if !ok {
+		t.Fatalf("expected known cmd smoke case to be present")
+	}
+	if entry.Decision != "keep" {
+		t.Fatalf("expected known cmd smoke case to be keep, got %q", entry.Decision)
+	}
+}
