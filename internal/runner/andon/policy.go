@@ -11,3 +11,21 @@ func DefaultThresholds() AndonThresholds {
 		MaxAssumptions: 2,
 	}
 }
+
+// ClassifyFailure maps an observed signal to an Andon failure class.
+func ClassifyFailure(signal FailureSignal) FailureClass {
+	switch signal.Kind {
+	case FailureKindTimeout:
+		return FailureClassTransient
+	case FailureKindWorkflow:
+		return FailureClassWorkflow
+	case FailureKindQualityGate:
+		return FailureClassQuality
+	case FailureKindAmbiguousIntent:
+		return FailureClassIntent
+	case FailureKindIntegrity:
+		return FailureClassData
+	default:
+		return FailureClassWorkflow
+	}
+}

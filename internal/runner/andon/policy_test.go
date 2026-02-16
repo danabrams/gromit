@@ -38,3 +38,63 @@ func TestLevels_IncludeL1ToL4(t *testing.T) {
 		}
 	}
 }
+
+// TestClassifyFailure_SupportsAllAndonClasses verifies class routing entry-point
+// coverage for all Andon failure classes in the spec.
+func TestClassifyFailure_SupportsAllAndonClasses(t *testing.T) {
+	tests := []struct {
+		name   string
+		signal FailureSignal
+		want   FailureClass
+	}{
+		{
+			name: "transient class",
+			signal: FailureSignal{
+				Kind:   FailureKindTimeout,
+				Output: "context deadline exceeded",
+			},
+			want: FailureClassTransient,
+		},
+		{
+			name: "workflow class",
+			signal: FailureSignal{
+				Kind:   FailureKindWorkflow,
+				Output: "bd sync required before close",
+			},
+			want: FailureClassWorkflow,
+		},
+		{
+			name: "quality class",
+			signal: FailureSignal{
+				Kind:   FailureKindQualityGate,
+				Output: "go test ./... failed",
+			},
+			want: FailureClassQuality,
+		},
+		{
+			name: "intent class",
+			signal: FailureSignal{
+				Kind:   FailureKindAmbiguousIntent,
+				Output: "spec leaves behavior undefined",
+			},
+			want: FailureClassIntent,
+		},
+		{
+			name: "data class",
+			signal: FailureSignal{
+				Kind:   FailureKindIntegrity,
+				Output: "state divergence detected",
+			},
+			want: FailureClassData,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ClassifyFailure(tt.signal)
+			if got != tt.want {
+				t.Fatalf("ClassifyFailure() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
