@@ -30,11 +30,12 @@ func withFileLock(path string, fn func() error) error {
 
 // InteractiveState represents persistent state for interactive commands stored in .gromit/interactive-state.json
 type InteractiveState struct {
-	LastRetro              time.Time `json:"last_retro,omitempty"`
-	LastReviewCommit       string    `json:"last_review_commit,omitempty"`
-	LastReviewIteration    int       `json:"last_review_iteration,omitempty"`
-	FilteredLearningHashes []string  `json:"filtered_learning_hashes,omitempty"`
-	UpdatedAt              time.Time `json:"updated_at"`
+	LastRetro               time.Time `json:"last_retro,omitempty"`
+	LastReviewCommit        string    `json:"last_review_commit,omitempty"`
+	LastReviewIteration     int       `json:"last_review_iteration,omitempty"`
+	FilteredLearningHashes  []string  `json:"filtered_learning_hashes,omitempty"`
+	PendingWorktreeBranches []string  `json:"pending_worktree_branches,omitempty"`
+	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 // InteractiveFile manages the interactive-state.json file
@@ -67,6 +68,7 @@ func (f *InteractiveFile) Load() error {
 		if err := json.Unmarshal(data, &f.state); err != nil {
 			return fmt.Errorf("parsing interactive state file: %w", err)
 		}
+		f.state.NormalizeNilFields()
 
 		return nil
 	})
@@ -148,10 +150,51 @@ func (f *InteractiveFile) AddFilteredHashes(hashes []string) {
 	f.state.FilteredLearningHashes = mergeHashes(f.state.FilteredLearningHashes, hashes)
 }
 
+// AddPendingWorktreeBranch adds a branch to the pending list and persists it.
+func (f *InteractiveFile) AddPendingWorktreeBranch(branch string) error {
+	if f == nil {
+		return fmt.Errorf("interactive state file is nil")
+	}
+	return f.mutateAndSaveLocked(func(s *InteractiveState) {
+		s.PendingWorktreeBranches = mergeHashes(s.PendingWorktreeBranches, []string{branch})
+	})
+}
+
+// RemovePendingWorktreeBranch removes a branch from the pending list and persists it.
+func (f *InteractiveFile) RemovePendingWorktreeBranch(branch string) error {
+	if f == nil {
+		return fmt.Errorf("interactive state file is nil")
+	}
+	return nil
+}
+
+// ListPendingWorktreeBranches returns the pending branches persisted in state.
+func (f *InteractiveFile) ListPendingWorktreeBranches() ([]string, error) {
+	if f == nil {
+		return nil, fmt.Errorf("interactive state file is nil")
+	}
+	var branches []string
+	err := withFileLock(f.path, func() error {
+		if err := f.loadLocked(); err != nil {
+			return err
+		}
+		f.state.NormalizeNilFields()
+		branches = append([]string{}, f.state.PendingWorktreeBranches...)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return branches, nil
+}
+
 // NormalizeNilFields converts nil slices to empty slices
 func (s *InteractiveState) NormalizeNilFields() {
 	if s.FilteredLearningHashes == nil {
 		s.FilteredLearningHashes = []string{}
+	}
+	if s.PendingWorktreeBranches == nil {
+		s.PendingWorktreeBranches = []string{}
 	}
 }
 
@@ -186,6 +229,7 @@ func (f *InteractiveFile) loadLocked() error {
 	if err := json.Unmarshal(data, &f.state); err != nil {
 		return fmt.Errorf("parsing interactive state file: %w", err)
 	}
+	f.state.NormalizeNilFields()
 	return nil
 }
 
