@@ -1,9 +1,284 @@
 # Learnings Archive
 
-Archived learnings moved from LEARNINGS.md on 2026-02-12 to reduce prompt context overhead.
+Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-16.
 These entries are no longer active — they've been promoted to rules, consolidated, or filtered as generic advice.
 
 ---
+
+### 2026-02-16 | gromit-evne | patterns
+Archived: too vague to be actionable. The real insight (963K input tokens from unbounded retry context growth) is captured in the debug report at .gromit/reports/debug-20260216-014254.md.
+
+*Archived from provisional: filtered: real insight in debug report*
+
+### 2026-02-14 | Pipeline Method Conventions | patterns
+*Related to: gromit-qfr1*
+
+Archived: promoted to RULES.md Process section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-14 | Runner Per-Run State Reset | patterns
+*Related to: gromit-rj11*
+
+Archived: promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-14 | Renderer Config Wiring via Setter Methods | patterns
+*Related to: gromit-kf5g*
+
+Archived: promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-13 | Package Extraction Timeouts | patterns
+*Related to: gromit-8s79, gromit-c4x5*
+
+Archived: already captured in RULES.md Process section (package extraction decomposition steps). Rule is the source of truth.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-13 | gromit-fa4v | conventions
+Archived: acceptance test build tag requirement already in RULES.md Test Quality section. Redundant.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-13 | gromit-qfr1 consolidation originals | conventions
+Archived: gromit-qfr1 (x2) consolidated into Provisional "Pipeline Method Conventions" entry.
+
+### 2026-02-13 | gromit-uy56 | conventions
+Archived: migration-specific guidance for refactoring a CLI adapter to use Pipeline methods. The specific migration task is complete. The underlying advice is generic engineering advice — verify that abstractions you're migrating to actually do what the old code did.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-13 | gromit-914c | patterns
+Archived: generic engineering advice — "remove unused code entirely rather than keeping for backwards compatibility." Standard dead code elimination practice, not project-specific.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-vgzh | gotchas
+Archived: provider dual-mode migration is complete. The advice "update ALL call sites consistently" is generic engineering advice applicable to any interface migration.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-13 | gromit-jxnk | patterns
+Archived: documents HasProviders() conditional branching for backward compatibility with legacy claudeClient path. Implementation detail of NewRunner() that becomes irrelevant once legacy path is removed.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-12 | Mock Implementation Patterns | patterns
+*Related to: ge6j, atmb*
+
+Archived: promoted to RULES.md Code Style section. Rule is the source of truth.
+
+*Archived from confirmed: promoted to rules*
+
+### 2026-02-12 | gromit-sx84 provider selection | patterns
+Archived: consolidated into Confirmed "Router Conversion Pattern" entry.
+
+*Archived from provisional: consolidated*
+
+### 2026-02-12 | gromit-gte1, gromit-u9qy acceptance test budget duplicates | conventions
+Archived: redundant with Confirmed "Acceptance Test Line Budget" entry (same 6000-line budget information).
+
+*Archived from provisional: redundant with confirmed entry*
+
+### 2026-02-12 | gromit-qj2a IterationResult propagation duplicates | patterns
+Archived: gromit-qj2a (x2) — both describe IterationResult→IterationLog symmetric field propagation. Already captured as a rule in RULES.md Process section.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-12 | gromit-sacl validation recovery | patterns
+Archived: verbatim duplicate of RULES.md rule about validation recovery with auto-fixes. Rule is the source of truth.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-12 | gromit-03lk struct field wiring | conventions
+Archived: generic "wire new fields through all layers" advice. References "pipeline package" which doesn't exist. One-time task checklist, not a recurring pattern.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-mz3m provider migration | conventions
+Archived: ClaudeClient→Provider migration is complete. Reduces to generic "search all usages when migrating interfaces" advice. Build tag note covered by existing Test Quality rules.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-12 | gromit-gte1 stdout/stderr capture | patterns
+Archived: generic description of stdout/stderr capture in provider implementations. Not actionable — any Go developer would implement this the same way.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-5wop validation mode change | conventions
+Archived: specific to completed validation mode migration (direct exec vs Claude CLI). One-time implementation detail, not a recurring pattern.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-12 | gromit-5wop contract tests | gotchas
+Archived: specific to completed validation mode change. The claude-cli-mock vs direct exec distinction is no longer relevant since migration is done.
+
+*Archived from provisional: stale: migration complete*
+
+### 2026-02-12 | Runner Method Pattern + Router Conversion Pattern | patterns
+Archived: consolidated into Confirmed "Runner and Provider Invocation Pattern" entry. Router Conversion Pattern was migration-specific (migration complete); durable provider invocation knowledge merged with Runner Method Pattern.
+
+*Archived from confirmed: consolidated*
+
+### 2026-02-12 | gromit-914c | patterns
+When removing unused interfaces, check if test mocks implement them. If they do, move mocks to a legacy_*_test.go file with clear comments rather than deleting them entirely—this preserves backward compatibility with tests that haven't been migrated yet
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-klxl | conventions
+Use SetDefaults() to apply conditional defaults based on other config fields (e.g., apply routing defaults only when providers are configured), and only apply defaults to empty fields while preserving user-specified values
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-gte1 | patterns
+Provider implementations use temp files for prompt delivery and explicitly handle streaming vs non-streaming modes with separate methods (Run vs StreamRun), where streaming still executes commands but iterates through output in real-time
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-g7oi | patterns
+Package test files use table-driven tests with t.Run for each case, covering all heuristic paths, edge cases (empty output, zero hits), case insensitivity, and false positive prevention alongside happy paths
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-17zd | gotchas
+Slice fields in Go structs should be initialized to empty slices (not nil) in constructors to ensure predictable behavior and avoid nil pointer panics when iterating or appending. This is especially critical in struct fields passed between functions and packages.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-17zd | conventions
+Initialize all slice fields to empty slices in struct constructors using make() with zero capacity, not nil, to ensure JSON marshaling produces [] instead of null and enable append operations without nil checks
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-b0xw | conventions
+When adding a method to an interface that's implemented by multiple types, update all implementations and their tests together as one bead—the interface change, all concrete implementations, and the corresponding test cases are a single atomic unit of work.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-b0xw | patterns
+Extract shared logic into helpers (buildCommandArgs), but preserve method-specific responsibility at the call site—Command() returns unconfigured I/O to let the caller own stdin/stdout/stderr setup
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-u9qy | conventions
+File utility functions in the codebase default to graceful degradation—creating directories as needed, returning empty values on errors for optional resources, and using cleanup callbacks for temporary file lifecycle management
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-5wop | patterns
+Contract tests for direct validation verify behavior through multiple assertion layers: Claude call counts (architecture), shell marker file side effects (execution), stdout content (observability), and exit code interpretation (semantics). This layered approach works better than mocking subprocess internals when changing from Claude CLI to direct exec.Command.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-17zd | conventions
+Acceptance test budget (6000 lines across all test files) is a hard constraint in this project. When adding large test suites for new packages, audit existing test files first to identify reusable test patterns and avoid duplication. Use table-driven tests and helper functions to maximize coverage per line of code.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-rj11 | gotchas
+Before running full test suite, verify that required template files exist at .gromit/templates/ and that environment dependencies (like tmux) are available. Tests that depend on external tools or fixture files should skip gracefully or be skipped in CI environments.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-bsyu | patterns
+When filtering structured content (like markdown sections), parse and strip metadata annotations from output—Claude shouldn't see internal implementation comments. Test through the public API; simple parsing helpers don't need isolation tests.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-12 | gromit-glxx | patterns
+Cache static files loaded multiple times in a run using pointer fields (*string) for single values or maps for multi-value caches—check if nil/in-map, read from disk once, store the result. This is simpler than sync.Once and avoids repeated disk I/O without invalidation logic.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | BACKWARDS_COMPAT_STUBS_CREATE_CIRCULAR_DEPS | CODE_QUALITY
+Backwards-compatibility stubs kept solely to satisfy other tests (buildExplorePrompt stub in explore_test.go) create circular dependencies that accumulate — delete both the stub and the test that requires it
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | AST_STRUCTURAL_TESTS_NOT_BEHAVIOR | TEST_QUALITY
+Tests that parse Go AST to verify code structure (like claude_client_interface_removal_test.go) provide no runtime safety guarantees — compile-time interface satisfaction checks (var _ Interface = (*Impl)(nil)) are the correct Go pattern for this
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-t4ch | conventions
+Archived: generic Go testing workflow — regenerate golden files with -update flag. Any project with golden file tests follows this pattern. Not specific to gromit's codebase.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-glxx | patterns
+Archived: generic caching advice (use sync.Once for immutable files). Standard Go pattern, not project-specific. The pointer-field caching variant is already captured in a separate archived entry.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | INTERFACE_EMPTY_TYPE_SAFETY_GAP | ARCHITECTURE
+Archived: not a learning — it's a backlog item observation already tracked as spec:pipeline-concrete-types. Adds no operational knowledge beyond "we know about this problem."
+
+*Archived from provisional: filtered: backlog item, not learning*
+
+### 2026-02-13 | gromit-bsyu | patterns
+Use HTML comments with structured syntax (e.g., <!-- phases: build, review -->) embedded in content headers to annotate metadata. Parse and filter based on annotations, then strip them from output to keep Claude's view clean and free of internal implementation details.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-osdj | conventions
+Config structs use embedded sub-config types (e.g., Learnings LearningsConfig) with SetDefaults() applying defaults recursively through each sub-struct
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-osdj | patterns
+Use FilterOptions struct pattern for optional filtering parameters - allows flexible combinations of filters (keywords, character limits) without requiring multiple method variants
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-kf5g | patterns
+When wiring config values through the runner initialization, use SetXxx() setter methods on components (like Renderer) called immediately after construction, rather than passing config directly to NewXxx(). This maintains clean separation between config and component initialization.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-meya | patterns
+When promoting internal types to exported types during refactoring, use type aliases (type Old = New) for backward compatibility rather than updating all references immediately. This allows incremental migration across the codebase.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-meya | patterns
+Type aliases (type X = Y) in Go are used for backward compatibility when moving types to new packages—establish aliases in the source location pointing to the new package to avoid breaking existing references
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-jz5w | patterns
+When migrating a struct to an external type, promote all field names to public (capitalized) across all usage sites in dependent packages (~150+ occurrences); this is safer than creating accessor methods and prevents field visibility mismatches
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-13 | gromit-8s79 | conventions
+When extracting package logic: (1) Always remove old methods from source files after extraction is complete—stub out → extract → remove old implementation; (2) Update ALL call sites that invoke the old methods to use the new package functions; (3) If the extracted function signature changes (e.g., adding a *learnings.File parameter), audit all callers. Use grep to find old method names and verify they're gone.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-14 | Contract Test Infrastructure Requirements | gotchas
+*Related to: gromit-6426*
+
+Archived: promoted to RULES.md Process section. Rule is the source of truth.
+
+*Archived from provisional: promoted to rules*
+
+### 2026-02-14 | gromit-6j5y | conventions
+Archived: Title violates LEARNINGS.md format rule (uses bead ID instead of descriptive title). Content describes a one-time implementation detail about pipeline session type-wrapper pattern that is now visible in the code itself (internal/pipeline/types.go). The pattern is established and the learning provides no additional value beyond reading the code.
+
+*Archived from provisional: stale: pattern established in code*
+
+### 2026-02-14 | gromit-ownd | conventions
+Archived: acceptance test build tag requirement already in RULES.md Test Quality section (line 35). Redundant.
+
+*Archived from provisional: redundant with rules*
+
+### 2026-02-14 | gromit-6426 consolidation originals | gotchas
+Archived: gromit-6426 (x2) consolidated into Provisional "Contract Test Infrastructure Requirements" entry.
+
+*Archived from provisional: consolidated*
 
 ### 2026-02-12 | router conversion originals | patterns
 Archived: gromit-juyb (x2), gromit-2zju (x2), gromit-557p, gromit-3gdz, gromit-gibz (x3) consolidated into Confirmed "Router Conversion Pattern" entry.

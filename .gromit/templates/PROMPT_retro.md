@@ -239,6 +239,10 @@ Provide your analysis in two parts:
 
 **Important**: Use the learning hashes (shown as `Hash: xxxx` in the learnings above) to reference specific learnings in your proposals. This ensures the correct learnings are updated.
 
+## Post-Analysis Housekeeping
+
+After applying retro changes to LEARNINGS.md (archives, consolidations, promotions), **always move all entries from the Archived section to LEARNINGS_ARCHIVE.md**. The Archived section in LEARNINGS.md should only contain the header line `*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*` — never actual entries. Append new archived entries to the top of LEARNINGS_ARCHIVE.md (after the header/separator), preserving existing content.
+
 ## Guidelines
 
 - Be conservative - only promote patterns seen multiple times
