@@ -1,3 +1,4 @@
 # provenance: representative Codex JSONL stream payload captured from fake CLI output contract shape; refresh with provider fixture workflow.
+{"type":"response.started","response":{"id":"resp_codex_ok"}}
 {"type":"assistant","message":{"id":"msg_codex_ok","content":[{"type":"text","text":"Applied change set and prepared commit."}]}}
 {"type":"result","result":{"status":"success","exit_code":0,"duration_ms":913}}
