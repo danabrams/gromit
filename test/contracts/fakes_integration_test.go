@@ -3,6 +3,7 @@
 package contracts
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,6 +47,145 @@ func TestFakes_GitPassthrough(t *testing.T) {
 	if calls[0] != "git status" {
 		t.Errorf("Expected 'git status', got %q", calls[0])
 	}
+}
+
+// TestFakes_CodexFixtureModes verifies that fake codex supports fixture-driven
+// plain output and JSONL output modes while consuming stdin and logging calls.
+func TestFakes_CodexFixtureModes(t *testing.T) {
+	env := setupTestEnv(t)
+
+	fixtureContent := "Codex fixture output"
+	fixtureFile := filepath.Join(env.Dir, "codex_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte(fixtureContent), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	tests := []struct {
+		name                string
+		args                []string
+		expectedOutputCheck func(t *testing.T, output string)
+	}{
+		{
+			name: "plain mode",
+			args: []string{"run", "--model", "sonnet"},
+			expectedOutputCheck: func(t *testing.T, output string) {
+				t.Helper()
+				if !strings.Contains(output, fixtureContent) {
+					t.Fatalf("Expected fixture content %q in plain output, got: %s", fixtureContent, output)
+				}
+			},
+		},
+		{
+			name: "jsonl mode",
+			args: []string{"run", "--jsonl", "--model", "sonnet"},
+			expectedOutputCheck: func(t *testing.T, output string) {
+				t.Helper()
+				if !strings.Contains(output, "\"type\":\"assistant\"") {
+					t.Fatalf("Expected JSONL assistant event, got: %s", output)
+				}
+				if !strings.Contains(output, fixtureContent) {
+					t.Fatalf("Expected JSONL output to include fixture content %q, got: %s", fixtureContent, output)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Expected failure: codexFakeNotImplementedSentinel does not exist until fake codex ergonomics are implemented.
+			_ = codexFakeNotImplementedSentinel
+
+			testEnv := append([]string{}, env.Env...)
+			testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_FIXTURE", fixtureFile)
+
+			cmd := exec.Command(filepath.Join(fakesDir, "codex"), tt.args...)
+			cmd.Dir = env.Dir
+			cmd.Env = testEnv
+			cmd.Stdin = strings.NewReader("acceptance prompt input\n")
+
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("codex failed in %s: %v\nOutput: %s", tt.name, err, output)
+			}
+
+			outputStr := string(output)
+			tt.expectedOutputCheck(t, outputStr)
+
+			calls, err := filterCalls(env, "codex")
+			if err != nil {
+				t.Fatalf("filterCalls failed: %v", err)
+			}
+			if len(calls) == 0 {
+				t.Fatalf("Expected codex call to be logged, got none")
+			}
+			expectedCall := fmt.Sprintf("codex %s", strings.Join(tt.args, " "))
+			if calls[len(calls)-1] != expectedCall {
+				t.Fatalf("Expected call %q, got %q", expectedCall, calls[len(calls)-1])
+			}
+		})
+	}
+}
+
+// TestFakes_CodexErrorAndDelayModes verifies that fake codex can simulate
+// non-zero failures and optional delay behavior.
+func TestFakes_CodexErrorAndDelayModes(t *testing.T) {
+	env := setupTestEnv(t)
+
+	fixtureFile := filepath.Join(env.Dir, "codex_fixture.txt")
+	if err := os.WriteFile(fixtureFile, []byte("Codex fixture output"), 0644); err != nil {
+		t.Fatalf("Failed to write fixture file: %v", err)
+	}
+
+	t.Run("non-zero failure", func(t *testing.T) {
+		// Expected failure: codexFailureExitCodeEnvVar constant does not exist until codex fake failure mode is implemented.
+		_ = codexFailureExitCodeEnvVar
+
+		testEnv := append([]string{}, env.Env...)
+		testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_FIXTURE", fixtureFile)
+		testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_FAIL", "23")
+
+		cmd := exec.Command(filepath.Join(fakesDir, "codex"), "run", "--model", "sonnet")
+		cmd.Dir = env.Dir
+		cmd.Env = testEnv
+		cmd.Stdin = strings.NewReader("prompt\n")
+
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("Expected codex to fail with CODEX_FAIL=23, output: %s", output)
+		}
+		exitErr, ok := err.(*exec.ExitError)
+		if !ok {
+			t.Fatalf("Expected *exec.ExitError, got %T", err)
+		}
+		if exitErr.ExitCode() != 23 {
+			t.Fatalf("Expected exit code 23, got %d (output: %s)", exitErr.ExitCode(), output)
+		}
+	})
+
+	t.Run("delay", func(t *testing.T) {
+		// Expected failure: codexDelayEnvVar constant does not exist until codex fake delay mode is implemented.
+		_ = codexDelayEnvVar
+
+		testEnv := append([]string{}, env.Env...)
+		testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_FIXTURE", fixtureFile)
+		testEnv = testutil.ReplaceOrAppend(testEnv, "CODEX_DELAY", "0.2")
+
+		cmd := exec.Command(filepath.Join(fakesDir, "codex"), "run", "--model", "sonnet")
+		cmd.Dir = env.Dir
+		cmd.Env = testEnv
+		cmd.Stdin = strings.NewReader("prompt\n")
+
+		start := testNowUnixMilli()
+		output, err := cmd.CombinedOutput()
+		elapsed := testNowUnixMilli() - start
+
+		if err != nil {
+			t.Fatalf("Expected delayed codex command to succeed, got %v (output: %s)", err, output)
+		}
+		if elapsed < 150 {
+			t.Fatalf("Expected CODEX_DELAY to add latency; elapsed=%dms output=%s", elapsed, output)
+		}
+	})
 }
 
 // TestFakes_BDStateful verifies that the fake bd maintains state
