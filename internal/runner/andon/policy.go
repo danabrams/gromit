@@ -35,6 +35,13 @@ func ClassifyFailure(signal FailureSignal) FailureClass {
 	}
 }
 
+// ClassifyFailureEntry classifies a failure signal for policy-level decisioning.
+func ClassifyFailureEntry(signal FailureSignal) PolicyClassification {
+	_ = signal
+
+	return PolicyClassification{Class: FailureClassWorkflow}
+}
+
 // ChooseNextAction computes the next bounded recovery step for a failure state.
 func ChooseNextAction(state RecoveryState, thresholds AndonThresholds, now time.Time) PolicyDecision {
 	return ChooseNextActionPure(PolicyInput{

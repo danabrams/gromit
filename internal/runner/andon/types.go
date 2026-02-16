@@ -111,6 +111,11 @@ type PolicyEvaluation struct {
 	Decision PolicyDecision
 }
 
+// PolicyClassification is the classifier output consumed by policy decisions.
+type PolicyClassification struct {
+	Class FailureClass
+}
+
 // RecoveryState tracks bounded recovery progress for a failure.
 type RecoveryState struct {
 	Class           FailureClass
