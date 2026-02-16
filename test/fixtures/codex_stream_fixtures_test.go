@@ -104,6 +104,65 @@ func TestCodexStreamFixturesHaveProvenanceAndRefreshComments(t *testing.T) {
 	}
 }
 
+// TestClaudeStreamSuccessFixtureHasCanonicalLifecycle verifies that
+// claude_stream_success.jsonl uses a minimal deterministic stream lifecycle
+// with start, delta/assistant, and terminal success events.
+func TestClaudeStreamSuccessFixtureHasCanonicalLifecycle(t *testing.T) {
+	// Expected failure: fixturecatalog.AssertClaudeStreamSuccessLifecycle() does not exist yet,
+	// and claude_stream_success.jsonl is not normalized to start/delta/end contract shape.
+	content := readFixtureFile(t, "claude_stream_success.jsonl")
+	events := parseJSONLEvents(t, content)
+
+	if len(events) != 3 {
+		t.Fatalf("claude_stream_success.jsonl has %d JSON events, want exactly 3 for deterministic snapshots", len(events))
+	}
+
+	firstType := extractEventType(t, events[0])
+	if !isStreamStartType(firstType) {
+		t.Fatalf("first event type = %q, want a start event type (start, stream_start, thread.started, or response.started)", firstType)
+	}
+
+	secondType := extractEventType(t, events[1])
+	if !isStreamDeltaType(secondType) {
+		t.Fatalf("second event type = %q, want a delta/message event type", secondType)
+	}
+
+	lastType := extractEventType(t, events[2])
+	if !isStreamEndType(lastType) {
+		t.Fatalf("terminal event type = %q, want an end event type (end, stream_end, result, or response.completed)", lastType)
+	}
+
+	if status := nestedStringField(events[2], "result", "status"); status != "success" {
+		t.Fatalf("terminal result.status = %q, want %q", status, "success")
+	}
+	if responseID := nestedStringField(events[0], "response", "id"); responseID != "resp_claude_ok" {
+		t.Fatalf("start response.id = %q, want %q for deterministic snapshots", responseID, "resp_claude_ok")
+	}
+	if messageID := nestedStringField(events[1], "message", "id"); messageID != "msg_claude_ok" {
+		t.Fatalf("assistant message.id = %q, want %q for deterministic snapshots", messageID, "msg_claude_ok")
+	}
+}
+
+// TestClaudeStreamSuccessFixtureHasProvenanceAndRefreshComments verifies that
+// claude_stream_success.jsonl carries the same two-line metadata convention as
+// codex stream fixtures.
+func TestClaudeStreamSuccessFixtureHasProvenanceAndRefreshComments(t *testing.T) {
+	// Expected failure: fixturecatalog.RequiredFixtureCommentHeaders() does not exist yet,
+	// and claude_stream_success.jsonl currently lacks the required # refresh metadata header.
+	content := readFixtureFile(t, "claude_stream_success.jsonl")
+	commentLines := extractCommentLines(content)
+
+	if len(commentLines) < 2 {
+		t.Fatalf("claude_stream_success.jsonl has %d comment lines, want at least 2 (# provenance: and # refresh:)", len(commentLines))
+	}
+	if !strings.HasPrefix(commentLines[0], "# provenance:") {
+		t.Fatalf("first comment line = %q, want prefix %q", commentLines[0], "# provenance:")
+	}
+	if !strings.HasPrefix(commentLines[1], "# refresh:") {
+		t.Fatalf("second comment line = %q, want prefix %q", commentLines[1], "# refresh:")
+	}
+}
+
 // --- Test helpers (local to this package) ---
 
 func readFixtureFile(t *testing.T, name string) string {
