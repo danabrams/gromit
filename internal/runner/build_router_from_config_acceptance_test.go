@@ -5,7 +5,6 @@ package runner
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -54,12 +53,5 @@ func TestRunnerAcceptanceSurfaceOnly_RouterSelection(t *testing.T) {
 	}
 	if runner.router == nil {
 		t.Fatal("expected router wiring for provider config")
-	}
-}
-
-func TestRunnerAcceptanceReducedCountRouterPrimary(t *testing.T) {
-	src := readRunnerTestFile(t, "build_router_from_config_acceptance_test.go")
-	if count := strings.Count(src, "\nfunc Test"); count > 3 {
-		t.Fatalf("build_router_from_config_acceptance_test.go contains %d tests; expected <= 3", count)
 	}
 }

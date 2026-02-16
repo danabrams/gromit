@@ -76,3 +76,20 @@ func TestBuildRouterAdditionalAcceptanceFileSurfaceOnly(t *testing.T) {
 		t.Fatal("build_router_from_config_additional_acceptance_test.go missing surface-only acceptance test")
 	}
 }
+
+func TestReclassifiedAcceptanceFilesReducedCount(t *testing.T) {
+	tests := []string{
+		"validation_extraction_acceptance_test.go",
+		"build_router_from_config_acceptance_test.go",
+		"build_router_from_config_additional_acceptance_test.go",
+	}
+
+	for _, file := range tests {
+		t.Run(file, func(t *testing.T) {
+			src := readRunnerTestFile(t, file)
+			if count := strings.Count(src, "\nfunc Test"); count > 2 {
+				t.Fatalf("%s contains %d tests; expected <= 2", file, count)
+			}
+		})
+	}
+}

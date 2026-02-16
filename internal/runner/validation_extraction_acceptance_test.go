@@ -6,7 +6,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -47,12 +46,5 @@ func TestRunnerAcceptanceSurfaceOnly_ValidationFlow(t *testing.T) {
 
 	if err := runner.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() error = %v", err)
-	}
-}
-
-func TestRunnerAcceptanceReducedCountValidation(t *testing.T) {
-	src := readRunnerTestFile(t, "validation_extraction_acceptance_test.go")
-	if count := strings.Count(src, "\nfunc Test"); count > 3 {
-		t.Fatalf("validation_extraction_acceptance_test.go contains %d tests; expected <= 3", count)
 	}
 }

@@ -135,33 +135,18 @@ func TestReclassifyRunnerUnitSuiteListsMovedBehavior(t *testing.T) {
 // Expected failure: these files still contain many internal-behavior tests
 // and exceed the reduced count budget.
 func TestReclassifyRunnerAcceptanceSuiteReducedTargetCount(t *testing.T) {
-	files := []struct {
-		path     string
-		required string
-	}{
-		{
-			path:     "validation_extraction_acceptance_test.go",
-			required: "RunnerAcceptanceReducedCountValidation",
-		},
-		{
-			path:     "build_router_from_config_acceptance_test.go",
-			required: "RunnerAcceptanceReducedCountRouterPrimary",
-		},
-		{
-			path:     "build_router_from_config_additional_acceptance_test.go",
-			required: "RunnerAcceptanceReducedCountRouterAdditional",
-		},
+	files := []string{
+		"validation_extraction_acceptance_test.go",
+		"build_router_from_config_acceptance_test.go",
+		"build_router_from_config_additional_acceptance_test.go",
 	}
 
 	for _, file := range files {
-		t.Run(file.path, func(t *testing.T) {
-			src := reclassifyReadFile(t, file.path)
+		t.Run(file, func(t *testing.T) {
+			src := reclassifyReadFile(t, file)
 			count := reclassifyCountTests(src)
-			if count > 3 {
-				t.Fatalf("%s contains %d tests; expected <= 3 after reclassification", file.path, count)
-			}
-			if !strings.Contains(src, file.required) {
-				t.Fatalf("%s is missing reduced-suite marker %q", file.path, file.required)
+			if count > 2 {
+				t.Fatalf("%s contains %d tests; expected <= 2 after reclassification", file, count)
 			}
 		})
 	}
