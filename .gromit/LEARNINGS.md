@@ -58,6 +58,9 @@ Bead 'Add Andon domain types and policy skeleton' timed out on gpt-5.3-codex —
 ### 2026-02-16 | gromit-f8x2.3 | patterns
 Bead 'Add class-aware classification and coverage' timed out on gpt-5.3-codex — may need simpler scope or higher model tier
 
+### 2026-02-16 | gromit-kk13.1.3 | conventions
+When auditing acceptance test coverage, must search exhaustively across all *_acceptance_test.go files including subdirectories like internal/runner/andon/. The smoke coverage matrix validator is the source of truth—test failures reveal which cases are actually missing from the matrix, not just visual inspection of test files.
+
 ---
 
 ## Archived

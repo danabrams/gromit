@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
@@ -29,12 +31,13 @@ type InvocationResult struct {
 // Invoker handles a single Claude invocation: provider selection, streaming,
 // usage-limit fallback, and diagnostic capture.
 type Invoker struct {
-	router              Router
-	output              io.Writer
-	streamLogger        *logger.StreamLogger
-	overwriteOut        OverwriteWriter
-	stallTimeoutFn      StallTimeoutFunc
-	invocationTimeoutFn func(model string) time.Duration
+	router               Router
+	output               io.Writer
+	streamLogger         *logger.StreamLogger
+	overwriteOut         OverwriteWriter
+	stallTimeoutFn       StallTimeoutFunc
+	invocationTimeoutFn  func(model string) time.Duration
+	preserveNativeStream bool
 }
 
 // NewInvoker creates an Invoker with the given narrow dependencies.
@@ -60,6 +63,13 @@ func (inv *Invoker) WithHeartbeat(out OverwriteWriter, stallTimeoutFn StallTimeo
 // Returning 0 or less disables the timeout and uses the parent context only.
 func (inv *Invoker) WithInvocationTimeout(timeoutFn func(model string) time.Duration) *Invoker {
 	inv.invocationTimeoutFn = timeoutFn
+	return inv
+}
+
+// WithPreserveProviderTerminalStream controls whether the invoker should prefer
+// provider-native terminal stream rendering over structured event parsing.
+func (inv *Invoker) WithPreserveProviderTerminalStream(enabled bool) *Invoker {
+	inv.preserveNativeStream = enabled
 	return inv
 }
 
@@ -109,10 +119,14 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 
 	stallFired := false
 
-	// Set up heartbeat for progress display and stall detection
+	preserveProviderTerminalStream := shouldPreserveProviderTerminalStream(inv.preserveNativeStream)
+
+	// Set up heartbeat for progress display and stall detection.
+	// When preserving provider-native terminal streams, disable heartbeat so
+	// progress lines don't interfere with provider-owned terminal rendering.
 	var toolCallEvents chan claude.ToolEvent
 	var stopHeartbeat func()
-	if inv.overwriteOut != nil {
+	if inv.overwriteOut != nil && !preserveProviderTerminalStream {
 		toolCallEvents = make(chan claude.ToolEvent, 100)
 		var stallTimeout, stallTimeoutActive time.Duration
 		if inv.stallTimeoutFn != nil {
@@ -124,24 +138,31 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}, toolCallEvents, inv.overwriteOut)
 	}
 
-	// Always install an event handler so providers that gate structured streaming
-	// on handler presence (Codex --json mode) still stream live output/events even
-	// when stream logging to file is disabled.
+	// Default behavior installs a structured stream event handler so providers that
+	// gate JSON mode on handler presence (Codex --json) still emit parseable events.
+	// In preserve mode, we intentionally pass nil handlers to keep provider-native
+	// terminal output (color + structure) untouched.
 	sl := inv.streamLogger
 	handler := func(line []byte) {
 		logger.ParseAndLogEvent(sl, stats, line)
 	}
 
-	providerHandler := provider.EventHandler(handler)
+	var providerHandler provider.EventHandler
+	if !preserveProviderTerminalStream {
+		providerHandler = provider.EventHandler(handler)
+	}
 
-	providerToolHandler := func(event provider.ToolEvent) {
-		if toolCallEvents != nil {
-			select {
-			case toolCallEvents <- claude.ToolEvent{
-				ToolName: event.ToolName,
-				FilePath: event.FilePath,
-			}:
-			default:
+	var providerToolHandler provider.ToolCallHandler
+	if !preserveProviderTerminalStream {
+		providerToolHandler = func(event provider.ToolEvent) {
+			if toolCallEvents != nil {
+				select {
+				case toolCallEvents <- claude.ToolEvent{
+					ToolName: event.ToolName,
+					FilePath: event.FilePath,
+				}:
+				default:
+				}
 			}
 		}
 	}
@@ -205,6 +226,22 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		ProviderName:   p.Name(),
 		ProviderResult: providerResult,
 	}, err
+}
+
+func shouldPreserveProviderTerminalStream(defaultValue bool) bool {
+	raw, ok := os.LookupEnv("GROMIT_PRESERVE_PROVIDER_STREAM")
+	if !ok {
+		return defaultValue
+	}
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	switch raw {
+	case "1", "true", "yes", "on", "raw", "passthrough", "native":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultValue
+	}
 }
 
 func (inv *Invoker) logLifecycleStart(tier string) {

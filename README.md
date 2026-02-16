@@ -415,6 +415,7 @@ Changes detected (partial progress):
 ### Streaming and Heartbeat
 
 During long-running invocations, Gromit provides visibility with a streaming log (watch with `tail -f .gromit/logs/stream-*.log`) and a heartbeat every 30 seconds showing elapsed time, files modified, and tool calls made.
+Provider-native terminal streaming (color/layout) is enabled by default via `stream.preserve_provider_output: true` in `gromit.yaml`. You can override at runtime with `GROMIT_PRESERVE_PROVIDER_STREAM=0` or `1`.
 
 ### Pre-flight Checks
 

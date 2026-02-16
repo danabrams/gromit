@@ -68,11 +68,13 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 	if router != nil {
 		inv = execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
 			WithHeartbeat(syncOut, stallTimeoutFn).
-			WithInvocationTimeout(invocationTimeoutFn)
+			WithInvocationTimeout(invocationTimeoutFn).
+			WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
 	} else {
 		inv = execution.NewInvoker(nil, syncOut, nil).
 			WithHeartbeat(syncOut, stallTimeoutFn).
-			WithInvocationTimeout(invocationTimeoutFn)
+			WithInvocationTimeout(invocationTimeoutFn).
+			WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
 	}
 
 	cmdRunner := defaultCmdRunner

@@ -51,6 +51,7 @@ type Config struct {
 	Agents      AgentsConfig           `yaml:"agents"`
 	Providers   map[string]ProviderDef `yaml:"providers"`
 	Routing     RoutingConfig          `yaml:"routing"`
+	Stream      StreamConfig           `yaml:"stream"`
 	Worktree    WorktreeConfig         `yaml:"worktree"`
 }
 
@@ -284,6 +285,19 @@ type RoutingConfig struct {
 type FallbackConfig struct {
 	Enabled  bool   `yaml:"enabled"`
 	Cooldown string `yaml:"cooldown"`
+}
+
+type StreamConfig struct {
+	// PreserveProviderOutput keeps provider-native terminal rendering for stream
+	// output (colors/layout) instead of forcing structured event parsing.
+	PreserveProviderOutput *bool `yaml:"preserve_provider_output"`
+}
+
+func (s StreamConfig) PreserveProviderOutputEnabled() bool {
+	if s.PreserveProviderOutput == nil {
+		return true
+	}
+	return *s.PreserveProviderOutput
 }
 
 type WorktreeConfig struct {
@@ -617,6 +631,11 @@ func (c *Config) SetDefaults() {
 		if len(c.Providers) > 1 && !c.Routing.Fallback.Enabled {
 			c.Routing.Fallback.Enabled = true
 		}
+	}
+
+	if c.Stream.PreserveProviderOutput == nil {
+		t := true
+		c.Stream.PreserveProviderOutput = &t
 	}
 
 	// Worktree defaults

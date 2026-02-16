@@ -91,7 +91,8 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	invocationTimeoutFn := makeInvocationTimeoutFn(cfg)
 	inv := execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
 		WithHeartbeat(syncOut, stallTimeoutFn).
-		WithInvocationTimeout(invocationTimeoutFn)
+		WithInvocationTimeout(invocationTimeoutFn).
+		WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
 
 	r := &Runner{
 		cfg:         cfg,

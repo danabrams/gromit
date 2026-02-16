@@ -490,6 +490,104 @@ func TestInvokerExecute_PassesEventHandlerWithoutStreamLogger(t *testing.T) {
 	}
 }
 
+func TestInvokerExecute_PreserveProviderStreamModePassesNilHandlers(t *testing.T) {
+	t.Setenv("GROMIT_PRESERVE_PROVIDER_STREAM", "1")
+
+	var handlerWasNil bool
+	var toolHandlerWasNil bool
+	mp := &mockProvider{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			handlerWasNil = handler == nil
+			toolHandlerWasNil = onToolCall == nil
+			return &provider.Result{Success: true, Model: "m"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "m"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+	invResult, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if invResult == nil {
+		t.Fatal("expected invocation result")
+	}
+	if !handlerWasNil {
+		t.Fatal("expected nil event handler in preserve-provider-stream mode")
+	}
+	if !toolHandlerWasNil {
+		t.Fatal("expected nil tool handler in preserve-provider-stream mode")
+	}
+}
+
+func TestInvokerExecute_PreserveProviderStreamConfiguredPassesNilHandlers(t *testing.T) {
+	var handlerWasNil bool
+	var toolHandlerWasNil bool
+	mp := &mockProvider{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			handlerWasNil = handler == nil
+			toolHandlerWasNil = onToolCall == nil
+			return &provider.Result{Success: true, Model: "m"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "m"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil).WithPreserveProviderTerminalStream(true)
+	bc := newTestBeadContext()
+	invResult, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if invResult == nil {
+		t.Fatal("expected invocation result")
+	}
+	if !handlerWasNil {
+		t.Fatal("expected nil event handler when preserve-provider-stream is configured")
+	}
+	if !toolHandlerWasNil {
+		t.Fatal("expected nil tool handler when preserve-provider-stream is configured")
+	}
+}
+
+func TestInvokerExecute_PreserveProviderStreamEnvOverrideOff(t *testing.T) {
+	t.Setenv("GROMIT_PRESERVE_PROVIDER_STREAM", "0")
+
+	var handlerWasNil bool
+	mp := &mockProvider{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			handlerWasNil = handler == nil
+			return &provider.Result{Success: true, Model: "m"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "m"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil).WithPreserveProviderTerminalStream(true)
+	bc := newTestBeadContext()
+	invResult, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if invResult == nil {
+		t.Fatal("expected invocation result")
+	}
+	if handlerWasNil {
+		t.Fatal("expected non-nil event handler when env override disables preserve mode")
+	}
+}
+
 // Expected failure: InvocationLifecycleMarkerStart constant does not exist yet
 func TestInvokerExecute_EmitsStartMarker(t *testing.T) {
 	logsDir := t.TempDir()

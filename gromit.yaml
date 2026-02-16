@@ -53,6 +53,10 @@ routing:
     enabled: true
     cooldown: 30m
 
+# Stream output behavior
+stream:
+  preserve_provider_output: true  # keep provider-native terminal colors/layout
+
 # Example: Codex provider configuration
 # codex:
 #     binary: codex
