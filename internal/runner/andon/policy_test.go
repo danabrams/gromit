@@ -285,3 +285,31 @@ func TestEvaluateFailure_ClassifiesWorkflowAndEscalatesFromL1(t *testing.T) {
 		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionEscalate)
 	}
 }
+
+func TestEvaluateFailure_ClassifiesQualityAndStopsLineFromL2(t *testing.T) {
+	now := time.Date(2026, 2, 16, 12, 0, 0, 0, time.UTC)
+	thresholds := DefaultThresholds()
+
+	got := EvaluateFailure(
+		FailureSignal{
+			Kind:   FailureKindQualityGate,
+			Output: "go test ./... failed",
+		},
+		RecoveryState{
+			Level:     LevelL2,
+			L2Started: now.Add(-16 * time.Minute),
+		},
+		thresholds,
+		now,
+	)
+
+	if got.Class != FailureClassQuality {
+		t.Fatalf("Class = %q, want %q", got.Class, FailureClassQuality)
+	}
+	if got.Decision.NextLevel != LevelL3 {
+		t.Fatalf("Decision.NextLevel = %q, want %q", got.Decision.NextLevel, LevelL3)
+	}
+	if got.Decision.Action != DecisionStopLine {
+		t.Fatalf("Decision.Action = %q, want %q", got.Decision.Action, DecisionStopLine)
+	}
+}
