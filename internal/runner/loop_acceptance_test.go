@@ -5,6 +5,7 @@ package runner
 import (
 	"context"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -82,21 +83,11 @@ func TestRunner_UsesLabelFiltersInLoop(t *testing.T) {
 		t.Fatalf("Expected at least 2 ReadyWithLabel calls, got %d: %v", len(queriedLabels), queriedLabels)
 	}
 
-	// Just verify both labels were queried at some point
-	hasAuth := false
-	hasPayments := false
-	for _, label := range queriedLabels {
-		if label == "spec:auth" {
-			hasAuth = true
-		}
-		if label == "spec:payments" {
-			hasPayments = true
-		}
-	}
-	if !hasAuth {
+	// Verify both labels were queried at some point
+	if !slices.Contains(queriedLabels, "spec:auth") {
 		t.Error("Expected 'spec:auth' to be queried")
 	}
-	if !hasPayments {
+	if !slices.Contains(queriedLabels, "spec:payments") {
 		t.Error("Expected 'spec:payments' to be queried")
 	}
 
@@ -207,10 +198,8 @@ func TestScopedRun_FullLoopWithLabelFilters(t *testing.T) {
 	}
 
 	// Verify other-1 was NOT processed (it has spec:other label which is not in filters)
-	for _, id := range processedBeads {
-		if id == "other-1" {
-			t.Errorf("Bead 'other-1' should not have been processed as it doesn't match label filters")
-		}
+	if slices.Contains(processedBeads, "other-1") {
+		t.Error("Bead 'other-1' should not have been processed as it doesn't match label filters")
 	}
 
 	// Verify ReadyWithLabel was called for each label
@@ -219,14 +208,14 @@ func TestScopedRun_FullLoopWithLabelFilters(t *testing.T) {
 	}
 }
 
+// selectNextBeadWithLabel returns the highest-priority unclosed bead matching the given label.
 func selectNextBeadWithLabel(allBeads []*bead.Bead, closedBeads map[string]bool, label string) *bead.Bead {
 	var bestBead *bead.Bead
-	for i := 0; i < len(allBeads); i++ {
-		b := allBeads[i]
+	for _, b := range allBeads {
 		if closedBeads[b.ID] {
 			continue
 		}
-		if !hasLabel(b.Labels, label) {
+		if !slices.Contains(b.Labels, label) {
 			continue
 		}
 		if bestBead == nil || b.Priority < bestBead.Priority {
@@ -234,13 +223,4 @@ func selectNextBeadWithLabel(allBeads []*bead.Bead, closedBeads map[string]bool,
 		}
 	}
 	return bestBead
-}
-
-func hasLabel(labels []string, label string) bool {
-	for _, l := range labels {
-		if l == label {
-			return true
-		}
-	}
-	return false
 }
