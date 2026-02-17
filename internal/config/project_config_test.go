@@ -103,6 +103,18 @@ func TestGromitYamlDocumentsCodexProvider(t *testing.T) {
 	})
 }
 
+func TestGromitYamlDocumentsMaxCrossRunFailures(t *testing.T) {
+	content, err := os.ReadFile("../../gromit.yaml")
+	if err != nil {
+		t.Fatalf("failed to read gromit.yaml: %v", err)
+	}
+
+	text := string(content)
+	if !strings.Contains(text, "max_cross_run_failures:") {
+		t.Error("gromit.yaml missing loop.max_cross_run_failures setting")
+	}
+}
+
 // Expected failure: gromit.yaml does not have a commented worktree section yet
 // TestGromitYamlDocumentsWorktreeConfig verifies that the reference gromit.yaml
 // includes a commented-out worktree configuration section showing how to enable

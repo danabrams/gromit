@@ -47,8 +47,8 @@ routing:
     precheck: any
     decompose: any
   ratio:
-    openai: 95
-    claude: 5
+    claude: 40
+    openai: 60
   fallback:
     enabled: true
     cooldown: 30m
@@ -94,6 +94,7 @@ loop:
   stop_on_failure: true  # Stop loop immediately when a bead fails
   stuck_bead_threshold: 3  # Skip bead if it fails this many times across runs
   max_consecutive_skips: 5  # Stop loop after 5 consecutive precheck skips — needs headroom for related beads with overlapping acceptance criteria
+  max_cross_run_failures: 5  # Skip bead if it has 5+ consecutive failures across runs
   learn_from_success: true  # Extract learnings from successful iterations (default: true)
   between_iterations_command: "make"  # Shell command to run after each successful bead (e.g., rebuild binary)
 
