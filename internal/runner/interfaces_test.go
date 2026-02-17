@@ -150,6 +150,7 @@ type mockPromptRenderer struct {
 	RenderDecomposeFn       func(ctx *prompt.DecomposeContext) (string, error)
 	RenderScopeFn           func(ctx *prompt.ScopeContext) (string, error)
 	RenderPrecheckFn        func(ctx *prompt.PrecheckContext) (string, error)
+	RenderSpecAcceptanceFn  func(ctx *prompt.SpecAcceptanceContext) (string, error)
 	RenderReviewFn          func(ctx *prompt.ReviewContext) (string, error)
 	RenderThoroughReviewFn  func(ctx *prompt.ThoroughReviewContext) (string, error)
 	RenderAcceptanceTestsFn func(ctx *prompt.Context) (string, error)
@@ -217,6 +218,13 @@ func (m *mockPromptRenderer) RenderPrecheck(ctx *prompt.PrecheckContext) (string
 		return m.RenderPrecheckFn(ctx)
 	}
 	return "mock precheck prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderSpecAcceptance(ctx *prompt.SpecAcceptanceContext) (string, error) {
+	if m.RenderSpecAcceptanceFn != nil {
+		return m.RenderSpecAcceptanceFn(ctx)
+	}
+	return "mock spec acceptance prompt", nil
 }
 
 func (m *mockPromptRenderer) LoadSpec(name string) (string, error) {
@@ -360,6 +368,10 @@ func (m *mockRenderer) RenderPrecheck(ctx *prompt.PrecheckContext) (string, erro
 	return "mock precheck prompt", nil
 }
 
+func (m *mockRenderer) RenderSpecAcceptance(ctx *prompt.SpecAcceptanceContext) (string, error) {
+	return "mock spec acceptance prompt", nil
+}
+
 func (m *mockRenderer) LoadSpec(name string) (string, error) {
 	return "", nil
 }
@@ -428,6 +440,20 @@ func TestBeadClientInterfaceIncludesReadyWithLabel(t *testing.T) {
 	}
 	if result.ID != "test-1" {
 		t.Errorf("ReadyWithLabel() bead ID = %q, want 'test-1'", result.ID)
+	}
+}
+
+// TestPromptRendererInterfaceIncludesRenderSpecAcceptance verifies that PromptRenderer includes
+// RenderSpecAcceptance with the correct signature.
+func TestPromptRendererInterfaceIncludesRenderSpecAcceptance(t *testing.T) {
+	var r PromptRenderer = &mockPromptRenderer{}
+
+	output, err := r.RenderSpecAcceptance(&prompt.SpecAcceptanceContext{Spec: "spec"})
+	if err != nil {
+		t.Fatalf("RenderSpecAcceptance() error = %v", err)
+	}
+	if output == "" {
+		t.Fatal("expected non-empty output")
 	}
 }
 
