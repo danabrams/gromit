@@ -45,9 +45,7 @@ func classifyFailure(signal FailureSignal) (FailureClass, bool) {
 			return FailureClassTransient, false
 		}
 		return FailureClassData, false
-	case FailureKindHardStopIrreversibleMigration:
-		return FailureClassData, false
-	case FailureKindHardStopCredentialChange:
+	case FailureKindHardStopIrreversibleMigration, FailureKindHardStopCredentialChange:
 		return FailureClassData, false
 	default:
 		// Unknown signals route through the workflow class so policy output remains canonical.
