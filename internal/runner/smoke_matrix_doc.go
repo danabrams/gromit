@@ -8,6 +8,17 @@ import (
 	"strings"
 )
 
+const (
+	smokeCoverageMatrixRelPath = "docs/smoke_coverage_matrix.md"
+	smokeMatrixColumnCount     = 4
+	smokeMatrixCaseColumn      = 0
+	smokeMatrixDecisionColumn  = 1
+	smokeMatrixRationaleColumn = 2
+	smokeMatrixDestColumn      = 3
+	smokeMatrixCaseHeader      = "case"
+	runnerSmokePathPrefix      = "internal/runner/"
+)
+
 // RunnerSmokeMatrixEntry represents a documented smoke-matrix decision.
 type RunnerSmokeMatrixEntry struct {
 	Decision    string
@@ -18,7 +29,7 @@ type RunnerSmokeMatrixEntry struct {
 // LoadRunnerSmokeMatrix loads the consolidated smoke matrix documentation and
 // returns entries keyed by "file:TestName".
 func LoadRunnerSmokeMatrix(projectRoot string) (map[string]RunnerSmokeMatrixEntry, error) {
-	path := filepath.Join(projectRoot, "docs", "smoke_coverage_matrix.md")
+	path := filepath.Join(projectRoot, smokeCoverageMatrixRelPath)
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open smoke coverage matrix: %w", err)
@@ -36,27 +47,27 @@ func LoadRunnerSmokeMatrix(projectRoot string) (map[string]RunnerSmokeMatrixEntr
 		}
 		row := strings.Trim(line, "|")
 		parts := strings.Split(row, "|")
-		if len(parts) != 4 {
-			return nil, fmt.Errorf("invalid smoke matrix row %q: expected 4 columns, got %d", line, len(parts))
+		if len(parts) != smokeMatrixColumnCount {
+			return nil, fmt.Errorf("invalid smoke matrix row %q: expected %d columns, got %d", line, smokeMatrixColumnCount, len(parts))
 		}
 		for i := range parts {
 			parts[i] = strings.TrimSpace(parts[i])
 		}
-		if parts[0] == "" || parts[0] == "case" || strings.HasPrefix(parts[0], "---") {
+		caseID := parts[smokeMatrixCaseColumn]
+		if caseID == "" || caseID == smokeMatrixCaseHeader || strings.HasPrefix(caseID, "---") {
 			continue
 		}
 
-		caseID := parts[0]
-		if !strings.HasPrefix(caseID, "internal/runner/") {
+		if !strings.HasPrefix(caseID, runnerSmokePathPrefix) {
 			continue
 		}
 		if _, ok := entries[caseID]; ok {
 			return nil, fmt.Errorf("duplicate smoke matrix case %q", caseID)
 		}
 		entries[caseID] = RunnerSmokeMatrixEntry{
-			Decision:    parts[1],
-			Rationale:   parts[2],
-			Destination: parts[3],
+			Decision:    parts[smokeMatrixDecisionColumn],
+			Rationale:   parts[smokeMatrixRationaleColumn],
+			Destination: parts[smokeMatrixDestColumn],
 		}
 	}
 	if err := scanner.Err(); err != nil {

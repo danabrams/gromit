@@ -38,8 +38,6 @@ func collectRunnerAcceptanceCases(t *testing.T, projectRoot string) []string {
 }
 
 func TestRunnerSmokeMatrix_DocumentedCasesCoverAcceptanceSuite(t *testing.T) {
-	// Expected failure: LoadRunnerSmokeMatrix does not exist yet to load the
-	// documented runner smoke matrix and its RunnerSmokeMatrixEntry records.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
 	matrix, err := LoadRunnerSmokeMatrix(projectRoot)
@@ -63,8 +61,6 @@ func TestRunnerSmokeMatrix_DocumentedCasesCoverAcceptanceSuite(t *testing.T) {
 }
 
 func TestRunnerSmokeMatrix_DocumentedKeepSetIsExact(t *testing.T) {
-	// Expected failure: LoadRunnerSmokeMatrix does not exist yet to define the
-	// canonical runner keep set based on the documented smoke matrix.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
 	matrix, err := LoadRunnerSmokeMatrix(projectRoot)
@@ -96,8 +92,6 @@ func TestRunnerSmokeMatrix_DocumentedKeepSetIsExact(t *testing.T) {
 }
 
 func TestRunnerSmokeMatrix_DocumentedMoveCasesMapToUnitDestinations(t *testing.T) {
-	// Expected failure: LoadRunnerSmokeMatrix does not exist yet and no
-	// RunnerSmokeMatrixEntry destinations are mapped for moved assertions.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
 	matrix, err := LoadRunnerSmokeMatrix(projectRoot)
@@ -106,14 +100,14 @@ func TestRunnerSmokeMatrix_DocumentedMoveCasesMapToUnitDestinations(t *testing.T
 	}
 
 	expectedMoved := map[string]string{
-		"internal/runner/andon/policy_classification_acceptance_test.go:TestEvaluateFailure_ClassifiesAndSelectsDecisionForAllClasses":                 "internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass",
-		"internal/runner/andon/policy_classification_acceptance_test.go:TestEvaluateFailure_EnforcesL1L2BoundaryAtPublicEntryPoint":                    "internal/runner/andon/policy_test.go:TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap",
-		"internal/runner/andon/policy_class_aware_selection_acceptance_test.go:TestEvaluateFailure_UsesClassifiedDecisionPathAtPublicEntryPoint":      "internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass",
-		"internal/runner/andon/policy_class_aware_selection_acceptance_test.go:TestEvaluateClassifiedFailure_HasExplicitDecisionPathPerFailureClass":   "internal/runner/andon/policy_test.go:TestEvaluateClassifiedFailure_HasExplicitPathPerClass",
+		"internal/runner/andon/policy_classification_acceptance_test.go:TestEvaluateFailure_ClassifiesAndSelectsDecisionForAllClasses":                        "internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass",
+		"internal/runner/andon/policy_classification_acceptance_test.go:TestEvaluateFailure_EnforcesL1L2BoundaryAtPublicEntryPoint":                           "internal/runner/andon/policy_test.go:TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap",
+		"internal/runner/andon/policy_class_aware_selection_acceptance_test.go:TestEvaluateFailure_UsesClassifiedDecisionPathAtPublicEntryPoint":              "internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass",
+		"internal/runner/andon/policy_class_aware_selection_acceptance_test.go:TestEvaluateClassifiedFailure_HasExplicitDecisionPathPerFailureClass":          "internal/runner/andon/policy_test.go:TestEvaluateClassifiedFailure_HasExplicitPathPerClass",
 		"internal/runner/andon/policy_class_aware_selection_acceptance_test.go:TestEvaluateFailure_UnknownSignalRemainsDeterministicWithWorkflowFallbackPath": "internal/runner/andon/policy_test.go:TestEvaluateFailure_UnknownKindUsesDeterministicWorkflowFallbackPath",
-		"internal/runner/andon/types_acceptance_test.go:TestFailureClasses_CanonicalCatalog":                                                             "internal/runner/andon/types_test.go:TestAllFailureClasses_CanonicalOrderAndLabels",
-		"internal/runner/andon/types_acceptance_test.go:TestLevels_CanonicalCatalog":                                                                     "internal/runner/andon/types_test.go:TestAllAndonLevels_CanonicalOrder",
-		"internal/runner/andon/types_acceptance_test.go:TestDefaultThresholdDefinition_IsPureAndPolicyConsumable_Acceptance":                            "internal/runner/andon/types_test.go:TestDefaultThresholdDefinition_IsPureAndPolicyConsumable",
+		"internal/runner/andon/types_acceptance_test.go:TestFailureClasses_CanonicalCatalog":                                                                  "internal/runner/andon/types_test.go:TestAllFailureClasses_CanonicalOrderAndLabels",
+		"internal/runner/andon/types_acceptance_test.go:TestLevels_CanonicalCatalog":                                                                          "internal/runner/andon/types_test.go:TestAllAndonLevels_CanonicalOrder",
+		"internal/runner/andon/types_acceptance_test.go:TestDefaultThresholdDefinition_IsPureAndPolicyConsumable_Acceptance":                                  "internal/runner/andon/types_test.go:TestDefaultThresholdDefinition_IsPureAndPolicyConsumable",
 	}
 
 	unitTests := listRunnerUnitTests(t, projectRoot)
