@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -109,19 +108,6 @@ func collectAcceptanceTests(t *testing.T, projectRoot string, files []string) []
 	}
 
 	return cases
-}
-
-func listPackageTests(t *testing.T, projectRoot, pkg string) string {
-	t.Helper()
-
-	cmd := exec.Command("go", "test", pkg, "-list", "Test")
-	cmd.Dir = projectRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test -list %s failed: %v\n%s", pkg, err, string(out))
-	}
-
-	return string(out)
 }
 
 func TestSmokeCoverageMatrix_ConsolidatedFileHasHeader(t *testing.T) {
@@ -260,8 +246,8 @@ func TestSmokeCoverageMatrix_MoveCasesHaveConcreteUnitDestinations(t *testing.T)
 	}
 
 	entries := loadConsolidatedSmokeMatrix(t, projectRoot)
-	cmdUnitTests := listPackageTests(t, projectRoot, "./cmd/gromit")
-	runnerUnitTests := listPackageTests(t, projectRoot, "./internal/runner/...")
+	cmdUnitTests := packageTestNameIndex(t, projectRoot, "cmd/gromit")
+	runnerUnitTests := packageTestNameIndex(t, projectRoot, "internal/runner")
 
 	for caseID, entry := range entries {
 		if entry.Decision != "move" {
@@ -281,7 +267,7 @@ func TestSmokeCoverageMatrix_MoveCasesHaveConcreteUnitDestinations(t *testing.T)
 			t.Fatalf("%s destination file must be *_test.go, got %q", caseID, file)
 		}
 
-		var suiteList string
+		var suiteList map[string]struct{}
 		switch {
 		case strings.HasPrefix(file, "cmd/gromit/"):
 			suiteList = cmdUnitTests
@@ -291,7 +277,7 @@ func TestSmokeCoverageMatrix_MoveCasesHaveConcreteUnitDestinations(t *testing.T)
 			t.Fatalf("%s destination %q must point to cmd/gromit or internal/runner test suites", caseID, file)
 		}
 
-		if !strings.Contains(suiteList, suite) {
+		if _, ok := suiteList[suite]; !ok {
 			t.Fatalf("%s destination suite %s not found in %s", caseID, suite, file)
 		}
 	}

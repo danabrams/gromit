@@ -131,7 +131,7 @@ func TestRunnerSmokeMatrix_DocumentedMoveCasesMapToUnitDestinations(t *testing.T
 		if !strings.HasSuffix(parts[0], "_test.go") {
 			t.Fatalf("%s destination file must be *_test.go, got %q", caseID, parts[0])
 		}
-		if !strings.Contains(unitTests, parts[1]) {
+		if _, ok := unitTests[parts[1]]; !ok {
 			t.Fatalf("runner unit suite missing destination test %s", parts[1])
 		}
 	}

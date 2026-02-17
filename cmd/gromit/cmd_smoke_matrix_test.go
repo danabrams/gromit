@@ -86,7 +86,7 @@ func TestCmdSmokeMatrix_MovedCasesHaveConcreteUnitDestinations(t *testing.T) {
 		if !strings.HasSuffix(parts[0], "_test.go") {
 			t.Fatalf("%s destination file must be *_test.go, got %q", caseID, parts[0])
 		}
-		if !strings.Contains(unitTests, parts[1]) {
+		if _, ok := unitTests[parts[1]]; !ok {
 			t.Fatalf("%s destination suite %s not found in cmd tests", caseID, parts[1])
 		}
 	}

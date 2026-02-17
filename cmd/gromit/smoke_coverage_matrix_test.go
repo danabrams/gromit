@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -67,17 +66,9 @@ func parseCmdSmokeMatrixForFile(t *testing.T, projectRoot, rel string) (map[stri
 	return entries, tests
 }
 
-func listCmdUnitTests(t *testing.T, projectRoot string) string {
+func listCmdUnitTests(t *testing.T, projectRoot string) map[string]struct{} {
 	t.Helper()
-
-	cmd := exec.Command("go", "test", "./cmd/gromit", "-list", "Test")
-	cmd.Dir = projectRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test -list ./cmd/gromit failed: %v\n%s", err, string(out))
-	}
-
-	return string(out)
+	return packageTestNameIndex(t, projectRoot, "cmd/gromit")
 }
 
 func TestCmdSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
@@ -172,7 +163,7 @@ func TestCmdSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites(t *testing.T
 				if !strings.HasSuffix(parts[0], "_test.go") {
 					t.Fatalf("%s destination file must be *_test.go, got %q", testName, parts[0])
 				}
-				if !strings.Contains(unitTests, parts[1]) {
+				if _, ok := unitTests[parts[1]]; !ok {
 					t.Fatalf("cmd unit suite missing moved destination test %s", parts[1])
 				}
 				continue

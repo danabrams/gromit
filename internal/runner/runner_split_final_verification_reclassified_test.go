@@ -228,6 +228,10 @@ func TestSplitRunnerFinalVerification_LayoutAndIsolation(t *testing.T) {
 // Expected failure: `finalVerificationVerifyLayout` fails first while
 // `RunnerSplitFinalVerificationTestReentry` is not part of the codebase yet.
 func TestSplitRunnerFinalVerification_RunnerPackageTestsPass(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skip recursive runner package verification in short mode")
+	}
+
 	if os.Getenv("GROMIT_SPLIT_FINAL_VERIFICATION_REENTRY") == "1" {
 		return
 	}
@@ -240,7 +244,7 @@ func TestSplitRunnerFinalVerification_RunnerPackageTestsPass(t *testing.T) {
 	cmd := exec.Command(
 		"go",
 		"test",
-		"./internal/runner/...",
+		"./internal/runner",
 		"-count=1",
 		"-run",
 		"TestRunnerSplitVerificationReclassified_ImportIsolation|TestRunnerSplitVerificationReclassified_LineBudgets",
@@ -256,7 +260,7 @@ func TestSplitRunnerFinalVerification_RunnerPackageTestsPass(t *testing.T) {
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("go test ./internal/runner/... -count=1 failed: %v\n%s", err, string(out))
+		t.Fatalf("go test ./internal/runner -count=1 failed: %v\n%s", err, string(out))
 	}
 }
 

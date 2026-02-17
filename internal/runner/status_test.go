@@ -345,6 +345,8 @@ func TestIsProcessAlive_NonExistentProcess(t *testing.T) {
 }
 
 func TestRunner_Status_NoStatusFile(t *testing.T) {
+	withFastStatusReaders(t)
+
 	// Setup
 	tmpDir := t.TempDir()
 	var buf strings.Builder
@@ -395,6 +397,8 @@ func TestRunner_Status_NoStatusFile(t *testing.T) {
 }
 
 func TestRunner_Status_LivePID(t *testing.T) {
+	withFastStatusReaders(t)
+
 	// Setup
 	tmpDir := t.TempDir()
 	var buf strings.Builder
@@ -469,6 +473,8 @@ func TestRunner_Status_LivePID(t *testing.T) {
 }
 
 func TestRunner_Status_DeadPID(t *testing.T) {
+	withFastStatusReaders(t)
+
 	// Setup
 	tmpDir := t.TempDir()
 	var buf strings.Builder

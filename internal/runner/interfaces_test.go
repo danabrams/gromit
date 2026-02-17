@@ -671,6 +671,8 @@ func TestRunWithMocks_MaxIterations(t *testing.T) {
 }
 
 func TestStatusWithMocks(t *testing.T) {
+	withFastStatusReaders(t)
+
 	beads := &mockBeadClient{
 		ReadyFn: func() (*bead.Bead, error) {
 			return &bead.Bead{ID: "bead-42", Title: "Important task", Priority: 0, Labels: []string{"complexity:high"}, ExpectedOutputs: []string{}}, nil
@@ -704,6 +706,8 @@ func TestStatusWithMocks(t *testing.T) {
 }
 
 func TestStatusWithMocks_NoWork(t *testing.T) {
+	withFastStatusReaders(t)
+
 	beads := &mockBeadClient{ReadyFn: func() (*bead.Bead, error) { return nil, nil }}
 
 	var buf strings.Builder

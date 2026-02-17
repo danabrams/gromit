@@ -20,6 +20,11 @@ import (
 
 var mandatoryQualityGateCommandPrefixes = []string{"go test", "go vet", "go build"}
 
+var (
+	readPipelineStatus = pipeline.ReadStatus
+	readModelStats     = logger.ReadModelStats
+)
+
 // SessionCompletionRebaseRetryCount is the number of times the session
 // completion protocol attempts git pull --rebase before giving up.
 const SessionCompletionRebaseRetryCount = 2
@@ -141,7 +146,7 @@ func (r *Runner) Status() error {
 	if status != nil && !status.StartedAt.IsZero() {
 		startedAt = &status.StartedAt
 	}
-	pipelineStatus, err := pipeline.ReadStatus(r.gromitDir, r.cfg.Paths.Specs, r.cfg.Paths.Plans, startedAt)
+	pipelineStatus, err := readPipelineStatus(r.gromitDir, r.cfg.Paths.Specs, r.cfg.Paths.Plans, startedAt)
 	if err != nil {
 		return fmt.Errorf("reading pipeline status: %w", err)
 	}
@@ -165,7 +170,7 @@ func (r *Runner) Status() error {
 	}
 
 	// Read model performance stats
-	modelStats, err := logger.ReadModelStats(r.cfg.Paths.Logs)
+	modelStats, err := readModelStats(r.cfg.Paths.Logs)
 	if err != nil {
 		// Log warning but continue - model stats are informational only
 		r.log("Warning: could not read model stats: %v", err)

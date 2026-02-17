@@ -1,9 +1,7 @@
-
 package runner
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -45,9 +43,9 @@ func TestRunnerAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 	}
 
 	allowedFiles := map[string]bool{
-		"internal/runner/validation_extraction_acceptance_test.go":               true,
-		"internal/runner/invocation_timeout_acceptance_test.go":                  true,
-		"internal/runner/worktree_merge_acceptance_test.go":                      true,
+		"internal/runner/validation_extraction_acceptance_test.go": true,
+		"internal/runner/invocation_timeout_acceptance_test.go":    true,
+		"internal/runner/worktree_merge_acceptance_test.go":        true,
 	}
 
 	for _, abs := range matches {
@@ -114,21 +112,14 @@ func TestRunnerNonE2EChecks_AreReclassifiedIntoUnitSuite(t *testing.T) {
 	// exist yet in internal/runner unit tests.
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
-	cmd := exec.Command("go", "test", "./internal/runner", "-list", "Test")
-	cmd.Dir = projectRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test -list failed: %v\n%s", err, string(out))
-	}
-
-	listed := string(out)
+	listed := runnerPackageTestNameIndex(t, projectRoot, "internal/runner")
 	requiredFutureUnitTests := []string{
 		"TestRunnerSplitVerificationReclassified_LineBudgets",
 		"TestRunnerSplitVerificationReclassified_ImportIsolation",
 		"TestScopeCheckReclassified_CachedEstimateSkipsDuplicateInvocation",
 	}
 	for _, name := range requiredFutureUnitTests {
-		if !strings.Contains(listed, name) {
+		if _, ok := listed[name]; !ok {
 			t.Fatalf("runner unit suite missing reclassified non-E2E test %s", name)
 		}
 	}

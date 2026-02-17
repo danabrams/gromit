@@ -2614,6 +2614,8 @@ func contains(slice []string, item string) bool {
 }
 
 func TestRunnerStatusWithLiveRun(t *testing.T) {
+	withFastStatusReaders(t)
+
 	tests := []struct {
 		name           string
 		setupStatus    func(gromitDir string) error

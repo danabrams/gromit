@@ -1,9 +1,7 @@
-
 package runner
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -86,21 +84,14 @@ func TestReclassifyRunnerAcceptanceFilesSurfaceOnly(t *testing.T) {
 func TestReclassifyRunnerUnitSuiteListsMovedBehavior(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join(reclassifyRunnerDir(t), "..", ".."))
 
-	cmd := exec.Command("go", "test", "./internal/runner", "-list", "Test")
-	cmd.Dir = repoRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test -list failed: %v\n%s", err, string(out))
-	}
-
-	listed := string(out)
+	listed := runnerPackageTestNameIndex(t, repoRoot, "internal/runner")
 	required := []string{
 		"TestValidationExtractionReclassified_RunValidationDelegation",
 		"TestBuildRouterReclassified_PhasePreferenceRouting",
 		"TestBuildRouterReclassified_CooldownParsing",
 	}
 	for _, name := range required {
-		if !strings.Contains(listed, name) {
+		if _, ok := listed[name]; !ok {
 			t.Fatalf("unit test listing missing %s", name)
 		}
 	}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -161,21 +160,14 @@ func TestCmdNonE2EChecks_AreReclassifiedIntoUnitSuite(t *testing.T) {
 		t.Fatalf("findProjectRoot: %v", err)
 	}
 
-	cmd := exec.Command("go", "test", "./cmd/gromit", "-list", "Test")
-	cmd.Dir = projectRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test -list failed: %v\n%s", err, string(out))
-	}
-
-	listed := string(out)
+	listed := packageTestNameIndex(t, projectRoot, "cmd/gromit")
 	requiredFutureUnitTests := []string{
 		"TestEpicBeadCountsReclassified_ClosedCountsIncludeAllStatuses",
 		"TestEpicBeadCountsReclassified_AllClosedBeadsCounted",
 		"TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers",
 	}
 	for _, name := range requiredFutureUnitTests {
-		if !strings.Contains(listed, name) {
+		if _, ok := listed[name]; !ok {
 			t.Fatalf("cmd unit suite missing reclassified non-E2E test %s", name)
 		}
 	}

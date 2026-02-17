@@ -68,7 +68,7 @@ func TestRunnerSmokeSuite_MovedBehaviorHasUnitCoverage(t *testing.T) {
 		if len(parts) != 2 {
 			t.Fatalf("moved case %s has invalid destination %q (want file:test)", source, destination)
 		}
-		if !strings.Contains(unitTests, parts[1]) {
+		if _, ok := unitTests[parts[1]]; !ok {
 			t.Fatalf("unit suite missing destination test %s for moved case %s", destination, source)
 		}
 	}

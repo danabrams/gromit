@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -69,17 +68,9 @@ func parseRunnerSmokeMatrixForFile(t *testing.T, projectRoot, rel string) (map[s
 	return entries, tests
 }
 
-func listRunnerUnitTests(t *testing.T, projectRoot string) string {
+func listRunnerUnitTests(t *testing.T, projectRoot string) map[string]struct{} {
 	t.Helper()
-
-	cmd := exec.Command("go", "test", "./internal/runner/...", "-list", "Test")
-	cmd.Dir = projectRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test -list ./internal/runner failed: %v\n%s", err, string(out))
-	}
-
-	return string(out)
+	return runnerPackageTestNameIndex(t, projectRoot, "internal/runner")
 }
 
 func listRunnerAcceptanceFiles(t *testing.T, projectRoot string) []string {
@@ -194,7 +185,7 @@ func TestRunnerSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites(t *testin
 			if !strings.HasSuffix(parts[0], "_test.go") {
 				t.Fatalf("%s destination file must be *_test.go, got %q", testName, parts[0])
 			}
-			if !strings.Contains(unitTests, parts[1]) {
+			if _, ok := unitTests[parts[1]]; !ok {
 				t.Fatalf("runner unit suite missing moved destination test %s", parts[1])
 			}
 		}
