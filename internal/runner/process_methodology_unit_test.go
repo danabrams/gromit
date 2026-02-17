@@ -168,3 +168,32 @@ func TestPrepareMethodology_TDDInactiveDoesNotSetBuildPrompt(t *testing.T) {
 		t.Errorf("bc.BuildPrompt should remain empty when TDD is inactive, got %q", bc.BuildPrompt)
 	}
 }
+
+// TestPrepareMethodology_ATDDSkipDoesNotCallRenderAcceptanceTests verifies that
+// when ATDD is skipped for a test-only bead, RenderAcceptanceTests is never
+// invoked on the renderer. Uses mock tracking to confirm the skip is complete.
+func TestPrepareMethodology_ATDDSkipDoesNotCallRenderAcceptanceTests(t *testing.T) {
+	renderAcceptanceCalled := false
+	renderer := &mockPromptRenderer{
+		RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+			renderAcceptanceCalled = true
+			return "acceptance-tests-prompt", nil
+		},
+	}
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{ATDD: true},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
+	b := &bead.Bead{
+		ID:     "test-no-render-1",
+		Title:  "Add tests for runner loop",
+		Labels: []string{},
+	}
+	bc := newBeadContextForMethodology(b)
+
+	r.prepareMethodologyForBead(context.Background(), bc)
+
+	if renderAcceptanceCalled {
+		t.Error("RenderAcceptanceTests should not be called when ATDD is skipped for a test-only bead")
+	}
+}
