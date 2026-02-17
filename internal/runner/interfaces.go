@@ -50,6 +50,7 @@ type PromptRenderer interface {
 	RenderScope(ctx *prompt.ScopeContext) (string, error)
 	RenderPrecheck(ctx *prompt.PrecheckContext) (string, error)
 	RenderSpecAcceptance(ctx *prompt.SpecAcceptanceContext) (string, error)
+	RenderSpecGate(ctx *prompt.SpecGateContext) (string, error)
 	RenderReview(ctx *prompt.ReviewContext) (string, error)
 	RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error)
 	RenderAcceptanceTests(ctx *prompt.Context) (string, error)

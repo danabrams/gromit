@@ -151,6 +151,7 @@ type mockPromptRenderer struct {
 	RenderScopeFn           func(ctx *prompt.ScopeContext) (string, error)
 	RenderPrecheckFn        func(ctx *prompt.PrecheckContext) (string, error)
 	RenderSpecAcceptanceFn  func(ctx *prompt.SpecAcceptanceContext) (string, error)
+	RenderSpecGateFn        func(ctx *prompt.SpecGateContext) (string, error)
 	RenderReviewFn          func(ctx *prompt.ReviewContext) (string, error)
 	RenderThoroughReviewFn  func(ctx *prompt.ThoroughReviewContext) (string, error)
 	RenderAcceptanceTestsFn func(ctx *prompt.Context) (string, error)
@@ -225,6 +226,13 @@ func (m *mockPromptRenderer) RenderSpecAcceptance(ctx *prompt.SpecAcceptanceCont
 		return m.RenderSpecAcceptanceFn(ctx)
 	}
 	return "mock spec acceptance prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderSpecGate(ctx *prompt.SpecGateContext) (string, error) {
+	if m.RenderSpecGateFn != nil {
+		return m.RenderSpecGateFn(ctx)
+	}
+	return "mock spec gate prompt", nil
 }
 
 func (m *mockPromptRenderer) LoadSpec(name string) (string, error) {
@@ -372,6 +380,10 @@ func (m *mockRenderer) RenderSpecAcceptance(ctx *prompt.SpecAcceptanceContext) (
 	return "mock spec acceptance prompt", nil
 }
 
+func (m *mockRenderer) RenderSpecGate(ctx *prompt.SpecGateContext) (string, error) {
+	return "mock spec gate prompt", nil
+}
+
 func (m *mockRenderer) LoadSpec(name string) (string, error) {
 	return "", nil
 }
@@ -451,6 +463,20 @@ func TestPromptRendererInterfaceIncludesRenderSpecAcceptance(t *testing.T) {
 	output, err := r.RenderSpecAcceptance(&prompt.SpecAcceptanceContext{Spec: "spec"})
 	if err != nil {
 		t.Fatalf("RenderSpecAcceptance() error = %v", err)
+	}
+	if output == "" {
+		t.Fatal("expected non-empty output")
+	}
+}
+
+// TestPromptRendererInterfaceIncludesRenderSpecGate verifies that PromptRenderer includes
+// RenderSpecGate with the correct signature.
+func TestPromptRendererInterfaceIncludesRenderSpecGate(t *testing.T) {
+	var r PromptRenderer = &mockPromptRenderer{}
+
+	output, err := r.RenderSpecGate(&prompt.SpecGateContext{SpecCriteria: "criteria"})
+	if err != nil {
+		t.Fatalf("RenderSpecGate() error = %v", err)
 	}
 	if output == "" {
 		t.Fatal("expected non-empty output")
