@@ -4,7 +4,12 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/learnings"
 )
+
+func makeLearning(content string) learnings.Learning {
+	return learnings.Learning{Content: content, Category: "patterns"}
+}
 
 func TestShapeContextForBudget_UnderBudgetUnchanged(t *testing.T) {
 	ctx := &Context{
@@ -33,5 +38,38 @@ func TestShapeContextForBudget_UnderBudgetUnchanged(t *testing.T) {
 	}
 	if report.BeforeChars != report.AfterChars {
 		t.Errorf("expected before == after chars, got %d != %d", report.BeforeChars, report.AfterChars)
+	}
+}
+
+func TestShapeContextForBudget_DropRecentLearningsFirst(t *testing.T) {
+	// Create a context where RecentLearnings push it over budget
+	ctx := &Context{
+		Bead:            &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD:        "claude md content",
+		Rules:           "rules content",
+		RecentLearnings: []learnings.Learning{makeLearning("recent learning that is large enough")},
+	}
+	ctx.normalizeNilFields()
+
+	// Set budget just under total so RecentLearnings must be dropped
+	total := measureContext(ctx)
+	budget := total - 10
+
+	shaped, report := ShapeContextForBudget(ctx, budget, 2000, "build")
+
+	if len(shaped.RecentLearnings) != 0 {
+		t.Errorf("expected RecentLearnings dropped, got %d items", len(shaped.RecentLearnings))
+	}
+	if shaped.ClaudeMD != "claude md content" {
+		t.Errorf("expected ClaudeMD preserved, got %q", shaped.ClaudeMD)
+	}
+	if len(report.TrimActions) == 0 {
+		t.Fatal("expected at least one trim action")
+	}
+	if report.TrimActions[0] != "drop RecentLearnings" {
+		t.Errorf("expected first trim action to be 'drop RecentLearnings', got %q", report.TrimActions[0])
+	}
+	if report.AfterChars >= report.BeforeChars {
+		t.Errorf("expected AfterChars < BeforeChars, got %d >= %d", report.AfterChars, report.BeforeChars)
 	}
 }

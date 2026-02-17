@@ -1,5 +1,7 @@
 package prompt
 
+import "github.com/danabrams/gromit/internal/learnings"
+
 // ShapeReport describes what trimming was applied to a context.
 type ShapeReport struct {
 	BeforeChars  int
@@ -65,6 +67,17 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 	if beforeChars <= maxChars {
 		report.AfterChars = beforeChars
 		return shaped, report
+	}
+
+	// Step 1: drop RecentLearnings
+	if len(shaped.RecentLearnings) > 0 {
+		shaped.RecentLearnings = []learnings.Learning{}
+		report.TrimActions = append(report.TrimActions, "drop RecentLearnings")
+		if measureContext(shaped) <= maxChars {
+			report.AfterChars = measureContext(shaped)
+			report.SectionSizes = sectionSizes(shaped)
+			return shaped, report
+		}
 	}
 
 	report.AfterChars = measureContext(shaped)
