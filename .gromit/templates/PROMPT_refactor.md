@@ -100,7 +100,7 @@ Please analyze the failure and try a different approach.
 
 ## Important Notes
 
-- Refactoring must preserve all existing behavior - tests must still pass
+- Refactoring must preserve all existing behavior - verify by running `go test` and `go vet` scoped to the packages you touched, not the full suite. The separate validation phase runs `go test ./...` to catch cross-package regressions
 - Only refactor the code touched by this task, not the entire codebase
 - If the implementation is already clear and well-structured, say so and make no changes
 - Focus on readability and maintainability, not premature optimization

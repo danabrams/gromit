@@ -92,12 +92,7 @@ Please analyze the failure and try a different approach.
 2. **Study the codebase** - understand existing patterns and where your implementation should fit
 3. **Implement the functionality** - write the minimal code needed to make the tests pass
 4. **Do NOT modify the test files** - the tests define the behavioral contract; only change implementation code
-5. **Self-check** — Before completing, run project validation on touched packages and follow test tiers:
-   - Ensure `go test` and `go vet` coverage is included in your validation commands
-   - `make test-unit`
-   - `make test-acceptance`
-   - Run `make test-e2e-live` only when changes touch live integration surfaces (real `claude`/`codex`/`bd` wiring, provider invocation paths, or live smoke flows), or during end-of-session/release checks
-   Fix failures before committing
+5. **Self-check** — Before completing, run `go test` and `go vet` scoped to the packages you touched (e.g., `go test ./internal/foo/... ./internal/bar/...`), not the full suite. The separate validation phase runs `go test ./...` to catch cross-package regressions. Fix failures before committing
 6. **Commit your changes** with a clear commit message
 
 ## Completion

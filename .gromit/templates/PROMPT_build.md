@@ -89,12 +89,7 @@ Please analyze the failure and try a different approach.
 1. **Study the codebase** before making changes - don't assume code is missing
 2. **Implement the task** following existing patterns in the codebase
 3. **Write tests** if the task involves new functionality
-4. **Self-check** — Before completing, run the project validation commands on touched packages and follow test tiers:
-   - Ensure `go test` and `go vet` coverage is included in your validation commands
-   - `make test-unit`
-   - `make test-acceptance`
-   - Run `make test-e2e-live` only when your changes touch live integration surfaces (real `claude`/`codex`/`bd` wiring, provider invocation plumbing, or live smoke flows), or during end-of-session/release validation
-   Fix failures before committing
+4. **Self-check** — Before completing, run `go test` and `go vet` scoped to the packages you touched (e.g., `go test ./internal/foo/... ./internal/bar/...`), not the full suite. The separate validation phase runs `go test ./...` to catch cross-package regressions. Fix failures before committing
 5. **Commit your changes** with a clear commit message
 
 ## Completion
