@@ -262,3 +262,80 @@ func finishReviewReport(ctx *ReviewContext, report *ShapeReport) (*ReviewContext
 	report.SectionSizes = reviewSectionSizes(ctx)
 	return ctx, report
 }
+
+// measureThoroughReviewContext returns the total character count of ThoroughReviewContext fields.
+func measureThoroughReviewContext(ctx *ThoroughReviewContext) int {
+	total := len(ctx.ClaudeMD) + len(ctx.Rules) + len(ctx.Diff)
+	for _, b := range ctx.CompletedBeads {
+		total += len(b.ID) + len(b.Title) + len(b.Description)
+	}
+	return total
+}
+
+// thoroughReviewSectionSizes returns section sizes for a ThoroughReviewContext.
+func thoroughReviewSectionSizes(ctx *ThoroughReviewContext) map[string]int {
+	beads := 0
+	for _, b := range ctx.CompletedBeads {
+		beads += len(b.ID) + len(b.Title) + len(b.Description)
+	}
+	return map[string]int{
+		"ClaudeMD":       len(ctx.ClaudeMD),
+		"Rules":          len(ctx.Rules),
+		"Diff":           len(ctx.Diff),
+		"CompletedBeads": beads,
+	}
+}
+
+// cloneThoroughReviewContext deep-clones a ThoroughReviewContext.
+func cloneThoroughReviewContext(ctx *ThoroughReviewContext) *ThoroughReviewContext {
+	cloned := *ctx
+	cloned.CompletedBeads = append([]CompletedBeadSummary{}, ctx.CompletedBeads...)
+	return &cloned
+}
+
+// ShapeThoroughReviewContextForBudget trims a ThoroughReviewContext to fit within maxChars.
+// Trim order: (1) drop ClaudeMD, (2) phase-filter Rules.
+// Diff, CompletedBeads, and Rules are never fully dropped.
+func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars int, phase string) (*ThoroughReviewContext, *ShapeReport) {
+	shaped := cloneThoroughReviewContext(ctx)
+	beforeChars := measureThoroughReviewContext(shaped)
+
+	report := &ShapeReport{
+		BeforeChars:  beforeChars,
+		SectionSizes: thoroughReviewSectionSizes(shaped),
+	}
+
+	if beforeChars <= maxChars {
+		report.AfterChars = beforeChars
+		return shaped, report
+	}
+
+	// Step 1: drop ClaudeMD
+	if shaped.ClaudeMD != "" {
+		shaped.ClaudeMD = ""
+		report.TrimActions = append(report.TrimActions, "drop ClaudeMD")
+		if measureThoroughReviewContext(shaped) <= maxChars {
+			return finishThoroughReviewReport(shaped, report)
+		}
+	}
+
+	// Step 2: phase-filter Rules
+	if phase != "" && shaped.Rules != "" {
+		filtered := filterRulesByPhase(shaped.Rules, phase)
+		if len(filtered) < len(shaped.Rules) {
+			shaped.Rules = filtered
+			report.TrimActions = append(report.TrimActions, "phase-filter Rules")
+			if measureThoroughReviewContext(shaped) <= maxChars {
+				return finishThoroughReviewReport(shaped, report)
+			}
+		}
+	}
+
+	return finishThoroughReviewReport(shaped, report)
+}
+
+func finishThoroughReviewReport(ctx *ThoroughReviewContext, report *ShapeReport) (*ThoroughReviewContext, *ShapeReport) {
+	report.AfterChars = measureThoroughReviewContext(ctx)
+	report.SectionSizes = thoroughReviewSectionSizes(ctx)
+	return ctx, report
+}
