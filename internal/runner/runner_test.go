@@ -3322,3 +3322,61 @@ func TestRun_L4Output_IncludesPacketAndThreeDecisionOptionsWithTradeoffs(t *test
 		}
 	}
 }
+
+func TestRun_L3StopLine_LogsMutationHaltAndSkipsPushMerge(t *testing.T) {
+	beads := &mockBeadClient{
+		ReadyFn: makeReadyFromQueue([]*bead.Bead{
+			{ID: "bead-l3-halt", Title: "halt mutation actions", Priority: 1},
+		}),
+	}
+
+	claudeMock := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{
+				Success: false,
+				Output:  "unsafe working tree mutation detected",
+			}, nil
+		},
+	}
+
+	analyzerMock := &mockFailureAnalyzer{
+		AnalyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.Category("integrity_unsafe_state"),
+				Recoverable: false,
+				RootCause:   "unsafe working tree mutation detected",
+			}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r := setupL3StopLineAcceptanceRunner(t, beads, analyzerMock, claudeMock, &buf)
+
+	pushCalls := 0
+	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		if command == "git push" {
+			pushCalls++
+		}
+		return "", "", 0, nil
+	}
+
+	if err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false); err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+
+	if pushCalls != 0 {
+		t.Fatalf("expected no git push calls at L3 stop-line, got %d", pushCalls)
+	}
+
+	manager, ok := r.worktreeManager.(*recordingWorktreeManager)
+	if !ok {
+		t.Fatalf("expected recordingWorktreeManager, got %T", r.worktreeManager)
+	}
+	if manager.mergeCalls != 0 {
+		t.Fatalf("expected no merge calls at L3 stop-line, got %d", manager.mergeCalls)
+	}
+
+	if !strings.Contains(buf.String(), "halting state-changing actions") {
+		t.Fatalf("expected mutation-halt message in output, got:\n%s", buf.String())
+	}
+}

@@ -278,6 +278,7 @@ func (r *Runner) haltStateMutationsAtL3StopLine(result *IterationResult) {
 	}
 
 	r.log("L3 escalation packet")
+	r.log("halting state-changing actions (close/sync/push/merge) until human decision")
 	r.log("L4 decision required")
 	r.log("Escalation Packet")
 	for _, line := range strings.Split(strings.TrimSpace(formattedPacket), "\n") {
