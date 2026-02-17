@@ -747,6 +747,48 @@ func TestExecuteWithRetry_BeadTimeoutEscalatesBeforeDecomposing(t *testing.T) {
 	}
 }
 
+func TestExecuteWithRetry_BeadTimeoutSkipsEscalationWhenLimitReached(t *testing.T) {
+	// When timeout escalation limit is already reached, bead timeout goes directly
+	// to decomposition without attempting another escalation.
+	cfg := newTestConfig()
+	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
+
+	decomposeCalled := false
+	invocationCount := 0
+
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "sub 1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierMedium     // sonnet, opus available — but limit already reached
+	bc.TimeoutEscalationsThisBead = 1 // escalation limit already exhausted
+	bc.ParentCtx = context.Background()
+
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		invocationCount++
+		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+	}
+
+	h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	if invocationCount != 1 {
+		t.Errorf("expected exactly 1 invocation (no escalation), got %d", invocationCount)
+	}
+	if !decomposeCalled {
+		t.Error("expected decomposition when timeout escalation limit already reached")
+	}
+}
+
 func TestExecuteWithRetry_BeadTimeoutAtHighestTierDecomposesDirectly(t *testing.T) {
 	// When a bead timeout occurs at the highest tier, decompose without escalation.
 	cfg := newTestConfig()
