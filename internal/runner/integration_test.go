@@ -1,4 +1,4 @@
-//go:build acceptance || integration
+//go:build integration
 
 package runner
 
