@@ -45,6 +45,16 @@ type IterationLog struct {
 	AcceptanceFailureSummary  string `json:"acceptance_failure_summary,omitempty"`
 	AcceptanceFailureOutput   string `json:"acceptance_failure_output,omitempty"`
 	AcceptanceFailureArtifact string `json:"acceptance_failure_artifact,omitempty"`
+
+	FailureClass     string `json:"failure_class,omitempty"`
+	AndonLevel       string `json:"andon_level,omitempty"`
+	TrimDecision     string `json:"trim_decision,omitempty"`
+	AutonomyEligible bool   `json:"autonomy_eligible"`
+	AutonomySuccess  bool   `json:"autonomy_success"`
+	FirstPassSuccess bool   `json:"first_pass_success"`
+	MTTRProxyMs      int64  `json:"mttr_proxy_ms,omitempty"`
+	EscalationClass  string `json:"escalation_class,omitempty"`
+	RecurrenceCount  int    `json:"recurrence_count,omitempty"`
 }
 
 // ReviewLog represents a review's outcome (light or thorough)

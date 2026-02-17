@@ -66,6 +66,15 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		AcceptanceFailureSummary:  result.AcceptanceFailureSummary,
 		AcceptanceFailureOutput:   result.AcceptanceFailureOutput,
 		AcceptanceFailureArtifact: artifactPath,
+		FailureClass:              string(result.FailureClass),
+		AndonLevel:                string(result.AndonLevel),
+		TrimDecision:              result.TrimDecision,
+		AutonomyEligible:          result.AutonomyEligible,
+		AutonomySuccess:           result.AutonomySuccess,
+		FirstPassSuccess:          result.FirstPassSuccess,
+		MTTRProxyMs:               result.MTTRProxyMs,
+		EscalationClass:           string(result.EscalationClass),
+		RecurrenceCount:           result.RecurrenceCount,
 	})
 }
 
