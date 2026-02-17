@@ -137,7 +137,10 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 	if shaped.Spec != "" {
 		excess := measureContext(shaped) - maxChars
 		targetLen := len(shaped.Spec) - excess
-		if targetLen > 0 && targetLen < len(shaped.Spec) {
+		if targetLen <= 0 {
+			targetLen = len(truncationMarker)
+		}
+		if targetLen < len(shaped.Spec) {
 			shaped.Spec = truncateWithMarker(shaped.Spec, targetLen)
 			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
 		}
@@ -170,8 +173,13 @@ const truncationMarker = "...[truncated]..."
 func truncateWithMarker(s string, targetLen int) string {
 	markerLen := len(truncationMarker)
 	if targetLen <= markerLen {
-		// Can't fit anything useful, keep minimal head + marker
-		return s[:min(len(s), 50)] + truncationMarker
+		// Keep a minimal head and tail so both ends remain present.
+		headKeep := min(10, len(s))
+		tailKeep := min(10, len(s)-headKeep)
+		if tailKeep == 0 {
+			return s[:headKeep] + truncationMarker
+		}
+		return s[:headKeep] + truncationMarker + s[len(s)-tailKeep:]
 	}
 	available := targetLen - markerLen
 	headLen := available * 2 / 3
@@ -261,7 +269,10 @@ func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string)
 	if shaped.Spec != "" {
 		excess := measureReviewContext(shaped) - maxChars
 		targetLen := len(shaped.Spec) - excess
-		if targetLen > 0 && targetLen < len(shaped.Spec) {
+		if targetLen <= 0 {
+			targetLen = len(truncationMarker)
+		}
+		if targetLen < len(shaped.Spec) {
 			shaped.Spec = truncateWithMarker(shaped.Spec, targetLen)
 			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
 		}

@@ -233,18 +233,30 @@ func TestShapeContextForBudget_TruncateSpecSixth(t *testing.T) {
 }
 
 func TestTruncateWithMarker_PreservesHeadTailAndMarkerFormat(t *testing.T) {
-	original := "HEAD-" + strings.Repeat("x", 200) + "-TAIL"
-
-	got := truncateWithMarker(original, 60)
-
-	if !strings.Contains(got, "...[truncated]...") {
-		t.Fatalf("expected marker %q in truncated spec, got %q", "...[truncated]...", got)
+	tests := []struct {
+		name      string
+		targetLen int
+	}{
+		{name: "normal target", targetLen: 60},
+		{name: "very tight target still keeps tail", targetLen: len(truncationMarker)},
 	}
-	if !strings.HasPrefix(got, "HEAD-") {
-		t.Fatalf("expected truncated spec to preserve head prefix, got %q", got)
-	}
-	if !strings.HasSuffix(got, "-TAIL") {
-		t.Fatalf("expected truncated spec to preserve tail suffix, got %q", got)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			original := "HEAD-" + strings.Repeat("x", 200) + "-TAIL"
+
+			got := truncateWithMarker(original, tt.targetLen)
+
+			if !strings.Contains(got, "...[truncated]...") {
+				t.Fatalf("expected marker %q in truncated spec, got %q", "...[truncated]...", got)
+			}
+			if !strings.HasPrefix(got, "HEAD-") {
+				t.Fatalf("expected truncated spec to preserve head prefix, got %q", got)
+			}
+			if !strings.HasSuffix(got, "-TAIL") {
+				t.Fatalf("expected truncated spec to preserve tail suffix, got %q", got)
+			}
+		})
 	}
 }
 
@@ -356,6 +368,46 @@ func TestShapeContextForBudget_PhaseFilteringNeverDropsRulesCompletely(t *testin
 
 	if strings.TrimSpace(shaped.Rules) == "" {
 		t.Fatal("expected Rules to remain present when phase filtering has no matching sections")
+	}
+}
+
+func TestShapeContextForBudget_SpecTruncationAlwaysRunsWhenStillOverBudget(t *testing.T) {
+	tests := []struct {
+		name   string
+		budget int
+	}{
+		{name: "moderately over budget", budget: 100},
+		{name: "extremely over budget", budget: 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := "SPEC-HEAD-" + strings.Repeat("s", 400) + "-SPEC-TAIL"
+			ctx := &Context{
+				Bead:  &bead.Bead{ID: "b1", Title: "T"},
+				Rules: strings.Repeat("r", 600),
+				Spec:  spec,
+			}
+			ctx.normalizeNilFields()
+
+			shaped, report := ShapeContextForBudget(ctx, tt.budget, 100, "build")
+
+			if !hasTrimAction(report.TrimActions, trimTruncateSpec) {
+				t.Fatalf("expected %q in trim actions, got %v", trimTruncateSpec, report.TrimActions)
+			}
+			if shaped.Spec == "" {
+				t.Fatal("expected Spec to remain present after truncation")
+			}
+			if !strings.Contains(shaped.Spec, "...[truncated]...") {
+				t.Fatalf("expected truncation marker in Spec, got %q", shaped.Spec)
+			}
+			if !strings.Contains(shaped.Spec, "SPEC-HEAD-") {
+				t.Fatalf("expected Spec head to be preserved, got %q", shaped.Spec)
+			}
+			if !strings.Contains(shaped.Spec, "-SPEC-TAIL") {
+				t.Fatalf("expected Spec tail to be preserved, got %q", shaped.Spec)
+			}
+		})
 	}
 }
 
