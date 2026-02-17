@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 6 * * *"
+  release:
+    types:
+      - published
+      - prereleased
+  workflow_dispatch:
+    inputs:
+      run_e2e_live:
+        description: "Run e2e_live tests"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  test:
+    name: Unit + Acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Unit tests
+        run: make test-unit
+
+      - name: Acceptance tests
+        run: make test-acceptance
+
+  detect_e2e_live_changes:
+    name: Detect e2e_live-worthy changes
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      e2e_live_needed: ${{ steps.filter.outputs.e2e_live }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            e2e_live:
+              - "internal/claude/**"
+              - "internal/provider/**"
+              - "internal/bead/**"
+              - "internal/runner/**"
+              - "internal/retro/**"
+              - "cmd/gromit/**"
+              - ".gromit/templates/**"
+              - "gromit.yaml"
+
+  e2e_live:
+    name: e2e_live
+    needs:
+      - test
+      - detect_e2e_live_changes
+    if: |
+      needs.test.result == 'success' && (
+        github.event_name == 'schedule' ||
+        github.event_name == 'release' ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.run_e2e_live == 'true') ||
+        needs.detect_e2e_live_changes.outputs.e2e_live_needed == 'true'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify live CLI prerequisites
+        shell: bash
+        run: |
+          missing=0
+          if ! command -v claude >/dev/null 2>&1; then
+            echo "::warning::Skipping e2e_live: 'claude' CLI is not installed on this runner."
+            missing=1
+          fi
+          if ! command -v bd >/dev/null 2>&1; then
+            echo "::warning::Skipping e2e_live: 'bd' CLI is not installed on this runner."
+            missing=1
+          fi
+          if [[ "$missing" -eq 1 ]]; then
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run e2e_live tests
+        if: env.skip != 'true'
+        run: make test-e2e-live

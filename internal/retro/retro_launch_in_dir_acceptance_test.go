@@ -1,4 +1,4 @@
-//go:build acceptance
+//go:build e2e_live
 
 package retro
 

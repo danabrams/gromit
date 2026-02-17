@@ -99,7 +99,12 @@ Follow the **red-green-refactor** cycle strictly. Work in small increments.
 - Focus each test on a single behavior or requirement from the bead
 - Commit after each red-green cycle
 - Write minimum code to pass - no gold plating
-- Before completing, run the project validation commands (`go test ./...`, `go vet ./...`) on the packages you modified to catch issues early. Fix any failures before committing
+- Before completing, run project validation on touched packages and follow test tiers:
+  - Ensure `go test` and `go vet` coverage is included in your validation commands
+  - `make test-unit`
+  - `make test-acceptance`
+  - Run `make test-e2e-live` only when changes touch live integration surfaces (real `claude`/`codex`/`bd` wiring, provider invocation paths, or live smoke flows), or during end-of-session/release checks
+  Fix failures before committing
 - After all requirements are covered, stop - refactoring will happen in a separate phase
 
 ## Completion

@@ -134,7 +134,7 @@ Acceptance tests verify **user-visible behavior**, not implementation details. A
 - **Extract shared setup into helpers.** If two or more tests create the same directory structure, config, or mock setup, extract it into a `setupXxx(t *testing.T)` helper. Keep helpers in the same package as the tests.
 - **Keep tests concise.** A 100-line test function with 30 lines of setup, 5 lines of action, and 65 lines of assertions is too long. Extract setup, use helpers, and trust that stdlib works.
 - **No skipped tests.** Do not write tests with `t.Skip()` for features that don't exist yet or can't run in the test environment. Every test you write must be runnable and must fail for the right reason (missing implementation, not missing infrastructure).
-- **Use build tags for true acceptance tests.** If the test requires external dependencies (real binaries, network, etc.), use `//go:build acceptance` so it runs separately from unit tests.
+- **Use build tags for test tiers.** Deterministic acceptance tests use `//go:build acceptance`. If a test requires real external dependencies (real binaries, auth, network, live services), use `//go:build e2e_live` so it runs outside the default acceptance loop.
 
 ## Anti-Patterns to Avoid
 
