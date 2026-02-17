@@ -17,9 +17,10 @@ func TestCmdSmokeSuiteReclassified_AcceptanceFileSet(t *testing.T) {
 	}
 
 	allowedFiles := map[string]bool{
-		filepath.Join(projectRoot, "cmd/gromit/debug_agent_acceptance_test.go"):            true,
-		filepath.Join(projectRoot, "cmd/gromit/explore_codex_help_acceptance_test.go"):     true,
-		filepath.Join(projectRoot, "cmd/gromit/review_spec_validation_acceptance_test.go"): true,
+		filepath.Join(projectRoot, "cmd/gromit/codex_harness_build_tags_acceptance_test.go"): true,
+		filepath.Join(projectRoot, "cmd/gromit/debug_agent_acceptance_test.go"):              true,
+		filepath.Join(projectRoot, "cmd/gromit/explore_codex_help_acceptance_test.go"):       true,
+		filepath.Join(projectRoot, "cmd/gromit/review_spec_validation_acceptance_test.go"):   true,
 	}
 
 	for _, abs := range matches {
