@@ -2508,6 +2508,55 @@ func TestRunRefactorAndPostChecks_RevalidationSkippedWhenUnderThreshold(t *testi
 	}
 }
 
+func TestRunRefactorAndPostChecks_RefactorSkippedWhenTimeExpired(t *testing.T) {
+	refactorInvoked := false
+	r, _, _ := setupDirectValidationRunner(t, nil, nil)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			refactorInvoked = true // getDiff is called at start of RunRefactorPhase
+			return "diff --git a/a.go b/a.go\n+line", nil
+		},
+		func(ctx *prompt.Context) (string, error) { return "refactor prompt", nil },
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			return &claude.Result{Success: true}, nil
+		},
+		nil,
+		nil,
+		func() (string, error) { return "abc123", nil },
+	))
+
+	parentCtx := context.Background()
+	bc := &runtypes.BeadContext{
+		Tier:          provider.TierMedium,
+		StartCommit:   "abc123",
+		ParentCtx:     parentCtx,
+		BeadTimeout:   30 * time.Second,
+		BeadStartTime: time.Now().Add(-60 * time.Second), // expired
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal != nil {
+		t.Fatalf("expected terminal=nil when time expired, got: %+v", terminal)
+	}
+	if refactorInvoked {
+		t.Fatal("expected refactor phase to be skipped when bead time has expired")
+	}
+	logOutput := r.output.(*strings.Builder).String()
+	if !strings.Contains(logOutput, "remaining") {
+		t.Error("expected skip log to contain remaining timing details")
+	}
+}
+
 func TestRunRefactorAndPostChecks_RevalidationSkippedWhenTimeExpired(t *testing.T) {
 	validationCalled := false
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {

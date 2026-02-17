@@ -101,6 +101,11 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 	}
 }
 
+// minRefactorTime is the minimum remaining bead budget required to start the
+// refactor phase. Skipping refactor when nearly out of time avoids beginning
+// a Claude invocation that is unlikely to complete within budget.
+const minRefactorTime = 60 * time.Second
+
 // minRevalidationTime is the minimum remaining bead budget required to run
 // post-refactor re-validation. Skipping re-validation when nearly out of time
 // avoids starting a validation run that is unlikely to complete.
@@ -112,6 +117,19 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		bc.Result.Error = fmt.Errorf("refactor phase active but methodologyExec not wired")
 		return false, bc.Result
 	}
+
+	if bc != nil && bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
+		elapsed := time.Since(bc.BeadStartTime)
+		remaining := bc.BeadTimeout - elapsed
+		if remaining <= 0 {
+			r.log("Skipping refactor phase: bead time budget expired (remaining %s, needed %s)", remaining.Round(time.Second), minRefactorTime)
+			return false, nil
+		} else if remaining < minRefactorTime {
+			r.log("Skipping refactor phase: insufficient time remaining (%s remaining, needed %s)", remaining.Round(time.Second), minRefactorTime)
+			return false, nil
+		}
+	}
+
 	if err := r.methodologyExec.RunRefactorPhase(ctx, bc); err != nil {
 		r.log("Warning: refactor phase encountered issues: %v", err)
 	}
