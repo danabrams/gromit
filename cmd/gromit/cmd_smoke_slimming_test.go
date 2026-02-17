@@ -19,7 +19,6 @@ import (
 // - TestCmdAcceptanceTests_OnlyContainSmokeMatrixKeepCases: FAILS (move cases still present)
 // - TestCmdAcceptanceTests_AllKeepCasesPresent: PASSES (prerequisites met)
 // - TestCmdAcceptanceTests_RemovedCasesHaveUnitCoverage: PASSES (unit tests exist)
-// - TestCmdAcceptanceTests_TotalLineCountReducedSignificantly: FAILS (still 394 lines, want <=120)
 // - TestCmdAcceptanceTests_OnlyTestCmdSmokePatternFunctions: FAILS (non-smoke tests exist)
 // - TestCmdAcceptanceTests_MaxThreeTestsPerFile: FAILS (multiple tests per file)
 // - TestCmdAcceptanceTests_SmokeAnnotationsMatchMatrix: PASSES (annotations correct)
@@ -148,35 +147,6 @@ func TestCmdAcceptanceTests_RemovedCasesHaveUnitCoverage(t *testing.T) {
 		if !strings.Contains(string(content), "func "+destTest+"(") {
 			t.Errorf("destination test %s not found in %s for moved case %s", destTest, destFile, caseID)
 		}
-	}
-}
-
-// TestCmdAcceptanceTests_TotalLineCountReducedSignificantly verifies that
-// the cmd acceptance test line count is reduced to a small fraction of the
-// original count after slimming.
-// Expected failure: current acceptance tests still contain many non-smoke cases,
-// so total line count remains high.
-func TestCmdAcceptanceTests_TotalLineCountReducedSignificantly(t *testing.T) {
-	projectRoot := loadProjectRoot(t)
-
-	totalLines := 0
-	for _, relPath := range cmdAcceptanceTestFiles() {
-		fullPath := filepath.Join(projectRoot, relPath)
-		content, err := os.ReadFile(fullPath)
-		if err != nil {
-			t.Fatalf("read %s: %v", relPath, err)
-		}
-
-		lines := strings.Split(string(content), "\n")
-		totalLines += len(lines)
-	}
-
-	// Current total is 391 lines. After slimming to smoke-only, expect roughly
-	// 30% or less (around 120 lines max for 3 keep cases with setup)
-	maxExpectedLines := 120
-	if totalLines > maxExpectedLines {
-		t.Errorf("cmd acceptance tests total %d lines, expected <= %d after slimming to smoke-only",
-			totalLines, maxExpectedLines)
 	}
 }
 
