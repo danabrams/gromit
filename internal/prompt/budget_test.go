@@ -177,3 +177,43 @@ func TestShapeContextForBudget_DropConfirmedLearningsFourth(t *testing.T) {
 		t.Errorf("expected 'drop ConfirmedLearnings' in trim actions, got %v", report.TrimActions)
 	}
 }
+
+func TestShapeContextForBudget_PhaseFilterRulesFifth(t *testing.T) {
+	// Rules with phase annotations — build phase should only keep build-relevant sections
+	rules := "# Rules\n\n## Code Style <!-- phases: build, review -->\n\nCode style rules here.\n\n## Process <!-- phases: build -->\n\nProcess rules here.\n\n## Safety <!-- phases: review -->\n\nSafety rules here (review only)."
+	ctx := &Context{
+		Bead:  &bead.Bead{ID: "b1", Title: "T"},
+		Rules: rules,
+	}
+	ctx.normalizeNilFields()
+
+	// Budget tight enough to trigger phase filtering
+	budget := 10
+
+	shaped, report := ShapeContextForBudget(ctx, budget, 100, "build")
+
+	// Should have filtered out review-only sections
+	if strings.Contains(shaped.Rules, "Safety rules here") {
+		t.Error("expected review-only 'Safety' section to be filtered out")
+	}
+	// Should keep build sections
+	if !strings.Contains(shaped.Rules, "Code style rules here") {
+		t.Error("expected 'Code Style' section to be preserved for build phase")
+	}
+	if !strings.Contains(shaped.Rules, "Process rules here") {
+		t.Error("expected 'Process' section to be preserved for build phase")
+	}
+	// Rules should never be fully empty
+	if strings.TrimSpace(shaped.Rules) == "" {
+		t.Error("expected Rules to never be fully dropped")
+	}
+	found := false
+	for _, a := range report.TrimActions {
+		if a == "phase-filter Rules" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'phase-filter Rules' in trim actions, got %v", report.TrimActions)
+	}
+}

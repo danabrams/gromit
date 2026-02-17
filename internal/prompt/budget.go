@@ -108,6 +108,18 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 		}
 	}
 
+	// Step 5: phase-filter Rules
+	if phase != "" && shaped.Rules != "" {
+		filtered := filterRulesByPhase(shaped.Rules, phase)
+		if len(filtered) < len(shaped.Rules) {
+			shaped.Rules = filtered
+			report.TrimActions = append(report.TrimActions, "phase-filter Rules")
+			if measureContext(shaped) <= maxChars {
+				return finishReport(shaped, report)
+			}
+		}
+	}
+
 	return finishReport(shaped, report)
 }
 
