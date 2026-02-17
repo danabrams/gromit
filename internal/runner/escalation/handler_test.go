@@ -700,6 +700,53 @@ func TestHandleInvocationTimeout_NoHigherTierAttemptsDecomposition(t *testing.T)
 	}
 }
 
+func TestExecuteWithRetry_BeadTimeoutEscalatesBeforeDecomposing(t *testing.T) {
+	// When a bead timeout occurs and a higher tier is available, escalate once
+	// before falling through to decomposition.
+	cfg := newTestConfig()
+	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
+
+	decomposeCalled := false
+	invocationTiers := []string{}
+
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "subtask 1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierMedium // sonnet — opus is available
+	bc.ParentCtx = context.Background()
+
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		invocationTiers = append(invocationTiers, bc.Tier)
+		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+	}
+
+	h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	if len(invocationTiers) < 2 {
+		t.Fatalf("expected at least 2 invocations (medium then high), got %d: %v", len(invocationTiers), invocationTiers)
+	}
+	if invocationTiers[0] != provider.TierMedium {
+		t.Errorf("expected first invocation on medium tier, got %q", invocationTiers[0])
+	}
+	if invocationTiers[1] != provider.TierHigh {
+		t.Errorf("expected second invocation on high tier, got %q", invocationTiers[1])
+	}
+	if !decomposeCalled {
+		t.Error("expected decomposition after escalated tier also timed out")
+	}
+}
+
 func TestExecuteWithRetry_BeadTimeoutAttemptsDecomposition(t *testing.T) {
 	cfg := newTestConfig()
 	decomposeCalled := false

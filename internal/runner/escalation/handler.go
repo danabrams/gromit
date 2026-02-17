@@ -385,6 +385,10 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			}
 			if invResult != nil && invResult.TimeoutType == "bead" {
 				bc.Result.TimeoutType = "bead"
+				// Attempt one tier escalation before decomposing, if budget allows.
+				if h.handleTimeoutEscalationOrFail(bc, "bead timeout") {
+					continue
+				}
 				failureReason := fmt.Sprintf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 				decomposeCtx := bc.ParentCtx
 				if decomposeCtx == nil {
