@@ -96,3 +96,40 @@ func TestPrepareMethodology_ATDDSkipLogsReason(t *testing.T) {
 		t.Errorf("expected log 'Skipping ATDD: bead is test-only' in output, got:\n%s", buf.String())
 	}
 }
+
+// --- TDD prompt routing tests ---
+
+// TestPrepareMethodology_TDDSelectsRenderTDDBuild verifies that when TDD is
+// globally enabled, prepareMethodologyForBead sets bc.BuildPrompt from
+// RenderTDDBuild rather than leaving it empty (which means RenderBuild is used).
+func TestPrepareMethodology_TDDSelectsRenderTDDBuild(t *testing.T) {
+	tddBuildCalled := false
+	renderer := &mockPromptRenderer{
+		RenderTDDBuildFn: func(ctx *prompt.Context) (string, error) {
+			tddBuildCalled = true
+			return "tdd-build-prompt", nil
+		},
+	}
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{TDD: true},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
+	b := &bead.Bead{
+		ID:     "tdd-routing-1",
+		Title:  "Implement feature X",
+		Labels: []string{},
+	}
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, _ := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !tddActive {
+		t.Error("prepareMethodologyForBead should return tddActive=true when TDD is enabled")
+	}
+	if !tddBuildCalled {
+		t.Error("prepareMethodologyForBead should call RenderTDDBuild when TDD is active")
+	}
+	if bc.BuildPrompt != "tdd-build-prompt" {
+		t.Errorf("bc.BuildPrompt should be set from RenderTDDBuild, got %q", bc.BuildPrompt)
+	}
+}
