@@ -13,6 +13,7 @@ const (
 	trimDropConfirmedLearnings = "drop ConfirmedLearnings"
 	trimPhaseFilterRules       = "phase-filter Rules"
 	trimTruncateSpec           = "truncate Spec"
+	trimTruncateDiff           = "truncate Diff"
 	minHeadTailKeepChars       = 10
 )
 
@@ -369,7 +370,7 @@ func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars in
 	if shaped.Diff != "" {
 		if truncated, ok := truncateSpecForBudget(shaped.Diff, measureThoroughReviewContext(shaped), maxChars); ok {
 			shaped.Diff = truncated
-			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
+			report.TrimActions = append(report.TrimActions, trimTruncateDiff)
 		}
 	}
 

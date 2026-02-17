@@ -680,8 +680,17 @@ func TestReviewBudgetShaperWrappers_MapToBaseShaper(t *testing.T) {
 		mapped.normalizeNilFields()
 		expected, expectedReport := ShapeContextForBudget(mapped, maxChars-completedChars, 0, "build")
 
-		if strings.Join(report.TrimActions, ",") != strings.Join(expectedReport.TrimActions, ",") {
-			t.Fatalf("expected trim actions %v, got %v", expectedReport.TrimActions, report.TrimActions)
+		// The base shaper records "truncate Spec" while the thorough shaper
+		// correctly records "truncate Diff" — normalize before comparing.
+		mappedExpected := make([]string, len(expectedReport.TrimActions))
+		copy(mappedExpected, expectedReport.TrimActions)
+		for i, a := range mappedExpected {
+			if a == trimTruncateSpec {
+				mappedExpected[i] = trimTruncateDiff
+			}
+		}
+		if strings.Join(report.TrimActions, ",") != strings.Join(mappedExpected, ",") {
+			t.Fatalf("expected trim actions %v, got %v", mappedExpected, report.TrimActions)
 		}
 		if shaped.ClaudeMD != expected.ClaudeMD {
 			t.Fatalf("expected ClaudeMD %q, got %q", expected.ClaudeMD, shaped.ClaudeMD)
