@@ -138,6 +138,10 @@ func (r *Runner) processSingleBead(
 		return false, nil
 	}
 
+	if decomposed := r.runProactiveDecomposition(ctx, b, st); decomposed {
+		return false, nil
+	}
+
 	scopeEstimate, blocked := r.runScopeGate(ctx, b, st)
 	if blocked {
 		return false, nil
@@ -298,4 +302,30 @@ func (r *Runner) maybeRunThoroughReviewByFrequency(st *runLoopState, runThorough
 		runThoroughReview(st.iteration)
 	}
 	return nil
+}
+
+// runProactiveDecomposition checks if the bead is a proactive decomposition candidate
+// based on title keywords or description type-definition count. If so, it decomposes
+// the bead before first attempt. Returns true if decomposition occurred (caller should skip).
+func (r *Runner) runProactiveDecomposition(ctx context.Context, b *bead.Bead, st *runLoopState) bool {
+	if !bead.IsProactiveDecompositionCandidateWithDesc(b.Title, b.Description) {
+		return false
+	}
+
+	r.log("Bead %s flagged for proactive decomposition (title: %q)", b.ID, b.Title)
+
+	subTasks, err := r.DecomposeTask(ctx, b)
+	if err != nil {
+		r.log("Warning: proactive decomposition failed for bead %s: %v", b.ID, err)
+		return false
+	}
+
+	if err := r.CreateSubBeads(ctx, b, subTasks); err != nil {
+		r.log("Warning: failed to create sub-beads for proactive decomposition of %s: %v", b.ID, err)
+		return false
+	}
+
+	r.log("Proactively decomposed bead %s into %d sub-tasks", b.ID, len(subTasks))
+	st.skippedBeads[b.ID] = true
+	return true
 }
