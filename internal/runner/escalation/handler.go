@@ -225,28 +225,50 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 		return false
 	}
 
-	if analysis.Recoverable && bc.RetriesThisModel < bc.MaxRetries {
-		bc.RetriesThisModel++
-		bc.TotalRetriesThisBead++
-
-		if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
-			h.log("Max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
-			bc.Result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
-			return false
-		}
-
-		// Set prompt context for retry so the next invocation includes failure context
-		if bc.PromptCtx != nil {
-			bc.PromptCtx.IsRetry = true
-			bc.PromptCtx.FailureContext = analysis.Suggestion
-		}
-
-		h.log("Failure is recoverable, retrying (attempt %d/%d)", bc.RetriesThisModel, bc.MaxRetries)
-		return true
-	}
-
 	if analysis.Recoverable {
-		h.log("Retry limit reached for model %s (%d attempts)", bc.Model, bc.RetriesThisModel)
+		// L1 bounded autonomous retries.
+		if !bc.Result.Escalated {
+			l1RetryCap := h.cfg.Andon.L1RetryCap
+			if l1RetryCap <= 0 {
+				l1RetryCap = bc.MaxRetries
+			}
+			if l1RetryCap <= 0 {
+				l1RetryCap = 1
+			}
+
+			if bc.RetriesThisModel < l1RetryCap {
+				bc.RetriesThisModel++
+				bc.TotalRetriesThisBead++
+
+				if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
+					h.log("Max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
+					bc.Result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
+					return false
+				}
+
+				if bc.PromptCtx != nil {
+					bc.PromptCtx.IsRetry = true
+					bc.PromptCtx.FailureContext = analysis.Suggestion
+				}
+
+				h.log("Andon L1: recoverable failure retrying (attempt %d/%d)", bc.RetriesThisModel, l1RetryCap)
+				return true
+			}
+
+			// L1 exhausted -> transition to L2 via one escalation.
+			nextTier := h.cfg.NextEscalationTier(bc.Tier)
+			if nextTier == "" {
+				bc.Result.Error = fmt.Errorf("L3 stop-line: recoverable failure exhausted L1 and no L2 escalation path is available")
+				return false
+			}
+			h.log("Andon L1->L2: escalating from %s to %s", bc.Tier, nextTier)
+			h.EscalateTier(bc, nextTier)
+			return true
+		}
+
+		// Recoverable failure persisted after L2 transition.
+		bc.Result.Error = fmt.Errorf("L3 stop-line: recoverable failure persisted after L2 bounded recovery")
+		return false
 	}
 
 	return h.HandleEscalation(ctx, bc, claudeResult)
