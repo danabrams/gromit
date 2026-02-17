@@ -870,6 +870,39 @@ func TestValidate_ParentCanceledReturnsExecutionError(t *testing.T) {
 	}
 }
 
+// TestRunWithRecoveryForCommands_TruncatesLargeOutput verifies that when a
+// validation command fails with very large stdout/stderr, the output appended
+// to bc.Result.Output is capped at ~50KB to prevent context bloat.
+func TestRunWithRecoveryForCommands_TruncatesLargeOutput(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.MaxValidationRetries = 0 // no recovery, just run and fail
+
+	// Build output larger than 50KB
+	line := strings.Repeat("x", 100) + "\n"
+	var bigOutput strings.Builder
+	for bigOutput.Len() < 60*1024 {
+		bigOutput.WriteString(line)
+	}
+	largeStdout := bigOutput.String()
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return largeStdout, "", 1, nil
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	bc := newTestBeadContext()
+
+	err := r.RunWithRecoveryForCommands(context.Background(), bc, cfg.Validation.Commands, "")
+	if !errors.Is(err, ErrValidationFailed) {
+		t.Fatalf("expected ErrValidationFailed, got: %v", err)
+	}
+
+	const maxAllowed = 55 * 1024 // 50KB cap + small overhead for formatting
+	if len(bc.Result.Output) > maxAllowed {
+		t.Errorf("Result.Output length %d exceeds cap %d; large output not truncated", len(bc.Result.Output), maxAllowed)
+	}
+}
+
 // Ensure imports are used
 var (
 	_ = claude.Result{}
