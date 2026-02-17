@@ -1031,3 +1031,24 @@ func TestRenderSpecAcceptanceTemplateIncludesRulesAndSpec(t *testing.T) {
 		t.Error("expected spec in rendered template")
 	}
 }
+
+func TestRenderSpecGateTemplateIncludesCriteriaAndFailure(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &SpecGateContext{
+		SpecCriteria:  "Must return 200",
+		FailureOutput: "status was 500",
+	}
+
+	result, err := r.RenderSpecGate(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecGate() error = %v", err)
+	}
+	if !strings.Contains(result, "Must return 200") {
+		t.Error("expected spec criteria in rendered template")
+	}
+	if !strings.Contains(result, "status was 500") {
+		t.Error("expected failure output in rendered template")
+	}
+}
