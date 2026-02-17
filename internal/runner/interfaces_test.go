@@ -598,6 +598,33 @@ func TestNewRunnerWithDeps_ApplesDefaultsToUninitialisedConfig(t *testing.T) {
 	}
 }
 
+func newRunnerWithMocks(t *testing.T, cfg *config.Config, deps Deps) (*Runner, *strings.Builder) {
+	t.Helper()
+
+	if deps.Beads == nil {
+		deps.Beads = &mockBeadClient{}
+	}
+	if deps.Router == nil {
+		deps.Router = newMockRouterFromClaudeClient(&mockClaudeClient{})
+	}
+	if deps.Analyzer == nil {
+		deps.Analyzer = &mockFailureAnalyzer{}
+	}
+	if deps.Renderer == nil {
+		deps.Renderer = &mockPromptRenderer{}
+	}
+	if deps.Logger == nil {
+		deps.Logger = &mockIterationLogger{}
+	}
+
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+	return r, &buf
+}
+
 func TestRunWithMocks_DryRun(t *testing.T) {
 	callCount := 0
 	beads := &mockBeadClient{
@@ -613,11 +640,10 @@ func TestRunWithMocks_DryRun(t *testing.T) {
 		},
 	}
 
-	var buf strings.Builder
-	r, _ := NewRunnerWithDeps(
+	r, buf := newRunnerWithMocks(
+		t,
 		&config.Config{Models: config.ModelsConfig{P1: "sonnet"}},
-		&buf, t.TempDir(),
-		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}},
+		Deps{Beads: beads},
 	)
 
 	err := r.Run(context.Background(), 5, time.Time{}, nil, true)
@@ -637,9 +663,7 @@ func TestRunWithMocks_DryRun(t *testing.T) {
 func TestRunWithMocks_NoWork(t *testing.T) {
 	beads := &mockBeadClient{ReadyFn: func() (*bead.Bead, error) { return nil, nil }}
 
-	var buf strings.Builder
-	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
-		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
+	r, buf := newRunnerWithMocks(t, &config.Config{}, Deps{Beads: beads})
 
 	err := r.Run(context.Background(), 0, time.Time{}, nil, false)
 	if err != nil {
@@ -657,9 +681,7 @@ func TestRunWithMocks_MaxIterations(t *testing.T) {
 		},
 	}
 
-	var buf strings.Builder
-	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
-		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
+	r, buf := newRunnerWithMocks(t, &config.Config{}, Deps{Beads: beads})
 
 	err := r.Run(context.Background(), 2, time.Time{}, nil, true)
 	if err != nil {
@@ -906,9 +928,7 @@ func TestRunWithMocks_ContextCancellation(t *testing.T) {
 		},
 	}
 
-	var buf strings.Builder
-	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
-		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
+	r, _ := newRunnerWithMocks(t, &config.Config{}, Deps{Beads: beads})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -930,11 +950,11 @@ func TestIterationLogWithMocks(t *testing.T) {
 		},
 	}
 
-	var buf strings.Builder
-	r, _ := NewRunnerWithDeps(
+	r, _ := newRunnerWithMocks(
+		t,
 		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
-		&buf, t.TempDir(),
-		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+		Deps{Router: newMockRouterFromClaudeClient(mockClaude), Logger: mockLog},
+	)
 
 	b := &bead.Bead{ID: "log-test", Title: "Log Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
 	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
@@ -1090,9 +1110,7 @@ func TestHandleScopeTooLargeWithMocks(t *testing.T) {
 func TestRunWithMocks_BeadReadyError(t *testing.T) {
 	beads := &mockBeadClient{ReadyFn: func() (*bead.Bead, error) { return nil, fmt.Errorf("bd CLI not found") }}
 
-	var buf strings.Builder
-	r, _ := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(),
-		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
+	r, _ := newRunnerWithMocks(t, &config.Config{}, Deps{Beads: beads})
 
 	err := r.Run(context.Background(), 1, time.Time{}, nil, false)
 	if err == nil || !strings.Contains(err.Error(), "getting next bead") {
