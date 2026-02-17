@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/runner/andon"
 )
 
 var artifactBeadIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
@@ -82,6 +83,12 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 func ensureFailureAndonEnvelope(result *IterationResult) {
 	if result == nil || result.Success {
 		return
+	}
+	if result.FailureClass == "" {
+		result.FailureClass = string(andon.FailureClassWorkflow)
+	}
+	if result.AndonLevel == "" {
+		result.AndonLevel = string(andon.LevelL1)
 	}
 }
 
