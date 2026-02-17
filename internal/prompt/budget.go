@@ -120,6 +120,16 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 		}
 	}
 
+	// Step 6: truncate Spec with head/tail + marker
+	if shaped.Spec != "" {
+		excess := measureContext(shaped) - maxChars
+		targetLen := len(shaped.Spec) - excess
+		if targetLen > 0 && targetLen < len(shaped.Spec) {
+			shaped.Spec = truncateWithMarker(shaped.Spec, targetLen)
+			report.TrimActions = append(report.TrimActions, "truncate Spec")
+		}
+	}
+
 	return finishReport(shaped, report)
 }
 
@@ -138,6 +148,25 @@ func capLearnings(ls []learnings.Learning, maxChars int) []learnings.Learning {
 		result = []learnings.Learning{}
 	}
 	return result
+}
+
+const truncationMarker = "\n[...truncated...]\n"
+
+// truncateWithMarker keeps the head and tail of s, inserting a truncation marker.
+// targetLen is the approximate target length for the result.
+func truncateWithMarker(s string, targetLen int) string {
+	markerLen := len(truncationMarker)
+	if targetLen <= markerLen {
+		// Can't fit anything useful, keep minimal head + marker
+		return s[:min(len(s), 50)] + truncationMarker
+	}
+	available := targetLen - markerLen
+	headLen := available * 2 / 3
+	tailLen := available - headLen
+	if headLen <= 0 || tailLen <= 0 {
+		return s[:min(len(s), targetLen)] + truncationMarker
+	}
+	return s[:headLen] + truncationMarker + s[len(s)-tailLen:]
 }
 
 func finishReport(ctx *Context, report *ShapeReport) (*Context, *ShapeReport) {

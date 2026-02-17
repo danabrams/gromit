@@ -217,3 +217,38 @@ func TestShapeContextForBudget_PhaseFilterRulesFifth(t *testing.T) {
 		t.Errorf("expected 'phase-filter Rules' in trim actions, got %v", report.TrimActions)
 	}
 }
+
+func TestShapeContextForBudget_TruncateSpecSixth(t *testing.T) {
+	spec := strings.Repeat("line\n", 200) // 1000 chars
+	ctx := &Context{
+		Bead:  &bead.Bead{ID: "b1", Title: "T"},
+		Rules: "r",
+		Spec:  spec,
+	}
+	ctx.normalizeNilFields()
+
+	// Budget forces spec truncation
+	budget := 100
+
+	shaped, report := ShapeContextForBudget(ctx, budget, 100, "build")
+
+	// Spec should be truncated, not empty
+	if shaped.Spec == "" {
+		t.Fatal("expected Spec truncated, not fully dropped")
+	}
+	if len(shaped.Spec) >= len(spec) {
+		t.Errorf("expected Spec shorter than original %d, got %d", len(spec), len(shaped.Spec))
+	}
+	if !strings.Contains(shaped.Spec, "[...truncated...]") {
+		t.Error("expected truncation marker '[...truncated...]' in Spec")
+	}
+	found := false
+	for _, a := range report.TrimActions {
+		if a == "truncate Spec" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'truncate Spec' in trim actions, got %v", report.TrimActions)
+	}
+}
