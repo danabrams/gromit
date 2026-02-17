@@ -76,10 +76,14 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 	// Parse the output
 	subTasks, err := parseDecomposeOutput(result.Output)
 	if err != nil {
-		if !result.Success {
-			return nil, fmt.Errorf("decomposition failed with exit code %d and parsing failed: %v", result.ExitCode, err)
+		outputPreview := result.Output
+		if len(outputPreview) > 200 {
+			outputPreview = outputPreview[:200] + "..."
 		}
-		return nil, fmt.Errorf("parsing decomposition: %w", err)
+		if !result.Success {
+			return nil, fmt.Errorf("decomposition failed with exit code %d and parsing failed: %v (output: %q)", result.ExitCode, err, outputPreview)
+		}
+		return nil, fmt.Errorf("parsing decomposition (output: %q): %w", outputPreview, err)
 	}
 
 	return subTasks, nil

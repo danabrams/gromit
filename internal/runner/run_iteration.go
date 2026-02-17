@@ -316,8 +316,13 @@ func (r *Runner) runProactiveDecomposition(ctx context.Context, b *bead.Bead, st
 
 	subTasks, err := r.DecomposeTask(ctx, b)
 	if err != nil {
-		r.log("Warning: proactive decomposition failed for bead %s: %v", b.ID, err)
-		return false
+		r.log("Warning: proactive decomposition attempt 1 failed for bead %s: %v", b.ID, err)
+		// Retry once — LLM occasionally returns non-JSON on first attempt
+		subTasks, err = r.DecomposeTask(ctx, b)
+		if err != nil {
+			r.log("Warning: proactive decomposition attempt 2 failed for bead %s: %v", b.ID, err)
+			return false
+		}
 	}
 
 	if err := r.CreateSubBeads(ctx, b, subTasks); err != nil {

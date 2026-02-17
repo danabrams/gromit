@@ -179,3 +179,93 @@ func TestRunProactiveDecomposition_SkipsNonCandidateBead(t *testing.T) {
 		t.Errorf("expected no sub-beads created for non-candidate bead, got: %v", createdSubBeads)
 	}
 }
+
+// TestRunProactiveDecomposition_RetriesOnParseFailure verifies that when the first
+// decomposition attempt returns non-JSON output, a second attempt is made. If the
+// retry succeeds, sub-beads are created normally.
+func TestRunProactiveDecomposition_RetriesOnParseFailure(t *testing.T) {
+	precheckDisabled := false
+	autoPushDisabled := false
+	cfg := &config.Config{
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Validation: config.ValidationConfig{
+			Enabled: false,
+		},
+		Review: config.ReviewConfig{
+			Enabled: false,
+		},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	subTasksJSON, _ := json.Marshal([]runtypes.SubTask{
+		{Title: "Sub-task A", Description: "Do part A", AcceptanceCriteria: []string{"A done"}},
+	})
+
+	claudeCallCount := 0
+	var createdSubBeads []string
+	mockBeads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			// First call returns the refactor bead; subsequent calls return nil (no more work)
+			if len(createdSubBeads) == 0 {
+				return &bead.Bead{
+					ID:              "refactor-retry",
+					Title:           "Refactor config loading",
+					Priority:        2,
+					Labels:          []string{},
+					ExpectedOutputs: []string{},
+				}, nil
+			}
+			return nil, nil
+		},
+		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
+			return nil, nil
+		},
+		CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+			createdSubBeads = append(createdSubBeads, title)
+			return &bead.Bead{ID: "sub-" + title, Title: title, Labels: []string{}, ExpectedOutputs: []string{}}, nil
+		},
+	}
+
+	// First call returns non-JSON; second call returns valid JSON
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
+			claudeCallCount++
+			if claudeCallCount == 1 {
+				return &claude.Result{Success: true, Output: "Here are the sub-tasks I'd recommend..."}, nil
+			}
+			return &claude.Result{Success: true, Output: string(subTasksJSON)}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    mockBeads,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() error = %v", err)
+	}
+
+	err = r.Run(context.Background(), 1, time.Time{}, nil, false)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// Claude should have been called twice for decomposition (first failed, retry succeeded)
+	if claudeCallCount < 2 {
+		t.Errorf("expected at least 2 Claude calls (initial + retry), got %d", claudeCallCount)
+	}
+
+	// Sub-beads should have been created on retry
+	if len(createdSubBeads) != 1 {
+		t.Errorf("expected 1 sub-bead created after retry, got %d: %v", len(createdSubBeads), createdSubBeads)
+	}
+}
