@@ -608,3 +608,28 @@ func TestEvaluateClassifiedFailureWithTrace_SetsClassifiedEntryInputSource(t *te
 		t.Fatalf("EvaluateClassifiedFailureWithTrace(...).DecisionInputSource = %q, want %q", trace.DecisionInputSource, DecisionInputSourceClassifiedEntry)
 	}
 }
+
+func TestEvaluateFailureWithTrace_IrreversibleMigrationRequiresApproval(t *testing.T) {
+	now, thresholds := setupPolicyTest(t)
+
+	trace := EvaluateFailureWithTrace(
+		FailureSignal{
+			Kind:   FailureKindHardStopIrreversibleMigration,
+			Output: "alembic upgrade head --irreversible",
+		},
+		RecoveryState{
+			Level:      LevelL1,
+			L1Attempts: 0,
+			L1Started:  now,
+		},
+		thresholds,
+		now,
+	)
+
+	if trace.Decision != (PolicyDecision{NextLevel: LevelL3, Action: DecisionEscalate}) {
+		t.Fatalf("EvaluateFailureWithTrace(...).Decision = %+v, want L3 escalation for irreversible migration", trace.Decision)
+	}
+	if trace.Path != DecisionPathHardStopRequiresApproval {
+		t.Fatalf("EvaluateFailureWithTrace(...).Path = %q, want %q", trace.Path, DecisionPathHardStopRequiresApproval)
+	}
+}

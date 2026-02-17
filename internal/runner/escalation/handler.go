@@ -238,6 +238,17 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 		return false
 	}
 
+	if analysis.Category == analyzer.CategoryHardStopAction {
+		if !bc.HardStopApproval.Approved {
+			bc.Result.HardStopPendingApproval = true
+			bc.Result.Error = fmt.Errorf("hard-stop action requires explicit approval: %s", analysis.RootCause)
+			return false
+		}
+
+		bc.Result.HardStopPendingApproval = false
+		return h.HandleEscalation(ctx, bc, claudeResult)
+	}
+
 	if analysis.Recoverable {
 		// L1 bounded autonomous retries.
 		if !bc.Result.Escalated {

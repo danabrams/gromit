@@ -45,6 +45,9 @@ type BeadContext struct {
 
 	// Package tracking (for learning extraction filtering)
 	TouchedPackages []string
+
+	// Hard-stop guardrail approval state for dangerous actions.
+	HardStopApproval HardStopApprovalState
 }
 
 const (
@@ -53,27 +56,28 @@ const (
 
 // IterationResult captures the outcome of one loop iteration.
 type IterationResult struct {
-	BeadID                string
-	BeadTitle             string
-	Model                 string
-	Success               bool
-	Validated             bool
-	Duration              time.Duration
-	Error                 error
-	Escalated             bool
-	EscalatedTo           string
-	Decomposed            bool
-	Output                string
-	CostUSD               float64
-	InputTokens           int
-	OutputTokens          int
-	ReviewBrokeValidation bool   // true when review fixes broke previously-passing validation
-	AlreadyDone           bool   // true when ATDD detected work was already complete
-	ValidationRetried     bool   // true when validation recovery was attempted
-	TrivialAutoFixed      bool   // true when auto-fix resolved validation without Claude
-	UsageLimited          bool   // true when invocation failed due to usage/rate limit
-	ValidationMode        string // "direct" when validation ran via shell commands
-	CompilationErrors     bool   // true when pre-build compilation check found errors
+	BeadID                  string
+	BeadTitle               string
+	Model                   string
+	Success                 bool
+	Validated               bool
+	Duration                time.Duration
+	Error                   error
+	Escalated               bool
+	EscalatedTo             string
+	Decomposed              bool
+	Output                  string
+	CostUSD                 float64
+	InputTokens             int
+	OutputTokens            int
+	ReviewBrokeValidation   bool   // true when review fixes broke previously-passing validation
+	AlreadyDone             bool   // true when ATDD detected work was already complete
+	ValidationRetried       bool   // true when validation recovery was attempted
+	TrivialAutoFixed        bool   // true when auto-fix resolved validation without Claude
+	UsageLimited            bool   // true when invocation failed due to usage/rate limit
+	ValidationMode          string // "direct" when validation ran via shell commands
+	CompilationErrors       bool   // true when pre-build compilation check found errors
+	HardStopPendingApproval bool   // true when hard-stop action requires explicit human approval
 
 	// Diagnostic fields for timeout investigation
 	TimeoutType         string // "stall", "bead", "invocation", ""
@@ -87,6 +91,12 @@ type IterationResult struct {
 	AcceptanceFailureSummary  string // short summary for JSONL
 	AcceptanceFailureOutput   string // captured validation output from failed acceptance verification
 	AcceptanceFailureArtifact string // path to persisted failure artifact log
+}
+
+// HardStopApprovalState captures explicit approval for hard-stop actions.
+type HardStopApprovalState struct {
+	Approved   bool
+	ApprovedBy string
 }
 
 // SubTask represents a single sub-task from task decomposition.

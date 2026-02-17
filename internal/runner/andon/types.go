@@ -77,17 +77,27 @@ func AllFailureClasses() []FailureClass {
 type FailureKind string
 
 const (
-	FailureKindTimeout         FailureKind = "timeout"
-	FailureKindWorkflow        FailureKind = "workflow"
-	FailureKindQualityGate     FailureKind = "quality_gate"
-	FailureKindAmbiguousIntent FailureKind = "ambiguous_intent"
-	FailureKindIntegrity       FailureKind = "integrity"
+	FailureKindTimeout                       FailureKind = "timeout"
+	FailureKindWorkflow                      FailureKind = "workflow"
+	FailureKindQualityGate                   FailureKind = "quality_gate"
+	FailureKindAmbiguousIntent               FailureKind = "ambiguous_intent"
+	FailureKindIntegrity                     FailureKind = "integrity"
+	FailureKindHardStopBulkDelete            FailureKind = "hard_stop_bulk_delete"
+	FailureKindHardStopIrreversibleMigration FailureKind = "hard_stop_irreversible_migration"
+	FailureKindHardStopCredentialChange      FailureKind = "hard_stop_credential_change"
 )
 
 // FailureSignal is the policy input for failure classification.
 type FailureSignal struct {
-	Kind   FailureKind
-	Output string
+	Kind     FailureKind
+	Output   string
+	HardStop HardStopContext
+}
+
+// HardStopContext carries signal details needed to evaluate hard-stop guardrails.
+type HardStopContext struct {
+	Command             string
+	BulkDeleteAllowlist []string
 }
 
 // Decision is the next operation selected by Andon policy.
@@ -115,6 +125,8 @@ const (
 	DecisionPathIntentEscalateAfterAssumptionBudget       DecisionPath = "intent_escalate_after_assumption_budget"
 	DecisionPathDataImmediateStopLine                     DecisionPath = "data_immediate_stop_line"
 	DecisionPathWorkflowFallbackForUnknownKind            DecisionPath = "workflow_fallback_for_unknown_kind"
+	DecisionPathHardStopRequiresApproval                  DecisionPath = "hard_stop_requires_approval"
+	DecisionPathHardStopBulkDeleteOutsideAllowlist        DecisionPath = "hard_stop_bulk_delete_outside_allowlist"
 )
 
 // PolicyEvaluation is the classification plus selected decision.
@@ -151,8 +163,10 @@ type PolicyDecisionTrace struct {
 
 // PolicyClassification is the classifier output consumed by policy decisions.
 type PolicyClassification struct {
-	Class                  FailureClass
-	IsWorkflowFallbackKind bool
+	Class                        FailureClass
+	IsWorkflowFallbackKind       bool
+	IsHardStopAction             bool
+	IsBulkDeleteOutsideAllowlist bool
 }
 
 // RecoveryState tracks bounded recovery progress for a failure.

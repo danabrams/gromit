@@ -1,6 +1,10 @@
 package andon
 
-import "time"
+import (
+	"path/filepath"
+	"strings"
+	"time"
+)
 
 const workflowEscalationAttemptThreshold = 1
 const defaultFailureClass = FailureClassWorkflow
@@ -36,6 +40,15 @@ func classifyFailure(signal FailureSignal) (FailureClass, bool) {
 		return FailureClassIntent, false
 	case FailureKindIntegrity:
 		return FailureClassData, false
+	case FailureKindHardStopBulkDelete:
+		if isBulkDeleteAllowlisted(signal.HardStop) {
+			return FailureClassTransient, false
+		}
+		return FailureClassData, false
+	case FailureKindHardStopIrreversibleMigration:
+		return FailureClassData, false
+	case FailureKindHardStopCredentialChange:
+		return FailureClassData, false
 	default:
 		// Unknown signals route through the workflow class so policy output remains canonical.
 		return defaultFailureClass, true
@@ -45,10 +58,21 @@ func classifyFailure(signal FailureSignal) (FailureClass, bool) {
 // ClassifyFailureEntry classifies a failure signal for policy-level decisioning.
 func ClassifyFailureEntry(signal FailureSignal) PolicyClassification {
 	class, fallback := classifyFailure(signal)
-	return PolicyClassification{
+	classification := PolicyClassification{
 		Class:                  class,
 		IsWorkflowFallbackKind: fallback,
 	}
+	switch signal.Kind {
+	case FailureKindHardStopIrreversibleMigration, FailureKindHardStopCredentialChange:
+		classification.IsHardStopAction = true
+	case FailureKindHardStopBulkDelete:
+		if !isBulkDeleteAllowlisted(signal.HardStop) {
+			classification.IsHardStopAction = true
+			classification.IsBulkDeleteOutsideAllowlist = hasExplicitBulkDeleteAllowlistContext(signal.HardStop)
+		}
+	}
+
+	return classification
 }
 
 // ChooseNextAction computes the next bounded recovery step for a failure state.
@@ -121,6 +145,13 @@ func evaluateFailureClass(classification PolicyClassification, state RecoverySta
 }
 
 func chooseDecisionForClass(classification PolicyClassification, state RecoveryState, thresholds AndonThresholds, now time.Time) (PolicyDecision, DecisionPath) {
+	if classification.IsHardStopAction {
+		if classification.IsBulkDeleteOutsideAllowlist {
+			return PolicyDecision{NextLevel: LevelL3, Action: DecisionEscalate}, DecisionPathHardStopBulkDeleteOutsideAllowlist
+		}
+		return PolicyDecision{NextLevel: LevelL3, Action: DecisionEscalate}, DecisionPathHardStopRequiresApproval
+	}
+
 	decision := ChooseNextAction(state, thresholds, now)
 
 	if classification.IsWorkflowFallbackKind {
@@ -128,6 +159,50 @@ func chooseDecisionForClass(classification PolicyClassification, state RecoveryS
 	}
 
 	return decision, DecisionPathForClass(classification.Class)
+}
+
+func isBulkDeleteAllowlisted(hardStop HardStopContext) bool {
+	command := strings.TrimSpace(hardStop.Command)
+	if command == "" || len(hardStop.BulkDeleteAllowlist) == 0 {
+		return false
+	}
+
+	targetPath := extractDeleteTargetPath(command)
+	if targetPath == "" {
+		return false
+	}
+	cleanTarget := filepath.Clean(targetPath)
+	sep := string(filepath.Separator)
+
+	for _, allowed := range hardStop.BulkDeleteAllowlist {
+		cleanAllowed := filepath.Clean(strings.TrimSpace(allowed))
+		if cleanAllowed == "" {
+			continue
+		}
+		if cleanTarget == cleanAllowed || strings.HasPrefix(cleanTarget, cleanAllowed+sep) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasExplicitBulkDeleteAllowlistContext(hardStop HardStopContext) bool {
+	return strings.TrimSpace(hardStop.Command) != "" && len(hardStop.BulkDeleteAllowlist) > 0
+}
+
+func extractDeleteTargetPath(command string) string {
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return ""
+	}
+
+	target := parts[len(parts)-1]
+	if strings.HasPrefix(target, "-") {
+		return ""
+	}
+
+	return target
 }
 
 // DecisionPathForClass returns the canonical decision path branch for a failure class.

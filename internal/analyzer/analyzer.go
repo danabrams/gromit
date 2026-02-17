@@ -23,6 +23,7 @@ const (
 	CategoryMissingContext Category = "missing_context"  // Didn't know about existing code
 	CategoryTestFlake      Category = "test_flake"       // Non-deterministic test failure
 	CategoryTaskTooComplex Category = "task_too_complex" // Task scope too large for single iteration
+	CategoryHardStopAction Category = "hard_stop_action" // Dangerous/irreversible action requiring explicit approval
 
 	// maxFailureOutputLen is the maximum length of failure output to analyze.
 	// Claude's context is large enough to handle this without performance issues,
@@ -206,7 +207,7 @@ func parseAnalysisOutput(output string) (*Analysis, error) {
 	switch analysis.Category {
 	case CategorySyntax, CategoryLogic, CategoryEnvironment,
 		CategoryUnclearSpec, CategoryMissingContext, CategoryTestFlake,
-		CategoryTaskTooComplex:
+		CategoryTaskTooComplex, CategoryHardStopAction:
 		// Valid
 	default:
 		analysis.Category = CategoryLogic // Default
