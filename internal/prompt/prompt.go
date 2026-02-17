@@ -280,6 +280,7 @@ func (r *Renderer) RenderThoroughReview(ctx *ThoroughReviewContext) (string, err
 
 // RenderAcceptanceTests renders the acceptance tests prompt for ATDD workflow
 func (r *Renderer) RenderAcceptanceTests(ctx *Context) (string, error) {
+	ctx = r.shapeBuildContext(ctx, "build")
 	return r.render("PROMPT_acceptance_tests.md", ctx)
 }
 
@@ -291,6 +292,7 @@ func (r *Renderer) RenderATDDBuild(ctx *Context) (string, error) {
 
 // RenderRefactor renders the refactor prompt for code quality improvements
 func (r *Renderer) RenderRefactor(ctx *Context) (string, error) {
+	ctx = r.shapeBuildContext(ctx, "build")
 	return r.render("PROMPT_refactor.md", ctx)
 }
 

@@ -883,6 +883,48 @@ func TestRenderTDDBuild_ShapesContextWhenOverBudget(t *testing.T) {
 	}
 }
 
+func TestRenderRefactor_ShapesContextWhenOverBudget(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_refactor.md", "ClaudeMD:{{.ClaudeMD}}")
+	r.SetBudgetConfig(50, 2000)
+
+	ctx := &Context{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+	}
+	ctx.normalizeNilFields()
+
+	result, err := r.RenderRefactor(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(result, strings.Repeat("c", 500)) {
+		t.Error("expected ClaudeMD to be trimmed when over budget")
+	}
+}
+
+func TestRenderAcceptanceTests_ShapesContextWhenOverBudget(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_acceptance_tests.md", "ClaudeMD:{{.ClaudeMD}}")
+	r.SetBudgetConfig(50, 2000)
+
+	ctx := &Context{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+	}
+	ctx.normalizeNilFields()
+
+	result, err := r.RenderAcceptanceTests(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(result, strings.Repeat("c", 500)) {
+		t.Error("expected ClaudeMD to be trimmed when over budget")
+	}
+}
+
 func TestSetBudgetConfig_StoresValues(t *testing.T) {
 	r := &Renderer{}
 	r.SetBudgetConfig(20000, 2000)
