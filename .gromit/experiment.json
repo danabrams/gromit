@@ -5,12 +5,15 @@
   "measurement": "Compare Codex failure rate in 30-iteration windows before vs after. Track iterations-to-completion for Codex beads",
   "risk": "Over-decomposition could increase overhead from bead management (more beads to track, more context switching). May slow throughput if decomposition itself fails",
   "started_at": "2026-02-17T16:38:01.63243131Z",
-  "status": "doing",
+  "status": "study",
   "baseline_metrics": {
     "avg_cost_per_bead": 0.4126565335526316,
     "avg_duration_ms": 716849.701754386,
     "avg_input_tokens": 0,
     "avg_output_tokens": 0,
     "failure_rate": 0.39035087719298245
-  }
+  },
+  "study_summary": "Experiment declared 2026-02-17 but no implementation deployed. Metrics show no Codex-specific proactive decomposition behavior in iteration data. The 3.1% failure rate improvement (39% to 37.8%) is within noise and attributable to reactive decomposition producing well-scoped sub-beads, not the experimental change. Control limits show no anomalies. Rolling success rate at 87% is positive but driven by existing decomposition rules, not this experiment. The hypothesis remains untested.",
+  "act_decision": "extend",
+  "act_date": "2026-02-17"
 }
