@@ -279,14 +279,14 @@ func TestWriteIterationLog_EmitsAndonClassificationAndReliabilitySignals(t *test
 		Success:          false,
 		Duration:         2 * time.Second,
 		Error:            fmt.Errorf("quality gate failed"),
-		FailureClass:     andon.FailureClassQuality,
-		AndonLevel:       andon.LevelL2,
+		FailureClass:     string(andon.FailureClassQuality),
+		AndonLevel:       string(andon.LevelL2),
 		TrimDecision:     "middle_ellipsis",
 		AutonomyEligible: true,
 		AutonomySuccess:  false,
 		FirstPassSuccess: false,
 		MTTRProxyMs:      42000,
-		EscalationClass:  andon.FailureClassQuality,
+		EscalationClass:  string(andon.FailureClassQuality),
 		RecurrenceCount:  3,
 	}
 
