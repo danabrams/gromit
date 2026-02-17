@@ -1,6 +1,9 @@
 package runner
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/danabrams/gromit/internal/logger"
@@ -31,4 +34,12 @@ func withFastStatusReaders(t testingT) {
 type testingT interface {
 	Helper()
 	Cleanup(func())
+}
+
+func writeStatusFile(gromitDir string, status Status) error {
+	data, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644)
 }

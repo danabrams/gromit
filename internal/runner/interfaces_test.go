@@ -2,11 +2,8 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -697,11 +694,7 @@ func TestStatusWithMocks(t *testing.T) {
 		ElapsedS:  180,
 		PID:       424242,
 	}
-	data, err := json.MarshalIndent(status, "", "  ")
-	if err != nil {
-		t.Fatalf("failed to marshal status: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644); err != nil {
+	if err := writeStatusFile(gromitDir, status); err != nil {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 	r, _ := NewRunnerWithDeps(
@@ -755,11 +748,7 @@ func TestStatusWithMocks_NoWork(t *testing.T) {
 		ElapsedS:  60,
 		PID:       424242,
 	}
-	data, err := json.MarshalIndent(status, "", "  ")
-	if err != nil {
-		t.Fatalf("failed to marshal status: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644); err != nil {
+	if err := writeStatusFile(gromitDir, status); err != nil {
 		t.Fatalf("failed to write status.json: %v", err)
 	}
 	r, _ := NewRunnerWithDeps(cfg, &buf, gromitDir,

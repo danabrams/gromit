@@ -2470,11 +2470,7 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 					ElapsedS:  120,
 					PID:       424242,
 				}
-				data, err := json.MarshalIndent(status, "", "  ")
-				if err != nil {
-					return err
-				}
-				return os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644)
+				return writeStatusFile(gromitDir, status)
 			},
 			expectedOutput: []string{"Pipeline:", "Run: iteration 1", "bead-123", "Building feature X", "Model:    sonnet", "Health:"},
 			notExpected:    []string{"Warning: stale run"},
@@ -2497,11 +2493,7 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 					ElapsedS:  3600,
 					PID:       999999, // PID that won't exist
 				}
-				data, err := json.MarshalIndent(status, "", "  ")
-				if err != nil {
-					return err
-				}
-				return os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644)
+				return writeStatusFile(gromitDir, status)
 			},
 			expectedOutput: []string{"Warning: stale run detected", "Bead: bead-456 - Old bead", "Removing stale status file", "Pipeline:", "Run: not running"},
 			notExpected:    []string{"Run: iteration"},
