@@ -7,6 +7,7 @@ import (
 )
 
 const claudeMaxChars = 1500
+const rulesMaxChars = 10000
 
 func mustReadText(t *testing.T, path string) string {
 	t.Helper()
@@ -81,6 +82,14 @@ func TestRULESMD_ProcessSection(t *testing.T) {
 	if !strings.Contains(text, "Interface + implementation + mock") ||
 		!strings.Contains(text, "implementation + tests") {
 		t.Error("RULES.md should reference grouping patterns (e.g., interface+impl+mock, implementation+tests)")
+	}
+}
+
+func TestRULESMD_UnderTenThousandChars(t *testing.T) {
+	text := mustReadText(t, "../../.gromit/RULES.md")
+
+	if len(text) > rulesMaxChars {
+		t.Errorf("RULES.md should be under 10,000 chars, got %d", len(text))
 	}
 }
 
