@@ -159,7 +159,7 @@ func capLearnings(ls []learnings.Learning, maxChars int) []learnings.Learning {
 	return result
 }
 
-const truncationMarker = "\n[...truncated...]\n"
+const truncationMarker = "...[truncated]..."
 
 // truncateWithMarker keeps the head and tail of s, inserting a truncation marker.
 // targetLen is the approximate target length for the result.

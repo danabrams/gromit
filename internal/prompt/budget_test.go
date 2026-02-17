@@ -224,11 +224,27 @@ func TestShapeContextForBudget_TruncateSpecSixth(t *testing.T) {
 	if len(shaped.Spec) >= len(spec) {
 		t.Errorf("expected Spec shorter than original %d, got %d", len(spec), len(shaped.Spec))
 	}
-	if !strings.Contains(shaped.Spec, "[...truncated...]") {
-		t.Error("expected truncation marker '[...truncated...]' in Spec")
+	if !strings.Contains(shaped.Spec, "...[truncated]...") {
+		t.Error("expected truncation marker '...[truncated]...' in Spec")
 	}
 	if !hasTrimAction(report.TrimActions, trimTruncateSpec) {
 		t.Errorf("expected %q in trim actions, got %v", trimTruncateSpec, report.TrimActions)
+	}
+}
+
+func TestTruncateWithMarker_PreservesHeadTailAndMarkerFormat(t *testing.T) {
+	original := "HEAD-" + strings.Repeat("x", 200) + "-TAIL"
+
+	got := truncateWithMarker(original, 60)
+
+	if !strings.Contains(got, "...[truncated]...") {
+		t.Fatalf("expected marker %q in truncated spec, got %q", "...[truncated]...", got)
+	}
+	if !strings.HasPrefix(got, "HEAD-") {
+		t.Fatalf("expected truncated spec to preserve head prefix, got %q", got)
+	}
+	if !strings.HasSuffix(got, "-TAIL") {
+		t.Fatalf("expected truncated spec to preserve tail suffix, got %q", got)
 	}
 }
 
