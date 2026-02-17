@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 )
@@ -2992,5 +2993,36 @@ func TestPrepareMethodology_ATDDDisabledDoesNotLogSkip(t *testing.T) {
 
 	if strings.Contains(buf.String(), "Skipping ATDD: bead is test-only") {
 		t.Errorf("expected no ATDD skip log when ATDD is disabled, got:\n%s", buf.String())
+	}
+}
+
+// TestPrepareMethodology_TDDLabelActivatesTDD verifies that a bead with the
+// "tdd:true" label activates TDD even when global TDD config is false.
+func TestPrepareMethodology_TDDLabelActivatesTDD(t *testing.T) {
+	tddBuildCalled := false
+	renderer := &mockPromptRenderer{
+		RenderTDDBuildFn: func(ctx *prompt.Context) (string, error) {
+			tddBuildCalled = true
+			return "tdd-label-prompt", nil
+		},
+	}
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{TDD: false},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
+	b := newTestBead("label-tdd-1", "Implement feature Z")
+	b.Labels = []string{"tdd:true"}
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, _ := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !tddActive {
+		t.Error("prepareMethodologyForBead should return tddActive=true when bead has tdd:true label")
+	}
+	if !tddBuildCalled {
+		t.Error("prepareMethodologyForBead should call RenderTDDBuild when tdd:true label is set")
+	}
+	if bc.BuildPrompt != "tdd-label-prompt" {
+		t.Errorf("bc.BuildPrompt should be set from RenderTDDBuild, got %q", bc.BuildPrompt)
 	}
 }
