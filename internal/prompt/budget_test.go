@@ -103,3 +103,50 @@ func TestShapeContextForBudget_DropClaudeMDSecond(t *testing.T) {
 		t.Errorf("expected 'drop ClaudeMD' in trim actions, got %v", report.TrimActions)
 	}
 }
+
+func TestShapeContextForBudget_CapConfirmedLearningsThird(t *testing.T) {
+	// 3 learnings of 100 chars each, cap to 150 chars should keep only some
+	ctx := &Context{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		Rules:    "rules",
+		ClaudeMD: strings.Repeat("c", 200),
+		ConfirmedLearnings: []learnings.Learning{
+			makeLearning(strings.Repeat("a", 100)),
+			makeLearning(strings.Repeat("b", 100)),
+			makeLearning(strings.Repeat("c", 100)),
+		},
+	}
+	ctx.normalizeNilFields()
+
+	// Budget forces steps 1+2, and then step 3 (cap learnings to 150)
+	// After steps 1+2: bead(3) + rules(5) + learnings(300) = 308
+	// Budget that requires capping learnings but not dropping them entirely
+	budget := 200
+
+	shaped, report := ShapeContextForBudget(ctx, budget, 150, "build")
+
+	// ConfirmedLearnings should be capped, not empty
+	if len(shaped.ConfirmedLearnings) == 0 {
+		t.Fatal("expected ConfirmedLearnings capped, not fully dropped")
+	}
+	if len(shaped.ConfirmedLearnings) >= 3 {
+		t.Errorf("expected fewer than 3 ConfirmedLearnings, got %d", len(shaped.ConfirmedLearnings))
+	}
+	// Total learnings chars should be <= learningCapChars
+	totalLearningChars := 0
+	for _, l := range shaped.ConfirmedLearnings {
+		totalLearningChars += len(l.Content)
+	}
+	if totalLearningChars > 150 {
+		t.Errorf("expected learnings capped to 150 chars, got %d", totalLearningChars)
+	}
+	found := false
+	for _, a := range report.TrimActions {
+		if a == "cap ConfirmedLearnings" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'cap ConfirmedLearnings' in trim actions, got %v", report.TrimActions)
+	}
+}

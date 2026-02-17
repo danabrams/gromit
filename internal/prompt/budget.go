@@ -87,7 +87,36 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 		}
 	}
 
+	// Step 3: cap ConfirmedLearnings to learningCapChars
+	if len(shaped.ConfirmedLearnings) > 0 {
+		capped := capLearnings(shaped.ConfirmedLearnings, learningCapChars)
+		if len(capped) < len(shaped.ConfirmedLearnings) {
+			shaped.ConfirmedLearnings = capped
+			report.TrimActions = append(report.TrimActions, "cap ConfirmedLearnings")
+			if measureContext(shaped) <= maxChars {
+				return finishReport(shaped, report)
+			}
+		}
+	}
+
 	return finishReport(shaped, report)
+}
+
+// capLearnings keeps the first N learnings that fit within maxChars total content.
+func capLearnings(ls []learnings.Learning, maxChars int) []learnings.Learning {
+	var result []learnings.Learning
+	total := 0
+	for _, l := range ls {
+		if total+len(l.Content) > maxChars {
+			break
+		}
+		total += len(l.Content)
+		result = append(result, l)
+	}
+	if result == nil {
+		result = []learnings.Learning{}
+	}
+	return result
 }
 
 func finishReport(ctx *Context, report *ShapeReport) (*Context, *ShapeReport) {
