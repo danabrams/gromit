@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -422,12 +423,30 @@ func missingMandatoryQualityCommands(commands []string) []string {
 }
 
 func hasCommandWithPrefix(commands []string, requiredPrefix string) bool {
+	pattern := mandatoryCommandPattern(requiredPrefix)
+	if pattern == nil {
+		return false
+	}
 	for _, cmd := range commands {
-		if strings.HasPrefix(strings.TrimSpace(cmd), requiredPrefix) {
+		if pattern.MatchString(strings.TrimSpace(cmd)) {
 			return true
 		}
 	}
 	return false
+}
+
+func mandatoryCommandPattern(requiredPrefix string) *regexp.Regexp {
+	switch strings.TrimSpace(requiredPrefix) {
+	case "go test":
+		return regexp.MustCompile(`(?:^|[;&|]\s*|\s)go\s+test\b`)
+	case "go vet":
+		return regexp.MustCompile(`(?:^|[;&|]\s*|\s)go\s+vet\b`)
+	case "go build":
+		return regexp.MustCompile(`(?:^|[;&|]\s*|\s)go\s+build\b`)
+	default:
+		escaped := regexp.QuoteMeta(strings.TrimSpace(requiredPrefix))
+		return regexp.MustCompile(`(?:^|[;&|]\s*|\s)` + escaped + `(?:\s|$)`)
+	}
 }
 
 func isValidationFailureError(err error) bool {

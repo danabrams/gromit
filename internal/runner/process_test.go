@@ -791,6 +791,50 @@ func TestRun_FastGateAllowsMandatoryCoverageFromFullCommands(t *testing.T) {
 	}
 }
 
+func TestRun_FastGateAllowsWrappedMandatoryGoCommands(t *testing.T) {
+	precheckDisabled := false
+	runFinalFull := false
+	autoPushDisabled := false
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled: true,
+			FastCommands: []string{
+				"env GOMAXPROCS=4 go test -vet=off -p 4 -parallel 4 ./...",
+				"mise exec -- go vet ./...",
+				"timeout 60s go build ./...",
+			},
+			FullValidationEveryN: 0,
+			RunFinalFullGate:     &runFinalFull,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Preflight: config.PreflightConfig{},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "ok", "", 0, nil
+	}
+
+	r, beads, _, _ := setupQualityGateRunHarness(t, cfg, []*bead.Bead{
+		{ID: "qg-fast-wrapped-1", Title: "fast gate wrapped commands", Priority: 1},
+	}, &mockFailureAnalyzer{}, cmdRunner)
+
+	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false)
+	if err != nil {
+		t.Fatalf("expected run to succeed when fast commands invoke mandatory go test/vet/build via wrappers: %v", err)
+	}
+	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "qg-fast-wrapped-1" {
+		t.Fatalf("expected bead to close on success, closed: %v", beads.ClosedIDs)
+	}
+}
+
 func TestRun_CompletionBlockedWhenMandatoryFullGateMissing(t *testing.T) {
 	precheckDisabled := false
 	runFinalFull := false
