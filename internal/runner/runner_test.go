@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -3161,5 +3162,163 @@ func TestRunNilStopChProcessesUntilQueueEmpty(t *testing.T) {
 	}
 	if len(beads.ClosedIDs) != 2 {
 		t.Fatalf("expected both beads to be processed with nil stopCh, got %d (%v)", len(beads.ClosedIDs), beads.ClosedIDs)
+	}
+}
+
+func setupL3StopLineAcceptanceRunner(
+	t *testing.T,
+	beads *mockBeadClient,
+	analyzerMock *mockFailureAnalyzer,
+	claudeMock *mockClaudeClient,
+	output *strings.Builder,
+) *Runner {
+	t.Helper()
+
+	precheckDisabled := false
+	autoPushEnabled := true
+	worktreeEnabled := true
+	autoMergeEnabled := true
+
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled: false,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Git: config.GitConfig{
+			AutoPush: &autoPushEnabled,
+		},
+		Worktree: config.WorktreeConfig{
+			Enabled:   &worktreeEnabled,
+			AutoMerge: &autoMergeEnabled,
+		},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, output, t.TempDir(), Deps{
+		Beads:    beads,
+		Router:   newMockRouterFromClaudeClient(claudeMock),
+		Analyzer: analyzerMock,
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() failed: %v", err)
+	}
+
+	r.worktreeManager = &recordingWorktreeManager{}
+	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		if command == "git push" {
+			return "", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	return r
+}
+
+func TestRun_L3StopLine_HaltsMutationAndStopsFurtherBeadProcessing(t *testing.T) {
+	// Expected failure: Runner.haltStateMutationsAtL3StopLine() and Runner.shouldExitRunLoopOnStopLine() do not exist yet.
+	beadQueue := []*bead.Bead{
+		{ID: "bead-l3-1", Title: "first stop-line candidate", Priority: 1},
+		{ID: "bead-l3-2", Title: "should not run after L3", Priority: 1},
+	}
+
+	beads := &mockBeadClient{
+		ReadyFn: makeReadyFromQueue(beadQueue),
+	}
+
+	var runCalls int
+	claudeMock := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			runCalls++
+			return &claude.Result{
+				Success: false,
+				Output:  "fatal integrity failure",
+			}, nil
+		},
+	}
+
+	analyzerMock := &mockFailureAnalyzer{
+		AnalyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.Category("integrity_unsafe_state"),
+				Recoverable: false,
+				RootCause:   "unsafe merge target",
+			}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r := setupL3StopLineAcceptanceRunner(t, beads, analyzerMock, claudeMock, &buf)
+
+	if err := r.Run(context.Background(), 5, time.Now().Add(time.Minute), nil, false); err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+
+	if runCalls != 1 {
+		t.Fatalf("expected run loop to stop after first L3 stop-line bead; got %d invocation(s)", runCalls)
+	}
+	if len(beads.ClosedIDs) != 0 {
+		t.Fatalf("expected no bead closure side effects at L3 stop-line, got closed IDs: %v", beads.ClosedIDs)
+	}
+	if beads.SyncCalls != 0 {
+		t.Fatalf("expected no bead sync side effects at L3 stop-line, got %d sync call(s)", beads.SyncCalls)
+	}
+	if !strings.Contains(buf.String(), "L3 escalation packet") {
+		t.Fatalf("expected L3 escalation packet to be surfaced in output, got:\n%s", buf.String())
+	}
+}
+
+func TestRun_L4Output_IncludesPacketAndThreeDecisionOptionsWithTradeoffs(t *testing.T) {
+	// Expected failure: Runner.renderL4DecisionOptions() and Runner.emitEscalationPacketDetails() do not exist yet.
+	beads := &mockBeadClient{
+		ReadyFn: makeReadyFromQueue([]*bead.Bead{
+			{ID: "bead-l4-1", Title: "surface escalation choices", Priority: 1},
+		}),
+	}
+
+	claudeMock := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{
+				Success: false,
+				Output:  "integrity guardrail tripped",
+			}, nil
+		},
+	}
+
+	analyzerMock := &mockFailureAnalyzer{
+		AnalyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.Category("integrity_unsafe_state"),
+				Recoverable: false,
+				RootCause:   "conflicting repository state",
+			}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r := setupL3StopLineAcceptanceRunner(t, beads, analyzerMock, claudeMock, &buf)
+
+	if err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false); err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+
+	output := buf.String()
+	required := []string{
+		"L4 decision required",
+		"Escalation Packet",
+		"Option 1",
+		"Option 2",
+		"Option 3",
+		"tradeoff",
+	}
+	for _, needle := range required {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("expected output to contain %q, got:\n%s", needle, output)
+		}
 	}
 }
