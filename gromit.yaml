@@ -99,7 +99,7 @@ loop:
 
 # Scope checking - estimate task complexity before work
 scope_check:
-  enabled: false
+  enabled: true
   model: haiku  # haiku is fast and cheap for estimation
   block_oversized: true  # block over-scoped beads before spending compute
 
@@ -119,8 +119,8 @@ validation:
   # phase_timeout_seconds: 900  # optional per-validation phase budget; defaults to claude.bead_timeout when omitted
   max_parallel_commands: 3  # safe upper bound here: full gate has 3 commands, so all can run concurrently
   fast_commands:  # per-bead gate in the main loop (keeps iteration latency low)
-    - "go test -vet=off -short -p 4 -parallel 4 ./..."
-    - "go vet ./..."
+    - "GROMIT_TEST_TOUCHED_SHORT=1 ./scripts/test_touched.sh"
+    - "./scripts/vet_touched.sh"
   full_commands:  # heavier gate at controlled checkpoints
     - "go test -vet=off -p 4 -parallel 4 ./..."
     - "go vet ./..."
@@ -191,7 +191,7 @@ state:
 
 # Methodology - test-driven development approaches
 methodology:
-  atdd: true
+  atdd: false
   tdd: true
   # Optional phase-specific time budgets (seconds). Any zero/omitted value falls back to claude.bead_timeout.
   # phase_timeouts:
@@ -200,8 +200,8 @@ methodology:
   #   refactor_seconds: 900
 
 # Learnings - control how confirmed learnings are injected into build prompts
-# learnings:
-#   max_learning_chars: 8000  # Character budget for confirmed learnings (0 = unlimited)
+learnings:
+  max_learning_chars: 2500  # Character budget for confirmed learnings (0 = unlimited)
 
 # Paths (relative to project root)
 paths:

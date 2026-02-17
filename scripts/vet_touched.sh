@@ -17,16 +17,11 @@ mapfile -t packages < <(
 )
 
 if [[ ${#packages[@]} -eq 0 ]]; then
-  echo "No changed Go packages detected. Skipping touched-package test run."
-  echo "Run full suite with: go test -vet=off ./..."
+  echo "No changed Go packages detected. Skipping touched-package vet run."
+  echo "Run full vet with: go vet ./..."
   exit 0
 fi
 
-short_flag=()
-if [[ "${GROMIT_TEST_TOUCHED_SHORT:-0}" == "1" ]]; then
-  short_flag=(-short)
-fi
-
-echo "Running tests for touched packages:"
+echo "Running go vet for touched packages:"
 printf '  %s\n' "${packages[@]}"
-go test -vet=off "${short_flag[@]}" "${packages[@]}"
+go vet "${packages[@]}"
