@@ -48,6 +48,7 @@ type Config struct {
 	Git         GitConfig              `yaml:"git"`
 	State       StateConfig            `yaml:"state"`
 	Learnings   LearningsConfig        `yaml:"learnings"`
+	Prompt      PromptConfig           `yaml:"prompt"`
 	Agents      AgentsConfig           `yaml:"agents"`
 	Providers   map[string]ProviderDef `yaml:"providers"`
 	Routing     RoutingConfig          `yaml:"routing"`
@@ -248,6 +249,15 @@ type StateConfig struct {
 
 type LearningsConfig struct {
 	MaxLearningChars int `yaml:"max_learning_chars"`
+}
+
+type PromptConfig struct {
+	Budget PromptBudgetConfig `yaml:"budget"`
+}
+
+type PromptBudgetConfig struct {
+	MaxChars         int `yaml:"max_chars"`
+	LearningCapChars int `yaml:"learning_cap_chars"`
 }
 
 type AgentsConfig struct {
@@ -593,6 +603,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Learnings.MaxLearningChars == 0 {
 		c.Learnings.MaxLearningChars = 8000
+	}
+	if c.Prompt.Budget.MaxChars == 0 {
+		c.Prompt.Budget.MaxChars = 20000
 	}
 	if c.Agents.Phases.Refine == "" {
 		c.Agents.Phases.Refine = "claude"
