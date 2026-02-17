@@ -289,3 +289,43 @@ func TestShapeContextForBudget_BeadIdentityNeverTrimmed(t *testing.T) {
 		t.Errorf("expected ParentBead.ID preserved, got %q", shaped.ParentBead.ID)
 	}
 }
+
+func TestShapeContextForBudget_Deterministic(t *testing.T) {
+	makeCtx := func() *Context {
+		ctx := &Context{
+			Bead:               &bead.Bead{ID: "b1", Title: "T", Description: "D"},
+			ClaudeMD:           strings.Repeat("c", 500),
+			Rules:              "## Code <!-- phases: build -->\nrule\n## Safety <!-- phases: review -->\nsafe",
+			Spec:               strings.Repeat("s", 300),
+			ConfirmedLearnings: []learnings.Learning{makeLearning("learn1"), makeLearning("learn2")},
+			RecentLearnings:    []learnings.Learning{makeLearning("recent")},
+		}
+		ctx.normalizeNilFields()
+		return ctx
+	}
+
+	// Run 10 times with identical inputs
+	var results []*ShapeReport
+	var shapes []*Context
+	for i := 0; i < 10; i++ {
+		shaped, report := ShapeContextForBudget(makeCtx(), 100, 50, "build")
+		shapes = append(shapes, shaped)
+		results = append(results, report)
+	}
+
+	// All should produce identical results
+	for i := 1; i < len(results); i++ {
+		if results[i].AfterChars != results[0].AfterChars {
+			t.Errorf("run %d: AfterChars %d != run 0: %d", i, results[i].AfterChars, results[0].AfterChars)
+		}
+		if len(results[i].TrimActions) != len(results[0].TrimActions) {
+			t.Errorf("run %d: %d trim actions != run 0: %d", i, len(results[i].TrimActions), len(results[0].TrimActions))
+		}
+		if shapes[i].Spec != shapes[0].Spec {
+			t.Errorf("run %d: Spec differs from run 0", i)
+		}
+		if shapes[i].Rules != shapes[0].Rules {
+			t.Errorf("run %d: Rules differs from run 0", i)
+		}
+	}
+}
