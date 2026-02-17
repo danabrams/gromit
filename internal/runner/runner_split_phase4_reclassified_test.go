@@ -76,7 +76,7 @@ func verifyRunnerSplitPhase4Layout(t *testing.T) string {
 	phase4MustHaveMethod(t, lifecycleDecls, "Runner", "checkRetroSuggestion", "lifecycle.go")
 	phase4MustHaveMethod(t, lifecycleDecls, "Runner", "isStuckBeadWithStats", "lifecycle.go")
 	phase4MustHaveMethod(t, lifecycleDecls, "Runner", "Status", "lifecycle.go")
-	phase4MustHaveMethod(t, lifecycleDecls, "Runner", "runGitAutoPush", "lifecycle.go")
+	phase4MustHaveMethod(t, lifecycleDecls, "Runner", "runSessionCompletion", "lifecycle.go")
 	phase4MustHaveMethod(t, lifecycleDecls, "Runner", "mergeInteractiveBranches", "lifecycle.go")
 	phase4MustHaveMethod(t, lifecycleDecls, "Runner", "handleMergeFailure", "lifecycle.go")
 	phase4MustHaveMethod(t, lifecycleDecls, "Runner", "runBetweenIterationsCommand", "lifecycle.go")
@@ -136,8 +136,8 @@ func verifyRunnerSplitPhase4Layout(t *testing.T) string {
 	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["Status"] {
 		t.Fatalf("runner.go still contains method Runner.Status")
 	}
-	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["runGitAutoPush"] {
-		t.Fatalf("runner.go still contains method Runner.runGitAutoPush")
+	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["runSessionCompletion"] {
+		t.Fatalf("runner.go still contains method Runner.runSessionCompletion")
 	}
 	if runnerDecls.methods["Runner"] != nil && runnerDecls.methods["Runner"]["mergeInteractiveBranches"] {
 		t.Fatalf("runner.go still contains method Runner.mergeInteractiveBranches")

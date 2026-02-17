@@ -2212,7 +2212,7 @@ func TestRunWithMocks_CustomConsecutiveSkipLimit(t *testing.T) {
 func setupSessionCompletionProtocolRunner(
 	t *testing.T,
 	cmdRunner func(ctx context.Context, command string, workDir string) (string, string, int, error),
-) (*Runner, []string, *mockBeadClient) {
+) (*Runner, *[]string, *mockBeadClient) {
 	t.Helper()
 
 	callCount := 0
@@ -2289,7 +2289,7 @@ func setupSessionCompletionProtocolRunner(
 		t.Fatalf("NewRunnerWithDeps() failed: %v", err)
 	}
 
-	return r, events, beads
+	return r, &events, beads
 }
 
 func boolPtrInterfaces(v bool) *bool {
@@ -2311,21 +2311,16 @@ func assertEventOrderContainsSubsequence(t *testing.T, events []string, expected
 }
 
 func TestRunWithMocks_SessionCompletionProtocolOrder(t *testing.T) {
-	// Expected failure: AndonSessionCompletionRequiredSequence does not exist and
-	// lifecycle flow does not yet enforce the pull/rebase + post-push up-to-date
-	// verification protocol order from the Andon spec.
 	r, events, _ := setupSessionCompletionProtocolRunner(t, nil)
 
 	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
-	assertEventOrderContainsSubsequence(t, events, AndonSessionCompletionRequiredSequence)
+	assertEventOrderContainsSubsequence(t, *events, AndonSessionCompletionRequiredSequence)
 }
 
 func TestRunWithMocks_SessionCompletionRetriesRebaseBeforePush(t *testing.T) {
-	// Expected failure: SessionCompletionRebaseRetryCount does not exist and
-	// lifecycle flow does not retry git pull --rebase before proceeding to push.
 	pullCalls := 0
 	pushCalls := 0
 	r, _, _ := setupSessionCompletionProtocolRunner(t, func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -2355,8 +2350,6 @@ func TestRunWithMocks_SessionCompletionRetriesRebaseBeforePush(t *testing.T) {
 }
 
 func TestRunWithMocks_SessionCompletionVerifiesUpToDateStatus(t *testing.T) {
-	// Expected failure: SessionCompletionUpToDateCommand does not exist and
-	// lifecycle flow does not execute explicit up-to-date verification after push.
 	statusCalls := 0
 	r, _, _ := setupSessionCompletionProtocolRunner(t, func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		if command == "git status --short --branch" {

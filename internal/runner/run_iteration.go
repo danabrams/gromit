@@ -189,6 +189,7 @@ func (r *Runner) processSingleBead(
 		r.escalateUnclearPostRecoveryQualityFailure(ctx, b, result)
 		if r.shouldExitRunLoopOnStopLine(result) {
 			r.haltStateMutationsAtL3StopLine(result)
+			st.l3StopLine = true
 			return true, nil
 		}
 
@@ -245,9 +246,6 @@ func (r *Runner) handleSuccessfulIteration(ctx context.Context, b *bead.Bead, st
 		}
 	}
 
-	if err := r.runGitAutoPush(); err != nil {
-		return fmt.Errorf("git auto-push failed: %w", err)
-	}
 	if err := r.mergeInteractiveBranches(); err != nil {
 		return err
 	}

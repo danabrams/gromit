@@ -19,6 +19,7 @@ type runLoopState struct {
 	skippedBeads      map[string]bool
 	sf                *state.File
 	interactiveFile   *state.InteractiveFile
+	l3StopLine        bool // set when L3 stop-line halts state mutations
 }
 
 func (r *Runner) validateRunPrerequisites() error {
@@ -164,5 +165,12 @@ func (r *Runner) finishRun(ctx context.Context, st *runLoopState) error {
 		}
 	}
 	r.checkRetroSuggestion()
+
+	if !st.l3StopLine {
+		if err := r.runSessionCompletion(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

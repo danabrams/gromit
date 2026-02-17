@@ -1831,73 +1831,68 @@ func TestMergeInteractiveBranchesSkipsWhenAutoMergeDisabled(t *testing.T) {
 	}
 }
 
-func TestRunGitAutoPush(t *testing.T) {
+func TestRunSessionCompletion(t *testing.T) {
 	tests := []struct {
 		name             string
 		autoPush         *bool
 		pushFailure      string
 		wantErrOnFailure bool
-		wantOutput       []string
-		wantNoOutput     []string
 		description      string
 		nilRunner        bool
 		nilConfig        bool
+		wantPushCalled   bool
 	}{
 		{
-			name:         "NilRunner",
-			nilRunner:    true,
-			wantNoOutput: []string{"Pushing to remote"},
-			description:  "When runner is nil, returns nil without panic",
+			name:        "NilRunner",
+			nilRunner:   true,
+			description: "When runner is nil, returns nil without panic",
 		},
 		{
-			name:         "NilConfig",
-			nilConfig:    true,
-			wantNoOutput: []string{"Pushing to remote"},
-			description:  "When config is nil, returns nil without panic",
+			name:        "NilConfig",
+			nilConfig:   true,
+			description: "When config is nil, returns nil without panic",
 		},
 		{
-			name:         "AutoPushDisabled",
-			autoPush:     boolPtr(false),
-			pushFailure:  "warn",
-			wantNoOutput: []string{"Pushing to remote"},
-			description:  "When auto_push is false, no push is attempted",
-		},
-		{
-			name:        "AutoPushNilDefaultsToTrue",
-			autoPush:    nil,
+			name:        "AutoPushDisabled",
+			autoPush:    boolPtr(false),
 			pushFailure: "warn",
-			wantOutput:  []string{"Pushing to remote"},
-			description: "When auto_push is nil, defaults to true and attempts push",
+			description: "When auto_push is false, no push is attempted",
 		},
 		{
-			name:        "AutoPushTrue",
-			autoPush:    boolPtr(true),
-			pushFailure: "warn",
-			wantOutput:  []string{"Pushing to remote"},
-			description: "When auto_push is true, push is attempted",
+			name:           "AutoPushNilDefaultsToTrue",
+			autoPush:       nil,
+			pushFailure:    "warn",
+			wantPushCalled: true,
+			description:    "When auto_push is nil, defaults to true and attempts push",
+		},
+		{
+			name:           "AutoPushTrue",
+			autoPush:       boolPtr(true),
+			pushFailure:    "warn",
+			wantPushCalled: true,
+			description:    "When auto_push is true, push is attempted",
 		},
 		{
 			name:             "PushFailureStop",
 			autoPush:         boolPtr(true),
 			pushFailure:      "stop",
 			wantErrOnFailure: true,
-			wantOutput:       []string{"Pushing to remote"},
+			wantPushCalled:   true,
 			description:      "When push_failure is 'stop' and push fails, returns error",
 		},
 		{
-			name:             "PushFailureWarn",
-			autoPush:         boolPtr(true),
-			pushFailure:      "warn",
-			wantErrOnFailure: false,
-			wantOutput:       []string{"Pushing to remote"},
-			description:      "When push_failure is 'warn', logs warning on failure but returns nil",
+			name:           "PushFailureWarn",
+			autoPush:       boolPtr(true),
+			pushFailure:    "warn",
+			wantPushCalled: true,
+			description:    "When push_failure is 'warn', logs warning on failure but returns nil",
 		},
 		{
-			name:        "PushFailureDefaultWarn",
-			autoPush:    boolPtr(true),
-			pushFailure: "",
-			wantOutput:  []string{"Pushing to remote"},
-			description: "When push_failure is empty, defaults to warn behavior",
+			name:           "PushFailureDefaultWarn",
+			autoPush:       boolPtr(true),
+			pushFailure:    "",
+			wantPushCalled: true,
+			description:    "When push_failure is empty, defaults to warn behavior",
 		},
 	}
 
@@ -1905,11 +1900,11 @@ func TestRunGitAutoPush(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf strings.Builder
 			var r *Runner
+			pushCalled := false
 
-			// Mock cmdRunnerFn to prevent real git push calls
 			mockCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 				if command == "git push" {
-					// Simulate push failure (no remote configured)
+					pushCalled = true
 					return "", "fatal: No configured push destination", 128, nil
 				}
 				return "", "", 0, nil
@@ -1935,11 +1930,8 @@ func TestRunGitAutoPush(t *testing.T) {
 				}
 			}
 
-			err := r.runGitAutoPush()
+			err := r.runSessionCompletion()
 
-			// For tests that actually attempt a push, the outcome depends on the git state
-			// If the push succeeds, err will be nil (good)
-			// If the push fails, we check wantErrOnFailure to determine expected behavior
 			if err != nil {
 				if !tt.wantErrOnFailure && tt.pushFailure != "stop" {
 					t.Errorf("%s: unexpected error: %v", tt.description, err)
@@ -1949,20 +1941,8 @@ func TestRunGitAutoPush(t *testing.T) {
 				}
 			}
 
-			output := buf.String()
-
-			// Check expected output
-			for _, want := range tt.wantOutput {
-				if !strings.Contains(output, want) {
-					t.Errorf("%s: expected output to contain %q, got: %s", tt.description, want, output)
-				}
-			}
-
-			// Check unexpected output
-			for _, noWant := range tt.wantNoOutput {
-				if strings.Contains(output, noWant) {
-					t.Errorf("%s: expected output NOT to contain %q, got: %s", tt.description, noWant, output)
-				}
+			if pushCalled != tt.wantPushCalled {
+				t.Errorf("%s: git push called=%v, want=%v", tt.description, pushCalled, tt.wantPushCalled)
 			}
 		})
 	}

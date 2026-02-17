@@ -186,10 +186,10 @@ func (r *Runner) Status() error {
 	return nil
 }
 
-// runGitAutoPush pushes the current branch to its upstream tracking ref after bead completion.
-// If auto_push is disabled, does nothing. If push fails and push_failure is "warn", logs a warning
-// and continues. If push fails and push_failure is "stop", returns an error to halt the loop.
-func (r *Runner) runGitAutoPush() error {
+// runSessionCompletion executes the Andon session completion protocol:
+// git pull --rebase (with retries), bd sync, git push, verify up-to-date.
+// If auto_push is disabled, does nothing.
+func (r *Runner) runSessionCompletion() error {
 	if r == nil || r.cfg == nil {
 		return nil
 	}
@@ -197,22 +197,53 @@ func (r *Runner) runGitAutoPush() error {
 		return nil
 	}
 
-	r.log("Pushing to remote...")
+	// Step 1: git pull --rebase with retries
+	for attempt := 1; attempt <= SessionCompletionRebaseRetryCount; attempt++ {
+		_, stderr, exitCode, err := r.runCmd(context.Background(), "git pull --rebase", "")
+		if err == nil && exitCode == 0 {
+			break
+		}
+		if attempt == SessionCompletionRebaseRetryCount {
+			errMsg := fmt.Sprintf("git pull --rebase failed after %d attempts", SessionCompletionRebaseRetryCount)
+			if err != nil {
+				errMsg = fmt.Sprintf("%s: %v", errMsg, err)
+			} else {
+				errMsg = fmt.Sprintf("%s (exit %d): %s", errMsg, exitCode, stderr)
+			}
+			if r.cfg.Git.PushFailure == "stop" {
+				return fmt.Errorf("%s", errMsg)
+			}
+			r.log("Warning: %s", errMsg)
+			return nil
+		}
+		r.log("Warning: git pull --rebase attempt %d failed, retrying...", attempt)
+	}
+
+	// Step 2: bd sync
+	if r.beads != nil {
+		if err := r.beads.Sync(); err != nil {
+			r.log("Warning: bd sync failed during session completion: %v", err)
+		}
+	}
+
+	// Step 3: git push
 	_, stderr, exitCode, err := r.runCmd(context.Background(), "git push", "")
-	if err != nil {
-		if r.cfg.Git.PushFailure == "stop" {
-			return fmt.Errorf("git push failed: %w", err)
+	if err != nil || exitCode != 0 {
+		errMsg := "git push failed"
+		if err != nil {
+			errMsg = fmt.Sprintf("%s: %v", errMsg, err)
+		} else {
+			errMsg = fmt.Sprintf("%s (exit %d): %s", errMsg, exitCode, stderr)
 		}
-		r.log("Warning: git push failed: %v", err)
+		if r.cfg.Git.PushFailure == "stop" {
+			return fmt.Errorf("%s", errMsg)
+		}
+		r.log("Warning: %s", errMsg)
 		return nil
 	}
-	if exitCode != 0 {
-		if r.cfg.Git.PushFailure == "stop" {
-			return fmt.Errorf("git push failed (exit %d): %s", exitCode, stderr)
-		}
-		r.log("Warning: git push failed (exit %d): %s", exitCode, stderr)
-		return nil
-	}
+
+	// Step 4: verify up-to-date
+	r.runCmd(context.Background(), SessionCompletionUpToDateCommand, "") //nolint:errcheck // verification is best-effort
 
 	return nil
 }
