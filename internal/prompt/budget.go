@@ -98,8 +98,11 @@ func truncateRetroRulesForBudget(rules string, maxChars int) (string, bool) {
 	if len(rules) <= maxChars {
 		return rules, false
 	}
+	if maxChars <= 0 {
+		return "", true
+	}
 	if maxChars <= len(retroTruncationMarker) {
-		return retroTruncationMarker, true
+		return retroTruncationMarker[:maxChars], true
 	}
 
 	headLen := maxChars - len(retroTruncationMarker)

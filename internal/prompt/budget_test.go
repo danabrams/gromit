@@ -740,3 +740,35 @@ func TestShapeRetroForBudget_TrimsLearningsBeforeRules(t *testing.T) {
 		t.Fatalf("expected trim action %q, got %v", trimCapRetroLearnings, report.TrimActions)
 	}
 }
+
+func TestShapeRetroForBudget_DropsLearningsThenTruncatesRules(t *testing.T) {
+	rules := strings.Repeat("r", 80)
+	learnings := strings.Repeat("l", 60)
+
+	shapedRules, shapedLearnings, report := ShapeRetroForBudget(rules, learnings, 40)
+
+	if shapedLearnings != "" {
+		t.Fatalf("expected learnings dropped after cap was insufficient, got %q", shapedLearnings)
+	}
+	if !strings.Contains(shapedRules, retroTruncationMarker) {
+		t.Fatalf("expected rules to include truncation marker %q, got %q", retroTruncationMarker, shapedRules)
+	}
+	if !hasTrimAction(report.TrimActions, trimDropRetroLearnings) {
+		t.Fatalf("expected trim action %q, got %v", trimDropRetroLearnings, report.TrimActions)
+	}
+	if !hasTrimAction(report.TrimActions, trimTruncateRetroRules) {
+		t.Fatalf("expected trim action %q, got %v", trimTruncateRetroRules, report.TrimActions)
+	}
+}
+
+func TestShapeRetroForBudget_AlwaysFitsPositiveBudget(t *testing.T) {
+	rules := strings.Repeat("r", 80)
+	learnings := strings.Repeat("l", 60)
+	maxChars := 5
+
+	shapedRules, shapedLearnings, _ := ShapeRetroForBudget(rules, learnings, maxChars)
+
+	if len(shapedRules)+len(shapedLearnings) > maxChars {
+		t.Fatalf("expected shaped output to fit budget %d, got %d", maxChars, len(shapedRules)+len(shapedLearnings))
+	}
+}
