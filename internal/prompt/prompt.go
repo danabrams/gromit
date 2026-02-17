@@ -270,6 +270,7 @@ func (r *Renderer) RenderPrecheck(ctx *PrecheckContext) (string, error) {
 
 // RenderReview renders the light review prompt
 func (r *Renderer) RenderReview(ctx *ReviewContext) (string, error) {
+	ctx = r.shapeReviewContext(ctx)
 	return r.render("PROMPT_review.md", ctx)
 }
 
@@ -606,6 +607,19 @@ func (r *Renderer) shapeBuildContext(ctx *Context, phase string) *Context {
 		return ctx
 	}
 	shaped, report := ShapeContextForBudget(ctx, r.budgetMaxChars, r.budgetLearningCapChars, phase)
+	if len(report.TrimActions) > 0 {
+		fmt.Fprintf(os.Stderr, "Prompt budget: %d -> %d chars (trimmed: %s)\n",
+			report.BeforeChars, report.AfterChars, strings.Join(report.TrimActions, ", "))
+	}
+	return shaped
+}
+
+// shapeReviewContext applies budget shaping to a ReviewContext before rendering.
+func (r *Renderer) shapeReviewContext(ctx *ReviewContext) *ReviewContext {
+	if r == nil || r.budgetMaxChars <= 0 || ctx == nil {
+		return ctx
+	}
+	shaped, report := ShapeReviewContextForBudget(ctx, r.budgetMaxChars, "review")
 	if len(report.TrimActions) > 0 {
 		fmt.Fprintf(os.Stderr, "Prompt budget: %d -> %d chars (trimmed: %s)\n",
 			report.BeforeChars, report.AfterChars, strings.Join(report.TrimActions, ", "))
