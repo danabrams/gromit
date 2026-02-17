@@ -2,8 +2,11 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -683,10 +686,31 @@ func TestStatusWithMocks(t *testing.T) {
 	cfg := &config.Config{Models: config.ModelsConfig{P0: "opus", Labels: map[string]string{"complexity:high": "opus"}}}
 	cfg.Paths.Specs = ".gromit/specs"
 	cfg.Paths.Plans = ".gromit/plans"
+	gromitDir := t.TempDir()
+	status := Status{
+		Running:   true,
+		Iteration: 2,
+		BeadID:    "bead-42",
+		BeadTitle: "Important task",
+		Model:     "opus",
+		StartedAt: time.Now().Add(-3 * time.Minute),
+		ElapsedS:  180,
+		PID:       424242,
+	}
+	data, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal status: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644); err != nil {
+		t.Fatalf("failed to write status.json: %v", err)
+	}
 	r, _ := NewRunnerWithDeps(
 		cfg,
-		&buf, t.TempDir(),
+		&buf, gromitDir,
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
+	r.processChecker = func(pid int) bool {
+		return true
+	}
 
 	if err := r.Status(); err != nil {
 		t.Fatalf("Status() failed: %v", err)
@@ -700,8 +724,14 @@ func TestStatusWithMocks(t *testing.T) {
 	if !strings.Contains(output, "Run:") {
 		t.Errorf("expected 'Run:' in output, got: %s", output)
 	}
+	if !strings.Contains(output, "Run: iteration 2") {
+		t.Errorf("expected 'Run: iteration 2' in output, got: %s", output)
+	}
 	if !strings.Contains(output, "Health:") {
 		t.Errorf("expected 'Health:' in output, got: %s", output)
+	}
+	if strings.Contains(output, "Warning: stale run detected") {
+		t.Errorf("did not expect stale run warning, got: %s", output)
 	}
 }
 
