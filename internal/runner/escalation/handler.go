@@ -136,13 +136,7 @@ func (h *Handler) HandleInvocationTimeout(ctx context.Context, bc *runtypes.Bead
 		return false
 	}
 
-	decomposeCtx := bc.ParentCtx
-	if decomposeCtx == nil {
-		decomposeCtx = ctx
-	}
-	if decomposeCtx == nil {
-		decomposeCtx = context.Background()
-	}
+	decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
 	if decomposeCtx.Err() != nil {
 		bc.Result.Error = fmt.Errorf("invocation timeout: no higher tier available (decomposition skipped: parent context canceled: %w)", decomposeCtx.Err())
 		return false
@@ -178,6 +172,29 @@ func (h *Handler) handleTimeoutEscalationOrFail(bc *runtypes.BeadContext, failur
 	h.log("%s detected, escalating from %s to %s", failureLabel, bc.Tier, nextTier)
 	h.EscalateTier(bc, nextTier)
 	return true
+}
+
+func (h *Handler) HandleBeadTimeout(bc *runtypes.BeadContext) (continueLoop bool) {
+	if h.handleTimeoutEscalationOrFail(bc, "bead timeout") {
+		return true
+	}
+
+	failureReason := fmt.Sprintf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+	decomposeCtx := firstNonNilContext(bc.ParentCtx)
+	if decomposeCtx.Err() != nil {
+		bc.Result.Error = fmt.Errorf("%s (decomposition skipped: parent context canceled: %w)", failureReason, decomposeCtx.Err())
+		return false
+	}
+	return h.AttemptDecomposition(decomposeCtx, bc, failureReason)
+}
+
+func firstNonNilContext(contexts ...context.Context) context.Context {
+	for _, ctx := range contexts {
+		if ctx != nil {
+			return ctx
+		}
+	}
+	return context.Background()
 }
 
 func (h *Handler) checkRetryBudgetBeforeAttempt(bc *runtypes.BeadContext) error {
@@ -385,20 +402,10 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			}
 			if invResult != nil && invResult.TimeoutType == "bead" {
 				bc.Result.TimeoutType = "bead"
-				// Attempt one tier escalation before decomposing, if budget allows.
-				if h.handleTimeoutEscalationOrFail(bc, "bead timeout") {
+				if h.HandleBeadTimeout(bc) {
 					continue
 				}
-				failureReason := fmt.Sprintf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
-				decomposeCtx := bc.ParentCtx
-				if decomposeCtx == nil {
-					decomposeCtx = context.Background()
-				}
-				if decomposeCtx.Err() != nil {
-					bc.Result.Error = fmt.Errorf("%s (decomposition skipped: parent context canceled: %w)", failureReason, decomposeCtx.Err())
-					return false
-				}
-				return h.AttemptDecomposition(decomposeCtx, bc, failureReason)
+				return false
 			}
 			bc.Result.Error = fmt.Errorf("claude invocation: %w", err)
 			return false
