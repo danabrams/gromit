@@ -133,3 +133,38 @@ func TestPrepareMethodology_TDDSelectsRenderTDDBuild(t *testing.T) {
 		t.Errorf("bc.BuildPrompt should be set from RenderTDDBuild, got %q", bc.BuildPrompt)
 	}
 }
+
+// TestPrepareMethodology_TDDInactiveDoesNotSetBuildPrompt verifies that when
+// neither TDD nor ATDD is active, prepareMethodologyForBead does not set
+// bc.BuildPrompt, leaving the caller to use RenderBuild.
+func TestPrepareMethodology_TDDInactiveDoesNotSetBuildPrompt(t *testing.T) {
+	tddBuildCalled := false
+	renderer := &mockPromptRenderer{
+		RenderTDDBuildFn: func(ctx *prompt.Context) (string, error) {
+			tddBuildCalled = true
+			return "tdd-build-prompt", nil
+		},
+	}
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{TDD: false, ATDD: false},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
+	b := &bead.Bead{
+		ID:     "no-tdd-1",
+		Title:  "Implement feature Y",
+		Labels: []string{},
+	}
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, _ := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if tddActive {
+		t.Error("prepareMethodologyForBead should return tddActive=false when TDD is disabled")
+	}
+	if tddBuildCalled {
+		t.Error("prepareMethodologyForBead should not call RenderTDDBuild when TDD is inactive")
+	}
+	if bc.BuildPrompt != "" {
+		t.Errorf("bc.BuildPrompt should remain empty when TDD is inactive, got %q", bc.BuildPrompt)
+	}
+}
