@@ -276,6 +276,7 @@ func (r *Renderer) RenderReview(ctx *ReviewContext) (string, error) {
 
 // RenderThoroughReview renders the thorough review prompt
 func (r *Renderer) RenderThoroughReview(ctx *ThoroughReviewContext) (string, error) {
+	ctx = r.shapeThoroughReviewContext(ctx)
 	return r.render("PROMPT_thorough_review.md", ctx)
 }
 
@@ -620,6 +621,19 @@ func (r *Renderer) shapeReviewContext(ctx *ReviewContext) *ReviewContext {
 		return ctx
 	}
 	shaped, report := ShapeReviewContextForBudget(ctx, r.budgetMaxChars, "review")
+	if len(report.TrimActions) > 0 {
+		fmt.Fprintf(os.Stderr, "Prompt budget: %d -> %d chars (trimmed: %s)\n",
+			report.BeforeChars, report.AfterChars, strings.Join(report.TrimActions, ", "))
+	}
+	return shaped
+}
+
+// shapeThoroughReviewContext applies budget shaping to a ThoroughReviewContext before rendering.
+func (r *Renderer) shapeThoroughReviewContext(ctx *ThoroughReviewContext) *ThoroughReviewContext {
+	if r == nil || r.budgetMaxChars <= 0 || ctx == nil {
+		return ctx
+	}
+	shaped, report := ShapeThoroughReviewContextForBudget(ctx, r.budgetMaxChars, "review")
 	if len(report.TrimActions) > 0 {
 		fmt.Fprintf(os.Stderr, "Prompt budget: %d -> %d chars (trimmed: %s)\n",
 			report.BeforeChars, report.AfterChars, strings.Join(report.TrimActions, ", "))

@@ -970,6 +970,48 @@ func TestRenderReview_NoShapingWhenBudgetZero(t *testing.T) {
 	}
 }
 
+func TestRenderThoroughReview_ShapesContextWhenOverBudget(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_thorough_review.md", "ClaudeMD:{{.ClaudeMD}}|Rules:{{.Rules}}")
+	r.SetBudgetConfig(50, 2000)
+
+	ctx := &ThoroughReviewContext{
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+		Diff:     "diff",
+	}
+
+	result, err := r.RenderThoroughReview(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(result, strings.Repeat("c", 500)) {
+		t.Error("expected ClaudeMD to be trimmed when over budget")
+	}
+	if !strings.Contains(result, "Rules:rules") {
+		t.Error("expected Rules to be preserved")
+	}
+}
+
+func TestRenderThoroughReview_NoShapingWhenBudgetZero(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_thorough_review.md", "ClaudeMD:{{.ClaudeMD}}")
+
+	ctx := &ThoroughReviewContext{
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+		Diff:     "diff",
+	}
+
+	result, err := r.RenderThoroughReview(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(result, strings.Repeat("c", 500)) {
+		t.Error("expected ClaudeMD preserved when budget is zero")
+	}
+}
+
 func TestSetBudgetConfig_StoresValues(t *testing.T) {
 	r := &Renderer{}
 	r.SetBudgetConfig(20000, 2000)
