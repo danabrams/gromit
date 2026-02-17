@@ -96,6 +96,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		}
 
 		bc.Result.Success = true
+		bc.Result.FirstPassSuccess = bc.TotalRetriesThisBead == 0 && !bc.Result.Escalated
 		return bc.Result
 	}
 }

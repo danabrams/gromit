@@ -187,3 +187,74 @@ func TestPrepareMethodology_ATDDSkipDoesNotCallRenderAcceptanceTests(t *testing.
 		t.Error("RenderAcceptanceTests should not be called when ATDD is skipped for a test-only bead")
 	}
 }
+
+// --- FirstPassSuccess tests ---
+
+// TestExecuteBuildLoop_FirstPassSuccess_NoRetriesNoEscalation verifies that
+// FirstPassSuccess is set to true when the build succeeds on the first attempt
+// without any retries or escalation.
+func TestExecuteBuildLoop_FirstPassSuccess_NoRetriesNoEscalation(t *testing.T) {
+	cfg := &config.Config{}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("fps-1", "Implement feature")
+	bc := newBeadContextForMethodology(b)
+
+	result := r.executeBuildAndMethodologyLoop(
+		context.Background(), bc,
+		false, false, // no ATDD, no TDD
+		func() bool { return true }, // build succeeds immediately
+	)
+
+	if !result.Success {
+		t.Fatal("expected Success=true")
+	}
+	if !result.FirstPassSuccess {
+		t.Error("expected FirstPassSuccess=true when no retries and no escalation")
+	}
+}
+
+// TestExecuteBuildLoop_FirstPassSuccess_FalseAfterRetry verifies that
+// FirstPassSuccess remains false when the build succeeded but required retries.
+func TestExecuteBuildLoop_FirstPassSuccess_FalseAfterRetry(t *testing.T) {
+	cfg := &config.Config{}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("fps-2", "Implement feature with retry")
+	bc := newBeadContextForMethodology(b)
+	bc.TotalRetriesThisBead = 1 // simulate a retry happened
+
+	result := r.executeBuildAndMethodologyLoop(
+		context.Background(), bc,
+		false, false,
+		func() bool { return true },
+	)
+
+	if !result.Success {
+		t.Fatal("expected Success=true")
+	}
+	if result.FirstPassSuccess {
+		t.Error("expected FirstPassSuccess=false when retries occurred")
+	}
+}
+
+// TestExecuteBuildLoop_FirstPassSuccess_FalseAfterEscalation verifies that
+// FirstPassSuccess remains false when the build succeeded but required escalation.
+func TestExecuteBuildLoop_FirstPassSuccess_FalseAfterEscalation(t *testing.T) {
+	cfg := &config.Config{}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("fps-3", "Implement feature with escalation")
+	bc := newBeadContextForMethodology(b)
+	bc.Result.Escalated = true // simulate escalation happened
+
+	result := r.executeBuildAndMethodologyLoop(
+		context.Background(), bc,
+		false, false,
+		func() bool { return true },
+	)
+
+	if !result.Success {
+		t.Fatal("expected Success=true")
+	}
+	if result.FirstPassSuccess {
+		t.Error("expected FirstPassSuccess=false when escalation occurred")
+	}
+}
