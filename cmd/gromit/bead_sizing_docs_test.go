@@ -6,11 +6,9 @@ import (
 	"testing"
 )
 
-// TestCLAUDEMD_BeadSizingSection verifies that CLAUDE.md contains the updated
-// behavior-based bead sizing rules instead of the old file-count rules.
-func TestCLAUDEMD_BeadSizingSection(t *testing.T) {
-	// Expected failure: CLAUDE.md still contains old "One concern per bead" and "Max 2 files touched" rules
-
+// TestCLAUDEMD_TrimmedToEssentials verifies that CLAUDE.md contains only the
+// header, Architecture section, and Key Principles section, and is under 1,500 chars.
+func TestCLAUDEMD_TrimmedToEssentials(t *testing.T) {
 	content, err := os.ReadFile("../../CLAUDE.md")
 	if err != nil {
 		t.Fatalf("reading CLAUDE.md: %v", err)
@@ -18,75 +16,38 @@ func TestCLAUDEMD_BeadSizingSection(t *testing.T) {
 
 	text := string(content)
 
-	// Verify the Bead Sizing section exists
-	if !strings.Contains(text, "## Bead Sizing") {
-		t.Error("CLAUDE.md should have a '## Bead Sizing' section")
+	// Must be under 1,500 characters
+	if len(text) > 1500 {
+		t.Errorf("CLAUDE.md should be under 1,500 chars, got %d", len(text))
 	}
 
-	// New rules that should be present
-	newRules := []string{
-		"One deliverable behavior per bead",
-		"1-3 acceptance criteria",
-		"Soft file limit of 4-5",
-		"Self-contained",
-		"No ambiguity",
-		"Clear definition of done",
+	// Must contain header and essential sections
+	if !strings.Contains(text, "# Gromit") {
+		t.Error("CLAUDE.md should contain the '# Gromit' header")
+	}
+	if !strings.Contains(text, "## Architecture") {
+		t.Error("CLAUDE.md should contain the '## Architecture' section")
+	}
+	if !strings.Contains(text, "## Key Principles") {
+		t.Error("CLAUDE.md should contain the '## Key Principles' section")
 	}
 
-	for _, rule := range newRules {
-		if !strings.Contains(text, rule) {
-			t.Errorf("CLAUDE.md should contain new rule: %q", rule)
-		}
+	// Must NOT contain removed sections
+	removedSections := []string{
+		"## Quick Start",
+		"## Project Structure",
+		"## Development Commands",
+		"## Bead Sizing",
+		"## Capturing Ideas",
+		"## bd Integration",
+		"## Model Selection",
+		"## Configuration",
+		"## Keeping Docs Current",
 	}
 
-	// Old rules that should be removed
-	oldRules := []string{
-		"One concern per bead",
-		"a single file or two tightly coupled files",
-		"Max 2 files touched",
-	}
-
-	for _, rule := range oldRules {
-		if strings.Contains(text, rule) {
-			t.Errorf("CLAUDE.md should NOT contain old rule: %q", rule)
-		}
-	}
-
-	// Verify the "if more, consider splitting" language is updated
-	if strings.Contains(text, "if more, consider splitting the bead") {
-		t.Error("CLAUDE.md should not contain old 'if more, consider splitting the bead' language")
-	}
-
-	// Verify "Grouping Rules" subsection exists
-	if !strings.Contains(text, "Grouping Rules") {
-		t.Error("CLAUDE.md should have a 'Grouping Rules' subsection under Bead Sizing")
-	}
-}
-
-// TestCLAUDEMD_GroupingRulesSubsection verifies that CLAUDE.md contains
-// the five never-split patterns under a "Grouping Rules" subsection.
-func TestCLAUDEMD_GroupingRulesSubsection(t *testing.T) {
-	// Expected failure: CLAUDE.md does not have a Grouping Rules subsection with the five never-split patterns
-
-	content, err := os.ReadFile("../../CLAUDE.md")
-	if err != nil {
-		t.Fatalf("reading CLAUDE.md: %v", err)
-	}
-
-	text := string(content)
-
-	// Verify all five never-split patterns are documented
-	neverSplitPatterns := []string{
-		"Interface + implementation + mock",
-		"Implementation + its tests",
-		"Companion methods in the same package",
-		"Command flags + the wiring that makes them work",
-		"Template + its registration",
-	}
-
-	for _, pattern := range neverSplitPatterns {
-		if !strings.Contains(text, pattern) {
-			t.Errorf("CLAUDE.md Grouping Rules should contain never-split pattern: %q", pattern)
+	for _, section := range removedSections {
+		if strings.Contains(text, section) {
+			t.Errorf("CLAUDE.md should NOT contain removed section: %q", section)
 		}
 	}
 }
