@@ -255,13 +255,11 @@ func TestPROMPTDecompose_PreservesAntiOverlapGuidance(t *testing.T) {
 	}
 }
 
-// TestAllDocuments_ConsistentFileLimits verifies that all four documents
+// TestAllDocuments_ConsistentFileLimits verifies that documents with sizing rules
 // use consistent file limit language (4-5 soft limit, 6+ for splitting).
+// CLAUDE.md is excluded — it was trimmed to only Architecture and Key Principles.
 func TestAllDocuments_ConsistentFileLimits(t *testing.T) {
-	// Expected failure: Documents have inconsistent file limit language
-
 	docs := map[string]string{
-		"CLAUDE.md":                             "../../CLAUDE.md",
 		".gromit/RULES.md":                      "../../.gromit/RULES.md",
 		"skills/gromit-decompose/SKILL.md":      "../../skills/gromit-decompose/SKILL.md",
 		".gromit/templates/PROMPT_decompose.md": "../../.gromit/templates/PROMPT_decompose.md",
@@ -308,13 +306,11 @@ func TestAllDocuments_ConsistentFileLimits(t *testing.T) {
 	}
 }
 
-// TestAllDocuments_ConsistentGroupingRules verifies that all documents that
-// mention splitting logic also document the five never-split grouping patterns.
+// TestAllDocuments_ConsistentGroupingRules verifies that documents with splitting
+// logic also document the five never-split grouping patterns.
+// CLAUDE.md is excluded — it was trimmed to only Architecture and Key Principles.
 func TestAllDocuments_ConsistentGroupingRules(t *testing.T) {
-	// Expected failure: Not all documents that discuss splitting mention the grouping rules
-
 	docsWithSplitting := map[string]string{
-		"CLAUDE.md":                             "../../CLAUDE.md",
 		".gromit/RULES.md":                      "../../.gromit/RULES.md",
 		"skills/gromit-decompose/SKILL.md":      "../../skills/gromit-decompose/SKILL.md",
 		".gromit/templates/PROMPT_decompose.md": "../../.gromit/templates/PROMPT_decompose.md",
