@@ -747,6 +747,46 @@ func TestExecuteWithRetry_BeadTimeoutEscalatesBeforeDecomposing(t *testing.T) {
 	}
 }
 
+func TestExecuteWithRetry_BeadTimeoutEscalationLogsReason(t *testing.T) {
+	// When bead timeout triggers escalation, the log message should mention
+	// "bead timeout" so operators can distinguish it from stall/invocation escalations.
+	cfg := newTestConfig()
+	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
+
+	var logs []string
+
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			return []runtypes.SubTask{{Title: "sub 1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		func(format string, args ...interface{}) {
+			logs = append(logs, fmt.Sprintf(format, args...))
+		},
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierMedium
+	bc.ParentCtx = context.Background()
+
+	call := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		call++
+		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+	}
+
+	h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	combined := strings.ToLower(strings.Join(logs, "\n"))
+	if !strings.Contains(combined, "bead timeout") {
+		t.Errorf("expected 'bead timeout' in escalation log, got logs: %q", logs)
+	}
+}
+
 func TestExecuteWithRetry_BeadTimeoutSkipsEscalationWhenLimitReached(t *testing.T) {
 	// When timeout escalation limit is already reached, bead timeout goes directly
 	// to decomposition without attempting another escalation.
