@@ -27,7 +27,6 @@ func validEscalationPacket() EscalationPacket {
 }
 
 func TestEscalationPacket_ValidateRequiresAllFields(t *testing.T) {
-	// Expected failure: EscalationPacket and ValidateEscalationPacket do not exist yet.
 	tests := []struct {
 		name       string
 		mutate     func(*EscalationPacket)
@@ -101,7 +100,6 @@ func TestEscalationPacket_ValidateRequiresAllFields(t *testing.T) {
 }
 
 func TestEscalationPacket_FormatEnforcesThreeOptionsAndRecommendation(t *testing.T) {
-	// Expected failure: FormatEscalationPacket and EscalationOption model are not implemented yet.
 	tests := []struct {
 		name       string
 		options    []EscalationOption
@@ -158,7 +156,6 @@ func TestEscalationPacket_FormatEnforcesThreeOptionsAndRecommendation(t *testing
 }
 
 func TestEscalationPacket_FormatIncludesThreeTradeoffsAndExplicitRecommendation(t *testing.T) {
-	// Expected failure: FormatEscalationPacket and RiskLevelHigh are new API for packet rendering.
 	packet := validEscalationPacket()
 
 	output, err := FormatEscalationPacket(packet)

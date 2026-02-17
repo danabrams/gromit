@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const requiredEscalationOptions = 3
+
 // RiskLevel identifies escalation impact severity.
 type RiskLevel string
 
@@ -40,29 +42,15 @@ type EscalationPacket struct {
 
 // ValidateEscalationPacket validates required escalation packet fields.
 func ValidateEscalationPacket(packet EscalationPacket) error {
-	if strings.TrimSpace(packet.FailedCommand) == "" {
-		return fmt.Errorf("failed_command is required")
-	}
-	if strings.TrimSpace(packet.ErrorExcerpt) == "" {
-		return fmt.Errorf("error_excerpt is required")
-	}
-	if len(packet.L1Attempts) == 0 {
-		return fmt.Errorf("l1_attempts is required")
-	}
-	if len(packet.L2Attempts) == 0 {
-		return fmt.Errorf("l2_attempts is required")
-	}
-	if strings.TrimSpace(packet.StateSnapshot) == "" {
-		return fmt.Errorf("state_snapshot is required")
-	}
-	if strings.TrimSpace(string(packet.RiskLevel)) == "" {
-		return fmt.Errorf("risk_level is required")
-	}
-	if strings.TrimSpace(packet.Recommendation) == "" {
-		return fmt.Errorf("recommendation is required")
-	}
-
-	return nil
+	return firstValidationError(
+		requiredString("failed_command", packet.FailedCommand),
+		requiredString("error_excerpt", packet.ErrorExcerpt),
+		requiredAttempts("l1_attempts", packet.L1Attempts),
+		requiredAttempts("l2_attempts", packet.L2Attempts),
+		requiredString("state_snapshot", packet.StateSnapshot),
+		requiredString("risk_level", string(packet.RiskLevel)),
+		requiredString("recommendation", packet.Recommendation),
+	)
 }
 
 // FormatEscalationPacket renders a packet for CLI/UI consumption.
@@ -71,12 +59,8 @@ func FormatEscalationPacket(packet EscalationPacket) (string, error) {
 		return "", err
 	}
 
-	if len(packet.Options) != 3 {
+	if len(packet.Options) != requiredEscalationOptions {
 		return "", fmt.Errorf("exactly three options are required")
-	}
-
-	if strings.TrimSpace(packet.Recommendation) == "" {
-		return "", fmt.Errorf("recommendation is required")
 	}
 
 	var output strings.Builder
@@ -99,4 +83,27 @@ func FormatEscalationPacket(packet EscalationPacket) (string, error) {
 	fmt.Fprintf(&output, "Recommendation: %s\n", packet.Recommendation)
 
 	return output.String(), nil
+}
+
+func requiredString(fieldName, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%s is required", fieldName)
+	}
+	return nil
+}
+
+func requiredAttempts(fieldName string, attempts []EscalationAttempt) error {
+	if len(attempts) == 0 {
+		return fmt.Errorf("%s is required", fieldName)
+	}
+	return nil
+}
+
+func firstValidationError(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
