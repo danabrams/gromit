@@ -13,7 +13,7 @@ import (
 func collectRunnerAcceptanceCases(t *testing.T, projectRoot string) []string {
 	t.Helper()
 
-	files := listRunnerAcceptanceFiles(t, projectRoot)
+	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
 	cases := make([]string, 0, len(files))
 
 	for _, rel := range files {

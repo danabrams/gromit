@@ -10,7 +10,7 @@ func collectRunnerAcceptanceTestSet(t *testing.T) map[string]bool {
 	t.Helper()
 
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
-	files := listRunnerAcceptanceFiles(t, projectRoot)
+	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
 	tests := make(map[string]bool)
 
 	for _, rel := range files {

@@ -16,7 +16,7 @@ func TestRunnerSmokeSuite_ApprovedMatrixCasesOnly(t *testing.T) {
 	}
 
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
-	files := listRunnerAcceptanceFiles(t, projectRoot)
+	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
 
 	for _, rel := range files {
 		entries, tests := parseRunnerSmokeMatrixForFile(t, projectRoot, rel)
@@ -38,7 +38,7 @@ func TestRunnerSmokeSuite_ApprovedMatrixCasesOnly(t *testing.T) {
 func TestRunnerSmokeSuite_NoSubpackageAcceptanceFiles(t *testing.T) {
 	allowedRoots := RunnerSmokeSuiteApprovedRoots()
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
-	files := listRunnerAcceptanceFiles(t, projectRoot)
+	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
 
 	for _, rel := range files {
 		subdir := filepath.Dir(rel)

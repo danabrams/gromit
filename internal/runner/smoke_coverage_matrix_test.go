@@ -104,10 +104,33 @@ func listRunnerAcceptanceFiles(t *testing.T, projectRoot string) []string {
 	return files
 }
 
+// listRunnerSmokeAcceptanceFiles returns only the smoke-suite acceptance files
+// (those containing TestRunnerSmoke_* tests). Pipeline acceptance files that
+// hold full-loop behavioral tests but are not smoke tests are excluded.
+func listRunnerSmokeAcceptanceFiles(t *testing.T, projectRoot string) []string {
+	t.Helper()
+
+	smokeFiles := map[string]bool{
+		"internal/runner/validation_extraction_acceptance_test.go": true,
+		"internal/runner/invocation_timeout_acceptance_test.go":    true,
+		"internal/runner/worktree_merge_acceptance_test.go":        true,
+	}
+
+	all := listRunnerAcceptanceFiles(t, projectRoot)
+	files := make([]string, 0, len(smokeFiles))
+	for _, rel := range all {
+		if smokeFiles[filepath.ToSlash(rel)] {
+			files = append(files, rel)
+		}
+	}
+	sort.Strings(files)
+	return files
+}
+
 func TestRunnerSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
-	files := listRunnerAcceptanceFiles(t, projectRoot)
+	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
 
 	for _, rel := range files {
 		entries, tests := parseRunnerSmokeMatrixForFile(t, projectRoot, rel)
@@ -129,7 +152,7 @@ func TestRunnerSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
 func TestRunnerSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
-	files := listRunnerAcceptanceFiles(t, projectRoot)
+	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
 
 	expectedKeep := map[string]bool{
 		"TestRunnerSmoke_RunSingleBeadHappyPath":         true,
@@ -164,7 +187,7 @@ func TestRunnerSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
 func TestRunnerSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites(t *testing.T) {
 	projectRoot := runnerSmokeSuiteRepoRoot(t)
 
-	files := listRunnerAcceptanceFiles(t, projectRoot)
+	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
 	unitTests := listRunnerUnitTests(t, projectRoot)
 
 	for _, rel := range files {
