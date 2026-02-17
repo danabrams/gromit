@@ -344,6 +344,21 @@ func TestShapeContextForBudget_RulesAndSpecNeverFullyDropped(t *testing.T) {
 	}
 }
 
+func TestShapeContextForBudget_PhaseFilteringNeverDropsRulesCompletely(t *testing.T) {
+	ctx := &Context{
+		Bead:  &bead.Bead{ID: "b1", Title: "T"},
+		Rules: "## Review Only <!-- phases: review -->\nreview guardrails",
+		Spec:  strings.Repeat("s", 300),
+	}
+	ctx.normalizeNilFields()
+
+	shaped, _ := ShapeContextForBudget(ctx, 80, 100, "build")
+
+	if strings.TrimSpace(shaped.Rules) == "" {
+		t.Fatal("expected Rules to remain present when phase filtering has no matching sections")
+	}
+}
+
 func TestShapeReviewContextForBudget_UnderBudgetUnchanged(t *testing.T) {
 	ctx := &ReviewContext{
 		Bead:     &bead.Bead{ID: "b1", Title: "T"},

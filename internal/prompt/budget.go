@@ -1,6 +1,10 @@
 package prompt
 
-import "github.com/danabrams/gromit/internal/learnings"
+import (
+	"strings"
+
+	"github.com/danabrams/gromit/internal/learnings"
+)
 
 const (
 	trimDropRecentLearnings    = "drop RecentLearnings"
@@ -120,7 +124,7 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 	// Step 5: phase-filter Rules
 	if phase != "" && shaped.Rules != "" {
 		filtered := filterRulesByPhase(shaped.Rules, phase)
-		if len(filtered) < len(shaped.Rules) {
+		if len(filtered) < len(shaped.Rules) && strings.TrimSpace(filtered) != "" {
 			shaped.Rules = filtered
 			report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
 			if measureContext(shaped) <= maxChars {
@@ -244,7 +248,7 @@ func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string)
 	// Step 2: phase-filter Rules
 	if phase != "" && shaped.Rules != "" {
 		filtered := filterRulesByPhase(shaped.Rules, phase)
-		if len(filtered) < len(shaped.Rules) {
+		if len(filtered) < len(shaped.Rules) && strings.TrimSpace(filtered) != "" {
 			shaped.Rules = filtered
 			report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
 			if measureReviewContext(shaped) <= maxChars {
