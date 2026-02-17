@@ -106,7 +106,7 @@ func TestMakeInvokeFn_PropagatesProviderResult_OnInvocationError(t *testing.T) {
 	}
 }
 
-func TestMakeInvokeFn_DeadlineExceededSetsPhaseTimeout(t *testing.T) {
+func TestMakeInvokeFn_DeadlineExceededSetsInvocationTimeout(t *testing.T) {
 	invokeFn, bc := setupInvokeFnWithProvider(t, func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 		return &provider.Result{Success: false, Model: "test-model"}, context.DeadlineExceeded
 	})
@@ -118,10 +118,10 @@ func TestMakeInvokeFn_DeadlineExceededSetsPhaseTimeout(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected non-nil invocation result")
 	}
-	if result.TimeoutType != runtypes.TimeoutTypePhase {
-		t.Fatalf("TimeoutType = %q, want %q", result.TimeoutType, runtypes.TimeoutTypePhase)
+	if result.TimeoutType != "invocation" {
+		t.Fatalf("TimeoutType = %q, want %q", result.TimeoutType, "invocation")
 	}
-	if bc.Result.TimeoutType != runtypes.TimeoutTypePhase {
-		t.Fatalf("bc.Result.TimeoutType = %q, want %q", bc.Result.TimeoutType, runtypes.TimeoutTypePhase)
+	if bc.Result.TimeoutType != "invocation" {
+		t.Fatalf("bc.Result.TimeoutType = %q, want %q", bc.Result.TimeoutType, "invocation")
 	}
 }
