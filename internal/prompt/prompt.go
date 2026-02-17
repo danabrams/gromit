@@ -285,6 +285,7 @@ func (r *Renderer) RenderAcceptanceTests(ctx *Context) (string, error) {
 
 // RenderATDDBuild renders the ATDD-aware build prompt
 func (r *Renderer) RenderATDDBuild(ctx *Context) (string, error) {
+	ctx = r.shapeBuildContext(ctx, "build")
 	return r.render("PROMPT_atdd_build.md", ctx)
 }
 
@@ -295,6 +296,7 @@ func (r *Renderer) RenderRefactor(ctx *Context) (string, error) {
 
 // RenderTDDBuild renders the TDD-aware build prompt
 func (r *Renderer) RenderTDDBuild(ctx *Context) (string, error) {
+	ctx = r.shapeBuildContext(ctx, "build")
 	return r.render("PROMPT_tdd_build.md", ctx)
 }
 
