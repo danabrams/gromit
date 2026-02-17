@@ -213,6 +213,11 @@ func (r *Runner) handleSuccessfulIteration(ctx context.Context, b *bead.Bead, st
 
 	r.successfulBeads++
 	r.successesSinceFull++
+	if r.cfg.Validation.FullValidationEveryN > 0 && r.successesSinceFull >= r.cfg.Validation.FullValidationEveryN {
+		if err := r.enforceMandatoryQualityGateCoverage("full", r.cfg.Validation.FullCommandsOrDefault()); err != nil {
+			return err
+		}
+	}
 	if err := r.maybeRunPeriodicFullValidation(ctx, b.ID, st.iteration); err != nil {
 		return err
 	}
