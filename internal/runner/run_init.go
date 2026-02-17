@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/danabrams/gromit/internal/logger"
@@ -76,6 +77,22 @@ func (r *Runner) initRunLoopState(deadline time.Time) (*runLoopState, func(), er
 		beadStats = make(map[string]logger.BeadStats)
 	}
 	st.beadStats = beadStats
+
+	if r.cfg.Loop.MaxCrossRunFailures > 0 {
+		metricsDir := filepath.Join(r.gromitDir, "metrics")
+		consecutiveFailures, err := logger.ReadConsecutiveFailureCounts(metricsDir)
+		if err != nil {
+			r.log("Warning: could not read cross-run failure counts: %v", err)
+		} else {
+			for beadID, count := range consecutiveFailures {
+				if count >= r.cfg.Loop.MaxCrossRunFailures {
+					st.skippedBeads[beadID] = true
+					r.log("Warning: bead %s has %d consecutive failures across runs (threshold %d). Skipping; please decompose.",
+						beadID, count, r.cfg.Loop.MaxCrossRunFailures)
+				}
+			}
+		}
+	}
 
 	st.sf = r.stateFile
 	if st.sf == nil {
