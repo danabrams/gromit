@@ -9,8 +9,6 @@ import (
 )
 
 func TestCodexHarnessAcceptanceFilesTaggedOrReclassified(t *testing.T) {
-	// Expected failure: AssertCodexHarnessAcceptanceBuildTagsApplied does not exist yet, and codex harness
-	// acceptance files still need build tags or reclassification.
 	AssertCodexHarnessAcceptanceBuildTagsApplied(t)
 
 	projectRoot, err := findProjectRoot()
