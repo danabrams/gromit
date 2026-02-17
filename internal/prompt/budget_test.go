@@ -441,3 +441,58 @@ func TestShapeThoroughReviewContextForBudget_TrimsOverBudget(t *testing.T) {
 		t.Error("expected at least one trim action")
 	}
 }
+
+func TestShapeContextForBudget_TrimPriorityOrder(t *testing.T) {
+	// Context with all trimmable sections populated
+	rules := "## Code <!-- phases: build -->\ncode rules\n## Safety <!-- phases: review -->\nsafety rules"
+	ctx := &Context{
+		Bead:               &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD:           strings.Repeat("c", 100),
+		Rules:              rules,
+		Spec:               strings.Repeat("s", 200),
+		ConfirmedLearnings: []learnings.Learning{makeLearning(strings.Repeat("a", 50)), makeLearning(strings.Repeat("b", 50))},
+		RecentLearnings:    []learnings.Learning{makeLearning(strings.Repeat("r", 50))},
+	}
+	ctx.normalizeNilFields()
+
+	// Impossibly tight budget forces all trim steps
+	shaped, report := ShapeContextForBudget(ctx, 30, 40, "build")
+
+	// Verify trim actions fire in strict priority order
+	expected := []string{
+		"drop RecentLearnings",
+		"drop ClaudeMD",
+		"cap ConfirmedLearnings",
+		"drop ConfirmedLearnings",
+		"phase-filter Rules",
+		"truncate Spec",
+	}
+
+	// Check that actions that did fire are in the expected order
+	expectedIdx := 0
+	for _, action := range report.TrimActions {
+		found := false
+		for expectedIdx < len(expected) {
+			if expected[expectedIdx] == action {
+				found = true
+				expectedIdx++
+				break
+			}
+			expectedIdx++
+		}
+		if !found {
+			t.Errorf("trim action %q appeared out of expected order, got %v", action, report.TrimActions)
+			break
+		}
+	}
+
+	// Should have fired multiple trim steps
+	if len(report.TrimActions) < 3 {
+		t.Errorf("expected at least 3 trim actions, got %d: %v", len(report.TrimActions), report.TrimActions)
+	}
+
+	// Bead identity preserved
+	if shaped.Bead.ID != "b1" {
+		t.Errorf("expected bead ID preserved, got %q", shaped.Bead.ID)
+	}
+}
