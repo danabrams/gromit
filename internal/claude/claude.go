@@ -450,6 +450,8 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 	var lastChar byte
 	var costUSD float64
 	var inputTokens, outputTokens int
+	var streamedText strings.Builder
+	var sawResultEvent bool
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -495,6 +497,7 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 			for _, block := range event.Message.Content {
 				if block.Type == "text" && block.Text != "" {
 					fmt.Fprint(output, block.Text)
+					streamedText.WriteString(block.Text)
 					// Track the last character written
 					if len(block.Text) > 0 {
 						lastChar = block.Text[len(block.Text)-1]
@@ -513,6 +516,7 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 
 		// Capture the final result text and cost data
 		if event.Type == "result" {
+			sawResultEvent = true
 			resultText = event.Result
 			costUSD = event.TotalCostUSD
 			inputTokens = event.InputTokens
@@ -535,6 +539,13 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 	// Ensure output ends with a newline if any text was written
 	if lastChar != 0 && lastChar != '\n' {
 		fmt.Fprintln(output)
+	}
+
+	// Some Claude CLI stream-json variants emit usage/result metadata without a
+	// populated "result" field. Preserve useful output by falling back to the
+	// assistant text accumulated from streamed events.
+	if sawResultEvent && strings.TrimSpace(resultText) == "" {
+		resultText = streamedText.String()
 	}
 
 	return resultText, costUSD, inputTokens, outputTokens

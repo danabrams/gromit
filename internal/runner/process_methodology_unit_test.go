@@ -11,6 +11,8 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+const atddSkipLogMessage = "Skipping ATDD: bead is test-only"
+
 // newMinimalRunnerForMethodology creates the smallest possible Runner for
 // testing prepareMethodologyForBead without needing a full Deps setup.
 // Returns the runner and a pointer to the log buffer for output inspection.
@@ -30,6 +32,14 @@ func newMinimalRunnerForMethodology(t *testing.T, cfg *config.Config, renderer P
 		syncOut:  sw,
 	}
 	return r, buf
+}
+
+func newTestBead(id, title string) *bead.Bead {
+	return &bead.Bead{
+		ID:     id,
+		Title:  title,
+		Labels: []string{},
+	}
 }
 
 // newBeadContext creates a minimal BeadContext for testing prepareMethodologyForBead.
@@ -60,11 +70,7 @@ func TestPrepareMethodology_ATDDSkippedForTestOnlyBead(t *testing.T) {
 				Methodology: config.MethodologyConfig{ATDD: true},
 			}
 			r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
-			b := &bead.Bead{
-				ID:     "test-skip-1",
-				Title:  title,
-				Labels: []string{},
-			}
+			b := newTestBead("test-skip-1", title)
 			bc := newBeadContextForMethodology(b)
 
 			atddActive, _, _ := r.prepareMethodologyForBead(context.Background(), bc)
@@ -83,17 +89,13 @@ func TestPrepareMethodology_ATDDSkipLogsReason(t *testing.T) {
 		Methodology: config.MethodologyConfig{ATDD: true},
 	}
 	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
-	b := &bead.Bead{
-		ID:     "test-log-1",
-		Title:  "Add tests for prompt rendering",
-		Labels: []string{},
-	}
+	b := newTestBead("test-log-1", "Add tests for prompt rendering")
 	bc := newBeadContextForMethodology(b)
 
 	r.prepareMethodologyForBead(context.Background(), bc)
 
-	if !strings.Contains(buf.String(), "Skipping ATDD: bead is test-only") {
-		t.Errorf("expected log 'Skipping ATDD: bead is test-only' in output, got:\n%s", buf.String())
+	if !strings.Contains(buf.String(), atddSkipLogMessage) {
+		t.Errorf("expected log %q in output, got:\n%s", atddSkipLogMessage, buf.String())
 	}
 }
 
@@ -114,11 +116,7 @@ func TestPrepareMethodology_TDDSelectsRenderTDDBuild(t *testing.T) {
 		Methodology: config.MethodologyConfig{TDD: true},
 	}
 	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
-	b := &bead.Bead{
-		ID:     "tdd-routing-1",
-		Title:  "Implement feature X",
-		Labels: []string{},
-	}
+	b := newTestBead("tdd-routing-1", "Implement feature X")
 	bc := newBeadContextForMethodology(b)
 
 	_, tddActive, _ := r.prepareMethodologyForBead(context.Background(), bc)
@@ -149,11 +147,7 @@ func TestPrepareMethodology_TDDInactiveDoesNotSetBuildPrompt(t *testing.T) {
 		Methodology: config.MethodologyConfig{TDD: false, ATDD: false},
 	}
 	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
-	b := &bead.Bead{
-		ID:     "no-tdd-1",
-		Title:  "Implement feature Y",
-		Labels: []string{},
-	}
+	b := newTestBead("no-tdd-1", "Implement feature Y")
 	bc := newBeadContextForMethodology(b)
 
 	_, tddActive, _ := r.prepareMethodologyForBead(context.Background(), bc)
@@ -184,11 +178,7 @@ func TestPrepareMethodology_ATDDSkipDoesNotCallRenderAcceptanceTests(t *testing.
 		Methodology: config.MethodologyConfig{ATDD: true},
 	}
 	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
-	b := &bead.Bead{
-		ID:     "test-no-render-1",
-		Title:  "Add tests for runner loop",
-		Labels: []string{},
-	}
+	b := newTestBead("test-no-render-1", "Add tests for runner loop")
 	bc := newBeadContextForMethodology(b)
 
 	r.prepareMethodologyForBead(context.Background(), bc)

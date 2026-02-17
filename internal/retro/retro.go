@@ -230,7 +230,27 @@ func (r *Retro) runAnalysis(ctx context.Context, prompt string) (resultGetter, e
 		return nil, fmt.Errorf("running provider analysis: %w", err)
 	}
 	if result == nil {
-		return &providerResultAdapter{&provider.Result{Success: false}}, nil
+		fallback, fallbackErr := r.provider.Run(ctx, prompt, "high")
+		if fallbackErr != nil {
+			return nil, fmt.Errorf("provider returned nil stream result and fallback failed: %w", fallbackErr)
+		}
+		if fallback != nil {
+			if strings.TrimSpace(fallback.Output) == "" {
+				return nil, fmt.Errorf("provider returned empty analysis output")
+			}
+			return &providerResultAdapter{fallback}, nil
+		}
+		return nil, fmt.Errorf("provider returned nil analysis result")
+	}
+
+	// Some provider/CLI stream modes can exit successfully but yield empty output.
+	// Fall back to non-stream run so retro still gets analyzable text.
+	if strings.TrimSpace(result.Output) == "" {
+		fallback, fallbackErr := r.provider.Run(ctx, prompt, "high")
+		if fallbackErr == nil && fallback != nil && strings.TrimSpace(fallback.Output) != "" {
+			return &providerResultAdapter{fallback}, nil
+		}
+		return nil, fmt.Errorf("provider returned empty analysis output")
 	}
 	return &providerResultAdapter{result}, nil
 }

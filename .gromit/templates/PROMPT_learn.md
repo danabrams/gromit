@@ -17,17 +17,29 @@ A task just succeeded. Extract any codebase patterns, conventions, or gotchas th
 
 Extract ONE generalizable learning from this successful iteration:
 
-1. **Focus on codebase insights:**
+1. **Choose the highest-leverage lens:**
+   - architecture: boundaries, contracts, coupling, ownership, scaling, reuse
+   - process: planning, validation flow, review workflow, handoff, release mechanics
+   - technical: implementation details, language/library conventions, edge-case gotchas
+   - Prefer architecture/process when the summary contains evidence for them. Use technical only when no higher-level learning is justified.
+
+2. **Focus on codebase insights:**
    - Patterns: How things are structured or organized in this codebase
    - Conventions: Naming, formatting, or architectural choices
    - Gotchas: Surprising behavior, edge cases, or things to watch out for
 
-2. **Make it actionable:**
+3. **Make it actionable and durable:**
    - Should tell what to do or avoid
    - Should be useful for similar future tasks
    - Should be concise (1-2 sentences)
+   - Include enough context to be reusable (specific component, workflow, or decision point)
 
-3. **Skip if no learning:**
+4. **Avoid low-value output:**
+   - Do not restate generic best practices ("write tests", "handle errors")
+   - Do not describe only what changed; capture why the approach should repeat
+   - If the candidate learning is too local to one diff, return null
+
+5. **Skip if no learning:**
    - If the task was straightforward and revealed nothing new, return null
    - Don't force a learning from routine work
 

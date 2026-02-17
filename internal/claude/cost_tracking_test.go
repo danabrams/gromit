@@ -86,6 +86,36 @@ func TestProcessStreamJSONExtractsCostFromNestedUsage(t *testing.T) {
 	}
 }
 
+// TestProcessStreamJSONFallsBackToAssistantText verifies that when the result
+// event omits the "result" field, the function still returns meaningful text
+// from streamed assistant content.
+func TestProcessStreamJSONFallsBackToAssistantText(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"Part 1 "}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"Part 2"}]}}`,
+		`{"type":"result","total_cost_usd":0.05,"input_tokens":1200,"output_tokens":400}`,
+	}, "\n") + "\n"
+
+	c := &Client{timeout: 60}
+	reader := strings.NewReader(input)
+	var output strings.Builder
+
+	resultText, costUSD, inputTokens, outputTokens := c.processStreamJSONWithCost(reader, &output, nil, nil)
+
+	if resultText != "Part 1 Part 2" {
+		t.Errorf("resultText = %q, want %q", resultText, "Part 1 Part 2")
+	}
+	if costUSD != 0.05 {
+		t.Errorf("costUSD = %f, want 0.05", costUSD)
+	}
+	if inputTokens != 1200 {
+		t.Errorf("inputTokens = %d, want 1200", inputTokens)
+	}
+	if outputTokens != 400 {
+		t.Errorf("outputTokens = %d, want 400", outputTokens)
+	}
+}
+
 // TestResultHasCostFields verifies that the Result struct has cost/token fields.
 func TestResultHasCostFields(t *testing.T) {
 	r := Result{

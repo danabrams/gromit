@@ -200,14 +200,25 @@ Analyze the metrics comparison above and provide:
 
 Analyze the learnings above and provide:
 
-1. **Consolidation Opportunities**: Identify duplicate or related learnings that should be merged
-2. **Patterns Worth Promoting**: Suggest learnings that should become rules in RULES.md
-3. **Stale Learnings**: Identify learnings that may no longer be relevant
-4. **Rule Updates**: Propose specific changes to RULES.md
+1. **Learning Taxonomy (required)**: Classify key insights into `technical`, `architecture`, and `process`.
+2. **Consolidation Opportunities**: Identify duplicate or related learnings that should be merged.
+3. **Patterns Worth Promoting**: Suggest learnings that should become rules in RULES.md.
+4. **Stale Learnings**: Identify learnings that may no longer be relevant.
+5. **Rule Updates**: Propose specific changes to RULES.md.
+6. **Depth Quota (required)**:
+   - At least one architecture learning.
+   - At least one process learning.
+   - At least one repeated-pattern callout (recurring signal across multiple beads/learnings/runs).
+7. **System Actions (required for top 1-2 highest-impact findings)**:
+   - `local_fix`: Immediate patch/change.
+   - `system_fix`: Architecture or process change that prevents recurrence.
+   - `owner`: Responsible role/person.
+   - `due_date`: Concrete date (YYYY-MM-DD).
+   - `leading_indicator`: Early signal/metric that improvement is working.
 
 {{- if .BeadStats }}
 
-5. **Stuck Beads Analysis**: For each stuck bead (with 2+ failures) above, suggest:
+8. **Stuck Beads Analysis**: For each stuck bead (with 2+ failures) above, suggest:
    - Root cause hypothesis (based on the failures and learnings)
    - Recommended decomposition strategy (how to break it into smaller tasks)
    - Specific next steps to unblock it
@@ -215,19 +226,23 @@ Analyze the learnings above and provide:
 
 {{- if .Efficiency }}
 
-6. **Efficiency Analysis**: Identify cost or time anomalies in the Current Run Efficiency data above. When anomalies are found, apply Five Whys analysis to trace surface symptoms (e.g., "this bead cost $3") to root causes (e.g., "the acceptance criteria were ambiguous, causing opus escalation"). Produce efficiency-related learnings that identify patterns to avoid or improve.
+9. **Efficiency Analysis**: Identify cost or time anomalies in the Current Run Efficiency data above. When anomalies are found, apply Five Whys analysis to trace surface symptoms (e.g., "this bead cost $3") to root causes (e.g., "the acceptance criteria were ambiguous, causing opus escalation"). Produce efficiency-related learnings that identify patterns to avoid or improve.
 
-7. **Experiment Recommendations**: Based on the efficiency analysis, generate 2-4 concrete experiment recommendations. Each experiment should have:
+10. **Experiment Recommendations**: Based on the efficiency analysis, generate 2-4 concrete experiment recommendations. Each experiment should have:
    - **Name**: Short descriptive label (e.g., "Use haiku for test-only beads")
    - **Hypothesis**: What you expect to happen (e.g., "Beads that only modify test files can succeed with haiku, reducing cost by ~60% for those beads")
    - **Change**: What to do differently (e.g., "Add label `complexity:low` to beads whose title contains 'test'")
    - **Measurement**: How to evaluate success (e.g., "Compare success rate and cost of test-only beads before vs after")
    - **Risk**: What could go wrong (e.g., "Test-only beads may fail more on haiku, increasing retries")
+
+11. **Selective Five Whys (required)**:
+   - Run Five Whys on the top 1-2 highest-impact anomalies (failure or success), not all items.
+   - Include clear evidence at each why-step; stop when the cause moves from local symptom to system behavior.
 {{- end }}
 
 {{- if .Experiment }}
 
-8. **PDSA Update**: Update the active experiment in explicit PDSA terms:
+12. **PDSA Update**: Update the active experiment in explicit PDSA terms:
    - Evaluate whether the hypothesis held (Study)
    - Decide Act outcome: `keep`, `revert`, or `extend`
    - Provide an implementation-ready summary that can be persisted back into `experiment.json`
@@ -271,6 +286,36 @@ Provide your analysis in two parts:
       "rationale": "Why this change is needed"
     }
   ],
+  "taxonomy": {
+    "technical": ["short insight"],
+    "architecture": ["short insight"],
+    "process": ["short insight"],
+    "repeated_patterns": ["what repeats and where it appears"]
+  },
+  "system_actions": [
+    {
+      "finding": "High-impact issue or success to reinforce",
+      "type": "architecture | process",
+      "local_fix": "Immediate action",
+      "system_fix": "Structural prevention/enablement change",
+      "owner": "team or person",
+      "due_date": "YYYY-MM-DD",
+      "leading_indicator": "metric/signal to watch"
+    }
+  ],
+  "five_whys": [
+    {
+      "item": "anomaly or success being analyzed",
+      "impact": "why this matters",
+      "why_chain": [
+        {"why": 1, "because": "surface cause with evidence"},
+        {"why": 2, "because": "deeper cause with evidence"},
+        {"why": 3, "because": "system-level cause"}
+      ],
+      "root_cause_type": "architecture | process | technical",
+      "stopping_reason": "why further whys would not add value"
+    }
+  ],
   "experiments": [
     {
       "name": "Short descriptive label",
@@ -304,10 +349,14 @@ After applying retro changes to LEARNINGS.md (archives, consolidations, promotio
 - Ensure proposed rules align with Go idioms and project goals
 - Consider whether a learning is truly a "rule" (constraint) or just good advice
 - Use the learning hashes from above to reference learnings in your JSON proposals
+- Keep technical detail grounded, but prioritize architecture/process leverage in conclusions
+- For `system_actions`, include owners and concrete due dates (no "TBD" or relative dates)
+- If no architecture/process insight is justified by evidence, explicitly say why (rare)
 {{- if .Efficiency }}
 - Generate 2-4 experiment recommendations based on efficiency data (not more, not less)
 - Each experiment must be concrete, testable, and have clear measurement criteria
 - During interactive review, the user will select at most one experiment to run (never multiple)
+- Run Five Whys only for top 1-2 highest-impact items; do not apply mechanically to all findings
 {{- end }}
 {{- if .Experiment }}
 - Include exactly one `pdsa_updates` entry for the active experiment
