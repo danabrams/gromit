@@ -103,3 +103,34 @@ Targets:
 - `internal/runner/integration_test.go`
 - Existing acceptance-tagged examples in `internal/runner/*_acceptance_test.go`
 
+
+### Post-optimization Baseline (2026-02-17)
+
+- Command run: `go test ./internal/runner/... -count=1 -json`
+- Package elapsed:
+  - `internal/runner`: ~16.710s (was ~22.2s, **32% reduction**)
+  - Other runner subpackages combined: ~0.194s
+- Test-level elapsed aggregate:
+  - ~1070 tests
+  - total test elapsed ~17.410s (was ~27.54s, **37% reduction**)
+  - avg ~0.016s (was ~0.033s)
+- Acceptance suite: `go test -tags acceptance ./internal/runner/... -count=1` passes (~20.1s)
+
+**Top 10 slowest tests (default suite):**
+
+| Elapsed | Test |
+|---------|------|
+| 0.660s | `TestProcessBead_SkipsATDDForTestOnlyBead` |
+| 0.620s | `TestRunNilStopChProcessesUntilQueueEmpty` |
+| 0.510s | `TestProcessBeadReceivesScopeEstimateFromRun` |
+| 0.490s | `TestRunWithMocks_ConsecutiveSkipCounterResetsAfterRealBuild` |
+| 0.480s | `TestRunWithMocks_PrecheckVerificationRejects` |
+| 0.440s | `TestRunWithMocks_PrecheckNotMet` |
+| 0.430s | `TestRunner_NoFiltersUsesReady` |
+| 0.420s | `TestRunWithMocks_PrecheckVerificationError` |
+| 0.410s | `TestRunWithMocks_PrecheckError` |
+| 0.400s | `TestRunWithMocks_ClosesBeadOnSuccess` |
+
+**Comparison with pre-optimization hotspots:**
+
+The original slow tests (`TestRunnerStatusWithLiveRun`, `TestATDDSkippedForTestOnlyBead`, `TestTDDPromptSelection`, `TestRunner_Status_Integration_*`, `TestScopedRun_FullLoopWithLabelFilters`) no longer appear in the top-10 - they were either moved to acceptance or rewritten with tighter fakes. The remaining slow tests are genuine behavior tests without obvious fast-path alternatives.
