@@ -12,6 +12,15 @@ func makeLearning(content string) learnings.Learning {
 	return learnings.Learning{Content: content, Category: "patterns"}
 }
 
+func hasTrimAction(actions []string, action string) bool {
+	for _, a := range actions {
+		if a == action {
+			return true
+		}
+	}
+	return false
+}
+
 func TestShapeContextForBudget_UnderBudgetUnchanged(t *testing.T) {
 	ctx := &Context{
 		Bead:     &bead.Bead{ID: "test-1", Title: "Test bead"},
@@ -67,8 +76,8 @@ func TestShapeContextForBudget_DropRecentLearningsFirst(t *testing.T) {
 	if len(report.TrimActions) == 0 {
 		t.Fatal("expected at least one trim action")
 	}
-	if report.TrimActions[0] != "drop RecentLearnings" {
-		t.Errorf("expected first trim action to be 'drop RecentLearnings', got %q", report.TrimActions[0])
+	if report.TrimActions[0] != trimDropRecentLearnings {
+		t.Errorf("expected first trim action to be %q, got %q", trimDropRecentLearnings, report.TrimActions[0])
 	}
 	if report.AfterChars >= report.BeforeChars {
 		t.Errorf("expected AfterChars < BeforeChars, got %d >= %d", report.AfterChars, report.BeforeChars)
@@ -93,14 +102,8 @@ func TestShapeContextForBudget_DropClaudeMDSecond(t *testing.T) {
 	if shaped.ClaudeMD != "" {
 		t.Errorf("expected ClaudeMD dropped, got %d chars", len(shaped.ClaudeMD))
 	}
-	found := false
-	for _, a := range report.TrimActions {
-		if a == "drop ClaudeMD" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected 'drop ClaudeMD' in trim actions, got %v", report.TrimActions)
+	if !hasTrimAction(report.TrimActions, trimDropClaudeMD) {
+		t.Errorf("expected %q in trim actions, got %v", trimDropClaudeMD, report.TrimActions)
 	}
 }
 
@@ -140,14 +143,8 @@ func TestShapeContextForBudget_CapConfirmedLearningsThird(t *testing.T) {
 	if totalLearningChars > 150 {
 		t.Errorf("expected learnings capped to 150 chars, got %d", totalLearningChars)
 	}
-	found := false
-	for _, a := range report.TrimActions {
-		if a == "cap ConfirmedLearnings" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected 'cap ConfirmedLearnings' in trim actions, got %v", report.TrimActions)
+	if !hasTrimAction(report.TrimActions, trimCapConfirmedLearnings) {
+		t.Errorf("expected %q in trim actions, got %v", trimCapConfirmedLearnings, report.TrimActions)
 	}
 }
 
@@ -167,14 +164,8 @@ func TestShapeContextForBudget_DropConfirmedLearningsFourth(t *testing.T) {
 	if len(shaped.ConfirmedLearnings) != 0 {
 		t.Errorf("expected ConfirmedLearnings fully dropped, got %d items", len(shaped.ConfirmedLearnings))
 	}
-	found := false
-	for _, a := range report.TrimActions {
-		if a == "drop ConfirmedLearnings" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected 'drop ConfirmedLearnings' in trim actions, got %v", report.TrimActions)
+	if !hasTrimAction(report.TrimActions, trimDropConfirmedLearnings) {
+		t.Errorf("expected %q in trim actions, got %v", trimDropConfirmedLearnings, report.TrimActions)
 	}
 }
 
@@ -207,14 +198,8 @@ func TestShapeContextForBudget_PhaseFilterRulesFifth(t *testing.T) {
 	if strings.TrimSpace(shaped.Rules) == "" {
 		t.Error("expected Rules to never be fully dropped")
 	}
-	found := false
-	for _, a := range report.TrimActions {
-		if a == "phase-filter Rules" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected 'phase-filter Rules' in trim actions, got %v", report.TrimActions)
+	if !hasTrimAction(report.TrimActions, trimPhaseFilterRules) {
+		t.Errorf("expected %q in trim actions, got %v", trimPhaseFilterRules, report.TrimActions)
 	}
 }
 
@@ -242,14 +227,8 @@ func TestShapeContextForBudget_TruncateSpecSixth(t *testing.T) {
 	if !strings.Contains(shaped.Spec, "[...truncated...]") {
 		t.Error("expected truncation marker '[...truncated...]' in Spec")
 	}
-	found := false
-	for _, a := range report.TrimActions {
-		if a == "truncate Spec" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected 'truncate Spec' in trim actions, got %v", report.TrimActions)
+	if !hasTrimAction(report.TrimActions, trimTruncateSpec) {
+		t.Errorf("expected %q in trim actions, got %v", trimTruncateSpec, report.TrimActions)
 	}
 }
 
@@ -460,12 +439,12 @@ func TestShapeContextForBudget_TrimPriorityOrder(t *testing.T) {
 
 	// Verify trim actions fire in strict priority order
 	expected := []string{
-		"drop RecentLearnings",
-		"drop ClaudeMD",
-		"cap ConfirmedLearnings",
-		"drop ConfirmedLearnings",
-		"phase-filter Rules",
-		"truncate Spec",
+		trimDropRecentLearnings,
+		trimDropClaudeMD,
+		trimCapConfirmedLearnings,
+		trimDropConfirmedLearnings,
+		trimPhaseFilterRules,
+		trimTruncateSpec,
 	}
 
 	// Check that actions that did fire are in the expected order

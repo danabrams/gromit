@@ -2,6 +2,15 @@ package prompt
 
 import "github.com/danabrams/gromit/internal/learnings"
 
+const (
+	trimDropRecentLearnings    = "drop RecentLearnings"
+	trimDropClaudeMD           = "drop ClaudeMD"
+	trimCapConfirmedLearnings  = "cap ConfirmedLearnings"
+	trimDropConfirmedLearnings = "drop ConfirmedLearnings"
+	trimPhaseFilterRules       = "phase-filter Rules"
+	trimTruncateSpec           = "truncate Spec"
+)
+
 // ShapeReport describes what trimming was applied to a context.
 type ShapeReport struct {
 	BeforeChars  int
@@ -72,7 +81,7 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 	// Step 1: drop RecentLearnings
 	if len(shaped.RecentLearnings) > 0 {
 		shaped.RecentLearnings = []learnings.Learning{}
-		report.TrimActions = append(report.TrimActions, "drop RecentLearnings")
+		report.TrimActions = append(report.TrimActions, trimDropRecentLearnings)
 		if measureContext(shaped) <= maxChars {
 			return finishReport(shaped, report)
 		}
@@ -81,7 +90,7 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 	// Step 2: drop ClaudeMD
 	if shaped.ClaudeMD != "" {
 		shaped.ClaudeMD = ""
-		report.TrimActions = append(report.TrimActions, "drop ClaudeMD")
+		report.TrimActions = append(report.TrimActions, trimDropClaudeMD)
 		if measureContext(shaped) <= maxChars {
 			return finishReport(shaped, report)
 		}
@@ -92,7 +101,7 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 		capped := capLearnings(shaped.ConfirmedLearnings, learningCapChars)
 		if len(capped) > 0 && len(capped) < len(shaped.ConfirmedLearnings) {
 			shaped.ConfirmedLearnings = capped
-			report.TrimActions = append(report.TrimActions, "cap ConfirmedLearnings")
+			report.TrimActions = append(report.TrimActions, trimCapConfirmedLearnings)
 			if measureContext(shaped) <= maxChars {
 				return finishReport(shaped, report)
 			}
@@ -102,7 +111,7 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 	// Step 4: drop ConfirmedLearnings entirely
 	if len(shaped.ConfirmedLearnings) > 0 {
 		shaped.ConfirmedLearnings = []learnings.Learning{}
-		report.TrimActions = append(report.TrimActions, "drop ConfirmedLearnings")
+		report.TrimActions = append(report.TrimActions, trimDropConfirmedLearnings)
 		if measureContext(shaped) <= maxChars {
 			return finishReport(shaped, report)
 		}
@@ -113,7 +122,7 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 		filtered := filterRulesByPhase(shaped.Rules, phase)
 		if len(filtered) < len(shaped.Rules) {
 			shaped.Rules = filtered
-			report.TrimActions = append(report.TrimActions, "phase-filter Rules")
+			report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
 			if measureContext(shaped) <= maxChars {
 				return finishReport(shaped, report)
 			}
@@ -126,7 +135,7 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 		targetLen := len(shaped.Spec) - excess
 		if targetLen > 0 && targetLen < len(shaped.Spec) {
 			shaped.Spec = truncateWithMarker(shaped.Spec, targetLen)
-			report.TrimActions = append(report.TrimActions, "truncate Spec")
+			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
 		}
 	}
 
@@ -226,7 +235,7 @@ func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string)
 	// Step 1: drop ClaudeMD
 	if shaped.ClaudeMD != "" {
 		shaped.ClaudeMD = ""
-		report.TrimActions = append(report.TrimActions, "drop ClaudeMD")
+		report.TrimActions = append(report.TrimActions, trimDropClaudeMD)
 		if measureReviewContext(shaped) <= maxChars {
 			return finishReviewReport(shaped, report)
 		}
@@ -237,7 +246,7 @@ func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string)
 		filtered := filterRulesByPhase(shaped.Rules, phase)
 		if len(filtered) < len(shaped.Rules) {
 			shaped.Rules = filtered
-			report.TrimActions = append(report.TrimActions, "phase-filter Rules")
+			report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
 			if measureReviewContext(shaped) <= maxChars {
 				return finishReviewReport(shaped, report)
 			}
@@ -250,7 +259,7 @@ func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string)
 		targetLen := len(shaped.Spec) - excess
 		if targetLen > 0 && targetLen < len(shaped.Spec) {
 			shaped.Spec = truncateWithMarker(shaped.Spec, targetLen)
-			report.TrimActions = append(report.TrimActions, "truncate Spec")
+			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
 		}
 	}
 
@@ -313,7 +322,7 @@ func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars in
 	// Step 1: drop ClaudeMD
 	if shaped.ClaudeMD != "" {
 		shaped.ClaudeMD = ""
-		report.TrimActions = append(report.TrimActions, "drop ClaudeMD")
+		report.TrimActions = append(report.TrimActions, trimDropClaudeMD)
 		if measureThoroughReviewContext(shaped) <= maxChars {
 			return finishThoroughReviewReport(shaped, report)
 		}
@@ -324,7 +333,7 @@ func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars in
 		filtered := filterRulesByPhase(shaped.Rules, phase)
 		if len(filtered) < len(shaped.Rules) {
 			shaped.Rules = filtered
-			report.TrimActions = append(report.TrimActions, "phase-filter Rules")
+			report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
 			if measureThoroughReviewContext(shaped) <= maxChars {
 				return finishThoroughReviewReport(shaped, report)
 			}
