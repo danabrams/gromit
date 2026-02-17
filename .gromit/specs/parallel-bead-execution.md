@@ -43,21 +43,54 @@ Three concurrent components:
 
 Workers are long-lived goroutines with persistent worktrees (`<project>-gromit-worker-<N>`).
 
-Per-bead: reset worktree to main HEAD, create bead branch, run `processBead`, send result to merge queue or report failure.
+Per-bead cycle:
+1. Reset worktree to latest main (`git reset --hard main`).
+2. Create bead branch (`gromit/bead-<id>-<worker>`).
+3. Run `processBead(bead, worktreeDir)` -- the existing pipeline, unchanged.
+4. On success: send result to merge queue, wait for next assignment.
+5. On failure: report failure to dispatcher (counts toward stuck-bead threshold), return to idle, receive next assignment immediately.
 
 Persistent worktrees avoid per-bead filesystem churn; reset between beads is a fast `git reset`.
 
+#### Dispatcher
+
+Single goroutine managing the work queue:
+1. Calls `bd ready` to get the pool of unblocked beads.
+2. Assigns one bead per idle worker (no bead is assigned to multiple workers).
+3. After each merge-back, refreshes the ready pool -- newly-unblocked beads (whose blockers were just closed) become available.
+4. Respects all existing stop conditions: max iterations (total across workers), time budget, signal (SIGINT/SIGTERM), L3 stop line.
+5. On stop: cancels worker contexts, waits for in-flight beads to finish or timeout, drains merge queue for any completed work before shutting down.
+
 #### Merge coordinator
 
-Serial processing of completed beads:
-1. Rebase bead branch onto current main
-2. Fast-forward merge if clean; LLM conflict resolution if not
-3. `bd close` (serialized -- no bd contention)
-4. Every N merges: batch validation on main; revert + re-queue on failure
+Single goroutine consuming from a buffered channel. Serial processing of completed beads:
+
+1. Rebase bead branch onto current main (conflict resolution in next section).
+2. Merge to main (fast-forward after clean rebase).
+3. `bd close <bead-id>` (serialized -- no bd contention).
+4. Increment merge counter. Every N merges: run full validation suite against main. On failure, revert last N merges via `git reset --hard <pre-batch-commit>` and re-queue those beads for fresh execution.
+5. Signal dispatcher: merge complete, slot available. Dispatcher refreshes the `bd ready` pool -- previously-blocked beads may now be unblocked since their blockers were just closed.
 
 #### Conflict resolution
 
-On rebase conflict: capture markers, invoke haiku with bead context + conflict markers, validate after resolution. Falls back to discarding and re-queuing the bead for fresh execution.
+Full merge-back flow per completed bead:
+
+1. Bead completes in worker worktree, passes validation locally.
+2. Rebase bead branch onto current main.
+3. If clean rebase: fast-forward merge to main.
+4. If conflicts: capture conflict markers + file list, invoke Claude at haiku tier with bead description + diff summary + conflict markers.
+5. If LLM resolution succeeds: run validation in worktree to verify the resolution. If validation passes, merge to main. If validation fails, abort and re-queue.
+6. If LLM resolution fails: abort rebase, re-queue bead for fresh execution against updated main.
+
+Haiku handles mechanical conflicts (different hunks in config.go, different test functions) in 30-60 seconds. Fresh re-execution costs 10-20 minutes. Always try resolution first.
+
+#### Worktree lifecycle and cleanup
+
+Worker worktrees are created at `Run()` start and cleaned up at `Run()` end (in `finishRun`).
+
+- Normal shutdown: all worker worktrees removed via `git worktree remove`.
+- Crash recovery: on next `Run()` start, detect and clean up orphaned worker worktrees matching the `<project>-gromit-worker-*` pattern before creating fresh ones.
+- Reuse the existing `internal/worktree/Manager` infrastructure. Extend it with methods for persistent worker worktree creation, reset-to-main, and batch cleanup. Do not build a separate worktree management layer.
 
 #### State safety
 
@@ -97,7 +130,12 @@ parallel:
 - Each worker writes metrics to its own JSONL file; files are merged at run completion.
 - With `workers: 1`, behavior is identical to the current sequential loop.
 - Worker worktrees are created at run start and cleaned up at run end.
-- Stop conditions (max iterations, time budget, signals) halt all workers gracefully.
+- Orphaned worker worktrees from a previous crashed run are detected and cleaned up on next run start.
+- Stop conditions (max iterations, time budget, signals) cancel worker contexts, drain in-flight work, and shut down without losing completed merges.
+- Failed beads in workers count toward the existing stuck-bead threshold; workers immediately receive new assignments after failures.
+- Dispatcher refreshes the `bd ready` pool after each merge, making newly-unblocked beads available.
+- LLM conflict resolution runs validation after resolution and before merging -- failed validation aborts the merge and re-queues the bead.
+- The parallel runner extends `internal/worktree/Manager`, not a separate worktree implementation.
 
 ## Decisions
 
