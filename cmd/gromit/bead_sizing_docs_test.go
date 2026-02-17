@@ -6,18 +6,26 @@ import (
 	"testing"
 )
 
+const claudeMaxChars = 1500
+
+func mustReadText(t *testing.T, path string) string {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+
+	return string(content)
+}
+
 // TestCLAUDEMD_TrimmedToEssentials verifies that CLAUDE.md contains only the
 // header, Architecture section, and Key Principles section, and is under 1,500 chars.
 func TestCLAUDEMD_TrimmedToEssentials(t *testing.T) {
-	content, err := os.ReadFile("../../CLAUDE.md")
-	if err != nil {
-		t.Fatalf("reading CLAUDE.md: %v", err)
-	}
-
-	text := string(content)
+	text := mustReadText(t, "../../CLAUDE.md")
 
 	// Must be under 1,500 characters
-	if len(text) > 1500 {
+	if len(text) > claudeMaxChars {
 		t.Errorf("CLAUDE.md should be under 1,500 chars, got %d", len(text))
 	}
 
@@ -57,12 +65,7 @@ func TestCLAUDEMD_TrimmedToEssentials(t *testing.T) {
 func TestRULESMD_ProcessSection(t *testing.T) {
 	// Expected failure: RULES.md still says "Beads that touch more than 2 files should be split"
 
-	content, err := os.ReadFile("../../.gromit/RULES.md")
-	if err != nil {
-		t.Fatalf("reading .gromit/RULES.md: %v", err)
-	}
-
-	text := string(content)
+	text := mustReadText(t, "../../.gromit/RULES.md")
 
 	// Verify new language is present
 	if !strings.Contains(text, "6+ files across unrelated packages") {
@@ -86,12 +89,7 @@ func TestRULESMD_ProcessSection(t *testing.T) {
 func TestSKILLMD_SizingRulesUpdated(t *testing.T) {
 	// Expected failure: skills/gromit-decompose/SKILL.md still contains "One concern per bead", "Max 2 files touched"
 
-	content, err := os.ReadFile("../../skills/gromit-decompose/SKILL.md")
-	if err != nil {
-		t.Fatalf("reading skills/gromit-decompose/SKILL.md: %v", err)
-	}
-
-	text := string(content)
+	text := mustReadText(t, "../../skills/gromit-decompose/SKILL.md")
 
 	// Verify new behavior-based rules are present
 	if !strings.Contains(text, "One deliverable behavior per bead") {
@@ -118,12 +116,7 @@ func TestSKILLMD_SizingRulesUpdated(t *testing.T) {
 func TestSKILLMD_SplittingLogicUpdated(t *testing.T) {
 	// Expected failure: SKILL.md still says "If a task has both implementation and tests → consider separate beads"
 
-	content, err := os.ReadFile("../../skills/gromit-decompose/SKILL.md")
-	if err != nil {
-		t.Fatalf("reading skills/gromit-decompose/SKILL.md: %v", err)
-	}
-
-	text := string(content)
+	text := mustReadText(t, "../../skills/gromit-decompose/SKILL.md")
 
 	// Verify old splitting guidance is removed
 	if strings.Contains(text, "consider separate beads (implementation first, then tests)") {
@@ -165,12 +158,7 @@ func TestSKILLMD_SplittingLogicUpdated(t *testing.T) {
 func TestSKILLMD_ExamplesUpdated(t *testing.T) {
 	// Expected failure: SKILL.md examples still show fine-grained splitting with separate implementation and test beads
 
-	content, err := os.ReadFile("../../skills/gromit-decompose/SKILL.md")
-	if err != nil {
-		t.Fatalf("reading skills/gromit-decompose/SKILL.md: %v", err)
-	}
-
-	text := string(content)
+	text := mustReadText(t, "../../skills/gromit-decompose/SKILL.md")
 
 	// This is a softer requirement - we're checking that examples are updated
 	// to demonstrate the new philosophy. We can't check for specific example text
@@ -197,12 +185,7 @@ func TestSKILLMD_ExamplesUpdated(t *testing.T) {
 func TestPROMPTDecompose_GuidelinesUpdated(t *testing.T) {
 	// Expected failure: .gromit/templates/PROMPT_decompose.md guidelines still reflect old file-count philosophy
 
-	content, err := os.ReadFile("../../.gromit/templates/PROMPT_decompose.md")
-	if err != nil {
-		t.Fatalf("reading .gromit/templates/PROMPT_decompose.md: %v", err)
-	}
-
-	text := string(content)
+	text := mustReadText(t, "../../.gromit/templates/PROMPT_decompose.md")
 
 	// Verify new sizing philosophy is mentioned in guidelines
 	if !strings.Contains(text, "deliverable behavior") && !strings.Contains(text, "natural implementation unit") {
@@ -229,12 +212,7 @@ func TestPROMPTDecompose_GuidelinesUpdated(t *testing.T) {
 func TestPROMPTDecompose_PreservesAntiOverlapGuidance(t *testing.T) {
 	// Expected failure: This should pass if the changes are made correctly, but we're verifying preservation
 
-	content, err := os.ReadFile("../../.gromit/templates/PROMPT_decompose.md")
-	if err != nil {
-		t.Fatalf("reading .gromit/templates/PROMPT_decompose.md: %v", err)
-	}
-
-	text := string(content)
+	text := mustReadText(t, "../../.gromit/templates/PROMPT_decompose.md")
 
 	// Verify anti-overlap guidance is preserved
 	if !strings.Contains(text, "Avoiding Sibling Overlap") {
@@ -268,12 +246,7 @@ func TestAllDocuments_ConsistentFileLimits(t *testing.T) {
 	fileCountMentions := make(map[string][]string)
 
 	for docName, path := range docs {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("reading %s: %v", path, err)
-		}
-
-		text := string(content)
+		text := mustReadText(t, path)
 
 		// Check for old "2 files" language
 		if strings.Contains(text, "2 files") && strings.Contains(text, "more than 2 files") {
@@ -322,12 +295,7 @@ func TestAllDocuments_ConsistentGroupingRules(t *testing.T) {
 	}
 
 	for docName, path := range docsWithSplitting {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("reading %s: %v", path, err)
-		}
-
-		text := string(content)
+		text := mustReadText(t, path)
 
 		// Each document should mention at least the two core grouping patterns
 		missingPatterns := []string{}
