@@ -176,7 +176,7 @@ func (h *Handler) checkRetryBudgetAfterFailure(bc *runtypes.BeadContext) error {
 func (h *Handler) HandleEscalation(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) (continueLoop bool) {
 	nextTier := h.cfg.NextEscalationTier(bc.Tier)
 	if nextTier == "" {
-		h.log("Build failed, no more tiers to escalate to - attempting decomposition")
+		h.log("Andon L4 option selected: no more tiers to escalate to, attempting decomposition")
 		return h.AttemptDecomposition(ctx, bc, "build failed with all models")
 	}
 
@@ -258,8 +258,8 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 			// L1 exhausted -> transition to L2 via one escalation.
 			nextTier := h.cfg.NextEscalationTier(bc.Tier)
 			if nextTier == "" {
-				bc.Result.Error = fmt.Errorf("L3 stop-line: recoverable failure exhausted L1 and no L2 escalation path is available")
-				return false
+				h.log("Andon L4 option selected: recoverable failure exhausted L1 with no higher tier, attempting decomposition")
+				return h.AttemptDecomposition(ctx, bc, "recoverable failure exhausted L1 and no higher tier available")
 			}
 			h.log("Andon L1->L2: escalating from %s to %s", bc.Tier, nextTier)
 			h.EscalateTier(bc, nextTier)
