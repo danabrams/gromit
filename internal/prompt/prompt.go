@@ -13,6 +13,11 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
+const (
+	promptPhaseBuild  = "build"
+	promptPhaseReview = "review"
+)
+
 // Context holds all data available to prompt templates
 type Context struct {
 	// Current task
@@ -228,7 +233,7 @@ func (r *Renderer) SetBudgetConfig(maxChars, learningCapChars int) {
 
 // RenderBuild renders the build prompt for a bead
 func (r *Renderer) RenderBuild(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, "build")
+	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
 	return r.render("PROMPT_build.md", ctx)
 }
 
@@ -282,25 +287,25 @@ func (r *Renderer) RenderThoroughReview(ctx *ThoroughReviewContext) (string, err
 
 // RenderAcceptanceTests renders the acceptance tests prompt for ATDD workflow
 func (r *Renderer) RenderAcceptanceTests(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, "build")
+	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
 	return r.render("PROMPT_acceptance_tests.md", ctx)
 }
 
 // RenderATDDBuild renders the ATDD-aware build prompt
 func (r *Renderer) RenderATDDBuild(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, "build")
+	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
 	return r.render("PROMPT_atdd_build.md", ctx)
 }
 
 // RenderRefactor renders the refactor prompt for code quality improvements
 func (r *Renderer) RenderRefactor(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, "build")
+	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
 	return r.render("PROMPT_refactor.md", ctx)
 }
 
 // RenderTDDBuild renders the TDD-aware build prompt
 func (r *Renderer) RenderTDDBuild(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, "build")
+	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
 	return r.render("PROMPT_tdd_build.md", ctx)
 }
 
@@ -608,10 +613,7 @@ func (r *Renderer) shapeBuildContext(ctx *Context, phase string) *Context {
 		return ctx
 	}
 	shaped, report := ShapeContextForBudget(ctx, r.budgetMaxChars, r.budgetLearningCapChars, phase)
-	if len(report.TrimActions) > 0 {
-		fmt.Fprintf(os.Stderr, "Prompt budget: %d -> %d chars (trimmed: %s)\n",
-			report.BeforeChars, report.AfterChars, strings.Join(report.TrimActions, ", "))
-	}
+	logBudgetTrim(report)
 	return shaped
 }
 
@@ -620,11 +622,8 @@ func (r *Renderer) shapeReviewContext(ctx *ReviewContext) *ReviewContext {
 	if r == nil || r.budgetMaxChars <= 0 || ctx == nil {
 		return ctx
 	}
-	shaped, report := ShapeReviewContextForBudget(ctx, r.budgetMaxChars, "review")
-	if len(report.TrimActions) > 0 {
-		fmt.Fprintf(os.Stderr, "Prompt budget: %d -> %d chars (trimmed: %s)\n",
-			report.BeforeChars, report.AfterChars, strings.Join(report.TrimActions, ", "))
-	}
+	shaped, report := ShapeReviewContextForBudget(ctx, r.budgetMaxChars, promptPhaseReview)
+	logBudgetTrim(report)
 	return shaped
 }
 
@@ -633,12 +632,17 @@ func (r *Renderer) shapeThoroughReviewContext(ctx *ThoroughReviewContext) *Thoro
 	if r == nil || r.budgetMaxChars <= 0 || ctx == nil {
 		return ctx
 	}
-	shaped, report := ShapeThoroughReviewContextForBudget(ctx, r.budgetMaxChars, "review")
-	if len(report.TrimActions) > 0 {
-		fmt.Fprintf(os.Stderr, "Prompt budget: %d -> %d chars (trimmed: %s)\n",
-			report.BeforeChars, report.AfterChars, strings.Join(report.TrimActions, ", "))
-	}
+	shaped, report := ShapeThoroughReviewContextForBudget(ctx, r.budgetMaxChars, promptPhaseReview)
+	logBudgetTrim(report)
 	return shaped
+}
+
+func logBudgetTrim(report *ShapeReport) {
+	if report == nil || len(report.TrimActions) == 0 {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Prompt budget: %d -> %d chars (trimmed: %s)\n",
+		report.BeforeChars, report.AfterChars, strings.Join(report.TrimActions, ", "))
 }
 
 func (r *Renderer) render(templateName string, ctx any) (string, error) {
