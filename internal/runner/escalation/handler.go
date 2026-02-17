@@ -208,6 +208,11 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 	h.log("Analysis: category=%s, recoverable=%v", analysis.Category, analysis.Recoverable)
 	h.log("Root cause: %s", analysis.RootCause)
 
+	if analysis.Category == analyzer.Category("integrity_unsafe_state") {
+		bc.Result.Error = fmt.Errorf("L3 stop-line: integrity/unsafe-state - %s", analysis.RootCause)
+		return false
+	}
+
 	if analysis.Category == analyzer.CategoryUnclearSpec {
 		bc.Result.Error = fmt.Errorf("spec unclear: %s - needs human review", analysis.RootCause)
 		return false
