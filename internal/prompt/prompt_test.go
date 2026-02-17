@@ -671,6 +671,33 @@ func TestRenderSpecAcceptance(t *testing.T) {
 	}
 }
 
+func TestRenderSpecGate(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Spec Gate\nCriteria: {{.SpecCriteria}}\nFailure: {{.FailureOutput}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_spec_gate.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := &SpecGateContext{
+		SpecCriteria: "Must return 200",
+		FailureOutput: "status was 500",
+	}
+
+	result, err := r.RenderSpecGate(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecGate() error = %v", err)
+	}
+	if !strings.Contains(result, "Must return 200") {
+		t.Error("expected spec criteria in output")
+	}
+	if !strings.Contains(result, "status was 500") {
+		t.Error("expected failure output in output")
+	}
+}
+
 func TestRenderATDDBuild(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")

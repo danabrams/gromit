@@ -109,6 +109,12 @@ type SpecAcceptanceContext struct {
 	Rules string
 }
 
+// SpecGateContext holds data for spec gate prompt template
+type SpecGateContext struct {
+	SpecCriteria  string
+	FailureOutput string
+}
+
 // ScopeEstimate represents the result of scope estimation
 type ScopeEstimate struct {
 	Complexity                   string   `json:"complexity"`
@@ -282,6 +288,11 @@ func (r *Renderer) RenderPrecheck(ctx *PrecheckContext) (string, error) {
 // RenderSpecAcceptance renders the spec acceptance prompt
 func (r *Renderer) RenderSpecAcceptance(ctx *SpecAcceptanceContext) (string, error) {
 	return r.render("PROMPT_spec_acceptance.md", ctx)
+}
+
+// RenderSpecGate renders the spec gate prompt
+func (r *Renderer) RenderSpecGate(ctx *SpecGateContext) (string, error) {
+	return r.render("PROMPT_spec_gate.md", ctx)
 }
 
 // RenderReview renders the light review prompt
