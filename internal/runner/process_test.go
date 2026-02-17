@@ -664,6 +664,197 @@ func TestMaybeRunFinalFullValidation_SkipsWhenDisabled(t *testing.T) {
 	}
 }
 
+func setupQualityGateRunHarness(
+	t *testing.T,
+	cfg *config.Config,
+	queue []*bead.Bead,
+	analyzer FailureAnalyzer,
+	cmdRunner func(ctx context.Context, command string, workDir string) (string, string, int, error),
+) (*Runner, *mockBeadClient, *mockClaudeClient, *int) {
+	t.Helper()
+
+	readyCalls := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			readyCalls++
+			if len(queue) == 0 {
+				return nil, nil
+			}
+			next := queue[0]
+			queue = queue[1:]
+			return next, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "build ok"}, nil
+		},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, &strings.Builder{}, t.TempDir(), Deps{
+		Beads:     beads,
+		Router:    newMockRouterFromClaudeClient(mockClaude),
+		Analyzer:  analyzer,
+		Renderer:  &mockPromptRenderer{},
+		Logger:    &mockIterationLogger{},
+		CmdRunner: cmdRunner,
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() failed: %v", err)
+	}
+
+	return r, beads, mockClaude, &readyCalls
+}
+
+// Expected failure: Runner.enforceMandatoryQualityGates does not exist yet, so a bead can still close
+// when fast gate config omits required build checks.
+func TestRun_CompletionBlockedWhenMandatoryFastGateMissing(t *testing.T) {
+	precheckDisabled := false
+	runFinalFull := false
+	autoPushDisabled := false
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled:              true,
+			FastCommands:         []string{"go test ./...", "go vet ./..."},
+			FullValidationEveryN: 0,
+			RunFinalFullGate:     &runFinalFull,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Preflight: config.PreflightConfig{},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		if command == "go build ./..." {
+			return "", "compile failure", 1, nil
+		}
+		return "ok", "", 0, nil
+	}
+
+	r, beads, _, _ := setupQualityGateRunHarness(t, cfg, []*bead.Bead{
+		{ID: "qg-fast-1", Title: "fast gate missing build", Priority: 1},
+	}, &mockFailureAnalyzer{}, cmdRunner)
+
+	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false)
+	if err == nil {
+		t.Fatal("expected run to fail when mandatory fast quality gate coverage is incomplete")
+	}
+	if len(beads.ClosedIDs) != 0 {
+		t.Fatalf("expected bead to remain open when mandatory fast quality gates are not satisfied, closed: %v", beads.ClosedIDs)
+	}
+}
+
+// Expected failure: Runner.enforceMandatoryQualityGates does not exist yet, so periodic/full completion
+// can proceed when full gate config omits required build checks.
+func TestRun_CompletionBlockedWhenMandatoryFullGateMissing(t *testing.T) {
+	precheckDisabled := false
+	runFinalFull := false
+	autoPushDisabled := false
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled:              true,
+			FastCommands:         []string{"go test ./...", "go vet ./...", "go build ./..."},
+			FullCommands:         []string{"go test ./...", "go vet ./..."},
+			FullValidationEveryN: 1,
+			RunFinalFullGate:     &runFinalFull,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Preflight: config.PreflightConfig{},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "ok", "", 0, nil
+	}
+
+	r, beads, _, _ := setupQualityGateRunHarness(t, cfg, []*bead.Bead{
+		{ID: "qg-full-1", Title: "full gate missing build", Priority: 1},
+	}, &mockFailureAnalyzer{}, cmdRunner)
+
+	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false)
+	if err == nil {
+		t.Fatal("expected run to fail when mandatory full quality gate coverage is incomplete")
+	}
+	if len(beads.ClosedIDs) != 0 {
+		t.Fatalf("expected bead to remain open when mandatory full quality gates are not satisfied, closed: %v", beads.ClosedIDs)
+	}
+}
+
+// Expected failure: Runner.escalateUnclearQualityFailureStopLine does not exist yet, so unresolved
+// post-recovery quality failures continue to the next bead instead of triggering the L3 stop-line path.
+func TestRun_UnclearPostRecoveryQualityFailureTriggersStopLine(t *testing.T) {
+	precheckDisabled := false
+	runFinalFull := false
+	autoPushDisabled := false
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled:          true,
+			FastCommands:     []string{"go test ./...", "go vet ./...", "go build ./..."},
+			RunFinalFullGate: &runFinalFull,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Preflight: config.PreflightConfig{},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	analyzerMock := &mockFailureAnalyzer{
+		AnalyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryUnclearSpec,
+				Recoverable: false,
+				RootCause:   "quality gate output is ambiguous after bounded recovery",
+			}, nil
+		},
+	}
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "intermittent infra failure", 1, nil
+	}
+
+	var out strings.Builder
+	r, beads, _, readyCalls := setupQualityGateRunHarness(t, cfg, []*bead.Bead{
+		{ID: "qg-stopline-1", Title: "first quality failure", Priority: 1},
+		{ID: "qg-stopline-2", Title: "must not run", Priority: 1},
+	}, analyzerMock, cmdRunner)
+	r.output = &out
+	r.syncOut = newSyncWriter(&out)
+
+	err := r.Run(context.Background(), 5, time.Now().Add(time.Minute), nil, false)
+	if err != nil {
+		t.Fatalf("Run() returned unexpected error: %v", err)
+	}
+	if *readyCalls != 1 {
+		t.Fatalf("expected stop-line to halt loop before fetching a second bead, Ready() calls=%d", *readyCalls)
+	}
+	if !strings.Contains(out.String(), "L3 escalation packet") {
+		t.Fatalf("expected L3 stop-line escalation output for unresolved unclear quality failure, got:\n%s", out.String())
+	}
+	if len(beads.ClosedIDs) != 0 {
+		t.Fatalf("expected no bead closures after stop-line escalation, closed: %v", beads.ClosedIDs)
+	}
+}
+
 func TestExtractSuccessLearning_FeatureDisabled(t *testing.T) {
 	var buf strings.Builder
 	learnFromSuccessDisabled := false
