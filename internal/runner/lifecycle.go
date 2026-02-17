@@ -124,7 +124,11 @@ func (r *Runner) Status() error {
 	}
 
 	// Check if status is stale (process not alive)
-	if status != nil && status.Running && !IsProcessAlive(status.PID) {
+	processChecker := r.processChecker
+	if processChecker == nil {
+		processChecker = IsProcessAlive
+	}
+	if status != nil && status.Running && !processChecker(status.PID) {
 		elapsed := time.Since(status.StartedAt)
 		r.log("Warning: stale run detected from %s (%s ago)",
 			status.StartedAt.Format(time.RFC3339),

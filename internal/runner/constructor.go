@@ -108,6 +108,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 		stateFile:   sf,
 		gitDiffFn:   getGitDiff,
 		cmdRunnerFn: defaultCmdRunner,
+		processChecker: IsProcessAlive,
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
 			return net.DefaultResolver.LookupHost(ctx, host)
 		},

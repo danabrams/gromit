@@ -71,6 +71,7 @@ type Runner struct {
 	stateFile          *state.File                                                                                                       // promoted from Run() for router state persistence
 	gitDiffFn          func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
 	cmdRunnerFn        func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
+	processChecker     func(int) bool                                                                                                   // injectable for testing; defaults to IsProcessAlive
 	autoFixFn          func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
 	lookupHostFn       func(ctx context.Context, host string) ([]string, error)                                                          // injectable DNS lookup for codex preflight
 	lookPathFn         func(file string) (string, error)                                                                                 // injectable binary lookup for codex preflight

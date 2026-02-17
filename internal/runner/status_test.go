@@ -472,6 +472,62 @@ func TestRunner_Status_LivePID(t *testing.T) {
 	}
 }
 
+func TestRunner_Status_ProcessCheckerMarksDead(t *testing.T) {
+	withFastStatusReaders(t)
+
+	tmpDir := t.TempDir()
+	var buf strings.Builder
+	cfg := &config.Config{}
+
+	mockBeads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			return &bead.Bead{
+				ID:       "test-123",
+				Title:    "Next Bead",
+				Priority: 1,
+				Labels:   []string{},
+			}, nil
+		},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
+		Beads:    mockBeads,
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+	r.processChecker = func(pid int) bool {
+		return false
+	}
+
+	sw, _ := NewStatusWriter(tmpDir)
+	err = sw.Write(2, "running-bead-123", "Running Bead Title", "sonnet", true, 0, 0)
+	if err != nil {
+		t.Fatalf("Failed to write status file: %v", err)
+	}
+
+	err = r.Status()
+	if err != nil {
+		t.Fatalf("Status() failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "stale run") {
+		t.Errorf("Expected stale run message when processChecker returns false, got: %s", output)
+	}
+
+	statusPath := filepath.Join(tmpDir, "status.json")
+	if _, err := os.Stat(statusPath); err == nil {
+		t.Error("Status file should have been deleted when processChecker returns false")
+	} else if !os.IsNotExist(err) {
+		t.Errorf("Unexpected error checking status file: %v", err)
+	}
+}
+
 func TestRunner_Status_DeadPID(t *testing.T) {
 	withFastStatusReaders(t)
 
