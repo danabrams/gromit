@@ -1,4 +1,4 @@
-.PHONY: build install install-skill lint install-hooks test-touched test-timing test-unit test-acceptance test-e2e-live test-ci
+.PHONY: build install install-skill lint install-hooks test-touched test-timing test-acceptance-timing test-unit test-acceptance test-e2e-live test-ci
 
 GOLANGCI_LINT_VERSION := $(shell cat .golangci-version)
 
@@ -26,6 +26,9 @@ test-touched:
 
 test-timing:
 	./scripts/test_timing.sh
+
+test-acceptance-timing:
+	./scripts/test_acceptance_timing.sh
 
 test-unit:
 	go test ./...

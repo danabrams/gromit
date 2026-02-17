@@ -2,13 +2,23 @@ package runner
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 )
+
+func lineCount(t *testing.T, path string) int {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if len(data) == 0 {
+		return 0
+	}
+	return strings.Count(string(data), "\n") + 1
+}
 
 func phase4MustHaveFunc(t *testing.T, decls splitDecls, funcName, fileName string) {
 	t.Helper()
@@ -169,21 +179,7 @@ func verifyRunnerSplitPhase4Layout(t *testing.T) string {
 func TestSplitRunnerPhase4_RunnerUnder1000Lines(t *testing.T) {
 	runnerDir := verifyRunnerSplitPhase4Layout(t)
 	runnerPath := filepath.Join(runnerDir, "runner.go")
-
-	cmd := exec.Command("wc", "-l", runnerPath)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("wc -l %s failed: %v\n%s", runnerPath, err, string(out))
-	}
-
-	fields := strings.Fields(string(out))
-	if len(fields) < 1 {
-		t.Fatalf("unexpected wc output: %q", string(out))
-	}
-	lineCount, err := strconv.Atoi(fields[0])
-	if err != nil {
-		t.Fatalf("failed to parse wc output %q: %v", string(out), err)
-	}
+	lineCount := lineCount(t, runnerPath)
 	if lineCount >= 1000 {
 		t.Fatalf("runner.go line count = %d, expected < 1000", lineCount)
 	}

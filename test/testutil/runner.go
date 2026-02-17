@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +20,23 @@ import (
 // Returns stdout, stderr, exitCode, and error (error is only non-nil for execution failures,
 // not for non-zero exit codes).
 func RunGromitWithStdin(binary, dir string, environ []string, stdin string, args ...string) (stdout, stderr string, exitCode int, err error) {
-	cmd := exec.Command(binary, args...)
+	return runWithStdin(context.Background(), binary, dir, environ, stdin, args...)
+}
+
+// RunGromitHelperProcessWithStdin executes the gromit test binary through the
+// TestGromitHelperProcess entrypoint with timeout/cancellation support.
+func RunGromitHelperProcessWithStdin(ctx context.Context, binary, dir string, environ []string, stdin string, args ...string) (stdout, stderr string, exitCode int, err error) {
+	helperArgs := append([]string{"-test.run=TestGromitHelperProcess", "--"}, args...)
+	helperEnv := append([]string(nil), environ...)
+	if helperEnv == nil {
+		helperEnv = os.Environ()
+	}
+	helperEnv = append(helperEnv, "GROMIT_TEST_HELPER_PROCESS=1")
+	return runWithStdin(ctx, binary, dir, helperEnv, stdin, helperArgs...)
+}
+
+func runWithStdin(ctx context.Context, binary, dir string, environ []string, stdin string, args ...string) (stdout, stderr string, exitCode int, err error) {
+	cmd := exec.CommandContext(ctx, binary, args...)
 
 	// Only set Dir if non-empty
 	if dir != "" {
@@ -41,6 +59,11 @@ func RunGromitWithStdin(binary, dir string, environ []string, stdin string, args
 	stderr = errBuf.String()
 
 	if runErr != nil {
+		if ctx.Err() != nil {
+			err = fmt.Errorf("command canceled: %w", ctx.Err())
+			exitCode = -1
+			return stdout, stderr, exitCode, err
+		}
 		// Check if it's an ExitError (non-zero exit code)
 		if exitErr, ok := runErr.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()

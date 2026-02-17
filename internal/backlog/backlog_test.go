@@ -110,8 +110,11 @@ func TestBacklogFile(t *testing.T) {
 
 func TestGenerateID(t *testing.T) {
 	id1 := GenerateID()
-	time.Sleep(2 * time.Millisecond)
-	id2 := GenerateID()
+	id2 := id1
+	deadline := time.Now().Add(25 * time.Millisecond)
+	for id2 == id1 && time.Now().Before(deadline) {
+		id2 = GenerateID()
+	}
 
 	if id1 == id2 {
 		t.Errorf("GenerateID() produced duplicate IDs: %s", id1)

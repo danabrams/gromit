@@ -1,9 +1,8 @@
-//go:build acceptance
+//go:build integration
 
 package runner
 
 import (
-	"os/exec"
 	"testing"
 )
 
@@ -17,7 +16,7 @@ func TestSplitRunnerFinalVerification_RunnerLintPasses(t *testing.T) {
 	repoRoot := finalVerificationRepoRoot(t)
 	golangciLint := resolveGolangCILintV2Path(t)
 
-	cmd := exec.Command(golangciLint, "run", "./internal/runner/...")
+	cmd := runnerSplitExecCommand(golangciLint, "run", "./internal/runner/...")
 	cmd.Dir = repoRoot
 	cmd.Env = golangciLintAcceptanceEnv(t)
 	out, err := cmd.CombinedOutput()

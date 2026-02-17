@@ -147,6 +147,26 @@ type assertErr struct{}
 
 func (assertErr) Error() string { return "write failed" }
 
+func waitForCondition(t *testing.T, timeout, interval time.Duration, cond func() bool, msg string) {
+	t.Helper()
+	if cond() {
+		return
+	}
+	timeoutCh := time.After(timeout)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-timeoutCh:
+			t.Fatal(msg)
+		case <-ticker.C:
+			if cond() {
+				return
+			}
+		}
+	}
+}
+
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
 func TestStartHeartbeat_ToolCallEventsUpdateDisplay(t *testing.T) {
 	// When tool call events arrive on the channel, the heartbeat should update
@@ -167,9 +187,6 @@ func TestStartHeartbeat_ToolCallEventsUpdateDisplay(t *testing.T) {
 
 	stop := StartHeartbeatWithConfig(stats, 0, 0, nil, cfg, toolCallEvents, out)
 
-	// Wait for initial heartbeat
-	time.Sleep(20 * time.Millisecond)
-
 	// Send tool call events
 	for i := 0; i < 3; i++ {
 		stats.RecordToolCall("Edit", "/tmp/file.go")
@@ -178,8 +195,13 @@ func TestStartHeartbeat_ToolCallEventsUpdateDisplay(t *testing.T) {
 			FilePath:  "/tmp/file.go",
 			Timestamp: time.Now(),
 		}
-		time.Sleep(5 * time.Millisecond)
 	}
+
+	waitForCondition(t, time.Second, 5*time.Millisecond, func() bool {
+		out.mu.Lock()
+		defer out.mu.Unlock()
+		return len(out.overwriteCalls) >= 1
+	}, "expected at least one overwrite call from tool call events")
 
 	stop()
 
@@ -216,8 +238,11 @@ func TestStartHeartbeat_StopFunctionCleansUpGoroutine(t *testing.T) {
 	out := &mockOverwriteWriter{}
 	stop := StartHeartbeatWithConfig(stats, 0, 0, nil, cfg, nil, out)
 
-	// Wait long enough for initial heartbeat to fire
-	time.Sleep(30 * time.Millisecond)
+	waitForCondition(t, time.Second, 5*time.Millisecond, func() bool {
+		out.mu.Lock()
+		defer out.mu.Unlock()
+		return len(out.normalWrites) > 0
+	}, "expected heartbeat to write at least one line")
 
 	// Stop should return promptly
 	done := make(chan struct{})

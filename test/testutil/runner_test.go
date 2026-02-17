@@ -1,10 +1,12 @@
 package testutil
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunGromitWithStdin(t *testing.T) {
@@ -193,5 +195,67 @@ pwd
 	gotDir := strings.TrimSpace(stdout)
 	if gotDir != tmpDir {
 		t.Errorf("With dir=%q, command ran in %q", tmpDir, gotDir)
+	}
+}
+
+func TestRunGromitHelperProcessWithStdin(t *testing.T) {
+	tmpDir := t.TempDir()
+	testBinary := filepath.Join(tmpDir, "helper-script")
+
+	scriptContent := `#!/bin/bash
+if [[ "$1" == "-test.run=TestGromitHelperProcess" && "$2" == "--" ]]; then
+  shift 2
+fi
+echo "helper:$*"
+cat
+`
+	if err := os.WriteFile(testBinary, []byte(scriptContent), 0755); err != nil {
+		t.Fatalf("Failed to create helper script: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stdout, stderr, exitCode, err := RunGromitHelperProcessWithStdin(ctx, testBinary, "", os.Environ(), "stdin payload\n", "debug", "test")
+	if err != nil {
+		t.Fatalf("RunGromitHelperProcessWithStdin() error = %v", err)
+	}
+	if stderr != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr)
+	}
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stdout, "helper:debug test") {
+		t.Fatalf("expected helper args in stdout, got %q", stdout)
+	}
+	if !strings.Contains(stdout, "stdin payload") {
+		t.Fatalf("expected stdin in stdout, got %q", stdout)
+	}
+}
+
+func TestRunGromitHelperProcessWithStdin_Timeout(t *testing.T) {
+	tmpDir := t.TempDir()
+	testBinary := filepath.Join(tmpDir, "sleep-script")
+
+	scriptContent := `#!/bin/bash
+sleep 5
+`
+	if err := os.WriteFile(testBinary, []byte(scriptContent), 0755); err != nil {
+		t.Fatalf("Failed to create sleep script: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, _, exitCode, err := RunGromitHelperProcessWithStdin(ctx, testBinary, "", os.Environ(), "")
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "command canceled") {
+		t.Fatalf("expected cancellation error, got %v", err)
+	}
+	if exitCode != -1 {
+		t.Fatalf("exitCode = %d, want -1 on timeout", exitCode)
 	}
 }

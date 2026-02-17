@@ -12,7 +12,7 @@ func TestDiagnosticSnapshot_ReturnsRateLimitRecoveryMs(t *testing.T) {
 
 	// Record rate limit hit followed by event after delay
 	stats.RecordRateLimitHit()
-	time.Sleep(50 * time.Millisecond)
+	rewindUnrecoveredRateLimit(t, stats, 50*time.Millisecond)
 	stats.RecordEvent()
 
 	stallCount, stallTier, ttfe, toolCalls, rateLimitHits, recoveryMs := stats.DiagnosticSnapshot()

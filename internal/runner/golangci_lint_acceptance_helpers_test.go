@@ -10,6 +10,12 @@ import (
 	"testing"
 )
 
+var golangciLintLookPath = exec.LookPath
+
+func golangciLintCombinedOutput(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).CombinedOutput()
+}
+
 func golangciLintAcceptanceEnv(t *testing.T) []string {
 	t.Helper()
 
@@ -25,13 +31,13 @@ func resolveGolangCILintV2Path(t *testing.T) string {
 	t.Helper()
 
 	candidates := make([]string, 0, 3)
-	if path, err := exec.LookPath("golangci-lint"); err == nil {
+	if path, err := golangciLintLookPath("golangci-lint"); err == nil {
 		candidates = append(candidates, path)
 	}
 
 	if gopath := os.Getenv("GOPATH"); gopath != "" {
 		candidates = append(candidates, filepath.Join(gopath, "bin", "golangci-lint"))
-	} else if out, err := exec.Command("go", "env", "GOPATH").CombinedOutput(); err == nil {
+	} else if out, err := golangciLintCombinedOutput("go", "env", "GOPATH"); err == nil {
 		gopath := strings.TrimSpace(string(out))
 		if gopath != "" {
 			candidates = append(candidates, filepath.Join(gopath, "bin", "golangci-lint"))
@@ -51,7 +57,7 @@ func resolveGolangCILintV2Path(t *testing.T) string {
 			continue
 		}
 
-		out, err := exec.Command(candidate, "--version").CombinedOutput()
+		out, err := golangciLintCombinedOutput(candidate, "--version")
 		version := strings.TrimSpace(string(out))
 		if err != nil {
 			versionInfo = append(versionInfo, candidate+": unable to read version")

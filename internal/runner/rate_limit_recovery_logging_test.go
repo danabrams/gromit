@@ -14,6 +14,12 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+func spinForAtLeast(d time.Duration) {
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+	}
+}
+
 // TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs verifies that
 // executeClaudeInvocation() captures RateLimitRecoveryMs from DiagnosticSnapshot()
 // and stores it in the IterationResult.
@@ -26,8 +32,8 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 				rateLimitEvent := []byte(`{"type":"error","subtype":"overloaded"}`)
 				handler(rateLimitEvent)
 
-				// Wait to simulate recovery time
-				time.Sleep(120 * time.Millisecond)
+				// Ensure recovery is measured across multiple millisecond boundaries.
+				spinForAtLeast(5 * time.Millisecond)
 
 				// Simulate recovery event
 				normalEvent := []byte(`{"type":"system","subtype":"init"}`)
@@ -106,8 +112,8 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 		t.Error("expected IterationResult.RateLimitRecoveryMs to be set from DiagnosticSnapshot()")
 	}
 
-	if bc.Result.RateLimitRecoveryMs < 100 {
-		t.Errorf("expected RateLimitRecoveryMs >= 100ms based on sleep, got %d ms", bc.Result.RateLimitRecoveryMs)
+	if bc.Result.RateLimitRecoveryMs < 1 {
+		t.Errorf("expected RateLimitRecoveryMs >= 1ms after boundary crossing, got %d ms", bc.Result.RateLimitRecoveryMs)
 	}
 
 	// Verify it matches what DiagnosticSnapshot returned

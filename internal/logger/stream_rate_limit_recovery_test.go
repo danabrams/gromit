@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+func rewindUnrecoveredRateLimit(t *testing.T, stats *StreamStats, d time.Duration) {
+	t.Helper()
+	stats.mu.Lock()
+	stats.lastRateLimitTime = time.Now().Add(-d)
+	stats.hasUnrecoveredRateLimit = true
+	stats.mu.Unlock()
+}
+
 // TestRateLimitRecoveryMs_MeasuresTimeBetweenRateLimitHitAndNextEvent verifies that
 // RateLimitRecoveryMs captures the duration from when RecordRateLimitHit() is called
 // until the next RecordEvent() call.
@@ -14,8 +22,8 @@ func TestRateLimitRecoveryMs_MeasuresTimeBetweenRateLimitHitAndNextEvent(t *test
 	// Record a rate limit hit
 	stats.RecordRateLimitHit()
 
-	// Wait a known duration before the next event
-	time.Sleep(100 * time.Millisecond)
+	// Simulate recovery duration before the next event.
+	rewindUnrecoveredRateLimit(t, stats, 100*time.Millisecond)
 
 	// Record the next event (this should compute recovery time)
 	stats.RecordEvent()
@@ -38,7 +46,6 @@ func TestRateLimitRecoveryMs_ZeroWhenNoRateLimitOccurs(t *testing.T) {
 
 	// Record events without any rate limit hits
 	stats.RecordEvent()
-	time.Sleep(50 * time.Millisecond)
 	stats.RecordEvent()
 
 	// Verify recovery time is not set (still zero)
@@ -55,7 +62,7 @@ func TestDiagnosticSnapshot_ReturnsRecoveryTime(t *testing.T) {
 
 	// Record rate limit hit followed by event
 	stats.RecordRateLimitHit()
-	time.Sleep(75 * time.Millisecond)
+	rewindUnrecoveredRateLimit(t, stats, 75*time.Millisecond)
 	stats.RecordEvent()
 
 	// Call DiagnosticSnapshot and verify it returns recovery time
@@ -110,7 +117,7 @@ func TestMultipleRateLimitHits_RecordMostRecentRecoveryTime(t *testing.T) {
 
 	// First rate limit hit and recovery
 	stats.RecordRateLimitHit()
-	time.Sleep(50 * time.Millisecond)
+	rewindUnrecoveredRateLimit(t, stats, 50*time.Millisecond)
 	stats.RecordEvent()
 
 	_, _, _, _, _, firstRecovery := stats.DiagnosticSnapshot()
@@ -120,7 +127,7 @@ func TestMultipleRateLimitHits_RecordMostRecentRecoveryTime(t *testing.T) {
 
 	// Second rate limit hit with different recovery time
 	stats.RecordRateLimitHit()
-	time.Sleep(150 * time.Millisecond)
+	rewindUnrecoveredRateLimit(t, stats, 150*time.Millisecond)
 	stats.RecordEvent()
 
 	_, _, _, _, _, secondRecovery := stats.DiagnosticSnapshot()
@@ -146,26 +153,19 @@ func TestMultipleRateLimitHits_WithoutInterveningEvent(t *testing.T) {
 	stats, _ := NewStreamStats()
 
 	// Multiple rate limit hits in quick succession
-	// Use wider intervals so the gap between "from first hit" (~200ms)
-	// and "from last hit" (~50ms) is large enough to tolerate scheduler jitter
-	// when the full test suite runs under load.
+	// Only the most recent unrecovered hit should drive recovery measurement.
 	stats.RecordRateLimitHit()
-	time.Sleep(75 * time.Millisecond)
+	rewindUnrecoveredRateLimit(t, stats, 200*time.Millisecond)
 	stats.RecordRateLimitHit()
-	time.Sleep(75 * time.Millisecond)
+	rewindUnrecoveredRateLimit(t, stats, 120*time.Millisecond)
 	stats.RecordRateLimitHit()
-
-	// Now record an event after 50ms from the last hit
-	time.Sleep(50 * time.Millisecond)
+	rewindUnrecoveredRateLimit(t, stats, 50*time.Millisecond)
 	stats.RecordEvent()
 
-	// Recovery should be measured from the last (third) rate limit hit
-	// which was ~50ms before the event, not from the first hit (~200ms).
-	// Allow generous upper bound (150ms) to handle scheduler delays,
-	// while still distinguishing from the first-hit measurement (~200ms+).
+	// Recovery should be measured from the most recent (third) hit, not the first.
 	_, _, _, _, _, recoveryMs := stats.DiagnosticSnapshot()
-	if recoveryMs > 150 {
-		t.Errorf("expected recovery time ~50ms (from last hit), got %d ms", recoveryMs)
+	if recoveryMs < 50 || recoveryMs > 80 {
+		t.Errorf("expected recovery time from most recent hit (~50ms), got %d ms", recoveryMs)
 	}
 }
 
@@ -187,7 +187,6 @@ func TestRecordEvent_OnlyComputesRecoveryAfterRateLimit(t *testing.T) {
 
 	// Record events without rate limit - should not compute recovery
 	stats.RecordEvent()
-	time.Sleep(30 * time.Millisecond)
 	stats.RecordEvent()
 
 	_, _, _, _, _, recoveryMs := stats.DiagnosticSnapshot()
@@ -197,7 +196,7 @@ func TestRecordEvent_OnlyComputesRecoveryAfterRateLimit(t *testing.T) {
 
 	// Now record a rate limit and subsequent event
 	stats.RecordRateLimitHit()
-	time.Sleep(60 * time.Millisecond)
+	rewindUnrecoveredRateLimit(t, stats, 60*time.Millisecond)
 	stats.RecordEvent()
 
 	_, _, _, _, _, recoveryMs = stats.DiagnosticSnapshot()
@@ -212,7 +211,6 @@ func TestRecordEvent_OnlyComputesRecoveryAfterRateLimit(t *testing.T) {
 	previousRecovery := recoveryMs
 
 	// Subsequent events without new rate limits should not change recovery time
-	time.Sleep(40 * time.Millisecond)
 	stats.RecordEvent()
 
 	_, _, _, _, _, recoveryMs = stats.DiagnosticSnapshot()
@@ -238,7 +236,7 @@ func TestParseAndLogEvent_ComputesRecoveryTimeOnEvent(t *testing.T) {
 	}
 
 	// Wait and parse a subsequent normal event
-	time.Sleep(90 * time.Millisecond)
+	rewindUnrecoveredRateLimit(t, stats, 90*time.Millisecond)
 	normalLine := []byte(`{"type":"system","subtype":"init"}`)
 	ParseAndLogEvent(nil, stats, normalLine)
 

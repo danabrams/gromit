@@ -9,6 +9,20 @@ import (
 	"time"
 )
 
+func setLastEventTime(t *testing.T, stats *StreamStats, ts time.Time) {
+	t.Helper()
+	stats.mu.Lock()
+	stats.LastEventTime = ts
+	stats.mu.Unlock()
+}
+
+func setStartTime(t *testing.T, stats *StreamStats, ts time.Time) {
+	t.Helper()
+	stats.mu.Lock()
+	stats.StartTime = ts
+	stats.mu.Unlock()
+}
+
 func TestNewStreamLogger(t *testing.T) {
 	dir := t.TempDir()
 	sl, err := NewStreamLogger(dir)
@@ -135,18 +149,17 @@ func TestStreamStatsStartTime(t *testing.T) {
 
 func TestStreamStatsRecordEvent(t *testing.T) {
 	stats, _ := NewStreamStats()
-	time.Sleep(50 * time.Millisecond)
 	stats.RecordEvent()
 
 	since := stats.TimeSinceLastEvent()
-	if since > 50*time.Millisecond {
-		t.Errorf("TimeSinceLastEvent should be < 50ms after RecordEvent, got %v", since)
+	if since > 20*time.Millisecond {
+		t.Errorf("TimeSinceLastEvent should be < 20ms after RecordEvent, got %v", since)
 	}
 }
 
 func TestStreamStatsTimeSinceLastEventInitial(t *testing.T) {
 	stats, _ := NewStreamStats()
-	time.Sleep(100 * time.Millisecond)
+	setLastEventTime(t, stats, time.Now().Add(-100*time.Millisecond))
 
 	since := stats.TimeSinceLastEvent()
 	if since < 100*time.Millisecond {
@@ -156,20 +169,20 @@ func TestStreamStatsTimeSinceLastEventInitial(t *testing.T) {
 
 func TestParseAndLogEventUpdatesLastEventTime(t *testing.T) {
 	stats, _ := NewStreamStats()
-	time.Sleep(50 * time.Millisecond)
+	setLastEventTime(t, stats, time.Now().Add(-50*time.Millisecond))
 
 	line := []byte(`{"type":"system","subtype":"init"}`)
 	ParseAndLogEvent(nil, stats, line)
 
 	since := stats.TimeSinceLastEvent()
-	if since > 50*time.Millisecond {
+	if since > 20*time.Millisecond {
 		t.Errorf("Expected LastEventTime updated by ParseAndLogEvent, got since=%v", since)
 	}
 }
 
 func TestParseAndLogEventInvalidJSONNoUpdate(t *testing.T) {
 	stats, _ := NewStreamStats()
-	time.Sleep(50 * time.Millisecond)
+	setLastEventTime(t, stats, time.Now().Add(-50*time.Millisecond))
 
 	// Invalid JSON should not update LastEventTime
 	ParseAndLogEvent(nil, stats, []byte("not json"))
@@ -365,7 +378,7 @@ func TestParseAndLogEventNormalizesMessageContent(t *testing.T) {
 func TestParseAndLogEventNilLoggerUpdatesStats(t *testing.T) {
 	// When logger is nil, stats should still be updated
 	stats, _ := NewStreamStats()
-	time.Sleep(50 * time.Millisecond)
+	setLastEventTime(t, stats, time.Now().Add(-50*time.Millisecond))
 
 	line := []byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/foo.go"}}]}}`)
 	ParseAndLogEvent(nil, stats, line)
@@ -374,7 +387,7 @@ func TestParseAndLogEventNilLoggerUpdatesStats(t *testing.T) {
 		t.Error("expected stats to record event even with nil logger")
 	}
 	since := stats.TimeSinceLastEvent()
-	if since > 50*time.Millisecond {
+	if since > 20*time.Millisecond {
 		t.Errorf("expected LastEventTime updated, got since=%v", since)
 	}
 }
@@ -548,7 +561,7 @@ func TestStreamStats_TimeToFirstEvent(t *testing.T) {
 		t.Errorf("expected 0 before first event, got %v", ttfe)
 	}
 
-	time.Sleep(50 * time.Millisecond)
+	setStartTime(t, stats, time.Now().Add(-50*time.Millisecond))
 	stats.RecordEvent()
 
 	ttfe := stats.TimeToFirstEvent()
@@ -557,7 +570,6 @@ func TestStreamStats_TimeToFirstEvent(t *testing.T) {
 	}
 
 	// Second event should not change FirstEventTime
-	time.Sleep(50 * time.Millisecond)
 	stats.RecordEvent()
 	ttfe2 := stats.TimeToFirstEvent()
 	if ttfe2 != ttfe {
@@ -615,7 +627,7 @@ func TestStreamStats_DiagnosticSnapshot(t *testing.T) {
 	stats, _ := NewStreamStats()
 
 	// Record some activity
-	time.Sleep(50 * time.Millisecond)
+	setStartTime(t, stats, time.Now().Add(-50*time.Millisecond))
 	stats.RecordEvent()
 	stats.RecordToolCall("Read", "/foo.go")
 	stats.RecordToolCall("Edit", "/bar.go")

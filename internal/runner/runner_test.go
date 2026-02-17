@@ -419,6 +419,35 @@ func TestShowPartialProgressNilBead(t *testing.T) {
 	r.showPartialProgress(nil, "abc123")
 }
 
+func waitUntil(t *testing.T, timeout, interval time.Duration, cond func() bool, failureMsg string) {
+	t.Helper()
+	if cond() {
+		return
+	}
+	timeoutCh := time.After(timeout)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-timeoutCh:
+			t.Fatal(failureMsg)
+		case <-ticker.C:
+			if cond() {
+				return
+			}
+		}
+	}
+}
+
+func assertNoSignalWithin(t *testing.T, ch <-chan struct{}, d time.Duration, failureMsg string) {
+	t.Helper()
+	select {
+	case <-ch:
+		t.Fatal(failureMsg)
+	case <-time.After(d):
+	}
+}
+
 func TestStartHeartbeatStallDetection(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{output: &buf}
@@ -484,15 +513,7 @@ func TestStartHeartbeatActiveStallTimeout(t *testing.T) {
 	stop := r.startHeartbeatWithConfig(stats, 20*time.Millisecond, 150*time.Millisecond, onStall, cfg, nil)
 	defer stop()
 
-	// Wait long enough for initial timeout but not active timeout
-	time.Sleep(80 * time.Millisecond)
-
-	select {
-	case <-stallFired:
-		t.Fatal("Stall should not fire before active timeout; initial timeout should be ignored after tool activity")
-	default:
-		// Good — not fired yet
-	}
+	assertNoSignalWithin(t, stallFired, 80*time.Millisecond, "Stall should not fire before active timeout; initial timeout should be ignored after tool activity")
 
 	// Now wait for active timeout to fire
 	select {
@@ -518,9 +539,12 @@ func TestStartHeartbeatNoStallBeforeFirstEvent(t *testing.T) {
 	stats, _ := logger.NewStreamStats()
 	// Don't record any events — stall detection should NOT fire during startup
 
-	stallFired := false
+	stallFired := make(chan struct{}, 1)
 	onStall := func() {
-		stallFired = true
+		select {
+		case stallFired <- struct{}{}:
+		default:
+		}
 	}
 
 	cfg := heartbeatConfig{
@@ -531,12 +555,8 @@ func TestStartHeartbeatNoStallBeforeFirstEvent(t *testing.T) {
 
 	// Stall timeout is very short (30ms), but should not fire because no events recorded
 	stop := r.startHeartbeatWithConfig(stats, 30*time.Millisecond, 60*time.Millisecond, onStall, cfg, nil)
-	time.Sleep(150 * time.Millisecond)
+	assertNoSignalWithin(t, stallFired, 150*time.Millisecond, "Stall should not fire before first stream event is received")
 	stop()
-
-	if stallFired {
-		t.Fatal("Stall should not fire before first stream event is received")
-	}
 }
 
 func TestStartHeartbeatNoStallWhenEventsFlow(t *testing.T) {
@@ -561,27 +581,22 @@ func TestStartHeartbeatNoStallWhenEventsFlow(t *testing.T) {
 	// Keep recording events to prevent stall
 	done := make(chan struct{})
 	go func() {
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-done:
 				return
-			case <-time.After(10 * time.Millisecond):
+			case <-ticker.C:
 				stats.RecordEvent()
 			}
 		}
 	}()
 
 	// Wait long enough that a stall would have fired if events weren't flowing
-	time.Sleep(200 * time.Millisecond)
+	assertNoSignalWithin(t, stallFired, 200*time.Millisecond, "Stall should not fire when events are flowing")
 	close(done)
 	stop()
-
-	select {
-	case <-stallFired:
-		t.Fatal("Stall should not fire when events are flowing")
-	default:
-		// Good — no stall
-	}
 }
 
 func TestStartHeartbeatStallDisabledWhenZero(t *testing.T) {
@@ -590,9 +605,12 @@ func TestStartHeartbeatStallDisabledWhenZero(t *testing.T) {
 
 	stats, _ := logger.NewStreamStats()
 
-	stallFired := false
+	stallFired := make(chan struct{}, 1)
 	onStall := func() {
-		stallFired = true
+		select {
+		case stallFired <- struct{}{}:
+		default:
+		}
 	}
 
 	cfg := heartbeatConfig{
@@ -603,12 +621,8 @@ func TestStartHeartbeatStallDisabledWhenZero(t *testing.T) {
 
 	// stallTimeout=0 should disable stall detection
 	stop := r.startHeartbeatWithConfig(stats, 0, 0, onStall, cfg, nil)
-	time.Sleep(100 * time.Millisecond)
+	assertNoSignalWithin(t, stallFired, 100*time.Millisecond, "Stall should not fire when stallTimeout is 0")
 	stop()
-
-	if stallFired {
-		t.Fatal("Stall should not fire when stallTimeout is 0")
-	}
 }
 
 func TestHeartbeatWritesNewlineAfterOverwrite(t *testing.T) {
@@ -626,14 +640,16 @@ func TestHeartbeatWritesNewlineAfterOverwrite(t *testing.T) {
 	toolCallEvents := make(chan claude.ToolEvent, 1)
 	stop := r.startHeartbeatWithConfig(stats, 0, 0, nil, cfg, toolCallEvents)
 
-	// Wait for initial heartbeat
-	time.Sleep(50 * time.Millisecond)
+	waitUntil(t, 500*time.Millisecond, 10*time.Millisecond, func() bool {
+		return strings.Contains(buf.String(), "Waiting for Claude to respond")
+	}, "expected initial heartbeat output")
 
 	// Send a tool call event to trigger overwrite mode
 	toolCallEvents <- claude.ToolEvent{}
 
-	// Wait a bit for the overwrite to happen
-	time.Sleep(50 * time.Millisecond)
+	waitUntil(t, 500*time.Millisecond, 10*time.Millisecond, func() bool {
+		return strings.HasSuffix(buf.String(), "\n")
+	}, "expected heartbeat output before stop")
 
 	// Stop the heartbeat
 	stop()
@@ -660,8 +676,9 @@ func TestHeartbeatNoNewlineAfterPrintMode(t *testing.T) {
 	// No tool call events, so only printHeartbeat is used (not overwrite)
 	stop := r.startHeartbeatWithConfig(stats, 0, 0, nil, cfg, nil)
 
-	// Wait for initial heartbeat
-	time.Sleep(50 * time.Millisecond)
+	waitUntil(t, 500*time.Millisecond, 10*time.Millisecond, func() bool {
+		return strings.Contains(buf.String(), "Waiting for Claude to respond")
+	}, "expected initial heartbeat output")
 
 	// Stop the heartbeat - should not add extra newline since overwrite was not used
 	initialLen := buf.Len()

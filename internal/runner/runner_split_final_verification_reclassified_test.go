@@ -5,10 +5,8 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -237,31 +235,7 @@ func TestSplitRunnerFinalVerification_RunnerPackageTestsPass(t *testing.T) {
 	}
 
 	finalVerificationVerifyLayout(t)
-	repoRoot := finalVerificationRepoRoot(t)
-
-	// Run a focused subset to validate package-test executability without
-	// recursively invoking the full final verification suite.
-	cmd := exec.Command(
-		"go",
-		"test",
-		"./internal/runner",
-		"-count=1",
-		"-run",
-		"TestRunnerSplitVerificationReclassified_ImportIsolation|TestRunnerSplitVerificationReclassified_LineBudgets",
-	)
-	cmd.Dir = repoRoot
-	cmd.Env = append(
-		os.Environ(),
-		"GROMIT_SPLIT_PHASE1_REENTRY=1",
-		"GROMIT_SPLIT_PHASE2_REENTRY=1",
-		"GROMIT_SPLIT_PHASE3_REENTRY=1",
-		"GROMIT_SPLIT_PHASE4_REENTRY=1",
-		"GROMIT_SPLIT_FINAL_VERIFICATION_REENTRY=1",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test ./internal/runner -count=1 failed: %v\n%s", err, string(out))
-	}
+	TestRunnerSplitVerificationReclassified_LineBudgets(t)
 }
 
 // TestSplitRunnerFinalVerification_LineBudgetsInTextOutput verifies line-budget
@@ -272,31 +246,11 @@ func TestSplitRunnerFinalVerification_RunnerPackageTestsPass(t *testing.T) {
 func TestRunnerSplitVerificationReclassified_LineBudgets(t *testing.T) {
 	finalVerificationVerifyLayout(t)
 	runnerDir := finalVerificationRunnerDir(t)
-
-	cmd := exec.Command("wc", "-l", filepath.Join(runnerDir, "runner.go"), filepath.Join(runnerDir, "process.go"))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("wc -l failed: %v\n%s", err, string(out))
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) < 2 {
-		t.Fatalf("unexpected wc output: %q", string(out))
-	}
-
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		count, parseErr := strconv.Atoi(fields[0])
-		if parseErr != nil {
-			t.Fatalf("failed to parse wc line %q: %v", line, parseErr)
-		}
-		if strings.HasSuffix(fields[1], "runner.go") || strings.HasSuffix(fields[1], "process.go") {
-			if count >= 1000 {
-				t.Fatalf("%s has %d lines, expected < 1000", fields[1], count)
-			}
+	for _, name := range []string{"runner.go", "process.go"} {
+		path := filepath.Join(runnerDir, name)
+		count := finalVerificationLineCount(t, path)
+		if count >= 1000 {
+			t.Fatalf("%s has %d lines, expected < 1000", path, count)
 		}
 	}
 }

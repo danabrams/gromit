@@ -27,12 +27,23 @@ func TestRun_UpdatesGlobalStatsAfterCompletion(t *testing.T) {
 	// Setup temp home directory for global stats
 	homeDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
+	originalGoPath := os.Getenv("GOPATH")
 	if err := os.Setenv("HOME", homeDir); err != nil {
 		t.Fatalf("os.Setenv HOME: %v", err)
+	}
+	goPath := originalGoPath
+	if goPath == "" {
+		goPath = filepath.Join(originalHome, "go")
+	}
+	if err := os.Setenv("GOPATH", goPath); err != nil {
+		t.Fatalf("os.Setenv GOPATH: %v", err)
 	}
 	defer func() {
 		if err := os.Setenv("HOME", originalHome); err != nil {
 			t.Fatalf("restore HOME: %v", err)
+		}
+		if err := os.Setenv("GOPATH", originalGoPath); err != nil {
+			t.Fatalf("restore GOPATH: %v", err)
 		}
 	}()
 
@@ -117,12 +128,23 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 
 	homeDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
+	originalGoPath := os.Getenv("GOPATH")
 	if err := os.Setenv("HOME", homeDir); err != nil {
 		t.Fatalf("os.Setenv HOME: %v", err)
+	}
+	goPath := originalGoPath
+	if goPath == "" {
+		goPath = filepath.Join(originalHome, "go")
+	}
+	if err := os.Setenv("GOPATH", goPath); err != nil {
+		t.Fatalf("os.Setenv GOPATH: %v", err)
 	}
 	defer func() {
 		if err := os.Setenv("HOME", originalHome); err != nil {
 			t.Fatalf("restore HOME: %v", err)
+		}
+		if err := os.Setenv("GOPATH", originalGoPath); err != nil {
+			t.Fatalf("restore GOPATH: %v", err)
 		}
 	}()
 
@@ -152,6 +174,9 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 			Logs: logsDir,
 		},
 		Models: config.ModelsConfig{P0: "opus"},
+		Validation: config.ValidationConfig{
+			Enabled: false,
+		},
 	}
 
 	r1, err := NewRunnerWithDeps(cfg, &buf1, tmpDir,
@@ -164,8 +189,19 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 		t.Fatalf("First run failed: %v", err)
 	}
 
-	// Small delay to ensure different timestamp for second run
-	time.Sleep(2 * time.Second)
+	// Logger run IDs are second-granularity. Preserve the first run's log under a
+	// stable distinct filename so a same-second second run cannot overwrite it.
+	firstRunLogs, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("glob first run logs: %v", err)
+	}
+	if len(firstRunLogs) != 1 {
+		t.Fatalf("expected exactly one first-run log file, got %d", len(firstRunLogs))
+	}
+	archivedFirstRunPath := filepath.Join(logsDir, "run-20000101-000000.jsonl")
+	if err := os.Rename(firstRunLogs[0], archivedFirstRunPath); err != nil {
+		t.Fatalf("rename first run log %s -> %s: %v", firstRunLogs[0], archivedFirstRunPath, err)
+	}
 
 	// Now run a second bead - this should only aggregate stats from THIS run
 	beadQueue2 := []*bead.Bead{

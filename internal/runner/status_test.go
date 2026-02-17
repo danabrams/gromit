@@ -127,8 +127,9 @@ func TestStatusWriter_ElapsedTime(t *testing.T) {
 
 	sw, _ := NewStatusWriter(tmpDir)
 
-	// Wait a bit
-	time.Sleep(100 * time.Millisecond)
+	sw.mu.Lock()
+	sw.startTime = sw.startTime.Add(-2 * time.Second)
+	sw.mu.Unlock()
 
 	// Write status
 	err := sw.Write(1, "bead-123", "Test Bead", "sonnet", true, 0, 0)
@@ -569,8 +570,9 @@ func TestStatusWriter_WriteFinal(t *testing.T) {
 		t.Fatalf("Write failed: %v", err)
 	}
 
-	// Wait a bit to ensure elapsed time is non-zero
-	time.Sleep(100 * time.Millisecond)
+	sw.mu.Lock()
+	sw.startTime = sw.startTime.Add(-2 * time.Second)
+	sw.mu.Unlock()
 
 	// Write final status
 	err = sw.WriteFinal(5)
@@ -636,8 +638,9 @@ func TestStatusWriter_WriteFinal_PreservesElapsedTime(t *testing.T) {
 
 	sw, _ := NewStatusWriter(tmpDir)
 
-	// Wait a bit before writing final
-	time.Sleep(100 * time.Millisecond)
+	sw.mu.Lock()
+	sw.startTime = sw.startTime.Add(-2 * time.Second)
+	sw.mu.Unlock()
 
 	// Write final status
 	err := sw.WriteFinal(3)

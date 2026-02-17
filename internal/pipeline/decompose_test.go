@@ -733,8 +733,8 @@ func TestDecomposeWorkflow_RespectsContextCancellation(t *testing.T) {
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
 		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			time.Sleep(5 * time.Second) // Long operation
-			return nil, nil
+			// Simulate an indefinitely blocked provider call.
+			select {}
 		},
 	}
 

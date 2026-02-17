@@ -1,4 +1,4 @@
-//go:build acceptance
+//go:build integration
 
 package runner
 
@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 )
+
+var runnerSplitExecCommand = exec.Command
 
 func runnerSplitTestEnv() []string {
 	return append(
@@ -24,7 +26,7 @@ func runRunnerSplitShelloutCheck(t *testing.T, runnerDir string, args ...string)
 	t.Helper()
 
 	repoRoot := filepath.Clean(filepath.Join(runnerDir, "..", ".."))
-	cmd := exec.Command(args[0], args[1:]...)
+	cmd := runnerSplitExecCommand(args[0], args[1:]...)
 	cmd.Dir = repoRoot
 	cmd.Env = runnerSplitTestEnv()
 	out, err := cmd.CombinedOutput()

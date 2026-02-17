@@ -177,6 +177,8 @@ func TestRunDirect_ParallelCommands_BoundedConcurrency(t *testing.T) {
 
 	var inFlight int32
 	var peak int32
+	started := make(chan struct{}, len(commands))
+	release := make(chan struct{})
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		current := atomic.AddInt32(&inFlight, 1)
 		for {
@@ -185,13 +187,44 @@ func TestRunDirect_ParallelCommands_BoundedConcurrency(t *testing.T) {
 				break
 			}
 		}
-		time.Sleep(20 * time.Millisecond)
+		started <- struct{}{}
+		<-release
 		atomic.AddInt32(&inFlight, -1)
 		return "ok", "", 0, nil
 	}
 
 	r := NewRunner(cfg, cmdRunner, nil, nil)
-	result, err := r.RunDirect(context.Background(), commands, "/tmp/test")
+	resultCh := make(chan *claude.Result, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		result, err := r.RunDirect(context.Background(), commands, "/tmp/test")
+		if err != nil {
+			errCh <- err
+			return
+		}
+		resultCh <- result
+	}()
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			close(release)
+			t.Fatal("timed out waiting for first two commands to start")
+		}
+	}
+	close(release)
+
+	var (
+		result *claude.Result
+		err    error
+	)
+	select {
+	case result = <-resultCh:
+	case err = <-errCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for RunDirect to complete")
+	}
 	if err != nil {
 		t.Fatalf("RunDirect returned unexpected error: %v", err)
 	}
