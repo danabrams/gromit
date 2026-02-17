@@ -327,6 +327,46 @@ func TestRenderPromptWithPopulatedExperiment(t *testing.T) {
 	}
 }
 
+func TestRenderPrompt_ExperimentMetricsUsesProviderFamily(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	templateContent := `{{- if .ExperimentMetrics }}
+Family: {{ .ExperimentMetrics.ProviderFamily }}
+Cost: ${{ printf "%.2f" .ExperimentMetrics.CurrentAvgCostPerBead }}
+{{- end }}`
+
+	templatePath := tmpDir + "/template.md"
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("writing template file: %v", err)
+	}
+
+	r := &Retro{templatePath: templatePath}
+	efficiency := &logger.EfficiencyReport{
+		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
+			"codex": {
+				Model:          "codex",
+				AvgCostUSD:     0.55,
+				AvgDuration:    15 * time.Second,
+				AvgInputTokens: 9000,
+			},
+		},
+		CurrentAvgCostPerBead: 0.10,
+	}
+	experiment := &Experiment{PrimaryConcern: "codex"}
+
+	prompt, err := r.renderPrompt("", "", logger.RunStats{}, nil, efficiency, experiment)
+	if err != nil {
+		t.Fatalf("renderPrompt failed: %v", err)
+	}
+
+	if !contains(prompt, "Family: codex") {
+		t.Error("expected prompt to include provider family for experiment metrics")
+	}
+	if !contains(prompt, "Cost: $0.55") {
+		t.Error("expected prompt to use provider-family cost for experiment metrics")
+	}
+}
+
 func TestRenderPromptWithoutExperiment(t *testing.T) {
 	// Test that renderPrompt works correctly when Experiment is nil
 	tmpDir := t.TempDir()

@@ -24,6 +24,7 @@ type Experiment struct {
 	Change            string          `json:"change"`
 	Measurement       string          `json:"measurement"`
 	Risk              string          `json:"risk"`
+	PrimaryConcern    string          `json:"primary_concern,omitempty"` // claude | codex
 	StartedAt         time.Time       `json:"started_at"`
 	PlanDate          time.Time       `json:"plan_date,omitempty"`
 	Status            string          `json:"status,omitempty"`        // planned | doing | study | act | completed

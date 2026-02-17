@@ -54,13 +54,21 @@ type Retro struct {
 
 // TemplateContext holds data for retro prompt template
 type TemplateContext struct {
-	Rules        string
-	Learnings    string
-	RunStats     logger.RunStats
-	BeadStats    map[string]logger.BeadStats
-	Efficiency   *logger.EfficiencyReport
-	ProcessTrend *logger.ProcessTrend
-	Experiment   *Experiment
+	Rules             string
+	Learnings         string
+	RunStats          logger.RunStats
+	BeadStats         map[string]logger.BeadStats
+	Efficiency        *logger.EfficiencyReport
+	ProcessTrend      *logger.ProcessTrend
+	Experiment        *Experiment
+	ExperimentMetrics *ExperimentMetrics
+}
+
+// ExperimentMetrics holds current efficiency metrics for an experiment's provider family.
+type ExperimentMetrics struct {
+	ProviderFamily            string
+	CurrentAvgCostPerBead     float64
+	CurrentAvgDurationPerBead time.Duration
 }
 
 // Result represents the outcome of a retro analysis
@@ -353,13 +361,14 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 
 	ctx := TemplateContext{
-		Rules:        rules,
-		Learnings:    learnings,
-		RunStats:     runStats,
-		BeadStats:    beadStats,
-		Efficiency:   efficiency,
-		ProcessTrend: r.loadProcessTrend(),
-		Experiment:   experiment,
+		Rules:             rules,
+		Learnings:         learnings,
+		RunStats:          runStats,
+		BeadStats:         beadStats,
+		Efficiency:        efficiency,
+		ProcessTrend:      r.loadProcessTrend(),
+		Experiment:        experiment,
+		ExperimentMetrics: selectExperimentMetrics(experiment, efficiency),
 	}
 
 	var sb strings.Builder
@@ -368,6 +377,40 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 
 	return sb.String(), nil
+}
+
+func selectExperimentMetrics(exp *Experiment, efficiency *logger.EfficiencyReport) *ExperimentMetrics {
+	if exp == nil || efficiency == nil {
+		return nil
+	}
+
+	family := normalizeProviderFamily(exp.PrimaryConcern)
+	if family != "" {
+		if stats, ok := efficiency.CurrentProviderFamilies[family]; ok {
+			return &ExperimentMetrics{
+				ProviderFamily:            family,
+				CurrentAvgCostPerBead:     stats.AvgCostUSD,
+				CurrentAvgDurationPerBead: stats.AvgDuration,
+			}
+		}
+	}
+
+	return &ExperimentMetrics{
+		ProviderFamily:            "mixed",
+		CurrentAvgCostPerBead:     efficiency.CurrentAvgCostPerBead,
+		CurrentAvgDurationPerBead: efficiency.CurrentAvgDurationPerBead,
+	}
+}
+
+func normalizeProviderFamily(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "claude":
+		return "claude"
+	case "codex":
+		return "codex"
+	default:
+		return ""
+	}
 }
 
 func (r *Retro) loadProcessTrend() *logger.ProcessTrend {
