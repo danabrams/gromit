@@ -806,7 +806,8 @@ func IsProactiveDecompositionCandidate(title string) bool {
 }
 
 // IsProactiveDecompositionCandidateWithDesc returns true if the bead should be proactively
-// decomposed before first attempt, based on title keywords OR 3+ new type definitions in the description.
+// decomposed before first attempt, based on title keywords OR a description that mentions
+// "struct" 3+ times (used as a proxy for introducing 3+ new type definitions).
 func IsProactiveDecompositionCandidateWithDesc(title, description string) bool {
 	if IsProactiveDecompositionCandidate(title) {
 		return true
