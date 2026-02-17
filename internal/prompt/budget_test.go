@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -71,5 +72,34 @@ func TestShapeContextForBudget_DropRecentLearningsFirst(t *testing.T) {
 	}
 	if report.AfterChars >= report.BeforeChars {
 		t.Errorf("expected AfterChars < BeforeChars, got %d >= %d", report.AfterChars, report.BeforeChars)
+	}
+}
+
+func TestShapeContextForBudget_DropClaudeMDSecond(t *testing.T) {
+	// ClaudeMD is large, no RecentLearnings — should still drop ClaudeMD as step 2
+	ctx := &Context{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: strings.Repeat("x", 500),
+		Rules:    "rules",
+	}
+	ctx.normalizeNilFields()
+
+	// Budget is less than total but more than total-without-ClaudeMD
+	total := measureContext(ctx)
+	budget := total - 100
+
+	shaped, report := ShapeContextForBudget(ctx, budget, 2000, "build")
+
+	if shaped.ClaudeMD != "" {
+		t.Errorf("expected ClaudeMD dropped, got %d chars", len(shaped.ClaudeMD))
+	}
+	found := false
+	for _, a := range report.TrimActions {
+		if a == "drop ClaudeMD" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'drop ClaudeMD' in trim actions, got %v", report.TrimActions)
 	}
 }

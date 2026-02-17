@@ -74,13 +74,24 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 		shaped.RecentLearnings = []learnings.Learning{}
 		report.TrimActions = append(report.TrimActions, "drop RecentLearnings")
 		if measureContext(shaped) <= maxChars {
-			report.AfterChars = measureContext(shaped)
-			report.SectionSizes = sectionSizes(shaped)
-			return shaped, report
+			return finishReport(shaped, report)
 		}
 	}
 
-	report.AfterChars = measureContext(shaped)
-	report.SectionSizes = sectionSizes(shaped)
-	return shaped, report
+	// Step 2: drop ClaudeMD
+	if shaped.ClaudeMD != "" {
+		shaped.ClaudeMD = ""
+		report.TrimActions = append(report.TrimActions, "drop ClaudeMD")
+		if measureContext(shaped) <= maxChars {
+			return finishReport(shaped, report)
+		}
+	}
+
+	return finishReport(shaped, report)
+}
+
+func finishReport(ctx *Context, report *ShapeReport) (*Context, *ShapeReport) {
+	report.AfterChars = measureContext(ctx)
+	report.SectionSizes = sectionSizes(ctx)
+	return ctx, report
 }
