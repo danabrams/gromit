@@ -90,12 +90,21 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 	// Step 3: cap ConfirmedLearnings to learningCapChars
 	if len(shaped.ConfirmedLearnings) > 0 {
 		capped := capLearnings(shaped.ConfirmedLearnings, learningCapChars)
-		if len(capped) < len(shaped.ConfirmedLearnings) {
+		if len(capped) > 0 && len(capped) < len(shaped.ConfirmedLearnings) {
 			shaped.ConfirmedLearnings = capped
 			report.TrimActions = append(report.TrimActions, "cap ConfirmedLearnings")
 			if measureContext(shaped) <= maxChars {
 				return finishReport(shaped, report)
 			}
+		}
+	}
+
+	// Step 4: drop ConfirmedLearnings entirely
+	if len(shaped.ConfirmedLearnings) > 0 {
+		shaped.ConfirmedLearnings = []learnings.Learning{}
+		report.TrimActions = append(report.TrimActions, "drop ConfirmedLearnings")
+		if measureContext(shaped) <= maxChars {
+			return finishReport(shaped, report)
 		}
 	}
 

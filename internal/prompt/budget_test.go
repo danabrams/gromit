@@ -150,3 +150,30 @@ func TestShapeContextForBudget_CapConfirmedLearningsThird(t *testing.T) {
 		t.Errorf("expected 'cap ConfirmedLearnings' in trim actions, got %v", report.TrimActions)
 	}
 }
+
+func TestShapeContextForBudget_DropConfirmedLearningsFourth(t *testing.T) {
+	ctx := &Context{
+		Bead:               &bead.Bead{ID: "b1", Title: "T"},
+		Rules:              "rules",
+		ConfirmedLearnings: []learnings.Learning{makeLearning(strings.Repeat("x", 500))},
+	}
+	ctx.normalizeNilFields()
+
+	// Budget so tight that even capping learnings to 100 isn't enough
+	budget := 10
+
+	shaped, report := ShapeContextForBudget(ctx, budget, 100, "build")
+
+	if len(shaped.ConfirmedLearnings) != 0 {
+		t.Errorf("expected ConfirmedLearnings fully dropped, got %d items", len(shaped.ConfirmedLearnings))
+	}
+	found := false
+	for _, a := range report.TrimActions {
+		if a == "drop ConfirmedLearnings" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'drop ConfirmedLearnings' in trim actions, got %v", report.TrimActions)
+	}
+}
