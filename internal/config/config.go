@@ -607,6 +607,9 @@ func (c *Config) SetDefaults() {
 	if c.Prompt.Budget.MaxChars == 0 {
 		c.Prompt.Budget.MaxChars = 20000
 	}
+	if c.Prompt.Budget.LearningCapChars == 0 {
+		c.Prompt.Budget.LearningCapChars = 2000
+	}
 	if c.Agents.Phases.Refine == "" {
 		c.Agents.Phases.Refine = "claude"
 	}
