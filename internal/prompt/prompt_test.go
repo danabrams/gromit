@@ -644,6 +644,33 @@ Iteration: {{.Iteration}}`
 	}
 }
 
+func TestRenderSpecAcceptance(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Spec Acceptance\nRules: {{.Rules}}\nSpec: {{.Spec}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_spec_acceptance.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := &SpecAcceptanceContext{
+		Spec:  "# Spec\nDo the thing",
+		Rules: "Always be explicit",
+	}
+
+	result, err := r.RenderSpecAcceptance(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecAcceptance() error = %v", err)
+	}
+	if !strings.Contains(result, "Always be explicit") {
+		t.Error("expected rules in output")
+	}
+	if !strings.Contains(result, "# Spec") {
+		t.Error("expected spec in output")
+	}
+}
+
 func TestRenderATDDBuild(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")

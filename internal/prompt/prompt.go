@@ -103,6 +103,12 @@ type PrecheckContext struct {
 	ParentBead *bead.Bead
 }
 
+// SpecAcceptanceContext holds data for spec acceptance prompt template
+type SpecAcceptanceContext struct {
+	Spec  string
+	Rules string
+}
+
 // ScopeEstimate represents the result of scope estimation
 type ScopeEstimate struct {
 	Complexity                   string   `json:"complexity"`
@@ -271,6 +277,11 @@ func (r *Renderer) RenderScope(ctx *ScopeContext) (string, error) {
 // RenderPrecheck renders the precheck prompt
 func (r *Renderer) RenderPrecheck(ctx *PrecheckContext) (string, error) {
 	return r.render("PROMPT_precheck.md", ctx)
+}
+
+// RenderSpecAcceptance renders the spec acceptance prompt
+func (r *Renderer) RenderSpecAcceptance(ctx *SpecAcceptanceContext) (string, error) {
+	return r.render("PROMPT_spec_acceptance.md", ctx)
 }
 
 // RenderReview renders the light review prompt
