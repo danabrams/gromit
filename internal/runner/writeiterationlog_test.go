@@ -339,3 +339,124 @@ func TestWriteIterationLog_EmitsAndonClassificationAndReliabilitySignals(t *test
 		t.Fatalf("recurrence_count = %v, want 3", got)
 	}
 }
+
+func TestWriteIterationLog_FailuresAlwaysEmitStructuredAndonEnvelope(t *testing.T) {
+	// Expected failure: writeIterationLog does not call ensureFailureAndonEnvelope,
+	// and the helper does not exist yet.
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
+
+	r := &Runner{logger: l}
+	result := &IterationResult{
+		BeadID:       "gromit-o27x",
+		BeadTitle:    "Add reliability metrics and structured Andon logging",
+		Model:        "sonnet",
+		Success:      false,
+		Duration:     2 * time.Second,
+		Error:        fmt.Errorf("quality gate failed"),
+		FailureClass: string(andon.FailureClassQuality),
+		AndonLevel:   string(andon.LevelL2),
+	}
+
+	ensureFailureAndonEnvelope(result) // compile-time acceptance guard
+	r.writeIterationLog(9, result)
+
+	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("globbing log files: %v", err)
+	}
+	if len(logFiles) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(logFiles))
+	}
+
+	data, err := os.ReadFile(logFiles[0])
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	var entry map[string]any
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		t.Fatalf("unmarshaling log line: %v", err)
+	}
+
+	if got := entry["failure_class"]; got != string(andon.FailureClassQuality) {
+		t.Fatalf("failure_class = %v, want %q", got, andon.FailureClassQuality)
+	}
+	if got := entry["andon_level"]; got != string(andon.LevelL2) {
+		t.Fatalf("andon_level = %v, want %q", got, andon.LevelL2)
+	}
+}
+
+func TestWriteIterationLog_ReliabilityMetricsDerivableFromStructuredEntries(t *testing.T) {
+	// Expected failure: logger.ReadReliabilityMetrics does not exist yet; the
+	// feature is expected to provide canonical derivation from emitted logs.
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
+
+	r := &Runner{logger: l}
+	r.writeIterationLog(1, &IterationResult{
+		BeadID:           "gromit-o27x-a",
+		BeadTitle:        "Attempt A",
+		Model:            "haiku",
+		Success:          false,
+		Duration:         1 * time.Second,
+		Error:            fmt.Errorf("failed"),
+		AutonomyEligible: true,
+		AutonomySuccess:  false,
+		FirstPassSuccess: false,
+		MTTRProxyMs:      30000,
+		EscalationClass:  string(andon.FailureClassQuality),
+		RecurrenceCount:  2,
+	})
+	r.writeIterationLog(2, &IterationResult{
+		BeadID:           "gromit-o27x-b",
+		BeadTitle:        "Attempt B",
+		Model:            "sonnet",
+		Success:          true,
+		Validated:        true,
+		Duration:         1 * time.Second,
+		AutonomyEligible: true,
+		AutonomySuccess:  true,
+		FirstPassSuccess: false,
+		MTTRProxyMs:      45000,
+		EscalationClass:  string(andon.FailureClassQuality),
+		RecurrenceCount:  2,
+	})
+
+	metrics, err := logger.ReadReliabilityMetrics(tmpDir) // compile-time acceptance guard
+	if err != nil {
+		t.Fatalf("ReadReliabilityMetrics() error = %v", err)
+	}
+	if metrics.AutonomyRate != 0.5 {
+		t.Fatalf("AutonomyRate = %v, want 0.5", metrics.AutonomyRate)
+	}
+	if metrics.FirstPassSuccessRate != 0 {
+		t.Fatalf("FirstPassSuccessRate = %v, want 0", metrics.FirstPassSuccessRate)
+	}
+	if metrics.MTTRProxyMs != 45000 {
+		t.Fatalf("MTTRProxyMs = %d, want 45000", metrics.MTTRProxyMs)
+	}
+	if got := metrics.EscalationRatesByClass[string(andon.FailureClassQuality)]; got != 1 {
+		t.Fatalf("EscalationRatesByClass[quality] = %v, want 1", got)
+	}
+	if got := metrics.RecurrenceCounters[string(andon.FailureClassQuality)]; got != 2 {
+		t.Fatalf("RecurrenceCounters[quality] = %v, want 2", got)
+	}
+}

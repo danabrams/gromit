@@ -436,6 +436,47 @@ func TestFormatRun_IncludesReliabilityAndAndonSummary(t *testing.T) {
 	}
 }
 
+func TestFormatRun_IncludesEscalationRateAndRecurrenceBreakdown(t *testing.T) {
+	// Expected failure: Status does not yet expose EscalationRatesByClass or
+	// RecurrenceCounters, and formatRun does not render the derived breakdown.
+	now := time.Now()
+	status := &Status{
+		Running:              true,
+		Iteration:            5,
+		BeadID:               "gromit-o27x",
+		BeadTitle:            "Add reliability metrics and structured Andon logging",
+		Model:                "sonnet",
+		StartedAt:            now.Add(-15 * time.Minute),
+		ElapsedS:             15 * 60,
+		LastFailureClass:     "quality",
+		LastAndonLevel:       "L2",
+		LastTrimDecision:     "middle_ellipsis",
+		AutonomyRate:         0.5,
+		FirstPassSuccessRate: 0.33,
+		MTTRProxyMs:          45000,
+		EscalationRatesByClass: map[string]float64{
+			"quality": 0.67,
+			"scope":   0.33,
+		},
+		RecurrenceCounters: map[string]int{
+			"quality": 3,
+			"scope":   1,
+		},
+	}
+
+	got := formatRun(status)
+	wantLines := []string{
+		"Escalation: quality 67% | scope 33%",
+		"Recurrence: quality x3 | scope x1",
+	}
+
+	for _, want := range wantLines {
+		if !strings.Contains(got, want) {
+			t.Fatalf("formatRun() missing expected reliability breakdown:\nwant: %q\ngot:\n%s", want, got)
+		}
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		name string
