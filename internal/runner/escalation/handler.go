@@ -35,7 +35,7 @@ type CreateSubFn func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTas
 type InvocationResult struct {
 	Result         *claude.Result
 	StallFired     bool
-	TimeoutType    string // "stall", "invocation", "phase_timeout", "bead", ""
+	TimeoutType    string // "stall", "invocation", "bead", ""
 	ProviderResult *provider.Result
 }
 
@@ -393,7 +393,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 				}
 				return false
 			}
-			if invResult != nil && (invResult.TimeoutType == "invocation" || invResult.TimeoutType == runtypes.TimeoutTypePhase) {
+			if invResult != nil && invResult.TimeoutType == "invocation" {
 				bc.Result.TimeoutType = invResult.TimeoutType
 				if h.HandleInvocationTimeout(ctx, bc) {
 					continue
