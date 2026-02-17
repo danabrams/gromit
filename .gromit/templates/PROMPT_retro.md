@@ -65,6 +65,13 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 | {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} | {{ $stats.AvgDuration }} | {{ printf "%.0f" $stats.AvgInputTokens }} | {{ printf "%.0f" $stats.AvgOutputTokens }} |
 {{- end }}
 
+### Per-Provider-Family Aggregates (Current Run)
+| Provider Family | Iterations | Avg Cost | Avg Duration | Avg Input Tokens | Avg Output Tokens |
+|----------------|-----------|----------|--------------|------------------|-------------------|
+{{- range $family, $stats := .Efficiency.CurrentProviderFamilies }}
+| {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} | {{ $stats.AvgDuration }} | {{ printf "%.0f" $stats.AvgInputTokens }} | {{ printf "%.0f" $stats.AvgOutputTokens }} |
+{{- end }}
+
 ### Historical Comparison
 {{- if .Efficiency.HistoricalModels }}
 
@@ -72,6 +79,13 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 | Model | Iterations | Avg Cost | Avg Duration | Avg Input Tokens | Avg Output Tokens |
 |-------|-----------|----------|--------------|------------------|-------------------|
 {{- range $model, $stats := .Efficiency.HistoricalModels }}
+| {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} | {{ $stats.AvgDuration }} | {{ printf "%.0f" $stats.AvgInputTokens }} | {{ printf "%.0f" $stats.AvgOutputTokens }} |
+{{- end }}
+
+**Per-Provider-Family Aggregates (Historical)**
+| Provider Family | Iterations | Avg Cost | Avg Duration | Avg Input Tokens | Avg Output Tokens |
+|----------------|-----------|----------|--------------|------------------|-------------------|
+{{- range $family, $stats := .Efficiency.HistoricalProviderFamilies }}
 | {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} | {{ $stats.AvgDuration }} | {{ printf "%.0f" $stats.AvgInputTokens }} | {{ printf "%.0f" $stats.AvgOutputTokens }} |
 {{- end }}
 
@@ -92,7 +106,11 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 {{- end }}
 {{- end }}
 
+{{- if .Efficiency.MixedProviderFamilies }}
+**Overall Metrics (Mixed providers: Claude + Codex)**
+{{- else }}
 **Overall Metrics**
+{{- end }}
 - Current avg cost per bead: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }}
 - Historical avg cost per bead: ${{ printf "%.4f" .Efficiency.HistoricalAvgCostPerBead }}
 {{- if ne .Efficiency.CostDelta 0.0 }}

@@ -1152,3 +1152,49 @@ func TestRenderPromptWithNilExperimentAndEfficiencyUsingRealTemplate(t *testing.
 		t.Error("rendered prompt should not contain experiment details when Experiment is nil")
 	}
 }
+
+func TestRenderPromptWithProviderFamiliesInRealTemplate(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	realTemplatePath := "../../.gromit/templates/PROMPT_retro.md"
+	templateContent, err := os.ReadFile(realTemplatePath)
+	if err != nil {
+		t.Fatalf("failed to read real template: %v", err)
+	}
+
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, templateContent, 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	tmpGromitDir := t.TempDir()
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+	r.templatePath = templatePath
+
+	efficiency := &logger.EfficiencyReport{
+		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
+			"claude": {Model: "claude", IterationCount: 2},
+			"codex":  {Model: "codex", IterationCount: 1},
+		},
+		HistoricalModels: map[string]logger.ModelEfficiency{
+			"opus": {Model: "opus", IterationCount: 1},
+		},
+		MixedProviderFamilies: true,
+	}
+
+	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{Total: 1}, nil, efficiency, nil)
+	if err != nil {
+		t.Fatalf("renderPrompt with provider families failed: %v", err)
+	}
+
+	if !contains(prompt, "Per-Provider-Family Aggregates") {
+		t.Error("rendered prompt should include provider-family aggregates section")
+	}
+	if !contains(prompt, "Mixed providers") {
+		t.Error("rendered prompt should label mixed-provider aggregates")
+	}
+}
