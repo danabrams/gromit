@@ -14,5 +14,9 @@
     "avg_input_tokens": 0,
     "avg_output_tokens": 0,
     "failure_rate": 0.391304347826087
-  }
+  },
+  "status": "act",
+  "study_summary": "After 2 days and 2 extensions, the experiment produced insufficient signal. Phase timeouts fired only twice. The p95 duration target (<18min) was not met — latest rolling p95 is 35.5min (2,130s), above the 18min target. Success rate improved to 83.3% but correlates with provider mix shift to Codex and well-scoped beads, not the timeout mechanism. Cost evaluation impossible due to Codex $0.00 reporting. The hypothesis that timeout enforcement would cap p95 duration was not validated.",
+  "act_decision": "revert",
+  "act_date": "2026-02-17"
 }
