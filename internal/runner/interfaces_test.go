@@ -2209,6 +2209,172 @@ func TestRunWithMocks_CustomConsecutiveSkipLimit(t *testing.T) {
 	}
 }
 
+func setupSessionCompletionProtocolRunner(
+	t *testing.T,
+	cmdRunner func(ctx context.Context, command string, workDir string) (string, string, int, error),
+) (*Runner, []string, *mockBeadClient) {
+	t.Helper()
+
+	callCount := 0
+	events := make([]string, 0, 16)
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			if callCount > 1 {
+				return nil, nil
+			}
+			return &bead.Bead{
+				ID:              "session-completion",
+				Title:           "Session completion protocol",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"session completion protocol enforced"},
+			}, nil
+		},
+		CloseFn: func(id string) error {
+			events = append(events, "bd close")
+			return nil
+		},
+		SyncFn: func() error {
+			events = append(events, "bd sync")
+			return nil
+		},
+	}
+
+	precheckEnabled := false
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "implemented"}, nil
+		},
+	}
+
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{BeadTimeout: 60},
+		Precheck: config.PrecheckConfig{
+			Enabled:        &precheckEnabled,
+			Model:          "haiku",
+			TimeoutSeconds: 30,
+		},
+		Validation: config.ValidationConfig{
+			Enabled:      true,
+			Commands:     []string{"go test ./...", "go vet ./..."},
+			FullCommands: []string{"go test ./...", "go vet ./...", "go build ./..."},
+		},
+		Git: config.GitConfig{
+			AutoPush:    boolPtrInterfaces(true),
+			PushFailure: "stop",
+		},
+	}
+
+	r, err := NewRunnerWithDeps(
+		cfg,
+		&strings.Builder{},
+		t.TempDir(),
+		Deps{
+			Beads:    beads,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+			CmdRunner: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+				events = append(events, command)
+				if cmdRunner != nil {
+					return cmdRunner(ctx, command, workDir)
+				}
+				return "", "", 0, nil
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() failed: %v", err)
+	}
+
+	return r, events, beads
+}
+
+func boolPtrInterfaces(v bool) *bool {
+	return &v
+}
+
+func assertEventOrderContainsSubsequence(t *testing.T, events []string, expected []string) {
+	t.Helper()
+
+	next := 0
+	for _, event := range events {
+		if next < len(expected) && event == expected[next] {
+			next++
+		}
+	}
+	if next != len(expected) {
+		t.Fatalf("missing ordered subsequence %v in events %v", expected, events)
+	}
+}
+
+func TestRunWithMocks_SessionCompletionProtocolOrder(t *testing.T) {
+	// Expected failure: AndonSessionCompletionRequiredSequence does not exist and
+	// lifecycle flow does not yet enforce the pull/rebase + post-push up-to-date
+	// verification protocol order from the Andon spec.
+	r, events, _ := setupSessionCompletionProtocolRunner(t, nil)
+
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	assertEventOrderContainsSubsequence(t, events, AndonSessionCompletionRequiredSequence)
+}
+
+func TestRunWithMocks_SessionCompletionRetriesRebaseBeforePush(t *testing.T) {
+	// Expected failure: SessionCompletionRebaseRetryCount does not exist and
+	// lifecycle flow does not retry git pull --rebase before proceeding to push.
+	pullCalls := 0
+	pushCalls := 0
+	r, _, _ := setupSessionCompletionProtocolRunner(t, func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		switch command {
+		case "git pull --rebase":
+			pullCalls++
+			if pullCalls == 1 {
+				return "", "fatal: could not rebase", 1, fmt.Errorf("rebase failed")
+			}
+			return "ok", "", 0, nil
+		case "git push":
+			pushCalls++
+		}
+		return "", "", 0, nil
+	})
+
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	if pullCalls != SessionCompletionRebaseRetryCount {
+		t.Fatalf("expected %d rebase attempts, got %d", SessionCompletionRebaseRetryCount, pullCalls)
+	}
+	if pushCalls != 1 {
+		t.Fatalf("expected git push after successful retry, got %d pushes", pushCalls)
+	}
+}
+
+func TestRunWithMocks_SessionCompletionVerifiesUpToDateStatus(t *testing.T) {
+	// Expected failure: SessionCompletionUpToDateCommand does not exist and
+	// lifecycle flow does not execute explicit up-to-date verification after push.
+	statusCalls := 0
+	r, _, _ := setupSessionCompletionProtocolRunner(t, func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		if command == "git status --short --branch" {
+			statusCalls++
+			return "## main...origin/main", "", 0, nil
+		}
+		return "", "", 0, nil
+	})
+
+	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	if statusCalls != 1 {
+		t.Fatalf("expected %q to execute once, got %d", SessionCompletionUpToDateCommand, statusCalls)
+	}
+}
+
 // mockClaudeProviderAdapter wraps a mockClaudeClient to implement provider.Provider interface
 type mockClaudeProviderAdapter struct {
 	client *mockClaudeClient
