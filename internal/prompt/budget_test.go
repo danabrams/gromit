@@ -611,3 +611,86 @@ func TestShapeContextForBudget_DoesNotMutateOriginal(t *testing.T) {
 		t.Error("original RecentLearnings was mutated")
 	}
 }
+
+func TestReviewBudgetShaperWrappers_MapToBaseShaper(t *testing.T) {
+	t.Run("review wrapper maps through base shaper", func(t *testing.T) {
+		reviewCtx := &ReviewContext{
+			Bead:       &bead.Bead{ID: "bead-1", Title: "Task", Description: "desc"},
+			ParentBead: &bead.Bead{ID: "parent-1", Title: "Parent", Description: "parent desc"},
+			ClaudeMD:   strings.Repeat("c", 300),
+			Rules:      "## Build <!-- phases: build -->\nkeep\n## Review <!-- phases: review -->\ntrim",
+			Spec:       strings.Repeat("s", 200),
+			Diff:       strings.Repeat("d", 120),
+		}
+
+		maxChars := 140
+		shaped, report := ShapeReviewContextForBudget(reviewCtx, maxChars, "build")
+
+		mapped := &Context{
+			Bead:       reviewCtx.Bead,
+			ParentBead: reviewCtx.ParentBead,
+			ClaudeMD:   reviewCtx.ClaudeMD,
+			Rules:      reviewCtx.Rules,
+			Spec:       reviewCtx.Spec,
+		}
+		mapped.normalizeNilFields()
+		expected, expectedReport := ShapeContextForBudget(mapped, maxChars-len(reviewCtx.Diff), 0, "build")
+
+		if strings.Join(report.TrimActions, ",") != strings.Join(expectedReport.TrimActions, ",") {
+			t.Fatalf("expected trim actions %v, got %v", expectedReport.TrimActions, report.TrimActions)
+		}
+		if shaped.ClaudeMD != expected.ClaudeMD {
+			t.Fatalf("expected ClaudeMD %q, got %q", expected.ClaudeMD, shaped.ClaudeMD)
+		}
+		if shaped.Rules != expected.Rules {
+			t.Fatalf("expected Rules %q, got %q", expected.Rules, shaped.Rules)
+		}
+		if shaped.Spec != expected.Spec {
+			t.Fatalf("expected Spec %q, got %q", expected.Spec, shaped.Spec)
+		}
+		if shaped.Bead == nil || shaped.Bead.ID != "bead-1" {
+			t.Fatalf("expected bead identity preserved, got %+v", shaped.Bead)
+		}
+	})
+
+	t.Run("thorough wrapper maps through base shaper", func(t *testing.T) {
+		thoroughCtx := &ThoroughReviewContext{
+			ClaudeMD: strings.Repeat("c", 300),
+			Rules:    "## Build <!-- phases: build -->\nkeep\n## Review <!-- phases: review -->\ntrim",
+			Diff:     "DIFF-HEAD-" + strings.Repeat("d", 500) + "-DIFF-TAIL",
+			CompletedBeads: []CompletedBeadSummary{
+				{ID: "b1", Title: "One", Description: "desc one"},
+				{ID: "b2", Title: "Two", Description: "desc two"},
+			},
+		}
+
+		maxChars := 200
+		shaped, report := ShapeThoroughReviewContextForBudget(thoroughCtx, maxChars, "build")
+
+		completedChars := 0
+		for _, b := range thoroughCtx.CompletedBeads {
+			completedChars += len(b.ID) + len(b.Title) + len(b.Description)
+		}
+
+		mapped := &Context{
+			ClaudeMD: thoroughCtx.ClaudeMD,
+			Rules:    thoroughCtx.Rules,
+			Spec:     thoroughCtx.Diff,
+		}
+		mapped.normalizeNilFields()
+		expected, expectedReport := ShapeContextForBudget(mapped, maxChars-completedChars, 0, "build")
+
+		if strings.Join(report.TrimActions, ",") != strings.Join(expectedReport.TrimActions, ",") {
+			t.Fatalf("expected trim actions %v, got %v", expectedReport.TrimActions, report.TrimActions)
+		}
+		if shaped.ClaudeMD != expected.ClaudeMD {
+			t.Fatalf("expected ClaudeMD %q, got %q", expected.ClaudeMD, shaped.ClaudeMD)
+		}
+		if shaped.Rules != expected.Rules {
+			t.Fatalf("expected Rules %q, got %q", expected.Rules, shaped.Rules)
+		}
+		if shaped.Diff != expected.Spec {
+			t.Fatalf("expected Diff to map from shaped Spec %q, got %q", expected.Spec, shaped.Diff)
+		}
+	})
+}

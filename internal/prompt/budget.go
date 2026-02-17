@@ -331,8 +331,8 @@ func cloneThoroughReviewContext(ctx *ThoroughReviewContext) *ThoroughReviewConte
 }
 
 // ShapeThoroughReviewContextForBudget trims a ThoroughReviewContext to fit within maxChars.
-// Trim order: (1) drop ClaudeMD, (2) phase-filter Rules.
-// Diff, CompletedBeads, and Rules are never fully dropped.
+// Trim order: (1) drop ClaudeMD, (2) phase-filter Rules, (3) truncate Diff.
+// CompletedBeads and Rules are never fully dropped.
 func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars int, phase string) (*ThoroughReviewContext, *ShapeReport) {
 	shaped := cloneThoroughReviewContext(ctx)
 	beforeChars := measureThoroughReviewContext(shaped)
@@ -362,6 +362,14 @@ func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars in
 		report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
 		if measureThoroughReviewContext(shaped) <= maxChars {
 			return finishThoroughReviewReport(shaped, report)
+		}
+	}
+
+	// Step 3: truncate Diff
+	if shaped.Diff != "" {
+		if truncated, ok := truncateSpecForBudget(shaped.Diff, measureThoroughReviewContext(shaped), maxChars); ok {
+			shaped.Diff = truncated
+			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
 		}
 	}
 
