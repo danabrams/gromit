@@ -1,7 +1,16 @@
 # Learnings Archive
 
-Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-16.
+Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-17.
 These entries are no longer active — they've been promoted to rules, consolidated, or filtered as generic advice.
+
+---
+
+### 2026-02-16 | Codex Provider Timeout Pattern | patterns
+*Related to: gromit-kk13.1, gromit-f8x2, gromit-kk13.3, gromit-gdsr, gromit-f8x2.3*
+
+Codex models (gpt-5.2-codex, gpt-5.3-codex) exhibit a 58% timeout rate (19/33 iterations >15min) compared to 12% for Claude models. Average Codex input tokens are ~1.1M vs near-zero reported for Claude. Beads involving acceptance test reclassification, domain type creation, and coverage matrix definition consistently time out on Codex. Decomposing into smaller sub-beads does not reliably prevent timeouts when the provider itself runs slowly. Consider using Claude models (opus/sonnet) for complex beads and reserving Codex for simpler, well-scoped tasks.
+
+*Archived from provisional: filtered: generic engineering advice*
 
 ---
 

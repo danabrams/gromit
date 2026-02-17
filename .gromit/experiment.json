@@ -5,8 +5,9 @@
   "measurement": "Track: (1) count of iterations hitting phase timeout, (2) success rate of the escalated attempt after timeout, (3) p95 iteration duration before vs after, (4) total wall-clock time per bead. Success criteria: p95 duration <18min AND escalated-attempt success rate >30%. Danger signal: if escalated attempts have <30% success, the timeout is adding cost without reducing total time.",
   "risk": "Some legitimately complex beads need >15 minutes (e.g., cross-package refactors). A hard timeout could cause unnecessary escalation for beads that would have succeeded with a few more minutes. The escalated attempt on a higher tier adds ~$0.79 per opus escalation. If false positive rate is high, total cost increases. Mitigation: 15min is well above the ~8min average, so only true outliers get cut off.",
   "started_at": "2026-02-15T20:30:00-05:00",
-  "extended_at": "2026-02-16T23:30:00-05:00",
-  "extension_reason": "Codex models (58% timeout rate, 1.1M avg input tokens) confound results. Claude models show 12% timeout rate suggesting the timeout works, but aggregate metrics are dragged down by Codex. Need a Claude-only cycle to evaluate the hypothesis cleanly.",
+  "extended_at": "2026-02-17T09:30:00-05:00",
+  "extension_count": 2,
+  "extension_reason": "Second extension: phase timeouts fired only twice; stall detection was the more impactful mechanism. Codex transport instability and $0.00 cost reporting continue to confound aggregate metrics. Need Claude-only data points to evaluate the original hypothesis cleanly. Prior extension (2026-02-16): Codex models (58% timeout rate, 1.1M avg input tokens) dragged down aggregate metrics while Claude showed 12% timeout rate.",
   "baseline_metrics": {
     "avg_cost_per_bead": 0.5166577782608697,
     "avg_duration_ms": 488641,
