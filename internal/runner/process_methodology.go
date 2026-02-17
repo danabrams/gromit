@@ -112,22 +112,34 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	}
 
 	if r.cfg.Validation.Enabled {
-		if bc.StartCommit != "" {
-			diff, err := r.getDiff(bc.StartCommit)
-			if err == nil && diff != "" {
-				bc.TouchedPackages = detectTouchedPackages(diff)
+		skipRevalidation := false
+		if bc != nil && bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
+			elapsed := time.Since(bc.BeadStartTime)
+			remaining := bc.BeadTimeout - elapsed
+			if remaining <= 0 {
+				r.log("Skipping post-refactor re-validation: bead time budget expired (remaining %s, needed >0s)", remaining.Round(time.Second))
+				skipRevalidation = true
 			}
 		}
 
-		validationCtx := ctx
-		if bc != nil && bc.ParentCtx != nil {
-			validationCtx = bc.ParentCtx
-		}
-		// This is the final validation pass after refactor, so post-success stages
-		// must run here.
-		if err := r.runValidationWithRecoveryForStage(validationCtx, bc, true); err != nil {
-			bc.Result.Error = wrapRefactorValidationError(err)
-			return false, bc.Result
+		if !skipRevalidation {
+			if bc.StartCommit != "" {
+				diff, err := r.getDiff(bc.StartCommit)
+				if err == nil && diff != "" {
+					bc.TouchedPackages = detectTouchedPackages(diff)
+				}
+			}
+
+			validationCtx := ctx
+			if bc != nil && bc.ParentCtx != nil {
+				validationCtx = bc.ParentCtx
+			}
+			// This is the final validation pass after refactor, so post-success stages
+			// must run here.
+			if err := r.runValidationWithRecoveryForStage(validationCtx, bc, true); err != nil {
+				bc.Result.Error = wrapRefactorValidationError(err)
+				return false, bc.Result
+			}
 		}
 	}
 

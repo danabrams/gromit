@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
@@ -2457,4 +2458,47 @@ func (m *mockProviderForProcess) IsValidationPassed(result *provider.Result) boo
 
 func (m *mockProviderForProcess) IsScopeTooLarge(result *provider.Result) (bool, string) {
 	return false, ""
+}
+
+func TestRunRefactorAndPostChecks_RevalidationSkippedWhenTimeExpired(t *testing.T) {
+	validationCalled := false
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		validationCalled = true
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) { return "", nil }, // no diff → refactor skipped
+		nil, nil, nil, nil, nil,
+	))
+
+	parentCtx := context.Background()
+	bc := &runtypes.BeadContext{
+		Tier:          provider.TierMedium,
+		StartCommit:   "abc123",
+		ParentCtx:     parentCtx,
+		BeadTimeout:   30 * time.Second,
+		BeadStartTime: time.Now().Add(-60 * time.Second), // started 60s ago, 30s timeout → expired
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal != nil {
+		t.Fatalf("expected terminal=nil when time expired, got: %+v", terminal)
+	}
+	if validationCalled {
+		t.Fatal("expected post-refactor re-validation to be skipped when bead time has expired")
+	}
+	if !strings.Contains(r.output.(*strings.Builder).String(), "remaining") {
+		t.Error("expected skip log to contain timing details (remaining)")
+	}
 }
