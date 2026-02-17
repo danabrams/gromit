@@ -101,6 +101,11 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 	}
 }
 
+// minRevalidationTime is the minimum remaining bead budget required to run
+// post-refactor re-validation. Skipping re-validation when nearly out of time
+// avoids starting a validation run that is unlikely to complete.
+const minRevalidationTime = 30 * time.Second
+
 func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.BeadContext, atddActive bool) (retry bool, terminal *IterationResult) {
 	r.log("Running refactor phase...")
 	if r.methodologyExec == nil {
@@ -118,6 +123,9 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 			remaining := bc.BeadTimeout - elapsed
 			if remaining <= 0 {
 				r.log("Skipping post-refactor re-validation: bead time budget expired (remaining %s, needed >0s)", remaining.Round(time.Second))
+				skipRevalidation = true
+			} else if remaining < minRevalidationTime {
+				r.log("Skipping post-refactor re-validation: insufficient time remaining (%s remaining, needed %s)", remaining.Round(time.Second), minRevalidationTime)
 				skipRevalidation = true
 			}
 		}

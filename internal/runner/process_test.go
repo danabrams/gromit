@@ -2460,6 +2460,54 @@ func (m *mockProviderForProcess) IsScopeTooLarge(result *provider.Result) (bool,
 	return false, ""
 }
 
+func TestRunRefactorAndPostChecks_RevalidationSkippedWhenUnderThreshold(t *testing.T) {
+	validationCalled := false
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		validationCalled = true
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) { return "", nil }, // no diff → refactor skipped
+		nil, nil, nil, nil, nil,
+	))
+
+	parentCtx := context.Background()
+	// Set remaining to 5s (under the minimum threshold for re-validation)
+	bc := &runtypes.BeadContext{
+		Tier:          provider.TierMedium,
+		StartCommit:   "abc123",
+		ParentCtx:     parentCtx,
+		BeadTimeout:   30 * time.Second,
+		BeadStartTime: time.Now().Add(-25 * time.Second), // 5s remaining, below threshold
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal != nil {
+		t.Fatalf("expected terminal=nil when under threshold, got: %+v", terminal)
+	}
+	if validationCalled {
+		t.Fatal("expected post-refactor re-validation to be skipped when time is under threshold")
+	}
+	logOutput := r.output.(*strings.Builder).String()
+	if !strings.Contains(logOutput, "remaining") {
+		t.Error("expected skip log to contain remaining timing details")
+	}
+	if !strings.Contains(logOutput, "needed") {
+		t.Error("expected skip log to contain needed timing details")
+	}
+}
+
 func TestRunRefactorAndPostChecks_RevalidationSkippedWhenTimeExpired(t *testing.T) {
 	validationCalled := false
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
