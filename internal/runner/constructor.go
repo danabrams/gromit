@@ -88,9 +88,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	}
 
 	stallTimeoutFn := makeStallTimeoutFn(cfg)
-	inv := execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
-		WithHeartbeat(syncOut, stallTimeoutFn).
-		WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
+	inv := buildInvoker(router, syncOut, stallTimeoutFn, cfg)
 
 	r := &Runner{
 		cfg:            cfg,
@@ -129,6 +127,16 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	reviewer.SetValidateFn(r.makeReviewValidateFn())
 
 	return r, reviewer, nil
+}
+
+func buildInvoker(router *provider.Router, output *syncWriter, stallTimeoutFn execution.StallTimeoutFunc, cfg *config.Config) *execution.Invoker {
+	var execRouter execution.Router
+	if router != nil {
+		execRouter = &routerAdapter{r: router}
+	}
+	return execution.NewInvoker(execRouter, output, nil).
+		WithHeartbeat(output, stallTimeoutFn).
+		WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
 }
 
 func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, output io.Writer) (*provider.Router, provider.Provider, *state.File, error) {

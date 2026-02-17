@@ -12,7 +12,6 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
-	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
@@ -63,16 +62,7 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 
 	// Create invoker with router adapter (nil-safe: if router is nil, invoker handles it)
 	stallTimeoutFn := makeStallTimeoutFn(cfg)
-	var inv *execution.Invoker
-	if router != nil {
-		inv = execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
-			WithHeartbeat(syncOut, stallTimeoutFn).
-			WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
-	} else {
-		inv = execution.NewInvoker(nil, syncOut, nil).
-			WithHeartbeat(syncOut, stallTimeoutFn).
-			WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
-	}
+	inv := buildInvoker(router, syncOut, stallTimeoutFn, cfg)
 
 	cmdRunner := defaultCmdRunner
 	if deps.CmdRunner != nil {
