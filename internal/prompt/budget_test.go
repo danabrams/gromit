@@ -496,3 +496,39 @@ func TestShapeContextForBudget_TrimPriorityOrder(t *testing.T) {
 		t.Errorf("expected bead ID preserved, got %q", shaped.Bead.ID)
 	}
 }
+
+func TestShapeContextForBudget_DoesNotMutateOriginal(t *testing.T) {
+	ctx := &Context{
+		Bead:               &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD:           strings.Repeat("c", 500),
+		Rules:              "original rules",
+		Spec:               strings.Repeat("s", 500),
+		ConfirmedLearnings: []learnings.Learning{makeLearning("learn1")},
+		RecentLearnings:    []learnings.Learning{makeLearning("recent1")},
+	}
+	ctx.normalizeNilFields()
+
+	origClaudeMD := ctx.ClaudeMD
+	origRules := ctx.Rules
+	origSpec := ctx.Spec
+	origConfirmedLen := len(ctx.ConfirmedLearnings)
+	origRecentLen := len(ctx.RecentLearnings)
+
+	ShapeContextForBudget(ctx, 50, 100, "build")
+
+	if ctx.ClaudeMD != origClaudeMD {
+		t.Error("original ClaudeMD was mutated")
+	}
+	if ctx.Rules != origRules {
+		t.Error("original Rules was mutated")
+	}
+	if ctx.Spec != origSpec {
+		t.Error("original Spec was mutated")
+	}
+	if len(ctx.ConfirmedLearnings) != origConfirmedLen {
+		t.Error("original ConfirmedLearnings was mutated")
+	}
+	if len(ctx.RecentLearnings) != origRecentLen {
+		t.Error("original RecentLearnings was mutated")
+	}
+}
