@@ -14,6 +14,13 @@ import (
 
 var artifactBeadIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
+const (
+	acceptanceFailureDirName = "failures"
+	artifactFallbackBeadID   = "unknown-bead"
+	artifactDirPerm          = 0o755
+	artifactFilePerm         = 0o644
+)
+
 func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 	if r == nil || r.logger == nil || result == nil {
 		return
@@ -106,15 +113,15 @@ func (r *Runner) writeAcceptanceFailureArtifact(iteration int, result *Iteration
 		return ""
 	}
 
-	failuresDir := filepath.Join(r.cfg.Paths.Logs, "failures")
-	if err := os.MkdirAll(failuresDir, 0755); err != nil {
+	failuresDir := filepath.Join(r.cfg.Paths.Logs, acceptanceFailureDirName)
+	if err := os.MkdirAll(failuresDir, artifactDirPerm); err != nil {
 		r.log("Warning: failed to create acceptance failure logs directory: %v", err)
 		return ""
 	}
 
 	safeBeadID := artifactBeadIDSanitizer.ReplaceAllString(result.BeadID, "_")
 	if safeBeadID == "" {
-		safeBeadID = "unknown-bead"
+		safeBeadID = artifactFallbackBeadID
 	}
 	filename := fmt.Sprintf("acceptance-%s-it%d-%s.log", time.Now().UTC().Format("20060102-150405"), iteration, safeBeadID)
 	fullPath := filepath.Join(failuresDir, filename)
@@ -129,7 +136,7 @@ func (r *Runner) writeAcceptanceFailureArtifact(iteration int, result *Iteration
 		result.Error,
 		result.AcceptanceFailureOutput,
 	))
-	if err := os.WriteFile(fullPath, []byte(body+"\n"), 0644); err != nil {
+	if err := os.WriteFile(fullPath, []byte(body+"\n"), artifactFilePerm); err != nil {
 		r.log("Warning: failed to write acceptance failure artifact: %v", err)
 		return ""
 	}

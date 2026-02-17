@@ -403,9 +403,7 @@ func TestFormatRun(t *testing.T) {
 }
 
 func TestFormatRun_IncludesReliabilityAndAndonSummary(t *testing.T) {
-	// Expected failure: Status does not yet include LastFailureClass, LastAndonLevel,
-	// LastTrimDecision, AutonomyRate, FirstPassSuccessRate, or MTTRProxyMs fields,
-	// and formatRun does not render reliability/Andon summary lines.
+	// Verify the run summary renders reliability and Andon fields when present.
 	now := time.Now()
 	status := &Status{
 		Running:              true,
@@ -437,8 +435,7 @@ func TestFormatRun_IncludesReliabilityAndAndonSummary(t *testing.T) {
 }
 
 func TestFormatRun_IncludesEscalationRateAndRecurrenceBreakdown(t *testing.T) {
-	// Expected failure: Status does not yet expose EscalationRatesByClass or
-	// RecurrenceCounters, and formatRun does not render the derived breakdown.
+	// Verify per-class escalation rates and recurrence counters are rendered.
 	now := time.Now()
 	status := &Status{
 		Running:              true,

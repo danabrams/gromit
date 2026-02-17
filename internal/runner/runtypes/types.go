@@ -92,6 +92,7 @@ type IterationResult struct {
 	AcceptanceFailureOutput   string // captured validation output from failed acceptance verification
 	AcceptanceFailureArtifact string // path to persisted failure artifact log
 
+	// Reliability and Andon telemetry for iteration logs and status formatting.
 	FailureClass     string
 	AndonLevel       string
 	TrimDecision     string
