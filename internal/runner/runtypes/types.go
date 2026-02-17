@@ -6,6 +6,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/runner/andon"
 )
 
 // BeadContext holds the shared state for processing a single bead.
@@ -91,6 +92,16 @@ type IterationResult struct {
 	AcceptanceFailureSummary  string // short summary for JSONL
 	AcceptanceFailureOutput   string // captured validation output from failed acceptance verification
 	AcceptanceFailureArtifact string // path to persisted failure artifact log
+
+	FailureClass     andon.FailureClass
+	AndonLevel       andon.AndonLevel
+	TrimDecision     string
+	AutonomyEligible bool
+	AutonomySuccess  bool
+	FirstPassSuccess bool
+	MTTRProxyMs      int64
+	EscalationClass  andon.FailureClass
+	RecurrenceCount  int
 }
 
 // HardStopApprovalState captures explicit approval for hard-stop actions.

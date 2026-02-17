@@ -84,6 +84,22 @@ func formatRun(s *Status) string {
 		lines = append(lines, formatRunningLine(s))
 		lines = append(lines, fmt.Sprintf("  Current:  %s — %q", s.BeadID, s.BeadTitle))
 		lines = append(lines, fmt.Sprintf("  Model:    %s", s.Model))
+		if s.LastFailureClass != "" && s.LastAndonLevel != "" {
+			line := fmt.Sprintf("  Andon:    %s @ %s", s.LastFailureClass, s.LastAndonLevel)
+			if s.LastTrimDecision != "" {
+				line += fmt.Sprintf(" (trim: %s)", s.LastTrimDecision)
+			}
+			lines = append(lines, line)
+		}
+		if s.AutonomyRate > 0 || s.FirstPassSuccessRate > 0 || s.MTTRProxyMs > 0 {
+			lines = append(lines,
+				fmt.Sprintf("  Reliability: autonomy %d%% | first-pass %d%% | MTTR %s",
+					int(s.AutonomyRate*100+0.5),
+					int(s.FirstPassSuccessRate*100+0.5),
+					formatDuration(time.Duration(s.MTTRProxyMs)*time.Millisecond),
+				),
+			)
+		}
 	} else {
 		// Not running, but we have last run info
 		lines = append(lines, "Run: not running")

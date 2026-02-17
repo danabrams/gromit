@@ -22,6 +22,13 @@ type Status struct {
 	PID               int       `json:"pid"`
 	MaxIterations     int       `json:"max_iterations,omitempty"`
 	TimeBudgetMinutes int       `json:"time_budget_minutes,omitempty"`
+	LastFailureClass  string    `json:"last_failure_class,omitempty"`
+	LastAndonLevel    string    `json:"last_andon_level,omitempty"`
+	LastTrimDecision  string    `json:"last_trim_decision,omitempty"`
+
+	AutonomyRate         float64 `json:"autonomy_rate,omitempty"`
+	FirstPassSuccessRate float64 `json:"first_pass_success_rate,omitempty"`
+	MTTRProxyMs          int64   `json:"mttr_proxy_ms,omitempty"`
 }
 
 // StatusWriter manages writing status.json
