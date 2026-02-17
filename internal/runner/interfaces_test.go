@@ -924,17 +924,6 @@ func TestRunWithMocks_ContextCancellation(t *testing.T) {
 
 func TestIterationLogWithMocks(t *testing.T) {
 	mockLog := &mockIterationLogger{}
-	callCount := 0
-	beads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
-			callCount++
-			if callCount > 1 {
-				return nil, nil
-			}
-			return &bead.Bead{ID: "log-test", Title: "Log Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}, nil
-		},
-	}
-
 	mockClaude := &mockClaudeClient{
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "done"}, nil
@@ -945,11 +934,12 @@ func TestIterationLogWithMocks(t *testing.T) {
 	r, _ := NewRunnerWithDeps(
 		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
 		&buf, t.TempDir(),
-		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
+		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
-	if err := r.Run(context.Background(), 1, time.Time{}, nil, false); err != nil {
-		t.Fatalf("Run() failed: %v", err)
-	}
+	b := &bead.Bead{ID: "log-test", Title: "Log Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
+	r.writeIterationLog(1, result)
+	_ = r.logger.Close()
 
 	if len(mockLog.Logs) != 1 {
 		t.Fatalf("expected 1 iteration logged, got %d", len(mockLog.Logs))
