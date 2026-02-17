@@ -13,6 +13,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/runner/andon"
 )
 
 type errIterationLogger struct {
@@ -252,5 +253,89 @@ func TestWriteIterationLog_WritesAcceptanceFailureArtifact(t *testing.T) {
 	}
 	if logEntry.AcceptanceFailureArtifact == "" {
 		t.Fatal("expected acceptance_failure_artifact in JSONL")
+	}
+}
+
+func TestWriteIterationLog_EmitsAndonClassificationAndReliabilitySignals(t *testing.T) {
+	// Expected failure: IterationResult/IterationLog do not yet expose FailureClass,
+	// AndonLevel, TrimDecision, AutonomyEligible, AutonomySuccess, FirstPassSuccess,
+	// MTTRProxyMs, EscalationClass, or RecurrenceCount fields.
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
+
+	r := &Runner{logger: l}
+	result := &IterationResult{
+		BeadID:           "gromit-o27x",
+		BeadTitle:        "Add reliability metrics and structured Andon logging",
+		Model:            "sonnet",
+		Success:          false,
+		Duration:         2 * time.Second,
+		Error:            fmt.Errorf("quality gate failed"),
+		FailureClass:     andon.FailureClassQuality,
+		AndonLevel:       andon.LevelL2,
+		TrimDecision:     "middle_ellipsis",
+		AutonomyEligible: true,
+		AutonomySuccess:  false,
+		FirstPassSuccess: false,
+		MTTRProxyMs:      42000,
+		EscalationClass:  andon.FailureClassQuality,
+		RecurrenceCount:  3,
+	}
+
+	r.writeIterationLog(7, result)
+
+	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("globbing log files: %v", err)
+	}
+	if len(logFiles) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(logFiles))
+	}
+
+	data, err := os.ReadFile(logFiles[0])
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	var entry map[string]any
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		t.Fatalf("unmarshaling log line: %v", err)
+	}
+
+	if got := entry["failure_class"]; got != string(andon.FailureClassQuality) {
+		t.Fatalf("failure_class = %v, want %q", got, andon.FailureClassQuality)
+	}
+	if got := entry["andon_level"]; got != string(andon.LevelL2) {
+		t.Fatalf("andon_level = %v, want %q", got, andon.LevelL2)
+	}
+	if got := entry["trim_decision"]; got != "middle_ellipsis" {
+		t.Fatalf("trim_decision = %v, want %q", got, "middle_ellipsis")
+	}
+	if got, ok := entry["autonomy_eligible"].(bool); !ok || !got {
+		t.Fatalf("autonomy_eligible = %v, want true", entry["autonomy_eligible"])
+	}
+	if got, ok := entry["autonomy_success"].(bool); !ok || got {
+		t.Fatalf("autonomy_success = %v, want false", entry["autonomy_success"])
+	}
+	if got, ok := entry["first_pass_success"].(bool); !ok || got {
+		t.Fatalf("first_pass_success = %v, want false", entry["first_pass_success"])
+	}
+	if got := entry["mttr_proxy_ms"]; got != float64(42000) {
+		t.Fatalf("mttr_proxy_ms = %v, want 42000", got)
+	}
+	if got := entry["escalation_class"]; got != string(andon.FailureClassQuality) {
+		t.Fatalf("escalation_class = %v, want %q", got, andon.FailureClassQuality)
+	}
+	if got := entry["recurrence_count"]; got != float64(3) {
+		t.Fatalf("recurrence_count = %v, want 3", got)
 	}
 }

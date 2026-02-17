@@ -402,6 +402,40 @@ func TestFormatRun(t *testing.T) {
 	}
 }
 
+func TestFormatRun_IncludesReliabilityAndAndonSummary(t *testing.T) {
+	// Expected failure: Status does not yet include LastFailureClass, LastAndonLevel,
+	// LastTrimDecision, AutonomyRate, FirstPassSuccessRate, or MTTRProxyMs fields,
+	// and formatRun does not render reliability/Andon summary lines.
+	now := time.Now()
+	status := &Status{
+		Running:              true,
+		Iteration:            4,
+		BeadID:               "gromit-o27x",
+		BeadTitle:            "Add reliability metrics and structured Andon logging",
+		Model:                "sonnet",
+		StartedAt:            now.Add(-12 * time.Minute),
+		ElapsedS:             12 * 60,
+		LastFailureClass:     "Quality",
+		LastAndonLevel:       "L2",
+		LastTrimDecision:     "middle_ellipsis",
+		AutonomyRate:         0.67,
+		FirstPassSuccessRate: 0.5,
+		MTTRProxyMs:          42000,
+	}
+
+	got := formatRun(status)
+	wantLines := []string{
+		"Andon:    Quality @ L2 (trim: middle_ellipsis)",
+		"Reliability: autonomy 67% | first-pass 50% | MTTR 42s",
+	}
+
+	for _, want := range wantLines {
+		if !strings.Contains(got, want) {
+			t.Fatalf("formatRun() missing expected reliability line:\nwant: %q\ngot:\n%s", want, got)
+		}
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		name string
