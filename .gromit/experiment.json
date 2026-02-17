@@ -1,0 +1,16 @@
+{
+  "name": "Proactive decomposition for Codex beads",
+  "hypothesis": "Beads assigned to Codex providers that touch 3+ files will have \u003e50% failure rate; pre-decomposing them into 1-2 file beads will reduce Codex failure rate from ~40% to \u003c20%",
+  "change": "Add a scope check before Codex execution: if the bead's estimated file count exceeds 2, auto-decompose before first attempt rather than attempting and failing",
+  "measurement": "Compare Codex failure rate in 30-iteration windows before vs after. Track iterations-to-completion for Codex beads",
+  "risk": "Over-decomposition could increase overhead from bead management (more beads to track, more context switching). May slow throughput if decomposition itself fails",
+  "started_at": "2026-02-17T16:38:01.63243131Z",
+  "status": "doing",
+  "baseline_metrics": {
+    "avg_cost_per_bead": 0.4126565335526316,
+    "avg_duration_ms": 716849.701754386,
+    "avg_input_tokens": 0,
+    "avg_output_tokens": 0,
+    "failure_rate": 0.39035087719298245
+  }
+}

@@ -26,11 +26,6 @@ Runner methods use feature-flag gating (e.g., IsAutoPushEnabled()) and context.W
 
 *Note: Run() sequencing invariant, nil-safe checks, router/tier selection, escalation ownership, and skippedBeads pattern promoted to RULES.md.*
 
-### 2026-02-11 | Acceptance Test Line Budget | conventions
-*Related to: gromit-lxlp, gromit-nqf1, gromit-2edx, gromit-557p, gromit-3gdz*
-
-Acceptance tests (//go:build acceptance) are subject to line count audits — total across all files must not exceed the budget ceiling (currently 6,000 lines, rebased after cleanup achieved 38.5% reduction from original 8,370). New test code should prefer unit tests for API verification, not acceptance tests. Task specs that add test coverage should account for the total line budget. Test metrics are enforced via final_verification_test.go.
-
 ### 2026-02-11 | Prompt Template Structure | conventions
 *Related to: gromit-rpne*
 

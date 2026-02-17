@@ -1,40 +1,40 @@
 {
-  "generated_at": "2026-02-17T15:25:22.428378911Z",
-  "total_iterations": 225,
+  "generated_at": "2026-02-17T16:27:58.150290206Z",
+  "total_iterations": 228,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 0.8333333333333334,
-    "failure_rate": 0.16666666666666666,
+    "success_rate": 0.8,
+    "failure_rate": 0.2,
     "first_pass_success_rate": 0,
     "escalation_rate": 0.1,
-    "avg_duration_ms": 1069496.2333333334,
+    "avg_duration_ms": 1044542,
     "p95_duration_ms": 2129951.5499999993,
-    "avg_cost_usd": 0.3309769466666666,
+    "avg_cost_usd": 0.50399624,
     "avg_mttr_proxy_ms": 0
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 0.3309769466666666,
-      "mean": 0.40379109426861953,
-      "std_dev": 0.5309111768070462,
-      "ucl": 1.9965246246897583,
-      "lcl": -1.1889424361525192
+      "latest": 0.50399624,
+      "mean": 0.40510958302824307,
+      "std_dev": 0.5275303655050383,
+      "ucl": 1.9877006795433578,
+      "lcl": -1.177481513486872
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 1069496.2333333334,
-      "mean": 694301.0810681453,
-      "std_dev": 354435.4154724052,
-      "ucl": 1757607.327485361,
-      "lcl": -369005.1653490702
+      "latest": 1044542,
+      "mean": 699211.9946213422,
+      "std_dev": 354660.1653322415,
+      "ucl": 1763192.4906180669,
+      "lcl": -364768.5013753824
     },
     {
       "metric": "rolling_escalation_rate",
       "latest": 0.1,
-      "mean": 0.07125925925925916,
-      "std_dev": 0.06973420043681891,
-      "ucl": 0.2804618605697159,
+      "mean": 0.07163742690058471,
+      "std_dev": 0.06935127637541803,
+      "ucl": 0.2796912560268388,
       "lcl": 0
     },
     {
@@ -47,9 +47,9 @@
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 0.8333333333333334,
-      "mean": 0.584641172580353,
-      "std_dev": 0.1964741172975586,
+      "latest": 0.8,
+      "mean": 0.5877672390230092,
+      "std_dev": 0.19705412301445172,
       "ucl": 1,
       "lcl": 0
     }

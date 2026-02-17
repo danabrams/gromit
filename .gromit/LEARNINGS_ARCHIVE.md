@@ -5,6 +5,15 @@ These entries are no longer active — they've been promoted to rules, consolida
 
 ---
 
+### 2026-02-11 | Acceptance Test Line Budget | conventions
+*Related to: gromit-lxlp, gromit-nqf1, gromit-2edx, gromit-557p, gromit-3gdz*
+
+Acceptance tests (//go:build acceptance) are subject to line count audits — total across all files must not exceed the budget ceiling (currently 6,000 lines, rebased after cleanup achieved 38.5% reduction from original 8,370). New test code should prefer unit tests for API verification, not acceptance tests. Task specs that add test coverage should account for the total line budget. Test metrics are enforced via final_verification_test.go.
+
+*Archived: promoted to RULES.md Test Quality section (line 38). Rule is the authoritative source.*
+
+---
+
 ### 2026-02-16 | Codex Provider Timeout Pattern | patterns
 *Related to: gromit-kk13.1, gromit-f8x2, gromit-kk13.3, gromit-gdsr, gromit-f8x2.3*
 
