@@ -71,12 +71,15 @@ func (cp *ClaudeProvider) ModelForTier(tier string) string {
 // convertResult converts a claude.Result to a provider.Result
 func convertResult(claudeResult *claude.Result) *Result {
 	return &Result{
-		Success:  claudeResult.Success,
-		Output:   claudeResult.Output,
-		Stdout:   claudeResult.Output,
-		ExitCode: claudeResult.ExitCode,
-		Duration: claudeResult.Duration,
-		Model:    claudeResult.Model,
+		Success:      claudeResult.Success,
+		Output:       claudeResult.Output,
+		Stdout:       claudeResult.Output,
+		ExitCode:     claudeResult.ExitCode,
+		Duration:     claudeResult.Duration,
+		Model:        claudeResult.Model,
+		CostUSD:      claudeResult.CostUSD,
+		InputTokens:  claudeResult.InputTokens,
+		OutputTokens: claudeResult.OutputTokens,
 	}
 }
 

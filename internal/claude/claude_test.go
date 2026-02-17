@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1016,8 +1018,18 @@ func TestRunWithNonexistentBinary(t *testing.T) {
 }
 
 func TestStreamRunWithNilHandler(t *testing.T) {
-	// Test StreamRun without handler (raw text mode)
-	client, _ := NewClient("echo", []string{"-n", "test output"}, 5)
+	// Test StreamRun without handler (always uses stream-json for cost tracking)
+	tmpDir := t.TempDir()
+	mockBin := filepath.Join(tmpDir, "mock-claude")
+	mockScript := `#!/bin/sh
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"test output"}]}}'
+echo '{"type":"result","result":"test output"}'
+`
+	if err := os.WriteFile(mockBin, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	client, _ := NewClient(mockBin, nil, 5)
 	ctx := context.Background()
 
 	var output strings.Builder

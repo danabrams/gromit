@@ -19,11 +19,14 @@ var ErrStallTimeout = errors.New("stall timeout: no output from Claude CLI")
 
 // Result represents the outcome of a Claude invocation
 type Result struct {
-	Success  bool
-	Output   string
-	ExitCode int
-	Duration time.Duration
-	Model    string
+	Success      bool
+	Output       string
+	ExitCode     int
+	Duration     time.Duration
+	Model        string
+	CostUSD      float64
+	InputTokens  int
+	OutputTokens int
 }
 
 // ToolEvent represents a tool call event with metadata
@@ -291,10 +294,8 @@ type EventHandler func(line []byte)
 type ToolCallHandler func(event ToolEvent)
 
 // StreamRun invokes Claude and streams output to the provided writer.
-// If an EventHandler is provided, it uses --output-format stream-json --verbose
-// to get structured events for firehose logging, and extracts the text result
-// from the JSON stream. Otherwise it streams raw text output.
-// The optional onToolCall callback is invoked whenever a tool call event is detected.
+// Always uses --output-format stream-json --verbose to capture cost/token data.
+// Handler and onToolCall may be nil; text is written to output regardless.
 func (c *Client) StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	if c == nil {
 		return nil, fmt.Errorf("claude client is nil")
@@ -307,11 +308,7 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	args := []string{
 		"-p",
 		"--model", model,
-	}
-
-	useStreamJSON := handler != nil
-	if useStreamJSON {
-		args = append(args, "--output-format", "stream-json", "--verbose")
+		"--output-format", "stream-json", "--verbose",
 	}
 
 	args = append(args, c.flags...)
@@ -355,27 +352,19 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	}
 	monitoredStdout := newStartupMonitor(stdout, startupWarn, output)
 
-	// Read and process stdout
-	var resultText string
-	if useStreamJSON {
-		resultText = c.processStreamJSON(monitoredStdout, output, handler, onToolCall)
-	} else {
-		var captured strings.Builder
-		io.Copy(io.MultiWriter(output, &captured), monitoredStdout)
-		resultText = captured.String()
-		// Ensure output ends with a newline if any text was written
-		if len(resultText) > 0 && resultText[len(resultText)-1] != '\n' {
-			fmt.Fprintln(output)
-		}
-	}
+	// Always parse stream-json for cost tracking; handler/onToolCall may be nil
+	resultText, costUSD, inputTokens, outputTokens := c.processStreamJSONWithCost(monitoredStdout, output, handler, onToolCall)
 
 	err = cmd.Wait()
 	duration := time.Since(start)
 
 	result := &Result{
-		Output:   resultText,
-		Duration: duration,
-		Model:    model,
+		Output:       resultText,
+		Duration:     duration,
+		Model:        model,
+		CostUSD:      costUSD,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
 	}
 
 	if err != nil {
@@ -446,11 +435,21 @@ func (m *startupMonitor) Read(p []byte) (int, error) {
 // processStreamJSON reads stream-json lines, calls the handler for each,
 // extracts the final result text, and invokes onToolCall for tool events.
 func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) string {
+	resultText, _, _, _ := c.processStreamJSONWithCost(stdout, output, handler, onToolCall)
+	return resultText
+}
+
+// processStreamJSONWithCost reads stream-json lines, calls the handler for each,
+// extracts the final result text, cost, and token data from result events.
+// Handler and onToolCall may be nil.
+func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) (string, float64, int, int) {
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large events
 
 	var resultText string
 	var lastChar byte
+	var costUSD float64
+	var inputTokens, outputTokens int
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -458,10 +457,12 @@ func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler E
 			continue
 		}
 
-		// Call the handler for firehose logging
-		lineCopy := make([]byte, len(line))
-		copy(lineCopy, line)
-		handler(lineCopy)
+		// Call the handler for firehose logging (nil-safe)
+		if handler != nil {
+			lineCopy := make([]byte, len(line))
+			copy(lineCopy, line)
+			handler(lineCopy)
+		}
 
 		// Extract text content from assistant messages for terminal output
 		var event struct {
@@ -475,7 +476,15 @@ func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler E
 					Path string `json:"path,omitempty"`
 				} `json:"content"`
 			} `json:"message,omitempty"`
-			Result string `json:"result,omitempty"`
+			Result       string  `json:"result,omitempty"`
+			TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
+			InputTokens  int     `json:"input_tokens,omitempty"`
+			OutputTokens int     `json:"output_tokens,omitempty"`
+			Usage        *struct {
+				TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
+				InputTokens  int     `json:"input_tokens,omitempty"`
+				OutputTokens int     `json:"output_tokens,omitempty"`
+			} `json:"usage,omitempty"`
 		}
 		if err := json.Unmarshal(line, &event); err != nil {
 			continue
@@ -502,9 +511,24 @@ func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler E
 			}
 		}
 
-		// Capture the final result text
+		// Capture the final result text and cost data
 		if event.Type == "result" {
 			resultText = event.Result
+			costUSD = event.TotalCostUSD
+			inputTokens = event.InputTokens
+			outputTokens = event.OutputTokens
+			// Prefer nested usage if top-level fields are zero
+			if event.Usage != nil {
+				if costUSD == 0 && event.Usage.TotalCostUSD > 0 {
+					costUSD = event.Usage.TotalCostUSD
+				}
+				if inputTokens == 0 && event.Usage.InputTokens > 0 {
+					inputTokens = event.Usage.InputTokens
+				}
+				if outputTokens == 0 && event.Usage.OutputTokens > 0 {
+					outputTokens = event.Usage.OutputTokens
+				}
+			}
 		}
 	}
 
@@ -513,5 +537,5 @@ func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler E
 		fmt.Fprintln(output)
 	}
 
-	return resultText
+	return resultText, costUSD, inputTokens, outputTokens
 }

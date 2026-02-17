@@ -146,89 +146,74 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 
 	startTime := time.Now()
 
-	// When handler is present, use processCodexStream to parse JSONL
-	if handler != nil {
-		codexDebugf(output, "provider debug: StreamRun start model=%s tier=%s args=%q", model, tier, strings.Join(args, " "))
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	// Always use JSONL parsing for cost/token tracking. Handler may be nil;
+	// processCodexStream guards all handler calls with nil checks.
+	codexDebugf(output, "provider debug: StreamRun start model=%s tier=%s args=%q", model, tier, strings.Join(args, " "))
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start codex command: %w", err)
+	}
+	codexDebugf(output, "provider debug: StreamRun cmd started pid=%d", cmd.Process.Pid)
+
+	// Write prompt to stdin in goroutine
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, prompt)
+	}()
+
+	// Process the JSONL stream
+	codexDebugf(output, "provider debug: processCodexStream begin")
+	resultText, usage, streamErrInfo, err := processCodexStream(stdout, output, handler, onToolCall)
+	codexDebugf(output, "provider debug: processCodexStream end err=%v result_chars=%d usage_nil=%t error_info_nil=%t", err, len(resultText), usage == nil, streamErrInfo == nil)
+	if err != nil {
+		codexDebugf(output, "provider debug: waiting for process after stream error")
+		cmd.Wait()
+		return nil, fmt.Errorf("failed to process codex stream: %w", err)
+	}
+
+	codexDebugf(output, "provider debug: waiting for cmd.Wait after successful stream parse")
+	if err := cmd.Wait(); err != nil {
+		codexDebugf(output, "provider debug: cmd.Wait returned err=%v", err)
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
 		}
-
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-
-		if err := cmd.Start(); err != nil {
-			return nil, fmt.Errorf("failed to start codex command: %w", err)
-		}
-		codexDebugf(output, "provider debug: StreamRun cmd started pid=%d", cmd.Process.Pid)
-
-		// Write prompt to stdin in goroutine
-		go func() {
-			defer stdin.Close()
-			io.WriteString(stdin, prompt)
-		}()
-
-		// Process the JSONL stream
-		codexDebugf(output, "provider debug: processCodexStream begin")
-		resultText, usage, streamErrInfo, err := processCodexStream(stdout, output, handler, onToolCall)
-		codexDebugf(output, "provider debug: processCodexStream end err=%v result_chars=%d usage_nil=%t error_info_nil=%t", err, len(resultText), usage == nil, streamErrInfo == nil)
-		if err != nil {
-			codexDebugf(output, "provider debug: waiting for process after stream error")
-			cmd.Wait()
-			return nil, fmt.Errorf("failed to process codex stream: %w", err)
-		}
-
-		codexDebugf(output, "provider debug: waiting for cmd.Wait after successful stream parse")
-		if err := cmd.Wait(); err != nil {
-			codexDebugf(output, "provider debug: cmd.Wait returned err=%v", err)
-			if ctx.Err() != nil {
-				return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
-			}
-			duration := time.Since(startTime)
-			exitCode, _ := cp.extractExitCode(err)
-			return &Result{
-				Success:           false,
-				Output:            resultText + stderr.String(),
-				Stdout:            resultText,
-				Stderr:            stderr.String(),
-				Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
-				FailureCategory:   classifyCodexFailure(exitCode, resultText, stderr.String()),
-				ExitCode:          exitCode,
-				Duration:          duration,
-				Model:             model,
-				CostUSD:           usageCost(usage),
-				InputTokens:       usageInputTokens(usage),
-				CachedInputTokens: usageCachedInputTokens(usage),
-				OutputTokens:      usageOutputTokens(usage),
-			}, nil
-		}
-		codexDebugf(output, "provider debug: cmd.Wait returned success")
-
 		duration := time.Since(startTime)
-
-		// If the turn ended with an error (e.g. UsageLimitExceeded), report failure
-		if streamErrInfo != nil {
-			return &Result{
-				Success:           false,
-				Output:            resultText,
-				Stdout:            resultText,
-				Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, ""),
-				FailureCategory:   classifyCodexFailure(0, resultText, ""),
-				ExitCode:          0,
-				Duration:          duration,
-				Model:             model,
-				CostUSD:           usageCost(usage),
-				InputTokens:       usageInputTokens(usage),
-				CachedInputTokens: usageCachedInputTokens(usage),
-				OutputTokens:      usageOutputTokens(usage),
-			}, nil
-		}
-
+		exitCode, _ := cp.extractExitCode(err)
 		return &Result{
-			Success:           true,
+			Success:           false,
+			Output:            resultText + stderr.String(),
+			Stdout:            resultText,
+			Stderr:            stderr.String(),
+			Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
+			FailureCategory:   classifyCodexFailure(exitCode, resultText, stderr.String()),
+			ExitCode:          exitCode,
+			Duration:          duration,
+			Model:             model,
+			CostUSD:           usageCost(usage),
+			InputTokens:       usageInputTokens(usage),
+			CachedInputTokens: usageCachedInputTokens(usage),
+			OutputTokens:      usageOutputTokens(usage),
+		}, nil
+	}
+	codexDebugf(output, "provider debug: cmd.Wait returned success")
+
+	duration := time.Since(startTime)
+
+	// If the turn ended with an error (e.g. UsageLimitExceeded), report failure
+	if streamErrInfo != nil {
+		return &Result{
+			Success:           false,
 			Output:            resultText,
 			Stdout:            resultText,
 			Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, ""),
+			FailureCategory:   classifyCodexFailure(0, resultText, ""),
 			ExitCode:          0,
 			Duration:          duration,
 			Model:             model,
@@ -239,52 +224,18 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 		}, nil
 	}
 
-	// Without handler, use plain text capture
-	var captureBuffer bytes.Buffer
-	var multiWriter io.Writer
-	if output != nil {
-		multiWriter = io.MultiWriter(output, &captureBuffer)
-	} else {
-		multiWriter = &captureBuffer
-	}
-
-	var stderr bytes.Buffer
-	cmd.Stdout = multiWriter
-	cmd.Stderr = &stderr
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start codex command: %w", err)
-	}
-
-	// Write prompt to stdin in goroutine
-	go func() {
-		defer stdin.Close()
-		io.WriteString(stdin, prompt)
-	}()
-
-	err = cmd.Wait()
-	duration := time.Since(startTime)
-
-	if ctx.Err() != nil {
-		return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
-	}
-
-	combinedOutput := captureBuffer.String() + stderr.String()
-	exitCode, err := cp.extractExitCode(err)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Result{
-		Success:         exitCode == 0,
-		Output:          combinedOutput,
-		Stdout:          captureBuffer.String(),
-		Stderr:          stderr.String(),
-		Diagnostics:     buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
-		FailureCategory: classifyCodexFailure(exitCode, captureBuffer.String(), stderr.String()),
-		ExitCode:        exitCode,
-		Duration:        duration,
-		Model:           model,
+		Success:           true,
+		Output:            resultText,
+		Stdout:            resultText,
+		Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, ""),
+		ExitCode:          0,
+		Duration:          duration,
+		Model:             model,
+		CostUSD:           usageCost(usage),
+		InputTokens:       usageInputTokens(usage),
+		CachedInputTokens: usageCachedInputTokens(usage),
+		OutputTokens:      usageOutputTokens(usage),
 	}, nil
 }
 
@@ -583,9 +534,10 @@ func (cp *CodexProvider) buildCommandArgs(model string, jsonMode bool) []string 
 }
 
 // buildStreamCommandArgs constructs command arguments for streaming invocations.
-// Stream mode keeps terminal formatting/color when the terminal supports it.
-func (cp *CodexProvider) buildStreamCommandArgs(model string, jsonMode bool) []string {
-	return cp.buildExecCommandArgs(model, "auto", jsonMode)
+// Always includes --json to ensure cost/token data is captured from JSONL events.
+// The jsonMode parameter is ignored; JSON mode is always enabled for streaming.
+func (cp *CodexProvider) buildStreamCommandArgs(model string, _ bool) []string {
+	return cp.buildExecCommandArgs(model, "auto", true)
 }
 
 func (cp *CodexProvider) buildExecCommandArgs(model string, colorMode string, jsonMode bool) []string {

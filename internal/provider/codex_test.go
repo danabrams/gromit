@@ -533,11 +533,14 @@ func TestCodexProviderStreamRunStreamsOutput(t *testing.T) {
 
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
-echo "Line 1"
+cat > /dev/null
+echo '{"type":"item.agentMessage.delta","delta":{"text":"Line 1\n"}}'
 sleep 0.05
-echo "Line 2"
+echo '{"type":"item.agentMessage.delta","delta":{"text":"Line 2\n"}}'
 sleep 0.05
-echo "Line 3"
+echo '{"type":"item.agentMessage.delta","delta":{"text":"Line 3\n"}}'
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"Line 1\nLine 2\nLine 3"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}'
 exit 0
 `
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
@@ -713,7 +716,7 @@ func TestCodexProviderStreamRunReturnsResultWithMetadata(t *testing.T) {
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := "#!/bin/bash\necho 'success'\nexit 0\n"
+	mockScript := "#!/bin/bash\ncat > /dev/null\necho '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"success\"}}'\necho '{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":10,\"output_tokens\":5}}'\nexit 0\n"
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -1275,6 +1278,7 @@ func TestCodexProviderIntegrationWithRealBinary(t *testing.T) {
 
 # Parse arguments
 MODEL=""
+JSON_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -1282,18 +1286,29 @@ while [[ $# -gt 0 ]]; do
             MODEL="$2"
             shift 2
             ;;
+        --json)
+            JSON_MODE=true
+            shift
+            ;;
         *)
             shift
             ;;
     esac
 done
 
-# Simulate codex response
-echo "Processing with model: $MODEL"
-echo "Prompt content:"
-cat  # Read from stdin
-echo ""
-echo "Response: This is a simulated Codex response."
+PROMPT=$(cat)
+
+if [ "$JSON_MODE" = "true" ]; then
+    # JSONL mode for StreamRun
+    echo "{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Processing with model: $MODEL\nPrompt content:\n$PROMPT\nResponse: This is a simulated Codex response.\"}}"
+    echo '{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":50}}'
+else
+    # Plain text mode for Run
+    echo "Processing with model: $MODEL"
+    echo "Prompt content:"
+    echo "$PROMPT"
+    echo "Response: This is a simulated Codex response."
+fi
 
 exit 0
 `

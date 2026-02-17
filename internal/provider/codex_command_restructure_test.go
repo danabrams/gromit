@@ -145,8 +145,9 @@ func TestCodexProviderStreamRunDeliversPromptViaStdin(t *testing.T) {
 
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
-echo "RECEIVED_VIA_STDIN:"
-cat
+PROMPT=$(cat)
+echo "{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"RECEIVED_VIA_STDIN: $PROMPT\"}}"
+echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}'
 exit 0
 `
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
