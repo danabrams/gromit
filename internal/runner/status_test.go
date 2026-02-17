@@ -968,6 +968,11 @@ func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 		t.Errorf("Expected model in output, got: %s", output)
 	}
 
+	// Verify SPC section exists
+	if !strings.Contains(output, "SPC: (no data)") {
+		t.Errorf("Expected SPC section, got: %s", output)
+	}
+
 	// Verify Health section
 	if !strings.Contains(output, "Health:") {
 		t.Errorf("Expected Health section, got: %s", output)
@@ -1056,6 +1061,11 @@ func TestRunner_Status_Integration_IdleWithoutHistory(t *testing.T) {
 	// Should NOT have "Last run:" when there's no history
 	if strings.Contains(output, "Last run:") {
 		t.Errorf("Should not show 'Last run:' when no history exists, got: %s", output)
+	}
+
+	// Verify SPC section exists
+	if !strings.Contains(output, "SPC: (no data)") {
+		t.Errorf("Expected SPC section, got: %s", output)
 	}
 
 	// Verify Health section shows "never" for both

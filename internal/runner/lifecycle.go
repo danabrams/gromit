@@ -48,6 +48,9 @@ var AndonSessionCompletionRequiredSequence = []string{
 const (
 	validationFailedMessageFragment           = "validation failed"
 	defaultUnclearQualityFailureRootCauseText = "unresolved unclear post-recovery quality failure"
+	metricsStatusCommand                      = "git status --porcelain -- .gromit/metrics"
+	metricsAddCommand                         = "git add .gromit/metrics"
+	metricsCommitCommand                      = "git commit -m \"chore(metrics): update process trend artifacts\""
 )
 
 // checkRetroSuggestion checks if a retro should be suggested and prints a message
@@ -182,10 +185,20 @@ func (r *Runner) Status() error {
 		modelStats = make(map[string]logger.ModelStats)
 	}
 
+	// Read process trend/SPC summary
+	trendPath := filepath.Join(r.gromitDir, "metrics", "process_trend.json")
+	trend, err := logger.ReadProcessTrend(trendPath)
+	if err != nil {
+		r.log("Warning: could not read process trend: %v", err)
+		trend = nil
+	}
+
 	// Format and print all sections
 	r.log("%s", formatPipeline(pipelineStatus))
 	r.log("")
 	r.log("%s", formatRun(status))
+	r.log("")
+	r.log("%s", formatSPCSummary(trend))
 	r.log("")
 	r.log("%s", formatHealth(interactiveFile.LastRetro(), stateFile.IterationsSinceReview()))
 	r.log("")
@@ -236,6 +249,15 @@ func (r *Runner) runSessionCompletion() error {
 		}
 	}
 
+	// Step 2.5: persist generated metrics artifacts when present.
+	if err := r.commitGeneratedMetrics(); err != nil {
+		errMsg := fmt.Sprintf("metrics auto-commit failed: %v", err)
+		if r.cfg.Git.PushFailure == "stop" {
+			return fmt.Errorf("%s", errMsg)
+		}
+		r.log("Warning: %s", errMsg)
+	}
+
 	// Step 3: git push
 	_, stderr, exitCode, err := r.runCmd(context.Background(), "git push", "")
 	if err != nil || exitCode != 0 {
@@ -254,6 +276,44 @@ func (r *Runner) runSessionCompletion() error {
 
 	// Step 4: verify up-to-date
 	r.runCmd(context.Background(), SessionCompletionUpToDateCommand, "") //nolint:errcheck // verification is best-effort
+
+	return nil
+}
+
+func (r *Runner) commitGeneratedMetrics() error {
+	if r == nil {
+		return nil
+	}
+
+	stdout, stderr, exitCode, err := r.runCmd(context.Background(), metricsStatusCommand, "")
+	if err != nil {
+		return fmt.Errorf("checking generated metrics changes: %w", err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("checking generated metrics changes (exit %d): %s", exitCode, stderr)
+	}
+	if strings.TrimSpace(stdout) == "" {
+		return nil
+	}
+
+	_, stderr, exitCode, err = r.runCmd(context.Background(), metricsAddCommand, "")
+	if err != nil {
+		return fmt.Errorf("staging generated metrics: %w", err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("staging generated metrics (exit %d): %s", exitCode, stderr)
+	}
+
+	_, stderr, exitCode, err = r.runCmd(context.Background(), metricsCommitCommand, "")
+	if err != nil {
+		return fmt.Errorf("committing generated metrics: %w", err)
+	}
+	if exitCode != 0 {
+		if strings.Contains(strings.ToLower(stderr), "nothing to commit") {
+			return nil
+		}
+		return fmt.Errorf("committing generated metrics (exit %d): %s", exitCode, stderr)
+	}
 
 	return nil
 }

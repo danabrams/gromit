@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1961,6 +1962,81 @@ func TestRunSessionCompletion(t *testing.T) {
 				t.Errorf("%s: git push called=%v, want=%v", tt.description, pushCalled, tt.wantPushCalled)
 			}
 		})
+	}
+}
+
+func TestRunSessionCompletion_CommitsGeneratedMetricsWhenChanged(t *testing.T) {
+	autoPush := true
+	cfg := &config.Config{
+		Git: config.GitConfig{
+			AutoPush:    &autoPush,
+			PushFailure: "stop",
+		},
+	}
+
+	var commands []string
+	r := &Runner{
+		cfg:    cfg,
+		output: &strings.Builder{},
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			commands = append(commands, command)
+			switch command {
+			case metricsStatusCommand:
+				return " M .gromit/metrics/process_trend.json\n", "", 0, nil
+			default:
+				return "", "", 0, nil
+			}
+		},
+	}
+
+	if err := r.runSessionCompletion(); err != nil {
+		t.Fatalf("runSessionCompletion() failed: %v", err)
+	}
+
+	mustContain := []string{
+		metricsStatusCommand,
+		metricsAddCommand,
+		metricsCommitCommand,
+		"git push",
+	}
+	for _, cmd := range mustContain {
+		if !slices.Contains(commands, cmd) {
+			t.Fatalf("expected command %q, got %v", cmd, commands)
+		}
+	}
+}
+
+func TestRunSessionCompletion_SkipsMetricsCommitWhenNoChanges(t *testing.T) {
+	autoPush := true
+	cfg := &config.Config{
+		Git: config.GitConfig{
+			AutoPush:    &autoPush,
+			PushFailure: "stop",
+		},
+	}
+
+	var commands []string
+	r := &Runner{
+		cfg:    cfg,
+		output: &strings.Builder{},
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			commands = append(commands, command)
+			if command == metricsStatusCommand {
+				return "", "", 0, nil
+			}
+			return "", "", 0, nil
+		},
+	}
+
+	if err := r.runSessionCompletion(); err != nil {
+		t.Fatalf("runSessionCompletion() failed: %v", err)
+	}
+
+	if slices.Contains(commands, metricsAddCommand) {
+		t.Fatalf("did not expect %q when metrics are unchanged; got %v", metricsAddCommand, commands)
+	}
+	if slices.Contains(commands, metricsCommitCommand) {
+		t.Fatalf("did not expect %q when metrics are unchanged; got %v", metricsCommitCommand, commands)
 	}
 }
 

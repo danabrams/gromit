@@ -300,3 +300,75 @@ func formatModelPerformance(stats map[string]logger.ModelStats) string {
 
 	return strings.Join(lines, "\n")
 }
+
+func formatSPCSummary(trend *logger.ProcessTrend) string {
+	if trend == nil || trend.TotalIterations == 0 {
+		return "SPC: (no data)"
+	}
+
+	limits := make(map[string]logger.TrendControlLimit, len(trend.ControlLimits))
+	for _, limit := range trend.ControlLimits {
+		limits[limit.Metric] = limit
+	}
+
+	var lines []string
+	lines = append(lines, "SPC:")
+	lines = append(lines, fmt.Sprintf("  Window:   %d iterations (%d total)", trend.WindowSize, trend.TotalIterations))
+	lines = append(lines, formatSPCLine("Success", limits["rolling_success_rate"], true))
+	lines = append(lines, formatSPCLine("Escalate", limits["rolling_escalation_rate"], true))
+	lines = append(lines, formatSPCLine("Duration", limits["rolling_avg_duration_ms"], false))
+
+	if len(trend.Anomalies) == 0 {
+		lines = append(lines, "  Anomaly:  none")
+		return strings.Join(lines, "\n")
+	}
+
+	first := trend.Anomalies[0]
+	lines = append(lines, fmt.Sprintf("  Anomaly:  %d (%s, %s)", len(trend.Anomalies), simplifySPCMetric(first.Metric), first.Severity))
+	return strings.Join(lines, "\n")
+}
+
+func formatSPCLine(label string, limit logger.TrendControlLimit, asPercent bool) string {
+	if limit.Metric == "" {
+		return fmt.Sprintf("  %-8s n/a", label+":")
+	}
+
+	latest := formatSPCValue(limit.Latest, asPercent)
+	lcl := formatSPCValue(limit.LCL, asPercent)
+	ucl := formatSPCValue(limit.UCL, asPercent)
+	return fmt.Sprintf("  %-8s %s (limits %s..%s)", label+":", latest, lcl, ucl)
+}
+
+func formatSPCValue(v float64, asPercent bool) string {
+	if asPercent {
+		if v < 0 {
+			v = 0
+		}
+		if v > 1 {
+			v = 1
+		}
+		return fmt.Sprintf("%d%%", int(v*100+0.5))
+	}
+
+	if v <= 0 {
+		return "0s"
+	}
+	return formatDuration(time.Duration(v) * time.Millisecond)
+}
+
+func simplifySPCMetric(metric string) string {
+	switch metric {
+	case "rolling_success_rate":
+		return "success"
+	case "rolling_first_pass_success_rate":
+		return "first-pass"
+	case "rolling_escalation_rate":
+		return "escalation"
+	case "rolling_avg_duration_ms":
+		return "duration"
+	case "rolling_avg_cost_usd":
+		return "cost"
+	default:
+		return metric
+	}
+}

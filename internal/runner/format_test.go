@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -697,6 +698,45 @@ func TestFormatRecommendation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFormatSPCSummary(t *testing.T) {
+	t.Run("no data", func(t *testing.T) {
+		if got := formatSPCSummary(nil); got != "SPC: (no data)" {
+			t.Fatalf("formatSPCSummary(nil) = %q, want %q", got, "SPC: (no data)")
+		}
+	})
+
+	t.Run("summary with anomaly", func(t *testing.T) {
+		trend := &logger.ProcessTrend{
+			TotalIterations: 120,
+			WindowSize:      30,
+			ControlLimits: []logger.TrendControlLimit{
+				{Metric: "rolling_success_rate", Latest: 0.8, LCL: 0.5, UCL: 0.9},
+				{Metric: "rolling_escalation_rate", Latest: 0.1, LCL: 0.0, UCL: 0.2},
+				{Metric: "rolling_avg_duration_ms", Latest: 90000, LCL: 30000, UCL: 180000},
+			},
+			Anomalies: []logger.TrendAnomaly{
+				{Metric: "rolling_escalation_rate", Severity: "moderate"},
+			},
+		}
+
+		got := formatSPCSummary(trend)
+		wantLines := []string{
+			"SPC:",
+			"Window:   30 iterations (120 total)",
+			"Success: 80% (limits 50%..90%)",
+			"Escalate: 10% (limits 0%..20%)",
+			"Duration: 1m (limits 30s..3m)",
+			"Anomaly:  1 (escalation, moderate)",
+		}
+
+		for _, want := range wantLines {
+			if !strings.Contains(got, want) {
+				t.Fatalf("formatSPCSummary() missing expected line:\nwant: %q\ngot:\n%s", want, got)
+			}
+		}
+	})
 }
 
 func TestFormatBeadBreakdown(t *testing.T) {
