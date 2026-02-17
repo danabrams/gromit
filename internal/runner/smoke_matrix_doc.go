@@ -47,6 +47,9 @@ func LoadRunnerSmokeMatrix(projectRoot string) (map[string]RunnerSmokeMatrixEntr
 		}
 
 		caseID := parts[0]
+		if !strings.HasPrefix(caseID, "internal/runner/") {
+			continue
+		}
 		if _, ok := entries[caseID]; ok {
 			return nil, fmt.Errorf("duplicate smoke matrix case %q", caseID)
 		}
