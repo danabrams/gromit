@@ -744,15 +744,42 @@ func TestStatusWithMocks_NoWork(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Paths.Specs = ".gromit/specs"
 	cfg.Paths.Plans = ".gromit/plans"
-	r, _ := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+	gromitDir := t.TempDir()
+	status := Status{
+		Running:   true,
+		Iteration: 3,
+		BeadID:    "bead-77",
+		BeadTitle: "No-op",
+		Model:     "haiku",
+		StartedAt: time.Now().Add(-1 * time.Minute),
+		ElapsedS:  60,
+		PID:       424242,
+	}
+	data, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal status: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644); err != nil {
+		t.Fatalf("failed to write status.json: %v", err)
+	}
+	r, _ := NewRunnerWithDeps(cfg, &buf, gromitDir,
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(&mockClaudeClient{}), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
+	r.processChecker = func(pid int) bool {
+		return true
+	}
 
 	if err := r.Status(); err != nil {
 		t.Fatalf("Status() failed: %v", err)
 	}
 	// New status shows pipeline, run, health sections with "No work in pipeline" recommendation
+	if !strings.Contains(buf.String(), "Run: iteration 3") {
+		t.Errorf("expected 'Run: iteration 3' in output, got: %s", buf.String())
+	}
 	if !strings.Contains(buf.String(), "No work in pipeline") {
 		t.Errorf("expected 'No work in pipeline' in output, got: %s", buf.String())
+	}
+	if strings.Contains(buf.String(), "Warning: stale run detected") {
+		t.Errorf("did not expect stale run warning, got: %s", buf.String())
 	}
 }
 
