@@ -1,6 +1,8 @@
 package prompt
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -758,6 +760,84 @@ func TestShapeRetroForBudget_DropsLearningsThenTruncatesRules(t *testing.T) {
 	}
 	if !hasTrimAction(report.TrimActions, trimTruncateRetroRules) {
 		t.Fatalf("expected trim action %q, got %v", trimTruncateRetroRules, report.TrimActions)
+	}
+}
+
+func setupRendererWithTemplate(t *testing.T, templateName, templateContent string) *Renderer {
+	t.Helper()
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, templateName), []byte(templateContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return &Renderer{
+		templatesDir: tmpDir,
+		specCache:    make(map[string]string),
+	}
+}
+
+func TestRenderBuild_ShapesContextWhenOverBudget(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_build.md", "ClaudeMD:{{.ClaudeMD}}|Rules:{{.Rules}}")
+	r.SetBudgetConfig(50, 2000)
+
+	ctx := &Context{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+	}
+	ctx.normalizeNilFields()
+
+	result, err := r.RenderBuild(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// ClaudeMD should be dropped because context is over budget
+	if strings.Contains(result, strings.Repeat("c", 500)) {
+		t.Error("expected ClaudeMD to be trimmed when over budget")
+	}
+	if !strings.Contains(result, "Rules:rules") {
+		t.Error("expected Rules to be preserved")
+	}
+}
+
+func TestRenderBuild_NoShapingWhenUnderBudget(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_build.md", "ClaudeMD:{{.ClaudeMD}}|Rules:{{.Rules}}")
+	r.SetBudgetConfig(50000, 2000)
+
+	ctx := &Context{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: "short",
+		Rules:    "rules",
+	}
+	ctx.normalizeNilFields()
+
+	result, err := r.RenderBuild(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(result, "ClaudeMD:short") {
+		t.Error("expected ClaudeMD preserved when under budget")
+	}
+}
+
+func TestRenderBuild_NoShapingWhenBudgetZero(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_build.md", "ClaudeMD:{{.ClaudeMD}}")
+
+	ctx := &Context{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: strings.Repeat("c", 500),
+	}
+	ctx.normalizeNilFields()
+
+	result, err := r.RenderBuild(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Budget is 0 (not set), so no shaping should occur
+	if !strings.Contains(result, strings.Repeat("c", 500)) {
+		t.Error("expected ClaudeMD preserved when budget is zero (disabled)")
 	}
 }
 

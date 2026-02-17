@@ -228,6 +228,7 @@ func (r *Renderer) SetBudgetConfig(maxChars, learningCapChars int) {
 
 // RenderBuild renders the build prompt for a bead
 func (r *Renderer) RenderBuild(ctx *Context) (string, error) {
+	ctx = r.shapeBuildContext(ctx, "build")
 	return r.render("PROMPT_build.md", ctx)
 }
 
@@ -592,6 +593,20 @@ func stripPhaseAnnotation(headerLine string) string {
 	before := strings.TrimRight(headerLine[:idx], " ")
 	after := headerLine[idx+endIdx+len(suffix):]
 	return before + after
+}
+
+// shapeBuildContext applies budget shaping to a Context before rendering.
+// Returns the original context if budget is zero or context is under budget.
+func (r *Renderer) shapeBuildContext(ctx *Context, phase string) *Context {
+	if r == nil || r.budgetMaxChars <= 0 || ctx == nil {
+		return ctx
+	}
+	shaped, report := ShapeContextForBudget(ctx, r.budgetMaxChars, r.budgetLearningCapChars, phase)
+	if len(report.TrimActions) > 0 {
+		fmt.Fprintf(os.Stderr, "Prompt budget: %d -> %d chars (trimmed: %s)\n",
+			report.BeforeChars, report.AfterChars, strings.Join(report.TrimActions, ", "))
+	}
+	return shaped
 }
 
 func (r *Renderer) render(templateName string, ctx any) (string, error) {
