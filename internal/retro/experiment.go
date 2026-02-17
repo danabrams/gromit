@@ -18,13 +18,20 @@ type BaselineMetrics struct {
 
 // Experiment represents an active process improvement experiment
 type Experiment struct {
-	Name            string          `json:"name"`
-	Hypothesis      string          `json:"hypothesis"`
-	Change          string          `json:"change"`
-	Measurement     string          `json:"measurement"`
-	Risk            string          `json:"risk"`
-	StartedAt       time.Time       `json:"started_at"`
-	BaselineMetrics BaselineMetrics `json:"baseline_metrics"`
+	ID                string          `json:"id,omitempty"`
+	Name              string          `json:"name"`
+	Hypothesis        string          `json:"hypothesis"`
+	Change            string          `json:"change"`
+	Measurement       string          `json:"measurement"`
+	Risk              string          `json:"risk"`
+	StartedAt         time.Time       `json:"started_at"`
+	PlanDate          time.Time       `json:"plan_date,omitempty"`
+	Status            string          `json:"status,omitempty"`        // planned | doing | study | act | completed
+	StudySummary      string          `json:"study_summary,omitempty"` // concise PDSA Study findings
+	ActDecision       string          `json:"act_decision,omitempty"`  // keep | revert | extend
+	ActDate           *time.Time      `json:"act_date,omitempty"`
+	LearningsCaptured bool            `json:"learnings_captured,omitempty"`
+	BaselineMetrics   BaselineMetrics `json:"baseline_metrics"`
 }
 
 // LoadExperiment reads the experiment from the given file path.

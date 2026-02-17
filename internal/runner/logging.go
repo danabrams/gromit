@@ -105,7 +105,34 @@ func (r *Runner) logIterationWithWarning(log *logger.IterationLog) {
 	}
 	if err := r.logger.LogIteration(log); err != nil {
 		r.log("Warning: failed to write iteration log: %v", err)
+		return
 	}
+	if r.trendUpdater != nil {
+		r.trendUpdater.Trigger()
+	}
+}
+
+func (r *Runner) startTrendUpdater() {
+	if r == nil || r.cfg == nil || r.trendUpdater != nil {
+		return
+	}
+	if r.cfg.Paths.Logs == "" || r.gromitDir == "" {
+		return
+	}
+
+	metricsDir := filepath.Join(r.gromitDir, "metrics")
+	r.trendUpdater = logger.NewAsyncTrendUpdater(r.cfg.Paths.Logs, metricsDir, 30, func(err error) {
+		r.log("Warning: failed to refresh process trend metrics: %v", err)
+	})
+	r.trendUpdater.Trigger()
+}
+
+func (r *Runner) stopTrendUpdater() {
+	if r == nil || r.trendUpdater == nil {
+		return
+	}
+	r.trendUpdater.Close()
+	r.trendUpdater = nil
 }
 
 func (r *Runner) writeAcceptanceFailureArtifact(iteration int, result *IterationResult) string {

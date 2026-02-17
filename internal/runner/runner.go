@@ -64,6 +64,7 @@ type Runner struct {
 	renderer           PromptRenderer
 	logger             IterationLogger
 	streamLogger       *logger.StreamLogger
+	trendUpdater       *logger.AsyncTrendUpdater
 	output             io.Writer
 	syncOut            *syncWriter // concrete type for WriteOverwrite access
 	gromitDir          string
@@ -106,6 +107,8 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	r.resetPerRunState()
+	r.startTrendUpdater()
+	defer r.stopTrendUpdater()
 
 	tmuxMgr, err := tmux.NewManager()
 	if err != nil {

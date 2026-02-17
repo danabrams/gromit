@@ -119,6 +119,44 @@ The following iterations exceeded 80% of their model's context window:
 
 {{- end }}
 
+{{- if .ProcessTrend }}
+
+## Continuous Process Trend
+
+- Generated at: {{ .ProcessTrend.GeneratedAt.Format "2006-01-02T15:04:05Z07:00" }}
+- Total iterations observed: {{ .ProcessTrend.TotalIterations }}
+- Rolling window size: {{ .ProcessTrend.WindowSize }}
+
+### Latest Rolling Window
+- Success rate: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.SuccessRate 100) }}
+- Failure rate: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.FailureRate 100) }}
+- First-pass success rate: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.FirstPassSuccess 100) }}
+- Escalation rate: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.EscalationRate 100) }}
+- Avg duration: {{ printf "%.0f" .ProcessTrend.LatestWindow.AvgDurationMs }}ms
+- P95 duration: {{ printf "%.0f" .ProcessTrend.LatestWindow.P95DurationMs }}ms
+- Avg cost: ${{ printf "%.4f" .ProcessTrend.LatestWindow.AvgCostUSD }}
+- Avg MTTR proxy: {{ printf "%.0f" .ProcessTrend.LatestWindow.AvgMTTRProxyMs }}ms
+
+{{- if .ProcessTrend.ControlLimits }}
+### Control Limits
+| Metric | Latest | Mean | Std Dev | LCL | UCL |
+|--------|--------|------|---------|-----|-----|
+{{- range .ProcessTrend.ControlLimits }}
+| {{ .Metric }} | {{ printf "%.4f" .Latest }} | {{ printf "%.4f" .Mean }} | {{ printf "%.4f" .StdDev }} | {{ printf "%.4f" .LCL }} | {{ printf "%.4f" .UCL }} |
+{{- end }}
+{{- end }}
+
+{{- if .ProcessTrend.Anomalies }}
+### Out-Of-Control Signals
+{{- range .ProcessTrend.Anomalies }}
+- **{{ .Metric }}** ({{ .Severity }}): {{ .Message }}
+{{- end }}
+{{- else }}
+*No out-of-control signals detected in latest metrics.*
+{{- end }}
+
+{{- end }}
+
 {{- if .Experiment }}
 
 ## Active Experiment Evaluation
@@ -187,6 +225,14 @@ Analyze the learnings above and provide:
    - **Risk**: What could go wrong (e.g., "Test-only beads may fail more on haiku, increasing retries")
 {{- end }}
 
+{{- if .Experiment }}
+
+8. **PDSA Update**: Update the active experiment in explicit PDSA terms:
+   - Evaluate whether the hypothesis held (Study)
+   - Decide Act outcome: `keep`, `revert`, or `extend`
+   - Provide an implementation-ready summary that can be persisted back into `experiment.json`
+{{- end }}
+
 ## Output Format
 
 Provide your analysis in two parts:
@@ -233,6 +279,14 @@ Provide your analysis in two parts:
       "measurement": "How to evaluate success",
       "risk": "What could go wrong"
     }
+  ],
+  "pdsa_updates": [
+    {
+      "experiment_id": "id-or-name",
+      "status": "study | act | completed",
+      "study_summary": "Concise findings and effect size where possible",
+      "act_decision": "keep | revert | extend"
+    }
   ]
 }
 ```
@@ -254,6 +308,10 @@ After applying retro changes to LEARNINGS.md (archives, consolidations, promotio
 - Generate 2-4 experiment recommendations based on efficiency data (not more, not less)
 - Each experiment must be concrete, testable, and have clear measurement criteria
 - During interactive review, the user will select at most one experiment to run (never multiple)
+{{- end }}
+{{- if .Experiment }}
+- Include exactly one `pdsa_updates` entry for the active experiment
+- `study_summary` should explicitly reference process trend/control-limit signals when available
 {{- end }}
 
 ### Anti-Generic Archival Rules

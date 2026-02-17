@@ -54,12 +54,13 @@ type Retro struct {
 
 // TemplateContext holds data for retro prompt template
 type TemplateContext struct {
-	Rules      string
-	Learnings  string
-	RunStats   logger.RunStats
-	BeadStats  map[string]logger.BeadStats
-	Efficiency *logger.EfficiencyReport
-	Experiment *Experiment
+	Rules        string
+	Learnings    string
+	RunStats     logger.RunStats
+	BeadStats    map[string]logger.BeadStats
+	Efficiency   *logger.EfficiencyReport
+	ProcessTrend *logger.ProcessTrend
+	Experiment   *Experiment
 }
 
 // Result represents the outcome of a retro analysis
@@ -160,9 +161,6 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 		return nil, fmt.Errorf("loading rules: %w", err)
 	}
 
-	// Format learnings for prompt
-	learningsText := r.formatLearnings()
-
 	// Load run stats and per-bead stats (with optional filtering)
 	logsDir := filepath.Join(filepath.Dir(r.rulesPath), "logs")
 	runStats, _ := logger.ReadAllLogsFiltered(logsDir, beadFilter)
@@ -173,6 +171,10 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 
 	// Load active experiment (if any)
 	experiment, _ := LoadExperiment(r.experimentPath)
+	r.captureExperimentLearning(experiment)
+
+	// Format learnings for prompt (after optional experiment-learning capture)
+	learningsText := r.formatLearnings()
 
 	// Filter per-bead stats to only include beads with >= 2 failures
 	filteredBeadStats := make(map[string]logger.BeadStats)
@@ -331,12 +333,13 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 
 	ctx := TemplateContext{
-		Rules:      rules,
-		Learnings:  learnings,
-		RunStats:   runStats,
-		BeadStats:  beadStats,
-		Efficiency: efficiency,
-		Experiment: experiment,
+		Rules:        rules,
+		Learnings:    learnings,
+		RunStats:     runStats,
+		BeadStats:    beadStats,
+		Efficiency:   efficiency,
+		ProcessTrend: r.loadProcessTrend(),
+		Experiment:   experiment,
 	}
 
 	var sb strings.Builder
@@ -345,6 +348,67 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 
 	return sb.String(), nil
+}
+
+func (r *Retro) loadProcessTrend() *logger.ProcessTrend {
+	if r == nil || r.gromitDir == "" {
+		return nil
+	}
+	path := filepath.Join(r.gromitDir, "metrics", "process_trend.json")
+	trend, err := logger.ReadProcessTrend(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load process trend: %v\n", err)
+		return nil
+	}
+	return trend
+}
+
+func (r *Retro) captureExperimentLearning(exp *Experiment) {
+	if r == nil || exp == nil || r.learningsFile == nil {
+		return
+	}
+
+	decision := strings.ToLower(strings.TrimSpace(exp.ActDecision))
+	if exp.LearningsCaptured {
+		return
+	}
+	if strings.TrimSpace(exp.StudySummary) == "" {
+		return
+	}
+	if decision != "keep" && decision != "revert" {
+		return
+	}
+
+	expID := strings.TrimSpace(exp.ID)
+	if expID == "" {
+		expID = strings.TrimSpace(exp.Name)
+	}
+	content := fmt.Sprintf(
+		"PDSA experiment `%s` completed with decision `%s`.\n\nHypothesis: %s\nChange: %s\nMeasurement: %s\nStudy: %s",
+		expID,
+		decision,
+		strings.TrimSpace(exp.Hypothesis),
+		strings.TrimSpace(exp.Change),
+		strings.TrimSpace(exp.Measurement),
+		strings.TrimSpace(exp.StudySummary),
+	)
+
+	if _, err := r.learningsFile.Add("retro", content, learnings.CategoryPatterns); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to capture experiment learning: %v\n", err)
+		return
+	}
+
+	exp.LearningsCaptured = true
+	if strings.TrimSpace(exp.Status) == "" || strings.EqualFold(exp.Status, "act") {
+		exp.Status = "completed"
+	}
+	if exp.ActDate == nil {
+		now := time.Now().UTC()
+		exp.ActDate = &now
+	}
+	if err := SaveExperiment(r.experimentPath, exp); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to persist experiment learning state: %v\n", err)
+	}
 }
 
 // enrichBeadStats populates Status, CloseReason, and Comments fields on BeadStats
@@ -442,6 +506,9 @@ func buildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport,
 		prompt.WriteString(fmt.Sprintf("**Hypothesis:** %s\n\n", experiment.Hypothesis))
 		prompt.WriteString(fmt.Sprintf("**Change:** %s\n\n", experiment.Change))
 		prompt.WriteString(fmt.Sprintf("**Started:** %s\n\n", experiment.StartedAt.Format("2006-01-02")))
+		if experiment.ID != "" {
+			prompt.WriteString(fmt.Sprintf("**Experiment ID:** %s\n\n", experiment.ID))
+		}
 
 		prompt.WriteString("The retro analysis above includes a comparison of current metrics against the baseline. ")
 		prompt.WriteString("You need to decide whether to:\n\n")
@@ -464,6 +531,7 @@ func buildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport,
 
 		if experiment != nil {
 			prompt.WriteString("   - An active experiment is being evaluated - decide whether to keep, revert, or extend it\n")
+			prompt.WriteString("   - Persist explicit PDSA fields: status, study_summary, act_decision, and act_date in .gromit/experiment.json\n")
 		}
 
 		if efficiency != nil && experiment == nil {
