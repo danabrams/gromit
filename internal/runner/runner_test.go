@@ -2959,3 +2959,20 @@ func TestRun_L3StopLine_LogsMutationHaltAndSkipsPushMerge(t *testing.T) {
 		t.Fatalf("expected mutation-halt message in output, got:\n%s", buf.String())
 	}
 }
+
+// TestPrepareMethodology_ATDDNotSkippedForRegularBead verifies that a non-test-only
+// bead with ATDD globally enabled returns atddActive=true from prepareMethodologyForBead.
+func TestPrepareMethodology_ATDDNotSkippedForRegularBead(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{ATDD: true},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("regular-bead-1", "Implement feature X")
+	bc := newBeadContextForMethodology(b)
+
+	atddActive, _, _ := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !atddActive {
+		t.Error("prepareMethodologyForBead should not skip ATDD for a regular (non-test-only) bead")
+	}
+}
