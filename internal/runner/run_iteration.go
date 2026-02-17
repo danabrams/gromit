@@ -121,6 +121,15 @@ func (r *Runner) processSingleBead(
 		return false, nil
 	}
 
+	latest, err := r.beads.Show(b.ID)
+	if err != nil {
+		r.log("Warning: failed to re-check bead status for %s: %v", b.ID, err)
+	} else if latest != nil && strings.EqualFold(latest.Status, "closed") {
+		r.log("Bead %s is already closed; skipping", b.ID)
+		st.skippedBeads[b.ID] = true
+		return false, nil
+	}
+
 	passed, precheckDuration := r.runPrecheck(ctx, b)
 	if passed {
 		if err := r.handlePrecheckSkip(b, st, precheckDuration); err != nil {

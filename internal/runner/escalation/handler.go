@@ -123,9 +123,31 @@ func (h *Handler) HandleStallTimeout(ctx context.Context, bc *runtypes.BeadConte
 	return h.handleTimeoutEscalationOrFail(bc, "stall timeout")
 }
 
-// HandleInvocationTimeout escalates once on invocation timeout and otherwise fails fast.
-func (h *Handler) HandleInvocationTimeout(bc *runtypes.BeadContext) (continueLoop bool) {
-	return h.handleTimeoutEscalationOrFail(bc, "invocation timeout")
+// HandleInvocationTimeout escalates once on invocation timeout and, when already
+// at the highest tier, attempts decomposition as the terminal recovery option.
+func (h *Handler) HandleInvocationTimeout(ctx context.Context, bc *runtypes.BeadContext) (continueLoop bool) {
+	if h.handleTimeoutEscalationOrFail(bc, "invocation timeout") {
+		return true
+	}
+	if bc == nil || bc.Result == nil || bc.Result.Error == nil {
+		return false
+	}
+	if bc.Result.Error.Error() != "invocation timeout: no higher tier available" {
+		return false
+	}
+
+	decomposeCtx := bc.ParentCtx
+	if decomposeCtx == nil {
+		decomposeCtx = ctx
+	}
+	if decomposeCtx == nil {
+		decomposeCtx = context.Background()
+	}
+	if decomposeCtx.Err() != nil {
+		bc.Result.Error = fmt.Errorf("invocation timeout: no higher tier available (decomposition skipped: parent context canceled: %w)", decomposeCtx.Err())
+		return false
+	}
+	return h.AttemptDecomposition(decomposeCtx, bc, "invocation timeout and no higher tier available")
 }
 
 func (h *Handler) resolveL1RetryCap(bc *runtypes.BeadContext) int {
@@ -322,6 +344,7 @@ func (h *Handler) AttemptDecomposition(ctx context.Context, bc *runtypes.BeadCon
 
 	h.log("Task successfully decomposed into %d sub-tasks", len(subTasks))
 	bc.Result.Decomposed = true
+	bc.Result.Error = nil
 	return false
 }
 
@@ -355,7 +378,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			}
 			if invResult != nil && (invResult.TimeoutType == "invocation" || invResult.TimeoutType == runtypes.TimeoutTypePhase) {
 				bc.Result.TimeoutType = invResult.TimeoutType
-				if h.HandleInvocationTimeout(bc) {
+				if h.HandleInvocationTimeout(ctx, bc) {
 					continue
 				}
 				return false

@@ -203,7 +203,7 @@ func TestHandleInvocationTimeout_EscalatesOnlyOncePerBead(t *testing.T) {
 	bc.Tier = provider.TierLow
 	bc.Model = "haiku"
 
-	if !h.HandleInvocationTimeout(bc) {
+	if !h.HandleInvocationTimeout(context.Background(), bc) {
 		t.Fatal("expected first invocation timeout to escalate")
 	}
 	if bc.Tier != provider.TierMedium {
@@ -213,7 +213,7 @@ func TestHandleInvocationTimeout_EscalatesOnlyOncePerBead(t *testing.T) {
 		t.Fatalf("TimeoutEscalationsThisBead=%d, want 1", bc.TimeoutEscalationsThisBead)
 	}
 
-	if h.HandleInvocationTimeout(bc) {
+	if h.HandleInvocationTimeout(context.Background(), bc) {
 		t.Fatal("expected second invocation timeout to stop (escalation limit reached)")
 	}
 	if bc.Result.Error == nil {
@@ -655,6 +655,48 @@ func TestExecuteWithRetry_PhaseTimeoutEscalatesAndThenSucceeds(t *testing.T) {
 	}
 	if bc.Tier != provider.TierMedium {
 		t.Fatalf("expected escalation to %s, got %s", provider.TierMedium, bc.Tier)
+	}
+}
+
+func TestHandleInvocationTimeout_NoHigherTierAttemptsDecomposition(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+	createSubCalled := false
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "subtask 1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierHigh
+	bc.ParentCtx = context.Background()
+
+	continueLoop := h.HandleInvocationTimeout(context.Background(), bc)
+	if continueLoop {
+		t.Fatal("expected no retry when already at highest tier")
+	}
+	if !decomposeCalled {
+		t.Fatal("expected decomposition attempt when no higher tier is available")
+	}
+	if !createSubCalled {
+		t.Fatal("expected sub-bead creation after decomposition")
+	}
+	if !bc.Result.Decomposed {
+		t.Fatal("expected result to be marked decomposed")
+	}
+	if bc.Result.Error != nil {
+		t.Fatalf("expected nil error after successful decomposition, got: %v", bc.Result.Error)
 	}
 }
 

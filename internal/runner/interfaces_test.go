@@ -1889,6 +1889,68 @@ func TestRunWithMocks_PrecheckPassedCloseFailsLoopTerminates(t *testing.T) {
 	}
 }
 
+func TestRunWithMocks_ReadyBeadAlreadyClosedIsSkippedBeforeProcessing(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			return &bead.Bead{
+				ID:              "closed-bead",
+				Title:           "Already closed elsewhere",
+				Priority:        1,
+				Labels:          []string{},
+				ExpectedOutputs: []string{"feature is implemented"},
+			}, nil
+		},
+		ShowFn: func(id string) (*bead.Bead, error) {
+			return &bead.Bead{
+				ID:     id,
+				Title:  "Already closed elsewhere",
+				Status: "closed",
+			}, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{}
+	mockLog := &mockIterationLogger{}
+
+	precheckEnabled := true
+	var buf strings.Builder
+	r, _ := NewRunnerWithDeps(
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}, Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30}},
+		&buf, t.TempDir(),
+		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog},
+	)
+
+	if err := r.Run(context.Background(), 10, time.Time{}, nil, false); err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	if callCount != 2 {
+		t.Errorf("expected Ready called 2 times, got %d", callCount)
+	}
+	if len(beads.ClosedIDs) != 0 {
+		t.Errorf("expected no close attempts for already closed bead, got %v", beads.ClosedIDs)
+	}
+	if len(mockClaude.RunCalls) != 0 {
+		t.Errorf("expected no precheck calls for already closed bead, got %d", len(mockClaude.RunCalls))
+	}
+	if len(mockClaude.StreamRunCalls) != 0 {
+		t.Errorf("expected no build calls for already closed bead, got %d", len(mockClaude.StreamRunCalls))
+	}
+	if len(mockLog.Logs) != 0 {
+		t.Errorf("expected no iteration logs for skipped closed bead, got %d", len(mockLog.Logs))
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "already closed; skipping") {
+		t.Errorf("expected already-closed skip message in output, got: %s", output)
+	}
+	if !strings.Contains(output, "All ready beads are stuck and have been skipped") {
+		t.Errorf("expected stuck-beads stop message in output, got: %s", output)
+	}
+}
+
 func TestRunWithMocks_ConsecutivePrecheckSkipsHitsLimit(t *testing.T) {
 	callCount := 0
 	beads := &mockBeadClient{
