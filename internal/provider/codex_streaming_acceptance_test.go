@@ -58,9 +58,9 @@ exit 0
 	}
 }
 
-// TestCodexProviderStreamRunWithoutJSONFlag verifies that StreamRun() does NOT
-// add --json flag when EventHandler is nil.
-func TestCodexProviderStreamRunWithoutJSONFlag(t *testing.T) {
+// TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag verifies that StreamRun()
+// still adds --json when EventHandler is nil, so usage/cost events are available.
+func TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag(t *testing.T) {
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -78,7 +78,7 @@ exit 0
 	ctx := context.Background()
 	var output bytes.Buffer
 
-	// EventHandler is nil, so --json flag should NOT be added
+	// EventHandler is nil, but --json is still required for usage/cost extraction.
 	result, err := cp.StreamRun(ctx, "test prompt", TierMedium, &output, nil, nil)
 
 	if err != nil {
@@ -89,10 +89,10 @@ exit 0
 		t.Fatal("StreamRun() returned nil result")
 	}
 
-	// Verify that --json flag was NOT passed when handler is nil
+	// Verify that --json flag is still passed when handler is nil.
 	outputStr := result.Output + output.String()
-	if strings.Contains(outputStr, "--json") {
-		t.Errorf("StreamRun() with nil EventHandler should not pass --json flag, but output contains it: %s", outputStr)
+	if !strings.Contains(outputStr, "--json") {
+		t.Errorf("StreamRun() with nil EventHandler should pass --json flag for usage/cost tracking, output: %s", outputStr)
 	}
 }
 

@@ -97,45 +97,49 @@ func ReadStatus(gromitDir, specsDir, plansDir string, startedAt *time.Time) (*Pi
 	}
 	sort.Strings(status.UndecomposedPlans)
 
-	// Count ready beads and get their IDs (best-effort - handle bd not being available)
-	// Create a client with working directory set to parent of gromitDir
-	client, err := bead.NewClient()
-	if err == nil {
-		client.Dir = filepath.Dir(gromitDir)
-		status.ReadyBeads, status.ReadyBeadCount = listReadyBeads(client)
+	if startedAt != nil {
+		status.HasRunInfo = true
+	}
 
-		// Populate additional bead counts
-		// These calls may fail if bd is not available, which is fine (counts remain 0)
+	// Count ready/closed/in-progress beads only when a bd repo is present.
+	// This avoids repeated expensive shellouts in non-bd directories.
+	repoRoot := filepath.Dir(gromitDir)
+	if hasBeadsRepo(repoRoot) {
+		// Best-effort: if client creation or any command fails, counts remain at zero.
+		client, err := bead.NewClient()
+		if err == nil {
+			client.Dir = repoRoot
+			status.ReadyBeads, status.ReadyBeadCount = listReadyBeads(client)
 
-		// In-progress count
-		if count, err := client.CountByStatus("in_progress"); err == nil {
-			status.InProgressCount = count
-		}
-
-		// Deferred count
-		if count, err := client.CountByStatus("deferred"); err == nil {
-			status.DeferredCount = count
-		}
-
-		// Closed count
-		if count, err := client.CountByStatus("closed"); err == nil {
-			status.ClosedCount = count
-		}
-
-		// Blocked count = open - ready
-		// Open beads include both ready and blocked (those with unmet dependencies)
-		if openCount, err := client.CountByStatus("open"); err == nil {
-			status.BlockedCount = openCount - status.ReadyBeadCount
-			if status.BlockedCount < 0 {
-				status.BlockedCount = 0
+			// In-progress count
+			if count, err := client.CountByStatus("in_progress"); err == nil {
+				status.InProgressCount = count
 			}
-		}
 
-		// If startedAt is provided, populate "closed this run" count
-		if startedAt != nil {
-			status.HasRunInfo = true
-			if count, err := client.CountClosedAfter(*startedAt); err == nil {
-				status.ClosedThisRunCount = count
+			// Deferred count
+			if count, err := client.CountByStatus("deferred"); err == nil {
+				status.DeferredCount = count
+			}
+
+			// Closed count
+			if count, err := client.CountByStatus("closed"); err == nil {
+				status.ClosedCount = count
+			}
+
+			// Blocked count = open - ready
+			// Open beads include both ready and blocked (those with unmet dependencies)
+			if openCount, err := client.CountByStatus("open"); err == nil {
+				status.BlockedCount = openCount - status.ReadyBeadCount
+				if status.BlockedCount < 0 {
+					status.BlockedCount = 0
+				}
+			}
+
+			// If startedAt is provided, populate "closed this run" count.
+			if startedAt != nil {
+				if count, err := client.CountClosedAfter(*startedAt); err == nil {
+					status.ClosedThisRunCount = count
+				}
 			}
 		}
 	}
@@ -145,6 +149,11 @@ func ReadStatus(gromitDir, specsDir, plansDir string, startedAt *time.Time) (*Pi
 	status.Recommendation = generateRecommendation(status)
 
 	return status, nil
+}
+
+func hasBeadsRepo(repoRoot string) bool {
+	info, err := os.Stat(filepath.Join(repoRoot, ".beads"))
+	return err == nil && info.IsDir()
 }
 
 // findMarkdownFiles returns all .md files in a directory

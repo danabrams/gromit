@@ -1272,7 +1272,10 @@ func TestRunWithMocks_ClosesBeadOnSuccess(t *testing.T) {
 
 	var buf strings.Builder
 	r, _ := NewRunnerWithDeps(
-		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&config.Config{
+			Claude: config.ClaudeConfig{BeadTimeout: 60},
+			Git:    config.GitConfig{AutoPush: boolPtrInterfaces(false)},
+		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
@@ -1317,7 +1320,11 @@ func TestRunWithMocks_PrecheckPassed(t *testing.T) {
 	precheckEnabled := true
 	var buf strings.Builder
 	r, _ := NewRunnerWithDeps(
-		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}, Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30}},
+		&config.Config{
+			Claude:   config.ClaudeConfig{BeadTimeout: 60},
+			Precheck: config.PrecheckConfig{Enabled: &precheckEnabled, Model: "haiku", TimeoutSeconds: 30},
+			Git:      config.GitConfig{AutoPush: boolPtrInterfaces(false)},
+		},
 		&buf, t.TempDir(),
 		Deps{Beads: beads, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: mockLog})
 
