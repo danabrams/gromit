@@ -246,7 +246,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	}
 	claudeProvider := provider.NewClaudeProvider(claudeClient, tierToModel)
 
-	r, err := retro.NewRetroWithProvider(claudeProvider, gromitDir)
+	r, err := retro.NewRetroWithProviderAndBudget(claudeProvider, gromitDir, cfg.Prompt.Budget.MaxChars)
 	if err != nil {
 		return fmt.Errorf("failed to create retro analyzer: %w", err)
 	}

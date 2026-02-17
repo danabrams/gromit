@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/state"
 )
@@ -57,6 +58,7 @@ type Retro struct {
 	templatePath   string
 	experimentPath string
 	gromitDir      string
+	promptBudget   int
 }
 
 // TemplateContext holds data for retro prompt template
@@ -89,6 +91,12 @@ type Result struct {
 
 // NewRetroWithProvider creates a new retrospective analyzer with a Provider
 func NewRetroWithProvider(p ProviderRunner, gromitDir string) (*Retro, error) {
+	return NewRetroWithProviderAndBudget(p, gromitDir, 0)
+}
+
+// NewRetroWithProviderAndBudget creates a new retrospective analyzer with a Provider
+// and optional prompt budget for retro rules/learnings shaping.
+func NewRetroWithProviderAndBudget(p ProviderRunner, gromitDir string, promptBudget int) (*Retro, error) {
 	if p == nil {
 		return nil, fmt.Errorf("provider is nil")
 	}
@@ -103,7 +111,16 @@ func NewRetroWithProvider(p ProviderRunner, gromitDir string) (*Retro, error) {
 		templatePath:   filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
 		experimentPath: filepath.Join(gromitDir, "experiment.json"),
 		gromitDir:      gromitDir,
+		promptBudget:   promptBudget,
 	}, nil
+}
+
+// SetPromptBudget configures optional max character shaping for retro prompt rules/learnings.
+func (r *Retro) SetPromptBudget(maxChars int) {
+	if r == nil {
+		return
+	}
+	r.promptBudget = maxChars
 }
 
 // resultGetter is a common interface for extracting results from either provider or Claude
@@ -348,6 +365,10 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	tmplContent, err := os.ReadFile(r.templatePath)
 	if err != nil {
 		return "", fmt.Errorf("reading template: %w", err)
+	}
+
+	if r.promptBudget > 0 {
+		rules, learnings, _ = prompt.ShapeRetroForBudget(rules, learnings, r.promptBudget)
 	}
 
 	tmpl, err := template.New("retro").Funcs(template.FuncMap{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,19 @@ func TestNewRetroWithProviderNilProvider(t *testing.T) {
 	}
 	if err == nil {
 		t.Error("expected error for nil provider")
+	}
+}
+
+func TestNewRetroWithProviderAndBudget(t *testing.T) {
+	tmpDir := t.TempDir()
+	mockProvider := &mockProvider{}
+
+	r, err := NewRetroWithProviderAndBudget(mockProvider, tmpDir, 1234)
+	if err != nil {
+		t.Fatalf("NewRetroWithProviderAndBudget returned error: %v", err)
+	}
+	if r.promptBudget != 1234 {
+		t.Fatalf("expected prompt budget 1234, got %d", r.promptBudget)
 	}
 }
 
@@ -1236,5 +1250,33 @@ func TestRenderPromptWithProviderFamiliesInRealTemplate(t *testing.T) {
 	}
 	if !contains(prompt, "Mixed providers") {
 		t.Error("rendered prompt should label mixed-provider aggregates")
+	}
+}
+
+func TestRenderPrompt_ShapesRulesAndLearningsWhenBudgetConfigured(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, []byte("RULES:\n{{.Rules}}\nLEARNINGS:\n{{.Learnings}}\n"), 0644); err != nil {
+		t.Fatalf("writing template: %v", err)
+	}
+
+	r := &Retro{
+		templatePath: templatePath,
+		promptBudget: 40,
+	}
+
+	rules := strings.Repeat("r", 30)
+	learnings := strings.Repeat("l", 40)
+
+	prompt, err := r.renderPrompt(rules, learnings, logger.RunStats{}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("renderPrompt returned error: %v", err)
+	}
+
+	if !strings.Contains(prompt, rules) {
+		t.Fatalf("expected rules to remain after shaping, got prompt: %q", prompt)
+	}
+	if strings.Contains(prompt, learnings) {
+		t.Fatalf("expected learnings to be shaped out of prompt, got prompt: %q", prompt)
 	}
 }
