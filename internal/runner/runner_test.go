@@ -2976,3 +2976,21 @@ func TestPrepareMethodology_ATDDNotSkippedForRegularBead(t *testing.T) {
 		t.Error("prepareMethodologyForBead should not skip ATDD for a regular (non-test-only) bead")
 	}
 }
+
+// TestPrepareMethodology_ATDDDisabledDoesNotLogSkip verifies that when ATDD is
+// globally disabled, prepareMethodologyForBead does not emit the ATDD skip log
+// message, even for a test-only bead title.
+func TestPrepareMethodology_ATDDDisabledDoesNotLogSkip(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{ATDD: false},
+	}
+	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("disabled-atdd-1", "Add tests for runner loop")
+	bc := newBeadContextForMethodology(b)
+
+	r.prepareMethodologyForBead(context.Background(), bc)
+
+	if strings.Contains(buf.String(), "Skipping ATDD: bead is test-only") {
+		t.Errorf("expected no ATDD skip log when ATDD is disabled, got:\n%s", buf.String())
+	}
+}
