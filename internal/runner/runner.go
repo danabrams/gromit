@@ -27,6 +27,27 @@ import (
 
 var errValidationFailed = errors.New("validation failed")
 
+const (
+	l3StopLineMarker                 = "l3 stop-line"
+	l3EscalationFailedCommand        = "build iteration"
+	l3MutationHaltMessage            = "halting state-changing actions (close/sync/push/merge) until human decision"
+	l4DecisionRequiredMessage        = "L4 decision required"
+	escalationPacketHeading          = "Escalation Packet"
+	l3EscalationPacketUnavailableLog = "L3 escalation packet unavailable: %v"
+	l3EscalationPacketHeadingLog     = "L3 escalation packet"
+	continueRetriesOptionTitle       = "Option 1: Continue autonomous retries"
+	continueRetriesOptionTradeoff    = "higher throughput, but elevated risk of unsafe state mutation"
+	manualRepairOptionTitle          = "Option 2: Perform manual repair and resume"
+	manualRepairOptionTradeoff       = "moderate speed, but requires human intervention and context switching"
+	decomposeBeadsOptionTitle        = "Option 3: Decompose into smaller beads"
+	decomposeBeadsOptionTradeoff     = "lowest immediate risk, but slower delivery due to decomposition overhead"
+	l3EscalationRecommendation       = "Escalate to human decision before any close/sync/push/merge actions"
+	boundedRetrySummary              = "bounded autonomous retry"
+	boundedRetryOutcome              = "insufficient to recover safely"
+	tierEscalationSummary            = "tier escalation and bounded recovery"
+	tierEscalationOutcome            = "unsafe-state remained"
+)
+
 // Runner orchestrates the Gromit loop
 //
 //nolint:govet // field alignment is intentionally grouped by responsibility.
@@ -244,7 +265,7 @@ func (r *Runner) shouldExitRunLoopOnStopLine(result *IterationResult) bool {
 	if result == nil || result.Error == nil {
 		return false
 	}
-	return strings.Contains(strings.ToLower(result.Error.Error()), "l3 stop-line")
+	return strings.Contains(strings.ToLower(result.Error.Error()), l3StopLineMarker)
 }
 
 func (r *Runner) haltStateMutationsAtL3StopLine(result *IterationResult) {
@@ -253,38 +274,46 @@ func (r *Runner) haltStateMutationsAtL3StopLine(result *IterationResult) {
 	}
 
 	packet := andon.EscalationPacket{
-		FailedCommand: "build iteration",
+		FailedCommand: l3EscalationFailedCommand,
 		ErrorExcerpt:  result.Error.Error(),
 		L1Attempts: []andon.EscalationAttempt{
-			{Summary: "bounded autonomous retry", Outcome: "insufficient to recover safely"},
+			{Summary: boundedRetrySummary, Outcome: boundedRetryOutcome},
 		},
 		L2Attempts: []andon.EscalationAttempt{
-			{Summary: "tier escalation and bounded recovery", Outcome: "unsafe-state remained"},
+			{Summary: tierEscalationSummary, Outcome: tierEscalationOutcome},
 		},
 		StateSnapshot:  fmt.Sprintf("bead=%s model=%s success=%v", result.BeadID, result.Model, result.Success),
 		RiskLevel:      andon.RiskLevelHigh,
-		Recommendation: "Escalate to human decision before any close/sync/push/merge actions",
+		Recommendation: l3EscalationRecommendation,
 		Options: []andon.EscalationOption{
-			{Title: "Option 1: Continue autonomous retries", Tradeoff: "higher throughput, but elevated risk of unsafe state mutation"},
-			{Title: "Option 2: Perform manual repair and resume", Tradeoff: "moderate speed, but requires human intervention and context switching"},
-			{Title: "Option 3: Decompose into smaller beads", Tradeoff: "lowest immediate risk, but slower delivery due to decomposition overhead"},
+			{Title: continueRetriesOptionTitle, Tradeoff: continueRetriesOptionTradeoff},
+			{Title: manualRepairOptionTitle, Tradeoff: manualRepairOptionTradeoff},
+			{Title: decomposeBeadsOptionTitle, Tradeoff: decomposeBeadsOptionTradeoff},
 		},
 	}
 
 	formattedPacket, err := andon.FormatEscalationPacket(packet)
 	if err != nil {
-		r.log("L3 escalation packet unavailable: %v", err)
+		r.log(l3EscalationPacketUnavailableLog, err)
 		return
 	}
 
-	r.log("L3 escalation packet")
-	r.log("halting state-changing actions (close/sync/push/merge) until human decision")
-	r.log("L4 decision required")
-	r.log("Escalation Packet")
+	r.emitEscalationPacketDetails(formattedPacket)
+	r.renderL4DecisionOptions(packet.Options)
+}
+
+func (r *Runner) emitEscalationPacketDetails(formattedPacket string) {
+	r.log(l3EscalationPacketHeadingLog)
+	r.log(l3MutationHaltMessage)
+	r.log(l4DecisionRequiredMessage)
+	r.log(escalationPacketHeading)
 	for _, line := range strings.Split(strings.TrimSpace(formattedPacket), "\n") {
 		r.log("%s", line)
 	}
-	for i, option := range packet.Options {
+}
+
+func (r *Runner) renderL4DecisionOptions(options []andon.EscalationOption) {
+	for i, option := range options {
 		r.log("Option %d: %s", i+1, option.Title)
 		r.log("tradeoff: %s", option.Tradeoff)
 	}

@@ -3221,7 +3221,6 @@ func setupL3StopLineAcceptanceRunner(
 }
 
 func TestRun_L3StopLine_HaltsMutationAndStopsFurtherBeadProcessing(t *testing.T) {
-	// Expected failure: Runner.haltStateMutationsAtL3StopLine() and Runner.shouldExitRunLoopOnStopLine() do not exist yet.
 	beadQueue := []*bead.Bead{
 		{ID: "bead-l3-1", Title: "first stop-line candidate", Priority: 1},
 		{ID: "bead-l3-2", Title: "should not run after L3", Priority: 1},
@@ -3274,7 +3273,6 @@ func TestRun_L3StopLine_HaltsMutationAndStopsFurtherBeadProcessing(t *testing.T)
 }
 
 func TestRun_L4Output_IncludesPacketAndThreeDecisionOptionsWithTradeoffs(t *testing.T) {
-	// Expected failure: Runner.renderL4DecisionOptions() and Runner.emitEscalationPacketDetails() do not exist yet.
 	beads := &mockBeadClient{
 		ReadyFn: makeReadyFromQueue([]*bead.Bead{
 			{ID: "bead-l4-1", Title: "surface escalation choices", Priority: 1},
