@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/andon"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/methodology"
@@ -237,4 +238,53 @@ func wrapRefactorValidationError(err error) error {
 		return fmt.Errorf("validation after refactoring aborted: %w", err)
 	}
 	return fmt.Errorf("validation failed after refactoring: %w", err)
+}
+
+func (r *Runner) shouldExitRunLoopOnStopLine(result *IterationResult) bool {
+	if result == nil || result.Error == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(result.Error.Error()), "l3 stop-line")
+}
+
+func (r *Runner) haltStateMutationsAtL3StopLine(result *IterationResult) {
+	if result == nil || result.Error == nil {
+		return
+	}
+
+	packet := andon.EscalationPacket{
+		FailedCommand: "build iteration",
+		ErrorExcerpt:  result.Error.Error(),
+		L1Attempts: []andon.EscalationAttempt{
+			{Summary: "bounded autonomous retry", Outcome: "insufficient to recover safely"},
+		},
+		L2Attempts: []andon.EscalationAttempt{
+			{Summary: "tier escalation and bounded recovery", Outcome: "unsafe-state remained"},
+		},
+		StateSnapshot:  fmt.Sprintf("bead=%s model=%s success=%v", result.BeadID, result.Model, result.Success),
+		RiskLevel:      andon.RiskLevelHigh,
+		Recommendation: "Escalate to human decision before any close/sync/push/merge actions",
+		Options: []andon.EscalationOption{
+			{Title: "Option 1: Continue autonomous retries", Tradeoff: "higher throughput, but elevated risk of unsafe state mutation"},
+			{Title: "Option 2: Perform manual repair and resume", Tradeoff: "moderate speed, but requires human intervention and context switching"},
+			{Title: "Option 3: Decompose into smaller beads", Tradeoff: "lowest immediate risk, but slower delivery due to decomposition overhead"},
+		},
+	}
+
+	formattedPacket, err := andon.FormatEscalationPacket(packet)
+	if err != nil {
+		r.log("L3 escalation packet unavailable: %v", err)
+		return
+	}
+
+	r.log("L3 escalation packet")
+	r.log("L4 decision required")
+	r.log("Escalation Packet")
+	for _, line := range strings.Split(strings.TrimSpace(formattedPacket), "\n") {
+		r.log("%s", line)
+	}
+	for i, option := range packet.Options {
+		r.log("Option %d: %s", i+1, option.Title)
+		r.log("tradeoff: %s", option.Tradeoff)
+	}
 }

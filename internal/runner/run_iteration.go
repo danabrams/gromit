@@ -177,6 +177,11 @@ func (r *Runner) processSingleBead(
 		return false, nil
 	}
 	if !result.Success {
+		if r.shouldExitRunLoopOnStopLine(result) {
+			r.haltStateMutationsAtL3StopLine(result)
+			return true, nil
+		}
+
 		stats := st.beadStats[b.ID]
 		stats.BeadID = b.ID
 		stats.BeadTitle = b.Title
