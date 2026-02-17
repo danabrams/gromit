@@ -348,3 +348,50 @@ func TestShapeContextForBudget_RulesAndSpecNeverFullyDropped(t *testing.T) {
 		t.Error("expected Spec to never be fully dropped")
 	}
 }
+
+func TestShapeReviewContextForBudget_UnderBudgetUnchanged(t *testing.T) {
+	ctx := &ReviewContext{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: "claude",
+		Rules:    "rules",
+		Diff:     "diff content",
+		Spec:     "spec",
+	}
+
+	shaped, report := ShapeReviewContextForBudget(ctx, 10000, "review")
+
+	if shaped.ClaudeMD != "claude" {
+		t.Errorf("expected ClaudeMD unchanged, got %q", shaped.ClaudeMD)
+	}
+	if len(report.TrimActions) != 0 {
+		t.Errorf("expected no trim actions, got %v", report.TrimActions)
+	}
+}
+
+func TestShapeReviewContextForBudget_TrimsClaudeMDAndSpec(t *testing.T) {
+	ctx := &ReviewContext{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+		Diff:     "diff",
+		Spec:     strings.Repeat("s", 500),
+	}
+
+	// Tight budget
+	budget := 50
+
+	shaped, report := ShapeReviewContextForBudget(ctx, budget, "review")
+
+	if shaped.ClaudeMD != "" {
+		t.Error("expected ClaudeMD dropped")
+	}
+	if shaped.Diff != "diff" {
+		t.Errorf("expected Diff preserved, got %q", shaped.Diff)
+	}
+	if shaped.Rules == "" {
+		t.Error("expected Rules never fully dropped")
+	}
+	if len(report.TrimActions) == 0 {
+		t.Error("expected at least one trim action")
+	}
+}

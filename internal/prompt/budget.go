@@ -174,3 +174,91 @@ func finishReport(ctx *Context, report *ShapeReport) (*Context, *ShapeReport) {
 	report.SectionSizes = sectionSizes(ctx)
 	return ctx, report
 }
+
+// measureReviewContext returns the total character count of ReviewContext fields.
+func measureReviewContext(ctx *ReviewContext) int {
+	total := len(ctx.ClaudeMD) + len(ctx.Rules) + len(ctx.Spec) + len(ctx.Diff)
+	if ctx.Bead != nil {
+		total += len(ctx.Bead.ID) + len(ctx.Bead.Title) + len(ctx.Bead.Description)
+	}
+	if ctx.ParentBead != nil {
+		total += len(ctx.ParentBead.ID) + len(ctx.ParentBead.Title) + len(ctx.ParentBead.Description)
+	}
+	return total
+}
+
+// reviewSectionSizes returns section sizes for a ReviewContext.
+func reviewSectionSizes(ctx *ReviewContext) map[string]int {
+	return map[string]int{
+		"ClaudeMD": len(ctx.ClaudeMD),
+		"Rules":    len(ctx.Rules),
+		"Spec":     len(ctx.Spec),
+		"Diff":     len(ctx.Diff),
+	}
+}
+
+// cloneReviewContext deep-clones a ReviewContext.
+func cloneReviewContext(ctx *ReviewContext) *ReviewContext {
+	cloned := *ctx
+	cloned.Bead = cloneBead(ctx.Bead)
+	cloned.ParentBead = cloneBead(ctx.ParentBead)
+	cloned.ValidationCommands = append([]string{}, ctx.ValidationCommands...)
+	return &cloned
+}
+
+// ShapeReviewContextForBudget trims a ReviewContext to fit within maxChars.
+// Trim order: (1) drop ClaudeMD, (2) phase-filter Rules, (3) truncate Spec.
+// Diff, bead identity, and Rules are never fully dropped.
+func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string) (*ReviewContext, *ShapeReport) {
+	shaped := cloneReviewContext(ctx)
+	beforeChars := measureReviewContext(shaped)
+
+	report := &ShapeReport{
+		BeforeChars:  beforeChars,
+		SectionSizes: reviewSectionSizes(shaped),
+	}
+
+	if beforeChars <= maxChars {
+		report.AfterChars = beforeChars
+		return shaped, report
+	}
+
+	// Step 1: drop ClaudeMD
+	if shaped.ClaudeMD != "" {
+		shaped.ClaudeMD = ""
+		report.TrimActions = append(report.TrimActions, "drop ClaudeMD")
+		if measureReviewContext(shaped) <= maxChars {
+			return finishReviewReport(shaped, report)
+		}
+	}
+
+	// Step 2: phase-filter Rules
+	if phase != "" && shaped.Rules != "" {
+		filtered := filterRulesByPhase(shaped.Rules, phase)
+		if len(filtered) < len(shaped.Rules) {
+			shaped.Rules = filtered
+			report.TrimActions = append(report.TrimActions, "phase-filter Rules")
+			if measureReviewContext(shaped) <= maxChars {
+				return finishReviewReport(shaped, report)
+			}
+		}
+	}
+
+	// Step 3: truncate Spec
+	if shaped.Spec != "" {
+		excess := measureReviewContext(shaped) - maxChars
+		targetLen := len(shaped.Spec) - excess
+		if targetLen > 0 && targetLen < len(shaped.Spec) {
+			shaped.Spec = truncateWithMarker(shaped.Spec, targetLen)
+			report.TrimActions = append(report.TrimActions, "truncate Spec")
+		}
+	}
+
+	return finishReviewReport(shaped, report)
+}
+
+func finishReviewReport(ctx *ReviewContext, report *ShapeReport) (*ReviewContext, *ShapeReport) {
+	report.AfterChars = measureReviewContext(ctx)
+	report.SectionSizes = reviewSectionSizes(ctx)
+	return ctx, report
+}
