@@ -26,9 +26,11 @@ type Status struct {
 	LastAndonLevel    string    `json:"last_andon_level,omitempty"`
 	LastTrimDecision  string    `json:"last_trim_decision,omitempty"`
 
-	AutonomyRate         float64 `json:"autonomy_rate,omitempty"`
-	FirstPassSuccessRate float64 `json:"first_pass_success_rate,omitempty"`
-	MTTRProxyMs          int64   `json:"mttr_proxy_ms,omitempty"`
+	AutonomyRate           float64            `json:"autonomy_rate,omitempty"`
+	FirstPassSuccessRate   float64            `json:"first_pass_success_rate,omitempty"`
+	MTTRProxyMs            int64              `json:"mttr_proxy_ms,omitempty"`
+	EscalationRatesByClass map[string]float64 `json:"escalation_rates_by_class,omitempty"`
+	RecurrenceCounters     map[string]int     `json:"recurrence_counters,omitempty"`
 }
 
 // StatusWriter manages writing status.json

@@ -17,6 +17,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 	if r == nil || r.logger == nil || result == nil {
 		return
 	}
+	ensureFailureAndonEnvelope(result)
 
 	errStr := ""
 	if result.Error != nil {
@@ -76,6 +77,12 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		EscalationClass:           string(result.EscalationClass),
 		RecurrenceCount:           result.RecurrenceCount,
 	})
+}
+
+func ensureFailureAndonEnvelope(result *IterationResult) {
+	if result == nil || result.Success {
+		return
+	}
 }
 
 func (r *Runner) logIterationWithWarning(log *logger.IterationLog) {

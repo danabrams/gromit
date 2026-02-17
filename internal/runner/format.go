@@ -100,6 +100,12 @@ func formatRun(s *Status) string {
 				),
 			)
 		}
+		if line := formatEscalationBreakdown(s.EscalationRatesByClass); line != "" {
+			lines = append(lines, "  Escalation: "+line)
+		}
+		if line := formatRecurrenceBreakdown(s.RecurrenceCounters); line != "" {
+			lines = append(lines, "  Recurrence: "+line)
+		}
 	} else {
 		// Not running, but we have last run info
 		lines = append(lines, "Run: not running")
@@ -115,6 +121,38 @@ func formatRun(s *Status) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func formatEscalationBreakdown(rates map[string]float64) string {
+	if len(rates) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(rates))
+	for key := range rates {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, fmt.Sprintf("%s %d%%", key, int(rates[key]*100+0.5)))
+	}
+	return strings.Join(parts, " | ")
+}
+
+func formatRecurrenceBreakdown(counters map[string]int) string {
+	if len(counters) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(counters))
+	for key := range counters {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, fmt.Sprintf("%s x%d", key, counters[key]))
+	}
+	return strings.Join(parts, " | ")
 }
 
 // formatRunningLine formats the "Run: iteration X/Y, Zm of Wm elapsed" line
