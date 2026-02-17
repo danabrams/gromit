@@ -100,7 +100,7 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 	return func(ctx context.Context, bc *runtypes.BeadContext) bool {
 		// Render a build prompt for the validation fix
 		bc.PromptCtx.IsRetry = true
-		bc.PromptCtx.PrevFailure = bc.Result.Output
+		bc.PromptCtx.PrevFailure = runtypes.TruncateOutput(bc.Result.Output)
 		bc.PromptCtx.FailureContext = "Validation (tests/lint) failed after your build succeeded. Fix the validation errors."
 
 		var renderErr error
