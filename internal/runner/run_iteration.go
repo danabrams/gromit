@@ -207,6 +207,10 @@ func (r *Runner) processSingleBead(
 }
 
 func (r *Runner) handleSuccessfulIteration(ctx context.Context, b *bead.Bead, st *runLoopState, result *IterationResult, maxIterations int, deadline time.Time, runThoroughReview func(int)) error {
+	if err := r.enforceMandatoryQualityGateCoverage("fast", r.cfg.Validation.FastCommandsOrDefault()); err != nil {
+		return err
+	}
+
 	r.successfulBeads++
 	r.successesSinceFull++
 	if err := r.maybeRunPeriodicFullValidation(ctx, b.ID, st.iteration); err != nil {

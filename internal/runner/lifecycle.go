@@ -16,6 +16,8 @@ import (
 	"github.com/danabrams/gromit/internal/state"
 )
 
+var requiredQualityGateCommands = []string{"go test", "go vet", "go build"}
+
 // checkRetroSuggestion checks if a retro should be suggested and prints a message
 func (r *Runner) checkRetroSuggestion() {
 	if r.cfg == nil {
@@ -322,4 +324,32 @@ func (r *Runner) updateGlobalStats() {
 		r.log("Warning: could not update global stats: %v", err)
 		return
 	}
+}
+
+func (r *Runner) enforceMandatoryQualityGateCoverage(gateName string, commands []string) error {
+	if r == nil || r.cfg == nil || !r.cfg.Validation.Enabled {
+		return nil
+	}
+
+	missing := make([]string, 0, len(requiredQualityGateCommands))
+	for _, required := range requiredQualityGateCommands {
+		if !hasQualityGateCommand(commands, required) {
+			missing = append(missing, required)
+		}
+	}
+
+	if len(missing) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("%s quality gate missing mandatory commands: %s", gateName, strings.Join(missing, ", "))
+}
+
+func hasQualityGateCommand(commands []string, requiredPrefix string) bool {
+	for _, cmd := range commands {
+		if strings.HasPrefix(strings.TrimSpace(cmd), requiredPrefix) {
+			return true
+		}
+	}
+	return false
 }
