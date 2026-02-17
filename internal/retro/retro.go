@@ -34,6 +34,13 @@ var runInteractiveClaude = func(promptText, dir string, stdin io.Reader, stdout,
 	return nil
 }
 
+const (
+	providerFamilyClaude = "claude"
+	providerFamilyCodex  = "codex"
+	providerFamilyMixed  = "mixed"
+	retroAnalysisTier    = "high"
+)
+
 // ProviderRunner is an interface for running LLM prompts.
 // It matches the subset of provider.Provider methods used by Retro.
 type ProviderRunner interface {
@@ -233,12 +240,12 @@ func (r *Retro) createLearningsAdapter() interface {
 
 // runAnalysis executes the LLM analysis using provider with streaming output
 func (r *Retro) runAnalysis(ctx context.Context, prompt string) (resultGetter, error) {
-	result, err := r.provider.StreamRun(ctx, prompt, "high", os.Stderr, nil, nil)
+	result, err := r.provider.StreamRun(ctx, prompt, retroAnalysisTier, os.Stderr, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("running provider analysis: %w", err)
 	}
 	if result == nil {
-		fallback, fallbackErr := r.provider.Run(ctx, prompt, "high")
+		fallback, fallbackErr := r.provider.Run(ctx, prompt, retroAnalysisTier)
 		if fallbackErr != nil {
 			return nil, fmt.Errorf("provider returned nil stream result and fallback failed: %w", fallbackErr)
 		}
@@ -254,7 +261,7 @@ func (r *Retro) runAnalysis(ctx context.Context, prompt string) (resultGetter, e
 	// Some provider/CLI stream modes can exit successfully but yield empty output.
 	// Fall back to non-stream run so retro still gets analyzable text.
 	if strings.TrimSpace(result.Output) == "" {
-		fallback, fallbackErr := r.provider.Run(ctx, prompt, "high")
+		fallback, fallbackErr := r.provider.Run(ctx, prompt, retroAnalysisTier)
 		if fallbackErr == nil && fallback != nil && strings.TrimSpace(fallback.Output) != "" {
 			return &providerResultAdapter{fallback}, nil
 		}
@@ -387,27 +394,31 @@ func selectExperimentMetrics(exp *Experiment, efficiency *logger.EfficiencyRepor
 	family := normalizeProviderFamily(exp.PrimaryConcern)
 	if family != "" {
 		if stats, ok := efficiency.CurrentProviderFamilies[family]; ok {
-			return &ExperimentMetrics{
-				ProviderFamily:            family,
-				CurrentAvgCostPerBead:     stats.AvgCostUSD,
-				CurrentAvgDurationPerBead: stats.AvgDuration,
-			}
+			return experimentMetricsFromStats(family, stats)
 		}
 	}
 
 	return &ExperimentMetrics{
-		ProviderFamily:            "mixed",
+		ProviderFamily:            providerFamilyMixed,
 		CurrentAvgCostPerBead:     efficiency.CurrentAvgCostPerBead,
 		CurrentAvgDurationPerBead: efficiency.CurrentAvgDurationPerBead,
 	}
 }
 
+func experimentMetricsFromStats(family string, stats logger.ModelEfficiency) *ExperimentMetrics {
+	return &ExperimentMetrics{
+		ProviderFamily:            family,
+		CurrentAvgCostPerBead:     stats.AvgCostUSD,
+		CurrentAvgDurationPerBead: stats.AvgDuration,
+	}
+}
+
 func normalizeProviderFamily(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "claude":
-		return "claude"
-	case "codex":
-		return "codex"
+	case providerFamilyClaude:
+		return providerFamilyClaude
+	case providerFamilyCodex:
+		return providerFamilyCodex
 	default:
 		return ""
 	}
