@@ -53,18 +53,12 @@ func ShapeRetroForBudget(rules, learnings string, maxChars int) (string, string,
 	}
 
 	halfBudget := maxChars / 2
-	if halfBudget < 0 {
-		halfBudget = 0
-	}
 
 	if len(shapedLearnings) > halfBudget {
 		shapedLearnings = shapedLearnings[:halfBudget]
 		report.TrimActions = append(report.TrimActions, trimCapRetroLearnings)
 		if measureRetroContext(shapedRules, shapedLearnings) <= maxChars {
-			report.AfterChars = measureRetroContext(shapedRules, shapedLearnings)
-			report.SectionSizes["Rules"] = len(shapedRules)
-			report.SectionSizes["Learnings"] = len(shapedLearnings)
-			return shapedRules, shapedLearnings, report
+			return finishRetroReport(shapedRules, shapedLearnings, report)
 		}
 	}
 
@@ -72,26 +66,24 @@ func ShapeRetroForBudget(rules, learnings string, maxChars int) (string, string,
 		shapedLearnings = ""
 		report.TrimActions = append(report.TrimActions, trimDropRetroLearnings)
 		if measureRetroContext(shapedRules, shapedLearnings) <= maxChars {
-			report.AfterChars = measureRetroContext(shapedRules, shapedLearnings)
-			report.SectionSizes["Rules"] = len(shapedRules)
-			report.SectionSizes["Learnings"] = len(shapedLearnings)
-			return shapedRules, shapedLearnings, report
+			return finishRetroReport(shapedRules, shapedLearnings, report)
 		}
 	}
 
 	maxRulesChars := maxChars - len(shapedLearnings)
-	if maxRulesChars < 0 {
-		maxRulesChars = 0
-	}
 	if truncatedRules, changed := truncateRetroRulesForBudget(shapedRules, maxRulesChars); changed {
 		shapedRules = truncatedRules
 		report.TrimActions = append(report.TrimActions, trimTruncateRetroRules)
 	}
 
-	report.AfterChars = measureRetroContext(shapedRules, shapedLearnings)
-	report.SectionSizes["Rules"] = len(shapedRules)
-	report.SectionSizes["Learnings"] = len(shapedLearnings)
-	return shapedRules, shapedLearnings, report
+	return finishRetroReport(shapedRules, shapedLearnings, report)
+}
+
+func finishRetroReport(rules, learnings string, report *ShapeReport) (string, string, *ShapeReport) {
+	report.AfterChars = measureRetroContext(rules, learnings)
+	report.SectionSizes["Rules"] = len(rules)
+	report.SectionSizes["Learnings"] = len(learnings)
+	return rules, learnings, report
 }
 
 func truncateRetroRulesForBudget(rules string, maxChars int) (string, bool) {
