@@ -1,6 +1,9 @@
 package runtypes
 
-const maxOutputBytes = 50 * 1024 // 50KB
+const (
+	maxOutputBytes         = 50 * 1024 // 50KB
+	ValidationOutputHeader = "\n\n=== VALIDATION OUTPUT ===\n"
+)
 
 // TruncateOutput caps output to maxOutputBytes, keeping the tail (most recent
 // content) which typically contains the most useful error information.

@@ -412,7 +412,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 
 	// Extract the failure output appended by the validation runner
 	failureOutput := strings.TrimPrefix(bc.Result.Output, outputBefore)
-	failureOutput = strings.TrimPrefix(failureOutput, "\n\n=== VALIDATION OUTPUT ===\n")
+	failureOutput = strings.TrimPrefix(failureOutput, runtypes.ValidationOutputHeader)
 
 	return r.handleValidationResult(ctx, bc, valErr, failureOutput, true)
 }

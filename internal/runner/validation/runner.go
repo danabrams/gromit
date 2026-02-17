@@ -192,7 +192,7 @@ func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.Bea
 			if errors.Is(result.err, context.DeadlineExceeded) {
 				failureOutput := formatTimeoutFailureOutput(result.command, r.cfg.Validation.CommandTimeout, result.stdout, result.stderr)
 				r.lastFailureOutput = failureOutput
-				bc.Result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + failureOutput
+				bc.Result.Output += runtypes.ValidationOutputHeader + failureOutput
 				return ErrValidationFailed
 			}
 			if errors.Is(result.err, context.Canceled) {
@@ -211,7 +211,7 @@ func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.Bea
 				r.failures = append(r.failures, summary)
 			}
 			r.lastFailureOutput = failureOutput
-			bc.Result.Output += "\n\n=== VALIDATION OUTPUT ===\n" + runtypes.TruncateOutput(failureOutput)
+			bc.Result.Output += runtypes.ValidationOutputHeader + runtypes.TruncateOutput(failureOutput)
 			return ErrValidationFailed
 		}
 	}
