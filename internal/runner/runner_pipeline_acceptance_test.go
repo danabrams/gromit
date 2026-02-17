@@ -16,6 +16,7 @@ import (
 )
 
 func TestTDDPromptSelection(t *testing.T) {
+	buildContextFn := testPromptContext
 	tests := []struct {
 		name                 string
 		globalTDD            bool
@@ -58,16 +59,7 @@ func TestTDDPromptSelection(t *testing.T) {
 			tddBuildCalled := false
 
 			mockRenderer := &mockPromptRenderer{
-				BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
-					return &prompt.Context{
-						Bead:               b,
-						ParentBead:         parent,
-						Iteration:          iteration,
-						Model:              model,
-						ConfirmedLearnings: []learnings.Learning{},
-						RecentLearnings:    []learnings.Learning{},
-					}, nil
-				},
+				BuildContextFn: buildContextFn,
 				RenderBuildFn: func(ctx *prompt.Context) (string, error) {
 					return "standard build prompt", nil
 				},
@@ -142,31 +134,7 @@ func TestScopedRun_FullLoopWithLabelFilters(t *testing.T) {
 		},
 		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
 			readyWithLabelCalls = append(readyWithLabelCalls, label)
-
-			// Find the highest priority non-closed bead with this label
-			var bestBead *bead.Bead
-			for i := 0; i < len(allBeads); i++ {
-				b := allBeads[i]
-				if closedBeads[b.ID] {
-					continue
-				}
-				// Check if this bead has the requested label
-				hasLabel := false
-				for _, l := range b.Labels {
-					if l == label {
-						hasLabel = true
-						break
-					}
-				}
-				if !hasLabel {
-					continue
-				}
-				// Select highest priority (lowest number)
-				if bestBead == nil || b.Priority < bestBead.Priority {
-					bestBead = b
-				}
-			}
-			return bestBead, nil
+			return selectNextBeadWithLabel(allBeads, closedBeads, label), nil
 		},
 		CloseFn: func(id string) error {
 			closedBeads[id] = true
@@ -290,6 +258,7 @@ func TestScopedRun_FullLoopWithLabelFilters(t *testing.T) {
 // - AC2: Beads whose title matches test-only heuristic skip ATDD
 // - AC3: When ATDD is skipped for a test-only bead, log the reason
 func TestATDDSkippedForTestOnlyBead(t *testing.T) {
+	buildContextFn := testPromptContext
 	tests := []struct {
 		name                        string
 		beadTitle                   string
@@ -351,16 +320,7 @@ func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 			acceptanceTestsCalled := false
 
 			mockRend := &mockPromptRenderer{
-				BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
-					return &prompt.Context{
-						Bead:               b,
-						ParentBead:         parent,
-						Iteration:          iteration,
-						Model:              model,
-						ConfirmedLearnings: []learnings.Learning{},
-						RecentLearnings:    []learnings.Learning{},
-					}, nil
-				},
+				BuildContextFn: buildContextFn,
 				RenderBuildFn: func(ctx *prompt.Context) (string, error) {
 					return "standard build prompt", nil
 				},
@@ -426,4 +386,41 @@ func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 			}
 		})
 	}
+}
+
+func testPromptContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+	return &prompt.Context{
+		Bead:               b,
+		ParentBead:         parent,
+		Iteration:          iteration,
+		Model:              model,
+		ConfirmedLearnings: []learnings.Learning{},
+		RecentLearnings:    []learnings.Learning{},
+	}, nil
+}
+
+func selectNextBeadWithLabel(allBeads []*bead.Bead, closedBeads map[string]bool, label string) *bead.Bead {
+	var bestBead *bead.Bead
+	for i := 0; i < len(allBeads); i++ {
+		b := allBeads[i]
+		if closedBeads[b.ID] {
+			continue
+		}
+		if !hasLabel(b.Labels, label) {
+			continue
+		}
+		if bestBead == nil || b.Priority < bestBead.Priority {
+			bestBead = b
+		}
+	}
+	return bestBead
+}
+
+func hasLabel(labels []string, label string) bool {
+	for _, l := range labels {
+		if l == label {
+			return true
+		}
+	}
+	return false
 }
