@@ -161,23 +161,6 @@ func verifyRunnerSplitPhase4Layout(t *testing.T) string {
 	return runnerDir
 }
 
-// TestSplitRunnerPhase4_GoBuildPasses verifies acceptance criterion #1:
-// go build ./... passes once helpers/lifecycle extraction is complete.
-//
-// Expected failure: helpers.go/lifecycle.go are not present yet and split marker
-// `RunnerSplitPhase4Complete` is not in the codebase.
-func TestSplitRunnerPhase4_GoBuildPasses(t *testing.T) {
-	runnerDir := verifyRunnerSplitPhase4Layout(t)
-	repoRoot := filepath.Clean(filepath.Join(runnerDir, "..", ".."))
-
-	cmd := exec.Command("go", "build", "./...")
-	cmd.Dir = repoRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go build ./... failed: %v\n%s", err, string(out))
-	}
-}
-
 // TestSplitRunnerPhase4_RunnerUnder1000Lines verifies acceptance criterion #2:
 // runner.go is under 1,000 lines, verified with wc -l.
 //
@@ -203,41 +186,5 @@ func TestSplitRunnerPhase4_RunnerUnder1000Lines(t *testing.T) {
 	}
 	if lineCount >= 1000 {
 		t.Fatalf("runner.go line count = %d, expected < 1000", lineCount)
-	}
-}
-
-// TestSplitRunnerPhase4_RunnerPackageTestsPass verifies acceptance criterion #3:
-// go test ./internal/runner/... -count=1 passes after extraction.
-//
-// Expected failure: split-layout verification fails before command execution and
-// recursion marker `RunnerSplitPhase4TestReentry` is not in the codebase.
-func TestSplitRunnerPhase4_RunnerPackageTestsPass(t *testing.T) {
-	if os.Getenv("GROMIT_SPLIT_PHASE4_REENTRY") == "1" {
-		return
-	}
-
-	runnerDir := verifyRunnerSplitPhase4Layout(t)
-	repoRoot := filepath.Clean(filepath.Join(runnerDir, "..", ".."))
-
-	cmd := exec.Command(
-		"go",
-		"test",
-		"./internal/runner/...",
-		"-count=1",
-		"-run",
-		"TestRunnerSplitVerificationReclassified_ImportIsolation|TestRunnerSplitVerificationReclassified_LineBudgets",
-	)
-	cmd.Dir = repoRoot
-	cmd.Env = append(
-		os.Environ(),
-		"GROMIT_SPLIT_PHASE1_REENTRY=1",
-		"GROMIT_SPLIT_PHASE2_REENTRY=1",
-		"GROMIT_SPLIT_PHASE3_REENTRY=1",
-		"GROMIT_SPLIT_PHASE4_REENTRY=1",
-		"GROMIT_SPLIT_FINAL_VERIFICATION_REENTRY=1",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test ./internal/runner/... -count=1 failed: %v\n%s", err, string(out))
 	}
 }

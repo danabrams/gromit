@@ -93,6 +93,16 @@ make test-timing   # Run go test -json, print slowest tests/packages, enforce pa
 
 `make test-timing` uses `scripts/test_package_budgets.txt` and defaults to a 45s budget for packages without an explicit override.
 
+### Test Tiers
+
+```bash
+make test-unit        # Fast deterministic tests (default go test tags)
+make test-acceptance  # Deterministic acceptance tests (-tags acceptance)
+make test-e2e-live    # Live external integration tests in e2e_live-tagged packages only
+```
+
+Run `test-e2e-live` for integration validation (release checks, integration changes, nightly), not on every local edit loop.
+
 ### Example Output
 
 ```

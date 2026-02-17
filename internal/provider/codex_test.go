@@ -878,8 +878,8 @@ func TestCodexProviderRunWithContextCancellation(t *testing.T) {
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
-	// Script that runs for a long time
-	mockScript := "#!/bin/bash\nsleep 10\necho 'done'\nexit 0\n"
+	// Keep this sleep short so context-cancellation coverage stays fast.
+	mockScript := "#!/bin/bash\nsleep 1\necho 'done'\nexit 0\n"
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
@@ -915,7 +915,7 @@ func TestCodexProviderStreamRunWithContextCancellationJSONMode(t *testing.T) {
 
 	tempDir := t.TempDir()
 	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := "#!/bin/bash\nsleep 10\necho '{\"type\":\"turn.completed\"}'\nexit 0\n"
+	mockScript := "#!/bin/bash\nsleep 1\necho '{\"type\":\"turn.completed\"}'\nexit 0\n"
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}

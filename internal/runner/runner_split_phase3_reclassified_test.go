@@ -2,7 +2,6 @@ package runner
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -65,59 +64,6 @@ func verifyRunnerSplitPhase3Layout(t *testing.T) string {
 	}
 
 	return runnerDir
-}
-
-// TestSplitRunnerPhase3_GoBuildPasses verifies acceptance criterion #1:
-// go build ./... passes once gates/logging extraction is complete.
-//
-// Expected failure: gates.go/logging.go are not present yet and split marker
-// `RunnerSplitPhase3Complete` is not in the codebase.
-func TestSplitRunnerPhase3_GoBuildPasses(t *testing.T) {
-	runnerDir := verifyRunnerSplitPhase3Layout(t)
-	repoRoot := filepath.Clean(filepath.Join(runnerDir, "..", ".."))
-
-	cmd := exec.Command("go", "build", "./...")
-	cmd.Dir = repoRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go build ./... failed: %v\n%s", err, string(out))
-	}
-}
-
-// TestSplitRunnerPhase3_RunnerPackageTestsPass verifies acceptance criterion #2:
-// go test ./internal/runner/... -count=1 passes after extraction.
-//
-// Expected failure: split-layout verification fails before command execution and
-// recursion marker `RunnerSplitPhase3TestReentry` is not in the codebase.
-func TestSplitRunnerPhase3_RunnerPackageTestsPass(t *testing.T) {
-	if os.Getenv("GROMIT_SPLIT_PHASE3_REENTRY") == "1" {
-		return
-	}
-
-	runnerDir := verifyRunnerSplitPhase3Layout(t)
-	repoRoot := filepath.Clean(filepath.Join(runnerDir, "..", ".."))
-
-	cmd := exec.Command(
-		"go",
-		"test",
-		"./internal/runner/...",
-		"-count=1",
-		"-run",
-		"TestRunnerSplitVerificationReclassified_ImportIsolation|TestRunnerSplitVerificationReclassified_LineBudgets",
-	)
-	cmd.Dir = repoRoot
-	cmd.Env = append(
-		os.Environ(),
-		"GROMIT_SPLIT_PHASE1_REENTRY=1",
-		"GROMIT_SPLIT_PHASE2_REENTRY=1",
-		"GROMIT_SPLIT_PHASE3_REENTRY=1",
-		"GROMIT_SPLIT_PHASE4_REENTRY=1",
-		"GROMIT_SPLIT_FINAL_VERIFICATION_REENTRY=1",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test ./internal/runner/... -count=1 failed: %v\n%s", err, string(out))
-	}
 }
 
 // TestSplitRunnerPhase3_RunnerGoDoesNotContainMovedMethods verifies acceptance

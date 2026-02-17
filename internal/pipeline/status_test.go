@@ -8,7 +8,16 @@ import (
 	"github.com/danabrams/gromit/internal/backlog"
 )
 
+func disableLiveBDForStatusTests(t *testing.T) {
+	t.Helper()
+
+	// Keep unit tests deterministic by ensuring ReadStatus cannot invoke a live bd CLI.
+	t.Setenv("PATH", t.TempDir())
+}
+
 func TestReadStatus(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
 	tests := []struct {
 		name               string
 		setupFunc          func(t *testing.T, tmpDir string)
@@ -249,6 +258,8 @@ func TestReadStatus(t *testing.T) {
 }
 
 func TestReadStatus_MissingDirectories(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	specsDir := filepath.Join(gromitDir, "specs")
@@ -439,6 +450,8 @@ func TestGenerateRecommendation(t *testing.T) {
 }
 
 func TestReadStatus_ErrorHandling(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
 	t.Run("corrupt backlog file", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -527,6 +540,8 @@ func TestReadStatus_ErrorHandling(t *testing.T) {
 }
 
 func TestReadStatus_CountingAccuracy(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
 	t.Run("multiple items in each category", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -615,6 +630,8 @@ func TestReadStatus_CountingAccuracy(t *testing.T) {
 }
 
 func TestReadStatus_SpecNamesSorted(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	specsDir := filepath.Join(gromitDir, "specs")
@@ -648,6 +665,8 @@ func TestReadStatus_SpecNamesSorted(t *testing.T) {
 }
 
 func TestReadStatus_PlanNamesSorted(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	specsDir := filepath.Join(gromitDir, "specs")

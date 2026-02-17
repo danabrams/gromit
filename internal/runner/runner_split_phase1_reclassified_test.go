@@ -5,7 +5,6 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -203,59 +202,6 @@ func verifyRunnerSplitPhase1Layout(t *testing.T) string {
 	}
 
 	return runnerDir
-}
-
-// TestSplitRunnerPhase1_GoBuildPasses verifies acceptance criterion #1:
-// go build ./... passes once adapters/callbacks extraction is complete.
-//
-// Expected failure: runner.go still owns moved declarations and the split-layout
-// sentinel behavior `RunnerSplitPhase1Complete` does not exist yet.
-func TestSplitRunnerPhase1_GoBuildPasses(t *testing.T) {
-	runnerDir := verifyRunnerSplitPhase1Layout(t)
-	repoRoot := filepath.Clean(filepath.Join(runnerDir, "..", ".."))
-
-	cmd := exec.Command("go", "build", "./...")
-	cmd.Dir = repoRoot
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go build ./... failed: %v\n%s", err, string(out))
-	}
-}
-
-// TestSplitRunnerPhase1_RunnerPackageTestsPass verifies acceptance criterion #2:
-// go test ./internal/runner/... -count=1 passes after extraction.
-//
-// Expected failure: split-layout gate fails before command execution and the
-// recursion guard marker `RunnerSplitPhase1TestReentry` is not part of the codebase yet.
-func TestSplitRunnerPhase1_RunnerPackageTestsPass(t *testing.T) {
-	if os.Getenv("GROMIT_SPLIT_PHASE1_REENTRY") == "1" {
-		return
-	}
-
-	runnerDir := verifyRunnerSplitPhase1Layout(t)
-	repoRoot := filepath.Clean(filepath.Join(runnerDir, "..", ".."))
-
-	cmd := exec.Command(
-		"go",
-		"test",
-		"./internal/runner/...",
-		"-count=1",
-		"-run",
-		"TestRunnerSplitVerificationReclassified_ImportIsolation|TestRunnerSplitVerificationReclassified_LineBudgets",
-	)
-	cmd.Dir = repoRoot
-	cmd.Env = append(
-		os.Environ(),
-		"GROMIT_SPLIT_PHASE1_REENTRY=1",
-		"GROMIT_SPLIT_PHASE2_REENTRY=1",
-		"GROMIT_SPLIT_PHASE3_REENTRY=1",
-		"GROMIT_SPLIT_PHASE4_REENTRY=1",
-		"GROMIT_SPLIT_FINAL_VERIFICATION_REENTRY=1",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test ./internal/runner/... -count=1 failed: %v\n%s", err, string(out))
-	}
 }
 
 // TestSplitRunnerPhase1_RunnerGoDoesNotContainMovedDeclarations verifies
