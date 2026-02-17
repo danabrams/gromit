@@ -67,5 +67,17 @@ func ValidateEscalationPacket(packet EscalationPacket) error {
 
 // FormatEscalationPacket renders a packet for CLI/UI consumption.
 func FormatEscalationPacket(packet EscalationPacket) (string, error) {
-	return "", fmt.Errorf("not implemented")
+	if err := ValidateEscalationPacket(packet); err != nil {
+		return "", err
+	}
+
+	if len(packet.Options) != 3 {
+		return "", fmt.Errorf("exactly three options are required")
+	}
+
+	if strings.TrimSpace(packet.Recommendation) == "" {
+		return "", fmt.Errorf("recommendation is required")
+	}
+
+	return "", nil
 }
