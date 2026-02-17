@@ -204,6 +204,12 @@ methodology:
 learnings:
   max_learning_chars: 2500  # Character budget for confirmed learnings (0 = unlimited)
 
+# Prompt context shaping budgets (optional)
+# prompt:
+#   budget:
+#     max_chars: 20000          # Total prompt context budget in characters
+#     learning_cap_chars: 2000  # Max chars from confirmed learnings after trimming
+
 # Paths (relative to project root)
 paths:
   templates: ".gromit/templates"
