@@ -106,9 +106,15 @@ func TestEfficiencyReport_Struct(t *testing.T) {
 			"opus":   {Model: "opus", IterationCount: 1},
 			"sonnet": {Model: "sonnet", IterationCount: 1},
 		},
+		CurrentProviderFamilies: map[string]ModelEfficiency{
+			"claude": {Model: "claude", IterationCount: 2},
+		},
 		HistoricalModels: map[string]ModelEfficiency{
 			"opus":   {Model: "opus", IterationCount: 10},
 			"sonnet": {Model: "sonnet", IterationCount: 20},
+		},
+		HistoricalProviderFamilies: map[string]ModelEfficiency{
+			"claude": {Model: "claude", IterationCount: 30},
 		},
 		CurrentAvgCostPerBead:        0.42,
 		CurrentAvgDurationPerBead:    30 * time.Second,
@@ -127,8 +133,14 @@ func TestEfficiencyReport_Struct(t *testing.T) {
 	if len(report.CurrentModels) != 2 {
 		t.Errorf("len(CurrentModels) = %d, want 2", len(report.CurrentModels))
 	}
+	if len(report.CurrentProviderFamilies) != 1 {
+		t.Errorf("len(CurrentProviderFamilies) = %d, want 1", len(report.CurrentProviderFamilies))
+	}
 	if len(report.HistoricalModels) != 2 {
 		t.Errorf("len(HistoricalModels) = %d, want 2", len(report.HistoricalModels))
+	}
+	if len(report.HistoricalProviderFamilies) != 1 {
+		t.Errorf("len(HistoricalProviderFamilies) = %d, want 1", len(report.HistoricalProviderFamilies))
 	}
 	if report.CurrentAvgCostPerBead != 0.42 {
 		t.Errorf("CurrentAvgCostPerBead = %f, want 0.42", report.CurrentAvgCostPerBead)
@@ -163,8 +175,17 @@ func TestEfficiencyReport_ZeroValues(t *testing.T) {
 	if report.CurrentModels != nil {
 		t.Error("CurrentModels should be nil when zero-initialized")
 	}
+	if report.CurrentProviderFamilies != nil {
+		t.Error("CurrentProviderFamilies should be nil when zero-initialized")
+	}
 	if report.HistoricalModels != nil {
 		t.Error("HistoricalModels should be nil when zero-initialized")
+	}
+	if report.HistoricalProviderFamilies != nil {
+		t.Error("HistoricalProviderFamilies should be nil when zero-initialized")
+	}
+	if report.MixedProviderFamilies {
+		t.Error("MixedProviderFamilies should be false when zero-initialized")
 	}
 	if report.CurrentAvgCostPerBead != 0 {
 		t.Errorf("CurrentAvgCostPerBead = %f, want 0", report.CurrentAvgCostPerBead)
@@ -262,6 +283,61 @@ func TestReadEfficiencyReport_SingleRun(t *testing.T) {
 	// No historical data
 	if len(report.HistoricalModels) != 0 {
 		t.Errorf("Expected 0 historical models, got %d", len(report.HistoricalModels))
+	}
+}
+
+func TestReadEfficiencyReport_ProviderFamilyAggregates(t *testing.T) {
+	dir := t.TempDir()
+	runID := "20260207-130000"
+
+	logs := []IterationLog{
+		{
+			BeadID:       "bead-1",
+			Model:        "opus",
+			DurationMs:   10000,
+			CostUSD:      0.30,
+			InputTokens:  5000,
+			OutputTokens: 1000,
+		},
+		{
+			BeadID:       "bead-2",
+			Model:        "gpt-4-codex",
+			DurationMs:   12000,
+			CostUSD:      0.45,
+			InputTokens:  6000,
+			OutputTokens: 1200,
+		},
+	}
+
+	writeTestLogFile(t, dir, runID, logs)
+
+	report, err := ReadEfficiencyReport(dir, runID)
+	if err != nil {
+		t.Fatalf("ReadEfficiencyReport failed: %v", err)
+	}
+
+	if len(report.CurrentProviderFamilies) != 2 {
+		t.Fatalf("expected 2 provider families, got %d", len(report.CurrentProviderFamilies))
+	}
+
+	claude := report.CurrentProviderFamilies["claude"]
+	if claude.IterationCount != 1 {
+		t.Errorf("claude IterationCount = %d, want 1", claude.IterationCount)
+	}
+	if claude.TotalCostUSD != 0.30 {
+		t.Errorf("claude TotalCostUSD = %f, want 0.30", claude.TotalCostUSD)
+	}
+
+	codex := report.CurrentProviderFamilies["codex"]
+	if codex.IterationCount != 1 {
+		t.Errorf("codex IterationCount = %d, want 1", codex.IterationCount)
+	}
+	if codex.TotalCostUSD != 0.45 {
+		t.Errorf("codex TotalCostUSD = %f, want 0.45", codex.TotalCostUSD)
+	}
+
+	if !report.MixedProviderFamilies {
+		t.Error("expected MixedProviderFamilies to be true when both families present")
 	}
 }
 

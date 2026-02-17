@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -38,17 +39,22 @@ type ModelEfficiency struct {
 // EfficiencyReport holds efficiency data for current run and historical comparison
 type EfficiencyReport struct {
 	// Current run data
-	CurrentIterations []IterationEfficiency
-	CurrentModels     map[string]ModelEfficiency
+	CurrentIterations       []IterationEfficiency
+	CurrentModels           map[string]ModelEfficiency
+	CurrentProviderFamilies map[string]ModelEfficiency
 
 	// Historical data (all previous runs)
-	HistoricalModels map[string]ModelEfficiency
+	HistoricalModels           map[string]ModelEfficiency
+	HistoricalProviderFamilies map[string]ModelEfficiency
 
 	// Overall aggregates
 	CurrentAvgCostPerBead        float64
 	CurrentAvgDurationPerBead    time.Duration
 	HistoricalAvgCostPerBead     float64
 	HistoricalAvgDurationPerBead time.Duration
+
+	// Provider family state
+	MixedProviderFamilies bool
 
 	// Deltas
 	CostDelta     float64       // Positive means current run is more expensive
@@ -77,8 +83,10 @@ func ReadEfficiencyReport(logsDir string, currentRunID string) (*EfficiencyRepor
 // currentRunID specifies which run is "current" (all others are historical).
 func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilter map[string]bool) (*EfficiencyReport, error) {
 	report := &EfficiencyReport{
-		CurrentModels:    make(map[string]ModelEfficiency),
-		HistoricalModels: make(map[string]ModelEfficiency),
+		CurrentModels:              make(map[string]ModelEfficiency),
+		HistoricalModels:           make(map[string]ModelEfficiency),
+		CurrentProviderFamilies:    make(map[string]ModelEfficiency),
+		HistoricalProviderFamilies: make(map[string]ModelEfficiency),
 	}
 
 	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
@@ -89,6 +97,8 @@ func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilte
 	// Track per-model totals for both current and historical
 	currentModelTotals := make(map[string]*modelAccumulator)
 	historicalModelTotals := make(map[string]*modelAccumulator)
+	currentFamilyTotals := make(map[string]*modelAccumulator)
+	historicalFamilyTotals := make(map[string]*modelAccumulator)
 
 	for _, f := range files {
 		runID := extractRunID(f)
@@ -132,12 +142,27 @@ func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilte
 					currentModelTotals[entry.Model] = &modelAccumulator{}
 				}
 				currentModelTotals[entry.Model].add(ie)
+
+				// Accumulate per-provider-family stats
+				if family := providerFamilyForModel(entry.Model); family != "" {
+					if currentFamilyTotals[family] == nil {
+						currentFamilyTotals[family] = &modelAccumulator{}
+					}
+					currentFamilyTotals[family].add(ie)
+				}
 			} else {
 				// Historical
 				if historicalModelTotals[entry.Model] == nil {
 					historicalModelTotals[entry.Model] = &modelAccumulator{}
 				}
 				historicalModelTotals[entry.Model].add(ie)
+
+				if family := providerFamilyForModel(entry.Model); family != "" {
+					if historicalFamilyTotals[family] == nil {
+						historicalFamilyTotals[family] = &modelAccumulator{}
+					}
+					historicalFamilyTotals[family].add(ie)
+				}
 			}
 		}
 	}
@@ -152,6 +177,18 @@ func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilte
 		report.HistoricalModels[model] = acc.toModelEfficiency(model)
 	}
 
+	// Compute per-provider-family aggregates for current run
+	for family, acc := range currentFamilyTotals {
+		report.CurrentProviderFamilies[family] = acc.toModelEfficiency(family)
+	}
+
+	// Compute per-provider-family aggregates for historical runs
+	for family, acc := range historicalFamilyTotals {
+		report.HistoricalProviderFamilies[family] = acc.toModelEfficiency(family)
+	}
+
+	report.MixedProviderFamilies = hasMixedProviderFamilies(report.CurrentProviderFamilies, report.HistoricalProviderFamilies)
+
 	// Compute overall averages
 	report.CurrentAvgCostPerBead = computeOverallAvgCost(report.CurrentModels)
 	report.CurrentAvgDurationPerBead = computeOverallAvgDuration(report.CurrentModels)
@@ -163,6 +200,29 @@ func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilte
 	report.DurationDelta = report.CurrentAvgDurationPerBead - report.HistoricalAvgDurationPerBead
 
 	return report, nil
+}
+
+func providerFamilyForModel(model string) string {
+	switch model {
+	case "opus", "sonnet", "haiku":
+		return "claude"
+	default:
+		if strings.HasPrefix(model, "gpt-") && strings.HasSuffix(model, "-codex") {
+			return "codex"
+		}
+	}
+	return ""
+}
+
+func hasMixedProviderFamilies(current map[string]ModelEfficiency, historical map[string]ModelEfficiency) bool {
+	families := make(map[string]bool)
+	for family := range current {
+		families[family] = true
+	}
+	for family := range historical {
+		families[family] = true
+	}
+	return len(families) > 1
 }
 
 // modelAccumulator tracks running totals for a single model
