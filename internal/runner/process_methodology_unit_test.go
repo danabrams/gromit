@@ -13,21 +13,23 @@ import (
 
 // newMinimalRunnerForMethodology creates the smallest possible Runner for
 // testing prepareMethodologyForBead without needing a full Deps setup.
-func newMinimalRunnerForMethodology(t *testing.T, cfg *config.Config, renderer PromptRenderer) *Runner {
+// Returns the runner and a pointer to the log buffer for output inspection.
+func newMinimalRunnerForMethodology(t *testing.T, cfg *config.Config, renderer PromptRenderer) (*Runner, *strings.Builder) {
 	t.Helper()
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
-	var buf strings.Builder
-	sw := newSyncWriter(&buf)
-	return &Runner{
+	buf := &strings.Builder{}
+	sw := newSyncWriter(buf)
+	r := &Runner{
 		cfg:      cfg,
 		renderer: renderer,
 		output:   sw,
 		syncOut:  sw,
 	}
+	return r, buf
 }
 
 // newBeadContext creates a minimal BeadContext for testing prepareMethodologyForBead.
@@ -57,7 +59,7 @@ func TestPrepareMethodology_ATDDSkippedForTestOnlyBead(t *testing.T) {
 			cfg := &config.Config{
 				Methodology: config.MethodologyConfig{ATDD: true},
 			}
-			r := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+			r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
 			b := &bead.Bead{
 				ID:     "test-skip-1",
 				Title:  title,
@@ -71,5 +73,26 @@ func TestPrepareMethodology_ATDDSkippedForTestOnlyBead(t *testing.T) {
 				t.Errorf("prepareMethodologyForBead should skip ATDD for test-only bead title %q, got atddActive=true", title)
 			}
 		})
+	}
+}
+
+// TestPrepareMethodology_ATDDSkipLogsReason verifies that when ATDD is skipped
+// for a test-only bead, prepareMethodologyForBead logs the reason.
+func TestPrepareMethodology_ATDDSkipLogsReason(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{ATDD: true},
+	}
+	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := &bead.Bead{
+		ID:     "test-log-1",
+		Title:  "Add tests for prompt rendering",
+		Labels: []string{},
+	}
+	bc := newBeadContextForMethodology(b)
+
+	r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !strings.Contains(buf.String(), "Skipping ATDD: bead is test-only") {
+		t.Errorf("expected log 'Skipping ATDD: bead is test-only' in output, got:\n%s", buf.String())
 	}
 }
