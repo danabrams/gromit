@@ -329,3 +329,22 @@ func TestShapeContextForBudget_Deterministic(t *testing.T) {
 		}
 	}
 }
+
+func TestShapeContextForBudget_RulesAndSpecNeverFullyDropped(t *testing.T) {
+	ctx := &Context{
+		Bead:  &bead.Bead{ID: "b1", Title: "T"},
+		Rules: strings.Repeat("r", 500),
+		Spec:  strings.Repeat("s", 500),
+	}
+	ctx.normalizeNilFields()
+
+	// Impossibly tight budget
+	shaped, _ := ShapeContextForBudget(ctx, 1, 100, "build")
+
+	if shaped.Rules == "" {
+		t.Error("expected Rules to never be fully dropped")
+	}
+	if shaped.Spec == "" {
+		t.Error("expected Spec to never be fully dropped")
+	}
+}
