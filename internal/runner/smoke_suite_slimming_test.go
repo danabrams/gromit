@@ -48,6 +48,7 @@ func TestRunnerAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 		"internal/runner/worktree_merge_acceptance_test.go":        true,
 		"internal/runner/runner_pipeline_acceptance_test.go":       true,
 		"internal/runner/status_integration_acceptance_test.go":    true,
+		"internal/runner/loop_acceptance_test.go":                  true,
 	}
 
 	for _, abs := range matches {
