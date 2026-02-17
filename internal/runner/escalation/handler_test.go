@@ -839,3 +839,151 @@ func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 		t.Errorf("invokeFn called %d times, want 2", callCount)
 	}
 }
+
+func TestExecuteWithRetry_AndonBoundedRecoverableFlowStopsLine(t *testing.T) {
+	// Expected failure: Handler.ApplyAndonDecision(...) does not exist yet, so
+	// ExecuteWithRetry still follows tier/model retry patterns instead of Andon
+	// L1 -> L2 bounded recovery and stop-line escalation.
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				RootCause:   "transient build failure",
+				Suggestion:  "retry with tightened patch",
+			}, nil
+		},
+	}
+	cfg := newTestConfig()
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierLow
+	bc.Model = "haiku"
+	bc.MaxRetries = 1
+	bc.MaxRetriesPerBead = 20
+	bc.MaxAttemptsPerBead = 20
+
+	callCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		callCount++
+		return &InvocationResult{
+			Result: &claude.Result{
+				Success: false,
+				Output:  "build failed",
+			},
+		}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected failure after bounded Andon recovery path reaches stop-line")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected stop-line error after L1/L2 bounded flow")
+	}
+	if !strings.Contains(strings.ToLower(bc.Result.Error.Error()), "stop-line") {
+		t.Fatalf("expected stop-line error, got: %v", bc.Result.Error)
+	}
+	if callCount > 4 {
+		t.Fatalf("expected bounded L1/L2 attempts before stop-line, got %d invocations", callCount)
+	}
+}
+
+func TestAnalyzeAndHandleFailure_IntegrityUnsafeStateTriggersImmediateL3(t *testing.T) {
+	// Expected failure: analyzer.CategoryIntegrityUnsafeState does not exist yet,
+	// and Handler.routeIntegrityFailureToL3(...) is not implemented; current
+	// behavior escalates/retries instead of immediate L3 stop-line.
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.Category("integrity_unsafe_state"),
+				Recoverable: false,
+				RootCause:   "repo state integrity violated",
+				Suggestion:  "stop and request human intervention",
+			}, nil
+		},
+	}
+	cfg := newTestConfig()
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierLow
+	bc.Model = "haiku"
+	claudeResult := &claude.Result{Output: "fatal integrity failure"}
+
+	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
+	if continueLoop {
+		t.Fatal("expected immediate stop (L3) for integrity/unsafe-state failure")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected L3 stop-line error for integrity/unsafe-state failure")
+	}
+	if !strings.Contains(strings.ToLower(bc.Result.Error.Error()), "l3") {
+		t.Fatalf("expected error to identify L3 stop-line, got: %v", bc.Result.Error)
+	}
+}
+
+func TestExecuteWithRetry_DecompositionRemainsAvailableAsL4Option(t *testing.T) {
+	// Expected failure: Handler.AttemptL4Decomposition(...) does not exist yet,
+	// so ExecuteWithRetry does not expose decomposition explicitly as an L4 Andon
+	// option even when decomposition is used.
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				RootCause:   "retry still failing",
+				Suggestion:  "decompose task",
+			}, nil
+		},
+	}
+
+	var logs []string
+	logFn := func(format string, args ...interface{}) {
+		logs = append(logs, fmt.Sprintf(format, args...))
+	}
+
+	cfg := newTestConfig()
+	h := NewHandler(
+		cfg,
+		mfa,
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			return []runtypes.SubTask{{Title: "split work"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			return nil
+		},
+		logFn,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierHigh
+	bc.Model = "opus"
+	bc.MaxRetries = 0
+	bc.MaxRetriesPerBead = 5
+
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+		return &InvocationResult{
+			Result: &claude.Result{
+				Success: false,
+				Output:  "still failing",
+			},
+		}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected loop to end after L4 decomposition path")
+	}
+	if !bc.Result.Decomposed {
+		t.Fatal("expected decomposition path to remain available")
+	}
+
+	joinedLogs := strings.ToLower(strings.Join(logs, "\n"))
+	if !strings.Contains(joinedLogs, "l4") {
+		t.Fatalf("expected L4 decomposition signal in logs, got logs: %q", joinedLogs)
+	}
+}
