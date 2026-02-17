@@ -2,8 +2,13 @@ package tmux
 
 import (
 	"os/exec"
+	"strings"
 	"testing"
 )
+
+func newMockCmd(name string, args ...string) *exec.Cmd {
+	return &exec.Cmd{Path: name, Args: append([]string{name}, args...)}
+}
 
 func TestSetTitle_DisablesAfterFirstError(t *testing.T) {
 	m := &Manager{
@@ -72,18 +77,13 @@ func TestNewManager_InitializesWithDisabledFalse(t *testing.T) {
 }
 
 func TestSetTmuxTitle_CachesTitleMethodWhenSuccessful(t *testing.T) {
-	// This test requires a working tmux session with accessible socket
-	if !InTmux() {
-		t.Skip("test requires tmux session")
-	}
-	// Verify tmux commands actually work (socket may be inaccessible)
-	if err := exec.Command("tmux", "display-message", "-p", "#{pane_title}").Run(); err != nil {
-		t.Skip("tmux session exists but commands fail (socket inaccessible)")
-	}
-
 	m := &Manager{
 		inTmux:      true,
 		titleMethod: methodUnknown,
+		commandFn:   newMockCmd,
+		runFn: func(cmd *exec.Cmd) error {
+			return nil
+		},
 	}
 
 	// Call setTmuxTitle - it should try methodSetOpt first
@@ -100,9 +100,17 @@ func TestSetTmuxTitle_CachesTitleMethodWhenSuccessful(t *testing.T) {
 }
 
 func TestSetTmuxTitle_UsesCache(t *testing.T) {
+	var called []string
 	m := &Manager{
 		inTmux:      true,
 		titleMethod: methodSelectPane, // Pre-set the cached method
+		commandFn: func(name string, args ...string) *exec.Cmd {
+			called = append(called, strings.Join(append([]string{name}, args...), " "))
+			return newMockCmd(name, args...)
+		},
+		runFn: func(cmd *exec.Cmd) error {
+			return nil
+		},
 	}
 
 	// Call setTmuxTitle - it should use the cached method directly
@@ -113,6 +121,9 @@ func TestSetTmuxTitle_UsesCache(t *testing.T) {
 	// titleMethod should still be the same
 	if m.titleMethod != methodSelectPane {
 		t.Errorf("expected titleMethod to remain methodSelectPane, got %v", m.titleMethod)
+	}
+	if len(called) != 1 || !strings.Contains(called[0], "select-pane") {
+		t.Errorf("expected cached select-pane method call, got %v", called)
 	}
 }
 
@@ -131,29 +142,34 @@ func TestTryTitleMethod_UnknownMethod(t *testing.T) {
 }
 
 func TestSetTmuxTitle_TriesSetOptFirst(t *testing.T) {
+	var called []string
 	m := &Manager{
 		inTmux:      true,
 		titleMethod: methodUnknown,
+		commandFn: func(name string, args ...string) *exec.Cmd {
+			called = append(called, strings.Join(append([]string{name}, args...), " "))
+			return newMockCmd(name, args...)
+		},
+		runFn: func(cmd *exec.Cmd) error {
+			if len(cmd.Args) > 1 && cmd.Args[1] == "set-option" {
+				return exec.ErrNotFound
+			}
+			return nil
+		},
 	}
 
 	// When titleMethod is unknown, setTmuxTitle should try methodSetOpt first
 	// If it succeeds, titleMethod should be set to methodSetOpt
 	err := m.setTmuxTitle("test-title")
 
-	// If successful, titleMethod should be cached (not methodUnknown)
-	if err == nil && m.titleMethod == methodUnknown {
-		t.Error("expected titleMethod to be cached (not methodUnknown) when setTmuxTitle succeeds")
+	if err != nil {
+		t.Fatalf("expected fallback to select-pane to succeed, got: %v", err)
 	}
-
-	// Verify that one of the methods was cached
-	if err == nil && (m.titleMethod == methodSetOpt || m.titleMethod == methodSelectPane) {
-		// Success case: one method worked and was cached
-		return
+	if m.titleMethod != methodSelectPane {
+		t.Fatalf("expected cached methodSelectPane, got %v", m.titleMethod)
 	}
-
-	// If there was an error, both methods should have failed
-	if err != nil && "failed to set tmux title: neither set-option nor select-pane method worked" != err.Error() {
-		t.Errorf("unexpected error: %v", err)
+	if len(called) < 2 || !strings.Contains(called[0], "set-option") || !strings.Contains(called[1], "select-pane") {
+		t.Errorf("expected set-option then select-pane, got %v", called)
 	}
 }
 

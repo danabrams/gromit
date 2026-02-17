@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/test/testutil"
@@ -18,25 +16,37 @@ var binaryPath string
 func TestMain(m *testing.M) {
 	flag.Parse()
 
-	tmpDir, err := os.MkdirTemp("", "gromit-cli-test-*")
+	exe, err := os.Executable()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create temp dir: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to determine test binary path: %v\n", err)
 		os.Exit(1)
 	}
 
-	binaryPath = filepath.Join(tmpDir, "gromit")
-	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to build gromit binary: %v\n", err)
-		_ = os.RemoveAll(tmpDir)
-		os.Exit(1)
-	}
+	binaryPath = exe
 
 	exitCode := m.Run()
-	_ = os.RemoveAll(tmpDir)
 	os.Exit(exitCode)
+}
+
+func TestGromitHelperProcess(t *testing.T) {
+	if os.Getenv("GROMIT_TEST_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	args := os.Args
+	for i, arg := range args {
+		if arg == "--" {
+			rootCmd.SetArgs(args[i+1:])
+			if err := rootCmd.Execute(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
+	}
+
+	fmt.Fprintln(os.Stderr, "missing helper args separator")
+	os.Exit(2)
 }
 
 // runGromit executes the gromit binary with the given arguments and returns
@@ -44,7 +54,9 @@ func TestMain(m *testing.M) {
 func runGromit(t *testing.T, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 
-	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(binaryPath, "", nil, "", args...)
+	helperArgs := append([]string{"-test.run=TestGromitHelperProcess", "--"}, args...)
+	environ := append(os.Environ(), "GROMIT_TEST_HELPER_PROCESS=1")
+	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(binaryPath, "", environ, "", helperArgs...)
 	if err != nil {
 		t.Fatalf("Failed to run gromit %v: %v", args, err)
 	}
@@ -56,7 +68,9 @@ func runGromit(t *testing.T, args ...string) (stdout, stderr string, exitCode in
 func runGromitWithStdin(t *testing.T, stdin string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 
-	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(binaryPath, "", nil, stdin, args...)
+	helperArgs := append([]string{"-test.run=TestGromitHelperProcess", "--"}, args...)
+	environ := append(os.Environ(), "GROMIT_TEST_HELPER_PROCESS=1")
+	stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(binaryPath, "", environ, stdin, helperArgs...)
 	if err != nil {
 		t.Fatalf("Failed to run gromit %v with stdin: %v", args, err)
 	}

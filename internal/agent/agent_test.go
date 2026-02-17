@@ -21,7 +21,22 @@ func (a *testAgent) Name() string                             { return "test" }
 func (a *testAgent) Launch(promptPath string) error           { return nil }
 func (a *testAgent) LaunchInDir(promptPath, dir string) error { return nil }
 func (a *testAgent) Command(promptPath string) (*exec.Cmd, error) {
-	return exec.Command("echo", "test"), nil
+	return &exec.Cmd{Path: "echo", Args: []string{"echo", "test"}}, nil
+}
+
+func newMockedAgent(name, binary string, flags []string, promptDelivery PromptDelivery, promptFlag string, extraArgs []string, runErr error) Agent {
+	a := New(name, binary, flags, promptDelivery, promptFlag, extraArgs).(*cliAgent)
+	a.commandFn = func(name string, args ...string) *exec.Cmd {
+		cmdArgs := append([]string{name}, args...)
+		return &exec.Cmd{
+			Path: name,
+			Args: cmdArgs,
+		}
+	}
+	a.runFn = func(cmd *exec.Cmd) error {
+		return runErr
+	}
+	return a
 }
 
 // TestPromptDeliveryConstants verifies all three PromptDelivery constants exist
@@ -79,7 +94,7 @@ func TestLaunchFileRef(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	agent := New("test", "echo", nil, FileRef, "", nil)
+	agent := newMockedAgent("test", "echo", nil, FileRef, "", nil, nil)
 
 	// Should succeed (echo accepts any arguments)
 	err := agent.Launch(promptPath)
@@ -96,7 +111,7 @@ func TestLaunchPromptFileArg(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	agent := New("test", "echo", nil, PromptFileArg, "--prompt", nil)
+	agent := newMockedAgent("test", "echo", nil, PromptFileArg, "--prompt", nil, nil)
 
 	// Should succeed (echo accepts any arguments)
 	err := agent.Launch(promptPath)
@@ -115,7 +130,7 @@ func TestLaunchStdin(t *testing.T) {
 	}
 
 	// Use 'cat' to read stdin - it echoes stdin and succeeds
-	agent := New("test", "cat", nil, Stdin, "", nil)
+	agent := newMockedAgent("test", "cat", nil, Stdin, "", nil, nil)
 
 	// Should succeed (cat reads stdin without error)
 	err := agent.Launch(promptPath)
@@ -133,7 +148,7 @@ func TestLaunchWithExitError(t *testing.T) {
 	}
 
 	// Use 'false' command which always exits with 1
-	agent := New("test", "false", nil, FileRef, "", nil)
+	agent := newMockedAgent("test", "false", nil, FileRef, "", nil, &exec.ExitError{})
 
 	// exec.ExitError should be treated as non-error (graceful exit)
 	err := agent.Launch(promptPath)
@@ -153,7 +168,7 @@ func TestLaunchWithExtraArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	agent := New("test", "echo", nil, FileRef, "", []string{"--extra-arg"})
+	agent := newMockedAgent("test", "echo", nil, FileRef, "", []string{"--extra-arg"}, nil)
 
 	// Should succeed (echo accepts any arguments)
 	err := agent.Launch(promptPath)

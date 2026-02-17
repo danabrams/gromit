@@ -13,6 +13,8 @@ type Manager struct {
 	originalTitle string
 	disabled      bool
 	titleMethod   titleMethod // Cache which title method works
+	commandFn     func(name string, arg ...string) *exec.Cmd
+	runFn         func(cmd *exec.Cmd) error
 }
 
 // titleMethod represents the tmux title-setting method to use
@@ -27,11 +29,15 @@ const (
 // NewManager creates a new tmux manager and saves the current pane title if in tmux
 func NewManager() (*Manager, error) {
 	m := &Manager{
-		inTmux: InTmux(),
+		inTmux:    InTmux(),
+		commandFn: exec.Command,
+		runFn: func(cmd *exec.Cmd) error {
+			return cmd.Run()
+		},
 	}
 
 	if m.inTmux {
-		m.originalTitle = getOriginalTitle()
+		m.originalTitle = getOriginalTitle(m.commandFn)
 	}
 
 	return m, nil
@@ -66,8 +72,11 @@ func (m *Manager) RestoreTitle() error {
 }
 
 // getOriginalTitle retrieves the current tmux pane title
-func getOriginalTitle() string {
-	cmd := exec.Command("tmux", "display-message", "-p", "#{pane_title}")
+func getOriginalTitle(commandFn func(name string, arg ...string) *exec.Cmd) string {
+	if commandFn == nil {
+		commandFn = exec.Command
+	}
+	cmd := commandFn("tmux", "display-message", "-p", "#{pane_title}")
 	output, err := cmd.Output()
 	if err != nil {
 		return "" // Return empty string on error
@@ -103,15 +112,22 @@ func (m *Manager) setTmuxTitle(title string) error {
 // tryTitleMethod attempts to set the title using the specified method
 func (m *Manager) tryTitleMethod(method titleMethod, title string) error {
 	var cmd *exec.Cmd
+	commandFn := m.commandFn
+	if commandFn == nil {
+		commandFn = exec.Command
+	}
 	switch method {
 	case methodSetOpt:
-		cmd = exec.Command("tmux", "set-option", "-p", "pane-title", title)
+		cmd = commandFn("tmux", "set-option", "-p", "pane-title", title)
 	case methodSelectPane:
-		cmd = exec.Command("tmux", "select-pane", "-T", title)
+		cmd = commandFn("tmux", "select-pane", "-T", title)
 	default:
 		return fmt.Errorf("unknown title method")
 	}
 
+	if m.runFn != nil {
+		return m.runFn(cmd)
+	}
 	return cmd.Run()
 }
 

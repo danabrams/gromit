@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -796,31 +795,18 @@ func TestStatusWriter_RoundTrip_Final(t *testing.T) {
 	}
 }
 
-// getDeadPID spawns a subprocess that exits immediately and returns its PID
+// getDeadPID finds a PID that is not currently alive.
 func getDeadPID(t *testing.T) int {
 	t.Helper()
 
-	// Use exec.Command to spawn a process that exits immediately
-	cmd := exec.Command("true")
-	err := cmd.Start()
-	if err != nil {
-		t.Fatalf("Failed to start subprocess: %v", err)
+	// Probe a high PID range to avoid shelling out for a throwaway subprocess.
+	for pid := 1 << 20; pid < (1<<20)+100000; pid++ {
+		if !IsProcessAlive(pid) {
+			return pid
+		}
 	}
-
-	pid := cmd.Process.Pid
-
-	// Wait for it to exit
-	err = cmd.Wait()
-	if err != nil {
-		t.Fatalf("Failed to wait for subprocess: %v", err)
-	}
-
-	// Verify the PID is indeed dead
-	if IsProcessAlive(pid) {
-		t.Fatalf("PID %d should be dead but isn't", pid)
-	}
-
-	return pid
+	t.Fatal("failed to find a dead PID in probe range")
+	return 0
 }
 
 // Integration tests for Runner.Status() formatted output

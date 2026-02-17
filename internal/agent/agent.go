@@ -41,6 +41,8 @@ type cliAgent struct {
 	promptDelivery PromptDelivery
 	promptFlag     string
 	extraArgs      []string
+	commandFn      func(name string, arg ...string) *exec.Cmd
+	runFn          func(cmd *exec.Cmd) error
 }
 
 // New creates a new CLI agent with the given configuration
@@ -52,6 +54,10 @@ func New(name, binary string, flags []string, promptDelivery PromptDelivery, pro
 		promptDelivery: promptDelivery,
 		promptFlag:     promptFlag,
 		extraArgs:      extraArgs,
+		commandFn:      exec.Command,
+		runFn: func(cmd *exec.Cmd) error {
+			return cmd.Run()
+		},
 	}
 }
 
@@ -98,7 +104,7 @@ func (a *cliAgent) Launch(promptPath string) error {
 	}
 
 	// Create command
-	cmd := exec.Command(a.binary, args...)
+	cmd := a.makeCommand(a.binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -122,7 +128,7 @@ func (a *cliAgent) Launch(promptPath string) error {
 	}
 
 	// Run the command
-	err = cmd.Run()
+	err = a.run(cmd)
 
 	// Treat exec.ExitError as graceful exit (agent returned non-zero)
 	if _, ok := err.(*exec.ExitError); ok {
@@ -141,7 +147,7 @@ func (a *cliAgent) LaunchInDir(promptPath, dir string) error {
 	}
 
 	// Create command
-	cmd := exec.Command(a.binary, args...)
+	cmd := a.makeCommand(a.binary, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -170,7 +176,7 @@ func (a *cliAgent) LaunchInDir(promptPath, dir string) error {
 	}
 
 	// Run the command
-	err = cmd.Run()
+	err = a.run(cmd)
 
 	// Treat exec.ExitError as graceful exit (agent returned non-zero)
 	if _, ok := err.(*exec.ExitError); ok {
@@ -189,6 +195,20 @@ func (a *cliAgent) Command(promptPath string) (*exec.Cmd, error) {
 	}
 
 	// Create command - do not set stdout/stderr/stdin (caller's responsibility)
-	cmd := exec.Command(a.binary, args...)
+	cmd := a.makeCommand(a.binary, args...)
 	return cmd, nil
+}
+
+func (a *cliAgent) makeCommand(name string, args ...string) *exec.Cmd {
+	if a.commandFn != nil {
+		return a.commandFn(name, args...)
+	}
+	return exec.Command(name, args...)
+}
+
+func (a *cliAgent) run(cmd *exec.Cmd) error {
+	if a.runFn != nil {
+		return a.runFn(cmd)
+	}
+	return cmd.Run()
 }

@@ -20,7 +20,7 @@ func (a *testAgentWithDir) Name() string                             { return "t
 func (a *testAgentWithDir) Launch(promptPath string) error           { return nil }
 func (a *testAgentWithDir) LaunchInDir(promptPath, dir string) error { return nil }
 func (a *testAgentWithDir) Command(promptPath string) (*exec.Cmd, error) {
-	return exec.Command("echo", "test"), nil
+	return &exec.Cmd{Path: "echo", Args: []string{"echo", "test"}}, nil
 }
 
 // TestLaunchInDirSetsWorkingDirectory verifies LaunchInDir sets cmd.Dir when dir is non-empty
@@ -44,7 +44,7 @@ func TestLaunchInDirSetsWorkingDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	agent := New("test", "pwd", nil, FileRef, "", nil)
+	agent := newMockedAgent("test", "pwd", nil, FileRef, "", nil, nil)
 
 	// LaunchInDir should set the working directory to targetDir
 	// The pwd command will output the current directory
@@ -66,7 +66,7 @@ func TestLaunchInDirEmptyDirUsesCurrentDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	agent := New("test", "echo", nil, FileRef, "", nil)
+	agent := newMockedAgent("test", "echo", nil, FileRef, "", nil, nil)
 
 	// Empty dir should not cause an error - should use current directory
 	err := agent.LaunchInDir(promptPath, "")
@@ -84,7 +84,7 @@ func TestLaunchInDirNonexistentDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	agent := New("test", "echo", nil, FileRef, "", nil)
+	agent := newMockedAgent("test", "echo", nil, FileRef, "", nil, nil)
 
 	// Nonexistent directory should cause the command to fail
 	// (The command itself will fail, not LaunchInDir validation)
@@ -135,7 +135,7 @@ func TestLaunchInDirWithAllPromptDeliveryModes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agent := New("test", "echo", nil, tt.delivery, tt.promptFlag, nil)
+			agent := newMockedAgent("test", "echo", nil, tt.delivery, tt.promptFlag, nil, nil)
 
 			err := agent.LaunchInDir(promptPath, targetDir)
 			if err != nil {
@@ -160,7 +160,7 @@ func TestLaunchInDirPreservesAgentBehavior(t *testing.T) {
 	}
 
 	// Test that flags and extra args are still passed correctly
-	agent := New("test", "echo", []string{"--flag1"}, FileRef, "", []string{"--extra"})
+	agent := newMockedAgent("test", "echo", []string{"--flag1"}, FileRef, "", []string{"--extra"}, nil)
 
 	err := agent.LaunchInDir(promptPath, targetDir)
 	if err != nil {
@@ -183,7 +183,7 @@ func TestLaunchInDirTreatsExitErrorAsGraceful(t *testing.T) {
 	}
 
 	// Use 'false' command which always exits with 1
-	agent := New("test", "false", nil, FileRef, "", nil)
+	agent := newMockedAgent("test", "false", nil, FileRef, "", nil, &exec.ExitError{})
 
 	// exec.ExitError should be treated as non-error (graceful exit)
 	err := agent.LaunchInDir(promptPath, targetDir)
@@ -204,7 +204,7 @@ func TestLaunchInDirMissingPromptFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	agent := New("test", "echo", nil, FileRef, "", nil)
+	agent := newMockedAgent("test", "echo", nil, FileRef, "", nil, nil)
 
 	err := agent.LaunchInDir("/nonexistent/prompt.txt", targetDir)
 	if err == nil {

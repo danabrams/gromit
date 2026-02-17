@@ -2,14 +2,49 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/skills"
 )
+
+func runInstallSkillInDir(t *testing.T, projectDir string, force bool) (string, error) {
+	t.Helper()
+
+	oldDir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	if err := os.Chdir(projectDir); err != nil {
+		return "", err
+	}
+	defer os.Chdir(oldDir)
+
+	oldForce := forceInstallSkill
+	forceInstallSkill = force
+	defer func() { forceInstallSkill = oldForce }()
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		return "", err
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	runErr := runInstallSkill(nil, nil)
+	_ = w.Close()
+
+	out, readErr := io.ReadAll(r)
+	_ = r.Close()
+	if readErr != nil {
+		return "", readErr
+	}
+	return string(out), runErr
+}
 
 // testClaudeSettings is used in tests to parse mergeHookSettings output
 type testClaudeSettings struct {
@@ -574,13 +609,7 @@ func TestInstallSkillIntegrationFullCommand(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	// Build the gromit binary
 	tmpDir := t.TempDir()
-	gromitBinary := filepath.Join(tmpDir, "gromit")
-	buildCmd := exec.Command("go", "build", "-o", gromitBinary, ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build gromit binary: %v", err)
-	}
 
 	// Create a test project directory
 	projectDir := filepath.Join(tmpDir, "test-project")
@@ -589,9 +618,7 @@ func TestInstallSkillIntegrationFullCommand(t *testing.T) {
 	}
 
 	// Run install-skill in the test project directory
-	cmd := exec.Command(gromitBinary, "install-skill")
-	cmd.Dir = projectDir
-	output, err := cmd.CombinedOutput()
+	output, err := runInstallSkillInDir(t, projectDir, false)
 	if err != nil {
 		t.Fatalf("install-skill command failed: %v\nOutput: %s", err, output)
 	}
@@ -702,7 +729,7 @@ func TestInstallSkillIntegrationFullCommand(t *testing.T) {
 	}
 
 	// Verify output contains success message
-	outputStr := string(output)
+	outputStr := output
 	if !strings.Contains(outputStr, "Installation complete") {
 		t.Error("output missing success message")
 	}
@@ -715,13 +742,7 @@ func TestInstallSkillIntegrationIdempotency(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	// Build the gromit binary
 	tmpDir := t.TempDir()
-	gromitBinary := filepath.Join(tmpDir, "gromit")
-	buildCmd := exec.Command("go", "build", "-o", gromitBinary, ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build gromit binary: %v", err)
-	}
 
 	// Create a test project directory
 	projectDir := filepath.Join(tmpDir, "test-project")
@@ -730,9 +751,7 @@ func TestInstallSkillIntegrationIdempotency(t *testing.T) {
 	}
 
 	// Run install-skill first time
-	cmd1 := exec.Command(gromitBinary, "install-skill")
-	cmd1.Dir = projectDir
-	output1, err := cmd1.CombinedOutput()
+	output1, err := runInstallSkillInDir(t, projectDir, false)
 	if err != nil {
 		t.Fatalf("first install-skill failed: %v\nOutput: %s", err, output1)
 	}
@@ -775,15 +794,13 @@ func TestInstallSkillIntegrationIdempotency(t *testing.T) {
 	}
 
 	// Run install-skill second time
-	cmd2 := exec.Command(gromitBinary, "install-skill")
-	cmd2.Dir = projectDir
-	output2, err := cmd2.CombinedOutput()
+	output2, err := runInstallSkillInDir(t, projectDir, false)
 	if err != nil {
 		t.Fatalf("second install-skill failed: %v\nOutput: %s", err, output2)
 	}
 
 	// Verify hook script was not overwritten (should see "Skipped" message)
-	output2Str := string(output2)
+	output2Str := output2
 	if !strings.Contains(output2Str, "Skipped") {
 		t.Error("expected 'Skipped' message for existing hook script")
 	}
@@ -831,13 +848,7 @@ func TestInstallSkillIntegrationForceFlag(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	// Build the gromit binary
 	tmpDir := t.TempDir()
-	gromitBinary := filepath.Join(tmpDir, "gromit")
-	buildCmd := exec.Command("go", "build", "-o", gromitBinary, ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build gromit binary: %v", err)
-	}
 
 	// Create a test project directory
 	projectDir := filepath.Join(tmpDir, "test-project")
@@ -846,9 +857,7 @@ func TestInstallSkillIntegrationForceFlag(t *testing.T) {
 	}
 
 	// Run install-skill first time
-	cmd1 := exec.Command(gromitBinary, "install-skill")
-	cmd1.Dir = projectDir
-	if output, err := cmd1.CombinedOutput(); err != nil {
+	if output, err := runInstallSkillInDir(t, projectDir, false); err != nil {
 		t.Fatalf("first install-skill failed: %v\nOutput: %s", err, output)
 	}
 
@@ -880,15 +889,13 @@ func TestInstallSkillIntegrationForceFlag(t *testing.T) {
 	}
 
 	// Run install-skill with --force flag
-	cmd2 := exec.Command(gromitBinary, "install-skill", "--force")
-	cmd2.Dir = projectDir
-	output2, err := cmd2.CombinedOutput()
+	output2, err := runInstallSkillInDir(t, projectDir, true)
 	if err != nil {
 		t.Fatalf("install-skill --force failed: %v\nOutput: %s", err, output2)
 	}
 
 	// Verify hook script was overwritten (should NOT see "Skipped" message)
-	output2Str := string(output2)
+	output2Str := output2
 	if strings.Contains(output2Str, "Skipped pipeline-resume.sh") {
 		t.Error("expected hook script to be overwritten with --force, but it was skipped")
 	}
@@ -928,13 +935,7 @@ func TestInstallSkillIntegrationPreservesExistingHooks(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	// Build the gromit binary
 	tmpDir := t.TempDir()
-	gromitBinary := filepath.Join(tmpDir, "gromit")
-	buildCmd := exec.Command("go", "build", "-o", gromitBinary, ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build gromit binary: %v", err)
-	}
 
 	// Create a test project directory
 	projectDir := filepath.Join(tmpDir, "test-project")
@@ -987,9 +988,7 @@ func TestInstallSkillIntegrationPreservesExistingHooks(t *testing.T) {
 	}
 
 	// Run install-skill
-	cmd := exec.Command(gromitBinary, "install-skill")
-	cmd.Dir = projectDir
-	output, err := cmd.CombinedOutput()
+	output, err := runInstallSkillInDir(t, projectDir, false)
 	if err != nil {
 		t.Fatalf("install-skill failed: %v\nOutput: %s", err, output)
 	}
