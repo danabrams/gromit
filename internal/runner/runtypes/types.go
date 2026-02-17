@@ -50,10 +50,6 @@ type BeadContext struct {
 	HardStopApproval HardStopApprovalState
 }
 
-const (
-	TimeoutTypePhase = "phase_timeout"
-)
-
 // IterationResult captures the outcome of one loop iteration.
 type IterationResult struct {
 	BeadID                  string

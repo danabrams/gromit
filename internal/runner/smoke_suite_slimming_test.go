@@ -85,10 +85,6 @@ func TestRunnerAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 	}
 
 	forbiddenNonE2ETests := []string{
-		"func TestRunnerInvocationTimeout_UsesClaudeTimeout(",
-		"func TestRunnerInvocationTimeout_RespectsModelOverride(",
-		"func TestRunnerLogsPhaseTimeoutWithElapsedDuration(",
-		"func TestRunnerInvocationTimeout_DefaultTimeoutApplied(",
 		"func TestRunnerRun_MergeInteractiveBranchesStopsOnFailure(",
 		"func TestRunnerRun_SkipsMergeWhenAutoMergeDisabled(",
 		"func TestNewRunner_WiresWorktreeManagerWhenEnabled(",

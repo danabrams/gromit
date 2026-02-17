@@ -88,26 +88,24 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	}
 
 	stallTimeoutFn := makeStallTimeoutFn(cfg)
-	invocationTimeoutFn := makeInvocationTimeoutFn(cfg)
 	inv := execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
 		WithHeartbeat(syncOut, stallTimeoutFn).
-		WithInvocationTimeout(invocationTimeoutFn).
 		WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
 
 	r := &Runner{
-		cfg:         cfg,
-		beads:       beadsClient,
-		router:      router,
-		invoker:     inv,
-		analyzer:    analyzerObj,
-		renderer:    renderer,
-		logger:      log,
-		output:      syncOut,
-		syncOut:     syncOut,
-		gromitDir:   gromitDir,
-		stateFile:   sf,
-		gitDiffFn:   getGitDiff,
-		cmdRunnerFn: defaultCmdRunner,
+		cfg:            cfg,
+		beads:          beadsClient,
+		router:         router,
+		invoker:        inv,
+		analyzer:       analyzerObj,
+		renderer:       renderer,
+		logger:         log,
+		output:         syncOut,
+		syncOut:        syncOut,
+		gromitDir:      gromitDir,
+		stateFile:      sf,
+		gitDiffFn:      getGitDiff,
+		cmdRunnerFn:    defaultCmdRunner,
 		processChecker: IsProcessAlive,
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
 			return net.DefaultResolver.LookupHost(ctx, host)

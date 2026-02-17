@@ -36,7 +36,6 @@ type Invoker struct {
 	streamLogger         *logger.StreamLogger
 	overwriteOut         OverwriteWriter
 	stallTimeoutFn       StallTimeoutFunc
-	invocationTimeoutFn  func(model string) time.Duration
 	preserveNativeStream bool
 }
 
@@ -56,13 +55,6 @@ func NewInvoker(router Router, output io.Writer, streamLogger *logger.StreamLogg
 func (inv *Invoker) WithHeartbeat(out OverwriteWriter, stallTimeoutFn StallTimeoutFunc) *Invoker {
 	inv.overwriteOut = out
 	inv.stallTimeoutFn = stallTimeoutFn
-	return inv
-}
-
-// WithInvocationTimeout configures per-model invocation timeouts for each provider call.
-// Returning 0 or less disables the timeout and uses the parent context only.
-func (inv *Invoker) WithInvocationTimeout(timeoutFn func(model string) time.Duration) *Invoker {
-	inv.invocationTimeoutFn = timeoutFn
 	return inv
 }
 
@@ -104,17 +96,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		bc.Result.EscalatedTo = modelName
 	}
 
-	var invocationCtx context.Context
-	var invocationCancel context.CancelFunc
-	if inv.invocationTimeoutFn != nil {
-		if timeout := inv.invocationTimeoutFn(modelName); timeout > 0 {
-			invocationCtx, invocationCancel = context.WithTimeout(ctx, timeout)
-		} else {
-			invocationCtx, invocationCancel = context.WithCancel(ctx)
-		}
-	} else {
-		invocationCtx, invocationCancel = context.WithCancel(ctx)
-	}
+	invocationCtx, invocationCancel := context.WithCancel(ctx)
 	defer invocationCancel()
 
 	stallFired := false

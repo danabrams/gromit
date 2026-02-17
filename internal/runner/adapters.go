@@ -40,21 +40,6 @@ func makeStallTimeoutFn(cfg *config.Config) execution.StallTimeoutFunc {
 	}
 }
 
-// makeInvocationTimeoutFn creates an invocation timeout lookup for the invoker.
-// Returns nil when config is unavailable.
-func makeInvocationTimeoutFn(cfg *config.Config) func(model string) time.Duration {
-	if cfg == nil {
-		return nil
-	}
-	return func(model string) time.Duration {
-		timeout, _, _, _ := cfg.Claude.TimeoutsForModel(model)
-		if timeout <= 0 {
-			return 0
-		}
-		return time.Duration(timeout) * time.Second
-	}
-}
-
 // successLearningRouterAdapter wraps *provider.Router to satisfy escalation.SuccessLearningRouter.
 type successLearningRouterAdapter struct {
 	r *provider.Router

@@ -63,17 +63,14 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 
 	// Create invoker with router adapter (nil-safe: if router is nil, invoker handles it)
 	stallTimeoutFn := makeStallTimeoutFn(cfg)
-	invocationTimeoutFn := makeInvocationTimeoutFn(cfg)
 	var inv *execution.Invoker
 	if router != nil {
 		inv = execution.NewInvoker(&routerAdapter{r: router}, syncOut, nil).
 			WithHeartbeat(syncOut, stallTimeoutFn).
-			WithInvocationTimeout(invocationTimeoutFn).
 			WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
 	} else {
 		inv = execution.NewInvoker(nil, syncOut, nil).
 			WithHeartbeat(syncOut, stallTimeoutFn).
-			WithInvocationTimeout(invocationTimeoutFn).
 			WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
 	}
 
@@ -83,18 +80,18 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 	}
 
 	r := &Runner{
-		cfg:         cfg,
-		beads:       deps.Beads,
-		router:      router,
-		invoker:     inv,
-		analyzer:    deps.Analyzer,
-		renderer:    deps.Renderer,
-		logger:      iterLogger,
-		output:      syncOut,
-		syncOut:     syncOut,
-		gromitDir:   gromitDir,
-		gitDiffFn:   getGitDiff,
-		cmdRunnerFn: cmdRunner,
+		cfg:            cfg,
+		beads:          deps.Beads,
+		router:         router,
+		invoker:        inv,
+		analyzer:       deps.Analyzer,
+		renderer:       deps.Renderer,
+		logger:         iterLogger,
+		output:         syncOut,
+		syncOut:        syncOut,
+		gromitDir:      gromitDir,
+		gitDiffFn:      getGitDiff,
+		cmdRunnerFn:    cmdRunner,
 		processChecker: IsProcessAlive,
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
 			return net.DefaultResolver.LookupHost(ctx, host)

@@ -5,12 +5,50 @@ package runner
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
 )
+
+func setupInvocationTimeoutRunner(t *testing.T, cfg *config.Config, p provider.Provider) (*Runner, *mockIterationLogger) {
+	t.Helper()
+
+	beadReady := false
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			if beadReady {
+				return nil, nil
+			}
+			beadReady = true
+			return &bead.Bead{ID: "bead-timeout-1", Title: "Timeout bead", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}, nil
+		},
+	}
+
+	mockLog := &mockIterationLogger{}
+	var buf strings.Builder
+	router := provider.NewSingleProviderRouter(p)
+	r, err := NewRunnerWithDeps(
+		cfg,
+		&buf,
+		t.TempDir(),
+		Deps{
+			Beads:    beads,
+			Router:   router,
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   mockLog,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps failed: %v", err)
+	}
+
+	return r, mockLog
+}
 
 // smoke-matrix: keep | rationale: Retains high-value E2E failure-path coverage for timeout-triggered retry with tier escalation behavior. | destination: internal/runner/invocation_timeout_acceptance_test.go:TestRunnerSmoke_ValidationFailureEscalatesTier
 func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
@@ -33,9 +71,6 @@ func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
 			StallTimeout:       1,
 			StallTimeoutActive: 1,
 			BeadTimeout:        30,
-			ModelTimeouts: map[string]config.ModelTimeoutOverrides{
-				"test-sonnet": {Timeout: 1},
-			},
 		},
 		Escalation: config.EscalationConfig{
 			Enabled: true,
@@ -50,7 +85,7 @@ func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
 		t.Fatalf("Run() failed: %v", err)
 	}
 	if len(tiers) < 2 {
-		t.Fatalf("expected retry after phase timeout, got %d invocation(s)", len(tiers))
+		t.Fatalf("expected retry after invocation timeout, got %d invocation(s)", len(tiers))
 	}
 	if tiers[0] != provider.TierMedium || tiers[1] != provider.TierHigh {
 		t.Fatalf("invocation tiers = %v, want [%s %s]", tiers, provider.TierMedium, provider.TierHigh)
