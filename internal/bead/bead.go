@@ -782,6 +782,29 @@ func IsTestOnlyBead(title string) bool {
 	return false
 }
 
+// IsProactiveDecompositionCandidate returns true if the bead's title contains keywords
+// that signal broad scope and should trigger proactive decomposition before first attempt.
+func IsProactiveDecompositionCandidate(title string) bool {
+	t := strings.ToLower(strings.TrimSpace(title))
+	if t == "" {
+		return false
+	}
+	keywords := []string{
+		"infrastructure",
+		"e2e",
+		"consolidate",
+		"extract",
+		"shared",
+		"refactor",
+	}
+	for _, kw := range keywords {
+		if strings.Contains(t, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsMethodologyActive checks if a methodology (e.g., "atdd", "tdd") is active for a bead.
 // It checks for a label like "atdd:true" or "atdd:false" and returns that value if present.
 // If no matching label is found, it falls back to the globalDefault value.

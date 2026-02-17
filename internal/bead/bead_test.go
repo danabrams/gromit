@@ -2503,6 +2503,76 @@ func TestIsTestOnlyBead(t *testing.T) {
 	}
 }
 
+// TestIsProactiveDecompositionCandidate tests the heuristic for detecting beads that
+// should be proactively decomposed before first attempt based on title keywords.
+func TestIsProactiveDecompositionCandidate_KeywordDetection(t *testing.T) {
+	tests := []struct {
+		name  string
+		title string
+		want  bool
+	}{
+		{
+			name:  "infrastructure keyword",
+			title: "Build infrastructure for parallel bead execution",
+			want:  true,
+		},
+		{
+			name:  "E2E keyword",
+			title: "Add E2E tests for authentication flow",
+			want:  true,
+		},
+		{
+			name:  "consolidate keyword",
+			title: "Consolidate runner test helpers",
+			want:  true,
+		},
+		{
+			name:  "extract keyword",
+			title: "Extract shared utilities into common package",
+			want:  true,
+		},
+		{
+			name:  "shared keyword",
+			title: "Create shared config loading helpers",
+			want:  true,
+		},
+		{
+			name:  "refactor keyword",
+			title: "Refactor config loading to use interfaces",
+			want:  true,
+		},
+		{
+			name:  "case insensitive - INFRASTRUCTURE",
+			title: "INFRASTRUCTURE setup for deployment",
+			want:  true,
+		},
+		{
+			name:  "regular feature bead",
+			title: "Add retry count to iteration log",
+			want:  false,
+		},
+		{
+			name:  "implementation bead",
+			title: "Implement scope check in runner",
+			want:  false,
+		},
+		{
+			name:  "empty title",
+			title: "",
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsProactiveDecompositionCandidate(tt.title)
+			if got != tt.want {
+				t.Errorf("IsProactiveDecompositionCandidate(%q) = %v, want %v", tt.title, got, tt.want)
+			}
+		})
+	}
+}
+
 // parseBeadOutputList is a helper function that parses JSON output for ListWithLabel tests
 func parseBeadOutputList(out string) ([]*Bead, error) {
 	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
