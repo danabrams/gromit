@@ -252,3 +252,40 @@ func TestShapeContextForBudget_TruncateSpecSixth(t *testing.T) {
 		t.Errorf("expected 'truncate Spec' in trim actions, got %v", report.TrimActions)
 	}
 }
+
+func TestShapeContextForBudget_BeadIdentityNeverTrimmed(t *testing.T) {
+	ctx := &Context{
+		Bead:               &bead.Bead{ID: "bead-xyz", Title: "Important task", Description: "Full description"},
+		ParentBead:         &bead.Bead{ID: "parent-abc", Title: "Parent epic", Description: "Parent desc"},
+		ClaudeMD:           strings.Repeat("x", 1000),
+		Rules:              strings.Repeat("r", 1000),
+		Spec:               strings.Repeat("s", 1000),
+		ConfirmedLearnings: []learnings.Learning{makeLearning(strings.Repeat("l", 500))},
+		RecentLearnings:    []learnings.Learning{makeLearning(strings.Repeat("r", 500))},
+	}
+	ctx.normalizeNilFields()
+
+	// Extremely tight budget — forces all trim steps
+	budget := 50
+
+	shaped, _ := ShapeContextForBudget(ctx, budget, 100, "build")
+
+	if shaped.Bead == nil {
+		t.Fatal("expected Bead to be preserved")
+	}
+	if shaped.Bead.ID != "bead-xyz" {
+		t.Errorf("expected Bead.ID preserved, got %q", shaped.Bead.ID)
+	}
+	if shaped.Bead.Title != "Important task" {
+		t.Errorf("expected Bead.Title preserved, got %q", shaped.Bead.Title)
+	}
+	if shaped.Bead.Description != "Full description" {
+		t.Errorf("expected Bead.Description preserved, got %q", shaped.Bead.Description)
+	}
+	if shaped.ParentBead == nil {
+		t.Fatal("expected ParentBead to be preserved")
+	}
+	if shaped.ParentBead.ID != "parent-abc" {
+		t.Errorf("expected ParentBead.ID preserved, got %q", shaped.ParentBead.ID)
+	}
+}
