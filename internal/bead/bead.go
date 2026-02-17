@@ -805,6 +805,17 @@ func IsProactiveDecompositionCandidate(title string) bool {
 	return false
 }
 
+// IsProactiveDecompositionCandidateWithDesc returns true if the bead should be proactively
+// decomposed before first attempt, based on title keywords OR 3+ new type definitions in the description.
+func IsProactiveDecompositionCandidateWithDesc(title, description string) bool {
+	if IsProactiveDecompositionCandidate(title) {
+		return true
+	}
+	// Count "struct" occurrences in description as a proxy for new type definitions
+	count := strings.Count(strings.ToLower(description), "struct")
+	return count >= 3
+}
+
 // IsMethodologyActive checks if a methodology (e.g., "atdd", "tdd") is active for a bead.
 // It checks for a label like "atdd:true" or "atdd:false" and returns that value if present.
 // If no matching label is found, it falls back to the globalDefault value.

@@ -2573,6 +2573,60 @@ func TestIsProactiveDecompositionCandidate_KeywordDetection(t *testing.T) {
 	}
 }
 
+// TestIsProactiveDecompositionCandidate_TypeDefinitions tests that beads with 3 or more
+// new type definitions in the description are flagged as decomposition candidates.
+func TestIsProactiveDecompositionCandidate_TypeDefinitions(t *testing.T) {
+	tests := []struct {
+		name        string
+		title       string
+		description string
+		want        bool
+	}{
+		{
+			name:  "three type definitions in description",
+			title: "Implement config loader",
+			description: `Add config loading with these types:
+- ConfigLoader struct
+- ConfigOptions struct
+- ConfigResult struct`,
+			want: true,
+		},
+		{
+			name:  "four type definitions in description",
+			title: "Add pipeline types",
+			description: `Define:
+- StageInput struct
+- StageOutput struct
+- StageConfig struct
+- StageResult struct`,
+			want: true,
+		},
+		{
+			name:  "two type definitions - not enough",
+			title: "Add two types",
+			description: `Add:
+- FooResult struct
+- BarConfig struct`,
+			want: false,
+		},
+		{
+			name:        "no type definitions",
+			title:       "Add retry logic",
+			description: "Implement retry with exponential backoff",
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsProactiveDecompositionCandidateWithDesc(tt.title, tt.description)
+			if got != tt.want {
+				t.Errorf("IsProactiveDecompositionCandidateWithDesc(%q, %q) = %v, want %v", tt.title, tt.description, got, tt.want)
+			}
+		})
+	}
+}
+
 // parseBeadOutputList is a helper function that parses JSON output for ListWithLabel tests
 func parseBeadOutputList(out string) ([]*Bead, error) {
 	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
