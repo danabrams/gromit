@@ -1,4 +1,4 @@
-.PHONY: build install install-skill lint install-hooks test-touched test-timing test-acceptance-timing test-unit test-acceptance test-e2e-live test-ci
+.PHONY: build install install-skill lint install-hooks test-touched test-timing test-acceptance-timing test-profile test-unit test-acceptance test-e2e-live test-ci
 
 GOLANGCI_LINT_VERSION := $(shell cat .golangci-version)
 
@@ -29,6 +29,9 @@ test-timing:
 
 test-acceptance-timing:
 	./scripts/test_acceptance_timing.sh
+
+test-profile:
+	go test -json ./internal/runner -count=1 | jq -r 'select(.Action=="pass" and .Test != null) | "\(.Elapsed)\t\(.Test)"' | sort -rn
 
 test-unit:
 	go test ./...
