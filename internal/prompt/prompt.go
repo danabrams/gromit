@@ -147,13 +147,15 @@ type ThoroughReviewContext struct {
 
 // Renderer loads and renders prompt templates
 type Renderer struct {
-	templatesDir     string
-	specsDir         string
-	claudeMDPath     string
-	rulesPath        string
-	gromitDir        string
-	learningsFile    *learnings.File
-	maxLearningChars int // Character budget for confirmed learnings; 0 means no cap
+	templatesDir           string
+	specsDir               string
+	claudeMDPath           string
+	rulesPath              string
+	gromitDir              string
+	learningsFile          *learnings.File
+	maxLearningChars       int // Character budget for confirmed learnings; 0 means no cap
+	budgetMaxChars         int // Total prompt budget in chars; 0 means no budget shaping
+	budgetLearningCapChars int // Learning cap used during budget shaping
 
 	// Cache fields - files are immutable during a run, so cache after first load
 	claudeMDCache *string           // Cached CLAUDE.md content
@@ -211,6 +213,17 @@ func (r *Renderer) SetMaxLearningChars(maxChars int) {
 		return
 	}
 	r.maxLearningChars = maxChars
+}
+
+// SetBudgetConfig sets the prompt budget shaping configuration.
+// When maxChars > 0, qualifying render methods will call ShapeContextForBudget
+// before rendering to trim context that exceeds the budget.
+func (r *Renderer) SetBudgetConfig(maxChars, learningCapChars int) {
+	if r == nil {
+		return
+	}
+	r.budgetMaxChars = maxChars
+	r.budgetLearningCapChars = learningCapChars
 }
 
 // RenderBuild renders the build prompt for a bead

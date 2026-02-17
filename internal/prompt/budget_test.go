@@ -761,6 +761,23 @@ func TestShapeRetroForBudget_DropsLearningsThenTruncatesRules(t *testing.T) {
 	}
 }
 
+func TestSetBudgetConfig_StoresValues(t *testing.T) {
+	r := &Renderer{}
+	r.SetBudgetConfig(20000, 2000)
+
+	if r.budgetMaxChars != 20000 {
+		t.Errorf("expected budgetMaxChars=20000, got %d", r.budgetMaxChars)
+	}
+	if r.budgetLearningCapChars != 2000 {
+		t.Errorf("expected budgetLearningCapChars=2000, got %d", r.budgetLearningCapChars)
+	}
+}
+
+func TestSetBudgetConfig_NilReceiverSafe(t *testing.T) {
+	var r *Renderer
+	r.SetBudgetConfig(20000, 2000) // should not panic
+}
+
 func TestShapeRetroForBudget_AlwaysFitsPositiveBudget(t *testing.T) {
 	rules := strings.Repeat("r", 80)
 	learnings := strings.Repeat("l", 60)
