@@ -1010,3 +1010,24 @@ func TestMethodologyPhaseShaping_TemplateCompatibility(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderSpecAcceptanceTemplateIncludesRulesAndSpec(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &SpecAcceptanceContext{
+		Spec:  "# Spec\nDo the thing",
+		Rules: "Rule: be explicit",
+	}
+
+	result, err := r.RenderSpecAcceptance(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecAcceptance() error = %v", err)
+	}
+	if !strings.Contains(result, "Rule: be explicit") {
+		t.Error("expected rules in rendered template")
+	}
+	if !strings.Contains(result, "Do the thing") {
+		t.Error("expected spec in rendered template")
+	}
+}
