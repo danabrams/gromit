@@ -39,6 +39,8 @@ type InvocationResult struct {
 	ProviderResult *provider.Result
 }
 
+const integrityUnsafeStateCategory analyzer.Category = "integrity_unsafe_state"
+
 // InvokeFn executes a single Claude invocation. The facade wraps
 // execution.Invoker.Execute and maps the result to this package's
 // InvocationResult type.
@@ -126,6 +128,17 @@ func (h *Handler) HandleInvocationTimeout(bc *runtypes.BeadContext) (continueLoo
 	return h.handleTimeoutEscalationOrFail(bc, "invocation timeout")
 }
 
+func (h *Handler) resolveL1RetryCap(bc *runtypes.BeadContext) int {
+	l1RetryCap := h.cfg.Andon.L1RetryCap
+	if l1RetryCap <= 0 {
+		l1RetryCap = bc.MaxRetries
+	}
+	if l1RetryCap <= 0 {
+		l1RetryCap = 1
+	}
+	return l1RetryCap
+}
+
 func (h *Handler) handleTimeoutEscalationOrFail(bc *runtypes.BeadContext, failureLabel string) bool {
 	if bc == nil || bc.Result == nil {
 		return false
@@ -208,7 +221,7 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 	h.log("Analysis: category=%s, recoverable=%v", analysis.Category, analysis.Recoverable)
 	h.log("Root cause: %s", analysis.RootCause)
 
-	if analysis.Category == analyzer.Category("integrity_unsafe_state") {
+	if analysis.Category == integrityUnsafeStateCategory {
 		bc.Result.Error = fmt.Errorf("L3 stop-line: integrity/unsafe-state - %s", analysis.RootCause)
 		return false
 	}
@@ -228,13 +241,7 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 	if analysis.Recoverable {
 		// L1 bounded autonomous retries.
 		if !bc.Result.Escalated {
-			l1RetryCap := h.cfg.Andon.L1RetryCap
-			if l1RetryCap <= 0 {
-				l1RetryCap = bc.MaxRetries
-			}
-			if l1RetryCap <= 0 {
-				l1RetryCap = 1
-			}
+			l1RetryCap := h.resolveL1RetryCap(bc)
 
 			if bc.RetriesThisModel < l1RetryCap {
 				bc.RetriesThisModel++
