@@ -26,7 +26,7 @@ func TestInitRunLoopState_SkipsBeadsWithConsecutiveFailures(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Loop: config.LoopConfig{MaxCrossRunFailures: 2},
+		Loop:  config.LoopConfig{MaxCrossRunFailures: 2},
 		Paths: config.PathsConfig{Logs: filepath.Join(tmpDir, "logs")},
 	}
 	var buf strings.Builder

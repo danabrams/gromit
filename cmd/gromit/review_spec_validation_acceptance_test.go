@@ -14,7 +14,8 @@ import (
 // smoke-matrix: keep | rationale: Retains high-value failure-path E2E coverage for strict spec validation and suggestion output. | destination: cmd/gromit/review_spec_validation_acceptance_test.go:TestCmdSmoke_ReviewSpecValidationEndToEnd
 func TestCmdSmoke_ReviewSpecValidationEndToEnd(t *testing.T) {
 	tmpDir := setupReviewSpecSmokeProject(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second); defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	_, stderr, exitCode, err := testutil.RunGromitHelperProcessWithStdin(
 		ctx,
 		binaryPath,
@@ -26,7 +27,9 @@ func TestCmdSmoke_ReviewSpecValidationEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run gromit review --spec: %v", err)
 	}
-	if exitCode == 0 { t.Fatalf("expected non-zero exit code, got 0; stderr=%s", stderr) }
+	if exitCode == 0 {
+		t.Fatalf("expected non-zero exit code, got 0; stderr=%s", stderr)
+	}
 	lower := strings.ToLower(stderr)
 	if !strings.Contains(lower, "not found") {
 		t.Fatalf("expected not-found validation error, got: %s", stderr)

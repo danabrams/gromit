@@ -19,11 +19,11 @@ func TestRunnerSmokeSuiteReclassified_AcceptanceFileSet(t *testing.T) {
 	}
 
 	allowedFiles := map[string]bool{
-		filepath.Join(projectRoot, "internal/runner/validation_extraction_acceptance_test.go"):               true,
-		filepath.Join(projectRoot, "internal/runner/invocation_timeout_acceptance_test.go"):                  true,
-		filepath.Join(projectRoot, "internal/runner/worktree_merge_acceptance_test.go"):                      true,
-		filepath.Join(projectRoot, "internal/runner/runner_pipeline_acceptance_test.go"):                     true,
-		filepath.Join(projectRoot, "internal/runner/status_integration_acceptance_test.go"):                  true,
+		filepath.Join(projectRoot, "internal/runner/validation_extraction_acceptance_test.go"): true,
+		filepath.Join(projectRoot, "internal/runner/invocation_timeout_acceptance_test.go"):    true,
+		filepath.Join(projectRoot, "internal/runner/worktree_merge_acceptance_test.go"):        true,
+		filepath.Join(projectRoot, "internal/runner/runner_pipeline_acceptance_test.go"):       true,
+		filepath.Join(projectRoot, "internal/runner/status_integration_acceptance_test.go"):    true,
 	}
 
 	for _, abs := range matches {

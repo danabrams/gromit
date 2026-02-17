@@ -1,4 +1,5 @@
 //go:build e2e_live
+
 // This test runs the real Claude CLI and is intentionally excluded from the
 // default acceptance suite for speed and reliability.
 

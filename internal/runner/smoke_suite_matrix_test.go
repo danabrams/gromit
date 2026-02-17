@@ -31,13 +31,13 @@ func TestRunnerSmokeMatrixMovedCases_IncludesAndonCoverage(t *testing.T) {
 	moved := RunnerSmokeMatrixMovedCases()
 
 	expected := map[string]string{
-		"TestFailureClasses_CanonicalCatalog":                                   "internal/runner/andon/types_test.go:TestAllFailureClasses_CanonicalOrderAndLabels",
-		"TestLevels_CanonicalCatalog":                                           "internal/runner/andon/types_test.go:TestAllAndonLevels_CanonicalOrder",
-		"TestDefaultThresholdDefinition_IsPureAndPolicyConsumable_Acceptance":   "internal/runner/andon/types_test.go:TestDefaultThresholdDefinition_IsPureAndPolicyConsumable",
-		"TestEvaluateFailure_ClassifiesAndSelectsDecisionForAllClasses":          "internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass",
-		"TestEvaluateFailure_EnforcesL1L2BoundaryAtPublicEntryPoint":             "internal/runner/andon/policy_test.go:TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap",
-		"TestEvaluateFailure_UsesClassifiedDecisionPathAtPublicEntryPoint":       "internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass",
-		"TestEvaluateClassifiedFailure_HasExplicitDecisionPathPerFailureClass":   "internal/runner/andon/policy_test.go:TestEvaluateClassifiedFailure_HasExplicitPathPerClass",
+		"TestFailureClasses_CanonicalCatalog":                                           "internal/runner/andon/types_test.go:TestAllFailureClasses_CanonicalOrderAndLabels",
+		"TestLevels_CanonicalCatalog":                                                   "internal/runner/andon/types_test.go:TestAllAndonLevels_CanonicalOrder",
+		"TestDefaultThresholdDefinition_IsPureAndPolicyConsumable_Acceptance":           "internal/runner/andon/types_test.go:TestDefaultThresholdDefinition_IsPureAndPolicyConsumable",
+		"TestEvaluateFailure_ClassifiesAndSelectsDecisionForAllClasses":                 "internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass",
+		"TestEvaluateFailure_EnforcesL1L2BoundaryAtPublicEntryPoint":                    "internal/runner/andon/policy_test.go:TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap",
+		"TestEvaluateFailure_UsesClassifiedDecisionPathAtPublicEntryPoint":              "internal/runner/andon/policy_test.go:TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass",
+		"TestEvaluateClassifiedFailure_HasExplicitDecisionPathPerFailureClass":          "internal/runner/andon/policy_test.go:TestEvaluateClassifiedFailure_HasExplicitPathPerClass",
 		"TestEvaluateFailure_UnknownSignalRemainsDeterministicWithWorkflowFallbackPath": "internal/runner/andon/policy_test.go:TestEvaluateFailure_UnknownKindUsesDeterministicWorkflowFallbackPath",
 	}
 

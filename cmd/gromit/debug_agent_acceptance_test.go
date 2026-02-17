@@ -15,7 +15,8 @@ import (
 func TestCmdSmoke_DebugAgentResolutionEndToEnd(t *testing.T) {
 	configContent := "paths:\n  gromit_dir: .gromit\nclaude:\n  binary: \"nonexistent-debug-claude\"\nagents:\n  definitions:\n    test-agent:\n      binary: \"echo\"\n      flags:\n        - \"--from-test\"\n"
 	tmpDir := setupDebugAgentTestProject(t, configContent)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second); defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	stdout, stderr, exitCode, err := testutil.RunGromitHelperProcessWithStdin(
 		ctx,
 		binaryPath,
@@ -30,7 +31,9 @@ func TestCmdSmoke_DebugAgentResolutionEndToEnd(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d (stderr: %s)", exitCode, stderr)
 	}
-	if strings.Contains(stderr, "unknown flag") { t.Fatalf("unexpected flag error: %s", stderr) }
+	if strings.Contains(stderr, "unknown flag") {
+		t.Fatalf("unexpected flag error: %s", stderr)
+	}
 	if !strings.Contains(stdout, "--prompt") {
 		t.Errorf("expected agent to receive --prompt arg, got: %s", stdout)
 	}

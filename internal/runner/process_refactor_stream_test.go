@@ -51,4 +51,3 @@ func TestRunRefactorWithRouter_UsesStreamRun(t *testing.T) {
 		t.Fatal("runRefactorWithRouter() passed nil stream handler; want non-nil for streaming visibility")
 	}
 }
-
