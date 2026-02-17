@@ -2363,6 +2363,7 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 	tests := []struct {
 		name           string
 		setupStatus    func(gromitDir string) error
+		processChecker func(pid int) bool
 		expectedOutput []string
 		notExpected    []string
 		description    string
@@ -2379,13 +2380,25 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 		},
 		{
 			name: "Live run - shows run in progress",
+			processChecker: func(pid int) bool {
+				return true
+			},
 			setupStatus: func(gromitDir string) error {
-				// Create status file with current PID (which is alive)
-				sw, err := NewStatusWriter(gromitDir)
+				status := Status{
+					Running:   true,
+					Iteration: 1,
+					BeadID:    "bead-123",
+					BeadTitle: "Building feature X",
+					Model:     "sonnet",
+					StartedAt: time.Now().Add(-2 * time.Minute),
+					ElapsedS:  120,
+					PID:       424242,
+				}
+				data, err := json.MarshalIndent(status, "", "  ")
 				if err != nil {
 					return err
 				}
-				return sw.Write(1, "bead-123", "Building feature X", "sonnet", true, 0, 0)
+				return os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644)
 			},
 			expectedOutput: []string{"Pipeline:", "Run: iteration 1", "bead-123", "Building feature X", "Model:    sonnet", "Health:"},
 			notExpected:    []string{"Warning: stale run"},
@@ -2393,6 +2406,9 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 		},
 		{
 			name: "Stale status file - warns and cleans up",
+			processChecker: func(pid int) bool {
+				return false
+			},
 			setupStatus: func(gromitDir string) error {
 				// Create status file with a fake PID that won't exist
 				status := Status{
@@ -2449,6 +2465,9 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 				beads:     mockBeads,
 				output:    &buf,
 				gromitDir: gromitDir,
+			}
+			if tt.processChecker != nil {
+				r.processChecker = tt.processChecker
 			}
 
 			// Call Status
