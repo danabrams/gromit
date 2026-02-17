@@ -703,3 +703,23 @@ func TestReviewBudgetShaperWrappers_MapToBaseShaper(t *testing.T) {
 		}
 	})
 }
+
+func TestShapeRetroForBudget_ZeroBudgetUnchanged(t *testing.T) {
+	rules := "retro rules"
+	learnings := "retro learnings"
+
+	shapedRules, shapedLearnings, report := ShapeRetroForBudget(rules, learnings, 0)
+
+	if shapedRules != rules {
+		t.Fatalf("expected rules unchanged, got %q", shapedRules)
+	}
+	if shapedLearnings != learnings {
+		t.Fatalf("expected learnings unchanged, got %q", shapedLearnings)
+	}
+	if report == nil {
+		t.Fatal("expected non-nil report")
+	}
+	if len(report.TrimActions) != 0 {
+		t.Fatalf("expected no trim actions, got %v", report.TrimActions)
+	}
+}

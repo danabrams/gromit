@@ -17,12 +17,35 @@ const (
 	minHeadTailKeepChars       = 10
 )
 
+func measureRetroContext(rules, learnings string) int {
+	return len(rules) + len(learnings)
+}
+
 // ShapeReport describes what trimming was applied to a context.
 type ShapeReport struct {
 	BeforeChars  int
 	AfterChars   int
 	TrimActions  []string
 	SectionSizes map[string]int
+}
+
+// ShapeRetroForBudget trims retro rules/learnings context to fit within maxChars.
+func ShapeRetroForBudget(rules, learnings string, maxChars int) (string, string, *ShapeReport) {
+	beforeChars := measureRetroContext(rules, learnings)
+	report := &ShapeReport{
+		BeforeChars: beforeChars,
+		AfterChars:  beforeChars,
+		SectionSizes: map[string]int{
+			"Rules":     len(rules),
+			"Learnings": len(learnings),
+		},
+	}
+
+	if maxChars <= 0 || beforeChars <= maxChars {
+		return rules, learnings, report
+	}
+
+	return rules, learnings, report
 }
 
 // measureContext returns the total character count of trimmable context fields.
