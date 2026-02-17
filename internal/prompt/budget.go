@@ -13,6 +13,7 @@ const (
 	trimDropConfirmedLearnings = "drop ConfirmedLearnings"
 	trimPhaseFilterRules       = "phase-filter Rules"
 	trimTruncateSpec           = "truncate Spec"
+	minHeadTailKeepChars       = 10
 )
 
 // ShapeReport describes what trimming was applied to a context.
@@ -122,26 +123,18 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 	}
 
 	// Step 5: phase-filter Rules
-	if phase != "" && shaped.Rules != "" {
-		filtered := filterRulesByPhase(shaped.Rules, phase)
-		if len(filtered) < len(shaped.Rules) && strings.TrimSpace(filtered) != "" {
-			shaped.Rules = filtered
-			report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
-			if measureContext(shaped) <= maxChars {
-				return finishReport(shaped, report)
-			}
+	if filtered, ok := maybePhaseFilterRules(shaped.Rules, phase, true); ok {
+		shaped.Rules = filtered
+		report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
+		if measureContext(shaped) <= maxChars {
+			return finishReport(shaped, report)
 		}
 	}
 
 	// Step 6: truncate Spec with head/tail + marker
 	if shaped.Spec != "" {
-		excess := measureContext(shaped) - maxChars
-		targetLen := len(shaped.Spec) - excess
-		if targetLen <= 0 {
-			targetLen = len(truncationMarker)
-		}
-		if targetLen < len(shaped.Spec) {
-			shaped.Spec = truncateWithMarker(shaped.Spec, targetLen)
+		if truncated, ok := truncateSpecForBudget(shaped.Spec, measureContext(shaped), maxChars); ok {
+			shaped.Spec = truncated
 			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
 		}
 	}
@@ -168,14 +161,42 @@ func capLearnings(ls []learnings.Learning, maxChars int) []learnings.Learning {
 
 const truncationMarker = "...[truncated]..."
 
+func maybePhaseFilterRules(rules, phase string, requireNonEmpty bool) (string, bool) {
+	if phase == "" || rules == "" {
+		return rules, false
+	}
+
+	filtered := filterRulesByPhase(rules, phase)
+	if len(filtered) >= len(rules) {
+		return rules, false
+	}
+	if requireNonEmpty && strings.TrimSpace(filtered) == "" {
+		return rules, false
+	}
+
+	return filtered, true
+}
+
+func truncateSpecForBudget(spec string, currentChars, maxChars int) (string, bool) {
+	excess := currentChars - maxChars
+	targetLen := len(spec) - excess
+	if targetLen <= 0 {
+		targetLen = len(truncationMarker)
+	}
+	if targetLen >= len(spec) {
+		return spec, false
+	}
+	return truncateWithMarker(spec, targetLen), true
+}
+
 // truncateWithMarker keeps the head and tail of s, inserting a truncation marker.
 // targetLen is the approximate target length for the result.
 func truncateWithMarker(s string, targetLen int) string {
 	markerLen := len(truncationMarker)
 	if targetLen <= markerLen {
 		// Keep a minimal head and tail so both ends remain present.
-		headKeep := min(10, len(s))
-		tailKeep := min(10, len(s)-headKeep)
+		headKeep := min(minHeadTailKeepChars, len(s))
+		tailKeep := min(minHeadTailKeepChars, len(s)-headKeep)
 		if tailKeep == 0 {
 			return s[:headKeep] + truncationMarker
 		}
@@ -254,26 +275,18 @@ func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string)
 	}
 
 	// Step 2: phase-filter Rules
-	if phase != "" && shaped.Rules != "" {
-		filtered := filterRulesByPhase(shaped.Rules, phase)
-		if len(filtered) < len(shaped.Rules) && strings.TrimSpace(filtered) != "" {
-			shaped.Rules = filtered
-			report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
-			if measureReviewContext(shaped) <= maxChars {
-				return finishReviewReport(shaped, report)
-			}
+	if filtered, ok := maybePhaseFilterRules(shaped.Rules, phase, true); ok {
+		shaped.Rules = filtered
+		report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
+		if measureReviewContext(shaped) <= maxChars {
+			return finishReviewReport(shaped, report)
 		}
 	}
 
 	// Step 3: truncate Spec
 	if shaped.Spec != "" {
-		excess := measureReviewContext(shaped) - maxChars
-		targetLen := len(shaped.Spec) - excess
-		if targetLen <= 0 {
-			targetLen = len(truncationMarker)
-		}
-		if targetLen < len(shaped.Spec) {
-			shaped.Spec = truncateWithMarker(shaped.Spec, targetLen)
+		if truncated, ok := truncateSpecForBudget(shaped.Spec, measureReviewContext(shaped), maxChars); ok {
+			shaped.Spec = truncated
 			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
 		}
 	}
@@ -344,14 +357,11 @@ func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars in
 	}
 
 	// Step 2: phase-filter Rules
-	if phase != "" && shaped.Rules != "" {
-		filtered := filterRulesByPhase(shaped.Rules, phase)
-		if len(filtered) < len(shaped.Rules) {
-			shaped.Rules = filtered
-			report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
-			if measureThoroughReviewContext(shaped) <= maxChars {
-				return finishThoroughReviewReport(shaped, report)
-			}
+	if filtered, ok := maybePhaseFilterRules(shaped.Rules, phase, true); ok {
+		shaped.Rules = filtered
+		report.TrimActions = append(report.TrimActions, trimPhaseFilterRules)
+		if measureThoroughReviewContext(shaped) <= maxChars {
+			return finishThoroughReviewReport(shaped, report)
 		}
 	}
 

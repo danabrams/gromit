@@ -504,6 +504,23 @@ func TestShapeThoroughReviewContextForBudget_TrimsOverBudget(t *testing.T) {
 	}
 }
 
+func TestShapeThoroughReviewContextForBudget_PhaseFilteringNeverDropsRulesCompletely(t *testing.T) {
+	ctx := &ThoroughReviewContext{
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "## Build Only <!-- phases: build -->\nbuild rules",
+		Diff:     strings.Repeat("d", 300),
+	}
+
+	shaped, report := ShapeThoroughReviewContextForBudget(ctx, 50, "review")
+
+	if strings.TrimSpace(shaped.Rules) == "" {
+		t.Fatal("expected Rules to remain present when phase filtering has no matching sections")
+	}
+	if hasTrimAction(report.TrimActions, trimPhaseFilterRules) {
+		t.Fatalf("expected %q not to be recorded when it would empty rules, got %v", trimPhaseFilterRules, report.TrimActions)
+	}
+}
+
 func TestShapeContextForBudget_TrimPriorityOrder(t *testing.T) {
 	// Context with all trimmable sections populated
 	rules := "## Code <!-- phases: build -->\ncode rules\n## Safety <!-- phases: review -->\nsafety rules"
