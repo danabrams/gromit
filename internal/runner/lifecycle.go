@@ -18,7 +18,12 @@ import (
 	"github.com/danabrams/gromit/internal/state"
 )
 
-var requiredQualityGateCommands = []string{"go test", "go vet", "go build"}
+var mandatoryQualityGateCommandPrefixes = []string{"go test", "go vet", "go build"}
+
+const (
+	validationFailedMessageFragment           = "validation failed"
+	defaultUnclearQualityFailureRootCauseText = "unresolved unclear post-recovery quality failure"
+)
 
 // checkRetroSuggestion checks if a retro should be suggested and prints a message
 func (r *Runner) checkRetroSuggestion() {
@@ -333,9 +338,9 @@ func (r *Runner) enforceMandatoryQualityGateCoverage(gateName string, commands [
 		return nil
 	}
 
-	missing := make([]string, 0, len(requiredQualityGateCommands))
-	for _, required := range requiredQualityGateCommands {
-		if !hasQualityGateCommand(commands, required) {
+	missing := make([]string, 0, len(mandatoryQualityGateCommandPrefixes))
+	for _, required := range mandatoryQualityGateCommandPrefixes {
+		if !hasCommandWithPrefix(commands, required) {
 			missing = append(missing, required)
 		}
 	}
@@ -347,13 +352,23 @@ func (r *Runner) enforceMandatoryQualityGateCoverage(gateName string, commands [
 	return fmt.Errorf("%s quality gate missing mandatory commands: %s", gateName, strings.Join(missing, ", "))
 }
 
-func hasQualityGateCommand(commands []string, requiredPrefix string) bool {
+func hasCommandWithPrefix(commands []string, requiredPrefix string) bool {
 	for _, cmd := range commands {
 		if strings.HasPrefix(strings.TrimSpace(cmd), requiredPrefix) {
 			return true
 		}
 	}
 	return false
+}
+
+func isValidationFailureError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, errValidationFailed) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), validationFailedMessageFragment)
 }
 
 func (r *Runner) escalateUnclearPostRecoveryQualityFailure(ctx context.Context, b *bead.Bead, result *IterationResult) {
@@ -364,7 +379,7 @@ func (r *Runner) escalateUnclearPostRecoveryQualityFailure(ctx context.Context, 
 	if !result.ValidationRetried {
 		return
 	}
-	if !errors.Is(result.Error, errValidationFailed) && !strings.Contains(strings.ToLower(result.Error.Error()), "validation failed") {
+	if !isValidationFailureError(result.Error) {
 		return
 	}
 
@@ -385,7 +400,7 @@ func (r *Runner) escalateUnclearPostRecoveryQualityFailure(ctx context.Context, 
 
 	rootCause := strings.TrimSpace(analysis.RootCause)
 	if rootCause == "" {
-		rootCause = "unresolved unclear post-recovery quality failure"
+		rootCause = defaultUnclearQualityFailureRootCauseText
 	}
 	result.Error = fmt.Errorf("L3 stop-line: %s", rootCause)
 }

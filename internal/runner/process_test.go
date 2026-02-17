@@ -707,8 +707,6 @@ func setupQualityGateRunHarness(
 	return r, beads, mockClaude, &readyCalls
 }
 
-// Expected failure: Runner.enforceMandatoryQualityGates does not exist yet, so a bead can still close
-// when fast gate config omits required build checks.
 func TestRun_CompletionBlockedWhenMandatoryFastGateMissing(t *testing.T) {
 	precheckDisabled := false
 	runFinalFull := false
@@ -752,8 +750,6 @@ func TestRun_CompletionBlockedWhenMandatoryFastGateMissing(t *testing.T) {
 	}
 }
 
-// Expected failure: Runner.enforceMandatoryQualityGates does not exist yet, so periodic/full completion
-// can proceed when full gate config omits required build checks.
 func TestRun_CompletionBlockedWhenMandatoryFullGateMissing(t *testing.T) {
 	precheckDisabled := false
 	runFinalFull := false
@@ -795,8 +791,6 @@ func TestRun_CompletionBlockedWhenMandatoryFullGateMissing(t *testing.T) {
 	}
 }
 
-// Expected failure: Runner.escalateUnclearQualityFailureStopLine does not exist yet, so unresolved
-// post-recovery quality failures continue to the next bead instead of triggering the L3 stop-line path.
 func TestRun_UnclearPostRecoveryQualityFailureTriggersStopLine(t *testing.T) {
 	precheckDisabled := false
 	runFinalFull := false
