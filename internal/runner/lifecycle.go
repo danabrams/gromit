@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
@@ -352,4 +354,38 @@ func hasQualityGateCommand(commands []string, requiredPrefix string) bool {
 		}
 	}
 	return false
+}
+
+func (r *Runner) escalateUnclearPostRecoveryQualityFailure(ctx context.Context, b *bead.Bead, result *IterationResult) {
+	if r == nil || r.analyzer == nil || b == nil || result == nil || result.Error == nil {
+		return
+	}
+
+	if !result.ValidationRetried {
+		return
+	}
+	if !errors.Is(result.Error, errValidationFailed) && !strings.Contains(strings.ToLower(result.Error.Error()), "validation failed") {
+		return
+	}
+
+	analysisTimeout := 30 * time.Second
+	if r.cfg != nil && r.cfg.Claude.AnalysisTimeout > 0 {
+		analysisTimeout = time.Duration(r.cfg.Claude.AnalysisTimeout) * time.Second
+	}
+	analysisCtx, cancel := context.WithTimeout(ctx, analysisTimeout)
+	defer cancel()
+
+	analysis, err := r.analyzer.Analyze(analysisCtx, b, result.Output)
+	if err != nil || analysis == nil {
+		return
+	}
+	if analysis.Category != analyzer.CategoryUnclearSpec || analysis.Recoverable {
+		return
+	}
+
+	rootCause := strings.TrimSpace(analysis.RootCause)
+	if rootCause == "" {
+		rootCause = "unresolved unclear post-recovery quality failure"
+	}
+	result.Error = fmt.Errorf("L3 stop-line: %s", rootCause)
 }

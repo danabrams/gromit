@@ -177,6 +177,7 @@ func (r *Runner) processSingleBead(
 		return false, nil
 	}
 	if !result.Success {
+		r.escalateUnclearPostRecoveryQualityFailure(ctx, b, result)
 		if r.shouldExitRunLoopOnStopLine(result) {
 			r.haltStateMutationsAtL3StopLine(result)
 			return true, nil
