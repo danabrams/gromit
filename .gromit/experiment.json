@@ -1,19 +1,17 @@
 {
-  "name": "Proactive decomposition for Codex beads",
-  "hypothesis": "Beads assigned to Codex providers that touch 3+ files will have \u003e50% failure rate; pre-decomposing them into 1-2 file beads will reduce Codex failure rate from ~40% to \u003c20%",
-  "change": "Add a scope check before Codex execution: if the bead's estimated file count exceeds 2, auto-decompose before first attempt rather than attempting and failing",
-  "measurement": "Compare Codex failure rate in 30-iteration windows before vs after. Track iterations-to-completion for Codex beads",
-  "risk": "Over-decomposition could increase overhead from bead management (more beads to track, more context switching). May slow throughput if decomposition itself fails",
-  "started_at": "2026-02-17T16:38:01.63243131Z",
-  "status": "study",
+  "name": "Prompt context budget for sonnet builds",
+  "hypothesis": "Adding a character/token limit to prompt context (especially learnings and parent-chain sections) will keep sonnet costs below $2 per bead without reducing success rate",
+  "change": "Configure Renderer.SetMaxContextChars() to limit combined learnings+parent context to 30K characters for sonnet-tier builds. Log when truncation occurs.",
+  "measurement": "Compare avg sonnet cost and success rate in the 30 iterations before vs after. Target: avg sonnet cost \u003c $2, success rate unchanged (\u003e85%)",
+  "risk": "Truncated context might omit critical learnings or parent context, causing beads to miss requirements and fail — increasing retry cost that offsets the savings",
+  "started_at": "2026-02-17T22:49:05.532558483Z",
+  "plan_date": "0001-01-01T00:00:00Z",
+  "status": "planned",
   "baseline_metrics": {
-    "avg_cost_per_bead": 0.4126565335526316,
-    "avg_duration_ms": 716849.701754386,
-    "avg_input_tokens": 0,
-    "avg_output_tokens": 0,
-    "failure_rate": 0.39035087719298245
-  },
-  "study_summary": "Experiment declared 2026-02-17 but no implementation deployed. Metrics show no Codex-specific proactive decomposition behavior in iteration data. The 3.1% failure rate improvement (39% to 37.8%) is within noise and attributable to reactive decomposition producing well-scoped sub-beads, not the experimental change. Control limits show no anomalies. Rolling success rate at 87% is positive but driven by existing decomposition rules, not this experiment. The hypothesis remains untested.",
-  "act_decision": "extend",
-  "act_date": "2026-02-17"
+    "avg_cost_per_bead": 0.43620196158536584,
+    "avg_duration_ms": 729265,
+    "avg_input_tokens": 304040.418699187,
+    "avg_output_tokens": 1867.621951219512,
+    "failure_rate": 0.36585365853658536
+  }
 }

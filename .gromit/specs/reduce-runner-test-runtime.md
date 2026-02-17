@@ -161,3 +161,32 @@ The original slow tests (`TestRunnerStatusWithLiveRun`, `TestATDDSkippedForTestO
 | 0.410s | `TestRunStopChClosedDuringIteration` |
 | 0.410s | `TestProcessBeadReceivesScopeEstimateFromRun` |
 | 0.390s | `TestRunWithMocks_PrecheckVerificationError` |
+
+### Post-optimization Baseline (2026-02-17, latest refresh)
+
+- Command run: `go test ./internal/runner/... -count=1 -json`
+- Comparison baseline: 24.5s
+- Package elapsed:
+  - `internal/runner`: 16.499s
+  - Other `internal/runner/*` packages combined: 0.469s
+- Reduction vs 24.5s baseline: 32.7% (16.499s / 24.5s)
+- Test-level elapsed aggregate:
+  - 1073 tests
+  - total test elapsed: 17.080s
+  - avg: 0.016s
+- Acceptance suite verification: `go test -tags acceptance ./internal/runner/... -count=1` passes (~20.713s)
+
+**Top 10 slowest tests (default suite, latest run):**
+
+| Elapsed | Test |
+|---------|------|
+| 0.75s | `github.com/danabrams/gromit/internal/runner::TestRunNilStopChProcessesUntilQueueEmpty` |
+| 0.62s | `github.com/danabrams/gromit/internal/runner::TestProcessBead_SkipsATDDForTestOnlyBead` |
+| 0.51s | `github.com/danabrams/gromit/internal/runner::TestRunWithMocks_ConsecutiveSkipCounterResetsAfterRealBuild` |
+| 0.46s | `github.com/danabrams/gromit/internal/runner::TestRunner_NoFiltersUsesReady` |
+| 0.43s | `github.com/danabrams/gromit/internal/runner::TestRunWithMocks_ClosesBeadOnSuccess` |
+| 0.42s | `github.com/danabrams/gromit/internal/runner::TestRunStopChClosedDuringIteration` |
+| 0.42s | `github.com/danabrams/gromit/internal/runner::TestRunWithMocks_PrecheckVerificationError` |
+| 0.41s | `github.com/danabrams/gromit/internal/runner::TestProcessBeadReceivesScopeEstimateFromRun` |
+| 0.41s | `github.com/danabrams/gromit/internal/runner::TestRunWithMocks_PrecheckError` |
+| 0.41s | `github.com/danabrams/gromit/internal/runner::TestRunWithMocks_PrecheckVerificationRejects` |

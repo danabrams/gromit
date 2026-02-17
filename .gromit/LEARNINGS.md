@@ -19,13 +19,6 @@ Status struct fields require backward-compatible changes (omitempty for new opti
 
 Methodologies use label-based activation ("methodology:true"/"false") with global config fallback via bead.IsMethodologyActive(). When active, replace the build prompt with a specialized RenderXXXBuild method. Check parent labels before adding globally-active methodology labels to sub-beads to avoid duplicates. Order methodology checks carefully for precedence when multiple methodologies are active.
 
-### 2026-02-12 | Runner and Provider Invocation Pattern | patterns
-*Related to: gromit-5pvp, gromit-82qx, gromit-vabo, gromit-juyb, gromit-2zju, gromit-557p, gromit-3gdz, gromit-gibz, gromit-sx84*
-
-Runner methods use feature-flag gating (e.g., IsAutoPushEnabled()) and context.WithTimeout for subprocess calls. Failure handling uses mode field (warn vs stop) for non-critical operations. Follow the executeClaudeInvocation pattern: extract tier selection, use provider.StreamRun(), handle UsageLimitError by escalating to the next tier via TierToModel mapping. Capture the selected provider's Name() immediately after selection for use in dependent operations. Standard tiers: validation uses phase="validate" tier="low"; reviews use selectTier(bead) or "high" for opus builds/thorough reviews. Use selectReviewTier() helper which delegates to selectTier() for non-opus and returns "high" for opus builds.
-
-*Note: Run() sequencing invariant, nil-safe checks, router/tier selection, escalation ownership, and skippedBeads pattern promoted to RULES.md.*
-
 ### 2026-02-11 | Prompt Template Structure | conventions
 *Related to: gromit-rpne*
 

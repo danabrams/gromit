@@ -1,8 +1,9 @@
 ---
+created: 2026-02-16T12:17:57Z
+decomposed: true
+decomposed_at: "2026-02-17T22:18:44Z"
 id: fix-refactor-time-budget-handling
 spec: n/a
-created: 2026-02-16T12:17:57Z
-decomposed: false
 ---
 
 # Fix Refactor Time-Budget Handling Plan

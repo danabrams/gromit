@@ -1,6 +1,15 @@
 # Learnings Archive
 
 Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-17.
+
+---
+
+### 2026-02-12 | Runner and Provider Invocation Pattern | patterns
+*Related to: gromit-5pvp, gromit-82qx, gromit-vabo, gromit-juyb, gromit-2zju, gromit-557p, gromit-3gdz, gromit-gibz, gromit-sx84*
+
+Runner methods use feature-flag gating (e.g., IsAutoPushEnabled()) and context.WithTimeout for subprocess calls. Failure handling uses mode field (warn vs stop) for non-critical operations. Follow the executeClaudeInvocation pattern: extract tier selection, use provider.StreamRun(), handle UsageLimitError by escalating to the next tier via TierToModel mapping. Capture the selected provider's Name() immediately after selection for use in dependent operations. Standard tiers: validation uses phase="validate" tier="low"; reviews use selectTier(bead) or "high" for opus builds/thorough reviews. Use selectReviewTier() helper which delegates to selectTier() for non-opus and returns "high" for opus builds.
+
+*Archived: Key content promoted to RULES.md (Run() sequencing, nil-safe checks, router/tier selection, escalation ownership, skippedBeads pattern). Remaining content describes established code patterns visible in the codebase itself. Learning served its purpose as a bridge to rules.*
 These entries are no longer active — they've been promoted to rules, consolidated, or filtered as generic advice.
 
 ---
