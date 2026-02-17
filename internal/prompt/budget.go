@@ -14,6 +14,10 @@ const (
 	trimPhaseFilterRules       = "phase-filter Rules"
 	trimTruncateSpec           = "truncate Spec"
 	trimTruncateDiff           = "truncate Diff"
+	trimCapRetroLearnings      = "cap RetroLearnings"
+	trimDropRetroLearnings     = "drop RetroLearnings"
+	trimTruncateRetroRules     = "truncate RetroRules"
+	retroTruncationMarker      = "[...truncated...]"
 	minHeadTailKeepChars       = 10
 )
 
@@ -31,21 +35,75 @@ type ShapeReport struct {
 
 // ShapeRetroForBudget trims retro rules/learnings context to fit within maxChars.
 func ShapeRetroForBudget(rules, learnings string, maxChars int) (string, string, *ShapeReport) {
-	beforeChars := measureRetroContext(rules, learnings)
+	shapedRules := rules
+	shapedLearnings := learnings
+
+	beforeChars := measureRetroContext(shapedRules, shapedLearnings)
 	report := &ShapeReport{
 		BeforeChars: beforeChars,
 		AfterChars:  beforeChars,
 		SectionSizes: map[string]int{
-			"Rules":     len(rules),
-			"Learnings": len(learnings),
+			"Rules":     len(shapedRules),
+			"Learnings": len(shapedLearnings),
 		},
 	}
 
 	if maxChars <= 0 || beforeChars <= maxChars {
-		return rules, learnings, report
+		return shapedRules, shapedLearnings, report
 	}
 
-	return rules, learnings, report
+	halfBudget := maxChars / 2
+	if halfBudget < 0 {
+		halfBudget = 0
+	}
+
+	if len(shapedLearnings) > halfBudget {
+		shapedLearnings = shapedLearnings[:halfBudget]
+		report.TrimActions = append(report.TrimActions, trimCapRetroLearnings)
+		if measureRetroContext(shapedRules, shapedLearnings) <= maxChars {
+			report.AfterChars = measureRetroContext(shapedRules, shapedLearnings)
+			report.SectionSizes["Rules"] = len(shapedRules)
+			report.SectionSizes["Learnings"] = len(shapedLearnings)
+			return shapedRules, shapedLearnings, report
+		}
+	}
+
+	if shapedLearnings != "" {
+		shapedLearnings = ""
+		report.TrimActions = append(report.TrimActions, trimDropRetroLearnings)
+		if measureRetroContext(shapedRules, shapedLearnings) <= maxChars {
+			report.AfterChars = measureRetroContext(shapedRules, shapedLearnings)
+			report.SectionSizes["Rules"] = len(shapedRules)
+			report.SectionSizes["Learnings"] = len(shapedLearnings)
+			return shapedRules, shapedLearnings, report
+		}
+	}
+
+	maxRulesChars := maxChars - len(shapedLearnings)
+	if maxRulesChars < 0 {
+		maxRulesChars = 0
+	}
+	if truncatedRules, changed := truncateRetroRulesForBudget(shapedRules, maxRulesChars); changed {
+		shapedRules = truncatedRules
+		report.TrimActions = append(report.TrimActions, trimTruncateRetroRules)
+	}
+
+	report.AfterChars = measureRetroContext(shapedRules, shapedLearnings)
+	report.SectionSizes["Rules"] = len(shapedRules)
+	report.SectionSizes["Learnings"] = len(shapedLearnings)
+	return shapedRules, shapedLearnings, report
+}
+
+func truncateRetroRulesForBudget(rules string, maxChars int) (string, bool) {
+	if len(rules) <= maxChars {
+		return rules, false
+	}
+	if maxChars <= len(retroTruncationMarker) {
+		return retroTruncationMarker, true
+	}
+
+	headLen := maxChars - len(retroTruncationMarker)
+	return rules[:headLen] + retroTruncationMarker, true
 }
 
 // measureContext returns the total character count of trimmable context fields.

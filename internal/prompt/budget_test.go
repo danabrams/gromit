@@ -723,3 +723,20 @@ func TestShapeRetroForBudget_ZeroBudgetUnchanged(t *testing.T) {
 		t.Fatalf("expected no trim actions, got %v", report.TrimActions)
 	}
 }
+
+func TestShapeRetroForBudget_TrimsLearningsBeforeRules(t *testing.T) {
+	rules := strings.Repeat("r", 40)
+	learnings := strings.Repeat("l", 100)
+
+	shapedRules, shapedLearnings, report := ShapeRetroForBudget(rules, learnings, 100)
+
+	if shapedRules != rules {
+		t.Fatalf("expected rules to remain unchanged when learnings trim is sufficient")
+	}
+	if len(shapedLearnings) > 50 {
+		t.Fatalf("expected learnings capped to half budget (50), got %d", len(shapedLearnings))
+	}
+	if !hasTrimAction(report.TrimActions, trimCapRetroLearnings) {
+		t.Fatalf("expected trim action %q, got %v", trimCapRetroLearnings, report.TrimActions)
+	}
+}
