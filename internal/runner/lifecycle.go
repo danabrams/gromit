@@ -20,6 +20,25 @@ import (
 
 var mandatoryQualityGateCommandPrefixes = []string{"go test", "go vet", "go build"}
 
+// SessionCompletionRebaseRetryCount is the number of times the session
+// completion protocol attempts git pull --rebase before giving up.
+const SessionCompletionRebaseRetryCount = 2
+
+// SessionCompletionUpToDateCommand is the git command used to verify the
+// local branch is up-to-date with the remote after pushing.
+const SessionCompletionUpToDateCommand = "git status --short --branch"
+
+// AndonSessionCompletionRequiredSequence defines the mandatory ordered
+// commands that must appear during session completion per the Andon spec.
+var AndonSessionCompletionRequiredSequence = []string{
+	"bd close",
+	"bd sync",
+	"git pull --rebase",
+	"bd sync",
+	"git push",
+	SessionCompletionUpToDateCommand,
+}
+
 const (
 	validationFailedMessageFragment           = "validation failed"
 	defaultUnclearQualityFailureRootCauseText = "unresolved unclear post-recovery quality failure"

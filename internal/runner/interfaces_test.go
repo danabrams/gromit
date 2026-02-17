@@ -2257,7 +2257,7 @@ func setupSessionCompletionProtocolRunner(
 		},
 		Validation: config.ValidationConfig{
 			Enabled:      true,
-			Commands:     []string{"go test ./...", "go vet ./..."},
+			Commands:     []string{"go test ./...", "go vet ./...", "go build ./..."},
 			FullCommands: []string{"go test ./...", "go vet ./...", "go build ./..."},
 		},
 		Git: config.GitConfig{
