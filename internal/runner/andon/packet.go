@@ -79,5 +79,24 @@ func FormatEscalationPacket(packet EscalationPacket) (string, error) {
 		return "", fmt.Errorf("recommendation is required")
 	}
 
-	return "", nil
+	var output strings.Builder
+	fmt.Fprintf(&output, "Failed Command: %s\n", packet.FailedCommand)
+	fmt.Fprintf(&output, "Error Excerpt: %s\n", packet.ErrorExcerpt)
+	fmt.Fprintf(&output, "State Snapshot: %s\n", packet.StateSnapshot)
+	fmt.Fprintf(&output, "Risk Level: %s\n", packet.RiskLevel)
+	output.WriteString("L1 Attempts:\n")
+	for _, attempt := range packet.L1Attempts {
+		fmt.Fprintf(&output, "- %s | Outcome: %s\n", attempt.Summary, attempt.Outcome)
+	}
+	output.WriteString("L2 Attempts:\n")
+	for _, attempt := range packet.L2Attempts {
+		fmt.Fprintf(&output, "- %s | Outcome: %s\n", attempt.Summary, attempt.Outcome)
+	}
+	output.WriteString("Options:\n")
+	for _, option := range packet.Options {
+		fmt.Fprintf(&output, "- %s\n  Tradeoff: %s\n", option.Title, option.Tradeoff)
+	}
+	fmt.Fprintf(&output, "Recommendation: %s\n", packet.Recommendation)
+
+	return output.String(), nil
 }
