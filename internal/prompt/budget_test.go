@@ -1,6 +1,8 @@
 package prompt
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1009,6 +1011,74 @@ func TestRenderThoroughReview_NoShapingWhenBudgetZero(t *testing.T) {
 
 	if !strings.Contains(result, strings.Repeat("c", 500)) {
 		t.Error("expected ClaudeMD preserved when budget is zero")
+	}
+}
+
+func TestRenderBuild_LogsToStderrWhenTrimming(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_build.md", "ok")
+	r.SetBudgetConfig(50, 2000)
+
+	ctx := &Context{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+	}
+	ctx.normalizeNilFields()
+
+	// Capture stderr
+	oldStderr := os.Stderr
+	rp, wp, _ := os.Pipe()
+	os.Stderr = wp
+
+	_, err := r.RenderBuild(ctx)
+	if err != nil {
+		os.Stderr = oldStderr
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wp.Close()
+	var buf bytes.Buffer
+	io.Copy(&buf, rp)
+	os.Stderr = oldStderr
+
+	output := buf.String()
+	if !strings.Contains(output, "Prompt budget:") {
+		t.Errorf("expected stderr to contain 'Prompt budget:', got %q", output)
+	}
+	if !strings.Contains(output, "trimmed:") {
+		t.Errorf("expected stderr to contain 'trimmed:', got %q", output)
+	}
+}
+
+func TestRenderBuild_NoStderrWhenUnderBudget(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_build.md", "ok")
+	r.SetBudgetConfig(50000, 2000)
+
+	ctx := &Context{
+		Bead:  &bead.Bead{ID: "b1", Title: "T"},
+		Rules: "rules",
+	}
+	ctx.normalizeNilFields()
+
+	// Capture stderr
+	oldStderr := os.Stderr
+	rp, wp, _ := os.Pipe()
+	os.Stderr = wp
+
+	_, err := r.RenderBuild(ctx)
+	if err != nil {
+		os.Stderr = oldStderr
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wp.Close()
+	var buf bytes.Buffer
+	io.Copy(&buf, rp)
+	os.Stderr = oldStderr
+
+	output := buf.String()
+	if strings.Contains(output, "Prompt budget:") {
+		t.Errorf("expected no stderr output when under budget, got %q", output)
 	}
 }
 
