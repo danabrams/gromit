@@ -286,6 +286,7 @@ exit 0
 	}
 
 	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: "gpt-4o-mini"})
+	cp.sleepFn = func(context.Context, time.Duration) error { return nil }
 	result, err := cp.Run(context.Background(), "test", TierLow)
 	if err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
@@ -1022,6 +1023,7 @@ exit 0
 			writeTestExecutable(t, mockBinary, mockScript)
 
 			cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
+			cp.sleepFn = func(context.Context, time.Duration) error { return nil }
 			var events [][]byte
 			result, err := cp.StreamRun(
 				context.Background(),
@@ -1081,6 +1083,7 @@ exit 1
 	writeTestExecutable(t, mockBinary, mockScript)
 
 	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
+	cp.sleepFn = func(context.Context, time.Duration) error { return nil }
 	result, err := cp.StreamRun(context.Background(), "prompt", TierMedium, nil, func([]byte) {}, nil)
 	if err != nil {
 		t.Fatalf("StreamRun() error = %v, want nil", err)
@@ -1101,6 +1104,15 @@ exit 1
 	}
 	if result.ExitCode != 1 {
 		t.Fatalf("ExitCode = %d, want 1", result.ExitCode)
+	}
+}
+
+// TestCodexProvider_SleepFnDefaultsToSleepWithContext verifies that NewCodexProvider
+// sets sleepFn to a non-nil function (sleepWithContext) by default.
+func TestCodexProvider_SleepFnDefaultsToSleepWithContext(t *testing.T) {
+	cp := NewCodexProvider("/bin/codex", nil, nil)
+	if cp.sleepFn == nil {
+		t.Error("NewCodexProvider() sleepFn should default to sleepWithContext, got nil")
 	}
 }
 
