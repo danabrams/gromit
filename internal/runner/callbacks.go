@@ -70,6 +70,11 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 			return nil, fmt.Errorf("claude returned nil result")
 		}
 
+		bc.Result.Provider = invResult.ProviderName
+		if invResult.ProviderResult != nil {
+			bc.Result.FailureCategory = invResult.ProviderResult.FailureCategory
+		}
+
 		// Populate cost/token data
 		if invResult.Stats != nil {
 			costUSD, inputTokens, outputTokens := invResult.Stats.CostData()

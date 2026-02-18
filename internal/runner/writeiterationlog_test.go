@@ -244,6 +244,59 @@ func TestWriteIterationLog_PropagatesValidationDurationMs(t *testing.T) {
 	}
 }
 
+func TestWriteIterationLog_PropagatesProviderAndFailureCategory(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
+
+	r := &Runner{logger: l}
+	result := &IterationResult{
+		BeadID:          "test-provider-category",
+		BeadTitle:       "Provider category propagation",
+		Model:           "high",
+		Provider:        "codex",
+		FailureCategory: "transport_disconnect",
+		Success:         false,
+		Duration:        1 * time.Second,
+		Error:           fmt.Errorf("invoke failed"),
+	}
+
+	r.writeIterationLog(3, result)
+
+	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("globbing log files: %v", err)
+	}
+	if len(logFiles) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(logFiles))
+	}
+
+	data, err := os.ReadFile(logFiles[0])
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	var entry map[string]any
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		t.Fatalf("unmarshaling log line: %v", err)
+	}
+
+	if got := entry["provider"]; got != "codex" {
+		t.Fatalf("provider = %v, want %q", got, "codex")
+	}
+	if got := entry["failure_category"]; got != "transport_disconnect" {
+		t.Fatalf("failure_category = %v, want %q", got, "transport_disconnect")
+	}
+}
+
 func TestWriteIterationLog_WritesAcceptanceFailureArtifact(t *testing.T) {
 	tmpDir := t.TempDir()
 	l, err := logger.NewLogger(tmpDir)
