@@ -22,6 +22,12 @@ import (
 	"github.com/danabrams/gromit/internal/usagelimit"
 )
 
+type methodologyPromptShaper interface {
+	ShapeRedPhaseContext(ctx *prompt.Context) *prompt.Context
+	ShapeGreenPhaseContext(ctx *prompt.Context) *prompt.Context
+	ShapeRefactorPhaseContext(ctx *prompt.Context) *prompt.Context
+}
+
 // makeInvokeFn creates an InvokeFn callback that wraps the Runner's Claude invocation,
 // handling cost data, scope-too-large, usage limit detection, and timeout classification.
 func (r *Runner) makeInvokeFn() escalation.InvokeFn {
@@ -106,6 +112,32 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 	}
 }
 
+func (r *Runner) shapeMethodologyPromptContext(phase string, ctx *prompt.Context) *prompt.Context {
+	if ctx == nil || r == nil || r.renderer == nil {
+		return ctx
+	}
+	shaper, ok := r.renderer.(methodologyPromptShaper)
+	if !ok {
+		return ctx
+	}
+
+	var shaped *prompt.Context
+	switch phase {
+	case "red":
+		shaped = shaper.ShapeRedPhaseContext(ctx)
+	case "green":
+		shaped = shaper.ShapeGreenPhaseContext(ctx)
+	case "refactor":
+		shaped = shaper.ShapeRefactorPhaseContext(ctx)
+	default:
+		return ctx
+	}
+	if shaped == nil {
+		return ctx
+	}
+	return shaped
+}
+
 // makeValidationExecuteFn creates a validation.ExecuteFn callback that wraps
 // the escalation handler's ExecuteWithRetry for Claude-based validation fix attempts.
 func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
@@ -180,7 +212,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if r.renderer == nil {
 			return "", fmt.Errorf("renderer not configured")
 		}
-		return r.renderer.RenderAcceptanceTests(ctx)
+		return r.renderer.RenderAcceptanceTests(r.shapeMethodologyPromptContext("red", ctx))
 	}
 
 	// InvokeFn wraps the provider chain for acceptance test invocations
@@ -394,7 +426,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			if r.renderer == nil {
 				return "", fmt.Errorf("renderer not configured")
 			}
-			return r.renderer.RenderRefactor(ctx)
+			return r.renderer.RenderRefactor(r.shapeMethodologyPromptContext("refactor", ctx))
 		},
 		r.runRefactorWithRouter,
 		validateFn,

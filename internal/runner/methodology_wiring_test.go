@@ -450,6 +450,99 @@ func TestMethodologyExec_InvokeFn_WrapsExecutionInvoker(t *testing.T) {
 	}
 }
 
+func TestMethodologyExec_RenderAcceptanceTests_UsesRedShapedContext(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	var buf strings.Builder
+
+	var renderedCtx *prompt.Context
+	renderer := &shapeAwarePromptRenderer{
+		mockPromptRenderer: mockPromptRenderer{
+			RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+				renderedCtx = ctx
+				return "acceptance prompt", nil
+			},
+		},
+		shapeRedFn: func(ctx *prompt.Context) *prompt.Context {
+			cloned := *ctx
+			cloned.ClaudeMD = ""
+			cloned.FailureContext = "red-shaped-context"
+			return &cloned
+		},
+	}
+
+	mockProv := &mockProviderWithRouterTracking{
+		name:            "test-provider",
+		streamRunResult: &provider.Result{Success: true, Model: "test-model", Output: "done"},
+	}
+	router := provider.NewSingleProviderRouter(mockProv)
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   router,
+		Renderer: renderer,
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:  &bead.Bead{ID: "test-red-shape-001", Title: "shape acceptance context"},
+		Tier:  provider.TierMedium,
+		Model: "sonnet",
+		Result: &runtypes.IterationResult{
+			Escalated: false,
+		},
+		PromptCtx: &prompt.Context{
+			WorkDir:         t.TempDir(),
+			ClaudeMD:        "large context that should be dropped",
+			FailureContext:  "original failure context",
+			PrevFailure:     "orig",
+			RecentLearnings: nil,
+		},
+	}
+
+	if err := r.methodologyExec.RunAcceptanceTests(context.Background(), bc); err != nil {
+		t.Fatalf("RunAcceptanceTests returned error: %v", err)
+	}
+	if renderedCtx == nil {
+		t.Fatal("expected RenderAcceptanceTests to receive a context")
+	}
+	if renderedCtx.FailureContext != "red-shaped-context" {
+		t.Fatalf("expected red-shaped context to be passed to renderer, got %q", renderedCtx.FailureContext)
+	}
+	if renderedCtx.ClaudeMD != "" {
+		t.Fatalf("expected shaped context to trim ClaudeMD, got %q", renderedCtx.ClaudeMD)
+	}
+}
+
+type shapeAwarePromptRenderer struct {
+	mockPromptRenderer
+	shapeRedFn      func(ctx *prompt.Context) *prompt.Context
+	shapeGreenFn    func(ctx *prompt.Context) *prompt.Context
+	shapeRefactorFn func(ctx *prompt.Context) *prompt.Context
+}
+
+func (m *shapeAwarePromptRenderer) ShapeRedPhaseContext(ctx *prompt.Context) *prompt.Context {
+	if m.shapeRedFn != nil {
+		return m.shapeRedFn(ctx)
+	}
+	return ctx
+}
+
+func (m *shapeAwarePromptRenderer) ShapeGreenPhaseContext(ctx *prompt.Context) *prompt.Context {
+	if m.shapeGreenFn != nil {
+		return m.shapeGreenFn(ctx)
+	}
+	return ctx
+}
+
+func (m *shapeAwarePromptRenderer) ShapeRefactorPhaseContext(ctx *prompt.Context) *prompt.Context {
+	if m.shapeRefactorFn != nil {
+		return m.shapeRefactorFn(ctx)
+	}
+	return ctx
+}
+
 func TestMethodologyExec_InvokeFn_FailureIncludesProviderStderr(t *testing.T) {
 	cfg := newMethodologyWiringConfig()
 	cfg.Escalation.MaxRetriesPerModel = 0
