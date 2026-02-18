@@ -264,6 +264,26 @@ func TestNewRunnerWithDepsInitializesSpecOrchestratorWhenGranularitySpec(t *test
 	}
 }
 
+func TestNewRunnerWithDepsInitializesSpecGateWhenEnabled(t *testing.T) {
+	cfg := &config.Config{
+		SpecGate: config.SpecGateConfig{Enabled: true},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, io.Discard, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps error: %v", err)
+	}
+	if r.specGate == nil {
+		t.Fatal("expected specGate to be initialized when spec gate is enabled")
+	}
+}
+
 func TestDeterministicPrecheckReason(t *testing.T) {
 	tmpDir := t.TempDir()
 	wd, err := os.Getwd()

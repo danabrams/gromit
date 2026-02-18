@@ -126,6 +126,13 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		r.specOrchestrator = newSpecOrchestrator(r)
 	}
+	if cfg.SpecGate.IsEnabled() {
+		gate, err := r.buildSpecGate()
+		if err != nil {
+			return nil, nil, err
+		}
+		r.specGate = gate
+	}
 
 	reviewer := reviewpkg.NewReviewer(cfg, router, beadsClient, renderer, r.gitDiffFn, log)
 	reviewer.SetLogFn(r.log)

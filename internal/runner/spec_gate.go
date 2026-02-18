@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/frontmatter"
+	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/specgate"
 )
@@ -73,7 +75,103 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, st *runLoopState, specNam
 	return nil
 }
 
-var acceptanceCriteriaNumberedRE = regexp.MustCompile(`^\\d+[.)]\\s+(.+)$`)
+const (
+	specGateTestCommand = "go test -tags acceptance ./..."
+	specGateDiffCommand = "git diff"
+)
+
+func (r *Runner) buildSpecGate() (*specgate.Gate, error) {
+	if r == nil || r.cfg == nil {
+		return nil, fmt.Errorf("runner config is nil")
+	}
+	if r.renderer == nil {
+		return nil, fmt.Errorf("prompt renderer is nil")
+	}
+
+	specsDir := r.cfg.Paths.Specs
+
+	gate := &specgate.Gate{
+		Model:     r.cfg.SpecGate.Model,
+		MaxCycles: r.cfg.SpecGate.MaxCycles,
+		RunTests: func(ctx context.Context) (string, error) {
+			return r.runSpecGateCommand(ctx, specGateTestCommand)
+		},
+		GetDiff: func(ctx context.Context) (string, error) {
+			return r.runSpecGateCommand(ctx, specGateDiffCommand)
+		},
+		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
+			_, criteriaBlock, specBody, err := loadSpecGateInputs(specsDir, specName)
+			if err != nil {
+				return "", err
+			}
+			acceptance := criteriaBlock
+			if strings.TrimSpace(acceptance) == "" {
+				acceptance = formatAcceptanceCriteria(criteria)
+			}
+			promptCtx := &prompt.SpecGateContext{
+				SpecCriteria:       specBody,
+				TestOutput:         testOutput,
+				CumulativeDiff:     diff,
+				AcceptanceCriteria: acceptance,
+			}
+			return r.renderer.RenderSpecGate(promptCtx)
+		},
+		InvokeLLM: func(ctx context.Context, model, promptText string) ([]byte, error) {
+			return r.invokeSpecGateLLM(ctx, model, promptText)
+		},
+	}
+
+	return gate, nil
+}
+
+func (r *Runner) runSpecGateCommand(ctx context.Context, command string) (string, error) {
+	stdout, stderr, exitCode, err := r.runCmd(ctx, command, "")
+	if err != nil {
+		return "", err
+	}
+
+	output := strings.TrimSpace(strings.Join([]string{stdout, stderr}, "\n"))
+	if exitCode != 0 {
+		if output == "" {
+			output = fmt.Sprintf("%s (exit %d)", command, exitCode)
+		} else {
+			output = fmt.Sprintf("%s (exit %d)\n%s", command, exitCode, output)
+		}
+	}
+
+	return strings.TrimSpace(output), nil
+}
+
+func (r *Runner) invokeSpecGateLLM(ctx context.Context, model, promptText string) ([]byte, error) {
+	if r.router == nil {
+		return nil, fmt.Errorf("router is nil")
+	}
+
+	tier := provider.TierFromLegacyModel(model)
+	p, _ := r.router.Select("build", tier)
+	if p == nil {
+		return nil, fmt.Errorf("no providers available for tier %q", tier)
+	}
+
+	result, err := p.Run(ctx, promptText, tier)
+	if err != nil && p.IsUsageLimitError(result, err) {
+		r.router.MarkUnavailable(p.Name())
+		p, _ = r.router.Select("build", tier)
+		if p != nil {
+			result, err = p.Run(ctx, promptText, tier)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("provider returned nil result")
+	}
+
+	return []byte(result.Output), nil
+}
+
+var acceptanceCriteriaNumberedRE = regexp.MustCompile(`^\d+[.)]\s+(.+)$`)
 
 func extractAcceptanceCriteria(body string) ([]string, string) {
 	lines := strings.Split(body, "\n")
@@ -129,6 +227,18 @@ func loadSpecGateInputs(specsDir, specName string) ([]string, string, string, er
 	}
 
 	return criteria, block, body, nil
+}
+
+func formatAcceptanceCriteria(criteria []string) string {
+	if len(criteria) == 0 {
+		return ""
+	}
+
+	lines := make([]string, 0, len(criteria))
+	for _, item := range criteria {
+		lines = append(lines, "- "+item)
+	}
+	return strings.Join(lines, "\n")
 }
 
 type specGateBeadCreator struct {
