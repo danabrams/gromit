@@ -601,3 +601,66 @@ func TestBuildDebugPromptWithRunbookEntry(t *testing.T) {
 		t.Errorf("expected prompt to contain failure category 'test_failure'")
 	}
 }
+
+// TestBuildDebugPromptWithRunbookEntryDetailsSection verifies the Failure Context section
+// contains commit diff instructions, validation commands, failure output, and build prompt.
+func TestBuildDebugPromptWithRunbookEntryDetailsSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	entry := runbook.Entry{
+		ID:                 "rb-456-gromit-xyz",
+		BeadID:             "gromit-xyz",
+		BeadTitle:          "Fix cache miss",
+		FailureCategory:    "compilation_error",
+		StartCommit:        "start001",
+		FailureCommit:      "fail002",
+		FailureOutput:      "undefined: CacheClient",
+		ValidationCommands: []string{"go test ./internal/cache/...", "go build ./..."},
+		Prompt:             "add CacheClient field to struct",
+	}
+
+	result, err := buildDebugPrompt(nil, gromitDir, []string{}, &entry)
+	if err != nil {
+		t.Fatalf("buildDebugPrompt failed: %v", err)
+	}
+
+	// Should contain commit refs for diffing
+	if !strings.Contains(result, "start001") {
+		t.Errorf("expected result to contain start commit 'start001'")
+	}
+	if !strings.Contains(result, "fail002") {
+		t.Errorf("expected result to contain failure commit 'fail002'")
+	}
+
+	// Should contain validation commands
+	if !strings.Contains(result, "go test ./internal/cache/...") {
+		t.Errorf("expected result to contain validation command 'go test ./internal/cache/...'")
+	}
+
+	// Should contain failure output
+	if !strings.Contains(result, "undefined: CacheClient") {
+		t.Errorf("expected result to contain failure output 'undefined: CacheClient'")
+	}
+
+	// Should contain build prompt
+	if !strings.Contains(result, "add CacheClient field to struct") {
+		t.Errorf("expected result to contain build prompt 'add CacheClient field to struct'")
+	}
+
+	// Failure Context must appear before Context section
+	failureIdx := strings.Index(result, "## Failure Context")
+	contextIdx := strings.Index(result, "## Context")
+	if failureIdx == -1 {
+		t.Fatal("expected '## Failure Context' in result")
+	}
+	if contextIdx == -1 {
+		t.Fatal("expected '## Context' in result")
+	}
+	if failureIdx > contextIdx {
+		t.Errorf("Failure Context section must appear before Context section")
+	}
+}

@@ -225,26 +225,10 @@ func buildDebugPrompt(cfg *config.Config, gromitDir string, args []string, entry
 
 	// Optional: failure context from runbook entry
 	if entry != nil {
-		sb.WriteString(fmt.Sprintf(`## Failure Context
-
-**Bead:** %s — %s
-**Failure Category:** %s
-**Commits:** %s..%s (run `+"`git diff %s %s`"+` to see changes)
-
-### Validation Commands
-
-%s
-
-### Failure Output
-
-%[8]s
-
-### Build Prompt
-
-%[9]s
-
-`, entry.BeadID, entry.BeadTitle, entry.FailureCategory, entry.StartCommit, entry.FailureCommit,
-			entry.StartCommit, entry.FailureCommit,
+		diffCmd := fmt.Sprintf("git diff %s %s", entry.StartCommit, entry.FailureCommit)
+		sb.WriteString(fmt.Sprintf("## Failure Context\n\n**Bead:** %s — %s\n**Failure Category:** %s\n**Commits:** %s..%s (run `%s` to see changes)\n\n### Validation Commands\n\n%s\n\n### Failure Output\n\n%s\n\n### Build Prompt\n\n%s\n\n",
+			entry.BeadID, entry.BeadTitle, entry.FailureCategory,
+			entry.StartCommit, entry.FailureCommit, diffCmd,
 			strings.Join(entry.ValidationCommands, "\n"),
 			entry.FailureOutput,
 			entry.Prompt))
