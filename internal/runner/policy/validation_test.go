@@ -57,6 +57,35 @@ func TestShouldEscalateRecovery_ReturnsTrue(t *testing.T) {
 	}
 }
 
+func TestSelectGate_TableDrivenModuloArithmetic(t *testing.T) {
+	tests := []struct {
+		name                 string
+		fullEveryN           int
+		consecutiveSuccesses int
+		want                 policy.GateType
+	}{
+		{"fullEveryN=1 always full at 0", 1, 0, policy.GateFull},
+		{"fullEveryN=1 always full at 1", 1, 1, policy.GateFull},
+		{"fullEveryN=5 fast at 1", 5, 1, policy.GateFast},
+		{"fullEveryN=5 fast at 4", 5, 4, policy.GateFast},
+		{"fullEveryN=5 full at 5", 5, 5, policy.GateFull},
+		{"fullEveryN=5 fast at 6", 5, 6, policy.GateFast},
+		{"fullEveryN=5 full at 10", 5, 10, policy.GateFull},
+		{"fullEveryN=0 disabled fast at 0", 0, 0, policy.GateFast},
+		{"fullEveryN=0 disabled fast at 5", 0, 5, policy.GateFast},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newConfigValidationPolicy(tc.fullEveryN)
+			got := p.SelectGate(tc.consecutiveSuccesses)
+			if got != tc.want {
+				t.Errorf("SelectGate(%d) with fullEveryN=%d: got %v, want %v",
+					tc.consecutiveSuccesses, tc.fullEveryN, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestMandatoryCommandPrefixes_ReturnsGoPrefixes(t *testing.T) {
 	p := newConfigValidationPolicy(0)
 	want := []string{"go test", "go vet", "go build"}
