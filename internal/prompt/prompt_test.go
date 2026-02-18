@@ -682,7 +682,7 @@ func TestRenderSpecGate(t *testing.T) {
 	r := &Renderer{templatesDir: templatesDir}
 
 	ctx := &SpecGateContext{
-		SpecCriteria: "Must return 200",
+		SpecCriteria:  "Must return 200",
 		FailureOutput: "status was 500",
 	}
 
@@ -1050,5 +1050,13 @@ func TestRenderSpecGateTemplateIncludesCriteriaAndFailure(t *testing.T) {
 	}
 	if !strings.Contains(result, "status was 500") {
 		t.Error("expected failure output in rendered template")
+	}
+}
+
+func TestRenderTestFixNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.RenderTestFix(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderTestFix")
 	}
 }

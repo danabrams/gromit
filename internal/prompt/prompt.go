@@ -119,6 +119,14 @@ type SpecGateContext struct {
 	FailureOutput string
 }
 
+// TestFixContext holds data for test-fix prompt template
+type TestFixContext struct {
+	ClaudeMD          string
+	Rules             string
+	TestCommand       string
+	TestFailureOutput string
+}
+
 // ScopeEstimate represents the result of scope estimation
 type ScopeEstimate struct {
 	Complexity                   string   `json:"complexity"`
@@ -333,6 +341,11 @@ func (r *Renderer) RenderRefactor(ctx *Context) (string, error) {
 func (r *Renderer) RenderTDDBuild(ctx *Context) (string, error) {
 	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
 	return r.render("PROMPT_tdd_build.md", ctx)
+}
+
+// RenderTestFix renders the test-fix prompt for fixing implementation without changing tests
+func (r *Renderer) RenderTestFix(ctx *TestFixContext) (string, error) {
+	return r.render("PROMPT_test_fix.md", ctx)
 }
 
 // ValidateSpecName checks that a spec name doesn't contain path traversal characters
