@@ -113,7 +113,7 @@ func truncateRetroRulesForBudget(rules string, maxChars int) (string, bool) {
 	}
 
 	headLen := maxChars - len(retroTruncationMarker)
-	return rules[:headLen] + retroTruncationMarker, true
+	return truncateUTF8(rules, headLen) + retroTruncationMarker, true
 }
 
 // measureContext returns the total character count of trimmable context fields.

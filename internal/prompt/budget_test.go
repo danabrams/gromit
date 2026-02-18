@@ -1125,6 +1125,21 @@ func TestShapeRetroForBudget_LearningsCapDoesNotSplitRunes(t *testing.T) {
 	}
 }
 
+func TestTruncateRetroRulesForBudget_DoesNotSplitRunes(t *testing.T) {
+	// retroTruncationMarker = "[...truncated...]" = 17 bytes.
+	// maxChars=20 → headLen = 20-17 = 3. Naive rules[:3] on "AB世..." splits "世".
+	// rules must be longer than maxChars (20) to trigger truncation.
+	// "AB世界" is only 8 bytes, so pad with trailing ASCII to exceed 20.
+	rules := "AB世界XXXXXXXXXXXXXXX" // 8 + 19 = 27 bytes, > 20
+	truncated, changed := truncateRetroRulesForBudget(rules, 20)
+	if !changed {
+		t.Fatal("expected truncation to occur")
+	}
+	if !utf8.ValidString(truncated) {
+		t.Errorf("truncated rules %q is not valid UTF-8", truncated)
+	}
+}
+
 func TestShapeRetroForBudget_AlwaysFitsPositiveBudget(t *testing.T) {
 	rules := strings.Repeat("r", 80)
 	learnings := strings.Repeat("l", 60)
