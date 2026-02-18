@@ -819,3 +819,33 @@ func TestResolveRunbookEntrySkipsPickerWhenArgsPresent(t *testing.T) {
 		t.Errorf("expected nil entry when args present (picker skipped), got %v", entry.BeadID)
 	}
 }
+
+// TestResolveRunbookEntryShowsPickerWhenNoArgs verifies that resolveRunbookEntry
+// returns the selected entry when no args and entries exist.
+func TestResolveRunbookEntryShowsPickerWhenNoArgs(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	e := runbook.NewEntry("gromit-abc", time.Now())
+	e.BeadTitle = "Cache miss flapping"
+	e.FailureCategory = "flapping_test"
+	if err := runbook.Append(gromitDir, e); err != nil {
+		t.Fatalf("failed to append runbook entry: %v", err)
+	}
+
+	// No args — picker shown, user selects entry 1
+	reader := strings.NewReader("1\n")
+	entry, err := resolveRunbookEntry(gromitDir, 14, []string{}, reader)
+	if err != nil {
+		t.Fatalf("resolveRunbookEntry failed: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("expected non-nil entry when no args and entries exist")
+	}
+	if entry.BeadID != "gromit-abc" {
+		t.Errorf("expected BeadID 'gromit-abc', got %q", entry.BeadID)
+	}
+}
