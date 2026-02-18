@@ -30,6 +30,7 @@ var (
 	timeBudgetHours   int
 	retroSpecFlag     string
 	retroEpicFlag     string
+	runSpecFlag       string
 )
 
 func main() {
@@ -107,6 +108,7 @@ func init() {
 	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run without executing")
 	runCmd.Flags().IntVarP(&timeBudgetMinutes, "time-budget", "t", 0, "Time budget in minutes (0 = unlimited)")
 	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
+	runCmd.Flags().StringVar(&runSpecFlag, "spec", "", "Filter to beads for a specific spec")
 
 	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip interactive session and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md")
 	retroCmd.Flags().StringVar(&retroSpecFlag, "spec", "", "Scope retro to a specific spec")
@@ -146,6 +148,14 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "\nReceived interrupt, stopping after current iteration...")
 		cancel()
 	}()
+
+	// Validate --spec flag if set
+	if runSpecFlag != "" {
+		specsDir := resolveSpecsDir(cfg)
+		if err := scope.ValidateSpec(specsDir, runSpecFlag); err != nil {
+			return fmt.Errorf("validating spec: %w", err)
+		}
+	}
 
 	// Override max iterations from flag if set
 	if maxIterations > 0 {
