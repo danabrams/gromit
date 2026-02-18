@@ -813,6 +813,30 @@ this is not json
 	}
 }
 
+// TestCostPerSpec_CountsIterationsPerSpec verifies Iterations counts all log entries per spec
+func TestCostPerSpec_CountsIterationsPerSpec(t *testing.T) {
+	dir := t.TempDir()
+
+	logs := []IterationLog{
+		{BeadID: "b1", Model: "opus", Success: false, CostUSD: 0.20, SpecID: "spec-A"},
+		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.30, SpecID: "spec-A"},
+		{BeadID: "b2", Model: "sonnet", Success: true, CostUSD: 0.25, SpecID: "spec-A"},
+		{BeadID: "b3", Model: "haiku", Success: true, CostUSD: 0.10, SpecID: "spec-B"},
+	}
+	writeTestLogFile(t, dir, "20260218-120000", logs)
+
+	result, err := CostPerSpec(dir)
+	if err != nil {
+		t.Fatalf("CostPerSpec failed: %v", err)
+	}
+	if result["spec-A"].Iterations != 3 {
+		t.Errorf("spec-A Iterations = %d, want 3", result["spec-A"].Iterations)
+	}
+	if result["spec-B"].Iterations != 1 {
+		t.Errorf("spec-B Iterations = %d, want 1", result["spec-B"].Iterations)
+	}
+}
+
 // TestCostPerSpec_GroupsBySpecIDAndAccumulatesCost verifies cost is summed per spec_id
 func TestCostPerSpec_GroupsBySpecIDAndAccumulatesCost(t *testing.T) {
 	dir := t.TempDir()
