@@ -37,13 +37,18 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - Files named `*_acceptance_test.go` must either use `//go:build acceptance` or genuinely test end-to-end behavior through the command surface. Unit tests that happen to verify acceptance criteria belong in `*_test.go`
 - Acceptance tests (`//go:build acceptance`) have a 6,000-line total budget; prefer unit tests and account for this budget in specs (enforced by `final_verification_test.go`)
 
+## Terminology <!-- phases: build, review, refine, plan -->
+
+- "Backlog" always means the ideas backlog (`gromit add` / `.gromit/backlog.jsonl`), not beads. Beads are work items; backlog items are raw ideas awaiting refinement
+
 ## Process <!-- phases: build -->
 
 - Pipeline methods should use input/output structs, validate dependencies first, use renderer processing, resolve agents via `agents.ResolveByName`, and define post-processing change detection. Keep pipeline tests next to their command files
 - Always run tests before committing
 - Follow existing patterns in the codebase
 - When adding config fields, set defaults in `setDefaults()` (numeric sentinel: `0`), update `NormalizeNilFields()` for new nested structs/slices, and test omitted-YAML defaults. Use `json:"field,omitempty"` for optional serialized fields. If `IterationResult` gains fields, mirror them into `IterationLog` in `writeIterationLog()`
-- Split beads that touch 4+ files across unrelated packages; target 1-3 files per leaf bead for highest first-pass success. For large facades (1000+ lines), delegate in batches of 3-5 methods per bead. Decompose to 5+ levels deep if needed to achieve narrow leaf scope
+- Split beads that touch 6+ files across unrelated packages; target 1-3 files per leaf bead for highest first-pass success. For large facades (1000+ lines), delegate in batches of 3-5 methods per bead. Decompose to 5+ levels deep if needed to achieve narrow leaf scope
+- Never split natural units: Interface + implementation + mock updates, implementation + tests, companion methods, command flags+wiring, or template+registration
 - If failure analysis says scope is too broad, decompose instead of escalating model tier. If the highest tier times out or fails, split into sub-beads and retry those
 - Pre-split likely broad work (titles containing infrastructure/E2E/consolidate/extract/shared/refactor, or 3+ new types plus new behavior). Preferred decomposition orders: test infra (fixtures -> helpers -> tests), interface extraction (interface -> mocks -> callers), package extraction (create package -> move impl -> wire callers -> remove old), and cross-package helper extraction (pure helpers -> dependency-heavy helpers -> caller wiring)
 - Shared-package refactors (for example learnings/config) must rerun affected dependent test suites after each commit; verify each diff still matches intent

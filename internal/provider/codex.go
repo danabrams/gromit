@@ -164,7 +164,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 		exitCode, _ := cp.extractExitCode(err)
 		return &Result{
 			Success:           false,
-			Output:            resultText + stderr.String(),
+			Output:            resultText,
 			Stderr:            stderr.String(),
 			Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
 			FailureCategory:   classifyCodexFailure(exitCode, resultText, stderr.String()),

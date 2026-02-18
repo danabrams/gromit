@@ -53,6 +53,7 @@ Each task in the plan must be mapped to 1-3 beads following these **strict sizin
 - If a task touches 6+ files across unrelated packages → split by package boundary
 - If two parts of a task are independently useful and don't need each other to compile → they can be separate beads
 - If a task requires design decisions that would benefit from being settled first (e.g., define the data model, then build the API) → split at the decision boundary
+- Never split natural units like Interface + implementation + mock, implementation + tests, companion methods, command flags+wiring, or template+registration
 
 **DO NOT** create beads that are too small (e.g., single-line changes) unless they're genuinely independent concerns.
 

@@ -1007,6 +1007,45 @@ exit 0
 	}
 }
 
+func TestCodexProviderStreamRun_FailureOutputExcludesStderr(t *testing.T) {
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+cat > /dev/null
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"stream ok"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}'
+echo "stream error" >&2
+exit 1
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock codex binary: %v", err)
+	}
+
+	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
+	ctx := context.Background()
+
+	result, err := cp.StreamRun(ctx, "prompt", TierMedium, nil, func([]byte) {}, nil)
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v, want nil", err)
+	}
+	if result == nil {
+		t.Fatal("StreamRun() returned nil result")
+	}
+	if result.Success {
+		t.Fatalf("StreamRun() Success = true, want false on failure")
+	}
+	if !strings.Contains(result.Output, "stream ok") {
+		t.Errorf("StreamRun() output missing agent text, got: %q", result.Output)
+	}
+	if strings.Contains(result.Output, "stream error") {
+		t.Errorf("StreamRun() output should not include stderr, got: %q", result.Output)
+	}
+	if !strings.Contains(result.Stderr, "stream error") {
+		t.Errorf("StreamRun() stderr missing expected content, got: %q", result.Stderr)
+	}
+}
+
 // Expected failure: codexStreamTransientRetryCategories constant does not exist yet and StreamRun does not retry transient failures.
 func TestCodexProviderStreamRun_RetriesTransientFailuresAndPreservesJSONSemantics(t *testing.T) {
 	tests := []struct {

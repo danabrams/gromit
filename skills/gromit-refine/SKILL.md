@@ -179,6 +179,7 @@ If during conversation the user asks for external research (e.g., "What do other
 4. **Concrete criteria** - Acceptance criteria must be testable
 5. **Document decisions** - Capture the "why" behind choices
 6. **Conversational** - Listen actively, follow up on answers, adjust based on responses
+7. **Specs only, never plans or code** - Refine produces specs (the *what*). Do NOT write implementation plans, task breakdowns, file lists, architecture proposals, or implementation code — planning is `gromit plan`'s job, implementation is `gromit run`'s job. If you catch yourself writing "Implementation Tasks", "Architecture" sections, or actual code, stop — you've left refine territory. Only write code or plans if the user explicitly asks you to
 
 ## Output Format Reference
 
