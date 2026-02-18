@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
+	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -232,5 +233,73 @@ func TestRunRefactorAndPostChecks_UsesMethodologyPolicyMinRevalidationBudget(t *
 
 	if commandCalls == 0 {
 		t.Fatal("expected re-validation to run with zero min revalidation budget")
+	}
+}
+
+func TestExecuteBuildAndMethodologyLoop_UsesMethodologyPolicyDeferral(t *testing.T) {
+	learnFromSuccess := false
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"true"},
+		},
+		Review: config.ReviewConfig{
+			Enabled: true,
+		},
+		Loop: config.LoopConfig{
+			LearnFromSuccess: &learnFromSuccess,
+		},
+	}
+
+	mockClaude := &mockClaudeClient{}
+	r, _ := newRunnerWithMocks(t, cfg, Deps{
+		Router:   newMockRouterFromClaudeClient(mockClaude),
+		Renderer: &mockPromptRenderer{},
+	})
+	mockClaude.RunFn = func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+		return &claude.Result{
+			Success: true,
+			Output:  `{"passed":true,"fixes_applied":[],"beads_to_create":[],"backlog_items":[],"summary":"ok"}`,
+		}, nil
+	}
+	r.reviewer = reviewpkg.NewReviewer(
+		cfg,
+		r.router,
+		r.beads,
+		r.renderer,
+		func(startCommit string) (string, error) {
+			return "diff --git a/a.go b/a.go\n+line", nil
+		},
+		r.logger,
+	)
+	r.reviewer.SetLogFn(r.log)
+	r.reviewer.SetValidateFn(func(ctx context.Context, commands []string, workDir string) (bool, error) {
+		return true, nil
+	})
+	r.methodologyPolicy = &mockMethodologyPolicy{
+		ShouldDeferPostSuccessFn: func(atddActive, tddActive bool) bool {
+			return false
+		},
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
+			ID:    "bead-1",
+			Title: "Test bead",
+		},
+		StartCommit: "abc123",
+		Model:       "sonnet",
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	executeWithRetry := func() bool { return true }
+
+	r.executeBuildAndMethodologyLoop(context.Background(), bc, false, false, executeWithRetry)
+
+	if len(mockClaude.RunCalls) != 0 {
+		t.Fatal("expected post-success review to be deferred by policy")
 	}
 }

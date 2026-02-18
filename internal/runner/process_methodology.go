@@ -97,7 +97,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		// In methodology mode, this validation is an intermediate gate before refactor.
 		// Defer post-success stages (review/learning) until final validation completes.
 		// Use a phase context so intermediate validation is not pre-canceled by bead timeout.
-		runPostSuccess := !atddActive && !tddActive
+		runPostSuccess := r.methodologyPolicy.ShouldDeferPostSuccess(atddActive, tddActive)
 		validationGateCtx := ctx
 		var validationGateCancel context.CancelFunc
 		if atddActive || tddActive {
