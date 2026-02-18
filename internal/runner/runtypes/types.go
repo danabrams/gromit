@@ -5,7 +5,10 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // BeadContext holds the shared state for processing a single bead.
@@ -107,6 +110,17 @@ type IterationResult struct {
 type HardStopApprovalState struct {
 	Approved   bool
 	ApprovedBy string
+}
+
+// InvocationResult captures the outcome of a single LLM invocation.
+type InvocationResult struct {
+	Result         *claude.Result
+	Stats          *logger.StreamStats
+	StallFired     bool
+	ModelName      string
+	ProviderName   string
+	ProviderResult *provider.Result
+	TimeoutType    string // "stall", "invocation", "bead", ""
 }
 
 // SubTask represents a single sub-task from task decomposition.

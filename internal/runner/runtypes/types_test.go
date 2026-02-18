@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/prompt"
 )
 
@@ -211,6 +212,25 @@ func TestSubTask_NormalizeNilFields(t *testing.T) {
 		var task *SubTask
 		task.NormalizeNilFields() // should not panic
 	})
+}
+
+// TestInvocationResult_ResultField verifies that InvocationResult has a Result
+// field of type *claude.Result.
+func TestInvocationResult_ResultField(t *testing.T) {
+	claudeResult := &claude.Result{
+		Success: true,
+		Output:  "build output",
+		Model:   "sonnet",
+	}
+	inv := InvocationResult{
+		Result: claudeResult,
+	}
+	if inv.Result != claudeResult {
+		t.Error("InvocationResult.Result does not match assigned *claude.Result")
+	}
+	if inv.Result.Success != true {
+		t.Error("InvocationResult.Result.Success should be true")
+	}
 }
 
 func TestIterationResult_FilesTouched(t *testing.T) {
