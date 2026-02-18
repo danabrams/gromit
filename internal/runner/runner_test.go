@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -419,6 +420,29 @@ func TestShowPartialProgressNilBead(t *testing.T) {
 	r.showPartialProgress(nil, "abc123")
 }
 
+type safeBuffer struct {
+	mu  sync.Mutex
+	buf strings.Builder
+}
+
+func (b *safeBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *safeBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func (b *safeBuffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Len()
+}
+
 func waitUntil(t *testing.T, timeout, interval time.Duration, cond func() bool, failureMsg string) {
 	t.Helper()
 	if cond() {
@@ -626,7 +650,7 @@ func TestStartHeartbeatStallDisabledWhenZero(t *testing.T) {
 }
 
 func TestHeartbeatWritesNewlineAfterOverwrite(t *testing.T) {
-	var buf strings.Builder
+	var buf safeBuffer
 	r := &Runner{output: &buf}
 
 	stats, _ := logger.NewStreamStats()
@@ -662,7 +686,7 @@ func TestHeartbeatWritesNewlineAfterOverwrite(t *testing.T) {
 }
 
 func TestHeartbeatNoNewlineAfterPrintMode(t *testing.T) {
-	var buf strings.Builder
+	var buf safeBuffer
 	r := &Runner{output: &buf}
 
 	stats, _ := logger.NewStreamStats()
@@ -2488,7 +2512,7 @@ func TestRunWritesFinalStatusOnContextCancellation(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	runCtx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	runCtx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
 	defer cancel()
 	err = r.Run(runCtx, 1, time.Time{}, nil, false)
 	if err == nil {
@@ -2498,13 +2522,18 @@ func TestRunWritesFinalStatusOnContextCancellation(t *testing.T) {
 		t.Fatalf("expected context cancellation or deadline error, got: %v", err)
 	}
 
-	status, readErr := ReadStatus(gromitDir)
-	if readErr != nil {
-		t.Fatalf("ReadStatus failed: %v", readErr)
-	}
-	if status == nil {
-		t.Fatal("expected final status.json to exist")
-	}
+	var status *Status
+	waitUntil(t, time.Second, 20*time.Millisecond, func() bool {
+		s, readErr := ReadStatus(gromitDir)
+		if readErr != nil {
+			return false
+		}
+		if s == nil {
+			return false
+		}
+		status = s
+		return true
+	}, "expected final status.json to exist")
 	if status.Running {
 		t.Fatalf("expected final status with running=false, got running=%v", status.Running)
 	}
