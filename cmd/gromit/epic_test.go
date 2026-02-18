@@ -459,8 +459,7 @@ created: 2026-02-08
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		// May be bd not available - skip detailed validation
-		t.Skip("bd binary not available, cannot verify epic status display")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Epic status should be displayed somewhere in output
@@ -803,8 +802,7 @@ models:
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		// External dependencies not available
-		t.Skip("External dependencies not available, cannot verify gap analysis")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Verify gap analysis output is present
@@ -895,7 +893,7 @@ Implement credit card payment processing via Stripe API.
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		t.Skip("External dependencies not available, cannot verify gap analysis")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Gap analysis should identify the missing areas from epic
@@ -993,7 +991,7 @@ created: 2026-02-08
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		t.Skip("External dependencies not available, cannot verify gap analysis")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Gap analysis should be aware of what specs exist
@@ -1064,7 +1062,7 @@ Build a simple feature with two components: frontend and backend.
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		t.Skip("External dependencies not available, cannot verify gap analysis output")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Verify gap analysis is printed (not empty)
@@ -1147,7 +1145,7 @@ This epic needs work in three areas:
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		t.Skip("External dependencies not available, cannot verify gap analysis")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Should perform gap analysis even with no specs
@@ -1337,8 +1335,7 @@ created: 2026-02-08
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		// May be external dependencies not available
-		t.Skip("External dependencies not available, cannot verify spec without plan handling")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Spec should be shown with unplanned stage
@@ -1409,8 +1406,7 @@ This epic should handle missing specs directory gracefully.
 		if strings.Contains(stderr, "no such file or directory") {
 			t.Fatalf("command should handle missing specs directory gracefully, stderr: %s", stderr)
 		}
-		// May be external dependencies not available
-		t.Skip("External dependencies not available, cannot verify missing directory handling")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Should indicate no specs found (not crash)
@@ -1542,8 +1538,7 @@ created: [this is invalid yaml
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		// May be external dependencies not available
-		t.Skip("External dependencies not available, cannot verify invalid frontmatter handling")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Should show valid spec
@@ -1608,8 +1603,7 @@ created: 2026-02-08
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		// May be external dependencies not available
-		t.Skip("External dependencies not available, cannot verify empty epic handling")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Should display epic ID even without title
@@ -1698,8 +1692,7 @@ created: 2026-02-08
 		if strings.Contains(stderr, "panic") {
 			t.Fatalf("command should not panic on missing id field, stderr: %s", stderr)
 		}
-		// May be external dependencies not available
-		t.Skip("External dependencies not available, cannot verify missing id handling")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Should show valid spec
@@ -1794,8 +1787,7 @@ created: 2026-02-08
 		if strings.Contains(stderr, "panic") || strings.Contains(stderr, "type assertion") {
 			t.Fatalf("command should not panic on non-string id field, stderr: %s", stderr)
 		}
-		// May be external dependencies not available
-		t.Skip("External dependencies not available, cannot verify non-string id handling")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Should show valid spec
@@ -1885,8 +1877,7 @@ decomposed: true
 		if strings.Contains(stderr, "epic not found") {
 			t.Fatalf("epic should be found: %s", stderr)
 		}
-		// May be external dependencies not available
-		t.Skip("External dependencies not available, cannot verify no-beads handling")
+		t.Fatalf("command failed: %s", stderr)
 	}
 
 	// Should show spec with stage indicating no beads exist yet
