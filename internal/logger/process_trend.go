@@ -35,6 +35,7 @@ type IterationMetric struct {
 	RollingP95DurationMs    float64   `json:"rolling_p95_duration_ms"`
 	RollingAvgCostUSD       float64   `json:"rolling_avg_cost_usd"`
 	RollingAvgMTTRProxyMs   float64   `json:"rolling_avg_mttr_proxy_ms"`
+	FilesTouched            int       `json:"files_touched,omitempty"`
 }
 
 // ProcessTrendWindow summarizes metrics over the latest rolling window.
@@ -252,6 +253,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			DurationMs:              entry.DurationMs,
 			CostUSD:                 entry.CostUSD,
 			MTTRProxyMs:             entry.MTTRProxyMs,
+			FilesTouched:            entry.FilesTouched,
 			RollingSuccessRate:      w.SuccessRate,
 			RollingFailureRate:      w.FailureRate,
 			RollingFirstPassSuccess: w.FirstPassSuccess,
