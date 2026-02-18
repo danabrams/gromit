@@ -1179,6 +1179,30 @@ func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T)
 	}
 }
 
+func TestRenderSpecGateRealTemplateEnforcesJSONOnlyOutput(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &SpecGateContext{
+		SpecCriteria: "Must return 200",
+	}
+
+	result, err := r.RenderSpecGate(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecGate() error = %v", err)
+	}
+
+	wantStrs := []string{
+		"one top-level JSON",
+		"Do not include",
+	}
+	for _, want := range wantStrs {
+		if !strings.Contains(result, want) {
+			t.Errorf("RenderSpecGate() real template missing JSON enforcement string %q\ngot:\n%s", want, result)
+		}
+	}
+}
+
 func TestRenderTestFixNilRenderer(t *testing.T) {
 	var r *Renderer
 	_, err := r.RenderTestFix(nil)
