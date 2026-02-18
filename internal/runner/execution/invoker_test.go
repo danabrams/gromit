@@ -178,6 +178,37 @@ func TestInvokerExecute_ReturnsInvocationResult(t *testing.T) {
 	}
 }
 
+func TestInvokerExecute_ReturnsRuntypesInvocationResult(t *testing.T) {
+	mp := &mockProvider{
+		name: "test-claude",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  "build complete",
+				Model:   "claude-sonnet",
+			}, nil
+		},
+	}
+
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "claude-sonnet"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+
+	result, err := invoker.Execute(context.Background(), bc, "test prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, ok := interface{}(result).(*runtypes.InvocationResult); !ok {
+		t.Fatalf("result type = %T, want *runtypes.InvocationResult", result)
+	}
+}
+
 // Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_PropagatesModelAndProviderToBeadContext(t *testing.T) {
 	// Tests that Execute updates bc.Model, bc.Result.Model, and bc.BuildProvider

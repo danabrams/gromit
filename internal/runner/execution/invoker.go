@@ -18,16 +18,6 @@ import (
 // Returns (0, 0) to disable stall detection.
 type StallTimeoutFunc func(model string) (stallTimeout, stallTimeoutActive time.Duration)
 
-// InvocationResult captures the outcome of a single Claude invocation.
-type InvocationResult struct {
-	Result         *claude.Result
-	Stats          *logger.StreamStats
-	StallFired     bool
-	ModelName      string
-	ProviderName   string
-	ProviderResult *provider.Result
-}
-
 // Invoker handles a single Claude invocation: provider selection, streaming,
 // usage-limit fallback, and diagnostic capture.
 type Invoker struct {
@@ -67,7 +57,7 @@ func (inv *Invoker) WithPreserveProviderTerminalStream(enabled bool) *Invoker {
 
 // Execute runs a single Claude invocation, returning the result and diagnostics.
 // It does not decide whether to retry or escalate — the caller handles that.
-func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		return nil, err
@@ -200,7 +190,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	bc.Result.RateLimitHits = rateLimitHits
 	bc.Result.RateLimitRecoveryMs = rateLimitRecoveryMs
 
-	return &InvocationResult{
+	return &runtypes.InvocationResult{
 		Result:         claudeResult,
 		Stats:          stats,
 		StallFired:     stallFired,
