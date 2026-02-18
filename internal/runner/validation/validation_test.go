@@ -510,8 +510,8 @@ func TestExtractValidationSummary_TruncatesLongOutput(t *testing.T) {
 // Expected failure: ExtractValidationSummary does not exist in the validation package yet
 func TestExtractValidationSummary_EmptyInput(t *testing.T) {
 	summary := ExtractValidationSummary("")
-	if summary != "" {
-		t.Errorf("ExtractValidationSummary(\"\") = %q, want empty string", summary)
+	if summary != "PASS: all validations passed" {
+		t.Errorf("ExtractValidationSummary(\"\") = %q, want %q", summary, "PASS: all validations passed")
 	}
 }
 

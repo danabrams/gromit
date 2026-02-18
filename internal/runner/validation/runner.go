@@ -341,7 +341,7 @@ func formatTimeoutFailureOutput(command string, timeout time.Duration, stdout, s
 // and go vet diagnostic lines. The result is capped at 500 characters.
 func ExtractValidationSummary(failureOutput string) string {
 	if failureOutput == "" {
-		return ""
+		return "PASS: all validations passed"
 	}
 
 	type failureEntry struct {
@@ -384,6 +384,15 @@ func ExtractValidationSummary(failureOutput string) string {
 		}
 	}
 
+	if len(entries) == 0 && len(lines) == 0 {
+		return "PASS: all validations passed"
+	}
+
+	output := make([]string, 0, len(lines)+len(entries)+1)
+	if len(entries) > 0 || len(lines) > 0 {
+		output = append(output, "FAILURES:")
+	}
+
 	if len(entries) > 0 {
 		pkgIdentifier := formatPackageIdentifier(firstPackage(packages))
 		detailLines := make([]string, 0, len(entries))
@@ -396,10 +405,12 @@ func ExtractValidationSummary(failureOutput string) string {
 				detailLines = append(detailLines, fmt.Sprintf("package: %s | test: %s | assert: %s", pkgIdentifier, entry.testName, assertion))
 			}
 		}
-		lines = append(detailLines, lines...)
+		output = append(output, detailLines...)
 	}
 
-	result := strings.Join(lines, "\n")
+	output = append(output, lines...)
+
+	result := strings.Join(output, "\n")
 	if len(result) > maxValidationSummaryLen {
 		result = result[:maxValidationSummaryLen]
 	}
