@@ -56,3 +56,17 @@ func TestShouldEscalateRecovery_ReturnsTrue(t *testing.T) {
 		t.Error("ShouldEscalateRecovery: expected true")
 	}
 }
+
+func TestMandatoryCommandPrefixes_ReturnsGoPrefixes(t *testing.T) {
+	p := newConfigValidationPolicy(0)
+	want := []string{"go test", "go vet", "go build"}
+	got := p.MandatoryCommandPrefixes()
+	if len(got) != len(want) {
+		t.Fatalf("MandatoryCommandPrefixes: got %v, want %v", got, want)
+	}
+	for i, prefix := range want {
+		if got[i] != prefix {
+			t.Errorf("MandatoryCommandPrefixes[%d]: got %q, want %q", i, got[i], prefix)
+		}
+	}
+}
