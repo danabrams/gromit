@@ -7,7 +7,9 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // TestBeadContext_AllFieldsExported verifies that BeadContext has all expected
@@ -230,6 +232,48 @@ func TestInvocationResult_ResultField(t *testing.T) {
 	}
 	if inv.Result.Success != true {
 		t.Error("InvocationResult.Result.Success should be true")
+	}
+}
+
+// TestInvocationResult_AllFields verifies that InvocationResult has all 7 required fields
+// with correct types: Stats, StallFired, ModelName, ProviderName, ProviderResult, TimeoutType.
+func TestInvocationResult_AllFields(t *testing.T) {
+	stats, err := logger.NewStreamStats()
+	if err != nil {
+		t.Fatalf("NewStreamStats() error: %v", err)
+	}
+	provResult := &provider.Result{
+		Success: true,
+		Output:  "provider output",
+		Model:   "claude-sonnet",
+	}
+	inv := InvocationResult{
+		Result:         &claude.Result{Success: true},
+		Stats:          stats,
+		StallFired:     true,
+		ModelName:      "claude-sonnet-4-6",
+		ProviderName:   "claude",
+		ProviderResult: provResult,
+		TimeoutType:    "stall",
+	}
+
+	if inv.Stats != stats {
+		t.Error("Stats does not match assigned *logger.StreamStats")
+	}
+	if !inv.StallFired {
+		t.Error("StallFired should be true")
+	}
+	if inv.ModelName != "claude-sonnet-4-6" {
+		t.Errorf("ModelName = %q, want %q", inv.ModelName, "claude-sonnet-4-6")
+	}
+	if inv.ProviderName != "claude" {
+		t.Errorf("ProviderName = %q, want %q", inv.ProviderName, "claude")
+	}
+	if inv.ProviderResult != provResult {
+		t.Error("ProviderResult does not match assigned *provider.Result")
+	}
+	if inv.TimeoutType != "stall" {
+		t.Errorf("TimeoutType = %q, want %q", inv.TimeoutType, "stall")
 	}
 }
 
