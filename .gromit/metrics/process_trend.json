@@ -1,55 +1,55 @@
 {
-  "generated_at": "2026-02-18T11:20:28.953970861Z",
-  "total_iterations": 289,
+  "generated_at": "2026-02-18T12:14:06.928016314Z",
+  "total_iterations": 293,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 0.9666666666666667,
-    "failure_rate": 0.03333333333333333,
-    "first_pass_success_rate": 0.9,
-    "escalation_rate": 0.06666666666666667,
-    "avg_duration_ms": 509871.5,
+    "success_rate": 0.8666666666666667,
+    "failure_rate": 0.13333333333333333,
+    "first_pass_success_rate": 0.8333333333333334,
+    "escalation_rate": 0.03333333333333333,
+    "avg_duration_ms": 483441.6,
     "p95_duration_ms": 1075677.25,
-    "avg_cost_usd": 0.6272721966666668,
+    "avg_cost_usd": 0.5297524483333333,
     "avg_mttr_proxy_ms": 0
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 0.6272721966666668,
-      "mean": 0.4694444326716475,
-      "std_dev": 0.4905561146499194,
-      "ucl": 1.9411127766214058,
-      "lcl": -1.0022239112781106
+      "latest": 0.5297524483333333,
+      "mean": 0.4711520854850038,
+      "std_dev": 0.48743262096896345,
+      "ucl": 1.933449948391894,
+      "lcl": -0.9911457774218866
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 509871.5,
-      "mean": 704836.3039457876,
-      "std_dev": 329010.1119052101,
-      "ucl": 1691866.6396614178,
-      "lcl": -282194.0317698427
+      "latest": 483441.6,
+      "mean": 702096.682959042,
+      "std_dev": 327589.33457906917,
+      "ucl": 1684864.6866962495,
+      "lcl": -280671.3207781655
     },
     {
       "metric": "rolling_escalation_rate",
-      "latest": 0.06666666666666667,
-      "mean": 0.06585928489042693,
-      "std_dev": 0.0634407045239258,
-      "ucl": 0.25618139846220433,
+      "latest": 0.03333333333333333,
+      "mean": 0.06552901023890803,
+      "std_dev": 0.06309122946185351,
+      "ucl": 0.2548026986244686,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 0.9,
-      "mean": 0.11568627450980386,
-      "std_dev": 0.28202595445278766,
-      "ucl": 0.9617641378681668,
+      "latest": 0.8333333333333334,
+      "mean": 0.12605233219567685,
+      "std_dev": 0.29364408814696424,
+      "ucl": 1,
       "lcl": 0
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 0.9666666666666667,
-      "mean": 0.6582846499328018,
-      "std_dev": 0.2235646994997539,
+      "latest": 0.8666666666666667,
+      "mean": 0.6618120494786567,
+      "std_dev": 0.2240909926918434,
       "ucl": 1,
       "lcl": 0
     }

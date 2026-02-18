@@ -35,9 +35,14 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
+### 2026-02-18 | final | conventions
+Documentation tests in bead_sizing_docs_test.go enforce that RULES.md stays in sync with implemented behavior. Any changes to file sizing rules must update both the code AND the corresponding RULES.md documentation section.
+
 ---
 
 ## Archived
 
-*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
+*No longer relevant or superseded.*
+
+*No archived learnings.*
 
