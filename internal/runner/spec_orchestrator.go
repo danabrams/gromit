@@ -8,6 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 )
 
 // SpecOrchestrator coordinates spec-level acceptance test authoring.
@@ -61,10 +62,7 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 		return fmt.Errorf("rendering spec acceptance prompt: %w", err)
 	}
 
-	tier := provider.TierMedium
-	if o.cfg != nil {
-		tier = o.cfg.SelectTier(1, nil)
-	}
+	tier := escalation.SelectTier(o.cfg, nil)
 
 	p, _ := o.router.Select("build", tier)
 	if p == nil {
