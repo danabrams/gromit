@@ -134,3 +134,11 @@ func TestIsActive_ATDDSuppressedWhenSpecGranularityAndSpecLabel(t *testing.T) {
 		t.Error("expected IsActive to return false for atdd when granularity=spec and spec label present")
 	}
 }
+
+func TestIsActive_ATDDNotSuppressedWhenSpecGranularityButNoSpecLabel(t *testing.T) {
+	p := newMethodologyPolicyWithGranularity(true, false, "spec")
+	labels := []string{"unrelated:label"}
+	if !p.IsActive(labels, "atdd") {
+		t.Error("expected IsActive to return true for atdd when granularity=spec but no spec label")
+	}
+}
