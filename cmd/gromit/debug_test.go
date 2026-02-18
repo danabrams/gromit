@@ -715,3 +715,22 @@ func TestPickRunbookEntryReturnsSelectedEntry(t *testing.T) {
 		t.Errorf("expected BeadID 'gromit-aaa', got %q", entry.BeadID)
 	}
 }
+
+// TestPickRunbookEntrySkipOnZeroOrInvalid verifies that pickRunbookEntry returns nil
+// when the user enters 0 or non-numeric input (skip selection).
+func TestPickRunbookEntrySkipOnZeroOrInvalid(t *testing.T) {
+	entries := []runbook.Entry{
+		{BeadID: "gromit-aaa", BeadTitle: "First bug", FailureCategory: "test_failure", Timestamp: time.Now()},
+	}
+
+	for _, input := range []string{"0\n", "skip\n", "\n", "99\n"} {
+		reader := strings.NewReader(input)
+		entry, err := pickRunbookEntry(entries, reader)
+		if err != nil {
+			t.Fatalf("pickRunbookEntry(%q) returned error: %v", input, err)
+		}
+		if entry != nil {
+			t.Errorf("pickRunbookEntry(%q): expected nil entry for skip/invalid input, got %v", input, entry.BeadID)
+		}
+	}
+}
