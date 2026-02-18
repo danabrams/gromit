@@ -12,6 +12,7 @@ import (
 )
 
 const atddSkipLogMessage = "Skipping ATDD: bead is test-only"
+const atddSpecGranularitySkipLogMessage = "Skipping ATDD: spec granularity active for spec:"
 
 // newMinimalRunnerForMethodology creates the smallest possible Runner for
 // testing prepareMethodologyForBead without needing a full Deps setup.
@@ -96,6 +97,48 @@ func TestPrepareMethodology_ATDDSkipLogsReason(t *testing.T) {
 
 	if !strings.Contains(buf.String(), atddSkipLogMessage) {
 		t.Errorf("expected log %q in output, got:\n%s", atddSkipLogMessage, buf.String())
+	}
+}
+
+// TestPrepareMethodology_ATDDSkippedForSpecGranularity verifies that when
+// granularity is set to spec and a bead has a spec label, ATDD is skipped.
+func TestPrepareMethodology_ATDDSkippedForSpecGranularity(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			ATDD:        true,
+			Granularity: config.MethodologyGranularitySpec,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("spec-skip-1", "Implement feature")
+	b.Labels = []string{"spec:auth"}
+	bc := newBeadContextForMethodology(b)
+
+	atddActive, _, _ := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if atddActive {
+		t.Error("prepareMethodologyForBead should skip ATDD when granularity=spec and bead has spec label")
+	}
+}
+
+// TestPrepareMethodology_ATDDSkipSpecGranularityLogsReason verifies that when
+// ATDD is skipped for spec granularity, the reason is logged.
+func TestPrepareMethodology_ATDDSkipSpecGranularityLogsReason(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			ATDD:        true,
+			Granularity: config.MethodologyGranularitySpec,
+		},
+	}
+	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("spec-log-1", "Implement feature")
+	b.Labels = []string{"spec:auth"}
+	bc := newBeadContextForMethodology(b)
+
+	r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !strings.Contains(buf.String(), atddSpecGranularitySkipLogMessage) {
+		t.Errorf("expected log %q in output, got:\n%s", atddSpecGranularitySkipLogMessage, buf.String())
 	}
 }
 

@@ -6,11 +6,18 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.BeadContext) (atddActive bool, tddActive bool, done bool) {
 	atddActive = bead.IsMethodologyActive(bc.Bead.Labels, "atdd", r.cfg.Methodology.ATDD)
+	if atddActive && r.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
+		if specName := bead.FindSpecLabel(bc.Bead.Labels); specName != "" {
+			r.log("Skipping ATDD: spec granularity active for spec:%s", specName)
+			atddActive = false
+		}
+	}
 	if atddActive && bead.IsTestOnlyBead(bc.Bead.Title) {
 		r.log("Skipping ATDD: bead is test-only")
 		atddActive = false
