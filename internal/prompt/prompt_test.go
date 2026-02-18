@@ -1203,6 +1203,25 @@ func TestRenderSpecGateRealTemplateEnforcesJSONOnlyOutput(t *testing.T) {
 	}
 }
 
+func TestRenderSpecGateRealTemplateDisallowsOtherResponseContracts(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &SpecGateContext{
+		SpecCriteria: "Must return 200",
+	}
+
+	result, err := r.RenderSpecGate(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecGate() error = %v", err)
+	}
+
+	want := "only response contract"
+	if !strings.Contains(result, want) {
+		t.Errorf("RenderSpecGate() real template missing response contract restriction %q\ngot:\n%s", want, result)
+	}
+}
+
 func TestRenderTestFixNilRenderer(t *testing.T) {
 	var r *Renderer
 	_, err := r.RenderTestFix(nil)

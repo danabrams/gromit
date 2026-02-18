@@ -46,6 +46,8 @@ You are verifying whether the implementation satisfies the specification accepta
 
 ## Output
 
+GateVerdict is the only response contract to follow. Do not use any other format or response contract.
+
 Respond with a JSON object matching the GateVerdict structure. Output JSON only and include no narrative text.
 
 Your response must be one top-level JSON object and nothing else. Do not include markdown, commentary, or any explanation outside the JSON.
