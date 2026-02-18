@@ -2555,6 +2555,9 @@ func setupRunStopChTestRunner(t *testing.T, beads *mockBeadClient) *Runner {
 			Analyzer: &mockFailureAnalyzer{},
 			Renderer: &mockPromptRenderer{},
 			Logger:   &mockIterationLogger{},
+			CmdRunner: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+				return "", "", 0, nil
+			},
 		})
 	if err != nil {
 		t.Fatalf("Failed to create runner: %v", err)
@@ -2593,6 +2596,24 @@ func TestSetupRunStopChTestRunnerClearsTmuxEnv(t *testing.T) {
 
 	if got := os.Getenv("TMUX"); got != "" {
 		t.Fatalf("expected TMUX env to be cleared, got %q", got)
+	}
+}
+
+func TestSetupRunStopChTestRunnerUsesNoopCmdRunner(t *testing.T) {
+	workDir := t.TempDir()
+	fileName := "noop-runner.txt"
+	filePath := filepath.Join(workDir, fileName)
+
+	r := setupRunStopChTestRunner(t, &mockBeadClient{})
+
+	if _, _, _, err := r.cmdRunnerFn(context.Background(), "touch "+fileName, workDir); err != nil {
+		t.Fatalf("cmdRunnerFn returned error: %v", err)
+	}
+
+	if _, err := os.Stat(filePath); err == nil {
+		t.Fatalf("expected no file created by noop cmd runner at %s", filePath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("unexpected stat error: %v", err)
 	}
 }
 
