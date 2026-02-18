@@ -2687,3 +2687,34 @@ func TestRunRefactorAndPostChecks_NonTimeoutValidationFailure(t *testing.T) {
 		t.Fatalf("expected terminal error to wrap lint error, got: %v", terminal.Error)
 	}
 }
+
+func TestProcessBead_FilesTouched(t *testing.T) {
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "implemented"}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(
+		&config.Config{Claude: config.ClaudeConfig{BeadTimeout: 60}},
+		&buf, t.TempDir(),
+		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: &mockFailureAnalyzer{}, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() failed: %v", err)
+	}
+
+	// Inject mock git diff returning 3 files
+	r.gitDiffFn = func(fromCommit string) (string, error) {
+		return "diff --git a/foo.go b/foo.go\n--- a/foo.go\n+++ b/foo.go\n" +
+			"diff --git a/bar.go b/bar.go\n--- a/bar.go\n+++ b/bar.go\n" +
+			"diff --git a/baz_test.go b/baz_test.go\n--- a/baz_test.go\n+++ b/baz_test.go\n", nil
+	}
+
+	b := &bead.Bead{ID: "ft-test", Title: "File Touch Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
+	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
+
+	if result.FilesTouched != 3 {
+		t.Errorf("FilesTouched = %d, want 3", result.FilesTouched)
+	}
+}

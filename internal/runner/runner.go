@@ -203,6 +203,13 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	}
 	defer beadCancel()
 	defer func() { bc.Result.Duration = time.Since(start) }()
+	defer func() {
+		if bc.StartCommit != "" {
+			if diff, err := r.getDiff(bc.StartCommit); err == nil {
+				bc.Result.FilesTouched = len(methodology.ParseDiffFiles(diff))
+			}
+		}
+	}()
 	ctx = beadCtx
 
 	if err := r.buildPromptForBead(ctx, bc, iteration); err != nil {
