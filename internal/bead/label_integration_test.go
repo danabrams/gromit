@@ -248,7 +248,6 @@ func TestReadyWithLabel_IntegrationCallsCorrectCommand(t *testing.T) {
 }
 
 // TestListWithLabel_IntegrationCallsCorrectCommand verifies the exact command being called
-// Expected failure: Current implementation does not include --all and --limit 0 flags in the command.
 func TestListWithLabel_IntegrationCallsCorrectCommand(t *testing.T) {
 	// This test verifies the command structure by checking if bd accepts the arguments
 	c := newIsolatedClient(t)
@@ -438,7 +437,6 @@ func TestReadyWithLabel_CommandContract(t *testing.T) {
 }
 
 // TestListWithLabel_CommandContract verifies the exact bd command contract
-// Expected failure: Current test expects command without --all and --limit 0 flags.
 func TestListWithLabel_CommandContract(t *testing.T) {
 	if os.Getenv("BD_AVAILABLE") != "true" {
 		t.Skip("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
