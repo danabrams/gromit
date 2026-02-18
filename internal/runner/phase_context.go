@@ -19,12 +19,15 @@ type phaseContextMeta struct {
 	EffectiveTimeout    time.Duration
 	ClampedByRunDeadline bool
 	TimeoutSource       string
+	ParentAlreadyCanceled bool
 }
 
 func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds int) (context.Context, context.CancelFunc, phaseContextMeta) {
 	parent := context.Background()
+	parentCanceled := false
 	if bc != nil && bc.ParentCtx != nil {
 		parent = bc.ParentCtx
+		parentCanceled = bc.ParentCtx.Err() != nil
 	}
 
 	requested := time.Duration(phaseTimeoutSeconds) * time.Second
@@ -56,6 +59,7 @@ func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds
 		EffectiveTimeout:     effective,
 		ClampedByRunDeadline: clamped,
 		TimeoutSource:        timeoutSource,
+		ParentAlreadyCanceled: parentCanceled,
 	}
 
 	ctx, cancel := context.WithTimeout(parent, effective)

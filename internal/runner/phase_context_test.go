@@ -74,3 +74,29 @@ func TestNewPhaseContext_UsesExplicitOverride(t *testing.T) {
 		t.Fatalf("meta.TimeoutSource = %q, want %q", meta.TimeoutSource, phaseTimeoutSourceOverride)
 	}
 }
+
+func TestNewPhaseContext_ParentCanceled(t *testing.T) {
+	parent, parentCancel := context.WithCancel(context.Background())
+	parentCancel()
+
+	bc := &runtypes.BeadContext{
+		ParentCtx:   parent,
+		BeadTimeout: 2 * time.Second,
+	}
+
+	phaseCtx, cancel, meta := newPhaseContext(bc, "red", 0)
+	defer cancel()
+
+	select {
+	case <-phaseCtx.Done():
+		if phaseCtx.Err() == nil {
+			t.Fatal("expected phase context error when parent is canceled")
+		}
+	default:
+		t.Fatal("expected phase context to be canceled immediately")
+	}
+
+	if !meta.ParentAlreadyCanceled {
+		t.Fatal("meta.ParentAlreadyCanceled = false, want true")
+	}
+}
