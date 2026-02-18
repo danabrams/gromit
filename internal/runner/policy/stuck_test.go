@@ -55,3 +55,23 @@ func TestThresholdStuckPolicy_IsStuck_DisabledThreshold(t *testing.T) {
 		})
 	}
 }
+
+func TestThresholdStuckPolicy_IsStuck_MissingStats(t *testing.T) {
+	cases := []struct {
+		name  string
+		stats map[string]logger.BeadStats
+	}{
+		{"nil stats", nil},
+		{"missing bead entry", map[string]logger.BeadStats{}},
+	}
+
+	b := &bead.Bead{ID: "bead-1"}
+	p := policy.NewThresholdStuckPolicy(3)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := p.IsStuck(b, tc.stats); got {
+				t.Errorf("IsStuck() = true, want false")
+			}
+		})
+	}
+}
