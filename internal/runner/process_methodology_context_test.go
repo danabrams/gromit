@@ -16,6 +16,31 @@ import (
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
+const (
+	testStartCommit    = "abc123"
+	testRefactorDiff   = "diff --git a/a.go b/a.go\n+line"
+	testRefactorPrompt = "refactor prompt"
+)
+
+func setTestRefactorDeps(
+	r *Runner,
+	invoke func(ctx context.Context, prompt string, tier string) (*claude.Result, error),
+) {
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			return testRefactorDiff, nil
+		},
+		func(ctx *prompt.Context) (string, error) {
+			return testRefactorPrompt, nil
+		},
+		invoke,
+		nil,
+		func(commit string) error { return nil },
+		func() (string, error) { return testStartCommit, nil },
+	))
+}
+
 func TestRunRefactorAndPostChecks_ValidationUsesParentContext(t *testing.T) {
 	commandCalls := 0
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -25,26 +50,14 @@ func TestRunRefactorAndPostChecks_ValidationUsesParentContext(t *testing.T) {
 	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 
 	r.cfg.Refactor.MinFilesChanged = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			return nil, ctx.Err()
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		return nil, ctx.Err()
+	})
 
 	parentCtx := context.Background()
 	bc := &runtypes.BeadContext{
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   parentCtx,
 		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
@@ -79,26 +92,14 @@ func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesParentContext(t *tes
 	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 
 	r.cfg.Refactor.MinFilesChanged = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			return nil, ctx.Err()
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		return nil, ctx.Err()
+	})
 
 	parentCtx := context.Background()
 	bc := &runtypes.BeadContext{
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   parentCtx,
 		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
@@ -139,28 +140,16 @@ func TestRunRefactorAndPostChecks_RefactorUsesPhaseContext(t *testing.T) {
 	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{
 		RefactorSeconds: 120,
 	}
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			refactorCtxDeadline, refactorCtxHadDeadline = ctx.Deadline()
-			refactorCtxErr = ctx.Err()
-			return &claude.Result{Success: true}, nil
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		refactorCtxDeadline, refactorCtxHadDeadline = ctx.Deadline()
+		refactorCtxErr = ctx.Err()
+		return &claude.Result{Success: true}, nil
+	})
 
 	parentCtx := context.Background()
 	bc := &runtypes.BeadContext{
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   parentCtx,
 		BeadTimeout: 300 * time.Second,
 		PromptCtx: &prompt.Context{
@@ -211,27 +200,15 @@ func TestRunRefactorAndPostChecks_ValidationGetsFreshContextAfterRefactorTimeout
 		RefactorSeconds: 120,
 	}
 	r.cfg.Validation.PhaseTimeoutSeconds = 180
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			// Simulate refactor timing out.
-			return nil, context.DeadlineExceeded
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		// Simulate refactor timing out.
+		return nil, context.DeadlineExceeded
+	})
 
 	parentCtx := context.Background()
 	bc := &runtypes.BeadContext{
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   parentCtx,
 		BeadTimeout: 300 * time.Second,
 		PromptCtx: &prompt.Context{
@@ -287,26 +264,14 @@ func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesPhaseContext(t *test
 		RefactorSeconds: 120,
 	}
 	r.cfg.Validation.PhaseTimeoutSeconds = 180
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			return &claude.Result{Success: true}, nil
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		return &claude.Result{Success: true}, nil
+	})
 
 	parentCtx := context.Background()
 	bc := &runtypes.BeadContext{
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   parentCtx,
 		BeadTimeout: 300 * time.Second,
 		PromptCtx: &prompt.Context{
@@ -366,7 +331,7 @@ func TestExecuteBuildLoop_MethodologyValidationUsesPhaseContext(t *testing.T) {
 	bc := &runtypes.BeadContext{
 		Bead:        &bead.Bead{ID: "test-val-gate", Title: "Test Validation Gate"},
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   context.Background(),
 		BeadTimeout: 300 * time.Second,
 		PromptCtx: &prompt.Context{
@@ -427,7 +392,7 @@ func TestExecuteBuildLoop_MethodologyValidationPhaseClampedByRunDeadline(t *test
 	bc := &runtypes.BeadContext{
 		Bead:        &bead.Bead{ID: "test-val-gate-clamp", Title: "Test Validation Gate Clamp"},
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   context.Background(),
 		BeadTimeout: 300 * time.Second,
 		RunDeadline: time.Now().Add(35 * time.Second),
@@ -481,25 +446,13 @@ func TestRunRefactorAndPostChecks_ValidationPhaseClampedByRunDeadline(t *testing
 		RefactorSeconds: 120,
 	}
 	r.cfg.Validation.PhaseTimeoutSeconds = 180
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			return &claude.Result{Success: true}, nil
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		return &claude.Result{Success: true}, nil
+	})
 
 	bc := &runtypes.BeadContext{
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   context.Background(),
 		BeadTimeout: 300 * time.Second,
 		RunDeadline: time.Now().Add(35 * time.Second),
@@ -570,7 +523,7 @@ func TestRunATDDPreBuildPhases_UsesRedPhaseContext(t *testing.T) {
 	bc := &runtypes.BeadContext{
 		Bead:        &bead.Bead{ID: "test-red", Title: "Test Red Phase", Labels: []string{"methodology:true"}},
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   context.Background(),
 		BeadTimeout: 300 * time.Second,
 		PromptCtx: &prompt.Context{
@@ -662,7 +615,7 @@ func TestExecuteBuildAndMethodologyLoop_SetsValidationGatePhaseAttributionOnTime
 	bc := &runtypes.BeadContext{
 		Bead:        &bead.Bead{ID: "test-valgate-timeout", Title: "Validation Gate Timeout", Labels: []string{"methodology:true"}},
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   context.Background(),
 		BeadTimeout: 100 * time.Millisecond,
 		PromptCtx: &prompt.Context{
@@ -698,26 +651,14 @@ func TestRunRefactorAndPostChecks_RefactorTimeoutThenValidationSucceeds_NoTermin
 		RefactorSeconds: 120,
 	}
 	r.cfg.Validation.PhaseTimeoutSeconds = 180
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			// Simulate refactor timing out.
-			return nil, context.DeadlineExceeded
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		// Simulate refactor timing out.
+		return nil, context.DeadlineExceeded
+	})
 
 	bc := &runtypes.BeadContext{
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   context.Background(),
 		BeadTimeout: 300 * time.Second,
 		PromptCtx: &prompt.Context{
@@ -763,27 +704,15 @@ func TestRunRefactorAndPostChecks_ValidationTimeoutIndependentOfRefactorTimeout(
 
 	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
 	r.cfg.Refactor.MinFilesChanged = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			// Refactor also times out.
-			return nil, context.DeadlineExceeded
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		// Refactor also times out.
+		return nil, context.DeadlineExceeded
+	})
 
 	bc := &runtypes.BeadContext{
 		Bead:        &bead.Bead{ID: "test-both-timeout", Title: "Both Timeout"},
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   context.Background(),
 		BeadTimeout: 100 * time.Millisecond, // short so validation phase context expires quickly
 		PromptCtx: &prompt.Context{
@@ -827,26 +756,14 @@ func TestRunRefactorAndPostChecks_DefaultFallbackWhenPhaseTimeoutsOmitted(t *tes
 	// Explicitly zero: no phase timeout overrides configured.
 	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{}
 	r.cfg.Validation.PhaseTimeoutSeconds = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			refactorCtxDeadline, refactorCtxHadDeadline = ctx.Deadline()
-			return &claude.Result{Success: true}, nil
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		refactorCtxDeadline, refactorCtxHadDeadline = ctx.Deadline()
+		return &claude.Result{Success: true}, nil
+	})
 
 	bc := &runtypes.BeadContext{
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   context.Background(),
 		BeadTimeout: 200 * time.Second,
 		PromptCtx: &prompt.Context{
@@ -900,26 +817,14 @@ func TestRunRefactorAndPostChecks_SetsValidationPhaseAttributionOnTimeout(t *tes
 
 	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
 	r.cfg.Refactor.MinFilesChanged = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) {
-			return "refactor prompt", nil
-		},
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			return &claude.Result{Success: true}, nil
-		},
-		nil,
-		func(commit string) error { return nil },
-		func() (string, error) { return "abc123", nil },
-	))
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		return &claude.Result{Success: true}, nil
+	})
 
 	bc := &runtypes.BeadContext{
 		Bead:        &bead.Bead{ID: "test-val-timeout", Title: "Validation Timeout"},
 		Tier:        provider.TierMedium,
-		StartCommit: "abc123",
+		StartCommit: testStartCommit,
 		ParentCtx:   context.Background(),
 		BeadTimeout: 100 * time.Millisecond, // very short so the phase context expires quickly
 		PromptCtx: &prompt.Context{
