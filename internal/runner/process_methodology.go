@@ -48,6 +48,7 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 	defer redCancel()
 	r.log("Red phase context: timeout=%s source=%s", redMeta.EffectiveTimeout.Round(time.Second), redMeta.TimeoutSource)
 	if err := r.methodologyExec.RunAcceptanceTestsWithRetry(redCtx, bc); err != nil {
+		setPhaseAttribution(bc.Result, "red", err)
 		bc.Result.Error = fmt.Errorf("acceptance tests phase failed: %w", err)
 		return false
 	}

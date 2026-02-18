@@ -596,3 +596,45 @@ func TestRunATDDPreBuildPhases_UsesRedPhaseContext(t *testing.T) {
 		t.Fatalf("ATDD red context deadline unexpected: %v remaining (want ~90s)", untilDeadline.Round(time.Second))
 	}
 }
+
+func TestRunATDDPreBuildPhases_SetsRedPhaseAttributionOnTimeout(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			ATDD: true,
+			PhaseTimeouts: config.MethodologyPhaseTimeout{
+				RedSeconds: 90,
+			},
+		},
+	}
+	cfg.SetDefaults()
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
+
+	// Create a methodology executor that returns a deadline-exceeded error
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+		return context.DeadlineExceeded
+	}
+	r.methodologyExec = methodology.NewExecutorWithEscalation(
+		r.cfg, r.output, r.renderer.RenderAcceptanceTests, invokeFn, nil, nil,
+	)
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-red-timeout", Title: "Test Red Phase Timeout", Labels: []string{"methodology:true"}},
+		Tier:        provider.TierMedium,
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	r.runATDDPreBuildPhases(context.Background(), bc)
+
+	if bc.Result.TimeoutPhase != "red" {
+		t.Fatalf("TimeoutPhase = %q, want %q", bc.Result.TimeoutPhase, "red")
+	}
+}
