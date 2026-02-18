@@ -198,6 +198,7 @@ state:
 methodology:
   atdd: false
   tdd: true
+  # granularity: "bead"  # "bead" or "spec"
   # Optional phase-specific time budgets (seconds). Any zero/omitted value falls back to claude.bead_timeout.
   # phase_timeouts:
   #   red_seconds: 900
