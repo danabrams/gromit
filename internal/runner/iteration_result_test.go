@@ -15,3 +15,17 @@ func TestIterationResult_HasRateLimitRecoveryMsField(t *testing.T) {
 		t.Errorf("expected RateLimitRecoveryMs=250, got %d", result.RateLimitRecoveryMs)
 	}
 }
+
+// TestIterationResult_HasValidationDurationMsField verifies that IterationResult
+// struct has a ValidationDurationMs field for tracking validation duration.
+func TestIterationResult_HasValidationDurationMsField(t *testing.T) {
+	result := &IterationResult{
+		BeadID:               "test-1",
+		Model:                "sonnet",
+		ValidationDurationMs: 420,
+	}
+
+	if result.ValidationDurationMs != 420 {
+		t.Errorf("expected ValidationDurationMs=420, got %d", result.ValidationDurationMs)
+	}
+}

@@ -75,6 +75,7 @@ type IterationResult struct {
 	TrivialAutoFixed        bool   // true when auto-fix resolved validation without Claude
 	UsageLimited            bool   // true when invocation failed due to usage/rate limit
 	ValidationMode          string // "direct" when validation ran via shell commands
+	ValidationDurationMs    int64  // time spent in validation in milliseconds
 	CompilationErrors       bool   // true when pre-build compilation check found errors
 	HardStopPendingApproval bool   // true when hard-stop action requires explicit human approval
 
