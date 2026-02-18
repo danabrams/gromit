@@ -101,6 +101,43 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 	}
 }
 
+// deadlineGuard holds the result of a deadline check for an optional phase.
+type deadlineGuard struct {
+	Skip       bool
+	Remaining  time.Duration
+	Needed     time.Duration
+	SkipReason string
+}
+
+// checkDeadlineGuard inspects ctx.Deadline() and determines whether enough time
+// remains to run a phase that requires the given needed duration. If the context
+// has no deadline, the phase is allowed to run (Skip=false). If the deadline has
+// passed or insufficient time remains, Skip=true with a reason set.
+func checkDeadlineGuard(ctx context.Context, needed time.Duration) deadlineGuard {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return deadlineGuard{Skip: false, Needed: needed}
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return deadlineGuard{
+			Skip:       true,
+			Remaining:  remaining,
+			Needed:     needed,
+			SkipReason: "deadline expired",
+		}
+	}
+	if remaining < needed {
+		return deadlineGuard{
+			Skip:       true,
+			Remaining:  remaining,
+			Needed:     needed,
+			SkipReason: "insufficient time remaining",
+		}
+	}
+	return deadlineGuard{Skip: false, Remaining: remaining, Needed: needed}
+}
+
 // minRefactorTime is the minimum remaining bead budget required to start the
 // refactor phase. Skipping refactor when nearly out of time avoids beginning
 // a Claude invocation that is unlikely to complete within budget.
