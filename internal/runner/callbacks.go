@@ -26,8 +26,20 @@ import (
 // handling cost data, scope-too-large, usage limit detection, and timeout classification.
 func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 	return func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*escalation.InvocationResult, error) {
-		// Re-render build prompt on retry so failure context is included
-		if bc.PromptCtx != nil && bc.PromptCtx.IsRetry && r.renderer != nil {
+		prevScopedTestCmd := ""
+		if bc.PromptCtx != nil {
+			prevScopedTestCmd = bc.PromptCtx.ScopedTestCommand
+		}
+		if bc.StartCommit != "" {
+			if diff, err := r.getDiff(bc.StartCommit); err == nil && diff != "" {
+				bc.TouchedPackages = detectTouchedPackages(diff)
+			}
+		}
+		injectScopedTestCommand(bc)
+
+		// Re-render build prompt when retry context changes or when the scoped
+		// self-check command changes from git diff detection.
+		if bc.PromptCtx != nil && r.renderer != nil && (bc.PromptCtx.IsRetry || bc.PromptCtx.ScopedTestCommand != prevScopedTestCmd) {
 			rendered, renderErr := r.renderer.RenderBuild(bc.PromptCtx)
 			if renderErr == nil {
 				bc.BuildPrompt = rendered

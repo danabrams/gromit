@@ -5,10 +5,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -123,5 +125,55 @@ func TestMakeInvokeFn_DeadlineExceededSetsInvocationTimeout(t *testing.T) {
 	}
 	if bc.Result.TimeoutType != "invocation" {
 		t.Fatalf("bc.Result.TimeoutType = %q, want %q", bc.Result.TimeoutType, "invocation")
+	}
+}
+
+func TestMakeInvokeFn_RefreshesScopedTestCommandFromGitDiffBeforeBuildInvocation(t *testing.T) {
+	var capturedPrompt string
+
+	mockProvider := &mockProviderWithRouterTracking{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			capturedPrompt = prompt
+			return &provider.Result{Success: true, Output: "ok", ExitCode: 0, Model: "test-model"}, nil
+		},
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	var buf bytes.Buffer
+	renderer := &mockPromptRenderer{
+		RenderBuildFn: func(ctx *prompt.Context) (string, error) {
+			return "Self-check command: " + ctx.ScopedTestCommand, nil
+		},
+	}
+	r := &Runner{
+		cfg:      &config.Config{},
+		router:   mockRouter,
+		invoker:  newInvokerForTest(mockRouter, &buf, nil),
+		output:   &buf,
+		renderer: renderer,
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/internal/runner/process.go b/internal/runner/process.go\n" +
+				"diff --git a/internal/config/config.go b/internal/config/config.go\n", nil
+		},
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "bead-3", Title: "Test"},
+		Tier:        provider.TierMedium,
+		Result:      &IterationResult{},
+		BuildPrompt: "base prompt",
+		PromptCtx:   &prompt.Context{},
+		StartCommit: "abc123",
+		ParentCtx:   context.Background(),
+	}
+
+	invokeFn := r.makeInvokeFn()
+	_, err := invokeFn(context.Background(), bc, "ignored")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(capturedPrompt, "go test ./internal/runner/... ./internal/config/...") {
+		t.Fatalf("provider prompt = %q, want scoped go test command derived from git diff", capturedPrompt)
 	}
 }
