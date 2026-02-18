@@ -117,6 +117,14 @@ func trackEscalationTargets(modelMap map[string]ModelStats, entries []IterationL
 	}
 }
 
+// SpecCost represents aggregated cost and usage statistics for a spec
+type SpecCost struct {
+	TotalCostUSD float64
+	Iterations   int
+	Beads        int
+	ModelMix     map[string]int
+}
+
 // CostPerCompletedBead computes the total cost per completed bead
 // including all retry attempts and escalations leading to completion
 func CostPerCompletedBead(logsDir string) (map[string]float64, error) {

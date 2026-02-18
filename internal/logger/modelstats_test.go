@@ -813,6 +813,32 @@ this is not json
 	}
 }
 
+// TestSpecCost_Struct verifies the SpecCost struct fields are accessible
+func TestSpecCost_Struct(t *testing.T) {
+	sc := SpecCost{
+		TotalCostUSD: 1.50,
+		Iterations:   5,
+		Beads:        3,
+		ModelMix:     map[string]int{"opus": 2, "sonnet": 3},
+	}
+
+	if sc.TotalCostUSD != 1.50 {
+		t.Errorf("TotalCostUSD = %.2f, want 1.50", sc.TotalCostUSD)
+	}
+	if sc.Iterations != 5 {
+		t.Errorf("Iterations = %d, want 5", sc.Iterations)
+	}
+	if sc.Beads != 3 {
+		t.Errorf("Beads = %d, want 3", sc.Beads)
+	}
+	if sc.ModelMix["opus"] != 2 {
+		t.Errorf("ModelMix[opus] = %d, want 2", sc.ModelMix["opus"])
+	}
+	if sc.ModelMix["sonnet"] != 3 {
+		t.Errorf("ModelMix[sonnet] = %d, want 3", sc.ModelMix["sonnet"])
+	}
+}
+
 // Expected failure: CostPerCompletedBead function does not exist yet
 func TestCostPerCompletedBead_NoCompletedBeads(t *testing.T) {
 	dir := t.TempDir()
