@@ -82,6 +82,7 @@ type Runner struct {
 	worktreeManager    WorktreeManager                                                                                                   // manages interactive worktrees (optional)
 	successfulBeads    int                                                                                                               // count of successful bead completions in the current run
 	successesSinceFull int                                                                                                               // successful beads since last full validation gate
+	specOrchestrator   *SpecOrchestrator                                                                                                 // coordinates spec-level acceptance test authoring when enabled
 }
 
 // NewRunner creates a new runner.

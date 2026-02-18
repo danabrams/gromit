@@ -11,16 +11,17 @@ import (
 )
 
 type runLoopState struct {
-	iteration         int
-	statusWriter      *StatusWriter
-	statusWritten     bool
-	timeBudgetMinutes int
-	consecutiveSkips  int
-	beadStats         map[string]logger.BeadStats
-	skippedBeads      map[string]bool
-	sf                *state.File
-	interactiveFile   *state.InteractiveFile
-	l3StopLine        bool // set when L3 stop-line halts state mutations
+	iteration           int
+	statusWriter        *StatusWriter
+	statusWritten       bool
+	timeBudgetMinutes   int
+	consecutiveSkips    int
+	beadStats           map[string]logger.BeadStats
+	skippedBeads        map[string]bool
+	testsAuthoredBySpec map[string]bool
+	sf                  *state.File
+	interactiveFile     *state.InteractiveFile
+	l3StopLine          bool // set when L3 stop-line halts state mutations
 }
 
 func (r *Runner) validateRunPrerequisites() error {
@@ -54,7 +55,8 @@ func (r *Runner) resetPerRunState() {
 
 func (r *Runner) initRunLoopState(deadline time.Time) (*runLoopState, func(), error) {
 	st := &runLoopState{
-		skippedBeads: make(map[string]bool),
+		skippedBeads:        make(map[string]bool),
+		testsAuthoredBySpec: make(map[string]bool),
 	}
 
 	statusWriter, err := NewStatusWriter(r.gromitDir)

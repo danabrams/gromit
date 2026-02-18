@@ -194,6 +194,54 @@ func TestExtractDeletedFiles(t *testing.T) {
 	}
 }
 
+func TestMaybeAuthorSpecAcceptance_FirstBeadCallsOrchestrator(t *testing.T) {
+	var loadSpecCalls int
+	renderer := &mockPromptRenderer{
+		LoadSpecFn: func(name string) (string, error) {
+			loadSpecCalls++
+			if name != "demo-spec" {
+				return "", fmt.Errorf("unexpected spec name %q", name)
+			}
+			return "spec contents", nil
+		},
+		LoadRulesForPhaseFn: func(phase string) (string, error) {
+			return "rules", nil
+		},
+		RenderSpecAcceptanceFn: func(ctx *prompt.SpecAcceptanceContext) (string, error) {
+			return "acceptance prompt", nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "ok"}, nil
+		},
+	}
+
+	orchestrator := &SpecOrchestrator{
+		renderer: renderer,
+		router:   newMockRouterFromClaudeClient(mockClaude),
+		cfg:      &config.Config{},
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "", 0, nil
+		},
+	}
+
+	r := &Runner{specOrchestrator: orchestrator}
+	st := &runLoopState{testsAuthoredBySpec: make(map[string]bool)}
+	b := &bead.Bead{Labels: []string{"spec:demo-spec"}}
+
+	if err := r.maybeAuthorSpecAcceptance(context.Background(), b, st); err != nil {
+		t.Fatalf("maybeAuthorSpecAcceptance() error: %v", err)
+	}
+	if loadSpecCalls != 1 {
+		t.Fatalf("expected LoadSpec to be called once, got %d", loadSpecCalls)
+	}
+	if !st.testsAuthoredBySpec["demo-spec"] {
+		t.Fatalf("expected testsAuthoredBySpec to be marked for demo-spec")
+	}
+}
+
 func TestDeterministicPrecheckReason(t *testing.T) {
 	tmpDir := t.TempDir()
 	wd, err := os.Getwd()

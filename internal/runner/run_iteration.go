@@ -101,6 +101,30 @@ func (r *Runner) runScopeGate(ctx context.Context, b *bead.Bead, st *runLoopStat
 	return estimate, true
 }
 
+func (r *Runner) maybeAuthorSpecAcceptance(ctx context.Context, b *bead.Bead, st *runLoopState) error {
+	if r == nil || b == nil || st == nil {
+		return nil
+	}
+	if r.specOrchestrator == nil {
+		return nil
+	}
+	specName := bead.FindSpecLabel(b.Labels)
+	if specName == "" {
+		return nil
+	}
+	if st.testsAuthoredBySpec == nil {
+		st.testsAuthoredBySpec = make(map[string]bool)
+	}
+	if st.testsAuthoredBySpec[specName] {
+		return nil
+	}
+	if err := r.specOrchestrator.AuthorAcceptanceTests(ctx, specName); err != nil {
+		return err
+	}
+	st.testsAuthoredBySpec[specName] = true
+	return nil
+}
+
 func (r *Runner) processSingleBead(
 	ctx context.Context,
 	b *bead.Bead,
@@ -172,6 +196,10 @@ func (r *Runner) processSingleBead(
 	if dryRun {
 		r.log("[DRY RUN] Would process bead %s with model %s", b.ID, model)
 		return false, nil
+	}
+
+	if err := r.maybeAuthorSpecAcceptance(ctx, b, st); err != nil {
+		return false, err
 	}
 
 	result := r.processBead(ctx, b, st.iteration, deadline, scopeEstimate)
