@@ -103,6 +103,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 			if validationGateCancel != nil {
 				validationGateCancel()
 			}
+			setPhaseAttribution(bc.Result, "validation_gate", err)
 			bc.Result.Error = err
 			return bc.Result
 		}
@@ -272,6 +273,7 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		defer acceptanceCancel()
 		r.log("Acceptance verification phase context: timeout=%s source=%s", acceptMeta.EffectiveTimeout.Round(time.Second), acceptMeta.TimeoutSource)
 		if err := r.methodologyExec.VerifyAcceptanceTestsPass(acceptanceCtx, bc); err != nil {
+			setPhaseAttribution(bc.Result, "acceptance_verification", err)
 			if r.handleAcceptanceVerificationFailure(ctx, bc, "acceptance verification failed after refactoring", err) {
 				return true, nil
 			}

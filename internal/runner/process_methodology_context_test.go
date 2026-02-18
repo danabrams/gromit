@@ -639,6 +639,48 @@ func TestRunATDDPreBuildPhases_SetsRedPhaseAttributionOnTimeout(t *testing.T) {
 	}
 }
 
+func TestExecuteBuildAndMethodologyLoop_SetsValidationGatePhaseAttributionOnTimeout(t *testing.T) {
+	// When the intermediate validation gate times out, TimeoutPhase should be
+	// "validation_gate" to attribute the timeout to that phase.
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		<-ctx.Done()
+		return "", "", 1, ctx.Err()
+	}
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+		Methodology: config.MethodologyConfig{
+			TDD: true,
+		},
+	}
+	cfg.SetDefaults()
+
+	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-valgate-timeout", Title: "Validation Gate Timeout", Labels: []string{"methodology:true"}},
+		Tier:        provider.TierMedium,
+		StartCommit: "abc123",
+		ParentCtx:   context.Background(),
+		BeadTimeout: 100 * time.Millisecond,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	executeWithRetry := func() bool {
+		return true // pretend build succeeded
+	}
+
+	result := r.executeBuildAndMethodologyLoop(context.Background(), bc, false, true, executeWithRetry)
+	if result.TimeoutPhase != "validation_gate" {
+		t.Fatalf("TimeoutPhase = %q, want %q", result.TimeoutPhase, "validation_gate")
+	}
+}
+
 func TestRunRefactorAndPostChecks_SetsValidationPhaseAttributionOnTimeout(t *testing.T) {
 	// When post-refactor validation times out via phase context expiration,
 	// TimeoutPhase should be "validation" to distinguish from a refactor timeout.
