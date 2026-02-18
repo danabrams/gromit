@@ -423,7 +423,12 @@ func (c *Client) CreateWithParentAndDescription(title string, priority int, labe
 	}
 
 	if len(expectedOutputs) > 0 {
-		args = append(args, "--acceptance", strings.Join(expectedOutputs, "\n"))
+		acceptancePath, cleanup, err := writeTempFile("bd-acceptance-*.txt", strings.Join(expectedOutputs, "\n"))
+		if err != nil {
+			return nil, err
+		}
+		defer cleanup()
+		args = append(args, "--acceptance", acceptancePath)
 	}
 
 	// Add parent if specified

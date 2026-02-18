@@ -1424,6 +1424,59 @@ func TestClientCreateWithParentAndDescription_UsesBodyFile(t *testing.T) {
 	}
 }
 
+func TestClientCreateWithParentAndDescription_UsesAcceptanceFile(t *testing.T) {
+	expectedOutputs := []string{"file1.go", "file2.go"}
+	wantAcceptance := strings.Join(expectedOutputs, "\n")
+	var gotArgs []string
+	var gotAcceptance string
+	var gotPath string
+
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			accIdx := -1
+			for i, arg := range args {
+				if arg == "--acceptance" {
+					accIdx = i
+					break
+				}
+			}
+			if accIdx == -1 || accIdx+1 >= len(args) {
+				return "", fmt.Errorf("missing --acceptance argument")
+			}
+			gotPath = args[accIdx+1]
+			data, err := os.ReadFile(gotPath)
+			if err != nil {
+				return "", err
+			}
+			gotAcceptance = string(data)
+			if _, err := os.Stat(gotPath); err != nil {
+				return "", err
+			}
+			return `{"id":"task-001","title":"Test","priority":1,"issue_type":"task","status":"open"}`, nil
+		},
+	}
+
+	_, err := c.CreateWithParentAndDescription("Test", 1, nil, expectedOutputs, "", "")
+	if err != nil {
+		t.Fatalf("CreateWithParentAndDescription() unexpected error: %v", err)
+	}
+	if gotPath == "" {
+		t.Fatal("CreateWithParentAndDescription() did not pass a temp file path")
+	}
+	for _, arg := range gotArgs {
+		if arg == wantAcceptance {
+			t.Fatalf("CreateWithParentAndDescription() should not pass acceptance directly in args")
+		}
+	}
+	if gotAcceptance != wantAcceptance {
+		t.Fatalf("CreateWithParentAndDescription() acceptance = %q, want %q", gotAcceptance, wantAcceptance)
+	}
+	if _, err := os.Stat(gotPath); !os.IsNotExist(err) {
+		t.Fatalf("temp file should be cleaned up, stat err=%v", err)
+	}
+}
+
 // TestClientCreateWithDeps tests CreateWithDepsAndDescription with multiple dependencies
 func TestClientCreateWithDeps(t *testing.T) {
 	tests := []struct {
