@@ -1,67 +1,67 @@
 {
-  "generated_at": "2026-02-18T01:44:24.227271911Z",
-  "total_iterations": 262,
+  "generated_at": "2026-02-18T02:11:15.636877221Z",
+  "total_iterations": 263,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 0.9333333333333333,
-    "failure_rate": 0.06666666666666667,
-    "first_pass_success_rate": 0.7,
+    "success_rate": 0.9666666666666667,
+    "failure_rate": 0.03333333333333333,
+    "first_pass_success_rate": 0.7333333333333333,
     "escalation_rate": 0.06666666666666667,
-    "avg_duration_ms": 619906.2,
+    "avg_duration_ms": 611200.3666666667,
     "p95_duration_ms": 1436452.4,
-    "avg_cost_usd": 0.6215278016666664,
+    "avg_cost_usd": 0.6959012499999998,
     "avg_mttr_proxy_ms": 0
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 0.6215278016666664,
-      "mean": 0.4557475032014225,
-      "std_dev": 0.5127092694102554,
-      "ucl": 1.9938753114321885,
-      "lcl": -1.0823803050293437
+      "latest": 0.6959012499999998,
+      "mean": 0.45666063531852735,
+      "std_dev": 0.5119470133736234,
+      "ucl": 1.9925016754393976,
+      "lcl": -1.0791804048023428
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 619906.2,
-      "mean": 722202.0651666638,
-      "std_dev": 340562.00457691227,
-      "ucl": 1743888.0788974008,
-      "lcl": -299483.94856407295
+      "latest": 611200.3666666667,
+      "mean": 721780.0054765497,
+      "std_dev": 339982.57624570857,
+      "ucl": 1741727.7342136754,
+      "lcl": -298167.7232605759
     },
     {
       "metric": "rolling_escalation_rate",
       "latest": 0.06666666666666667,
-      "mean": 0.06768447837150138,
-      "std_dev": 0.06614797343926966,
-      "ucl": 0.2661283986893104,
+      "mean": 0.06768060836501912,
+      "std_dev": 0.06602212678449128,
+      "ucl": 0.26574698871849295,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 0.7,
-      "mean": 0.03346055979643765,
-      "std_dev": 0.12230116513096803,
-      "ucl": 0.40036405518934176,
+      "latest": 0.7333333333333333,
+      "mean": 0.03612167300380228,
+      "std_dev": 0.12944520555550723,
+      "ucl": 0.424457289670324,
       "lcl": 0
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 0.9333333333333333,
-      "mean": 0.6251053326866909,
-      "std_dev": 0.20813675113916527,
+      "latest": 0.9666666666666667,
+      "mean": 0.6264040449831927,
+      "std_dev": 0.20880156164970629,
       "ucl": 1,
-      "lcl": 0.000695079269195098
+      "lcl": 0
     }
   ],
   "anomalies": [
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 0.7,
-      "ucl": 0.40036405518934176,
+      "latest": 0.7333333333333333,
+      "ucl": 0.424457289670324,
       "lcl": 0,
       "severity": "high",
-      "message": "latest value 0.7000 is above control limits [0.0000, 0.4004]"
+      "message": "latest value 0.7333 is above control limits [0.0000, 0.4245]"
     }
   ]
 }

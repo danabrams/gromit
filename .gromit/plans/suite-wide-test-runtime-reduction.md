@@ -1,8 +1,9 @@
 ---
+created: 2026-02-18T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-18T01:59:17Z"
 id: suite-wide-test-runtime-reduction
 source_spec: suite-wide-test-runtime-reduction
-created: 2026-02-18
-decomposed: false
 ---
 
 # Suite-Wide Test Runtime Reduction Implementation Plan
