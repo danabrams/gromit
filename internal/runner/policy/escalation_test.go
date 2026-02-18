@@ -46,3 +46,14 @@ func TestClassifyTimeout_ParentCanceledReturnsNoTimeoutType(t *testing.T) {
 		t.Error("ClassifyTimeout(parent canceled) ParentCanceled = false, want true")
 	}
 }
+
+func TestClassifyTimeout_DefaultsToInvocation(t *testing.T) {
+	p := newConfigEscalationPolicy(&config.Config{})
+	result := p.ClassifyTimeout(nil, nil, false)
+	if result.TimeoutType != "invocation" {
+		t.Errorf("ClassifyTimeout(default) TimeoutType = %q, want %q", result.TimeoutType, "invocation")
+	}
+	if result.ParentCanceled {
+		t.Error("ClassifyTimeout(default) ParentCanceled = true, want false")
+	}
+}

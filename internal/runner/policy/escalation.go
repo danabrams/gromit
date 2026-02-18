@@ -66,5 +66,5 @@ func (p *ConfigEscalationPolicy) ClassifyTimeout(ctxErr, parentErr error, stallF
 	if parentErr != nil {
 		return TimeoutClassification{ParentCanceled: true}
 	}
-	return TimeoutClassification{}
+	return TimeoutClassification{TimeoutType: "invocation"}
 }
