@@ -1147,6 +1147,36 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 	}
 }
 
+func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &SpecGateContext{
+		SpecCriteria: "Must return 200",
+	}
+
+	result, err := r.RenderSpecGate(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecGate() error = %v", err)
+	}
+
+	if !strings.Contains(result, "Must return 200") {
+		t.Error("expected spec criteria in rendered output")
+	}
+
+	absentSections := []string{
+		"## Test Output",
+		"## Failure Output",
+		"## Cumulative Diff",
+		"## Acceptance Criteria",
+	}
+	for _, section := range absentSections {
+		if strings.Contains(result, section) {
+			t.Errorf("expected empty field section %q to be omitted from output\ngot:\n%s", section, result)
+		}
+	}
+}
+
 func TestRenderTestFixNilRenderer(t *testing.T) {
 	var r *Renderer
 	_, err := r.RenderTestFix(nil)
