@@ -813,6 +813,32 @@ this is not json
 	}
 }
 
+// TestCostPerSpec_GroupsBySpecIDAndAccumulatesCost verifies cost is summed per spec_id
+func TestCostPerSpec_GroupsBySpecIDAndAccumulatesCost(t *testing.T) {
+	dir := t.TempDir()
+
+	logs := []IterationLog{
+		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.50, SpecID: "spec-A"},
+		{BeadID: "b2", Model: "sonnet", Success: false, CostUSD: 0.25, SpecID: "spec-A"},
+		{BeadID: "b3", Model: "haiku", Success: true, CostUSD: 0.10, SpecID: "spec-B"},
+	}
+	writeTestLogFile(t, dir, "20260218-120000", logs)
+
+	result, err := CostPerSpec(dir)
+	if err != nil {
+		t.Fatalf("CostPerSpec failed: %v", err)
+	}
+	if len(result) != 2 {
+		t.Fatalf("Expected 2 specs, got %d", len(result))
+	}
+	if diff := result["spec-A"].TotalCostUSD - 0.75; diff > 0.001 || diff < -0.001 {
+		t.Errorf("spec-A TotalCostUSD = %.2f, want 0.75", result["spec-A"].TotalCostUSD)
+	}
+	if diff := result["spec-B"].TotalCostUSD - 0.10; diff > 0.001 || diff < -0.001 {
+		t.Errorf("spec-B TotalCostUSD = %.2f, want 0.10", result["spec-B"].TotalCostUSD)
+	}
+}
+
 // TestCostPerSpec_EmptySpecIDMapsToUnassigned verifies entries with empty spec_id are grouped under "unassigned"
 func TestCostPerSpec_EmptySpecIDMapsToUnassigned(t *testing.T) {
 	dir := t.TempDir()
