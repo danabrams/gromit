@@ -49,3 +49,10 @@ func TestMaxRecoveryAttempts_ReturnsTwo(t *testing.T) {
 		t.Errorf("MaxRecoveryAttempts: got %d, want 2", got)
 	}
 }
+
+func TestShouldEscalateRecovery_ReturnsTrue(t *testing.T) {
+	p := newConfigValidationPolicy(0)
+	if !p.ShouldEscalateRecovery() {
+		t.Error("ShouldEscalateRecovery: expected true")
+	}
+}
