@@ -166,10 +166,7 @@ func (r *Runner) runEpilogueReview(ctx context.Context, st *runLoopState) error 
 // runEpilogueRetro selects a high-tier provider, runs retrospective analysis,
 // applies the proposals, and records the retro in state.
 func (r *Runner) runEpilogueRetro(ctx context.Context) error {
-	if r == nil || r.cfg == nil {
-		return nil
-	}
-	if r.router == nil {
+	if r == nil || r.cfg == nil || r.router == nil {
 		return nil
 	}
 
@@ -195,20 +192,9 @@ func (r *Runner) runEpilogueRetro(ctx context.Context) error {
 		return fmt.Errorf("running retro: %w", err)
 	}
 
-	// Parse and apply proposals
-	proposals, err := retro.ParseProposals(result.Analysis)
-	if err != nil {
-		r.log("Warning: parsing retro proposals failed: %v", err)
-	} else {
-		lf, lfErr := learnings.NewFile(r.gromitDir)
-		if lfErr == nil {
-			if loadErr := lf.Load(); loadErr == nil {
-				rulesPath := filepath.Join(r.gromitDir, "RULES.md")
-				if applyErr := retro.ApplyProposals(proposals, lf, rulesPath); applyErr != nil {
-					r.log("Warning: applying retro proposals failed: %v", applyErr)
-				}
-			}
-		}
+	// Parse and apply proposals (failures are warnings, not fatal).
+	if err := r.applyRetroProposals(result.Analysis); err != nil {
+		r.log("Warning: applying retro proposals: %v", err)
 	}
 
 	// Record retro in state
@@ -227,6 +213,27 @@ func (r *Runner) runEpilogueRetro(ctx context.Context) error {
 		r.log("Warning: recording retro in state failed: %v", err)
 	}
 
+	return nil
+}
+
+// applyRetroProposals parses the retro analysis and applies accepted proposals
+// to LEARNINGS.md and RULES.md. Individual failures are returned as a combined error.
+func (r *Runner) applyRetroProposals(analysis string) error {
+	proposals, err := retro.ParseProposals(analysis)
+	if err != nil {
+		return fmt.Errorf("parsing proposals: %w", err)
+	}
+	lf, err := learnings.NewFile(r.gromitDir)
+	if err != nil {
+		return fmt.Errorf("opening learnings file: %w", err)
+	}
+	if err := lf.Load(); err != nil {
+		return fmt.Errorf("loading learnings: %w", err)
+	}
+	rulesPath := filepath.Join(r.gromitDir, "RULES.md")
+	if err := retro.ApplyProposals(proposals, lf, rulesPath); err != nil {
+		return fmt.Errorf("applying proposals: %w", err)
+	}
 	return nil
 }
 

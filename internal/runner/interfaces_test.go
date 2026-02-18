@@ -824,6 +824,35 @@ func TestRunWithMocks_MaxIterations(t *testing.T) {
 	}
 }
 
+func TestRunWithMocks_UsesLoopMaxIterationsWhenSessionIterationsZero(t *testing.T) {
+	callCount := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			switch callCount {
+			case 1:
+				return &bead.Bead{ID: "test-1", Title: "First bead", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}, nil
+			case 2:
+				return &bead.Bead{ID: "test-2", Title: "Second bead", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+
+	cfg := &config.Config{Loop: config.LoopConfig{MaxIterations: 1}}
+	r, _ := newRunnerWithMocks(t, cfg, Deps{Beads: beads})
+
+	err := r.Run(context.Background(), 0, time.Time{}, nil, true)
+	if err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	if callCount != 1 {
+		t.Errorf("expected Ready to be called once due to loop max iterations, got %d", callCount)
+	}
+}
+
 func TestStatusWithMocks(t *testing.T) {
 	withFastStatusReaders(t)
 
