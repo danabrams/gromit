@@ -35,6 +35,20 @@ ok  	github.com/danabrams/gromit/internal/baz	(cached)
 	}
 }
 
+func TestParseTestLog_DetectsBuildError(t *testing.T) {
+	input := `# github.com/danabrams/gromit/internal/broken [github.com/danabrams/gromit/internal/broken.test]
+FAIL	github.com/danabrams/gromit/internal/broken [build failed]
+`
+	result := parseTestLog(strings.NewReader(input))
+
+	if len(result.BuildErrors) != 1 {
+		t.Fatalf("want 1 build error, got %d", len(result.BuildErrors))
+	}
+	if result.BuildErrors[0] != "github.com/danabrams/gromit/internal/broken" {
+		t.Errorf("build error pkg = %q, want %q", result.BuildErrors[0], "github.com/danabrams/gromit/internal/broken")
+	}
+}
+
 func TestParseTestLog_DetectsFailingTest(t *testing.T) {
 	input := `=== RUN   TestFoo
 --- FAIL: TestFoo (0.01s)
