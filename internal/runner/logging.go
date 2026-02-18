@@ -66,6 +66,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		CompilationErrors:         result.CompilationErrors,
 		HardStopPendingApproval:   result.HardStopPendingApproval,
 		TimeoutType:               result.TimeoutType,
+		TimeoutPhase:              result.TimeoutPhase,
 		TimeToFirstEventMs:        result.TimeToFirstEventMs,
 		ToolCallCount:             result.ToolCallCount,
 		StallCount:                result.StallCount,

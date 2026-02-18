@@ -555,6 +555,59 @@ func TestWriteIterationLog_FilesTouched(t *testing.T) {
 	}
 }
 
+func TestWriteIterationLog_PropagatesTimeoutPhase(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
+
+	r := &Runner{logger: l}
+	result := &IterationResult{
+		BeadID:       "bead-phase-1",
+		BeadTitle:    "Phase attribution test",
+		Model:        "sonnet",
+		Success:      false,
+		Duration:     1 * time.Second,
+		Error:        fmt.Errorf("validation phase aborted due to timeout"),
+		TimeoutType:  "bead",
+		TimeoutPhase: "validation",
+	}
+
+	r.writeIterationLog(1, result)
+
+	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("globbing log files: %v", err)
+	}
+	if len(logFiles) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(logFiles))
+	}
+
+	data, err := os.ReadFile(logFiles[0])
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	var entry map[string]any
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		t.Fatalf("unmarshaling log line: %v", err)
+	}
+
+	if got := entry["timeout_phase"]; got != "validation" {
+		t.Fatalf("timeout_phase = %v, want %q", got, "validation")
+	}
+	if got := entry["timeout_type"]; got != "bead" {
+		t.Fatalf("timeout_type = %v, want %q", got, "bead")
+	}
+}
+
 func TestWriteIterationLog_ReliabilityMetricsDerivableFromStructuredEntries(t *testing.T) {
 	// Expected failure: logger.ReadReliabilityMetrics does not exist yet; the
 	// feature is expected to provide canonical derivation from emitted logs.

@@ -77,6 +77,7 @@ type IterationResult struct {
 
 	// Diagnostic fields for timeout investigation
 	TimeoutType         string // "stall", "bead", "invocation", ""
+	TimeoutPhase        string // phase active when timeout/cancel occurred (e.g. "red", "green", "refactor", "validation")
 	TimeToFirstEventMs  int64
 	ToolCallCount       int
 	StallCount          int

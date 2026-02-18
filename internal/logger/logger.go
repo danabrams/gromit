@@ -35,6 +35,7 @@ type IterationLog struct {
 
 	// Diagnostic fields for timeout investigation
 	TimeoutType         string `json:"timeout_type,omitempty"`           // "stall", "bead", "invocation", ""
+	TimeoutPhase        string `json:"timeout_phase,omitempty"`          // phase active when timeout/cancel occurred
 	TimeToFirstEventMs  int64  `json:"time_to_first_event_ms,omitempty"` // ms from start to first stream event
 	ToolCallCount       int    `json:"tool_call_count,omitempty"`        // tool calls before completion/timeout
 	StallCount          int    `json:"stall_count,omitempty"`            // number of stall detections
