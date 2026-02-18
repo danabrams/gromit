@@ -1,0 +1,223 @@
+=== RUN   TestCmdAcceptanceTests_OnlyContainSmokeMatrixKeepCases
+--- PASS: TestCmdAcceptanceTests_OnlyContainSmokeMatrixKeepCases (0.00s)
+=== RUN   TestCmdAcceptanceTests_AllKeepCasesPresent
+--- PASS: TestCmdAcceptanceTests_AllKeepCasesPresent (0.00s)
+=== RUN   TestCmdAcceptanceTests_RemovedCasesHaveUnitCoverage
+--- PASS: TestCmdAcceptanceTests_RemovedCasesHaveUnitCoverage (0.00s)
+=== RUN   TestCmdAcceptanceTests_OnlyTestCmdSmokePatternFunctions
+--- PASS: TestCmdAcceptanceTests_OnlyTestCmdSmokePatternFunctions (0.00s)
+=== RUN   TestCmdAcceptanceTests_MaxThreeTestsPerFile
+--- PASS: TestCmdAcceptanceTests_MaxThreeTestsPerFile (0.00s)
+=== RUN   TestCmdAcceptanceTests_SmokeAnnotationsMatchMatrix
+--- PASS: TestCmdAcceptanceTests_SmokeAnnotationsMatchMatrix (0.00s)
+=== RUN   TestExploreRefactoring_PreservesTests
+    explore_pipeline_adapter_test.go:481: Test migration verification - run test suite after refactoring
+--- SKIP: TestExploreRefactoring_PreservesTests (0.00s)
+=== RUN   TestReviewSpecValidationRefactor_UsesTableDrivenScenarioGroups
+--- PASS: TestReviewSpecValidationRefactor_UsesTableDrivenScenarioGroups (0.00s)
+=== RUN   TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers
+--- PASS: TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers (0.00s)
+=== RUN   TestReviewSpecValidationRefactor_ReducesLinesAndKeepsDeterministicCoverage
+--- PASS: TestReviewSpecValidationRefactor_ReducesLinesAndKeepsDeterministicCoverage (0.00s)
+PASS
+ok  	github.com/danabrams/gromit/cmd/gromit	(cached)
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/agent	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/analyzer	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/backlog	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/bead	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/claude	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/config	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/frontmatter	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/jsonutil	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/learnings	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/logger	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/pipeline	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/preflight	(cached) [no tests to run]
+=== RUN   TestRenderRefactor_ShapesContextWhenOverBudget
+Prompt budget: 508 -> 8 chars (trimmed: drop ClaudeMD)
+--- PASS: TestRenderRefactor_ShapesContextWhenOverBudget (0.00s)
+=== RUN   TestRenderAcceptanceTests_ShapesContextWhenOverBudget
+Prompt budget: 508 -> 8 chars (trimmed: drop ClaudeMD)
+--- PASS: TestRenderAcceptanceTests_ShapesContextWhenOverBudget (0.00s)
+=== RUN   TestMethodologyPhaseContextShaping_RedGreenRefactor
+=== RUN   TestMethodologyPhaseContextShaping_RedGreenRefactor/red_preserves_acceptance_and_spec_while_trimming_low-signal_payload
+=== RUN   TestMethodologyPhaseContextShaping_RedGreenRefactor/green_emphasizes_failing-test_signal_and_required_behavior
+=== RUN   TestMethodologyPhaseContextShaping_RedGreenRefactor/refactor_focuses_on_constraints_and_excludes_redundant_build_payload
+--- PASS: TestMethodologyPhaseContextShaping_RedGreenRefactor (0.00s)
+    --- PASS: TestMethodologyPhaseContextShaping_RedGreenRefactor/red_preserves_acceptance_and_spec_while_trimming_low-signal_payload (0.00s)
+    --- PASS: TestMethodologyPhaseContextShaping_RedGreenRefactor/green_emphasizes_failing-test_signal_and_required_behavior (0.00s)
+    --- PASS: TestMethodologyPhaseContextShaping_RedGreenRefactor/refactor_focuses_on_constraints_and_excludes_redundant_build_payload (0.00s)
+=== RUN   TestShapeRefactorPhaseContext_PreservesGuardrailsAndDropsBuildPayload
+--- PASS: TestShapeRefactorPhaseContext_PreservesGuardrailsAndDropsBuildPayload (0.00s)
+=== RUN   TestShapeRefactorPhaseContext_AddsBehaviorPreservationGuardrailPhrase
+--- PASS: TestShapeRefactorPhaseContext_AddsBehaviorPreservationGuardrailPhrase (0.00s)
+=== RUN   TestRenderAcceptanceTests
+--- PASS: TestRenderAcceptanceTests (0.00s)
+=== RUN   TestRenderRefactor
+--- PASS: TestRenderRefactor (0.00s)
+PASS
+ok  	github.com/danabrams/gromit/internal/prompt	(cached)
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/provider	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/retro	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/review	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/rules	(cached) [no tests to run]
+=== RUN   TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec
+--- PASS: TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec (0.02s)
+=== RUN   TestProcessBead_RefactorPhase_RequiresMethodologyExec
+--- PASS: TestProcessBead_RefactorPhase_RequiresMethodologyExec (0.07s)
+=== RUN   TestProcessBead_ATDD_RetriesWhenAcceptanceVerificationFailsAfterRefactor
+--- PASS: TestProcessBead_ATDD_RetriesWhenAcceptanceVerificationFailsAfterRefactor (0.03s)
+=== RUN   TestRunRefactorAndPostChecks_ValidationUsesParentContext
+--- PASS: TestRunRefactorAndPostChecks_ValidationUsesParentContext (0.00s)
+=== RUN   TestRunRefactorAndPostChecks_AcceptanceVerificationUsesParentContext
+--- PASS: TestRunRefactorAndPostChecks_AcceptanceVerificationUsesParentContext (0.00s)
+=== RUN   TestPrepareMethodology_ATDDSkipDoesNotCallRenderAcceptanceTests
+--- PASS: TestPrepareMethodology_ATDDSkipDoesNotCallRenderAcceptanceTests (0.00s)
+=== RUN   TestRunRefactorWithRouter_UsesStreamRun
+--- PASS: TestRunRefactorWithRouter_UsesStreamRun (0.00s)
+=== RUN   TestRunRefactorAndPostChecks_RevalidationSkippedWhenUnderThreshold
+--- PASS: TestRunRefactorAndPostChecks_RevalidationSkippedWhenUnderThreshold (0.00s)
+=== RUN   TestRunRefactorAndPostChecks_RefactorSkippedWhenTimeExpired
+--- PASS: TestRunRefactorAndPostChecks_RefactorSkippedWhenTimeExpired (0.00s)
+=== RUN   TestRunRefactorAndPostChecks_RefactorSkippedWhenDeadlineInsufficient
+--- PASS: TestRunRefactorAndPostChecks_RefactorSkippedWhenDeadlineInsufficient (0.00s)
+=== RUN   TestRunRefactorAndPostChecks_RevalidationSkippedWhenTimeExpired
+--- PASS: TestRunRefactorAndPostChecks_RevalidationSkippedWhenTimeExpired (0.00s)
+=== RUN   TestRunRefactorAndPostChecks_NonTimeoutValidationFailure
+--- PASS: TestRunRefactorAndPostChecks_NonTimeoutValidationFailure (0.00s)
+=== RUN   TestRefactorConfigDefaultMinFilesChanged
+--- PASS: TestRefactorConfigDefaultMinFilesChanged (0.00s)
+=== RUN   TestWrapRefactorValidationError
+=== RUN   TestWrapRefactorValidationError/deadline_exceeded
+=== RUN   TestWrapRefactorValidationError/canceled
+=== RUN   TestWrapRefactorValidationError/generic_validation_error_wraps_original
+--- PASS: TestWrapRefactorValidationError (0.00s)
+    --- PASS: TestWrapRefactorValidationError/deadline_exceeded (0.00s)
+    --- PASS: TestWrapRefactorValidationError/canceled (0.00s)
+    --- PASS: TestWrapRefactorValidationError/generic_validation_error_wraps_original (0.00s)
+=== RUN   TestRunnerSmokeSuite_AcceptanceTestsMatchApprovedMatrix
+--- PASS: TestRunnerSmokeSuite_AcceptanceTestsMatchApprovedMatrix (0.07s)
+PASS
+ok  	github.com/danabrams/gromit/internal/runner	0.226s
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/runner/andon	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/runner/escalation	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/runner/execution	(cached) [no tests to run]
+=== RUN   TestRunAcceptanceTests_RendersPromptAndInvokes
+--- PASS: TestRunAcceptanceTests_RendersPromptAndInvokes (0.00s)
+=== RUN   TestRunAcceptanceTests_LogsLifecycle
+--- PASS: TestRunAcceptanceTests_LogsLifecycle (0.00s)
+=== RUN   TestRunAcceptanceTests_PropagatesRenderError
+--- PASS: TestRunAcceptanceTests_PropagatesRenderError (0.00s)
+=== RUN   TestRunAcceptanceTests_PropagatesInvocationError
+--- PASS: TestRunAcceptanceTests_PropagatesInvocationError (0.00s)
+=== RUN   TestVerifyAcceptanceTestsPass_ReturnsNilWhenTestsPass
+--- PASS: TestVerifyAcceptanceTestsPass_ReturnsNilWhenTestsPass (0.00s)
+=== RUN   TestVerifyAcceptanceTestsPass_ReturnsErrorWhenTestsFail
+--- PASS: TestVerifyAcceptanceTestsPass_ReturnsErrorWhenTestsFail (0.00s)
+=== RUN   TestVerifyAcceptanceTestsPass_ReturnsErrorWhenValidationDisabled
+--- PASS: TestVerifyAcceptanceTestsPass_ReturnsErrorWhenValidationDisabled (0.00s)
+=== RUN   TestShouldRunRefactor
+=== RUN   TestShouldRunRefactor/skips_refactor_for_low-tier_beads
+=== RUN   TestShouldRunRefactor/always_runs_when_threshold_is_zero
+=== RUN   TestShouldRunRefactor/runs_when_files_changed_exceeds_threshold
+=== RUN   TestShouldRunRefactor/skips_when_files_changed_below_threshold
+=== RUN   TestShouldRunRefactor/runs_for_high-tier_beads_when_threshold_met
+--- PASS: TestShouldRunRefactor (0.00s)
+    --- PASS: TestShouldRunRefactor/skips_refactor_for_low-tier_beads (0.00s)
+    --- PASS: TestShouldRunRefactor/always_runs_when_threshold_is_zero (0.00s)
+    --- PASS: TestShouldRunRefactor/runs_when_files_changed_exceeds_threshold (0.00s)
+    --- PASS: TestShouldRunRefactor/skips_when_files_changed_below_threshold (0.00s)
+    --- PASS: TestShouldRunRefactor/runs_for_high-tier_beads_when_threshold_met (0.00s)
+=== RUN   TestRunRefactorPhase_SkipsWhenNoDiff
+--- PASS: TestRunRefactorPhase_SkipsWhenNoDiff (0.00s)
+=== RUN   TestRunRefactorPhase_SkipsWhenBelowFileThreshold
+--- PASS: TestRunRefactorPhase_SkipsWhenBelowFileThreshold (0.00s)
+=== RUN   TestRunRefactorPhase_ExecutesRefactorAndRevalidates
+--- PASS: TestRunRefactorPhase_ExecutesRefactorAndRevalidates (0.00s)
+=== RUN   TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure
+--- PASS: TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure (0.00s)
+=== RUN   TestRunRefactorPhase_RevertsOnBothValidationFailures
+--- PASS: TestRunRefactorPhase_RevertsOnBothValidationFailures (0.00s)
+=== RUN   TestRunAcceptanceTestsWithRetry_SucceedsOnFirstAttempt
+--- PASS: TestRunAcceptanceTestsWithRetry_SucceedsOnFirstAttempt (0.00s)
+=== RUN   TestRunAcceptanceTestsWithRetry_RetriesBeforeEscalating
+--- PASS: TestRunAcceptanceTestsWithRetry_RetriesBeforeEscalating (0.00s)
+=== RUN   TestRunAcceptanceTestsWithRetry_FailsWhenAllTiersExhausted
+--- PASS: TestRunAcceptanceTestsWithRetry_FailsWhenAllTiersExhausted (0.00s)
+=== RUN   TestRunAcceptanceTestsWithRetry_FailsFastOnCanceledContext
+--- PASS: TestRunAcceptanceTestsWithRetry_FailsFastOnCanceledContext (0.00s)
+PASS
+ok  	github.com/danabrams/gromit/internal/runner/methodology	(cached)
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/runner/reviewpkg	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/runner/runtypes	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/runner/validation	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/scope	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/state	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/tmux	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/usagelimit	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/validate	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/internal/worktree	(cached) [no tests to run]
+?   	github.com/danabrams/gromit/skills	[no test files]
+?   	github.com/danabrams/gromit/test/contracts	[no test files]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/test/fixtures	(cached) [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/danabrams/gromit/test/testutil	(cached) [no tests to run]
