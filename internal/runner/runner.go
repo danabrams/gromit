@@ -108,11 +108,8 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		return err
 	}
 
-	// session.iterations overrides maxIterations when set (> 0)
-	effectiveMaxIterations := maxIterations
-	if r.cfg.Session.Iterations > 0 {
-		effectiveMaxIterations = r.cfg.Session.Iterations
-	}
+	// session.iterations overrides loop.max_iterations when set (> 0)
+	effectiveMaxIterations := r.resolveMaxIterations(maxIterations)
 
 	r.resetPerRunState()
 	r.startTrendUpdater()
@@ -185,6 +182,17 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	return r.finishRun(ctx, st)
+}
+
+func (r *Runner) resolveMaxIterations(cliMax int) int {
+	maxIterations := cliMax
+	if r.cfg.Loop.MaxIterations > 0 {
+		maxIterations = r.cfg.Loop.MaxIterations
+	}
+	if r.cfg.Session.Iterations > 0 {
+		maxIterations = r.cfg.Session.Iterations
+	}
+	return maxIterations
 }
 
 func (r *Runner) restoreTmuxTitle(restoreFn func() error) {

@@ -186,6 +186,7 @@ func (r *Runner) finishRun(ctx context.Context, st *runLoopState) error {
 		}
 	}
 
+	// Epilogue handles its own logging; we only need the retro flag here.
 	epilogueRanRetro, _ := r.runSessionEpilogue(ctx, st)
 	if !epilogueRanRetro {
 		r.checkRetroSuggestion()
