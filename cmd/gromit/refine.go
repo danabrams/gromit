@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -100,7 +101,7 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 		}
 
 		// Show picker
-		choice := showRefinePicker(unrefined)
+		choice := showRefinePicker(unrefined, os.Stdin)
 		if choice == len(unrefined) {
 			// "Something new..." selected
 			fmt.Println("\nStarting a blank refinement session...")
@@ -122,7 +123,7 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 	return &pipeline.RefineInput{IdeaText: arg, AgentName: agentFlag}, nil
 }
 
-func showRefinePicker(unrefined []*backlog.Idea) int {
+func showRefinePicker(unrefined []*backlog.Idea, reader io.Reader) int {
 	fmt.Println("Select an idea to refine:")
 	fmt.Println()
 	for i, idea := range unrefined {
@@ -135,8 +136,11 @@ func showRefinePicker(unrefined []*backlog.Idea) int {
 	fmt.Printf("  %d. [new]     Something new...\n", len(unrefined)+1)
 
 	fmt.Printf("\nChoice [1-%d]: ", len(unrefined)+1)
-	reader := bufio.NewReader(os.Stdin)
-	choiceStr, _ := reader.ReadString('\n')
+	lineReader := bufio.NewReader(reader)
+	choiceStr, err := lineReader.ReadString('\n')
+	if err != nil {
+		return len(unrefined)
+	}
 
 	var choice int
 	fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choice)
