@@ -755,3 +755,27 @@ func TestPickRunbookEntrySelectsSecondEntry(t *testing.T) {
 		t.Errorf("expected BeadID 'gromit-bbb', got %q", entry.BeadID)
 	}
 }
+
+// TestBuildDebugPromptWithRunbookEntrySkippedWhenArgsPresent verifies that when a description
+// arg is provided, the caller passes nil entry (picker is skipped) and the prompt
+// contains the description but no Failure Context.
+func TestBuildDebugPromptWithRunbookEntrySkippedWhenArgsPresent(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	// When a description arg is present, nil entry is passed (picker skipped)
+	result, err := buildDebugPrompt(nil, gromitDir, []string{"login fails with + in email"}, nil)
+	if err != nil {
+		t.Fatalf("buildDebugPrompt failed: %v", err)
+	}
+
+	if !strings.Contains(result, "login fails with + in email") {
+		t.Errorf("expected prompt to contain description arg")
+	}
+	if strings.Contains(result, "## Failure Context") {
+		t.Errorf("expected no Failure Context when description arg provided and entry is nil")
+	}
+}
