@@ -165,9 +165,6 @@ exit 0
 	if !strings.Contains(result.Output, "Test output line 2") {
 		t.Errorf("Run() output missing expected stdout line 2, got: %s", result.Output)
 	}
-	if !strings.Contains(result.Stdout, "Test output line 1") || !strings.Contains(result.Stdout, "Test output line 2") {
-		t.Errorf("Run() stdout missing expected content, got: %q", result.Stdout)
-	}
 	if strings.TrimSpace(result.Stderr) != "" {
 		t.Errorf("Run() stderr should be empty for stdout-only command, got: %q", result.Stderr)
 	}
@@ -205,8 +202,8 @@ exit 1
 	if !strings.Contains(result.Stderr, "Error message") {
 		t.Errorf("Run() stderr missing expected content, got: %q", result.Stderr)
 	}
-	if strings.TrimSpace(result.Stdout) != "" {
-		t.Errorf("Run() stdout should be empty for stderr-only command, got: %q", result.Stdout)
+	if strings.TrimSpace(result.Output) != strings.TrimSpace(result.Stderr) {
+		t.Errorf("Run() output should match stderr for stderr-only command, got output=%q stderr=%q", result.Output, result.Stderr)
 	}
 
 	if result.ExitCode != 1 {
@@ -250,9 +247,9 @@ exit 0
 	if result == nil || !result.Success {
 		t.Fatalf("Run() should succeed after creating CODEX_HOME, got result=%+v", result)
 	}
-	lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+	lines := strings.Split(strings.TrimSpace(result.Output), "\n")
 	if len(lines) == 0 || !strings.HasPrefix(lines[0], "CODEX_HOME=") {
-		t.Fatalf("expected stdout to start with CODEX_HOME=..., got: %q", result.Stdout)
+		t.Fatalf("expected output to start with CODEX_HOME=..., got: %q", result.Output)
 	}
 	actualHome := strings.TrimPrefix(lines[0], "CODEX_HOME=")
 	if actualHome == missingHome {
@@ -294,8 +291,8 @@ exit 0
 	if result == nil || !result.Success {
 		t.Fatalf("Run() should succeed after transient retry, got result=%+v", result)
 	}
-	if !strings.Contains(result.Stdout, "ok after retry") {
-		t.Fatalf("expected stdout from retry success, got: %q", result.Stdout)
+	if !strings.Contains(result.Output, "ok after retry") {
+		t.Fatalf("expected output from retry success, got: %q", result.Output)
 	}
 	data, err := os.ReadFile(counterFile)
 	if err != nil {
@@ -1057,8 +1054,8 @@ exit 0
 			if len(events) == 0 {
 				t.Fatal("expected streamed JSON events after retry success, got none")
 			}
-			if !strings.Contains(result.Stdout, "done after retry") {
-				t.Fatalf("stdout should contain second-attempt streamed assistant text, got %q", result.Stdout)
+			if !strings.Contains(result.Output, "done after retry") {
+				t.Fatalf("output should contain second-attempt streamed assistant text, got %q", result.Output)
 			}
 		})
 	}

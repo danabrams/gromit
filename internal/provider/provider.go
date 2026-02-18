@@ -26,7 +26,6 @@ const (
 type Result struct {
 	Success           bool
 	Output            string
-	Stdout            string
 	Stderr            string
 	Diagnostics       string
 	FailureCategory   string

@@ -165,7 +165,6 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 		return &Result{
 			Success:           false,
 			Output:            resultText + stderr.String(),
-			Stdout:            resultText,
 			Stderr:            stderr.String(),
 			Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
 			FailureCategory:   classifyCodexFailure(exitCode, resultText, stderr.String()),
@@ -187,7 +186,6 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 		return &Result{
 			Success:           false,
 			Output:            resultText,
-			Stdout:            resultText,
 			Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, ""),
 			FailureCategory:   classifyCodexFailure(0, resultText, ""),
 			ExitCode:          0,
@@ -203,7 +201,6 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 	return &Result{
 		Success:           true,
 		Output:            resultText,
-		Stdout:            resultText,
 		Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, ""),
 		ExitCode:          0,
 		Duration:          duration,
@@ -276,7 +273,6 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 	return &Result{
 		Success:         exitCode == 0,
 		Output:          output,
-		Stdout:          stdout.String(),
 		Stderr:          stderr.String(),
 		Diagnostics:     buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
 		FailureCategory: classifyCodexFailure(exitCode, stdout.String(), stderr.String()),

@@ -634,7 +634,6 @@ func TestMethodologyExec_InvokeFn_FailureIncludesProviderStderr(t *testing.T) {
 			Success:  false,
 			Model:    "test-model",
 			ExitCode: 7,
-			Stdout:   "stdout details",
 			Stderr:   "stderr details",
 			Output:   "combined details",
 		}, nil

@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -226,6 +227,15 @@ func TestResultStructZeroValue(t *testing.T) {
 	}
 	if result.Model != "" {
 		t.Errorf("zero-value Model = %q, want empty", result.Model)
+	}
+}
+
+// TestResultStructDoesNotExposeStdout verifies that Result no longer includes
+// a Stdout field in the public struct definition.
+func TestResultStructDoesNotExposeStdout(t *testing.T) {
+	resultType := reflect.TypeOf(Result{})
+	if _, ok := resultType.FieldByName("Stdout"); ok {
+		t.Fatalf("Result should not include Stdout field")
 	}
 }
 
