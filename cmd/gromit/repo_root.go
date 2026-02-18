@@ -6,6 +6,11 @@ import (
 	"path/filepath"
 )
 
+const (
+	repoConfigName = "gromit.yaml"
+	repoDirName    = ".gromit"
+)
+
 func ensureRepoRoot() error {
 	root, err := findProjectRoot()
 	if err != nil {
@@ -17,13 +22,13 @@ func ensureRepoRoot() error {
 		return fmt.Errorf("get working directory: %w", err)
 	}
 
-	rootAbs, err := filepath.Abs(root)
+	rootAbs, err := absPath(root, "project root")
 	if err != nil {
-		return fmt.Errorf("resolve project root: %w", err)
+		return err
 	}
-	cwdAbs, err := filepath.Abs(cwd)
+	cwdAbs, err := absPath(cwd, "working directory")
 	if err != nil {
-		return fmt.Errorf("resolve working directory: %w", err)
+		return err
 	}
 
 	if rootAbs == cwdAbs {
@@ -43,10 +48,10 @@ func findProjectRoot() (string, error) {
 		return "", err
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "gromit.yaml")); err == nil {
+		if hasRepoMarker(dir, repoConfigName) {
 			return dir, nil
 		}
-		if _, err := os.Stat(filepath.Join(dir, ".gromit")); err == nil {
+		if hasRepoMarker(dir, repoDirName) {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -55,4 +60,17 @@ func findProjectRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+func absPath(path, label string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s: %w", label, err)
+	}
+	return abs, nil
+}
+
+func hasRepoMarker(dir, marker string) bool {
+	_, err := os.Stat(filepath.Join(dir, marker))
+	return err == nil
 }
