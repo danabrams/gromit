@@ -56,7 +56,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	bc := &runtypes.BeadContext{
 		Bead:               b,
 		Parent:             parent,
-		Result:             &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model},
+		Result:             &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model, SpecID: bead.FindSpecLabel(b.Labels)},
 		Model:              model, // legacy model name, will be updated by router
 		Tier:               tier,
 		StartCommit:        startCommit,

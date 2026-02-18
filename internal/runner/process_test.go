@@ -2720,6 +2720,32 @@ func TestRunRefactorAndPostChecks_NonTimeoutValidationFailure(t *testing.T) {
 	}
 }
 
+func TestSetupBeadContext_SetsSpecIDFromLabel(t *testing.T) {
+	r := &Runner{
+		cfg: &config.Config{
+			Claude: config.ClaudeConfig{BeadTimeout: 300},
+		},
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
+		output:   &strings.Builder{},
+		router:   newMockRouter(),
+		gitHeadFn: func() (string, error) {
+			return "abc123", nil
+		},
+	}
+	b := &bead.Bead{ID: "test-spec", Title: "Spec Test", Priority: 1, Labels: []string{"spec:my-spec"}}
+
+	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer cancel()
+
+	if bc.Result.SpecID != "my-spec" {
+		t.Errorf("SpecID = %q, want %q", bc.Result.SpecID, "my-spec")
+	}
+}
+
 func TestProcessBead_FilesTouched(t *testing.T) {
 	mockClaude := &mockClaudeClient{
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
