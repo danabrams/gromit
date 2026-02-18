@@ -2,6 +2,7 @@ package runbook
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -18,5 +19,17 @@ func TestNewEntrySetsIDAndTimestamp(t *testing.T) {
 	}
 	if !entry.Timestamp.Equal(now.UTC()) {
 		t.Fatalf("expected timestamp %s, got %s", now.UTC(), entry.Timestamp)
+	}
+}
+
+func TestTruncateOutputCapsAt5KB(t *testing.T) {
+	input := strings.Repeat("a", 6000)
+	output := truncateOutput(input)
+
+	if len(output) != 5120 {
+		t.Fatalf("expected 5120 bytes, got %d", len(output))
+	}
+	if output != input[len(input)-5120:] {
+		t.Fatalf("expected tail of input to be returned")
 	}
 }

@@ -37,3 +37,11 @@ func NewEntry(beadID string, now time.Time) Entry {
 		BeadID:    beadID,
 	}
 }
+
+func truncateOutput(output string) string {
+	const maxBytes = 5 * 1024
+	if len(output) <= maxBytes {
+		return output
+	}
+	return output[len(output)-maxBytes:]
+}
