@@ -303,3 +303,51 @@ func TestExecuteBuildAndMethodologyLoop_UsesMethodologyPolicyDeferral(t *testing
 		t.Fatal("expected post-success review to be deferred by policy")
 	}
 }
+
+func TestRunRefactorAndPostChecks_UsesMethodologyPolicyPhaseTimeout(t *testing.T) {
+	r, _, _ := setupDirectValidationRunner(t, nil, nil)
+
+	var refactorDeadline time.Time
+	var refactorDeadlineSet bool
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		refactorDeadline, refactorDeadlineSet = ctx.Deadline()
+		return &claude.Result{Success: true}, nil
+	})
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{
+		RefactorSeconds: 120,
+	}
+
+	r.methodologyPolicy = &mockMethodologyPolicy{
+		PhaseTimeoutFn: func(phase string, beadTimeoutSec int) int {
+			if phase != "refactor" {
+				t.Fatalf("unexpected phase: %s", phase)
+			}
+			return 10
+		},
+		MinRefactorBudgetFn: func() time.Duration {
+			return 0
+		},
+	}
+
+	bc := &runtypes.BeadContext{
+		Tier:        provider.TierMedium,
+		StartCommit: testStartCommit,
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	r.runRefactorAndPostChecks(context.Background(), bc, false)
+
+	if !refactorDeadlineSet {
+		t.Fatal("expected refactor invoke to receive deadline context")
+	}
+	untilDeadline := time.Until(refactorDeadline)
+	if untilDeadline < 7*time.Second || untilDeadline > 14*time.Second {
+		t.Fatalf("refactor deadline unexpected: %s remaining, want ~10s", untilDeadline.Round(time.Second))
+	}
+}

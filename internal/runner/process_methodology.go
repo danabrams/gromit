@@ -208,7 +208,7 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		}
 	}
 
-	refactorTimeoutSec := r.cfg.Methodology.ResolvePhaseTimeoutSeconds("refactor", int(bc.BeadTimeout.Seconds()))
+	refactorTimeoutSec := r.methodologyPolicy.PhaseTimeout("refactor", int(bc.BeadTimeout.Seconds()))
 	refactorCtx, refactorCancel, refactorMeta := newPhaseContext(bc, "refactor", refactorTimeoutSec)
 	defer refactorCancel()
 	r.log("Refactor phase context: timeout=%s source=%s", refactorMeta.EffectiveTimeout.Round(time.Second), refactorMeta.TimeoutSource)
