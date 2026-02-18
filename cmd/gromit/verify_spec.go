@@ -62,10 +62,7 @@ func runVerifySpec(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx := cmd.Context()
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx := commandContext(cmd)
 
 	verdict, err := verifySpecGateRunner(ctx, cfg, specName, criteria, criteriaBlock, specBody)
 	if err != nil {
@@ -87,13 +84,24 @@ func runVerifySpec(cmd *cobra.Command, args []string) error {
 	return fmt.Errorf("spec gate failed")
 }
 
-var acceptanceCriteriaNumbered = regexp.MustCompile(`^\d+[.)]\s+(.+)$`)
+func commandContext(cmd *cobra.Command) context.Context {
+	if cmd == nil {
+		return context.Background()
+	}
+	ctx := cmd.Context()
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
+var acceptanceCriteriaNumberedRE = regexp.MustCompile(`^\d+[.)]\s+(.+)$`)
 
 func extractAcceptanceCriteria(body string) ([]string, string) {
 	lines := strings.Split(body, "\n")
 	inSection := false
 	var blockLines []string
-	var criteria []string
+	criteria := make([]string, 0)
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -119,16 +127,13 @@ func extractAcceptanceCriteria(body string) ([]string, string) {
 		case strings.HasPrefix(trimmed, "* "):
 			criteria = append(criteria, strings.TrimSpace(strings.TrimPrefix(trimmed, "* ")))
 		default:
-			if matches := acceptanceCriteriaNumbered.FindStringSubmatch(trimmed); len(matches) == 2 {
+			if matches := acceptanceCriteriaNumberedRE.FindStringSubmatch(trimmed); len(matches) == 2 {
 				criteria = append(criteria, strings.TrimSpace(matches[1]))
 			}
 		}
 	}
 
 	block := strings.TrimSpace(strings.Join(blockLines, "\n"))
-	if criteria == nil {
-		criteria = []string{}
-	}
 
 	return criteria, block
 }
@@ -232,12 +237,17 @@ func newSpecGateRenderer(cfg *config.Config) (*prompt.Renderer, error) {
 
 var verifySpecCmdRunner = defaultVerifySpecCmdRunner
 
+const (
+	specGateTestCommand = "go test -tags acceptance ./..."
+	specGateDiffCommand = "git diff"
+)
+
 func runSpecGateTests(ctx context.Context, workDir string) (string, error) {
-	return runSpecGateCommand(ctx, workDir, "go test -tags acceptance ./...")
+	return runSpecGateCommand(ctx, workDir, specGateTestCommand)
 }
 
 func runSpecGateDiff(ctx context.Context, workDir string) (string, error) {
-	return runSpecGateCommand(ctx, workDir, "git diff")
+	return runSpecGateCommand(ctx, workDir, specGateDiffCommand)
 }
 
 func runSpecGateCommand(ctx context.Context, workDir string, command string) (string, error) {

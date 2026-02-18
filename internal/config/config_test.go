@@ -2811,6 +2811,87 @@ func TestMethodologyConfigParsing(t *testing.T) {
 	}
 }
 
+func TestMethodologyGranularityDefaultsToBead(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `methodology:
+  tdd: true
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Methodology.Granularity != "bead" {
+		t.Errorf("expected granularity=bead, got %q", cfg.Methodology.Granularity)
+	}
+}
+
+func TestMethodologyGranularityParsing(t *testing.T) {
+	tests := []struct {
+		name        string
+		yaml        string
+		granularity string
+	}{
+		{
+			name: "Granularity bead",
+			yaml: `methodology:
+  granularity: "bead"
+`,
+			granularity: "bead",
+		},
+		{
+			name: "Granularity spec",
+			yaml: `methodology:
+  granularity: "spec"
+`,
+			granularity: "spec",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			cfg, err := Load(cfgPath)
+			if err != nil {
+				t.Fatalf("loading config: %v", err)
+			}
+
+			if cfg.Methodology.Granularity != tt.granularity {
+				t.Errorf("expected granularity=%q, got %q", tt.granularity, cfg.Methodology.Granularity)
+			}
+		})
+	}
+}
+
+func TestMethodologyGranularityRejectsInvalid(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `methodology:
+  granularity: "task"
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid granularity")
+	}
+	if !strings.Contains(err.Error(), "methodology.granularity") {
+		t.Errorf("expected granularity error, got %v", err)
+	}
+}
+
 func TestMethodologyPhaseTimeoutsParseFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")
@@ -3808,18 +3889,7 @@ func TestSpecGateConfigDefaults(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
 
-	if cfg.SpecGate.MaxCycles != 3 {
-		t.Errorf("SpecGate.MaxCycles = %d, want 3", cfg.SpecGate.MaxCycles)
-	}
-	if cfg.SpecGate.Model != ModelSonnet {
-		t.Errorf("SpecGate.Model = %q, want %q", cfg.SpecGate.Model, ModelSonnet)
-	}
-	if cfg.SpecGate.AutoTrigger == nil {
-		t.Fatal("SpecGate.AutoTrigger is nil, want non-nil pointer")
-	}
-	if !*cfg.SpecGate.AutoTrigger {
-		t.Errorf("*SpecGate.AutoTrigger = false, want true")
-	}
+	assertSpecGateDefaults(t, cfg, "after SetDefaults")
 }
 
 func TestSpecGateConfigDefaultWhenOmittedFromYAML(t *testing.T) {
@@ -3838,18 +3908,7 @@ models:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.SpecGate.MaxCycles != 3 {
-		t.Errorf("SpecGate.MaxCycles = %d, want 3 when omitted", cfg.SpecGate.MaxCycles)
-	}
-	if cfg.SpecGate.Model != ModelSonnet {
-		t.Errorf("SpecGate.Model = %q, want %q when omitted", cfg.SpecGate.Model, ModelSonnet)
-	}
-	if cfg.SpecGate.AutoTrigger == nil {
-		t.Fatal("SpecGate.AutoTrigger is nil, want non-nil pointer when omitted")
-	}
-	if !*cfg.SpecGate.AutoTrigger {
-		t.Errorf("*SpecGate.AutoTrigger = false, want true when omitted")
-	}
+	assertSpecGateDefaults(t, cfg, "when omitted")
 }
 
 func TestSpecGateConfigYAMLDeserialization(t *testing.T) {
@@ -3929,5 +3988,25 @@ func TestSpecGateIsAutoTrigger(t *testing.T) {
 				t.Errorf("IsAutoTrigger() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func assertSpecGateDefaults(t *testing.T, cfg *Config, context string) {
+	t.Helper()
+	if context != "" {
+		context = " " + context
+	}
+
+	if cfg.SpecGate.MaxCycles != 3 {
+		t.Errorf("SpecGate.MaxCycles = %d, want 3%s", cfg.SpecGate.MaxCycles, context)
+	}
+	if cfg.SpecGate.Model != ModelSonnet {
+		t.Errorf("SpecGate.Model = %q, want %q%s", cfg.SpecGate.Model, ModelSonnet, context)
+	}
+	if cfg.SpecGate.AutoTrigger == nil {
+		t.Fatalf("SpecGate.AutoTrigger is nil, want non-nil pointer%s", context)
+	}
+	if !*cfg.SpecGate.AutoTrigger {
+		t.Errorf("*SpecGate.AutoTrigger = false, want true%s", context)
 	}
 }

@@ -2103,6 +2103,78 @@ func TestRunSessionCompletion_SkipsMetricsCommitWhenNoChanges(t *testing.T) {
 	}
 }
 
+func TestRunSessionCompletion_CommitsGeneratedStateWhenChanged(t *testing.T) {
+	autoPush := true
+	cfg := &config.Config{
+		Git: config.GitConfig{
+			AutoPush:    &autoPush,
+			PushFailure: "stop",
+		},
+	}
+
+	var commands []string
+	r := &Runner{
+		cfg:    cfg,
+		output: &strings.Builder{},
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			commands = append(commands, command)
+			switch command {
+			case stateStatusCommand:
+				return " M .gromit/state.json\n", "", 0, nil
+			default:
+				return "", "", 0, nil
+			}
+		},
+	}
+
+	if err := r.runSessionCompletion(); err != nil {
+		t.Fatalf("runSessionCompletion() failed: %v", err)
+	}
+
+	mustContain := []string{
+		stateStatusCommand,
+		stateAddCommand,
+		stateCommitCommand,
+		"git push",
+	}
+	for _, cmd := range mustContain {
+		if !slices.Contains(commands, cmd) {
+			t.Fatalf("expected command %q, got %v", cmd, commands)
+		}
+	}
+}
+
+func TestRunSessionCompletion_SkipsStateCommitWhenNoChanges(t *testing.T) {
+	autoPush := true
+	cfg := &config.Config{
+		Git: config.GitConfig{
+			AutoPush:    &autoPush,
+			PushFailure: "stop",
+		},
+	}
+
+	var commands []string
+	r := &Runner{
+		cfg:    cfg,
+		output: &strings.Builder{},
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			commands = append(commands, command)
+			return "", "", 0, nil
+		},
+	}
+
+	if err := r.runSessionCompletion(); err != nil {
+		t.Fatalf("runSessionCompletion() failed: %v", err)
+	}
+
+	if slices.Contains(commands, stateAddCommand) {
+		t.Fatalf("did not expect %q when state is unchanged; got %v", stateAddCommand, commands)
+	}
+	if slices.Contains(commands, stateCommitCommand) {
+		t.Fatalf("did not expect %q when state is unchanged; got %v", stateCommitCommand, commands)
+	}
+}
+
 // TestNoNewDirectExecCommand is a ratchet test that prevents new exec.Command calls
 // from being added to runner production code. All subprocess execution should go through
 // r.runCmd() (which delegates to the injectable cmdRunnerFn) so tests can mock it.

@@ -50,6 +50,9 @@ const (
 	metricsStatusCommand                      = "git status --porcelain -- .gromit/metrics"
 	metricsAddCommand                         = "git add .gromit/metrics"
 	metricsCommitCommand                      = "git commit -m \"chore(metrics): update process trend artifacts\""
+	stateStatusCommand                        = "git status --porcelain -- .gromit/state.json"
+	stateAddCommand                           = "git add .gromit/state.json"
+	stateCommitCommand                        = "git commit -m \"chore(state): update run state\""
 )
 
 // checkRetroSuggestion checks if a retro should be suggested and prints a message
@@ -248,9 +251,16 @@ func (r *Runner) runSessionCompletion() error {
 		}
 	}
 
-	// Step 2.5: persist generated metrics artifacts when present.
+	// Step 2.5: persist generated artifacts when present.
 	if err := r.commitGeneratedMetrics(); err != nil {
 		errMsg := fmt.Sprintf("metrics auto-commit failed: %v", err)
+		if r.cfg.Git.PushFailure == "stop" {
+			return fmt.Errorf("%s", errMsg)
+		}
+		r.log("Warning: %s", errMsg)
+	}
+	if err := r.commitGeneratedState(); err != nil {
+		errMsg := fmt.Sprintf("state auto-commit failed: %v", err)
 		if r.cfg.Git.PushFailure == "stop" {
 			return fmt.Errorf("%s", errMsg)
 		}
@@ -312,6 +322,44 @@ func (r *Runner) commitGeneratedMetrics() error {
 			return nil
 		}
 		return fmt.Errorf("committing generated metrics (exit %d): %s", exitCode, stderr)
+	}
+
+	return nil
+}
+
+func (r *Runner) commitGeneratedState() error {
+	if r == nil {
+		return nil
+	}
+
+	stdout, stderr, exitCode, err := r.runCmd(context.Background(), stateStatusCommand, "")
+	if err != nil {
+		return fmt.Errorf("checking generated state changes: %w", err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("checking generated state changes (exit %d): %s", exitCode, stderr)
+	}
+	if strings.TrimSpace(stdout) == "" {
+		return nil
+	}
+
+	_, stderr, exitCode, err = r.runCmd(context.Background(), stateAddCommand, "")
+	if err != nil {
+		return fmt.Errorf("staging generated state: %w", err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("staging generated state (exit %d): %s", exitCode, stderr)
+	}
+
+	_, stderr, exitCode, err = r.runCmd(context.Background(), stateCommitCommand, "")
+	if err != nil {
+		return fmt.Errorf("committing generated state: %w", err)
+	}
+	if exitCode != 0 {
+		if strings.Contains(strings.ToLower(stderr), "nothing to commit") {
+			return nil
+		}
+		return fmt.Errorf("committing generated state (exit %d): %s", exitCode, stderr)
 	}
 
 	return nil
