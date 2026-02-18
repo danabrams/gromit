@@ -48,6 +48,17 @@ func baselineLogPathNow() (string, error) {
 	return baselineLogPath(baselineLogPathNowFn())
 }
 
+func initBaselineLogPathForRun(consumeFn func(string) error) (string, error) {
+	path, err := baselineLogPathNow()
+	if err != nil {
+		return "", err
+	}
+	if err := consumeFn(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 func baselineLogPathFor(baseName, suffix string) string {
 	return filepath.Join(baselineLogDir, baseName+suffix+".log")
 }

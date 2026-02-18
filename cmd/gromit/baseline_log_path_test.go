@@ -149,3 +149,41 @@ func TestBaselineLogPathNow_UsesCurrentLocalTime(t *testing.T) {
 		t.Fatalf("baselineLogPathNow() = %q, want %q", got, want)
 	}
 }
+
+func TestInitBaselineLogPathForRun_UsesResolvedPathInConsumer(t *testing.T) {
+	stub := time.Date(2026, time.February, 4, 7, 8, 9, 0, time.Local)
+	want := filepath.Join("test-logs", "refactor-baseline-2026-02-04-070809.log")
+
+	originalNow := baselineLogPathNowFn
+	baselineLogPathNowFn = func() time.Time {
+		return stub
+	}
+	t.Cleanup(func() {
+		baselineLogPathNowFn = originalNow
+	})
+
+	originalExists := baselineLogPathExistsFn
+	baselineLogPathExistsFn = func(path string) (bool, error) {
+		return false, nil
+	}
+	t.Cleanup(func() {
+		baselineLogPathExistsFn = originalExists
+	})
+
+	var consumed string
+	consumeFn := func(path string) error {
+		consumed = path
+		return nil
+	}
+
+	got, err := initBaselineLogPathForRun(consumeFn)
+	if err != nil {
+		t.Fatalf("initBaselineLogPathForRun() error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("initBaselineLogPathForRun() = %q, want %q", got, want)
+	}
+	if consumed != got {
+		t.Fatalf("initBaselineLogPathForRun() consumed %q, want %q", consumed, got)
+	}
+}
