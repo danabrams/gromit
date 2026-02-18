@@ -44,6 +44,17 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 	return specsDir, cleanup
 }
 
+// TestRunCmd_SpecFlagRegistered verifies that --spec flag is registered on the run command.
+func TestRunCmd_SpecFlagRegistered(t *testing.T) {
+	flag := runCmd.Flags().Lookup("spec")
+	if flag == nil {
+		t.Fatal("run command should have --spec flag")
+	}
+	if flag.Value.Type() != "string" {
+		t.Errorf("--spec flag should be string, got %s", flag.Value.Type())
+	}
+}
+
 // TestRunLoop_SpecFlagNonexistentSpec verifies that --spec with a nonexistent spec
 // returns a validation error before attempting to run.
 func TestRunLoop_SpecFlagNonexistentSpec(t *testing.T) {
@@ -72,5 +83,33 @@ func TestRunLoop_SpecFlagNonexistentSpec(t *testing.T) {
 	}
 	if !strings.Contains(errMsg, "nonexistent-spec") {
 		t.Errorf("Error should mention the requested spec name, got: %v", err)
+	}
+}
+
+// TestRunLoop_SpecFlagValidSpec verifies that a valid --spec passes validation
+// and that the error is NOT a spec validation error (i.e., we proceed to the runner).
+func TestRunLoop_SpecFlagValidSpec(t *testing.T) {
+	specsDir, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	// Create the spec file
+	specPath := filepath.Join(specsDir, "auth.md")
+	if err := os.WriteFile(specPath, []byte("# auth spec"), 0644); err != nil {
+		t.Fatalf("Failed to write spec: %v", err)
+	}
+
+	runSpecFlag = "auth"
+
+	err := runLoop(runCmd, []string{})
+
+	// May fail for other reasons (no bd cli, etc), but must NOT fail due to spec validation
+	if err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "not found") && strings.Contains(errMsg, "auth") {
+			t.Errorf("Error should not be spec validation error for existing spec, got: %v", err)
+		}
+		if strings.Contains(errMsg, "Available specs") {
+			t.Errorf("Error should not list available specs for valid spec, got: %v", err)
+		}
 	}
 }
