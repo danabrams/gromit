@@ -354,6 +354,77 @@ func TestStatsCmd_JSONOutput(t *testing.T) {
 	}
 }
 
+func TestStatsCmd_JSONOutputIncludesCostPerSpec(t *testing.T) {
+	// Create temp directory structure
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+
+	// Create gromit.yaml config
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Create log file with spec usage
+	runID := "20260211-120000"
+	logs := []logger.IterationLog{
+		{
+			BeadID:     "bead-1",
+			SpecID:     "spec-1",
+			Model:      "opus",
+			Success:    true,
+			CostUSD:    2.50,
+			DurationMs: 45000,
+		},
+	}
+
+	logFilePath := filepath.Join(logsDir, "run-"+runID+".jsonl")
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		t.Fatalf("failed to create log file: %v", err)
+	}
+	defer logFile.Close()
+
+	encoder := json.NewEncoder(logFile)
+	for _, log := range logs {
+		if err := encoder.Encode(log); err != nil {
+			t.Fatalf("failed to write log entry: %v", err)
+		}
+	}
+	logFile.Close()
+
+	// Change to tmpDir so config loading works
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)
+
+	// Execute stats command with --json flag
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats", "--json"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command with --json failed: %v", err)
+		}
+	})
+
+	// Verify output is valid JSON
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("output should be valid JSON, got parse error: %v", err)
+	}
+
+	// Verify JSON includes cost_per_spec
+	if _, ok := result["cost_per_spec"]; !ok {
+		t.Error("JSON output should have cost_per_spec field")
+	}
+}
+
 // Expected failure: runStats function does not exist yet
 func TestStatsCmd_ShowsCostPerCompletedBead(t *testing.T) {
 	// Create temp directory structure

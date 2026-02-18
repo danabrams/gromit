@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/spf13/cobra"
@@ -54,6 +55,12 @@ func runStats(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("computing cost per bead: %w", err)
 	}
 
+	// Read cost per spec
+	costPerSpec, err := logger.CostPerSpec(logsDir)
+	if err != nil {
+		return fmt.Errorf("computing cost per spec: %w", err)
+	}
+
 	// Read global stats
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -66,16 +73,17 @@ func runStats(cmd *cobra.Command, args []string) error {
 	}
 
 	if statsJSON {
-		return outputJSON(projectStats, globalStats, beadCosts)
+		return outputJSON(projectStats, globalStats, beadCosts, costPerSpec)
 	}
 
-	return outputText(projectStats, globalStats, beadCosts)
+	return outputText(projectStats, globalStats, beadCosts, costPerSpec)
 }
 
-func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64) error {
+func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost) error {
 	output := map[string]interface{}{
 		"project_stats": projectStats,
 		"global_stats":  globalStats,
+		"cost_per_spec": costPerSpec,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")
@@ -87,7 +95,7 @@ func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.G
 	return nil
 }
 
-func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64) error {
+func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost) error {
 	fmt.Println("Project Model Performance (Escalation rates shown):")
 	fmt.Println()
 	printProjectModelStats(projectStats)
@@ -100,6 +108,14 @@ func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.G
 		}
 	}
 
+	if len(costPerSpec) > 0 {
+		fmt.Println()
+		fmt.Println("Cost per spec (by total cost):")
+		for _, entry := range sortedSpecCosts(costPerSpec) {
+			fmt.Printf("  %s: $%.2f\n", entry.specID, entry.cost.TotalCostUSD)
+		}
+	}
+
 	if globalStats != nil && len(globalStats.Models) > 0 {
 		fmt.Println()
 		fmt.Println("Global Model Performance (all projects, global aggregate):")
@@ -108,6 +124,25 @@ func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.G
 	}
 
 	return nil
+}
+
+type specCostEntry struct {
+	specID string
+	cost   logger.SpecCost
+}
+
+func sortedSpecCosts(costs map[string]logger.SpecCost) []specCostEntry {
+	entries := make([]specCostEntry, 0, len(costs))
+	for specID, cost := range costs {
+		entries = append(entries, specCostEntry{specID: specID, cost: cost})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].cost.TotalCostUSD == entries[j].cost.TotalCostUSD {
+			return entries[i].specID < entries[j].specID
+		}
+		return entries[i].cost.TotalCostUSD > entries[j].cost.TotalCostUSD
+	})
+	return entries
 }
 
 func printProjectModelStats(stats map[string]logger.ModelStats) {
