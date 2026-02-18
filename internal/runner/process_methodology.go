@@ -111,6 +111,14 @@ const minRefactorTime = 60 * time.Second
 // avoids starting a validation run that is unlikely to complete.
 const minRevalidationTime = 30 * time.Second
 
+func beadRemaining(bc *runtypes.BeadContext) (remaining time.Duration, elapsed time.Duration, ok bool) {
+	if bc == nil || bc.BeadTimeout <= 0 || bc.BeadStartTime.IsZero() {
+		return 0, 0, false
+	}
+	elapsed = time.Since(bc.BeadStartTime)
+	return bc.BeadTimeout - elapsed, elapsed, true
+}
+
 func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.BeadContext, atddActive bool) (retry bool, terminal *IterationResult) {
 	r.log("Running refactor phase...")
 	if r.methodologyExec == nil {
@@ -118,9 +126,7 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		return false, bc.Result
 	}
 
-	if bc != nil && bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
-		elapsed := time.Since(bc.BeadStartTime)
-		remaining := bc.BeadTimeout - elapsed
+	if remaining, _, ok := beadRemaining(bc); ok {
 		if remaining <= 0 {
 			r.log("Skipping refactor phase: bead time budget expired (remaining %s, needed %s)", remaining.Round(time.Second), minRefactorTime)
 			return false, nil
@@ -136,9 +142,7 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 
 	if r.cfg.Validation.Enabled {
 		skipRevalidation := false
-		if bc != nil && bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
-			elapsed := time.Since(bc.BeadStartTime)
-			remaining := bc.BeadTimeout - elapsed
+		if remaining, _, ok := beadRemaining(bc); ok {
 			if remaining <= 0 {
 				r.log("Skipping post-refactor re-validation: bead time budget expired (remaining %s, needed >0s)", remaining.Round(time.Second))
 				skipRevalidation = true
@@ -170,9 +174,7 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	}
 
 	if atddActive && r.methodologyExec != nil {
-		if bc != nil && bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
-			elapsed := time.Since(bc.BeadStartTime)
-			remaining := bc.BeadTimeout - elapsed
+		if remaining, elapsed, ok := beadRemaining(bc); ok {
 			if remaining <= 0 {
 				r.log("Warning: bead timeout budget exhausted before post-refactor acceptance verification; using parent context fallback")
 			} else {
