@@ -480,7 +480,12 @@ func (c *Client) CreateWithDepsAndDescription(title string, priority int, labels
 	}
 
 	if len(expectedOutputs) > 0 {
-		args = append(args, "--acceptance", strings.Join(expectedOutputs, "\n"))
+		acceptancePath, cleanup, err := writeTempFile("bd-acceptance-*.txt", strings.Join(expectedOutputs, "\n"))
+		if err != nil {
+			return nil, err
+		}
+		defer cleanup()
+		args = append(args, "--acceptance", acceptancePath)
 	}
 
 	// Add dependencies if specified
@@ -497,7 +502,12 @@ func (c *Client) CreateWithDepsAndDescription(title string, priority int, labels
 
 	// Add description if specified
 	if description != "" {
-		args = append(args, "--description", description)
+		descriptionPath, cleanup, err := writeTempFile("bd-description-*.md", description)
+		if err != nil {
+			return nil, err
+		}
+		defer cleanup()
+		args = append(args, "--body-file", descriptionPath)
 	}
 
 	out, err := c.run(args...)

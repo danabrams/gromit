@@ -1580,6 +1580,58 @@ func TestClientCreateWithDeps(t *testing.T) {
 	}
 }
 
+func TestClientCreateWithDepsAndDescription_UsesBodyFile(t *testing.T) {
+	description := "Deps description\nLine 2"
+	var gotArgs []string
+	var gotDescription string
+	var gotPath string
+
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			bodyIdx := -1
+			for i, arg := range args {
+				if arg == "--body-file" {
+					bodyIdx = i
+					break
+				}
+			}
+			if bodyIdx == -1 || bodyIdx+1 >= len(args) {
+				return "", fmt.Errorf("missing --body-file argument")
+			}
+			gotPath = args[bodyIdx+1]
+			data, err := os.ReadFile(gotPath)
+			if err != nil {
+				return "", err
+			}
+			gotDescription = string(data)
+			if _, err := os.Stat(gotPath); err != nil {
+				return "", err
+			}
+			return `{"id":"task-001","title":"Test","priority":1,"issue_type":"task","status":"open"}`, nil
+		},
+	}
+
+	_, err := c.CreateWithDepsAndDescription("Test", 1, nil, nil, []string{"dep-1"}, description)
+	if err != nil {
+		t.Fatalf("CreateWithDepsAndDescription() unexpected error: %v", err)
+	}
+	if gotPath == "" {
+		t.Fatal("CreateWithDepsAndDescription() did not pass a temp file path")
+	}
+	for _, arg := range gotArgs {
+		if arg == description {
+			t.Fatalf("CreateWithDepsAndDescription() should not pass description directly in args")
+		}
+	}
+	if gotDescription != description {
+		t.Fatalf("CreateWithDepsAndDescription() description = %q, want %q", gotDescription, description)
+	}
+	if _, err := os.Stat(gotPath); !os.IsNotExist(err) {
+		t.Fatalf("temp file should be cleaned up, stat err=%v", err)
+	}
+}
+
 // TestIsMethodologyActive tests the IsMethodologyActive function
 func TestIsMethodologyActive(t *testing.T) {
 	tests := []struct {
