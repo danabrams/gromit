@@ -57,3 +57,37 @@ func TestClassifyTimeout_DefaultsToInvocation(t *testing.T) {
 		t.Error("ClassifyTimeout(default) ParentCanceled = true, want false")
 	}
 }
+
+func TestClassifyTimeout_AllBranchCombinations(t *testing.T) {
+	errCtx := context.DeadlineExceeded
+	errParent := context.Canceled
+	p := newConfigEscalationPolicy(&config.Config{})
+	cases := []struct {
+		name           string
+		ctxErr         error
+		parentErr      error
+		stallFired     bool
+		wantType       string
+		wantParentStop bool
+	}{
+		{"no errors no stall", nil, nil, false, "invocation", false},
+		{"stall only", nil, nil, true, "stall", false},
+		{"ctx expired", errCtx, nil, false, "bead", false},
+		{"ctx expired with stall", errCtx, nil, true, "bead", false},
+		{"parent canceled", nil, errParent, false, "", true},
+		{"parent canceled with stall", nil, errParent, true, "stall", false},
+		{"ctx + parent canceled", errCtx, errParent, false, "", true},
+		{"ctx + parent canceled with stall", errCtx, errParent, true, "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := p.ClassifyTimeout(tc.ctxErr, tc.parentErr, tc.stallFired)
+			if result.TimeoutType != tc.wantType {
+				t.Errorf("TimeoutType = %q, want %q", result.TimeoutType, tc.wantType)
+			}
+			if result.ParentCanceled != tc.wantParentStop {
+				t.Errorf("ParentCanceled = %v, want %v", result.ParentCanceled, tc.wantParentStop)
+			}
+		})
+	}
+}

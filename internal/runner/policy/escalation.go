@@ -57,7 +57,7 @@ func (p *ConfigEscalationPolicy) MaxRetriesPerBead() int {
 
 // ClassifyTimeout determines the timeout type based on context and stall state.
 func (p *ConfigEscalationPolicy) ClassifyTimeout(ctxErr, parentErr error, stallFired bool) TimeoutClassification {
-	if stallFired {
+	if stallFired && ctxErr == nil {
 		return TimeoutClassification{TimeoutType: "stall"}
 	}
 	if ctxErr != nil && parentErr == nil {
