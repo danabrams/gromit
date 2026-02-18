@@ -20,6 +20,43 @@ func spinForAtLeast(d time.Duration) {
 	}
 }
 
+func newTestClaudeConfig() *config.Config {
+	return &config.Config{
+		Claude: config.ClaudeConfig{
+			Timeout:            600,
+			StallTimeout:       120,
+			StallTimeoutActive: 300,
+			BeadTimeout:        1200,
+			AnalysisTimeout:    30,
+		},
+	}
+}
+
+func newRunnerForRateLimitTest(cfg *config.Config, mockClaude *mockClaudeClient, streamLogger *logger.StreamLogger) *Runner {
+	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	return &Runner{
+		cfg:          cfg,
+		router:       mockRouter,
+		invoker:      newInvokerForTest(mockRouter, nil, streamLogger),
+		streamLogger: streamLogger,
+	}
+}
+
+func newRateLimitBeadContext(id string) *runtypes.BeadContext {
+	return &runtypes.BeadContext{
+		Bead: &bead.Bead{
+			ID:          id,
+			Title:       "Test bead",
+			Description: "Test description",
+		},
+		Result:      &IterationResult{BeadID: id, Model: "sonnet"},
+		Model:       "sonnet",
+		BuildPrompt: "test prompt",
+	}
+}
+
 // TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs verifies that
 // executeClaudeInvocation() captures RateLimitRecoveryMs from DiagnosticSnapshot()
 // and stores it in the IterationResult.
@@ -47,15 +84,7 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 		},
 	}
 
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Timeout:            600,
-			StallTimeout:       120,
-			StallTimeoutActive: 300,
-			BeadTimeout:        1200,
-			AnalysisTimeout:    30,
-		},
-	}
+	cfg := newTestClaudeConfig()
 
 	// Create StreamLogger to enable handler in executeClaudeInvocation
 	dir := t.TempDir()
@@ -69,26 +98,8 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 		}
 	}()
 
-	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
-	mockRouter := provider.NewSingleProviderRouter(mockProvider)
-
-	r := &Runner{
-		cfg:          cfg,
-		router:       mockRouter,
-		invoker:      newInvokerForTest(mockRouter, nil, sl),
-		streamLogger: sl,
-	}
-
-	bc := &runtypes.BeadContext{
-		Bead: &bead.Bead{
-			ID:          "test-1",
-			Title:       "Test bead",
-			Description: "Test description",
-		},
-		Result:      &IterationResult{BeadID: "test-1", Model: "sonnet"},
-		Model:       "sonnet",
-		BuildPrompt: "test prompt",
-	}
+	r := newRunnerForRateLimitTest(cfg, mockClaude, sl)
+	bc := newRateLimitBeadContext("test-1")
 
 	ctx := context.Background()
 	invResult, err := r.executeClaudeInvocation(ctx, bc)
@@ -142,35 +153,9 @@ func TestExecuteClaudeInvocation_ZeroRecoveryMsWhenNoRateLimit(t *testing.T) {
 		},
 	}
 
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Timeout:            600,
-			StallTimeout:       120,
-			StallTimeoutActive: 300,
-			BeadTimeout:        1200,
-			AnalysisTimeout:    30,
-		},
-	}
-
-	mockProvider := &mockProviderForProcess{claudeClient: mockClaude}
-	mockRouter := provider.NewSingleProviderRouter(mockProvider)
-
-	r := &Runner{
-		cfg:     cfg,
-		router:  mockRouter,
-		invoker: newInvokerForTest(mockRouter, nil, nil),
-	}
-
-	bc := &runtypes.BeadContext{
-		Bead: &bead.Bead{
-			ID:          "test-2",
-			Title:       "Test bead",
-			Description: "Test description",
-		},
-		Result:      &IterationResult{BeadID: "test-2", Model: "sonnet"},
-		Model:       "sonnet",
-		BuildPrompt: "test prompt",
-	}
+	cfg := newTestClaudeConfig()
+	r := newRunnerForRateLimitTest(cfg, mockClaude, nil)
+	bc := newRateLimitBeadContext("test-2")
 
 	ctx := context.Background()
 	_, err := r.executeClaudeInvocation(ctx, bc)
