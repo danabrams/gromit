@@ -2,6 +2,8 @@ package runbook
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -31,5 +33,25 @@ func TestTruncateOutputCapsAt5KB(t *testing.T) {
 	}
 	if output != input[len(input)-5120:] {
 		t.Fatalf("expected tail of input to be returned")
+	}
+}
+
+func TestAppendWritesJSONL(t *testing.T) {
+	gromitDir := t.TempDir()
+	entry := Entry{ID: "rb-1-beads-abc", BeadID: "beads-abc"}
+
+	if err := Append(gromitDir, entry); err != nil {
+		t.Fatalf("append failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(gromitDir, "runbooks.jsonl"))
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	if !strings.HasSuffix(string(data), "\n") {
+		t.Fatalf("expected newline-terminated jsonl line")
+	}
+	if !strings.Contains(string(data), "\"id\":\"rb-1-beads-abc\"") {
+		t.Fatalf("expected entry json to contain id")
 	}
 }

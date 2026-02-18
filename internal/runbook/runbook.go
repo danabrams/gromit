@@ -1,7 +1,10 @@
 package runbook
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -44,4 +47,28 @@ func truncateOutput(output string) string {
 		return output
 	}
 	return output[len(output)-maxBytes:]
+}
+
+// Append writes a runbook entry as a JSONL line.
+func Append(gromitDir string, entry Entry) error {
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		return fmt.Errorf("creating runbook directory: %w", err)
+	}
+	path := filepath.Join(gromitDir, "runbooks.jsonl")
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("opening runbook file: %w", err)
+	}
+	defer file.Close()
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("marshaling runbook entry: %w", err)
+	}
+
+	if _, err := file.Write(append(data, '\n')); err != nil {
+		return fmt.Errorf("writing runbook entry: %w", err)
+	}
+
+	return nil
 }
