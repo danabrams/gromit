@@ -1061,6 +1061,41 @@ func TestRenderTestFixNilRenderer(t *testing.T) {
 	}
 }
 
+func TestRenderTestFixRealTemplateContainsRequiredSections(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	templatePath := filepath.Join(templatesDir, "PROMPT_test_fix.md")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		t.Skipf("skipping: real template not found at %s", templatePath)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &TestFixContext{
+		ClaudeMD:          "# Project context",
+		Rules:             "Use error return values",
+		TestCommand:       "go test ./internal/...",
+		TestFailureOutput: "FAIL: TestFoo got unexpected result",
+	}
+
+	result, err := r.RenderTestFix(ctx)
+	if err != nil {
+		t.Fatalf("RenderTestFix() error = %v", err)
+	}
+
+	wantContains := []string{
+		"# Project context",
+		"Use error return values",
+		"go test ./internal/...",
+		"TestFoo got unexpected result",
+		"fix",
+		"test",
+	}
+	for _, want := range wantContains {
+		if !strings.Contains(result, want) {
+			t.Errorf("RenderTestFix() output missing %q", want)
+		}
+	}
+}
+
 func TestRenderTestFix(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
