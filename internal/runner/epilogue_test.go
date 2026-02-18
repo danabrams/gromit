@@ -5,7 +5,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // newEpilogueTestRunner returns a minimal Runner suitable for epilogue tests.
@@ -62,6 +64,81 @@ func TestRunTestFixLoop_SucceedsWhenTestCommandPasses(t *testing.T) {
 	}
 	if len(cmdsCalled) != 1 {
 		t.Errorf("runTestFixLoop() called commands %d times, want 1", len(cmdsCalled))
+	}
+}
+
+func TestRunTestFixLoop_RetriesOnFailureAndCreatesBeadOnExhaustion(t *testing.T) {
+	// When test command fails and retries are exhausted, a P0 bead with
+	// "from-epilogue" label should be created.
+	cfg := &config.Config{}
+	cfg.Session.TestCommand = "go test ./..."
+	cfg.Session.MaxFixRetries = 2
+	cfg.Session.FixTier = "medium"
+
+	// Track commands called
+	var cmdsCalled []string
+	r := newEpilogueTestRunner(t, cfg)
+	r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		cmdsCalled = append(cmdsCalled, command)
+		// Always fail
+		return "FAIL", "error", 1, nil
+	}
+
+	// Set up mock renderer that returns a simple fix prompt
+	r.renderer = &mockPromptRenderer{
+		LoadClaudeMDFn: func() (string, error) { return "# project", nil },
+		LoadRulesFn:    func() (string, error) { return "rules", nil },
+		RenderTestFixFn: func(ctx *prompt.TestFixContext) (string, error) {
+			return "fix prompt", nil
+		},
+	}
+
+	// Set up mock router/provider
+	r.router = newMockRouter()
+
+	// Set up mock bead client to track created beads
+	var createdBeads []struct {
+		title    string
+		priority int
+		labels   []string
+	}
+	r.beads = &mockBeadClient{
+		CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+			createdBeads = append(createdBeads, struct {
+				title    string
+				priority int
+				labels   []string
+			}{title, priority, labels})
+			return &bead.Bead{ID: "new-bead"}, nil
+		},
+	}
+
+	err := r.runTestFixLoop(context.Background())
+	if err != nil {
+		t.Fatalf("runTestFixLoop() error = %v, want nil", err)
+	}
+
+	// Should have called test command: 1 initial + 2 retries = 3 times
+	wantCmds := 3 // initial + MaxFixRetries
+	if len(cmdsCalled) != wantCmds {
+		t.Errorf("runTestFixLoop() test command called %d times, want %d", len(cmdsCalled), wantCmds)
+	}
+
+	// Should have created exactly 1 P0 bead with from-epilogue label
+	if len(createdBeads) != 1 {
+		t.Fatalf("runTestFixLoop() created %d beads, want 1", len(createdBeads))
+	}
+	if createdBeads[0].priority != 0 {
+		t.Errorf("created bead priority = %d, want 0 (P0)", createdBeads[0].priority)
+	}
+	found := false
+	for _, l := range createdBeads[0].labels {
+		if l == "from-epilogue" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("created bead labels = %v, want to contain 'from-epilogue'", createdBeads[0].labels)
 	}
 }
 
