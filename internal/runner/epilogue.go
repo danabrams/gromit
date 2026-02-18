@@ -32,15 +32,13 @@ func (r *Runner) runSessionEpilogue(ctx context.Context, st *runLoopState) (epil
 		r.log("Warning: test-fix loop failed: %v", err)
 	}
 
-	reviewEnabled := r.cfg.Session.Review == nil || *r.cfg.Session.Review
-	if reviewEnabled {
+	if enabledWithDefault(r.cfg.Session.Review) {
 		if err := r.runEpilogueReview(ctx, st); err != nil {
 			r.log("Warning: epilogue review failed: %v", err)
 		}
 	}
 
-	retroEnabled := r.cfg.Session.Retro == nil || *r.cfg.Session.Retro
-	if retroEnabled {
+	if enabledWithDefault(r.cfg.Session.Retro) {
 		if err := r.runEpilogueRetro(ctx); err != nil {
 			r.log("Warning: epilogue retro failed: %v", err)
 		} else {
@@ -65,7 +63,7 @@ func (r *Runner) runTestFixLoop(ctx context.Context) error {
 	maxRetries := r.cfg.Session.MaxFixRetries
 	fixTier := r.cfg.Session.FixTier
 	if fixTier == "" {
-		fixTier = "medium"
+		fixTier = provider.TierMedium
 	}
 
 	// Initial test run
@@ -113,6 +111,10 @@ func (r *Runner) runTestFixLoop(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func enabledWithDefault(flag *bool) bool {
+	return flag == nil || *flag
 }
 
 // applyTestFix renders a fix prompt and calls the provider to fix failing tests.
