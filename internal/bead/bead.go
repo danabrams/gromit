@@ -3,6 +3,7 @@ package bead
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -545,7 +546,13 @@ func (c *Client) AddComment(id, comment string) error {
 		return fmt.Errorf("invalid bead ID %q", id)
 	}
 
-	_, err := c.run("comments", "add", id, comment)
+	commentPath, cleanup, err := writeTempFile("bd-comment-*.txt", comment)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	_, err = c.run("comments", "add", id, "--file", commentPath)
 	if err != nil {
 		return fmt.Errorf("bd comments add: %w", err)
 	}
@@ -894,4 +901,28 @@ func (c *Client) run(args ...string) (string, error) {
 		return "", err
 	}
 	return string(out), nil
+}
+
+func writeTempFile(pattern, content string) (string, func(), error) {
+	tmpFile, err := os.CreateTemp("", pattern)
+	if err != nil {
+		return "", nil, fmt.Errorf("creating temp file: %w", err)
+	}
+	path := tmpFile.Name()
+
+	if _, err := tmpFile.WriteString(content); err != nil {
+		tmpFile.Close()
+		os.Remove(path)
+		return "", nil, fmt.Errorf("writing temp file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(path)
+		return "", nil, fmt.Errorf("closing temp file: %w", err)
+	}
+
+	cleanup := func() {
+		_ = os.Remove(path)
+	}
+
+	return path, cleanup, nil
 }

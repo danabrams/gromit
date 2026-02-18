@@ -3,6 +3,7 @@ package bead
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -1018,6 +1019,57 @@ func TestClientAddCommentValidation(t *testing.T) {
 				t.Errorf("AddComment(%q, %q) should fail with validation error, got: %v", tt.id, tt.comment, err)
 			}
 		})
+	}
+}
+
+func TestClientAddComment_UsesTempFile(t *testing.T) {
+	comment := "This is a comment\nwith multiple lines"
+	var gotArgs []string
+	var gotComment string
+	var gotPath string
+
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			fileIdx := -1
+			for i, arg := range args {
+				if arg == "--file" {
+					fileIdx = i
+					break
+				}
+			}
+			if fileIdx == -1 || fileIdx+1 >= len(args) {
+				return "", fmt.Errorf("missing --file argument")
+			}
+			gotPath = args[fileIdx+1]
+			data, err := os.ReadFile(gotPath)
+			if err != nil {
+				return "", err
+			}
+			gotComment = string(data)
+			if _, err := os.Stat(gotPath); err != nil {
+				return "", err
+			}
+			return "", nil
+		},
+	}
+
+	if err := c.AddComment("task-123", comment); err != nil {
+		t.Fatalf("AddComment() unexpected error: %v", err)
+	}
+	if gotPath == "" {
+		t.Fatal("AddComment() did not pass a temp file path")
+	}
+	for _, arg := range gotArgs {
+		if arg == comment {
+			t.Fatalf("AddComment() should not pass comment text directly in args")
+		}
+	}
+	if gotComment != comment {
+		t.Fatalf("AddComment() comment = %q, want %q", gotComment, comment)
+	}
+	if _, err := os.Stat(gotPath); !os.IsNotExist(err) {
+		t.Fatalf("temp file should be cleaned up, stat err=%v", err)
 	}
 }
 
