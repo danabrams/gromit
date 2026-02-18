@@ -664,3 +664,22 @@ func TestBuildDebugPromptWithRunbookEntryDetailsSection(t *testing.T) {
 		t.Errorf("Failure Context section must appear before Context section")
 	}
 }
+
+// TestBuildDebugPromptWithoutRunbookEntryHasNoFailureContext verifies that when no
+// runbook entry is provided, the Failure Context section is absent.
+func TestBuildDebugPromptWithoutRunbookEntryHasNoFailureContext(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	result, err := buildDebugPrompt(nil, gromitDir, []string{}, nil)
+	if err != nil {
+		t.Fatalf("buildDebugPrompt failed: %v", err)
+	}
+
+	if strings.Contains(result, "## Failure Context") {
+		t.Errorf("expected no Failure Context section when entry is nil, but found one")
+	}
+}
