@@ -2,6 +2,12 @@ package policy
 
 import "github.com/danabrams/gromit/internal/config"
 
+const (
+	timeoutTypeStall      = "stall"
+	timeoutTypeBead       = "bead"
+	timeoutTypeInvocation = "invocation"
+)
+
 // EscalationPolicy decides tier/model selection, retry caps, and timeout classification.
 type EscalationPolicy interface {
 	SelectInitialTier(priority int, labels []string) string
@@ -58,13 +64,13 @@ func (p *ConfigEscalationPolicy) MaxRetriesPerBead() int {
 // ClassifyTimeout determines the timeout type based on context and stall state.
 func (p *ConfigEscalationPolicy) ClassifyTimeout(ctxErr, parentErr error, stallFired bool) TimeoutClassification {
 	if stallFired && ctxErr == nil {
-		return TimeoutClassification{TimeoutType: "stall"}
+		return TimeoutClassification{TimeoutType: timeoutTypeStall}
 	}
 	if ctxErr != nil && parentErr == nil {
-		return TimeoutClassification{TimeoutType: "bead"}
+		return TimeoutClassification{TimeoutType: timeoutTypeBead}
 	}
 	if parentErr != nil {
 		return TimeoutClassification{ParentCanceled: true}
 	}
-	return TimeoutClassification{TimeoutType: "invocation"}
+	return TimeoutClassification{TimeoutType: timeoutTypeInvocation}
 }
