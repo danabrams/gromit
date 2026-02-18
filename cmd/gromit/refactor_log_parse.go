@@ -8,6 +8,26 @@ import (
 	"strings"
 )
 
+const (
+	failPrefix     = "--- FAIL: "
+	skipPrefix     = "--- SKIP: "
+	pkgFailPrefix  = "FAIL\t"
+	buildFailToken = "[build failed]"
+)
+
+// testNameFromLine extracts the test name from a line with the given prefix.
+func testNameFromLine(line, prefix string) string {
+	if !strings.HasPrefix(line, prefix) {
+		return ""
+	}
+	rest := strings.TrimPrefix(line, prefix)
+	fields := strings.Fields(rest)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
 // TestFailure represents a single failing test with its package and test name.
 type TestFailure struct {
 	Package string
@@ -32,7 +52,7 @@ func parseTestLog(r io.Reader) TestLogResult {
 
 	// Track current package from FAIL lines, and track failing test names from
 	// "--- FAIL: TestName" lines.
-	failingTests := map[string]bool{}
+	failingTests := map[string]struct{}{}
 	var currentFailPkg string
 
 	sc := bufio.NewScanner(r)
@@ -40,22 +60,17 @@ func parseTestLog(r io.Reader) TestLogResult {
 		line := sc.Text()
 
 		// "--- FAIL: TestFoo (0.01s)" — record the test name
-		if strings.HasPrefix(line, "--- FAIL: ") {
-			rest := strings.TrimPrefix(line, "--- FAIL: ")
-			// rest = "TestFoo (0.01s)"
-			name := strings.Fields(rest)[0]
-			failingTests[name] = true
+		if name := testNameFromLine(line, failPrefix); name != "" {
+			failingTests[name] = struct{}{}
 		}
 
 		// "--- SKIP: TestBar (0.00s)" — record skipped test
-		if strings.HasPrefix(line, "--- SKIP: ") {
-			rest := strings.TrimPrefix(line, "--- SKIP: ")
-			name := strings.Fields(rest)[0]
+		if name := testNameFromLine(line, skipPrefix); name != "" {
 			result.SkippedTests = append(result.SkippedTests, name)
 		}
 
 		// "FAIL\tgithub.com/..." — package-level failure line
-		if strings.HasPrefix(line, "FAIL\t") {
+		if strings.HasPrefix(line, pkgFailPrefix) {
 			parts := strings.Fields(line)
 			if len(parts) >= 2 {
 				currentFailPkg = parts[1]
@@ -63,7 +78,7 @@ func parseTestLog(r io.Reader) TestLogResult {
 		}
 
 		// "[build failed]" in package result line
-		if strings.Contains(line, "[build failed]") {
+		if strings.Contains(line, buildFailToken) {
 			parts := strings.Fields(line)
 			if len(parts) >= 2 {
 				result.BuildErrors = append(result.BuildErrors, parts[1])
