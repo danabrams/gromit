@@ -176,6 +176,9 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 	if err != nil {
 		codexDebugf(output, "provider debug: waiting for process after stream error")
 		cmd.Wait()
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
+		}
 		return nil, fmt.Errorf("failed to process codex stream: %w", err)
 	}
 
