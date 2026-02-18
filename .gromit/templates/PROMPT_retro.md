@@ -52,10 +52,10 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 ## Current Run Efficiency
 
 ### Per-Iteration Efficiency
-| Bead ID | Model | Duration | Cost (USD) | Input Tokens | Output Tokens |
-|---------|-------|----------|------------|--------------|---------------|
+| Bead ID | Model | Duration | Cost (USD) | Input Tokens | Output Tokens | Files |
+|---------|-------|----------|------------|--------------|---------------|-------|
 {{- range .Efficiency.CurrentIterations }}
-| {{ .BeadID }} | {{ .Model }} | {{ .Duration }} | ${{ printf "%.4f" .CostUSD }} | {{ .InputTokens }} | {{ .OutputTokens }} |
+| {{ .BeadID }} | {{ .Model }} | {{ .Duration }} | ${{ printf "%.4f" .CostUSD }} | {{ .InputTokens }} | {{ .OutputTokens }} | {{ .FilesTouched }} |
 {{- end }}
 
 ### Per-Model Aggregates (Current Run)

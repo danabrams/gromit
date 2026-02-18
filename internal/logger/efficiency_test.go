@@ -618,6 +618,27 @@ func writeTestLogFile(t *testing.T, dir string, runID string, logs []IterationLo
 	}
 }
 
+func TestReadEfficiencyReport_FilesTouched(t *testing.T) {
+	dir := t.TempDir()
+	runID := "20260218-120000"
+	logContent := `{"timestamp":"2026-02-18T12:00:00Z","iteration":1,"bead_id":"ft-1","bead_title":"Test","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000,"cost_usd":0.1,"input_tokens":1000,"output_tokens":200,"files_touched":4}
+`
+	if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("run-%s.jsonl", runID)), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := ReadEfficiencyReport(dir, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.CurrentIterations) != 1 {
+		t.Fatalf("expected 1 iteration, got %d", len(report.CurrentIterations))
+	}
+	if report.CurrentIterations[0].FilesTouched != 4 {
+		t.Errorf("FilesTouched = %d, want 4", report.CurrentIterations[0].FilesTouched)
+	}
+}
+
 func TestReadEfficiencyReportFiltered_NilFilterIncludesAll(t *testing.T) {
 	dir := t.TempDir()
 

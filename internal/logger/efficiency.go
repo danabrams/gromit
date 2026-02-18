@@ -20,6 +20,7 @@ type IterationEfficiency struct {
 	OutputTokens      int
 	ContextWindowUsed float64 // Percentage of model's context window used by input tokens
 	ExceededThreshold bool    // True if input tokens exceeded 80% of context window
+	FilesTouched      int
 }
 
 // ModelEfficiency represents aggregated efficiency metrics for a specific model
@@ -123,6 +124,7 @@ func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilte
 				CostUSD:      entry.CostUSD,
 				InputTokens:  entry.InputTokens,
 				OutputTokens: entry.OutputTokens,
+				FilesTouched: entry.FilesTouched,
 			}
 
 			// Calculate context window usage
