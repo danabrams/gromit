@@ -71,7 +71,8 @@ func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result,
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, args...)
+	cmd := execCommandContext(ctx, c.binary, args...)
+	cmd.WaitDelay = 100 * time.Millisecond
 
 	// Pipe prompt to stdin
 	stdin, err := cmd.StdinPipe()
@@ -316,7 +317,7 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, args...)
+	cmd := execCommandContext(ctx, c.binary, args...)
 	fmt.Fprintf(output, "  cmd: %s %s\n", c.binary, strings.Join(args, " "))
 	fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))
 
