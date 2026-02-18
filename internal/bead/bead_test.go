@@ -1372,6 +1372,58 @@ func TestClientCreateInheritsCreateWithParent(t *testing.T) {
 	}
 }
 
+func TestClientCreateWithParentAndDescription_UsesBodyFile(t *testing.T) {
+	description := "Line 1\nLine 2"
+	var gotArgs []string
+	var gotDescription string
+	var gotPath string
+
+	c := &Client{
+		runFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			bodyIdx := -1
+			for i, arg := range args {
+				if arg == "--body-file" {
+					bodyIdx = i
+					break
+				}
+			}
+			if bodyIdx == -1 || bodyIdx+1 >= len(args) {
+				return "", fmt.Errorf("missing --body-file argument")
+			}
+			gotPath = args[bodyIdx+1]
+			data, err := os.ReadFile(gotPath)
+			if err != nil {
+				return "", err
+			}
+			gotDescription = string(data)
+			if _, err := os.Stat(gotPath); err != nil {
+				return "", err
+			}
+			return `{"id":"task-001","title":"Test","priority":1,"issue_type":"task","status":"open"}`, nil
+		},
+	}
+
+	_, err := c.CreateWithParentAndDescription("Test", 1, nil, nil, "", description)
+	if err != nil {
+		t.Fatalf("CreateWithParentAndDescription() unexpected error: %v", err)
+	}
+	if gotPath == "" {
+		t.Fatal("CreateWithParentAndDescription() did not pass a temp file path")
+	}
+	for _, arg := range gotArgs {
+		if arg == description {
+			t.Fatalf("CreateWithParentAndDescription() should not pass description directly in args")
+		}
+	}
+	if gotDescription != description {
+		t.Fatalf("CreateWithParentAndDescription() description = %q, want %q", gotDescription, description)
+	}
+	if _, err := os.Stat(gotPath); !os.IsNotExist(err) {
+		t.Fatalf("temp file should be cleaned up, stat err=%v", err)
+	}
+}
+
 // TestClientCreateWithDeps tests CreateWithDepsAndDescription with multiple dependencies
 func TestClientCreateWithDeps(t *testing.T) {
 	tests := []struct {

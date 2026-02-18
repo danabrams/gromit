@@ -436,7 +436,12 @@ func (c *Client) CreateWithParentAndDescription(title string, priority int, labe
 
 	// Add description if specified
 	if description != "" {
-		args = append(args, "--description", description)
+		descriptionPath, cleanup, err := writeTempFile("bd-description-*.md", description)
+		if err != nil {
+			return nil, err
+		}
+		defer cleanup()
+		args = append(args, "--body-file", descriptionPath)
 	}
 
 	out, err := c.run(args...)
