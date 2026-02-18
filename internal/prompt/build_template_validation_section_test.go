@@ -151,6 +151,64 @@ func TestBuildTemplatesValidationFailuresSectionPlacement(t *testing.T) {
 	}
 }
 
+// TestBuildTemplatesScopedTestCommand verifies that when ScopedTestCommand is set
+// on the Context, all three build templates render that exact command in the
+// Instructions section instead of the generic "./..." form.
+func TestBuildTemplatesScopedTestCommand(t *testing.T) {
+	r := setupRealTemplateRenderer(t)
+
+	type renderFunc func(*Context) (string, error)
+
+	templates := []struct {
+		name   string
+		render renderFunc
+	}{
+		{"PROMPT_build.md", r.RenderBuild},
+		{"PROMPT_atdd_build.md", r.RenderATDDBuild},
+		{"PROMPT_tdd_build.md", r.RenderTDDBuild},
+	}
+
+	scopedCmd := "go test ./internal/runner/... ./internal/config/..."
+
+	for _, tmpl := range templates {
+		t.Run(tmpl.name+" with scoped command", func(t *testing.T) {
+			ctx := &Context{
+				Bead:              testBead(),
+				Model:             "sonnet",
+				Iteration:         1,
+				ScopedTestCommand: scopedCmd,
+			}
+
+			result, err := tmpl.render(ctx)
+			if err != nil {
+				t.Fatalf("render error: %v", err)
+			}
+
+			if !strings.Contains(result, scopedCmd) {
+				t.Errorf("%s: expected scoped test command %q to appear in rendered output when ScopedTestCommand is set", tmpl.name, scopedCmd)
+			}
+		})
+
+		t.Run(tmpl.name+" without scoped command falls back to generic", func(t *testing.T) {
+			ctx := &Context{
+				Bead:      testBead(),
+				Model:     "sonnet",
+				Iteration: 1,
+			}
+
+			result, err := tmpl.render(ctx)
+			if err != nil {
+				t.Fatalf("render error: %v", err)
+			}
+
+			// Without ScopedTestCommand, the template should still mention go test
+			if !strings.Contains(result, "go test") {
+				t.Errorf("%s: expected 'go test' to appear in rendered output when ScopedTestCommand is empty", tmpl.name)
+			}
+		})
+	}
+}
+
 // TestBuildTemplatesSelfCheckGuidance verifies that all three build templates
 // include self-check guidance in their Instructions section, instructing the
 // agent to run validation commands before completing.

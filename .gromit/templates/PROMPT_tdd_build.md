@@ -99,7 +99,7 @@ Follow the **red-green-refactor** cycle strictly. Work in small increments.
 - Focus each test on a single behavior or requirement from the bead
 - Commit after each red-green cycle
 - Write minimum code to pass - no gold plating
-- Before completing, run `go test` and `go vet` scoped to the packages you touched (e.g., `go test ./internal/foo/... ./internal/bar/...`), not the full suite. The separate validation phase runs `go test ./...` to catch cross-package regressions. Fix failures before committing
+- Before completing, run `go test` and `go vet` scoped to the packages you touched{{if .ScopedTestCommand}} using this exact command: `{{.ScopedTestCommand}}`{{else}} (e.g., `go test ./internal/foo/... ./internal/bar/...`), not the full suite. The separate validation phase runs `go test ./...` to catch cross-package regressions{{end}}. Fix failures before committing
 - After all requirements are covered, stop - refactoring will happen in a separate phase
 
 ## Completion

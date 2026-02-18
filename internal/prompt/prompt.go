@@ -42,6 +42,10 @@ type Context struct {
 	// Validation history
 	RecentValidationFailures []string // Summaries of recent validation failures from current run
 
+	// Scoped test command for build phase self-checks (e.g. "go test ./internal/runner/... ./internal/config/...")
+	// When non-empty, templates should use this instead of the generic "./..." form.
+	ScopedTestCommand string
+
 	// Iteration info
 	Iteration      int
 	Model          string

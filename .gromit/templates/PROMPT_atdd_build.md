@@ -92,7 +92,7 @@ Please analyze the failure and try a different approach.
 2. **Study the codebase** - understand existing patterns and where your implementation should fit
 3. **Implement the functionality** - write the minimal code needed to make the tests pass
 4. **Do NOT modify the test files** - the tests define the behavioral contract; only change implementation code
-5. **Self-check** — Before completing, run `go test` and `go vet` scoped to the packages you touched (e.g., `go test ./internal/foo/... ./internal/bar/...`), not the full suite. The separate validation phase runs `go test ./...` to catch cross-package regressions. Fix failures before committing
+5. **Self-check** — Before completing, run `go test` and `go vet` scoped to the packages you touched{{if .ScopedTestCommand}} using this exact command: `{{.ScopedTestCommand}}`{{else}} (e.g., `go test ./internal/foo/... ./internal/bar/...`), not the full suite. The separate validation phase runs `go test ./...` to catch cross-package regressions{{end}}. Fix failures before committing
 6. **Commit your changes** with a clear commit message
 
 ## Completion
