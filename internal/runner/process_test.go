@@ -117,6 +117,38 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 	}
 }
 
+func TestSetupBeadContext_UsesInjectedGitHeadFn(t *testing.T) {
+	r := &Runner{
+		cfg: &config.Config{
+			Escalation: config.EscalationConfig{
+				MaxRetriesPerModel: 2,
+				MaxRetriesPerBead:  5,
+			},
+			Claude: config.ClaudeConfig{
+				BeadTimeout: 300,
+			},
+		},
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
+		output:   &strings.Builder{},
+		router:   newMockRouter(),
+		gitHeadFn: func() (string, error) {
+			return "abc123", nil
+		},
+	}
+	b := &bead.Bead{ID: "test-1", Title: "Test", Priority: 1}
+
+	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer cancel()
+
+	if bc.StartCommit != "abc123" {
+		t.Errorf("StartCommit = %q, want %q", bc.StartCommit, "abc123")
+	}
+}
+
 func TestEscalateModel(t *testing.T) {
 	bc := &runtypes.BeadContext{
 		Model:     "haiku",

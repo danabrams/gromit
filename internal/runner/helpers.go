@@ -44,6 +44,14 @@ func getGitDiff(fromCommit string) (string, error) {
 	return string(out), nil
 }
 
+// getHead calls the injectable gitHeadFn, falling back to getGitHead if unset.
+func (r *Runner) getHead() (string, error) {
+	if r.gitHeadFn != nil {
+		return r.gitHeadFn()
+	}
+	return getGitHead()
+}
+
 // getDiff calls the injectable gitDiffFn, falling back to getGitDiff if unset.
 func (r *Runner) getDiff(fromCommit string) (string, error) {
 	if r.gitDiffFn != nil {

@@ -42,7 +42,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	beadTimeout := time.Duration(beadTimeoutSec) * time.Second
 	beadCtx, beadCancel := context.WithTimeout(ctx, beadTimeout)
 
-	startCommit, err := getGitHead()
+	startCommit, err := r.getHead()
 	if err != nil {
 		r.log("Warning: could not capture git HEAD: %v", err)
 		startCommit = ""
