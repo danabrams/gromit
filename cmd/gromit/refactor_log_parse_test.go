@@ -5,6 +5,19 @@ import (
 	"testing"
 )
 
+func TestParseTestLog_ZeroFailuresWhenAllPass(t *testing.T) {
+	input := `=== RUN   TestBar
+--- PASS: TestBar (0.00s)
+PASS
+ok  	github.com/danabrams/gromit/internal/bar	(cached)
+`
+	result := parseTestLog(strings.NewReader(input))
+
+	if len(result.Failures) != 0 {
+		t.Errorf("want 0 failures, got %d: %v", len(result.Failures), result.Failures)
+	}
+}
+
 func TestParseTestLog_DetectsFailingTest(t *testing.T) {
 	input := `=== RUN   TestFoo
 --- FAIL: TestFoo (0.01s)
