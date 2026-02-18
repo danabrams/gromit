@@ -190,6 +190,10 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	}
 
 	if r.cfg.Validation.Enabled {
+		// --- Deadline guard: skip decision only ---
+		// This block decides whether to skip re-validation due to insufficient
+		// bead budget. It sets skipRevalidation=true and has no other effect.
+		// It does NOT affect how validation errors are handled below.
 		skipRevalidation := false
 		if remaining, _, ok := beadRemaining(bc); ok {
 			guard := checkRemainingGuard(remaining, minRevalidationTime)
@@ -199,6 +203,10 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 			}
 		}
 
+		// --- Validation and error propagation ---
+		// When the guard allows re-validation to proceed, any validation error
+		// is always wrapped and returned as a terminal failure. The deadline
+		// guard above cannot suppress real validation failures.
 		if !skipRevalidation {
 			if bc.StartCommit != "" {
 				diff, err := r.getDiff(bc.StartCommit)
