@@ -849,3 +849,23 @@ func TestResolveRunbookEntryShowsPickerWhenNoArgs(t *testing.T) {
 		t.Errorf("expected BeadID 'gromit-abc', got %q", entry.BeadID)
 	}
 }
+
+// TestResolveRunbookEntryReturnsNilWhenNoEntries verifies that resolveRunbookEntry
+// returns nil without prompting when no runbook entries exist.
+func TestResolveRunbookEntryReturnsNilWhenNoEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	// No entries written — reader should not be consulted
+	reader := strings.NewReader("") // empty: would cause error if read
+	entry, err := resolveRunbookEntry(gromitDir, 14, []string{}, reader)
+	if err != nil {
+		t.Fatalf("resolveRunbookEntry failed: %v", err)
+	}
+	if entry != nil {
+		t.Errorf("expected nil entry when no runbook entries, got %v", entry.BeadID)
+	}
+}
