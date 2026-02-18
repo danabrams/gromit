@@ -23,6 +23,8 @@ const (
 	DefaultAndonL1TimeCapMinutes = 2
 	DefaultAndonL2TimeCapMinutes = 15
 
+	DefaultRunbookTTLDays = 14
+
 	DefaultAndonConfigDocSectionTitle = "# Andon autonomy controls"
 )
 
@@ -693,7 +695,7 @@ func (c *Config) SetDefaults() {
 	}
 
 	if c.Runbook.TTLDays == 0 {
-		c.Runbook.TTLDays = 14
+		c.Runbook.TTLDays = DefaultRunbookTTLDays
 	}
 	if c.Session.MaxFixRetries == 0 {
 		c.Session.MaxFixRetries = 3

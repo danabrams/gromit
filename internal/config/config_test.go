@@ -99,8 +99,8 @@ func TestSetDefaultsRunbookTTLDays(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
 
-	if cfg.Runbook.TTLDays != 14 {
-		t.Errorf("Runbook.TTLDays = %d, want 14", cfg.Runbook.TTLDays)
+	if cfg.Runbook.TTLDays != DefaultRunbookTTLDays {
+		t.Errorf("Runbook.TTLDays = %d, want %d", cfg.Runbook.TTLDays, DefaultRunbookTTLDays)
 	}
 }
 
@@ -141,8 +141,8 @@ models:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Runbook.TTLDays != 14 {
-		t.Errorf("Runbook.TTLDays = %d, want 14 when omitted from YAML", cfg.Runbook.TTLDays)
+	if cfg.Runbook.TTLDays != DefaultRunbookTTLDays {
+		t.Errorf("Runbook.TTLDays = %d, want %d when omitted from YAML", cfg.Runbook.TTLDays, DefaultRunbookTTLDays)
 	}
 }
 
