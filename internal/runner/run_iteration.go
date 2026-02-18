@@ -72,9 +72,9 @@ func (r *Runner) runScopeGate(ctx context.Context, b *bead.Bead, st *runLoopStat
 
 	blocked := false
 	var reason string
-	if !estimate.CanCompleteInSingleIteration {
+	if estimate.EstimatedIterations >= 3 {
 		blocked = true
-		reason = fmt.Sprintf("scope check: cannot complete in single iteration (complexity=%s, estimated_iterations=%d)", estimate.Complexity, estimate.EstimatedIterations)
+		reason = fmt.Sprintf("scope check: too many iterations needed (complexity=%s, estimated_iterations=%d)", estimate.Complexity, estimate.EstimatedIterations)
 	} else if estimate.Complexity == "high" && len(estimate.Blockers) > 0 {
 		blocked = true
 		reason = fmt.Sprintf("scope check: high complexity with blockers (%s)", strings.Join(estimate.Blockers, "; "))
@@ -111,11 +111,6 @@ func (r *Runner) processSingleBead(
 	tmuxMgr *tmux.Manager,
 	runThoroughReview func(int),
 ) (bool, error) {
-	if st.skippedBeads[b.ID] {
-		r.log("All ready beads are stuck and have been skipped. Stopping loop.")
-		return true, nil
-	}
-
 	if r.isStuckBeadWithStats(b, st.beadStats) {
 		r.handleStuckBead(b, st)
 		return false, nil

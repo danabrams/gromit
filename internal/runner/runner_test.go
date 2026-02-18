@@ -2131,7 +2131,7 @@ func TestScopedRun_NoFilterUsesReady(t *testing.T) {
 	}
 
 	// No label filters set
-	bead, err := r.getNextBead()
+	bead, err := r.getNextBead(nil)
 	if err != nil {
 		t.Fatalf("getNextBead() error = %v", err)
 	}
@@ -2192,7 +2192,7 @@ func TestScopedRun_WithFilterUsesReadyWithLabel(t *testing.T) {
 	// Set label filters
 	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
 
-	bead, err := r.getNextBead()
+	bead, err := r.getNextBead(nil)
 	if err != nil {
 		t.Fatalf("getNextBead() error = %v", err)
 	}
@@ -2244,7 +2244,7 @@ func TestScopedRun_EmptyResultsExitCleanly(t *testing.T) {
 	// Set label filters
 	r.SetLabelFilters([]string{"spec:nonexistent"})
 
-	bead, err := r.getNextBead()
+	bead, err := r.getNextBead(nil)
 	if err != nil {
 		t.Errorf("getNextBead() should not error on empty results, got: %v", err)
 	}
@@ -2302,7 +2302,7 @@ func TestScopedRun_MultipleLabelsPicksHighestPriority(t *testing.T) {
 	// Set multiple label filters
 	r.SetLabelFilters([]string{"spec:auth", "spec:payments", "spec:reporting"})
 
-	bead, err := r.getNextBead()
+	bead, err := r.getNextBead(nil)
 	if err != nil {
 		t.Fatalf("getNextBead() error = %v", err)
 	}
@@ -2354,7 +2354,7 @@ func TestScopedRun_MultipleLabelsWithPartialResults(t *testing.T) {
 	// Set multiple label filters, only one returns a bead
 	r.SetLabelFilters([]string{"spec:auth", "spec:payments", "spec:reporting"})
 
-	bead, err := r.getNextBead()
+	bead, err := r.getNextBead(nil)
 	if err != nil {
 		t.Fatalf("getNextBead() error = %v", err)
 	}
@@ -2402,7 +2402,7 @@ func TestScopedRun_DeduplicatesBeadsAcrossLabels(t *testing.T) {
 	// Set filters that both return the same bead
 	r.SetLabelFilters([]string{"spec:auth", "spec:payments"})
 
-	bead, err := r.getNextBead()
+	bead, err := r.getNextBead(nil)
 	if err != nil {
 		t.Fatalf("getNextBead() error = %v", err)
 	}

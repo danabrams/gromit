@@ -23,6 +23,7 @@ var (
 // BeadClient abstracts the bead (bd) CLI operations used by the runner.
 type BeadClient interface {
 	Ready() (*bead.Bead, error)
+	ReadyExcluding(excludeIDs map[string]bool) (*bead.Bead, error)
 	ReadyWithLabel(label string) (*bead.Bead, error)
 	ListWithLabel(label string) ([]*bead.Bead, error)
 	Show(id string) (*bead.Bead, error)

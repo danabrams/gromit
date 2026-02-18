@@ -52,7 +52,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
 
 ### Iteration Estimates
 
-- 1-2 iterations: Task is achievable with current context
-- 3+ iterations: Task likely too large and should be decomposed
+- 1 iteration: Task is straightforward, achievable in a single pass
+- 2 iterations: Task is achievable with current context but may need a retry
+- 3+ iterations: Task is too large and should be decomposed
 
-Tasks that cannot be completed in a single iteration should return `can_complete_in_single_iteration: false` and recommend breakdown in blockers.
+Set `can_complete_in_single_iteration: false` only when `estimated_iterations` is 3 or more. Tasks needing 1-2 iterations should set it to `true`.

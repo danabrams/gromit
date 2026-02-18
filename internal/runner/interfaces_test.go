@@ -26,6 +26,7 @@ import (
 
 type mockBeadClient struct {
 	ReadyFn                          func() (*bead.Bead, error)
+	ReadyExcludingFn                 func(excludeIDs map[string]bool) (*bead.Bead, error)
 	ReadyWithLabelFn                 func(label string) (*bead.Bead, error)
 	ListWithLabelFn                  func(label string) ([]*bead.Bead, error)
 	ShowFn                           func(id string) (*bead.Bead, error)
@@ -50,6 +51,24 @@ type mockComment struct {
 func (m *mockBeadClient) Ready() (*bead.Bead, error) {
 	if m.ReadyFn != nil {
 		return m.ReadyFn()
+	}
+	return nil, nil
+}
+
+func (m *mockBeadClient) ReadyExcluding(excludeIDs map[string]bool) (*bead.Bead, error) {
+	if m.ReadyExcludingFn != nil {
+		return m.ReadyExcludingFn(excludeIDs)
+	}
+	// Fall back to ReadyFn and filter
+	if m.ReadyFn != nil {
+		b, err := m.ReadyFn()
+		if err != nil || b == nil {
+			return nil, err
+		}
+		if excludeIDs[b.ID] {
+			return nil, nil
+		}
+		return b, nil
 	}
 	return nil, nil
 }
@@ -2092,10 +2111,10 @@ func TestRunWithMocks_PrecheckPassedCloseFailsLoopTerminates(t *testing.T) {
 		t.Errorf("expected Close attempted once for 'stuck-bead', got: %v", beads.ClosedIDs)
 	}
 
-	// Verify the loop terminated with the "all ready beads are stuck" message
+	// Verify the loop terminated with the blocked/stuck message
 	output := buf.String()
-	if !strings.Contains(output, "All ready beads are stuck and have been skipped") {
-		t.Errorf("expected 'All ready beads are stuck' message in output, got: %s", output)
+	if !strings.Contains(output, "All ready beads are blocked or stuck") {
+		t.Errorf("expected 'All ready beads are blocked or stuck' message in output, got: %s", output)
 	}
 
 	// Verify warning about Close failure was logged
@@ -2172,7 +2191,7 @@ func TestRunWithMocks_ReadyBeadAlreadyClosedIsSkippedBeforeProcessing(t *testing
 	if !strings.Contains(output, "already closed; skipping") {
 		t.Errorf("expected already-closed skip message in output, got: %s", output)
 	}
-	if !strings.Contains(output, "All ready beads are stuck and have been skipped") {
+	if !strings.Contains(output, "All ready beads are blocked or stuck") {
 		t.Errorf("expected stuck-beads stop message in output, got: %s", output)
 	}
 }

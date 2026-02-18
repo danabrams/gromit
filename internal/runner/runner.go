@@ -163,12 +163,16 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			break
 		}
 
-		b, err := r.getNextBead()
+		b, err := r.getNextBead(st.skippedBeads)
 		if err != nil {
 			return fmt.Errorf("getting next bead: %w", err)
 		}
 		if b == nil {
-			r.log("No more work available, stopping")
+			if len(st.skippedBeads) > 0 {
+				r.log("All ready beads are blocked or stuck. Stopping loop.")
+			} else {
+				r.log("No more work available, stopping")
+			}
 			break
 		}
 

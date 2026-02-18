@@ -188,7 +188,7 @@ func TestRunner_GetNextBead_LabelFiltering(t *testing.T) {
 				readyFunc:          tt.readyFunc,
 			})
 
-			result, err := r.getNextBead()
+			result, err := r.getNextBead(nil)
 			if err != nil {
 				t.Fatalf("getNextBead() error: %v", err)
 			}

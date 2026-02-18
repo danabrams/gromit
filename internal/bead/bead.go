@@ -203,6 +203,44 @@ func (c *Client) Ready() (*Bead, error) {
 	return parseBeadOutputExcluding(out, "epic")
 }
 
+// ReadyExcluding returns the next unblocked non-epic bead whose ID is not in excludeIDs.
+// Fetches a larger batch to increase the chance of finding a non-excluded bead.
+func (c *Client) ReadyExcluding(excludeIDs map[string]bool) (*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
+	if len(excludeIDs) == 0 {
+		return c.Ready()
+	}
+
+	out, err := c.run("ready", "--json", "--limit", "10")
+	if err != nil {
+		return nil, fmt.Errorf("bd ready: %w", err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return nil, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd output: %w", err)
+	}
+
+	for i := range beads {
+		if beads[i].Type == "epic" || excludeIDs[beads[i].ID] {
+			continue
+		}
+		beads[i].normalizeNilFields()
+		if err := beads[i].Validate(); err != nil {
+			return nil, fmt.Errorf("invalid bead data: %w", err)
+		}
+		return &beads[i], nil
+	}
+
+	return nil, nil
+}
+
 // ReadyAny returns the next unblocked bead of any type (including epics)
 func (c *Client) ReadyAny() (*Bead, error) {
 	if c == nil {

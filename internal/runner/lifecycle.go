@@ -384,24 +384,24 @@ func (r *Runner) SetLabelFilters(labels []string) {
 }
 
 // getNextBead gets the next bead to process, optionally filtering by labels
-func (r *Runner) getNextBead() (*bead.Bead, error) {
+func (r *Runner) getNextBead(excludeIDs map[string]bool) (*bead.Bead, error) {
 	if r == nil || r.beads == nil {
 		return nil, fmt.Errorf("runner or beads client is nil")
 	}
 
-	// If no label filters, use Ready() as before
+	// If no label filters, use ReadyExcluding to skip past blocked beads
 	if len(r.labelFilters) == 0 {
-		return r.beads.Ready()
+		return r.beads.ReadyExcluding(excludeIDs)
 	}
 
-	// Collect beads from all labels
+	// Collect beads from all labels, filtering out excluded IDs
 	var candidates []*bead.Bead
 	for _, label := range r.labelFilters {
 		b, err := r.beads.ReadyWithLabel(label)
 		if err != nil {
 			return nil, fmt.Errorf("getting bead with label %s: %w", label, err)
 		}
-		if b != nil {
+		if b != nil && !excludeIDs[b.ID] {
 			candidates = append(candidates, b)
 		}
 	}

@@ -160,6 +160,29 @@ func TestScopeGate_BlocksHighComplexityWithBlockers(t *testing.T) {
 	}
 }
 
+func TestScopeGate_PassesMediumComplexityTwoIterations(t *testing.T) {
+	cfg := baseScopeGateConfig()
+	estimate := &prompt.ScopeEstimate{
+		Complexity:                   "medium",
+		EstimatedIterations:          2,
+		CanCompleteInSingleIteration: false,
+		Blockers:                     []string{},
+	}
+
+	r, _, mockLogger := scopeGateTestSetup(t, cfg, estimate)
+
+	err := r.Run(context.Background(), 1, time.Time{}, nil, true)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	for _, log := range mockLogger.Logs {
+		if log.Outcome == "scope_blocked" {
+			t.Error("expected no scope_blocked outcome for medium complexity with 2 estimated iterations")
+		}
+	}
+}
+
 func TestScopeGate_PassesMediumComplexitySingleIteration(t *testing.T) {
 	cfg := baseScopeGateConfig()
 	estimate := &prompt.ScopeEstimate{
