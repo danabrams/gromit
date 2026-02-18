@@ -222,7 +222,6 @@ func TestApplyProposals_PromotesLearningToRule(t *testing.T) {
 		t.Fatalf("read learnings: %v", err)
 	}
 	t.Logf("learnings:\n%s", string(learningsContent))
-	t.Logf("learnings:\n%s", string(learningsContent))
 	if !strings.Contains(string(learningsContent), "Archived from") {
 		t.Fatalf("expected archived learning after promotion")
 	}
