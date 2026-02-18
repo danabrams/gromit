@@ -73,13 +73,13 @@ func runStats(cmd *cobra.Command, args []string) error {
 	}
 
 	if statsJSON {
-		return outputJSON(projectStats, globalStats, beadCosts, costPerSpec)
+		return outputJSON(projectStats, globalStats, costPerSpec)
 	}
 
 	return outputText(projectStats, globalStats, beadCosts, costPerSpec)
 }
 
-func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost) error {
+func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, costPerSpec map[string]logger.SpecCost) error {
 	output := map[string]interface{}{
 		"project_stats": projectStats,
 		"global_stats":  globalStats,
