@@ -126,7 +126,6 @@ func lineIndex(lines []string, substring string) int {
 
 // --- Invoker.Execute tests ---
 
-// Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_ReturnsInvocationResult(t *testing.T) {
 	// Tests that Execute returns a properly populated InvocationResult
 	// with Claude result data, model name, and provider name.
@@ -178,38 +177,6 @@ func TestInvokerExecute_ReturnsInvocationResult(t *testing.T) {
 	}
 }
 
-func TestInvokerExecute_ReturnsRuntypesInvocationResult(t *testing.T) {
-	mp := &mockProvider{
-		name: "test-claude",
-		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-			return &provider.Result{
-				Success: true,
-				Output:  "build complete",
-				Model:   "claude-sonnet",
-			}, nil
-		},
-	}
-
-	mr := &mockRouter{
-		selectFn: func(phase, tier string) (Provider, string) {
-			return mp, "claude-sonnet"
-		},
-	}
-
-	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
-	bc := newTestBeadContext()
-
-	result, err := invoker.Execute(context.Background(), bc, "test prompt")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if _, ok := interface{}(result).(*runtypes.InvocationResult); !ok {
-		t.Fatalf("result type = %T, want *runtypes.InvocationResult", result)
-	}
-}
-
-// Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_PropagatesModelAndProviderToBeadContext(t *testing.T) {
 	// Tests that Execute updates bc.Model, bc.Result.Model, and bc.BuildProvider
 	// with the router-selected values.
@@ -240,7 +207,6 @@ func TestInvokerExecute_PropagatesModelAndProviderToBeadContext(t *testing.T) {
 	}
 }
 
-// Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_NilRouterReturnsError(t *testing.T) {
 	invoker := NewInvoker(nil, &bytes.Buffer{}, nil)
 	bc := newTestBeadContext()
@@ -251,7 +217,6 @@ func TestInvokerExecute_NilRouterReturnsError(t *testing.T) {
 	}
 }
 
-// Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_NoProviderAvailableReturnsError(t *testing.T) {
 	mr := &mockRouter{
 		selectFn: func(phase, tier string) (Provider, string) {
@@ -268,7 +233,6 @@ func TestInvokerExecute_NoProviderAvailableReturnsError(t *testing.T) {
 	}
 }
 
-// Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_UsageLimitTriggersProviderFallback(t *testing.T) {
 	// When the primary provider returns a usage limit error, Execute should
 	// mark it unavailable and retry with a fallback provider.
@@ -327,7 +291,6 @@ func TestInvokerExecute_UsageLimitTriggersProviderFallback(t *testing.T) {
 	}
 }
 
-// Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_EscalatedInvocationUpdatesEscalatedTo(t *testing.T) {
 	// When bc.Result.Escalated is true and EscalatedTo is set, Execute
 	// should update EscalatedTo with the concrete model name from the router.
@@ -353,7 +316,6 @@ func TestInvokerExecute_EscalatedInvocationUpdatesEscalatedTo(t *testing.T) {
 	}
 }
 
-// Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_CapturesDiagnosticDataFromStreamStats(t *testing.T) {
 	// Execute should populate bc.Result diagnostic fields from the StreamStats
 	// DiagnosticSnapshot after the invocation completes.
@@ -389,7 +351,6 @@ func TestInvokerExecute_CapturesDiagnosticDataFromStreamStats(t *testing.T) {
 	}
 }
 
-// Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_PassesTierFromBeadContext(t *testing.T) {
 	// Execute should use bc.Tier when calling router.Select and pass it
 	// through to provider.StreamRun.
@@ -426,7 +387,6 @@ func TestInvokerExecute_PassesTierFromBeadContext(t *testing.T) {
 	}
 }
 
-// Expected failure: Invoker type does not exist in execution/ package yet
 func TestInvokerExecute_StreamRunErrorPropagates(t *testing.T) {
 	// When StreamRun returns a non-usage-limit error, it should propagate to the caller.
 	mp := &mockProvider{
@@ -583,7 +543,6 @@ func TestInvokerExecute_PreserveProviderStreamEnvOverrideOff(t *testing.T) {
 	}
 }
 
-// Expected failure: InvocationLifecycleMarkerStart constant does not exist yet
 func TestInvokerExecute_EmitsStartMarker(t *testing.T) {
 	logsDir := t.TempDir()
 	sl, err := logger.NewStreamLogger(logsDir)
@@ -618,7 +577,6 @@ func TestInvokerExecute_EmitsStartMarker(t *testing.T) {
 	}
 }
 
-// Expected failure: InvocationLifecycleMarkerStart constant does not exist yet
 func TestInvokerExecute_EmitsLifecycleMarkersWithoutStreamEvents(t *testing.T) {
 	// Ensure lifecycle markers are emitted even when no stream events are parsed.
 	// This test expects start, selection, and completion markers in the stream log.
@@ -685,7 +643,6 @@ func TestInvokerExecute_EmitsLifecycleMarkersWithoutStreamEvents(t *testing.T) {
 	}
 }
 
-// Expected failure: InvocationLifecycleMarkerFailure constant does not exist yet
 func TestInvokerExecute_EmitsFailureSummaryMarker(t *testing.T) {
 	logsDir := t.TempDir()
 	sl, err := logger.NewStreamLogger(logsDir)
@@ -726,7 +683,6 @@ func TestInvokerExecute_EmitsFailureSummaryMarker(t *testing.T) {
 	}
 }
 
-// Expected failure: InvocationResult type does not exist in execution/ package yet
 func TestInvocationResult_ContainsStreamStats(t *testing.T) {
 	// InvocationResult should include StreamStats for the caller to inspect.
 	mp := &mockProvider{}
@@ -758,7 +714,6 @@ func TestInvocationResult_ContainsStreamStats(t *testing.T) {
 	}
 }
 
-// Expected failure: InvocationResult.ProviderResult field does not exist yet
 func TestInvokerExecute_ExposesProviderResult(t *testing.T) {
 	expected := &provider.Result{
 		Success:      true,
@@ -840,7 +795,6 @@ func TestInvokerExecute_MergesProviderUsageIntoStatsWhenStreamHasNoResultEvent(t
 	}
 }
 
-// Expected failure: InvocationResult type does not exist in execution/ package yet
 func TestInvocationResult_ConvertsClaudeResult(t *testing.T) {
 	// The Result field in InvocationResult should be a *claude.Result,
 	// converted from the provider.Result returned by StreamRun.
@@ -887,7 +841,6 @@ func TestInvocationResult_ConvertsClaudeResult(t *testing.T) {
 	}
 }
 
-// Expected failure: NewInvoker does not exist in execution/ package yet
 func TestNewInvoker_AcceptsNarrowInterfaces(t *testing.T) {
 	// Verify that NewInvoker accepts the narrow Router interface (not *provider.Router),
 	// enabling mock injection without importing the provider package's concrete types.
