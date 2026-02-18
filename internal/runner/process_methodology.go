@@ -11,7 +11,7 @@ import (
 )
 
 func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.BeadContext) (atddActive bool, tddActive bool, done bool) {
-	atddActive = bead.IsMethodologyActive(bc.Bead.Labels, "atdd", r.cfg.Methodology.ATDD)
+	atddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "atdd")
 	if atddActive && r.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		if specName := bead.FindSpecLabel(bc.Bead.Labels); specName != "" {
 			r.log("Skipping ATDD: spec granularity active for spec:%s", specName)
@@ -29,7 +29,7 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 		}
 	}
 
-	tddActive = bead.IsMethodologyActive(bc.Bead.Labels, "tdd", r.cfg.Methodology.TDD)
+	tddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "tdd")
 	if tddActive {
 		r.log("TDD enabled, using TDD build prompt with red-green-refactor cycles...")
 		buildPrompt, err := r.renderer.RenderTDDBuild(bc.PromptCtx)
