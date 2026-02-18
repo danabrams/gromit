@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const runbookFile = "runbooks.jsonl"
+
 // Entry represents a runbook entry captured after a failed bead.
 type Entry struct {
 	ID                 string    `json:"id"`
@@ -51,33 +53,36 @@ func truncateOutput(output string) string {
 	return output[len(output)-maxBytes:]
 }
 
+// writeEntry marshals entry as a JSONL line to f.
+func writeEntry(f *os.File, entry Entry) error {
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("marshaling runbook entry: %w", err)
+	}
+	if _, err := f.Write(append(data, '\n')); err != nil {
+		return fmt.Errorf("writing runbook entry: %w", err)
+	}
+	return nil
+}
+
 // Append writes a runbook entry as a JSONL line.
 func Append(gromitDir string, entry Entry) error {
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
 		return fmt.Errorf("creating runbook directory: %w", err)
 	}
-	path := filepath.Join(gromitDir, "runbooks.jsonl")
+	path := filepath.Join(gromitDir, runbookFile)
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("opening runbook file: %w", err)
 	}
 	defer file.Close()
 
-	data, err := json.Marshal(entry)
-	if err != nil {
-		return fmt.Errorf("marshaling runbook entry: %w", err)
-	}
-
-	if _, err := file.Write(append(data, '\n')); err != nil {
-		return fmt.Errorf("writing runbook entry: %w", err)
-	}
-
-	return nil
+	return writeEntry(file, entry)
 }
 
 // List returns runbook entries filtered by TTL.
 func List(gromitDir string, ttlDays int) ([]Entry, error) {
-	path := filepath.Join(gromitDir, "runbooks.jsonl")
+	path := filepath.Join(gromitDir, runbookFile)
 	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -119,7 +124,7 @@ func Cleanup(gromitDir string, ttlDays int) error {
 		return fmt.Errorf("loading runbook entries: %w", err)
 	}
 
-	path := filepath.Join(gromitDir, "runbooks.jsonl")
+	path := filepath.Join(gromitDir, runbookFile)
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("opening runbook file: %w", err)
@@ -127,12 +132,8 @@ func Cleanup(gromitDir string, ttlDays int) error {
 	defer file.Close()
 
 	for _, entry := range entries {
-		data, err := json.Marshal(entry)
-		if err != nil {
-			return fmt.Errorf("marshaling runbook entry: %w", err)
-		}
-		if _, err := file.Write(append(data, '\n')); err != nil {
-			return fmt.Errorf("writing runbook entry: %w", err)
+		if err := writeEntry(file, entry); err != nil {
+			return err
 		}
 	}
 
