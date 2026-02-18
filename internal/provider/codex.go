@@ -275,7 +275,7 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 		Output:          output,
 		Stderr:          stderr.String(),
 		Diagnostics:     buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
-		FailureCategory: classifyCodexFailure(exitCode, stdout.String(), stderr.String()),
+		FailureCategory: classifyCodexFailure(exitCode, output, stderr.String()),
 		ExitCode:        exitCode,
 		Duration:        duration,
 		Model:           model,
