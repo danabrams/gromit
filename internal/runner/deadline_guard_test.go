@@ -60,3 +60,25 @@ func TestDeadlineGuard_InsufficientTimeRemaining(t *testing.T) {
 		t.Errorf("Needed = %v, want %v", guard.Needed, needed)
 	}
 }
+
+// TestDeadlineGuard_SufficientTimeRemaining verifies that when enough time remains
+// before the deadline, the guard allows the phase to run (Skip=false) and reports
+// both remaining and needed durations.
+func TestDeadlineGuard_SufficientTimeRemaining(t *testing.T) {
+	needed := 60 * time.Second
+	// Provide 5 minutes, well above the 60 seconds needed.
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Minute))
+	defer cancel()
+
+	guard := checkDeadlineGuard(ctx, needed)
+
+	if guard.Skip {
+		t.Errorf("expected Skip=false when sufficient time remains, got reason=%q", guard.SkipReason)
+	}
+	if guard.Remaining <= 0 {
+		t.Errorf("expected Remaining > 0, got %v", guard.Remaining)
+	}
+	if guard.Needed != needed {
+		t.Errorf("Needed = %v, want %v", guard.Needed, needed)
+	}
+}
