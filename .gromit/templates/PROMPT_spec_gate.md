@@ -48,7 +48,8 @@ You are verifying whether the implementation satisfies the specification accepta
 
 GateVerdict is the only response contract to follow. Do not use any other format or response contract.
 
-Respond with a JSON object matching the GateVerdict structure. Output JSON only and include no narrative text.
+Respond with a JSON object that exactly matches the GateVerdict schema. Include every required field with the exact field names and value types, and include no additional fields.
+Output JSON only and include no narrative text.
 
 Your response must be one top-level JSON object and nothing else. Do not include markdown, commentary, or any explanation outside the JSON.
 

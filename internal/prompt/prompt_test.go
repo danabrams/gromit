@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -1136,6 +1137,7 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 
 	wantStrs := []string{
 		"GateVerdict",
+		"exactly matches the GateVerdict schema",
 		"JSON only",
 		"no narrative",
 		"FAIL: TestFoo",
@@ -1219,6 +1221,25 @@ func TestRenderSpecGateRealTemplateDisallowsOtherResponseContracts(t *testing.T)
 	want := "only response contract"
 	if !strings.Contains(result, want) {
 		t.Errorf("RenderSpecGate() real template missing response contract restriction %q\ngot:\n%s", want, result)
+	}
+}
+
+func TestRenderSpecGateRealTemplateRejectsPermissiveLanguage(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &SpecGateContext{
+		SpecCriteria: "Must return 200",
+	}
+
+	result, err := r.RenderSpecGate(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecGate() error = %v", err)
+	}
+
+	permissive := regexp.MustCompile(`(?i)\b(partial|approximate|best[- ]?effort)\b`)
+	if match := permissive.FindString(result); match != "" {
+		t.Fatalf("RenderSpecGate() contains prohibited permissive term %q\ngot:\n%s", match, result)
 	}
 }
 
