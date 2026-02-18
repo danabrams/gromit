@@ -1133,9 +1133,24 @@ func TestClientCreate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var gotArgs []string
+			var gotAcceptance string
 			c := &Client{
 				runFn: func(args ...string) (string, error) {
 					gotArgs = append([]string(nil), args...)
+					accIdx := -1
+					for i, arg := range args {
+						if arg == "--acceptance" {
+							accIdx = i
+							break
+						}
+					}
+					if accIdx != -1 && accIdx+1 < len(args) {
+						data, err := os.ReadFile(args[accIdx+1])
+						if err != nil {
+							return "", err
+						}
+						gotAcceptance = string(data)
+					}
 					return `{"id":"task-001","title":"` + tt.title + `","priority":` + fmt.Sprintf("%d", tt.priority) + `,"issue_type":"task","status":"open"}`, nil
 				},
 			}
@@ -1155,8 +1170,11 @@ func TestClientCreate(t *testing.T) {
 			}
 			if len(tt.expectedOutputs) > 0 {
 				wantAcceptance := strings.Join(tt.expectedOutputs, "\n")
-				if !hasSubsequence(gotArgs, []string{"--acceptance", wantAcceptance}) {
-					t.Errorf("Create() missing expected outputs in args %v", gotArgs)
+				if !hasSubsequence(gotArgs, []string{"--acceptance"}) {
+					t.Errorf("Create() missing --acceptance flag in args %v", gotArgs)
+				}
+				if gotAcceptance != wantAcceptance {
+					t.Errorf("Create() acceptance = %q, want %q", gotAcceptance, wantAcceptance)
 				}
 			}
 		})
