@@ -53,6 +53,7 @@ func (f *File) Load() error {
 	if err := json.Unmarshal(data, &f.state); err != nil {
 		return fmt.Errorf("parsing state file: %w", err)
 	}
+	f.state.NormalizeNilFields()
 
 	return nil
 }

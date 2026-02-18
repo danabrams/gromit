@@ -72,6 +72,31 @@ func TestLoadCorruptFile(t *testing.T) {
 	}
 }
 
+func TestLoadNormalizesNilFields(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	f, _ := NewFile(dir)
+	if err := f.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	if f.state.FilteredLearningHashes == nil {
+		t.Error("expected FilteredLearningHashes to be initialized")
+	}
+	if f.state.ArchivedLearningHashes == nil {
+		t.Error("expected ArchivedLearningHashes to be initialized")
+	}
+	if f.state.ProviderCounts == nil {
+		t.Error("expected ProviderCounts to be initialized")
+	}
+	if f.state.ProviderUnavailableUntil == nil {
+		t.Error("expected ProviderUnavailableUntil to be initialized")
+	}
+}
+
 func TestIncrementIterationsSinceReview(t *testing.T) {
 	tmpDir := t.TempDir()
 	sf, _ := NewFile(tmpDir)
