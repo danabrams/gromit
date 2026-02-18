@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -329,5 +330,74 @@ func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesPhaseContext(t *test
 	}
 	if !acceptanceCtxHadDeadline {
 		t.Fatal("acceptance verification context should have a deadline from newPhaseContext")
+	}
+}
+
+func TestRunATDDPreBuildPhases_UsesRedPhaseContext(t *testing.T) {
+	// Verify that ATDD pre-build phases use a red-phase context with a deadline
+	// from the configured phase timeout, even when the bead context is canceled.
+	var invocationCtxErr error
+	var invocationCtxHadDeadline bool
+	var invocationCtxDeadline time.Time
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "FAIL", "test failure", 1, nil
+	}
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+		Methodology: config.MethodologyConfig{
+			ATDD: true,
+			PhaseTimeouts: config.MethodologyPhaseTimeout{
+				RedSeconds: 90,
+			},
+		},
+		Escalation: config.EscalationConfig{
+			MaxRetriesPerModel: 0,
+		},
+	}
+	cfg.SetDefaults()
+
+	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
+
+	// Create a custom executor with an invokeFn that captures the context.
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+		invocationCtxErr = ctx.Err()
+		invocationCtxDeadline, invocationCtxHadDeadline = ctx.Deadline()
+		return nil
+	}
+	r.methodologyExec = methodology.NewExecutorWithEscalation(
+		r.cfg, r.output, r.renderer.RenderAcceptanceTests, invokeFn, nil, nil,
+	)
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-red", Title: "Test Red Phase", Labels: []string{"methodology:true"}},
+		Tier:        provider.TierMedium,
+		StartCommit: "abc123",
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	// Cancel the bead context.
+	beadCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	r.runATDDPreBuildPhases(beadCtx, bc)
+
+	if invocationCtxErr != nil {
+		t.Fatalf("ATDD invocation received canceled context: %v", invocationCtxErr)
+	}
+	if !invocationCtxHadDeadline {
+		t.Fatal("ATDD invocation context should have a deadline from newPhaseContext")
+	}
+	untilDeadline := time.Until(invocationCtxDeadline)
+	if untilDeadline < 70*time.Second || untilDeadline > 100*time.Second {
+		t.Fatalf("ATDD red context deadline unexpected: %v remaining (want ~90s)", untilDeadline.Round(time.Second))
 	}
 }
