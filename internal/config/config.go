@@ -55,6 +55,7 @@ type Config struct {
 	Stream      StreamConfig           `yaml:"stream"`
 	Worktree    WorktreeConfig         `yaml:"worktree"`
 	Session     SessionConfig          `yaml:"session"`
+	Runbook     RunbookConfig          `yaml:"runbook"`
 }
 
 type ModelsConfig struct {
@@ -327,6 +328,10 @@ type SessionConfig struct {
 	FixTier       string `yaml:"fix_tier"`
 	Review        *bool  `yaml:"review"`
 	Retro         *bool  `yaml:"retro"`
+}
+
+type RunbookConfig struct {
+	TTLDays int `yaml:"ttl_days"`
 }
 
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
@@ -687,6 +692,9 @@ func (c *Config) SetDefaults() {
 		c.Worktree.RetryCap = 3
 	}
 
+	if c.Runbook.TTLDays == 0 {
+		c.Runbook.TTLDays = 14
+	}
 	if c.Session.MaxFixRetries == 0 {
 		c.Session.MaxFixRetries = 3
 	}

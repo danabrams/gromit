@@ -95,6 +95,15 @@ func TestNormalizeNilFieldsInitializesDefinitionsMap(t *testing.T) {
 	}
 }
 
+func TestSetDefaultsRunbookTTLDays(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Runbook.TTLDays != 14 {
+		t.Errorf("Runbook.TTLDays = %d, want 14", cfg.Runbook.TTLDays)
+	}
+}
+
 func TestSetDefaultsInitializesPhasesToClaude(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
