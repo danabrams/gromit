@@ -683,3 +683,35 @@ func TestBuildDebugPromptWithoutRunbookEntryHasNoFailureContext(t *testing.T) {
 		t.Errorf("expected no Failure Context section when entry is nil, but found one")
 	}
 }
+
+// TestPickRunbookEntryReturnsSelectedEntry verifies that pickRunbookEntry returns the
+// entry corresponding to the user's numbered selection.
+func TestPickRunbookEntryReturnsSelectedEntry(t *testing.T) {
+	entries := []runbook.Entry{
+		{
+			BeadID:          "gromit-aaa",
+			BeadTitle:       "First bug",
+			FailureCategory: "test_failure",
+			Timestamp:       time.Now().Add(-1 * time.Hour),
+		},
+		{
+			BeadID:          "gromit-bbb",
+			BeadTitle:       "Second bug",
+			FailureCategory: "lint_error",
+			Timestamp:       time.Now().Add(-2 * time.Hour),
+		},
+	}
+
+	// User selects entry 1
+	reader := strings.NewReader("1\n")
+	entry, err := pickRunbookEntry(entries, reader)
+	if err != nil {
+		t.Fatalf("pickRunbookEntry failed: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("expected non-nil entry for selection 1")
+	}
+	if entry.BeadID != "gromit-aaa" {
+		t.Errorf("expected BeadID 'gromit-aaa', got %q", entry.BeadID)
+	}
+}

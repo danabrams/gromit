@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
@@ -419,4 +422,27 @@ func detectAndReportArtifacts(reportsDir, plansDir string, existingReports, exis
 	}
 
 	return nil
+}
+
+// pickRunbookEntry displays a numbered menu of runbook entries and returns the selected one.
+// Returns nil if the user selects 0 or enters an invalid selection.
+func pickRunbookEntry(entries []runbook.Entry, r io.Reader) (*runbook.Entry, error) {
+	fmt.Println("Recent failures (select to load context, 0 to skip):")
+	for i, e := range entries {
+		ago := time.Since(e.Timestamp).Round(time.Minute)
+		fmt.Printf("  %d. [%s ago] %s — %s (%s)\n", i+1, ago, e.BeadID, e.BeadTitle, e.FailureCategory)
+	}
+	fmt.Print("Selection: ")
+
+	scanner := bufio.NewScanner(r)
+	if !scanner.Scan() {
+		return nil, nil
+	}
+	line := strings.TrimSpace(scanner.Text())
+	n, err := strconv.Atoi(line)
+	if err != nil || n <= 0 || n > len(entries) {
+		return nil, nil
+	}
+	result := entries[n-1]
+	return &result, nil
 }
