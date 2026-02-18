@@ -566,6 +566,44 @@ func TestExecuteWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	}
 }
 
+func TestExecuteWithRetryWithEscalation_DisabledSkipsTierEscalation(t *testing.T) {
+	cfg := newTestConfig()
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierLow
+
+	invocations := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invocations++
+		return &runtypes.InvocationResult{
+			Result: &claude.Result{Success: false, Output: "failed"},
+		}, nil
+	}
+
+	h := NewHandler(cfg, &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: false,
+				RootCause:   "non-recoverable",
+			}, nil
+		},
+	}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	success := h.ExecuteWithRetryWithEscalation(context.Background(), bc, invokeFn, false)
+	if success {
+		t.Fatal("expected ExecuteWithRetryWithEscalation to return false when escalation disabled")
+	}
+	if invocations != 1 {
+		t.Fatalf("expected single invocation with escalation disabled, got %d", invocations)
+	}
+	if bc.Tier != provider.TierLow {
+		t.Fatalf("expected tier to remain %q, got %q", provider.TierLow, bc.Tier)
+	}
+	if bc.Result.Escalated {
+		t.Fatalf("expected Escalated=false with escalation disabled")
+	}
+}
+
 func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 	// When the invocation returns a stall, ExecuteWithRetry should handle it
 	// via HandleStallTimeout (retry same model or escalate).

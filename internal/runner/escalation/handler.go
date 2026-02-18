@@ -437,3 +437,24 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		return false
 	}
 }
+
+// ExecuteWithRetryWithEscalation runs the build loop with optional escalation behavior.
+// When escalationEnabled is false, it performs retries without tier escalation.
+func (h *Handler) ExecuteWithRetryWithEscalation(ctx context.Context, bc *runtypes.BeadContext, invokeFn InvokeFn, escalationEnabled bool) bool {
+	if h == nil {
+		return false
+	}
+	if escalationEnabled {
+		return h.ExecuteWithRetry(ctx, bc, invokeFn)
+	}
+	if h.cfg == nil {
+		return h.ExecuteWithRetry(ctx, bc, invokeFn)
+	}
+	cfgCopy := *h.cfg
+	cfgCopy.Escalation = h.cfg.Escalation
+	cfgCopy.Escalation.Enabled = false
+
+	handlerCopy := *h
+	handlerCopy.cfg = &cfgCopy
+	return handlerCopy.ExecuteWithRetry(ctx, bc, invokeFn)
+}

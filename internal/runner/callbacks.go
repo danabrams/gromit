@@ -179,17 +179,12 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 		savedRetriesThisModel := bc.RetriesThisModel
 		savedTotalRetries := bc.TotalRetriesThisBead
 		savedTier := bc.Tier
-		savedEscalationEnabled := r.cfg.Escalation.Enabled
 		bc.MaxRetries = 0
 		bc.RetriesThisModel = 0
 
 		runSingleAttempt := func() bool {
 			// Disable escalation inside ExecuteWithRetry so each call is exactly one attempt.
-			r.cfg.Escalation.Enabled = false
-			defer func() {
-				r.cfg.Escalation.Enabled = savedEscalationEnabled
-			}()
-			return r.escalationHandler.ExecuteWithRetry(ctx, bc, r.makeInvokeFn())
+			return r.escalationHandler.ExecuteWithRetryWithEscalation(ctx, bc, r.makeInvokeFn(), false)
 		}
 
 		success := runSingleAttempt()
@@ -205,7 +200,6 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 		bc.MaxRetries = savedMaxRetries
 		bc.RetriesThisModel = savedRetriesThisModel
 		bc.TotalRetriesThisBead = savedTotalRetries
-		r.cfg.Escalation.Enabled = savedEscalationEnabled
 
 		return success
 	}
