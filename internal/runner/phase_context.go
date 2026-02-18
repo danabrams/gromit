@@ -30,10 +30,22 @@ func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds
 	}
 
 	effective := requested
+	clamped := false
+	if bc != nil && !bc.RunDeadline.IsZero() {
+		remaining := time.Until(bc.RunDeadline)
+		if remaining < effective {
+			effective = remaining
+			clamped = true
+		}
+	}
+	if effective <= 0 {
+		effective = time.Millisecond
+	}
 	meta := phaseContextMeta{
-		Phase:            phase,
-		RequestedTimeout: requested,
-		EffectiveTimeout: effective,
+		Phase:                phase,
+		RequestedTimeout:     requested,
+		EffectiveTimeout:     effective,
+		ClampedByRunDeadline: clamped,
 	}
 
 	ctx, cancel := context.WithTimeout(parent, effective)

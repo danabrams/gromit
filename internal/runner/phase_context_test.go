@@ -36,3 +36,21 @@ func TestNewPhaseContext_UsesBeadTimeoutFallback(t *testing.T) {
 		t.Fatal("meta.ClampedByRunDeadline = true, want false")
 	}
 }
+
+func TestNewPhaseContext_ClampsToRunDeadline(t *testing.T) {
+	bc := &runtypes.BeadContext{
+		ParentCtx:   context.Background(),
+		BeadTimeout: 5 * time.Second,
+		RunDeadline: time.Now().Add(120 * time.Millisecond),
+	}
+
+	_, cancel, meta := newPhaseContext(bc, "validate", 2)
+	defer cancel()
+
+	if !meta.ClampedByRunDeadline {
+		t.Fatal("meta.ClampedByRunDeadline = false, want true")
+	}
+	if meta.EffectiveTimeout > 300*time.Millisecond {
+		t.Fatalf("meta.EffectiveTimeout = %v, expected clamp near run deadline", meta.EffectiveTimeout)
+	}
+}
