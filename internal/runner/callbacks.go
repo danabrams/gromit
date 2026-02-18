@@ -46,7 +46,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		// Re-render build prompt when retry context changes or when the scoped
 		// self-check command changes from git diff detection.
 		if bc.PromptCtx != nil && r.renderer != nil && (bc.PromptCtx.IsRetry || bc.PromptCtx.ScopedTestCommand != prevScopedTestCmd) {
-			rendered, renderErr := r.renderer.RenderBuild(bc.PromptCtx)
+			rendered, renderErr := r.renderer.RenderBuild(r.shapeMethodologyPromptContext("green", bc.PromptCtx))
 			if renderErr == nil {
 				bc.BuildPrompt = rendered
 			}
@@ -148,7 +148,7 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 		bc.PromptCtx.FailureContext = "Validation (tests/lint) failed after your build succeeded. Fix the validation errors."
 
 		var renderErr error
-		bc.BuildPrompt, renderErr = r.renderer.RenderBuild(bc.PromptCtx)
+		bc.BuildPrompt, renderErr = r.renderer.RenderBuild(r.shapeMethodologyPromptContext("green", bc.PromptCtx))
 		if renderErr != nil {
 			r.log("Warning: rendering validation fix prompt: %v", renderErr)
 			return false

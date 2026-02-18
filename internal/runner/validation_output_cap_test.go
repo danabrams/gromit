@@ -22,6 +22,31 @@ func (r *rendererFailBuild) RenderBuild(_ *prompt.Context) (string, error) {
 	return "", fmt.Errorf("render error (intentional)")
 }
 
+type rendererShapeGreenCapture struct {
+	mockRenderer
+	renderCtx *prompt.Context
+}
+
+func (r *rendererShapeGreenCapture) ShapeGreenPhaseContext(ctx *prompt.Context) *prompt.Context {
+	cloned := *ctx
+	cloned.FailureContext = "green-shaped-context"
+	cloned.ClaudeMD = ""
+	return &cloned
+}
+
+func (r *rendererShapeGreenCapture) ShapeRedPhaseContext(ctx *prompt.Context) *prompt.Context {
+	return ctx
+}
+
+func (r *rendererShapeGreenCapture) ShapeRefactorPhaseContext(ctx *prompt.Context) *prompt.Context {
+	return ctx
+}
+
+func (r *rendererShapeGreenCapture) RenderBuild(ctx *prompt.Context) (string, error) {
+	r.renderCtx = ctx
+	return "", fmt.Errorf("render error (intentional)")
+}
+
 // TestMakeValidationExecuteFn_TruncatesPrevFailure verifies that when
 // makeValidationExecuteFn runs with a large Result.Output, the PrevFailure
 // field assigned to PromptCtx is capped at ~50KB.
@@ -57,5 +82,43 @@ func TestMakeValidationExecuteFn_TruncatesPrevFailure(t *testing.T) {
 	if len(bc.PromptCtx.PrevFailure) > maxAllowed {
 		t.Errorf("PrevFailure length %d exceeds cap %d; large Result.Output not truncated before prompt context",
 			len(bc.PromptCtx.PrevFailure), maxAllowed)
+	}
+}
+
+func TestMakeValidationExecuteFn_UsesGreenShapedContextForRenderBuild(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+
+	renderer := &rendererShapeGreenCapture{}
+	var logBuf strings.Builder
+	r := &Runner{
+		cfg:      cfg,
+		renderer: renderer,
+		output:   &logBuf,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "test-shape-green", Title: "green shaping"},
+		Result: &runtypes.IterationResult{
+			Output: "validation failure output",
+		},
+		PromptCtx: &prompt.Context{
+			FailureContext: "original context",
+			ClaudeMD:       "project-wide payload",
+		},
+	}
+
+	fn := r.makeValidationExecuteFn()
+	if ok := fn(context.Background(), bc); ok {
+		t.Fatal("expected validation execute to fail when RenderBuild errors")
+	}
+	if renderer.renderCtx == nil {
+		t.Fatal("expected RenderBuild to be called")
+	}
+	if renderer.renderCtx.FailureContext != "green-shaped-context" {
+		t.Fatalf("expected green-shaped context in RenderBuild, got %q", renderer.renderCtx.FailureContext)
+	}
+	if renderer.renderCtx.ClaudeMD != "" {
+		t.Fatalf("expected shaped context to trim ClaudeMD, got %q", renderer.renderCtx.ClaudeMD)
 	}
 }
