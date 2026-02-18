@@ -54,6 +54,46 @@ func TestBaselineLogPath_ReturnsCanonicalWhenNoCollision(t *testing.T) {
 	}
 }
 
+func TestBaselineLogPath_AppendsSuffixOnCollision(t *testing.T) {
+	now := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.Local)
+	base := filepath.Join("test-logs", "refactor-baseline-2026-02-03-040506.log")
+	want := filepath.Join("test-logs", "refactor-baseline-2026-02-03-040506-1.log")
+
+	originalExists := baselineLogPathExistsFn
+	var sawPaths []string
+	baselineLogPathExistsFn = func(path string) (bool, error) {
+		sawPaths = append(sawPaths, path)
+		if path == base {
+			return true, nil
+		}
+		if path == want {
+			return false, nil
+		}
+		t.Fatalf("unexpected path check: %q", path)
+		return false, nil
+	}
+	t.Cleanup(func() {
+		baselineLogPathExistsFn = originalExists
+	})
+
+	got, err := baselineLogPath(now)
+	if err != nil {
+		t.Fatalf("baselineLogPath() error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("baselineLogPath() = %q, want %q", got, want)
+	}
+	if len(sawPaths) != 2 {
+		t.Fatalf("baselineLogPath() checked %d paths, want 2", len(sawPaths))
+	}
+	if sawPaths[0] != base {
+		t.Fatalf("baselineLogPath() first check = %q, want %q", sawPaths[0], base)
+	}
+	if sawPaths[1] != want {
+		t.Fatalf("baselineLogPath() second check = %q, want %q", sawPaths[1], want)
+	}
+}
+
 func TestBaselineLogPathNow_UsesCurrentLocalTime(t *testing.T) {
 	stub := time.Date(2025, time.January, 2, 3, 4, 5, 0, time.Local)
 
