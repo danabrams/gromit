@@ -54,6 +54,7 @@ type Config struct {
 	Routing     RoutingConfig          `yaml:"routing"`
 	Stream      StreamConfig           `yaml:"stream"`
 	Worktree    WorktreeConfig         `yaml:"worktree"`
+	Session     SessionConfig          `yaml:"session"`
 }
 
 type ModelsConfig struct {
@@ -317,6 +318,15 @@ type WorktreeConfig struct {
 	MergeFailure       string `yaml:"merge_failure"`
 	ConflictResolution string `yaml:"conflict_resolution"`
 	RetryCap           int    `yaml:"retry_cap"`
+}
+
+type SessionConfig struct {
+	Iterations    int    `yaml:"iterations"`
+	TestCommand   string `yaml:"test_command"`
+	MaxFixRetries int    `yaml:"max_fix_retries"`
+	FixTier       string `yaml:"fix_tier"`
+	Review        *bool  `yaml:"review"`
+	Retro         *bool  `yaml:"retro"`
 }
 
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
@@ -675,6 +685,21 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Worktree.RetryCap == 0 {
 		c.Worktree.RetryCap = 3
+	}
+
+	if c.Session.MaxFixRetries == 0 {
+		c.Session.MaxFixRetries = 3
+	}
+	if c.Session.FixTier == "" {
+		c.Session.FixTier = "medium"
+	}
+	if c.Session.Review == nil {
+		t := true
+		c.Session.Review = &t
+	}
+	if c.Session.Retro == nil {
+		t := true
+		c.Session.Retro = &t
 	}
 }
 
