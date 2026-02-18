@@ -15,6 +15,18 @@ type GateVerdict struct {
 	Results []CriterionResult `json:"results"`
 }
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+// This prevents issues with downstream code that may range over nil slices
+// vs code that checks len() or marshals to JSON (nil → "null" vs [] → "[]").
+func (v *GateVerdict) normalizeNilFields() {
+	if v == nil {
+		return
+	}
+	if v.Results == nil {
+		v.Results = []CriterionResult{}
+	}
+}
+
 // FailedCriteria returns the subset of Results where Passed is false.
 func (v *GateVerdict) FailedCriteria() []CriterionResult {
 	var failed []CriterionResult
@@ -32,5 +44,6 @@ func ParseVerdict(data []byte) (*GateVerdict, error) {
 	if err := json.Unmarshal(data, &v); err != nil {
 		return nil, err
 	}
+	v.normalizeNilFields()
 	return &v, nil
 }
