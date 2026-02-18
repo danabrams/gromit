@@ -222,6 +222,55 @@ func TestRunEpilogueReview_SkipsWhenReviewerNil(t *testing.T) {
 
 // --- runSessionEpilogue ---
 
+// --- finishRun wiring: epilogue called when session.iterations > 0 ---
+
+func TestFinishRun_CallsEpilogueWhenSessionIterationsSet(t *testing.T) {
+	// When cfg.Session.Iterations > 0, finishRun should call runSessionEpilogue.
+	// We verify this by checking that runEpilogueRetro records in state when
+	// Retro is enabled (default nil = true).
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "templates"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	retroTemplate := `Rules: {{.Rules}} Learnings: {{.Learnings}}`
+	if err := os.WriteFile(filepath.Join(dir, "templates", "PROMPT_retro.md"), []byte(retroTemplate), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "RULES.md"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	cfg.Session.Iterations = 1
+
+	sf, _ := state.NewFile(dir)
+
+	r := newEpilogueTestRunner(t, cfg)
+	r.gromitDir = dir
+	r.router = newMockRouter()
+	r.stateFile = sf
+
+	st := &runLoopState{sf: sf}
+
+	err := r.finishRun(context.Background(), st)
+	if err != nil {
+		t.Fatalf("finishRun() error = %v", err)
+	}
+
+	// Verify retro was recorded (epilogue ran retro)
+	sf2, _ := state.NewFile(dir)
+	if loadErr := sf2.Load(); loadErr != nil {
+		t.Fatalf("loading state: %v", loadErr)
+	}
+	if sf2.LastRetro().IsZero() {
+		t.Error("finishRun() did not run epilogue retro (LastRetro is zero)")
+	}
+}
+
+// --- runSessionEpilogue ---
+
 func TestRunSessionEpilogue_SkipsWhenIterationsZero(t *testing.T) {
 	// When cfg.Session.Iterations == 0, epilogue should be a no-op.
 	cfg := &config.Config{}

@@ -108,6 +108,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		return err
 	}
 
+	// session.iterations overrides maxIterations when set (> 0)
+	effectiveMaxIterations := maxIterations
+	if r.cfg.Session.Iterations > 0 {
+		effectiveMaxIterations = r.cfg.Session.Iterations
+	}
+
 	r.resetPerRunState()
 	r.startTrendUpdater()
 	defer r.stopTrendUpdater()
@@ -152,7 +158,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	for {
-		stop, loopErr := r.shouldStopLoop(ctx, stopCh, st, maxIterations, deadline)
+		stop, loopErr := r.shouldStopLoop(ctx, stopCh, st, effectiveMaxIterations, deadline)
 		if loopErr != nil {
 			return loopErr
 		}
@@ -169,7 +175,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			break
 		}
 
-		stop, err = r.processSingleBead(ctx, b, st, maxIterations, deadline, dryRun, tmuxMgr, runThoroughReview)
+		stop, err = r.processSingleBead(ctx, b, st, effectiveMaxIterations, deadline, dryRun, tmuxMgr, runThoroughReview)
 		if err != nil {
 			return err
 		}

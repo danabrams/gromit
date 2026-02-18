@@ -185,7 +185,11 @@ func (r *Runner) finishRun(ctx context.Context, st *runLoopState) error {
 			r.log("Warning: could not save state after clean exit: %v", err)
 		}
 	}
-	r.checkRetroSuggestion()
+
+	epilogueRanRetro, _ := r.runSessionEpilogue(ctx, st)
+	if !epilogueRanRetro {
+		r.checkRetroSuggestion()
+	}
 
 	if !st.l3StopLine {
 		if err := r.runSessionCompletion(); err != nil {
