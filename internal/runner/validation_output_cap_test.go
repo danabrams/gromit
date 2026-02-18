@@ -3,14 +3,53 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
+
+type stubValidationProvider struct {
+	result *provider.Result
+	err    error
+}
+
+func (p *stubValidationProvider) Name() string { return "stub-provider" }
+
+func (p *stubValidationProvider) StreamRun(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return p.result, p.err
+}
+
+func (p *stubValidationProvider) IsUsageLimitError(result *provider.Result, err error) bool { return false }
+
+type stubValidationRouter struct {
+	provider execution.Provider
+	model    string
+}
+
+func (r *stubValidationRouter) Select(phase, tier string) (execution.Provider, string) {
+	return r.provider, r.model
+}
+
+func (r *stubValidationRouter) MarkUnavailable(name string) {}
+
+type stubFailureAnalyzer struct{}
+
+func (a *stubFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+	return &analyzer.Analysis{
+		Category:    analyzer.CategoryLogic,
+		Recoverable: false,
+		RootCause:   "validation failure",
+	}, nil
+}
 
 // rendererFailBuild is a test renderer that always fails RenderBuild,
 // allowing makeValidationExecuteFn to be exercised up to the render step.
@@ -120,5 +159,54 @@ func TestMakeValidationExecuteFn_UsesGreenShapedContextForRenderBuild(t *testing
 	}
 	if renderer.renderCtx.ClaudeMD != "" {
 		t.Fatalf("expected shaped context to trim ClaudeMD, got %q", renderer.renderCtx.ClaudeMD)
+	}
+}
+
+func TestMakeValidationExecuteFn_DisablesEscalationDuringValidation(t *testing.T) {
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled: true,
+			Chain:   []string{provider.TierLow, provider.TierMedium},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	stubProvider := &stubValidationProvider{
+		result: &provider.Result{
+			Success:  false,
+			Output:   "build failed",
+			ExitCode: 1,
+		},
+	}
+	router := &stubValidationRouter{
+		provider: stubProvider,
+		model:    "stub-model",
+	}
+
+	r := &Runner{
+		cfg:      cfg,
+		renderer: &mockRenderer{},
+		output:   io.Discard,
+		invoker:  execution.NewInvoker(router, io.Discard, nil),
+	}
+	r.escalationHandler = escalation.NewHandler(cfg, &stubFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "test-validation-escalation", Title: "validation escalation"},
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+		Tier:      provider.TierLow,
+	}
+
+	fn := r.makeValidationExecuteFn()
+	if ok := fn(context.Background(), bc); ok {
+		t.Fatal("expected validation execute to fail with stub provider failure")
+	}
+	if bc.Tier != provider.TierMedium {
+		t.Fatalf("expected tier to escalate to %q, got %q", provider.TierMedium, bc.Tier)
+	}
+	if !bc.Result.Escalated {
+		t.Fatalf("expected Escalated=true after validation escalation")
 	}
 }
