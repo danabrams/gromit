@@ -226,3 +226,44 @@ func TestApplyProposals_PromotesLearningToRule(t *testing.T) {
 		t.Fatalf("expected archive rationale in learnings file")
 	}
 }
+
+func TestApplyProposals_UpdatesRuleText(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	rulesPath := filepath.Join(tmpDir, "RULES.md")
+	rulesContent := "# Rules\n\n## Process\n\n- Old rule\n- Old rule\n"
+	if err := os.WriteFile(rulesPath, []byte(rulesContent), 0644); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+
+	lf, err := learnings.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("new learnings file: %v", err)
+	}
+
+	proposals := &Proposals{
+		RuleChanges: []RuleChangeProposal{
+			{
+				CurrentRule:  "- Old rule",
+				ProposedRule: "- New rule",
+				Rationale:    "clarify",
+			},
+		},
+	}
+
+	if err := ApplyProposals(proposals, lf, rulesPath); err != nil {
+		t.Fatalf("apply proposals: %v", err)
+	}
+
+	updatedRules, err := os.ReadFile(rulesPath)
+	if err != nil {
+		t.Fatalf("read rules: %v", err)
+	}
+	rulesText := string(updatedRules)
+	if strings.Contains(rulesText, "- Old rule") {
+		t.Fatalf("expected old rule removed")
+	}
+	if count := strings.Count(rulesText, "- New rule"); count != 2 {
+		t.Fatalf("expected new rule twice, got %d", count)
+	}
+}

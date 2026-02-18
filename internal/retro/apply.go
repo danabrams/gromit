@@ -72,7 +72,7 @@ func ApplyProposals(proposals *Proposals, lf *learnings.File, rulesPath string) 
 		if !strings.Contains(rulesContent, change.CurrentRule) {
 			return fmt.Errorf("rule not found for change: %s", change.CurrentRule)
 		}
-		rulesContent = strings.Replace(rulesContent, change.CurrentRule, change.ProposedRule, 1)
+		rulesContent = strings.ReplaceAll(rulesContent, change.CurrentRule, change.ProposedRule)
 		rulesDirty = true
 	}
 
