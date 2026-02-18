@@ -37,7 +37,7 @@ func (p *ConfigEscalationPolicy) SelectInitialTier(priority int, labels []string
 
 // SelectModel returns the model for a bead based on priority/labels.
 func (p *ConfigEscalationPolicy) SelectModel(priority int, labels []string) string {
-	return ""
+	return p.cfg.SelectModel(priority, labels)
 }
 
 // NextTier returns the next escalation tier.

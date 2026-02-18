@@ -102,3 +102,14 @@ func TestSelectInitialTier_DelegatesToConfig(t *testing.T) {
 		t.Errorf("SelectInitialTier() = %q, want %q", got, want)
 	}
 }
+
+func TestSelectModel_DelegatesToConfig(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Models.P2 = "haiku"
+	p := newConfigEscalationPolicy(cfg)
+	want := cfg.SelectModel(2, nil)
+	got := p.SelectModel(2, nil)
+	if got != want {
+		t.Errorf("SelectModel() = %q, want %q", got, want)
+	}
+}
