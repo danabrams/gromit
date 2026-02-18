@@ -12,14 +12,14 @@ type StuckPolicy interface {
 
 // ThresholdStuckPolicy marks beads as stuck when failures meet/exceed a threshold.
 type ThresholdStuckPolicy struct {
-	Threshold int
+	threshold int
 }
 
 var _ StuckPolicy = (*ThresholdStuckPolicy)(nil)
 
 // NewThresholdStuckPolicy returns a StuckPolicy that uses the provided threshold.
 func NewThresholdStuckPolicy(threshold int) StuckPolicy {
-	return &ThresholdStuckPolicy{Threshold: threshold}
+	return &ThresholdStuckPolicy{threshold: threshold}
 }
 
 // IsStuck returns true when the bead's failures meet/exceed the threshold.
@@ -27,12 +27,12 @@ func (p *ThresholdStuckPolicy) IsStuck(b *bead.Bead, stats map[string]logger.Bea
 	if p == nil || b == nil {
 		return false
 	}
-	if p.Threshold <= 0 {
+	if p.threshold <= 0 {
 		return false
 	}
 	beadStats, ok := stats[b.ID]
 	if !ok {
 		return false
 	}
-	return beadStats.Failures >= p.Threshold
+	return beadStats.Failures >= p.threshold
 }
