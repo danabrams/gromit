@@ -119,3 +119,56 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 		t.Fatal("expected git commands to run for committing tests")
 	}
 }
+
+func TestSpecOrchestrator_AuthorAcceptanceTests_IdempotentBySpecName(t *testing.T) {
+	renderer := &mockPromptRenderer{
+		LoadSpecFn: func(name string) (string, error) {
+			return "spec content", nil
+		},
+		LoadRulesForPhaseFn: func(phase string) (string, error) {
+			return "rules", nil
+		},
+		RenderSpecAcceptanceFn: func(ctx *prompt.SpecAcceptanceContext) (string, error) {
+			return "rendered prompt", nil
+		},
+	}
+
+	providerRunCalls := 0
+	mockProvider := &mockProviderWithRouterTracking{
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			providerRunCalls++
+			return &provider.Result{Success: true}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(mockProvider)
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	cmdCalls := 0
+	orchestrator := &SpecOrchestrator{
+		cfg:      cfg,
+		router:   router,
+		beads:    &mockBeadClient{},
+		renderer: renderer,
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			cmdCalls++
+			return "", "", 0, nil
+		},
+	}
+
+	if err := orchestrator.AuthorAcceptanceTests(context.Background(), "demo-spec"); err != nil {
+		t.Fatalf("first AuthorAcceptanceTests returned error: %v", err)
+	}
+	if err := orchestrator.AuthorAcceptanceTests(context.Background(), "demo-spec"); err != nil {
+		t.Fatalf("second AuthorAcceptanceTests returned error: %v", err)
+	}
+
+	if providerRunCalls != 1 {
+		t.Fatalf("expected provider to be invoked once, got %d", providerRunCalls)
+	}
+	if cmdCalls == 0 {
+		t.Fatal("expected git commands to run on first call")
+	}
+}
