@@ -49,6 +49,19 @@ FAIL	github.com/danabrams/gromit/internal/broken [build failed]
 	}
 }
 
+func TestFormatTestLogSummary_ZeroFailures(t *testing.T) {
+	result := TestLogResult{
+		Failures:     []TestFailure{},
+		BuildErrors:  []string{},
+		SkippedTests: []string{},
+	}
+	summary := formatTestLogSummary("test-logs/foo.log", result)
+
+	if !strings.Contains(summary, "ZERO FAILURES") {
+		t.Errorf("summary missing ZERO FAILURES marker:\n%s", summary)
+	}
+}
+
 func TestParseTestLog_DetectsFailingTest(t *testing.T) {
 	input := `=== RUN   TestFoo
 --- FAIL: TestFoo (0.01s)

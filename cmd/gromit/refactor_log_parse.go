@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
+	"sort"
 	"strings"
 )
 
@@ -79,4 +81,51 @@ func parseTestLog(r io.Reader) TestLogResult {
 	}
 
 	return result
+}
+
+// formatTestLogSummary formats a human-readable summary of a parsed test log.
+func formatTestLogSummary(logPath string, result TestLogResult) string {
+	var sb strings.Builder
+
+	fmt.Fprintf(&sb, "Refactor Baseline Failure Summary\n")
+	fmt.Fprintf(&sb, "Log: %s\n", logPath)
+	fmt.Fprintf(&sb, "==================================\n\n")
+
+	if len(result.BuildErrors) > 0 {
+		fmt.Fprintf(&sb, "BUILD ERRORS (%d):\n", len(result.BuildErrors))
+		sort.Strings(result.BuildErrors)
+		for _, pkg := range result.BuildErrors {
+			fmt.Fprintf(&sb, "  %s\n", pkg)
+		}
+		fmt.Fprintf(&sb, "\n")
+	}
+
+	if len(result.Failures) > 0 {
+		fmt.Fprintf(&sb, "TEST FAILURES (%d):\n", len(result.Failures))
+		sort.Slice(result.Failures, func(i, j int) bool {
+			if result.Failures[i].Package != result.Failures[j].Package {
+				return result.Failures[i].Package < result.Failures[j].Package
+			}
+			return result.Failures[i].Test < result.Failures[j].Test
+		})
+		for _, f := range result.Failures {
+			fmt.Fprintf(&sb, "  %s.%s\n", f.Package, f.Test)
+		}
+		fmt.Fprintf(&sb, "\n")
+	}
+
+	if len(result.SkippedTests) > 0 {
+		fmt.Fprintf(&sb, "SKIPPED TESTS (%d):\n", len(result.SkippedTests))
+		sort.Strings(result.SkippedTests)
+		for _, name := range result.SkippedTests {
+			fmt.Fprintf(&sb, "  %s\n", name)
+		}
+		fmt.Fprintf(&sb, "\n")
+	}
+
+	if len(result.Failures) == 0 && len(result.BuildErrors) == 0 {
+		fmt.Fprintf(&sb, "ZERO FAILURES — baseline is clean.\n")
+	}
+
+	return sb.String()
 }
