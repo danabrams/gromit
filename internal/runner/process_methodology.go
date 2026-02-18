@@ -179,11 +179,6 @@ func checkRemainingGuard(remaining time.Duration, needed time.Duration) deadline
 	return deadlineGuard{Skip: false, Remaining: remaining, Needed: needed}
 }
 
-// minRefactorTime is the minimum remaining bead budget required to start the
-// refactor phase. Skipping refactor when nearly out of time avoids beginning
-// a Claude invocation that is unlikely to complete within budget.
-const minRefactorTime = 60 * time.Second
-
 // minRevalidationTime is the minimum remaining bead budget required to run
 // post-refactor re-validation. Skipping re-validation when nearly out of time
 // avoids starting a validation run that is unlikely to complete.
@@ -204,15 +199,16 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		return false, bc.Result
 	}
 
-	if guard := checkDeadlineGuard(ctx, minRefactorTime); guard.Skip {
+	minRefactorBudget := r.methodologyPolicy.MinRefactorBudget()
+	if guard := checkDeadlineGuard(ctx, minRefactorBudget); guard.Skip {
 		r.log("Skipping refactor phase: reason=%s (remaining %s, needed %s)", guard.SkipReason, guard.Remaining.Round(time.Second), guard.Needed)
 		return false, nil
 	}
 
 	if remaining, _, ok := beadRemaining(bc); ok {
-		guard := checkRemainingGuard(remaining, minRefactorTime)
+		guard := checkRemainingGuard(remaining, minRefactorBudget)
 		if guard.Skip {
-			r.log("Skipping refactor phase: reason=%s (remaining %s, needed %s)", guard.SkipReason, remaining.Round(time.Second), minRefactorTime)
+			r.log("Skipping refactor phase: reason=%s (remaining %s, needed %s)", guard.SkipReason, remaining.Round(time.Second), minRefactorBudget)
 			return false, nil
 		}
 	}

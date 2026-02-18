@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -150,5 +152,44 @@ func TestRunATDDPreBuildPhases_UsesMethodologyPolicyPhaseTimeout(t *testing.T) {
 	untilDeadline := time.Until(deadline)
 	if untilDeadline < 12*time.Second || untilDeadline > 22*time.Second {
 		t.Fatalf("deadline unexpected: %s remaining, want ~%ds", untilDeadline.Round(time.Second), phaseTimeoutSeconds)
+	}
+}
+
+func TestRunRefactorAndPostChecks_UsesMethodologyPolicyMinRefactorBudget(t *testing.T) {
+	r, _, _ := setupDirectValidationRunner(t, nil, nil)
+
+	refactorInvoked := false
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		refactorInvoked = true
+		return &claude.Result{Success: true}, nil
+	})
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.cfg.Validation.Enabled = false
+
+	r.methodologyPolicy = &mockMethodologyPolicy{
+		MinRefactorBudgetFn: func() time.Duration {
+			return 5 * time.Second
+		},
+	}
+
+	beadCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	bc := &runtypes.BeadContext{
+		Tier:          provider.TierMedium,
+		StartCommit:   testStartCommit,
+		ParentCtx:     context.Background(),
+		BeadTimeout:   300 * time.Second,
+		BeadStartTime: time.Now(),
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	r.runRefactorAndPostChecks(beadCtx, bc, false)
+
+	if !refactorInvoked {
+		t.Fatal("expected refactor phase to run with reduced min refactor budget")
 	}
 }
