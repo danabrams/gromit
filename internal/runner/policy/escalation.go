@@ -63,5 +63,8 @@ func (p *ConfigEscalationPolicy) ClassifyTimeout(ctxErr, parentErr error, stallF
 	if ctxErr != nil && parentErr == nil {
 		return TimeoutClassification{TimeoutType: "bead"}
 	}
+	if parentErr != nil {
+		return TimeoutClassification{ParentCanceled: true}
+	}
 	return TimeoutClassification{}
 }

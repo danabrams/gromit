@@ -34,3 +34,15 @@ func TestClassifyTimeout_BeadTimeoutWhenContextExpired(t *testing.T) {
 		t.Error("ClassifyTimeout(bead) ParentCanceled = true, want false")
 	}
 }
+
+func TestClassifyTimeout_ParentCanceledReturnsNoTimeoutType(t *testing.T) {
+	p := newConfigEscalationPolicy(&config.Config{})
+	parentErr := context.Canceled
+	result := p.ClassifyTimeout(nil, parentErr, false)
+	if result.TimeoutType != "" {
+		t.Errorf("ClassifyTimeout(parent canceled) TimeoutType = %q, want empty", result.TimeoutType)
+	}
+	if !result.ParentCanceled {
+		t.Error("ClassifyTimeout(parent canceled) ParentCanceled = false, want true")
+	}
+}
