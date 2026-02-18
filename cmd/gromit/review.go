@@ -494,7 +494,7 @@ type cliAgentResolver struct {
 
 func (r *cliAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
 	// Use the CLI's agent.Resolve which handles stdin/stdout
-	return agent.Resolve(r.cfg, phase, r.flagOverride, r.choosePicker, os.Stdin, os.Stdout)
+	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
 }
 
 // cliPromptRenderer adapts prompt.Renderer to pipeline.PromptRenderer interface
