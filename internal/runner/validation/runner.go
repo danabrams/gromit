@@ -137,6 +137,8 @@ func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 			if valErr := r.runValidationWithCommands(ctx, bc, commands, mode); valErr == nil {
 				bc.Result.TrivialAutoFixed = true
 				return nil
+			} else if !errors.Is(valErr, ErrValidationFailed) {
+				return valErr
 			} else if errors.Is(valErr, ErrValidationFailed) {
 				lastFailure = r.lastFailureOutput
 			}
@@ -153,6 +155,8 @@ func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 			// Re-validate after Claude fix
 			if valErr := r.runValidationWithCommands(ctx, bc, commands, mode); valErr == nil {
 				return nil
+			} else if !errors.Is(valErr, ErrValidationFailed) {
+				return valErr
 			} else if errors.Is(valErr, ErrValidationFailed) && r.lastFailureOutput == lastFailure {
 				return valErr
 			} else if errors.Is(valErr, ErrValidationFailed) {
