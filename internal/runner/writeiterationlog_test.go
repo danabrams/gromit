@@ -256,6 +256,66 @@ func TestWriteIterationLog_WritesAcceptanceFailureArtifact(t *testing.T) {
 	}
 }
 
+func TestWriteIterationLog_RecordsAcceptanceFailureExitCode(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
+
+	r := &Runner{
+		logger: l,
+		cfg: &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+		},
+	}
+
+	result := &IterationResult{
+		BeadID:                    "bead-accept-exitcode",
+		BeadTitle:                 "ATDD verify",
+		Model:                     "sonnet",
+		Success:                   false,
+		Duration:                  2 * time.Second,
+		Error:                     fmt.Errorf("post-build acceptance verification failed"),
+		AcceptanceFailureSummary:  "acceptance tests failed after implementation",
+		AcceptanceFailureOutput:   "VALIDATION_FAILED\n--- FAIL: TestSomething",
+		AcceptanceFailureExitCode: 2,
+	}
+
+	r.writeIterationLog(4, result)
+
+	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("globbing log files: %v", err)
+	}
+	if len(logFiles) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(logFiles))
+	}
+
+	data, err := os.ReadFile(logFiles[0])
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	var entry map[string]any
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		t.Fatalf("unmarshaling log line: %v", err)
+	}
+
+	if got := entry["acceptance_failure_exit_code"]; got != float64(2) {
+		t.Fatalf("acceptance_failure_exit_code = %v, want 2", got)
+	}
+	if got := entry["acceptance_failure_artifact"]; got == "" || got == nil {
+		t.Fatal("expected acceptance_failure_artifact to be set")
+	}
+}
+
 func TestWriteIterationLog_EmitsAndonClassificationAndReliabilitySignals(t *testing.T) {
 	// Expected failure: IterationResult/IterationLog do not yet expose FailureClass,
 	// AndonLevel, TrimDecision, AutonomyEligible, AutonomySuccess, FirstPassSuccess,

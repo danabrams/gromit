@@ -87,6 +87,7 @@ type IterationResult struct {
 	AcceptanceFailureSummary  string // short summary for JSONL
 	AcceptanceFailureOutput   string // captured validation output from failed acceptance verification
 	AcceptanceFailureArtifact string // path to persisted failure artifact log
+	AcceptanceFailureExitCode int    // exit code from failed acceptance validation
 
 	// Reliability and Andon telemetry for iteration logs and status formatting.
 	FailureClass     string

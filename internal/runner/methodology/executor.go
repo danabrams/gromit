@@ -44,8 +44,9 @@ type Executor struct {
 // AcceptanceVerificationError captures failure details when post-build
 // acceptance verification fails.
 type AcceptanceVerificationError struct {
-	Message string
-	Output  string
+	Message  string
+	Output   string
+	ExitCode int
 }
 
 func (e *AcceptanceVerificationError) Error() string {
@@ -278,8 +279,9 @@ func (e *Executor) VerifyAcceptanceTestsPass(ctx context.Context, bc *runtypes.B
 	if !claude.IsValidationPassed(valResult) {
 		e.log("Acceptance tests failed after implementation")
 		return &AcceptanceVerificationError{
-			Message: "acceptance tests failed after implementation - implementation may not satisfy acceptance criteria",
-			Output:  summarizeAcceptanceFailureOutput(valResult.Output),
+			Message:  "acceptance tests failed after implementation - implementation may not satisfy acceptance criteria",
+			Output:   summarizeAcceptanceFailureOutput(valResult.Output),
+			ExitCode: valResult.ExitCode,
 		}
 	}
 

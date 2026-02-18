@@ -234,6 +234,7 @@ func (r *Runner) handleAcceptanceVerificationFailure(ctx context.Context, bc *ru
 
 	bc.Result.AcceptanceFailureSummary = acceptanceErr.Error()
 	bc.Result.AcceptanceFailureOutput = acceptanceErr.Output
+	bc.Result.AcceptanceFailureExitCode = acceptanceErr.ExitCode
 	bc.Result.Error = fmt.Errorf("%s: %w", stage, err)
 
 	if r.escalationHandler == nil {

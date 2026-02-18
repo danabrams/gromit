@@ -75,6 +75,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		AcceptanceFailureSummary:  result.AcceptanceFailureSummary,
 		AcceptanceFailureOutput:   result.AcceptanceFailureOutput,
 		AcceptanceFailureArtifact: artifactPath,
+		AcceptanceFailureExitCode: result.AcceptanceFailureExitCode,
 		FailureClass:              string(result.FailureClass),
 		AndonLevel:                string(result.AndonLevel),
 		TrimDecision:              result.TrimDecision,
@@ -154,13 +155,14 @@ func (r *Runner) writeAcceptanceFailureArtifact(iteration int, result *Iteration
 	fullPath := filepath.Join(failuresDir, filename)
 
 	body := strings.TrimSpace(fmt.Sprintf(
-		"timestamp: %s\niteration: %d\nbead_id: %s\nbead_title: %s\nsummary: %s\nerror: %v\n\nvalidation_output:\n%s\n",
+		"timestamp: %s\niteration: %d\nbead_id: %s\nbead_title: %s\nsummary: %s\nerror: %v\nexit_code: %d\n\nvalidation_output:\n%s\n",
 		time.Now().UTC().Format(time.RFC3339),
 		iteration,
 		result.BeadID,
 		result.BeadTitle,
 		result.AcceptanceFailureSummary,
 		result.Error,
+		result.AcceptanceFailureExitCode,
 		result.AcceptanceFailureOutput,
 	))
 	if err := os.WriteFile(fullPath, []byte(body+"\n"), artifactFilePerm); err != nil {

@@ -45,6 +45,7 @@ type IterationLog struct {
 	AcceptanceFailureSummary  string `json:"acceptance_failure_summary,omitempty"`
 	AcceptanceFailureOutput   string `json:"acceptance_failure_output,omitempty"`
 	AcceptanceFailureArtifact string `json:"acceptance_failure_artifact,omitempty"`
+	AcceptanceFailureExitCode int    `json:"acceptance_failure_exit_code,omitempty"`
 
 	FailureClass     string `json:"failure_class,omitempty"`
 	AndonLevel       string `json:"andon_level,omitempty"`

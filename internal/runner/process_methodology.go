@@ -65,6 +65,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		bc.Result.Error = nil
 		bc.Result.AcceptanceFailureSummary = ""
 		bc.Result.AcceptanceFailureOutput = ""
+		bc.Result.AcceptanceFailureExitCode = 0
 
 		if !executeWithRetry() {
 			return bc.Result
@@ -110,7 +111,7 @@ type deadlineGuard struct {
 }
 
 const (
-	skipReasonDeadlineExpired          = "deadline_expired"
+	skipReasonDeadlineExpired           = "deadline_expired"
 	skipReasonInsufficientTimeRemaining = "insufficient_time_remaining"
 )
 
