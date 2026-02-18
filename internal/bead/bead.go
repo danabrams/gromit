@@ -416,56 +416,17 @@ func (c *Client) CreateWithParentAndDescription(title string, priority int, labe
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	args := []string{"create", title, "--priority", fmt.Sprintf("%d", priority), "--json"}
-
-	for _, label := range labels {
-		args = append(args, "--label", label)
-	}
-
-	if len(expectedOutputs) > 0 {
-		acceptancePath, cleanup, err := writeTempFile("bd-acceptance-*.txt", strings.Join(expectedOutputs, "\n"))
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-		args = append(args, "--acceptance", acceptancePath)
-	}
 
 	// Add parent if specified
+	var extra []string
 	if parentID != "" {
 		if !validBeadID.MatchString(parentID) || len(parentID) > maxIDLength {
 			return nil, fmt.Errorf("invalid parent ID %q", parentID)
 		}
-		args = append(args, "--parent", parentID)
+		extra = append(extra, "--parent", parentID)
 	}
 
-	// Add description if specified
-	if description != "" {
-		descriptionPath, cleanup, err := writeTempFile("bd-description-*.md", description)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-		args = append(args, "--body-file", descriptionPath)
-	}
-
-	out, err := c.run(args...)
-	if err != nil {
-		return nil, fmt.Errorf("bd create: %w", err)
-	}
-
-	var b Bead
-	if err := jsonutil.ExtractObject(out, &b); err != nil {
-		return nil, fmt.Errorf("parsing bd create output: %w", err)
-	}
-
-	b.normalizeNilFields()
-
-	if err := b.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid bead data: %w", err)
-	}
-
-	return &b, nil
+	return c.runCreate(title, priority, labels, expectedOutputs, description, extra)
 }
 
 // CreateWithDepsAndDescription creates a new bead with dependencies and description via the bd CLI
@@ -473,22 +434,9 @@ func (c *Client) CreateWithDepsAndDescription(title string, priority int, labels
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	args := []string{"create", title, "--priority", fmt.Sprintf("%d", priority), "--json"}
-
-	for _, label := range labels {
-		args = append(args, "--label", label)
-	}
-
-	if len(expectedOutputs) > 0 {
-		acceptancePath, cleanup, err := writeTempFile("bd-acceptance-*.txt", strings.Join(expectedOutputs, "\n"))
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-		args = append(args, "--acceptance", acceptancePath)
-	}
 
 	// Add dependencies if specified
+	var extra []string
 	if len(dependencies) > 0 {
 		// Validate all dependency IDs
 		for _, depID := range dependencies {
@@ -497,10 +445,32 @@ func (c *Client) CreateWithDepsAndDescription(title string, priority int, labels
 			}
 		}
 		// bd --deps accepts comma-separated list or multiple IDs
-		args = append(args, "--deps", strings.Join(dependencies, ","))
+		extra = append(extra, "--deps", strings.Join(dependencies, ","))
 	}
 
-	// Add description if specified
+	return c.runCreate(title, priority, labels, expectedOutputs, description, extra)
+}
+
+// runCreate builds args, writes large strings to temp files, invokes bd create, and parses the result.
+// extraArgs are inserted after acceptance (e.g. --parent or --deps flags).
+func (c *Client) runCreate(title string, priority int, labels []string, expectedOutputs []string, description string, extraArgs []string) (*Bead, error) {
+	args := []string{"create", title, "--priority", fmt.Sprintf("%d", priority), "--json"}
+
+	for _, label := range labels {
+		args = append(args, "--label", label)
+	}
+
+	if len(expectedOutputs) > 0 {
+		acceptancePath, cleanup, err := writeTempFile("bd-acceptance-*.txt", strings.Join(expectedOutputs, "\n"))
+		if err != nil {
+			return nil, err
+		}
+		defer cleanup()
+		args = append(args, "--acceptance", acceptancePath)
+	}
+
+	args = append(args, extraArgs...)
+
 	if description != "" {
 		descriptionPath, cleanup, err := writeTempFile("bd-description-*.md", description)
 		if err != nil {
