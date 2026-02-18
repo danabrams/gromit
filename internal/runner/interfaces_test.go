@@ -666,6 +666,8 @@ func TestNewRunnerWithDeps_ApplesDefaultsToUninitialisedConfig(t *testing.T) {
 func newRunnerWithMocks(t *testing.T, cfg *config.Config, deps Deps) (*Runner, *strings.Builder) {
 	t.Helper()
 
+	t.Setenv("TMUX", "")
+
 	if cfg.Paths.Logs == "" {
 		cfg.Paths.Logs = t.TempDir()
 	}
@@ -718,6 +720,16 @@ func TestNewRunnerWithMocksSetsLogsAndCompileCheck(t *testing.T) {
 	}
 	if *cfg.Preflight.CompileCheck {
 		t.Fatal("expected cfg.Preflight.CompileCheck to be false")
+	}
+}
+
+func TestNewRunnerWithMocksClearsTmuxEnv(t *testing.T) {
+	t.Setenv("TMUX", "1")
+
+	_, _ = newRunnerWithMocks(t, &config.Config{}, Deps{})
+
+	if got := os.Getenv("TMUX"); got != "" {
+		t.Fatalf("expected TMUX env to be cleared, got %q", got)
 	}
 }
 
