@@ -454,6 +454,97 @@ func TestCommandReturnsConfiguredCmd(t *testing.T) {
 	}
 }
 
+// TestLaunchDelegatesToLaunchInDir verifies Launch calls LaunchInDir with empty dir
+func TestLaunchDelegatesToLaunchInDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	promptPath := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptPath, []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	a := New("test", "echo", nil, FileRef, "", nil).(*cliAgent)
+
+	var capturedDir string
+	a.commandFn = func(name string, args ...string) *exec.Cmd {
+		return &exec.Cmd{Path: name, Args: append([]string{name}, args...)}
+	}
+	a.runFn = func(cmd *exec.Cmd) error {
+		capturedDir = cmd.Dir
+		return nil
+	}
+
+	if err := a.Launch(promptPath); err != nil {
+		t.Fatalf("Launch() error = %v", err)
+	}
+
+	// Launch should set no dir (empty string), same as LaunchInDir with ""
+	if capturedDir != "" {
+		t.Errorf("Launch() set cmd.Dir = %q, want empty string", capturedDir)
+	}
+
+	// Now verify LaunchInDir with a specific dir sets it correctly
+	targetDir := filepath.Join(tmpDir, "subdir")
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	a2 := New("test", "echo", nil, FileRef, "", nil).(*cliAgent)
+	var capturedDir2 string
+	a2.commandFn = func(name string, args ...string) *exec.Cmd {
+		return &exec.Cmd{Path: name, Args: append([]string{name}, args...)}
+	}
+	a2.runFn = func(cmd *exec.Cmd) error {
+		capturedDir2 = cmd.Dir
+		return nil
+	}
+
+	if err := a2.LaunchInDir(promptPath, targetDir); err != nil {
+		t.Fatalf("LaunchInDir() error = %v", err)
+	}
+	if capturedDir2 != targetDir {
+		t.Errorf("LaunchInDir() set cmd.Dir = %q, want %q", capturedDir2, targetDir)
+	}
+}
+
+// TestLaunchClosesReadEndOfPipe verifies the read end of stdin pipe is closed after cmd.Run
+func TestLaunchClosesReadEndOfPipe(t *testing.T) {
+	tmpDir := t.TempDir()
+	promptPath := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptPath, []byte("test content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	a := New("test", "cat", nil, Stdin, "", nil).(*cliAgent)
+
+	var cmdStdin *os.File
+	a.commandFn = func(name string, args ...string) *exec.Cmd {
+		return &exec.Cmd{Path: name, Args: append([]string{name}, args...)}
+	}
+	a.runFn = func(cmd *exec.Cmd) error {
+		// Capture the read-end of the pipe set as cmd.Stdin
+		if f, ok := cmd.Stdin.(*os.File); ok {
+			cmdStdin = f
+		}
+		return nil
+	}
+
+	if err := a.Launch(promptPath); err != nil {
+		t.Fatalf("Launch() error = %v", err)
+	}
+
+	if cmdStdin == nil {
+		t.Fatal("Launch() with Stdin delivery did not set cmd.Stdin to *os.File")
+	}
+
+	// After Launch returns, the read end should be closed.
+	// Writing to it from another fd should fail with a "file already closed" error.
+	// We verify by attempting to use the fd - if closed, Stat will fail.
+	_, err := cmdStdin.Stat()
+	if err == nil {
+		t.Error("Launch() did not close the read end of the pipe after cmd.Run(); fd still open")
+	}
+}
+
 // TestCommandWithAllThreePromptDeliveryModes verifies Command handles all delivery modes correctly
 func TestCommandWithAllThreePromptDeliveryModes(t *testing.T) {
 	// Expected failure: Command() method does not exist on Agent interface yet

@@ -98,44 +98,7 @@ func (a *cliAgent) buildCommandArgs(promptPath string) ([]string, error) {
 
 // Launch executes the agent with the given prompt file path
 func (a *cliAgent) Launch(promptPath string) error {
-	args, err := a.buildCommandArgs(promptPath)
-	if err != nil {
-		return err
-	}
-
-	// Create command
-	cmd := a.makeCommand(a.binary, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	// For Stdin delivery, read prompt file and pipe to stdin
-	if a.promptDelivery == Stdin {
-		content, err := os.ReadFile(promptPath)
-		if err != nil {
-			return fmt.Errorf("failed to read prompt file: %w", err)
-		}
-		r, w, err := os.Pipe()
-		if err != nil {
-			return fmt.Errorf("failed to create pipe: %w", err)
-		}
-		cmd.Stdin = r
-		go func() {
-			defer w.Close()
-			_, _ = w.Write(content) // Best-effort write; command will fail if it can't read
-		}()
-	} else {
-		cmd.Stdin = os.Stdin
-	}
-
-	// Run the command
-	err = a.run(cmd)
-
-	// Treat exec.ExitError as graceful exit (agent returned non-zero)
-	if _, ok := err.(*exec.ExitError); ok {
-		return nil
-	}
-
-	return err
+	return a.LaunchInDir(promptPath, "")
 }
 
 // LaunchInDir executes the agent with the given prompt file path in the specified directory.
@@ -166,6 +129,7 @@ func (a *cliAgent) LaunchInDir(promptPath, dir string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create pipe: %w", err)
 		}
+		defer r.Close()
 		cmd.Stdin = r
 		go func() {
 			defer w.Close()
