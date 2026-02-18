@@ -51,3 +51,20 @@ func TestWrapRefactorValidationError(t *testing.T) {
 		})
 	}
 }
+
+func TestWrapPhaseError_DeadlineExceeded_IncludesPhase(t *testing.T) {
+	err := wrapPhaseError("validation", context.DeadlineExceeded)
+	if err == nil {
+		t.Fatal("expected wrapped error, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "validation") {
+		t.Fatalf("expected error to contain phase name %q, got %q", "validation", msg)
+	}
+	if !strings.Contains(msg, "timeout") {
+		t.Fatalf("expected error to contain 'timeout', got %q", msg)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("expected errors.Is(err, context.DeadlineExceeded) to be true")
+	}
+}

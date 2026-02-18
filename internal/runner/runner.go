@@ -292,6 +292,20 @@ func wrapRefactorValidationError(err error) error {
 	return fmt.Errorf("validation failed after refactoring: %w", err)
 }
 
+// wrapPhaseError wraps an error with phase attribution for timeout and cancellation errors.
+func wrapPhaseError(phase string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%s phase aborted due to timeout: %w", phase, err)
+	}
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("%s phase canceled: %w", phase, err)
+	}
+	return fmt.Errorf("%s phase failed: %w", phase, err)
+}
+
 func (r *Runner) shouldExitRunLoopOnStopLine(result *IterationResult) bool {
 	if result == nil || result.Error == nil {
 		return false
