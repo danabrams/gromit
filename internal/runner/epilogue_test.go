@@ -238,3 +238,60 @@ func TestRunSessionEpilogue_SkipsWhenIterationsZero(t *testing.T) {
 		t.Error("runSessionEpilogue() ranRetro = true, want false when Iterations == 0")
 	}
 }
+
+func TestRunSessionEpilogue_SkipsRetroWhenRetroFalse(t *testing.T) {
+	// When cfg.Session.Retro is explicitly false, the retro phase should not run.
+	falseVal := false
+	cfg := &config.Config{}
+	cfg.Session.Iterations = 1
+	cfg.Session.Retro = &falseVal
+
+	r := newEpilogueTestRunner(t, cfg)
+	// No router set — if retro tried to run it would panic on nil router
+	st := &runLoopState{}
+
+	ranRetro, err := r.runSessionEpilogue(context.Background(), st)
+	if err != nil {
+		t.Fatalf("runSessionEpilogue() error = %v, want nil", err)
+	}
+	if ranRetro {
+		t.Error("runSessionEpilogue() ranRetro = true, want false when Session.Retro is false")
+	}
+}
+
+func TestRunSessionEpilogue_RunsAllPhasesWhenEnabled(t *testing.T) {
+	// When Iterations > 0 and retro is enabled, ranRetro should be true.
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "templates"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	retroTemplate := `Rules: {{.Rules}} Learnings: {{.Learnings}}`
+	if err := os.WriteFile(filepath.Join(dir, "templates", "PROMPT_retro.md"), []byte(retroTemplate), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "RULES.md"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	trueVal := true
+	cfg := &config.Config{}
+	cfg.Session.Iterations = 1
+	cfg.Session.Review = &trueVal
+	cfg.Session.Retro = &trueVal
+
+	r := newEpilogueTestRunner(t, cfg)
+	r.gromitDir = dir
+	r.router = newMockRouter()
+
+	sf, _ := state.NewFile(dir)
+	r.stateFile = sf
+
+	st := &runLoopState{}
+	ranRetro, err := r.runSessionEpilogue(context.Background(), st)
+	if err != nil {
+		t.Fatalf("runSessionEpilogue() error = %v, want nil", err)
+	}
+	if !ranRetro {
+		t.Error("runSessionEpilogue() ranRetro = false, want true when retro is enabled")
+	}
+}
