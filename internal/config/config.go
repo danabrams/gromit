@@ -60,6 +60,7 @@ type Config struct {
 	Worktree    WorktreeConfig         `yaml:"worktree"`
 	Session     SessionConfig          `yaml:"session"`
 	Runbook     RunbookConfig          `yaml:"runbook"`
+	SpecGate    SpecGateConfig         `yaml:"spec_gate"`
 }
 
 type ModelsConfig struct {
@@ -350,6 +351,13 @@ type SessionConfig struct {
 
 type RunbookConfig struct {
 	TTLDays int `yaml:"ttl_days"`
+}
+
+type SpecGateConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	MaxCycles   int    `yaml:"max_cycles"`
+	Model       string `yaml:"model"`
+	AutoTrigger *bool  `yaml:"auto_trigger"`
 }
 
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
@@ -727,6 +735,16 @@ func (c *Config) SetDefaults() {
 		t := true
 		c.Session.Retro = &t
 	}
+	if c.SpecGate.MaxCycles == 0 {
+		c.SpecGate.MaxCycles = 3
+	}
+	if c.SpecGate.Model == "" {
+		c.SpecGate.Model = ModelSonnet
+	}
+	if c.SpecGate.AutoTrigger == nil {
+		t := true
+		c.SpecGate.AutoTrigger = &t
+	}
 }
 
 func (v ValidationConfig) IsNonInteractive() bool {
@@ -1072,4 +1090,17 @@ func (w WorktreeConfig) IsAutoMergeEnabled() bool {
 		return true
 	}
 	return *w.AutoMerge
+}
+
+// IsEnabled returns whether spec gate is enabled
+func (s SpecGateConfig) IsEnabled() bool {
+	return s.Enabled
+}
+
+// IsAutoTrigger returns whether spec gate auto-trigger is enabled (defaults to true)
+func (s SpecGateConfig) IsAutoTrigger() bool {
+	if s.AutoTrigger == nil {
+		return true
+	}
+	return *s.AutoTrigger
 }

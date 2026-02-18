@@ -3803,3 +3803,131 @@ func TestProviderDefEstimateCost(t *testing.T) {
 		})
 	}
 }
+
+func TestSpecGateConfigDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.SpecGate.MaxCycles != 3 {
+		t.Errorf("SpecGate.MaxCycles = %d, want 3", cfg.SpecGate.MaxCycles)
+	}
+	if cfg.SpecGate.Model != ModelSonnet {
+		t.Errorf("SpecGate.Model = %q, want %q", cfg.SpecGate.Model, ModelSonnet)
+	}
+	if cfg.SpecGate.AutoTrigger == nil {
+		t.Fatal("SpecGate.AutoTrigger is nil, want non-nil pointer")
+	}
+	if !*cfg.SpecGate.AutoTrigger {
+		t.Errorf("*SpecGate.AutoTrigger = false, want true")
+	}
+}
+
+func TestSpecGateConfigDefaultWhenOmittedFromYAML(t *testing.T) {
+	yamlContent := `
+models:
+  p0: opus
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.SpecGate.MaxCycles != 3 {
+		t.Errorf("SpecGate.MaxCycles = %d, want 3 when omitted", cfg.SpecGate.MaxCycles)
+	}
+	if cfg.SpecGate.Model != ModelSonnet {
+		t.Errorf("SpecGate.Model = %q, want %q when omitted", cfg.SpecGate.Model, ModelSonnet)
+	}
+	if cfg.SpecGate.AutoTrigger == nil {
+		t.Fatal("SpecGate.AutoTrigger is nil, want non-nil pointer when omitted")
+	}
+	if !*cfg.SpecGate.AutoTrigger {
+		t.Errorf("*SpecGate.AutoTrigger = false, want true when omitted")
+	}
+}
+
+func TestSpecGateConfigYAMLDeserialization(t *testing.T) {
+	yamlContent := `
+spec_gate:
+  enabled: true
+  max_cycles: 5
+  model: opus
+  auto_trigger: false
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.SpecGate.Enabled {
+		t.Errorf("SpecGate.Enabled = false, want true")
+	}
+	if cfg.SpecGate.MaxCycles != 5 {
+		t.Errorf("SpecGate.MaxCycles = %d, want 5", cfg.SpecGate.MaxCycles)
+	}
+	if cfg.SpecGate.Model != "opus" {
+		t.Errorf("SpecGate.Model = %q, want %q", cfg.SpecGate.Model, "opus")
+	}
+	if cfg.SpecGate.AutoTrigger == nil {
+		t.Fatal("SpecGate.AutoTrigger is nil, want non-nil pointer")
+	}
+	if *cfg.SpecGate.AutoTrigger {
+		t.Errorf("*SpecGate.AutoTrigger = true, want false")
+	}
+}
+
+func TestSpecGateIsEnabled(t *testing.T) {
+	tests := []struct {
+		name    string
+		enabled bool
+		want    bool
+	}{
+		{"enabled true", true, true},
+		{"enabled false", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := SpecGateConfig{Enabled: tt.enabled}
+			if got := s.IsEnabled(); got != tt.want {
+				t.Errorf("IsEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSpecGateIsAutoTrigger(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	tests := []struct {
+		name        string
+		autoTrigger *bool
+		want        bool
+	}{
+		{"nil defaults to true", nil, true},
+		{"explicit true", &trueVal, true},
+		{"explicit false", &falseVal, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := SpecGateConfig{AutoTrigger: tt.autoTrigger}
+			if got := s.IsAutoTrigger(); got != tt.want {
+				t.Errorf("IsAutoTrigger() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
