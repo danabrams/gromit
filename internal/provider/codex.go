@@ -63,21 +63,32 @@ func (cp *CodexProvider) ModelForTier(tier string) string {
 	return tier
 }
 
-// Run executes an LLM invocation with the given prompt and tier
+// Run executes an LLM invocation with the given prompt and tier.
+// Uses --json mode to get structured JSONL output, then extracts the
+// agent's text response so callers receive the model's actual content.
 func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
 	if cp == nil {
 		return nil, fmt.Errorf("codex provider is nil")
 	}
 
 	model := cp.ModelForTier(tier)
-	args := cp.buildCommandArgs(model, false)
+	args := cp.buildCommandArgs(model, true)
 	env, effectiveCodexHome, err := prepareCodexEnv()
 	if err != nil {
 		return nil, err
 	}
-	return cp.runWithRetry(ctx, func() (*Result, error) {
+	result, err := cp.runWithRetry(ctx, func() (*Result, error) {
 		return cp.runOnce(ctx, prompt, model, args, env, effectiveCodexHome)
 	})
+	if err != nil {
+		return nil, err
+	}
+	// Extract agent text from JSONL events so callers get the model's
+	// actual response rather than raw JSONL lines.
+	if text := extractAgentTextFromJSONL(result.Output); text != "" {
+		result.Output = text
+	}
+	return result, nil
 }
 
 // StreamRun executes an LLM invocation with streaming output.
@@ -589,6 +600,27 @@ type codexUsage struct {
 type codexErrorInfo struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
+}
+
+// extractAgentTextFromJSONL scans JSONL output for item.completed events
+// with type "agent_message" and returns the last agent's text response.
+// This is the non-streaming counterpart to processCodexStream's text extraction.
+func extractAgentTextFromJSONL(output string) string {
+	var last string
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var event codexEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			continue
+		}
+		if event.Type == "item.completed" && event.Item != nil && event.Item.Type == "agent_message" {
+			last = event.Item.Text
+		}
+	}
+	return last
 }
 
 // codexItem represents an item from Codex item.started or item.completed events

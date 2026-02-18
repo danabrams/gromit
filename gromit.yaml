@@ -47,7 +47,7 @@ routing:
     validate: any
     review: cross        # use opposite provider from build
     analyze: any
-    scope_check: claude
+    scope_check: any
     precheck: any
     decompose: any
   ratio:
