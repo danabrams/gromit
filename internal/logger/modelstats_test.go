@@ -813,6 +813,19 @@ this is not json
 	}
 }
 
+// TestCostPerSpec_EmptyDir verifies CostPerSpec returns empty map for empty directory
+func TestCostPerSpec_EmptyDir(t *testing.T) {
+	dir := t.TempDir()
+
+	result, err := CostPerSpec(dir)
+	if err != nil {
+		t.Fatalf("CostPerSpec failed: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("Expected 0 specs, got %d", len(result))
+	}
+}
+
 // TestSpecCost_Struct verifies the SpecCost struct fields are accessible
 func TestSpecCost_Struct(t *testing.T) {
 	sc := SpecCost{

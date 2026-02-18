@@ -125,6 +125,61 @@ type SpecCost struct {
 	ModelMix     map[string]int
 }
 
+// CostPerSpec aggregates cost and usage statistics grouped by spec_id.
+// Entries with an empty spec_id are grouped under "unassigned".
+func CostPerSpec(logsDir string) (map[string]SpecCost, error) {
+	result := make(map[string]SpecCost)
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		return result, fmt.Errorf("globbing log files: %w", err)
+	}
+
+	type specAccum struct {
+		totalCostUSD float64
+		iterations   int
+		beadIDs      map[string]bool
+		modelMix     map[string]int
+	}
+	accum := make(map[string]*specAccum)
+
+	for _, f := range files {
+		entries, err := readLogFile(f)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			specID := entry.SpecID
+			if specID == "" {
+				specID = "unassigned"
+			}
+			a := accum[specID]
+			if a == nil {
+				a = &specAccum{
+					beadIDs:  make(map[string]bool),
+					modelMix: make(map[string]int),
+				}
+				accum[specID] = a
+			}
+			a.totalCostUSD += entry.CostUSD
+			a.iterations++
+			a.beadIDs[entry.BeadID] = true
+			a.modelMix[entry.Model]++
+		}
+	}
+
+	for specID, a := range accum {
+		result[specID] = SpecCost{
+			TotalCostUSD: a.totalCostUSD,
+			Iterations:   a.iterations,
+			Beads:        len(a.beadIDs),
+			ModelMix:     a.modelMix,
+		}
+	}
+
+	return result, nil
+}
+
 // CostPerCompletedBead computes the total cost per completed bead
 // including all retry attempts and escalations leading to completion
 func CostPerCompletedBead(logsDir string) (map[string]float64, error) {
