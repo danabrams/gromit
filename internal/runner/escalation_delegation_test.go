@@ -9,15 +9,14 @@ import (
 	"testing"
 )
 
-// TestSetupBeadContextCallsEscalationSelectTier verifies that setupBeadContext
-// calls escalation.SelectTier() rather than the Runner's local r.selectTier()
-// for tier selection.
+// TestSetupBeadContextCallsEscalationPolicySelectInitialTier verifies that
+// setupBeadContext calls r.escalationPolicy.SelectInitialTier() rather than
+// the escalation.SelectTier package helper.
 //
-// Expected failure: setupBeadContext (process.go:42) currently calls r.selectTier(b),
-// which is a local Runner method. After implementation, it should call
-// escalation.SelectTier(r.cfg, b) instead, since the local selectTier method
-// will be removed.
-func TestSetupBeadContextCallsEscalationSelectTier(t *testing.T) {
+// Expected failure: setupBeadContext (process.go:42) currently calls
+// escalation.SelectTier(r.cfg, b). After implementation, it should call
+// r.escalationPolicy.SelectInitialTier(b.Priority, b.Labels) instead.
+func TestSetupBeadContextCallsEscalationPolicySelectInitialTier(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("process.go"), nil, parser.ParseComments)
 	if err != nil {
@@ -37,8 +36,8 @@ func TestSetupBeadContextCallsEscalationSelectTier(t *testing.T) {
 		}
 
 		// Walk the AST of setupBeadContext looking for call patterns
-		hasLocalSelectTier := false
 		hasEscalationSelectTier := false
+		hasPolicySelectInitialTier := false
 		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -48,40 +47,42 @@ func TestSetupBeadContextCallsEscalationSelectTier(t *testing.T) {
 			if !ok {
 				return true
 			}
-			// Check for r.selectTier (local method call)
-			if sel.Sel.Name == "selectTier" {
-				if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "r" {
-					hasLocalSelectTier = true
-				}
-			}
 			// Check for escalation.SelectTier (package-level call)
 			if sel.Sel.Name == "SelectTier" {
 				if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "escalation" {
 					hasEscalationSelectTier = true
 				}
 			}
+			// Check for r.escalationPolicy.SelectInitialTier (policy method call)
+			if sel.Sel.Name == "SelectInitialTier" {
+				if innerSel, ok := sel.X.(*ast.SelectorExpr); ok {
+					if ident, ok := innerSel.X.(*ast.Ident); ok && ident.Name == "r" && innerSel.Sel.Name == "escalationPolicy" {
+						hasPolicySelectInitialTier = true
+					}
+				}
+			}
 			return true
 		})
 
-		if hasLocalSelectTier {
-			t.Error("setupBeadContext still calls r.selectTier() — should call escalation.SelectTier(r.cfg, b) instead")
+		if hasEscalationSelectTier {
+			t.Error("setupBeadContext still calls escalation.SelectTier() — should call r.escalationPolicy.SelectInitialTier(...) instead")
 		}
-		if !hasEscalationSelectTier {
-			t.Error("setupBeadContext does not call escalation.SelectTier() — tier selection should be delegated to the escalation package")
+		if !hasPolicySelectInitialTier {
+			t.Error("setupBeadContext does not call r.escalationPolicy.SelectInitialTier() — tier selection should be delegated to the escalation policy")
 		}
 		return
 	}
 	t.Fatal("setupBeadContext not found in process.go")
 }
 
-// TestSetupBeadContextCallsEscalationSelectModel verifies that setupBeadContext
-// calls escalation.SelectModel() rather than the Runner's local r.selectModel()
-// for model selection.
+// TestSetupBeadContextCallsEscalationPolicySelectModel verifies that
+// setupBeadContext calls r.escalationPolicy.SelectModel() rather than
+// escalation.SelectModel().
 //
-// Expected failure: setupBeadContext (process.go:43) currently calls r.selectModel(b),
-// which is a local Runner method. After implementation, it should call
-// escalation.SelectModel(r.cfg, b) instead.
-func TestSetupBeadContextCallsEscalationSelectModel(t *testing.T) {
+// Expected failure: setupBeadContext (process.go:43) currently calls
+// escalation.SelectModel(r.cfg, b). After implementation, it should call
+// r.escalationPolicy.SelectModel(b.Priority, b.Labels) instead.
+func TestSetupBeadContextCallsEscalationPolicySelectModel(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("process.go"), nil, parser.ParseComments)
 	if err != nil {
@@ -100,8 +101,8 @@ func TestSetupBeadContextCallsEscalationSelectModel(t *testing.T) {
 			continue
 		}
 
-		hasLocalSelectModel := false
 		hasEscalationSelectModel := false
+		hasPolicySelectModel := false
 		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -111,24 +112,26 @@ func TestSetupBeadContextCallsEscalationSelectModel(t *testing.T) {
 			if !ok {
 				return true
 			}
-			if sel.Sel.Name == "selectModel" {
-				if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "r" {
-					hasLocalSelectModel = true
-				}
-			}
 			if sel.Sel.Name == "SelectModel" {
 				if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "escalation" {
 					hasEscalationSelectModel = true
 				}
 			}
+			if sel.Sel.Name == "SelectModel" {
+				if innerSel, ok := sel.X.(*ast.SelectorExpr); ok {
+					if ident, ok := innerSel.X.(*ast.Ident); ok && ident.Name == "r" && innerSel.Sel.Name == "escalationPolicy" {
+						hasPolicySelectModel = true
+					}
+				}
+			}
 			return true
 		})
 
-		if hasLocalSelectModel {
-			t.Error("setupBeadContext still calls r.selectModel() — should call escalation.SelectModel(r.cfg, b) instead")
+		if hasEscalationSelectModel {
+			t.Error("setupBeadContext still calls escalation.SelectModel() — should call r.escalationPolicy.SelectModel(...) instead")
 		}
-		if !hasEscalationSelectModel {
-			t.Error("setupBeadContext does not call escalation.SelectModel() — model selection should be delegated to the escalation package")
+		if !hasPolicySelectModel {
+			t.Error("setupBeadContext does not call r.escalationPolicy.SelectModel() — model selection should be delegated to the escalation policy")
 		}
 		return
 	}
@@ -265,4 +268,61 @@ func TestProcessGoUsesEscalationLearningFunctions(t *testing.T) {
 			"these should be replaced with escalation.ExtractLearning/etc:\n  %s",
 			strings.Join(localCalls, "\n  "))
 	}
+}
+
+// TestMakeValidationExecuteFnCallsEscalationPolicyNextTier verifies that
+// makeValidationExecuteFn calls r.escalationPolicy.NextTier() rather than
+// cfg.NextEscalationTier().
+func TestMakeValidationExecuteFnCallsEscalationPolicyNextTier(t *testing.T) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filepath.Join("callbacks.go"), nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("failed to parse callbacks.go: %v", err)
+	}
+
+	for _, decl := range node.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if funcDecl.Recv == nil || len(funcDecl.Recv.List) == 0 {
+			continue
+		}
+		if funcDecl.Name.Name != "makeValidationExecuteFn" {
+			continue
+		}
+
+		hasCfgNextTier := false
+		hasPolicyNextTier := false
+		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			if sel.Sel.Name == "NextEscalationTier" {
+				hasCfgNextTier = true
+			}
+			if sel.Sel.Name == "NextTier" {
+				if innerSel, ok := sel.X.(*ast.SelectorExpr); ok {
+					if ident, ok := innerSel.X.(*ast.Ident); ok && ident.Name == "r" && innerSel.Sel.Name == "escalationPolicy" {
+						hasPolicyNextTier = true
+					}
+				}
+			}
+			return true
+		})
+
+		if hasCfgNextTier {
+			t.Error("makeValidationExecuteFn still calls cfg.NextEscalationTier() — should call r.escalationPolicy.NextTier() instead")
+		}
+		if !hasPolicyNextTier {
+			t.Error("makeValidationExecuteFn does not call r.escalationPolicy.NextTier() — escalation tier selection should be delegated to the escalation policy")
+		}
+		return
+	}
+	t.Fatal("makeValidationExecuteFn not found in callbacks.go")
 }

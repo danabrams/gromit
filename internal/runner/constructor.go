@@ -20,6 +20,7 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
+	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/validation"
 	"github.com/danabrams/gromit/internal/state"
@@ -100,6 +101,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 		analyzer:         analyzerObj,
 		renderer:         renderer,
 		logger:           log,
+		escalationPolicy: policy.NewConfigEscalationPolicy(cfg),
 		output:           syncOut,
 		syncOut:          syncOut,
 		gromitDir:        gromitDir,

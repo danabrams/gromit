@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
@@ -70,20 +71,21 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 	}
 
 	r := &Runner{
-		cfg:            cfg,
-		beads:          deps.Beads,
-		router:         router,
-		invoker:        inv,
-		analyzer:       deps.Analyzer,
-		renderer:       deps.Renderer,
-		logger:         iterLogger,
-		output:         syncOut,
-		syncOut:        syncOut,
-		gromitDir:      gromitDir,
-		gitDiffFn:      getGitDiff,
-		gitHeadFn:      getGitHead,
-		cmdRunnerFn:    cmdRunner,
-		processChecker: IsProcessAlive,
+		cfg:              cfg,
+		beads:            deps.Beads,
+		router:           router,
+		invoker:          inv,
+		analyzer:         deps.Analyzer,
+		renderer:         deps.Renderer,
+		logger:           iterLogger,
+		escalationPolicy: policy.NewConfigEscalationPolicy(cfg),
+		output:           syncOut,
+		syncOut:          syncOut,
+		gromitDir:        gromitDir,
+		gitDiffFn:        getGitDiff,
+		gitHeadFn:        getGitHead,
+		cmdRunnerFn:      cmdRunner,
+		processChecker:   IsProcessAlive,
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
 			return net.DefaultResolver.LookupHost(ctx, host)
 		},

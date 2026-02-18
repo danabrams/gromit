@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/methodology"
+	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
@@ -59,6 +60,7 @@ type Runner struct {
 	router             *provider.Router
 	invoker            *execution.Invoker
 	escalationHandler  *escalation.Handler
+	escalationPolicy   policy.EscalationPolicy
 	methodologyExec    *methodology.Executor
 	validationRunner   *validation.Runner
 	reviewer           *reviewpkg.Reviewer
