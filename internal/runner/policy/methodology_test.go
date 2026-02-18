@@ -2,6 +2,7 @@ package policy_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/policy"
@@ -67,6 +68,22 @@ func TestPhaseTimeout_FallsBackToBeadTimeoutWhenUnconfigured(t *testing.T) {
 	got := p.PhaseTimeout("red", 500)
 	if got != 500 {
 		t.Errorf("PhaseTimeout with zero config: got %d, want 500 (bead timeout fallback)", got)
+	}
+}
+
+func TestMinRefactorBudget_Returns60Seconds(t *testing.T) {
+	p := newMethodologyPolicy(false, false)
+	want := 60 * time.Second
+	if got := p.MinRefactorBudget(); got != want {
+		t.Errorf("MinRefactorBudget: got %v, want %v", got, want)
+	}
+}
+
+func TestMinRevalidationBudget_Returns30Seconds(t *testing.T) {
+	p := newMethodologyPolicy(false, false)
+	want := 30 * time.Second
+	if got := p.MinRevalidationBudget(); got != want {
+		t.Errorf("MinRevalidationBudget: got %v, want %v", got, want)
 	}
 }
 
