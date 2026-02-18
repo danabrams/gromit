@@ -17,6 +17,11 @@ func ApplyProposals(proposals *Proposals, lf *learnings.File, rulesPath string) 
 		return fmt.Errorf("learnings file is nil")
 	}
 
+	proposals.normalizeNilFields()
+
+	lf.SetAutoSave(false)
+	defer lf.SetAutoSave(true)
+
 	for _, consolidation := range proposals.Consolidations {
 		if err := lf.Replace(consolidation.LearningHashes, consolidation.ConsolidatedText, learnings.CategoryPatterns); err != nil {
 			return err
@@ -80,6 +85,10 @@ func ApplyProposals(proposals *Proposals, lf *learnings.File, rulesPath string) 
 		if err := os.WriteFile(rulesPath, []byte(rulesContent), 0644); err != nil {
 			return fmt.Errorf("writing rules: %w", err)
 		}
+	}
+
+	if err := lf.Save(); err != nil {
+		return err
 	}
 
 	return nil

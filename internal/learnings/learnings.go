@@ -39,6 +39,7 @@ type File struct {
 	provisional []Learning
 	archived    []Learning
 	filterFunc  FilterFunc
+	autoSaveOff bool
 }
 
 // Category constants
@@ -63,6 +64,14 @@ func NewFile(dir string) (*File, error) {
 		provisional: []Learning{},
 		archived:    []Learning{},
 	}, nil
+}
+
+// SetAutoSave enables or disables automatic saving after mutations.
+func (f *File) SetAutoSave(enabled bool) {
+	if f == nil {
+		return
+	}
+	f.autoSaveOff = !enabled
 }
 
 // SetFilter sets the filter function used to classify learnings as generic or project-specific.
@@ -452,6 +461,9 @@ func (f *File) Archive(hash, reason string) error {
 	// Add to archived
 	f.archived = append(f.archived, *learning)
 
+	if f.autoSaveOff {
+		return nil
+	}
 	return f.Save()
 }
 
@@ -515,6 +527,9 @@ func (f *File) Replace(oldHashes []string, newContent, category string) error {
 	// Add to confirmed (replacement learnings are confirmed by default)
 	f.confirmed = append(f.confirmed, newLearning)
 
+	if f.autoSaveOff {
+		return nil
+	}
 	return f.Save()
 }
 
