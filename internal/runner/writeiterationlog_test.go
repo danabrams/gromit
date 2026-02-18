@@ -672,3 +672,23 @@ func TestWriteIterationLog_ReliabilityMetricsDerivableFromStructuredEntries(t *t
 		t.Fatalf("RecurrenceCounters[quality] = %v, want 2", got)
 	}
 }
+
+func TestLogResult_IncludesPhaseAttributionForTimeoutFailure(t *testing.T) {
+	var buf bytes.Buffer
+	r := &Runner{output: &buf}
+	result := &IterationResult{
+		BeadID:       "bead-phase-log",
+		BeadTitle:    "Phase test",
+		Model:        "sonnet",
+		Success:      false,
+		Duration:     5 * time.Second,
+		Error:        fmt.Errorf("validation phase aborted due to timeout: context deadline exceeded"),
+		TimeoutPhase: "validation",
+	}
+
+	r.logResult(result)
+	output := buf.String()
+	if !strings.Contains(output, "phase: validation") {
+		t.Fatalf("expected log output to contain phase attribution, got:\n%s", output)
+	}
+}

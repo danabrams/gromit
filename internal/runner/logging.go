@@ -197,6 +197,9 @@ func (r *Runner) logResult(result *IterationResult) {
 		}
 	} else {
 		r.log("FAILED: %s - %v", result.BeadID, result.Error)
+		if result.TimeoutPhase != "" {
+			r.log("  phase: %s", result.TimeoutPhase)
+		}
 		if result.AcceptanceFailureSummary != "" {
 			r.log("  acceptance summary: %s", result.AcceptanceFailureSummary)
 		}
