@@ -26,6 +26,20 @@ func TestFailedCriteria_returnsOnlyFailedCriteria(t *testing.T) {
 	}
 }
 
+func TestFailedCriteria_allPass_returnsEmpty(t *testing.T) {
+	verdict := &GateVerdict{
+		Passed: true,
+		Results: []CriterionResult{
+			{Criterion: "No TODOs", Passed: true, Evidence: "none found"},
+		},
+	}
+
+	failed := verdict.FailedCriteria()
+	if len(failed) != 0 {
+		t.Errorf("FailedCriteria() returned %d items, want 0", len(failed))
+	}
+}
+
 func TestParseVerdict_invalidJSON_returnsError(t *testing.T) {
 	_, err := ParseVerdict([]byte(`not json`))
 	if err == nil {
