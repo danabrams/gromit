@@ -127,6 +127,9 @@ func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 	lastFailure := r.lastFailureOutput
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("validation recovery aborted: %w", ctxErr)
+		}
 		bc.Result.ValidationRetried = true
 
 		// Step 1: Try trivial auto-fix before invoking Claude
@@ -149,6 +152,9 @@ func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 			success := r.executeFn(ctx, bc)
 
 			if !success {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return fmt.Errorf("validation recovery aborted: %w", ctxErr)
+				}
 				continue
 			}
 

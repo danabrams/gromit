@@ -924,6 +924,35 @@ func TestRunWithRecoveryForCommands_RecoveryRevalidationHonorsPhaseDeadline(t *t
 	}
 }
 
+func TestRunWithRecoveryForCommands_ExecuteFnHonorsPhaseDeadline(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./..."}
+	cfg.Validation.MaxValidationRetries = 1
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "initial validation failure", 1, nil
+	}
+
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+		<-ctx.Done()
+		return false
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, executeFn)
+	bc := newTestBeadContext()
+
+	phaseCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	err := r.RunWithRecoveryForCommands(phaseCtx, bc, cfg.Validation.Commands, "fast")
+	if err == nil {
+		t.Fatal("expected deadline error while executeFn waits for phase context")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded, got: %v", err)
+	}
+}
+
 // TestRunWithRecoveryForCommands_TruncatesLargeOutput verifies that when a
 // validation command fails with very large stdout/stderr, the output appended
 // to bc.Result.Output is capped at ~50KB to prevent context bloat.
