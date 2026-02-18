@@ -26,6 +26,7 @@ type CodexProvider struct {
 	binaryPath  string
 	flags       []string
 	tierToModel map[string]string
+	sleepFn     func(context.Context, time.Duration) error
 }
 
 const (
@@ -45,6 +46,7 @@ func NewCodexProvider(binaryPath string, flags []string, tierToModel map[string]
 		binaryPath:  binaryPath,
 		flags:       flags,
 		tierToModel: tierToModel,
+		sleepFn:     sleepWithContext,
 	}
 }
 
@@ -86,7 +88,7 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 		if !shouldRetryCodexAttempt(result, attempt) {
 			return result, nil
 		}
-		if sleepErr := sleepWithContext(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
+		if sleepErr := cp.sleepFn(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
 			return result, nil
 		}
 	}
