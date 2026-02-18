@@ -26,6 +26,32 @@ func saveReviewFlags(t *testing.T) {
 	})
 }
 
+// TestValidateCommitRef verifies that commit refs starting with "-" are rejected.
+func TestValidateCommitRef(t *testing.T) {
+	tests := []struct {
+		name    string
+		ref     string
+		wantErr bool
+	}{
+		{"valid sha", "abc1234", false},
+		{"valid full sha", "cf02391aabbccddeeff00112233445566778899aa", false},
+		{"valid branch name", "main", false},
+		{"valid HEAD", "HEAD", false},
+		{"flag injection attempt", "--output=/tmp/x", true},
+		{"short flag attempt", "-n", true},
+		{"empty string", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateCommitRef(tt.ref)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateCommitRef(%q) error = %v, wantErr %v", tt.ref, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestTimestampComparison verifies that Unix timestamp comparison is done numerically,
 // not lexicographically. This is a regression test for the bug where string comparison
 // was used (e.g. "9" > "10" in string comparison).

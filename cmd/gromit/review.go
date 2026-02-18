@@ -476,6 +476,17 @@ func getGitHeadForReview() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// validateCommitRef rejects refs that look like git flags (start with "-") or are empty.
+func validateCommitRef(ref string) error {
+	if ref == "" {
+		return fmt.Errorf("commit ref must not be empty")
+	}
+	if strings.HasPrefix(ref, "-") {
+		return fmt.Errorf("invalid commit ref %q: must not start with '-'", ref)
+	}
+	return nil
+}
+
 func shortCommit(commit string) string {
 	if len(commit) > 8 {
 		return commit[:8]
