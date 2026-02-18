@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -2654,5 +2655,49 @@ func TestRunRefactorAndPostChecks_RevalidationSkippedWhenTimeExpired(t *testing.
 	}
 	if !strings.Contains(r.output.(*strings.Builder).String(), "remaining") {
 		t.Error("expected skip log to contain timing details (remaining)")
+	}
+}
+
+func TestRunRefactorAndPostChecks_NonTimeoutValidationFailure(t *testing.T) {
+	lintErr := errors.New("lint failed")
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "", 1, lintErr
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) { return "", nil }, // no diff → refactor skipped
+		nil, nil, nil, nil, nil,
+	))
+
+	bc := &runtypes.BeadContext{
+		Tier:          provider.TierMedium,
+		StartCommit:   "abc123",
+		ParentCtx:     context.Background(),
+		BeadTimeout:   5 * time.Minute,
+		BeadStartTime: time.Now(),
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal == nil {
+		t.Fatal("expected terminal to be non-nil on validation failure")
+	}
+	if terminal.Error == nil {
+		t.Fatal("expected terminal error to be set on validation failure")
+	}
+	if !strings.Contains(terminal.Error.Error(), "validation failed after refactoring") {
+		t.Fatalf("expected terminal error to mention refactor validation failure, got: %v", terminal.Error)
+	}
+	if !errors.Is(terminal.Error, lintErr) {
+		t.Fatalf("expected terminal error to wrap lint error, got: %v", terminal.Error)
 	}
 }
