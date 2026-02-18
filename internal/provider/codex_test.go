@@ -170,6 +170,40 @@ exit 0
 	}
 }
 
+func TestCodexProviderRunDoesNotMixStderrIntoOutput(t *testing.T) {
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+echo "stdout line"
+echo "stderr line" >&2
+exit 1
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock binary: %v", err)
+	}
+
+	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+
+	ctx := context.Background()
+	result, err := cp.Run(ctx, "test", TierLow)
+
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !strings.Contains(result.Output, "stdout line") {
+		t.Errorf("Run() output missing stdout content, got: %s", result.Output)
+	}
+	if strings.Contains(result.Output, "stderr line") {
+		t.Errorf("Run() output should not include stderr content, got: %s", result.Output)
+	}
+	if !strings.Contains(result.Stderr, "stderr line") {
+		t.Errorf("Run() stderr missing expected content, got: %q", result.Stderr)
+	}
+}
+
 // TestCodexProviderRunCapturesStderr verifies that Run() captures the
 // standard error output from the codex CLI invocation.
 // Expected failure: CodexProvider Run() method does not exist yet
@@ -196,14 +230,11 @@ exit 1
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 
-	if !strings.Contains(result.Output, "Error message") {
-		t.Errorf("Run() output missing stderr content, got: %s", result.Output)
-	}
 	if !strings.Contains(result.Stderr, "Error message") {
 		t.Errorf("Run() stderr missing expected content, got: %q", result.Stderr)
 	}
-	if strings.TrimSpace(result.Output) != strings.TrimSpace(result.Stderr) {
-		t.Errorf("Run() output should match stderr for stderr-only command, got output=%q stderr=%q", result.Output, result.Stderr)
+	if strings.TrimSpace(result.Output) != "" {
+		t.Errorf("Run() output should be empty for stderr-only command, got output=%q", result.Output)
 	}
 
 	if result.ExitCode != 1 {

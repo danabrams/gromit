@@ -264,7 +264,7 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 		return nil, fmt.Errorf("codex command cancelled: %w", ctx.Err())
 	}
 
-	output := stdout.String() + stderr.String()
+	output := stdout.String()
 	exitCode, err := cp.extractExitCode(err)
 	if err != nil {
 		return nil, err
