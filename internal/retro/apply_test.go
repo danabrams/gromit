@@ -166,3 +166,63 @@ func TestApplyProposals_ArchivesLearning(t *testing.T) {
 		t.Fatalf("expected archive rationale in learnings file")
 	}
 }
+
+func TestApplyProposals_PromotesLearningToRule(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	rulesPath := filepath.Join(tmpDir, "RULES.md")
+	rulesContent := "# Rules\n\n## Code Style\n\n- Rule A\n\n## Safety\n\n- Rule B\n"
+	if err := os.WriteFile(rulesPath, []byte(rulesContent), 0644); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+
+	lf, err := learnings.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("new learnings file: %v", err)
+	}
+	learning, err := lf.Add("bead-1", "Learning one", learnings.CategoryPatterns)
+	if err != nil {
+		t.Fatalf("add learning: %v", err)
+	}
+
+	proposals := &Proposals{
+		Promotions: []PromotionProposal{
+			{
+				LearningHash: learning.Hash,
+				ProposedRule: "- Use go fmt",
+				Section:      "Code Style",
+				Rationale:    "consistency",
+			},
+		},
+	}
+
+	if err := ApplyProposals(proposals, lf, rulesPath); err != nil {
+		t.Fatalf("apply proposals: %v", err)
+	}
+
+	updatedRules, err := os.ReadFile(rulesPath)
+	if err != nil {
+		t.Fatalf("read rules: %v", err)
+	}
+	rulesText := string(updatedRules)
+	if !strings.Contains(rulesText, "- Use go fmt") {
+		t.Fatalf("expected promoted rule appended to rules")
+	}
+	codeStyleIdx := strings.Index(rulesText, "## Code Style")
+	promoIdx := strings.Index(rulesText, "- Use go fmt")
+	safetyIdx := strings.Index(rulesText, "## Safety")
+	if !(codeStyleIdx < promoIdx && promoIdx < safetyIdx) {
+		t.Fatalf("expected promoted rule in Code Style section")
+	}
+
+	learningsContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS.md"))
+	if err != nil {
+		t.Fatalf("read learnings: %v", err)
+	}
+	if !strings.Contains(string(learningsContent), "Archived from") {
+		t.Fatalf("expected archived learning after promotion")
+	}
+	if !strings.Contains(string(learningsContent), "consistency") {
+		t.Fatalf("expected archive rationale in learnings file")
+	}
+}
