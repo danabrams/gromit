@@ -117,7 +117,7 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		if !shouldRetryCodexAttempt(result, attempt) {
 			return result, nil
 		}
-		if sleepErr := sleepWithContext(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
+		if sleepErr := cp.sleepFn(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
 			return result, nil
 		}
 	}

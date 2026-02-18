@@ -1147,6 +1147,48 @@ exit 0
 	}
 }
 
+// TestCodexProvider_SleepFnCalledOnRetryInStreamRun verifies that StreamRun() uses
+// p.sleepFn for retry backoff, allowing tests to inject an instant-return stub.
+func TestCodexProvider_SleepFnCalledOnRetryInStreamRun(t *testing.T) {
+	tempDir := t.TempDir()
+	counterFile := filepath.Join(tempDir, "attempt-counter")
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := fmt.Sprintf(`#!/bin/bash
+COUNT=0
+if [ -f %q ]; then COUNT=$(cat %q); fi
+COUNT=$((COUNT+1))
+echo "$COUNT" > %q
+cat > /dev/null
+if [ "$COUNT" -eq 1 ]; then
+  echo "stream disconnected" >&2
+  exit 1
+fi
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}'
+exit 0
+`, counterFile, counterFile, counterFile)
+	writeTestExecutable(t, mockBinary, mockScript)
+
+	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierLow: "gpt-4o-mini"})
+
+	sleepCalled := false
+	cp.sleepFn = func(ctx context.Context, d time.Duration) error {
+		sleepCalled = true
+		return nil
+	}
+
+	result, err := cp.StreamRun(context.Background(), "test", TierLow, nil, func([]byte) {}, nil)
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v, want nil", err)
+	}
+	if result == nil || !result.Success {
+		t.Fatalf("StreamRun() should succeed after retry, got %+v", result)
+	}
+	if !sleepCalled {
+		t.Error("StreamRun() should have called sleepFn during retry backoff")
+	}
+}
+
 func writeTestExecutable(t *testing.T, path, script string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(script), 0755); err != nil {
