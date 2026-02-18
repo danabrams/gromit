@@ -515,6 +515,29 @@ func TestExtractValidationSummary_EmptyInput(t *testing.T) {
 	}
 }
 
+func TestExtractValidationSummary_ExtractsAssertionDetailsWithPackage(t *testing.T) {
+	input := `=== RUN   TestRunner
+--- FAIL: TestRunner (0.00s)
+    --- FAIL: TestRunner/Subcase (0.00s)
+        runner_test.go:42: expected success, got error
+FAIL	github.com/danabrams/gromit/internal/runner	0.01s`
+
+	summary := ExtractValidationSummary(input)
+
+	if summary == "" {
+		t.Fatal("ExtractValidationSummary should return non-empty summary for assertion failures")
+	}
+	if !containsSubstring(summary, "internal/runner (runner)") {
+		t.Errorf("summary should include package identifier, got: %q", summary)
+	}
+	if !containsSubstring(summary, "TestRunner/Subcase") {
+		t.Errorf("summary should include sub-test name, got: %q", summary)
+	}
+	if !containsSubstring(summary, "runner_test.go:42: expected success, got error") {
+		t.Errorf("summary should include assertion details, got: %q", summary)
+	}
+}
+
 // --- NewRunner constructor tests ---
 
 // Expected failure: validation.NewRunner does not exist yet

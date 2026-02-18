@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"regexp"
 	"strings"
 	"sync"
@@ -291,6 +292,10 @@ const maxValidationSummaryLen = 500
 // ./file.go:10:6: x declared and not used
 var vetDiagnosticPattern = regexp.MustCompile(`^\./[^:]+:\d+:\d+: .+`)
 
+var failHeaderPattern = regexp.MustCompile(`^\s*--- FAIL:\s+(.+?)(\s+\(|$)`)
+
+var assertionLinePattern = regexp.MustCompile(`^\s*.+\.go:\d+:`)
+
 var interactivePromptPatterns = []string{
 	"password:",
 	"passphrase:",
@@ -339,15 +344,59 @@ func ExtractValidationSummary(failureOutput string) string {
 		return ""
 	}
 
-	var lines []string
+	type failureEntry struct {
+		testName   string
+		assertions []string
+	}
+
+	var (
+		lines      []string
+		entries    []failureEntry
+		packages   []string
+		currentRef *failureEntry
+	)
+
 	for _, line := range strings.Split(failureOutput, "\n") {
-		if strings.HasPrefix(line, "--- FAIL:") {
+		if match := failHeaderPattern.FindStringSubmatch(line); match != nil {
 			lines = append(lines, line)
-		} else if strings.HasPrefix(line, "FAIL\t") {
-			lines = append(lines, line)
-		} else if vetDiagnosticPattern.MatchString(line) {
-			lines = append(lines, line)
+			entry := failureEntry{testName: strings.TrimSpace(match[1])}
+			entries = append(entries, entry)
+			currentRef = &entries[len(entries)-1]
+			continue
 		}
+		if strings.HasPrefix(line, "FAIL\t") {
+			lines = append(lines, line)
+			fields := strings.Split(line, "\t")
+			if len(fields) > 1 {
+				pkg := strings.TrimSpace(fields[1])
+				if pkg != "" {
+					packages = append(packages, pkg)
+				}
+			}
+			continue
+		}
+		if vetDiagnosticPattern.MatchString(line) {
+			lines = append(lines, line)
+			continue
+		}
+		if currentRef != nil && assertionLinePattern.MatchString(line) {
+			currentRef.assertions = append(currentRef.assertions, strings.TrimSpace(line))
+		}
+	}
+
+	if len(entries) > 0 {
+		pkgIdentifier := formatPackageIdentifier(firstPackage(packages))
+		detailLines := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			if len(entry.assertions) == 0 {
+				detailLines = append(detailLines, fmt.Sprintf("package: %s | test: %s", pkgIdentifier, entry.testName))
+				continue
+			}
+			for _, assertion := range entry.assertions {
+				detailLines = append(detailLines, fmt.Sprintf("package: %s | test: %s | assert: %s", pkgIdentifier, entry.testName, assertion))
+			}
+		}
+		lines = append(detailLines, lines...)
 	}
 
 	result := strings.Join(lines, "\n")
@@ -355,4 +404,26 @@ func ExtractValidationSummary(failureOutput string) string {
 		result = result[:maxValidationSummaryLen]
 	}
 	return result
+}
+
+func firstPackage(packages []string) string {
+	if len(packages) == 0 {
+		return ""
+	}
+	return packages[0]
+}
+
+func formatPackageIdentifier(pkg string) string {
+	if pkg == "" {
+		return "unknown"
+	}
+	short := pkg
+	if idx := strings.Index(pkg, "/internal/"); idx != -1 {
+		short = pkg[idx+1:]
+	}
+	base := path.Base(pkg)
+	if short == base {
+		return short
+	}
+	return fmt.Sprintf("%s (%s)", short, base)
 }
