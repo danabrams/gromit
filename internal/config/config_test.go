@@ -104,6 +104,27 @@ func TestSetDefaultsRunbookTTLDays(t *testing.T) {
 	}
 }
 
+func TestRunbookConfigYAMLDeserialization(t *testing.T) {
+	yamlContent := `
+runbook:
+  ttl_days: 30
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Runbook.TTLDays != 30 {
+		t.Errorf("Runbook.TTLDays = %d, want 30", cfg.Runbook.TTLDays)
+	}
+}
+
 func TestSetDefaultsInitializesPhasesToClaude(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
