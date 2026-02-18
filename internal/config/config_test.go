@@ -2877,6 +2877,49 @@ validation:
 	}
 }
 
+func TestMethodologyConfigResolvePhaseTimeoutSeconds_UnknownPhaseReturnsFallback(t *testing.T) {
+	m := MethodologyConfig{
+		PhaseTimeouts: MethodologyPhaseTimeout{
+			RedSeconds:      45,
+			GreenSeconds:    90,
+			RefactorSeconds: 120,
+		},
+	}
+
+	// An unknown phase name should fall back to beadTimeoutSeconds,
+	// not to any configured phase timeout.
+	if got := m.ResolvePhaseTimeoutSeconds("unknown_phase", 300); got != 300 {
+		t.Errorf("ResolvePhaseTimeoutSeconds(unknown_phase) = %d, want fallback 300", got)
+	}
+	if got := m.ResolvePhaseTimeoutSeconds("", 300); got != 300 {
+		t.Errorf("ResolvePhaseTimeoutSeconds('') = %d, want fallback 300", got)
+	}
+}
+
+func TestMethodologyConfigResolvePhaseTimeoutSeconds_AllPhasesConfigured(t *testing.T) {
+	m := MethodologyConfig{
+		PhaseTimeouts: MethodologyPhaseTimeout{
+			RedSeconds:      30,
+			GreenSeconds:    60,
+			RefactorSeconds: 90,
+		},
+	}
+
+	tests := []struct {
+		phase string
+		want  int
+	}{
+		{"red", 30},
+		{"green", 60},
+		{"refactor", 90},
+	}
+	for _, tt := range tests {
+		if got := m.ResolvePhaseTimeoutSeconds(tt.phase, 300); got != tt.want {
+			t.Errorf("ResolvePhaseTimeoutSeconds(%q) = %d, want %d", tt.phase, got, tt.want)
+		}
+	}
+}
+
 // Tests for GitConfig
 func TestGitConfigDefaults(t *testing.T) {
 	cfg := &Config{}
