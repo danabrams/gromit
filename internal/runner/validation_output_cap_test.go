@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/analyzer"
@@ -208,5 +209,58 @@ func TestMakeValidationExecuteFn_DisablesEscalationDuringValidation(t *testing.T
 	}
 	if !bc.Result.Escalated {
 		t.Fatalf("expected Escalated=true after validation escalation")
+	}
+}
+
+func TestMakeValidationExecuteFn_ConcurrentDoesNotMutateEscalationConfig(t *testing.T) {
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled: true,
+			Chain:   []string{provider.TierLow, provider.TierMedium},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	stubProvider := &stubValidationProvider{
+		result: &provider.Result{
+			Success:  false,
+			Output:   "build failed",
+			ExitCode: 1,
+		},
+	}
+	router := &stubValidationRouter{
+		provider: stubProvider,
+		model:    "stub-model",
+	}
+
+	r := &Runner{
+		cfg:      cfg,
+		renderer: &mockRenderer{},
+		output:   io.Discard,
+		invoker:  execution.NewInvoker(router, io.Discard, nil),
+	}
+	r.escalationHandler = escalation.NewHandler(cfg, &stubFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	fn := r.makeValidationExecuteFn()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			bc := &runtypes.BeadContext{
+				Bead:      &bead.Bead{ID: fmt.Sprintf("test-validation-%d", idx), Title: "validation concurrent"},
+				Result:    &runtypes.IterationResult{},
+				PromptCtx: &prompt.Context{},
+				Tier:      provider.TierLow,
+			}
+			_ = fn(context.Background(), bc)
+		}(i)
+	}
+	wg.Wait()
+
+	if !cfg.Escalation.Enabled {
+		t.Fatalf("expected Escalation.Enabled to remain true after concurrent validation")
 	}
 }
