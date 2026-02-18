@@ -130,30 +130,19 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 }
 
 // executeClaudeInvocation runs a single Claude invocation with streaming, heartbeat,
-// and stall detection. Returns the Claude result, stream stats, provider result, whether a stall was detected, and any error.
+// and stall detection. Returns the InvocationResult and any error.
 // Delegates the core invocation to execution.Invoker.Execute.
-func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *runtypes.BeadContext) (*claude.Result, *logger.StreamStats, *provider.Result, bool, error) {
+func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *runtypes.BeadContext) (*runtypes.InvocationResult, error) {
 	if r == nil || r.invoker == nil {
-		return nil, nil, nil, false, fmt.Errorf("runner invoker is nil")
+		return nil, fmt.Errorf("runner invoker is nil")
 	}
 
 	invResult, err := r.invoker.Execute(ctx, bc, bc.BuildPrompt)
 	if err != nil && invResult == nil {
-		return nil, nil, nil, false, err
+		return nil, err
 	}
 
-	var result *claude.Result
-	var stats *logger.StreamStats
-	var providerResult *provider.Result
-	stallFired := false
-	if invResult != nil {
-		result = invResult.Result
-		stats = invResult.Stats
-		providerResult = invResult.ProviderResult
-		stallFired = invResult.StallFired
-	}
-
-	return result, stats, providerResult, stallFired, err
+	return invResult, err
 }
 
 // handleScopeTooLarge processes the scope-too-large signal from Claude.

@@ -60,61 +60,66 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		r.log("Running Claude with model: %s", bc.Model)
 
-		claudeResult, stats, providerResult, stallFired, err := r.executeClaudeInvocation(ctx, bc)
+		invResult, err := r.executeClaudeInvocation(ctx, bc)
 
 		if err != nil {
-			if stallFired && ctx.Err() == nil {
-				return &runtypes.InvocationResult{StallFired: true, TimeoutType: "stall", ProviderResult: providerResult}, err
+			if invResult != nil && invResult.StallFired && ctx.Err() == nil {
+				invResult.TimeoutType = "stall"
+				return invResult, err
 			}
 			// Classify timeout type
 			if ctx.Err() != nil && bc.ParentCtx.Err() == nil {
 				bc.Result.TimeoutType = "bead"
 				escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
-				return &runtypes.InvocationResult{TimeoutType: "bead", ProviderResult: providerResult}, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+				if invResult != nil {
+					invResult.TimeoutType = "bead"
+					return invResult, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+				}
+				return &runtypes.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 			} else if bc.ParentCtx.Err() != nil {
 				return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
 			}
 			bc.Result.TimeoutType = "invocation"
-			return &runtypes.InvocationResult{TimeoutType: "invocation", ProviderResult: providerResult}, fmt.Errorf("claude invocation: %w", err)
+			if invResult != nil {
+				invResult.TimeoutType = "invocation"
+				return invResult, fmt.Errorf("claude invocation: %w", err)
+			}
+			return &runtypes.InvocationResult{TimeoutType: "invocation"}, fmt.Errorf("claude invocation: %w", err)
 		}
 
-		if claudeResult == nil {
+		if invResult == nil || invResult.Result == nil {
 			return nil, fmt.Errorf("claude returned nil result")
 		}
 
 		// Populate cost/token data
-		if stats != nil {
-			costUSD, inputTokens, outputTokens := stats.CostData()
+		if invResult.Stats != nil {
+			costUSD, inputTokens, outputTokens := invResult.Stats.CostData()
 			bc.Result.CostUSD = costUSD
 			bc.Result.InputTokens = inputTokens
 			bc.Result.OutputTokens = outputTokens
 		}
 
 		// Check scope-too-large
-		if isTooLarge, explanation := claude.IsScopeTooLarge(claudeResult); isTooLarge {
-			r.handleScopeTooLarge(bc, claudeResult, explanation)
-			return &runtypes.InvocationResult{Result: claudeResult, ProviderResult: providerResult}, bc.Result.Error
+		if isTooLarge, explanation := claude.IsScopeTooLarge(invResult.Result); isTooLarge {
+			r.handleScopeTooLarge(bc, invResult.Result, explanation)
+			return invResult, bc.Result.Error
 		}
 
 		// Check usage limits
 		signals := usagelimit.Signals{
-			ExitCode: claudeResult.ExitCode,
-			Output:   claudeResult.Output,
+			ExitCode: invResult.Result.ExitCode,
+			Output:   invResult.Result.Output,
 		}
-		if stats != nil {
-			signals.RateLimitHits = stats.RateLimitHits
+		if invResult.Stats != nil {
+			signals.RateLimitHits = invResult.Stats.RateLimitHits
 		}
 		if usagelimit.Check(signals, usagelimit.ClaudePatterns()) {
 			bc.Result.UsageLimited = true
 			r.log("Warning: usage limit detected - stopping retry attempts")
-			return nil, fmt.Errorf("usage limit detected: retries or escalation will not resolve this failure (exit code: %d, rate limit events: %d)", claudeResult.ExitCode, signals.RateLimitHits)
+			return nil, fmt.Errorf("usage limit detected: retries or escalation will not resolve this failure (exit code: %d, rate limit events: %d)", invResult.Result.ExitCode, signals.RateLimitHits)
 		}
 
-		return &runtypes.InvocationResult{
-			Result:         claudeResult,
-			StallFired:     false,
-			ProviderResult: providerResult,
-		}, nil
+		return invResult, nil
 	}
 }
 
