@@ -1157,6 +1157,29 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 	}
 }
 
+func TestRenderSpecGateRealTemplateIncludesLabeledSections(t *testing.T) {
+	ctx := &SpecGateContext{
+		SpecCriteria:       "Must return 200",
+		FailureOutput:      "status was 500",
+		TestOutput:         "FAIL: TestFoo",
+		CumulativeDiff:     "+func foo() {}",
+		AcceptanceCriteria: "API returns 200",
+	}
+
+	result := renderSpecGateRealTemplate(t, ctx)
+
+	wantStrs := []string{
+		"TestOutput:",
+		"CumulativeDiff:",
+		"AcceptanceCriteria:",
+	}
+	for _, want := range wantStrs {
+		if !strings.Contains(result, want) {
+			t.Errorf("RenderSpecGate() real template missing labeled section %q", want)
+		}
+	}
+}
+
 func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T) {
 	ctx := &SpecGateContext{
 		SpecCriteria: "Must return 200",

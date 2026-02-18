@@ -5,6 +5,7 @@ You are verifying whether the implementation satisfies the specification accepta
 {{if .AcceptanceCriteria}}
 ## Acceptance Criteria
 
+AcceptanceCriteria:
 {{.AcceptanceCriteria}}
 {{end}}
 
@@ -17,6 +18,7 @@ You are verifying whether the implementation satisfies the specification accepta
 {{if .TestOutput}}
 ## Test Output
 
+TestOutput:
 ```
 {{.TestOutput}}
 ```
@@ -33,6 +35,7 @@ You are verifying whether the implementation satisfies the specification accepta
 {{if .CumulativeDiff}}
 ## Cumulative Diff
 
+CumulativeDiff:
 ```diff
 {{.CumulativeDiff}}
 ```
