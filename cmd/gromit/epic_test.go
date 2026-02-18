@@ -11,7 +11,7 @@ import (
 
 // TestEpicStatusCommand_FlagExists verifies that epic command has status subcommand
 func TestEpicStatusCommand_FlagExists(t *testing.T) {
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "--help")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "--help")
 
 	if exitCode != 0 {
 		t.Errorf("epic status --help exited with code %d, stderr: %s", exitCode, stderr)
@@ -24,7 +24,7 @@ func TestEpicStatusCommand_FlagExists(t *testing.T) {
 
 // TestEpicStatusCommand_RequiresEpicID verifies that status subcommand requires epic ID argument
 func TestEpicStatusCommand_RequiresEpicID(t *testing.T) {
-	_, stderr, exitCode := runGromit(t, "epic", "status")
+	_, stderr, exitCode := runGromitCobra(t, "epic", "status")
 
 	if exitCode == 0 {
 		t.Error("epic status without epic ID should exit non-zero")
@@ -78,7 +78,7 @@ This epic explores ways to make developer onboarding smoother.
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
 	// May fail if bd binary is not available, but should at least find the epic
 	if exitCode == 0 {
@@ -165,7 +165,7 @@ This spec describes the implementation.
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, _, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+	stdout, _, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
 	// If command succeeds, verify spec display
 	if exitCode == 0 {
@@ -293,7 +293,7 @@ decomposed: true
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, _, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+	stdout, _, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
 	// If command succeeds, verify pipeline stages are displayed
 	if exitCode == 0 {
@@ -395,7 +395,7 @@ decomposed: true
 		t.Skip("bd binary not available, cannot verify bead progress display")
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
 	if exitCode != 0 {
 		t.Fatalf("command failed: %s", stderr)
@@ -459,7 +459,7 @@ created: 2026-02-08
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
 	// Command may require bd binary
 	if exitCode != 0 {
@@ -511,7 +511,7 @@ func TestEpicStatusCommand_ErrorWhenEpicNotFound(t *testing.T) {
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	_, stderr, exitCode := runGromit(t, "epic", "status", "nonexistent-epic-xyz")
+	_, stderr, exitCode := runGromitCobra(t, "epic", "status", "nonexistent-epic-xyz")
 
 	if exitCode == 0 {
 		t.Error("command should exit non-zero for non-existent epic")
@@ -583,7 +583,7 @@ created: 2026-02-08
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-lonely")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-lonely")
 
 	// Should succeed or at least find the epic
 	if exitCode != 0 {
@@ -693,7 +693,7 @@ decomposed: %v
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
 	// Command may require bd binary - if not available, can still verify structure
 	if exitCode != 0 {
@@ -802,7 +802,7 @@ models:
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
 	// Test verifies that gap analysis happens (model usage is verified through behavior)
 	// A proper implementation will invoke Claude with haiku model
@@ -896,7 +896,7 @@ Implement credit card payment processing via Stripe API.
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-abc")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-abc")
 
 	if exitCode != 0 {
 		if strings.Contains(stderr, "epic not found") {
@@ -994,7 +994,7 @@ created: 2026-02-08
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
 	if exitCode != 0 {
 		if strings.Contains(stderr, "epic not found") {
@@ -1065,7 +1065,7 @@ Build a simple feature with two components: frontend and backend.
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-simple")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-simple")
 
 	if exitCode != 0 {
 		if strings.Contains(stderr, "epic not found") {
@@ -1148,7 +1148,7 @@ This epic needs work in three areas:
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-empty")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-empty")
 
 	if exitCode != 0 {
 		if strings.Contains(stderr, "epic not found") {
@@ -1257,7 +1257,7 @@ created: 2026-02-08
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, _, exitCode := runGromit(t, "epic", "status", "gromit-xyz")
+	stdout, _, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
 	// If command succeeds, verify correct filtering
 	if exitCode == 0 {
@@ -1337,7 +1337,7 @@ created: 2026-02-08
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
 	// Command should succeed even with missing plan
 	if exitCode != 0 {
@@ -1405,7 +1405,7 @@ This epic should handle missing specs directory gracefully.
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
 	// Command should succeed even with missing specs directory
 	if exitCode != 0 {
@@ -1458,7 +1458,7 @@ func TestEpicStatusCommand_HandlesMissingEpicsDirectory(t *testing.T) {
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	_, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+	_, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
 	// Command should fail with clear error
 	if exitCode == 0 {
@@ -1542,7 +1542,7 @@ created: [this is invalid yaml
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
 	// Command should succeed, skipping invalid spec
 	if exitCode != 0 {
@@ -1608,7 +1608,7 @@ created: 2026-02-08
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-empty")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-empty")
 
 	// Command should succeed even with empty epic body
 	if exitCode != 0 {
@@ -1695,7 +1695,7 @@ created: 2026-02-08
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
 	// Command should succeed, skipping spec without id
 	if exitCode != 0 {
@@ -1791,7 +1791,7 @@ created: 2026-02-08
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
 	// Command should succeed without panicking
 	if exitCode != 0 {
@@ -1885,7 +1885,7 @@ decomposed: true
 		t.Fatalf("failed to change directory: %v", err)
 	}
 
-	stdout, stderr, exitCode := runGromit(t, "epic", "status", "gromit-test")
+	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
 	// Command should succeed
 	if exitCode != 0 {

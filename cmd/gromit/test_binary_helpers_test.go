@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/test/testutil"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // binaryPath is the path to the built gromit test binary.
@@ -63,28 +66,96 @@ func TestRunGromitCobra_HelpOutputsUsage(t *testing.T) {
 	}
 }
 
+func TestRunGromitCobra_ResetsHelpFlag(t *testing.T) {
+	_, _, _ = runGromitCobra(t, "--help")
+
+	helpFlag := rootCmd.Flags().Lookup("help")
+	if helpFlag == nil {
+		t.Fatal("expected help flag to exist on root command")
+	}
+
+	if helpFlag.Value.String() != "false" {
+		t.Fatalf("expected help flag to be reset, got: %s", helpFlag.Value.String())
+	}
+}
+
 // runGromitCobra executes the cobra command directly and returns stdout, stderr, and exit code.
 func runGromitCobra(t *testing.T, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdout pipe: %v", err)
+	}
+
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		_ = stdoutReader.Close()
+		_ = stdoutWriter.Close()
+		t.Fatalf("failed to create stderr pipe: %v", err)
+	}
+
+	prevStdout := os.Stdout
+	prevStderr := os.Stderr
+	os.Stdout = stdoutWriter
+	os.Stderr = stderrWriter
+	defer func() {
+		os.Stdout = prevStdout
+		os.Stderr = prevStderr
+	}()
+
 	prevOut := rootCmd.OutOrStdout()
 	prevErr := rootCmd.ErrOrStderr()
-	rootCmd.SetOut(&stdoutBuf)
-	rootCmd.SetErr(&stderrBuf)
+	rootCmd.SetOut(stdoutWriter)
+	rootCmd.SetErr(stderrWriter)
 	defer func() {
 		rootCmd.SetOut(prevOut)
 		rootCmd.SetErr(prevErr)
 	}()
 
+	stdoutDone := make(chan error, 1)
+	stderrDone := make(chan error, 1)
+	go func() {
+		_, copyErr := io.Copy(&stdoutBuf, stdoutReader)
+		stdoutDone <- copyErr
+	}()
+	go func() {
+		_, copyErr := io.Copy(&stderrBuf, stderrReader)
+		stderrDone <- copyErr
+	}()
+
+	resetCommandFlags(rootCmd)
 	rootCmd.SetArgs(args)
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(&stderrBuf, err)
-		return stdoutBuf.String(), stderrBuf.String(), 1
+		fmt.Fprintln(stderrWriter, err)
+		exitCode = 1
 	}
+	resetCommandFlags(rootCmd)
 
-	return stdoutBuf.String(), stderrBuf.String(), 0
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
+	_ = <-stdoutDone
+	_ = <-stderrDone
+	_ = stdoutReader.Close()
+	_ = stderrReader.Close()
+
+	return stdoutBuf.String(), stderrBuf.String(), exitCode
+}
+
+func resetCommandFlags(cmd *cobra.Command) {
+	resetFlagSet(cmd.Flags())
+	resetFlagSet(cmd.PersistentFlags())
+	for _, sub := range cmd.Commands() {
+		resetCommandFlags(sub)
+	}
+}
+
+func resetFlagSet(set *pflag.FlagSet) {
+	set.VisitAll(func(flag *pflag.Flag) {
+		_ = flag.Value.Set(flag.DefValue)
+	})
 }
 
 // runGromit executes the gromit binary with the given arguments and returns
