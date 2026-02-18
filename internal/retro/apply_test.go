@@ -74,15 +74,17 @@ func TestApplyProposals_ConsolidationReplacesLearnings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("add learning one: %v", err)
 	}
+	l1Hash := l1.Hash
 	l2, err := lf.Add("bead-2", "Learning two", learnings.CategoryPatterns)
 	if err != nil {
 		t.Fatalf("add learning two: %v", err)
 	}
+	l2Hash := l2.Hash
 
 	proposals := &Proposals{
 		Consolidations: []ConsolidationProposal{
 			{
-				LearningHashes:   []string{l1.Hash, l2.Hash},
+				LearningHashes:   []string{l1Hash, l2Hash},
 				ConsolidatedText: "Merged learning",
 				Rationale:        "duplicate",
 			},
@@ -101,10 +103,10 @@ func TestApplyProposals_ConsolidationReplacesLearnings(t *testing.T) {
 		t.Fatalf("load learnings: %v", err)
 	}
 
-	if got := reloaded.GetByHash(l1.Hash); got != nil {
+	if got := reloaded.GetByHash(l1Hash); got != nil {
 		t.Fatalf("expected first learning removed")
 	}
-	if got := reloaded.GetByHash(l2.Hash); got != nil {
+	if got := reloaded.GetByHash(l2Hash); got != nil {
 		t.Fatalf("expected second learning removed")
 	}
 
@@ -219,6 +221,8 @@ func TestApplyProposals_PromotesLearningToRule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read learnings: %v", err)
 	}
+	t.Logf("learnings:\n%s", string(learningsContent))
+	t.Logf("learnings:\n%s", string(learningsContent))
 	if !strings.Contains(string(learningsContent), "Archived from") {
 		t.Fatalf("expected archived learning after promotion")
 	}
@@ -265,5 +269,151 @@ func TestApplyProposals_UpdatesRuleText(t *testing.T) {
 	}
 	if count := strings.Count(rulesText, "- New rule"); count != 2 {
 		t.Fatalf("expected new rule twice, got %d", count)
+	}
+}
+
+func TestApplyProposals_MixedProposals(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	rulesPath := filepath.Join(tmpDir, "RULES.md")
+	rulesContent := "# Rules\n\n## Code Style\n\n- Old Rule\n\n## Safety\n\n- Rule B\n"
+	if err := os.WriteFile(rulesPath, []byte(rulesContent), 0644); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+
+	lf, err := learnings.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("new learnings file: %v", err)
+	}
+	l1, err := lf.Add("bead-1", "Learning one", learnings.CategoryPatterns)
+	if err != nil {
+		t.Fatalf("add learning one: %v", err)
+	}
+	l1Hash := l1.Hash
+	l2, err := lf.Add("bead-2", "Learning two", learnings.CategoryPatterns)
+	if err != nil {
+		t.Fatalf("add learning two: %v", err)
+	}
+	l2Hash := l2.Hash
+	l4, err := lf.Add("bead-4", "Learning four unique", learnings.CategoryPatterns)
+	if err != nil {
+		t.Fatalf("add learning four: %v", err)
+	}
+	l4Hash := l4.Hash
+	l3, err := lf.Add("bead-3", "Learning three unique", learnings.CategoryPatterns)
+	if err != nil {
+		t.Fatalf("add learning three: %v", err)
+	}
+	l3Hash := l3.Hash
+
+	proposals := &Proposals{
+		Consolidations: []ConsolidationProposal{
+			{
+				LearningHashes:   []string{l1Hash, l2Hash},
+				ConsolidatedText: "Merged learning",
+				Rationale:        "duplicate",
+			},
+		},
+		Archives: []ArchiveProposal{
+			{
+				LearningHash: l3Hash,
+				Rationale:    "obsolete",
+			},
+		},
+		Promotions: []PromotionProposal{
+			{
+				LearningHash: l4Hash,
+				ProposedRule: "- New Rule",
+				Section:      "Code Style",
+				Rationale:    "promote",
+			},
+		},
+		RuleChanges: []RuleChangeProposal{
+			{
+				CurrentRule:  "- Old Rule",
+				ProposedRule: "- Updated Rule",
+				Rationale:    "clarify",
+			},
+		},
+	}
+
+	if err := ApplyProposals(proposals, lf, rulesPath); err != nil {
+		t.Fatalf("apply proposals: %v", err)
+	}
+
+	updatedRules, err := os.ReadFile(rulesPath)
+	if err != nil {
+		t.Fatalf("read rules: %v", err)
+	}
+	rulesText := string(updatedRules)
+	if strings.Contains(rulesText, "- Old Rule") {
+		t.Fatalf("expected old rule removed")
+	}
+	if !strings.Contains(rulesText, "- Updated Rule") {
+		t.Fatalf("expected updated rule")
+	}
+	if !strings.Contains(rulesText, "- New Rule") {
+		t.Fatalf("expected promoted rule")
+	}
+
+	reloaded, err := learnings.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("new learnings file reload: %v", err)
+	}
+	if err := reloaded.Load(); err != nil {
+		t.Fatalf("load learnings: %v", err)
+	}
+
+	foundMerged := false
+	for _, learning := range reloaded.GetConfirmed() {
+		if learning.Content == "Merged learning" {
+			foundMerged = true
+		}
+	}
+	if !foundMerged {
+		t.Fatalf("expected consolidated learning")
+	}
+
+	learningsContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS.md"))
+	if err != nil {
+		t.Fatalf("read learnings: %v", err)
+	}
+	if !strings.Contains(string(learningsContent), "Learning three unique") {
+		t.Fatalf("expected archived learning present")
+	}
+	if !strings.Contains(string(learningsContent), "obsolete") {
+		t.Fatalf("expected archive rationale")
+	}
+	if !strings.Contains(string(learningsContent), "promote") {
+		t.Fatalf("expected promotion rationale archived")
+	}
+}
+
+func TestApplyProposals_ReturnsErrorOnMissingRuleChange(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	rulesPath := filepath.Join(tmpDir, "RULES.md")
+	rulesContent := "# Rules\n\n## Process\n\n- Existing rule\n"
+	if err := os.WriteFile(rulesPath, []byte(rulesContent), 0644); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+
+	lf, err := learnings.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("new learnings file: %v", err)
+	}
+
+	proposals := &Proposals{
+		RuleChanges: []RuleChangeProposal{
+			{
+				CurrentRule:  "- Missing rule",
+				ProposedRule: "- New rule",
+				Rationale:    "clarify",
+			},
+		},
+	}
+
+	if err := ApplyProposals(proposals, lf, rulesPath); err == nil {
+		t.Fatalf("expected error for missing rule change")
 	}
 }
