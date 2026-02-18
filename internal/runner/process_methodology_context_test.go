@@ -741,6 +741,69 @@ func TestRunRefactorAndPostChecks_RefactorTimeoutThenValidationSucceeds_NoTermin
 	}
 }
 
+func TestRunRefactorAndPostChecks_ValidationTimeoutIndependentOfRefactorTimeout(t *testing.T) {
+	// When both refactor AND validation time out, the terminal result
+	// should attribute TimeoutPhase to "validation" (the final phase that
+	// produced the terminal result), not "refactor".
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		// Block until validation phase context expires.
+		<-ctx.Done()
+		return "", "", 1, ctx.Err()
+	}
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+		Methodology: config.MethodologyConfig{
+			ATDD: true,
+		},
+	}
+	cfg.SetDefaults()
+
+	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			return "diff --git a/a.go b/a.go\n+line", nil
+		},
+		func(ctx *prompt.Context) (string, error) {
+			return "refactor prompt", nil
+		},
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			// Refactor also times out.
+			return nil, context.DeadlineExceeded
+		},
+		nil,
+		func(commit string) error { return nil },
+		func() (string, error) { return "abc123", nil },
+	))
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-both-timeout", Title: "Both Timeout"},
+		Tier:        provider.TierMedium,
+		StartCommit: "abc123",
+		ParentCtx:   context.Background(),
+		BeadTimeout: 100 * time.Millisecond, // short so validation phase context expires quickly
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal == nil {
+		t.Fatal("expected terminal result when validation times out")
+	}
+	if terminal.TimeoutPhase != "validation" {
+		t.Fatalf("TimeoutPhase = %q, want %q (validation timeout should be classified independently of refactor timeout)", terminal.TimeoutPhase, "validation")
+	}
+}
+
 func TestRunRefactorAndPostChecks_SetsValidationPhaseAttributionOnTimeout(t *testing.T) {
 	// When post-refactor validation times out via phase context expiration,
 	// TimeoutPhase should be "validation" to distinguish from a refactor timeout.
