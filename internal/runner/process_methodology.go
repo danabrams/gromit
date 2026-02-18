@@ -118,7 +118,10 @@ func checkDeadlineGuard(ctx context.Context, needed time.Duration) deadlineGuard
 	if !ok {
 		return deadlineGuard{Skip: false, Needed: needed}
 	}
-	remaining := time.Until(deadline)
+	return checkRemainingGuard(time.Until(deadline), needed)
+}
+
+func checkRemainingGuard(remaining time.Duration, needed time.Duration) deadlineGuard {
 	if remaining <= 0 {
 		return deadlineGuard{
 			Skip:       true,
@@ -164,11 +167,13 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	}
 
 	if remaining, _, ok := beadRemaining(bc); ok {
-		if remaining <= 0 {
-			r.log("Skipping refactor phase: bead time budget expired (remaining %s, needed %s)", remaining.Round(time.Second), minRefactorTime)
-			return false, nil
-		} else if remaining < minRefactorTime {
-			r.log("Skipping refactor phase: insufficient time remaining (%s remaining, needed %s)", remaining.Round(time.Second), minRefactorTime)
+		guard := checkRemainingGuard(remaining, minRefactorTime)
+		if guard.Skip {
+			if guard.SkipReason == "deadline expired" {
+				r.log("Skipping refactor phase: bead time budget expired (remaining %s, needed %s)", remaining.Round(time.Second), minRefactorTime)
+			} else {
+				r.log("Skipping refactor phase: insufficient time remaining (%s remaining, needed %s)", remaining.Round(time.Second), minRefactorTime)
+			}
 			return false, nil
 		}
 	}
@@ -180,11 +185,13 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	if r.cfg.Validation.Enabled {
 		skipRevalidation := false
 		if remaining, _, ok := beadRemaining(bc); ok {
-			if remaining <= 0 {
-				r.log("Skipping post-refactor re-validation: bead time budget expired (remaining %s, needed >0s)", remaining.Round(time.Second))
-				skipRevalidation = true
-			} else if remaining < minRevalidationTime {
-				r.log("Skipping post-refactor re-validation: insufficient time remaining (%s remaining, needed %s)", remaining.Round(time.Second), minRevalidationTime)
+			guard := checkRemainingGuard(remaining, minRevalidationTime)
+			if guard.Skip {
+				if guard.SkipReason == "deadline expired" {
+					r.log("Skipping post-refactor re-validation: bead time budget expired (remaining %s, needed >0s)", remaining.Round(time.Second))
+				} else {
+					r.log("Skipping post-refactor re-validation: insufficient time remaining (%s remaining, needed %s)", remaining.Round(time.Second), minRevalidationTime)
+				}
 				skipRevalidation = true
 			}
 		}
