@@ -775,3 +775,68 @@ func TestPackageDoesNotImportRunner(t *testing.T) {
 		t.Fatal("methodology.NewExecutor should return a non-nil Executor")
 	}
 }
+
+func TestRunAcceptanceTestsWithRetry_PropagatesDeadlineExceeded(t *testing.T) {
+	// When the invocation returns DeadlineExceeded, RunAcceptanceTestsWithRetry
+	// should propagate it immediately without retrying — timeout errors are
+	// phase-level concerns, not transient failures.
+	cfg := newTestConfig()
+	cfg.Escalation.MaxRetriesPerModel = 3 // would retry 3 times if not short-circuited
+	var buf strings.Builder
+
+	invocationCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+		invocationCount++
+		return context.DeadlineExceeded
+	}
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		return "acceptance prompt", nil
+	}
+
+	exec := NewExecutorWithEscalation(cfg, &buf, renderFn, invokeFn, nil, nil)
+	bc := newTestBeadContext()
+
+	err := exec.RunAcceptanceTestsWithRetry(context.Background(), bc)
+	if err == nil {
+		t.Fatal("expected error from RunAcceptanceTestsWithRetry")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected DeadlineExceeded in error chain, got: %v", err)
+	}
+	if invocationCount != 1 {
+		t.Fatalf("invocation count = %d, want 1 (should not retry on deadline exceeded)", invocationCount)
+	}
+}
+
+func TestRunAcceptanceTestsWithRetry_PropagatesContextCanceled(t *testing.T) {
+	// When the context is already canceled, RunAcceptanceTestsWithRetry should
+	// abort immediately without invoking the LLM.
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	invocationCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+		invocationCount++
+		return nil
+	}
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		return "acceptance prompt", nil
+	}
+
+	exec := NewExecutorWithEscalation(cfg, &buf, renderFn, invokeFn, nil, nil)
+	bc := newTestBeadContext()
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := exec.RunAcceptanceTestsWithRetry(canceledCtx, bc)
+	if err == nil {
+		t.Fatal("expected error from RunAcceptanceTestsWithRetry with canceled context")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected Canceled in error chain, got: %v", err)
+	}
+	if invocationCount != 0 {
+		t.Fatalf("invocation count = %d, want 0 (should not invoke when context is already canceled)", invocationCount)
+	}
+}
