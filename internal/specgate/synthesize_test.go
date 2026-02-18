@@ -79,3 +79,33 @@ func TestSynthesizeFixBeads_noFailures_doesNotRequireCreator(t *testing.T) {
 		t.Fatalf("SynthesizeFixBeads() ids = %v, want empty slice", ids)
 	}
 }
+
+func TestSynthesizeFixBeads_capsAtFiveBeads(t *testing.T) {
+	ctx := context.Background()
+	failures := []CriterionResult{
+		{Criterion: "one", Passed: false},
+		{Criterion: "two", Passed: false},
+		{Criterion: "three", Passed: false},
+		{Criterion: "four", Passed: false},
+		{Criterion: "five", Passed: false},
+		{Criterion: "six", Passed: false},
+	}
+	callCount := 0
+	creator := &fakeBeadCreator{
+		createFn: func(ctx context.Context, title, description, priority string, labels []string) (string, error) {
+			callCount++
+			if callCount > 5 {
+				t.Fatalf("Create called %d times, want at most 5", callCount)
+			}
+			return title, nil
+		},
+	}
+
+	ids, err := SynthesizeFixBeads(ctx, "alpha", failures, "P1", creator)
+	if err != nil {
+		t.Fatalf("SynthesizeFixBeads() error = %v", err)
+	}
+	if len(ids) != 5 {
+		t.Fatalf("SynthesizeFixBeads() ids = %v, want 5 items", ids)
+	}
+}
