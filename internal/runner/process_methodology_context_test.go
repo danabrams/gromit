@@ -264,3 +264,70 @@ func TestRunRefactorAndPostChecks_ValidationGetsFreshContextAfterRefactorTimeout
 		t.Fatalf("validation context deadline unexpected: %v remaining (want ~180s)", untilDeadline.Round(time.Second))
 	}
 }
+
+func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesPhaseContext(t *testing.T) {
+	// Verify that acceptance verification receives a phase context with a
+	// proper deadline, not a raw ParentCtx or the canceled bead context.
+	var acceptanceCtxErr error
+	var acceptanceCtxHadDeadline bool
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		if strings.Contains(command, "-tags acceptance") {
+			acceptanceCtxErr = ctx.Err()
+			_, acceptanceCtxHadDeadline = ctx.Deadline()
+		}
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{
+		RefactorSeconds: 120,
+	}
+	r.cfg.Validation.PhaseTimeoutSeconds = 180
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			return "diff --git a/a.go b/a.go\n+line", nil
+		},
+		func(ctx *prompt.Context) (string, error) {
+			return "refactor prompt", nil
+		},
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			return &claude.Result{Success: true}, nil
+		},
+		nil,
+		func(commit string) error { return nil },
+		func() (string, error) { return "abc123", nil },
+	))
+
+	parentCtx := context.Background()
+	bc := &runtypes.BeadContext{
+		Tier:        provider.TierMedium,
+		StartCommit: "abc123",
+		ParentCtx:   parentCtx,
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	// Cancel the bead context.
+	beadCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, true)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal != nil {
+		t.Fatalf("expected no terminal result, got: %+v", terminal)
+	}
+	if acceptanceCtxErr != nil {
+		t.Fatalf("acceptance verification received pre-canceled context: %v", acceptanceCtxErr)
+	}
+	if !acceptanceCtxHadDeadline {
+		t.Fatal("acceptance verification context should have a deadline from newPhaseContext")
+	}
+}

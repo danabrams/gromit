@@ -246,10 +246,10 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 			}
 		}
 
-		acceptanceCtx := ctx
-		if bc != nil && bc.ParentCtx != nil {
-			acceptanceCtx = bc.ParentCtx
-		}
+		acceptTimeoutSec := r.cfg.Validation.ResolvePhaseTimeoutSeconds(int(bc.BeadTimeout.Seconds()))
+		acceptanceCtx, acceptanceCancel, acceptMeta := newPhaseContext(bc, "acceptance_verification", acceptTimeoutSec)
+		defer acceptanceCancel()
+		r.log("Acceptance verification phase context: timeout=%s source=%s", acceptMeta.EffectiveTimeout.Round(time.Second), acceptMeta.TimeoutSource)
 		if err := r.methodologyExec.VerifyAcceptanceTestsPass(acceptanceCtx, bc); err != nil {
 			if r.handleAcceptanceVerificationFailure(ctx, bc, "acceptance verification failed after refactoring", err) {
 				return true, nil
