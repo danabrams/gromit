@@ -813,6 +813,34 @@ this is not json
 	}
 }
 
+// TestCostPerSpec_ModelMixTracksModelUsage verifies ModelMix counts iterations per model per spec
+func TestCostPerSpec_ModelMixTracksModelUsage(t *testing.T) {
+	dir := t.TempDir()
+
+	logs := []IterationLog{
+		{BeadID: "b1", Model: "haiku", Success: false, CostUSD: 0.05, SpecID: "spec-A"},
+		{BeadID: "b1", Model: "sonnet", Success: false, CostUSD: 0.15, SpecID: "spec-A"},
+		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.50, SpecID: "spec-A"},
+		{BeadID: "b2", Model: "haiku", Success: true, CostUSD: 0.05, SpecID: "spec-A"},
+	}
+	writeTestLogFile(t, dir, "20260218-120000", logs)
+
+	result, err := CostPerSpec(dir)
+	if err != nil {
+		t.Fatalf("CostPerSpec failed: %v", err)
+	}
+	mix := result["spec-A"].ModelMix
+	if mix["haiku"] != 2 {
+		t.Errorf("ModelMix[haiku] = %d, want 2", mix["haiku"])
+	}
+	if mix["sonnet"] != 1 {
+		t.Errorf("ModelMix[sonnet] = %d, want 1", mix["sonnet"])
+	}
+	if mix["opus"] != 1 {
+		t.Errorf("ModelMix[opus] = %d, want 1", mix["opus"])
+	}
+}
+
 // TestCostPerSpec_CountsDistinctBeads verifies Beads counts distinct bead_ids per spec
 func TestCostPerSpec_CountsDistinctBeads(t *testing.T) {
 	dir := t.TempDir()
