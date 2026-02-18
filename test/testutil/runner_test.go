@@ -2,9 +2,12 @@ package testutil
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -257,5 +260,62 @@ sleep 5
 	}
 	if exitCode != -1 {
 		t.Fatalf("exitCode = %d, want -1 on timeout", exitCode)
+	}
+}
+
+func TestRunGromitHelperProcessWithStdin_TimeoutKillsProcessGroup(t *testing.T) {
+	tmpDir := t.TempDir()
+	testBinary := filepath.Join(tmpDir, "sleep-with-child")
+	childPIDPath := filepath.Join(tmpDir, "child.pid")
+
+	scriptContent := `#!/bin/bash
+if [[ "$1" == "-test.run=TestGromitHelperProcess" && "$2" == "--" ]]; then
+  shift 2
+fi
+child_pid_file="$1"
+sleep 5 &
+child=$!
+echo "$child" > "$child_pid_file"
+sleep 5
+`
+	if err := os.WriteFile(testBinary, []byte(scriptContent), 0755); err != nil {
+		t.Fatalf("Failed to create child script: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_, _, _, err := RunGromitHelperProcessWithStdin(ctx, testBinary, "", os.Environ(), "", childPIDPath)
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+
+	childPIDBytes, readErr := os.ReadFile(childPIDPath)
+	if readErr != nil {
+		t.Fatalf("failed reading child pid file: %v", readErr)
+	}
+	childPID, parseErr := strconv.Atoi(strings.TrimSpace(string(childPIDBytes)))
+	if parseErr != nil {
+		t.Fatalf("failed parsing child pid: %v", parseErr)
+	}
+
+	t.Cleanup(func() {
+		_ = syscall.Kill(childPID, syscall.SIGKILL)
+	})
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for {
+		err := syscall.Kill(childPID, 0)
+		if err == nil {
+			if time.Now().After(deadline) {
+				t.Fatalf("expected child process to be terminated, pid=%d still running", childPID)
+			}
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		if errors.Is(err, syscall.ESRCH) {
+			break
+		}
+		t.Fatalf("unexpected error checking child process: %v", err)
 	}
 }

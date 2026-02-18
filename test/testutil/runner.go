@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // RunGromitWithStdin executes a gromit command with stdin input.
@@ -37,6 +38,13 @@ func RunGromitHelperProcessWithStdin(ctx context.Context, binary, dir string, en
 
 func runWithStdin(ctx context.Context, binary, dir string, environ []string, stdin string, args ...string) (stdout, stderr string, exitCode int, err error) {
 	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 
 	// Only set Dir if non-empty
 	if dir != "" {
