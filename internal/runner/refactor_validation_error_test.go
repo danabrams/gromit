@@ -52,19 +52,73 @@ func TestWrapRefactorValidationError(t *testing.T) {
 	}
 }
 
-func TestWrapPhaseError_DeadlineExceeded_IncludesPhase(t *testing.T) {
-	err := wrapPhaseError("validation", context.DeadlineExceeded)
-	if err == nil {
-		t.Fatal("expected wrapped error, got nil")
+func TestWrapPhaseError(t *testing.T) {
+	genericErr := errors.New("something broke")
+
+	tests := []struct {
+		name      string
+		phase     string
+		err       error
+		wantPhase string
+		wantKind  string
+		wantIs    error
+	}{
+		{
+			name:      "deadline exceeded includes phase and timeout",
+			phase:     "validation",
+			err:       context.DeadlineExceeded,
+			wantPhase: "validation",
+			wantKind:  "timeout",
+			wantIs:    context.DeadlineExceeded,
+		},
+		{
+			name:      "canceled includes phase and canceled",
+			phase:     "red",
+			err:       context.Canceled,
+			wantPhase: "red",
+			wantKind:  "canceled",
+			wantIs:    context.Canceled,
+		},
+		{
+			name:      "generic error includes phase and failed",
+			phase:     "refactor",
+			err:       genericErr,
+			wantPhase: "refactor",
+			wantKind:  "failed",
+			wantIs:    genericErr,
+		},
+		{
+			name:      "nil error returns nil",
+			phase:     "green",
+			err:       nil,
+			wantPhase: "",
+			wantKind:  "",
+			wantIs:    nil,
+		},
 	}
-	msg := err.Error()
-	if !strings.Contains(msg, "validation") {
-		t.Fatalf("expected error to contain phase name %q, got %q", "validation", msg)
-	}
-	if !strings.Contains(msg, "timeout") {
-		t.Fatalf("expected error to contain 'timeout', got %q", msg)
-	}
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatal("expected errors.Is(err, context.DeadlineExceeded) to be true")
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := wrapPhaseError(tc.phase, tc.err)
+			if tc.err == nil {
+				if got != nil {
+					t.Fatalf("expected nil, got %v", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("expected wrapped error, got nil")
+			}
+			msg := got.Error()
+			if !strings.Contains(msg, tc.wantPhase) {
+				t.Fatalf("expected error to contain phase %q, got %q", tc.wantPhase, msg)
+			}
+			if !strings.Contains(msg, tc.wantKind) {
+				t.Fatalf("expected error to contain %q, got %q", tc.wantKind, msg)
+			}
+			if tc.wantIs != nil && !errors.Is(got, tc.wantIs) {
+				t.Fatalf("expected errors.Is(..., %v) to be true", tc.wantIs)
+			}
+		})
 	}
 }
