@@ -42,6 +42,24 @@ func TestIsActive_FallsBackToGlobalConfig(t *testing.T) {
 	}
 }
 
+func TestPhaseTimeout_ConfiguredPhaseTimeoutUsed(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Methodology.PhaseTimeouts.RedSeconds = 120
+	cfg.Methodology.PhaseTimeouts.GreenSeconds = 90
+	cfg.Methodology.PhaseTimeouts.RefactorSeconds = 60
+	p := policy.NewConfigMethodologyPolicy(cfg)
+
+	if got := p.PhaseTimeout("red", 300); got != 120 {
+		t.Errorf("PhaseTimeout(red): got %d, want 120", got)
+	}
+	if got := p.PhaseTimeout("green", 300); got != 90 {
+		t.Errorf("PhaseTimeout(green): got %d, want 90", got)
+	}
+	if got := p.PhaseTimeout("refactor", 300); got != 60 {
+		t.Errorf("PhaseTimeout(refactor): got %d, want 60", got)
+	}
+}
+
 func TestIsActive_ATDDGlobalConfig(t *testing.T) {
 	p := newMethodologyPolicy(true, false)
 	labels := []string{}
