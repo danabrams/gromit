@@ -4,6 +4,13 @@ import (
 	"testing"
 )
 
+func TestParseVerdict_invalidJSON_returnsError(t *testing.T) {
+	_, err := ParseVerdict([]byte(`not json`))
+	if err == nil {
+		t.Error("ParseVerdict() expected error for invalid JSON, got nil")
+	}
+}
+
 func TestParseVerdict_validJSON(t *testing.T) {
 	input := []byte(`{"passed": true, "results": [{"criterion": "No TODOs", "passed": true, "evidence": "grep found nothing"}]}`)
 
