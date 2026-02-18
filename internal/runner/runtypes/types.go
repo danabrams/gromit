@@ -57,6 +57,7 @@ type BeadContext struct {
 type IterationResult struct {
 	BeadID                  string
 	BeadTitle               string
+	SpecID                  string
 	Model                   string
 	Provider                string `json:"provider,omitempty"`
 	FailureCategory         string `json:"failure_category,omitempty"`

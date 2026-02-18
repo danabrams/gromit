@@ -295,6 +295,17 @@ func TestIterationResult_FilesTouched(t *testing.T) {
 	}
 }
 
+// TestIterationResult_SpecID verifies that IterationResult has a SpecID field.
+func TestIterationResult_SpecID(t *testing.T) {
+	result := IterationResult{
+		BeadID: "bead-1",
+		SpecID: "spec-abc",
+	}
+	if result.SpecID != "spec-abc" {
+		t.Errorf("SpecID = %q, want %q", result.SpecID, "spec-abc")
+	}
+}
+
 // TestCallbackFunctionTypes verifies that the callback function types are defined
 // and can be used with the correct signatures.
 func TestCallbackFunctionTypes(t *testing.T) {
