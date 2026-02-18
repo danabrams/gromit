@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/danabrams/gromit/internal/learnings"
 )
@@ -20,6 +21,20 @@ const (
 	retroTruncationMarker      = "[...truncated...]"
 	minHeadTailKeepChars       = 10
 )
+
+// truncateUTF8 returns s truncated to at most maxBytes bytes, never splitting a
+// multi-byte UTF-8 rune. It walks backward from maxBytes to find the last valid
+// rune start boundary.
+func truncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	// Walk backward from maxBytes to find a valid rune start.
+	for maxBytes > 0 && !utf8.RuneStart(s[maxBytes]) {
+		maxBytes--
+	}
+	return s[:maxBytes]
+}
 
 func measureRetroContext(rules, learnings string) int {
 	return len(rules) + len(learnings)

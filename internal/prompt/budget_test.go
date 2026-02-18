@@ -1099,6 +1099,17 @@ func TestSetBudgetConfig_NilReceiverSafe(t *testing.T) {
 	r.SetBudgetConfig(20000, 2000) // should not panic
 }
 
+func TestTruncateUTF8_RespectsRuneBoundary(t *testing.T) {
+	// "Hello" (5 bytes) + "世界" (6 bytes, 3 bytes each) = 11 bytes total
+	s := "Hello世界"
+	// Truncating at 7 bytes would split "世" (starts at byte 5, 3 bytes long).
+	// The result must be "Hello" (5 bytes) — last valid rune boundary before 7.
+	got := truncateUTF8(s, 7)
+	if got != "Hello" {
+		t.Errorf("truncateUTF8(%q, 7) = %q, want %q", s, got, "Hello")
+	}
+}
+
 func TestShapeRetroForBudget_AlwaysFitsPositiveBudget(t *testing.T) {
 	rules := strings.Repeat("r", 80)
 	learnings := strings.Repeat("l", 60)
