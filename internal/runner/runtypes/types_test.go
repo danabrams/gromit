@@ -213,6 +213,16 @@ func TestSubTask_NormalizeNilFields(t *testing.T) {
 	})
 }
 
+func TestIterationResult_FilesTouched(t *testing.T) {
+	result := IterationResult{
+		BeadID:       "test-1",
+		FilesTouched: 3,
+	}
+	if result.FilesTouched != 3 {
+		t.Errorf("FilesTouched = %d, want 3", result.FilesTouched)
+	}
+}
+
 // TestCallbackFunctionTypes verifies that the callback function types are defined
 // and can be used with the correct signatures.
 func TestCallbackFunctionTypes(t *testing.T) {
