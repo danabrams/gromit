@@ -90,8 +90,18 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading backlog: %w", err)
 	}
 
+	// Optionally show runbook picker when no description arg provided
+	ttlDays := config.DefaultRunbookTTLDays
+	if cfg != nil && cfg.Runbook.TTLDays > 0 {
+		ttlDays = cfg.Runbook.TTLDays
+	}
+	selectedEntry, err := resolveRunbookEntry(gromitDir, ttlDays, args, os.Stdin)
+	if err != nil {
+		return fmt.Errorf("selecting runbook entry: %w", err)
+	}
+
 	// Build system prompt with full project context
-	systemPrompt, err := buildDebugPrompt(cfg, gromitDir, args, nil)
+	systemPrompt, err := buildDebugPrompt(cfg, gromitDir, args, selectedEntry)
 	if err != nil {
 		return fmt.Errorf("building debug prompt: %w", err)
 	}
@@ -422,6 +432,23 @@ func detectAndReportArtifacts(reportsDir, plansDir string, existingReports, exis
 	}
 
 	return nil
+}
+
+// resolveRunbookEntry returns a runbook entry to inject as failure context.
+// If args are non-empty (description provided), returns nil (picker skipped).
+// Otherwise calls runbook.List and shows the picker.
+func resolveRunbookEntry(gromitDir string, ttlDays int, args []string, r io.Reader) (*runbook.Entry, error) {
+	if len(args) > 0 {
+		return nil, nil
+	}
+	entries, err := runbook.List(gromitDir, ttlDays)
+	if err != nil {
+		return nil, fmt.Errorf("listing runbook entries: %w", err)
+	}
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	return pickRunbookEntry(entries, r)
 }
 
 // pickRunbookEntry displays a numbered menu of runbook entries and returns the selected one.

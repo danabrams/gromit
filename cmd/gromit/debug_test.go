@@ -792,3 +792,30 @@ func TestPickRunbookEntryEmptyListReturnsNil(t *testing.T) {
 		t.Errorf("expected nil entry for empty entries list, got %v", entry.BeadID)
 	}
 }
+
+// TestResolveRunbookEntrySkipsPickerWhenArgsPresent verifies that resolveRunbookEntry
+// returns nil without reading from the reader when description args are present.
+func TestResolveRunbookEntrySkipsPickerWhenArgsPresent(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	// Write a runbook entry so the list would be non-empty
+	e := runbook.NewEntry("gromit-aaa", time.Now())
+	e.BeadTitle = "Some bug"
+	if err := runbook.Append(gromitDir, e); err != nil {
+		t.Fatalf("failed to append runbook entry: %v", err)
+	}
+
+	// When args are present, picker should be skipped (reader never read)
+	reader := strings.NewReader("") // empty - would fail if read
+	entry, err := resolveRunbookEntry(gromitDir, 14, []string{"explicit description"}, reader)
+	if err != nil {
+		t.Fatalf("resolveRunbookEntry failed: %v", err)
+	}
+	if entry != nil {
+		t.Errorf("expected nil entry when args present (picker skipped), got %v", entry.BeadID)
+	}
+}
