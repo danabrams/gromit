@@ -2,16 +2,19 @@
   "name": "Prompt context budget for sonnet builds",
   "hypothesis": "Adding a character/token limit to prompt context (especially learnings and parent-chain sections) will keep sonnet costs below $2 per bead without reducing success rate",
   "change": "Configure Renderer.SetMaxContextChars() to limit combined learnings+parent context to 30K characters for sonnet-tier builds. Log when truncation occurs.",
-  "measurement": "Compare avg sonnet cost and success rate in the 30 iterations before vs after. Target: avg sonnet cost \u003c $2, success rate unchanged (\u003e85%)",
+  "measurement": "Compare avg sonnet cost and success rate in the 30 iterations before vs after. Target: avg sonnet cost < $2, success rate unchanged (>85%)",
   "risk": "Truncated context might omit critical learnings or parent context, causing beads to miss requirements and fail — increasing retry cost that offsets the savings",
   "started_at": "2026-02-17T22:49:05.532558483Z",
   "plan_date": "0001-01-01T00:00:00Z",
-  "status": "planned",
+  "status": "active",
   "baseline_metrics": {
     "avg_cost_per_bead": 0.43620196158536584,
     "avg_duration_ms": 729265,
     "avg_input_tokens": 304040.418699187,
     "avg_output_tokens": 1867.621951219512,
     "failure_rate": 0.36585365853658536
-  }
+  },
+  "pdsa_study": "2026-02-18: Only 9 post-experiment sonnet iterations observed (target: 30). Avg sonnet cost dropped from $1.97 to $1.00 but confounded by concurrent micro-decomposition improvement. One $4.49 outlier persists. Success rate unchanged at 88-89%. First-pass rate jump (4% -> 89%) is a system-wide effect, not experiment-specific. Extending for 20+ more sonnet iterations.",
+  "pdsa_act": "extend",
+  "act_date": "2026-02-18"
 }

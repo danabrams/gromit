@@ -1,8 +1,15 @@
 # Learnings Archive
 
-Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-17.
+Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-18.
 
 ---
+
+### 2026-02-18 | Targeted Validation Tests with Verbose Output | patterns
+*Related to: gromit-0acb*
+
+Validate error handling behavior by running targeted unit tests with complete stdout/stderr capture using table-driven tests and `t.Run()` sub-tests. Use named sentinel errors (not inline error creation) for clear test intent. Employ dual assertions: verify error message content with `strings.Contains()` and error identity preservation with `errors.Is()` to validate %w wrapping semantics. Command: `go test -v -run TestName ./package` captures all sub-test names, pass/fail status, and assertion failure details. Apply for any multi-scenario behavior that must be verified in isolation.
+
+*Archived from confirmed: filtered: generic Go error testing patterns (sentinel errors, errors.Is(), strings.Contains(), table-driven tests). Standard language-level conventions applicable to any Go project.*
 
 ### 2026-02-12 | Runner and Provider Invocation Pattern | patterns
 *Related to: gromit-5pvp, gromit-82qx, gromit-vabo, gromit-juyb, gromit-2zju, gromit-557p, gromit-3gdz, gromit-gibz, gromit-sx84*
