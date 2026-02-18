@@ -1,0 +1,8 @@
+Refactor Baseline Failure Summary
+Log: test-logs/refactor-baseline-2026-02-18-044945.log
+==================================
+
+SKIPPED TESTS (1):
+  TestExploreRefactoring_PreservesTests
+
+ZERO FAILURES — baseline is clean.

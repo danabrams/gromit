@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -59,6 +60,24 @@ func TestFormatTestLogSummary_ZeroFailures(t *testing.T) {
 
 	if !strings.Contains(summary, "ZERO FAILURES") {
 		t.Errorf("summary missing ZERO FAILURES marker:\n%s", summary)
+	}
+}
+
+func TestRefactorBaselineSummary_FileExistsAndIsClean(t *testing.T) {
+	root, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("could not find project root: %v", err)
+	}
+	summaryPath := root + "/test-logs/refactor-baseline-failures.txt"
+
+	data, err := os.ReadFile(summaryPath)
+	if err != nil {
+		t.Fatalf("summary file %q not found: %v", summaryPath, err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "ZERO FAILURES") {
+		t.Errorf("summary missing ZERO FAILURES marker:\n%s", content)
 	}
 }
 
