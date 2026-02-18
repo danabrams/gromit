@@ -57,6 +57,7 @@ type PromptRenderer interface {
 	RenderATDDBuild(ctx *prompt.Context) (string, error)
 	RenderTDDBuild(ctx *prompt.Context) (string, error)
 	RenderRefactor(ctx *prompt.Context) (string, error)
+	RenderTestFix(ctx *prompt.TestFixContext) (string, error)
 	LoadSpec(name string) (string, error)
 	LoadClaudeMD() (string, error)
 	LoadRules() (string, error)

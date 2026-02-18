@@ -158,6 +158,7 @@ type mockPromptRenderer struct {
 	RenderATDDBuildFn       func(ctx *prompt.Context) (string, error)
 	RenderTDDBuildFn        func(ctx *prompt.Context) (string, error)
 	RenderRefactorFn        func(ctx *prompt.Context) (string, error)
+	RenderTestFixFn         func(ctx *prompt.TestFixContext) (string, error)
 	LoadSpecFn              func(name string) (string, error)
 	LoadClaudeMDFn          func() (string, error)
 	LoadRulesFn             func() (string, error)
@@ -309,6 +310,13 @@ func (m *mockPromptRenderer) RenderRefactor(ctx *prompt.Context) (string, error)
 	return "mock refactor prompt", nil
 }
 
+func (m *mockPromptRenderer) RenderTestFix(ctx *prompt.TestFixContext) (string, error) {
+	if m.RenderTestFixFn != nil {
+		return m.RenderTestFixFn(ctx)
+	}
+	return "mock test fix prompt", nil
+}
+
 type mockIterationLogger struct {
 	Logs   []*logger.IterationLog
 	Closed bool
@@ -426,6 +434,10 @@ func (m *mockRenderer) RenderTDDBuild(ctx *prompt.Context) (string, error) {
 
 func (m *mockRenderer) RenderRefactor(ctx *prompt.Context) (string, error) {
 	return "mock refactor prompt", nil
+}
+
+func (m *mockRenderer) RenderTestFix(ctx *prompt.TestFixContext) (string, error) {
+	return "mock test fix prompt", nil
 }
 
 // --- Tests ---
