@@ -225,3 +225,7 @@ paths:
 #   fix_tier: "medium"         # Model tier to use for auto-fix (low, medium, high)
 #   review: true               # Run code review after each bead
 #   retro: true                # Run retrospective at session end
+
+# Runbook - configures retention of runbook entries
+# runbook:
+#   ttl_days: 14               # Days before runbook entries expire (default: 14)
