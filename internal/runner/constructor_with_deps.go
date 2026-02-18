@@ -93,13 +93,7 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 	r.validationRunner = validation.NewRunner(cfg, cmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	r.methodologyExec = r.makeMethodologyExec()
 	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
-		r.specOrchestrator = &SpecOrchestrator{
-			renderer:    r.renderer,
-			router:      r.router,
-			beads:       r.beads,
-			cfg:         cfg,
-			cmdRunnerFn: r.cmdRunnerFn,
-		}
+		r.specOrchestrator = newSpecOrchestrator(r)
 	}
 	r.reviewer = reviewpkg.NewReviewer(cfg, router, deps.Beads, deps.Renderer, r.gitDiffFn, iterLogger)
 	r.reviewer.SetLogFn(r.log)

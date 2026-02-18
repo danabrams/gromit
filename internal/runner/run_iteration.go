@@ -112,9 +112,6 @@ func (r *Runner) maybeAuthorSpecAcceptance(ctx context.Context, b *bead.Bead, st
 	if specName == "" {
 		return nil
 	}
-	if st.testsAuthoredBySpec == nil {
-		st.testsAuthoredBySpec = make(map[string]bool)
-	}
 	if st.testsAuthoredBySpec[specName] {
 		return nil
 	}

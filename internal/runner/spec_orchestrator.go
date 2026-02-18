@@ -11,6 +11,17 @@ import (
 	"github.com/danabrams/gromit/internal/runner/escalation"
 )
 
+// newSpecOrchestrator creates a SpecOrchestrator wired to the runner's dependencies.
+func newSpecOrchestrator(r *Runner) *SpecOrchestrator {
+	return &SpecOrchestrator{
+		renderer:    r.renderer,
+		router:      r.router,
+		beads:       r.beads,
+		cfg:         r.cfg,
+		cmdRunnerFn: r.cmdRunnerFn,
+	}
+}
+
 // SpecOrchestrator coordinates spec-level acceptance test authoring.
 type SpecOrchestrator struct {
 	renderer    PromptRenderer
@@ -92,10 +103,6 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 }
 
 func (o *SpecOrchestrator) commitAcceptanceTests(ctx context.Context, specName string) error {
-	if o == nil {
-		return fmt.Errorf("spec orchestrator is nil")
-	}
-
 	_, stderr, exitCode, err := o.runCmd(ctx, "git add -A", "")
 	if err != nil {
 		return fmt.Errorf("staging acceptance tests: %w", err)

@@ -124,13 +124,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	r.validationRunner = validation.NewRunner(cfg, defaultCmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	r.methodologyExec = r.makeMethodologyExec()
 	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
-		r.specOrchestrator = &SpecOrchestrator{
-			renderer:    r.renderer,
-			router:      r.router,
-			beads:       r.beads,
-			cfg:         cfg,
-			cmdRunnerFn: r.cmdRunnerFn,
-		}
+		r.specOrchestrator = newSpecOrchestrator(r)
 	}
 
 	reviewer := reviewpkg.NewReviewer(cfg, router, beadsClient, renderer, r.gitDiffFn, log)
