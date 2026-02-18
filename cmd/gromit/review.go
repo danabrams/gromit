@@ -282,7 +282,10 @@ func findEarliestCommitFromBeads(beads []*bead.Bead) string {
 }
 
 func getGitDiffForReview(fromCommit string) (string, error) {
-	cmd := exec.Command("git", "diff", fromCommit)
+	if err := validateCommitRef(fromCommit); err != nil {
+		return "", err
+	}
+	cmd := exec.Command("git", "diff", "--", fromCommit)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git diff: %w", err)
@@ -291,7 +294,10 @@ func getGitDiffForReview(fromCommit string) (string, error) {
 }
 
 func getGitDiffStatForReview(fromCommit string) (string, error) {
-	cmd := exec.Command("git", "diff", "--stat", fromCommit)
+	if err := validateCommitRef(fromCommit); err != nil {
+		return "", err
+	}
+	cmd := exec.Command("git", "diff", "--stat", "--", fromCommit)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git diff --stat: %w", err)
