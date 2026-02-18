@@ -113,3 +113,15 @@ func TestSelectModel_DelegatesToConfig(t *testing.T) {
 		t.Errorf("SelectModel() = %q, want %q", got, want)
 	}
 }
+
+func TestNextTier_DelegatesToConfig(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Escalation.Enabled = true
+	cfg.Escalation.Chain = []string{"low", "medium", "high"}
+	p := newConfigEscalationPolicy(cfg)
+	want := cfg.NextEscalationTier("low")
+	got := p.NextTier("low")
+	if got != want {
+		t.Errorf("NextTier() = %q, want %q", got, want)
+	}
+}

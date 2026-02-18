@@ -42,7 +42,7 @@ func (p *ConfigEscalationPolicy) SelectModel(priority int, labels []string) stri
 
 // NextTier returns the next escalation tier.
 func (p *ConfigEscalationPolicy) NextTier(currentTier string) string {
-	return ""
+	return p.cfg.NextEscalationTier(currentTier)
 }
 
 // MaxRetriesPerModel returns the per-model retry cap.
