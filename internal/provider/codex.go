@@ -127,7 +127,8 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	model := cp.ModelForTier(tier)
 	args := cp.buildStreamCommandArgs(model, handler != nil)
-	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
+	cmd := execCommandContext(ctx, cp.binaryPath, args...)
+	cmd.WaitDelay = 100 * time.Millisecond
 	if output != nil {
 		fmt.Fprintf(output, "  cmd: %s %s\n", cp.binaryPath, strings.Join(args, " "))
 		fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))
@@ -240,7 +241,8 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 }
 
 func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args, env []string, effectiveCodexHome string) (*Result, error) {
-	cmd := exec.CommandContext(ctx, cp.binaryPath, args...)
+	cmd := execCommandContext(ctx, cp.binaryPath, args...)
+	cmd.WaitDelay = 100 * time.Millisecond
 	cmd.Env = env
 
 	stdin, err := cmd.StdinPipe()
