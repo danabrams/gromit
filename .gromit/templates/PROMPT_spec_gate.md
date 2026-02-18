@@ -46,7 +46,7 @@ You are verifying whether the implementation satisfies the specification accepta
 
 ## Output
 
-Respond with a JSON object matching the GateVerdict structure:
+Respond with a JSON object matching the GateVerdict structure. Output JSON only and include no narrative text.
 
 ```json
 {"passed": true, "results": [{"criterion": "...", "passed": true, "evidence": "..."}]}

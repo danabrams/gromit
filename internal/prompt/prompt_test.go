@@ -1136,6 +1136,8 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 
 	wantStrs := []string{
 		"GateVerdict",
+		"JSON only",
+		"no narrative",
 		"FAIL: TestFoo",
 		"+func foo() {}",
 		"API returns 200",
