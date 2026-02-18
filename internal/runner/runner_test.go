@@ -242,6 +242,28 @@ func TestMaybeAuthorSpecAcceptance_FirstBeadCallsOrchestrator(t *testing.T) {
 	}
 }
 
+func TestNewRunnerWithDepsInitializesSpecOrchestratorWhenGranularitySpec(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			Granularity: config.MethodologyGranularitySpec,
+		},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, io.Discard, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps error: %v", err)
+	}
+	if r.specOrchestrator == nil {
+		t.Fatal("expected specOrchestrator to be initialized for spec granularity")
+	}
+}
+
 func TestDeterministicPrecheckReason(t *testing.T) {
 	tmpDir := t.TempDir()
 	wd, err := os.Getwd()
