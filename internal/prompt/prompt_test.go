@@ -1060,3 +1060,46 @@ func TestRenderTestFixNilRenderer(t *testing.T) {
 		t.Error("expected error for nil renderer in RenderTestFix")
 	}
 }
+
+func TestRenderTestFix(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Fix implementation without changing tests.
+CLAUDE.md: {{.ClaudeMD}}
+Rules: {{.Rules}}
+Test command: {{.TestCommand}}
+Failure:
+{{.TestFailureOutput}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_test_fix.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := &TestFixContext{
+		ClaudeMD:          "# Project\nGo CLI tool",
+		Rules:             "Use error return values",
+		TestCommand:       "go test ./internal/prompt/...",
+		TestFailureOutput: "FAIL: TestFoo expected X got Y",
+	}
+
+	result, err := r.RenderTestFix(ctx)
+	if err != nil {
+		t.Fatalf("RenderTestFix() error = %v", err)
+	}
+	if result == "" {
+		t.Error("expected non-empty output")
+	}
+	if !strings.Contains(result, "Go CLI tool") {
+		t.Error("expected ClaudeMD content in output")
+	}
+	if !strings.Contains(result, "Use error return values") {
+		t.Error("expected Rules content in output")
+	}
+	if !strings.Contains(result, "go test ./internal/prompt/...") {
+		t.Error("expected TestCommand in output")
+	}
+	if !strings.Contains(result, "TestFoo expected X got Y") {
+		t.Error("expected TestFailureOutput in output")
+	}
+}
