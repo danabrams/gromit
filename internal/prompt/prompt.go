@@ -119,8 +119,11 @@ type SpecAcceptanceContext struct {
 
 // SpecGateContext holds data for spec gate prompt template
 type SpecGateContext struct {
-	SpecCriteria  string
-	FailureOutput string
+	SpecCriteria       string
+	FailureOutput      string
+	TestOutput         string // Output from running acceptance tests
+	CumulativeDiff     string // Cumulative git diff for the spec
+	AcceptanceCriteria string // Acceptance criteria from the spec file
 }
 
 // TestFixContext holds data for test-fix prompt template

@@ -1053,6 +1053,101 @@ func TestRenderSpecGateTemplateIncludesCriteriaAndFailure(t *testing.T) {
 	}
 }
 
+func TestRenderSpecGateWithExtendedContext(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Spec Gate\nCriteria: {{.SpecCriteria}}\nTestOutput: {{.TestOutput}}\nDiff: {{.CumulativeDiff}}\nAcceptance: {{.AcceptanceCriteria}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_spec_gate.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	tests := []struct {
+		name     string
+		ctx      *SpecGateContext
+		wantStrs []string
+		notStrs  []string
+	}{
+		{
+			name: "populated TestOutput CumulativeDiff and AcceptanceCriteria appear in output",
+			ctx: &SpecGateContext{
+				SpecCriteria:       "Must return 200",
+				FailureOutput:      "status was 500",
+				TestOutput:         "FAIL: TestFoo expected 200 got 500",
+				CumulativeDiff:     "+func handler() { return 500 }",
+				AcceptanceCriteria: "All endpoints return expected HTTP status codes",
+			},
+			wantStrs: []string{
+				"FAIL: TestFoo expected 200 got 500",
+				"+func handler() { return 500 }",
+				"All endpoints return expected HTTP status codes",
+				"Must return 200",
+			},
+		},
+		{
+			name: "empty optional fields render without error",
+			ctx: &SpecGateContext{
+				SpecCriteria:       "Must return 200",
+				FailureOutput:      "",
+				TestOutput:         "",
+				CumulativeDiff:     "",
+				AcceptanceCriteria: "",
+			},
+			wantStrs: []string{
+				"Must return 200",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := r.RenderSpecGate(tt.ctx)
+			if err != nil {
+				t.Fatalf("RenderSpecGate() error = %v", err)
+			}
+			if result == "" {
+				t.Error("expected non-empty output")
+			}
+			for _, want := range tt.wantStrs {
+				if !strings.Contains(result, want) {
+					t.Errorf("RenderSpecGate() missing expected string %q\ngot:\n%s", want, result)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &SpecGateContext{
+		SpecCriteria:       "Must return 200",
+		FailureOutput:      "status was 500",
+		TestOutput:         "FAIL: TestFoo",
+		CumulativeDiff:     "+func foo() {}",
+		AcceptanceCriteria: "API returns 200",
+	}
+
+	result, err := r.RenderSpecGate(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecGate() error = %v", err)
+	}
+
+	wantStrs := []string{
+		"GateVerdict",
+		"FAIL: TestFoo",
+		"+func foo() {}",
+		"API returns 200",
+	}
+	for _, want := range wantStrs {
+		if !strings.Contains(result, want) {
+			t.Errorf("RenderSpecGate() real template missing expected string %q", want)
+		}
+	}
+}
+
 func TestRenderTestFixNilRenderer(t *testing.T) {
 	var r *Renderer
 	_, err := r.RenderTestFix(nil)
