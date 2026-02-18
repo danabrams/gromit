@@ -63,28 +63,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		invResult, err := r.executeClaudeInvocation(ctx, bc)
 
 		if err != nil {
-			if invResult != nil && invResult.StallFired && ctx.Err() == nil {
-				invResult.TimeoutType = "stall"
-				return invResult, err
-			}
-			// Classify timeout type
-			if ctx.Err() != nil && bc.ParentCtx.Err() == nil {
-				bc.Result.TimeoutType = "bead"
-				escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
-				if invResult != nil {
-					invResult.TimeoutType = "bead"
-					return invResult, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
-				}
-				return &runtypes.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
-			} else if bc.ParentCtx.Err() != nil {
-				return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
-			}
-			bc.Result.TimeoutType = "invocation"
-			if invResult != nil {
-				invResult.TimeoutType = "invocation"
-				return invResult, fmt.Errorf("claude invocation: %w", err)
-			}
-			return &runtypes.InvocationResult{TimeoutType: "invocation"}, fmt.Errorf("claude invocation: %w", err)
+			return r.handleInvokeError(ctx, bc, invResult, err)
 		}
 
 		if invResult == nil || invResult.Result == nil {
@@ -121,6 +100,34 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		return invResult, nil
 	}
+}
+
+func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, err error) (*runtypes.InvocationResult, error) {
+	if invResult != nil && invResult.StallFired && ctx.Err() == nil {
+		invResult.TimeoutType = "stall"
+		return invResult, err
+	}
+
+	// Classify timeout type.
+	if ctx.Err() != nil && bc.ParentCtx.Err() == nil {
+		bc.Result.TimeoutType = "bead"
+		escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
+		return stampTimeoutType(invResult, "bead"), fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+	}
+	if bc.ParentCtx.Err() != nil {
+		return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
+	}
+
+	bc.Result.TimeoutType = "invocation"
+	return stampTimeoutType(invResult, "invocation"), fmt.Errorf("claude invocation: %w", err)
+}
+
+func stampTimeoutType(invResult *runtypes.InvocationResult, timeoutType string) *runtypes.InvocationResult {
+	if invResult != nil {
+		invResult.TimeoutType = timeoutType
+		return invResult
+	}
+	return &runtypes.InvocationResult{TimeoutType: timeoutType}
 }
 
 func (r *Runner) shapeMethodologyPromptContext(phase string, ctx *prompt.Context) *prompt.Context {
