@@ -75,24 +75,9 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 	if err != nil {
 		return nil, err
 	}
-	var last *Result
-	for attempt := 0; attempt <= codexTransientRetryMax; attempt++ {
-		result, runErr := cp.runOnce(ctx, prompt, model, args, env, effectiveCodexHome)
-		if runErr != nil {
-			return nil, runErr
-		}
-		last = result
-		if result == nil || result.Success {
-			return result, nil
-		}
-		if !shouldRetryCodexAttempt(result, attempt) {
-			return result, nil
-		}
-		if sleepErr := cp.sleepFn(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
-			return result, nil
-		}
-	}
-	return last, nil
+	return cp.runWithRetry(ctx, func() (*Result, error) {
+		return cp.runOnce(ctx, prompt, model, args, env, effectiveCodexHome)
+	})
 }
 
 // StreamRun executes an LLM invocation with streaming output.
@@ -104,24 +89,9 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 		return nil, fmt.Errorf("codex provider is nil")
 	}
 
-	var last *Result
-	for attempt := 0; attempt <= codexTransientRetryMax; attempt++ {
-		result, err := cp.streamRunOnce(ctx, prompt, tier, output, handler, onToolCall)
-		if err != nil {
-			return nil, err
-		}
-		last = result
-		if result == nil || result.Success {
-			return result, nil
-		}
-		if !shouldRetryCodexAttempt(result, attempt) {
-			return result, nil
-		}
-		if sleepErr := cp.sleepFn(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
-			return result, nil
-		}
-	}
-	return last, nil
+	return cp.runWithRetry(ctx, func() (*Result, error) {
+		return cp.streamRunOnce(ctx, prompt, tier, output, handler, onToolCall)
+	})
 }
 
 // streamRunOnce executes a single streaming invocation attempt.
@@ -243,6 +213,27 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 		CachedInputTokens: usageCachedInputTokens(usage),
 		OutputTokens:      usageOutputTokens(usage),
 	}, nil
+}
+
+func (cp *CodexProvider) runWithRetry(ctx context.Context, run func() (*Result, error)) (*Result, error) {
+	var last *Result
+	for attempt := 0; attempt <= codexTransientRetryMax; attempt++ {
+		result, err := run()
+		if err != nil {
+			return nil, err
+		}
+		last = result
+		if result == nil || result.Success {
+			return result, nil
+		}
+		if !shouldRetryCodexAttempt(result, attempt) {
+			return result, nil
+		}
+		if sleepErr := cp.sleepFn(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
+			return result, nil
+		}
+	}
+	return last, nil
 }
 
 func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args, env []string, effectiveCodexHome string) (*Result, error) {
