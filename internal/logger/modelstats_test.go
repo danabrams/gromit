@@ -813,6 +813,27 @@ this is not json
 	}
 }
 
+// TestCostPerSpec_CountsDistinctBeads verifies Beads counts distinct bead_ids per spec
+func TestCostPerSpec_CountsDistinctBeads(t *testing.T) {
+	dir := t.TempDir()
+
+	// b1 appears twice (retry), b2 once — 2 distinct beads for spec-A
+	logs := []IterationLog{
+		{BeadID: "b1", Model: "opus", Success: false, CostUSD: 0.20, SpecID: "spec-A"},
+		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.30, SpecID: "spec-A"},
+		{BeadID: "b2", Model: "sonnet", Success: true, CostUSD: 0.25, SpecID: "spec-A"},
+	}
+	writeTestLogFile(t, dir, "20260218-120000", logs)
+
+	result, err := CostPerSpec(dir)
+	if err != nil {
+		t.Fatalf("CostPerSpec failed: %v", err)
+	}
+	if result["spec-A"].Beads != 2 {
+		t.Errorf("spec-A Beads = %d, want 2 (b1 and b2 are distinct)", result["spec-A"].Beads)
+	}
+}
+
 // TestCostPerSpec_CountsIterationsPerSpec verifies Iterations counts all log entries per spec
 func TestCostPerSpec_CountsIterationsPerSpec(t *testing.T) {
 	dir := t.TempDir()
