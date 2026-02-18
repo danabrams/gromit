@@ -760,7 +760,7 @@ func ParseScopeEstimate(output string) (*ScopeEstimate, error) {
 	}
 
 	var estimate ScopeEstimate
-	if err := jsonutil.ExtractObject(output, &estimate); err != nil {
+	if err := jsonutil.ExtractJSON(output, &estimate); err != nil {
 		return nil, fmt.Errorf("parsing scope estimate JSON: %w", err)
 	}
 
