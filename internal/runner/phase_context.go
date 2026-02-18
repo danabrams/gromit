@@ -20,6 +20,7 @@ type phaseContextMeta struct {
 	ClampedByRunDeadline bool
 	TimeoutSource       string
 	ParentAlreadyCanceled bool
+	NearRunDeadline     bool
 }
 
 func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds int) (context.Context, context.CancelFunc, phaseContextMeta) {
@@ -43,6 +44,7 @@ func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds
 
 	effective := requested
 	clamped := false
+	nearRunDeadline := false
 	if bc != nil && !bc.RunDeadline.IsZero() {
 		remaining := time.Until(bc.RunDeadline)
 		if remaining < effective {
@@ -52,6 +54,7 @@ func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds
 	}
 	if effective <= 0 {
 		effective = time.Millisecond
+		nearRunDeadline = true
 	}
 	meta := phaseContextMeta{
 		Phase:                phase,
@@ -60,6 +63,7 @@ func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds
 		ClampedByRunDeadline: clamped,
 		TimeoutSource:        timeoutSource,
 		ParentAlreadyCanceled: parentCanceled,
+		NearRunDeadline:      nearRunDeadline,
 	}
 
 	ctx, cancel := context.WithTimeout(parent, effective)

@@ -100,3 +100,21 @@ func TestNewPhaseContext_ParentCanceled(t *testing.T) {
 		t.Fatal("meta.ParentAlreadyCanceled = false, want true")
 	}
 }
+
+func TestNewPhaseContext_NearExpiryUsesSafetyFloor(t *testing.T) {
+	bc := &runtypes.BeadContext{
+		ParentCtx:   context.Background(),
+		BeadTimeout: 3 * time.Second,
+		RunDeadline: time.Now().Add(-10 * time.Millisecond),
+	}
+
+	_, cancel, meta := newPhaseContext(bc, "verify", 0)
+	defer cancel()
+
+	if meta.EffectiveTimeout != time.Millisecond {
+		t.Fatalf("meta.EffectiveTimeout = %v, want %v", meta.EffectiveTimeout, time.Millisecond)
+	}
+	if !meta.NearRunDeadline {
+		t.Fatal("meta.NearRunDeadline = false, want true")
+	}
+}
