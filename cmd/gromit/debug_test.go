@@ -3,10 +3,12 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/runbook"
 )
 
 func TestGetReportFiles(t *testing.T) {
@@ -555,4 +557,47 @@ func TestDebugModelFlag(t *testing.T) {
 			t.Errorf("expected debugModel to be 'haiku', got %q", debugModel)
 		}
 	})
+}
+
+// TestBuildDebugPromptWithRunbookEntry verifies that buildDebugPrompt injects a Failure Context
+// section when a runbook entry is provided.
+func TestBuildDebugPromptWithRunbookEntry(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	entry := runbook.Entry{
+		ID:                 "rb-123-gromit-abc",
+		BeadID:             "gromit-abc",
+		BeadTitle:          "Fix login bug",
+		FailureCategory:    "test_failure",
+		StartCommit:        "abc1234",
+		FailureCommit:      "def5678",
+		FailureOutput:      "FAIL: TestLogin\nexpected 200 got 500",
+		ValidationCommands: []string{"go test ./...", "go vet ./..."},
+		Prompt:             "implement login fix",
+	}
+
+	prompt, err := buildDebugPrompt(nil, gromitDir, []string{}, &entry)
+	if err != nil {
+		t.Fatalf("buildDebugPrompt failed: %v", err)
+	}
+
+	if !strings.Contains(prompt, "## Failure Context") {
+		t.Errorf("expected prompt to contain '## Failure Context' section, got:\n%s", prompt)
+	}
+
+	if !strings.Contains(prompt, "gromit-abc") {
+		t.Errorf("expected prompt to contain bead ID 'gromit-abc'")
+	}
+
+	if !strings.Contains(prompt, "Fix login bug") {
+		t.Errorf("expected prompt to contain bead title 'Fix login bug'")
+	}
+
+	if !strings.Contains(prompt, "test_failure") {
+		t.Errorf("expected prompt to contain failure category 'test_failure'")
+	}
 }

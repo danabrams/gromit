@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/runbook"
 	"github.com/danabrams/gromit/skills"
 	"github.com/spf13/cobra"
 )
@@ -87,7 +88,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build system prompt with full project context
-	systemPrompt, err := buildDebugPrompt(cfg, gromitDir, args)
+	systemPrompt, err := buildDebugPrompt(cfg, gromitDir, args, nil)
 	if err != nil {
 		return fmt.Errorf("building debug prompt: %w", err)
 	}
@@ -138,8 +139,9 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	return detectAndReportArtifacts(reportsDir, plansDir, existingReports, existingPlans, existingBacklogItems, bf, cfg)
 }
 
-// buildDebugPrompt constructs the system prompt for the debug session
-func buildDebugPrompt(cfg *config.Config, gromitDir string, args []string) (string, error) {
+// buildDebugPrompt constructs the system prompt for the debug session.
+// If entry is non-nil, a Failure Context section is injected before the Context section.
+func buildDebugPrompt(cfg *config.Config, gromitDir string, args []string, entry *runbook.Entry) (string, error) {
 	// Load project context
 	templatesDir := resolveTemplatesDir(cfg)
 	specsDir := resolveSpecsDir(cfg)
@@ -219,6 +221,33 @@ func buildDebugPrompt(cfg *config.Config, gromitDir string, args []string) (stri
 %s
 
 `, args[0]))
+	}
+
+	// Optional: failure context from runbook entry
+	if entry != nil {
+		sb.WriteString(fmt.Sprintf(`## Failure Context
+
+**Bead:** %s — %s
+**Failure Category:** %s
+**Commits:** %s..%s (run `+"`git diff %s %s`"+` to see changes)
+
+### Validation Commands
+
+%s
+
+### Failure Output
+
+%[8]s
+
+### Build Prompt
+
+%[9]s
+
+`, entry.BeadID, entry.BeadTitle, entry.FailureCategory, entry.StartCommit, entry.FailureCommit,
+			entry.StartCommit, entry.FailureCommit,
+			strings.Join(entry.ValidationCommands, "\n"),
+			entry.FailureOutput,
+			entry.Prompt))
 	}
 
 	// Context section
