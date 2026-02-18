@@ -67,6 +67,10 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		bc.Result.AcceptanceFailureOutput = ""
 		bc.Result.AcceptanceFailureExitCode = 0
 
+		// Inject the explicit scoped test command into the prompt context so the
+		// build-phase agent runs tests only on touched packages instead of ./...
+		injectScopedTestCommand(bc)
+
 		if !executeWithRetry() {
 			return bc.Result
 		}

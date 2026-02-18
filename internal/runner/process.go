@@ -238,6 +238,42 @@ func scopeValidationCommands(commands []string, touchedPackages []string) []stri
 	return config.ScopeGoTestCommands(commands, touchedPackages)
 }
 
+// computeScopedTestCommand constructs an explicit "go test ./pkg/..." command
+// for the given touched package paths. Returns an empty string when packages
+// is nil or empty, so callers can use the generic fallback instruction.
+func computeScopedTestCommand(packages []string) string {
+	if len(packages) == 0 {
+		return ""
+	}
+	targets := make([]string, 0, len(packages))
+	seen := make(map[string]bool, len(packages))
+	for _, pkg := range packages {
+		pkg = strings.TrimPrefix(pkg, "./")
+		pkg = strings.TrimSuffix(pkg, "/...")
+		pkg = strings.TrimSuffix(pkg, "/")
+		if pkg == "" || seen[pkg] {
+			continue
+		}
+		seen[pkg] = true
+		targets = append(targets, "./"+pkg+"/...")
+	}
+	if len(targets) == 0 {
+		return ""
+	}
+	return "go test " + strings.Join(targets, " ")
+}
+
+// injectScopedTestCommand updates bc.PromptCtx.ScopedTestCommand from bc.TouchedPackages.
+// When TouchedPackages is non-empty, sets an explicit "go test ./pkg/..." command so
+// build-phase prompts show the exact command instead of relying on the AI to scope tests.
+// When TouchedPackages is empty, clears ScopedTestCommand so templates fall back to generic guidance.
+func injectScopedTestCommand(bc *runtypes.BeadContext) {
+	if bc == nil || bc.PromptCtx == nil {
+		return
+	}
+	bc.PromptCtx.ScopedTestCommand = computeScopedTestCommand(bc.TouchedPackages)
+}
+
 // runDirectValidationCheck delegates to the validation.Runner's RunDirect method.
 func (r *Runner) runDirectValidationCheck(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
 	if r.validationRunner == nil {

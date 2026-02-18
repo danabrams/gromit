@@ -190,6 +190,67 @@ func TestPrepareMethodology_ATDDSkipDoesNotCallRenderAcceptanceTests(t *testing.
 
 // --- FirstPassSuccess tests ---
 
+// TestExecuteBuildLoop_InjectsScopedTestCommandFromTouchedPackages verifies that
+// executeBuildAndMethodologyLoop calls injectScopedTestCommand before invoking
+// executeWithRetry, so the prompt context reflects the current touched packages.
+func TestExecuteBuildLoop_InjectsScopedTestCommandFromTouchedPackages(t *testing.T) {
+	cfg := &config.Config{}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("inject-1", "Implement feature")
+	bc := newBeadContextForMethodology(b)
+	bc.TouchedPackages = []string{"internal/runner", "internal/config"}
+
+	var capturedScopedCmd string
+	result := r.executeBuildAndMethodologyLoop(
+		context.Background(), bc,
+		false, false,
+		func() bool {
+			if bc.PromptCtx != nil {
+				capturedScopedCmd = bc.PromptCtx.ScopedTestCommand
+			}
+			return true
+		},
+	)
+
+	if !result.Success {
+		t.Fatal("expected Success=true")
+	}
+	want := "go test ./internal/runner/... ./internal/config/..."
+	if capturedScopedCmd != want {
+		t.Errorf("ScopedTestCommand before executeWithRetry = %q, want %q", capturedScopedCmd, want)
+	}
+}
+
+// TestExecuteBuildLoop_ScopedTestCommandEmptyWhenNoPackages verifies that
+// executeBuildAndMethodologyLoop does not inject a ScopedTestCommand when
+// TouchedPackages is empty.
+func TestExecuteBuildLoop_ScopedTestCommandEmptyWhenNoPackages(t *testing.T) {
+	cfg := &config.Config{}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("inject-2", "Implement feature")
+	bc := newBeadContextForMethodology(b)
+	// No TouchedPackages set
+
+	var capturedScopedCmd string
+	result := r.executeBuildAndMethodologyLoop(
+		context.Background(), bc,
+		false, false,
+		func() bool {
+			if bc.PromptCtx != nil {
+				capturedScopedCmd = bc.PromptCtx.ScopedTestCommand
+			}
+			return true
+		},
+	)
+
+	if !result.Success {
+		t.Fatal("expected Success=true")
+	}
+	if capturedScopedCmd != "" {
+		t.Errorf("ScopedTestCommand should be empty when no packages touched, got %q", capturedScopedCmd)
+	}
+}
+
 // TestExecuteBuildLoop_FirstPassSuccess_NoRetriesNoEscalation verifies that
 // FirstPassSuccess is set to true when the build succeeds on the first attempt
 // without any retries or escalation.
