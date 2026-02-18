@@ -53,6 +53,7 @@ type IterationLog struct {
 	AutonomyEligible bool   `json:"autonomy_eligible"`
 	AutonomySuccess  bool   `json:"autonomy_success"`
 	FirstPassSuccess bool   `json:"first_pass_success"`
+	FilesTouched     int    `json:"files_touched,omitempty"`
 	MTTRProxyMs      int64  `json:"mttr_proxy_ms,omitempty"`
 	EscalationClass  string `json:"escalation_class,omitempty"`
 	RecurrenceCount  int    `json:"recurrence_count,omitempty"`

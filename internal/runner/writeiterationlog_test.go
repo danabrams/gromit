@@ -507,6 +507,54 @@ func TestWriteIterationLog_FailureWithoutClassificationGetsDefaultAndonEnvelope(
 	}
 }
 
+func TestWriteIterationLog_FilesTouched(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
+
+	r := &Runner{logger: l}
+	result := &IterationResult{
+		BeadID:       "ft-test",
+		Model:        "sonnet",
+		Success:      true,
+		Duration:     time.Second,
+		FilesTouched: 5,
+	}
+
+	r.writeIterationLog(1, result)
+
+	// Read back the log and verify FilesTouched
+	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("globbing log files: %v", err)
+	}
+	if len(logFiles) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(logFiles))
+	}
+
+	data, err := os.ReadFile(logFiles[0])
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	var entry map[string]any
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		t.Fatalf("unmarshaling log line: %v", err)
+	}
+
+	if got := entry["files_touched"]; got != float64(5) {
+		t.Fatalf("files_touched = %v, want 5", got)
+	}
+}
+
 func TestWriteIterationLog_ReliabilityMetricsDerivableFromStructuredEntries(t *testing.T) {
 	// Expected failure: logger.ReadReliabilityMetrics does not exist yet; the
 	// feature is expected to provide canonical derivation from emitted logs.
