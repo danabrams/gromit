@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -317,6 +316,7 @@ decomposed: true
 // TestEpicStatusCommand_ShowsBeadProgress verifies that status displays bead progress for each spec
 func TestEpicStatusCommand_ShowsBeadProgress(t *testing.T) {
 	tmpDir := t.TempDir()
+	prependFakeTools(t, tmpDir)
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
 	plansDir := filepath.Join(tmpDir, ".gromit", "plans")
@@ -386,13 +386,6 @@ decomposed: true
 	defer os.Chdir(oldDir)
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
-	}
-
-	// Check if bd binary is available
-	bdErr := exec.Command("bd", "help").Run()
-	if bdErr != nil {
-		// Skip test if bd is not available
-		t.Skip("bd binary not available, cannot verify bead progress display")
 	}
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
