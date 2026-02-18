@@ -2533,6 +2533,8 @@ func setupRunStopChTestRunner(t *testing.T, beads *mockBeadClient) *Runner {
 			AutoPush: &autoPushDisabled,
 		},
 	}
+	cfg.Paths.Logs = t.TempDir()
+	cfg.Preflight.CompileCheck = boolPtr(false)
 
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
@@ -2557,6 +2559,29 @@ func setupRunStopChTestRunner(t *testing.T, beads *mockBeadClient) *Runner {
 	}
 
 	return r
+}
+
+func TestSetupRunStopChTestRunnerSetsLogsAndCompileCheck(t *testing.T) {
+	beads := &mockBeadClient{}
+	r := setupRunStopChTestRunner(t, beads)
+
+	if r.cfg.Paths.Logs == "" {
+		t.Fatal("expected cfg.Paths.Logs to be set")
+	}
+	info, err := os.Stat(r.cfg.Paths.Logs)
+	if err != nil {
+		t.Fatalf("expected cfg.Paths.Logs to exist: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatalf("expected cfg.Paths.Logs to be a directory, got %v", info.Mode())
+	}
+
+	if r.cfg.Preflight.CompileCheck == nil {
+		t.Fatal("expected cfg.Preflight.CompileCheck to be set")
+	}
+	if *r.cfg.Preflight.CompileCheck {
+		t.Fatal("expected cfg.Preflight.CompileCheck to be false")
+	}
 }
 
 func makeReadyFromQueue(queue []*bead.Bead) func() (*bead.Bead, error) {
