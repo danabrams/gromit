@@ -3,9 +3,15 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io"
+	"path/filepath"
 	"time"
 
+	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/retro"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 // runSessionEpilogue runs the post-loop epilogue when cfg.Session.Iterations > 0.
@@ -161,6 +167,76 @@ func (r *Runner) runEpilogueRetro(ctx context.Context) error {
 	if r == nil || r.cfg == nil {
 		return nil
 	}
+	if r.router == nil {
+		return nil
+	}
+
 	r.log("Running epilogue retro...")
+
+	// Select high-tier provider
+	p, _ := r.router.Select("build", provider.TierHigh)
+	if p == nil {
+		r.log("Warning: no provider available for retro; skipping")
+		return nil
+	}
+
+	// Wrap provider in retro.ProviderRunner adapter
+	adapter := &epilogueRetroAdapter{p: p}
+
+	retroRunner, err := retro.NewRetroWithProvider(adapter, r.gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating retro runner: %w", err)
+	}
+
+	result, err := retroRunner.Run(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("running retro: %w", err)
+	}
+
+	// Parse and apply proposals
+	proposals, err := retro.ParseProposals(result.Analysis)
+	if err != nil {
+		r.log("Warning: parsing retro proposals failed: %v", err)
+	} else {
+		lf, lfErr := learnings.NewFile(r.gromitDir)
+		if lfErr == nil {
+			if loadErr := lf.Load(); loadErr == nil {
+				rulesPath := filepath.Join(r.gromitDir, "RULES.md")
+				if applyErr := retro.ApplyProposals(proposals, lf, rulesPath); applyErr != nil {
+					r.log("Warning: applying retro proposals failed: %v", applyErr)
+				}
+			}
+		}
+	}
+
+	// Record retro in state
+	sf := r.stateFile
+	if sf == nil {
+		sf, err = state.NewFile(r.gromitDir)
+		if err != nil {
+			r.log("Warning: creating state file for retro recording: %v", err)
+			return nil
+		}
+		if err := sf.Load(); err != nil {
+			r.log("Warning: loading state for retro recording: %v", err)
+		}
+	}
+	if err := sf.RecordRetro(); err != nil {
+		r.log("Warning: recording retro in state failed: %v", err)
+	}
+
 	return nil
+}
+
+// epilogueRetroAdapter wraps a provider.Provider to satisfy retro.ProviderRunner.
+type epilogueRetroAdapter struct {
+	p provider.Provider
+}
+
+func (a *epilogueRetroAdapter) Run(ctx context.Context, promptText string, tier string) (*provider.Result, error) {
+	return a.p.Run(ctx, promptText, tier)
+}
+
+func (a *epilogueRetroAdapter) StreamRun(ctx context.Context, promptText string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return a.p.StreamRun(ctx, promptText, tier, output, handler, onToolCall)
 }

@@ -3,11 +3,14 @@ package runner
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 // newEpilogueTestRunner returns a minimal Runner suitable for epilogue tests.
@@ -139,6 +142,81 @@ func TestRunTestFixLoop_RetriesOnFailureAndCreatesBeadOnExhaustion(t *testing.T)
 	}
 	if !found {
 		t.Errorf("created bead labels = %v, want to contain 'from-epilogue'", createdBeads[0].labels)
+	}
+}
+
+// --- runEpilogueRetro ---
+
+func TestRunEpilogueRetro_SkipsWhenRouterNil(t *testing.T) {
+	// When router is nil, runEpilogueRetro should return nil without panicking.
+	cfg := &config.Config{}
+	cfg.Session.Iterations = 1
+	r := newEpilogueTestRunner(t, cfg)
+	r.router = nil
+	r.gromitDir = t.TempDir()
+
+	err := r.runEpilogueRetro(context.Background())
+	if err != nil {
+		t.Fatalf("runEpilogueRetro() error = %v, want nil", err)
+	}
+}
+
+func TestRunEpilogueRetro_RecordsInState(t *testing.T) {
+	// When retro runs successfully, the state file should have LastRetro updated.
+	dir := t.TempDir()
+	// Create minimal .gromit structure needed for retro
+	if err := os.MkdirAll(filepath.Join(dir, "templates"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Write a minimal retro template
+	retroTemplate := `Rules: {{.Rules}}
+Learnings: {{.Learnings}}`
+	if err := os.WriteFile(filepath.Join(dir, "templates", "PROMPT_retro.md"), []byte(retroTemplate), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Write empty RULES.md
+	if err := os.WriteFile(filepath.Join(dir, "RULES.md"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Session.Iterations = 1
+	r := newEpilogueTestRunner(t, cfg)
+	r.gromitDir = dir
+
+	// Set up mock router that returns a provider returning valid retro output
+	r.router = newMockRouter()
+
+	// Wire a state file
+	sf, _ := state.NewFile(dir)
+	r.stateFile = sf
+
+	err := r.runEpilogueRetro(context.Background())
+	if err != nil {
+		t.Fatalf("runEpilogueRetro() error = %v, want nil", err)
+	}
+
+	// Reload state and verify retro was recorded
+	sf2, _ := state.NewFile(dir)
+	if loadErr := sf2.Load(); loadErr != nil {
+		t.Fatalf("loading state: %v", loadErr)
+	}
+	if sf2.LastRetro().IsZero() {
+		t.Error("runEpilogueRetro() did not record retro in state (LastRetro is zero)")
+	}
+}
+
+// --- runEpilogueReview ---
+
+func TestRunEpilogueReview_SkipsWhenReviewerNil(t *testing.T) {
+	// When reviewer is nil, runEpilogueReview should return nil without panicking.
+	cfg := &config.Config{}
+	r := newEpilogueTestRunner(t, cfg)
+	r.reviewer = nil
+
+	err := r.runEpilogueReview(context.Background(), &runLoopState{})
+	if err != nil {
+		t.Fatalf("runEpilogueReview() error = %v, want nil", err)
 	}
 }
 
