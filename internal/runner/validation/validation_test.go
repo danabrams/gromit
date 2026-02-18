@@ -953,6 +953,67 @@ func TestRunWithRecoveryForCommands_ExecuteFnHonorsPhaseDeadline(t *testing.T) {
 	}
 }
 
+func TestRunWithRecoveryForCommands_PhaseTimeoutCapsCommandTimeout(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./..."}
+	cfg.Validation.CommandTimeout = 10 * time.Second
+	cfg.Validation.MaxValidationRetries = 1
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		<-ctx.Done()
+		return "", "", 0, ctx.Err()
+	}
+
+	executeCalled := false
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+		executeCalled = true
+		return false
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, executeFn)
+	bc := newTestBeadContext()
+
+	phaseCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	err := r.RunWithRecoveryForCommands(phaseCtx, bc, cfg.Validation.Commands, "fast")
+	if err == nil {
+		t.Fatal("expected phase deadline error")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded from phase timeout cap, got: %v", err)
+	}
+	if executeCalled {
+		t.Fatal("executeFn should not run when initial validation fails due to phase timeout cap")
+	}
+}
+
+func TestRunWithRecoveryForCommands_CommandTimeoutPreservedWithinPhaseBudget(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./..."}
+	cfg.Validation.CommandTimeout = 20 * time.Millisecond
+	cfg.Validation.MaxValidationRetries = 0
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		<-ctx.Done()
+		return "", "", 0, ctx.Err()
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	bc := newTestBeadContext()
+
+	phaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := r.RunWithRecoveryForCommands(phaseCtx, bc, cfg.Validation.Commands, "fast")
+	if !errors.Is(err, ErrValidationFailed) {
+		t.Fatalf("expected ErrValidationFailed for command timeout, got: %v", err)
+	}
+	if !strings.Contains(bc.Result.Output, "Command timed out: go test ./...") {
+		t.Fatalf("expected command-timeout output, got: %q", bc.Result.Output)
+	}
+}
+
 // TestRunWithRecoveryForCommands_TruncatesLargeOutput verifies that when a
 // validation command fails with very large stdout/stderr, the output appended
 // to bc.Result.Output is capped at ~50KB to prevent context bloat.

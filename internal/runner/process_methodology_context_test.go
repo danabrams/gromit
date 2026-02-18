@@ -405,6 +405,129 @@ func TestExecuteBuildLoop_MethodologyValidationUsesPhaseContext(t *testing.T) {
 	}
 }
 
+func TestExecuteBuildLoop_MethodologyValidationPhaseClampedByRunDeadline(t *testing.T) {
+	var firstCallCtxDeadline time.Time
+	var firstCallCtxHadDeadline bool
+	callCount := 0
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		callCount++
+		if callCount == 1 {
+			firstCallCtxDeadline, firstCallCtxHadDeadline = ctx.Deadline()
+		}
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Methodology.TDD = true
+	r.cfg.Validation.PhaseTimeoutSeconds = 180
+	// Disable validation in runRefactorAndPostChecks so only the intermediate gate runs.
+	r.cfg.Refactor.MinFilesChanged = 999
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-val-gate-clamp", Title: "Test Validation Gate Clamp"},
+		Tier:        provider.TierMedium,
+		StartCommit: "abc123",
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		RunDeadline: time.Now().Add(35 * time.Second),
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	beadCtx := context.Background()
+	r.methodologyExec = r.makeMethodologyExec()
+	r.validationRunner = validation.NewRunner(r.cfg, cmdRunner, nil, nil)
+
+	result := r.executeBuildAndMethodologyLoop(
+		beadCtx, bc,
+		false, true,
+		func() bool { return true },
+	)
+
+	if !result.Success {
+		if result.Error != nil {
+			t.Fatalf("expected success, got error: %v", result.Error)
+		}
+		t.Fatal("expected success")
+	}
+	if !firstCallCtxHadDeadline {
+		t.Fatal("intermediate validation should have a deadline")
+	}
+	untilDeadline := time.Until(firstCallCtxDeadline)
+	if untilDeadline < 20*time.Second || untilDeadline > 40*time.Second {
+		t.Fatalf("validation gate context deadline unexpected: %v remaining (want ~35s clamp)", untilDeadline.Round(time.Second))
+	}
+}
+
+func TestRunRefactorAndPostChecks_ValidationPhaseClampedByRunDeadline(t *testing.T) {
+	var validationCtxDeadline time.Time
+	var validationCtxHadDeadline bool
+	validationCalls := 0
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		validationCalls++
+		if validationCalls == 1 {
+			validationCtxDeadline, validationCtxHadDeadline = ctx.Deadline()
+		}
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{
+		RefactorSeconds: 120,
+	}
+	r.cfg.Validation.PhaseTimeoutSeconds = 180
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			return "diff --git a/a.go b/a.go\n+line", nil
+		},
+		func(ctx *prompt.Context) (string, error) {
+			return "refactor prompt", nil
+		},
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			return &claude.Result{Success: true}, nil
+		},
+		nil,
+		func(commit string) error { return nil },
+		func() (string, error) { return "abc123", nil },
+	))
+
+	bc := &runtypes.BeadContext{
+		Tier:        provider.TierMedium,
+		StartCommit: "abc123",
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		RunDeadline: time.Now().Add(35 * time.Second),
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal != nil {
+		t.Fatalf("expected no terminal result, got: %+v", terminal)
+	}
+	if validationCalls == 0 {
+		t.Fatal("expected post-refactor validation to run")
+	}
+	if !validationCtxHadDeadline {
+		t.Fatal("post-refactor validation should have a deadline")
+	}
+	untilDeadline := time.Until(validationCtxDeadline)
+	if untilDeadline < 20*time.Second || untilDeadline > 40*time.Second {
+		t.Fatalf("post-refactor validation context deadline unexpected: %v remaining (want ~35s clamp)", untilDeadline.Round(time.Second))
+	}
+}
+
 func TestRunATDDPreBuildPhases_UsesRedPhaseContext(t *testing.T) {
 	// Verify that ATDD pre-build phases use a red-phase context with a deadline
 	// from the configured phase timeout, even when the bead context is canceled.
