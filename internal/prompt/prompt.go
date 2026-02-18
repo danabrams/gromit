@@ -16,6 +16,10 @@ import (
 const (
 	promptPhaseBuild  = "build"
 	promptPhaseReview = "review"
+
+	// Phase annotation delimiters in RULES.md section headers.
+	phaseAnnotationPrefix = "<!-- phases:"
+	phaseAnnotationSuffix = "-->"
 )
 
 // Context holds all data available to prompt templates
@@ -574,17 +578,15 @@ func filterRulesByPhase(content, phase string) string {
 // parsePhaseAnnotation extracts phase names from a <!-- phases: build, review --> comment
 // in a header line. Returns nil if no annotation is found (meaning all phases).
 func parsePhaseAnnotation(headerLine string) []string {
-	const prefix = "<!-- phases:"
-	const suffix = "-->"
-	idx := strings.Index(headerLine, prefix)
+	idx := strings.Index(headerLine, phaseAnnotationPrefix)
 	if idx < 0 {
 		return nil
 	}
-	endIdx := strings.Index(headerLine[idx:], suffix)
+	endIdx := strings.Index(headerLine[idx:], phaseAnnotationSuffix)
 	if endIdx < 0 {
 		return nil
 	}
-	phaseStr := headerLine[idx+len(prefix) : idx+endIdx]
+	phaseStr := headerLine[idx+len(phaseAnnotationPrefix) : idx+endIdx]
 	parts := strings.Split(phaseStr, ",")
 	var phases []string
 	for _, p := range parts {
@@ -612,19 +614,17 @@ func sectionMatchesPhase(phases []string, phase string) bool {
 
 // stripPhaseAnnotation removes the <!-- phases: ... --> comment from a header line.
 func stripPhaseAnnotation(headerLine string) string {
-	const prefix = "<!-- phases:"
-	idx := strings.Index(headerLine, prefix)
+	idx := strings.Index(headerLine, phaseAnnotationPrefix)
 	if idx < 0 {
 		return headerLine
 	}
-	const suffix = "-->"
-	endIdx := strings.Index(headerLine[idx:], suffix)
+	endIdx := strings.Index(headerLine[idx:], phaseAnnotationSuffix)
 	if endIdx < 0 {
 		return headerLine
 	}
 	// Strip the annotation and any trailing whitespace
 	before := strings.TrimRight(headerLine[:idx], " ")
-	after := headerLine[idx+endIdx+len(suffix):]
+	after := headerLine[idx+endIdx+len(phaseAnnotationSuffix):]
 	return before + after
 }
 

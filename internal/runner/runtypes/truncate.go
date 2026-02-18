@@ -2,6 +2,7 @@ package runtypes
 
 const (
 	maxOutputBytes         = 50 * 1024 // 50KB
+	truncatedOutputMarker  = "...[output truncated - showing last 50KB]...\n"
 	ValidationOutputHeader = "\n\n=== VALIDATION OUTPUT ===\n"
 )
 
@@ -12,7 +13,6 @@ func TruncateOutput(output string) string {
 	if len(output) <= maxOutputBytes {
 		return output
 	}
-	const marker = "...[output truncated - showing last 50KB]...\n"
 	tail := output[len(output)-maxOutputBytes:]
-	return marker + tail
+	return truncatedOutputMarker + tail
 }

@@ -210,7 +210,7 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 
 	// Step 6: truncate Spec with head/tail + marker
 	if shaped.Spec != "" {
-		if truncated, ok := truncateSpecForBudget(shaped.Spec, measureContext(shaped), maxChars); ok {
+		if truncated, ok := truncateFieldForBudget(shaped.Spec, measureContext(shaped), maxChars); ok {
 			shaped.Spec = truncated
 			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
 		}
@@ -254,7 +254,7 @@ func maybePhaseFilterRules(rules, phase string, requireNonEmpty bool) (string, b
 	return filtered, true
 }
 
-func truncateSpecForBudget(spec string, currentChars, maxChars int) (string, bool) {
+func truncateFieldForBudget(spec string, currentChars, maxChars int) (string, bool) {
 	excess := currentChars - maxChars
 	targetLen := len(spec) - excess
 	if targetLen <= 0 {
@@ -362,7 +362,7 @@ func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string)
 
 	// Step 3: truncate Spec
 	if shaped.Spec != "" {
-		if truncated, ok := truncateSpecForBudget(shaped.Spec, measureReviewContext(shaped), maxChars); ok {
+		if truncated, ok := truncateFieldForBudget(shaped.Spec, measureReviewContext(shaped), maxChars); ok {
 			shaped.Spec = truncated
 			report.TrimActions = append(report.TrimActions, trimTruncateSpec)
 		}
@@ -444,7 +444,7 @@ func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars in
 
 	// Step 3: truncate Diff
 	if shaped.Diff != "" {
-		if truncated, ok := truncateSpecForBudget(shaped.Diff, measureThoroughReviewContext(shaped), maxChars); ok {
+		if truncated, ok := truncateFieldForBudget(shaped.Diff, measureThoroughReviewContext(shaped), maxChars); ok {
 			shaped.Diff = truncated
 			report.TrimActions = append(report.TrimActions, trimTruncateDiff)
 		}
