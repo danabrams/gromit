@@ -2746,6 +2746,32 @@ func TestSetupBeadContext_SetsSpecIDFromLabel(t *testing.T) {
 	}
 }
 
+func TestSetupBeadContext_SpecIDEmptyWhenNoSpecLabel(t *testing.T) {
+	r := &Runner{
+		cfg: &config.Config{
+			Claude: config.ClaudeConfig{BeadTimeout: 300},
+		},
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
+		output:   &strings.Builder{},
+		router:   newMockRouter(),
+		gitHeadFn: func() (string, error) {
+			return "abc123", nil
+		},
+	}
+	b := &bead.Bead{ID: "test-no-spec", Title: "No Spec Test", Priority: 1, Labels: []string{"priority:1", "type:task"}}
+
+	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer cancel()
+
+	if bc.Result.SpecID != "" {
+		t.Errorf("SpecID = %q, want empty string", bc.Result.SpecID)
+	}
+}
+
 func TestProcessBead_FilesTouched(t *testing.T) {
 	mockClaude := &mockClaudeClient{
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
