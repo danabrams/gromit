@@ -2,51 +2,51 @@
 id: graceful-stop
 source_ideas: []
 created: 2026-02-13
+updated: 2026-02-18
 ---
 
-# Graceful Stop: Two-Stage Ctrl+C
+# Graceful Stop via SIGQUIT
 
 ## Specification
 
-Pressing Ctrl+C during `gromit run` stops the loop after the current bead finishes. A second Ctrl+C forces an immediate stop. This replaces the current behavior where the first Ctrl+C cancels the context and interrupts the in-flight Claude invocation.
+Pressing Ctrl+\ (SIGQUIT) during `gromit run` finishes the current bead, then exits the loop. Ctrl+C (SIGINT) keeps its current behavior: cancel the context and stop immediately.
 
-A `stopCh chan struct{}` carries the graceful stop signal from the signal handler in `main.go` to the runner loop. The channel decouples signal handling (CLI concern) from loop control (runner concern), keeping OS signals out of the runner package and making the behavior easy to test.
+A `stopCh chan struct{}` carries the graceful-stop signal from the signal handler in `main.go` to the runner loop. The channel decouples signal handling (CLI concern) from loop control (runner concern), keeping OS signals out of the runner package and making the behavior easy to test.
 
-**First Ctrl+C:** Closes `stopCh`. Prints `Finishing current bead then stopping (Ctrl+C again to force quit)` to stderr. The context stays live, so the in-flight bead runs to completion — build, validate, review, and all phases.
+**Ctrl+\ (SIGQUIT):** Closes `stopCh`. Prints `Graceful stop requested — will exit after current bead completes` to stderr. The context stays live, so the in-flight bead runs to completion through all its phases. Repeated SIGQUIT signals are ignored (the channel is already closed).
 
-**Second Ctrl+C:** Cancels the context. Kills the in-flight Claude process immediately (current behavior).
+**Ctrl+C (SIGINT) / SIGTERM:** Cancels the context and kills the in-flight Claude process immediately. No change from current behavior.
 
 ## Acceptance Criteria
 
-- First Ctrl+C during a running bead prints the graceful-stop message and lets the bead finish
+- SIGQUIT during a running bead prints the graceful-stop message and lets the bead finish all phases
 - After the bead finishes, the loop exits through the normal cleanup path (stats, clean-exit marker, retro suggestion)
-- Second Ctrl+C cancels the context and stops immediately
-- When no Ctrl+C is pressed, behavior is identical to today
+- SIGINT/SIGTERM cancel the context and stop immediately, unchanged from today
+- Repeated SIGQUIT after the first has no effect
+- When no signal is sent, behavior is identical to today
 
 ## Decisions
 
-1. **Two-stage Ctrl+C, not a separate signal** — Users already reach for Ctrl+C. SIGUSR1 requires a second terminal and knowledge of the PID. A sentinel file requires manual cleanup. A stdin keypress listener conflicts with Claude's terminal usage.
+1. **Separate signal (SIGQUIT), not two-stage Ctrl+C** — Using a distinct signal avoids changing the meaning of the first Ctrl+C. Users who press Ctrl+C expect immediate cancellation; redefining it as "graceful stop" violates that expectation. Ctrl+\ is a standard Unix signal that users can discover, and it keeps the two intents — "stop soon" and "stop now" — on separate keys.
 
-2. **Stop channel, not atomic flag** — A channel integrates naturally with Go's `select` statement and matches the existing `ctx.Done()` pattern in the loop. It also prevents the runner from needing a reference to the signal handler's state.
+2. **Stop channel, not atomic flag** — A channel integrates with Go's `select` and matches the existing `ctx.Done()` pattern. It also keeps the runner independent of the signal handler's state.
 
-3. **Signal handling stays in main.go** — The runner shouldn't know about OS signals. The channel abstraction lets tests close `stopCh` directly without signal machinery.
+3. **Signal handling stays in main.go** — The runner should not know about OS signals. The channel abstraction lets tests close `stopCh` directly without signal machinery.
 
-4. **Finish the entire bead, not just the current phase** — Stopping between phases (e.g., after build but before validate) leaves the bead in an ambiguous state. Completing all phases ensures the bead is either fully done or fully not started.
+4. **Finish the entire bead, not just the current phase** — Stopping between phases (e.g., after build but before validate) leaves the bead in an ambiguous state. Completing all phases ensures each bead is either fully done or fully not started.
+
+5. **Ignore repeated SIGQUIT** — Once `stopCh` is closed, the stop is already pending. A second Ctrl+\ needs no action. Users who want immediate termination can press Ctrl+C.
 
 ## Research & Context
 
 ### Current State
 
-The signal handler lives in `cmd/gromit/main.go:134-143`. It listens for one SIGINT/SIGTERM, prints a message, and calls `cancel()` on the context. This cancellation propagates through the entire context chain — including the per-bead timeout context — so it interrupts the current Claude invocation rather than waiting for it.
+The signal handler lives in `cmd/gromit/main.go:142-148`. It listens for SIGINT/SIGTERM, prints a message, and calls `cancel()` on the context.
 
-The main loop in `internal/runner/runner.go:438-694` checks `ctx.Done()` at the top of each iteration (line 439-445). Five stop conditions are checked between iterations: context cancellation, max iterations, time budget, no work, and stuck beads.
-
-`Run()` signature is `func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time, dryRun bool) error`.
+`Run()` already accepts a `stopCh <-chan struct{}` parameter, and `shouldStopLoop()` already checks it with a non-blocking select. However, `main.go` passes `nil` for this parameter today.
 
 ### Changes Required
 
-**`cmd/gromit/main.go`** — Replace the signal handler goroutine. Create `stopCh`, pass it to `Run()`. First SIGINT closes the channel; second SIGINT calls `cancel()`.
+**`cmd/gromit/main.go`** — Add a second `signal.Notify` for `syscall.SIGQUIT`. Create `stopCh := make(chan struct{})`. In the SIGQUIT handler goroutine, close the channel and print the message. Pass `stopCh` to `r.Run()` instead of `nil`. SIGINT/SIGTERM handling stays unchanged.
 
-**`internal/runner/runner.go`** — Add `stopCh <-chan struct{}` parameter to `Run()`. Add a `select` case for `stopCh` alongside the existing `ctx.Done()` check at the top of the loop. Label the for-loop so `break` exits it from inside the select.
-
-**Tests calling `Run()`** — Pass `nil` or a fresh channel for the new parameter. A `nil` channel never fires, preserving current behavior.
+No changes needed in the runner package — the `stopCh` plumbing already works.

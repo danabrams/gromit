@@ -1,13 +1,13 @@
 {
   "last_retro": "2026-02-18T01:54:47.64588387Z",
-  "iterations_since_review": 28,
-  "clean_exit": false,
-  "updated_at": "2026-02-18T17:59:05.325084355Z",
+  "iterations_since_review": 30,
+  "clean_exit": true,
+  "updated_at": "2026-02-18T18:38:15.130376545Z",
   "filtered_learning_hashes": [
-    "e127b09501874d4e"
+    "7fd0bdbc090365ca"
   ],
   "provider_counts": {
-    "claude": 76,
-    "openai": 113
+    "claude": 78,
+    "openai": 117
   }
 }
