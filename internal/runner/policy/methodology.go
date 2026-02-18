@@ -1,0 +1,74 @@
+package policy
+
+import (
+	"time"
+
+	"github.com/danabrams/gromit/internal/config"
+)
+
+// MethodologyPolicy decides methodology activation, phase timeouts, deadline
+// guards, and post-success deferral.
+type MethodologyPolicy interface {
+	IsActive(labels []string, methodology string) bool
+	PhaseTimeout(phase string, beadTimeoutSec int) int
+	MinRefactorBudget() time.Duration
+	MinRevalidationBudget() time.Duration
+	ShouldDeferPostSuccess(atddActive, tddActive bool) bool
+}
+
+// ConfigMethodologyPolicy implements MethodologyPolicy backed by *config.Config.
+type ConfigMethodologyPolicy struct {
+	cfg *config.Config
+}
+
+var _ MethodologyPolicy = (*ConfigMethodologyPolicy)(nil)
+
+// NewConfigMethodologyPolicy returns a MethodologyPolicy backed by cfg.
+func NewConfigMethodologyPolicy(cfg *config.Config) MethodologyPolicy {
+	return &ConfigMethodologyPolicy{cfg: cfg}
+}
+
+// IsActive checks whether the named methodology is active for the given bead
+// labels, falling back to the global config default when no label overrides it.
+func (p *ConfigMethodologyPolicy) IsActive(labels []string, methodology string) bool {
+	trueLabel := methodology + ":true"
+	falseLabel := methodology + ":false"
+	for _, label := range labels {
+		if label == trueLabel {
+			return true
+		}
+		if label == falseLabel {
+			return false
+		}
+	}
+	switch methodology {
+	case "atdd":
+		return p.cfg.Methodology.ATDD
+	case "tdd":
+		return p.cfg.Methodology.TDD
+	}
+	return false
+}
+
+// PhaseTimeout delegates to the config methodology phase timeout resolver.
+func (p *ConfigMethodologyPolicy) PhaseTimeout(phase string, beadTimeoutSec int) int {
+	return p.cfg.Methodology.ResolvePhaseTimeoutSeconds(phase, beadTimeoutSec)
+}
+
+// MinRefactorBudget returns the minimum remaining bead budget required to start
+// the refactor phase (matches the minRefactorTime constant).
+func (p *ConfigMethodologyPolicy) MinRefactorBudget() time.Duration {
+	return 60 * time.Second
+}
+
+// MinRevalidationBudget returns the minimum remaining bead budget required to
+// run post-refactor re-validation (matches the minRevalidationTime constant).
+func (p *ConfigMethodologyPolicy) MinRevalidationBudget() time.Duration {
+	return 30 * time.Second
+}
+
+// ShouldDeferPostSuccess returns true when neither atdd nor tdd is active,
+// meaning post-success stages (review/learning) should run immediately.
+func (p *ConfigMethodologyPolicy) ShouldDeferPostSuccess(atddActive, tddActive bool) bool {
+	return !atddActive && !tddActive
+}
