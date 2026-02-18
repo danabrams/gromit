@@ -91,15 +91,16 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, stats, _, _, err := r.executeClaudeInvocation(ctx, bc)
+	invResult, err := r.executeClaudeInvocation(ctx, bc)
 	if err != nil {
 		t.Fatalf("executeClaudeInvocation failed: %v", err)
 	}
 
 	// Verify stats captured rate limit recovery
-	if stats == nil {
-		t.Fatal("expected stats to be non-nil")
+	if invResult == nil || invResult.Stats == nil {
+		t.Fatal("expected invResult.Stats to be non-nil")
 	}
+	stats := invResult.Stats
 
 	// Verify DiagnosticSnapshot returns recovery time
 	_, _, _, _, _, recoveryMs := stats.DiagnosticSnapshot()
@@ -172,7 +173,7 @@ func TestExecuteClaudeInvocation_ZeroRecoveryMsWhenNoRateLimit(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, _, _, _, err := r.executeClaudeInvocation(ctx, bc)
+	_, err := r.executeClaudeInvocation(ctx, bc)
 	if err != nil {
 		t.Fatalf("executeClaudeInvocation failed: %v", err)
 	}

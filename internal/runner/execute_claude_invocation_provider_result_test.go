@@ -11,7 +11,6 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-// Expected failure: executeClaudeInvocation does not return provider.Result yet
 func TestExecuteClaudeInvocation_ReturnsProviderResult(t *testing.T) {
 	var buf bytes.Buffer
 	expected := &provider.Result{
@@ -42,23 +41,26 @@ func TestExecuteClaudeInvocation_ReturnsProviderResult(t *testing.T) {
 		ParentCtx:   context.Background(),
 	}
 
-	claudeResult, stats, providerResult, stallFired, err := r.executeClaudeInvocation(context.Background(), bc)
+	invResult, err := r.executeClaudeInvocation(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if claudeResult == nil {
-		t.Fatal("expected non-nil claude result")
+	if invResult == nil {
+		t.Fatal("expected non-nil InvocationResult")
 	}
-	if stats == nil {
-		t.Fatal("expected non-nil stream stats")
+	if invResult.Result == nil {
+		t.Fatal("expected non-nil invResult.Result")
 	}
-	if stallFired {
-		t.Fatal("expected stallFired=false")
+	if invResult.Stats == nil {
+		t.Fatal("expected non-nil invResult.Stats")
 	}
-	if providerResult == nil {
+	if invResult.StallFired {
+		t.Fatal("expected StallFired=false")
+	}
+	if invResult.ProviderResult == nil {
 		t.Fatal("expected non-nil provider result")
 	}
-	if providerResult != expected {
-		t.Fatalf("provider result = %+v, want %+v", providerResult, expected)
+	if invResult.ProviderResult != expected {
+		t.Fatalf("provider result = %+v, want %+v", invResult.ProviderResult, expected)
 	}
 }

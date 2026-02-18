@@ -2154,17 +2154,17 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 		BuildPrompt: "test prompt",
 	}
 
-	claudeResult, stats, _, stallFired, err := r.executeClaudeInvocation(context.Background(), bc)
+	invResult, err := r.executeClaudeInvocation(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if claudeResult == nil {
+	if invResult == nil || invResult.Result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if stallFired {
+	if invResult.StallFired {
 		t.Error("expected stallFired=false")
 	}
-	if stats == nil {
+	if invResult.Stats == nil {
 		t.Fatal("expected non-nil stats")
 	}
 
