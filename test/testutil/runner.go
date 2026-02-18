@@ -38,13 +38,7 @@ func RunGromitHelperProcessWithStdin(ctx context.Context, binary, dir string, en
 
 func runWithStdin(ctx context.Context, binary, dir string, environ []string, stdin string, args ...string) (stdout, stderr string, exitCode int, err error) {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return nil
-		}
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
+	setProcessGroupCancellation(cmd)
 
 	// Only set Dir if non-empty
 	if dir != "" {
@@ -86,6 +80,17 @@ func runWithStdin(ctx context.Context, binary, dir string, environ []string, std
 	}
 
 	return stdout, stderr, exitCode, err
+}
+
+func setProcessGroupCancellation(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		// Negative PID targets the process group so child processes are terminated too.
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 }
 
 // ReplaceOrAppend replaces an environment variable in the env slice,
