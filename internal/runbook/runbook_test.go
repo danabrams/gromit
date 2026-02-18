@@ -81,3 +81,31 @@ func TestListFiltersByTTL(t *testing.T) {
 		t.Fatalf("expected most recent entry to remain")
 	}
 }
+
+func TestCleanupRemovesExpiredEntries(t *testing.T) {
+	gromitDir := t.TempDir()
+	entries := []Entry{
+		{ID: "rb-1-beads-abc", Timestamp: time.Now().Add(-48 * time.Hour)},
+		{ID: "rb-2-beads-def", Timestamp: time.Now().Add(-2 * time.Hour)},
+	}
+	for _, entry := range entries {
+		if err := Append(gromitDir, entry); err != nil {
+			t.Fatalf("append failed: %v", err)
+		}
+	}
+
+	if err := Cleanup(gromitDir, 1); err != nil {
+		t.Fatalf("cleanup failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(gromitDir, "runbooks.jsonl"))
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	if strings.Contains(string(data), "rb-1-beads-abc") {
+		t.Fatalf("expected expired entry to be removed")
+	}
+	if !strings.Contains(string(data), "rb-2-beads-def") {
+		t.Fatalf("expected recent entry to remain")
+	}
+}

@@ -111,3 +111,30 @@ func List(gromitDir string, ttlDays int) ([]Entry, error) {
 
 	return entries, nil
 }
+
+// Cleanup rewrites the runbook file without expired entries.
+func Cleanup(gromitDir string, ttlDays int) error {
+	entries, err := List(gromitDir, ttlDays)
+	if err != nil {
+		return fmt.Errorf("loading runbook entries: %w", err)
+	}
+
+	path := filepath.Join(gromitDir, "runbooks.jsonl")
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+	if err != nil {
+		return fmt.Errorf("opening runbook file: %w", err)
+	}
+	defer file.Close()
+
+	for _, entry := range entries {
+		data, err := json.Marshal(entry)
+		if err != nil {
+			return fmt.Errorf("marshaling runbook entry: %w", err)
+		}
+		if _, err := file.Write(append(data, '\n')); err != nil {
+			return fmt.Errorf("writing runbook entry: %w", err)
+		}
+	}
+
+	return nil
+}
