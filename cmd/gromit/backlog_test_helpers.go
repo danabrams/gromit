@@ -55,25 +55,3 @@ func containsAny(text string, substrs ...string) bool {
 	}
 	return false
 }
-
-// findProjectRoot walks up from the current directory to find the project root
-// (identified by the presence of gromit.yaml or .gromit/ directory).
-func findProjectRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "gromit.yaml")); err == nil {
-			return dir, nil
-		}
-		if _, err := os.Stat(filepath.Join(dir, ".gromit")); err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", os.ErrNotExist
-		}
-		dir = parent
-	}
-}

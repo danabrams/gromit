@@ -99,6 +99,9 @@ within that scope. Without either flag, all beads are included (default behavior
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "gromit.yaml", "Path to config file")
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		return ensureRepoRoot()
+	}
 
 	runCmd.Flags().IntVarP(&maxIterations, "max-iterations", "n", 0, "Maximum iterations (0 = unlimited)")
 	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run without executing")
