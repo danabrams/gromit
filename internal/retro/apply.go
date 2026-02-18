@@ -20,6 +20,11 @@ func ApplyProposals(proposals *Proposals, lf *learnings.File, rulesPath string) 
 			return err
 		}
 	}
+	for _, archive := range proposals.Archives {
+		if err := lf.Archive(archive.LearningHash, archive.Rationale); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

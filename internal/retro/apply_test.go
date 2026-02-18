@@ -3,6 +3,7 @@ package retro
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/learnings"
@@ -118,5 +119,50 @@ func TestApplyProposals_ConsolidationReplacesLearnings(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected consolidated learning in confirmed")
+	}
+}
+
+func TestApplyProposals_ArchivesLearning(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	rulesPath := filepath.Join(tmpDir, "RULES.md")
+	if err := os.WriteFile(rulesPath, []byte("# Rules\n\n## Safety\n\n- Rule A\n"), 0644); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+
+	lf, err := learnings.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("new learnings file: %v", err)
+	}
+	learning, err := lf.Add("bead-1", "Learning one", learnings.CategoryPatterns)
+	if err != nil {
+		t.Fatalf("add learning: %v", err)
+	}
+
+	proposals := &Proposals{
+		Archives: []ArchiveProposal{
+			{
+				LearningHash: learning.Hash,
+				Rationale:    "no longer relevant",
+			},
+		},
+	}
+
+	if err := ApplyProposals(proposals, lf, rulesPath); err != nil {
+		t.Fatalf("apply proposals: %v", err)
+	}
+
+	archivedContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS.md"))
+	if err != nil {
+		t.Fatalf("read learnings file: %v", err)
+	}
+	if !strings.Contains(string(archivedContent), "Learning one") {
+		t.Fatalf("expected archived learning content to remain")
+	}
+	if !strings.Contains(string(archivedContent), "Archived from") {
+		t.Fatalf("expected archive note in learnings file")
+	}
+	if !strings.Contains(string(archivedContent), "no longer relevant") {
+		t.Fatalf("expected archive rationale in learnings file")
 	}
 }
