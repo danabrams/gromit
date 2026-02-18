@@ -13,10 +13,16 @@ var baselineLogPathExistsFn = fileExists
 
 var errBaselineLogPathCollision = errors.New("baseline log path collision")
 
+const (
+	baselineLogDir    = "test-logs"
+	baselineLogPrefix = "refactor-baseline-"
+	baselineLogSuffix = "-1"
+)
+
 func baselineLogPath(now time.Time) (string, error) {
 	timestamp := now.Format("2006-01-02-150405")
-	baseName := fmt.Sprintf("refactor-baseline-%s", timestamp)
-	basePath := filepath.Join("test-logs", baseName+".log")
+	baseName := fmt.Sprintf("%s%s", baselineLogPrefix, timestamp)
+	basePath := baselineLogPathFor(baseName, "")
 
 	exists, err := baselineLogPathExistsFn(basePath)
 	if err != nil {
@@ -26,7 +32,7 @@ func baselineLogPath(now time.Time) (string, error) {
 		return basePath, nil
 	}
 
-	suffixedPath := filepath.Join("test-logs", baseName+"-1.log")
+	suffixedPath := baselineLogPathFor(baseName, baselineLogSuffix)
 	exists, err = baselineLogPathExistsFn(suffixedPath)
 	if err != nil {
 		return "", err
@@ -40,6 +46,10 @@ func baselineLogPath(now time.Time) (string, error) {
 
 func baselineLogPathNow() (string, error) {
 	return baselineLogPath(baselineLogPathNowFn())
+}
+
+func baselineLogPathFor(baseName, suffix string) string {
+	return filepath.Join(baselineLogDir, baseName+suffix+".log")
 }
 
 func fileExists(path string) (bool, error) {
