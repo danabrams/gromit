@@ -42,3 +42,10 @@ func TestSelectGate_ZeroFullEveryNAlwaysReturnsFast(t *testing.T) {
 		}
 	}
 }
+
+func TestMaxRecoveryAttempts_ReturnsTwo(t *testing.T) {
+	p := newConfigValidationPolicy(0)
+	if got := p.MaxRecoveryAttempts(); got != 2 {
+		t.Errorf("MaxRecoveryAttempts: got %d, want 2", got)
+	}
+}
