@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -690,6 +691,11 @@ func newRunnerWithMocks(t *testing.T, cfg *config.Config, deps Deps) (*Runner, *
 	if deps.Logger == nil {
 		deps.Logger = &mockIterationLogger{}
 	}
+	if deps.CmdRunner == nil {
+		deps.CmdRunner = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "", "", 0, nil
+		}
+	}
 
 	var buf strings.Builder
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), deps)
@@ -730,6 +736,24 @@ func TestNewRunnerWithMocksClearsTmuxEnv(t *testing.T) {
 
 	if got := os.Getenv("TMUX"); got != "" {
 		t.Fatalf("expected TMUX env to be cleared, got %q", got)
+	}
+}
+
+func TestNewRunnerWithMocksUsesNoopCmdRunner(t *testing.T) {
+	workDir := t.TempDir()
+	fileName := "noop-runner.txt"
+	filePath := filepath.Join(workDir, fileName)
+
+	r, _ := newRunnerWithMocks(t, &config.Config{}, Deps{})
+
+	if _, _, _, err := r.cmdRunnerFn(context.Background(), "touch "+fileName, workDir); err != nil {
+		t.Fatalf("cmdRunnerFn returned error: %v", err)
+	}
+
+	if _, err := os.Stat(filePath); err == nil {
+		t.Fatalf("expected no file created by noop cmd runner at %s", filePath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("unexpected stat error: %v", err)
 	}
 }
 
