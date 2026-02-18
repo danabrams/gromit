@@ -292,13 +292,17 @@ func wrapRefactorValidationError(err error) error {
 	return fmt.Errorf("validation failed after refactoring: %w", err)
 }
 
+func isTimeoutOrCanceledError(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
 // setPhaseAttribution sets TimeoutPhase on the result when the error is a
 // timeout or cancellation, attributing which phase was active when it occurred.
 func setPhaseAttribution(result *IterationResult, phase string, err error) {
 	if result == nil || err == nil {
 		return
 	}
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+	if isTimeoutOrCanceledError(err) {
 		result.TimeoutPhase = phase
 	}
 }
