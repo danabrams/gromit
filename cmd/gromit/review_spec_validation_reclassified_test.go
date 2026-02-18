@@ -45,7 +45,7 @@ func TestGetSpecBaseCommit_InvalidSpecValidationScenarios(t *testing.T) {
 			}
 			writeSpecFixtures(t, specsDir, tc.existingSpecs)
 
-			_, err := getSpecBaseCommit(tc.requestedSpec, specsDir)
+			_, err := getSpecBaseCommit(mockBeadClientEmptyList(), tc.requestedSpec, specsDir)
 			if err == nil {
 				t.Fatal("getSpecBaseCommit should return error for missing spec")
 			}
@@ -71,7 +71,7 @@ func TestGetSpecBaseCommit_AcceptsSpecsDirParameter(t *testing.T) {
 	// Expected failure: getSpecBaseCommit signature is currently:
 	//   func getSpecBaseCommit(specName string) (string, error)
 	// Expected signature:
-	//   func getSpecBaseCommit(specName string, specsDir string) (string, error)
+	//   func getSpecBaseCommit(beadsClient *bead.Client, specName string, specsDir string) (string, error)
 	//
 	// This test verifies the function signature has been updated to accept specsDir.
 
@@ -95,7 +95,7 @@ created: 2026-02-11
 	}
 
 	// This call should compile with the new signature
-	_, err := getSpecBaseCommit(specName, specsDir)
+	_, err := getSpecBaseCommit(mockBeadClientEmptyList(), specName, specsDir)
 
 	// We expect an error because there are no beads for this spec,
 	// but it should NOT be a validation error
@@ -112,7 +112,7 @@ created: 2026-02-11
 func TestDetermineReviewScope_PassesSpecsDirToGetSpecBaseCommit(t *testing.T) {
 	// Expected failure: determineReviewScope calls getSpecBaseCommit without specsDir parameter
 	// Current call at line 119: return getSpecBaseCommit(reviewSpec)
-	// Expected call: return getSpecBaseCommit(reviewSpec, cfg.Paths.Specs)
+	// Expected call: return getSpecBaseCommit(beadsClient, reviewSpec, cfg.Paths.Specs)
 	//
 	// This test verifies that determineReviewScope correctly passes the specsDir
 	// from config to getSpecBaseCommit.
@@ -148,7 +148,7 @@ created: 2026-02-11
 	reviewEpic = ""
 
 	// Call determineReviewScope - it should pass specsDir to getSpecBaseCommit
-	_, err := determineReviewScope(cfg)
+	_, err := determineReviewScopeWithClient(cfg, mockBeadClientEmptyList())
 
 	// We expect an error because there are no beads for this spec
 	// But the error should NOT be about the spec file not existing
@@ -199,7 +199,7 @@ func TestReviewCommand_SpecValidationBeforeBeadClient(t *testing.T) {
 	}
 
 	// Try with invalid spec name
-	_, err := getSpecBaseCommit("invalid-spec", specsDir)
+	_, err := getSpecBaseCommit(mockBeadClientEmptyList(), "invalid-spec", specsDir)
 	if err == nil {
 		t.Fatal("getSpecBaseCommit with invalid spec should return error")
 	}
@@ -256,13 +256,13 @@ This spec exists but has no beads tagged with it.
 	}
 
 	// Test with existing spec (no beads)
-	_, existingErr := getSpecBaseCommit(specName, specsDir)
+	_, existingErr := getSpecBaseCommit(mockBeadClientEmptyList(), specName, specsDir)
 	if existingErr == nil {
 		t.Fatal("getSpecBaseCommit should return error when spec has no beads")
 	}
 
 	// Test with nonexistent spec
-	_, nonexistentErr := getSpecBaseCommit("does-not-exist", specsDir)
+	_, nonexistentErr := getSpecBaseCommit(mockBeadClientEmptyList(), "does-not-exist", specsDir)
 	if nonexistentErr == nil {
 		t.Fatal("getSpecBaseCommit should return error when spec doesn't exist")
 	}
@@ -335,7 +335,7 @@ func runReviewSpecValidationScenario(t *testing.T, specName string, specFiles []
 	reviewSince = ""
 	reviewEpic = ""
 
-	_, err := determineReviewScope(cfg)
+	_, err := determineReviewScopeWithClient(cfg, mockBeadClientEmptyList())
 	if err == nil {
 		t.Fatal("determineReviewScope should return error for invalid spec")
 	}

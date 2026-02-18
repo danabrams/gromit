@@ -118,7 +118,7 @@ func TestReviewCommandSpecValidation(t *testing.T) {
 	}
 
 	// Test getSpecBaseCommit with nonexistent spec
-	_, err := getSpecBaseCommit("nonexistent", specsDir)
+	_, err := getSpecBaseCommit(mockBeadClientEmptyList(), "nonexistent", specsDir)
 	if err == nil {
 		t.Fatal("getSpecBaseCommit should return error for nonexistent spec")
 	}

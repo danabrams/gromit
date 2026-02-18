@@ -103,6 +103,10 @@ func runReview(cmd *cobra.Command, args []string) error {
 }
 
 func determineReviewScope(cfg *config.Config) (string, error) {
+	return determineReviewScopeWithClient(cfg, nil)
+}
+
+func determineReviewScopeWithClient(cfg *config.Config, beadsClient *bead.Client) (string, error) {
 	// Validate mutual exclusivity of --epic, --spec, and --since
 	if err := scope.ValidateFlags(reviewEpic, reviewSpec, reviewSince); err != nil {
 		return "", err
@@ -115,7 +119,14 @@ func determineReviewScope(cfg *config.Config) (string, error) {
 
 	if reviewSpec != "" {
 		// Find the earliest commit from beads in this spec
-		return getSpecBaseCommit(reviewSpec, cfg.Paths.Specs)
+		if beadsClient == nil {
+			var err error
+			beadsClient, err = bead.NewClient()
+			if err != nil {
+				return "", fmt.Errorf("creating bead client: %w", err)
+			}
+		}
+		return getSpecBaseCommit(beadsClient, reviewSpec, cfg.Paths.Specs)
 	}
 
 	if reviewEpic != "" {
@@ -144,7 +155,10 @@ func determineReviewScope(cfg *config.Config) (string, error) {
 	return fromCommit, nil
 }
 
-func getSpecBaseCommit(specName string, specsDir string) (string, error) {
+func getSpecBaseCommit(beadsClient *bead.Client, specName string, specsDir string) (string, error) {
+	if beadsClient == nil {
+		return "", fmt.Errorf("bead client is nil")
+	}
 	// Validate spec file exists before attempting to resolve
 	if err := scope.ValidateSpec(specsDir, specName); err != nil {
 		return "", err
@@ -157,11 +171,6 @@ func getSpecBaseCommit(specName string, specsDir string) (string, error) {
 	}
 
 	// Get all beads with this label
-	beadsClient, err := bead.NewClient()
-	if err != nil {
-		return "", fmt.Errorf("creating bead client: %w", err)
-	}
-
 	beadsWithLabel, err := beadsClient.ListWithLabel(labels[0])
 	if err != nil {
 		return "", fmt.Errorf("listing beads with label %q: %w", labels[0], err)
