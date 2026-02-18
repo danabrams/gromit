@@ -6,6 +6,14 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 )
 
+const (
+	methodologyATDD = "atdd"
+	methodologyTDD  = "tdd"
+
+	minRefactorBudget    = 60 * time.Second
+	minRevalidationBudget = 30 * time.Second
+)
+
 // MethodologyPolicy decides methodology activation, phase timeouts, deadline
 // guards, and post-success deferral.
 type MethodologyPolicy interface {
@@ -42,9 +50,9 @@ func (p *ConfigMethodologyPolicy) IsActive(labels []string, methodology string) 
 		}
 	}
 	switch methodology {
-	case "atdd":
+	case methodologyATDD:
 		return p.cfg.Methodology.ATDD
-	case "tdd":
+	case methodologyTDD:
 		return p.cfg.Methodology.TDD
 	}
 	return false
@@ -58,13 +66,13 @@ func (p *ConfigMethodologyPolicy) PhaseTimeout(phase string, beadTimeoutSec int)
 // MinRefactorBudget returns the minimum remaining bead budget required to start
 // the refactor phase (matches the minRefactorTime constant).
 func (p *ConfigMethodologyPolicy) MinRefactorBudget() time.Duration {
-	return 60 * time.Second
+	return minRefactorBudget
 }
 
 // MinRevalidationBudget returns the minimum remaining bead budget required to
 // run post-refactor re-validation (matches the minRevalidationTime constant).
 func (p *ConfigMethodologyPolicy) MinRevalidationBudget() time.Duration {
-	return 30 * time.Second
+	return minRevalidationBudget
 }
 
 // ShouldDeferPostSuccess returns true when neither atdd nor tdd is active,
