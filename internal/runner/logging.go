@@ -63,6 +63,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		TrivialAutoFixed:          result.TrivialAutoFixed,
 		UsageLimited:              result.UsageLimited,
 		ValidationMode:            result.ValidationMode,
+		ValidationDurationMs:      result.ValidationDurationMs,
 		CompilationErrors:         result.CompilationErrors,
 		HardStopPendingApproval:   result.HardStopPendingApproval,
 		TimeoutType:               result.TimeoutType,
