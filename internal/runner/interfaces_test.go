@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -665,6 +666,13 @@ func TestNewRunnerWithDeps_ApplesDefaultsToUninitialisedConfig(t *testing.T) {
 func newRunnerWithMocks(t *testing.T, cfg *config.Config, deps Deps) (*Runner, *strings.Builder) {
 	t.Helper()
 
+	if cfg.Paths.Logs == "" {
+		cfg.Paths.Logs = t.TempDir()
+	}
+	if cfg.Preflight.CompileCheck == nil {
+		cfg.Preflight.CompileCheck = boolPtrInterfaces(false)
+	}
+
 	if deps.Beads == nil {
 		deps.Beads = &mockBeadClient{}
 	}
@@ -687,6 +695,30 @@ func newRunnerWithMocks(t *testing.T, cfg *config.Config, deps Deps) (*Runner, *
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 	return r, &buf
+}
+
+func TestNewRunnerWithMocksSetsLogsAndCompileCheck(t *testing.T) {
+	cfg := &config.Config{}
+
+	_, _ = newRunnerWithMocks(t, cfg, Deps{})
+
+	if cfg.Paths.Logs == "" {
+		t.Fatal("expected cfg.Paths.Logs to be set")
+	}
+	info, err := os.Stat(cfg.Paths.Logs)
+	if err != nil {
+		t.Fatalf("expected cfg.Paths.Logs to exist: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatalf("expected cfg.Paths.Logs to be a directory, got %v", info.Mode())
+	}
+
+	if cfg.Preflight.CompileCheck == nil {
+		t.Fatal("expected cfg.Preflight.CompileCheck to be set")
+	}
+	if *cfg.Preflight.CompileCheck {
+		t.Fatal("expected cfg.Preflight.CompileCheck to be false")
+	}
 }
 
 func TestRunWithMocks_DryRun(t *testing.T) {
