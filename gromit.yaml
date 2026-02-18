@@ -216,3 +216,12 @@ paths:
   specs: ".gromit/specs"
   logs: ".gromit/logs"
   project_claude_md: "CLAUDE.md"  # Your project's CLAUDE.md
+
+# Session - per-session overrides for loop behavior and tooling
+# session:
+#   iterations: 0              # Max iterations this session (0 = use loop.max_iterations)
+#   test_command: ""           # Override validation test command for this session
+#   max_fix_retries: 3         # Max auto-fix retries before escalating to Claude
+#   fix_tier: "medium"         # Model tier to use for auto-fix (low, medium, high)
+#   review: true               # Run code review after each bead
+#   retro: true                # Run retrospective at session end
