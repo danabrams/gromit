@@ -1779,6 +1779,45 @@ func TestRunBetweenIterationsCommandSuccessful(t *testing.T) {
 	}
 }
 
+func TestRunBetweenIterationsCommandUsesCmdRunner(t *testing.T) {
+	var buf strings.Builder
+	var called bool
+	r := &Runner{
+		cfg: &config.Config{
+			Loop: config.LoopConfig{
+				BetweenIterationsCommand: "echo 'test output'",
+			},
+		},
+		output: &buf,
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			called = true
+			if command != "echo 'test output'" {
+				t.Fatalf("unexpected command: %q", command)
+			}
+			if workDir != "" {
+				t.Fatalf("expected empty workDir, got: %q", workDir)
+			}
+			if ctx == nil {
+				t.Fatalf("expected non-nil context")
+			}
+			return "stdout output", "stderr output", 0, nil
+		},
+	}
+
+	r.runBetweenIterationsCommand()
+
+	if !called {
+		t.Fatalf("expected cmdRunnerFn to be called")
+	}
+	output := buf.String()
+	if !strings.Contains(output, "stdout output") {
+		t.Fatalf("expected stdout to be logged, got: %s", output)
+	}
+	if !strings.Contains(output, "stderr output") {
+		t.Fatalf("expected stderr to be logged, got: %s", output)
+	}
+}
+
 func TestRunBetweenIterationsCommandFailedWarning(t *testing.T) {
 	var buf strings.Builder
 	r := &Runner{

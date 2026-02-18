@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -369,12 +368,21 @@ func (r *Runner) runBetweenIterationsCommand() {
 	}
 
 	r.log("Running between-iterations command: %s", command)
-	cmd := exec.Command("sh", "-c", command)
-	cmd.Stdout = r.output
-	cmd.Stderr = r.output
-
-	if err := cmd.Run(); err != nil {
+	stdout, stderr, exitCode, err := r.runCmd(context.Background(), command, "")
+	if r.output != nil {
+		if stdout != "" {
+			_, _ = fmt.Fprint(r.output, stdout)
+		}
+		if stderr != "" {
+			_, _ = fmt.Fprint(r.output, stderr)
+		}
+	}
+	if err != nil {
 		r.log("Warning: between-iterations command failed: %v", err)
+		return
+	}
+	if exitCode != 0 {
+		r.log("Warning: between-iterations command failed (exit %d): %s", exitCode, strings.TrimSpace(stderr))
 	}
 }
 

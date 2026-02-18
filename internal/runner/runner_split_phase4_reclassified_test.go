@@ -96,7 +96,6 @@ func verifyRunnerSplitPhase4Layout(t *testing.T) string {
 	phase4MustHaveImport(t, lifecycleImports, "context", "lifecycle.go")
 	phase4MustHaveImport(t, lifecycleImports, "fmt", "lifecycle.go")
 	phase4MustHaveImport(t, lifecycleImports, "os", "lifecycle.go")
-	phase4MustHaveImport(t, lifecycleImports, "os/exec", "lifecycle.go")
 	phase4MustHaveImport(t, lifecycleImports, "path/filepath", "lifecycle.go")
 	phase4MustHaveImport(t, lifecycleImports, "strings", "lifecycle.go")
 	phase4MustHaveImport(t, lifecycleImports, "time", "lifecycle.go")
