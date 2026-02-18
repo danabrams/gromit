@@ -2,6 +2,7 @@ package specgate
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -43,5 +44,38 @@ func TestSynthesizeFixBeads_createsBeadsForFailures(t *testing.T) {
 	}
 	if len(ids) != 1 || ids[0] != "bead-1" {
 		t.Fatalf("SynthesizeFixBeads() ids = %v, want [bead-1]", ids)
+	}
+}
+
+func TestSynthesizeFixBeads_truncatesTitle(t *testing.T) {
+	ctx := context.Background()
+	longTitle := strings.Repeat("a", 85)
+	creator := &fakeBeadCreator{
+		createFn: func(ctx context.Context, title, description, priority string, labels []string) (string, error) {
+			if len(title) != 80 {
+				t.Fatalf("Create title length = %d, want 80", len(title))
+			}
+			if title != strings.Repeat("a", 80) {
+				t.Fatalf("Create title = %q, want %q", title, strings.Repeat("a", 80))
+			}
+			return "bead-1", nil
+		},
+	}
+
+	_, err := SynthesizeFixBeads(ctx, "alpha", []CriterionResult{{Criterion: longTitle, Passed: false}}, "P1", creator)
+	if err != nil {
+		t.Fatalf("SynthesizeFixBeads() error = %v", err)
+	}
+}
+
+func TestSynthesizeFixBeads_noFailures_doesNotRequireCreator(t *testing.T) {
+	ctx := context.Background()
+
+	ids, err := SynthesizeFixBeads(ctx, "alpha", nil, "P1", nil)
+	if err != nil {
+		t.Fatalf("SynthesizeFixBeads() error = %v", err)
+	}
+	if len(ids) != 0 {
+		t.Fatalf("SynthesizeFixBeads() ids = %v, want empty slice", ids)
 	}
 }

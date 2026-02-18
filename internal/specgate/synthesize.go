@@ -13,6 +13,9 @@ type BeadCreator interface {
 
 // SynthesizeFixBeads creates fix beads for failed criteria, capped at five beads.
 func SynthesizeFixBeads(ctx context.Context, specName string, failures []CriterionResult, priority string, creator BeadCreator) ([]string, error) {
+	if len(failures) == 0 {
+		return []string{}, nil
+	}
 	if creator == nil {
 		return nil, errors.New("bead creator is required")
 	}
