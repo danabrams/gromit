@@ -392,6 +392,8 @@ func TestWriteIterationLog_EmitsAndonClassificationAndReliabilitySignals(t *test
 		BeadID:           "gromit-o27x",
 		BeadTitle:        "Add reliability metrics and structured Andon logging",
 		Model:            "sonnet",
+		Provider:         "codex",
+		FailureCategory:  "rate_limited",
 		Success:          false,
 		Duration:         2 * time.Second,
 		Error:            fmt.Errorf("quality gate failed"),
@@ -435,6 +437,12 @@ func TestWriteIterationLog_EmitsAndonClassificationAndReliabilitySignals(t *test
 	}
 	if got := entry["trim_decision"]; got != "middle_ellipsis" {
 		t.Fatalf("trim_decision = %v, want %q", got, "middle_ellipsis")
+	}
+	if got := entry["provider"]; got != "codex" {
+		t.Fatalf("provider = %v, want %q", got, "codex")
+	}
+	if got := entry["failure_category"]; got != "rate_limited" {
+		t.Fatalf("failure_category = %v, want %q", got, "rate_limited")
 	}
 	if got, ok := entry["autonomy_eligible"].(bool); !ok || !got {
 		t.Fatalf("autonomy_eligible = %v, want true", entry["autonomy_eligible"])

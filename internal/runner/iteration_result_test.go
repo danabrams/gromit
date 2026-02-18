@@ -29,3 +29,19 @@ func TestIterationResult_HasValidationDurationMsField(t *testing.T) {
 		t.Errorf("expected ValidationDurationMs=420, got %d", result.ValidationDurationMs)
 	}
 }
+
+func TestIterationResult_HasProviderAndFailureCategoryFields(t *testing.T) {
+	result := &IterationResult{
+		BeadID:          "test-1",
+		Model:           "sonnet",
+		Provider:        "codex",
+		FailureCategory: "rate_limited",
+	}
+
+	if result.Provider != "codex" {
+		t.Errorf("expected Provider=%q, got %q", "codex", result.Provider)
+	}
+	if result.FailureCategory != "rate_limited" {
+		t.Errorf("expected FailureCategory=%q, got %q", "rate_limited", result.FailureCategory)
+	}
+}

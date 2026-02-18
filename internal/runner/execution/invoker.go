@@ -82,6 +82,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	bc.Model = modelName
 	bc.Result.Model = modelName
 	bc.BuildProvider = p.Name()
+	bc.Result.Provider = p.Name()
 	if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
 		bc.Result.EscalatedTo = modelName
 	}
@@ -150,6 +151,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 
 			bc.Model = modelName2
 			bc.Result.Model = modelName2
+			bc.Result.Provider = p2.Name()
 			modelName = modelName2
 
 			providerResult, err = p2.StreamRun(invocationCtx, bc.BuildPrompt, tier, inv.output, providerHandler, providerToolHandler)
@@ -171,6 +173,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 
 	var claudeResult *claude.Result
 	if providerResult != nil {
+		bc.Result.FailureCategory = providerResult.FailureCategory
 		claudeResult = &claude.Result{
 			Success:  providerResult.Success,
 			Output:   providerResult.Output,

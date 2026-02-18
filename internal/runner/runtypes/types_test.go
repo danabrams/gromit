@@ -111,6 +111,8 @@ func TestIterationResult_InRuntypes(t *testing.T) {
 		BeadID:                "bead-42",
 		BeadTitle:             "Add feature X",
 		Model:                 "sonnet",
+		Provider:              "codex",
+		FailureCategory:       "rate_limited",
 		Success:               true,
 		Validated:             true,
 		Duration:              5 * time.Minute,
@@ -155,6 +157,12 @@ func TestIterationResult_InRuntypes(t *testing.T) {
 	}
 	if result.TimeoutType != "stall" {
 		t.Errorf("TimeoutType = %q, want %q", result.TimeoutType, "stall")
+	}
+	if result.Provider != "codex" {
+		t.Errorf("Provider = %q, want %q", result.Provider, "codex")
+	}
+	if result.FailureCategory != "rate_limited" {
+		t.Errorf("FailureCategory = %q, want %q", result.FailureCategory, "rate_limited")
 	}
 	if result.RateLimitHits != 2 {
 		t.Errorf("RateLimitHits = %d, want %d", result.RateLimitHits, 2)

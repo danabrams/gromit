@@ -58,6 +58,8 @@ type IterationResult struct {
 	BeadID                  string
 	BeadTitle               string
 	Model                   string
+	Provider                string `json:"provider,omitempty"`
+	FailureCategory         string `json:"failure_category,omitempty"`
 	Success                 bool
 	Validated               bool
 	Duration                time.Duration

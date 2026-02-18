@@ -18,12 +18,14 @@ func TestBuildContinuousMetrics_FilesTouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := l.LogIteration(&IterationLog{
-		Timestamp:    time.Now(),
-		Iteration:    1,
-		BeadID:       "ft-1",
-		Model:        "sonnet",
-		Success:      true,
-		FilesTouched: 3,
+		Timestamp:       time.Now(),
+		Iteration:       1,
+		BeadID:          "ft-1",
+		Model:           "sonnet",
+		Provider:        "codex",
+		FailureCategory: "rate_limited",
+		Success:         true,
+		FilesTouched:    3,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -46,5 +48,11 @@ func TestBuildContinuousMetrics_FilesTouched(t *testing.T) {
 	}
 	if metric.FilesTouched != 3 {
 		t.Errorf("FilesTouched = %d, want 3", metric.FilesTouched)
+	}
+	if metric.Provider != "codex" {
+		t.Errorf("Provider = %q, want %q", metric.Provider, "codex")
+	}
+	if metric.FailureCategory != "rate_limited" {
+		t.Errorf("FailureCategory = %q, want %q", metric.FailureCategory, "rate_limited")
 	}
 }

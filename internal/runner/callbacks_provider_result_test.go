@@ -72,6 +72,12 @@ func TestMakeInvokeFn_PropagatesProviderResult(t *testing.T) {
 	if result.ProviderResult != expected {
 		t.Fatalf("ProviderResult = %+v, want %+v", result.ProviderResult, expected)
 	}
+	if bc.Result.Provider != "test-provider" {
+		t.Fatalf("bc.Result.Provider = %q, want %q", bc.Result.Provider, "test-provider")
+	}
+	if bc.Result.FailureCategory != "" {
+		t.Fatalf("bc.Result.FailureCategory = %q, want empty on success", bc.Result.FailureCategory)
+	}
 }
 
 // Expected failure: escalation.InvocationResult.ProviderResult does not exist yet
@@ -106,6 +112,12 @@ func TestMakeInvokeFn_PropagatesProviderResult_OnInvocationError(t *testing.T) {
 	if result.ProviderResult != expected {
 		t.Fatalf("ProviderResult = %+v, want %+v", result.ProviderResult, expected)
 	}
+	if bc.Result.Provider != "test-provider" {
+		t.Fatalf("bc.Result.Provider = %q, want %q", bc.Result.Provider, "test-provider")
+	}
+	if bc.Result.FailureCategory != "" {
+		t.Fatalf("bc.Result.FailureCategory = %q, want empty", bc.Result.FailureCategory)
+	}
 }
 
 func TestMakeInvokeFn_DeadlineExceededSetsInvocationTimeout(t *testing.T) {
@@ -125,6 +137,26 @@ func TestMakeInvokeFn_DeadlineExceededSetsInvocationTimeout(t *testing.T) {
 	}
 	if bc.Result.TimeoutType != "invocation" {
 		t.Fatalf("bc.Result.TimeoutType = %q, want %q", bc.Result.TimeoutType, "invocation")
+	}
+}
+
+func TestMakeInvokeFn_PropagatesFailureCategoryToIterationResult(t *testing.T) {
+	expected := &provider.Result{
+		Success:         false,
+		Output:          "provider output",
+		ExitCode:        2,
+		Model:           "test-model",
+		FailureCategory: provider.FailureCategoryTransportDisconnect,
+	}
+
+	invokeFn, bc := setupInvokeFnWithProvider(t, func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		return expected, errors.New("boom")
+	})
+
+	_, _ = invokeFn(context.Background(), bc, "prompt")
+
+	if bc.Result.FailureCategory != provider.FailureCategoryTransportDisconnect {
+		t.Fatalf("bc.Result.FailureCategory = %q, want %q", bc.Result.FailureCategory, provider.FailureCategoryTransportDisconnect)
 	}
 }
 

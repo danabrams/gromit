@@ -49,6 +49,8 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		BeadID:                    result.BeadID,
 		BeadTitle:                 result.BeadTitle,
 		Model:                     result.Model,
+		Provider:                  result.Provider,
+		FailureCategory:           result.FailureCategory,
 		Success:                   result.Success,
 		Validated:                 result.Validated,
 		Escalated:                 result.Escalated,

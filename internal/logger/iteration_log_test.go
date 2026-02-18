@@ -46,3 +46,34 @@ func TestIterationLog_ValidationDurationMsJSONTag(t *testing.T) {
 		t.Fatalf("expected validation_duration_ms to be omitted, got %s", string(emptyData))
 	}
 }
+
+func TestIterationLog_ProviderAndFailureCategoryJSONTags(t *testing.T) {
+	log := &IterationLog{
+		BeadID:          "test-1",
+		Model:           "sonnet",
+		Provider:        "codex",
+		FailureCategory: "rate_limited",
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	if !strings.Contains(string(data), "\"provider\":\"codex\"") {
+		t.Fatalf("expected provider in JSON, got %s", string(data))
+	}
+	if !strings.Contains(string(data), "\"failure_category\":\"rate_limited\"") {
+		t.Fatalf("expected failure_category in JSON, got %s", string(data))
+	}
+
+	emptyData, err := json.Marshal(IterationLog{})
+	if err != nil {
+		t.Fatalf("marshal empty log: %v", err)
+	}
+	if strings.Contains(string(emptyData), "provider") {
+		t.Fatalf("expected provider to be omitted, got %s", string(emptyData))
+	}
+	if strings.Contains(string(emptyData), "failure_category") {
+		t.Fatalf("expected failure_category to be omitted, got %s", string(emptyData))
+	}
+}
