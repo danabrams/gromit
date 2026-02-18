@@ -94,6 +94,32 @@ func TestBaselineLogPath_AppendsSuffixOnCollision(t *testing.T) {
 	}
 }
 
+func TestBaselineLogPath_ErrorsOnRepeatedCollision(t *testing.T) {
+	now := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.Local)
+	base := filepath.Join("test-logs", "refactor-baseline-2026-02-03-040506.log")
+	suffix := filepath.Join("test-logs", "refactor-baseline-2026-02-03-040506-1.log")
+
+	originalExists := baselineLogPathExistsFn
+	baselineLogPathExistsFn = func(path string) (bool, error) {
+		if path == base || path == suffix {
+			return true, nil
+		}
+		t.Fatalf("unexpected path check: %q", path)
+		return false, nil
+	}
+	t.Cleanup(func() {
+		baselineLogPathExistsFn = originalExists
+	})
+
+	_, err := baselineLogPath(now)
+	if err == nil {
+		t.Fatal("baselineLogPath() error = nil, want collision error")
+	}
+	if err != errBaselineLogPathCollision {
+		t.Fatalf("baselineLogPath() error = %v, want %v", err, errBaselineLogPathCollision)
+	}
+}
+
 func TestBaselineLogPathNow_UsesCurrentLocalTime(t *testing.T) {
 	stub := time.Date(2025, time.January, 2, 3, 4, 5, 0, time.Local)
 
