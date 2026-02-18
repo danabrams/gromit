@@ -76,6 +76,18 @@ func TestGetCommitTimestamp_RejectsFlagInjection(t *testing.T) {
 	}
 }
 
+// TestFindFirstCommitForBead_RejectsFlagInjection verifies that findFirstCommitForBead
+// rejects bead IDs that look like git flags.
+func TestFindFirstCommitForBead_RejectsFlagInjection(t *testing.T) {
+	_, err := findFirstCommitForBead("--all")
+	if err == nil {
+		t.Fatal("findFirstCommitForBead should reject flag-like bead ID")
+	}
+	if !strings.Contains(err.Error(), "invalid bead ID") {
+		t.Errorf("error should mention 'invalid bead ID', got: %v", err)
+	}
+}
+
 // TestTimestampComparison verifies that Unix timestamp comparison is done numerically,
 // not lexicographically. This is a regression test for the bug where string comparison
 // was used (e.g. "9" > "10" in string comparison).

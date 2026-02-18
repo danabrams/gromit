@@ -229,6 +229,9 @@ func getEpicBaseCommit(epicID, specsDir, gromitDir string) (string, error) {
 }
 
 func findFirstCommitForBead(beadID string) (string, error) {
+	if beadID == "" || strings.HasPrefix(beadID, "-") {
+		return "", fmt.Errorf("invalid bead ID %q: must not be empty or start with '-'", beadID)
+	}
 	cmd := exec.Command("git", "log", "--all", "--format=%H", "--grep", beadID)
 	out, err := cmd.Output()
 	if err != nil {
