@@ -4,6 +4,28 @@ import (
 	"testing"
 )
 
+func TestFailedCriteria_returnsOnlyFailedCriteria(t *testing.T) {
+	verdict := &GateVerdict{
+		Passed: false,
+		Results: []CriterionResult{
+			{Criterion: "No TODOs", Passed: true, Evidence: "none found"},
+			{Criterion: "Tests pass", Passed: false, Evidence: "test output"},
+			{Criterion: "No lint errors", Passed: false, Evidence: "lint output"},
+		},
+	}
+
+	failed := verdict.FailedCriteria()
+	if len(failed) != 2 {
+		t.Fatalf("FailedCriteria() returned %d items, want 2", len(failed))
+	}
+	if failed[0].Criterion != "Tests pass" {
+		t.Errorf("failed[0].Criterion = %q, want %q", failed[0].Criterion, "Tests pass")
+	}
+	if failed[1].Criterion != "No lint errors" {
+		t.Errorf("failed[1].Criterion = %q, want %q", failed[1].Criterion, "No lint errors")
+	}
+}
+
 func TestParseVerdict_invalidJSON_returnsError(t *testing.T) {
 	_, err := ParseVerdict([]byte(`not json`))
 	if err == nil {

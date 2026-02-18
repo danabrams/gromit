@@ -15,6 +15,17 @@ type GateVerdict struct {
 	Results []CriterionResult `json:"results"`
 }
 
+// FailedCriteria returns the subset of Results where Passed is false.
+func (v *GateVerdict) FailedCriteria() []CriterionResult {
+	var failed []CriterionResult
+	for _, r := range v.Results {
+		if !r.Passed {
+			failed = append(failed, r)
+		}
+	}
+	return failed
+}
+
 // ParseVerdict unmarshals a JSON-encoded GateVerdict.
 func ParseVerdict(data []byte) (*GateVerdict, error) {
 	var v GateVerdict
