@@ -26,3 +26,12 @@ func TestSelectGate_ReturnsFullOnModuloBoundary(t *testing.T) {
 		t.Errorf("SelectGate(3) with fullEveryN=3: got %v, want GateFull", got)
 	}
 }
+
+func TestSelectGate_ZeroFullEveryNAlwaysReturnsFast(t *testing.T) {
+	p := newConfigValidationPolicy(0)
+	for _, n := range []int{0, 1, 5, 100} {
+		if got := p.SelectGate(n); got != policy.GateFast {
+			t.Errorf("SelectGate(%d) with fullEveryN=0: got %v, want GateFast", n, got)
+		}
+	}
+}
