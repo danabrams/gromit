@@ -16,7 +16,6 @@ import (
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/methodology"
-	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
@@ -121,9 +120,7 @@ func (r *Runner) estimatedCostUSD(providerName string, reportedCostUSD float64, 
 }
 
 func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, err error) (*runtypes.InvocationResult, error) {
-	if r.escalationPolicy == nil {
-		r.escalationPolicy = policy.NewConfigEscalationPolicy(r.cfg)
-	}
+	r.ensureEscalationPolicy()
 	classification := r.escalationPolicy.ClassifyTimeout(ctx.Err(), bc.ParentCtx.Err(), invResult != nil && invResult.StallFired)
 
 	switch classification.TimeoutType {
@@ -218,9 +215,7 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 		success := runSingleAttempt()
 		if !success {
 			// If quick recovery fails, run one escalated-tier attempt.
-			if r.escalationPolicy == nil {
-				r.escalationPolicy = policy.NewConfigEscalationPolicy(r.cfg)
-			}
+			r.ensureEscalationPolicy()
 			if nextTier := r.escalationPolicy.NextTier(savedTier); nextTier != "" {
 				r.escalationHandler.EscalateTier(bc, nextTier)
 				success = runSingleAttempt()

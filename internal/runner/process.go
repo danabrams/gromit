@@ -15,7 +15,6 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
-	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
@@ -36,9 +35,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		return nil, nil, nil, fmt.Errorf("runner router is nil")
 	}
 
-	if r.escalationPolicy == nil {
-		r.escalationPolicy = policy.NewConfigEscalationPolicy(r.cfg)
-	}
+	r.ensureEscalationPolicy()
 	tier := r.escalationPolicy.SelectInitialTier(b.Priority, b.Labels)
 	model := r.escalationPolicy.SelectModel(b.Priority, b.Labels) // legacy model name for display/timeouts
 
