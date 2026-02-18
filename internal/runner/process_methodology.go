@@ -189,7 +189,12 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		}
 	}
 
-	if err := r.methodologyExec.RunRefactorPhase(ctx, bc); err != nil {
+	refactorTimeoutSec := r.cfg.Methodology.ResolvePhaseTimeoutSeconds("refactor", int(bc.BeadTimeout.Seconds()))
+	refactorCtx, refactorCancel, refactorMeta := newPhaseContext(bc, "refactor", refactorTimeoutSec)
+	defer refactorCancel()
+	r.log("Refactor phase context: timeout=%s source=%s", refactorMeta.EffectiveTimeout.Round(time.Second), refactorMeta.TimeoutSource)
+
+	if err := r.methodologyExec.RunRefactorPhase(refactorCtx, bc); err != nil {
 		r.log("Warning: refactor phase encountered issues: %v", err)
 	}
 
