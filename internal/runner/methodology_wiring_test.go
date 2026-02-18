@@ -543,6 +543,85 @@ func (m *shapeAwarePromptRenderer) ShapeRefactorPhaseContext(ctx *prompt.Context
 	return ctx
 }
 
+type refactorOnlyShapeRenderer struct {
+	mockPromptRenderer
+	shapeRefactorFn func(ctx *prompt.Context) *prompt.Context
+}
+
+func (m *refactorOnlyShapeRenderer) ShapeRefactorPhaseContext(ctx *prompt.Context) *prompt.Context {
+	if m.shapeRefactorFn != nil {
+		return m.shapeRefactorFn(ctx)
+	}
+	return ctx
+}
+
+func TestMethodologyExec_RenderRefactor_UsesRefactorShapedContext(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	cfg.Validation.Enabled = false
+	cfg.Refactor.MinFilesChanged = 1
+	var buf strings.Builder
+
+	var renderedCtx *prompt.Context
+	renderer := &refactorOnlyShapeRenderer{
+		mockPromptRenderer: mockPromptRenderer{
+			RenderRefactorFn: func(ctx *prompt.Context) (string, error) {
+				renderedCtx = ctx
+				return "refactor prompt", nil
+			},
+		},
+		shapeRefactorFn: func(ctx *prompt.Context) *prompt.Context {
+			cloned := *ctx
+			cloned.FailureContext = "refactor-shaped-context"
+			cloned.ClaudeMD = ""
+			return &cloned
+		},
+	}
+
+	mockProv := &mockProviderWithRouterTracking{
+		name:            "test-provider",
+		streamRunResult: &provider.Result{Success: true, Model: "test-model", Output: "done"},
+	}
+	router := provider.NewSingleProviderRouter(mockProv)
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   router,
+		Renderer: renderer,
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+	r.methodologyExec.SetGetDiffFn(func(startCommit string) (string, error) {
+		return "diff --git a/internal/runner/foo.go b/internal/runner/foo.go\n+line", nil
+	})
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-refactor-shape-001", Title: "shape refactor"},
+		Tier:        provider.TierMedium,
+		Model:       "sonnet",
+		StartCommit: "abc123",
+		Result:      &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{
+			WorkDir:        t.TempDir(),
+			ClaudeMD:       "large context to trim",
+			FailureContext: "original refactor context",
+		},
+	}
+
+	if err := r.methodologyExec.RunRefactorPhase(context.Background(), bc); err != nil {
+		t.Fatalf("RunRefactorPhase returned error: %v", err)
+	}
+	if renderedCtx == nil {
+		t.Fatalf("expected RenderRefactor to receive context; logs: %s", buf.String())
+	}
+	if renderedCtx.FailureContext != "refactor-shaped-context" {
+		t.Fatalf("expected refactor-shaped context to be passed to renderer, got %q", renderedCtx.FailureContext)
+	}
+	if renderedCtx.ClaudeMD != "" {
+		t.Fatalf("expected shaped refactor context to trim ClaudeMD, got %q", renderedCtx.ClaudeMD)
+	}
+}
+
 func TestMethodologyExec_InvokeFn_FailureIncludesProviderStderr(t *testing.T) {
 	cfg := newMethodologyWiringConfig()
 	cfg.Escalation.MaxRetriesPerModel = 0

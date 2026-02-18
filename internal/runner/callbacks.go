@@ -22,9 +22,15 @@ import (
 	"github.com/danabrams/gromit/internal/usagelimit"
 )
 
-type methodologyPromptShaper interface {
+type redPhasePromptShaper interface {
 	ShapeRedPhaseContext(ctx *prompt.Context) *prompt.Context
+}
+
+type greenPhasePromptShaper interface {
 	ShapeGreenPhaseContext(ctx *prompt.Context) *prompt.Context
+}
+
+type refactorPhasePromptShaper interface {
 	ShapeRefactorPhaseContext(ctx *prompt.Context) *prompt.Context
 }
 
@@ -116,19 +122,20 @@ func (r *Runner) shapeMethodologyPromptContext(phase string, ctx *prompt.Context
 	if ctx == nil || r == nil || r.renderer == nil {
 		return ctx
 	}
-	shaper, ok := r.renderer.(methodologyPromptShaper)
-	if !ok {
-		return ctx
-	}
-
 	var shaped *prompt.Context
 	switch phase {
 	case "red":
-		shaped = shaper.ShapeRedPhaseContext(ctx)
+		if shaper, ok := r.renderer.(redPhasePromptShaper); ok {
+			shaped = shaper.ShapeRedPhaseContext(ctx)
+		}
 	case "green":
-		shaped = shaper.ShapeGreenPhaseContext(ctx)
+		if shaper, ok := r.renderer.(greenPhasePromptShaper); ok {
+			shaped = shaper.ShapeGreenPhaseContext(ctx)
+		}
 	case "refactor":
-		shaped = shaper.ShapeRefactorPhaseContext(ctx)
+		if shaper, ok := r.renderer.(refactorPhasePromptShaper); ok {
+			shaped = shaper.ShapeRefactorPhaseContext(ctx)
+		}
 	default:
 		return ctx
 	}
