@@ -70,7 +70,7 @@ func ShapeRetroForBudget(rules, learnings string, maxChars int) (string, string,
 	halfBudget := maxChars / 2
 
 	if len(shapedLearnings) > halfBudget {
-		shapedLearnings = shapedLearnings[:halfBudget]
+		shapedLearnings = truncateUTF8(shapedLearnings, halfBudget)
 		report.TrimActions = append(report.TrimActions, trimCapRetroLearnings)
 		if measureRetroContext(shapedRules, shapedLearnings) <= maxChars {
 			return finishRetroReport(shapedRules, shapedLearnings, report)

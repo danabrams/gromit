@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/learnings"
@@ -1107,6 +1108,20 @@ func TestTruncateUTF8_RespectsRuneBoundary(t *testing.T) {
 	got := truncateUTF8(s, 7)
 	if got != "Hello" {
 		t.Errorf("truncateUTF8(%q, 7) = %q, want %q", s, got, "Hello")
+	}
+}
+
+func TestShapeRetroForBudget_LearningsCapDoesNotSplitRunes(t *testing.T) {
+	// learnings: "AB" (2 bytes) + "世界" (6 bytes) = 8 bytes total
+	// maxChars=6 → halfBudget=3. Naive [:3] splits "世" after its first byte.
+	// UTF-8-aware truncation must yield "AB" (2 bytes) instead.
+	learningsStr := "AB世界"
+	rules := "" // empty, so all budget goes to learnings check
+
+	_, shapedLearnings, _ := ShapeRetroForBudget(rules, learningsStr, 6)
+
+	if !utf8.ValidString(shapedLearnings) {
+		t.Errorf("shapedLearnings %q is not valid UTF-8", shapedLearnings)
 	}
 }
 
