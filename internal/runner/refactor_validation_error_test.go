@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 func TestWrapRefactorValidationError(t *testing.T) {
@@ -49,6 +51,38 @@ func TestWrapRefactorValidationError(t *testing.T) {
 				t.Fatalf("expected errors.Is(..., %v) to be true, got %v", tc.wantIs, got)
 			}
 		})
+	}
+}
+
+func TestSetPhaseAttribution_SetsTimeoutPhaseOnDeadlineExceeded(t *testing.T) {
+	result := &runtypes.IterationResult{}
+	setPhaseAttribution(result, "validation", context.DeadlineExceeded)
+	if result.TimeoutPhase != "validation" {
+		t.Fatalf("TimeoutPhase = %q, want %q", result.TimeoutPhase, "validation")
+	}
+}
+
+func TestSetPhaseAttribution_SetsTimeoutPhaseOnCanceled(t *testing.T) {
+	result := &runtypes.IterationResult{}
+	setPhaseAttribution(result, "refactor", context.Canceled)
+	if result.TimeoutPhase != "refactor" {
+		t.Fatalf("TimeoutPhase = %q, want %q", result.TimeoutPhase, "refactor")
+	}
+}
+
+func TestSetPhaseAttribution_NoOpForGenericErrors(t *testing.T) {
+	result := &runtypes.IterationResult{}
+	setPhaseAttribution(result, "red", errors.New("some error"))
+	if result.TimeoutPhase != "" {
+		t.Fatalf("TimeoutPhase = %q, want empty for generic errors", result.TimeoutPhase)
+	}
+}
+
+func TestSetPhaseAttribution_NoOpForNilError(t *testing.T) {
+	result := &runtypes.IterationResult{}
+	setPhaseAttribution(result, "green", nil)
+	if result.TimeoutPhase != "" {
+		t.Fatalf("TimeoutPhase = %q, want empty for nil error", result.TimeoutPhase)
 	}
 }
 
