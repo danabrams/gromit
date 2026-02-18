@@ -29,7 +29,9 @@ func (p *stubValidationProvider) StreamRun(ctx context.Context, prompt, tier str
 	return p.result, p.err
 }
 
-func (p *stubValidationProvider) IsUsageLimitError(result *provider.Result, err error) bool { return false }
+func (p *stubValidationProvider) IsUsageLimitError(result *provider.Result, err error) bool {
+	return false
+}
 
 type stubValidationRouter struct {
 	provider execution.Provider
@@ -85,6 +87,44 @@ func (r *rendererShapeGreenCapture) ShapeRefactorPhaseContext(ctx *prompt.Contex
 func (r *rendererShapeGreenCapture) RenderBuild(ctx *prompt.Context) (string, error) {
 	r.renderCtx = ctx
 	return "", fmt.Errorf("render error (intentional)")
+}
+
+func setupValidationEscalationRunner(t *testing.T, result *provider.Result) (*config.Config, *Runner, func(context.Context, *runtypes.BeadContext) bool) {
+	t.Helper()
+
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled: true,
+			Chain:   []string{provider.TierLow, provider.TierMedium},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	stubProvider := &stubValidationProvider{result: result}
+	router := &stubValidationRouter{
+		provider: stubProvider,
+		model:    "stub-model",
+	}
+
+	r := &Runner{
+		cfg:      cfg,
+		renderer: &mockRenderer{},
+		output:   io.Discard,
+		invoker:  execution.NewInvoker(router, io.Discard, nil),
+	}
+	r.escalationHandler = escalation.NewHandler(cfg, &stubFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	return cfg, r, r.makeValidationExecuteFn()
+}
+
+func newValidationBeadContext(id string) *runtypes.BeadContext {
+	return &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: id, Title: "validation concurrent"},
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+		Tier:      provider.TierLow,
+	}
 }
 
 // TestMakeValidationExecuteFn_TruncatesPrevFailure verifies that when
@@ -164,35 +204,11 @@ func TestMakeValidationExecuteFn_UsesGreenShapedContextForRenderBuild(t *testing
 }
 
 func TestMakeValidationExecuteFn_DisablesEscalationDuringValidation(t *testing.T) {
-	cfg := &config.Config{
-		Escalation: config.EscalationConfig{
-			Enabled: true,
-			Chain:   []string{provider.TierLow, provider.TierMedium},
-		},
-	}
-	cfg.SetDefaults()
-	cfg.NormalizeNilFields()
-
-	stubProvider := &stubValidationProvider{
-		result: &provider.Result{
-			Success:  false,
-			Output:   "build failed",
-			ExitCode: 1,
-		},
-	}
-	router := &stubValidationRouter{
-		provider: stubProvider,
-		model:    "stub-model",
-	}
-
-	r := &Runner{
-		cfg:      cfg,
-		renderer: &mockRenderer{},
-		output:   io.Discard,
-		invoker:  execution.NewInvoker(router, io.Discard, nil),
-	}
-	r.escalationHandler = escalation.NewHandler(cfg, &stubFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
-
+	_, _, fn := setupValidationEscalationRunner(t, &provider.Result{
+		Success:  false,
+		Output:   "build failed",
+		ExitCode: 1,
+	})
 	bc := &runtypes.BeadContext{
 		Bead:      &bead.Bead{ID: "test-validation-escalation", Title: "validation escalation"},
 		Result:    &runtypes.IterationResult{},
@@ -200,7 +216,6 @@ func TestMakeValidationExecuteFn_DisablesEscalationDuringValidation(t *testing.T
 		Tier:      provider.TierLow,
 	}
 
-	fn := r.makeValidationExecuteFn()
 	if ok := fn(context.Background(), bc); ok {
 		t.Fatal("expected validation execute to fail with stub provider failure")
 	}
@@ -213,48 +228,18 @@ func TestMakeValidationExecuteFn_DisablesEscalationDuringValidation(t *testing.T
 }
 
 func TestMakeValidationExecuteFn_ConcurrentDoesNotMutateEscalationConfig(t *testing.T) {
-	cfg := &config.Config{
-		Escalation: config.EscalationConfig{
-			Enabled: true,
-			Chain:   []string{provider.TierLow, provider.TierMedium},
-		},
-	}
-	cfg.SetDefaults()
-	cfg.NormalizeNilFields()
-
-	stubProvider := &stubValidationProvider{
-		result: &provider.Result{
-			Success:  false,
-			Output:   "build failed",
-			ExitCode: 1,
-		},
-	}
-	router := &stubValidationRouter{
-		provider: stubProvider,
-		model:    "stub-model",
-	}
-
-	r := &Runner{
-		cfg:      cfg,
-		renderer: &mockRenderer{},
-		output:   io.Discard,
-		invoker:  execution.NewInvoker(router, io.Discard, nil),
-	}
-	r.escalationHandler = escalation.NewHandler(cfg, &stubFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
-
-	fn := r.makeValidationExecuteFn()
+	cfg, _, fn := setupValidationEscalationRunner(t, &provider.Result{
+		Success:  false,
+		Output:   "build failed",
+		ExitCode: 1,
+	})
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			bc := &runtypes.BeadContext{
-				Bead:      &bead.Bead{ID: fmt.Sprintf("test-validation-%d", idx), Title: "validation concurrent"},
-				Result:    &runtypes.IterationResult{},
-				PromptCtx: &prompt.Context{},
-				Tier:      provider.TierLow,
-			}
+			bc := newValidationBeadContext(fmt.Sprintf("test-validation-%d", idx))
 			_ = fn(context.Background(), bc)
 		}(i)
 	}
