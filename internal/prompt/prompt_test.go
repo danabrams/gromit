@@ -1118,10 +1118,19 @@ func TestRenderSpecGateWithExtendedContext(t *testing.T) {
 	}
 }
 
-func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) {
-	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+func renderSpecGateRealTemplate(t *testing.T, ctx *SpecGateContext) string {
+	t.Helper()
 
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	r := &Renderer{templatesDir: templatesDir}
+	result, err := r.RenderSpecGate(ctx)
+	if err != nil {
+		t.Fatalf("RenderSpecGate() error = %v", err)
+	}
+	return result
+}
+
+func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) {
 	ctx := &SpecGateContext{
 		SpecCriteria:       "Must return 200",
 		FailureOutput:      "status was 500",
@@ -1130,10 +1139,7 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 		AcceptanceCriteria: "API returns 200",
 	}
 
-	result, err := r.RenderSpecGate(ctx)
-	if err != nil {
-		t.Fatalf("RenderSpecGate() error = %v", err)
-	}
+	result := renderSpecGateRealTemplate(t, ctx)
 
 	wantStrs := []string{
 		"GateVerdict",
@@ -1152,17 +1158,11 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 }
 
 func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T) {
-	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
-
-	r := &Renderer{templatesDir: templatesDir}
 	ctx := &SpecGateContext{
 		SpecCriteria: "Must return 200",
 	}
 
-	result, err := r.RenderSpecGate(ctx)
-	if err != nil {
-		t.Fatalf("RenderSpecGate() error = %v", err)
-	}
+	result := renderSpecGateRealTemplate(t, ctx)
 
 	if !strings.Contains(result, "Must return 200") {
 		t.Error("expected spec criteria in rendered output")
@@ -1182,17 +1182,11 @@ func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T)
 }
 
 func TestRenderSpecGateRealTemplateEnforcesJSONOnlyOutput(t *testing.T) {
-	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
-
-	r := &Renderer{templatesDir: templatesDir}
 	ctx := &SpecGateContext{
 		SpecCriteria: "Must return 200",
 	}
 
-	result, err := r.RenderSpecGate(ctx)
-	if err != nil {
-		t.Fatalf("RenderSpecGate() error = %v", err)
-	}
+	result := renderSpecGateRealTemplate(t, ctx)
 
 	wantStrs := []string{
 		"one top-level JSON",
@@ -1206,17 +1200,11 @@ func TestRenderSpecGateRealTemplateEnforcesJSONOnlyOutput(t *testing.T) {
 }
 
 func TestRenderSpecGateRealTemplateDisallowsOtherResponseContracts(t *testing.T) {
-	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
-
-	r := &Renderer{templatesDir: templatesDir}
 	ctx := &SpecGateContext{
 		SpecCriteria: "Must return 200",
 	}
 
-	result, err := r.RenderSpecGate(ctx)
-	if err != nil {
-		t.Fatalf("RenderSpecGate() error = %v", err)
-	}
+	result := renderSpecGateRealTemplate(t, ctx)
 
 	want := "only response contract"
 	if !strings.Contains(result, want) {
@@ -1225,17 +1213,11 @@ func TestRenderSpecGateRealTemplateDisallowsOtherResponseContracts(t *testing.T)
 }
 
 func TestRenderSpecGateRealTemplateRejectsPermissiveLanguage(t *testing.T) {
-	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
-
-	r := &Renderer{templatesDir: templatesDir}
 	ctx := &SpecGateContext{
 		SpecCriteria: "Must return 200",
 	}
 
-	result, err := r.RenderSpecGate(ctx)
-	if err != nil {
-		t.Fatalf("RenderSpecGate() error = %v", err)
-	}
+	result := renderSpecGateRealTemplate(t, ctx)
 
 	permissive := regexp.MustCompile(`(?i)\b(partial|approximate|best[- ]?effort)\b`)
 	if match := permissive.FindString(result); match != "" {
