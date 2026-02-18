@@ -18,6 +18,23 @@ ok  	github.com/danabrams/gromit/internal/bar	(cached)
 	}
 }
 
+func TestParseTestLog_DetectsSkippedTest(t *testing.T) {
+	input := `=== RUN   TestBaz
+    baz_test.go:10: skipping
+--- SKIP: TestBaz (0.00s)
+PASS
+ok  	github.com/danabrams/gromit/internal/baz	(cached)
+`
+	result := parseTestLog(strings.NewReader(input))
+
+	if len(result.SkippedTests) != 1 {
+		t.Fatalf("want 1 skipped test, got %d", len(result.SkippedTests))
+	}
+	if result.SkippedTests[0] != "TestBaz" {
+		t.Errorf("skipped = %q, want %q", result.SkippedTests[0], "TestBaz")
+	}
+}
+
 func TestParseTestLog_DetectsFailingTest(t *testing.T) {
 	input := `=== RUN   TestFoo
 --- FAIL: TestFoo (0.01s)
