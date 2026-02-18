@@ -187,3 +187,80 @@ func TestRunRefactorAndPostChecks_RefactorUsesPhaseContext(t *testing.T) {
 		t.Fatalf("refactor context deadline unexpected: %v remaining (want ~120s)", untilDeadline.Round(time.Second))
 	}
 }
+
+func TestRunRefactorAndPostChecks_ValidationGetsFreshContextAfterRefactorTimeout(t *testing.T) {
+	// Core isolation test: even if refactor times out, validation should
+	// receive a fresh context with its own deadline, not a pre-canceled one.
+	var validationCtxErr error
+	var validationCtxDeadline time.Time
+	var validationCtxHadDeadline bool
+	validationCommandCalls := 0
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		validationCtxErr = ctx.Err()
+		validationCtxDeadline, validationCtxHadDeadline = ctx.Deadline()
+		validationCommandCalls++
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{
+		RefactorSeconds: 120,
+	}
+	r.cfg.Validation.PhaseTimeoutSeconds = 180
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			return "diff --git a/a.go b/a.go\n+line", nil
+		},
+		func(ctx *prompt.Context) (string, error) {
+			return "refactor prompt", nil
+		},
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			// Simulate refactor timing out.
+			return nil, context.DeadlineExceeded
+		},
+		nil,
+		func(commit string) error { return nil },
+		func() (string, error) { return "abc123", nil },
+	))
+
+	parentCtx := context.Background()
+	bc := &runtypes.BeadContext{
+		Tier:        provider.TierMedium,
+		StartCommit: "abc123",
+		ParentCtx:   parentCtx,
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	// Cancel the bead context to simulate exhaustion.
+	beadCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, false)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal != nil {
+		t.Fatalf("expected no terminal result, got: %+v", terminal)
+	}
+	if validationCommandCalls == 0 {
+		t.Fatal("validation commands should have run after refactor timeout")
+	}
+	if validationCtxErr != nil {
+		t.Fatalf("validation received pre-canceled context: %v", validationCtxErr)
+	}
+	if !validationCtxHadDeadline {
+		t.Fatal("validation context should have a deadline from newPhaseContext")
+	}
+	// Validation deadline should be approximately 180 seconds from now.
+	untilDeadline := time.Until(validationCtxDeadline)
+	if untilDeadline < 150*time.Second || untilDeadline > 200*time.Second {
+		t.Fatalf("validation context deadline unexpected: %v remaining (want ~180s)", untilDeadline.Round(time.Second))
+	}
+}

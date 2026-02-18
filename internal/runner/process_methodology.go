@@ -224,10 +224,10 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 				}
 			}
 
-			validationCtx := ctx
-			if bc != nil && bc.ParentCtx != nil {
-				validationCtx = bc.ParentCtx
-			}
+			valTimeoutSec := r.cfg.Validation.ResolvePhaseTimeoutSeconds(int(bc.BeadTimeout.Seconds()))
+			validationCtx, validationCancel, valMeta := newPhaseContext(bc, "validation", valTimeoutSec)
+			defer validationCancel()
+			r.log("Validation phase context: timeout=%s source=%s", valMeta.EffectiveTimeout.Round(time.Second), valMeta.TimeoutSource)
 			// This is the final validation pass after refactor, so post-success stages
 			// must run here.
 			if err := r.runValidationWithRecoveryForStage(validationCtx, bc, true); err != nil {
