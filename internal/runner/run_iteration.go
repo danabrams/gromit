@@ -264,6 +264,10 @@ func (r *Runner) handleSuccessfulIteration(ctx context.Context, b *bead.Bead, st
 		r.log("Warning: failed to sync beads: %v", err)
 	}
 
+	if err := r.maybeRunSpecGate(ctx, st, bead.FindSpecLabel(b.Labels)); err != nil {
+		return err
+	}
+
 	if st.statusWriter != nil {
 		if err := st.statusWriter.Write(st.iteration, b.ID, b.Title, result.Model, true, maxIterations, st.timeBudgetMinutes); err != nil {
 			r.log("Warning: failed to write status.json: %v", err)

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -196,5 +197,72 @@ func TestMaybeRunSpecGate_RunsAndIncrements(t *testing.T) {
 	}
 	if st.specGateCycles["demo-spec"] != 1 {
 		t.Fatalf("expected cycle count to be 1, got %d", st.specGateCycles["demo-spec"])
+	}
+}
+
+func TestHandleSuccessfulIteration_RunsSpecGateAfterSync(t *testing.T) {
+	var syncCalled bool
+	var runTestsCalls int
+
+	beads := &mockBeadClient{
+		CloseFn: func(id string) error {
+			return nil
+		},
+		SyncFn: func() error {
+			syncCalled = true
+			return nil
+		},
+		ListWithLabelFn: func(label string) ([]*bead.Bead, error) {
+			return []*bead.Bead{}, nil
+		},
+	}
+
+	gate := &specgate.Gate{
+		RunTests: func(ctx context.Context) (string, error) {
+			if !syncCalled {
+				t.Fatalf("expected sync to occur before spec gate")
+			}
+			runTestsCalls++
+			return "tests ok", nil
+		},
+		GetDiff: func(ctx context.Context) (string, error) {
+			return "diff", nil
+		},
+		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
+			return "prompt", nil
+		},
+		InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
+			return []byte(`{"passed": true, "results": [{"criterion":"works","passed":true,"evidence":"ok"}]}`), nil
+		},
+		Model:     "sonnet",
+		MaxCycles: 1,
+	}
+
+	specsDir := t.TempDir()
+	specBody := "## Acceptance Criteria\n- works\n"
+	specPath := filepath.Join(specsDir, "demo-spec.md")
+	if err := os.WriteFile(specPath, []byte(specBody), 0644); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
+
+	auto := true
+	r := &Runner{
+		cfg: &config.Config{
+			Paths:    config.PathsConfig{Specs: specsDir},
+			SpecGate: config.SpecGateConfig{Enabled: true, AutoTrigger: &auto, MaxCycles: 2},
+		},
+		beads:    beads,
+		specGate: gate,
+	}
+
+	st := &runLoopState{specGateCycles: make(map[string]int)}
+	b := &bead.Bead{ID: "b1", Title: "Spec bead", Labels: []string{"spec:demo-spec"}}
+	result := &IterationResult{Model: "sonnet"}
+
+	if err := r.handleSuccessfulIteration(context.Background(), b, st, result, 1, time.Time{}, func(int) {}); err != nil {
+		t.Fatalf("handleSuccessfulIteration() error: %v", err)
+	}
+	if runTestsCalls != 1 {
+		t.Fatalf("expected RunTests to be called once, got %d", runTestsCalls)
 	}
 }
