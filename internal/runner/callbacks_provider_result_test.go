@@ -179,12 +179,11 @@ func TestMakeInvokeFn_EstimatesCostWhenZeroCostButTokensPresent(t *testing.T) {
 
 	var buf bytes.Buffer
 	r := &Runner{
-		cfg: &config.Config{
-			Providers: map[string]config.ProviderDef{
-				"openai": {
-					CostPer1kInput:  0.010,
-					CostPer1kOutput: 0.030,
-				},
+		cfg: &config.Config{},
+		providerCostDefs: map[string]config.ProviderDef{
+			"openai": {
+				CostPer1kInput:  0.010,
+				CostPer1kOutput: 0.030,
 			},
 		},
 		router:  mockRouter,
@@ -232,12 +231,11 @@ func TestMakeInvokeFn_SkipsCostEstimationWhenCostAlreadyPresent(t *testing.T) {
 
 	var buf bytes.Buffer
 	r := &Runner{
-		cfg: &config.Config{
-			Providers: map[string]config.ProviderDef{
-				"openai": {
-					CostPer1kInput:  0.010,
-					CostPer1kOutput: 0.030,
-				},
+		cfg: &config.Config{},
+		providerCostDefs: map[string]config.ProviderDef{
+			"openai": {
+				CostPer1kInput:  0.010,
+				CostPer1kOutput: 0.030,
 			},
 		},
 		router:  mockRouter,
@@ -262,6 +260,110 @@ func TestMakeInvokeFn_SkipsCostEstimationWhenCostAlreadyPresent(t *testing.T) {
 	// Should use the provider-reported cost, not the estimate
 	if bc.Result.CostUSD != 1.23 {
 		t.Fatalf("bc.Result.CostUSD = %v, want 1.23 (provider-reported cost)", bc.Result.CostUSD)
+	}
+}
+
+// TestMakeInvokeFn_EstimatesCostWithProviderNameIndirection verifies that cost estimation
+// works when the runtime provider name ("codex") differs from the config key ("openai").
+// This is the core bug being fixed: the providerCostDefs map is keyed by p.Name().
+func TestMakeInvokeFn_EstimatesCostWithProviderNameIndirection(t *testing.T) {
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "codex", // runtime name differs from config key "openai"
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:      true,
+				Output:       "ok",
+				ExitCode:     0,
+				Model:        "test-model",
+				CostUSD:      0,
+				InputTokens:  2000,
+				OutputTokens: 1000,
+			}, nil
+		},
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	var buf bytes.Buffer
+	r := &Runner{
+		cfg: &config.Config{},
+		providerCostDefs: map[string]config.ProviderDef{
+			"codex": { // keyed by runtime name, not config key
+				CostPer1kInput:  0.003,
+				CostPer1kOutput: 0.012,
+			},
+		},
+		router:  mockRouter,
+		invoker: newInvokerForTest(mockRouter, &buf, nil),
+		output:  &buf,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "bead-indirection", Title: "Name Indirection Test"},
+		Tier:        provider.TierMedium,
+		Result:      &IterationResult{},
+		BuildPrompt: "prompt",
+		ParentCtx:   context.Background(),
+	}
+
+	invokeFn := r.makeInvokeFn()
+	_, err := invokeFn(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Expected: 2000/1000 * 0.003 + 1000/1000 * 0.012 = 0.006 + 0.012 = 0.018
+	wantCost := 0.018
+	const epsilon = 1e-9
+	diff := bc.Result.CostUSD - wantCost
+	if diff < -epsilon || diff > epsilon {
+		t.Fatalf("bc.Result.CostUSD = %v, want ~%v", bc.Result.CostUSD, wantCost)
+	}
+}
+
+// TestMakeInvokeFn_NoCostEstimationWhenPricingNotConfigured verifies that cost estimation
+// returns 0 when no pricing is configured for the provider.
+func TestMakeInvokeFn_NoCostEstimationWhenPricingNotConfigured(t *testing.T) {
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "codex",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:      true,
+				Output:       "ok",
+				ExitCode:     0,
+				Model:        "test-model",
+				CostUSD:      0,
+				InputTokens:  2000,
+				OutputTokens: 1000,
+			}, nil
+		},
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	var buf bytes.Buffer
+	r := &Runner{
+		cfg:              &config.Config{},
+		providerCostDefs: map[string]config.ProviderDef{}, // no pricing configured
+		router:           mockRouter,
+		invoker:          newInvokerForTest(mockRouter, &buf, nil),
+		output:           &buf,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "bead-nopricing", Title: "No Pricing Test"},
+		Tier:        provider.TierMedium,
+		Result:      &IterationResult{},
+		BuildPrompt: "prompt",
+		ParentCtx:   context.Background(),
+	}
+
+	invokeFn := r.makeInvokeFn()
+	_, err := invokeFn(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if bc.Result.CostUSD != 0 {
+		t.Fatalf("bc.Result.CostUSD = %v, want 0 (no pricing configured)", bc.Result.CostUSD)
 	}
 }
 

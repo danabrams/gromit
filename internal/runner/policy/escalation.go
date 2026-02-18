@@ -52,7 +52,7 @@ func (p *ConfigEscalationPolicy) MaxRetriesPerModel() int {
 
 // MaxRetriesPerBead returns the per-bead retry cap.
 func (p *ConfigEscalationPolicy) MaxRetriesPerBead() int {
-	return 0
+	return p.cfg.Escalation.MaxRetriesPerBead
 }
 
 // ClassifyTimeout determines the timeout type based on context and stall state.

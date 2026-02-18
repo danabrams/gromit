@@ -54,6 +54,7 @@ const (
 //nolint:govet // field alignment is intentionally grouped by responsibility.
 type Runner struct {
 	cfg                *config.Config
+	providerCostDefs   map[string]config.ProviderDef // keyed by runtime provider Name(), for cost estimation
 	beads              BeadClient
 	router             *provider.Router
 	invoker            *execution.Invoker
@@ -84,7 +85,7 @@ type Runner struct {
 	successfulBeads    int                                                                                                               // count of successful bead completions in the current run
 	successesSinceFull int                                                                                                               // successful beads since last full validation gate
 	specOrchestrator   *SpecOrchestrator                                                                                                 // coordinates spec-level acceptance test authoring when enabled
-	specGate           *specgate.Gate                                                                                                     // evaluates spec acceptance criteria when enabled
+	specGate           *specgate.Gate                                                                                                    // evaluates spec acceptance criteria when enabled
 }
 
 // NewRunner creates a new runner.

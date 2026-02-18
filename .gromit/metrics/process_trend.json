@@ -1,57 +1,57 @@
 {
-  "generated_at": "2026-02-18T20:48:37.254665969Z",
-  "total_iterations": 340,
+  "generated_at": "2026-02-18T22:36:38.95177618Z",
+  "total_iterations": 349,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 1,
-    "failure_rate": 0,
-    "first_pass_success_rate": 1,
+    "success_rate": 0.9666666666666667,
+    "failure_rate": 0.03333333333333333,
+    "first_pass_success_rate": 0.9333333333333333,
     "escalation_rate": 0,
-    "avg_duration_ms": 369339.7,
-    "p95_duration_ms": 869029.8499999997,
-    "avg_cost_usd": 0.5817652633333331,
+    "avg_duration_ms": 467113.7,
+    "p95_duration_ms": 1149884.8499999992,
+    "avg_cost_usd": 0.46466766666666665,
     "avg_mttr_proxy_ms": 0
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 0.5817652633333331,
-      "mean": 0.4956285778052137,
-      "std_dev": 0.45858362506701444,
-      "ucl": 1.8713794530062569,
-      "lcl": -0.8801222973958296
+      "latest": 0.46466766666666665,
+      "mean": 0.4951793813813924,
+      "std_dev": 0.45278225458935184,
+      "ucl": 1.853526145149448,
+      "lcl": -0.8631673823866631
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 369339.7,
-      "mean": 673405.839040194,
-      "std_dev": 313654.7880815949,
-      "ucl": 1614370.2032849789,
-      "lcl": -267558.52520459064
+      "latest": 467113.7,
+      "mean": 666932.2874126056,
+      "std_dev": 312172.9425264532,
+      "ucl": 1603451.1149919652,
+      "lcl": -269586.5401667539
     },
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.058823529411764976,
-      "std_dev": 0.06122861025975205,
-      "ucl": 0.24250936019102112,
+      "mean": 0.05730659025787992,
+      "std_dev": 0.06114896335232911,
+      "ucl": 0.24075348031486726,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 1,
-      "mean": 0.2338235294117648,
-      "std_dev": 0.38415056310337686,
+      "latest": 0.9333333333333333,
+      "mean": 0.2530085959885388,
+      "std_dev": 0.3970938959080503,
       "ucl": 1,
       "lcl": 0
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 1,
-      "mean": 0.6978752857762155,
-      "std_dev": 0.22790134103582554,
+      "latest": 0.9666666666666667,
+      "mean": 0.705570956534613,
+      "std_dev": 0.22986904098401395,
       "ucl": 1,
-      "lcl": 0.014171262668738804
+      "lcl": 0.01596383358257114
     }
   ],
   "anomalies": []

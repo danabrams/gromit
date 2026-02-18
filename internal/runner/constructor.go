@@ -76,7 +76,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 
 	syncOut := newSyncWriter(output)
 
-	router, learningsProvider, sf, err := buildRouterAndLearningsProvider(cfg, gromitDir, output)
+	router, learningsProvider, sf, costDefs, err := buildRouterAndLearningsProvider(cfg, gromitDir, output)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -92,21 +92,22 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	inv := buildInvoker(router, syncOut, stallTimeoutFn, cfg)
 
 	r := &Runner{
-		cfg:            cfg,
-		beads:          beadsClient,
-		router:         router,
-		invoker:        inv,
-		analyzer:       analyzerObj,
-		renderer:       renderer,
-		logger:         log,
-		output:         syncOut,
-		syncOut:        syncOut,
-		gromitDir:      gromitDir,
-		stateFile:      sf,
-		gitDiffFn:      getGitDiff,
-		gitHeadFn:      getGitHead,
-		cmdRunnerFn:    defaultCmdRunner,
-		processChecker: IsProcessAlive,
+		cfg:              cfg,
+		providerCostDefs: costDefs,
+		beads:            beadsClient,
+		router:           router,
+		invoker:          inv,
+		analyzer:         analyzerObj,
+		renderer:         renderer,
+		logger:           log,
+		output:           syncOut,
+		syncOut:          syncOut,
+		gromitDir:        gromitDir,
+		stateFile:        sf,
+		gitDiffFn:        getGitDiff,
+		gitHeadFn:        getGitHead,
+		cmdRunnerFn:      defaultCmdRunner,
+		processChecker:   IsProcessAlive,
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
 			return net.DefaultResolver.LookupHost(ctx, host)
 		},
@@ -151,14 +152,14 @@ func buildInvoker(router *provider.Router, output *syncWriter, stallTimeoutFn ex
 		WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
 }
 
-func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, output io.Writer) (*provider.Router, provider.Provider, *state.File, error) {
+func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, output io.Writer) (*provider.Router, provider.Provider, *state.File, map[string]config.ProviderDef, error) {
 	if cfg.HasProviders() {
 		cfg.SetDefaults()
 		cfg.NormalizeNilFields()
 
-		providers, err := buildProvidersFromConfig(cfg)
+		providers, costDefs, err := buildProvidersFromConfig(cfg)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 
 		var sf *state.File
@@ -178,19 +179,20 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 		)
 
 		learningsProvider := selectLearningsProvider(providers)
-		return router, learningsProvider, sf, nil
+		return router, learningsProvider, sf, costDefs, nil
 	}
 
 	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	claudeProvider := provider.NewClaudeProvider(claudeClient, defaultTierToModelMap)
-	return provider.NewSingleProviderRouter(claudeProvider), claudeProvider, nil, nil
+	return provider.NewSingleProviderRouter(claudeProvider), claudeProvider, nil, nil, nil
 }
 
-func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider, error) {
+func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider, map[string]config.ProviderDef, error) {
 	providers := make(map[string]provider.Provider)
+	costDefs := make(map[string]config.ProviderDef)
 	for name, def := range cfg.Providers {
 		switch {
 		case name == "claude" || def.Binary == "claude":
@@ -200,7 +202,7 @@ func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider,
 			}
 			client, err := claude.NewClient(def.Binary, def.Flags, cfg.Claude.Timeout)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			providers[name] = provider.NewClaudeProvider(client, tierMap)
 		case name == "codex" || name == "openai" || def.Binary == "codex":
@@ -210,10 +212,11 @@ func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider,
 			}
 			providers[name] = provider.NewCodexProvider(def.Binary, def.Flags, tierMap)
 		default:
-			return nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\" and \"codex\"", name)
+			return nil, nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\" and \"codex\"", name)
 		}
+		costDefs[providers[name].Name()] = def
 	}
-	return providers, nil
+	return providers, costDefs, nil
 }
 
 func parseFallbackCooldown(cfg *config.Config) time.Duration {

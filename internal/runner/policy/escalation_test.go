@@ -134,3 +134,12 @@ func TestMaxRetriesPerModel_DelegatesToConfig(t *testing.T) {
 		t.Errorf("MaxRetriesPerModel() = %d, want %d", got, 4)
 	}
 }
+
+func TestMaxRetriesPerBead_DelegatesToConfig(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Escalation.MaxRetriesPerBead = 9
+	p := newConfigEscalationPolicy(cfg)
+	if got := p.MaxRetriesPerBead(); got != 9 {
+		t.Errorf("MaxRetriesPerBead() = %d, want %d", got, 9)
+	}
+}

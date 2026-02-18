@@ -112,7 +112,7 @@ func (r *Runner) estimatedCostUSD(providerName string, reportedCostUSD float64, 
 		return reportedCostUSD
 	}
 
-	provDef, ok := r.cfg.Providers[providerName]
+	provDef, ok := r.providerCostDefs[providerName]
 	if !ok {
 		return reportedCostUSD
 	}
