@@ -8,6 +8,8 @@ import (
 )
 
 func TestWrapRefactorValidationError(t *testing.T) {
+	genericErr := errors.New("generic validation failure")
+
 	tests := []struct {
 		name   string
 		err    error
@@ -27,10 +29,10 @@ func TestWrapRefactorValidationError(t *testing.T) {
 			wantIs: context.Canceled,
 		},
 		{
-			name:   "other validation failure",
-			err:    errors.New("validation failed"),
+			name:   "generic validation error wraps original",
+			err:    genericErr,
 			want:   "validation failed after refactoring",
-			wantIs: nil,
+			wantIs: genericErr,
 		},
 	}
 
