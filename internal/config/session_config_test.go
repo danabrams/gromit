@@ -83,6 +83,64 @@ session:
 	}
 }
 
+func TestSessionConfigOmittedFromYAML(t *testing.T) {
+	yamlContent := `
+models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Session.MaxFixRetries != 3 {
+		t.Errorf("Session.MaxFixRetries omitted default = %d, want 3", cfg.Session.MaxFixRetries)
+	}
+	if cfg.Session.FixTier != "medium" {
+		t.Errorf("Session.FixTier omitted default = %q, want %q", cfg.Session.FixTier, "medium")
+	}
+	if cfg.Session.Review == nil || !*cfg.Session.Review {
+		t.Errorf("Session.Review omitted default = %v, want true", cfg.Session.Review)
+	}
+	if cfg.Session.Retro == nil || !*cfg.Session.Retro {
+		t.Errorf("Session.Retro omitted default = %v, want true", cfg.Session.Retro)
+	}
+}
+
+func TestSessionConfigDefaultsNotOverriddenWhenSet(t *testing.T) {
+	falseVal := false
+	cfg := &Config{
+		Session: SessionConfig{
+			MaxFixRetries: 7,
+			FixTier:       "low",
+			Review:        &falseVal,
+			Retro:         &falseVal,
+		},
+	}
+	cfg.SetDefaults()
+
+	if cfg.Session.MaxFixRetries != 7 {
+		t.Errorf("Session.MaxFixRetries = %d, want 7 (should not be overridden)", cfg.Session.MaxFixRetries)
+	}
+	if cfg.Session.FixTier != "low" {
+		t.Errorf("Session.FixTier = %q, want %q (should not be overridden)", cfg.Session.FixTier, "low")
+	}
+	if cfg.Session.Review == nil || *cfg.Session.Review {
+		t.Errorf("Session.Review = %v, want false (should not be overridden)", cfg.Session.Review)
+	}
+	if cfg.Session.Retro == nil || *cfg.Session.Retro {
+		t.Errorf("Session.Retro = %v, want false (should not be overridden)", cfg.Session.Retro)
+	}
+}
+
 func TestGromitYamlDocumentsSessionConfig(t *testing.T) {
 	content, err := os.ReadFile("../../gromit.yaml")
 	if err != nil {
