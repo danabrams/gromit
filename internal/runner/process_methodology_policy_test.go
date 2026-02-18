@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -91,5 +93,62 @@ func TestPrepareMethodologyForBead_UsesMethodologyPolicyIsActive(t *testing.T) {
 	}
 	if bc.BuildPrompt != "tdd prompt" {
 		t.Fatalf("expected TDD build prompt, got %q", bc.BuildPrompt)
+	}
+}
+
+func TestRunATDDPreBuildPhases_UsesMethodologyPolicyPhaseTimeout(t *testing.T) {
+	r, _ := newRunnerWithMocks(t, &config.Config{}, Deps{
+		Renderer: &mockPromptRenderer{
+			RenderATDDBuildFn: func(ctx *prompt.Context) (string, error) {
+				return "atdd build", nil
+			},
+		},
+	})
+
+	phaseTimeoutSeconds := 17
+	r.methodologyPolicy = &mockMethodologyPolicy{
+		PhaseTimeoutFn: func(phase string, beadTimeoutSec int) int {
+			if phase != "red" {
+				t.Fatalf("unexpected phase: %s", phase)
+			}
+			return phaseTimeoutSeconds
+		},
+	}
+
+	var deadline time.Time
+	var deadlineSet bool
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) error {
+		deadline, deadlineSet = ctx.Deadline()
+		return nil
+	}
+
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		return "acceptance prompt", nil
+	}
+	exec := methodology.NewExecutor(&config.Config{
+		Escalation: config.EscalationConfig{MaxRetriesPerModel: 0},
+	}, &bytes.Buffer{}, renderFn, invokeFn, nil)
+	r.methodologyExec = exec
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "b1"},
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	ok := r.runATDDPreBuildPhases(context.Background(), bc)
+	if !ok {
+		t.Fatal("expected runATDDPreBuildPhases to succeed")
+	}
+	if !deadlineSet {
+		t.Fatal("expected acceptance invoke to receive deadline context")
+	}
+	untilDeadline := time.Until(deadline)
+	if untilDeadline < 12*time.Second || untilDeadline > 22*time.Second {
+		t.Fatalf("deadline unexpected: %s remaining, want ~%ds", untilDeadline.Round(time.Second), phaseTimeoutSeconds)
 	}
 }

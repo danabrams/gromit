@@ -50,7 +50,7 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 	}
 
 	r.log("ATDD enabled, writing acceptance tests first...")
-	redTimeoutSec := r.cfg.Methodology.ResolvePhaseTimeoutSeconds("red", int(bc.BeadTimeout.Seconds()))
+	redTimeoutSec := r.methodologyPolicy.PhaseTimeout("red", int(bc.BeadTimeout.Seconds()))
 	redCtx, redCancel, redMeta := newPhaseContext(bc, "red", redTimeoutSec)
 	defer redCancel()
 	r.log("Red phase context: timeout=%s source=%s", redMeta.EffectiveTimeout.Round(time.Second), redMeta.TimeoutSource)
