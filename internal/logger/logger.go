@@ -15,6 +15,7 @@ type IterationLog struct {
 	Iteration               int       `json:"iteration"`
 	BeadID                  string    `json:"bead_id"`
 	BeadTitle               string    `json:"bead_title"`
+	SpecID                  string    `json:"spec_id,omitempty"`
 	Model                   string    `json:"model"`
 	Provider                string    `json:"provider,omitempty"`
 	FailureCategory         string    `json:"failure_category,omitempty"`

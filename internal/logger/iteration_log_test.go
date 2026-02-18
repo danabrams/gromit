@@ -47,6 +47,31 @@ func TestIterationLog_ValidationDurationMsJSONTag(t *testing.T) {
 	}
 }
 
+// TestIterationLog_SpecIDJSONTag verifies that IterationLog has a SpecID field
+// with json tag "spec_id" and omitempty behavior.
+func TestIterationLog_SpecIDJSONTag(t *testing.T) {
+	log := &IterationLog{
+		BeadID: "bead-1",
+		SpecID: "spec-xyz",
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	if !strings.Contains(string(data), "\"spec_id\":\"spec-xyz\"") {
+		t.Fatalf("expected spec_id in JSON, got %s", string(data))
+	}
+
+	emptyData, err := json.Marshal(IterationLog{})
+	if err != nil {
+		t.Fatalf("marshal empty log: %v", err)
+	}
+	if strings.Contains(string(emptyData), "spec_id") {
+		t.Fatalf("expected spec_id to be omitted, got %s", string(emptyData))
+	}
+}
+
 func TestIterationLog_ProviderAndFailureCategoryJSONTags(t *testing.T) {
 	log := &IterationLog{
 		BeadID:          "test-1",
