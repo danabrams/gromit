@@ -2461,6 +2461,35 @@ func (m *mockProviderForProcess) IsScopeTooLarge(result *provider.Result) (bool,
 	return false, ""
 }
 
+func configureRefactorSkipped(r *Runner) {
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) { return "", nil }, // no diff → refactor skipped
+		nil, nil, nil, nil, nil,
+	))
+}
+
+func configureRefactorWithDiff(r *Runner, refactorInvoked *bool) {
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			if refactorInvoked != nil {
+				*refactorInvoked = true // getDiff is called at start of RunRefactorPhase
+			}
+			return "diff --git a/a.go b/a.go\n+line", nil
+		},
+		func(ctx *prompt.Context) (string, error) { return "refactor prompt", nil },
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			return &claude.Result{Success: true}, nil
+		},
+		nil,
+		nil,
+		func() (string, error) { return "abc123", nil },
+	))
+}
+
 func TestRunRefactorAndPostChecks_RevalidationSkippedWhenUnderThreshold(t *testing.T) {
 	validationCalled := false
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -2469,12 +2498,7 @@ func TestRunRefactorAndPostChecks_RevalidationSkippedWhenUnderThreshold(t *testi
 	}
 	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 
-	r.cfg.Refactor.MinFilesChanged = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) { return "", nil }, // no diff → refactor skipped
-		nil, nil, nil, nil, nil,
-	))
+	configureRefactorSkipped(r)
 
 	parentCtx := context.Background()
 	// Set remaining to 5s (under the minimum threshold for re-validation)
@@ -2513,21 +2537,7 @@ func TestRunRefactorAndPostChecks_RefactorSkippedWhenTimeExpired(t *testing.T) {
 	refactorInvoked := false
 	r, _, _ := setupDirectValidationRunner(t, nil, nil)
 
-	r.cfg.Refactor.MinFilesChanged = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			refactorInvoked = true // getDiff is called at start of RunRefactorPhase
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) { return "refactor prompt", nil },
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			return &claude.Result{Success: true}, nil
-		},
-		nil,
-		nil,
-		func() (string, error) { return "abc123", nil },
-	))
+	configureRefactorWithDiff(r, &refactorInvoked)
 
 	parentCtx := context.Background()
 	bc := &runtypes.BeadContext{
@@ -2562,21 +2572,7 @@ func TestRunRefactorAndPostChecks_RefactorSkippedWhenDeadlineInsufficient(t *tes
 	refactorInvoked := false
 	r, _, _ := setupDirectValidationRunner(t, nil, nil)
 
-	r.cfg.Refactor.MinFilesChanged = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) {
-			refactorInvoked = true // getDiff is called at start of RunRefactorPhase
-			return "diff --git a/a.go b/a.go\n+line", nil
-		},
-		func(ctx *prompt.Context) (string, error) { return "refactor prompt", nil },
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			return &claude.Result{Success: true}, nil
-		},
-		nil,
-		nil,
-		func() (string, error) { return "abc123", nil },
-	))
+	configureRefactorWithDiff(r, &refactorInvoked)
 
 	bc := &runtypes.BeadContext{
 		Tier:          provider.TierMedium,
@@ -2623,12 +2619,7 @@ func TestRunRefactorAndPostChecks_RevalidationSkippedWhenTimeExpired(t *testing.
 	}
 	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 
-	r.cfg.Refactor.MinFilesChanged = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) { return "", nil }, // no diff → refactor skipped
-		nil, nil, nil, nil, nil,
-	))
+	configureRefactorSkipped(r)
 
 	parentCtx := context.Background()
 	bc := &runtypes.BeadContext{
@@ -2665,12 +2656,7 @@ func TestRunRefactorAndPostChecks_NonTimeoutValidationFailure(t *testing.T) {
 	}
 	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 
-	r.cfg.Refactor.MinFilesChanged = 0
-	r.methodologyExec = r.makeMethodologyExec()
-	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
-		func(startCommit string) (string, error) { return "", nil }, // no diff → refactor skipped
-		nil, nil, nil, nil, nil,
-	))
+	configureRefactorSkipped(r)
 
 	bc := &runtypes.BeadContext{
 		Tier:          provider.TierMedium,
