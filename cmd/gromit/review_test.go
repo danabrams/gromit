@@ -64,6 +64,18 @@ func TestGetGitDiffForReview_RejectsFlagInjection(t *testing.T) {
 	}
 }
 
+// TestGetCommitTimestamp_RejectsFlagInjection verifies that getCommitTimestamp
+// rejects commit refs that look like git flags.
+func TestGetCommitTimestamp_RejectsFlagInjection(t *testing.T) {
+	_, err := getCommitTimestamp("--format=%H")
+	if err == nil {
+		t.Fatal("getCommitTimestamp should reject flag-like commit ref")
+	}
+	if !strings.Contains(err.Error(), "invalid commit ref") {
+		t.Errorf("error should mention 'invalid commit ref', got: %v", err)
+	}
+}
+
 // TestTimestampComparison verifies that Unix timestamp comparison is done numerically,
 // not lexicographically. This is a regression test for the bug where string comparison
 // was used (e.g. "9" > "10" in string comparison).

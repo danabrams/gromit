@@ -254,7 +254,10 @@ func isCommitEarlier(commit1, commit2 string) bool {
 }
 
 func getCommitTimestamp(commit string) (int64, error) {
-	cmd := exec.Command("git", "log", "-1", "--format=%at", commit)
+	if err := validateCommitRef(commit); err != nil {
+		return 0, err
+	}
+	cmd := exec.Command("git", "log", "-1", "--format=%at", "--", commit)
 	out, err := cmd.Output()
 	if err != nil {
 		return 0, err
