@@ -1202,6 +1202,21 @@ func TestRenderSpecGateRealTemplateDefinesGateVerdictSchema(t *testing.T) {
 	}
 }
 
+func TestRenderSpecGateRealTemplateIncludesExampleOutput(t *testing.T) {
+	ctx := &SpecGateContext{
+		SpecCriteria: "Must return 200",
+	}
+
+	result := renderSpecGateRealTemplate(t, ctx)
+
+	if !strings.Contains(result, "Example Output") {
+		t.Errorf("RenderSpecGate() real template missing Example Output section\ngot:\n%s", result)
+	}
+	if !strings.Contains(result, "\"passed\": true") {
+		t.Errorf("RenderSpecGate() real template missing example JSON payload\ngot:\n%s", result)
+	}
+}
+
 func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T) {
 	ctx := &SpecGateContext{
 		SpecCriteria: "Must return 200",

@@ -67,6 +67,8 @@ Required result fields:
 - `passed` (boolean)
 - `evidence` (string)
 
+## Example Output
+
 ```json
 {"passed": true, "results": [{"criterion": "...", "passed": true, "evidence": "..."}]}
 ```
