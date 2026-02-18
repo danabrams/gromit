@@ -2557,6 +2557,63 @@ func TestRunRefactorAndPostChecks_RefactorSkippedWhenTimeExpired(t *testing.T) {
 	}
 }
 
+func TestRunRefactorAndPostChecks_RefactorSkippedWhenDeadlineInsufficient(t *testing.T) {
+	refactorInvoked := false
+	r, _, _ := setupDirectValidationRunner(t, nil, nil)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			refactorInvoked = true // getDiff is called at start of RunRefactorPhase
+			return "diff --git a/a.go b/a.go\n+line", nil
+		},
+		func(ctx *prompt.Context) (string, error) { return "refactor prompt", nil },
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			return &claude.Result{Success: true}, nil
+		},
+		nil,
+		nil,
+		func() (string, error) { return "abc123", nil },
+	))
+
+	bc := &runtypes.BeadContext{
+		Tier:          provider.TierMedium,
+		StartCommit:   "abc123",
+		ParentCtx:     context.Background(),
+		BeadTimeout:   5 * time.Minute,
+		BeadStartTime: time.Now().Add(-10 * time.Second),
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	defer cancel()
+
+	retry, terminal := r.runRefactorAndPostChecks(ctx, bc, false)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal != nil {
+		t.Fatalf("expected terminal=nil when deadline is insufficient, got: %+v", terminal)
+	}
+	if refactorInvoked {
+		t.Fatal("expected refactor phase to be skipped when deadline is insufficient")
+	}
+	logOutput := r.output.(*strings.Builder).String()
+	if !strings.Contains(logOutput, "remaining") {
+		t.Error("expected skip log to contain remaining timing details")
+	}
+	if !strings.Contains(logOutput, "needed") {
+		t.Error("expected skip log to contain needed timing details")
+	}
+	if !strings.Contains(logOutput, "reason=") {
+		t.Error("expected skip log to contain machine-readable reason")
+	}
+}
+
 func TestRunRefactorAndPostChecks_RevalidationSkippedWhenTimeExpired(t *testing.T) {
 	validationCalled := false
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {

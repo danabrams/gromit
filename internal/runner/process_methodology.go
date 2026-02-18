@@ -109,6 +109,11 @@ type deadlineGuard struct {
 	SkipReason string
 }
 
+const (
+	skipReasonDeadlineExpired          = "deadline_expired"
+	skipReasonInsufficientTimeRemaining = "insufficient_time_remaining"
+)
+
 // checkDeadlineGuard inspects ctx.Deadline() and determines whether enough time
 // remains to run a phase that requires the given needed duration. If the context
 // has no deadline, the phase is allowed to run (Skip=false). If the deadline has
@@ -127,7 +132,7 @@ func checkRemainingGuard(remaining time.Duration, needed time.Duration) deadline
 			Skip:       true,
 			Remaining:  remaining,
 			Needed:     needed,
-			SkipReason: "deadline expired",
+			SkipReason: skipReasonDeadlineExpired,
 		}
 	}
 	if remaining < needed {
@@ -135,7 +140,7 @@ func checkRemainingGuard(remaining time.Duration, needed time.Duration) deadline
 			Skip:       true,
 			Remaining:  remaining,
 			Needed:     needed,
-			SkipReason: "insufficient time remaining",
+			SkipReason: skipReasonInsufficientTimeRemaining,
 		}
 	}
 	return deadlineGuard{Skip: false, Remaining: remaining, Needed: needed}
@@ -166,14 +171,15 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		return false, bc.Result
 	}
 
+	if guard := checkDeadlineGuard(ctx, minRefactorTime); guard.Skip {
+		r.log("Skipping refactor phase: reason=%s (remaining %s, needed %s)", guard.SkipReason, guard.Remaining.Round(time.Second), guard.Needed)
+		return false, nil
+	}
+
 	if remaining, _, ok := beadRemaining(bc); ok {
 		guard := checkRemainingGuard(remaining, minRefactorTime)
 		if guard.Skip {
-			if guard.SkipReason == "deadline expired" {
-				r.log("Skipping refactor phase: bead time budget expired (remaining %s, needed %s)", remaining.Round(time.Second), minRefactorTime)
-			} else {
-				r.log("Skipping refactor phase: insufficient time remaining (%s remaining, needed %s)", remaining.Round(time.Second), minRefactorTime)
-			}
+			r.log("Skipping refactor phase: reason=%s (remaining %s, needed %s)", guard.SkipReason, remaining.Round(time.Second), minRefactorTime)
 			return false, nil
 		}
 	}
@@ -187,11 +193,7 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		if remaining, _, ok := beadRemaining(bc); ok {
 			guard := checkRemainingGuard(remaining, minRevalidationTime)
 			if guard.Skip {
-				if guard.SkipReason == "deadline expired" {
-					r.log("Skipping post-refactor re-validation: bead time budget expired (remaining %s, needed >0s)", remaining.Round(time.Second))
-				} else {
-					r.log("Skipping post-refactor re-validation: insufficient time remaining (%s remaining, needed %s)", remaining.Round(time.Second), minRevalidationTime)
-				}
+				r.log("Skipping post-refactor re-validation: reason=%s (remaining %s, needed %s)", guard.SkipReason, remaining.Round(time.Second), minRevalidationTime)
 				skipRevalidation = true
 			}
 		}
