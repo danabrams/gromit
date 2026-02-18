@@ -47,7 +47,7 @@ func (p *ConfigEscalationPolicy) NextTier(currentTier string) string {
 
 // MaxRetriesPerModel returns the per-model retry cap.
 func (p *ConfigEscalationPolicy) MaxRetriesPerModel() int {
-	return 0
+	return p.cfg.Escalation.MaxRetriesPerModel
 }
 
 // MaxRetriesPerBead returns the per-bead retry cap.

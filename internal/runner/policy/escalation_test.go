@@ -125,3 +125,12 @@ func TestNextTier_DelegatesToConfig(t *testing.T) {
 		t.Errorf("NextTier() = %q, want %q", got, want)
 	}
 }
+
+func TestMaxRetriesPerModel_DelegatesToConfig(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Escalation.MaxRetriesPerModel = 4
+	p := newConfigEscalationPolicy(cfg)
+	if got := p.MaxRetriesPerModel(); got != 4 {
+		t.Errorf("MaxRetriesPerModel() = %d, want %d", got, 4)
+	}
+}
