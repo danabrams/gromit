@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,6 +43,26 @@ func newTestBeadContext() *runtypes.BeadContext {
 		Result:    &runtypes.IterationResult{},
 		PromptCtx: &prompt.Context{WorkDir: "/tmp/test-project"},
 	}
+}
+
+func newProjectPromptRenderer(t *testing.T) *prompt.Renderer {
+	t.Helper()
+
+	repoRoot, err := filepath.Abs("../../..")
+	if err != nil {
+		t.Fatalf("resolve repo root: %v", err)
+	}
+
+	renderer, err := prompt.NewRenderer(
+		filepath.Join(repoRoot, ".gromit", "templates"),
+		filepath.Join(repoRoot, ".gromit", "specs"),
+		filepath.Join(repoRoot, "CLAUDE.md"),
+		filepath.Join(repoRoot, ".gromit"),
+	)
+	if err != nil {
+		t.Fatalf("create prompt renderer: %v", err)
+	}
+	return renderer
 }
 
 // --- NewExecutor constructor tests ---
@@ -181,6 +202,56 @@ func TestRunAcceptanceTests_PropagatesInvocationError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "stall timeout") {
 		t.Errorf("error should contain invocation error, got: %v", err)
+	}
+}
+
+func TestRunAcceptanceTests_ShapedContextTemplateCompatibility(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	renderer := newProjectPromptRenderer(t)
+
+	var renderedCtx *prompt.Context
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		renderedCtx = ctx
+		return renderer.RenderAcceptanceTests(ctx)
+	}
+
+	var invokedPrompt string
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+		invokedPrompt = promptText
+		return nil
+	}
+
+	exec := NewExecutor(cfg, &buf, renderFn, invokeFn, nil)
+
+	bc := newTestBeadContext()
+	bc.PromptCtx.Bead = bc.Bead
+	bc.PromptCtx.WorkDir = t.TempDir()
+	bc.PromptCtx.ClaudeMD = "project context that should be trimmed in shaped red phase"
+	bc.PromptCtx.Rules = "## Rules\n- follow constraints"
+	bc.PromptCtx.Spec = "## Spec\n- add behavior"
+	bc.PromptCtx.SpecName = "compat-spec"
+	bc.PromptCtx = renderer.ShapeRedPhaseContext(bc.PromptCtx)
+
+	err := exec.RunAcceptanceTests(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("RunAcceptanceTests returned unexpected error: %v", err)
+	}
+	if renderedCtx == nil {
+		t.Fatal("expected render function to receive context")
+	}
+	if renderedCtx.ClaudeMD != "" {
+		t.Fatalf("expected shaped red context to trim ClaudeMD, got %q", renderedCtx.ClaudeMD)
+	}
+	if !strings.Contains(strings.ToLower(renderedCtx.FailureContext), "test-only") {
+		t.Fatalf("expected red-shaped guardrails in failure context, got %q", renderedCtx.FailureContext)
+	}
+	if !strings.Contains(invokedPrompt, "**ID:** test-meth-001") {
+		t.Fatalf("expected rendered acceptance template to include bead ID, got %q", invokedPrompt)
+	}
+	if !strings.Contains(strings.ToLower(invokedPrompt), "acceptance test writing") {
+		t.Fatalf("expected acceptance template content, got %q", invokedPrompt)
 	}
 }
 
