@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
 func TestRunRefactorAndPostChecks_ValidationUsesParentContext(t *testing.T) {
@@ -330,6 +331,77 @@ func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesPhaseContext(t *test
 	}
 	if !acceptanceCtxHadDeadline {
 		t.Fatal("acceptance verification context should have a deadline from newPhaseContext")
+	}
+}
+
+func TestExecuteBuildLoop_MethodologyValidationUsesPhaseContext(t *testing.T) {
+	// When methodology (TDD/ATDD) is active, the intermediate validation gate
+	// between build and refactor should use a phase context with its own deadline,
+	// not the raw bead context. This ensures bead timeout exhaustion during build
+	// does not pre-cancel the validation gate.
+	//
+	// The test captures context info from only the FIRST cmdRunner call, which
+	// corresponds to the intermediate validation (line 92 of executeBuildAndMethodologyLoop),
+	// not the post-refactor re-validation.
+	var firstCallCtxHadDeadline bool
+	var firstCallCtxErr error
+	callCount := 0
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		callCount++
+		if callCount == 1 {
+			firstCallCtxErr = ctx.Err()
+			_, firstCallCtxHadDeadline = ctx.Deadline()
+		}
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Methodology.TDD = true
+	r.cfg.Validation.PhaseTimeoutSeconds = 150
+	// Disable validation in runRefactorAndPostChecks by setting high refactor threshold.
+	// This means only the intermediate validation runs.
+	r.cfg.Refactor.MinFilesChanged = 999
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-val-gate", Title: "Test Validation Gate"},
+		Tier:        provider.TierMedium,
+		StartCommit: "abc123",
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	// Cancel the bead context to simulate exhaustion.
+	beadCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	r.methodologyExec = r.makeMethodologyExec()
+	r.validationRunner = validation.NewRunner(r.cfg, cmdRunner, nil, nil)
+
+	result := r.executeBuildAndMethodologyLoop(
+		beadCtx, bc,
+		false, true, // atddActive=false, tddActive=true
+		func() bool { return true }, // build succeeds
+	)
+
+	if !result.Success {
+		if result.Error != nil {
+			t.Fatalf("expected success, got error: %v", result.Error)
+		}
+		t.Fatal("expected success")
+	}
+	if callCount == 0 {
+		t.Fatal("expected validation commands to run")
+	}
+	if firstCallCtxErr != nil {
+		t.Fatalf("intermediate validation received pre-canceled context: %v", firstCallCtxErr)
+	}
+	if !firstCallCtxHadDeadline {
+		t.Fatal("intermediate validation should have a deadline from newPhaseContext")
 	}
 }
 
