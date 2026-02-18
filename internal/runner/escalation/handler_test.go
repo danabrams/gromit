@@ -551,8 +551,8 @@ func TestExecuteWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
-		return &InvocationResult{
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
 			Result: &claude.Result{Success: true, Output: "build complete"},
 		}, nil
 	}
@@ -578,18 +578,18 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 	bc.MaxRetries = 0 // exhaust retries immediately to trigger escalation
 
 	callCount := 0
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		callCount++
 		if callCount == 1 {
 			// First call: stall
 			bc.Result.ToolCallCount = 1 // treat as active stall => escalate, not same-tier retry
-			return &InvocationResult{
+			return &runtypes.InvocationResult{
 				StallFired: true,
 				Result:     &claude.Result{Success: false},
 			}, nil
 		}
 		// Second call: success after escalation
-		return &InvocationResult{
+		return &runtypes.InvocationResult{
 			Result: &claude.Result{Success: true, Output: "ok"},
 		}, nil
 	}
@@ -615,12 +615,12 @@ func TestExecuteWithRetry_InvocationTimeoutEscalatesAndThenSucceeds(t *testing.T
 	bc.Model = "haiku"
 
 	callCount := 0
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		callCount++
 		if callCount == 1 {
-			return &InvocationResult{TimeoutType: "invocation"}, fmt.Errorf("context deadline exceeded")
+			return &runtypes.InvocationResult{TimeoutType: "invocation"}, fmt.Errorf("context deadline exceeded")
 		}
-		return &InvocationResult{Result: &claude.Result{Success: true, Output: "ok"}}, nil
+		return &runtypes.InvocationResult{Result: &claude.Result{Success: true, Output: "ok"}}, nil
 	}
 
 	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
@@ -700,9 +700,9 @@ func TestExecuteWithRetry_BeadTimeoutEscalatesBeforeDecomposing(t *testing.T) {
 	bc.Tier = provider.TierMedium // sonnet — opus is available
 	bc.ParentCtx = context.Background()
 
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		invocationTiers = append(invocationTiers, bc.Tier)
-		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+		return &runtypes.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
 	}
 
 	h.ExecuteWithRetry(context.Background(), bc, invokeFn)
@@ -748,9 +748,9 @@ func TestExecuteWithRetry_BeadTimeoutEscalationLogsReason(t *testing.T) {
 	bc.ParentCtx = context.Background()
 
 	call := 0
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		call++
-		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+		return &runtypes.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
 	}
 
 	h.ExecuteWithRetry(context.Background(), bc, invokeFn)
@@ -788,9 +788,9 @@ func TestExecuteWithRetry_BeadTimeoutSkipsEscalationWhenLimitReached(t *testing.
 	bc.TimeoutEscalationsThisBead = 1 // escalation limit already exhausted
 	bc.ParentCtx = context.Background()
 
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		invocationCount++
-		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+		return &runtypes.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
 	}
 
 	h.ExecuteWithRetry(context.Background(), bc, invokeFn)
@@ -828,9 +828,9 @@ func TestExecuteWithRetry_BeadTimeoutAtHighestTierDecomposesDirectly(t *testing.
 	bc.Tier = provider.TierHigh // opus — no higher tier available
 	bc.ParentCtx = context.Background()
 
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		invocationCount++
-		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+		return &runtypes.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
 	}
 
 	h.ExecuteWithRetry(context.Background(), bc, invokeFn)
@@ -872,8 +872,8 @@ func TestExecuteWithRetry_BeadTimeoutAttemptsDecomposition(t *testing.T) {
 	bc := newTestBeadContext()
 	bc.ParentCtx = context.Background()
 
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
-		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
 	}
 
 	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
@@ -916,8 +916,8 @@ func TestExecuteWithRetry_BeadTimeoutWithCanceledParentContextSkipsDecomposition
 	bc := newTestBeadContext()
 	bc.ParentCtx = parentCtx
 
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
-		return &InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
 	}
 
 	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
@@ -947,8 +947,8 @@ func TestExecuteWithRetry_StopsWhenAttemptBudgetExceeded(t *testing.T) {
 	bc := newTestBeadContext()
 	bc.MaxAttemptsPerBead = 1
 
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
-		return &InvocationResult{Result: &claude.Result{Success: false, Output: "fail"}}, nil
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{Result: &claude.Result{Success: false, Output: "fail"}}, nil
 	}
 
 	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
@@ -972,7 +972,7 @@ func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
 	cancel() // cancel immediately
 
 	bc := newTestBeadContext()
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		t.Fatal("invokeFn should not be called when context is cancelled")
 		return nil, nil
 	}
@@ -1004,14 +1004,14 @@ func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 	bc.MaxRetries = 2
 
 	callCount := 0
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		callCount++
 		if callCount == 1 {
-			return &InvocationResult{
+			return &runtypes.InvocationResult{
 				Result: &claude.Result{Success: false, Output: "nil pointer dereference"},
 			}, nil
 		}
-		return &InvocationResult{
+		return &runtypes.InvocationResult{
 			Result: &claude.Result{Success: true, Output: "fixed"},
 		}, nil
 	}
@@ -1050,9 +1050,9 @@ func TestExecuteWithRetry_AndonBoundedRecoverableFlowStopsLine(t *testing.T) {
 	bc.MaxAttemptsPerBead = 20
 
 	callCount := 0
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		callCount++
-		return &InvocationResult{
+		return &runtypes.InvocationResult{
 			Result: &claude.Result{
 				Success: false,
 				Output:  "build failed",
@@ -1150,8 +1150,8 @@ func TestExecuteWithRetry_DecompositionRemainsAvailableAsL4Option(t *testing.T) 
 	bc.MaxRetries = 0
 	bc.MaxRetriesPerBead = 5
 
-	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error) {
-		return &InvocationResult{
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
 			Result: &claude.Result{
 				Success: false,
 				Output:  "still failing",

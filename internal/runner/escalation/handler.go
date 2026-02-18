@@ -29,22 +29,11 @@ type DecomposeFn func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, er
 // CreateSubFn creates sub-beads from decomposed sub-tasks.
 type CreateSubFn func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error
 
-// InvocationResult captures the outcome of a single Claude invocation.
-// This is a local type mirroring execution.InvocationResult to avoid
-// importing the execution sibling package.
-type InvocationResult struct {
-	Result         *claude.Result
-	StallFired     bool
-	TimeoutType    string // "stall", "invocation", "bead", ""
-	ProviderResult *provider.Result
-}
-
 const integrityUnsafeStateCategory analyzer.Category = "integrity_unsafe_state"
 
 // InvokeFn executes a single Claude invocation. The facade wraps
-// execution.Invoker.Execute and maps the result to this package's
-// InvocationResult type.
-type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*InvocationResult, error)
+// execution.Invoker.Execute and returns a runtypes.InvocationResult.
+type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error)
 
 // LogFn is a printf-style logging callback for escalation events.
 type LogFn func(format string, args ...interface{})

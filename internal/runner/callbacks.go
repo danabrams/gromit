@@ -37,7 +37,7 @@ type refactorPhasePromptShaper interface {
 // makeInvokeFn creates an InvokeFn callback that wraps the Runner's Claude invocation,
 // handling cost data, scope-too-large, usage limit detection, and timeout classification.
 func (r *Runner) makeInvokeFn() escalation.InvokeFn {
-	return func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*escalation.InvocationResult, error) {
+	return func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		prevScopedTestCmd := ""
 		if bc.PromptCtx != nil {
 			prevScopedTestCmd = bc.PromptCtx.ScopedTestCommand
@@ -64,18 +64,18 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		if err != nil {
 			if stallFired && ctx.Err() == nil {
-				return &escalation.InvocationResult{StallFired: true, TimeoutType: "stall", ProviderResult: providerResult}, err
+				return &runtypes.InvocationResult{StallFired: true, TimeoutType: "stall", ProviderResult: providerResult}, err
 			}
 			// Classify timeout type
 			if ctx.Err() != nil && bc.ParentCtx.Err() == nil {
 				bc.Result.TimeoutType = "bead"
 				escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
-				return &escalation.InvocationResult{TimeoutType: "bead", ProviderResult: providerResult}, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+				return &runtypes.InvocationResult{TimeoutType: "bead", ProviderResult: providerResult}, fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 			} else if bc.ParentCtx.Err() != nil {
 				return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
 			}
 			bc.Result.TimeoutType = "invocation"
-			return &escalation.InvocationResult{TimeoutType: "invocation", ProviderResult: providerResult}, fmt.Errorf("claude invocation: %w", err)
+			return &runtypes.InvocationResult{TimeoutType: "invocation", ProviderResult: providerResult}, fmt.Errorf("claude invocation: %w", err)
 		}
 
 		if claudeResult == nil {
@@ -93,7 +93,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		// Check scope-too-large
 		if isTooLarge, explanation := claude.IsScopeTooLarge(claudeResult); isTooLarge {
 			r.handleScopeTooLarge(bc, claudeResult, explanation)
-			return &escalation.InvocationResult{Result: claudeResult, ProviderResult: providerResult}, bc.Result.Error
+			return &runtypes.InvocationResult{Result: claudeResult, ProviderResult: providerResult}, bc.Result.Error
 		}
 
 		// Check usage limits
@@ -110,7 +110,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 			return nil, fmt.Errorf("usage limit detected: retries or escalation will not resolve this failure (exit code: %d, rate limit events: %d)", claudeResult.ExitCode, signals.RateLimitHits)
 		}
 
-		return &escalation.InvocationResult{
+		return &runtypes.InvocationResult{
 			Result:         claudeResult,
 			StallFired:     false,
 			ProviderResult: providerResult,
