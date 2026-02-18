@@ -318,6 +318,7 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	defer cancel()
 
 	cmd := execCommandContext(ctx, c.binary, args...)
+	cmd.WaitDelay = 100 * time.Millisecond
 	fmt.Fprintf(output, "  cmd: %s %s\n", c.binary, strings.Join(args, " "))
 	fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))
 
