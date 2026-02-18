@@ -318,9 +318,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 
 	// Create agent resolver adapter
 	agentResolver := &cliAgentResolver{
-		cfg:          cfg,
-		flagOverride: reviewAgent,
-		choosePicker: reviewChooseAgent,
+		cfg: cfg,
 	}
 
 	// Create prompt renderer adapter that loads ClaudeMD and Rules
@@ -487,9 +485,7 @@ func shortCommit(commit string) string {
 
 // cliAgentResolver adapts agent.Resolve to the pipeline.AgentResolver interface
 type cliAgentResolver struct {
-	cfg          *config.Config
-	flagOverride string
-	choosePicker bool
+	cfg *config.Config
 }
 
 func (r *cliAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {

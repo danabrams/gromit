@@ -3,11 +3,7 @@ package main
 import "testing"
 
 func TestCliAgentResolver_UsesFlagOverrideParam(t *testing.T) {
-	resolver := &cliAgentResolver{
-		cfg:          nil,
-		flagOverride: "claude",
-		choosePicker: true,
-	}
+	resolver := &cliAgentResolver{cfg: nil}
 
 	agent, err := resolver.Resolve("review", "codex", false)
 	if err != nil {
