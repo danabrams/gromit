@@ -27,6 +27,13 @@ func TestSelectGate_ReturnsFullOnModuloBoundary(t *testing.T) {
 	}
 }
 
+func TestSelectGate_ZeroConsecutiveSuccessesReturnsFullWhenEnabled(t *testing.T) {
+	p := newConfigValidationPolicy(3)
+	if got := p.SelectGate(0); got != policy.GateFull {
+		t.Errorf("SelectGate(0) with fullEveryN=3: got %v, want GateFull (0%%3==0)", got)
+	}
+}
+
 func TestSelectGate_ZeroFullEveryNAlwaysReturnsFast(t *testing.T) {
 	p := newConfigValidationPolicy(0)
 	for _, n := range []int{0, 1, 5, 100} {
