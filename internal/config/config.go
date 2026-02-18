@@ -16,6 +16,8 @@ const (
 	ModelSonnet = "sonnet"
 	ModelHaiku  = "haiku"
 
+	tokensPer1k = 1000.0
+
 	DefaultInvocationTimeoutSeconds = 900 // 15 minutes
 
 	DefaultAndonAssumptionBudget = 2
@@ -302,7 +304,7 @@ func (p ProviderDef) EstimateCost(inputTokens, outputTokens int) float64 {
 	if p.CostPer1kInput == 0 && p.CostPer1kOutput == 0 {
 		return 0
 	}
-	return float64(inputTokens)/1000*p.CostPer1kInput + float64(outputTokens)/1000*p.CostPer1kOutput
+	return float64(inputTokens)/tokensPer1k*p.CostPer1kInput + float64(outputTokens)/tokensPer1k*p.CostPer1kOutput
 }
 
 type RoutingConfig struct {

@@ -78,16 +78,9 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		// Populate cost/token data
 		if invResult.Stats != nil {
 			costUSD, inputTokens, outputTokens := invResult.Stats.CostData()
-			bc.Result.CostUSD = costUSD
+			bc.Result.CostUSD = r.estimatedCostUSD(invResult.ProviderName, costUSD, inputTokens, outputTokens)
 			bc.Result.InputTokens = inputTokens
 			bc.Result.OutputTokens = outputTokens
-
-			// Estimate cost from token counts when the provider doesn't report cost
-			if costUSD == 0 && (inputTokens > 0 || outputTokens > 0) {
-				if provDef, ok := r.cfg.Providers[invResult.ProviderName]; ok {
-					bc.Result.CostUSD = provDef.EstimateCost(inputTokens, outputTokens)
-				}
-			}
 		}
 
 		// Check scope-too-large
@@ -112,6 +105,18 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		return invResult, nil
 	}
+}
+
+func (r *Runner) estimatedCostUSD(providerName string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
+	if reportedCostUSD != 0 || (inputTokens == 0 && outputTokens == 0) {
+		return reportedCostUSD
+	}
+
+	provDef, ok := r.cfg.Providers[providerName]
+	if !ok {
+		return reportedCostUSD
+	}
+	return provDef.EstimateCost(inputTokens, outputTokens)
 }
 
 func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, err error) (*runtypes.InvocationResult, error) {
