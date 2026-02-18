@@ -813,6 +813,39 @@ this is not json
 	}
 }
 
+// TestCostPerSpec_AggregatesAcrossMultipleFiles verifies stats accumulate across multiple run files
+func TestCostPerSpec_AggregatesAcrossMultipleFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	logs1 := []IterationLog{
+		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.50, SpecID: "spec-A"},
+	}
+	writeTestLogFile(t, dir, "20260218-120000", logs1)
+
+	logs2 := []IterationLog{
+		{BeadID: "b2", Model: "sonnet", Success: true, CostUSD: 0.25, SpecID: "spec-A"},
+		{BeadID: "b3", Model: "haiku", Success: true, CostUSD: 0.10, SpecID: "spec-B"},
+	}
+	writeTestLogFile(t, dir, "20260218-130000", logs2)
+
+	result, err := CostPerSpec(dir)
+	if err != nil {
+		t.Fatalf("CostPerSpec failed: %v", err)
+	}
+	if result["spec-A"].Iterations != 2 {
+		t.Errorf("spec-A Iterations = %d, want 2", result["spec-A"].Iterations)
+	}
+	if result["spec-A"].Beads != 2 {
+		t.Errorf("spec-A Beads = %d, want 2", result["spec-A"].Beads)
+	}
+	if diff := result["spec-A"].TotalCostUSD - 0.75; diff > 0.001 || diff < -0.001 {
+		t.Errorf("spec-A TotalCostUSD = %.2f, want 0.75", result["spec-A"].TotalCostUSD)
+	}
+	if result["spec-B"].Iterations != 1 {
+		t.Errorf("spec-B Iterations = %d, want 1", result["spec-B"].Iterations)
+	}
+}
+
 // TestCostPerSpec_ModelMixTracksModelUsage verifies ModelMix counts iterations per model per spec
 func TestCostPerSpec_ModelMixTracksModelUsage(t *testing.T) {
 	dir := t.TempDir()
