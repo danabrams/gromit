@@ -251,6 +251,7 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 			// This is the final validation pass after refactor, so post-success stages
 			// must run here.
 			if err := r.runValidationWithRecoveryForStage(validationCtx, bc, true); err != nil {
+				setPhaseAttribution(bc.Result, "validation", err)
 				bc.Result.Error = wrapRefactorValidationError(err)
 				return false, bc.Result
 			}
