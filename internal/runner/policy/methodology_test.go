@@ -87,6 +87,27 @@ func TestMinRevalidationBudget_Returns30Seconds(t *testing.T) {
 	}
 }
 
+func TestShouldDeferPostSuccess_WhenMethodologyActive(t *testing.T) {
+	p := newMethodologyPolicy(false, false)
+
+	// Both inactive: post-success should run immediately (no deferral = true)
+	if !p.ShouldDeferPostSuccess(false, false) {
+		t.Error("expected ShouldDeferPostSuccess=true when neither atdd nor tdd active")
+	}
+	// ATDD active: defer post-success
+	if p.ShouldDeferPostSuccess(true, false) {
+		t.Error("expected ShouldDeferPostSuccess=false when atdd active")
+	}
+	// TDD active: defer post-success
+	if p.ShouldDeferPostSuccess(false, true) {
+		t.Error("expected ShouldDeferPostSuccess=false when tdd active")
+	}
+	// Both active: defer post-success
+	if p.ShouldDeferPostSuccess(true, true) {
+		t.Error("expected ShouldDeferPostSuccess=false when both active")
+	}
+}
+
 func TestIsActive_ATDDGlobalConfig(t *testing.T) {
 	p := newMethodologyPolicy(true, false)
 	labels := []string{}
