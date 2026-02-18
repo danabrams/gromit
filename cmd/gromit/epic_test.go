@@ -57,25 +57,8 @@ This epic explores ways to make developer onboarding smoother.
 		t.Fatalf("failed to write epic: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, "", "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
@@ -143,26 +126,8 @@ This spec describes the implementation.
 		}
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, _, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
@@ -270,27 +235,8 @@ decomposed: true
 		t.Fatalf("failed to write decomposed plan: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-  plans_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir, plansDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, plansDir)
+	chdirTo(t, tmpDir)
 
 	stdout, _, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
@@ -366,27 +312,8 @@ decomposed: true
 		t.Fatalf("failed to write plan: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-  plans_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir, plansDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, plansDir)
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
@@ -431,26 +358,8 @@ created: 2026-02-08
 		t.Fatalf("failed to write epic: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
@@ -483,25 +392,8 @@ func TestEpicStatusCommand_ErrorWhenEpicNotFound(t *testing.T) {
 		t.Fatalf("failed to create epics dir: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, "", "")
+	chdirTo(t, tmpDir)
 
 	_, stderr, exitCode := runGromitCobra(t, "epic", "status", "nonexistent-epic-xyz")
 
@@ -554,26 +446,8 @@ created: 2026-02-08
 		t.Fatalf("failed to write spec: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-lonely")
 
@@ -663,27 +537,8 @@ decomposed: %v
 		}
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-  plans_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir, plansDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, plansDir)
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
@@ -784,15 +639,7 @@ models:
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
@@ -866,26 +713,8 @@ Implement credit card payment processing via Stripe API.
 		t.Fatalf("failed to write spec: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-abc")
 
@@ -964,26 +793,8 @@ created: 2026-02-08
 		}
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
@@ -1035,26 +846,8 @@ Build a simple feature with two components: frontend and backend.
 	}
 
 	// No specs yet - everything is a gap
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-simple")
 
@@ -1118,26 +911,8 @@ This epic needs work in three areas:
 
 	// Don't create any specs
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-empty")
 
@@ -1227,26 +1002,8 @@ created: 2026-02-08
 		t.Fatalf("failed to write different-epic spec: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, _, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
 
@@ -1306,27 +1063,8 @@ created: 2026-02-08
 		t.Fatalf("failed to write spec: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-  plans_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir, plansDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, plansDir)
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
@@ -1374,26 +1112,8 @@ This epic should handle missing specs directory gracefully.
 		t.Fatalf("failed to write epic: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
@@ -1427,25 +1147,8 @@ func TestEpicStatusCommand_HandlesMissingEpicsDirectory(t *testing.T) {
 
 	// Don't create epics directory
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, "", "")
+	chdirTo(t, tmpDir)
 
 	_, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
@@ -1510,26 +1213,8 @@ created: [this is invalid yaml
 		t.Fatalf("failed to write invalid spec: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
@@ -1575,26 +1260,8 @@ created: 2026-02-08
 		t.Fatalf("failed to write epic: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-empty")
 
@@ -1661,26 +1328,8 @@ created: 2026-02-08
 		t.Fatalf("failed to write no-id spec: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
@@ -1756,26 +1405,8 @@ created: 2026-02-08
 		t.Fatalf("failed to write numeric-id spec: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
@@ -1848,27 +1479,8 @@ decomposed: true
 		t.Fatalf("failed to write plan: %v", err)
 	}
 
-	// Create minimal gromit.yaml
-	configContent := fmt.Sprintf(`paths:
-  gromit_dir: %s
-  epics_dir: %s
-  specs_dir: %s
-  plans_dir: %s
-`, filepath.Join(tmpDir, ".gromit"), epicsDir, specsDir, plansDir)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	writeGromitConfig(t, tmpDir, epicsDir, specsDir, plansDir)
+	chdirTo(t, tmpDir)
 
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-test")
 
