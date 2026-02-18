@@ -1064,10 +1064,9 @@ func TestRenderSpecGateWithExtendedContext(t *testing.T) {
 	r := &Renderer{templatesDir: templatesDir}
 
 	tests := []struct {
-		name     string
-		ctx      *SpecGateContext
-		wantStrs []string
-		notStrs  []string
+		name         string
+		ctx          *SpecGateContext
+		wantContains []string
 	}{
 		{
 			name: "populated TestOutput CumulativeDiff and AcceptanceCriteria appear in output",
@@ -1078,7 +1077,7 @@ func TestRenderSpecGateWithExtendedContext(t *testing.T) {
 				CumulativeDiff:     "+func handler() { return 500 }",
 				AcceptanceCriteria: "All endpoints return expected HTTP status codes",
 			},
-			wantStrs: []string{
+			wantContains: []string{
 				"FAIL: TestFoo expected 200 got 500",
 				"+func handler() { return 500 }",
 				"All endpoints return expected HTTP status codes",
@@ -1094,7 +1093,7 @@ func TestRenderSpecGateWithExtendedContext(t *testing.T) {
 				CumulativeDiff:     "",
 				AcceptanceCriteria: "",
 			},
-			wantStrs: []string{
+			wantContains: []string{
 				"Must return 200",
 			},
 		},
@@ -1109,7 +1108,7 @@ func TestRenderSpecGateWithExtendedContext(t *testing.T) {
 			if result == "" {
 				t.Error("expected non-empty output")
 			}
-			for _, want := range tt.wantStrs {
+			for _, want := range tt.wantContains {
 				if !strings.Contains(result, want) {
 					t.Errorf("RenderSpecGate() missing expected string %q\ngot:\n%s", want, result)
 				}
