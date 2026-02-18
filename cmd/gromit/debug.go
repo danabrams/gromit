@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -178,33 +177,8 @@ func buildDebugPrompt(cfg *config.Config, gromitDir string, args []string, entry
 	// Load learnings
 	lf := renderer.GetLearningsFile()
 	var confirmedLearnings, recentLearnings string
-	if lf != nil {
-		confirmed := lf.GetConfirmed()
-		recent := lf.GetRecent(24)
-
-		if len(confirmed) > 0 {
-			var sb strings.Builder
-			for _, l := range confirmed {
-				sb.WriteString(fmt.Sprintf("- **[%s]** %s\n", l.Category, l.Content))
-			}
-			confirmedLearnings = sb.String()
-		} else {
-			confirmedLearnings = "*None*"
-		}
-
-		if len(recent) > 0 {
-			var sb strings.Builder
-			for _, l := range recent {
-				sb.WriteString(fmt.Sprintf("- **[%s]** %s\n", l.Category, l.Content))
-			}
-			recentLearnings = sb.String()
-		} else {
-			recentLearnings = "*None*"
-		}
-	} else {
-		confirmedLearnings = "*None*"
-		recentLearnings = "*None*"
-	}
+	confirmedLearnings = formatLearnings(lf, true)
+	recentLearnings = formatLearnings(lf, false)
 
 	// Get working directory
 	workDir, _ := os.Getwd()
@@ -336,21 +310,41 @@ func getNewBacklogItems(existing []*backlog.Idea, bf *backlog.File) ([]*backlog.
 		return nil, err
 	}
 
-	// Build map of existing IDs
-	existingIDs := make(map[string]bool)
+	// Build set of existing IDs
+	existingIDs := make(map[string]struct{}, len(existing))
 	for _, item := range existing {
-		existingIDs[item.ID] = true
+		existingIDs[item.ID] = struct{}{}
 	}
 
 	// Find new items
-	newItems := []*backlog.Idea{}
+	newItems := make([]*backlog.Idea, 0, len(current))
 	for _, item := range current {
-		if !existingIDs[item.ID] {
+		if _, ok := existingIDs[item.ID]; !ok {
 			newItems = append(newItems, item)
 		}
 	}
 
 	return newItems, nil
+}
+
+func newArtifactPaths(existing, current []string) []string {
+	if len(current) == 0 {
+		return []string{}
+	}
+
+	existingSet := make(map[string]struct{}, len(existing))
+	for _, path := range existing {
+		existingSet[path] = struct{}{}
+	}
+
+	created := make([]string, 0, len(current))
+	for _, path := range current {
+		if _, ok := existingSet[path]; !ok {
+			created = append(created, path)
+		}
+	}
+
+	return created
 }
 
 // detectAndReportArtifacts scans for new reports, plans, and backlog items,
@@ -373,19 +367,8 @@ func detectAndReportArtifacts(reportsDir, plansDir string, existingReports, exis
 	}
 
 	// Find newly created artifacts
-	createdReports := []string{}
-	for _, report := range newReports {
-		if !slices.Contains(existingReports, report) {
-			createdReports = append(createdReports, report)
-		}
-	}
-
-	createdPlans := []string{}
-	for _, plan := range newPlans {
-		if !slices.Contains(existingPlans, plan) {
-			createdPlans = append(createdPlans, plan)
-		}
-	}
+	createdReports := newArtifactPaths(existingReports, newReports)
+	createdPlans := newArtifactPaths(existingPlans, newPlans)
 
 	// Display summary
 	hasArtifacts := len(createdReports) > 0 || len(createdPlans) > 0 || len(newBacklogItems) > 0
