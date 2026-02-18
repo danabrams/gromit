@@ -43,7 +43,7 @@ func TestMaybeRunSpecGate_DisabledSkips(t *testing.T) {
 	}
 
 	r := &Runner{
-		cfg: &config.Config{SpecGate: config.SpecGateConfig{Enabled: false}},
+		cfg:   &config.Config{SpecGate: config.SpecGateConfig{Enabled: false}},
 		beads: beads,
 		// specGate should be ignored because the feature is disabled
 		specGate: gate,
@@ -123,5 +123,78 @@ func TestMaybeRunSpecGate_OpenBeadsSkip(t *testing.T) {
 	}
 	if st.specGateCycles["demo-spec"] != 0 {
 		t.Fatalf("expected cycle count to remain 0, got %d", st.specGateCycles["demo-spec"])
+	}
+}
+
+func TestMaybeRunSpecGate_RunsAndIncrements(t *testing.T) {
+	var runTestsCalls int
+	var renderCalls int
+	var invokeCalls int
+
+	beads := &mockBeadClient{
+		ListWithLabelFn: func(label string) ([]*bead.Bead, error) {
+			return []*bead.Bead{{ID: "bead-1", Status: "closed"}}, nil
+		},
+	}
+
+	gate := &specgate.Gate{
+		RunTests: func(ctx context.Context) (string, error) {
+			runTestsCalls++
+			return "tests ok", nil
+		},
+		GetDiff: func(ctx context.Context) (string, error) {
+			return "diff", nil
+		},
+		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
+			renderCalls++
+			if specName != "demo-spec" {
+				t.Fatalf("unexpected specName %q", specName)
+			}
+			if len(criteria) != 1 || criteria[0] != "works" {
+				t.Fatalf("unexpected criteria: %#v", criteria)
+			}
+			return "prompt", nil
+		},
+		InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
+			invokeCalls++
+			return []byte(`{"passed": true, "results": [{"criterion":"works","passed":true,"evidence":"ok"}]}`), nil
+		},
+		Model:     "sonnet",
+		MaxCycles: 1,
+	}
+
+	specsDir := t.TempDir()
+	specBody := "## Acceptance Criteria\n- works\n"
+	specPath := filepath.Join(specsDir, "demo-spec.md")
+	if err := os.WriteFile(specPath, []byte(specBody), 0644); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
+
+	auto := true
+	r := &Runner{
+		cfg: &config.Config{
+			Paths:    config.PathsConfig{Specs: specsDir},
+			SpecGate: config.SpecGateConfig{Enabled: true, AutoTrigger: &auto, MaxCycles: 2},
+		},
+		beads:    beads,
+		specGate: gate,
+	}
+
+	st := &runLoopState{specGateCycles: make(map[string]int)}
+
+	if err := r.maybeRunSpecGate(context.Background(), st, "demo-spec"); err != nil {
+		t.Fatalf("maybeRunSpecGate() error: %v", err)
+	}
+	if runTestsCalls != 1 {
+		t.Fatalf("expected RunTests to be called once, got %d", runTestsCalls)
+	}
+	if renderCalls != 1 {
+		t.Fatalf("expected RenderPrompt to be called once, got %d", renderCalls)
+	}
+	if invokeCalls != 1 {
+		t.Fatalf("expected InvokeLLM to be called once, got %d", invokeCalls)
+	}
+	if st.specGateCycles["demo-spec"] != 1 {
+		t.Fatalf("expected cycle count to be 1, got %d", st.specGateCycles["demo-spec"])
 	}
 }
