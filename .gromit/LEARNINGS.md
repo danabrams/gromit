@@ -29,6 +29,11 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
 
+### 2026-02-18 | Targeted Validation Tests with Verbose Output | patterns
+*Related to: gromit-0acb*
+
+Validate error handling behavior by running targeted unit tests with complete stdout/stderr capture using table-driven tests and `t.Run()` sub-tests. Use named sentinel errors (not inline error creation) for clear test intent. Employ dual assertions: verify error message content with `strings.Contains()` and error identity preservation with `errors.Is()` to validate %w wrapping semantics. Command: `go test -v -run TestName ./package` captures all sub-test names, pass/fail status, and assertion failure details. Apply for any multi-scenario behavior that must be verified in isolation.
+
 ---
 
 ## Provisional
