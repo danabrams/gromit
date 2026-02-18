@@ -8,21 +8,9 @@ import (
 
 func TestGate_Run_allPass(t *testing.T) {
 	verdictJSON := `{"passed":true,"results":[{"criterion":"No TODOs","passed":true,"evidence":"none found"}]}`
-	g := Gate{
-		Model:     "haiku",
-		MaxCycles: 1,
-		RunTests: func(ctx context.Context) (string, error) {
-			return "ok", nil
-		},
-		GetDiff: func(ctx context.Context) (string, error) {
-			return "diff output", nil
-		},
-		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
-			return "rendered prompt", nil
-		},
-		InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
-			return []byte(verdictJSON), nil
-		},
+	g := newGateFixture()
+	g.InvokeLLM = func(ctx context.Context, model, prompt string) ([]byte, error) {
+		return []byte(verdictJSON), nil
 	}
 
 	verdict, err := g.Run(context.Background(), "myspec", []string{"No TODOs"})
@@ -39,21 +27,12 @@ func TestGate_Run_allPass(t *testing.T) {
 
 func TestGate_Run_someFail(t *testing.T) {
 	verdictJSON := `{"passed":false,"results":[{"criterion":"Tests pass","passed":false,"evidence":"test output"}]}`
-	g := Gate{
-		Model:     "haiku",
-		MaxCycles: 1,
-		RunTests: func(ctx context.Context) (string, error) {
-			return "FAIL", nil
-		},
-		GetDiff: func(ctx context.Context) (string, error) {
-			return "diff output", nil
-		},
-		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
-			return "rendered prompt", nil
-		},
-		InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
-			return []byte(verdictJSON), nil
-		},
+	g := newGateFixture()
+	g.RunTests = func(ctx context.Context) (string, error) {
+		return "FAIL", nil
+	}
+	g.InvokeLLM = func(ctx context.Context, model, prompt string) ([]byte, error) {
+		return []byte(verdictJSON), nil
 	}
 
 	verdict, err := g.Run(context.Background(), "myspec", []string{"Tests pass"})
@@ -70,21 +49,9 @@ func TestGate_Run_someFail(t *testing.T) {
 }
 
 func TestGate_Run_testError_returnsError(t *testing.T) {
-	g := Gate{
-		Model:     "haiku",
-		MaxCycles: 1,
-		RunTests: func(ctx context.Context) (string, error) {
-			return "", errors.New("tests failed to run")
-		},
-		GetDiff: func(ctx context.Context) (string, error) {
-			return "diff output", nil
-		},
-		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
-			return "rendered prompt", nil
-		},
-		InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
-			return nil, nil
-		},
+	g := newGateFixture()
+	g.RunTests = func(ctx context.Context) (string, error) {
+		return "", errors.New("tests failed to run")
 	}
 
 	_, err := g.Run(context.Background(), "myspec", []string{"Tests pass"})
@@ -94,7 +61,19 @@ func TestGate_Run_testError_returnsError(t *testing.T) {
 }
 
 func TestGate_Run_llmError_returnsError(t *testing.T) {
-	g := Gate{
+	g := newGateFixture()
+	g.InvokeLLM = func(ctx context.Context, model, prompt string) ([]byte, error) {
+		return nil, errors.New("LLM unavailable")
+	}
+
+	_, err := g.Run(context.Background(), "myspec", []string{"Tests pass"})
+	if err == nil {
+		t.Error("Run() expected error when InvokeLLM fails, got nil")
+	}
+}
+
+func newGateFixture() Gate {
+	return Gate{
 		Model:     "haiku",
 		MaxCycles: 1,
 		RunTests: func(ctx context.Context) (string, error) {
@@ -107,12 +86,7 @@ func TestGate_Run_llmError_returnsError(t *testing.T) {
 			return "rendered prompt", nil
 		},
 		InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
-			return nil, errors.New("LLM unavailable")
+			return nil, nil
 		},
-	}
-
-	_, err := g.Run(context.Background(), "myspec", []string{"Tests pass"})
-	if err == nil {
-		t.Error("Run() expected error when InvokeLLM fails, got nil")
 	}
 }
