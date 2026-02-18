@@ -28,10 +28,11 @@ func setupMigratedRunner(t *testing.T) *Runner {
 				BeadTimeout: 300,
 			},
 		},
-		beads:    &mockBeadClient{},
-		renderer: &mockRenderer{},
-		output:   &strings.Builder{},
-		router:   newMockRouter(),
+		beads:     &mockBeadClient{},
+		renderer:  &mockRenderer{},
+		output:    &strings.Builder{},
+		router:    newMockRouter(),
+		gitHeadFn: stubGitHeadFn(),
 	}
 }
 

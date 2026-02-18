@@ -59,6 +59,7 @@ func setupDirectValidationRunner(t *testing.T, cfg *config.Config, cmdRunner run
 		renderer:         &mockRenderer{},
 		analyzer:         mockAnalyzer,
 		output:           &buf,
+		gitHeadFn:        stubGitHeadFn(),
 		cmdRunnerFn:      cmdRunner,
 		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
 	}

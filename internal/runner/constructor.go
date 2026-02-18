@@ -104,6 +104,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 		gromitDir:      gromitDir,
 		stateFile:      sf,
 		gitDiffFn:      getGitDiff,
+		gitHeadFn:      getGitHead,
 		cmdRunnerFn:    defaultCmdRunner,
 		processChecker: IsProcessAlive,
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {

@@ -81,6 +81,7 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 		syncOut:        syncOut,
 		gromitDir:      gromitDir,
 		gitDiffFn:      getGitDiff,
+		gitHeadFn:      getGitHead,
 		cmdRunnerFn:    cmdRunner,
 		processChecker: IsProcessAlive,
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {

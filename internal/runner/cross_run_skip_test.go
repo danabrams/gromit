@@ -53,3 +53,31 @@ func TestInitRunLoopState_SkipsBeadsWithConsecutiveFailures(t *testing.T) {
 		t.Fatalf("expected warning about consecutive failures for bead-123, got: %s", output)
 	}
 }
+
+func TestInitRunLoopState_UsesInjectedGitHeadFnForReviewBaseline(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Paths: config.PathsConfig{Logs: filepath.Join(tmpDir, "logs")},
+	}
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps error: %v", err)
+	}
+	r.gitHeadFn = func() (string, error) {
+		return "abc123", nil
+	}
+
+	st, cleanup, err := r.initRunLoopState(time.Time{})
+	if err != nil {
+		t.Fatalf("initRunLoopState error: %v", err)
+	}
+	cleanup()
+
+	if st.interactiveFile == nil {
+		t.Fatal("expected interactive file to be initialized")
+	}
+	if st.interactiveFile.LastReviewCommit() != "abc123" {
+		t.Fatalf("LastReviewCommit = %q, want %q", st.interactiveFile.LastReviewCommit(), "abc123")
+	}
+}

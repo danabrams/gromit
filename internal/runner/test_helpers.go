@@ -19,3 +19,9 @@ func newInvokerForTest(router *provider.Router, output io.Writer, sl *logger.Str
 	}
 	return execution.NewInvoker(&routerAdapter{r: router}, output, sl)
 }
+
+func stubGitHeadFn() func() (string, error) {
+	return func() (string, error) {
+		return "abc123", nil
+	}
+}

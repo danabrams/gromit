@@ -126,12 +126,16 @@ func (r *Runner) initRunLoopState(deadline time.Time) (*runLoopState, func(), er
 	}
 
 	if st.interactiveFile != nil && st.interactiveFile.LastReviewCommit() == "" {
-		currentCommit, err := getGitHead()
+		currentCommit, err := r.getHead()
 		if err == nil && currentCommit != "" {
 			if err := st.interactiveFile.RecordReview(currentCommit, 0); err != nil {
 				r.log("Warning: could not initialize review baseline: %v", err)
 			} else {
-				r.log("Initialized review baseline at commit %s", currentCommit[:8])
+				shortCommit := currentCommit
+				if len(shortCommit) > 8 {
+					shortCommit = shortCommit[:8]
+				}
+				r.log("Initialized review baseline at commit %s", shortCommit)
 			}
 		}
 	}
