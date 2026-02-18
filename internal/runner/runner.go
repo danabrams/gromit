@@ -147,7 +147,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 	runThoroughReview := func(iteration int) {
 		if st.interactiveFile != nil && r.reviewer != nil {
-			r.reviewer.RunThorough(ctx, st.interactiveFile, iteration, deadline, getGitHead)
+			r.reviewer.RunThorough(ctx, st.interactiveFile, iteration, deadline, r.getHead)
 		}
 	}
 
