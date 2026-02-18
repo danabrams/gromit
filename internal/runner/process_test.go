@@ -2721,18 +2721,7 @@ func TestRunRefactorAndPostChecks_NonTimeoutValidationFailure(t *testing.T) {
 }
 
 func TestSetupBeadContext_SetsSpecIDFromLabel(t *testing.T) {
-	r := &Runner{
-		cfg: &config.Config{
-			Claude: config.ClaudeConfig{BeadTimeout: 300},
-		},
-		beads:    &mockBeadClient{},
-		renderer: &mockRenderer{},
-		output:   &strings.Builder{},
-		router:   newMockRouter(),
-		gitHeadFn: func() (string, error) {
-			return "abc123", nil
-		},
-	}
+	r := newRunnerForBeadContextTest(t)
 	b := &bead.Bead{ID: "test-spec", Title: "Spec Test", Priority: 1, Labels: []string{"spec:my-spec"}}
 
 	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
@@ -2747,18 +2736,7 @@ func TestSetupBeadContext_SetsSpecIDFromLabel(t *testing.T) {
 }
 
 func TestSetupBeadContext_SpecIDEmptyWhenNoSpecLabel(t *testing.T) {
-	r := &Runner{
-		cfg: &config.Config{
-			Claude: config.ClaudeConfig{BeadTimeout: 300},
-		},
-		beads:    &mockBeadClient{},
-		renderer: &mockRenderer{},
-		output:   &strings.Builder{},
-		router:   newMockRouter(),
-		gitHeadFn: func() (string, error) {
-			return "abc123", nil
-		},
-	}
+	r := newRunnerForBeadContextTest(t)
 	b := &bead.Bead{ID: "test-no-spec", Title: "No Spec Test", Priority: 1, Labels: []string{"priority:1", "type:task"}}
 
 	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
@@ -2769,6 +2747,23 @@ func TestSetupBeadContext_SpecIDEmptyWhenNoSpecLabel(t *testing.T) {
 
 	if bc.Result.SpecID != "" {
 		t.Errorf("SpecID = %q, want empty string", bc.Result.SpecID)
+	}
+}
+
+func newRunnerForBeadContextTest(t *testing.T) *Runner {
+	t.Helper()
+
+	return &Runner{
+		cfg: &config.Config{
+			Claude: config.ClaudeConfig{BeadTimeout: 300},
+		},
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
+		output:   &strings.Builder{},
+		router:   newMockRouter(),
+		gitHeadFn: func() (string, error) {
+			return "abc123", nil
+		},
 	}
 }
 
