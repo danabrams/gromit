@@ -60,6 +60,16 @@ func TestPhaseTimeout_ConfiguredPhaseTimeoutUsed(t *testing.T) {
 	}
 }
 
+func TestPhaseTimeout_FallsBackToBeadTimeoutWhenUnconfigured(t *testing.T) {
+	cfg := &config.Config{} // zero PhaseTimeouts
+	p := policy.NewConfigMethodologyPolicy(cfg)
+
+	got := p.PhaseTimeout("red", 500)
+	if got != 500 {
+		t.Errorf("PhaseTimeout with zero config: got %d, want 500 (bead timeout fallback)", got)
+	}
+}
+
 func TestIsActive_ATDDGlobalConfig(t *testing.T) {
 	p := newMethodologyPolicy(true, false)
 	labels := []string{}
