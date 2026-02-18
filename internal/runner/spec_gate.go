@@ -279,3 +279,5 @@ func parseBeadPriority(priority string) (int, error) {
 	}
 	return value, nil
 }
+
+var _ specgate.BeadCreator = (*specGateBeadCreator)(nil)
