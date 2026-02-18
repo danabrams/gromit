@@ -2513,6 +2513,8 @@ func TestRunWritesFinalStatusOnContextCancellation(t *testing.T) {
 func setupRunStopChTestRunner(t *testing.T, beads *mockBeadClient) *Runner {
 	t.Helper()
 
+	t.Setenv("TMUX", "")
+
 	precheckDisabled := false
 	autoPushDisabled := false
 
@@ -2581,6 +2583,16 @@ func TestSetupRunStopChTestRunnerSetsLogsAndCompileCheck(t *testing.T) {
 	}
 	if *r.cfg.Preflight.CompileCheck {
 		t.Fatal("expected cfg.Preflight.CompileCheck to be false")
+	}
+}
+
+func TestSetupRunStopChTestRunnerClearsTmuxEnv(t *testing.T) {
+	t.Setenv("TMUX", "1")
+
+	_ = setupRunStopChTestRunner(t, &mockBeadClient{})
+
+	if got := os.Getenv("TMUX"); got != "" {
+		t.Fatalf("expected TMUX env to be cleared, got %q", got)
 	}
 }
 
