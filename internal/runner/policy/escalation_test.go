@@ -91,3 +91,14 @@ func TestClassifyTimeout_AllBranchCombinations(t *testing.T) {
 		})
 	}
 }
+
+func TestSelectInitialTier_DelegatesToConfig(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Models.P1 = "low"
+	p := newConfigEscalationPolicy(cfg)
+	want := cfg.SelectTier(1, nil)
+	got := p.SelectInitialTier(1, nil)
+	if got != want {
+		t.Errorf("SelectInitialTier() = %q, want %q", got, want)
+	}
+}
