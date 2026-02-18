@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -394,7 +395,7 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 // startupMonitor wraps an io.Reader and warns if no data arrives within a timeout.
 type startupMonitor struct {
 	reader    io.Reader
-	warned    bool
+	warned    atomic.Bool
 	firstRead bool
 	timeout   time.Duration
 	output    io.Writer
@@ -417,8 +418,8 @@ func (m *startupMonitor) Read(p []byte) (int, error) {
 			select {
 			case <-done:
 			case <-time.After(m.timeout):
-				if !m.warned {
-					m.warned = true
+				if !m.warned.Load() {
+					m.warned.Store(true)
 					fmt.Fprintf(m.output, "\n  WARNING: No output from Claude CLI after %v. Possible causes:\n", m.timeout)
 					fmt.Fprintf(m.output, "    - Rate limiting (API quota exhausted)\n")
 					fmt.Fprintf(m.output, "    - Authentication issue (run 'claude' manually to check)\n")
