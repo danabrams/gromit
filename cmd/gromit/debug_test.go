@@ -779,3 +779,16 @@ func TestBuildDebugPromptWithRunbookEntrySkippedWhenArgsPresent(t *testing.T) {
 		t.Errorf("expected no Failure Context when description arg provided and entry is nil")
 	}
 }
+
+// TestPickRunbookEntryEmptyListReturnsNil verifies that pickRunbookEntry returns nil
+// when the entries list is empty (no entries to pick from).
+func TestPickRunbookEntryEmptyListReturnsNil(t *testing.T) {
+	reader := strings.NewReader("1\n")
+	entry, err := pickRunbookEntry([]runbook.Entry{}, reader)
+	if err != nil {
+		t.Fatalf("pickRunbookEntry failed: %v", err)
+	}
+	if entry != nil {
+		t.Errorf("expected nil entry for empty entries list, got %v", entry.BeadID)
+	}
+}
