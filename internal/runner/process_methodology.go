@@ -179,11 +179,6 @@ func checkRemainingGuard(remaining time.Duration, needed time.Duration) deadline
 	return deadlineGuard{Skip: false, Remaining: remaining, Needed: needed}
 }
 
-// minRevalidationTime is the minimum remaining bead budget required to run
-// post-refactor re-validation. Skipping re-validation when nearly out of time
-// avoids starting a validation run that is unlikely to complete.
-const minRevalidationTime = 30 * time.Second
-
 func beadRemaining(bc *runtypes.BeadContext) (remaining time.Duration, elapsed time.Duration, ok bool) {
 	if bc == nil || bc.BeadTimeout <= 0 || bc.BeadStartTime.IsZero() {
 		return 0, 0, false
@@ -228,10 +223,11 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		// bead budget. It sets skipRevalidation=true and has no other effect.
 		// It does NOT affect how validation errors are handled below.
 		skipRevalidation := false
+		minRevalidationBudget := r.methodologyPolicy.MinRevalidationBudget()
 		if remaining, _, ok := beadRemaining(bc); ok {
-			guard := checkRemainingGuard(remaining, minRevalidationTime)
+			guard := checkRemainingGuard(remaining, minRevalidationBudget)
 			if guard.Skip {
-				r.log("Skipping post-refactor re-validation: reason=%s (remaining %s, needed %s)", guard.SkipReason, remaining.Round(time.Second), minRevalidationTime)
+				r.log("Skipping post-refactor re-validation: reason=%s (remaining %s, needed %s)", guard.SkipReason, remaining.Round(time.Second), minRevalidationBudget)
 				skipRevalidation = true
 			}
 		}

@@ -193,3 +193,44 @@ func TestRunRefactorAndPostChecks_UsesMethodologyPolicyMinRefactorBudget(t *test
 		t.Fatal("expected refactor phase to run with reduced min refactor budget")
 	}
 }
+
+func TestRunRefactorAndPostChecks_UsesMethodologyPolicyMinRevalidationBudget(t *testing.T) {
+	commandCalls := 0
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		commandCalls++
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+		return &claude.Result{Success: true}, nil
+	})
+	r.cfg.Refactor.MinFilesChanged = 0
+	r.cfg.Validation.Enabled = true
+
+	r.methodologyPolicy = &mockMethodologyPolicy{
+		MinRefactorBudgetFn: func() time.Duration {
+			return 0
+		},
+		MinRevalidationBudgetFn: func() time.Duration {
+			return 0
+		},
+	}
+
+	bc := &runtypes.BeadContext{
+		Tier:          provider.TierMedium,
+		StartCommit:   testStartCommit,
+		ParentCtx:     context.Background(),
+		BeadTimeout:   20 * time.Second,
+		BeadStartTime: time.Now().Add(-10 * time.Second),
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+	r.runRefactorAndPostChecks(context.Background(), bc, false)
+
+	if commandCalls == 0 {
+		t.Fatal("expected re-validation to run with zero min revalidation budget")
+	}
+}
