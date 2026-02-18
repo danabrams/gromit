@@ -118,3 +118,19 @@ func TestIsActive_ATDDGlobalConfig(t *testing.T) {
 		t.Error("expected IsActive to return false for tdd from global config")
 	}
 }
+
+func newMethodologyPolicyWithGranularity(atdd, tdd bool, granularity string) policy.MethodologyPolicy {
+	cfg := &config.Config{}
+	cfg.Methodology.ATDD = atdd
+	cfg.Methodology.TDD = tdd
+	cfg.Methodology.Granularity = granularity
+	return policy.NewConfigMethodologyPolicy(cfg)
+}
+
+func TestIsActive_ATDDSuppressedWhenSpecGranularityAndSpecLabel(t *testing.T) {
+	p := newMethodologyPolicyWithGranularity(true, false, "spec")
+	labels := []string{"spec:my-feature"}
+	if p.IsActive(labels, "atdd") {
+		t.Error("expected IsActive to return false for atdd when granularity=spec and spec label present")
+	}
+}

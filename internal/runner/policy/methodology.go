@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -10,7 +11,7 @@ const (
 	methodologyATDD = "atdd"
 	methodologyTDD  = "tdd"
 
-	minRefactorBudget    = 60 * time.Second
+	minRefactorBudget     = 60 * time.Second
 	minRevalidationBudget = 30 * time.Second
 )
 
@@ -39,6 +40,14 @@ func NewConfigMethodologyPolicy(cfg *config.Config) MethodologyPolicy {
 // IsActive checks whether the named methodology is active for the given bead
 // labels, falling back to the global config default when no label overrides it.
 func (p *ConfigMethodologyPolicy) IsActive(labels []string, methodology string) bool {
+	if methodology == methodologyATDD && p.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
+		for _, label := range labels {
+			if strings.HasPrefix(label, "spec:") {
+				return false
+			}
+		}
+	}
+
 	trueLabel := methodology + ":true"
 	falseLabel := methodology + ":false"
 	for _, label := range labels {
