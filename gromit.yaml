@@ -26,6 +26,8 @@ providers:
       high: opus
       medium: sonnet
       low: haiku
+    # cost_per_1k_input: 0.015
+    # cost_per_1k_output: 0.075
   openai:
     binary: codex
     flags: ["--dangerously-bypass-approvals-and-sandbox"]
@@ -35,6 +37,8 @@ providers:
       high: gpt-5.3-codex
       medium: gpt-5.2-codex
       low: gpt-5.3-codex-spark
+    # cost_per_1k_input: 0.005
+    # cost_per_1k_output: 0.015
 
 # Routing - multi-provider routing configuration
 routing:

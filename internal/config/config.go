@@ -284,11 +284,25 @@ type PhasesConfig struct {
 }
 
 type ProviderDef struct {
-	Binary         string            `yaml:"binary"`
-	Flags          []string          `yaml:"flags"`
-	PromptDelivery string            `yaml:"prompt_delivery"`
-	PromptFlag     string            `yaml:"prompt_flag"`
-	Models         map[string]string `yaml:"models"`
+	Binary          string            `yaml:"binary"`
+	Flags           []string          `yaml:"flags"`
+	PromptDelivery  string            `yaml:"prompt_delivery"`
+	PromptFlag      string            `yaml:"prompt_flag"`
+	Models          map[string]string `yaml:"models"`
+	CostPer1kInput  float64           `yaml:"cost_per_1k_input"`
+	CostPer1kOutput float64           `yaml:"cost_per_1k_output"`
+}
+
+// EstimateCost returns an estimated cost in USD based on token counts and
+// per-1k-token pricing. Returns 0 if pricing is not configured or tokens are zero.
+func (p ProviderDef) EstimateCost(inputTokens, outputTokens int) float64 {
+	if inputTokens == 0 && outputTokens == 0 {
+		return 0
+	}
+	if p.CostPer1kInput == 0 && p.CostPer1kOutput == 0 {
+		return 0
+	}
+	return float64(inputTokens)/1000*p.CostPer1kInput + float64(outputTokens)/1000*p.CostPer1kOutput
 }
 
 type RoutingConfig struct {

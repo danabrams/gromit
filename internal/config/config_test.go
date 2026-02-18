@@ -3682,3 +3682,124 @@ func findProjectRoot(t *testing.T) string {
 		dir = parent
 	}
 }
+
+func TestProviderDefCostFieldsUnmarshal(t *testing.T) {
+	yamlContent := `
+providers:
+  claude:
+    binary: claude
+    cost_per_1k_input: 0.015
+    cost_per_1k_output: 0.075
+  openai:
+    binary: codex
+    cost_per_1k_input: 0.005
+    cost_per_1k_output: 0.015
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	claude := cfg.Providers["claude"]
+	if claude.CostPer1kInput != 0.015 {
+		t.Errorf("claude.CostPer1kInput = %v, want 0.015", claude.CostPer1kInput)
+	}
+	if claude.CostPer1kOutput != 0.075 {
+		t.Errorf("claude.CostPer1kOutput = %v, want 0.075", claude.CostPer1kOutput)
+	}
+
+	openai := cfg.Providers["openai"]
+	if openai.CostPer1kInput != 0.005 {
+		t.Errorf("openai.CostPer1kInput = %v, want 0.005", openai.CostPer1kInput)
+	}
+	if openai.CostPer1kOutput != 0.015 {
+		t.Errorf("openai.CostPer1kOutput = %v, want 0.015", openai.CostPer1kOutput)
+	}
+}
+
+func TestProviderDefCostFieldsDefaultToZero(t *testing.T) {
+	yamlContent := `
+providers:
+  claude:
+    binary: claude
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	claude := cfg.Providers["claude"]
+	if claude.CostPer1kInput != 0 {
+		t.Errorf("claude.CostPer1kInput = %v, want 0", claude.CostPer1kInput)
+	}
+	if claude.CostPer1kOutput != 0 {
+		t.Errorf("claude.CostPer1kOutput = %v, want 0", claude.CostPer1kOutput)
+	}
+}
+
+func TestProviderDefEstimateCost(t *testing.T) {
+	tests := []struct {
+		name         string
+		def          ProviderDef
+		inputTokens  int
+		outputTokens int
+		want         float64
+	}{
+		{
+			name:         "both pricing configured",
+			def:          ProviderDef{CostPer1kInput: 0.015, CostPer1kOutput: 0.075},
+			inputTokens:  1000,
+			outputTokens: 500,
+			want:         0.015 + 0.075*0.5,
+		},
+		{
+			name:         "input only pricing",
+			def:          ProviderDef{CostPer1kInput: 0.010},
+			inputTokens:  2000,
+			outputTokens: 0,
+			want:         0.020,
+		},
+		{
+			name:         "output only pricing",
+			def:          ProviderDef{CostPer1kOutput: 0.060},
+			inputTokens:  0,
+			outputTokens: 3000,
+			want:         0.180,
+		},
+		{
+			name:         "zero tokens returns zero",
+			def:          ProviderDef{CostPer1kInput: 0.015, CostPer1kOutput: 0.075},
+			inputTokens:  0,
+			outputTokens: 0,
+			want:         0,
+		},
+		{
+			name:         "no pricing configured returns zero",
+			def:          ProviderDef{},
+			inputTokens:  1000,
+			outputTokens: 1000,
+			want:         0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.def.EstimateCost(tt.inputTokens, tt.outputTokens)
+			if got != tt.want {
+				t.Errorf("EstimateCost(%d, %d) = %v, want %v", tt.inputTokens, tt.outputTokens, got, tt.want)
+			}
+		})
+	}
+}

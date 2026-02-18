@@ -160,6 +160,111 @@ func TestMakeInvokeFn_PropagatesFailureCategoryToIterationResult(t *testing.T) {
 	}
 }
 
+func TestMakeInvokeFn_EstimatesCostWhenZeroCostButTokensPresent(t *testing.T) {
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "openai",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:      true,
+				Output:       "ok",
+				ExitCode:     0,
+				Model:        "test-model",
+				CostUSD:      0,
+				InputTokens:  2000,
+				OutputTokens: 1000,
+			}, nil
+		},
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	var buf bytes.Buffer
+	r := &Runner{
+		cfg: &config.Config{
+			Providers: map[string]config.ProviderDef{
+				"openai": {
+					CostPer1kInput:  0.010,
+					CostPer1kOutput: 0.030,
+				},
+			},
+		},
+		router:  mockRouter,
+		invoker: newInvokerForTest(mockRouter, &buf, nil),
+		output:  &buf,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "bead-cost", Title: "Cost Test"},
+		Tier:        provider.TierMedium,
+		Result:      &IterationResult{},
+		BuildPrompt: "prompt",
+		ParentCtx:   context.Background(),
+	}
+
+	invokeFn := r.makeInvokeFn()
+	_, err := invokeFn(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Expected: 2000/1000 * 0.010 + 1000/1000 * 0.030 = 0.020 + 0.030 = 0.050
+	wantCost := 0.050
+	if bc.Result.CostUSD != wantCost {
+		t.Fatalf("bc.Result.CostUSD = %v, want %v", bc.Result.CostUSD, wantCost)
+	}
+}
+
+func TestMakeInvokeFn_SkipsCostEstimationWhenCostAlreadyPresent(t *testing.T) {
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "openai",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:      true,
+				Output:       "ok",
+				ExitCode:     0,
+				Model:        "test-model",
+				CostUSD:      1.23,
+				InputTokens:  2000,
+				OutputTokens: 1000,
+			}, nil
+		},
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+
+	var buf bytes.Buffer
+	r := &Runner{
+		cfg: &config.Config{
+			Providers: map[string]config.ProviderDef{
+				"openai": {
+					CostPer1kInput:  0.010,
+					CostPer1kOutput: 0.030,
+				},
+			},
+		},
+		router:  mockRouter,
+		invoker: newInvokerForTest(mockRouter, &buf, nil),
+		output:  &buf,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "bead-cost2", Title: "Cost Test"},
+		Tier:        provider.TierMedium,
+		Result:      &IterationResult{},
+		BuildPrompt: "prompt",
+		ParentCtx:   context.Background(),
+	}
+
+	invokeFn := r.makeInvokeFn()
+	_, err := invokeFn(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should use the provider-reported cost, not the estimate
+	if bc.Result.CostUSD != 1.23 {
+		t.Fatalf("bc.Result.CostUSD = %v, want 1.23 (provider-reported cost)", bc.Result.CostUSD)
+	}
+}
+
 func TestMakeInvokeFn_RefreshesScopedTestCommandFromGitDiffBeforeBuildInvocation(t *testing.T) {
 	var capturedPrompt string
 

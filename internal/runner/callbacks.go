@@ -81,6 +81,13 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 			bc.Result.CostUSD = costUSD
 			bc.Result.InputTokens = inputTokens
 			bc.Result.OutputTokens = outputTokens
+
+			// Estimate cost from token counts when the provider doesn't report cost
+			if costUSD == 0 && (inputTokens > 0 || outputTokens > 0) {
+				if provDef, ok := r.cfg.Providers[invResult.ProviderName]; ok {
+					bc.Result.CostUSD = provDef.EstimateCost(inputTokens, outputTokens)
+				}
+			}
 		}
 
 		// Check scope-too-large
