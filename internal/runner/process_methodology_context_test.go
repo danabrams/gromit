@@ -804,6 +804,81 @@ func TestRunRefactorAndPostChecks_ValidationTimeoutIndependentOfRefactorTimeout(
 	}
 }
 
+func TestRunRefactorAndPostChecks_DefaultFallbackWhenPhaseTimeoutsOmitted(t *testing.T) {
+	// When phase_timeouts config is omitted (zero-valued), phases should
+	// fall back to the bead timeout for their deadline. This verifies the
+	// end-to-end fallback path through newPhaseContext.
+	var refactorCtxDeadline time.Time
+	var refactorCtxHadDeadline bool
+	var validationCtxDeadline time.Time
+	var validationCtxHadDeadline bool
+	validationCalls := 0
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		validationCalls++
+		if validationCalls == 1 {
+			validationCtxDeadline, validationCtxHadDeadline = ctx.Deadline()
+		}
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	// Explicitly zero: no phase timeout overrides configured.
+	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{}
+	r.cfg.Validation.PhaseTimeoutSeconds = 0
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			return "diff --git a/a.go b/a.go\n+line", nil
+		},
+		func(ctx *prompt.Context) (string, error) {
+			return "refactor prompt", nil
+		},
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			refactorCtxDeadline, refactorCtxHadDeadline = ctx.Deadline()
+			return &claude.Result{Success: true}, nil
+		},
+		nil,
+		func(commit string) error { return nil },
+		func() (string, error) { return "abc123", nil },
+	))
+
+	bc := &runtypes.BeadContext{
+		Tier:        provider.TierMedium,
+		StartCommit: "abc123",
+		ParentCtx:   context.Background(),
+		BeadTimeout: 200 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	r.runRefactorAndPostChecks(context.Background(), bc, false)
+
+	// Refactor should get a deadline derived from bead timeout (~200s).
+	if !refactorCtxHadDeadline {
+		t.Fatal("refactor context should have a deadline even without explicit phase timeout config")
+	}
+	refactorRemaining := time.Until(refactorCtxDeadline)
+	if refactorRemaining < 170*time.Second || refactorRemaining > 210*time.Second {
+		t.Fatalf("refactor context deadline unexpected: %v remaining (want ~200s from bead timeout fallback)", refactorRemaining.Round(time.Second))
+	}
+
+	// Validation should also get a deadline derived from bead timeout (~200s).
+	if validationCalls == 0 {
+		t.Fatal("expected validation to run")
+	}
+	if !validationCtxHadDeadline {
+		t.Fatal("validation context should have a deadline even without explicit phase timeout config")
+	}
+	validationRemaining := time.Until(validationCtxDeadline)
+	if validationRemaining < 170*time.Second || validationRemaining > 210*time.Second {
+		t.Fatalf("validation context deadline unexpected: %v remaining (want ~200s from bead timeout fallback)", validationRemaining.Round(time.Second))
+	}
+}
+
 func TestRunRefactorAndPostChecks_SetsValidationPhaseAttributionOnTimeout(t *testing.T) {
 	// When post-refactor validation times out via phase context expiration,
 	// TimeoutPhase should be "validation" to distinguish from a refactor timeout.
