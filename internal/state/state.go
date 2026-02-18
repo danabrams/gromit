@@ -9,10 +9,12 @@ import (
 )
 
 // State represents persistent state stored in .gromit/state.json
+//
+// Review state (LastReviewCommit, LastReviewIteration) lives exclusively in
+// InteractiveState / interactive-state.json.  Do NOT add review fields here;
+// the compiler will catch callers that try to use state.File for review state.
 type State struct {
 	LastRetro                time.Time            `json:"last_retro,omitempty"`
-	LastReviewCommit         string               `json:"last_review_commit,omitempty"`
-	LastReviewIteration      int                  `json:"last_review_iteration,omitempty"`
 	IterationsSinceReview    int                  `json:"iterations_since_review,omitempty"`
 	CleanExit                bool                 `json:"clean_exit"`
 	UpdatedAt                time.Time            `json:"updated_at"`
@@ -93,22 +95,6 @@ func (f *File) RecordRetro() error {
 	return f.Save()
 }
 
-// LastReviewCommit returns the commit hash of the last review
-func (f *File) LastReviewCommit() string {
-	if f == nil {
-		return ""
-	}
-	return f.state.LastReviewCommit
-}
-
-// LastReviewIteration returns the iteration number of the last review
-func (f *File) LastReviewIteration() int {
-	if f == nil {
-		return 0
-	}
-	return f.state.LastReviewIteration
-}
-
 // IterationsSinceReview returns the number of iterations since the last review
 func (f *File) IterationsSinceReview() int {
 	if f == nil {
@@ -125,13 +111,11 @@ func (f *File) IncrementIterationsSinceReview() {
 	f.state.IterationsSinceReview++
 }
 
-// RecordReview updates the last review commit and iteration, resets counter to 0, and saves
-func (f *File) RecordReview(commit string, iteration int) error {
+// ResetIterationsSinceReview resets the iterations-since-review counter to 0 and saves.
+func (f *File) ResetIterationsSinceReview() error {
 	if f == nil {
 		return fmt.Errorf("state file is nil")
 	}
-	f.state.LastReviewCommit = commit
-	f.state.LastReviewIteration = iteration
 	f.state.IterationsSinceReview = 0
 	return f.Save()
 }
@@ -168,15 +152,14 @@ func (f *File) CheckStaleness(thresholdMinutes int) (bool, string) {
 	return false, ""
 }
 
-// AutoHeal resets unreliable counter fields while preserving git anchors and historical timestamps.
+// AutoHeal resets unreliable counter fields while preserving historical timestamps.
 // This should be called when staleness is detected via CheckStaleness.
 func (f *File) AutoHeal() {
 	if f == nil {
 		return
 	}
 	f.state.IterationsSinceReview = 0
-	f.state.LastReviewIteration = 0
-	// Preserve: LastReviewCommit, LastRetro
+	// Preserve: LastRetro
 }
 
 // GetFilteredHashes returns a map of filtered learning hashes for O(1) lookups

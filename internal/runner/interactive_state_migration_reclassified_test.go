@@ -63,7 +63,8 @@ func TestRunnerRun_ReviewBaselineUsesInteractiveState(t *testing.T) {
 	var _ WorktreeManager = (*mockWorktreeManager)(nil)
 
 	gromitDir := setupInteractiveStateGromitDir(t)
-	writeStateFile(t, gromitDir, state.State{LastReviewCommit: "already-set"})
+	// Write a state.json with a legacy last_review_commit field (no longer in State struct)
+	writeStateFile(t, gromitDir, state.State{})
 	writeInteractiveStateFile(t, gromitDir, state.InteractiveState{})
 
 	cfg := &config.Config{

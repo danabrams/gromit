@@ -138,7 +138,7 @@ func determineReviewScopeWithClient(cfg *config.Config, beadsClient *bead.Client
 	// Default: use last review commit from state
 	gromitDir := resolveGromitDir(cfg)
 
-	sf, err := state.NewFile(gromitDir)
+	sf, err := state.NewInteractiveFile(gromitDir)
 	if err != nil {
 		return "", fmt.Errorf("creating state file: %w", err)
 	}
@@ -660,7 +660,7 @@ type cliStateManager struct {
 }
 
 func (m *cliStateManager) GetLastReviewCommit() (string, error) {
-	sf, err := state.NewFile(m.gromitDir)
+	sf, err := state.NewInteractiveFile(m.gromitDir)
 	if err != nil {
 		return "", err
 	}
@@ -673,7 +673,7 @@ func (m *cliStateManager) GetLastReviewCommit() (string, error) {
 }
 
 func (m *cliStateManager) SetLastReviewCommit(commit string) error {
-	sf, err := state.NewFile(m.gromitDir)
+	sf, err := state.NewInteractiveFile(m.gromitDir)
 	if err != nil {
 		return err
 	}
@@ -688,6 +688,5 @@ func (m *cliStateManager) SetLastReviewCommit(commit string) error {
 		currentCommit = commit // Fallback to input commit
 	}
 
-	sf.RecordReview(currentCommit, 0)
-	return nil
+	return sf.RecordReview(currentCommit, 0)
 }

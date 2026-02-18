@@ -137,9 +137,9 @@ func TestThoroughReviewUsesPhaseFilteredRules(t *testing.T) {
 	cfg.SetDefaults()
 
 	tmpDir := t.TempDir()
-	sf, err := state.NewFile(tmpDir)
+	sf, err := state.NewInteractiveFile(tmpDir)
 	if err != nil {
-		t.Fatalf("Failed to create state file: %v", err)
+		t.Fatalf("Failed to create interactive state file: %v", err)
 	}
 	// Record a review commit so the function doesn't bail out early
 	if err := sf.RecordReview("abc123", 1); err != nil {
@@ -263,9 +263,9 @@ func TestReviewInvocationsCallLoadRulesForPhaseNotLoadRules(t *testing.T) {
 		cfg.SetDefaults()
 
 		tmpDir := t.TempDir()
-		sf, err := state.NewFile(tmpDir)
+		sf, err := state.NewInteractiveFile(tmpDir)
 		if err != nil {
-			t.Fatalf("Failed to create state file: %v", err)
+			t.Fatalf("Failed to create interactive state file: %v", err)
 		}
 		if err := sf.RecordReview("abc123", 1); err != nil {
 			t.Fatalf("Failed to record review: %v", err)

@@ -72,42 +72,6 @@ func TestLoadCorruptFile(t *testing.T) {
 	}
 }
 
-func TestReviewState(t *testing.T) {
-	tmpDir := t.TempDir()
-	sf, _ := NewFile(tmpDir)
-
-	// Initial state has no review info
-	if err := sf.Load(); err != nil {
-		t.Fatal(err)
-	}
-	if sf.LastReviewCommit() != "" {
-		t.Errorf("expected empty last review commit, got %q", sf.LastReviewCommit())
-	}
-	if sf.LastReviewIteration() != 0 {
-		t.Errorf("expected 0 last review iteration, got %d", sf.LastReviewIteration())
-	}
-	if sf.IterationsSinceReview() != 0 {
-		t.Errorf("expected 0 iterations since review, got %d", sf.IterationsSinceReview())
-	}
-
-	// Record a review
-	if err := sf.RecordReview("abc123", 5); err != nil {
-		t.Fatal(err)
-	}
-
-	// Reload and check
-	sf2, _ := NewFile(tmpDir)
-	if err := sf2.Load(); err != nil {
-		t.Fatal(err)
-	}
-	if sf2.LastReviewCommit() != "abc123" {
-		t.Errorf("expected 'abc123', got %q", sf2.LastReviewCommit())
-	}
-	if sf2.LastReviewIteration() != 5 {
-		t.Errorf("expected 5, got %d", sf2.LastReviewIteration())
-	}
-}
-
 func TestIncrementIterationsSinceReview(t *testing.T) {
 	tmpDir := t.TempDir()
 	sf, _ := NewFile(tmpDir)
@@ -126,12 +90,12 @@ func TestIncrementIterationsSinceReview(t *testing.T) {
 		t.Errorf("expected 3, got %d", sf.IterationsSinceReview())
 	}
 
-	// RecordReview resets counter
-	if err := sf.RecordReview("def456", 8); err != nil {
+	// ResetIterationsSinceReview resets counter
+	if err := sf.ResetIterationsSinceReview(); err != nil {
 		t.Fatal(err)
 	}
 	if sf.IterationsSinceReview() != 0 {
-		t.Errorf("expected 0 after RecordReview, got %d", sf.IterationsSinceReview())
+		t.Errorf("expected 0 after ResetIterationsSinceReview, got %d", sf.IterationsSinceReview())
 	}
 }
 
@@ -321,8 +285,6 @@ func TestAutoHeal(t *testing.T) {
 
 	// Set up state with all fields populated
 	f.state.IterationsSinceReview = 5
-	f.state.LastReviewIteration = 10
-	f.state.LastReviewCommit = "abc123"
 	f.state.LastRetro = time.Now().Add(-24 * time.Hour)
 
 	// Call AutoHeal
@@ -332,14 +294,8 @@ func TestAutoHeal(t *testing.T) {
 	if f.state.IterationsSinceReview != 0 {
 		t.Errorf("IterationsSinceReview should be reset to 0, got %d", f.state.IterationsSinceReview)
 	}
-	if f.state.LastReviewIteration != 0 {
-		t.Errorf("LastReviewIteration should be reset to 0, got %d", f.state.LastReviewIteration)
-	}
 
-	// Check that git anchors and timestamps were preserved
-	if f.state.LastReviewCommit != "abc123" {
-		t.Errorf("LastReviewCommit should be preserved, got %q", f.state.LastReviewCommit)
-	}
+	// Check that timestamps were preserved
 	if f.state.LastRetro.IsZero() {
 		t.Error("LastRetro should be preserved")
 	}

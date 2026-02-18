@@ -404,14 +404,14 @@ func TestInteractiveFileLoadCorruptFile(t *testing.T) {
 func TestInteractiveFileIsolatedFromStateFile(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create regular state file
+	// Create regular state file with a distinguishing field
 	stateFile, _ := NewFile(dir)
-	stateFile.state.LastReviewCommit = "state-commit"
+	stateFile.SetCleanExit(true)
 	if err := stateFile.Save(); err != nil {
 		t.Fatal(err)
 	}
 
-	// Create interactive state file with different data
+	// Create interactive state file with review data (only lives here, not in state.json)
 	interactiveFile, _ := NewInteractiveFile(dir)
 	if err := interactiveFile.RecordReview("interactive-commit", 20); err != nil {
 		t.Fatal(err)
@@ -435,8 +435,8 @@ func TestInteractiveFileIsolatedFromStateFile(t *testing.T) {
 	stateStr := string(stateData)
 	interactiveStr := string(interactiveData)
 
-	if !contains(stateStr, "state-commit") {
-		t.Error("state.json should contain 'state-commit'")
+	if !contains(stateStr, "clean_exit") {
+		t.Error("state.json should contain 'clean_exit'")
 	}
 	if contains(stateStr, "interactive-commit") {
 		t.Error("state.json should NOT contain 'interactive-commit'")
@@ -445,8 +445,8 @@ func TestInteractiveFileIsolatedFromStateFile(t *testing.T) {
 	if !contains(interactiveStr, "interactive-commit") {
 		t.Error("interactive-state.json should contain 'interactive-commit'")
 	}
-	if contains(interactiveStr, "state-commit") {
-		t.Error("interactive-state.json should NOT contain 'state-commit'")
+	if contains(interactiveStr, "clean_exit") {
+		t.Error("interactive-state.json should NOT contain 'clean_exit'")
 	}
 }
 
