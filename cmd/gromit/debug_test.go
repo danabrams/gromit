@@ -734,3 +734,24 @@ func TestPickRunbookEntrySkipOnZeroOrInvalid(t *testing.T) {
 		}
 	}
 }
+
+// TestPickRunbookEntrySelectsSecondEntry verifies that pickRunbookEntry correctly returns
+// the second entry when "2" is entered.
+func TestPickRunbookEntrySelectsSecondEntry(t *testing.T) {
+	entries := []runbook.Entry{
+		{BeadID: "gromit-aaa", BeadTitle: "First bug", FailureCategory: "test_failure", Timestamp: time.Now()},
+		{BeadID: "gromit-bbb", BeadTitle: "Second bug", FailureCategory: "lint_error", Timestamp: time.Now()},
+	}
+
+	reader := strings.NewReader("2\n")
+	entry, err := pickRunbookEntry(entries, reader)
+	if err != nil {
+		t.Fatalf("pickRunbookEntry failed: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("expected non-nil entry for selection 2")
+	}
+	if entry.BeadID != "gromit-bbb" {
+		t.Errorf("expected BeadID 'gromit-bbb', got %q", entry.BeadID)
+	}
+}
