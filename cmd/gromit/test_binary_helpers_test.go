@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/test/testutil"
@@ -47,6 +49,42 @@ func TestGromitHelperProcess(t *testing.T) {
 
 	fmt.Fprintln(os.Stderr, "missing helper args separator")
 	os.Exit(2)
+}
+
+func TestRunGromitCobra_HelpOutputsUsage(t *testing.T) {
+	stdout, stderr, exitCode := runGromitCobra(t, "--help")
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr: %s)", exitCode, stderr)
+	}
+
+	if !strings.Contains(stdout, "Gromit") {
+		t.Errorf("expected help output to include Gromit, got: %s", stdout)
+	}
+}
+
+// runGromitCobra executes the cobra command directly and returns stdout, stderr, and exit code.
+func runGromitCobra(t *testing.T, args ...string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+
+	var stdoutBuf bytes.Buffer
+	var stderrBuf bytes.Buffer
+	prevOut := rootCmd.OutOrStdout()
+	prevErr := rootCmd.ErrOrStderr()
+	rootCmd.SetOut(&stdoutBuf)
+	rootCmd.SetErr(&stderrBuf)
+	defer func() {
+		rootCmd.SetOut(prevOut)
+		rootCmd.SetErr(prevErr)
+	}()
+
+	rootCmd.SetArgs(args)
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(&stderrBuf, err)
+		return stdoutBuf.String(), stderrBuf.String(), 1
+	}
+
+	return stdoutBuf.String(), stderrBuf.String(), 0
 }
 
 // runGromit executes the gromit binary with the given arguments and returns
