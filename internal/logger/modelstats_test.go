@@ -813,6 +813,27 @@ this is not json
 	}
 }
 
+// TestCostPerSpec_EmptySpecIDMapsToUnassigned verifies entries with empty spec_id are grouped under "unassigned"
+func TestCostPerSpec_EmptySpecIDMapsToUnassigned(t *testing.T) {
+	dir := t.TempDir()
+
+	logs := []IterationLog{
+		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.50, SpecID: ""},
+	}
+	writeTestLogFile(t, dir, "20260218-120000", logs)
+
+	result, err := CostPerSpec(dir)
+	if err != nil {
+		t.Fatalf("CostPerSpec failed: %v", err)
+	}
+	if _, ok := result["unassigned"]; !ok {
+		t.Errorf("Expected 'unassigned' key for empty spec_id, got keys: %v", result)
+	}
+	if _, ok := result[""]; ok {
+		t.Error("Expected no empty-string key in result")
+	}
+}
+
 // TestCostPerSpec_EmptyDir verifies CostPerSpec returns empty map for empty directory
 func TestCostPerSpec_EmptyDir(t *testing.T) {
 	dir := t.TempDir()
