@@ -54,3 +54,23 @@ func TestNewPhaseContext_ClampsToRunDeadline(t *testing.T) {
 		t.Fatalf("meta.EffectiveTimeout = %v, expected clamp near run deadline", meta.EffectiveTimeout)
 	}
 }
+
+func TestNewPhaseContext_UsesExplicitOverride(t *testing.T) {
+	bc := &runtypes.BeadContext{
+		ParentCtx:   context.Background(),
+		BeadTimeout: 9 * time.Second,
+	}
+
+	_, cancel, meta := newPhaseContext(bc, "green", 3)
+	defer cancel()
+
+	if meta.RequestedTimeout != 3*time.Second {
+		t.Fatalf("meta.RequestedTimeout = %v, want %v", meta.RequestedTimeout, 3*time.Second)
+	}
+	if meta.EffectiveTimeout != 3*time.Second {
+		t.Fatalf("meta.EffectiveTimeout = %v, want %v", meta.EffectiveTimeout, 3*time.Second)
+	}
+	if meta.TimeoutSource != phaseTimeoutSourceOverride {
+		t.Fatalf("meta.TimeoutSource = %q, want %q", meta.TimeoutSource, phaseTimeoutSourceOverride)
+	}
+}

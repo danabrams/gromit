@@ -7,12 +7,18 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+const (
+	phaseTimeoutSourceOverride = "phase_override"
+	phaseTimeoutSourceFallback = "bead_timeout"
+)
+
 // phaseContextMeta captures resolved timeout details for phase attribution.
 type phaseContextMeta struct {
 	Phase               string
 	RequestedTimeout    time.Duration
 	EffectiveTimeout    time.Duration
 	ClampedByRunDeadline bool
+	TimeoutSource       string
 }
 
 func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds int) (context.Context, context.CancelFunc, phaseContextMeta) {
@@ -22,11 +28,14 @@ func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds
 	}
 
 	requested := time.Duration(phaseTimeoutSeconds) * time.Second
+	timeoutSource := phaseTimeoutSourceOverride
 	if requested <= 0 && bc != nil {
 		requested = bc.BeadTimeout
+		timeoutSource = phaseTimeoutSourceFallback
 	}
 	if requested <= 0 {
 		requested = time.Second
+		timeoutSource = phaseTimeoutSourceFallback
 	}
 
 	effective := requested
@@ -46,6 +55,7 @@ func newPhaseContext(bc *runtypes.BeadContext, phase string, phaseTimeoutSeconds
 		RequestedTimeout:     requested,
 		EffectiveTimeout:     effective,
 		ClampedByRunDeadline: clamped,
+		TimeoutSource:        timeoutSource,
 	}
 
 	ctx, cancel := context.WithTimeout(parent, effective)
