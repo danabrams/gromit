@@ -1,10 +1,12 @@
 package runbook
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -71,4 +73,41 @@ func Append(gromitDir string, entry Entry) error {
 	}
 
 	return nil
+}
+
+// List returns runbook entries filtered by TTL.
+func List(gromitDir string, ttlDays int) ([]Entry, error) {
+	path := filepath.Join(gromitDir, "runbooks.jsonl")
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Entry{}, nil
+		}
+		return nil, fmt.Errorf("opening runbook file: %w", err)
+	}
+	defer file.Close()
+
+	cutoff := time.Now().AddDate(0, 0, -ttlDays)
+	entries := []Entry{}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var entry Entry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			return nil, fmt.Errorf("parsing runbook line: %w", err)
+		}
+		if ttlDays > 0 && entry.Timestamp.Before(cutoff) {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("reading runbook file: %w", err)
+	}
+
+	return entries, nil
 }

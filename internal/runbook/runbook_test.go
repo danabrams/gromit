@@ -55,3 +55,29 @@ func TestAppendWritesJSONL(t *testing.T) {
 		t.Fatalf("expected entry json to contain id")
 	}
 }
+
+func TestListFiltersByTTL(t *testing.T) {
+	gromitDir := t.TempDir()
+
+	entries := []Entry{
+		{ID: "rb-1-beads-abc", Timestamp: time.Now().Add(-48 * time.Hour)},
+		{ID: "rb-2-beads-def", Timestamp: time.Now().Add(-2 * time.Hour)},
+	}
+	for _, entry := range entries {
+		if err := Append(gromitDir, entry); err != nil {
+			t.Fatalf("append failed: %v", err)
+		}
+	}
+
+	listed, err := List(gromitDir, 1)
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+
+	if len(listed) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(listed))
+	}
+	if listed[0].ID != "rb-2-beads-def" {
+		t.Fatalf("expected most recent entry to remain")
+	}
+}
