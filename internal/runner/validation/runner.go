@@ -142,7 +142,7 @@ func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 				return nil
 			} else if !errors.Is(valErr, ErrValidationFailed) {
 				return valErr
-			} else if errors.Is(valErr, ErrValidationFailed) {
+			} else {
 				lastFailure = r.lastFailureOutput
 			}
 		}
@@ -163,9 +163,9 @@ func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 				return nil
 			} else if !errors.Is(valErr, ErrValidationFailed) {
 				return valErr
-			} else if errors.Is(valErr, ErrValidationFailed) && r.lastFailureOutput == lastFailure {
+			} else if r.lastFailureOutput == lastFailure {
 				return valErr
-			} else if errors.Is(valErr, ErrValidationFailed) {
+			} else {
 				lastFailure = r.lastFailureOutput
 			}
 		}
