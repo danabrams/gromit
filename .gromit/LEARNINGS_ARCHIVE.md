@@ -4,6 +4,15 @@ Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-18.
 
 ---
 
+### 2026-02-18 | Micro-Decomposition Drives First-Pass Success | patterns
+*Related to: gromit-deid*
+
+Decomposing beads to 5-level depth with leaf beads touching only 1-3 files drove first-pass success rate from 11.6% (historical mean) to 90% in the latest 30-iteration window. Effect consistent across all model tiers — Codex 100% first-pass, sonnet 89%. The causal mechanism is scope reduction: when a bead touches 1-3 files, the model holds the full change context without losing requirements. Cost increased per-window ($0.63 vs $0.47 mean) but total cost to complete work decreased due to elimination of retries. Duration decreased 28% (510s vs 705s mean).
+
+*Archived from provisional: promoted to RULES.md Process section (split threshold tightened from 6 to 4 files, target 1-3 files per leaf bead)*
+
+---
+
 ### 2026-02-18 | Targeted Validation Tests with Verbose Output | patterns
 *Related to: gromit-0acb*
 

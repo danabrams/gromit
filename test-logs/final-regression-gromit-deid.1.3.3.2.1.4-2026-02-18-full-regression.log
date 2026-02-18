@@ -1,0 +1,39 @@
+# Evidence capture
+Timestamp: 2026-02-18T04:45:09Z
+Command: go test ./...
+ok  	github.com/danabrams/gromit/cmd/gromit	4.397s
+ok  	github.com/danabrams/gromit/internal/agent	0.010s
+ok  	github.com/danabrams/gromit/internal/analyzer	0.005s
+ok  	github.com/danabrams/gromit/internal/backlog	(cached)
+ok  	github.com/danabrams/gromit/internal/bead	1.506s
+ok  	github.com/danabrams/gromit/internal/claude	0.196s
+ok  	github.com/danabrams/gromit/internal/config	(cached)
+ok  	github.com/danabrams/gromit/internal/frontmatter	(cached)
+ok  	github.com/danabrams/gromit/internal/jsonutil	(cached)
+ok  	github.com/danabrams/gromit/internal/learnings	(cached)
+ok  	github.com/danabrams/gromit/internal/logger	(cached)
+ok  	github.com/danabrams/gromit/internal/pipeline	0.109s
+ok  	github.com/danabrams/gromit/internal/preflight	0.012s
+ok  	github.com/danabrams/gromit/internal/prompt	0.093s
+ok  	github.com/danabrams/gromit/internal/provider	1.290s
+ok  	github.com/danabrams/gromit/internal/retro	(cached)
+ok  	github.com/danabrams/gromit/internal/review	(cached)
+ok  	github.com/danabrams/gromit/internal/rules	(cached)
+ok  	github.com/danabrams/gromit/internal/runner	16.576s
+ok  	github.com/danabrams/gromit/internal/runner/andon	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/escalation	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/execution	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/methodology	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/reviewpkg	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/runtypes	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/validation	(cached)
+ok  	github.com/danabrams/gromit/internal/scope	(cached)
+ok  	github.com/danabrams/gromit/internal/state	(cached)
+ok  	github.com/danabrams/gromit/internal/tmux	(cached)
+ok  	github.com/danabrams/gromit/internal/usagelimit	0.073s
+ok  	github.com/danabrams/gromit/internal/validate	(cached)
+ok  	github.com/danabrams/gromit/internal/worktree	(cached)
+?   	github.com/danabrams/gromit/skills	[no test files]
+?   	github.com/danabrams/gromit/test/contracts	[no test files]
+ok  	github.com/danabrams/gromit/test/fixtures	(cached)
+ok  	github.com/danabrams/gromit/test/testutil	(cached)

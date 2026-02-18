@@ -43,7 +43,7 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - Always run tests before committing
 - Follow existing patterns in the codebase
 - When adding config fields, set defaults in `setDefaults()` (numeric sentinel: `0`), update `NormalizeNilFields()` for new nested structs/slices, and test omitted-YAML defaults. Use `json:"field,omitempty"` for optional serialized fields. If `IterationResult` gains fields, mirror them into `IterationLog` in `writeIterationLog()`
-- Split beads that touch 6+ files across unrelated packages. For large facades (1000+ lines), delegate in batches of 3-5 methods per bead
+- Split beads that touch 4+ files across unrelated packages; target 1-3 files per leaf bead for highest first-pass success. For large facades (1000+ lines), delegate in batches of 3-5 methods per bead. Decompose to 5+ levels deep if needed to achieve narrow leaf scope
 - If failure analysis says scope is too broad, decompose instead of escalating model tier. If the highest tier times out or fails, split into sub-beads and retry those
 - Pre-split likely broad work (titles containing infrastructure/E2E/consolidate/extract/shared/refactor, or 3+ new types plus new behavior). Preferred decomposition orders: test infra (fixtures -> helpers -> tests), interface extraction (interface -> mocks -> callers), package extraction (create package -> move impl -> wire callers -> remove old), and cross-package helper extraction (pure helpers -> dependency-heavy helpers -> caller wiring)
 - Shared-package refactors (for example learnings/config) must rerun affected dependent test suites after each commit; verify each diff still matches intent

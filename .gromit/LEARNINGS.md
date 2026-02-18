@@ -35,11 +35,6 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-18 | Micro-Decomposition Drives First-Pass Success | patterns
-*Related to: gromit-deid*
-
-Decomposing beads to 5-level depth with leaf beads touching only 1-3 files drove first-pass success rate from 3.3% (historical mean) to 70% (UCL: 40%). Effect visible across all model tiers — Codex hit 100% first-pass, sonnet 89%. The causal mechanism appears to be scope reduction: when a bead touches fewer files, the model can hold the full change context without losing requirements. Current rule (6+ files triggers split) may be too permissive — a target of 3 files per leaf bead is the candidate for experimental validation.
-
 ---
 
 ## Archived
