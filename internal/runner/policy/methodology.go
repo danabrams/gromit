@@ -11,6 +11,8 @@ const (
 	methodologyATDD = "atdd"
 	methodologyTDD  = "tdd"
 
+	specLabelPrefix = "spec:"
+
 	minRefactorBudget     = 60 * time.Second
 	minRevalidationBudget = 30 * time.Second
 )
@@ -42,7 +44,7 @@ func NewConfigMethodologyPolicy(cfg *config.Config) MethodologyPolicy {
 func (p *ConfigMethodologyPolicy) IsActive(labels []string, methodology string) bool {
 	if methodology == methodologyATDD && p.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		for _, label := range labels {
-			if strings.HasPrefix(label, "spec:") {
+			if strings.HasPrefix(label, specLabelPrefix) {
 				return false
 			}
 		}

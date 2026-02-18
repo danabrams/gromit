@@ -128,7 +128,7 @@ func newMethodologyPolicyWithGranularity(atdd, tdd bool, granularity string) pol
 }
 
 func TestIsActive_ATDDSuppressedWhenSpecGranularityAndSpecLabel(t *testing.T) {
-	p := newMethodologyPolicyWithGranularity(true, false, "spec")
+	p := newMethodologyPolicyWithGranularity(true, false, config.MethodologyGranularitySpec)
 	labels := []string{"spec:my-feature"}
 	if p.IsActive(labels, "atdd") {
 		t.Error("expected IsActive to return false for atdd when granularity=spec and spec label present")
@@ -136,7 +136,7 @@ func TestIsActive_ATDDSuppressedWhenSpecGranularityAndSpecLabel(t *testing.T) {
 }
 
 func TestIsActive_ATDDNotSuppressedWhenSpecGranularityButNoSpecLabel(t *testing.T) {
-	p := newMethodologyPolicyWithGranularity(true, false, "spec")
+	p := newMethodologyPolicyWithGranularity(true, false, config.MethodologyGranularitySpec)
 	labels := []string{"unrelated:label"}
 	if !p.IsActive(labels, "atdd") {
 		t.Error("expected IsActive to return true for atdd when granularity=spec but no spec label")
@@ -144,7 +144,7 @@ func TestIsActive_ATDDNotSuppressedWhenSpecGranularityButNoSpecLabel(t *testing.
 }
 
 func TestIsActive_ATDDNotSuppressedWhenBeadGranularityEvenWithSpecLabel(t *testing.T) {
-	p := newMethodologyPolicyWithGranularity(true, false, "bead")
+	p := newMethodologyPolicyWithGranularity(true, false, config.MethodologyGranularityBead)
 	labels := []string{"spec:my-feature"}
 	if !p.IsActive(labels, "atdd") {
 		t.Error("expected IsActive to return true for atdd when granularity=bead even with spec label")
@@ -152,7 +152,7 @@ func TestIsActive_ATDDNotSuppressedWhenBeadGranularityEvenWithSpecLabel(t *testi
 }
 
 func TestIsActive_TDDNotSuppressedBySpecGranularity(t *testing.T) {
-	p := newMethodologyPolicyWithGranularity(false, true, "spec")
+	p := newMethodologyPolicyWithGranularity(false, true, config.MethodologyGranularitySpec)
 	labels := []string{"spec:my-feature"}
 	if !p.IsActive(labels, "tdd") {
 		t.Error("expected IsActive to return true for tdd even when granularity=spec with spec label")
