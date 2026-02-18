@@ -68,11 +68,6 @@ func TestExtractAcceptanceCriteria(t *testing.T) {
 }
 
 func TestRunVerifySpec_PassReturnsNil(t *testing.T) {
-	tmpDir := t.TempDir()
-	specsDir := filepath.Join(tmpDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("failed to create specs dir: %v", err)
-	}
 	specContent := `---
 id: my-spec
 ---
@@ -83,23 +78,7 @@ id: my-spec
 
 - First criterion
 `
-	if err := os.WriteFile(filepath.Join(specsDir, "my-spec.md"), []byte(specContent), 0644); err != nil {
-		t.Fatalf("failed to write spec: %v", err)
-	}
-
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	configContent := "paths:\n  specs: " + specsDir + "\n"
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(origDir)
-	})
+	setupVerifySpecTest(t, "my-spec", specContent)
 
 	prevRunner := verifySpecGateRunner
 	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
@@ -122,4 +101,73 @@ id: my-spec
 	if err := runVerifySpec(verifySpecCmd, []string{"my-spec"}); err != nil {
 		t.Fatalf("runVerifySpec returned error: %v", err)
 	}
+}
+
+func TestRunVerifySpec_CreateBeadsOnFailure(t *testing.T) {
+	specContent := `---
+id: my-spec
+---
+
+# My Spec
+
+## Acceptance Criteria
+
+- First criterion
+`
+	setupVerifySpecTest(t, "my-spec", specContent)
+
+	prevRunner := verifySpecGateRunner
+	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
+		return &specgate.GateVerdict{
+			Passed: false,
+			Results: []specgate.CriterionResult{{Criterion: "First criterion", Passed: false, Evidence: "missing"}},
+		}, nil
+	}
+	prevCreate := verifySpecFixBeadsFn
+	called := false
+	verifySpecFixBeadsFn = func(ctx context.Context, specName string, verdict *specgate.GateVerdict) error {
+		called = true
+		return nil
+	}
+	verifySpecCreateBeads = true
+	
+	t.Cleanup(func() {
+		verifySpecGateRunner = prevRunner
+		verifySpecFixBeadsFn = prevCreate
+		verifySpecCreateBeads = false
+	})
+
+	if err := runVerifySpec(verifySpecCmd, []string{"my-spec"}); err == nil {
+		t.Fatal("expected error on gate failure")
+	}
+	if !called {
+		t.Fatal("expected fix beads creation on failure")
+	}
+}
+
+func setupVerifySpecTest(t *testing.T, specName string, specContent string) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	specsDir := filepath.Join(tmpDir, "specs")
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("failed to create specs dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(specsDir, specName+".md"), []byte(specContent), 0644); err != nil {
+		t.Fatalf("failed to write spec: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := "paths:\n  specs: " + specsDir + "\n"
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origDir)
+	})
 }

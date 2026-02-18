@@ -25,6 +25,7 @@ import (
 
 var verifySpecCreateBeads bool
 var verifySpecGateRunner = runSpecGate
+var verifySpecFixBeadsFn = createSpecGateFixBeads
 
 var verifySpecCmd = &cobra.Command{
 	Use:   "verify-spec <spec>",
@@ -78,7 +79,7 @@ func runVerifySpec(cmd *cobra.Command, args []string) error {
 	}
 
 	if verifySpecCreateBeads {
-		if err := createSpecGateFixBeads(ctx, specName, verdict); err != nil {
+		if err := verifySpecFixBeadsFn(ctx, specName, verdict); err != nil {
 			return fmt.Errorf("creating fix beads: %w", err)
 		}
 	}
