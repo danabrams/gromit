@@ -28,6 +28,9 @@ const (
 	DefaultRunbookTTLDays = 14
 
 	DefaultAndonConfigDocSectionTitle = "# Andon autonomy controls"
+
+	MethodologyGranularityBead = "bead"
+	MethodologyGranularitySpec = "spec"
 )
 
 var defaultAndonBulkDeleteAllowlist = []string{
@@ -236,6 +239,7 @@ type ThoroughReviewConfig struct {
 type MethodologyConfig struct {
 	ATDD          bool                    `yaml:"atdd"`
 	TDD           bool                    `yaml:"tdd"`
+	Granularity   string                  `yaml:"granularity"`
 	PhaseTimeouts MethodologyPhaseTimeout `yaml:"phase_timeouts"`
 }
 
@@ -395,6 +399,9 @@ func Load(path string) (*Config, error) {
 
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("validating config: %w", err)
+	}
 	return &cfg, nil
 }
 
@@ -632,6 +639,9 @@ func (c *Config) SetDefaults() {
 	if c.Review.Thorough.Timeout == 0 {
 		c.Review.Thorough.Timeout = 900
 	}
+	if c.Methodology.Granularity == "" {
+		c.Methodology.Granularity = MethodologyGranularityBead
+	}
 	if c.Git.AutoPush == nil {
 		t := true
 		c.Git.AutoPush = &t
@@ -779,6 +789,29 @@ func (v ValidationConfig) ShouldRunFinalFullGate() bool {
 		return true
 	}
 	return *v.RunFinalFullGate
+}
+
+// Validate ensures config values are within supported ranges.
+func (c *Config) Validate() error {
+	if err := c.Methodology.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Validate ensures methodology settings are supported.
+func (m MethodologyConfig) Validate() error {
+	switch strings.ToLower(m.Granularity) {
+	case MethodologyGranularityBead, MethodologyGranularitySpec:
+		return nil
+	default:
+		return fmt.Errorf(
+			"methodology.granularity must be %q or %q (got %q)",
+			MethodologyGranularityBead,
+			MethodologyGranularitySpec,
+			m.Granularity,
+		)
+	}
 }
 
 // ResolvePhaseTimeoutSeconds returns validation's phase timeout override, or

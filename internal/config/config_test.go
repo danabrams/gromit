@@ -2826,8 +2826,8 @@ func TestMethodologyGranularityDefaultsToBead(t *testing.T) {
 		t.Fatalf("loading config: %v", err)
 	}
 
-	if cfg.Methodology.Granularity != "bead" {
-		t.Errorf("expected granularity=bead, got %q", cfg.Methodology.Granularity)
+	if cfg.Methodology.Granularity != MethodologyGranularityBead {
+		t.Errorf("expected granularity=%s, got %q", MethodologyGranularityBead, cfg.Methodology.Granularity)
 	}
 }
 
@@ -2842,14 +2842,14 @@ func TestMethodologyGranularityParsing(t *testing.T) {
 			yaml: `methodology:
   granularity: "bead"
 `,
-			granularity: "bead",
+			granularity: MethodologyGranularityBead,
 		},
 		{
 			name: "Granularity spec",
 			yaml: `methodology:
   granularity: "spec"
 `,
-			granularity: "spec",
+			granularity: MethodologyGranularitySpec,
 		},
 	}
 
