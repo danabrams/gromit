@@ -56,6 +56,17 @@ Output JSON only and include no narrative text.
 
 Your response must be one top-level JSON object and nothing else. Do not include markdown, commentary, or any explanation outside the JSON.
 
+## GateVerdict Schema
+
+Required top-level fields:
+- `passed` (boolean)
+- `results` (array of objects)
+
+Required result fields:
+- `criterion` (string)
+- `passed` (boolean)
+- `evidence` (string)
+
 ```json
 {"passed": true, "results": [{"criterion": "...", "passed": true, "evidence": "..."}]}
 ```

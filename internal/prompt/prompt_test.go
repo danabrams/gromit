@@ -1180,6 +1180,28 @@ func TestRenderSpecGateRealTemplateIncludesLabeledSections(t *testing.T) {
 	}
 }
 
+func TestRenderSpecGateRealTemplateDefinesGateVerdictSchema(t *testing.T) {
+	ctx := &SpecGateContext{
+		SpecCriteria: "Must return 200",
+	}
+
+	result := renderSpecGateRealTemplate(t, ctx)
+
+	wantStrs := []string{
+		"Required top-level fields:",
+		"`passed` (boolean)",
+		"`results` (array of objects)",
+		"Required result fields:",
+		"`criterion` (string)",
+		"`evidence` (string)",
+	}
+	for _, want := range wantStrs {
+		if !strings.Contains(result, want) {
+			t.Errorf("RenderSpecGate() real template missing schema requirement %q", want)
+		}
+	}
+}
+
 func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T) {
 	ctx := &SpecGateContext{
 		SpecCriteria: "Must return 200",
