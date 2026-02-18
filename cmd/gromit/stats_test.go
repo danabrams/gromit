@@ -425,6 +425,95 @@ func TestStatsCmd_JSONOutputIncludesCostPerSpec(t *testing.T) {
 	}
 }
 
+func TestStatsCmd_ShowsCostPerSpecSortedByTotalCost(t *testing.T) {
+	// Create temp directory structure
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+
+	// Create gromit.yaml config
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Create log file with multiple specs and costs
+	runID := "20260211-120000"
+	logs := []logger.IterationLog{
+		{
+			BeadID:     "bead-1",
+			SpecID:     "spec-high",
+			Model:      "opus",
+			Success:    true,
+			CostUSD:    3.00,
+			DurationMs: 45000,
+		},
+		{
+			BeadID:     "bead-2",
+			SpecID:     "spec-high",
+			Model:      "opus",
+			Success:    true,
+			CostUSD:    2.00,
+			DurationMs: 42000,
+		},
+		{
+			BeadID:     "bead-3",
+			SpecID:     "spec-low",
+			Model:      "sonnet",
+			Success:    true,
+			CostUSD:    1.50,
+			DurationMs: 30000,
+		},
+	}
+
+	logFilePath := filepath.Join(logsDir, "run-"+runID+".jsonl")
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		t.Fatalf("failed to create log file: %v", err)
+	}
+	defer logFile.Close()
+
+	encoder := json.NewEncoder(logFile)
+	for _, log := range logs {
+		if err := encoder.Encode(log); err != nil {
+			t.Fatalf("failed to write log entry: %v", err)
+		}
+	}
+	logFile.Close()
+
+	// Change to tmpDir so config loading works
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)
+
+	// Execute stats command
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "Cost per spec") {
+		t.Error("output should include cost per spec section")
+	}
+
+	highIndex := strings.Index(output, "spec-high")
+	lowIndex := strings.Index(output, "spec-low")
+	if highIndex == -1 || lowIndex == -1 {
+		t.Fatalf("output should include spec ids, got output: %s", output)
+	}
+	if highIndex > lowIndex {
+		t.Error("cost per spec should be sorted by total cost descending")
+	}
+}
+
 // Expected failure: runStats function does not exist yet
 func TestStatsCmd_ShowsCostPerCompletedBead(t *testing.T) {
 	// Create temp directory structure
