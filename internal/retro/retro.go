@@ -20,20 +20,38 @@ import (
 )
 
 var runInteractiveClaude = func(promptText, dir string, stdin io.Reader, stdout, stderr io.Writer) error {
+	promptFile, err := os.CreateTemp("", "retro-prompt-*.md")
+	if err != nil {
+		return fmt.Errorf("creating temp prompt file: %w", err)
+	}
+	promptPath := promptFile.Name()
+	defer os.Remove(promptPath)
+
+	if _, err := promptFile.WriteString(promptText); err != nil {
+		promptFile.Close()
+		return fmt.Errorf("writing prompt file: %w", err)
+	}
+	if err := promptFile.Close(); err != nil {
+		return fmt.Errorf("closing prompt file: %w", err)
+	}
+
 	// Launch claude binary in interactive mode.
-	cmd := exec.Command("claude")
+	cmd := execCommand("claude", fmt.Sprintf(fileRefMessageFormat, promptPath))
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	if dir != "" {
 		cmd.Dir = dir
 	}
-	cmd.Args = append(cmd.Args, promptText)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("running claude: %w", err)
 	}
 	return nil
 }
+
+const fileRefMessageFormat = "Read and follow instructions in %s"
+
+var execCommand = exec.Command
 
 const (
 	providerFamilyClaude = "claude"
