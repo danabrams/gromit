@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/spf13/cobra"
 )
@@ -41,50 +42,77 @@ func runStats(cmd *cobra.Command, args []string) error {
 		cfg = nil
 	}
 
+	statsData, err := loadStatsData(cfg)
+	if err != nil {
+		return err
+	}
+
+	if statsJSON {
+		return outputJSON(statsData.projectStats, statsData.globalStats, statsData.costPerSpec)
+	}
+
+	return outputText(statsData.projectStats, statsData.globalStats, statsData.beadCosts, statsData.costPerSpec)
+}
+
+type statsData struct {
+	projectStats map[string]logger.ModelStats
+	globalStats  *logger.GlobalStats
+	beadCosts    map[string]float64
+	costPerSpec  map[string]logger.SpecCost
+}
+
+func loadStatsData(cfg *config.Config) (*statsData, error) {
 	gromitDir := resolveGromitDir(cfg)
 	logsDir := filepath.Join(gromitDir, "logs")
 
 	// Read project stats
 	projectStats, err := logger.ReadModelStats(logsDir)
 	if err != nil {
-		return fmt.Errorf("reading project stats: %w", err)
+		return nil, fmt.Errorf("reading project stats: %w", err)
 	}
 
 	// Read cost per completed bead
 	beadCosts, err := logger.CostPerCompletedBead(logsDir)
 	if err != nil {
-		return fmt.Errorf("computing cost per bead: %w", err)
+		return nil, fmt.Errorf("computing cost per bead: %w", err)
 	}
 
 	// Read cost per spec
 	costPerSpec, err := logger.CostPerSpec(logsDir)
 	if err != nil {
-		return fmt.Errorf("computing cost per spec: %w", err)
+		return nil, fmt.Errorf("computing cost per spec: %w", err)
 	}
 
 	// Read global stats
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("getting home directory: %w", err)
+		return nil, fmt.Errorf("getting home directory: %w", err)
 	}
 	globalStatsPath := filepath.Join(homeDir, ".gromit", "stats.json")
 	globalStats, err := logger.ReadGlobalStats(globalStatsPath)
 	if err != nil {
-		return fmt.Errorf("reading global stats: %w", err)
+		return nil, fmt.Errorf("reading global stats: %w", err)
 	}
 
-	if statsJSON {
-		return outputJSON(projectStats, globalStats, costPerSpec)
-	}
+	return &statsData{
+		projectStats: projectStats,
+		globalStats:  globalStats,
+		beadCosts:    beadCosts,
+		costPerSpec:  costPerSpec,
+	}, nil
+}
 
-	return outputText(projectStats, globalStats, beadCosts, costPerSpec)
+type statsJSONOutput struct {
+	ProjectStats map[string]logger.ModelStats `json:"project_stats"`
+	GlobalStats  *logger.GlobalStats          `json:"global_stats"`
+	CostPerSpec  map[string]logger.SpecCost   `json:"cost_per_spec"`
 }
 
 func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, costPerSpec map[string]logger.SpecCost) error {
-	output := map[string]interface{}{
-		"project_stats": projectStats,
-		"global_stats":  globalStats,
-		"cost_per_spec": costPerSpec,
+	output := statsJSONOutput{
+		ProjectStats: projectStats,
+		GlobalStats:  globalStats,
+		CostPerSpec:  costPerSpec,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")

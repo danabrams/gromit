@@ -11,7 +11,6 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 )
 
-// Expected failure: statsCmd variable does not exist yet
 func TestStatsCmd_Registration(t *testing.T) {
 	// Verify the stats command is registered with rootCmd
 	found := false
@@ -27,7 +26,6 @@ func TestStatsCmd_Registration(t *testing.T) {
 	}
 }
 
-// Expected failure: statsCmd does not exist yet
 func TestStatsCmd_Flags(t *testing.T) {
 	// Verify the --json flag is available
 	jsonFlag := statsCmd.Flags().Lookup("json")
@@ -41,7 +39,6 @@ func TestStatsCmd_Flags(t *testing.T) {
 	}
 }
 
-// Expected failure: runStats function does not exist yet
 func TestStatsCmd_DisplaysProjectStats(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
@@ -155,7 +152,6 @@ func TestStatsCmd_DisplaysProjectStats(t *testing.T) {
 	}
 }
 
-// Expected failure: runStats function does not exist yet
 func TestStatsCmd_DisplaysGlobalStats(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
@@ -272,7 +268,6 @@ func TestStatsCmd_DisplaysGlobalStats(t *testing.T) {
 	}
 }
 
-// Expected failure: runStats function does not exist yet
 func TestStatsCmd_JSONOutput(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
@@ -514,7 +509,6 @@ func TestStatsCmd_ShowsCostPerSpecSortedByTotalCost(t *testing.T) {
 	}
 }
 
-// Expected failure: runStats function does not exist yet
 func TestStatsCmd_ShowsCostPerCompletedBead(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
@@ -614,7 +608,6 @@ func TestStatsCmd_ShowsCostPerCompletedBead(t *testing.T) {
 	}
 }
 
-// Expected failure: runStats function does not exist yet
 func TestStatsCmd_HandlesNoGlobalStats(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
@@ -690,7 +683,6 @@ func TestStatsCmd_HandlesNoGlobalStats(t *testing.T) {
 	}
 }
 
-// Expected failure: runStats function does not exist yet
 func TestStatsCmd_ShowsEscalationFrequency(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
