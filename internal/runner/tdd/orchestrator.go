@@ -47,24 +47,83 @@ type CycleOrchestrator struct {
 // RunCycles executes TDD cycles until the state is complete.
 func (o *CycleOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadContext, state CycleState) error {
 	for !state.IsComplete() {
-		// RED: assemble handoff -> render prompt -> invoke
-		redHandoff, err := AssembleRedHandoff(state, o.readFileFn, o.getDiffFn)
-		if err != nil {
-			return fmt.Errorf("red handoff assembly: %w", err)
+		if err := o.runOneCycle(ctx, bc, &state); err != nil {
+			return err
 		}
-
-		redPrompt, err := o.renderRedFn(redHandoff, bc)
-		if err != nil {
-			return fmt.Errorf("red prompt render: %w", err)
-		}
-
-		err = o.invokeFn(ctx, redPrompt, bc.Tier)
-		if err != nil {
-			return fmt.Errorf("red invocation: %w", err)
-		}
-
-		// Advance state (single cycle for now)
-		state = AssembleCycleState(state, "")
 	}
+	return nil
+}
+
+func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadContext, state *CycleState) error {
+	// RED: assemble handoff -> render prompt -> invoke
+	redHandoff, err := AssembleRedHandoff(*state, o.readFileFn, o.getDiffFn)
+	if err != nil {
+		return fmt.Errorf("red handoff assembly: %w", err)
+	}
+
+	redPrompt, err := o.renderRedFn(redHandoff, bc)
+	if err != nil {
+		return fmt.Errorf("red prompt render: %w", err)
+	}
+
+	err = o.invokeFn(ctx, redPrompt, bc.Tier)
+	if err != nil {
+		return fmt.Errorf("red invocation: %w", err)
+	}
+
+	// VALIDATE RED: expect tests to fail
+	valOutput, passed, err := o.validateFn(ctx, nil, "")
+	if err != nil {
+		return fmt.Errorf("red validation: %w", err)
+	}
+	if passed {
+		// Tests pass unexpectedly — nothing left to implement
+		state.Done = true
+		*state = AssembleCycleState(*state, "")
+		return nil
+	}
+
+	// GREEN: assemble handoff -> render prompt -> invoke
+	greenHandoff, err := AssembleGreenHandoff(valOutput, o.readFileFn, state.TouchedFiles)
+	if err != nil {
+		return fmt.Errorf("green handoff assembly: %w", err)
+	}
+
+	greenPrompt, err := o.renderGreenFn(greenHandoff, bc)
+	if err != nil {
+		return fmt.Errorf("green prompt render: %w", err)
+	}
+
+	err = o.invokeFn(ctx, greenPrompt, bc.Tier)
+	if err != nil {
+		return fmt.Errorf("green invocation: %w", err)
+	}
+
+	// VALIDATE GREEN: expect tests to pass
+	_, passed, err = o.validateFn(ctx, nil, "")
+	if err != nil {
+		return fmt.Errorf("green validation: %w", err)
+	}
+	if !passed {
+		return fmt.Errorf("green validation failed: tests still failing after green phase")
+	}
+
+	// REFACTOR: behavior-preserving cleanup (failure non-blocking)
+	if o.runRefactorFn != nil {
+		_ = o.runRefactorFn(ctx, bc)
+	}
+
+	// VALIDATE REFACTOR: verify tests still pass
+	_, passed, err = o.validateFn(ctx, nil, "")
+	if err != nil {
+		return fmt.Errorf("refactor validation: %w", err)
+	}
+	if !passed {
+		// Refactor broke tests — this is handled in a later cycle (revert)
+		return fmt.Errorf("refactor validation failed: tests broken after refactor")
+	}
+
+	// Advance state
+	*state = AssembleCycleState(*state, "")
 	return nil
 }

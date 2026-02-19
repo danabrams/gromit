@@ -74,15 +74,17 @@ func TestRunCycles_SingleCycle_CallsRedPhase(t *testing.T) {
 		invokedTiers = append(invokedTiers, tier)
 		return nil
 	}
-	// Validation after red: tests fail (expected)
+	validateCall := 0
 	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
-		return "FAIL: TestFoo", false, nil
+		validateCall++
+		if validateCall == 1 {
+			return "FAIL: TestFoo", false, nil // Red: tests fail
+		}
+		return "PASS", true, nil // Green/refactor: tests pass
 	}
-	// Green phase
 	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
 		return "green-prompt", nil
 	}
-	// Refactor phase (no-op)
 	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
 		return nil
 	}
@@ -106,5 +108,75 @@ func TestRunCycles_SingleCycle_CallsRedPhase(t *testing.T) {
 	}
 	if invokedTiers[0] != "medium" {
 		t.Fatalf("expected first invocation tier to be medium, got %q", invokedTiers[0])
+	}
+}
+
+func TestRunCycles_SingleCycle_CorrectCallSequence(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	var phases []string
+	validateCall := 0
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		phases = append(phases, "renderRed")
+		return "red-prompt", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		phases = append(phases, "renderGreen")
+		return "green-prompt", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		switch prompt {
+		case "red-prompt":
+			phases = append(phases, "invokeRed")
+		case "green-prompt":
+			phases = append(phases, "invokeGreen")
+		}
+		return nil
+	}
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			phases = append(phases, "validateRed")
+			return "FAIL: TestFoo", false, nil // Expected: tests fail after red
+		case 2:
+			phases = append(phases, "validateGreen")
+			return "PASS", true, nil // Expected: tests pass after green
+		case 3:
+			phases = append(phases, "validateRefactor")
+			return "PASS", true, nil // Expected: tests still pass after refactor
+		}
+		return "", false, nil
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		phases = append(phases, "refactor")
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := singleRequirementState()
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := []string{
+		"renderRed", "invokeRed", "validateRed",
+		"renderGreen", "invokeGreen", "validateGreen",
+		"refactor", "validateRefactor",
+	}
+
+	if len(phases) != len(expected) {
+		t.Fatalf("expected %d phases, got %d: %v", len(expected), len(phases), phases)
+	}
+	for i, want := range expected {
+		if phases[i] != want {
+			t.Fatalf("phase[%d]: expected %q, got %q (full: %v)", i, want, phases[i], phases)
+		}
 	}
 }
