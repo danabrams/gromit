@@ -142,3 +142,38 @@ func TestTDD_FreshContext_FallsBackOnOrchestratorError(t *testing.T) {
 		t.Fatal("expected success=false when orchestrator returns an error")
 	}
 }
+
+func TestTDD_FreshContext_FlagFalse_UsesSingleInvocation(t *testing.T) {
+	r := &Runner{
+		cfg: &config.Config{
+			Methodology: config.MethodologyConfig{
+				FreshContextPerCycle: false,
+			},
+		},
+		cycleOrchestrator: &cycleOrchestrator{
+			executeFn: func(ctx context.Context, bc *runtypes.BeadContext, atddActive bool, executeWithRetry func() bool) *IterationResult {
+				t.Fatal("did not expect cycle orchestrator to execute when fresh_context_per_cycle=false")
+				return nil
+			},
+		},
+	}
+
+	executeCalls := 0
+	result := r.runMethodologyExecution(
+		context.Background(),
+		&runtypes.BeadContext{Result: &runtypes.IterationResult{}},
+		false,
+		true,
+		func() bool {
+			executeCalls++
+			return false
+		},
+	)
+
+	if executeCalls != 1 {
+		t.Fatalf("expected exactly one build invocation, got %d", executeCalls)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+}
