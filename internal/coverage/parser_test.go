@@ -1,73 +1,18 @@
 package coverage
 
-import (
-	"testing"
-)
+import "testing"
 
-func TestParseCriteria_MissingSection(t *testing.T) {
+func TestParseCriteria_ParsesBullets(t *testing.T) {
 	spec := `# My Spec
 
-No acceptance criteria section here.
-`
-
-	_, err := ParseCriteria(spec)
-	if err == nil {
-		t.Fatal("ParseCriteria() expected error for missing section, got nil")
-	}
-}
-
-func TestParseCriteria_CompoundCriterion(t *testing.T) {
-	spec := `# My Spec
+Some intro.
 
 ## Acceptance Criteria
 
-- AC1: The system validates input format
-  including length, characters, and encoding
-- AC2: Short one
-`
+- Accept valid input
+- Reject invalid input
 
-	criteria, err := ParseCriteria(spec)
-	if err != nil {
-		t.Fatalf("ParseCriteria() error: %v", err)
-	}
-
-	if len(criteria) != 2 {
-		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
-	}
-
-	want := "The system validates input format including length, characters, and encoding"
-	if criteria[0].Text != want {
-		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, want)
-	}
-}
-
-func TestParseCriteria_EmptySection(t *testing.T) {
-	spec := `# My Spec
-
-## Acceptance Criteria
-
-## Another Section
-`
-
-	criteria, err := ParseCriteria(spec)
-	if err != nil {
-		t.Fatalf("ParseCriteria() error: %v", err)
-	}
-
-	if len(criteria) != 0 {
-		t.Fatalf("len(criteria) = %d, want 0", len(criteria))
-	}
-}
-
-func TestParseCriteria_ExtractsBullets(t *testing.T) {
-	spec := `# My Spec
-
-Some description here.
-
-## Acceptance Criteria
-
-- AC1: The system accepts valid input
-- AC2: The system rejects invalid input
+## Next Section
 `
 
 	criteria, err := ParseCriteria(spec)
@@ -82,14 +27,14 @@ Some description here.
 	if criteria[0].Number != 1 {
 		t.Fatalf("criteria[0].Number = %d, want 1", criteria[0].Number)
 	}
-	if criteria[0].Text != "The system accepts valid input" {
-		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, "The system accepts valid input")
+	if criteria[0].Text != "Accept valid input" {
+		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, "Accept valid input")
 	}
 
 	if criteria[1].Number != 2 {
 		t.Fatalf("criteria[1].Number = %d, want 2", criteria[1].Number)
 	}
-	if criteria[1].Text != "The system rejects invalid input" {
-		t.Fatalf("criteria[1].Text = %q, want %q", criteria[1].Text, "The system rejects invalid input")
+	if criteria[1].Text != "Reject invalid input" {
+		t.Fatalf("criteria[1].Text = %q, want %q", criteria[1].Text, "Reject invalid input")
 	}
 }

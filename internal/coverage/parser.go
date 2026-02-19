@@ -2,8 +2,6 @@ package coverage
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -12,8 +10,6 @@ type Criterion struct {
 	Number int
 	Text   string
 }
-
-var bulletRe = regexp.MustCompile(`^-\s+AC(\d+):\s+(.+)$`)
 
 // ParseCriteria extracts acceptance criteria from the "## Acceptance Criteria"
 // section of a spec document.
@@ -24,34 +20,17 @@ func ParseCriteria(specContent string) ([]Criterion, error) {
 	}
 
 	criteria := make([]Criterion, 0)
-	var current *Criterion
-	finishCurrent := func() {
-		if current != nil {
-			criteria = append(criteria, *current)
-		}
-	}
 	for _, line := range strings.Split(section, "\n") {
-		m := bulletRe.FindStringSubmatch(strings.TrimSpace(line))
-		if m != nil {
-			finishCurrent()
-			n, err := strconv.Atoi(m[1])
-			if err != nil {
-				current = nil
-				continue
-			}
-			c := Criterion{Number: n, Text: m[2]}
-			current = &c
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "-") {
 			continue
 		}
-		// Continuation line: indented non-empty text appended to current criterion.
-		if current != nil && len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
-			cont := strings.TrimSpace(line)
-			if cont != "" {
-				current.Text += " " + cont
-			}
+		text := strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
+		if text == "" {
+			continue
 		}
+		criteria = append(criteria, Criterion{Number: len(criteria) + 1, Text: text})
 	}
-	finishCurrent()
 	return criteria, nil
 }
 
