@@ -200,8 +200,20 @@ func appendToGitignore(path string) {
 		return
 	}
 
-	// Check if already has gromit entries
-	if contains(string(content), ".gromit/logs") {
+	current := string(content)
+	entries := []string{
+		".gromit/logs/",
+		".codex-home/",
+	}
+
+	var missing []string
+	for _, entry := range entries {
+		if !contains(current, entry) {
+			missing = append(missing, entry)
+		}
+	}
+
+	if len(missing) == 0 {
 		return
 	}
 
@@ -211,7 +223,10 @@ func appendToGitignore(path string) {
 	}
 	defer f.Close()
 
-	f.WriteString("\n# Gromit runner\n.gromit/logs/\n")
+	f.WriteString("\n# Gromit runner\n")
+	for _, entry := range missing {
+		f.WriteString(entry + "\n")
+	}
 	fmt.Println("  Updated .gitignore")
 }
 
