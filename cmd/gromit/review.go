@@ -44,6 +44,11 @@ var reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
 
 const defaultThoroughReviewTimeoutSeconds = 900
 
+func runReviewGitOutput(args ...string) ([]byte, error) {
+	cmd := reviewGitCommandFn("git", args...)
+	return reviewGitOutputFn(cmd)
+}
+
 var reviewCmd = &cobra.Command{
 	Use:   "review",
 	Short: "Run a thorough code review",
@@ -259,8 +264,7 @@ func findFirstCommitForBead(beadID string) (string, error) {
 	if beadID == "" || strings.HasPrefix(beadID, "-") {
 		return "", fmt.Errorf("invalid bead ID %q: must not be empty or start with '-'", beadID)
 	}
-	cmd := exec.Command("git", "log", "--all", "--format=%H", "--grep", beadID)
-	out, err := cmd.Output()
+	out, err := runReviewGitOutput("log", "--all", "--format=%H", "--grep", beadID)
 	if err != nil {
 		return "", nil // No commits found - not an error, just no work yet
 	}
@@ -287,8 +291,7 @@ func getCommitTimestamp(commit string) (int64, error) {
 	if err := validateCommitRef(commit); err != nil {
 		return 0, err
 	}
-	cmd := exec.Command("git", "log", "-1", "--format=%at", commit, "--")
-	out, err := cmd.Output()
+	out, err := runReviewGitOutput("log", "-1", "--format=%at", commit, "--")
 	if err != nil {
 		return 0, err
 	}
@@ -328,8 +331,7 @@ func runGitDiffForReview(fromCommit string, errPrefix string, args ...string) (s
 	}
 	cmdArgs := append([]string{"diff"}, args...)
 	cmdArgs = append(cmdArgs, fromCommit, "--")
-	cmd := exec.Command("git", cmdArgs...)
-	out, err := cmd.Output()
+	out, err := runReviewGitOutput(cmdArgs...)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", errPrefix, err)
 	}
@@ -498,8 +500,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 }
 
 func getGitHeadForReview() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
-	out, err := cmd.Output()
+	out, err := runReviewGitOutput("rev-parse", "HEAD")
 	if err != nil {
 		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
 	}

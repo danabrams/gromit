@@ -1,8 +1,9 @@
 ---
+created: 2026-02-19T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-19T18:53:13Z"
 id: tdd-cycle-coverage-tracker
 source_spec: tdd-cycle-coverage-tracker
-created: 2026-02-19
-decomposed: false
 ---
 
 # Hybrid Spec Coverage Tracker for TDD Cycles — Implementation Plan

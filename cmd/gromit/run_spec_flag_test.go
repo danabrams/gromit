@@ -105,7 +105,7 @@ func TestRunLoop_SpecFlagValidSpec(t *testing.T) {
 	// May fail for other reasons (no bd cli, etc), but must NOT fail due to spec validation
 	if err != nil {
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "not found") && strings.Contains(errMsg, "auth") {
+		if strings.Contains(errMsg, "validating spec:") {
 			t.Errorf("Error should not be spec validation error for existing spec, got: %v", err)
 		}
 		if strings.Contains(errMsg, "Available specs") {
