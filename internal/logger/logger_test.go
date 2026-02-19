@@ -862,9 +862,23 @@ func TestLogIterationWithPromptDiagnostics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content := string(data)
-	if !contains(content, `"prompt_diagnostics":{"prompt_type":"build","estimated_tokens":321`) {
-		t.Fatalf("log should contain prompt_diagnostics field, got %s", content)
+	lines := bytes.Split(bytes.TrimSpace(data), []byte("\n"))
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 log line, got %d", len(lines))
+	}
+
+	var first IterationLog
+	if err := json.Unmarshal(lines[0], &first); err != nil {
+		t.Fatalf("unmarshal first log line: %v", err)
+	}
+	if first.PromptDiagnostics == nil {
+		t.Fatalf("expected prompt_diagnostics field to be present")
+	}
+	if first.PromptDiagnostics.PromptType != "build" {
+		t.Fatalf("PromptType = %q, want %q", first.PromptDiagnostics.PromptType, "build")
+	}
+	if first.PromptDiagnostics.EstimatedTokens != 321 {
+		t.Fatalf("EstimatedTokens = %d, want %d", first.PromptDiagnostics.EstimatedTokens, 321)
 	}
 
 	emptyLog := &IterationLog{
@@ -883,11 +897,16 @@ func TestLogIterationWithPromptDiagnostics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lines := bytes.Split(bytes.TrimSpace(data), []byte("\n"))
+	lines = bytes.Split(bytes.TrimSpace(data), []byte("\n"))
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 log lines, got %d", len(lines))
 	}
-	if contains(string(lines[1]), `"prompt_diagnostics"`) {
+
+	var second map[string]any
+	if err := json.Unmarshal(lines[1], &second); err != nil {
+		t.Fatalf("unmarshal second log line: %v", err)
+	}
+	if _, exists := second["prompt_diagnostics"]; exists {
 		t.Fatalf("expected prompt_diagnostics to be omitted when nil, got %s", string(lines[1]))
 	}
 }

@@ -67,11 +67,12 @@ type IterationLog struct {
 	RecurrenceCount  int    `json:"recurrence_count,omitempty"`
 
 	// Coverage tracking fields
-	CriteriaTotal      int                       `json:"criteria_total,omitempty"`
-	CriteriaCovered    int                       `json:"criteria_covered,omitempty"`
-	CriteriaUntestable int                       `json:"criteria_untestable,omitempty"`
-	UncoveredCriteria  []string                  `json:"uncovered_criteria,omitempty"`
-	PromptDiagnostics  *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
+	CriteriaTotal      int      `json:"criteria_total,omitempty"`
+	CriteriaCovered    int      `json:"criteria_covered,omitempty"`
+	CriteriaUntestable int      `json:"criteria_untestable,omitempty"`
+	UncoveredCriteria  []string `json:"uncovered_criteria,omitempty"`
+	// Prompt diagnostics for token attribution and shaping decisions.
+	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 }
 
 // ReviewLog represents a review's outcome (light or thorough)
