@@ -921,6 +921,33 @@ Model: {{.Model}}`
 	}
 }
 
+func TestTDDRedContextFields(t *testing.T) {
+	tp := reflect.TypeOf(TDDRedContext{})
+	got := make([]string, 0, tp.NumField())
+	for i := 0; i < tp.NumField(); i++ {
+		got = append(got, tp.Field(i).Name)
+	}
+
+	want := []string{
+		"BeadID",
+		"BeadTitle",
+		"SpecExcerpt",
+		"TestFileContents",
+		"APISurface",
+		"CycleSummary",
+		"Rules",
+		"WorkDir",
+		"ScopedTestCommand",
+		"IsRetry",
+		"FailureContext",
+		"PrevFailure",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("TDDRedContext fields mismatch: got %v want %v", got, want)
+	}
+}
+
 func TestMethodologyPhaseShaping_TemplateCompatibility(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	if _, err := os.Stat(filepath.Join(templatesDir, "PROMPT_acceptance_tests.md")); os.IsNotExist(err) {

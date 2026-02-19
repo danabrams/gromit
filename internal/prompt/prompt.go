@@ -134,6 +134,22 @@ type TestFixContext struct {
 	TestFailureOutput string
 }
 
+// TDDRedContext holds data for TDD red-phase prompt template.
+type TDDRedContext struct {
+	BeadID            string
+	BeadTitle         string
+	SpecExcerpt       string
+	TestFileContents  map[string]string
+	APISurface        string
+	CycleSummary      string
+	Rules             string
+	WorkDir           string
+	ScopedTestCommand string
+	IsRetry           bool
+	FailureContext    string
+	PrevFailure       string
+}
+
 // ScopeEstimate represents the result of scope estimation
 type ScopeEstimate struct {
 	Complexity                   string   `json:"complexity"`
