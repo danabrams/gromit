@@ -493,6 +493,44 @@ func TestRunCycles_RefactorFailure_RevertsAndContinues(t *testing.T) {
 	}
 }
 
+func TestExecuteRefactorPhase_ValidationFailure_ResetsToPreRefactorCommit(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	refactorCalls := 0
+	validateCalls := 0
+	resetToCommit := ""
+
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		refactorCalls++
+		return nil
+	}
+	orch.getGitHeadFn = func() (string, error) { return "pre-refactor-commit", nil }
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCalls++
+		return "FAIL", false, nil
+	}
+	orch.gitResetFn = func(commit string) error {
+		resetToCommit = commit
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+	}
+
+	orch.executeRefactorPhase(context.Background(), bc)
+
+	if refactorCalls != 1 {
+		t.Fatalf("expected runRefactorFn to be called exactly once, got %d", refactorCalls)
+	}
+	if validateCalls != 1 {
+		t.Fatalf("expected validateFn to be called exactly once, got %d", validateCalls)
+	}
+	if resetToCommit != "pre-refactor-commit" {
+		t.Fatalf("expected git reset to pre-refactor commit, got %q", resetToCommit)
+	}
+}
+
 func TestRunCycles_GreenEscalation_RetriesThenEscalates(t *testing.T) {
 	orch := newTestOrchestrator()
 
