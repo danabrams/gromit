@@ -3,6 +3,7 @@ package coverage
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -22,16 +23,19 @@ func ParseCriteria(specContent string) ([]Criterion, error) {
 		return nil, err
 	}
 
-	var criteria []Criterion
+	criteria := make([]Criterion, 0)
 	var current *Criterion
+	finishCurrent := func() {
+		if current != nil {
+			criteria = append(criteria, *current)
+		}
+	}
 	for _, line := range strings.Split(section, "\n") {
 		m := bulletRe.FindStringSubmatch(strings.TrimSpace(line))
 		if m != nil {
-			if current != nil {
-				criteria = append(criteria, *current)
-			}
-			var n int
-			if _, err := fmt.Sscan(m[1], &n); err != nil {
+			finishCurrent()
+			n, err := strconv.Atoi(m[1])
+			if err != nil {
 				current = nil
 				continue
 			}
@@ -47,13 +51,7 @@ func ParseCriteria(specContent string) ([]Criterion, error) {
 			}
 		}
 	}
-	if current != nil {
-		criteria = append(criteria, *current)
-	}
-
-	if criteria == nil {
-		criteria = []Criterion{}
-	}
+	finishCurrent()
 	return criteria, nil
 }
 
