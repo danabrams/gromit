@@ -924,19 +924,30 @@ func (r *Renderer) applyScopedClaudeContext(ctx *Context) {
 		return
 	}
 
+	scopedPaths := collectScopedPackagePaths(ctx)
+	if len(scopedPaths) == 0 {
+		return
+	}
+
+	sections := parseClaudeSections(ctx.ClaudeMD)
+	entries := resolveScopedArchitectureEntries(scopedPaths, sections.ArchitectureBody, ctx.WorkDir)
+	ctx.ClaudeMD = renderScopedClaudeContent(ctx.ClaudeMD, entries)
+}
+
+// collectScopedPackagePaths merges Layer 1 extraction (spec/task text) and Layer 2
+// enrichment (sibling-touched packages), then normalizes and sorts the result.
+func collectScopedPackagePaths(ctx *Context) []string {
+	if ctx == nil {
+		return []string{}
+	}
+
 	layer1Paths := extractScopedPackagePathsFromText(
 		ctx.Spec,
 		beadDescription(ctx.Bead),
 		beadDescription(ctx.ParentBead),
 	)
-	mergedPaths := mergeScopedPackagePaths(layer1Paths, ctx.SiblingTouchedPackages)
-	if len(mergedPaths) == 0 {
-		return
-	}
 
-	sections := parseClaudeSections(ctx.ClaudeMD)
-	entries := resolveScopedArchitectureEntries(mergedPaths, sections.ArchitectureBody, ctx.WorkDir)
-	ctx.ClaudeMD = renderScopedClaudeContent(ctx.ClaudeMD, entries)
+	return mergeScopedPackagePaths(layer1Paths, ctx.SiblingTouchedPackages)
 }
 
 func mergeScopedPackagePaths(pathGroups ...[]string) []string {
@@ -945,9 +956,9 @@ func mergeScopedPackagePaths(pathGroups ...[]string) []string {
 	}
 
 	unique := make(map[string]struct{})
-	for _, paths := range pathGroups {
-		for _, path := range paths {
-			normalized := normalizeScopedPath(path)
+	for _, group := range pathGroups {
+		for _, candidate := range group {
+			normalized := normalizeScopedPath(candidate)
 			if normalized == "" {
 				continue
 			}
