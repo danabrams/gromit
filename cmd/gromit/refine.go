@@ -35,6 +35,8 @@ After the session exits, scans for new spec files and marks backlog items as ref
 	RunE: runRefine,
 }
 
+var createRefinePipelineFn = createRefinePipeline
+
 func init() {
 	rootCmd.AddCommand(refineCmd)
 	refineCmd.Flags().String("agent", "", "Override the default agent for this refine session")
@@ -58,7 +60,10 @@ func runRefine(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create pipeline
-	p := createRefinePipeline(cfg, gromitDir, specsDir, plansDir)
+	p, err := createRefinePipelineFn(cfg, gromitDir, specsDir, plansDir)
+	if err != nil {
+		return fmt.Errorf("creating refine pipeline: %w", err)
+	}
 
 	// Execute refine
 	result, err := p.Refine(cmd.Context(), *input)
@@ -153,10 +158,10 @@ func showRefinePicker(unrefined []*backlog.Idea, reader io.Reader) int {
 	return choice - 1
 }
 
-func createRefinePipeline(cfg *config.Config, gromitDir, specsDir, plansDir string) *pipeline.Pipeline {
+func createRefinePipeline(cfg *config.Config, gromitDir, specsDir, plansDir string) (*pipeline.Pipeline, error) {
 	bf, err := backlog.NewFile(gromitDir)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	deps := &pipeline.Deps{
@@ -170,7 +175,7 @@ func createRefinePipeline(cfg *config.Config, gromitDir, specsDir, plansDir stri
 		PlansDir:  plansDir,
 	}
 
-	return pipeline.New(deps, paths)
+	return pipeline.New(deps, paths), nil
 }
 
 func handleRefineOutput(result *pipeline.RefineResult, specsDir, plansDir string) error {

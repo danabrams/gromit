@@ -1,10 +1,16 @@
 package main
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/spf13/cobra"
 )
 
 func TestShowRefinePickerEOFSelectsNew(t *testing.T) {
@@ -96,5 +102,38 @@ func TestShowRefinePickerNegativeInputSelectsNew(t *testing.T) {
 
 	if choice != len(unrefined) {
 		t.Fatalf("expected choice %d for negative input, got %d", len(unrefined), choice)
+	}
+}
+
+func TestRunRefineReturnsErrorWhenPipelineCreationFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configFile, []byte("loop:\n  max_iterations: 1\n"), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	origConfigPath := configPath
+	configPath = configFile
+	t.Cleanup(func() {
+		configPath = origConfigPath
+	})
+
+	origFactory := createRefinePipelineFn
+	createRefinePipelineFn = func(_ *config.Config, _, _, _ string) (*pipeline.Pipeline, error) {
+		return nil, errors.New("factory failed")
+	}
+	t.Cleanup(func() {
+		createRefinePipelineFn = origFactory
+	})
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("agent", "", "")
+
+	err := runRefine(cmd, []string{"ad-hoc idea"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "factory failed") {
+		t.Fatalf("expected error to include factory failure, got %v", err)
 	}
 }
