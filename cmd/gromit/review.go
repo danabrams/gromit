@@ -32,6 +32,8 @@ var (
 	reviewChooseAgent    bool
 )
 
+const defaultThoroughReviewTimeoutSeconds = 900
+
 var reviewCmd = &cobra.Command{
 	Use:   "review",
 	Short: "Run a thorough code review",
@@ -104,6 +106,17 @@ func runReview(cmd *cobra.Command, args []string) error {
 
 func resolveReviewRendererPaths(cfg *config.Config) (string, string, string) {
 	return resolveTemplatesDir(cfg), resolveSpecsDir(cfg), resolveProjectClaudeMD(cfg)
+}
+
+func resolveReviewNonInteractiveTimeout(cfg *config.Config) int {
+	if cfg == nil {
+		return defaultThoroughReviewTimeoutSeconds
+	}
+	timeout := cfg.Review.Thorough.Timeout
+	if timeout <= 0 {
+		return defaultThoroughReviewTimeoutSeconds
+	}
+	return timeout
 }
 
 func determineReviewScope(cfg *config.Config) (string, error) {
@@ -433,7 +446,8 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	p := pipeline.New(deps, paths)
 
 	// Prepare input
-	timeout := time.Duration(cfg.Review.Thorough.Timeout) * time.Second
+	timeoutSeconds := resolveReviewNonInteractiveTimeout(cfg)
+	timeout := time.Duration(timeoutSeconds) * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -441,7 +455,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		FromCommit: fromCommit,
 		Diff:       diff,
 		Model:      cfg.Review.Thorough.Model,
-		Timeout:    cfg.Review.Thorough.Timeout,
+		Timeout:    timeoutSeconds,
 	}
 
 	// Call pipeline

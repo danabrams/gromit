@@ -42,6 +42,16 @@ func TestResolveReviewRendererPaths_Defaults(t *testing.T) {
 	}
 }
 
+func TestResolveReviewNonInteractiveTimeout_Defaults(t *testing.T) {
+	cfg := &config.Config{}
+
+	timeout := resolveReviewNonInteractiveTimeout(cfg)
+
+	if timeout != 900 {
+		t.Errorf("expected default thorough review timeout 900, got %d", timeout)
+	}
+}
+
 // TestValidateCommitRef verifies that commit refs starting with "-" are rejected.
 func TestValidateCommitRef(t *testing.T) {
 	tests := []struct {
