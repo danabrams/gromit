@@ -723,6 +723,8 @@ func (c *Config) SetDefaults() {
 
 	// Routing defaults — only when providers are configured
 	if c.HasProviders() {
+		providerCount := len(c.Providers)
+
 		// Initialize PhasePreferences if nil
 		if c.Routing.PhasePreferences == nil {
 			c.Routing.PhasePreferences = make(map[string]string)
@@ -731,7 +733,7 @@ func (c *Config) SetDefaults() {
 		// Build equal-split ratio from provider names when ratio is empty
 		if len(c.Routing.Ratio) == 0 {
 			c.Routing.Ratio = make(map[string]int)
-			share := 100 / len(c.Providers)
+			share := 100 / providerCount
 			for name := range c.Providers {
 				c.Routing.Ratio[name] = share
 			}
@@ -744,7 +746,7 @@ func (c *Config) SetDefaults() {
 
 		// Enable fallback by default for multi-provider configs.
 		if c.Routing.Fallback.Enabled == nil {
-			enabled := len(c.Providers) > 1
+			enabled := providerCount > 1
 			c.Routing.Fallback.Enabled = &enabled
 		}
 	}
