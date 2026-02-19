@@ -336,6 +336,54 @@ func TestRunCycles_CoverageDone_TestsPassUnexpectedlyInRedPhase(t *testing.T) {
 	}
 }
 
+func TestRunCycles_EarlyGreen_RefactorValidationFailure_RevertsToPreRefactorCommit(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	resetToCommit := ""
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "PASS", true, nil // Red validation unexpectedly passes (early-green path)
+		case 2:
+			return "FAIL", false, nil // Post-refactor validation fails
+		default:
+			return "PASS", true, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+	orch.getGitHeadFn = func() (string, error) { return "pre-refactor-commit", nil }
+	orch.gitResetFn = func(commit string) error {
+		resetToCommit = commit
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("expected no error (refactor failure is non-blocking), got %v", err)
+	}
+
+	if resetToCommit != "pre-refactor-commit" {
+		t.Fatalf("expected git reset to pre-refactor commit, got %q", resetToCommit)
+	}
+}
+
 func TestRunCycles_RedEscalation_RetriesThenEscalates(t *testing.T) {
 	orch := newTestOrchestrator()
 
