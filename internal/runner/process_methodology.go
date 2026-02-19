@@ -178,23 +178,20 @@ func updateIterationCoverageMetrics(result *runtypes.IterationResult, tracker *c
 	if result == nil {
 		return
 	}
+	result.CriteriaTotal = 0
+	result.CriteriaCovered = 0
+	result.CriteriaUntestable = 0
+	result.UncoveredCriteria = []string{}
+
 	if tracker == nil {
-		result.CriteriaTotal = 0
-		result.CriteriaCovered = 0
-		result.CriteriaUntestable = 0
-		result.UncoveredCriteria = []string{}
 		return
 	}
+
 	uncovered := tracker.UncoveredCriteria()
-	untestable := tracker.UntestableCriteria()
-	uncoveredTexts := make([]string, 0, len(uncovered))
-	for _, criterion := range uncovered {
-		uncoveredTexts = append(uncoveredTexts, criterion.Text)
-	}
 	result.CriteriaTotal = tracker.TotalCriteria()
-	result.CriteriaUntestable = len(untestable)
+	result.CriteriaUntestable = len(tracker.UntestableCriteria())
 	result.CriteriaCovered = len(tracker.CoveredCriteria())
-	result.UncoveredCriteria = uncoveredTexts
+	result.UncoveredCriteria = criterionTexts(uncovered)
 }
 
 func (r *Runner) finalizeTDDCoverageSummary(bc *runtypes.BeadContext, tracker *coverage.CoverageTracker) {
@@ -206,9 +203,7 @@ func (r *Runner) finalizeTDDCoverageSummary(bc *runtypes.BeadContext, tracker *c
 	summary := tracker.Summary()
 	r.log("TDD coverage summary for bead %s:\n%s", bc.Bead.ID, summary)
 
-	uncovered := tracker.UncoveredCriteria()
-	untestable := tracker.UntestableCriteria()
-	if len(uncovered) == 0 && len(untestable) == 0 {
+	if !hasCoverageGaps(tracker) {
 		return
 	}
 	if r.beads == nil {
@@ -217,6 +212,21 @@ func (r *Runner) finalizeTDDCoverageSummary(bc *runtypes.BeadContext, tracker *c
 	if err := r.beads.AddComment(bc.Bead.ID, summary); err != nil {
 		r.log("Warning: failed to add coverage summary comment: %v", err)
 	}
+}
+
+func criterionTexts(criteria []coverage.CriterionState) []string {
+	texts := make([]string, 0, len(criteria))
+	for _, criterion := range criteria {
+		texts = append(texts, criterion.Text)
+	}
+	return texts
+}
+
+func hasCoverageGaps(tracker *coverage.CoverageTracker) bool {
+	if tracker == nil {
+		return false
+	}
+	return len(tracker.UncoveredCriteria()) > 0 || len(tracker.UntestableCriteria()) > 0
 }
 
 func tddExpectedOutputsOrTitle(b *bead.Bead) []string {
