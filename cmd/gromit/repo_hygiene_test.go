@@ -59,3 +59,28 @@ func TestRepoHygiene_TestBinaryRemoved(t *testing.T) {
 		}
 	})
 }
+
+func TestRepoHygiene_CodexHomeIgnored(t *testing.T) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("could not find project root: %v", err)
+	}
+
+	gitignorePath := filepath.Join(projectRoot, ".gitignore")
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("could not read .gitignore: %v", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	found := false
+	for _, line := range lines {
+		if strings.TrimSpace(line) == ".codex-home/" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error(".gitignore does not contain '.codex-home/' to prevent local Codex runtime artifacts from being tracked")
+	}
+}

@@ -21,3 +21,6 @@ coverage.out
 **/.gromit/logs/
 .gromit/tmp/
 .gromit/status.json
+
+# Codex runtime artifacts
+.codex-home/
