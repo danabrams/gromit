@@ -107,6 +107,35 @@ func TestNormalizeNilFields_MandatoryCommandsInitialized(t *testing.T) {
 	}
 }
 
+func TestMandatoryCommandsYAMLDeserialization(t *testing.T) {
+	yamlContent := `
+validation:
+  mandatory_commands:
+    - "go vet ./..."
+    - "go build ./..."
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if len(cfg.Validation.MandatoryCommands) != 2 {
+		t.Fatalf("len(MandatoryCommands) = %d, want 2", len(cfg.Validation.MandatoryCommands))
+	}
+	if cfg.Validation.MandatoryCommands[0] != "go vet ./..." {
+		t.Errorf("MandatoryCommands[0] = %q, want %q", cfg.Validation.MandatoryCommands[0], "go vet ./...")
+	}
+	if cfg.Validation.MandatoryCommands[1] != "go build ./..." {
+		t.Errorf("MandatoryCommands[1] = %q, want %q", cfg.Validation.MandatoryCommands[1], "go build ./...")
+	}
+}
+
 func TestSetDefaultsRunbookTTLDays(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
