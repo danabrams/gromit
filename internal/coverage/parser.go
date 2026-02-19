@@ -1,8 +1,6 @@
 package coverage
 
 import (
-	"errors"
-	"fmt"
 	"strings"
 )
 
@@ -12,16 +10,14 @@ type Criterion struct {
 	Text   string
 }
 
-var errCriteriaSectionNotFound = errors.New("acceptance criteria section not found")
-
 const acceptanceCriteriaHeader = "## Acceptance Criteria"
 
 // ParseCriteria extracts acceptance criteria from the "## Acceptance Criteria"
 // section of a spec document.
 func ParseCriteria(specContent string) ([]Criterion, error) {
-	section, err := extractSection(specContent, acceptanceCriteriaHeader)
-	if err != nil {
-		return nil, err
+	section, ok := extractSection(specContent, acceptanceCriteriaHeader)
+	if !ok {
+		return []Criterion{}, nil
 	}
 
 	criteria := make([]Criterion, 0)
@@ -51,10 +47,10 @@ func ParseCriteria(specContent string) ([]Criterion, error) {
 
 // extractSection returns the content after the given header until the next
 // section header (##) or end of string.
-func extractSection(content, header string) (string, error) {
+func extractSection(content, header string) (string, bool) {
 	idx := strings.Index(content, header)
 	if idx == -1 {
-		return "", fmt.Errorf("%w: %s", errCriteriaSectionNotFound, header)
+		return "", false
 	}
 	rest := content[idx+len(header):]
 
@@ -63,7 +59,7 @@ func extractSection(content, header string) (string, error) {
 	if nextIdx != -1 {
 		rest = rest[:nextIdx]
 	}
-	return rest, nil
+	return rest, true
 }
 
 func isIndented(line string) bool {

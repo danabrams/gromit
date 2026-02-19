@@ -1,9 +1,6 @@
 package coverage
 
-import (
-	"errors"
-	"testing"
-)
+import "testing"
 
 func TestParseCriteria_ParsesBullets(t *testing.T) {
 	spec := `# My Spec
@@ -47,7 +44,7 @@ func TestParseCriteria_CompoundCriteria(t *testing.T) {
 
 ## Acceptance Criteria
 
-- Validates input format
+- Validates input format; handles commas, semicolons, and periods
   including length, characters, and encoding
 - Allows retries
 `
@@ -61,7 +58,7 @@ func TestParseCriteria_CompoundCriteria(t *testing.T) {
 		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
 	}
 
-	want := "Validates input format including length, characters, and encoding"
+	want := "Validates input format; handles commas, semicolons, and periods including length, characters, and encoding"
 	if criteria[0].Text != want {
 		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, want)
 	}
@@ -73,12 +70,12 @@ func TestParseCriteria_MissingSection(t *testing.T) {
 No acceptance criteria here.
 `
 
-	_, err := ParseCriteria(spec)
-	if err == nil {
-		t.Fatal("ParseCriteria() expected error, got nil")
+	criteria, err := ParseCriteria(spec)
+	if err != nil {
+		t.Fatalf("ParseCriteria() error: %v", err)
 	}
 
-	if !errors.Is(err, errCriteriaSectionNotFound) {
-		t.Fatalf("ParseCriteria() error = %v, want errors.Is(..., errCriteriaSectionNotFound)", err)
+	if len(criteria) != 0 {
+		t.Fatalf("len(criteria) = %d, want 0", len(criteria))
 	}
 }
