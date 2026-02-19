@@ -55,6 +55,32 @@ func TestWriteIterationLog_PropagatesFailureCategory(t *testing.T) {
 	}
 }
 
+func TestWriteIterationLog_FailureFieldsEmptyOnSuccess(t *testing.T) {
+	mockLog := &mockIterationLogger{}
+	r := &Runner{
+		logger: mockLog,
+		output: &strings.Builder{},
+	}
+
+	result := &runtypes.IterationResult{
+		BeadID:  "bead-1",
+		Model:   "haiku",
+		Success: true,
+	}
+
+	r.writeIterationLog(1, result)
+
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(mockLog.Logs))
+	}
+	if mockLog.Logs[0].FailurePhase != "" {
+		t.Errorf("FailurePhase = %q, want empty on success", mockLog.Logs[0].FailurePhase)
+	}
+	if mockLog.Logs[0].FailureCategory != "" {
+		t.Errorf("FailureCategory = %q, want empty on success", mockLog.Logs[0].FailureCategory)
+	}
+}
+
 func TestWriteIterationLog_PropagatesSpecID(t *testing.T) {
 	mockLog := &mockIterationLogger{}
 	r := &Runner{
