@@ -4,6 +4,18 @@ import (
 	"testing"
 )
 
+func TestParseCriteria_MissingSection(t *testing.T) {
+	spec := `# My Spec
+
+No acceptance criteria section here.
+`
+
+	_, err := ParseCriteria(spec)
+	if err == nil {
+		t.Fatal("ParseCriteria() expected error for missing section, got nil")
+	}
+}
+
 func TestParseCriteria_CompoundCriterion(t *testing.T) {
 	spec := `# My Spec
 
