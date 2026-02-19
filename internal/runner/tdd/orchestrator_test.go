@@ -491,3 +491,73 @@ func TestRunCycles_RefactorFailure_RevertsAndContinues(t *testing.T) {
 		t.Fatalf("expected git reset to pre-refactor commit, got %q", resetToCommit)
 	}
 }
+
+func TestRunCycles_GreenEscalation_RetriesThenEscalates(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	greenInvokeAttempts := 0
+	var greenTiers []string
+	escalated := false
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		if prompt == "green" {
+			greenInvokeAttempts++
+			greenTiers = append(greenTiers, tier)
+			// First two green attempts fail, third succeeds (after escalation)
+			if greenInvokeAttempts <= 2 {
+				return fmt.Errorf("green invocation failed")
+			}
+		}
+		return nil
+	}
+	orch.escalateTierFn = func(currentTier string) string {
+		escalated = true
+		return "high"
+	}
+	orch.getGitHeadFn = func() (string, error) { return "abc", nil }
+	orch.gitResetFn = func(commit string) error { return nil }
+
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall % 3 {
+		case 1:
+			return "FAIL", false, nil
+		default:
+			return "PASS", true, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := singleRequirementState()
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !escalated {
+		t.Fatal("expected escalation during green phase")
+	}
+	if len(greenTiers) < 3 {
+		t.Fatalf("expected at least 3 green invocations, got %d", len(greenTiers))
+	}
+	if greenTiers[0] != "medium" || greenTiers[1] != "medium" {
+		t.Fatalf("expected first two green attempts at medium, got %v", greenTiers[:2])
+	}
+	if greenTiers[2] != "high" {
+		t.Fatalf("expected third green attempt at high, got %q", greenTiers[2])
+	}
+}
