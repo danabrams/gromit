@@ -290,26 +290,46 @@ type PhasesConfig struct {
 	Debug   string `yaml:"debug"`
 }
 
+// ModelCost holds per-model pricing overrides within a provider.
+type ModelCost struct {
+	CostPer1kInput  float64 `yaml:"cost_per_1k_input"`
+	CostPer1kOutput float64 `yaml:"cost_per_1k_output"`
+}
+
 type ProviderDef struct {
-	Binary          string            `yaml:"binary"`
-	Flags           []string          `yaml:"flags"`
-	PromptDelivery  string            `yaml:"prompt_delivery"`
-	PromptFlag      string            `yaml:"prompt_flag"`
-	Models          map[string]string `yaml:"models"`
-	CostPer1kInput  float64           `yaml:"cost_per_1k_input"`
-	CostPer1kOutput float64           `yaml:"cost_per_1k_output"`
+	Binary          string                `yaml:"binary"`
+	Flags           []string              `yaml:"flags"`
+	PromptDelivery  string                `yaml:"prompt_delivery"`
+	PromptFlag      string                `yaml:"prompt_flag"`
+	Models          map[string]string     `yaml:"models"`
+	CostPer1kInput  float64               `yaml:"cost_per_1k_input"`
+	CostPer1kOutput float64               `yaml:"cost_per_1k_output"`
+	ModelCosts      map[string]*ModelCost `yaml:"model_costs"`
 }
 
 // EstimateCost returns an estimated cost in USD based on token counts and
-// per-1k-token pricing. Returns 0 if pricing is not configured or tokens are zero.
+// per-1k-token pricing. If a model-specific rate exists, it takes precedence
+// over the provider-level rate. Returns 0 if pricing is not configured or tokens are zero.
 func (p ProviderDef) EstimateCost(inputTokens, outputTokens int) float64 {
+	return p.EstimateCostForModel("", inputTokens, outputTokens)
+}
+
+// EstimateCostForModel returns an estimated cost using model-specific pricing
+// when available, falling back to provider-level pricing.
+func (p ProviderDef) EstimateCostForModel(model string, inputTokens, outputTokens int) float64 {
 	if inputTokens == 0 && outputTokens == 0 {
 		return 0
 	}
-	if p.CostPer1kInput == 0 && p.CostPer1kOutput == 0 {
+	costIn, costOut := p.CostPer1kInput, p.CostPer1kOutput
+	if model != "" && p.ModelCosts != nil {
+		if mc, ok := p.ModelCosts[model]; ok && mc != nil {
+			costIn, costOut = mc.CostPer1kInput, mc.CostPer1kOutput
+		}
+	}
+	if costIn == 0 && costOut == 0 {
 		return 0
 	}
-	return float64(inputTokens)/tokensPer1k*p.CostPer1kInput + float64(outputTokens)/tokensPer1k*p.CostPer1kOutput
+	return float64(inputTokens)/tokensPer1k*costIn + float64(outputTokens)/tokensPer1k*costOut
 }
 
 type RoutingConfig struct {

@@ -3804,6 +3804,57 @@ providers:
 	}
 }
 
+func TestProviderDefModelCostsUnmarshal(t *testing.T) {
+	yamlContent := `
+providers:
+  openai:
+    binary: codex
+    cost_per_1k_input: 0.00175
+    cost_per_1k_output: 0.014
+    model_costs:
+      gpt-5.3-codex:
+        cost_per_1k_input: 0.00875
+        cost_per_1k_output: 0.070
+      gpt-5.3-codex-spark:
+        cost_per_1k_input: 0.00047
+        cost_per_1k_output: 0.00374
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	openai := cfg.Providers["openai"]
+	if len(openai.ModelCosts) != 2 {
+		t.Fatalf("openai.ModelCosts has %d entries, want 2", len(openai.ModelCosts))
+	}
+
+	high := openai.ModelCosts["gpt-5.3-codex"]
+	if high == nil {
+		t.Fatal("model_costs missing gpt-5.3-codex entry")
+	}
+	if high.CostPer1kInput != 0.00875 {
+		t.Errorf("gpt-5.3-codex CostPer1kInput = %v, want 0.00875", high.CostPer1kInput)
+	}
+	if high.CostPer1kOutput != 0.070 {
+		t.Errorf("gpt-5.3-codex CostPer1kOutput = %v, want 0.070", high.CostPer1kOutput)
+	}
+
+	low := openai.ModelCosts["gpt-5.3-codex-spark"]
+	if low == nil {
+		t.Fatal("model_costs missing gpt-5.3-codex-spark entry")
+	}
+	if low.CostPer1kInput != 0.00047 {
+		t.Errorf("gpt-5.3-codex-spark CostPer1kInput = %v, want 0.00047", low.CostPer1kInput)
+	}
+}
+
 func TestProviderDefCostFieldsDefaultToZero(t *testing.T) {
 	yamlContent := `
 providers:
@@ -3880,6 +3931,77 @@ func TestProviderDefEstimateCost(t *testing.T) {
 			got := tt.def.EstimateCost(tt.inputTokens, tt.outputTokens)
 			if got != tt.want {
 				t.Errorf("EstimateCost(%d, %d) = %v, want %v", tt.inputTokens, tt.outputTokens, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestProviderDefEstimateCostForModel(t *testing.T) {
+	def := ProviderDef{
+		CostPer1kInput:  0.00175,
+		CostPer1kOutput: 0.014,
+		ModelCosts: map[string]*ModelCost{
+			"gpt-5.3-codex": {
+				CostPer1kInput:  0.00875,
+				CostPer1kOutput: 0.070,
+			},
+			"gpt-5.3-codex-spark": {
+				CostPer1kInput:  0.00047,
+				CostPer1kOutput: 0.00374,
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		model        string
+		inputTokens  int
+		outputTokens int
+		want         float64
+	}{
+		{
+			name:         "model-specific high tier",
+			model:        "gpt-5.3-codex",
+			inputTokens:  1000,
+			outputTokens: 1000,
+			want:         0.00875 + 0.070,
+		},
+		{
+			name:         "model-specific low tier",
+			model:        "gpt-5.3-codex-spark",
+			inputTokens:  1000,
+			outputTokens: 1000,
+			want:         0.00047 + 0.00374,
+		},
+		{
+			name:         "unknown model falls back to provider rate",
+			model:        "gpt-5.2-codex",
+			inputTokens:  1000,
+			outputTokens: 1000,
+			want:         0.00175 + 0.014,
+		},
+		{
+			name:         "empty model falls back to provider rate",
+			model:        "",
+			inputTokens:  1000,
+			outputTokens: 1000,
+			want:         0.00175 + 0.014,
+		},
+		{
+			name:         "zero tokens returns zero regardless of model",
+			model:        "gpt-5.3-codex",
+			inputTokens:  0,
+			outputTokens: 0,
+			want:         0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := def.EstimateCostForModel(tt.model, tt.inputTokens, tt.outputTokens)
+			const epsilon = 1e-9
+			if diff := got - tt.want; diff < -epsilon || diff > epsilon {
+				t.Errorf("EstimateCostForModel(%q, %d, %d) = %v, want %v", tt.model, tt.inputTokens, tt.outputTokens, got, tt.want)
 			}
 		})
 	}

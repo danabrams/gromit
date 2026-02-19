@@ -15,6 +15,13 @@ import (
 
 const defaultTrendWindowSize = 30
 
+const (
+	failurePhasePreflight  = "preflight"
+	failurePhaseBuild      = "build"
+	failurePhaseValidation = "validation"
+	failurePhaseTimeout    = "timeout"
+)
+
 // IterationMetric stores a single iteration with rolling-window process metrics.
 type IterationMetric struct {
 	Timestamp                    time.Time `json:"timestamp"`
@@ -477,13 +484,13 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 			escalations++
 		}
 		switch e.FailurePhase {
-		case "preflight":
+		case failurePhasePreflight:
 			preflightFailures++
-		case "build":
+		case failurePhaseBuild:
 			buildFailures++
-		case "validation":
+		case failurePhaseValidation:
 			validationFailures++
-		case "timeout":
+		case failurePhaseTimeout:
 			timeoutFailures++
 		}
 
