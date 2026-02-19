@@ -342,6 +342,53 @@ func TestIterationResult_CoverageFields(t *testing.T) {
 	}
 }
 
+// TestPhaseMetric_CoreFields verifies PhaseMetric has all core per-phase fields.
+func TestPhaseMetric_CoreFields(t *testing.T) {
+	pm := PhaseMetric{
+		Phase:        "red",
+		CycleNumber:  2,
+		BeadID:       "bead-abc",
+		Model:        "haiku",
+		Tier:         "low",
+		InputTokens:  1500,
+		OutputTokens: 800,
+		DurationMs:   3200,
+		Success:      true,
+		Escalated:    false,
+	}
+
+	if pm.Phase != "red" {
+		t.Errorf("Phase = %q, want %q", pm.Phase, "red")
+	}
+	if pm.CycleNumber != 2 {
+		t.Errorf("CycleNumber = %d, want 2", pm.CycleNumber)
+	}
+	if pm.BeadID != "bead-abc" {
+		t.Errorf("BeadID = %q, want %q", pm.BeadID, "bead-abc")
+	}
+	if pm.Model != "haiku" {
+		t.Errorf("Model = %q, want %q", pm.Model, "haiku")
+	}
+	if pm.Tier != "low" {
+		t.Errorf("Tier = %q, want %q", pm.Tier, "low")
+	}
+	if pm.InputTokens != 1500 {
+		t.Errorf("InputTokens = %d, want 1500", pm.InputTokens)
+	}
+	if pm.OutputTokens != 800 {
+		t.Errorf("OutputTokens = %d, want 800", pm.OutputTokens)
+	}
+	if pm.DurationMs != 3200 {
+		t.Errorf("DurationMs = %d, want 3200", pm.DurationMs)
+	}
+	if !pm.Success {
+		t.Error("Success should be true")
+	}
+	if pm.Escalated {
+		t.Error("Escalated should be false")
+	}
+}
+
 // TestCallbackFunctionTypes verifies that the callback function types are defined
 // and can be used with the correct signatures.
 func TestCallbackFunctionTypes(t *testing.T) {

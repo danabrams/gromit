@@ -117,6 +117,20 @@ type IterationResult struct {
 	UncoveredCriteria  []string
 }
 
+// PhaseMetric captures per-phase metrics for TDD cycle tracking.
+type PhaseMetric struct {
+	Phase        string `json:"phase"`
+	CycleNumber  int    `json:"cycle_number"`
+	BeadID       string `json:"bead_id"`
+	Model        string `json:"model"`
+	Tier         string `json:"tier"`
+	InputTokens  int    `json:"input_tokens"`
+	OutputTokens int    `json:"output_tokens"`
+	DurationMs   int64  `json:"duration_ms"`
+	Success      bool   `json:"success"`
+	Escalated    bool   `json:"escalated"`
+}
+
 // HardStopApprovalState captures explicit approval for hard-stop actions.
 type HardStopApprovalState struct {
 	Approved   bool
