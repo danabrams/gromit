@@ -146,5 +146,9 @@ func AssembleCycleState(prevState CycleState, redOutput string) CycleState {
 		next.Remaining = []string{}
 	}
 
+	if len(next.Remaining) == 0 {
+		next.Done = true
+	}
+
 	return next
 }

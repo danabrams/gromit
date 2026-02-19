@@ -206,3 +206,25 @@ func TestAssembleCycleStateIncrementsCycleAndMovesFirstRemainingToCovered(t *tes
 		t.Fatalf("expected TouchedFiles preserved, got %v", next.TouchedFiles)
 	}
 }
+
+func TestAssembleCycleStateSetsDoneWhenLastRemainingConsumed(t *testing.T) {
+	prev := CycleState{
+		CycleNumber:  3,
+		MaxCycles:    10,
+		CoveredSoFar: []string{"req A", "req B"},
+		Remaining:    []string{"req C"},
+		TouchedFiles: []string{"a.go"},
+	}
+
+	next := AssembleCycleState(prev, "output")
+
+	if len(next.Remaining) != 0 {
+		t.Fatalf("expected empty Remaining, got %v", next.Remaining)
+	}
+	if len(next.CoveredSoFar) != 3 {
+		t.Fatalf("expected 3 covered items, got %d", len(next.CoveredSoFar))
+	}
+	if !next.Done {
+		t.Fatalf("expected Done=true when all requirements covered")
+	}
+}
