@@ -27,24 +27,17 @@ func ClassifyTouchedFiles(paths []string) (testFiles, implFiles []string) {
 // It reads current test/impl files from state.TouchedFiles and uses
 // state.Remaining[0] as the spec excerpt for the next requirement.
 func AssembleRedHandoff(state CycleState, readFile ReadFileFn, getDiff GetDiffFn) (*RedHandoff, error) {
+	// Diff collection is handled by callers today; keep dependency explicit for testability.
+	_ = getDiff
+
 	testPaths, implPaths := ClassifyTouchedFiles(state.TouchedFiles)
-
-	testFiles := make(map[string]string, len(testPaths))
-	for _, p := range testPaths {
-		content, err := readFile(p)
-		if err != nil {
-			return nil, err
-		}
-		testFiles[p] = content
+	testFiles, err := readFiles(readFile, testPaths)
+	if err != nil {
+		return nil, err
 	}
-
-	implFiles := make(map[string]string, len(implPaths))
-	for _, p := range implPaths {
-		content, err := readFile(p)
-		if err != nil {
-			return nil, err
-		}
-		implFiles[p] = content
+	implFiles, err := readFiles(readFile, implPaths)
+	if err != nil {
+		return nil, err
 	}
 
 	var specExcerpt string
@@ -65,26 +58,13 @@ func AssembleRedHandoff(state CycleState, readFile ReadFileFn, getDiff GetDiffFn
 func AssembleGreenHandoff(testOutput string, readFile ReadFileFn, touchedFiles []string) (*GreenHandoff, error) {
 	testPaths, implPaths := ClassifyTouchedFiles(touchedFiles)
 
-	// Read test files and concatenate as the failing test content
-	var failingTest string
-	for _, p := range testPaths {
-		content, err := readFile(p)
-		if err != nil {
-			return nil, err
-		}
-		if failingTest != "" {
-			failingTest += "\n"
-		}
-		failingTest += content
+	failingTest, err := readAndJoinFiles(readFile, testPaths)
+	if err != nil {
+		return nil, err
 	}
-
-	implFiles := make(map[string]string, len(implPaths))
-	for _, p := range implPaths {
-		content, err := readFile(p)
-		if err != nil {
-			return nil, err
-		}
-		implFiles[p] = content
+	implFiles, err := readFiles(readFile, implPaths)
+	if err != nil {
+		return nil, err
 	}
 
 	return &GreenHandoff{
@@ -98,23 +78,13 @@ func AssembleGreenHandoff(testOutput string, readFile ReadFileFn, touchedFiles [
 // It reads all touched test and impl files for behavior-preserving cleanup.
 func AssembleRefactorHandoff(readFile ReadFileFn, touchedFiles []string) (*RefactorHandoff, error) {
 	testPaths, implPaths := ClassifyTouchedFiles(touchedFiles)
-
-	testFiles := make(map[string]string, len(testPaths))
-	for _, p := range testPaths {
-		content, err := readFile(p)
-		if err != nil {
-			return nil, err
-		}
-		testFiles[p] = content
+	testFiles, err := readFiles(readFile, testPaths)
+	if err != nil {
+		return nil, err
 	}
-
-	implFiles := make(map[string]string, len(implPaths))
-	for _, p := range implPaths {
-		content, err := readFile(p)
-		if err != nil {
-			return nil, err
-		}
-		implFiles[p] = content
+	implFiles, err := readFiles(readFile, implPaths)
+	if err != nil {
+		return nil, err
 	}
 
 	return &RefactorHandoff{
@@ -127,6 +97,8 @@ func AssembleRefactorHandoff(readFile ReadFileFn, touchedFiles []string) (*Refac
 // It increments the cycle number and moves the first remaining requirement
 // to covered.
 func AssembleCycleState(prevState CycleState, redOutput string) CycleState {
+	_ = redOutput
+
 	next := CycleState{
 		CycleNumber:  prevState.CycleNumber + 1,
 		MaxCycles:    prevState.MaxCycles,
@@ -151,4 +123,29 @@ func AssembleCycleState(prevState CycleState, redOutput string) CycleState {
 	}
 
 	return next
+}
+
+func readFiles(readFile ReadFileFn, paths []string) (map[string]string, error) {
+	files := make(map[string]string, len(paths))
+	for _, p := range paths {
+		content, err := readFile(p)
+		if err != nil {
+			return nil, err
+		}
+		files[p] = content
+	}
+	return files, nil
+}
+
+func readAndJoinFiles(readFile ReadFileFn, paths []string) (string, error) {
+	contents, err := readFiles(readFile, paths)
+	if err != nil {
+		return "", err
+	}
+
+	parts := make([]string, 0, len(paths))
+	for _, p := range paths {
+		parts = append(parts, contents[p])
+	}
+	return strings.Join(parts, "\n"), nil
 }
