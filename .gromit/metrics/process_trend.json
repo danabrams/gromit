@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-02-19T15:00:31.733666212Z",
-  "total_iterations": 416,
+  "generated_at": "2026-02-19T15:19:41.428839364Z",
+  "total_iterations": 421,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 0.8666666666666667,
-    "failure_rate": 0.13333333333333333,
-    "first_pass_success_rate": 0.8666666666666667,
+    "success_rate": 0.7,
+    "failure_rate": 0.3,
+    "first_pass_success_rate": 0.7,
     "escalation_rate": 0,
-    "avg_duration_ms": 350533.56666666665,
-    "p95_duration_ms": 967289.5499999996,
-    "avg_cost_usd": 6.054521928333334,
+    "avg_duration_ms": 236157.46666666667,
+    "p95_duration_ms": 709559.6499999999,
+    "avg_cost_usd": 1.2004972916666665,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -19,19 +19,19 @@
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 6.054521928333334,
-      "mean": 1.1781627842478501,
-      "std_dev": 2.0735195624958096,
-      "ucl": 7.398721471735279,
-      "lcl": -5.042395903239579
+      "latest": 1.2004972916666665,
+      "mean": 1.2012270784768941,
+      "std_dev": 2.0812628168521394,
+      "ucl": 7.445015529033313,
+      "lcl": -5.042561372079524
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 350533.56666666665,
-      "mean": 646830.6454495179,
-      "std_dev": 290927.4504798787,
-      "ucl": 1519612.996889154,
-      "lcl": -225951.7059901182
+      "latest": 236157.46666666667,
+      "mean": 642489.1446722077,
+      "std_dev": 291923.4627610217,
+      "ucl": 1518259.5329552726,
+      "lcl": -233281.2436108574
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -44,16 +44,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.05048076923076957,
-      "std_dev": 0.058514221861800574,
-      "ucl": 0.2260234348161713,
+      "mean": 0.04988123515439464,
+      "std_dev": 0.05842221834781419,
+      "ucl": 0.2251478901978372,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 0.8666666666666667,
-      "mean": 0.3606570512820516,
-      "std_dev": 0.4391603973588684,
+      "latest": 0.7,
+      "mean": 0.36547901821061,
+      "std_dev": 0.43878495818650515,
       "ucl": 1,
       "lcl": 0
     },
@@ -67,18 +67,18 @@
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 0.8666666666666667,
-      "mean": 0.744737813695303,
-      "std_dev": 0.22891519304806918,
+      "latest": 0.7,
+      "mean": 0.7449982513790483,
+      "std_dev": 0.22762215963576188,
       "ucl": 1,
-      "lcl": 0.05799223455109548
+      "lcl": 0.062131772471762714
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0.06666666666666667,
-      "mean": 0.0032852564102564103,
-      "std_dev": 0.012760023566983731,
-      "ucl": 0.041565327111207605,
+      "mean": 0.0040380047505938245,
+      "std_dev": 0.014423179777337394,
+      "ucl": 0.047307544082606,
       "lcl": 0
     },
     {
@@ -94,10 +94,10 @@
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0.06666666666666667,
-      "ucl": 0.041565327111207605,
+      "ucl": 0.047307544082606,
       "lcl": 0,
       "severity": "high",
-      "message": "latest value 0.0667 is above control limits [0.0000, 0.0416]"
+      "message": "latest value 0.0667 is above control limits [0.0000, 0.0473]"
     }
   ]
 }

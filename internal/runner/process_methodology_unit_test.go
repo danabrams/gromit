@@ -227,10 +227,10 @@ func TestPrepareMethodology_TDDFreshContextRunsOrchestrator(t *testing.T) {
 	}
 }
 
-// TestPrepareMethodology_TDDFreshContextErrorsWhenNoExpectedOutputs verifies that
-// when TDD fresh-context-per-cycle routes a bead with no ExpectedOutputs, the
-// runner sets an error rather than silently succeeding with zero cycles.
-func TestPrepareMethodology_TDDFreshContextErrorsWhenNoExpectedOutputs(t *testing.T) {
+// TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputs verifies that
+// when TDD fresh-context-per-cycle encounters a bead with no ExpectedOutputs, it
+// falls back to the standard TDD build prompt path instead of erroring.
+func TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputs(t *testing.T) {
 	cfg := &config.Config{
 		Methodology: config.MethodologyConfig{
 			TDD:                  true,
@@ -238,7 +238,14 @@ func TestPrepareMethodology_TDDFreshContextErrorsWhenNoExpectedOutputs(t *testin
 		},
 	}
 	orchestratorCalled := false
-	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	tddBuildCalled := false
+	renderer := &mockPromptRenderer{
+		RenderTDDBuildFn: func(ctx *prompt.Context) (string, error) {
+			tddBuildCalled = true
+			return "tdd-build-prompt", nil
+		},
+	}
+	r, buf := newMinimalRunnerForMethodology(t, cfg, renderer)
 	r.tddOrchestrator = &tddOrchestrator{
 		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
 			orchestratorCalled = true
@@ -254,17 +261,23 @@ func TestPrepareMethodology_TDDFreshContextErrorsWhenNoExpectedOutputs(t *testin
 	if !tddActive {
 		t.Fatal("expected tddActive=true")
 	}
-	if !done {
-		t.Fatal("expected done=true")
+	if done {
+		t.Fatal("expected done=false so caller falls through to normal build loop")
 	}
-	if bc.Result.Error == nil {
-		t.Fatal("expected bc.Result.Error to be set when bead has no ExpectedOutputs, got nil")
-	}
-	if bc.Result.Success {
-		t.Fatal("expected bc.Result.Success=false when bead has no ExpectedOutputs")
+	if bc.Result.Error != nil {
+		t.Fatalf("expected no error, got: %v", bc.Result.Error)
 	}
 	if orchestratorCalled {
 		t.Fatal("expected orchestrator NOT to be called when bead has no ExpectedOutputs")
+	}
+	if !tddBuildCalled {
+		t.Fatal("expected RenderTDDBuild to be called as fallback")
+	}
+	if bc.BuildPrompt != "tdd-build-prompt" {
+		t.Errorf("expected BuildPrompt from RenderTDDBuild fallback, got %q", bc.BuildPrompt)
+	}
+	if !strings.Contains(buf.String(), "falling back to standard TDD build") {
+		t.Errorf("expected fallback log message, got:\n%s", buf.String())
 	}
 }
 

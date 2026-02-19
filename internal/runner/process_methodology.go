@@ -62,8 +62,11 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 	tddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "tdd")
 	if tddActive {
 		if r.cfg.Methodology.FreshContextPerCycle {
-			r.runTDDFreshContextCycles(ctx, bc)
-			return atddActive, tddActive, true
+			if r.runTDDFreshContextCycles(ctx, bc) {
+				return atddActive, tddActive, true
+			}
+			// Fresh-context couldn't handle this bead (no ExpectedOutputs);
+			// fall through to the normal TDD build prompt below.
 		}
 		r.log("TDD enabled, using TDD build prompt with red-green-refactor cycles...")
 		buildPrompt, err := r.renderer.RenderTDDBuild(bc.PromptCtx)
@@ -77,27 +80,32 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 	return atddActive, tddActive, false
 }
 
-func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.BeadContext) {
+// runTDDFreshContextCycles runs the TDD fresh-context orchestrator for beads
+// with ExpectedOutputs. Returns true if it handled the bead (caller should
+// return done=true), false if it could not handle it (caller should fall
+// through to the normal TDD build prompt path).
+func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.BeadContext) bool {
 	if r.tddOrchestrator == nil {
 		bc.Result.Error = fmt.Errorf("TDD fresh-context orchestration enabled but tddOrchestrator not wired")
-		return
+		return true
 	}
 	if len(bc.Bead.ExpectedOutputs) == 0 {
-		bc.Result.Error = fmt.Errorf("TDD fresh-context-per-cycle active but bead %s has no ExpectedOutputs; falling back would silently succeed with zero cycles", bc.Bead.ID)
-		return
+		r.log("TDD fresh-context skipped for bead %s (no ExpectedOutputs); falling back to standard TDD build", bc.Bead.ID)
+		return false
 	}
 	if err := r.tddOrchestrator.RunCycles(ctx, bc); err != nil {
 		bc.Result.Error = err
-		return
+		return true
 	}
 	if r.cfg.Validation.Enabled && r.validationRunner != nil {
 		if err := r.runValidationWithRecoveryForStage(ctx, bc, true); err != nil {
 			bc.Result.Error = err
-			return
+			return true
 		}
 	}
 	bc.Result.Success = true
 	bc.Result.FirstPassSuccess = true
+	return true
 }
 
 func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadContext) bool {

@@ -622,8 +622,8 @@ func (c *Config) SetDefaults() {
 		c.ScopeCheck.BlockOversized = &t
 	}
 	if c.Precheck.Enabled == nil {
-		t := true
-		c.Precheck.Enabled = &t
+		f := false
+		c.Precheck.Enabled = &f
 	}
 	if c.Precheck.Model == "" {
 		c.Precheck.Model = ModelHaiku
@@ -1102,10 +1102,12 @@ func (v PrecheckVerificationConfig) IsVerificationEnabled() bool {
 	return *v.Enabled
 }
 
-// IsEnabled returns whether precheck should run (defaults to true)
+// IsEnabled returns whether precheck should run (defaults to false).
+// Changed from default-true to default-false due to persistent false-positive
+// closures (see .gromit/reports/debug-20260219-153000.md).
 func (p PrecheckConfig) IsEnabled() bool {
 	if p.Enabled == nil {
-		return true
+		return false
 	}
 	return *p.Enabled
 }

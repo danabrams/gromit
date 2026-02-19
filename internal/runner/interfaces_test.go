@@ -699,12 +699,12 @@ func TestNewRunnerWithDeps_ApplesDefaultsToUninitialisedConfig(t *testing.T) {
 	}
 
 	// Verify that config defaults were applied
-	// Precheck should be enabled by default (true)
+	// Precheck defaults to disabled (false) due to false-positive risk.
 	if cfg.Precheck.Enabled == nil {
 		t.Error("expected Precheck.Enabled to be set to non-nil after NewRunnerWithDeps")
 	}
-	if cfg.Precheck.Enabled != nil && !*cfg.Precheck.Enabled {
-		t.Error("expected Precheck.Enabled to be true by default")
+	if cfg.Precheck.Enabled != nil && *cfg.Precheck.Enabled {
+		t.Error("expected Precheck.Enabled to default to false")
 	}
 
 	// Precheck should have a default model

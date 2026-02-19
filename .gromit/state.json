@@ -1,9 +1,9 @@
 {
   "last_retro": "2026-02-19T14:24:24.338606353Z",
-  "clean_exit": false,
-  "updated_at": "2026-02-19T15:00:18.471448416Z",
+  "clean_exit": true,
+  "updated_at": "2026-02-19T15:19:41.382363635Z",
   "provider_counts": {
-    "claude": 2,
-    "openai": 8
+    "claude": 4,
+    "openai": 13
   }
 }

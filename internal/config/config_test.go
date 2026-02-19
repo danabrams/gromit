@@ -2551,8 +2551,8 @@ func TestPrecheckConfigDefaults(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
 
-	if !cfg.Precheck.IsEnabled() {
-		t.Errorf("expected default precheck enabled=true")
+	if cfg.Precheck.IsEnabled() {
+		t.Errorf("expected default precheck enabled=false")
 	}
 	if cfg.Precheck.Model != "haiku" {
 		t.Errorf("expected default precheck model='haiku', got %q", cfg.Precheck.Model)
@@ -2595,7 +2595,7 @@ func TestPrecheckConfigFromYAML(t *testing.T) {
 			yaml: `precheck:
   model: opus
 `,
-			expectEnabled: true,
+			expectEnabled: false,
 			expectModel:   "opus",
 			expectTimeout: 120,
 		},
@@ -2604,14 +2604,14 @@ func TestPrecheckConfigFromYAML(t *testing.T) {
 			yaml: `precheck:
   timeout_seconds: 90
 `,
-			expectEnabled: true,
+			expectEnabled: false,
 			expectModel:   "haiku",
 			expectTimeout: 90,
 		},
 		{
 			name:          "Empty config uses defaults",
 			yaml:          "",
-			expectEnabled: true,
+			expectEnabled: false,
 			expectModel:   "haiku",
 			expectTimeout: 120,
 		},
@@ -2645,8 +2645,8 @@ func TestPrecheckConfigFromYAML(t *testing.T) {
 
 func TestPrecheckIsEnabledNilPointer(t *testing.T) {
 	cfg := PrecheckConfig{}
-	if !cfg.IsEnabled() {
-		t.Errorf("expected IsEnabled() to return true for nil pointer")
+	if cfg.IsEnabled() {
+		t.Errorf("expected IsEnabled() to return false for nil pointer (default-off)")
 	}
 }
 
