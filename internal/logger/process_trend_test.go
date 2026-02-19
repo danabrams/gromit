@@ -3,6 +3,7 @@ package logger
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -103,5 +104,35 @@ func TestSummarizeWindow_AllSuccessPhaseRatesZero(t *testing.T) {
 	}
 	if summary.TimeoutFailureRate != 0 {
 		t.Errorf("TimeoutFailureRate = %v, want 0", summary.TimeoutFailureRate)
+	}
+}
+
+func TestSummarizeWindow_MixedPhaseRates(t *testing.T) {
+	window := []IterationLog{
+		makeIterationLog(true, ""),
+		makeIterationLog(false, "preflight"),
+		makeIterationLog(false, "build"),
+		makeIterationLog(false, "validation"),
+		makeIterationLog(false, "timeout"),
+	}
+
+	summary := summarizeWindow(window)
+	assertFloatNear(t, summary.PreflightFailureRate, 0.2, "PreflightFailureRate")
+	assertFloatNear(t, summary.BuildFailureRate, 0.2, "BuildFailureRate")
+	assertFloatNear(t, summary.ValidationFailureRate, 0.2, "ValidationFailureRate")
+	assertFloatNear(t, summary.TimeoutFailureRate, 0.2, "TimeoutFailureRate")
+}
+
+func makeIterationLog(success bool, phase string) IterationLog {
+	return IterationLog{
+		Success:      success,
+		FailurePhase: phase,
+	}
+}
+
+func assertFloatNear(t *testing.T, got, want float64, label string) {
+	t.Helper()
+	if math.Abs(got-want) > 0.0001 {
+		t.Errorf("%s = %v, want %v", label, got, want)
 	}
 }
