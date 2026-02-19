@@ -92,6 +92,10 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		MTTRProxyMs:               result.MTTRProxyMs,
 		EscalationClass:           string(result.EscalationClass),
 		RecurrenceCount:           result.RecurrenceCount,
+		CriteriaTotal:             result.CriteriaTotal,
+		CriteriaCovered:           result.CriteriaCovered,
+		CriteriaUntestable:        result.CriteriaUntestable,
+		UncoveredCriteria:         result.UncoveredCriteria,
 	})
 }
 

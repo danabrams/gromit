@@ -790,6 +790,72 @@ func TestWriteIterationLog_ReliabilityMetricsDerivableFromStructuredEntries(t *t
 	}
 }
 
+// TestWriteIterationLog_PropagatesCoverageFields verifies that coverage result
+// fields are propagated from IterationResult to the JSONL log entry.
+func TestWriteIterationLog_PropagatesCoverageFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
+
+	r := &Runner{logger: l}
+	result := &IterationResult{
+		BeadID:             "bead-cov-wire",
+		BeadTitle:          "Coverage wiring test",
+		Model:              "sonnet",
+		Success:            true,
+		Duration:           1 * time.Second,
+		CriteriaTotal:      8,
+		CriteriaCovered:    6,
+		CriteriaUntestable: 2,
+		UncoveredCriteria:  []string{"criterion X", "criterion Y"},
+	}
+
+	r.writeIterationLog(1, result)
+
+	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("globbing log files: %v", err)
+	}
+	if len(logFiles) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(logFiles))
+	}
+
+	data, err := os.ReadFile(logFiles[0])
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	var entry map[string]any
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		t.Fatalf("unmarshaling log line: %v", err)
+	}
+
+	if got := entry["criteria_total"]; got != float64(8) {
+		t.Fatalf("criteria_total = %v, want 8", got)
+	}
+	if got := entry["criteria_covered"]; got != float64(6) {
+		t.Fatalf("criteria_covered = %v, want 6", got)
+	}
+	if got := entry["criteria_untestable"]; got != float64(2) {
+		t.Fatalf("criteria_untestable = %v, want 2", got)
+	}
+	uncovered, ok := entry["uncovered_criteria"].([]any)
+	if !ok || len(uncovered) != 2 {
+		t.Fatalf("uncovered_criteria = %v, want [criterion X criterion Y]", entry["uncovered_criteria"])
+	}
+	if uncovered[0] != "criterion X" || uncovered[1] != "criterion Y" {
+		t.Fatalf("uncovered_criteria = %v, want [criterion X criterion Y]", uncovered)
+	}
+}
+
 func TestLogResult_IncludesPhaseAttributionForTimeoutFailure(t *testing.T) {
 	var buf bytes.Buffer
 	r := &Runner{output: &buf}
