@@ -1482,8 +1482,9 @@ func TestRenderCoverageValidationRealTemplateIncludesInputs(t *testing.T) {
 
 	r := &Renderer{templatesDir: templatesDir}
 	ctx := &CoverageValidationContext{
-		TestCode:  "func TestCoverage(t *testing.T) { t.Fatal(\"missing\") }",
-		Criterion: "The handler retries on 500 responses",
+		TestCode:        "func TestCoverage(t *testing.T) { t.Fatal(\"missing\") }",
+		CriterionNumber: 2,
+		CriterionText:   "The handler retries on 500 responses",
 	}
 
 	result, err := r.RenderCoverageValidation(ctx)
@@ -1493,7 +1494,8 @@ func TestRenderCoverageValidationRealTemplateIncludesInputs(t *testing.T) {
 
 	wantContains := []string{
 		"Coverage Validation",
-		ctx.Criterion,
+		"Criterion #2",
+		ctx.CriterionText,
 		ctx.TestCode,
 		"`covers`",
 		"`reason`",
@@ -1588,13 +1590,14 @@ func TestRenderCoverageValidation(t *testing.T) {
 	templatesDir := filepath.Join(tmpDir, "templates")
 	os.MkdirAll(templatesDir, 0755)
 
-	tmpl := `Coverage: {{.Criterion}}\n{{.TestCode}}`
+	tmpl := `Coverage: #{{.CriterionNumber}} {{.CriterionText}}\n{{.TestCode}}`
 	os.WriteFile(filepath.Join(templatesDir, "PROMPT_coverage_validation.md"), []byte(tmpl), 0644)
 
 	r := &Renderer{templatesDir: templatesDir}
 	ctx := &CoverageValidationContext{
-		TestCode:  "func TestExample(t *testing.T) {}",
-		Criterion: "Handles empty input",
+		TestCode:        "func TestExample(t *testing.T) {}",
+		CriterionNumber: 1,
+		CriterionText:   "Handles empty input",
 	}
 
 	result, err := r.RenderCoverageValidation(ctx)

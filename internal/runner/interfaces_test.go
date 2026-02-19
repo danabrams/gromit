@@ -556,8 +556,9 @@ func TestPromptRendererInterfaceIncludesRenderCoverageValidation(t *testing.T) {
 	var r PromptRenderer = &mockPromptRenderer{}
 
 	output, err := r.RenderCoverageValidation(&prompt.CoverageValidationContext{
-		TestCode:  "func TestCoverage(t *testing.T) {}",
-		Criterion: "Handles empty input",
+		TestCode:        "func TestCoverage(t *testing.T) {}",
+		CriterionNumber: 1,
+		CriterionText:   "Handles empty input",
 	})
 	if err != nil {
 		t.Fatalf("RenderCoverageValidation() error = %v", err)

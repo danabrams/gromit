@@ -4,7 +4,7 @@ You are validating whether the provided test code covers the criterion.
 
 ## Criterion
 
-{{.Criterion}}
+Criterion #{{.CriterionNumber}}: {{.CriterionText}}
 
 ## Test Code
 

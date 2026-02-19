@@ -140,8 +140,9 @@ type TestFixContext struct {
 
 // CoverageValidationContext holds data for test coverage validation prompt template.
 type CoverageValidationContext struct {
-	TestCode  string
-	Criterion string
+	TestCode        string
+	CriterionNumber int
+	CriterionText   string
 }
 
 // TDDRedContext holds data for TDD red-phase prompt template.
