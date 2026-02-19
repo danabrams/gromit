@@ -1007,3 +1007,91 @@ func TestRunCycles_WritesPhaseStatusToOutput(t *testing.T) {
 		t.Fatalf("expected output to contain 'green' phase info, got %q", output)
 	}
 }
+
+func TestRunCycles_InitialValidationNonGreen_PreservesPreRefactorBehavior(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	var phases []string
+	var buf bytes.Buffer
+	orch.output = &buf
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		phases = append(phases, "renderRed")
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		phases = append(phases, "renderGreen")
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		switch prompt {
+		case "red":
+			phases = append(phases, "invokeRed")
+		case "green":
+			phases = append(phases, "invokeGreen")
+		}
+		return nil
+	}
+
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			phases = append(phases, "validateInitialNonGreen")
+			return "FAIL", false, nil
+		case 2:
+			phases = append(phases, "validateGreen")
+			return "PASS", true, nil
+		default:
+			phases = append(phases, "unexpectedFinalValidation")
+			t.Fatalf("unexpected validation call %d", validateCall)
+			return "", false, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		phases = append(phases, "refactor")
+		return nil
+	}
+	orch.getGitHeadFn = func() (string, error) {
+		phases = append(phases, "getGitHead")
+		return "abc", nil
+	}
+	orch.gitResetFn = func(commit string) error {
+		phases = append(phases, "gitReset")
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedPhases := []string{
+		"renderRed",
+		"invokeRed",
+		"validateInitialNonGreen",
+		"renderGreen",
+		"invokeGreen",
+		"validateGreen",
+	}
+	if len(phases) != len(expectedPhases) {
+		t.Fatalf("phases length = %d, want %d: %v", len(phases), len(expectedPhases), phases)
+	}
+	for i, want := range expectedPhases {
+		if phases[i] != want {
+			t.Fatalf("phases[%d] = %q, want %q (all: %v)", i, phases[i], want, phases)
+		}
+	}
+
+	expectedOutput := "cycle 1: red phase — writing failing test\ncycle 1: green phase — implementing to pass\n"
+	if buf.String() != expectedOutput {
+		t.Fatalf("output mismatch:\n got: %q\nwant: %q", buf.String(), expectedOutput)
+	}
+}
