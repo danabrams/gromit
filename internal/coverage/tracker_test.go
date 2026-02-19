@@ -149,6 +149,27 @@ func TestRecordRejection_TransitionsToUntestableAtThreshold(t *testing.T) {
 	}
 }
 
+func TestRecordRejection_DoesNotChangeCoveredCriterion(t *testing.T) {
+	criteria := []Criterion{{Number: 1, Text: "First"}}
+	tracker := NewTracker(criteria, 2)
+
+	tracker.MarkCovered(1)
+	tracker.RecordRejection(1)
+	tracker.RecordRejection(1)
+
+	if !tracker.IsComplete() {
+		t.Fatal("IsComplete() = false, want true after covered criterion receives rejections")
+	}
+	uncovered := tracker.UncoveredCriteria()
+	if len(uncovered) != 0 {
+		t.Fatalf("UncoveredCriteria() len = %d, want 0", len(uncovered))
+	}
+	untestable := tracker.UntestableCriteria()
+	if len(untestable) != 0 {
+		t.Fatalf("UntestableCriteria() len = %d, want 0", len(untestable))
+	}
+}
+
 func TestMarkCovered_NextUncoveredSkipsCoveredCriterion(t *testing.T) {
 	criteria := []Criterion{
 		{Number: 1, Text: "First"},
@@ -164,5 +185,22 @@ func TestMarkCovered_NextUncoveredSkipsCoveredCriterion(t *testing.T) {
 	}
 	if next.Number != 2 {
 		t.Fatalf("NextUncovered().Number = %d, want 2", next.Number)
+	}
+}
+
+func TestMarkCovered_DoesNotChangeUntestableCriterion(t *testing.T) {
+	criteria := []Criterion{{Number: 1, Text: "First"}}
+	tracker := NewTracker(criteria, 2)
+
+	tracker.RecordRejection(1)
+	tracker.RecordRejection(1)
+	tracker.MarkCovered(1)
+
+	untestable := tracker.UntestableCriteria()
+	if len(untestable) != 1 {
+		t.Fatalf("UntestableCriteria() len = %d, want 1", len(untestable))
+	}
+	if untestable[0].Number != 1 {
+		t.Fatalf("UntestableCriteria()[0].Number = %d, want 1", untestable[0].Number)
 	}
 }

@@ -1,10 +1,7 @@
 package logger
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -105,7 +102,7 @@ func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilte
 		runID := extractRunID(f)
 		isCurrent := (runID == currentRunID)
 
-		entries, err := readEfficiencyLogFile(f)
+		entries, err := readLogFile(f)
 		if err != nil {
 			continue // Skip unreadable files
 		}
@@ -304,15 +301,4 @@ func extractRunID(path string) string {
 		return ""
 	}
 	return base[4 : len(base)-6]
-}
-
-// readEfficiencyLogFile reads iteration logs from a JSONL file
-func readEfficiencyLogFile(path string) ([]IterationLog, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	dec := json.NewDecoder(bytes.NewReader(data))
-	return decodeIterationLogs(dec), nil
 }

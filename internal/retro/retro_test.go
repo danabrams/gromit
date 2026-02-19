@@ -1301,8 +1301,9 @@ func TestRenderPrompt_BuildsPromptDiagnostics(t *testing.T) {
 	efficiency := &logger.EfficiencyReport{
 		CurrentAvgCostPerBead: 0.2,
 	}
+	runStats := logger.RunStats{Total: 1}
 
-	if _, err := r.renderPrompt("rules content", "confirmed learnings", logger.RunStats{Total: 1}, beadStats, efficiency, nil); err != nil {
+	if _, err := r.renderPrompt("rules content", "confirmed learnings", runStats, beadStats, efficiency, nil); err != nil {
 		t.Fatalf("renderPrompt returned error: %v", err)
 	}
 
@@ -1314,22 +1315,27 @@ func TestRenderPrompt_BuildsPromptDiagnostics(t *testing.T) {
 		t.Fatalf("PromptType = %q, want retro", diagnostics.PromptType)
 	}
 
-	expectedKeys := []string{
-		prompt.SectionRules,
-		prompt.SectionConfirmedLearnings,
-		prompt.SectionRunStats,
-		prompt.SectionBeadStats,
-		"efficiency",
-		"process_trend",
+	expected := map[string]int{
+		prompt.SectionRules:              prompt.EstimateTokens("rules content"),
+		prompt.SectionConfirmedLearnings: prompt.EstimateTokens("confirmed learnings"),
+		prompt.SectionRunStats:           prompt.EstimateTokens(diagnosticJSON(runStats)),
+		prompt.SectionBeadStats:          prompt.EstimateTokens(diagnosticJSON(beadStats)),
+		"efficiency":                     prompt.EstimateTokens(diagnosticJSON(efficiency)),
+		"process_trend":                  prompt.EstimateTokens(diagnosticJSON(r.loadProcessTrend())),
 	}
-	for _, key := range expectedKeys {
+	expectedSum := 0
+	for key, expectedValue := range expected {
 		value, ok := diagnostics.SectionTokens[key]
 		if !ok {
 			t.Fatalf("missing section token key %q", key)
 		}
-		if value <= 0 {
-			t.Fatalf("section token %q = %d, want > 0", key, value)
+		if value != expectedValue {
+			t.Fatalf("section token %q = %d, want %d", key, value, expectedValue)
 		}
+		expectedSum += expectedValue
+	}
+	if diagnostics.EstimatedTokens != expectedSum {
+		t.Fatalf("EstimatedTokens = %d, want %d", diagnostics.EstimatedTokens, expectedSum)
 	}
 }
 
@@ -1347,6 +1353,7 @@ func TestRenderPrompt_BudgetShapingDiagnostics(t *testing.T) {
 
 	rules := strings.Repeat("r", 30)
 	learnings := strings.Repeat("l", 60)
+	shapedRules, shapedLearnings, shapeReport := prompt.ShapeRetroForBudget(rules, learnings, 40)
 	if _, err := r.renderPrompt(rules, learnings, logger.RunStats{}, nil, nil, nil); err != nil {
 		t.Fatalf("renderPrompt returned error: %v", err)
 	}
@@ -1358,13 +1365,33 @@ func TestRenderPrompt_BudgetShapingDiagnostics(t *testing.T) {
 	if diagnostics.PreShapeTokens <= 0 {
 		t.Fatalf("PreShapeTokens = %d, want > 0", diagnostics.PreShapeTokens)
 	}
+	if diagnostics.PreShapeTokens != prompt.EstimateTokens(rules)+prompt.EstimateTokens(learnings) {
+		t.Fatalf("PreShapeTokens = %d, want %d", diagnostics.PreShapeTokens, prompt.EstimateTokens(rules)+prompt.EstimateTokens(learnings))
+	}
 	if diagnostics.PostShapeTokens <= 0 {
 		t.Fatalf("PostShapeTokens = %d, want > 0", diagnostics.PostShapeTokens)
+	}
+	if diagnostics.PostShapeTokens != prompt.EstimateTokens(shapedRules)+prompt.EstimateTokens(shapedLearnings) {
+		t.Fatalf("PostShapeTokens = %d, want %d", diagnostics.PostShapeTokens, prompt.EstimateTokens(shapedRules)+prompt.EstimateTokens(shapedLearnings))
 	}
 	if diagnostics.PostShapeTokens > diagnostics.PreShapeTokens {
 		t.Fatalf("PostShapeTokens = %d, want <= PreShapeTokens = %d", diagnostics.PostShapeTokens, diagnostics.PreShapeTokens)
 	}
 	if len(diagnostics.ShapeActions) == 0 {
 		t.Fatal("expected non-empty ShapeActions when shaping is active")
+	}
+	if len(diagnostics.ShapeActions) != len(shapeReport.TrimActions) {
+		t.Fatalf("ShapeActions = %#v, want %d actions", diagnostics.ShapeActions, len(shapeReport.TrimActions))
+	}
+	for i, action := range shapeReport.TrimActions {
+		if diagnostics.ShapeActions[i] != action {
+			t.Fatalf("ShapeActions[%d] = %q, want %q", i, diagnostics.ShapeActions[i], action)
+		}
+	}
+	if diagnostics.SectionTokens[prompt.SectionRules] != prompt.EstimateTokens(shapedRules) {
+		t.Fatalf("SectionTokens[rules] = %d, want %d", diagnostics.SectionTokens[prompt.SectionRules], prompt.EstimateTokens(shapedRules))
+	}
+	if diagnostics.SectionTokens[prompt.SectionConfirmedLearnings] != prompt.EstimateTokens(shapedLearnings) {
+		t.Fatalf("SectionTokens[learnings] = %d, want %d", diagnostics.SectionTokens[prompt.SectionConfirmedLearnings], prompt.EstimateTokens(shapedLearnings))
 	}
 }
