@@ -143,7 +143,10 @@ func showRefinePicker(unrefined []*backlog.Idea, reader io.Reader) int {
 	}
 
 	var choice int
-	fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choice)
+	n, _ := fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choice)
+	if n != 1 || choice < 1 || choice > len(unrefined)+1 {
+		return len(unrefined)
+	}
 	return choice - 1
 }
 
