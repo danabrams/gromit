@@ -240,6 +240,7 @@ type ThoroughReviewConfig struct {
 type MethodologyConfig struct {
 	ATDD          bool                    `yaml:"atdd"`
 	TDD           bool                    `yaml:"tdd"`
+	MaxTDDCycles  int                     `yaml:"max_tdd_cycles"`
 	Granularity   string                  `yaml:"granularity"`
 	PhaseTimeouts MethodologyPhaseTimeout `yaml:"phase_timeouts"`
 }
@@ -661,6 +662,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Methodology.Granularity == "" {
 		c.Methodology.Granularity = MethodologyGranularityBead
+	}
+	if c.Methodology.MaxTDDCycles == 0 {
+		c.Methodology.MaxTDDCycles = 10
 	}
 	if c.Git.AutoPush == nil {
 		t := true

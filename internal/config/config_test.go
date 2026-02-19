@@ -2885,6 +2885,15 @@ func TestMethodologyGranularityDefaultsToBead(t *testing.T) {
 	}
 }
 
+func TestMethodologyMaxTDDCyclesDefaultsToTen(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Methodology.MaxTDDCycles != 10 {
+		t.Errorf("expected max_tdd_cycles=10, got %d", cfg.Methodology.MaxTDDCycles)
+	}
+}
+
 func TestMethodologyGranularityParsing(t *testing.T) {
 	tests := []struct {
 		name        string
