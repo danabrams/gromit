@@ -50,6 +50,16 @@ type ShapeReport struct {
 	SectionSizes    map[string]int
 }
 
+func newShapeReport(beforeChars, preShapeTokens int, sectionSizes map[string]int) *ShapeReport {
+	return &ShapeReport{
+		BeforeChars:     beforeChars,
+		AfterChars:      beforeChars,
+		PreShapeTokens:  preShapeTokens,
+		PostShapeTokens: preShapeTokens,
+		SectionSizes:    sectionSizes,
+	}
+}
+
 // ShapeRetroForBudget trims retro rules/learnings context to fit within maxChars.
 func ShapeRetroForBudget(rules, learnings string, maxChars int) (string, string, *ShapeReport) {
 	shapedRules := rules
@@ -57,16 +67,10 @@ func ShapeRetroForBudget(rules, learnings string, maxChars int) (string, string,
 
 	beforeChars := measureRetroContext(shapedRules, shapedLearnings)
 	preShapeTokens := measureRetroContextTokens(shapedRules, shapedLearnings)
-	report := &ShapeReport{
-		BeforeChars:     beforeChars,
-		AfterChars:      beforeChars,
-		PreShapeTokens:  preShapeTokens,
-		PostShapeTokens: preShapeTokens,
-		SectionSizes: map[string]int{
-			"Rules":     len(shapedRules),
-			"Learnings": len(shapedLearnings),
-		},
-	}
+	report := newShapeReport(beforeChars, preShapeTokens, map[string]int{
+		"Rules":     len(shapedRules),
+		"Learnings": len(shapedLearnings),
+	})
 
 	if maxChars <= 0 || beforeChars <= maxChars {
 		return shapedRules, shapedLearnings, report
@@ -176,15 +180,9 @@ func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, pha
 	beforeChars := measureContext(shaped)
 	preShapeTokens := measureContextTokens(shaped)
 
-	report := &ShapeReport{
-		BeforeChars:     beforeChars,
-		PreShapeTokens:  preShapeTokens,
-		PostShapeTokens: preShapeTokens,
-		SectionSizes:    sectionSizes(shaped),
-	}
+	report := newShapeReport(beforeChars, preShapeTokens, sectionSizes(shaped))
 
 	if beforeChars <= maxChars {
-		report.AfterChars = beforeChars
 		return shaped, report
 	}
 
@@ -379,15 +377,9 @@ func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string)
 	beforeChars := measureReviewContext(shaped)
 	preShapeTokens := measureReviewContextTokens(shaped)
 
-	report := &ShapeReport{
-		BeforeChars:     beforeChars,
-		PreShapeTokens:  preShapeTokens,
-		PostShapeTokens: preShapeTokens,
-		SectionSizes:    reviewSectionSizes(shaped),
-	}
+	report := newShapeReport(beforeChars, preShapeTokens, reviewSectionSizes(shaped))
 
 	if beforeChars <= maxChars {
-		report.AfterChars = beforeChars
 		return shaped, report
 	}
 
@@ -476,15 +468,9 @@ func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars in
 	beforeChars := measureThoroughReviewContext(shaped)
 	preShapeTokens := measureThoroughReviewContextTokens(shaped)
 
-	report := &ShapeReport{
-		BeforeChars:     beforeChars,
-		PreShapeTokens:  preShapeTokens,
-		PostShapeTokens: preShapeTokens,
-		SectionSizes:    thoroughReviewSectionSizes(shaped),
-	}
+	report := newShapeReport(beforeChars, preShapeTokens, thoroughReviewSectionSizes(shaped))
 
 	if beforeChars <= maxChars {
-		report.AfterChars = beforeChars
 		return shaped, report
 	}
 
