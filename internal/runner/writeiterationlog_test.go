@@ -40,6 +40,73 @@ func (e *errIterationLogger) RunID() string {
 	return ""
 }
 
+func newTestRunnerWithLogger(t *testing.T, includeLogsPathConfig bool) (*Runner, string) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	})
+
+	r := &Runner{logger: l}
+	if includeLogsPathConfig {
+		r.cfg = &config.Config{
+			Paths: config.PathsConfig{Logs: tmpDir},
+		}
+	}
+
+	return r, tmpDir
+}
+
+func readSingleIterationLogLine(t *testing.T, logsDir string) string {
+	t.Helper()
+
+	logFiles, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("globbing log files: %v", err)
+	}
+	if len(logFiles) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(logFiles))
+	}
+
+	data, err := os.ReadFile(logFiles[0])
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
+	if line == "" {
+		t.Fatal("expected at least 1 log line")
+	}
+
+	return line
+}
+
+func unmarshalSingleIterationLogEntry(t *testing.T, logsDir string) map[string]any {
+	t.Helper()
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(readSingleIterationLogLine(t, logsDir)), &entry); err != nil {
+		t.Fatalf("unmarshaling log line: %v", err)
+	}
+
+	return entry
+}
+
+func unmarshalSingleIterationLogInto(t *testing.T, logsDir string, target any) {
+	t.Helper()
+
+	if err := json.Unmarshal([]byte(readSingleIterationLogLine(t, logsDir)), target); err != nil {
+		t.Fatalf("unmarshaling log entry: %v", err)
+	}
+}
+
 func TestLogIterationWithWarning_LogsError(t *testing.T) {
 	buf := &bytes.Buffer{}
 	r := &Runner{
@@ -59,21 +126,7 @@ func TestLogIterationWithWarning_LogsError(t *testing.T) {
 // TestWriteIterationLog_UsageLimitedFalseNotPropagated verifies that when
 // UsageLimited=false, it's omitted from the log (omitempty).
 func TestWriteIterationLog_UsageLimitedFalseNotPropagated(t *testing.T) {
-	tmpDir := t.TempDir()
-	l, err := logger.NewLogger(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			t.Fatalf("failed to close logger: %v", err)
-		}
-	}()
-
-	// Create runner with logger
-	r := &Runner{
-		logger: l,
-	}
+	r, tmpDir := newTestRunnerWithLogger(t, false)
 
 	// Create result with UsageLimited=false (default)
 	result := &IterationResult{
@@ -88,34 +141,13 @@ func TestWriteIterationLog_UsageLimitedFalseNotPropagated(t *testing.T) {
 	// Write the log
 	r.writeIterationLog(2, result)
 
-	// Read back the log file to verify
-	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
-	if err != nil {
-		t.Fatalf("globbing log files: %v", err)
-	}
-	if len(logFiles) != 1 {
-		t.Fatalf("expected 1 log file, got %d", len(logFiles))
-	}
-
-	data, err := os.ReadFile(logFiles[0])
-	if err != nil {
-		t.Fatalf("reading log file: %v", err)
-	}
-
-	// Parse the JSON line
 	var logEntry logger.IterationLog
-	lines := strings.Split(string(data), "\n")
-	if len(lines) < 1 || lines[0] == "" {
-		t.Fatal("expected at least 1 log line")
-	}
-	if err := json.Unmarshal([]byte(lines[0]), &logEntry); err != nil {
-		t.Fatalf("unmarshaling log entry: %v", err)
-	}
+	unmarshalSingleIterationLogInto(t, tmpDir, &logEntry)
 
 	if logEntry.UsageLimited {
 		t.Error("expected UsageLimited to be false (default)")
 	}
-	if logEntry.Success != true {
+	if !logEntry.Success {
 		t.Error("expected Success=true")
 	}
 }
@@ -123,20 +155,7 @@ func TestWriteIterationLog_UsageLimitedFalseNotPropagated(t *testing.T) {
 // TestWriteIterationLog_PropagatesValidationDurationMs verifies that when
 // IterationResult has ValidationDurationMs set, it propagates to IterationLog.
 func TestWriteIterationLog_PropagatesValidationDurationMs(t *testing.T) {
-	tmpDir := t.TempDir()
-	l, err := logger.NewLogger(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			t.Fatalf("failed to close logger: %v", err)
-		}
-	}()
-
-	r := &Runner{
-		logger: l,
-	}
+	r, tmpDir := newTestRunnerWithLogger(t, false)
 
 	result := &IterationResult{
 		BeadID:               "test-2",
@@ -149,27 +168,8 @@ func TestWriteIterationLog_PropagatesValidationDurationMs(t *testing.T) {
 
 	r.writeIterationLog(2, result)
 
-	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
-	if err != nil {
-		t.Fatalf("globbing log files: %v", err)
-	}
-	if len(logFiles) != 1 {
-		t.Fatalf("expected 1 log file, got %d", len(logFiles))
-	}
-
-	data, err := os.ReadFile(logFiles[0])
-	if err != nil {
-		t.Fatalf("reading log file: %v", err)
-	}
-
 	var logEntry logger.IterationLog
-	lines := strings.Split(string(data), "\n")
-	if len(lines) < 1 || lines[0] == "" {
-		t.Fatal("expected at least 1 log line")
-	}
-	if err := json.Unmarshal([]byte(lines[0]), &logEntry); err != nil {
-		t.Fatalf("unmarshaling log entry: %v", err)
-	}
+	unmarshalSingleIterationLogInto(t, tmpDir, &logEntry)
 
 	if logEntry.ValidationDurationMs != 1450 {
 		t.Errorf("expected ValidationDurationMs=1450, got %d", logEntry.ValidationDurationMs)
@@ -177,18 +177,7 @@ func TestWriteIterationLog_PropagatesValidationDurationMs(t *testing.T) {
 }
 
 func TestWriteIterationLog_PropagatesProviderAndFailureCategory(t *testing.T) {
-	tmpDir := t.TempDir()
-	l, err := logger.NewLogger(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			t.Fatalf("failed to close logger: %v", err)
-		}
-	}()
-
-	r := &Runner{logger: l}
+	r, tmpDir := newTestRunnerWithLogger(t, false)
 	result := &IterationResult{
 		BeadID:          "test-provider-category",
 		BeadTitle:       "Provider category propagation",
@@ -202,24 +191,7 @@ func TestWriteIterationLog_PropagatesProviderAndFailureCategory(t *testing.T) {
 
 	r.writeIterationLog(3, result)
 
-	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
-	if err != nil {
-		t.Fatalf("globbing log files: %v", err)
-	}
-	if len(logFiles) != 1 {
-		t.Fatalf("expected 1 log file, got %d", len(logFiles))
-	}
-
-	data, err := os.ReadFile(logFiles[0])
-	if err != nil {
-		t.Fatalf("reading log file: %v", err)
-	}
-
-	var entry map[string]any
-	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
-	if err := json.Unmarshal([]byte(line), &entry); err != nil {
-		t.Fatalf("unmarshaling log line: %v", err)
-	}
+	entry := unmarshalSingleIterationLogEntry(t, tmpDir)
 
 	if got := entry["provider"]; got != "codex" {
 		t.Fatalf("provider = %v, want %q", got, "codex")
@@ -230,23 +202,7 @@ func TestWriteIterationLog_PropagatesProviderAndFailureCategory(t *testing.T) {
 }
 
 func TestWriteIterationLog_WritesAcceptanceFailureArtifact(t *testing.T) {
-	tmpDir := t.TempDir()
-	l, err := logger.NewLogger(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			t.Fatalf("failed to close logger: %v", err)
-		}
-	}()
-
-	r := &Runner{
-		logger: l,
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-		},
-	}
+	r, tmpDir := newTestRunnerWithLogger(t, true)
 
 	result := &IterationResult{
 		BeadID:                   "bead-accept-1",
@@ -268,24 +224,8 @@ func TestWriteIterationLog_WritesAcceptanceFailureArtifact(t *testing.T) {
 		t.Fatalf("expected artifact file to exist: %v", err)
 	}
 
-	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
-	if err != nil {
-		t.Fatalf("globbing log files: %v", err)
-	}
-	if len(logFiles) != 1 {
-		t.Fatalf("expected 1 log file, got %d", len(logFiles))
-	}
-
-	data, err := os.ReadFile(logFiles[0])
-	if err != nil {
-		t.Fatalf("reading log file: %v", err)
-	}
-
 	var logEntry logger.IterationLog
-	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
-	if err := json.Unmarshal([]byte(line), &logEntry); err != nil {
-		t.Fatalf("unmarshaling log entry: %v", err)
-	}
+	unmarshalSingleIterationLogInto(t, tmpDir, &logEntry)
 	if logEntry.AcceptanceFailureSummary == "" {
 		t.Fatal("expected acceptance_failure_summary in JSONL")
 	}
@@ -298,23 +238,7 @@ func TestWriteIterationLog_WritesAcceptanceFailureArtifact(t *testing.T) {
 }
 
 func TestWriteIterationLog_RecordsAcceptanceFailureExitCode(t *testing.T) {
-	tmpDir := t.TempDir()
-	l, err := logger.NewLogger(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := l.Close(); err != nil {
-			t.Fatalf("failed to close logger: %v", err)
-		}
-	}()
-
-	r := &Runner{
-		logger: l,
-		cfg: &config.Config{
-			Paths: config.PathsConfig{Logs: tmpDir},
-		},
-	}
+	r, tmpDir := newTestRunnerWithLogger(t, true)
 
 	result := &IterationResult{
 		BeadID:                    "bead-accept-exitcode",
@@ -330,24 +254,7 @@ func TestWriteIterationLog_RecordsAcceptanceFailureExitCode(t *testing.T) {
 
 	r.writeIterationLog(4, result)
 
-	logFiles, err := filepath.Glob(filepath.Join(tmpDir, "run-*.jsonl"))
-	if err != nil {
-		t.Fatalf("globbing log files: %v", err)
-	}
-	if len(logFiles) != 1 {
-		t.Fatalf("expected 1 log file, got %d", len(logFiles))
-	}
-
-	data, err := os.ReadFile(logFiles[0])
-	if err != nil {
-		t.Fatalf("reading log file: %v", err)
-	}
-
-	var entry map[string]any
-	line := strings.Split(strings.TrimSpace(string(data)), "\n")[0]
-	if err := json.Unmarshal([]byte(line), &entry); err != nil {
-		t.Fatalf("unmarshaling log line: %v", err)
-	}
+	entry := unmarshalSingleIterationLogEntry(t, tmpDir)
 
 	if got := entry["acceptance_failure_exit_code"]; got != float64(2) {
 		t.Fatalf("acceptance_failure_exit_code = %v, want 2", got)
