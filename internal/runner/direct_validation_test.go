@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
@@ -53,15 +54,16 @@ func setupDirectValidationRunner(t *testing.T, cfg *config.Config, cmdRunner run
 	mockRouter := provider.NewSingleProviderRouter(mockProvider)
 
 	r := &Runner{
-		cfg:              cfg,
-		router:           mockRouter,
-		invoker:          newInvokerForTest(mockRouter, &buf, nil),
-		renderer:         &mockRenderer{},
-		analyzer:         mockAnalyzer,
-		output:           &buf,
-		gitHeadFn:        stubGitHeadFn(),
-		cmdRunnerFn:      cmdRunner,
-		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
+		cfg:               cfg,
+		router:            mockRouter,
+		invoker:           newInvokerForTest(mockRouter, &buf, nil),
+		renderer:          &mockRenderer{},
+		analyzer:          mockAnalyzer,
+		output:            &buf,
+		gitHeadFn:         stubGitHeadFn(),
+		cmdRunnerFn:       cmdRunner,
+		validationRunner:  validation.NewRunner(cfg, cmdRunner, nil, nil),
+		methodologyPolicy: policy.NewConfigMethodologyPolicy(cfg),
 	}
 
 	return r, mockClaude, mockAnalyzer

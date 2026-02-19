@@ -7,15 +7,52 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+func (r *Runner) ensureMethodologyPolicy() {
+	if r == nil {
+		return
+	}
+	if r.methodologyPolicy != nil {
+		return
+	}
+	cfg := r.cfg
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	r.methodologyPolicy = policy.NewConfigMethodologyPolicy(cfg)
+}
+
 func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.BeadContext) (atddActive bool, tddActive bool, done bool) {
+	r.ensureMethodologyPolicy()
 	atddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "atdd")
-	if atddActive && r.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
+	if r.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		if specName := bead.FindSpecLabel(bc.Bead.Labels); specName != "" {
-			r.log("Skipping ATDD: spec granularity active for spec:%s", specName)
-			atddActive = false
+			atddLabelOverride := ""
+			for _, label := range bc.Bead.Labels {
+				if label == "atdd:true" {
+					atddLabelOverride = "true"
+					break
+				}
+				if label == "atdd:false" {
+					atddLabelOverride = "false"
+					break
+				}
+			}
+			atddWouldBeActive := false
+			switch atddLabelOverride {
+			case "true":
+				atddWouldBeActive = true
+			case "false":
+				atddWouldBeActive = false
+			default:
+				atddWouldBeActive = r.cfg.Methodology.ATDD
+			}
+			if atddWouldBeActive && !atddActive {
+				r.log("Skipping ATDD: spec granularity active for spec:%s", specName)
+			}
 		}
 	}
 	if atddActive && bead.IsTestOnlyBead(bc.Bead.Title) {
@@ -73,6 +110,7 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 }
 
 func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtypes.BeadContext, atddActive bool, tddActive bool, executeWithRetry func() bool) *IterationResult {
+	r.ensureMethodologyPolicy()
 	for {
 		bc.Result.Error = nil
 		bc.Result.AcceptanceFailureSummary = ""
@@ -188,6 +226,7 @@ func beadRemaining(bc *runtypes.BeadContext) (remaining time.Duration, elapsed t
 }
 
 func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.BeadContext, atddActive bool) (retry bool, terminal *IterationResult) {
+	r.ensureMethodologyPolicy()
 	r.log("Running refactor phase...")
 	if r.methodologyExec == nil {
 		bc.Result.Error = fmt.Errorf("refactor phase active but methodologyExec not wired")
