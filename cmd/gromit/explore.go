@@ -128,9 +128,9 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 
 	// Create renderer
 	renderer, err := prompt.NewRenderer(
-		cfg.Paths.Templates,
-		cfg.Paths.Specs,
-		cfg.Paths.ProjectClaudeMD,
+		resolveTemplatesDir(cfg),
+		resolveSpecsDir(cfg),
+		resolveProjectClaudeMD(cfg),
 		gromitDir,
 	)
 	if err != nil {

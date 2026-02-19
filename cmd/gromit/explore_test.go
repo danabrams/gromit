@@ -68,3 +68,21 @@ func TestExploreCommand_UsesPipeline(t *testing.T) {
 	// internal/pipeline/explore_test.go.
 	t.Skip("CLI adapter test - full workflow tested in pipeline package")
 }
+
+func TestBuildExplorePipeline_NilConfigUsesResolvedDefaults(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("buildExplorePipeline(nil) panicked: %v", r)
+		}
+	}()
+
+	p, err := buildExplorePipeline(nil)
+	if err != nil {
+		t.Fatalf("buildExplorePipeline(nil) returned error: %v", err)
+	}
+	if p == nil {
+		t.Fatal("buildExplorePipeline(nil) returned nil pipeline")
+	}
+}
