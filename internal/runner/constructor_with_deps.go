@@ -74,6 +74,11 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 		cmdRunner = deps.CmdRunner
 	}
 
+	stuckPolicy := deps.StuckPolicy
+	if stuckPolicy == nil {
+		stuckPolicy = policy.NewConfigStuckPolicy(cfg)
+	}
+
 	r := &Runner{
 		cfg:               cfg,
 		beads:             deps.Beads,
@@ -85,7 +90,7 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 		escalationPolicy:  deps.EscalationPolicy,
 		methodologyPolicy: deps.MethodologyPolicy,
 		validationPolicy:  deps.ValidationPolicy,
-		stuckPolicy:       deps.StuckPolicy,
+		stuckPolicy:       stuckPolicy,
 		output:            syncOut,
 		syncOut:           syncOut,
 		gromitDir:         gromitDir,

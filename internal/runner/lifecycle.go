@@ -101,23 +101,7 @@ func (r *Runner) isStuckBeadWithStats(b *bead.Bead, beadStats map[string]logger.
 		return false
 	}
 
-	if r.stuckPolicy != nil {
-		return r.stuckPolicy.IsStuck(b, beadStats)
-	}
-
-	// If threshold is 0 or negative, stuck-bead detection is disabled
-	if r.cfg.Loop.StuckBeadThreshold <= 0 {
-		return false
-	}
-
-	stats, exists := beadStats[b.ID]
-	if !exists {
-		// No history for this bead, not stuck
-		return false
-	}
-
-	// Mark as stuck if failures >= threshold
-	return stats.Failures >= r.cfg.Loop.StuckBeadThreshold
+	return r.stuckPolicy.IsStuck(b, beadStats)
 }
 
 // Status returns the current queue status

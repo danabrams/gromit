@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -24,5 +25,16 @@ func TestNewRunnerWiresStuckPolicy(t *testing.T) {
 
 	if r.stuckPolicy == nil {
 		t.Fatal("expected NewRunner to wire stuckPolicy")
+	}
+}
+
+func TestNewRunnerWithDepsDefaultsStuckPolicy(t *testing.T) {
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(), Deps{})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() error = %v", err)
+	}
+	if r.stuckPolicy == nil {
+		t.Fatal("expected NewRunnerWithDeps to default stuckPolicy when deps omit it")
 	}
 }
