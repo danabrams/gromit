@@ -36,6 +36,12 @@ var (
 // used by review helpers. Tests may replace this to avoid real subprocess calls.
 var reviewGitCommandFn = exec.Command
 
+// reviewGitOutputFn is the injectable function for executing a command and
+// capturing its stdout. Tests may replace this to return synthetic output.
+var reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+	return cmd.Output()
+}
+
 const defaultThoroughReviewTimeoutSeconds = 900
 
 var reviewCmd = &cobra.Command{

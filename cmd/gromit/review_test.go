@@ -13,6 +13,27 @@ import (
 	"github.com/danabrams/gromit/internal/scope"
 )
 
+// TestReviewGitOutputFn_CanBeOverridden verifies that reviewGitOutputFn is a
+// package-level injectable variable with the expected signature.
+func TestReviewGitOutputFn_CanBeOverridden(t *testing.T) {
+	orig := reviewGitOutputFn
+	t.Cleanup(func() { reviewGitOutputFn = orig })
+
+	stubOut := []byte("abc123\n")
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return stubOut, nil
+	}
+
+	cmd := exec.Command("echo", "unused")
+	got, err := reviewGitOutputFn(cmd)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if string(got) != string(stubOut) {
+		t.Errorf("expected output %q, got %q", stubOut, got)
+	}
+}
+
 // TestReviewGitCommandFn_CanBeOverridden verifies that reviewGitCommandFn is a
 // package-level injectable variable with the expected signature.
 func TestReviewGitCommandFn_CanBeOverridden(t *testing.T) {
