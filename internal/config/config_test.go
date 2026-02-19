@@ -2914,6 +2914,26 @@ func TestMethodologyMaxTDDCyclesParsesFromYAML(t *testing.T) {
 	}
 }
 
+func TestMethodologyFreshContextPerCycleParsesFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `methodology:
+  fresh_context_per_cycle: true
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if !cfg.Methodology.FreshContextPerCycle {
+		t.Error("expected fresh_context_per_cycle=true, got false")
+	}
+}
+
 func TestMethodologyGranularityParsing(t *testing.T) {
 	tests := []struct {
 		name        string

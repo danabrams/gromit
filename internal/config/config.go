@@ -239,11 +239,12 @@ type ThoroughReviewConfig struct {
 }
 
 type MethodologyConfig struct {
-	ATDD          bool                    `yaml:"atdd"`
-	TDD           bool                    `yaml:"tdd"`
-	MaxTDDCycles  int                     `yaml:"max_tdd_cycles"`
-	Granularity   string                  `yaml:"granularity"`
-	PhaseTimeouts MethodologyPhaseTimeout `yaml:"phase_timeouts"`
+	ATDD                 bool                    `yaml:"atdd"`
+	TDD                  bool                    `yaml:"tdd"`
+	MaxTDDCycles         int                     `yaml:"max_tdd_cycles"`
+	FreshContextPerCycle bool                    `yaml:"fresh_context_per_cycle"`
+	Granularity          string                  `yaml:"granularity"`
+	PhaseTimeouts        MethodologyPhaseTimeout `yaml:"phase_timeouts"`
 }
 
 type MethodologyPhaseTimeout struct {
