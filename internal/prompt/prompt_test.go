@@ -1500,6 +1500,12 @@ func TestRenderCoverageValidationRealTemplateIncludesInputs(t *testing.T) {
 	if !strings.Contains(result, ctx.TestCode) {
 		t.Error("expected test code in output")
 	}
+	if !strings.Contains(result, "`covers`") {
+		t.Error("expected covers field instruction in output")
+	}
+	if !strings.Contains(result, "`reason`") {
+		t.Error("expected reason field instruction in output")
+	}
 }
 
 func TestRenderTestFixRealTemplateContainsRequiredSections(t *testing.T) {
