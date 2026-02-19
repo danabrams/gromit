@@ -16,7 +16,6 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
-	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
@@ -167,8 +166,6 @@ func (r *Runner) handleScopeTooLarge(bc *runtypes.BeadContext, claudeResult *cla
 
 	bc.Result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
 }
-
-var _ = methodology.DetectTouchedPackages
 
 // computeScopedTestCommand constructs an explicit "go test ./pkg/..." command
 // for the given touched package paths. Returns an empty string when packages
