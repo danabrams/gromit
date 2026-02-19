@@ -31,3 +31,15 @@ func TestShowRefinePickerNonNumericInputSelectsNew(t *testing.T) {
 		t.Fatalf("expected choice %d for non-numeric input, got %d", len(unrefined), choice)
 	}
 }
+
+func TestShowRefinePickerZeroInputSelectsNew(t *testing.T) {
+	unrefined := []*backlog.Idea{
+		{ID: "idea-1", Text: "First", Type: "task"},
+	}
+
+	choice := showRefinePicker(unrefined, strings.NewReader("0\n"))
+
+	if choice != len(unrefined) {
+		t.Fatalf("expected choice %d for zero input, got %d", len(unrefined), choice)
+	}
+}
