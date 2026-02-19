@@ -147,16 +147,6 @@ func TestConfirmPrompt(t *testing.T) {
 	}
 }
 
-func TestExecGromit(t *testing.T) {
-	// We can't easily test subprocess execution in a unit test without side effects
-	// or complex mocking. The actual subprocess behavior is tested through integration
-	// tests. This test just verifies the function signature and binary resolution work.
-
-	// Just verify that the function can be called and returns an error type
-	// We skip actual execution to avoid test side effects
-	t.Skip("execGromit requires integration testing to avoid recursive test execution")
-}
-
 func TestExecGromitBinaryResolution(t *testing.T) {
 	// This test verifies that execGromit uses os.Executable() or os.Args[0]
 	// We can't fully test the fallback without manipulating the environment,

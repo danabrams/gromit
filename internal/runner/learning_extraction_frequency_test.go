@@ -234,20 +234,6 @@ func TestExtractSuccessLearning_RunsForNewPackages(t *testing.T) {
 	}
 }
 
-// TestExtractSuccessLearning_AlwaysRunsOnFailure verifies that learning extraction
-// runs for failed beads regardless of tier or touched packages.
-// Expected failure: This behavior doesn't need changes; it already works via extractLearning()
-func TestExtractSuccessLearning_AlwaysRunsOnFailure(t *testing.T) {
-	// This test documents that failure learning extraction is NOT affected by the new rules.
-	// extractLearning() is called during analyzeAndHandleFailure and should continue to run
-	// regardless of tier or package novelty. This test exists to ensure we don't accidentally
-	// break failure learning when implementing success learning filtering.
-
-	// extractLearning already has comprehensive tests in process_test.go.
-	// This test just documents that the filtering rules only apply to extractSuccessLearning,
-	// not to extractLearning (which handles failure scenarios).
-}
-
 // TestBeadContext_TouchedPackages verifies that BeadContext tracks touched packages.
 func TestBeadContext_TouchedPackages(t *testing.T) {
 	bc := &runtypes.BeadContext{
@@ -263,14 +249,6 @@ func TestBeadContext_TouchedPackages(t *testing.T) {
 	if bc.TouchedPackages[1] != "internal/config" {
 		t.Errorf("expected second package to be 'internal/config', got %q", bc.TouchedPackages[1])
 	}
-}
-
-// TestRunner_TouchedPackages verifies that Runner tracks touched packages across iterations.
-// Expected failure: Runner.touchedPackages field does not exist yet
-func TestRunner_TouchedPackages(t *testing.T) {
-	t.Skip("TODO: implement after touchedPackages field is added to Runner")
-	// This test will be enabled after implementation adds:
-	// - Runner.touchedPackages map[string]bool field
 }
 
 // TestDetectTouchedPackages verifies that detectTouchedPackages extracts Go package paths

@@ -110,6 +110,77 @@ func TestRunProactiveDecomposition_DecomposesKeywordBead(t *testing.T) {
 	}
 }
 
+// TestRunProactiveDecomposition_SkipsChildBead verifies that a child bead whose title
+// contains a trigger keyword (e.g., "refactor") is NOT proactively decomposed when it
+// already has a parent. This prevents decompose loops where children inherit keywords.
+func TestRunProactiveDecomposition_SkipsChildBead(t *testing.T) {
+	precheckDisabled := false
+	autoPushDisabled := false
+	cfg := &config.Config{
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Validation: config.ValidationConfig{
+			Enabled: false,
+		},
+		Review: config.ReviewConfig{
+			Enabled: false,
+		},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	callCount := 0
+	var createdSubBeads []string
+	mockBeads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			callCount++
+			if callCount == 1 {
+				return &bead.Bead{
+					ID:              "refactor-1.1",
+					Title:           "Refactor config validation helpers",
+					Parent:          "refactor-1",
+					Priority:        2,
+					Labels:          []string{},
+					ExpectedOutputs: []string{},
+				}, nil
+			}
+			return nil, nil
+		},
+		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
+			return nil, nil
+		},
+		CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+			createdSubBeads = append(createdSubBeads, title)
+			return &bead.Bead{ID: "sub-" + title, Title: title, Labels: []string{}, ExpectedOutputs: []string{}}, nil
+		},
+	}
+
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    mockBeads,
+			Router:   newMockRouter(),
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: &mockPromptRenderer{},
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps() error = %v", err)
+	}
+
+	// dry-run: child bead with "refactor" keyword should NOT be proactively decomposed
+	err = r.Run(context.Background(), 1, time.Time{}, nil, true)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if len(createdSubBeads) > 0 {
+		t.Errorf("expected no sub-beads for child bead with parent, got: %v", createdSubBeads)
+	}
+}
+
 // TestRunProactiveDecomposition_SkipsNonCandidateBead verifies that a bead with a
 // regular title is NOT proactively decomposed (passes through to normal processing).
 func TestRunProactiveDecomposition_SkipsNonCandidateBead(t *testing.T) {

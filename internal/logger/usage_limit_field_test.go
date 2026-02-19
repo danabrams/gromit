@@ -194,16 +194,6 @@ func TestReadLogFile_BackwardCompatibility(t *testing.T) {
 	}
 }
 
-// TestWriteIterationLog_PropagatesUsageLimited verifies that when IterationResult
-// has UsageLimited=true, it propagates to the IterationLog.
-func TestWriteIterationLog_PropagatesUsageLimited(t *testing.T) {
-	// Expected failure: writeIterationLog in runner package does not propagate UsageLimited field yet
-	// This test documents the expected behavior but cannot be fully tested here since
-	// writeIterationLog is in the runner package. The integration test would verify
-	// that IterationResult.UsageLimited flows through to IterationLog.UsageLimited
-	t.Skip("Cross-package integration test - documents expected behavior")
-}
-
 // TestReadPerBeadStats_UsageLimitedCounted verifies that beads with usage limit
 // errors are counted correctly in per-bead statistics.
 func TestReadPerBeadStats_UsageLimitedCounted(t *testing.T) {

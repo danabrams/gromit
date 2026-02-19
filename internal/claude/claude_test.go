@@ -972,13 +972,6 @@ func TestRunWithStderr(t *testing.T) {
 	}
 }
 
-func TestRunWithTimeout(t *testing.T) {
-	t.Skip("Timeout test requires a command that hangs indefinitely - skipping for CI compatibility")
-	// Test that timeout works correctly
-	// This test is inherently flaky because it depends on command execution timing
-	// In CI environments, commands may execute too quickly to test timeout behavior
-}
-
 func TestRunWithCommandArgs(t *testing.T) {
 	// Test that command args and flags are passed correctly
 	client, _ := NewClient("echo", []string{"-n"}, 5)
@@ -1116,12 +1109,6 @@ func TestStreamRunFailure(t *testing.T) {
 	}
 }
 
-func TestStreamRunTimeout(t *testing.T) {
-	t.Skip("Timeout test requires a command that hangs indefinitely - skipping for CI compatibility")
-	// Test that StreamRun respects timeout
-	// This test is inherently flaky in CI environments
-}
-
 func TestRunValidationPromptStructure(t *testing.T) {
 	// Test that RunValidation builds the correct prompt structure
 	// We can't easily test the actual prompt without mocking, but we can
@@ -1229,12 +1216,6 @@ func TestStreamRunNilReceiver(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for nil client")
 	}
-}
-
-func TestMultipleContextLayers(t *testing.T) {
-	t.Skip("Timeout test requires a command that hangs indefinitely - skipping for CI compatibility")
-	// Test that both client timeout and external context work together
-	// This test is inherently flaky in CI environments where timing is unpredictable
 }
 
 func TestProcessStreamJSONToolCall(t *testing.T) {

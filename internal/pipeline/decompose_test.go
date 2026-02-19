@@ -715,64 +715,6 @@ func TestDecomposeWorkflow_PlanNotFoundError(t *testing.T) {
 	}
 }
 
-// TestDecomposeWorkflow_RespectsContextCancellation verifies context cancellation stops workflow
-// Expected failure: Pipeline.Decompose() does not respect context cancellation
-func TestDecomposeWorkflow_RespectsContextCancellation(t *testing.T) {
-	t.Skip("Context cancellation not yet implemented in Decompose workflow")
-	tmpDir := t.TempDir()
-	plansDir := filepath.Join(tmpDir, "plans")
-
-	// Create plan
-	if err := os.MkdirAll(plansDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	planPath := filepath.Join(plansDir, "test-plan.md")
-	if err := os.WriteFile(planPath, []byte("# Test Plan"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			// Simulate an indefinitely blocked provider call.
-			select {}
-		},
-	}
-
-	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   &decomposeAcceptanceBeadClient{},
-	}
-	paths := &Paths{
-		PlansDir: plansDir,
-	}
-
-	p := New(deps, paths)
-
-	// Create context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	input := DecomposeInput{
-		PlanName: "test-plan",
-	}
-
-	// Start decompose in background
-	done := make(chan error, 1)
-	go func() {
-		_, err := p.Decompose(ctx, input)
-		done <- err
-	}()
-
-	// Cancel immediately
-	cancel()
-
-	// Should complete quickly
-	select {
-	case <-done:
-		// Success - cancellation stopped the workflow
-	case <-time.After(2 * time.Second):
-		t.Fatal("Context cancellation did not stop decompose within 2 seconds")
-	}
-}
-
 // TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp verifies decomposed_at timestamp is set
 // Expected failure: Pipeline.Decompose() does not set decomposed_at timestamp in frontmatter
 func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {

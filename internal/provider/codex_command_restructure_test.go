@@ -596,22 +596,6 @@ exit 0
 	t.Log("StreamRun() completed despite potential stdin pipe issues")
 }
 
-// TestCodexProviderRemovesCreatePromptFileMethod verifies that the
-// createPromptFile helper method no longer exists in CodexProvider.
-func TestCodexProviderRemovesCreatePromptFileMethod(t *testing.T) {
-	// This test documents that createPromptFile() should be removed
-	// after refactoring to stdin delivery.
-
-	// The method signature was:
-	// func (cp *CodexProvider) createPromptFile(prompt string) (string, func(), error)
-
-	// After refactor, calling this method should not compile:
-	// cp := &CodexProvider{}
-	// _, _, _ = cp.createPromptFile("test") // Should not compile
-
-	t.Skip("compile-time check: createPromptFile method should not exist after refactor")
-}
-
 // TestCodexProviderBuildCommandArgsSignatureDoesNotRequirePromptFile verifies
 // that buildCommandArgs no longer accepts a promptFile parameter.
 func TestCodexProviderBuildCommandArgsSignatureDoesNotRequirePromptFile(t *testing.T) {

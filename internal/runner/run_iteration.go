@@ -332,6 +332,12 @@ func (r *Runner) maybeRunThoroughReviewByFrequency(st *runLoopState, runThorough
 // based on title keywords or description type-definition count. If so, it decomposes
 // the bead before first attempt. Returns true if decomposition occurred (caller should skip).
 func (r *Runner) runProactiveDecomposition(ctx context.Context, b *bead.Bead, st *runLoopState) bool {
+	// Child beads were already scoped down by prior decomposition.
+	// Without this guard, children with inherited keywords (e.g. "refactor") loop.
+	if b.Parent != "" {
+		return false
+	}
+
 	if !bead.IsProactiveDecompositionCandidateWithDesc(b.Title, b.Description) {
 		return false
 	}

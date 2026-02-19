@@ -56,19 +56,6 @@ func buildExplorePrompt(cfg *config.Config, gromitDir string, args []string) (st
 	return "", nil
 }
 
-// TestExploreCommand_UsesPipeline verifies that runExplore uses Pipeline.Explore
-// instead of constructing prompts and launching agents directly.
-func TestExploreCommand_UsesPipeline(t *testing.T) {
-	// After pipeline extraction:
-	// - runExplore constructs buildExplorePipeline()
-	// - Calls pipeline.Explore(ctx, ExploreInput)
-	// - Reports ExploreResult artifacts
-	//
-	// The CLI is now a thin adapter. Full workflow tests are in
-	// internal/pipeline/explore_test.go.
-	t.Skip("CLI adapter test - full workflow tested in pipeline package")
-}
-
 func TestBuildExplorePipeline_NilConfigUsesResolvedDefaults(t *testing.T) {
 	t.Chdir(t.TempDir())
 
