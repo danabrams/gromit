@@ -106,6 +106,7 @@ type IterationResult struct {
 	AutonomySuccess  bool
 	FirstPassSuccess bool
 	FilesTouched     int
+	TouchedPackages  []string
 	MTTRProxyMs      int64
 	EscalationClass  string
 	RecurrenceCount  int

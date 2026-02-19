@@ -170,3 +170,27 @@ func TestIterationLog_ProviderAndFailureCategoryJSONTags(t *testing.T) {
 		t.Fatalf("expected failure_category to be omitted, got %s", string(emptyData))
 	}
 }
+
+func TestIterationLog_TouchedPackagesJSONTag(t *testing.T) {
+	log := &IterationLog{
+		BeadID:          "test-1",
+		Model:           "sonnet",
+		TouchedPackages: []string{"internal/runner", "internal/logger"},
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	if !strings.Contains(string(data), "\"touched_packages\":[\"internal/runner\",\"internal/logger\"]") {
+		t.Fatalf("expected touched_packages in JSON, got %s", string(data))
+	}
+
+	emptyData, err := json.Marshal(IterationLog{})
+	if err != nil {
+		t.Fatalf("marshal empty log: %v", err)
+	}
+	if strings.Contains(string(emptyData), "touched_packages") {
+		t.Fatalf("expected touched_packages to be omitted, got %s", string(emptyData))
+	}
+}

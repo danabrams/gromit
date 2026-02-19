@@ -55,16 +55,17 @@ type IterationLog struct {
 	AcceptanceFailureArtifact string `json:"acceptance_failure_artifact,omitempty"`
 	AcceptanceFailureExitCode int    `json:"acceptance_failure_exit_code,omitempty"`
 
-	FailureClass     string `json:"failure_class,omitempty"`
-	AndonLevel       string `json:"andon_level,omitempty"`
-	TrimDecision     string `json:"trim_decision,omitempty"`
-	AutonomyEligible bool   `json:"autonomy_eligible"`
-	AutonomySuccess  bool   `json:"autonomy_success"`
-	FirstPassSuccess bool   `json:"first_pass_success"`
-	FilesTouched     int    `json:"files_touched,omitempty"`
-	MTTRProxyMs      int64  `json:"mttr_proxy_ms,omitempty"`
-	EscalationClass  string `json:"escalation_class,omitempty"`
-	RecurrenceCount  int    `json:"recurrence_count,omitempty"`
+	FailureClass     string   `json:"failure_class,omitempty"`
+	AndonLevel       string   `json:"andon_level,omitempty"`
+	TrimDecision     string   `json:"trim_decision,omitempty"`
+	AutonomyEligible bool     `json:"autonomy_eligible"`
+	AutonomySuccess  bool     `json:"autonomy_success"`
+	FirstPassSuccess bool     `json:"first_pass_success"`
+	FilesTouched     int      `json:"files_touched,omitempty"`
+	TouchedPackages  []string `json:"touched_packages,omitempty"`
+	MTTRProxyMs      int64    `json:"mttr_proxy_ms,omitempty"`
+	EscalationClass  string   `json:"escalation_class,omitempty"`
+	RecurrenceCount  int      `json:"recurrence_count,omitempty"`
 
 	// Coverage tracking fields
 	CriteriaTotal      int      `json:"criteria_total,omitempty"`

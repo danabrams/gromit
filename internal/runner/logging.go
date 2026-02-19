@@ -89,6 +89,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		AutonomySuccess:           result.AutonomySuccess,
 		FirstPassSuccess:          result.FirstPassSuccess,
 		FilesTouched:              result.FilesTouched,
+		TouchedPackages:           result.TouchedPackages,
 		MTTRProxyMs:               result.MTTRProxyMs,
 		EscalationClass:           string(result.EscalationClass),
 		RecurrenceCount:           result.RecurrenceCount,

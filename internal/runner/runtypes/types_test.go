@@ -318,6 +318,22 @@ func TestIterationResult_FilesTouched(t *testing.T) {
 	}
 }
 
+func TestIterationResult_TouchedPackages(t *testing.T) {
+	result := IterationResult{
+		BeadID:          "test-1",
+		TouchedPackages: []string{"internal/runner", "internal/logger"},
+	}
+	if len(result.TouchedPackages) != 2 {
+		t.Fatalf("TouchedPackages length = %d, want 2", len(result.TouchedPackages))
+	}
+	if result.TouchedPackages[0] != "internal/runner" {
+		t.Errorf("TouchedPackages[0] = %q, want %q", result.TouchedPackages[0], "internal/runner")
+	}
+	if result.TouchedPackages[1] != "internal/logger" {
+		t.Errorf("TouchedPackages[1] = %q, want %q", result.TouchedPackages[1], "internal/logger")
+	}
+}
+
 // TestIterationResult_SpecID verifies that IterationResult has a SpecID field.
 func TestIterationResult_SpecID(t *testing.T) {
 	result := IterationResult{

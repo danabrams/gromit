@@ -241,6 +241,7 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 				bc.Result.FilesTouched = len(methodology.ParseDiffFiles(diff))
 			}
 		}
+		bc.Result.TouchedPackages = append([]string(nil), bc.TouchedPackages...)
 	}()
 	ctx = beadCtx
 

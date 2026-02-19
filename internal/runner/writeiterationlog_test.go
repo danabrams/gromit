@@ -549,6 +549,43 @@ func TestWriteIterationLog_FilesTouched(t *testing.T) {
 	}
 }
 
+func TestWriteIterationLog_TouchedPackages(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := logger.NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			t.Fatalf("failed to close logger: %v", err)
+		}
+	}()
+
+	r := &Runner{logger: l}
+	result := &IterationResult{
+		BeadID:          "tp-test",
+		Model:           "sonnet",
+		Success:         true,
+		Duration:        time.Second,
+		TouchedPackages: []string{"internal/runner", "internal/logger"},
+	}
+
+	r.writeIterationLog(1, result)
+
+	var logEntry logger.IterationLog
+	unmarshalSingleIterationLogInto(t, tmpDir, &logEntry)
+
+	if len(logEntry.TouchedPackages) != 2 {
+		t.Fatalf("TouchedPackages length = %d, want 2", len(logEntry.TouchedPackages))
+	}
+	if logEntry.TouchedPackages[0] != "internal/runner" {
+		t.Fatalf("TouchedPackages[0] = %q, want %q", logEntry.TouchedPackages[0], "internal/runner")
+	}
+	if logEntry.TouchedPackages[1] != "internal/logger" {
+		t.Fatalf("TouchedPackages[1] = %q, want %q", logEntry.TouchedPackages[1], "internal/logger")
+	}
+}
+
 func TestWriteIterationLog_PropagatesTimeoutPhase(t *testing.T) {
 	tmpDir := t.TempDir()
 	l, err := logger.NewLogger(tmpDir)
