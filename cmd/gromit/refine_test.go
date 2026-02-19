@@ -57,3 +57,32 @@ func TestShowRefinePickerOutOfBoundsHighSelectsNew(t *testing.T) {
 		t.Fatalf("expected choice %d for out-of-bounds input, got %d", len(unrefined), choice)
 	}
 }
+
+func TestShowRefinePickerValidInputSelectsCorrectItem(t *testing.T) {
+	unrefined := []*backlog.Idea{
+		{ID: "idea-1", Text: "First", Type: "task"},
+		{ID: "idea-2", Text: "Second", Type: "feature"},
+		{ID: "idea-3", Text: "Third", Type: "bug"},
+	}
+
+	// Selecting "2" should return index 1 (Second item)
+	choice := showRefinePicker(unrefined, strings.NewReader("2\n"))
+
+	if choice != 1 {
+		t.Fatalf("expected choice 1 for input '2', got %d", choice)
+	}
+}
+
+func TestShowRefinePickerSomethingNewOptionSelectsCorrectly(t *testing.T) {
+	unrefined := []*backlog.Idea{
+		{ID: "idea-1", Text: "First", Type: "task"},
+		{ID: "idea-2", Text: "Second", Type: "feature"},
+	}
+
+	// Selecting "3" (len+1) is the "Something new..." option
+	choice := showRefinePicker(unrefined, strings.NewReader("3\n"))
+
+	if choice != len(unrefined) {
+		t.Fatalf("expected choice %d for 'something new' input, got %d", len(unrefined), choice)
+	}
+}
