@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -41,5 +42,28 @@ func TestRunArgvUsesInjectedRunner(t *testing.T) {
 	}
 	if gotWorkDir != "/work" {
 		t.Fatalf("workDir = %q, want %q", gotWorkDir, "/work")
+	}
+}
+
+func TestDefaultArgvRunnerSetsEnv(t *testing.T) {
+	stdout, stderr, exitCode, err := defaultArgvRunner(context.Background(), "env", nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, expected := range []string{
+		"GIT_TERMINAL_PROMPT=0",
+		"CI=1",
+		"NONINTERACTIVE=1",
+		"TERM=dumb",
+	} {
+		if !strings.Contains(stdout, expected) {
+			t.Fatalf("stdout missing %q", expected)
+		}
 	}
 }
