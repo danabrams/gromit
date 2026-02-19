@@ -4,6 +4,33 @@ Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-19.
 
 ---
 
+### 2026-02-19 | Runner Sub-Package Isolation via runtypes | architecture
+*Related to: code-review*
+
+The runner sub-package split maintains clean isolation: no sub-package imports another sub-package, all production files under 500 lines, facade files under 1000 lines. All cross-cutting types live in runtypes/, which serves as the dependency-inversion boundary. Type aliases in the parent runner package maintain backward compatibility.
+
+*Archived from provisional: already promoted to RULES.md Architecture section (noted in the learning itself). Rule is the source of truth.*
+
+### 2026-02-19 | Temp File Pattern for CLI Prompts | conventions
+Interactive commands must write large prompts to temp files before passing to Claude CLI to avoid OS ARG_MAX limits. debug.go correctly follows this pattern (writes to .gromit/tmp/); retro.go does not and passes prompt text directly as a CLI argument. New interactive commands should follow the debug.go pattern.
+
+*Archived from provisional: factually incorrect — retro.go correctly uses os.CreateTemp + file reference pattern (internal/retro/retro.go). The learning claims retro.go passes prompt text directly as a CLI argument, which is not true.*
+
+### 2026-02-19 | Expected Outputs Now Populated at All Creation Sites | patterns
+*Related to: code-review*
+The expected_outputs field is now populated at all bead creation sites (review, decomposition, spec gate, epilogue), providing consistent acceptance criteria for runner methodology. Decompose passes SubTask.AcceptanceCriteria directly; other sites fall back to title as a single expected output when no explicit outputs are available.
+
+*Archived from provisional: point-in-time status update, not a durable pattern. The work is complete; the learning provides no future guidance.*
+
+### 2026-02-19 | Source-Text-Reading Test Anti-Pattern | gotchas
+*Related to: code-review*
+
+Source-text-reading test pattern (os.ReadFile + strings.Contains on .go files) has become widespread in *_agent_test.go files — these tests are fragile to refactoring and should be replaced before they multiply further.
+
+*Archived from provisional: promoted to RULES.md Test Quality section. Rule is the source of truth.*
+
+---
+
 ### 2026-02-19 | Preserve orchestrator behavior by re-running existing tests after extraction | patterns
 After refactoring the orchestrator and updating call-sites, keep the existing orchestrator regression tests as mandatory smoke coverage. Re-running tests in `internal/runner/` (especially `*orchestrator*_test.go` and cycle/fresh-context tests) validates behavior parity with prior execution paths and catches call-site regressions that unit tests in isolation may miss.
 

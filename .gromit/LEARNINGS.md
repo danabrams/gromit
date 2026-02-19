@@ -40,24 +40,10 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 gpt-5.3-codex averages $22.77/iteration vs $2.46 for gpt-5.2-codex (9x cost multiplier). Root cause cannot be diagnosed because the codex provider reports 0 for both input_tokens and output_tokens in iteration_metrics.jsonl. The codex output parser must extract and populate token usage metrics, matching Claude's token-reporting path via `{"type":"result"}` events. Until token reporting is fixed and the cost differential explained, prefer gpt-5.2-codex for cost-sensitive routing.
 
-### 2026-02-19 | Runner Sub-Package Isolation via runtypes | architecture
-*Related to: code-review*
-*Promoted to RULES.md Architecture section.*
-
-The runner sub-package split maintains clean isolation: no sub-package imports another sub-package, all production files under 500 lines, facade files under 1000 lines. All cross-cutting types live in runtypes/, which serves as the dependency-inversion boundary. Type aliases in the parent runner package maintain backward compatibility.
-
 ### 2026-02-19 | Agent Resolver Adapter Duplication | patterns
 *Related to: code-review*
 
 Agent resolver adapters (cliAgentResolver, agentResolverAdapter, exploreAgentResolver) are copy-pasted across cmd/gromit files — any interface change requires updating 3+ places.
-
-### 2026-02-19 | Source-Text-Reading Test Anti-Pattern | gotchas
-*Related to: code-review*
-
-Source-text-reading test pattern (os.ReadFile + strings.Contains on .go files) has become widespread in *_agent_test.go files — these tests are fragile to refactoring and should be replaced before they multiply further.
-
-### 2026-02-19 | Temp File Pattern for CLI Prompts | conventions
-Interactive commands must write large prompts to temp files before passing to Claude CLI to avoid OS ARG_MAX limits. debug.go correctly follows this pattern (writes to .gromit/tmp/); retro.go does not and passes prompt text directly as a CLI argument. New interactive commands should follow the debug.go pattern.
 
 ### 2026-02-19 | Debug Command Model Flag Override | gotchas
 *Related to: code-review*
@@ -74,10 +60,6 @@ When adding fallback logic (like title-as-expected-output), define it once as a 
 ### 2026-02-19 | normalizeNilFields Single Responsibility | conventions
 *Related to: gromit-176m0*
 normalizeNilFields() should remain a pure nil-to-empty-slice converter. Data transformations between fields (like AcceptanceCriteria to ExpectedOutputs mapping) belong in a separate resolution step to preserve single-responsibility and avoid surprising side effects during normalization.
-
-### 2026-02-19 | Expected Outputs Now Populated at All Creation Sites | patterns
-*Related to: code-review*
-The expected_outputs field is now populated at all bead creation sites (review, decomposition, spec gate, epilogue), providing consistent acceptance criteria for runner methodology. Decompose passes SubTask.AcceptanceCriteria directly; other sites fall back to title as a single expected output when no explicit outputs are available.
 
 ---
 

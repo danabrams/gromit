@@ -2,7 +2,19 @@
   "last_retro": "2026-02-19T16:51:53.636757994Z",
   "iterations_since_review": 26,
   "clean_exit": true,
-  "updated_at": "2026-02-19T19:54:43.339325237Z",
+  "updated_at": "2026-02-19T20:11:52.833163238Z",
+  "filtered_learning_hashes": [
+    "1c956cdc2de03261",
+    "d580267ae780943d",
+    "4f127496aba00425",
+    "8454d7c27269a5fa",
+    "98028d032dfa6c76",
+    "fca06d31cb03371d",
+    "4cf543403d5b702e",
+    "e1b7471f3d57feec",
+    "63bf8c1635c8ef5a",
+    "83f682fd8d4ef760"
+  ],
   "provider_counts": {
     "claude": 17,
     "openai": 68

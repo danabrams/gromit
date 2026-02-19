@@ -34,6 +34,7 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - Do not test Go standard library behavior (that `os.MkdirAll` creates directories, that `os.WriteFile` writes files, that `json.Marshal` produces JSON). Trust stdlib; test your code
 - Do not write tests with `t.Skip()` for scenarios that can't run in the test environment. Every committed test must be runnable. If a test needs external dependencies, use `//go:build acceptance` so it runs in the right context
 - When two or more tests share 10+ lines of identical setup, extract a shared `setupXxx(t *testing.T)` helper. When three or more tests share the same structure and differ only in inputs/assertions, use a table-driven test
+- Do not use `os.ReadFile` on `.go` source files with `strings.Contains` to verify code structure — these tests break on refactoring. Verify architecture constraints through compile-time interface checks (`var _ Interface = (*Impl)(nil)`) or behavioral integration tests
 - Files named `*_acceptance_test.go` must either use `//go:build acceptance` or genuinely test end-to-end behavior through the command surface. Unit tests that happen to verify acceptance criteria belong in `*_test.go`
 - Acceptance tests (`//go:build acceptance`) have a 6,000-line total budget; prefer unit tests and account for this budget in specs (enforced by `final_verification_test.go`)
 
