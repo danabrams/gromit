@@ -40,6 +40,15 @@ const (
 	refactorOutcomeRevertedContinue refactorOutcome = "reverted_continue"
 )
 
+func isSupportedRefactorOutcome(outcome refactorOutcome) bool {
+	switch outcome {
+	case refactorOutcomeContinue, refactorOutcomeRevertedContinue:
+		return true
+	default:
+		return false
+	}
+}
+
 // CycleOrchestrator runs TDD red-green-refactor cycles with fresh context per phase.
 type CycleOrchestrator struct {
 	renderRedFn    RenderRedFn
@@ -170,11 +179,7 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	}
 	if passed {
 		// Tests pass unexpectedly — nothing left to implement
-		outcome := o.executeRefactorPhase(ctx, bc)
-		if outcome != refactorOutcomeContinue && outcome != refactorOutcomeRevertedContinue {
-			return fmt.Errorf("refactor phase: unsupported outcome %q", outcome)
-		}
-		if err := o.runFinalValidation(ctx); err != nil {
+		if err := o.runRefactorAndFinalValidation(ctx, bc); err != nil {
 			return err
 		}
 
@@ -209,17 +214,21 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green validation failed: tests still failing after green phase")
 	}
 
-	outcome := o.executeRefactorPhase(ctx, bc)
-	if outcome != refactorOutcomeContinue && outcome != refactorOutcomeRevertedContinue {
-		return fmt.Errorf("refactor phase: unsupported outcome %q", outcome)
-	}
-	if err := o.runFinalValidation(ctx); err != nil {
+	if err := o.runRefactorAndFinalValidation(ctx, bc); err != nil {
 		return err
 	}
 
 	// Advance state
 	*state = AssembleCycleState(*state, "")
 	return nil
+}
+
+func (o *CycleOrchestrator) runRefactorAndFinalValidation(ctx context.Context, bc *runtypes.BeadContext) error {
+	outcome := o.executeRefactorPhase(ctx, bc)
+	if !isSupportedRefactorOutcome(outcome) {
+		return fmt.Errorf("refactor phase: unsupported outcome %q", outcome)
+	}
+	return o.runFinalValidation(ctx)
 }
 
 func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtypes.BeadContext) refactorOutcome {
