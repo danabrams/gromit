@@ -35,10 +35,10 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-18 | final | conventions
+### 2026-02-18 | Documentation Test Enforcement for RULES.md | conventions
 Documentation tests in bead_sizing_docs_test.go enforce that RULES.md stays in sync with implemented behavior. Any changes to file sizing rules must update both the code AND the corresponding RULES.md documentation section.
 
-### 2026-02-18 | gromit-qth8i | conventions
+### 2026-02-18 | Touched-Package Validation Blocks on Pre-existing Failures | conventions
 The validation script (test_touched.sh) runs tests for all packages that have been modified in the current branch. Pre-existing test failures in touched files will block new task completion. Always verify all tests pass in modified packages before implementing dependent changes, or unrelated work in the same package directory will inherit those failures.
 
 ---
