@@ -2,6 +2,7 @@ package retro
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/jsonutil"
 )
@@ -81,8 +82,18 @@ func (c *ConsolidationProposal) normalizeNilFields() {
 // It looks for JSON in the output and unmarshals it into Proposals.
 func ParseProposals(output string) (*Proposals, error) {
 	var proposals Proposals
-	if err := jsonutil.ExtractJSON(output, &proposals); err != nil {
-		return nil, fmt.Errorf("parsing proposals: %w", err)
+
+	// If a JSON code block is present, treat it as authoritative. An invalid
+	// code block should fail fast instead of falling back to incidental JSON
+	// fragments elsewhere in the output.
+	if strings.Contains(output, "```") {
+		if err := jsonutil.ExtractCodeBlock(output, &proposals); err != nil {
+			return nil, fmt.Errorf("parsing proposals: %w", err)
+		}
+	} else {
+		if err := jsonutil.ExtractJSON(output, &proposals); err != nil {
+			return nil, fmt.Errorf("parsing proposals: %w", err)
+		}
 	}
 
 	proposals.normalizeNilFields()
