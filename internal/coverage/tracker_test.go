@@ -25,3 +25,21 @@ func TestNewTracker_NextUncoveredReturnsCriterion(t *testing.T) {
 		t.Fatalf("NextUncovered().Number = %d, want 1", next.Number)
 	}
 }
+
+func TestMarkCovered_NextUncoveredSkipsCoveredCriterion(t *testing.T) {
+	criteria := []Criterion{
+		{Number: 1, Text: "First"},
+		{Number: 2, Text: "Second"},
+	}
+	tracker := NewTracker(criteria, 2)
+
+	tracker.MarkCovered(1)
+
+	next := tracker.NextUncovered()
+	if next == nil {
+		t.Fatal("NextUncovered() = nil, want criterion 2")
+	}
+	if next.Number != 2 {
+		t.Fatalf("NextUncovered().Number = %d, want 2", next.Number)
+	}
+}

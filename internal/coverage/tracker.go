@@ -31,6 +31,16 @@ func NewTracker(criteria []Criterion, maxRejections int) *CoverageTracker {
 	return &CoverageTracker{criteria: states, maxRejections: maxRejections}
 }
 
+// MarkCovered transitions a criterion to Covered by its number.
+func (t *CoverageTracker) MarkCovered(n int) {
+	for i := range t.criteria {
+		if t.criteria[i].Number == n {
+			t.criteria[i].Status = Covered
+			return
+		}
+	}
+}
+
 // NextUncovered returns the lowest-numbered unchecked criterion, or nil if none remain.
 func (t *CoverageTracker) NextUncovered() *Criterion {
 	for i := range t.criteria {
