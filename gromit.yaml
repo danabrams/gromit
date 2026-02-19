@@ -44,9 +44,9 @@ providers:
     cost_per_1k_input: 0.00175    # medium-tier baseline
     cost_per_1k_output: 0.014
     model_costs:
-      gpt-5.3-codex:                # high tier (~5x medium, opus/sonnet ratio)
-        cost_per_1k_input: 0.00875
-        cost_per_1k_output: 0.070
+      gpt-5.3-codex:                # high tier
+        cost_per_1k_input: 0.00175
+        cost_per_1k_output: 0.014
       gpt-5.3-codex-spark:          # low tier (~0.27x medium, haiku/sonnet ratio)
         cost_per_1k_input: 0.00047
         cost_per_1k_output: 0.00374
@@ -174,6 +174,10 @@ claude:
     haiku:
       stall_timeout: 90        # shorter stall — haiku should respond quickly
       bead_timeout: 900        # shorter bead budget — fail fast on haiku
+    gpt-5.3-codex:
+      timeout: 600             # experiment: 10min vs 15min default — codex successes tend to complete within 10min
+    gpt-5.3-codex-spark:
+      timeout: 600             # experiment: match high-tier codex timeout reduction
 
 # Agent selection for interactive sessions
 agents:
