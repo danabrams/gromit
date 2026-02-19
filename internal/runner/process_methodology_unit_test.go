@@ -227,10 +227,10 @@ func TestPrepareMethodology_TDDFreshContextRunsOrchestrator(t *testing.T) {
 	}
 }
 
-// TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputs verifies that
-// when TDD fresh-context-per-cycle encounters a bead with no ExpectedOutputs, it
-// falls back to the standard TDD build prompt path instead of erroring.
-func TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputs(t *testing.T) {
+// TestPrepareMethodology_TDDFreshContextUsesTitleFallbackWhenNoExpectedOutputs verifies that
+// TDD fresh-context-per-cycle uses the bead title as expected output when explicit
+// ExpectedOutputs are missing.
+func TestPrepareMethodology_TDDFreshContextUsesTitleFallbackWhenNoExpectedOutputs(t *testing.T) {
 	cfg := &config.Config{
 		Methodology: config.MethodologyConfig{
 			TDD:                  true,
@@ -261,6 +261,57 @@ func TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputs(t *tes
 	if !tddActive {
 		t.Fatal("expected tddActive=true")
 	}
+	if !done {
+		t.Fatal("expected done=true when fresh-context orchestrator handles the bead via title fallback")
+	}
+	if bc.Result.Error != nil {
+		t.Fatalf("expected no error, got: %v", bc.Result.Error)
+	}
+	if !orchestratorCalled {
+		t.Fatal("expected orchestrator to be called when bead title can be used as fallback expected output")
+	}
+	if tddBuildCalled {
+		t.Fatal("expected RenderTDDBuild NOT to be called when fresh-context orchestrator handles the bead")
+	}
+	if len(bc.Bead.ExpectedOutputs) != 1 || bc.Bead.ExpectedOutputs[0] != b.Title {
+		t.Fatalf("expected ExpectedOutputs to be populated from title, got %v", bc.Bead.ExpectedOutputs)
+	}
+	if !strings.Contains(buf.String(), "using title fallback") {
+		t.Errorf("expected title fallback log message, got:\n%s", buf.String())
+	}
+}
+
+func TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputsAndEmptyTitle(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+		},
+	}
+	orchestratorCalled := false
+	tddBuildCalled := false
+	renderer := &mockPromptRenderer{
+		RenderTDDBuildFn: func(ctx *prompt.Context) (string, error) {
+			tddBuildCalled = true
+			return "tdd-build-prompt", nil
+		},
+	}
+	r, buf := newMinimalRunnerForMethodology(t, cfg, renderer)
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+			orchestratorCalled = true
+			return nil
+		},
+	}
+	b := newTestBead("tdd-no-outputs-empty-title-1", "   ")
+	b.ExpectedOutputs = []string{}
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !tddActive {
+		t.Fatal("expected tddActive=true")
+	}
 	if done {
 		t.Fatal("expected done=false so caller falls through to normal build loop")
 	}
@@ -268,7 +319,7 @@ func TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputs(t *tes
 		t.Fatalf("expected no error, got: %v", bc.Result.Error)
 	}
 	if orchestratorCalled {
-		t.Fatal("expected orchestrator NOT to be called when bead has no ExpectedOutputs")
+		t.Fatal("expected orchestrator NOT to be called when bead has no ExpectedOutputs and empty title")
 	}
 	if !tddBuildCalled {
 		t.Fatal("expected RenderTDDBuild to be called as fallback")

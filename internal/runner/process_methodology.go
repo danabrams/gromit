@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -89,9 +90,14 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		bc.Result.Error = fmt.Errorf("TDD fresh-context orchestration enabled but tddOrchestrator not wired")
 		return true
 	}
-	if len(bc.Bead.ExpectedOutputs) == 0 {
+	effectiveOutputs := tddExpectedOutputsOrTitle(bc.Bead)
+	if len(effectiveOutputs) == 0 {
 		r.log("TDD fresh-context skipped for bead %s (no ExpectedOutputs); falling back to standard TDD build", bc.Bead.ID)
 		return false
+	}
+	if len(bc.Bead.ExpectedOutputs) == 0 {
+		r.log("TDD fresh-context using title fallback for bead %s because ExpectedOutputs are empty", bc.Bead.ID)
+		bc.Bead.ExpectedOutputs = append([]string(nil), effectiveOutputs...)
 	}
 	if err := r.tddOrchestrator.RunCycles(ctx, bc); err != nil {
 		bc.Result.Error = err
@@ -106,6 +112,20 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 	bc.Result.Success = true
 	bc.Result.FirstPassSuccess = true
 	return true
+}
+
+func tddExpectedOutputsOrTitle(b *bead.Bead) []string {
+	if b == nil {
+		return []string{}
+	}
+	if len(b.ExpectedOutputs) > 0 {
+		return append([]string(nil), b.ExpectedOutputs...)
+	}
+	trimmedTitle := strings.TrimSpace(b.Title)
+	if trimmedTitle == "" {
+		return []string{}
+	}
+	return []string{trimmedTitle}
 }
 
 func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadContext) bool {
