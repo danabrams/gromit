@@ -11,6 +11,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
@@ -281,11 +282,15 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if r.router == nil {
 			return fmt.Errorf("router not configured")
 		}
-		streamInvoke := func(p provider.Provider, modelName string, attempt string) (*provider.Result, error) {
+		streamInvoke := func(p provider.Provider, modelName string, attempt string) (*provider.Result, *logger.StreamStats, error) {
 			startedAt := time.Now()
 			var eventCount int64
 			var lastEventUnixNano = startedAt.UnixNano()
 			heartbeatStop := make(chan struct{})
+			stats, statsErr := logger.NewStreamStats()
+			if statsErr != nil {
+				r.log("Warning: could not create stream stats for ATDD: %v", statsErr)
+			}
 			go func() {
 				ticker := time.NewTicker(15 * time.Second)
 				defer ticker.Stop()
@@ -324,6 +329,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 						bc.Tier,
 					)
 				})
+				logger.ParseAndLogEvent(r.streamLogger, stats, line)
 			})
 
 			r.log(
@@ -336,6 +342,9 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			)
 			result, err := p.StreamRun(ctx, promptText, bc.Tier, r.output, streamHandler, nil)
 			elapsed := time.Since(startedAt).Round(time.Millisecond)
+			if stats != nil && result != nil {
+				stats.MergeCostData(result.CostUSD, result.InputTokens, result.OutputTokens)
+			}
 			if err != nil {
 				r.log(
 					"ATDD stream error after %s (%s provider=%s model=%s tier=%s events=%d): %v",
@@ -347,7 +356,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 					atomic.LoadInt64(&eventCount),
 					err,
 				)
-				return result, err
+				return result, stats, err
 			}
 			if result == nil {
 				r.log(
@@ -359,7 +368,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 					bc.Tier,
 					atomic.LoadInt64(&eventCount),
 				)
-				return nil, nil
+				return nil, stats, nil
 			}
 			r.log(
 				"ATDD stream completed after %s (%s provider=%s model=%s tier=%s events=%d success=%t exit=%d failure_category=%s)",
@@ -373,7 +382,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				result.ExitCode,
 				result.FailureCategory,
 			)
-			return result, nil
+			return result, stats, nil
 		}
 
 		p, modelName := r.router.Select("build", bc.Tier)
@@ -384,14 +393,26 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
 			bc.Result.EscalatedTo = modelName
 		}
-		result, err := streamInvoke(p, modelName, "primary")
+		result, stats, err := streamInvoke(p, modelName, "primary")
+		if stats != nil {
+			costUSD, inputTokens, outputTokens := stats.CostData()
+			bc.Result.CostUSD = costUSD
+			bc.Result.InputTokens = inputTokens
+			bc.Result.OutputTokens = outputTokens
+		}
 		if err != nil {
 			if p.IsUsageLimitError(result, err) {
 				r.router.MarkUnavailable(p.Name())
 				p2, modelName2 := r.router.Select("build", bc.Tier)
 				if p2 != nil {
 					bc.Model = modelName2
-					result, err = streamInvoke(p2, modelName2, "usage-limit-fallback")
+					result, stats, err = streamInvoke(p2, modelName2, "usage-limit-fallback")
+					if stats != nil {
+						costUSD, inputTokens, outputTokens := stats.CostData()
+						bc.Result.CostUSD = costUSD
+						bc.Result.InputTokens = inputTokens
+						bc.Result.OutputTokens = outputTokens
+					}
 				}
 			}
 			if err != nil {
@@ -406,7 +427,13 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			r.router.MarkUnavailable(p.Name())
 			p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
 			if p2 != nil && p2.Name() != p.Name() {
-				fallbackResult, fallbackErr := streamInvoke(p2, modelName2, "codex-transport-fallback")
+				fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "codex-transport-fallback")
+				if fallbackStats != nil {
+					costUSD, inputTokens, outputTokens := fallbackStats.CostData()
+					bc.Result.CostUSD = costUSD
+					bc.Result.InputTokens = inputTokens
+					bc.Result.OutputTokens = outputTokens
+				}
 				if fallbackErr != nil {
 					return fmt.Errorf(
 						"acceptance tests failed after codex transport fallback (provider=%s model=%s): primary={%s} fallback_err=%v",
