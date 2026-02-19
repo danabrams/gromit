@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // setupExploreTest creates a temp directory with the standard explore test
@@ -71,5 +73,43 @@ func TestBuildExplorePipeline_NilConfigUsesResolvedDefaults(t *testing.T) {
 	}
 	if p == nil {
 		t.Fatal("buildExplorePipeline(nil) returned nil pipeline")
+	}
+}
+
+func TestExplorePromptRenderer_RenderExploreBuildsPromptDiagnostics(t *testing.T) {
+	cfg, gromitDir := setupExploreTest(t)
+
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("## Process\n- Keep it simple\n"), 0o644); err != nil {
+		t.Fatalf("failed to create RULES.md: %v", err)
+	}
+
+	renderer, err := prompt.NewRenderer(
+		cfg.Paths.Templates,
+		filepath.Join(gromitDir, "specs"),
+		cfg.Paths.ProjectClaudeMD,
+		gromitDir,
+	)
+	if err != nil {
+		t.Fatalf("NewRenderer() error = %v", err)
+	}
+
+	adapter := &explorePromptRenderer{renderer: renderer}
+	const topic = "Improve onboarding flow"
+	if _, err := adapter.RenderExplore(&pipeline.ExplorePromptInput{Query: topic}); err != nil {
+		t.Fatalf("RenderExplore() error = %v", err)
+	}
+
+	diagnostics := adapter.LastDiagnostics()
+	if diagnostics == nil {
+		t.Fatal("LastDiagnostics() = nil, want non-nil")
+	}
+	if diagnostics.PromptType != "explore" {
+		t.Fatalf("PromptType = %q, want %q", diagnostics.PromptType, "explore")
+	}
+
+	for _, key := range []string{"topic", prompt.SectionClaudeMD, prompt.SectionRules, "learnings", "instructions"} {
+		if _, ok := diagnostics.SectionTokens[key]; !ok {
+			t.Fatalf("SectionTokens missing key %q", key)
+		}
 	}
 }

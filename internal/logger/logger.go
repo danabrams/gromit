@@ -78,17 +78,18 @@ type IterationLog struct {
 
 // ReviewLog represents a review's outcome (light or thorough)
 type ReviewLog struct {
-	Timestamp      time.Time `json:"timestamp"`
-	Type           string    `json:"type"`
-	ReviewType     string    `json:"review_type"`
-	Iteration      int       `json:"iteration"`
-	BeadID         string    `json:"bead_id,omitempty"`
-	Model          string    `json:"model"`
-	Passed         bool      `json:"passed"`
-	FixesApplied   int       `json:"fixes_applied"`
-	BeadsCreated   int       `json:"beads_created"`
-	BacklogCreated int       `json:"backlog_created"`
-	DurationMs     int64     `json:"duration_ms"`
+	Timestamp         time.Time                 `json:"timestamp"`
+	Type              string                    `json:"type"`
+	ReviewType        string                    `json:"review_type"`
+	Iteration         int                       `json:"iteration"`
+	BeadID            string                    `json:"bead_id,omitempty"`
+	Model             string                    `json:"model"`
+	Passed            bool                      `json:"passed"`
+	FixesApplied      int                       `json:"fixes_applied"`
+	BeadsCreated      int                       `json:"beads_created"`
+	BacklogCreated    int                       `json:"backlog_created"`
+	DurationMs        int64                     `json:"duration_ms"`
+	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 }
 
 // TDDPhaseRecord represents a single TDD phase (red/green/refactor) event in the JSONL log.

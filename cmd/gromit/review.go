@@ -436,6 +436,9 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 
 	logAdapter := &cliLogWriter{
 		logsDir: cfg.Paths.Logs,
+		promptDiagnosticsProvider: func() *prompt.PromptDiagnostics {
+			return renderer.LastDiagnostics()
+		},
 	}
 
 	stateAdapter := &cliStateManager{
@@ -660,7 +663,8 @@ func (r *cliClaudeRunner) Run(ctx context.Context, prompt string, model string) 
 
 // cliLogWriter adapts logger operations to pipeline.LogWriter interface
 type cliLogWriter struct {
-	logsDir string
+	logsDir                   string
+	promptDiagnosticsProvider func() *prompt.PromptDiagnostics
 }
 
 func (w *cliLogWriter) Write(entry any) error {
@@ -692,6 +696,9 @@ func (w *cliLogWriter) Write(entry any) error {
 		BeadsCreated:   logEntry.BeadsCreated,
 		BacklogCreated: logEntry.BacklogCreated,
 		DurationMs:     0, // Duration tracked by caller if needed
+	}
+	if w.promptDiagnosticsProvider != nil {
+		reviewLog.PromptDiagnostics = w.promptDiagnosticsProvider()
 	}
 
 	return log.LogReview(reviewLog)

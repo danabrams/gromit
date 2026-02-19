@@ -179,6 +179,8 @@ func (r *exploreAgentResolver) Resolve(phase string, flagOverride string, choose
 // explorePromptRenderer adapts prompt.Renderer to pipeline.PromptRenderer
 type explorePromptRenderer struct {
 	renderer *prompt.Renderer
+	// lastDiagnostics captures section-level prompt token estimates for explore prompts.
+	lastDiagnostics *prompt.PromptDiagnostics
 }
 
 func (r *explorePromptRenderer) RenderRefine(input *pipeline.RefinePromptInput) (string, error) {
@@ -222,6 +224,49 @@ func (r *explorePromptRenderer) RenderExplore(input *pipeline.ExplorePromptInput
 	gromitDir := r.renderer.GetGromitDir()
 	specsDir := r.renderer.GetSpecsDir()
 
+	learningsSection := fmt.Sprintf(`#### Confirmed Patterns
+
+%s
+
+#### Recent Learnings
+
+%s`, confirmedLearnings, recentLearnings)
+	instructionsSection := `You are running an exploration session. Your goal is to brainstorm a big idea or problem space and break it down into concrete, actionable artifacts.
+
+### What To Do
+
+1. **Understand the problem space** — If a topic was provided above, start there. Otherwise, ask the user what they want to explore. Read relevant code and docs to ground your understanding.
+
+2. **Brainstorm broadly** — Think through the problem from multiple angles. Consider user needs, technical constraints, edge cases, and alternative approaches. Discuss ideas with the user — this is a collaborative session.
+
+3. **Break it down** — As ideas crystallize, capture them as the appropriate artifact type:
+
+   - **Backlog items** — Quick ideas, rough feature requests, bugs, or chores. Add these by running: gromit add "<idea>". Optionally provide context when prompted. These flow through the refine → plan → decompose pipeline later.
+   - **Specs** — For ideas that are well-understood enough to specify, write a spec file to %s/<name>.md. A spec describes what to build, why, acceptance criteria, and key decisions. See existing specs in that directory for the format.
+   - **Epics** — For large initiatives that span multiple specs, write an epic file to %s/epics/<name>.md with frontmatter containing epic_id and created fields.
+
+4. **Prefer backlog items** — When in doubt, use gromit add. Backlog items are cheap and get refined later. Only write specs for ideas you've discussed enough to specify clearly. Only create epics when the scope genuinely spans multiple independent specs.
+
+### What NOT To Do
+
+- Do NOT implement features or write production code
+- Do NOT create beads with bd create — that happens during decomposition
+- Do NOT skip the conversation — explore with the user, don't just dump a list of ideas
+
+### Session Flow
+
+Start by understanding the topic, then alternate between discussing ideas and capturing them. End the session when the problem space feels well-mapped and the key ideas have been captured as artifacts.`
+	if r != nil {
+		sectionTokens := prompt.EstimateSectionTokens(map[string]string{
+			"topic":                topic,
+			prompt.SectionClaudeMD: claudeMD,
+			prompt.SectionRules:    rules,
+			"learnings":            learningsSection,
+			"instructions":         fmt.Sprintf(instructionsSection, specsDir, gromitDir),
+		})
+		r.lastDiagnostics = prompt.NewDiagnostics("explore", sectionTokens)
+	}
+
 	// Build the system prompt
 	var sb strings.Builder
 
@@ -263,35 +308,23 @@ Specs directory: %s
 	// Learnings
 	sb.WriteString(fmt.Sprintf(`### Learnings
 
-#### Confirmed Patterns
-
 %s
 
-#### Recent Learnings
-
-%s
-
-`, confirmedLearnings, recentLearnings))
+`, learningsSection))
 
 	// Exploration instructions
 	sb.WriteString("## Instructions\n\n")
-	sb.WriteString("You are running an exploration session. Your goal is to brainstorm a big idea or problem space and break it down into concrete, actionable artifacts.\n\n")
-	sb.WriteString("### What To Do\n\n")
-	sb.WriteString("1. **Understand the problem space** — If a topic was provided above, start there. Otherwise, ask the user what they want to explore. Read relevant code and docs to ground your understanding.\n\n")
-	sb.WriteString("2. **Brainstorm broadly** — Think through the problem from multiple angles. Consider user needs, technical constraints, edge cases, and alternative approaches. Discuss ideas with the user — this is a collaborative session.\n\n")
-	sb.WriteString("3. **Break it down** — As ideas crystallize, capture them as the appropriate artifact type:\n\n")
-	sb.WriteString("   - **Backlog items** — Quick ideas, rough feature requests, bugs, or chores. Add these by running: gromit add \"<idea>\". Optionally provide context when prompted. These flow through the refine → plan → decompose pipeline later.\n")
-	sb.WriteString(fmt.Sprintf("   - **Specs** — For ideas that are well-understood enough to specify, write a spec file to %s/<name>.md. A spec describes what to build, why, acceptance criteria, and key decisions. See existing specs in that directory for the format.\n", specsDir))
-	sb.WriteString(fmt.Sprintf("   - **Epics** — For large initiatives that span multiple specs, write an epic file to %s/epics/<name>.md with frontmatter containing epic_id and created fields.\n\n", gromitDir))
-	sb.WriteString("4. **Prefer backlog items** — When in doubt, use gromit add. Backlog items are cheap and get refined later. Only write specs for ideas you've discussed enough to specify clearly. Only create epics when the scope genuinely spans multiple independent specs.\n\n")
-	sb.WriteString("### What NOT To Do\n\n")
-	sb.WriteString("- Do NOT implement features or write production code\n")
-	sb.WriteString("- Do NOT create beads with bd create — that happens during decomposition\n")
-	sb.WriteString("- Do NOT skip the conversation — explore with the user, don't just dump a list of ideas\n\n")
-	sb.WriteString("### Session Flow\n\n")
-	sb.WriteString("Start by understanding the topic, then alternate between discussing ideas and capturing them. End the session when the problem space feels well-mapped and the key ideas have been captured as artifacts.\n")
+	sb.WriteString(fmt.Sprintf(instructionsSection, specsDir, gromitDir))
+	sb.WriteString("\n")
 
 	return sb.String(), nil
+}
+
+func (r *explorePromptRenderer) LastDiagnostics() *prompt.PromptDiagnostics {
+	if r == nil {
+		return nil
+	}
+	return r.lastDiagnostics
 }
 
 // exploreBacklogClient adapts backlog.File to pipeline.BacklogClient

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/scope"
 )
 
@@ -95,6 +98,83 @@ func TestResolveReviewNonInteractiveTimeout_Defaults(t *testing.T) {
 
 	if timeout != 900 {
 		t.Errorf("expected default thorough review timeout 900, got %d", timeout)
+	}
+}
+
+func TestCliLogWriter_WriteIncludesPromptDiagnosticsFromProvider(t *testing.T) {
+	logsDir := t.TempDir()
+	wantDiagnostics := &prompt.PromptDiagnostics{
+		PromptType:      "thorough_review",
+		EstimatedTokens: 55,
+		SectionTokens: map[string]int{
+			prompt.SectionDiff: 55,
+		},
+	}
+	writer := &cliLogWriter{
+		logsDir: logsDir,
+		promptDiagnosticsProvider: func() *prompt.PromptDiagnostics {
+			return wantDiagnostics
+		},
+	}
+
+	entry := &pipeline.LogEntry{
+		Type:           "review",
+		Passed:         true,
+		FixesApplied:   1,
+		BeadsCreated:   2,
+		BacklogCreated: 3,
+		Model:          "sonnet",
+	}
+	if err := writer.Write(entry); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("Glob() error = %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(files))
+	}
+
+	content, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 log line, got %d", len(lines))
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &raw); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	diagRaw, ok := raw["prompt_diagnostics"]
+	if !ok {
+		t.Fatalf("expected prompt_diagnostics in review log entry: %s", lines[0])
+	}
+	diagMap, ok := diagRaw.(map[string]any)
+	if !ok {
+		t.Fatalf("prompt_diagnostics has unexpected type %T", diagRaw)
+	}
+	if got, _ := diagMap["prompt_type"].(string); got != "thorough_review" {
+		t.Fatalf("prompt_type = %q, want %q", got, "thorough_review")
+	}
+}
+
+func TestRunReviewNonInteractive_WiresRendererLastDiagnosticsIntoLogAdapter(t *testing.T) {
+	data, err := os.ReadFile("review.go")
+	if err != nil {
+		t.Fatalf("ReadFile(review.go) error = %v", err)
+	}
+
+	source := string(data)
+	if !strings.Contains(source, "promptDiagnosticsProvider") {
+		t.Fatal("review.go missing promptDiagnosticsProvider wiring in non-interactive review path")
+	}
+	if !strings.Contains(source, "renderer.LastDiagnostics()") {
+		t.Fatal("runReviewNonInteractive should wire renderer.LastDiagnostics() to the log adapter")
 	}
 }
 
