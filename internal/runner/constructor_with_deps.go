@@ -20,12 +20,16 @@ import (
 
 // Deps holds injectable dependencies for a Runner, used for testing.
 type Deps struct {
-	Beads     BeadClient
-	Router    *provider.Router
-	Analyzer  FailureAnalyzer
-	Renderer  PromptRenderer
-	Logger    IterationLogger
-	CmdRunner func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error)
+	Beads             BeadClient
+	Router            *provider.Router
+	Analyzer          FailureAnalyzer
+	Renderer          PromptRenderer
+	Logger            IterationLogger
+	EscalationPolicy  policy.EscalationPolicy
+	MethodologyPolicy policy.MethodologyPolicy
+	ValidationPolicy  policy.ValidationPolicy
+	StuckPolicy       policy.StuckPolicy
+	CmdRunner         func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error)
 }
 
 // newRunnerWithDepsImpl creates a runner with explicitly provided dependencies.
@@ -78,9 +82,10 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 		analyzer:          deps.Analyzer,
 		renderer:          deps.Renderer,
 		logger:            iterLogger,
-		escalationPolicy:  policy.NewConfigEscalationPolicy(cfg),
-		methodologyPolicy: policy.NewConfigMethodologyPolicy(cfg),
-		validationPolicy:  policy.NewConfigValidationPolicy(cfg),
+		escalationPolicy:  deps.EscalationPolicy,
+		methodologyPolicy: deps.MethodologyPolicy,
+		validationPolicy:  deps.ValidationPolicy,
+		stuckPolicy:       deps.StuckPolicy,
 		output:            syncOut,
 		syncOut:           syncOut,
 		gromitDir:         gromitDir,

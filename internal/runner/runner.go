@@ -64,6 +64,7 @@ type Runner struct {
 	escalationPolicy   policy.EscalationPolicy
 	methodologyPolicy  policy.MethodologyPolicy
 	validationPolicy   policy.ValidationPolicy
+	stuckPolicy        policy.StuckPolicy
 	methodologyExec    *methodology.Executor
 	validationRunner   *validation.Runner
 	reviewer           *reviewpkg.Reviewer
