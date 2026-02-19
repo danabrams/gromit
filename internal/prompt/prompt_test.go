@@ -921,6 +921,51 @@ Model: {{.Model}}`
 	}
 }
 
+func TestRenderTDDBuild_CoverageStateSection(t *testing.T) {
+	r := setupRealTemplateRenderer(t)
+
+	ctx := &Context{
+		Bead:            testBead(),
+		Model:           "sonnet",
+		Iteration:       1,
+		CoverageState:   "Remaining uncovered: #2, #3",
+		TargetCriterion: "Criterion #2: must validate input",
+	}
+
+	result, err := r.RenderTDDBuild(ctx)
+	if err != nil {
+		t.Fatalf("RenderTDDBuild() error = %v", err)
+	}
+	if !strings.Contains(result, "Coverage State") {
+		t.Error("expected coverage state section header in output")
+	}
+	if !strings.Contains(result, "Target criterion: Criterion #2: must validate input") {
+		t.Error("expected target criterion line in output")
+	}
+	if !strings.Contains(result, "Remaining uncovered: #2, #3") {
+		t.Error("expected coverage state details in output")
+	}
+}
+
+func TestRenderTDDBuild_CoverageStateSectionAbsentWhenEmpty(t *testing.T) {
+	r := setupRealTemplateRenderer(t)
+
+	ctx := &Context{
+		Bead:      testBead(),
+		Model:     "sonnet",
+		Iteration: 1,
+		// CoverageState and TargetCriterion intentionally empty
+	}
+
+	result, err := r.RenderTDDBuild(ctx)
+	if err != nil {
+		t.Fatalf("RenderTDDBuild() error = %v", err)
+	}
+	if strings.Contains(result, "## Coverage State") {
+		t.Error("Coverage State section should be absent when CoverageState is empty")
+	}
+}
+
 func TestTDDRedContextFields(t *testing.T) {
 	tp := reflect.TypeOf(TDDRedContext{})
 	got := make([]string, 0, tp.NumField())

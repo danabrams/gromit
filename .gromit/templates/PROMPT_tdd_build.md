@@ -34,6 +34,11 @@ The following validation failures occurred in recent beads during this run. Avoi
 {{end}}
 {{end}}
 
+{{if .CoverageState}}
+## Coverage State
+Target criterion: {{.TargetCriterion}}
+{{.CoverageState}}
+{{end}}
 ## Project Context
 
 {{if .ClaudeMD}}
