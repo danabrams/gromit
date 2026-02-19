@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/spf13/cobra"
@@ -112,7 +113,10 @@ func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.G
 		fmt.Println()
 		fmt.Println("Cost per spec (by total cost):")
 		for _, entry := range sortedSpecCosts(costPerSpec) {
-			fmt.Printf("  %s: $%.2f\n", entry.specID, entry.cost.TotalCostUSD)
+			fmt.Printf("  %s: $%.2f  %d iter  %d beads  [%s]\n",
+				entry.specID, entry.cost.TotalCostUSD,
+				entry.cost.Iterations, entry.cost.Beads,
+				formatModelMix(entry.cost.ModelMix))
 		}
 	}
 
@@ -192,4 +196,18 @@ func calculateAvgCost(totalCost float64, iterations int) float64 {
 		return 0.0
 	}
 	return totalCost / float64(iterations)
+}
+
+// formatModelMix formats the model mix map as a sorted "model:count" string
+func formatModelMix(mix map[string]int) string {
+	models := make([]string, 0, len(mix))
+	for m := range mix {
+		models = append(models, m)
+	}
+	sort.Strings(models)
+	parts := make([]string, 0, len(models))
+	for _, m := range models {
+		parts = append(parts, fmt.Sprintf("%s:%d", m, mix[m]))
+	}
+	return strings.Join(parts, ", ")
 }

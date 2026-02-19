@@ -804,6 +804,69 @@ func TestStatsCmd_ShowsEscalationFrequency(t *testing.T) {
 	}
 }
 
+func TestStatsCmd_ShowsIterationsAndBeadsInSpecOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// 3 iterations (b1 retried once), 2 distinct beads, model mix haiku:1 opus:2
+	runID := "20260211-120000"
+	logs := []logger.IterationLog{
+		{BeadID: "bead-1", SpecID: "spec-X", Model: "haiku", Success: false, CostUSD: 0.05, DurationMs: 1000},
+		{BeadID: "bead-1", SpecID: "spec-X", Model: "opus", Success: true, CostUSD: 0.40, DurationMs: 3000},
+		{BeadID: "bead-2", SpecID: "spec-X", Model: "opus", Success: true, CostUSD: 0.45, DurationMs: 3500},
+	}
+
+	logFilePath := filepath.Join(logsDir, "run-"+runID+".jsonl")
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		t.Fatalf("failed to create log file: %v", err)
+	}
+	encoder := json.NewEncoder(logFile)
+	for _, log := range logs {
+		if err := encoder.Encode(log); err != nil {
+			t.Fatalf("failed to write log entry: %v", err)
+		}
+	}
+	logFile.Close()
+
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command failed: %v", err)
+		}
+	})
+
+	// Should show iteration count (3), bead count (2), and model mix
+	if !strings.Contains(output, "3 iter") {
+		t.Errorf("output should show 3 iterations for spec-X, got:\n%s", output)
+	}
+	if !strings.Contains(output, "2 bead") {
+		t.Errorf("output should show 2 beads for spec-X, got:\n%s", output)
+	}
+	if !strings.Contains(output, "haiku:1") {
+		t.Errorf("output should show model mix haiku:1, got:\n%s", output)
+	}
+	if !strings.Contains(output, "opus:2") {
+		t.Errorf("output should show model mix opus:2, got:\n%s", output)
+	}
+}
+
 // captureStdout captures stdout during function execution for testing
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
