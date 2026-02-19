@@ -1049,6 +1049,60 @@ func TestLogTDDPhase_NilLoggerReturnsNil(t *testing.T) {
 	}
 }
 
+// TestLogTDDSummary_WritesRecordToJSONL verifies LogTDDSummary writes a TDDSummaryRecord
+// to the JSONL log file using the existing encoder pattern.
+func TestLogTDDSummary_WritesRecordToJSONL(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	rec := &TDDSummaryRecord{
+		Type:            "tdd_summary",
+		Timestamp:       time.Now(),
+		BeadID:          "bead-456",
+		TotalCycles:     4,
+		TotalPhases:     12,
+		Success:         true,
+		TotalDurationMs: 30000,
+	}
+
+	if err := l.LogTDDSummary(rec); err != nil {
+		t.Fatalf("LogTDDSummary() error: %v", err)
+	}
+
+	data, err := os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+	content := string(data)
+
+	if !contains(content, `"type":"tdd_summary"`) {
+		t.Errorf("log should contain type tdd_summary, got: %s", content)
+	}
+	if !contains(content, `"bead_id":"bead-456"`) {
+		t.Errorf("log should contain bead_id, got: %s", content)
+	}
+	if !contains(content, `"total_cycles":4`) {
+		t.Errorf("log should contain total_cycles 4, got: %s", content)
+	}
+	if !contains(content, `"total_duration_ms":30000`) {
+		t.Errorf("log should contain total_duration_ms, got: %s", content)
+	}
+}
+
+// TestLogTDDSummary_NilLoggerReturnsNil verifies that calling LogTDDSummary on a nil
+// Logger returns nil without panicking.
+func TestLogTDDSummary_NilLoggerReturnsNil(t *testing.T) {
+	var l *Logger
+	rec := &TDDSummaryRecord{Type: "tdd_summary", BeadID: "b1"}
+	if err := l.LogTDDSummary(rec); err != nil {
+		t.Errorf("nil logger LogTDDSummary should return nil, got: %v", err)
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsAt(s, substr))

@@ -194,6 +194,17 @@ func (l *Logger) LogTDDPhase(rec *TDDPhaseRecord) error {
 	return l.encoder.Encode(rec)
 }
 
+// LogTDDSummary writes a TDD summary record to the log
+func (l *Logger) LogTDDSummary(rec *TDDSummaryRecord) error {
+	if l == nil {
+		return nil
+	}
+	if err := l.ensureFile(); err != nil {
+		return err
+	}
+	return l.encoder.Encode(rec)
+}
+
 // Close closes the log file
 func (l *Logger) Close() error {
 	if l == nil || l.file == nil {
