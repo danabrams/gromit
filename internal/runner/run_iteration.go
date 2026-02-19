@@ -140,10 +140,15 @@ func (r *Runner) processSingleBead(
 	latest, err := r.beads.Show(b.ID)
 	if err != nil {
 		r.log("Warning: failed to re-check bead status for %s: %v", b.ID, err)
-	} else if latest != nil && strings.EqualFold(latest.Status, "closed") {
-		r.log("Bead %s is already closed; skipping", b.ID)
-		st.skippedBeads[b.ID] = true
-		return false, nil
+	} else if latest != nil {
+		if strings.EqualFold(latest.Status, "closed") {
+			r.log("Bead %s is already closed; skipping", b.ID)
+			st.skippedBeads[b.ID] = true
+			return false, nil
+		}
+		// bd ready omits the parent field; backfill from bd show
+		// so the proactive-decomposition child guard works.
+		b.Parent = latest.Parent
 	}
 
 	passed, precheckDuration := r.runPrecheck(ctx, b)
