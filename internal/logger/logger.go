@@ -404,13 +404,23 @@ func isIterationLogRecord(raw json.RawMessage) bool {
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return false
 	}
-	if _, ok := fields["iteration"]; !ok {
+	return hasRequiredIterationFields(fields)
+}
+
+func hasRequiredIterationFields(fields map[string]json.RawMessage) bool {
+	const (
+		fieldIteration = "iteration"
+		fieldBeadID    = "bead_id"
+		fieldSuccess   = "success"
+	)
+
+	if _, ok := fields[fieldIteration]; !ok {
 		return false
 	}
-	if _, ok := fields["bead_id"]; !ok {
+	if _, ok := fields[fieldBeadID]; !ok {
 		return false
 	}
-	if _, ok := fields["success"]; !ok {
+	if _, ok := fields[fieldSuccess]; !ok {
 		return false
 	}
 	return true

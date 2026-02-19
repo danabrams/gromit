@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
