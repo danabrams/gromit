@@ -39,6 +39,11 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 gpt-5.3-codex averages $22.77/iteration vs $2.46 for gpt-5.2-codex (9x) despite similar per-token pricing. Top 4 most expensive iterations in the last 30 were all 5.3-codex ($55, $42, $42, $22). Token counts are reported as 0 for all codex iterations, so root cause (prompt size vs output verbosity vs retry loops) cannot be diagnosed. Until token reporting is fixed and the cause identified, prefer gpt-5.2-codex for cost-sensitive routing.
 
+### 2026-02-19 | Codex Token Reporting Must Parse Output Metrics | patterns
+*Related to: gpt-5.3-codex Structural Cost Multiplier*
+
+Codex provider runs must parse token usage from the provider output and populate `input_tokens` and `output_tokens` in `iteration_metrics.jsonl`, matching Claudeâ€™s token-reporting path. Leaving both values at zero hides root causes for cost anomalies (e.g., 9x cost difference between gpt-5.3-codex and gpt-5.2-codex), so parse and surface token metrics at the same stage Codex output is consumed.
+
 ### 2026-02-18 | Documentation Test Enforcement for RULES.md | conventions
 Documentation tests in bead_sizing_docs_test.go enforce that RULES.md stays in sync with implemented behavior. Any changes to file sizing rules must update both the code AND the corresponding RULES.md documentation section.
 
@@ -72,9 +77,12 @@ The acceptance test line budget is at 61.5% utilization (3,688 of 6,000 lines) â
 
 The debug command's --model flag defaults to opus so the model override block always executes for the Claude agent, silently discarding any resolved agent configuration.
 
+### 2026-02-19 | Factory Functions Must Propagate Errors | gotchas
+
+Constructor/factory functions that call other functions which can fail (e.g., backlog.NewFile) must return (*T, error) and propagate errors to callers. Returning nil on error without changing the signature leaves callers unable to detect failure. The createRefinePipeline function returned nil on backlog.NewFile failure, but was called at line 61 without nil checks, causing a panic when dereferencing. Solution: change signature to return error and check it before using the result.
+
 ---
 
 ## Archived
 
 *Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
-
