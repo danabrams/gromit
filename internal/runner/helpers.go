@@ -84,19 +84,20 @@ func (r *Runner) updateTouchedPackages(packages []string) {
 	}
 }
 
-// defaultCmdRunner executes a shell command and returns stdout, stderr, exit code.
-// Non-zero exit codes are returned as exitCode (not as an error).
-func defaultCmdRunner(ctx context.Context, command string, workDir string) (string, string, int, error) {
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+var nonInteractiveEnv = []string{
+	"GIT_TERMINAL_PROMPT=0",
+	"CI=1",
+	"NONINTERACTIVE=1",
+	"TERM=dumb",
+}
+
+func prepareCommand(cmd *exec.Cmd, workDir string) {
 	cmd.Dir = workDir
 	cmd.Stdin = bytes.NewReader(nil)
-	cmd.Env = append(
-		os.Environ(),
-		"GIT_TERMINAL_PROMPT=0",
-		"CI=1",
-		"NONINTERACTIVE=1",
-		"TERM=dumb",
-	)
+	cmd.Env = append(os.Environ(), nonInteractiveEnv...)
+}
+
+func runCommand(cmd *exec.Cmd) (string, string, int, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -110,30 +111,20 @@ func defaultCmdRunner(ctx context.Context, command string, workDir string) (stri
 	return stdout.String(), stderr.String(), 0, nil
 }
 
+// defaultCmdRunner executes a shell command and returns stdout, stderr, exit code.
+// Non-zero exit codes are returned as exitCode (not as an error).
+func defaultCmdRunner(ctx context.Context, command string, workDir string) (string, string, int, error) {
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	prepareCommand(cmd, workDir)
+	return runCommand(cmd)
+}
+
 // defaultArgvRunner executes a program with explicit args and returns stdout, stderr, exit code.
 // Non-zero exit codes are returned as exitCode (not as an error).
 func defaultArgvRunner(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
 	cmd := exec.CommandContext(ctx, program, args...)
-	cmd.Dir = workDir
-	cmd.Stdin = bytes.NewReader(nil)
-	cmd.Env = append(
-		os.Environ(),
-		"GIT_TERMINAL_PROMPT=0",
-		"CI=1",
-		"NONINTERACTIVE=1",
-		"TERM=dumb",
-	)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return stdout.String(), stderr.String(), exitErr.ExitCode(), nil
-		}
-		return stdout.String(), stderr.String(), -1, err
-	}
-	return stdout.String(), stderr.String(), 0, nil
+	prepareCommand(cmd, workDir)
+	return runCommand(cmd)
 }
 
 // runCmd calls the injectable cmdRunnerFn, falling back to defaultCmdRunner if unset.
