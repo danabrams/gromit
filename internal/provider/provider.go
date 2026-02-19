@@ -73,6 +73,7 @@ type Provider interface {
 //   - gpt-4o → medium
 //   - gpt-4o-mini → low
 //   - gpt-5.3-codex → medium
+//   - gpt-5.3-codex-spark → low
 //
 // Unrecognized model names are returned unchanged for forward compatibility.
 // Case-insensitive matching allows for flexible config formats (e.g., "Opus" or "OPUS").
@@ -88,7 +89,8 @@ func TierFromLegacyModel(modelName string) string {
 		"gpt-4o":      TierMedium,
 		"gpt-4o-mini": TierLow,
 		// Codex models
-		"gpt-5.3-codex": TierMedium,
+		"gpt-5.3-codex":       TierMedium,
+		"gpt-5.3-codex-spark": TierLow,
 	}
 
 	// Check for known model (case-insensitive)

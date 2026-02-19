@@ -4010,6 +4010,39 @@ providers:
 	}
 }
 
+func TestProviderDefReasoningEffortUnmarshal(t *testing.T) {
+	yamlContent := `
+providers:
+  openai:
+    binary: codex
+    reasoning_effort:
+      high: high
+      medium: medium
+      low: low
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	openai := cfg.Providers["openai"]
+	if openai.ReasoningEffort["high"] != "high" {
+		t.Errorf("openai.ReasoningEffort[high] = %q, want %q", openai.ReasoningEffort["high"], "high")
+	}
+	if openai.ReasoningEffort["medium"] != "medium" {
+		t.Errorf("openai.ReasoningEffort[medium] = %q, want %q", openai.ReasoningEffort["medium"], "medium")
+	}
+	if openai.ReasoningEffort["low"] != "low" {
+		t.Errorf("openai.ReasoningEffort[low] = %q, want %q", openai.ReasoningEffort["low"], "low")
+	}
+}
+
 func TestProviderDefCostFieldsDefaultToZero(t *testing.T) {
 	yamlContent := `
 providers:

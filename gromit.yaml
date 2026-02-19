@@ -35,9 +35,13 @@ providers:
     prompt_flag: "--prompt"
     models:
       high: gpt-5.3-codex
-      medium: gpt-5.2-codex
+      medium: gpt-5.3-codex
       low: gpt-5.3-codex-spark
-    cost_per_1k_input: 0.00175    # gpt-5.2-codex baseline (medium tier)
+    reasoning_effort:
+      high: high
+      medium: medium
+      low: low
+    cost_per_1k_input: 0.00175    # medium-tier baseline
     cost_per_1k_output: 0.014
     model_costs:
       gpt-5.3-codex:                # high tier (~5x medium, opus/sonnet ratio)

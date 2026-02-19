@@ -356,7 +356,9 @@ func buildVerifySpecProviders(cfg *config.Config) (map[string]provider.Provider,
 			if len(tierMap) == 0 {
 				tierMap = defaultVerifySpecCodexTierToModelMap()
 			}
-			providers[name] = provider.NewCodexProvider(def.Binary, def.Flags, tierMap)
+			codexProvider := provider.NewCodexProvider(def.Binary, def.Flags, tierMap)
+			codexProvider.SetReasoningEffort(def.ReasoningEffort)
+			providers[name] = codexProvider
 		default:
 			return nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\" and \"codex\"", name)
 		}
@@ -376,7 +378,7 @@ func defaultVerifySpecCodexTierToModelMap() map[string]string {
 	return map[string]string{
 		provider.TierHigh:   "gpt-5.3-codex",
 		provider.TierMedium: "gpt-5.3-codex",
-		provider.TierLow:    "gpt-5.3-codex",
+		provider.TierLow:    "gpt-5.3-codex-spark",
 	}
 }
 

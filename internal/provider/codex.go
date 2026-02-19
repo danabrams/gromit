@@ -23,10 +23,11 @@ const (
 
 // CodexProvider wraps the Codex CLI and implements the Provider interface
 type CodexProvider struct {
-	binaryPath  string
-	flags       []string
-	tierToModel map[string]string
-	sleepFn     func(context.Context, time.Duration) error
+	binaryPath      string
+	flags           []string
+	tierToModel     map[string]string
+	tierToReasoning map[string]string
+	sleepFn         func(context.Context, time.Duration) error
 }
 
 const (
@@ -43,10 +44,29 @@ var _ Provider = (*CodexProvider)(nil)
 // NewCodexProvider creates a new CodexProvider with the given configuration
 func NewCodexProvider(binaryPath string, flags []string, tierToModel map[string]string) *CodexProvider {
 	return &CodexProvider{
-		binaryPath:  binaryPath,
-		flags:       flags,
-		tierToModel: tierToModel,
-		sleepFn:     sleepWithContext,
+		binaryPath:      binaryPath,
+		flags:           flags,
+		tierToModel:     tierToModel,
+		tierToReasoning: map[string]string{},
+		sleepFn:         sleepWithContext,
+	}
+}
+
+// SetReasoningEffort configures per-tier reasoning effort (for example:
+// {"high":"high","medium":"medium"}), which is forwarded to Codex via
+// `-c model_reasoning_effort="<value>"` when the tier is invoked.
+func (cp *CodexProvider) SetReasoningEffort(tierToReasoning map[string]string) {
+	if cp == nil {
+		return
+	}
+	cp.tierToReasoning = map[string]string{}
+	for tier, effort := range tierToReasoning {
+		key := strings.ToLower(strings.TrimSpace(tier))
+		val := strings.ToLower(strings.TrimSpace(effort))
+		if key == "" || val == "" {
+			continue
+		}
+		cp.tierToReasoning[key] = val
 	}
 }
 
@@ -72,7 +92,7 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 	}
 
 	model := cp.ModelForTier(tier)
-	args := cp.buildCommandArgs(model, true)
+	args := cp.buildCommandArgsForTier(model, tier, true)
 	env, effectiveCodexHome, err := prepareCodexEnv()
 	if err != nil {
 		return nil, err
@@ -109,7 +129,7 @@ func (cp *CodexProvider) StreamRun(ctx context.Context, prompt string, tier stri
 func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier string, output io.Writer,
 	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	model := cp.ModelForTier(tier)
-	args := cp.buildStreamCommandArgs(model, handler != nil)
+	args := cp.buildStreamCommandArgsForTier(model, tier, handler != nil)
 	cmd := execCommandContext(ctx, cp.binaryPath, args...)
 	cmd.WaitDelay = 100 * time.Millisecond
 	if output != nil {
@@ -535,17 +555,25 @@ func (cp *CodexProvider) IsScopeTooLarge(result *Result) (bool, string) {
 // If user flags include --dangerously-bypass-approvals-and-sandbox, --full-auto is
 // omitted because the two flags are mutually exclusive in the Codex CLI.
 func (cp *CodexProvider) buildCommandArgs(model string, jsonMode bool) []string {
-	return cp.buildExecCommandArgs(model, "never", jsonMode)
+	return cp.buildCommandArgsForTier(model, "", jsonMode)
 }
 
 // buildStreamCommandArgs constructs command arguments for streaming invocations.
 // Always includes --json to ensure cost/token data is captured from JSONL events.
 // The jsonMode parameter is ignored; JSON mode is always enabled for streaming.
 func (cp *CodexProvider) buildStreamCommandArgs(model string, _ bool) []string {
-	return cp.buildExecCommandArgs(model, "auto", true)
+	return cp.buildStreamCommandArgsForTier(model, "", true)
 }
 
-func (cp *CodexProvider) buildExecCommandArgs(model string, colorMode string, jsonMode bool) []string {
+func (cp *CodexProvider) buildCommandArgsForTier(model, tier string, jsonMode bool) []string {
+	return cp.buildExecCommandArgs(model, tier, "never", jsonMode)
+}
+
+func (cp *CodexProvider) buildStreamCommandArgsForTier(model, tier string, _ bool) []string {
+	return cp.buildExecCommandArgs(model, tier, "auto", true)
+}
+
+func (cp *CodexProvider) buildExecCommandArgs(model, tier, colorMode string, jsonMode bool) []string {
 	args := make([]string, 0, len(cp.flags)+12)
 	args = append(args, "exec")
 	args = append(args, cp.flags...)
@@ -557,6 +585,9 @@ func (cp *CodexProvider) buildExecCommandArgs(model string, colorMode string, js
 	args = append(args, "--skip-git-repo-check")
 	args = append(args, "--color", colorMode)
 	args = append(args, "--model", model)
+	if effort, ok := cp.reasoningEffortForTier(tier); ok && !hasReasoningEffortConfig(cp.flags) {
+		args = append(args, "-c", fmt.Sprintf("model_reasoning_effort=%q", effort))
+	}
 	if jsonMode {
 		args = append(args, "--json")
 	}
@@ -564,10 +595,36 @@ func (cp *CodexProvider) buildExecCommandArgs(model string, colorMode string, js
 	return args
 }
 
+func (cp *CodexProvider) reasoningEffortForTier(tier string) (string, bool) {
+	if cp == nil || len(cp.tierToReasoning) == 0 {
+		return "", false
+	}
+	effort, ok := cp.tierToReasoning[strings.ToLower(strings.TrimSpace(tier))]
+	if !ok || strings.TrimSpace(effort) == "" {
+		return "", false
+	}
+	return effort, true
+}
+
 func hasBypassApprovalsAndSandbox(flags []string) bool {
 	for _, f := range flags {
 		if f == "--dangerously-bypass-approvals-and-sandbox" {
 			return true
+		}
+	}
+	return false
+}
+
+func hasReasoningEffortConfig(flags []string) bool {
+	for i := 0; i < len(flags); i++ {
+		flag := flags[i]
+		if strings.HasPrefix(flag, "--config") || strings.HasPrefix(flag, "-c") {
+			if strings.Contains(flag, "model_reasoning_effort") {
+				return true
+			}
+			if i+1 < len(flags) && strings.Contains(flags[i+1], "model_reasoning_effort") {
+				return true
+			}
 		}
 	}
 	return false

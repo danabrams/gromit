@@ -456,6 +456,41 @@ func TestCodexProviderBuildCommandArgsProducesCorrectOrder(t *testing.T) {
 	}
 }
 
+func TestCodexProviderBuildCommandArgsAddsReasoningEffortByTier(t *testing.T) {
+	cp := &CodexProvider{
+		binaryPath:      "/bin/codex",
+		flags:           []string{},
+		tierToModel:     map[string]string{TierHigh: "gpt-5.3-codex"},
+		tierToReasoning: map[string]string{TierHigh: "high"},
+	}
+
+	args := cp.buildCommandArgsForTier("gpt-5.3-codex", TierHigh, false)
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, `model_reasoning_effort="high"`) {
+		t.Fatalf("expected model_reasoning_effort high in args, got: %v", args)
+	}
+}
+
+func TestCodexProviderBuildCommandArgsDoesNotOverrideUserReasoningEffort(t *testing.T) {
+	cp := &CodexProvider{
+		binaryPath:      "/bin/codex",
+		flags:           []string{"-c", `model_reasoning_effort="medium"`},
+		tierToModel:     map[string]string{TierHigh: "gpt-5.3-codex"},
+		tierToReasoning: map[string]string{TierHigh: "high"},
+	}
+
+	args := cp.buildCommandArgsForTier("gpt-5.3-codex", TierHigh, false)
+	joined := strings.Join(args, " ")
+
+	if strings.Count(joined, "model_reasoning_effort") != 1 {
+		t.Fatalf("expected exactly one reasoning effort config, got args: %v", args)
+	}
+	if !strings.Contains(joined, `model_reasoning_effort="medium"`) {
+		t.Fatalf("expected user-provided reasoning effort to win, got args: %v", args)
+	}
+}
+
 // TestCodexProviderStreamRunWithJSONFlagAndStdin verifies that when EventHandler
 // is present, StreamRun adds --json flag AND uses stdin for prompt delivery.
 func TestCodexProviderStreamRunWithJSONFlagAndStdin(t *testing.T) {

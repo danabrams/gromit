@@ -308,6 +308,7 @@ type ProviderDef struct {
 	PromptDelivery  string                `yaml:"prompt_delivery"`
 	PromptFlag      string                `yaml:"prompt_flag"`
 	Models          map[string]string     `yaml:"models"`
+	ReasoningEffort map[string]string     `yaml:"reasoning_effort"`
 	CostPer1kInput  float64               `yaml:"cost_per_1k_input"`
 	CostPer1kOutput float64               `yaml:"cost_per_1k_output"`
 	ModelCosts      map[string]*ModelCost `yaml:"model_costs"`
@@ -488,6 +489,9 @@ func (c *Config) NormalizeNilFields() {
 		}
 		if def.Models == nil {
 			def.Models = make(map[string]string)
+		}
+		if def.ReasoningEffort == nil {
+			def.ReasoningEffort = make(map[string]string)
 		}
 		if def.ModelCosts == nil {
 			def.ModelCosts = map[string]*ModelCost{}

@@ -39,7 +39,7 @@ var defaultTierToModelMap = map[string]string{
 var defaultCodexTierToModelMap = map[string]string{
 	"high":   "gpt-5.3-codex",
 	"medium": "gpt-5.3-codex",
-	"low":    "gpt-5.3-codex",
+	"low":    "gpt-5.3-codex-spark",
 }
 
 func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Reviewer, error) {
@@ -217,7 +217,9 @@ func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider,
 			if len(tierMap) == 0 {
 				tierMap = defaultCodexTierToModelMap
 			}
-			providers[name] = provider.NewCodexProvider(def.Binary, def.Flags, tierMap)
+			codexProvider := provider.NewCodexProvider(def.Binary, def.Flags, tierMap)
+			codexProvider.SetReasoningEffort(def.ReasoningEffort)
+			providers[name] = codexProvider
 		default:
 			return nil, nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\" and \"codex\"", name)
 		}
