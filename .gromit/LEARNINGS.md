@@ -35,6 +35,10 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
+### 2026-02-19 | Preserve orchestrator behavior by re-running existing tests after extraction | patterns
+
+After refactoring the orchestrator and updating call-sites, keep the existing orchestrator regression tests as mandatory smoke coverage. Re-running tests in `internal/runner/` (especially `*orchestrator*_test.go` and cycle/fresh-context tests) validates behavior parity with prior execution paths and catches call-site regressions that unit tests in isolation may miss.
+
 ### 2026-02-19 | gpt-5.3-codex Structural Cost Multiplier | patterns
 
 gpt-5.3-codex averages $22.77/iteration vs $2.46 for gpt-5.2-codex (9x) despite similar per-token pricing. Top 4 most expensive iterations in the last 30 were all 5.3-codex ($55, $42, $42, $22). Token counts are reported as 0 for all codex iterations, so root cause (prompt size vs output verbosity vs retry loops) cannot be diagnosed. Until token reporting is fixed and the cause identified, prefer gpt-5.2-codex for cost-sensitive routing.
