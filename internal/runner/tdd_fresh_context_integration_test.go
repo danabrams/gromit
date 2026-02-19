@@ -65,3 +65,43 @@ func TestTDD_FreshContext_FullValidationAfterCycles(t *testing.T) {
 		t.Fatal("expected validation to run after successful fresh-context cycles")
 	}
 }
+
+func TestTDD_FreshContext_DelegatesToOrchestrator(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+
+	orchestratorCalled := false
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+			orchestratorCalled = true
+			return nil
+		},
+	}
+
+	b := newTestBead("tdd-fresh-context-1", "Implement feature with fresh context")
+	b.Labels = []string{"tdd:true"}
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !tddActive {
+		t.Fatal("expected tddActive=true")
+	}
+	if !done {
+		t.Fatal("expected done=true when orchestrator handles the cycles")
+	}
+	if !orchestratorCalled {
+		t.Fatal("expected fresh-context TDD to call the orchestrator")
+	}
+	if bc.Result.Error != nil {
+		t.Fatalf("expected no error, got %v", bc.Result.Error)
+	}
+	if !bc.Result.Success {
+		t.Fatal("expected success when orchestrator completes without error")
+	}
+}
