@@ -43,14 +43,18 @@ type IterationMetric struct {
 
 // ProcessTrendWindow summarizes metrics over the latest rolling window.
 type ProcessTrendWindow struct {
-	SuccessRate      float64 `json:"success_rate"`
-	FailureRate      float64 `json:"failure_rate"`
-	FirstPassSuccess float64 `json:"first_pass_success_rate"`
-	EscalationRate   float64 `json:"escalation_rate"`
-	AvgDurationMs    float64 `json:"avg_duration_ms"`
-	P95DurationMs    float64 `json:"p95_duration_ms"`
-	AvgCostUSD       float64 `json:"avg_cost_usd"`
-	AvgMTTRProxyMs   float64 `json:"avg_mttr_proxy_ms"`
+	SuccessRate           float64 `json:"success_rate"`
+	FailureRate           float64 `json:"failure_rate"`
+	FirstPassSuccess      float64 `json:"first_pass_success_rate"`
+	EscalationRate        float64 `json:"escalation_rate"`
+	AvgDurationMs         float64 `json:"avg_duration_ms"`
+	P95DurationMs         float64 `json:"p95_duration_ms"`
+	AvgCostUSD            float64 `json:"avg_cost_usd"`
+	AvgMTTRProxyMs        float64 `json:"avg_mttr_proxy_ms"`
+	PreflightFailureRate  float64 `json:"preflight_failure_rate"`
+	BuildFailureRate      float64 `json:"build_failure_rate"`
+	ValidationFailureRate float64 `json:"validation_failure_rate"`
+	TimeoutFailureRate    float64 `json:"timeout_failure_rate"`
 }
 
 // TrendControlLimit captures control-limit boundaries for a process metric.
@@ -443,6 +447,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 	}
 
 	var successes, firstPasses, escalations int
+	var preflightFailures, buildFailures, validationFailures, timeoutFailures int
 	var durationTotal int64
 	var costTotal float64
 	var mttrTotal int64
@@ -458,6 +463,16 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		}
 		if e.Escalated {
 			escalations++
+		}
+		switch e.FailurePhase {
+		case "preflight":
+			preflightFailures++
+		case "build":
+			buildFailures++
+		case "validation":
+			validationFailures++
+		case "timeout":
+			timeoutFailures++
 		}
 
 		durationTotal += e.DurationMs
@@ -479,14 +494,18 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 	}
 
 	return ProcessTrendWindow{
-		SuccessRate:      float64(successes) / count,
-		FailureRate:      float64(len(window)-successes) / count,
-		FirstPassSuccess: float64(firstPasses) / count,
-		EscalationRate:   float64(escalations) / count,
-		AvgDurationMs:    avgDuration,
-		P95DurationMs:    percentileInt64(durations, 95),
-		AvgCostUSD:       avgCost,
-		AvgMTTRProxyMs:   avgMTTR,
+		SuccessRate:           float64(successes) / count,
+		FailureRate:           float64(len(window)-successes) / count,
+		FirstPassSuccess:      float64(firstPasses) / count,
+		EscalationRate:        float64(escalations) / count,
+		AvgDurationMs:         avgDuration,
+		P95DurationMs:         percentileInt64(durations, 95),
+		AvgCostUSD:            avgCost,
+		AvgMTTRProxyMs:        avgMTTR,
+		PreflightFailureRate:  float64(preflightFailures) / count,
+		BuildFailureRate:      float64(buildFailures) / count,
+		ValidationFailureRate: float64(validationFailures) / count,
+		TimeoutFailureRate:    float64(timeoutFailures) / count,
 	}
 }
 

@@ -83,3 +83,25 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 		t.Errorf("FailureCategory = %q, want %q", got.FailureCategory, "rate_limited")
 	}
 }
+
+func TestSummarizeWindow_AllSuccessPhaseRatesZero(t *testing.T) {
+	window := []IterationLog{
+		{Success: true},
+		{Success: true},
+		{Success: true},
+	}
+
+	summary := summarizeWindow(window)
+	if summary.PreflightFailureRate != 0 {
+		t.Errorf("PreflightFailureRate = %v, want 0", summary.PreflightFailureRate)
+	}
+	if summary.BuildFailureRate != 0 {
+		t.Errorf("BuildFailureRate = %v, want 0", summary.BuildFailureRate)
+	}
+	if summary.ValidationFailureRate != 0 {
+		t.Errorf("ValidationFailureRate = %v, want 0", summary.ValidationFailureRate)
+	}
+	if summary.TimeoutFailureRate != 0 {
+		t.Errorf("TimeoutFailureRate = %v, want 0", summary.TimeoutFailureRate)
+	}
+}
