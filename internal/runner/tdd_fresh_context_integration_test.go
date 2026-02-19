@@ -211,3 +211,36 @@ func TestTDD_LabelOverride_TDDFalse_SkipsOrchestrator(t *testing.T) {
 		t.Fatal("expected orchestrator to be skipped when tdd:false label is present")
 	}
 }
+
+func TestTDD_ConfigToggle_PreservesExistingBehavior(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  false,
+			FreshContextPerCycle: true,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+
+	orchestratorCalled := false
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+			orchestratorCalled = true
+			return nil
+		},
+	}
+
+	b := newTestBead("tdd-config-toggle-1", "Implement feature without TDD")
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if tddActive {
+		t.Fatal("expected tddActive=false when methodology.tdd is disabled")
+	}
+	if done {
+		t.Fatal("expected done=false when TDD is disabled in config")
+	}
+	if orchestratorCalled {
+		t.Fatal("expected orchestrator not to run when methodology.tdd=false")
+	}
+}
