@@ -219,6 +219,42 @@ func TestBuildProcessTrend_BuildRateSpikeTriggersHighSeverityAnomaly(t *testing.
 	}
 }
 
+func TestBuildProcessTrend_PhaseRateControlLimitsClampedToZeroOne(t *testing.T) {
+	// High-variance data: alternating 0/1 build failure rates produce UCL>1 and LCL<0 before clamping.
+	metrics := make([]IterationMetric, 10)
+	for i := range metrics {
+		if i%2 == 0 {
+			metrics[i].RollingBuildFailureRate = 1.0
+		}
+	}
+
+	trend := buildProcessTrend(metrics, 10)
+
+	phaseRates := map[string]bool{
+		"rolling_preflight_failure_rate":  false,
+		"rolling_build_failure_rate":      false,
+		"rolling_validation_failure_rate": false,
+		"rolling_timeout_failure_rate":    false,
+	}
+	for _, cl := range trend.ControlLimits {
+		if _, ok := phaseRates[cl.Metric]; !ok {
+			continue
+		}
+		phaseRates[cl.Metric] = true
+		if cl.UCL > 1.0 {
+			t.Errorf("%s UCL = %v, want <= 1.0", cl.Metric, cl.UCL)
+		}
+		if cl.LCL < 0.0 {
+			t.Errorf("%s LCL = %v, want >= 0.0", cl.Metric, cl.LCL)
+		}
+	}
+	for name, seen := range phaseRates {
+		if !seen {
+			t.Errorf("phase-rate control limit %q not found", name)
+		}
+	}
+}
+
 func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,
