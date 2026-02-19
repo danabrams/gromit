@@ -58,3 +58,38 @@ func AssembleRedHandoff(state CycleState, readFile ReadFileFn, getDiff GetDiffFn
 		ImplFiles:   implFiles,
 	}, nil
 }
+
+// AssembleGreenHandoff builds context for the green (implementation) phase.
+// It reads the test file just written and current impl files, capturing the
+// test failure output for context.
+func AssembleGreenHandoff(testOutput string, readFile ReadFileFn, touchedFiles []string) (*GreenHandoff, error) {
+	testPaths, implPaths := ClassifyTouchedFiles(touchedFiles)
+
+	// Read test files and concatenate as the failing test content
+	var failingTest string
+	for _, p := range testPaths {
+		content, err := readFile(p)
+		if err != nil {
+			return nil, err
+		}
+		if failingTest != "" {
+			failingTest += "\n"
+		}
+		failingTest += content
+	}
+
+	implFiles := make(map[string]string, len(implPaths))
+	for _, p := range implPaths {
+		content, err := readFile(p)
+		if err != nil {
+			return nil, err
+		}
+		implFiles[p] = content
+	}
+
+	return &GreenHandoff{
+		FailingTest:       failingTest,
+		TestFailureOutput: testOutput,
+		ImplFiles:         implFiles,
+	}, nil
+}

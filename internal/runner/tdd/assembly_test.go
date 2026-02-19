@@ -112,3 +112,34 @@ func TestAssembleRedHandoffReadsExistingFilesOnSubsequentCycles(t *testing.T) {
 		t.Fatalf("expected impl file content to be populated")
 	}
 }
+
+func TestAssembleGreenHandoffCapturesTestContentAndFailure(t *testing.T) {
+	touchedFiles := []string{
+		"internal/auth/login_test.go",
+		"internal/auth/login.go",
+	}
+	testOutput := "--- FAIL: TestLogin (0.00s)\n    login_test.go:10: expected true, got false"
+
+	readFile := fakeReadFile(map[string]string{
+		"internal/auth/login_test.go": "package auth\n\nfunc TestLogin(t *testing.T) { t.Fatal(\"expected true\") }",
+		"internal/auth/login.go":      "package auth\n\nfunc Login() bool { return false }",
+	})
+
+	handoff, err := AssembleGreenHandoff(testOutput, readFile, touchedFiles)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if handoff.TestFailureOutput != testOutput {
+		t.Fatalf("expected test failure output to be preserved, got %q", handoff.TestFailureOutput)
+	}
+	if len(handoff.ImplFiles) != 1 {
+		t.Fatalf("expected 1 impl file, got %d", len(handoff.ImplFiles))
+	}
+	if handoff.ImplFiles["internal/auth/login.go"] == "" {
+		t.Fatalf("expected impl file content to be populated")
+	}
+	if handoff.FailingTest == "" {
+		t.Fatalf("expected failing test content to be populated")
+	}
+}
