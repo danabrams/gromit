@@ -64,7 +64,12 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	}
 	var beadDefs []beadDef
 	if err := jsonutil.ExtractJSON(output, &beadDefs); err != nil {
-		return nil, fmt.Errorf("parsing bead definitions: %w", err)
+		// Include truncated output in error for diagnostics
+		preview := output
+		if len(preview) > 500 {
+			preview = preview[:500] + "... (truncated)"
+		}
+		return nil, fmt.Errorf("parsing bead definitions: %w\n\nProvider output:\n%s", err, preview)
 	}
 
 	if len(beadDefs) == 0 {

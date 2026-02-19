@@ -10,7 +10,7 @@ import (
 // ExtractObject extracts a JSON object from text and unmarshals it into the target.
 // It tries multiple strategies:
 // 1. Direct unmarshaling (pure JSON)
-// 2. Find first { and last } and extract that substring
+// 2. Find { and matching } and extract that substring, trying subsequent positions on failure
 func ExtractObject(text string, target any) error {
 	if text == "" {
 		return fmt.Errorf("extract object: input is empty")
@@ -22,29 +22,38 @@ func ExtractObject(text string, target any) error {
 		return nil
 	}
 
-	// Find JSON object by matching { and }
-	start := strings.Index(text, "{")
-	if start == -1 {
-		return fmt.Errorf("extract object: no JSON object found (no opening brace)")
+	// Try each { position until one produces valid JSON
+	var lastErr error
+	searchFrom := 0
+	for {
+		idx := strings.Index(text[searchFrom:], "{")
+		if idx == -1 {
+			break
+		}
+		start := searchFrom + idx
+
+		jsonStr := extractBracketedJSON(text[start:], '{', '}')
+		if jsonStr != "" {
+			if err := json.Unmarshal([]byte(jsonStr), target); err == nil {
+				return nil
+			} else {
+				lastErr = fmt.Errorf("extract object: %w", err)
+			}
+		}
+
+		searchFrom = start + 1
 	}
 
-	// Find the matching closing bracket
-	jsonStr := extractBracketedJSON(text[start:], '{', '}')
-	if jsonStr == "" {
-		return fmt.Errorf("extract object: malformed JSON object (missing closing brace)")
+	if lastErr != nil {
+		return lastErr
 	}
-
-	if err := json.Unmarshal([]byte(jsonStr), target); err != nil {
-		return fmt.Errorf("extract object: %w", err)
-	}
-
-	return nil
+	return fmt.Errorf("extract object: no JSON object found (no opening brace)")
 }
 
 // ExtractArray extracts a JSON array from text and unmarshals it into the target.
 // It tries multiple strategies:
 // 1. Direct unmarshaling (pure JSON)
-// 2. Find first [ and matching ] and extract that substring
+// 2. Find [ and matching ] and extract that substring, trying subsequent positions on failure
 func ExtractArray(text string, target any) error {
 	if text == "" {
 		return fmt.Errorf("extract array: input is empty")
@@ -56,23 +65,32 @@ func ExtractArray(text string, target any) error {
 		return nil
 	}
 
-	// Find JSON array by matching [ and ]
-	start := strings.Index(text, "[")
-	if start == -1 {
-		return fmt.Errorf("extract array: no JSON array found (no opening bracket)")
+	// Try each [ position until one produces valid JSON
+	var lastErr error
+	searchFrom := 0
+	for {
+		idx := strings.Index(text[searchFrom:], "[")
+		if idx == -1 {
+			break
+		}
+		start := searchFrom + idx
+
+		jsonStr := extractBracketedJSON(text[start:], '[', ']')
+		if jsonStr != "" {
+			if err := json.Unmarshal([]byte(jsonStr), target); err == nil {
+				return nil
+			} else {
+				lastErr = fmt.Errorf("extract array: %w", err)
+			}
+		}
+
+		searchFrom = start + 1
 	}
 
-	// Find the matching closing bracket
-	jsonStr := extractBracketedJSON(text[start:], '[', ']')
-	if jsonStr == "" {
-		return fmt.Errorf("extract array: malformed JSON array (missing closing bracket)")
+	if lastErr != nil {
+		return lastErr
 	}
-
-	if err := json.Unmarshal([]byte(jsonStr), target); err != nil {
-		return fmt.Errorf("extract array: %w", err)
-	}
-
-	return nil
+	return fmt.Errorf("extract array: no JSON array found (no opening bracket)")
 }
 
 // ExtractCodeBlock extracts JSON from a ```json code block.
