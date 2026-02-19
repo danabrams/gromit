@@ -58,8 +58,8 @@ routing:
     precheck: any
     decompose: any
   ratio:
-    claude: 40
-    openai: 60
+    claude: 20
+    openai: 80
   fallback:
     enabled: true
     cooldown: 30m
@@ -185,6 +185,7 @@ agents:
 git:
   auto_push: true  # Push to remote after each successful bead (default: true)
   push_failure: "warn"  # What to do when push fails: "warn" | "stop" (default: "warn")
+  push_timeout: 60  # Timeout for git push in seconds (default: 60); set to 0 to disable
 
 # Worktree - enable concurrent interactive sessions via git worktrees
 # worktree:
