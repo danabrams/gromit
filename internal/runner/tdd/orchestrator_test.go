@@ -561,3 +561,48 @@ func TestRunCycles_GreenEscalation_RetriesThenEscalates(t *testing.T) {
 		t.Fatalf("expected third green attempt at high, got %q", greenTiers[2])
 	}
 }
+
+func TestRunCycles_RefactorFnError_NonBlocking(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "FAIL", false, nil // Red: fail
+		case 2:
+			return "PASS", true, nil // Green: pass
+		case 3:
+			return "PASS", true, nil // Refactor: pass (refactor fn error shouldn't prevent validation)
+		}
+		return "PASS", true, nil
+	}
+	// Refactor function itself returns error
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return fmt.Errorf("refactor crashed")
+	}
+	orch.getGitHeadFn = func() (string, error) { return "abc", nil }
+	orch.gitResetFn = func(commit string) error { return nil }
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := singleRequirementState()
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("expected no error (refactor error is non-blocking), got %v", err)
+	}
+}
