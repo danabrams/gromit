@@ -50,6 +50,9 @@ type Context struct {
 	// When non-empty, templates should use this instead of the generic "./..." form.
 	ScopedTestCommand string
 
+	// SiblingTouchedPackages lists package paths touched by completed sibling beads.
+	SiblingTouchedPackages []string
+
 	// Iteration info
 	Iteration      int
 	Model          string
@@ -71,6 +74,9 @@ func (c *Context) normalizeNilFields() {
 	}
 	if c.RecentValidationFailures == nil {
 		c.RecentValidationFailures = []string{}
+	}
+	if c.SiblingTouchedPackages == nil {
+		c.SiblingTouchedPackages = []string{}
 	}
 }
 
@@ -241,7 +247,13 @@ type Renderer struct {
 	specCache       map[string]string             // Cached spec files by name
 	templateCache   map[string]*template.Template // Cached parsed templates by name
 	lastDiagnostics *PromptDiagnostics            // Diagnostics from the most recent Render* call
+
+	// Optional callback to resolve sibling-touched packages for prompt enrichment.
+	siblingTouchedPackagesResolver SiblingTouchedPackagesResolver
 }
+
+// SiblingTouchedPackagesResolver resolves touched packages from sibling beads.
+type SiblingTouchedPackagesResolver func(current *bead.Bead, parent *bead.Bead) ([]string, error)
 
 // NewRenderer creates a new prompt renderer
 func NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir string) (*Renderer, error) {
@@ -304,6 +316,14 @@ func (r *Renderer) SetBudgetConfig(maxChars, learningCapChars int) {
 	}
 	r.budgetMaxChars = maxChars
 	r.budgetLearningCapChars = learningCapChars
+}
+
+// SetSiblingTouchedPackagesResolver configures optional sibling context enrichment.
+func (r *Renderer) SetSiblingTouchedPackagesResolver(resolver SiblingTouchedPackagesResolver) {
+	if r == nil {
+		return
+	}
+	r.siblingTouchedPackagesResolver = resolver
 }
 
 // LastDiagnostics returns diagnostics from the most recent Render* call.
@@ -845,6 +865,14 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 		}
 		ctx.Spec = spec
 		ctx.SpecName = specName
+	}
+
+	// Sibling enrichment is optional; resolver failures should not fail context build.
+	if r.siblingTouchedPackagesResolver != nil {
+		siblingTouched, err := r.siblingTouchedPackagesResolver(b, parent)
+		if err == nil && siblingTouched != nil {
+			ctx.SiblingTouchedPackages = siblingTouched
+		}
 	}
 
 	ctx.normalizeNilFields()

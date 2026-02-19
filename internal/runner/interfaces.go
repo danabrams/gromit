@@ -67,6 +67,7 @@ type PromptRenderer interface {
 	LoadRules() (string, error)
 	LoadRulesForPhase(phase string) (string, error)
 	GetLearningsFile() *learnings.File
+	SetSiblingTouchedPackagesResolver(resolver prompt.SiblingTouchedPackagesResolver)
 	LastDiagnostics() *prompt.PromptDiagnostics
 }
 

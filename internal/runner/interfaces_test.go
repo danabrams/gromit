@@ -187,6 +187,7 @@ type mockPromptRenderer struct {
 	LoadClaudeMDFn          func() (string, error)
 	LoadRulesFn             func() (string, error)
 	LoadRulesForPhaseFn     func(phase string) (string, error)
+	SetSiblingResolverFn    func(resolver prompt.SiblingTouchedPackagesResolver)
 	LearningsFile           *learnings.File
 }
 
@@ -304,6 +305,12 @@ func (m *mockPromptRenderer) LoadRulesForPhase(phase string) (string, error) {
 
 func (m *mockPromptRenderer) GetLearningsFile() *learnings.File {
 	return m.LearningsFile
+}
+
+func (m *mockPromptRenderer) SetSiblingTouchedPackagesResolver(resolver prompt.SiblingTouchedPackagesResolver) {
+	if m.SetSiblingResolverFn != nil {
+		m.SetSiblingResolverFn(resolver)
+	}
 }
 
 func (m *mockPromptRenderer) LastDiagnostics() *prompt.PromptDiagnostics {
@@ -467,6 +474,9 @@ func (m *mockRenderer) LoadRulesForPhase(phase string) (string, error) {
 
 func (m *mockRenderer) GetLearningsFile() *learnings.File {
 	return nil
+}
+
+func (m *mockRenderer) SetSiblingTouchedPackagesResolver(resolver prompt.SiblingTouchedPackagesResolver) {
 }
 
 func (m *mockRenderer) LastDiagnostics() *prompt.PromptDiagnostics {

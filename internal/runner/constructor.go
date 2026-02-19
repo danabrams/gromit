@@ -83,6 +83,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	}
 
 	wireLearningsFilter(renderer, learningsProvider)
+	wireSiblingEnrichmentResolver(renderer, cfg.Paths.Logs)
 
 	analyzerObj, err := analyzer.NewAnalyzer(learningsProvider, cfg.Models.Validation, renderer)
 	if err != nil {
@@ -260,4 +261,21 @@ func wireLearningsFilter(renderer PromptRenderer, learningsProvider provider.Pro
 
 	providerRunnerAdapter := learnings.NewProviderRunnerAdapter(learningsProvider)
 	lf.SetFilter(learnings.NewLLMFilter(providerRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
+}
+
+func wireSiblingEnrichmentResolver(renderer PromptRenderer, logsDir string) {
+	if renderer == nil {
+		return
+	}
+	renderer.SetSiblingTouchedPackagesResolver(func(current *bead.Bead, parent *bead.Bead) ([]string, error) {
+		if current == nil {
+			return []string{}, nil
+		}
+
+		specID := bead.FindSpecLabel(current.Labels)
+		if specID == "" && parent != nil {
+			specID = bead.FindSpecLabel(parent.Labels)
+		}
+		return logger.ReadSiblingTouchedPackagesBySpec(logsDir, current.ID, specID)
+	})
 }
