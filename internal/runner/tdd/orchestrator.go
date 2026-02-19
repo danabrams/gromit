@@ -195,9 +195,6 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green validation failed: tests still failing after green phase")
 	}
 
-	// REFACTOR: behavior-preserving cleanup (failure non-blocking)
-	o.executeRefactorPhase(ctx, bc)
-
 	// Advance state
 	*state = AssembleCycleState(*state, "")
 	return nil
