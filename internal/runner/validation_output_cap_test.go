@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/analyzer"
@@ -15,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
+	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -31,6 +33,27 @@ func (p *stubValidationProvider) StreamRun(ctx context.Context, prompt, tier str
 
 func (p *stubValidationProvider) IsUsageLimitError(result *provider.Result, err error) bool {
 	return false
+}
+
+type countingValidationProvider struct {
+	result *provider.Result
+	err    error
+	calls  int32
+}
+
+func (p *countingValidationProvider) Name() string { return "counting-provider" }
+
+func (p *countingValidationProvider) StreamRun(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	atomic.AddInt32(&p.calls, 1)
+	return p.result, p.err
+}
+
+func (p *countingValidationProvider) IsUsageLimitError(result *provider.Result, err error) bool {
+	return false
+}
+
+func (p *countingValidationProvider) Calls() int32 {
+	return atomic.LoadInt32(&p.calls)
 }
 
 type stubValidationRouter struct {
@@ -52,6 +75,28 @@ func (a *stubFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, failure
 		Recoverable: false,
 		RootCause:   "validation failure",
 	}, nil
+}
+
+type stubValidationPolicy struct {
+	maxAttempts    int
+	shouldEscalate bool
+}
+
+func (p *stubValidationPolicy) SelectGate(consecutiveSuccesses int) policy.GateType {
+	_ = consecutiveSuccesses
+	return policy.GateFast
+}
+
+func (p *stubValidationPolicy) MaxRecoveryAttempts() int {
+	return p.maxAttempts
+}
+
+func (p *stubValidationPolicy) ShouldEscalateRecovery() bool {
+	return p.shouldEscalate
+}
+
+func (p *stubValidationPolicy) MandatoryCommandPrefixes() []string {
+	return nil
 }
 
 // rendererFailBuild is a test renderer that always fails RenderBuild,
@@ -224,6 +269,59 @@ func TestMakeValidationExecuteFn_DisablesEscalationDuringValidation(t *testing.T
 	}
 	if !bc.Result.Escalated {
 		t.Fatalf("expected Escalated=true after validation escalation")
+	}
+}
+
+func TestMakeValidationExecuteFn_RespectsMaxRecoveryAttempts(t *testing.T) {
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled: true,
+			Chain:   []string{provider.TierLow, provider.TierMedium},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	countingProvider := &countingValidationProvider{
+		result: &provider.Result{
+			Success:  false,
+			Output:   "build failed",
+			ExitCode: 1,
+		},
+	}
+	router := &stubValidationRouter{
+		provider: countingProvider,
+		model:    "stub-model",
+	}
+
+	r := &Runner{
+		cfg:              cfg,
+		renderer:         &mockRenderer{},
+		output:           io.Discard,
+		invoker:          execution.NewInvoker(router, io.Discard, nil),
+		validationPolicy: &stubValidationPolicy{maxAttempts: 1, shouldEscalate: true},
+	}
+	r.escalationHandler = escalation.NewHandler(cfg, &stubFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "test-max-attempts", Title: "validation attempts"},
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+		Tier:      provider.TierLow,
+	}
+
+	fn := r.makeValidationExecuteFn()
+	if ok := fn(context.Background(), bc); ok {
+		t.Fatal("expected validation execute to fail with stub provider failure")
+	}
+	if got := countingProvider.Calls(); got != 1 {
+		t.Fatalf("expected 1 validation attempt, got %d", got)
+	}
+	if bc.Tier != provider.TierLow {
+		t.Fatalf("expected tier to remain %q, got %q", provider.TierLow, bc.Tier)
+	}
+	if bc.Result.Escalated {
+		t.Fatalf("expected Escalated=false when max attempts is 1")
 	}
 }
 

@@ -80,6 +80,7 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 		logger:            iterLogger,
 		escalationPolicy:  policy.NewConfigEscalationPolicy(cfg),
 		methodologyPolicy: policy.NewConfigMethodologyPolicy(cfg),
+		validationPolicy:  policy.NewConfigValidationPolicy(cfg),
 		output:            syncOut,
 		syncOut:           syncOut,
 		gromitDir:         gromitDir,

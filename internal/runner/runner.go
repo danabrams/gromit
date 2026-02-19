@@ -62,6 +62,7 @@ type Runner struct {
 	escalationHandler  *escalation.Handler
 	escalationPolicy   policy.EscalationPolicy
 	methodologyPolicy  policy.MethodologyPolicy
+	validationPolicy   policy.ValidationPolicy
 	methodologyExec    *methodology.Executor
 	validationRunner   *validation.Runner
 	reviewer           *reviewpkg.Reviewer

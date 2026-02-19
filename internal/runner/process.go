@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
@@ -473,11 +474,11 @@ func (r *Runner) maybeRunPeriodicFullValidation(ctx context.Context, beadID stri
 	if r == nil || r.cfg == nil || !r.cfg.Validation.Enabled {
 		return nil
 	}
-	everyN := r.cfg.Validation.FullValidationEveryN
-	if everyN <= 0 {
+	valPolicy := r.ensureValidationPolicy()
+	if valPolicy == nil {
 		return nil
 	}
-	if r.successesSinceFull < everyN {
+	if valPolicy.SelectGate(r.successesSinceFull) != policy.GateFull {
 		return nil
 	}
 	if err := r.runFullValidationGate(ctx, beadID, iteration); err != nil {

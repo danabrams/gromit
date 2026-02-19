@@ -78,7 +78,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		// Populate cost/token data
 		if invResult.Stats != nil {
 			costUSD, inputTokens, outputTokens := invResult.Stats.CostData()
-			bc.Result.CostUSD = r.estimatedCostUSD(invResult.ProviderName, costUSD, inputTokens, outputTokens)
+			bc.Result.CostUSD = r.estimatedCostUSD(invResult.ProviderName, bc.Result.Model, costUSD, inputTokens, outputTokens)
 			bc.Result.InputTokens = inputTokens
 			bc.Result.OutputTokens = outputTokens
 		}
@@ -107,7 +107,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 	}
 }
 
-func (r *Runner) estimatedCostUSD(providerName string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
+func (r *Runner) estimatedCostUSD(providerName, model string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
 	if reportedCostUSD != 0 || (inputTokens == 0 && outputTokens == 0) {
 		return reportedCostUSD
 	}
@@ -116,7 +116,7 @@ func (r *Runner) estimatedCostUSD(providerName string, reportedCostUSD float64, 
 	if !ok {
 		return reportedCostUSD
 	}
-	return provDef.EstimateCost(inputTokens, outputTokens)
+	return provDef.EstimateCostForModel(model, inputTokens, outputTokens)
 }
 
 func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, err error) (*runtypes.InvocationResult, error) {
@@ -199,11 +199,16 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 		}
 
 		// Save retry state and enforce bounded validation recovery attempts.
-		// Validation repair should run a quick first pass, then one escalated pass.
 		savedMaxRetries := bc.MaxRetries
 		savedRetriesThisModel := bc.RetriesThisModel
 		savedTotalRetries := bc.TotalRetriesThisBead
-		savedTier := bc.Tier
+		valPolicy := r.ensureValidationPolicy()
+		maxAttempts := 0
+		shouldEscalate := false
+		if valPolicy != nil {
+			maxAttempts = valPolicy.MaxRecoveryAttempts()
+			shouldEscalate = valPolicy.ShouldEscalateRecovery()
+		}
 		bc.MaxRetries = 0
 		bc.RetriesThisModel = 0
 
@@ -212,13 +217,17 @@ func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 			return r.escalationHandler.ExecuteWithRetryWithEscalation(ctx, bc, r.makeInvokeFn(), false)
 		}
 
-		success := runSingleAttempt()
-		if !success {
-			// If quick recovery fails, run one escalated-tier attempt.
-			r.ensureEscalationPolicy()
-			if nextTier := r.escalationPolicy.NextTier(savedTier); nextTier != "" {
-				r.escalationHandler.EscalateTier(bc, nextTier)
-				success = runSingleAttempt()
+		success := false
+		for attempt := 0; attempt < maxAttempts; attempt++ {
+			if attempt > 0 && shouldEscalate {
+				r.ensureEscalationPolicy()
+				if nextTier := r.escalationPolicy.NextTier(bc.Tier); nextTier != "" {
+					r.escalationHandler.EscalateTier(bc, nextTier)
+				}
+			}
+			if runSingleAttempt() {
+				success = true
+				break
 			}
 		}
 
