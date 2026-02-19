@@ -83,12 +83,13 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 		})
 	}
 
-	// Typed nil tests: a typed nil (e.g. (*T)(nil)) is a non-nil interface in Go,
-	// so it passes == nil checks. These cases verify validateExploreDeps does not
-	// falsely reject typed nils.
-	typedNilTests := []struct {
-		name string
-		deps *Deps
+	// Direct validateExploreDeps tests: typed nil and all-present success cases.
+	// A typed nil (e.g. (*T)(nil)) is a non-nil interface in Go, so it passes
+	// == nil checks. These cases verify behavior of validateExploreDeps directly.
+	directCases := []struct {
+		name    string
+		deps    *Deps
+		wantErr string
 	}{
 		{
 			name: "typed nil AgentResolver passes validation",
@@ -97,15 +98,31 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 				PromptRenderer: &testPromptRenderer{},
 				BacklogClient:  &testBacklogClient{},
 			},
+			wantErr: "",
+		},
+		{
+			name: "all deps present passes validation",
+			deps: &Deps{
+				AgentResolver:  &testAgentResolver{},
+				PromptRenderer: &testPromptRenderer{},
+				BacklogClient:  &testBacklogClient{},
+			},
+			wantErr: "",
 		},
 	}
 
-	for _, tc := range typedNilTests {
+	for _, tc := range directCases {
 		t.Run(tc.name, func(t *testing.T) {
 			p := New(tc.deps, &Paths{})
 			err := p.validateExploreDeps()
-			if err != nil {
-				t.Errorf("validateExploreDeps() = %v, want nil for typed nil dep", err)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Errorf("validateExploreDeps() = %v, want nil", err)
+				}
+			} else {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("validateExploreDeps() = %v, want error containing %q", err, tc.wantErr)
+				}
 			}
 		})
 	}
