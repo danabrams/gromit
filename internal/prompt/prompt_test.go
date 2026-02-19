@@ -142,104 +142,136 @@ func setupBuildContextScopedRenderer(t *testing.T, claudeMD string, specContent 
 	return r, tmpDir
 }
 
-func TestBuildContext_ScopesArchitectureWithLayer1AndLayer2Packages(t *testing.T) {
+func assertKeyPrinciplesPreserved(t *testing.T, claudeMD string) {
+	t.Helper()
+
+	const keyPrinciples = "## Key Principles\n\n1. Keep exact principle text.\n2. Preserve behavior."
+	if !strings.Contains(claudeMD, keyPrinciples) {
+		t.Fatalf("expected Key Principles text to be preserved verbatim, got:\n%s", claudeMD)
+	}
+}
+
+func TestBuildContext_ScopedArchitectureAcceptanceMatrix(t *testing.T) {
 	originalClaude := `# Project
 
 ## Architecture
 
 - ` + "`internal/bead/`" + ` — Bead lifecycle.
 - ` + "`internal/prompt/`" + ` — Old text to replace.
+- ` + "`internal/runner/`" + ` — Runner internals.
+- ` + "`cmd/gromit/`" + ` — CLI entrypoint.
 
 ## Key Principles
 
 1. Keep exact principle text.
 2. Preserve behavior.
 `
-	spec := "Touch internal/prompt/prompt.go."
-
-	r, _ := setupBuildContextScopedRenderer(t, originalClaude, spec)
-	r.SetSiblingTouchedPackagesResolver(func(current *bead.Bead, parent *bead.Bead) ([]string, error) {
-		return []string{"internal/runner"}, nil
-	})
-
-	ctx, err := r.BuildContext(&bead.Bead{
-		ID:              "b-1",
-		Title:           "scope",
-		Description:     "Update cmd/gromit/main.go for wiring.",
-		Labels:          []string{"spec:dynamic-map"},
-		ExpectedOutputs: []string{},
-	}, nil, 1, "sonnet")
-	if err != nil {
-		t.Fatalf("BuildContext() error = %v", err)
+	tests := []struct {
+		name            string
+		specContent     string
+		beadDescription string
+		labels          []string
+		siblingTouched  []string
+		wantContains    []string
+		wantFallback    bool
+	}{
+		{
+			name:         "spec text extraction drives scoped architecture",
+			specContent:  "Touch internal/prompt/prompt.go and tests under internal/prompt/.",
+			labels:       []string{"spec:dynamic-map"},
+			wantContains: []string{"- `internal/prompt/` —"},
+		},
+		{
+			name:            "bead description extraction drives scoped architecture",
+			beadDescription: "Wire command flags in cmd/gromit/main.go.",
+			wantContains:    []string{"- `cmd/gromit/` —"},
+		},
+		{
+			name:           "sibling enrichment contributes scoped package",
+			siblingTouched: []string{"internal/runner"},
+			wantContains:   []string{"- `internal/runner/` —"},
+		},
+		{
+			name:         "full fallback when no scoped packages discovered",
+			specContent:  "",
+			labels:       nil,
+			wantFallback: true,
+		},
 	}
 
-	if !strings.Contains(ctx.ClaudeMD, "## Architecture") {
-		t.Fatalf("expected Architecture section, got:\n%s", ctx.ClaudeMD)
-	}
-	if strings.Contains(ctx.ClaudeMD, "internal/bead/") {
-		t.Fatalf("expected static architecture list to be replaced, got:\n%s", ctx.ClaudeMD)
-	}
-	for _, want := range []string{
-		"- `cmd/gromit/` —",
-		"- `internal/prompt/` —",
-		"- `internal/runner/` —",
-		"## Key Principles\n\n1. Keep exact principle text.\n2. Preserve behavior.",
-	} {
-		if !strings.Contains(ctx.ClaudeMD, want) {
-			t.Fatalf("expected %q in scoped CLAUDE content:\n%s", want, ctx.ClaudeMD)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _ := setupBuildContextScopedRenderer(t, originalClaude, tt.specContent)
+			if tt.siblingTouched != nil {
+				siblingTouched := append([]string(nil), tt.siblingTouched...)
+				r.SetSiblingTouchedPackagesResolver(func(current *bead.Bead, parent *bead.Bead) ([]string, error) {
+					return siblingTouched, nil
+				})
+			}
+
+			labels := tt.labels
+			if labels == nil {
+				labels = []string{}
+			}
+
+			ctx, err := r.BuildContext(&bead.Bead{
+				ID:              "b-acceptance",
+				Title:           "scope",
+				Description:     tt.beadDescription,
+				Labels:          labels,
+				ExpectedOutputs: []string{},
+			}, nil, 1, "sonnet")
+			if err != nil {
+				t.Fatalf("BuildContext() error = %v", err)
+			}
+
+			assertKeyPrinciplesPreserved(t, ctx.ClaudeMD)
+
+			if tt.wantFallback {
+				if ctx.ClaudeMD != originalClaude {
+					t.Fatalf("expected full CLAUDE fallback unchanged\nwant:\n%s\n\ngot:\n%s", originalClaude, ctx.ClaudeMD)
+				}
+				return
+			}
+
+			if !strings.Contains(ctx.ClaudeMD, "## Architecture") {
+				t.Fatalf("expected Architecture section, got:\n%s", ctx.ClaudeMD)
+			}
+			if strings.Contains(ctx.ClaudeMD, "internal/bead/") {
+				t.Fatalf("expected static architecture list to be replaced, got:\n%s", ctx.ClaudeMD)
+			}
+			for _, want := range tt.wantContains {
+				if !strings.Contains(ctx.ClaudeMD, want) {
+					t.Fatalf("expected %q in scoped CLAUDE content:\n%s", want, ctx.ClaudeMD)
+				}
+			}
+		})
 	}
 }
 
-func TestBuildContext_NoDiscoveredPackagesKeepsFullClaudeFallback(t *testing.T) {
+func TestBuildContext_ScopedArchitectureIsDeterministicAndSmallerForTwoPackages(t *testing.T) {
 	originalClaude := `# Project
 
 ## Architecture
 
 - ` + "`internal/bead/`" + ` — Bead lifecycle.
+- ` + "`internal/prompt/`" + ` — Prompt rendering and shaping.
+- ` + "`internal/runner/`" + ` — Multi-phase runner orchestration.
+- ` + "`internal/config/`" + ` — Configuration loading and defaults.
+- ` + "`cmd/gromit/`" + ` — CLI command entrypoint.
 
 ## Key Principles
 
 1. Keep exact principle text.
-`
-	r, _ := setupBuildContextScopedRenderer(t, originalClaude, "")
-
-	ctx, err := r.BuildContext(&bead.Bead{
-		ID:              "b-2",
-		Title:           "no-scope",
-		Labels:          []string{},
-		ExpectedOutputs: []string{},
-	}, nil, 1, "sonnet")
-	if err != nil {
-		t.Fatalf("BuildContext() error = %v", err)
-	}
-
-	if ctx.ClaudeMD != originalClaude {
-		t.Fatalf("expected full CLAUDE fallback unchanged\nwant:\n%s\n\ngot:\n%s", originalClaude, ctx.ClaudeMD)
-	}
-}
-
-func TestBuildContext_ScopedArchitectureIsDeterministic(t *testing.T) {
-	originalClaude := `# Project
-
-## Architecture
-
-- ` + "`internal/bead/`" + ` — Bead lifecycle.
-
-## Key Principles
-
-1. Keep exact principle text.
+2. Preserve behavior.
 `
 	spec := "Work touches internal/prompt/prompt.go and cmd/gromit/main.go."
 	r, _ := setupBuildContextScopedRenderer(t, originalClaude, spec)
-	r.SetSiblingTouchedPackagesResolver(func(current *bead.Bead, parent *bead.Bead) ([]string, error) {
-		return []string{"internal/runner", "cmd/gromit", "internal/runner/"}, nil
-	})
 
 	testBead := &bead.Bead{
 		ID:              "b-3",
 		Title:           "deterministic",
-		Description:     "Also updates internal/prompt and cmd/gromit/.",
+		Description:     "",
 		Labels:          []string{"spec:dynamic-map"},
 		ExpectedOutputs: []string{},
 	}
@@ -252,15 +284,28 @@ func TestBuildContext_ScopedArchitectureIsDeterministic(t *testing.T) {
 		t.Fatalf("BuildContext() second call error = %v", err)
 	}
 
+	assertKeyPrinciplesPreserved(t, ctx1.ClaudeMD)
+	assertKeyPrinciplesPreserved(t, ctx2.ClaudeMD)
+
 	if ctx1.ClaudeMD != ctx2.ClaudeMD {
 		t.Fatalf("expected deterministic scoped CLAUDE output\nfirst:\n%s\n\nsecond:\n%s", ctx1.ClaudeMD, ctx2.ClaudeMD)
 	}
 
 	cmdPos := strings.Index(ctx1.ClaudeMD, "- `cmd/gromit/`")
 	promptPos := strings.Index(ctx1.ClaudeMD, "- `internal/prompt/`")
-	runnerPos := strings.Index(ctx1.ClaudeMD, "- `internal/runner/`")
-	if cmdPos == -1 || promptPos == -1 || runnerPos == -1 || !(cmdPos < promptPos && promptPos < runnerPos) {
+	if cmdPos == -1 || promptPos == -1 || !(cmdPos < promptPos) {
 		t.Fatalf("expected deterministic sorted architecture bullets, got:\n%s", ctx1.ClaudeMD)
+	}
+	if strings.Contains(ctx1.ClaudeMD, "- `internal/runner/`") || strings.Contains(ctx1.ClaudeMD, "- `internal/config/`") {
+		t.Fatalf("expected scoped output to contain only discovered packages, got:\n%s", ctx1.ClaudeMD)
+	}
+
+	fullSections := parseClaudeSections(originalClaude)
+	scopedSections := parseClaudeSections(ctx1.ClaudeMD)
+	fullArchitectureChars := len("## Architecture\n\n" + strings.TrimSpace(fullSections.ArchitectureBody))
+	scopedArchitectureChars := len("## Architecture\n\n" + strings.TrimSpace(scopedSections.ArchitectureBody))
+	if scopedArchitectureChars >= fullArchitectureChars {
+		t.Fatalf("expected scoped architecture chars < full architecture chars for two-package case, got scoped=%d full=%d", scopedArchitectureChars, fullArchitectureChars)
 	}
 }
 
