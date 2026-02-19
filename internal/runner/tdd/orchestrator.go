@@ -92,6 +92,20 @@ func (o *CycleOrchestrator) logf(format string, args ...interface{}) {
 	}
 }
 
+func (o *CycleOrchestrator) runPhaseInvocation(
+	ctx context.Context,
+	bc *runtypes.BeadContext,
+	prompt string,
+	phaseName string,
+) error {
+	tier := bc.Tier
+	if err := o.invokeWithRetryAndEscalation(ctx, prompt, &tier); err != nil {
+		return fmt.Errorf("%s phase: %w", phaseName, err)
+	}
+	bc.Tier = tier
+	return nil
+}
+
 func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadContext, state *CycleState) error {
 	o.logf("cycle %d: red phase — writing failing test", state.CycleNumber+1)
 
@@ -106,15 +120,12 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("red prompt render: %w", err)
 	}
 
-	tier := bc.Tier
-	err = o.invokeWithRetryAndEscalation(ctx, redPrompt, &tier)
-	if err != nil {
-		return fmt.Errorf("red phase: %w", err)
+	if err := o.runPhaseInvocation(ctx, bc, redPrompt, "red"); err != nil {
+		return err
 	}
-	bc.Tier = tier
 
 	// VALIDATE RED: expect tests to fail
-	valOutput, passed, err := o.validateFn(ctx, nil, "")
+	redValidationOutput, passed, err := o.validateFn(ctx, nil, "")
 	if err != nil {
 		return fmt.Errorf("red validation: %w", err)
 	}
@@ -128,7 +139,7 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	o.logf("cycle %d: green phase — implementing to pass", state.CycleNumber+1)
 
 	// GREEN: assemble handoff -> render prompt -> invoke
-	greenHandoff, err := AssembleGreenHandoff(valOutput, o.readFileFn, state.TouchedFiles)
+	greenHandoff, err := AssembleGreenHandoff(redValidationOutput, o.readFileFn, state.TouchedFiles)
 	if err != nil {
 		return fmt.Errorf("green handoff assembly: %w", err)
 	}
@@ -138,12 +149,9 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green prompt render: %w", err)
 	}
 
-	tier = bc.Tier
-	err = o.invokeWithRetryAndEscalation(ctx, greenPrompt, &tier)
-	if err != nil {
-		return fmt.Errorf("green phase: %w", err)
+	if err := o.runPhaseInvocation(ctx, bc, greenPrompt, "green"); err != nil {
+		return err
 	}
-	bc.Tier = tier
 
 	// VALIDATE GREEN: expect tests to pass
 	_, passed, err = o.validateFn(ctx, nil, "")
