@@ -26,6 +26,26 @@ func TestNewTracker_NextUncoveredReturnsCriterion(t *testing.T) {
 	}
 }
 
+func TestUntestableCriteria_ReturnsOnlyUntestableItems(t *testing.T) {
+	criteria := []Criterion{
+		{Number: 1, Text: "First"},
+		{Number: 2, Text: "Second"},
+	}
+	tracker := NewTracker(criteria, 2)
+	tracker.MarkCovered(1)
+	tracker.RecordRejection(2)
+	tracker.RecordRejection(2)
+
+	untestable := tracker.UntestableCriteria()
+
+	if len(untestable) != 1 {
+		t.Fatalf("UntestableCriteria() len = %d, want 1", len(untestable))
+	}
+	if untestable[0].Number != 2 {
+		t.Fatalf("UntestableCriteria()[0].Number = %d, want 2", untestable[0].Number)
+	}
+}
+
 func TestUncoveredCriteria_ReturnsOnlyUncheckedItems(t *testing.T) {
 	criteria := []Criterion{
 		{Number: 1, Text: "First"},

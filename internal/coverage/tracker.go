@@ -54,6 +54,17 @@ func (t *CoverageTracker) MarkCovered(n int) {
 	}
 }
 
+// UntestableCriteria returns all criteria in Untestable state.
+func (t *CoverageTracker) UntestableCriteria() []CriterionState {
+	result := make([]CriterionState, 0)
+	for _, cs := range t.criteria {
+		if cs.Status == Untestable {
+			result = append(result, cs)
+		}
+	}
+	return result
+}
+
 // UncoveredCriteria returns all criteria still in Unchecked state.
 func (t *CoverageTracker) UncoveredCriteria() []CriterionState {
 	result := make([]CriterionState, 0)
