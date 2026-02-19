@@ -144,16 +144,22 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 
 	// REFACTOR: behavior-preserving cleanup (failure non-blocking)
 	if o.runRefactorFn != nil {
-		_ = o.runRefactorFn(ctx, bc)
-	}
+		// Capture pre-refactor state for revert
+		var preRefactorCommit string
+		if o.getGitHeadFn != nil {
+			preRefactorCommit, _ = o.getGitHeadFn()
+		}
 
-	// VALIDATE REFACTOR: verify tests still pass
-	_, passed, err = o.validateFn(ctx, nil, "")
-	if err != nil {
-		return fmt.Errorf("refactor validation: %w", err)
-	}
-	if !passed {
-		return fmt.Errorf("refactor validation failed: tests broken after refactor")
+		_ = o.runRefactorFn(ctx, bc)
+
+		// VALIDATE REFACTOR: verify tests still pass
+		_, passed, err = o.validateFn(ctx, nil, "")
+		if err == nil && !passed {
+			// Refactor broke tests — revert and continue
+			if preRefactorCommit != "" && o.gitResetFn != nil {
+				_ = o.gitResetFn(preRefactorCommit)
+			}
+		}
 	}
 
 	// Advance state

@@ -433,3 +433,61 @@ func TestRunCycles_UnrecoverableFailure_NoHigherTier(t *testing.T) {
 		t.Fatalf("expected error containing %q, got %q", want, err.Error())
 	}
 }
+
+func TestRunCycles_RefactorFailure_RevertsAndContinues(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	var resetToCommit string
+	refactorCalled := false
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "FAIL", false, nil // Red: fail
+		case 2:
+			return "PASS", true, nil // Green: pass
+		case 3:
+			return "FAIL", false, nil // Refactor: broken!
+		}
+		return "PASS", true, nil
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		refactorCalled = true
+		return nil
+	}
+	orch.getGitHeadFn = func() (string, error) { return "pre-refactor-commit", nil }
+	orch.gitResetFn = func(commit string) error {
+		resetToCommit = commit
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := singleRequirementState()
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("expected no error (refactor failure is non-blocking), got %v", err)
+	}
+
+	if !refactorCalled {
+		t.Fatal("expected refactor phase to be called")
+	}
+	if resetToCommit != "pre-refactor-commit" {
+		t.Fatalf("expected git reset to pre-refactor commit, got %q", resetToCommit)
+	}
+}
