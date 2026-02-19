@@ -166,9 +166,12 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		o.executeRefactorPhase(ctx, bc)
 
 		// Final validation after refactor phase completes.
-		_, _, finalErr := o.validateFn(ctx, nil, "")
+		_, finalPassed, finalErr := o.validateFn(ctx, nil, "")
 		if finalErr != nil {
 			return fmt.Errorf("final validation: %w", finalErr)
+		}
+		if !finalPassed {
+			return fmt.Errorf("final validation failed: tests failing after refactor phase")
 		}
 
 		state.Done = true

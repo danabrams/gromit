@@ -914,6 +914,49 @@ func TestRunCycles_EarlyGreen_FinalValidationRunsAfterRefactor(t *testing.T) {
 	}
 }
 
+func TestRunCycles_EarlyGreen_FinalValidationFailure_ReturnsError(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "PASS", true, nil // Early green
+		case 2:
+			return "FAIL", false, nil // Refactor-internal validation fails (triggers revert)
+		case 3:
+			return "FAIL", false, nil // Final validation also fails
+		}
+		return "", false, nil
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+	orch.getGitHeadFn = func() (string, error) { return "abc", nil }
+	orch.gitResetFn = func(commit string) error { return nil }
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err == nil {
+		t.Fatal("expected error when final validation fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "final validation") {
+		t.Fatalf("expected error to mention 'final validation', got %q", err.Error())
+	}
+}
+
 func TestRunCycles_WritesPhaseStatusToOutput(t *testing.T) {
 	orch := newTestOrchestrator()
 
