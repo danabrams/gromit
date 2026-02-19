@@ -85,6 +85,26 @@ The debug command's --model flag defaults to opus so the model override block al
 
 Constructor/factory functions that call other functions which can fail (e.g., backlog.NewFile) must return (*T, error) and propagate errors to callers. Returning nil on error without changing the signature leaves callers unable to detect failure. The createRefinePipeline function returned nil on backlog.NewFile failure, but was called at line 61 without nil checks, causing a panic when dereferencing. Solution: change signature to return error and check it before using the result.
 
+### 2026-02-19 | Runner Sub-Package Isolation Pattern | architecture
+
+The runner sub-package split maintains clean isolation — no sub-package imports another sub-package. All cross-cutting types live in runtypes/. When a sub-package needs types from another, they go through runtypes as the dependency-inversion boundary.
+
+### 2026-02-19 | StreamLogger.LogEvent Is Nil-Safe | conventions
+
+StreamLogger.LogEvent checks `sl == nil` at the top, making it safe to call on nil StreamLogger pointers. This means Invoker lifecycle log methods that check `inv == nil` but not `inv.streamLogger == nil` are actually safe — no additional nil guard needed.
+
+### 2026-02-19 | Temp File Pattern for CLI Prompts | conventions
+
+Interactive commands must write large prompts to temp files before passing to Claude CLI to avoid OS ARG_MAX limits. debug.go correctly follows this pattern (writes to .gromit/tmp/); retro.go does not and passes prompt text directly as a CLI argument. New interactive commands should follow the debug.go pattern.
+
+### 2026-02-19 | Policy Interface Compile-Time Checks | conventions
+
+All four runner policy interfaces (EscalationPolicy, MethodologyPolicy, StuckPolicy, ValidationPolicy) correctly include `var _ Interface = (*Impl)(nil)` compile-time checks. This pattern catches interface drift at compile time rather than runtime.
+
+### 2026-02-19 | SetDefaults Zero-Value Sentinel Limitation | gotchas
+
+Config SetDefaults() uses `if field == 0` guards for integer fields, which prevents users from intentionally setting zero. This is problematic for fields where zero is meaningful (e.g., PushTimeout where 0 should disable the timeout per PushTimeoutDuration() docs). Fields needing a disable-via-zero semantic should use *int or a sentinel like -1.
+
 ---
 
 ## Archived

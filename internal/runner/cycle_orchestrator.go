@@ -18,7 +18,7 @@ func (o *cycleOrchestrator) Execute(ctx context.Context, bc *runtypes.BeadContex
 	if o != nil && o.executeFn != nil {
 		return o.executeFn(ctx, bc, atddActive, executeWithRetry)
 	}
-	if o == nil || o.runner == nil {
+	if o.runner == nil {
 		return bc.Result
 	}
 	return o.runner.executeBuildAndMethodologyLoop(ctx, bc, atddActive, true, executeWithRetry)

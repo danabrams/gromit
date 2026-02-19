@@ -9,7 +9,6 @@ import (
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
-	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // decomposeDepthWarnThreshold is the depth at which a warning is logged during decomposition.
@@ -306,5 +305,3 @@ func hasMethodologyLabel(labels []string, methodology string) bool {
 	}
 	return false
 }
-
-type _ = runtypes.SubTask
