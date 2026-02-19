@@ -2,6 +2,7 @@ package retro
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -77,6 +78,7 @@ type Retro struct {
 	experimentPath string
 	gromitDir      string
 	promptBudget   int
+	diagnostics    *prompt.PromptDiagnostics
 }
 
 // TemplateContext holds data for retro prompt template
@@ -385,9 +387,28 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 		return "", fmt.Errorf("reading template: %w", err)
 	}
 
-	if r.promptBudget > 0 {
-		rules, learnings, _ = prompt.ShapeRetroForBudget(rules, learnings, r.promptBudget)
+	processTrend := r.loadProcessTrend()
+	sectionTokens := map[string]int{
+		prompt.SectionRules:              prompt.EstimateTokens(rules),
+		prompt.SectionConfirmedLearnings: prompt.EstimateTokens(learnings),
+		prompt.SectionRunStats:           prompt.EstimateTokens(diagnosticJSON(runStats)),
+		prompt.SectionBeadStats:          prompt.EstimateTokens(diagnosticJSON(beadStats)),
+		"efficiency":                     prompt.EstimateTokens(diagnosticJSON(efficiency)),
+		"process_trend":                  prompt.EstimateTokens(diagnosticJSON(processTrend)),
 	}
+	diagnostics := prompt.NewDiagnostics("retro", sectionTokens)
+
+	if r.promptBudget > 0 {
+		diagnostics.BudgetMaxChars = r.promptBudget
+		diagnostics.PreShapeTokens = prompt.EstimateTokens(rules) + prompt.EstimateTokens(learnings)
+		var shapeReport *prompt.ShapeReport
+		rules, learnings, shapeReport = prompt.ShapeRetroForBudget(rules, learnings, r.promptBudget)
+		diagnostics.PostShapeTokens = prompt.EstimateTokens(rules) + prompt.EstimateTokens(learnings)
+		if shapeReport != nil {
+			diagnostics.ShapeActions = append([]string{}, shapeReport.TrimActions...)
+		}
+	}
+	r.diagnostics = diagnostics
 
 	tmpl, err := template.New("retro").Funcs(template.FuncMap{
 		"mul": func(a, b float64) float64 { return a * b },
@@ -412,7 +433,7 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 		RunStats:          runStats,
 		BeadStats:         beadStats,
 		Efficiency:        efficiency,
-		ProcessTrend:      r.loadProcessTrend(),
+		ProcessTrend:      processTrend,
 		Experiment:        experiment,
 		ExperimentMetrics: selectExperimentMetrics(experiment, efficiency),
 	}
@@ -423,6 +444,31 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 
 	return sb.String(), nil
+}
+
+func diagnosticJSON(v any) string {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	return string(data)
+}
+
+// PromptDiagnostics returns the last prompt diagnostics snapshot.
+func (r *Retro) PromptDiagnostics() *prompt.PromptDiagnostics {
+	if r == nil || r.diagnostics == nil {
+		return nil
+	}
+
+	sectionTokens := make(map[string]int, len(r.diagnostics.SectionTokens))
+	for key, value := range r.diagnostics.SectionTokens {
+		sectionTokens[key] = value
+	}
+
+	diagnostics := *r.diagnostics
+	diagnostics.SectionTokens = sectionTokens
+	diagnostics.ShapeActions = append([]string{}, r.diagnostics.ShapeActions...)
+	return &diagnostics
 }
 
 func selectExperimentMetrics(exp *Experiment, efficiency *logger.EfficiencyReport) *ExperimentMetrics {

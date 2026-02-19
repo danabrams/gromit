@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 func TestNewRetroWithProviderNilProvider(t *testing.T) {
@@ -1278,5 +1279,92 @@ func TestRenderPrompt_ShapesRulesAndLearningsWhenBudgetConfigured(t *testing.T) 
 	}
 	if strings.Contains(prompt, learnings) {
 		t.Fatalf("expected learnings to be shaped out of prompt, got prompt: %q", prompt)
+	}
+}
+
+func TestRenderPrompt_BuildsPromptDiagnostics(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, []byte("OK"), 0644); err != nil {
+		t.Fatalf("writing template: %v", err)
+	}
+
+	r := &Retro{templatePath: templatePath}
+	beadStats := map[string]logger.BeadStats{
+		"gromit-1": {
+			BeadID:    "gromit-1",
+			Failures:  2,
+			Comments:  []string{"note"},
+			BeadTitle: "Test Bead",
+		},
+	}
+	efficiency := &logger.EfficiencyReport{
+		CurrentAvgCostPerBead: 0.2,
+	}
+
+	if _, err := r.renderPrompt("rules content", "confirmed learnings", logger.RunStats{Total: 1}, beadStats, efficiency, nil); err != nil {
+		t.Fatalf("renderPrompt returned error: %v", err)
+	}
+
+	diagnostics := r.PromptDiagnostics()
+	if diagnostics == nil {
+		t.Fatal("expected prompt diagnostics")
+	}
+	if diagnostics.PromptType != "retro" {
+		t.Fatalf("PromptType = %q, want retro", diagnostics.PromptType)
+	}
+
+	expectedKeys := []string{
+		prompt.SectionRules,
+		prompt.SectionConfirmedLearnings,
+		prompt.SectionRunStats,
+		prompt.SectionBeadStats,
+		"efficiency",
+		"process_trend",
+	}
+	for _, key := range expectedKeys {
+		value, ok := diagnostics.SectionTokens[key]
+		if !ok {
+			t.Fatalf("missing section token key %q", key)
+		}
+		if value <= 0 {
+			t.Fatalf("section token %q = %d, want > 0", key, value)
+		}
+	}
+}
+
+func TestRenderPrompt_BudgetShapingDiagnostics(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, []byte("{{.Rules}}{{.Learnings}}"), 0644); err != nil {
+		t.Fatalf("writing template: %v", err)
+	}
+
+	r := &Retro{
+		templatePath: templatePath,
+		promptBudget: 40,
+	}
+
+	rules := strings.Repeat("r", 30)
+	learnings := strings.Repeat("l", 60)
+	if _, err := r.renderPrompt(rules, learnings, logger.RunStats{}, nil, nil, nil); err != nil {
+		t.Fatalf("renderPrompt returned error: %v", err)
+	}
+
+	diagnostics := r.PromptDiagnostics()
+	if diagnostics == nil {
+		t.Fatal("expected prompt diagnostics")
+	}
+	if diagnostics.PreShapeTokens <= 0 {
+		t.Fatalf("PreShapeTokens = %d, want > 0", diagnostics.PreShapeTokens)
+	}
+	if diagnostics.PostShapeTokens <= 0 {
+		t.Fatalf("PostShapeTokens = %d, want > 0", diagnostics.PostShapeTokens)
+	}
+	if diagnostics.PostShapeTokens > diagnostics.PreShapeTokens {
+		t.Fatalf("PostShapeTokens = %d, want <= PreShapeTokens = %d", diagnostics.PostShapeTokens, diagnostics.PreShapeTokens)
+	}
+	if len(diagnostics.ShapeActions) == 0 {
+		t.Fatal("expected non-empty ShapeActions when shaping is active")
 	}
 }
