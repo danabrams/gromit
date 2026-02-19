@@ -1104,6 +1104,14 @@ func (g GitConfig) IsAutoPushEnabled() bool {
 	return *g.AutoPush
 }
 
+// PushTimeoutDuration returns the git push timeout duration (0 disables the timeout).
+func (g GitConfig) PushTimeoutDuration() time.Duration {
+	if g.PushTimeout == 0 {
+		return 0
+	}
+	return time.Duration(g.PushTimeout) * time.Second
+}
+
 // TimeoutsForModel returns the effective invocation, stall, stall-active, and bead timeouts for a model.
 // Per-model overrides (if non-zero) take precedence over the top-level defaults.
 func (c ClaudeConfig) TimeoutsForModel(model string) (invocationTimeout, stallTimeout, stallTimeoutActive, beadTimeout int) {
