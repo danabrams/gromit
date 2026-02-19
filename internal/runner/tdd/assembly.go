@@ -2,6 +2,15 @@ package tdd
 
 import "strings"
 
+// ReadFileFn reads a file and returns its content.
+type ReadFileFn func(path string) (string, error)
+
+// GetDiffFn returns the current git diff.
+type GetDiffFn func() (string, error)
+
+// RunTestsFn runs tests and returns the output.
+type RunTestsFn func() (string, error)
+
 // ClassifyTouchedFiles separates paths into test files (_test.go) and implementation files (.go).
 func ClassifyTouchedFiles(paths []string) (testFiles, implFiles []string) {
 	for _, p := range paths {
@@ -12,4 +21,40 @@ func ClassifyTouchedFiles(paths []string) (testFiles, implFiles []string) {
 		}
 	}
 	return testFiles, implFiles
+}
+
+// AssembleRedHandoff builds context for the red (test-writing) phase.
+// It reads current test/impl files from state.TouchedFiles and uses
+// state.Remaining[0] as the spec excerpt for the next requirement.
+func AssembleRedHandoff(state CycleState, readFile ReadFileFn, getDiff GetDiffFn) (*RedHandoff, error) {
+	testPaths, implPaths := ClassifyTouchedFiles(state.TouchedFiles)
+
+	testFiles := make(map[string]string, len(testPaths))
+	for _, p := range testPaths {
+		content, err := readFile(p)
+		if err != nil {
+			return nil, err
+		}
+		testFiles[p] = content
+	}
+
+	implFiles := make(map[string]string, len(implPaths))
+	for _, p := range implPaths {
+		content, err := readFile(p)
+		if err != nil {
+			return nil, err
+		}
+		implFiles[p] = content
+	}
+
+	var specExcerpt string
+	if len(state.Remaining) > 0 {
+		specExcerpt = state.Remaining[0]
+	}
+
+	return &RedHandoff{
+		SpecExcerpt: specExcerpt,
+		TestFiles:   testFiles,
+		ImplFiles:   implFiles,
+	}, nil
 }
