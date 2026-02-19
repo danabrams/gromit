@@ -216,6 +216,26 @@ type backlogAdapter struct {
 	file *backlog.File
 }
 
+func toPipelineIdea(idea *backlog.Idea) *pipeline.Idea {
+	if idea == nil {
+		return nil
+	}
+
+	return &pipeline.Idea{
+		ID:       idea.ID,
+		Text:     idea.Text,
+		Type:     idea.Type,
+		Context:  idea.Context,
+		Status:   idea.Status,
+		SpecName: idea.SpecName,
+	}
+}
+
+func applyPipelineIdeaFields(dst *backlog.Idea, src *pipeline.Idea) {
+	dst.Status = src.Status
+	dst.SpecName = src.SpecName
+}
+
 func (b *backlogAdapter) List() ([]*pipeline.Idea, error) {
 	ideas, err := b.file.List()
 	if err != nil {
@@ -223,14 +243,7 @@ func (b *backlogAdapter) List() ([]*pipeline.Idea, error) {
 	}
 	result := make([]*pipeline.Idea, len(ideas))
 	for i, idea := range ideas {
-		result[i] = &pipeline.Idea{
-			ID:       idea.ID,
-			Text:     idea.Text,
-			Type:     idea.Type,
-			Context:  idea.Context,
-			Status:   idea.Status,
-			SpecName: idea.SpecName,
-		}
+		result[i] = toPipelineIdea(idea)
 	}
 	return result, nil
 }
@@ -240,17 +253,7 @@ func (b *backlogAdapter) Get(id string) (*pipeline.Idea, error) {
 	if err != nil {
 		return nil, err
 	}
-	if idea == nil {
-		return nil, nil
-	}
-	return &pipeline.Idea{
-		ID:       idea.ID,
-		Text:     idea.Text,
-		Type:     idea.Type,
-		Context:  idea.Context,
-		Status:   idea.Status,
-		SpecName: idea.SpecName,
-	}, nil
+	return toPipelineIdea(idea), nil
 }
 
 func (b *backlogAdapter) Add(item *pipeline.Idea) error {
@@ -267,16 +270,8 @@ func (b *backlogAdapter) Add(item *pipeline.Idea) error {
 
 func (b *backlogAdapter) Update(id string, fn func(*pipeline.Idea)) error {
 	return b.file.Update(id, func(idea *backlog.Idea) {
-		pipelineIdea := &pipeline.Idea{
-			ID:       idea.ID,
-			Text:     idea.Text,
-			Type:     idea.Type,
-			Context:  idea.Context,
-			Status:   idea.Status,
-			SpecName: idea.SpecName,
-		}
+		pipelineIdea := toPipelineIdea(idea)
 		fn(pipelineIdea)
-		idea.Status = pipelineIdea.Status
-		idea.SpecName = pipelineIdea.SpecName
+		applyPipelineIdeaFields(idea, pipelineIdea)
 	})
 }
