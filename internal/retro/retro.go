@@ -59,6 +59,8 @@ const (
 	providerFamilyCodex  = "codex"
 	providerFamilyMixed  = "mixed"
 	retroAnalysisTier    = "high"
+	sectionEfficiency    = "efficiency"
+	sectionProcessTrend  = "process_trend"
 )
 
 // ProviderRunner is an interface for running LLM prompts.
@@ -388,22 +390,21 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 
 	processTrend := r.loadProcessTrend()
-	sectionTokens := map[string]int{
-		prompt.SectionRules:              prompt.EstimateTokens(rules),
-		prompt.SectionConfirmedLearnings: prompt.EstimateTokens(learnings),
-		prompt.SectionRunStats:           prompt.EstimateTokens(diagnosticJSON(runStats)),
-		prompt.SectionBeadStats:          prompt.EstimateTokens(diagnosticJSON(beadStats)),
-		"efficiency":                     prompt.EstimateTokens(diagnosticJSON(efficiency)),
-		"process_trend":                  prompt.EstimateTokens(diagnosticJSON(processTrend)),
+	preShapeTokens := 0
+	postShapeTokens := 0
+	var shapeReport *prompt.ShapeReport
+	if r.promptBudget > 0 {
+		preShapeTokens = prompt.EstimateTokens(rules) + prompt.EstimateTokens(learnings)
+		rules, learnings, shapeReport = prompt.ShapeRetroForBudget(rules, learnings, r.promptBudget)
+		postShapeTokens = prompt.EstimateTokens(rules) + prompt.EstimateTokens(learnings)
 	}
-	diagnostics := prompt.NewDiagnostics("retro", sectionTokens)
 
+	sectionTokens := buildRetroSectionTokens(rules, learnings, runStats, beadStats, efficiency, processTrend)
+	diagnostics := prompt.NewDiagnostics("retro", sectionTokens)
 	if r.promptBudget > 0 {
 		diagnostics.BudgetMaxChars = r.promptBudget
-		diagnostics.PreShapeTokens = prompt.EstimateTokens(rules) + prompt.EstimateTokens(learnings)
-		var shapeReport *prompt.ShapeReport
-		rules, learnings, shapeReport = prompt.ShapeRetroForBudget(rules, learnings, r.promptBudget)
-		diagnostics.PostShapeTokens = prompt.EstimateTokens(rules) + prompt.EstimateTokens(learnings)
+		diagnostics.PreShapeTokens = preShapeTokens
+		diagnostics.PostShapeTokens = postShapeTokens
 		if shapeReport != nil {
 			diagnostics.ShapeActions = append([]string{}, shapeReport.TrimActions...)
 		}
@@ -452,6 +453,23 @@ func diagnosticJSON(v any) string {
 		return fmt.Sprintf("%v", v)
 	}
 	return string(data)
+}
+
+func buildRetroSectionTokens(
+	rules, learnings string,
+	runStats logger.RunStats,
+	beadStats map[string]logger.BeadStats,
+	efficiency *logger.EfficiencyReport,
+	processTrend *logger.ProcessTrend,
+) map[string]int {
+	return map[string]int{
+		prompt.SectionRules:              prompt.EstimateTokens(rules),
+		prompt.SectionConfirmedLearnings: prompt.EstimateTokens(learnings),
+		prompt.SectionRunStats:           prompt.EstimateTokens(diagnosticJSON(runStats)),
+		prompt.SectionBeadStats:          prompt.EstimateTokens(diagnosticJSON(beadStats)),
+		sectionEfficiency:                prompt.EstimateTokens(diagnosticJSON(efficiency)),
+		sectionProcessTrend:              prompt.EstimateTokens(diagnosticJSON(processTrend)),
+	}
 }
 
 // PromptDiagnostics returns the last prompt diagnostics snapshot.
