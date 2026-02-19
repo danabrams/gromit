@@ -125,7 +125,7 @@ type SpecCost struct {
 	ModelMix     map[string]int
 }
 
-const unassignedSpecID = "unassigned"
+const unassignedSpecID = "(unassigned)"
 
 // CostPerSpec aggregates cost and usage statistics grouped by spec_id.
 // Entries with an empty spec_id are grouped under "unassigned".

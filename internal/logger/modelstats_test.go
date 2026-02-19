@@ -945,7 +945,7 @@ func TestCostPerSpec_GroupsBySpecIDAndAccumulatesCost(t *testing.T) {
 	}
 }
 
-// TestCostPerSpec_EmptySpecIDMapsToUnassigned verifies entries with empty spec_id are grouped under "unassigned"
+// TestCostPerSpec_EmptySpecIDMapsToUnassigned verifies entries with empty spec_id are grouped under "(unassigned)"
 func TestCostPerSpec_EmptySpecIDMapsToUnassigned(t *testing.T) {
 	dir := t.TempDir()
 
@@ -958,11 +958,14 @@ func TestCostPerSpec_EmptySpecIDMapsToUnassigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CostPerSpec failed: %v", err)
 	}
-	if _, ok := result["unassigned"]; !ok {
-		t.Errorf("Expected 'unassigned' key for empty spec_id, got keys: %v", result)
+	if _, ok := result["(unassigned)"]; !ok {
+		t.Errorf("Expected '(unassigned)' key for empty spec_id, got keys: %v", result)
 	}
 	if _, ok := result[""]; ok {
 		t.Error("Expected no empty-string key in result")
+	}
+	if _, ok := result["unassigned"]; ok {
+		t.Error("Expected no 'unassigned' key (should be '(unassigned)')")
 	}
 }
 
