@@ -239,11 +239,12 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 	// Create regular beads from review proposals
 	for _, bp := range result.BeadsToCreate {
 		labels := buildReviewBeadLabels(bp.Labels)
+		expectedOutputs := expectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title)
 		_, err := r.beads.CreateWithParentAndDescription(
 			bp.Title,
 			bp.Priority,
 			labels,
-			nil, // no expected outputs
+			expectedOutputs,
 			"",  // no parent
 			bp.Description,
 		)
@@ -258,6 +259,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 	// Create backlog items as P2 beads
 	for _, bi := range result.BacklogItems {
 		labels := buildBacklogLabels()
+		expectedOutputs := expectedOutputsOrTitle(bi.ExpectedOutputs, bi.Title)
 		// Build description from description + reason
 		description := bi.Description
 		if bi.Reason != "" {
@@ -270,7 +272,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 			bi.Title,
 			2, // P2 for backlog
 			labels,
-			nil, // no expected outputs
+			expectedOutputs,
 			"",  // no parent
 			description,
 		)
@@ -284,7 +286,6 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 
 	return beadsCreated, backlogCreated
 }
-
 // buildReviewBeadLabels constructs the label list for a bead created from a review proposal.
 func buildReviewBeadLabels(proposalLabels []string) []string {
 	labels := []string{"from-review"}

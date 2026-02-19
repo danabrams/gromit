@@ -18,17 +18,19 @@ type ReviewResult struct {
 
 // BeadProposal represents a new bead that should be created based on review findings
 type BeadProposal struct {
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Priority    int      `json:"priority"`
-	Labels      []string `json:"labels"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	Priority        int      `json:"priority"`
+	Labels          []string `json:"labels"`
+	ExpectedOutputs []string `json:"expected_outputs,omitempty"`
 }
 
 // BacklogItem represents a lower-priority item that should be tracked but not immediately worked on
 type BacklogItem struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Reason      string `json:"reason"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	Reason          string   `json:"reason"`
+	ExpectedOutputs []string `json:"expected_outputs,omitempty"`
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
@@ -54,6 +56,14 @@ func (r *ReviewResult) normalizeNilFields() {
 	for i := range r.BeadsToCreate {
 		if r.BeadsToCreate[i].Labels == nil {
 			r.BeadsToCreate[i].Labels = []string{}
+		}
+		if r.BeadsToCreate[i].ExpectedOutputs == nil {
+			r.BeadsToCreate[i].ExpectedOutputs = []string{}
+		}
+	}
+	for i := range r.BacklogItems {
+		if r.BacklogItems[i].ExpectedOutputs == nil {
+			r.BacklogItems[i].ExpectedOutputs = []string{}
 		}
 	}
 }

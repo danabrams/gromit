@@ -105,7 +105,8 @@ func (r *Runner) runTestFixLoop(ctx context.Context) error {
 		title := "Fix residual test failures from session epilogue"
 		desc := fmt.Sprintf("Session test command failed after %d fix attempts.\n\nTest command: %s\n\nFailure output:\n%s",
 			maxRetries, testCmd, testOutput)
-		_, err := r.beads.CreateWithParentAndDescription(title, 0, []string{"from-epilogue"}, nil, "", desc)
+		expectedOutputs := []string{"Session test command exits successfully"}
+		_, err := r.beads.CreateWithParentAndDescription(title, 0, []string{"from-epilogue"}, expectedOutputs, "", desc)
 		if err != nil {
 			r.log("Warning: failed to create residual failure bead: %v", err)
 		}

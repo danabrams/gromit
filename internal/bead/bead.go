@@ -26,6 +26,9 @@ type Bead struct {
 	CloseReason     string   `json:"close_reason,omitempty"`
 	Owner           string   `json:"owner"`
 	ExpectedOutputs []string `json:"expected_outputs,omitempty"`
+	// acceptance_criteria is used by current bd JSON responses and should be
+	// treated as equivalent to expected_outputs for runner methodology logic.
+	AcceptanceCriteria string `json:"acceptance_criteria,omitempty"`
 }
 
 // validBeadID matches alphanumeric characters, hyphens, underscores, and dots.
@@ -50,6 +53,15 @@ func (b *Bead) normalizeNilFields() {
 	}
 	if b.Labels == nil {
 		b.Labels = []string{}
+	}
+	if len(b.ExpectedOutputs) == 0 && strings.TrimSpace(b.AcceptanceCriteria) != "" {
+		for _, line := range strings.Split(b.AcceptanceCriteria, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" {
+				continue
+			}
+			b.ExpectedOutputs = append(b.ExpectedOutputs, trimmed)
+		}
 	}
 	if b.ExpectedOutputs == nil {
 		b.ExpectedOutputs = []string{}

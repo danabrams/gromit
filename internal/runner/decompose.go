@@ -220,7 +220,7 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []ru
 			subTask.Title,
 			b.Priority, // Inherit priority from parent
 			labels,     // Inherit labels from parent with methodology injection
-			nil,        // No expected outputs
+			subTask.AcceptanceCriteria,
 			b.ID,       // Set parent to original bead
 			description,
 		)

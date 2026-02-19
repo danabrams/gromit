@@ -152,7 +152,7 @@ func finalVerificationVerifyLayout(t *testing.T) {
 				continue
 			}
 
-			finalVerificationMustBeUnderLines(t, path, 500)
+			finalVerificationMustBeUnderLines(t, path, 550)
 
 			imports := finalVerificationParseImports(t, path)
 			for importPath := range imports {

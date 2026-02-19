@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strings"
 	"os"
 	"path/filepath"
 
@@ -288,7 +289,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	beadsCreated := 0
 	for _, bp := range reviewResult.BeadsToCreate {
 		labels := buildReviewBeadLabels(bp.Labels)
-		_, err := p.deps.BeadClient.Create(bp.Title, bp.Priority, labels, nil)
+		_, err := p.deps.BeadClient.Create(bp.Title, bp.Priority, labels, expectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title))
 		if err != nil {
 			return nil, fmt.Errorf("creating review bead: %w", err)
 		}
@@ -342,6 +343,17 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	result.BacklogCreated = backlogCreated
 
 	return &result, nil
+}
+
+func expectedOutputsOrTitle(outputs []string, title string) []string {
+	if len(outputs) > 0 {
+		return outputs
+	}
+	trimmedTitle := strings.TrimSpace(title)
+	if trimmedTitle == "" {
+		return []string{}
+	}
+	return []string{trimmedTitle}
 }
 
 // validateReviewDeps checks that all required dependencies for ReviewNonInteractive are present.

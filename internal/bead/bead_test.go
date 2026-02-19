@@ -463,6 +463,35 @@ func TestParseBeadOutputWithExplicitNullFields(t *testing.T) {
 	}
 }
 
+func TestParseBeadOutputMapsAcceptanceCriteriaToExpectedOutputs(t *testing.T) {
+	jsonStr := `[{
+		"id": "test-criteria",
+		"title": "Criteria-backed bead",
+		"status": "open",
+		"priority": 1,
+		"issue_type": "task",
+		"owner": "alice",
+		"acceptance_criteria": "first expected output\nsecond expected output"
+	}]`
+
+	b, err := parseBeadOutput(jsonStr)
+	if err != nil {
+		t.Fatalf("parseBeadOutput() error = %v", err)
+	}
+	if b == nil {
+		t.Fatal("parseBeadOutput() returned nil bead")
+	}
+	if len(b.ExpectedOutputs) != 2 {
+		t.Fatalf("ExpectedOutputs length = %d, want 2", len(b.ExpectedOutputs))
+	}
+	if b.ExpectedOutputs[0] != "first expected output" {
+		t.Errorf("ExpectedOutputs[0] = %q, want %q", b.ExpectedOutputs[0], "first expected output")
+	}
+	if b.ExpectedOutputs[1] != "second expected output" {
+		t.Errorf("ExpectedOutputs[1] = %q, want %q", b.ExpectedOutputs[1], "second expected output")
+	}
+}
+
 // TestShowParsesArrayWrappedJSON tests that Show handles both array and object JSON formats
 func TestShowParsesArrayWrappedJSON(t *testing.T) {
 	// We can't call Show() directly without bd running, but we can test
