@@ -2,6 +2,7 @@ package tdd
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -325,5 +326,76 @@ func TestRunCycles_CoverageDone_TestsPassUnexpectedlyInRedPhase(t *testing.T) {
 
 	if greenCalled {
 		t.Fatal("green phase should not be called when red validation passes unexpectedly")
+	}
+}
+
+func TestRunCycles_RedEscalation_RetriesThenEscalates(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	invokeAttempts := 0
+	var invokedTiers []string
+	escalated := false
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		invokeAttempts++
+		invokedTiers = append(invokedTiers, tier)
+		if prompt == "red" {
+			// First two attempts fail (original + retry), third succeeds (escalated)
+			if invokeAttempts <= 2 {
+				return fmt.Errorf("red invocation failed")
+			}
+		}
+		return nil
+	}
+	orch.escalateTierFn = func(currentTier string) string {
+		escalated = true
+		return "high"
+	}
+	orch.getGitHeadFn = func() (string, error) { return "abc123", nil }
+	orch.gitResetFn = func(commit string) error { return nil }
+
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall % 3 {
+		case 1:
+			return "FAIL", false, nil
+		default:
+			return "PASS", true, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := singleRequirementState()
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !escalated {
+		t.Fatal("expected escalation after retry failure")
+	}
+	if len(invokedTiers) < 3 {
+		t.Fatalf("expected at least 3 invocations (original + retry + escalated), got %d", len(invokedTiers))
+	}
+	// First two attempts at medium, third at high
+	if invokedTiers[0] != "medium" || invokedTiers[1] != "medium" {
+		t.Fatalf("expected first two attempts at medium tier, got %v", invokedTiers[:2])
+	}
+	if invokedTiers[2] != "high" {
+		t.Fatalf("expected third attempt at high tier, got %q", invokedTiers[2])
 	}
 }

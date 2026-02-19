@@ -34,14 +34,17 @@ type GitResetFn func(commit string) error
 
 // CycleOrchestrator runs TDD red-green-refactor cycles with fresh context per phase.
 type CycleOrchestrator struct {
-	renderRedFn   RenderRedFn
-	renderGreenFn RenderGreenFn
-	invokeFn      InvokeFn
-	validateFn    ValidateFn
-	runRefactorFn RunRefactorFn
-	getDiffFn     GetDiffFn
-	readFileFn    ReadFileFn
-	cfg           *config.Config
+	renderRedFn    RenderRedFn
+	renderGreenFn  RenderGreenFn
+	invokeFn       InvokeFn
+	validateFn     ValidateFn
+	runRefactorFn  RunRefactorFn
+	escalateTierFn EscalateTierFn
+	getDiffFn      GetDiffFn
+	readFileFn     ReadFileFn
+	getGitHeadFn   GetGitHeadFn
+	gitResetFn     GitResetFn
+	cfg            *config.Config
 }
 
 // RunCycles executes TDD cycles until the state is complete.
@@ -52,6 +55,33 @@ func (o *CycleOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadCont
 		}
 	}
 	return nil
+}
+
+// invokeWithRetryAndEscalation attempts invocation, retries once on failure,
+// then escalates tier. Returns error if all attempts fail.
+func (o *CycleOrchestrator) invokeWithRetryAndEscalation(ctx context.Context, prompt string, tier *string) error {
+	// First attempt
+	err := o.invokeFn(ctx, prompt, *tier)
+	if err == nil {
+		return nil
+	}
+
+	// Retry once on same tier
+	err = o.invokeFn(ctx, prompt, *tier)
+	if err == nil {
+		return nil
+	}
+
+	// Escalate tier
+	if o.escalateTierFn != nil {
+		nextTier := o.escalateTierFn(*tier)
+		if nextTier != "" {
+			*tier = nextTier
+			return o.invokeFn(ctx, prompt, *tier)
+		}
+	}
+
+	return fmt.Errorf("invocation failed after retry and escalation: %w", err)
 }
 
 func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadContext, state *CycleState) error {
@@ -66,10 +96,12 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("red prompt render: %w", err)
 	}
 
-	err = o.invokeFn(ctx, redPrompt, bc.Tier)
+	tier := bc.Tier
+	err = o.invokeWithRetryAndEscalation(ctx, redPrompt, &tier)
 	if err != nil {
-		return fmt.Errorf("red invocation: %w", err)
+		return fmt.Errorf("red phase: %w", err)
 	}
+	bc.Tier = tier
 
 	// VALIDATE RED: expect tests to fail
 	valOutput, passed, err := o.validateFn(ctx, nil, "")
@@ -94,10 +126,12 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green prompt render: %w", err)
 	}
 
-	err = o.invokeFn(ctx, greenPrompt, bc.Tier)
+	tier = bc.Tier
+	err = o.invokeWithRetryAndEscalation(ctx, greenPrompt, &tier)
 	if err != nil {
-		return fmt.Errorf("green invocation: %w", err)
+		return fmt.Errorf("green phase: %w", err)
 	}
+	bc.Tier = tier
 
 	// VALIDATE GREEN: expect tests to pass
 	_, passed, err = o.validateFn(ctx, nil, "")
@@ -119,7 +153,6 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("refactor validation: %w", err)
 	}
 	if !passed {
-		// Refactor broke tests — this is handled in a later cycle (revert)
 		return fmt.Errorf("refactor validation failed: tests broken after refactor")
 	}
 
