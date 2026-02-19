@@ -147,6 +147,7 @@ type LoopConfig struct {
 	MaxCrossRunFailures      int    `yaml:"max_cross_run_failures"`
 	LearnFromSuccess         *bool  `yaml:"learn_from_success"`
 	BetweenIterationsCommand string `yaml:"between_iterations_command"`
+	MaxDecomposeDepth        int    `yaml:"max_decompose_depth"`
 }
 
 type ValidationConfig struct {
@@ -638,6 +639,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Loop.MaxCrossRunFailures == 0 {
 		c.Loop.MaxCrossRunFailures = 5
+	}
+	if c.Loop.MaxDecomposeDepth == 0 {
+		c.Loop.MaxDecomposeDepth = 10
 	}
 	if c.Loop.LearnFromSuccess == nil {
 		t := true

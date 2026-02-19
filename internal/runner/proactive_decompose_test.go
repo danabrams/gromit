@@ -203,6 +203,7 @@ func TestRunProactiveDecomposition_RetriesOnParseFailure(t *testing.T) {
 
 	subTasksJSON, _ := json.Marshal([]runtypes.SubTask{
 		{Title: "Sub-task A", Description: "Do part A", AcceptanceCriteria: []string{"A done"}},
+		{Title: "Sub-task B", Description: "Do part B", AcceptanceCriteria: []string{"B done"}},
 	})
 
 	claudeCallCount := 0
@@ -264,8 +265,8 @@ func TestRunProactiveDecomposition_RetriesOnParseFailure(t *testing.T) {
 		t.Errorf("expected at least 2 Claude calls (initial + retry), got %d", claudeCallCount)
 	}
 
-	// Sub-beads should have been created on retry
-	if len(createdSubBeads) != 1 {
-		t.Errorf("expected 1 sub-bead created after retry, got %d: %v", len(createdSubBeads), createdSubBeads)
+	// Sub-beads should have been created on retry (2 sub-tasks)
+	if len(createdSubBeads) != 2 {
+		t.Errorf("expected 2 sub-beads created after retry, got %d: %v", len(createdSubBeads), createdSubBeads)
 	}
 }

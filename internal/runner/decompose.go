@@ -12,10 +12,14 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-// maxDecomposeDepth limits how deeply beads can be recursively decomposed.
+// decomposeDepthWarnThreshold is the depth at which a warning is logged during decomposition.
+// Depths above this threshold are suspicious even if not yet at the hard cap.
+const decomposeDepthWarnThreshold = 5
+
+// defaultMaxDecomposeDepth is the fallback when Loop.MaxDecomposeDepth is not configured.
 // Depth is measured by counting "." separators in the bead ID (e.g., "gromit-abc.1.2" = depth 2).
 // This prevents runaway decomposition from creating IDs that exceed maxIDLength (128).
-const maxDecomposeDepth = 10
+const defaultMaxDecomposeDepth = 10
 
 // DecomposeTask calls Claude (opus) to decompose a task and returns parsed sub-tasks
 // Does NOT create beads - just gets the decomposition
@@ -26,9 +30,16 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 	if b == nil {
 		return nil, fmt.Errorf("bead is nil")
 	}
-	if depth := strings.Count(b.ID, "."); depth >= maxDecomposeDepth {
-		return nil, fmt.Errorf("bead %s is at decomposition depth %d (max %d): refusing to decompose further", b.ID, depth, maxDecomposeDepth)
+	maxDepth := defaultMaxDecomposeDepth
+	if r.cfg != nil && r.cfg.Loop.MaxDecomposeDepth > 0 {
+		maxDepth = r.cfg.Loop.MaxDecomposeDepth
 	}
+	if depth := strings.Count(b.ID, "."); depth >= maxDepth {
+		return nil, fmt.Errorf("bead %s is at decomposition depth %d (max %d): refusing to decompose further", b.ID, depth, maxDepth)
+	} else if depth > decomposeDepthWarnThreshold {
+		r.log("Warning: bead %s is at decomposition depth %d (warn threshold %d, max %d): consider splitting into more focused beads", b.ID, depth, decomposeDepthWarnThreshold, maxDepth)
+	}
+
 	if r.beads == nil {
 		return nil, fmt.Errorf("runner beads client is nil")
 	}
@@ -159,6 +170,10 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 	}
 	if len(subTasks) == 0 {
 		return fmt.Errorf("no sub-tasks to create")
+	}
+	if len(subTasks) == 1 {
+		r.log("Warning: bead %s decomposed into a single child — scope is already atomic; skipping decomposition and executing directly", b.ID)
+		return fmt.Errorf("single child decomposition for bead %s: scope is atomic, not decomposing further", b.ID)
 	}
 	if r.beads == nil {
 		return fmt.Errorf("runner beads client is nil")

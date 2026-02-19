@@ -970,6 +970,10 @@ func TestCreateSubBeads_VerifyLogging(t *testing.T) {
 			Title:       "Sub-task 1",
 			Description: "First sub-task",
 		},
+		{
+			Title:       "Sub-task 2",
+			Description: "Second sub-task",
+		},
 	}
 
 	err := r.CreateSubBeads(context.TODO(), b, subTasks)
@@ -1183,7 +1187,8 @@ func TestDecomposeTaskNilDependencies(t *testing.T) {
 func TestCreateSubBeadsNilBeadsClient(t *testing.T) {
 	r := &Runner{output: os.Stdout}
 	b := &bead.Bead{ID: "test-1"}
-	subTasks := []SubTask{{Title: "Task 1"}}
+	// Use 2 sub-tasks to avoid triggering the single-child guard before the nil beads check
+	subTasks := []SubTask{{Title: "Task 1"}, {Title: "Task 2"}}
 	err := r.CreateSubBeads(context.TODO(), b, subTasks)
 	if err == nil || !strings.Contains(err.Error(), "beads client is nil") {
 		t.Errorf("expected error for nil beads client, got: %v", err)
@@ -1311,6 +1316,7 @@ func TestCreateSubBeads_MethodologyInheritance(t *testing.T) {
 
 			subTasks := []SubTask{
 				{Title: "Sub-task 1", Description: "Do something"},
+				{Title: "Sub-task 2", Description: "Do something else"},
 			}
 
 			if err := r.CreateSubBeads(context.Background(), parent, subTasks); err != nil {
