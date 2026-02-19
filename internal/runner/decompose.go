@@ -16,6 +16,8 @@ import (
 // Depths above this threshold are suspicious even if not yet at the hard cap.
 const decomposeDepthWarnThreshold = 5
 
+const decomposeOutputPreviewLimit = 200
+
 // defaultMaxDecomposeDepth is the fallback when Loop.MaxDecomposeDepth is not configured.
 // Depth is measured by counting "." separators in the bead ID (e.g., "gromit-abc.1.2" = depth 2).
 // This prevents runaway decomposition from creating IDs that exceed maxIDLength (128).
@@ -95,10 +97,7 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 	// Parse the output
 	subTasks, err := parseDecomposeOutput(result.Output)
 	if err != nil {
-		outputPreview := result.Output
-		if len(outputPreview) > 200 {
-			outputPreview = outputPreview[:200] + "..."
-		}
+		outputPreview := previewDecomposeOutput(result.Output)
 		if !result.Success {
 			return nil, fmt.Errorf("decomposition failed with exit code %d and parsing failed: %v (output: %q)", result.ExitCode, err, outputPreview)
 		}
@@ -159,6 +158,33 @@ func parseDecomposeOutput(output string) ([]SubTask, error) {
 	return subTasks, nil
 }
 
+func previewDecomposeOutput(output string) string {
+	if len(output) > decomposeOutputPreviewLimit {
+		return output[:decomposeOutputPreviewLimit] + "..."
+	}
+	return output
+}
+
+func buildSubTaskDescription(subTask SubTask) string {
+	if subTask.Description == "" {
+		return ""
+	}
+
+	if len(subTask.AcceptanceCriteria) == 0 {
+		return subTask.Description
+	}
+
+	var descriptionBuilder strings.Builder
+	descriptionBuilder.WriteString(subTask.Description)
+	descriptionBuilder.WriteString("\n\nAcceptance criteria:\n")
+	for _, ac := range subTask.AcceptanceCriteria {
+		descriptionBuilder.WriteString("- ")
+		descriptionBuilder.WriteString(ac)
+		descriptionBuilder.WriteString("\n")
+	}
+	return descriptionBuilder.String()
+}
+
 // CreateSubBeads creates child beads from decomposed sub-tasks, comments on the original
 // bead with the new sub-bead IDs, and closes the original bead.
 func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []SubTask) error {
@@ -185,16 +211,7 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 		r.log("Creating sub-bead %d/%d: %s", i+1, len(subTasks), subTask.Title)
 
 		// Build description from description and acceptance criteria
-		var description string
-		if subTask.Description != "" {
-			description = subTask.Description
-			if len(subTask.AcceptanceCriteria) > 0 {
-				description += "\n\nAcceptance criteria:\n"
-				for _, ac := range subTask.AcceptanceCriteria {
-					description += "- " + ac + "\n"
-				}
-			}
-		}
+		description := buildSubTaskDescription(subTask)
 
 		// Inherit labels from parent and inject methodology labels if needed
 		labels := r.injectMethodologyLabels(b.Labels)
@@ -226,10 +243,12 @@ func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []Su
 	}
 
 	// Comment on original bead listing the new sub-bead IDs
-	comment := fmt.Sprintf("Decomposed into %d sub-beads:\n", len(createdIDs))
+	var commentBuilder strings.Builder
+	commentBuilder.WriteString(fmt.Sprintf("Decomposed into %d sub-beads:\n", len(createdIDs)))
 	for i, id := range createdIDs {
-		comment += fmt.Sprintf("%d. %s\n", i+1, id)
+		commentBuilder.WriteString(fmt.Sprintf("%d. %s\n", i+1, id))
 	}
+	comment := commentBuilder.String()
 	if err := r.beads.AddComment(b.ID, comment); err != nil {
 		r.log("Warning: failed to add comment to bead: %v", err)
 	}
@@ -262,33 +281,30 @@ func (r *Runner) injectMethodologyLabels(parentLabels []string) []string {
 
 	// Check if ATDD label should be added
 	if r.cfg.Methodology.ATDD {
-		hasATDDLabel := false
-		for _, label := range labels {
-			if label == "atdd:true" || label == "atdd:false" {
-				hasATDDLabel = true
-				break
-			}
-		}
-		if !hasATDDLabel {
+		if !hasMethodologyLabel(labels, "atdd") {
 			labels = append(labels, "atdd:true")
 		}
 	}
 
 	// Check if TDD label should be added
 	if r.cfg.Methodology.TDD {
-		hasTDDLabel := false
-		for _, label := range labels {
-			if label == "tdd:true" || label == "tdd:false" {
-				hasTDDLabel = true
-				break
-			}
-		}
-		if !hasTDDLabel {
+		if !hasMethodologyLabel(labels, "tdd") {
 			labels = append(labels, "tdd:true")
 		}
 	}
 
 	return labels
+}
+
+func hasMethodologyLabel(labels []string, methodology string) bool {
+	trueLabel := methodology + ":true"
+	falseLabel := methodology + ":false"
+	for _, label := range labels {
+		if label == trueLabel || label == falseLabel {
+			return true
+		}
+	}
+	return false
 }
 
 type _ = runtypes.SubTask
