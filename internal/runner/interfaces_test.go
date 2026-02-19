@@ -182,6 +182,7 @@ type mockPromptRenderer struct {
 	RenderTDDGreenFn        func(ctx *prompt.TDDGreenContext) (string, error)
 	RenderRefactorFn        func(ctx *prompt.Context) (string, error)
 	RenderTestFixFn         func(ctx *prompt.TestFixContext) (string, error)
+	RenderCoverageValidFn   func(ctx *prompt.CoverageValidationContext) (string, error)
 	LoadSpecFn              func(name string) (string, error)
 	LoadClaudeMDFn          func() (string, error)
 	LoadRulesFn             func() (string, error)
@@ -354,6 +355,13 @@ func (m *mockPromptRenderer) RenderTestFix(ctx *prompt.TestFixContext) (string, 
 	return "mock test fix prompt", nil
 }
 
+func (m *mockPromptRenderer) RenderCoverageValidation(ctx *prompt.CoverageValidationContext) (string, error) {
+	if m.RenderCoverageValidFn != nil {
+		return m.RenderCoverageValidFn(ctx)
+	}
+	return "mock coverage validation prompt", nil
+}
+
 type mockIterationLogger struct {
 	Logs   []*logger.IterationLog
 	Closed bool
@@ -485,6 +493,10 @@ func (m *mockRenderer) RenderTestFix(ctx *prompt.TestFixContext) (string, error)
 	return "mock test fix prompt", nil
 }
 
+func (m *mockRenderer) RenderCoverageValidation(ctx *prompt.CoverageValidationContext) (string, error) {
+	return "mock coverage validation prompt", nil
+}
+
 // --- Tests ---
 
 // TestBeadClientInterfaceIncludesReadyWithLabel verifies that BeadClient interface
@@ -534,6 +546,21 @@ func TestPromptRendererInterfaceIncludesRenderSpecGate(t *testing.T) {
 	output, err := r.RenderSpecGate(&prompt.SpecGateContext{SpecCriteria: "criteria"})
 	if err != nil {
 		t.Fatalf("RenderSpecGate() error = %v", err)
+	}
+	if output == "" {
+		t.Fatal("expected non-empty output")
+	}
+}
+
+func TestPromptRendererInterfaceIncludesRenderCoverageValidation(t *testing.T) {
+	var r PromptRenderer = &mockPromptRenderer{}
+
+	output, err := r.RenderCoverageValidation(&prompt.CoverageValidationContext{
+		TestCode:  "func TestCoverage(t *testing.T) {}",
+		Criterion: "Handles empty input",
+	})
+	if err != nil {
+		t.Fatalf("RenderCoverageValidation() error = %v", err)
 	}
 	if output == "" {
 		t.Fatal("expected non-empty output")

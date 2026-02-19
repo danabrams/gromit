@@ -61,6 +61,7 @@ type PromptRenderer interface {
 	RenderTDDGreen(ctx *prompt.TDDGreenContext) (string, error)
 	RenderRefactor(ctx *prompt.Context) (string, error)
 	RenderTestFix(ctx *prompt.TestFixContext) (string, error)
+	RenderCoverageValidation(ctx *prompt.CoverageValidationContext) (string, error)
 	LoadSpec(name string) (string, error)
 	LoadClaudeMD() (string, error)
 	LoadRules() (string, error)

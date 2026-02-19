@@ -138,6 +138,12 @@ type TestFixContext struct {
 	TestFailureOutput string
 }
 
+// CoverageValidationContext holds data for test coverage validation prompt template.
+type CoverageValidationContext struct {
+	TestCode  string
+	Criterion string
+}
+
 // TDDRedContext holds data for TDD red-phase prompt template.
 type TDDRedContext struct {
 	BeadID            string
@@ -399,6 +405,11 @@ func (r *Renderer) RenderTDDGreen(ctx *TDDGreenContext) (string, error) {
 // RenderTestFix renders the test-fix prompt for fixing implementation without changing tests
 func (r *Renderer) RenderTestFix(ctx *TestFixContext) (string, error) {
 	return r.render("PROMPT_test_fix.md", ctx)
+}
+
+// RenderCoverageValidation renders the coverage validation prompt.
+func (r *Renderer) RenderCoverageValidation(ctx *CoverageValidationContext) (string, error) {
+	return r.render("PROMPT_coverage_validation.md", ctx)
 }
 
 // ValidateSpecName checks that a spec name doesn't contain path traversal characters

@@ -1465,6 +1465,43 @@ func TestRenderTestFixNilRenderer(t *testing.T) {
 	}
 }
 
+func TestRenderCoverageValidationNilRenderer(t *testing.T) {
+	var r *Renderer
+	_, err := r.RenderCoverageValidation(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderCoverageValidation")
+	}
+}
+
+func TestRenderCoverageValidationRealTemplateIncludesInputs(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	templatePath := filepath.Join(templatesDir, "PROMPT_coverage_validation.md")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		t.Skipf("skipping: real template not found at %s", templatePath)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &CoverageValidationContext{
+		TestCode:  "func TestCoverage(t *testing.T) { t.Fatal(\"missing\") }",
+		Criterion: "The handler retries on 500 responses",
+	}
+
+	result, err := r.RenderCoverageValidation(ctx)
+	if err != nil {
+		t.Fatalf("RenderCoverageValidation() error = %v", err)
+	}
+
+	if !strings.Contains(result, "Coverage Validation") {
+		t.Error("expected template header in output")
+	}
+	if !strings.Contains(result, ctx.Criterion) {
+		t.Error("expected criterion in output")
+	}
+	if !strings.Contains(result, ctx.TestCode) {
+		t.Error("expected test code in output")
+	}
+}
+
 func TestRenderTestFixRealTemplateContainsRequiredSections(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	templatePath := filepath.Join(templatesDir, "PROMPT_test_fix.md")
@@ -1540,5 +1577,31 @@ Failure:
 	}
 	if !strings.Contains(result, "TestFoo expected X got Y") {
 		t.Error("expected TestFailureOutput in output")
+	}
+}
+
+func TestRenderCoverageValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Coverage: {{.Criterion}}\n{{.TestCode}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_coverage_validation.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &CoverageValidationContext{
+		TestCode:  "func TestExample(t *testing.T) {}",
+		Criterion: "Handles empty input",
+	}
+
+	result, err := r.RenderCoverageValidation(ctx)
+	if err != nil {
+		t.Fatalf("RenderCoverageValidation() error = %v", err)
+	}
+	if !strings.Contains(result, "Handles empty input") {
+		t.Error("expected criterion in output")
+	}
+	if !strings.Contains(result, "func TestExample") {
+		t.Error("expected test code in output")
 	}
 }
