@@ -26,6 +26,19 @@ func TestCycleStateIsCompleteWhenCycleReachesMax(t *testing.T) {
 	}
 }
 
+func TestCycleStateIsCompleteWhenNoRemainingRequirements(t *testing.T) {
+	state := CycleState{
+		CycleNumber: 0,
+		MaxCycles:   3,
+		Done:        false,
+		Remaining:   []string{},
+	}
+
+	if !state.IsComplete() {
+		t.Fatalf("expected IsComplete to be true when no requirements remain")
+	}
+}
+
 func TestRedHandoffNilMapsAreSafeToRead(t *testing.T) {
 	var handoff RedHandoff
 

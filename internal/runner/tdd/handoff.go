@@ -34,5 +34,5 @@ type CycleState struct {
 
 // IsComplete reports whether the cycle is finished.
 func (c CycleState) IsComplete() bool {
-	return c.Done || c.CycleNumber >= c.MaxCycles
+	return c.Done || c.CycleNumber >= c.MaxCycles || len(c.Remaining) == 0
 }
