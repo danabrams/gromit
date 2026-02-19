@@ -604,14 +604,20 @@ func (r *Renderer) computeBuildDiagnostics(promptType string, ctx *Context) *Pro
 			SectionTemplateStatic: promptType,
 		})
 	}
+
+	taskIdentity := formatTaskIdentity(ctx.Bead, ctx.ParentBead, ctx.Iteration, ctx.Model)
+	confirmedLearnings := formatLearningsForDiagnostics(ctx.ConfirmedLearnings)
+	recentLearnings := formatLearningsForDiagnostics(ctx.RecentLearnings)
+	failureContext := ctx.FailureContext + "\n" + ctx.PrevFailure
+
 	return r.computeDiagnostics(promptType, map[string]string{
 		SectionClaudeMD:           ctx.ClaudeMD,
 		SectionRules:              ctx.Rules,
 		SectionSpec:               ctx.Spec,
-		SectionConfirmedLearnings: formatLearningsForDiagnostics(ctx.ConfirmedLearnings),
-		SectionRecentLearnings:    formatLearningsForDiagnostics(ctx.RecentLearnings),
-		SectionTaskIdentity:       formatTaskIdentity(ctx.Bead, ctx.ParentBead, ctx.Iteration, ctx.Model),
-		SectionFailureContext:     ctx.FailureContext + "\n" + ctx.PrevFailure,
+		SectionConfirmedLearnings: confirmedLearnings,
+		SectionRecentLearnings:    recentLearnings,
+		SectionTaskIdentity:       taskIdentity,
+		SectionFailureContext:     failureContext,
 		SectionTemplateStatic:     promptType,
 	})
 }
@@ -638,7 +644,7 @@ func (r *Renderer) computeThoroughReviewDiagnostics(ctx *ThoroughReviewContext) 
 			SectionTemplateStatic: "PROMPT_thorough_review.md",
 		})
 	}
-	var beadSummaries []string
+	beadSummaries := make([]string, 0, len(ctx.CompletedBeads))
 	for _, completed := range ctx.CompletedBeads {
 		beadSummaries = append(beadSummaries, formatBeadIdentity(completed.ID, completed.Title, completed.Description, "", 0))
 	}
