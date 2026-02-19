@@ -29,25 +29,52 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
 
-### 2026-02-19 | Touched-Package Validation Blocks on Pre-existing Failures | conventions
-*Promoted from provisional — recurring operational surprise across multiple iterations*
-
-The validation script (test_touched.sh) tests all packages modified in the current branch. Pre-existing test failures in touched packages will block new beads. Verify all tests pass in target packages before beginning dependent work.
-
 ---
 
 ## Provisional
 
 *Seen once - may be specific to one task.*
 
+### 2026-02-19 | gpt-5.3-codex Structural Cost Multiplier | patterns
+
+gpt-5.3-codex averages $22.77/iteration vs $2.46 for gpt-5.2-codex (9x) despite similar per-token pricing. Top 4 most expensive iterations in the last 30 were all 5.3-codex ($55, $42, $42, $22). Token counts are reported as 0 for all codex iterations, so root cause (prompt size vs output verbosity vs retry loops) cannot be diagnosed. Until token reporting is fixed and the cause identified, prefer gpt-5.2-codex for cost-sensitive routing.
+
 ### 2026-02-18 | Documentation Test Enforcement for RULES.md | conventions
 Documentation tests in bead_sizing_docs_test.go enforce that RULES.md stays in sync with implemented behavior. Any changes to file sizing rules must update both the code AND the corresponding RULES.md documentation section.
+
+### 2026-02-19 | Agent Resolver Adapter Duplication | patterns
+*Related to: code-review*
+
+Agent resolver adapters (cliAgentResolver, agentResolverAdapter, exploreAgentResolver) are copy-pasted across cmd/gromit files — any interface change requires updating 3+ places.
+
+### 2026-02-19 | Go Interface Nil Check Gotcha in Pipeline | gotchas
+*Related to: code-review*
+
+The pipeline.validateReviewDeps function uses Go interface nil checks which do not catch typed nil pointers — this is a general Go gotcha worth documenting.
+
+### 2026-02-19 | Source-Text-Reading Test Anti-Pattern | gotchas
+*Related to: code-review*
+
+Source-text-reading test pattern (os.ReadFile + strings.Contains on .go files) has become widespread in *_agent_test.go files — these tests are fragile to refactoring and should be replaced before they multiply further.
+
+### 2026-02-19 | Runner Sub-Package Split Quality | patterns
+*Related to: code-review*
+
+The runner sub-package split is well-executed: no sub-package imports another sub-package, all production files under 500 lines, facade files under 1000 lines, and type aliases maintain backward compatibility.
+
+### 2026-02-19 | Acceptance Test Line Budget Utilization | patterns
+*Related to: code-review*
+
+The acceptance test line budget is at 61.5% utilization (3,688 of 6,000 lines) — healthy headroom.
+
+### 2026-02-19 | Debug Command Model Flag Override | gotchas
+*Related to: code-review*
+
+The debug command's --model flag defaults to opus so the model override block always executes for the Claude agent, silently discarding any resolved agent configuration.
 
 ---
 
 ## Archived
 
-*No longer relevant or superseded.*
-
-*No archived learnings.*
+*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
 

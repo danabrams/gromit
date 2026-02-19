@@ -1,6 +1,15 @@
 # Learnings Archive
 
-Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-18.
+Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-19.
+
+---
+
+### 2026-02-19 | Touched-Package Validation Blocks on Pre-existing Failures | conventions
+*Promoted from provisional — recurring operational surprise across multiple iterations*
+
+The validation script (test_touched.sh) tests all packages modified in the current branch. Pre-existing test failures in touched packages will block new beads. Verify all tests pass in target packages before beginning dependent work.
+
+*Archived from confirmed: promoted to RULES.md Process section (line 64, verbatim match). Rule is the source of truth.*
 
 ---
 

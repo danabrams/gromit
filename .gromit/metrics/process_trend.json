@@ -1,37 +1,37 @@
 {
-  "generated_at": "2026-02-19T13:26:36.762933848Z",
-  "total_iterations": 404,
+  "generated_at": "2026-02-19T13:58:35.963860559Z",
+  "total_iterations": 409,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 0.9666666666666667,
-    "failure_rate": 0.03333333333333333,
-    "first_pass_success_rate": 0.9666666666666667,
+    "success_rate": 0.9333333333333333,
+    "failure_rate": 0.06666666666666667,
+    "first_pass_success_rate": 0.9333333333333333,
     "escalation_rate": 0,
-    "avg_duration_ms": 497868.6,
+    "avg_duration_ms": 473811.4,
     "p95_duration_ms": 1103295.0999999996,
-    "avg_cost_usd": 7.733242660000002,
+    "avg_cost_usd": 7.4057231350000015,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
     "validation_failure_rate": 0,
-    "timeout_failure_rate": 0.03333333333333333
+    "timeout_failure_rate": 0.06666666666666667
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 7.733242660000002,
-      "mean": 1.0033490620679184,
-      "std_dev": 1.8324437269120728,
-      "ucl": 6.500680242804137,
-      "lcl": -4.493982118668299
+      "latest": 7.4057231350000015,
+      "mean": 1.083367240506371,
+      "std_dev": 1.95814466550514,
+      "ucl": 6.957801237021791,
+      "lcl": -4.791066756009049
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 497868.6,
-      "mean": 652810.1748523087,
-      "std_dev": 293011.1536999882,
-      "ucl": 1531843.6359522734,
-      "lcl": -226223.28624765587
+      "latest": 473811.4,
+      "mean": 650736.3406039105,
+      "std_dev": 291812.30773509503,
+      "ucl": 1526173.2638091957,
+      "lcl": -224700.5826013746
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -44,16 +44,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.05198019801980233,
-      "std_dev": 0.05871689684680493,
-      "ucl": 0.22813088856021713,
+      "mean": 0.051344743276283966,
+      "std_dev": 0.05863577092848468,
+      "ucl": 0.227252056061738,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 0.9666666666666667,
-      "mean": 0.34372937293729394,
-      "std_dev": 0.4343055321980671,
+      "latest": 0.9333333333333333,
+      "mean": 0.3512632436837818,
+      "std_dev": 0.43692531267418944,
       "ucl": 1,
       "lcl": 0
     },
@@ -67,18 +67,18 @@
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 0.9666666666666667,
-      "mean": 0.7392184748281669,
-      "std_dev": 0.22992843887749262,
+      "latest": 0.9333333333333333,
+      "mean": 0.7419175154781892,
+      "std_dev": 0.2298076954993956,
       "ucl": 1,
-      "lcl": 0.04943315819568905
+      "lcl": 0.05249442898000245
     },
     {
       "metric": "rolling_timeout_failure_rate",
-      "latest": 0.03333333333333333,
-      "mean": 0.0015676567656765677,
-      "std_dev": 0.007056746969218942,
-      "ucl": 0.022737897673333392,
+      "latest": 0.06666666666666667,
+      "mean": 0.002037489812550937,
+      "std_dev": 0.008318549664189356,
+      "ucl": 0.026993138805119003,
       "lcl": 0
     },
     {
@@ -93,19 +93,19 @@
   "anomalies": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 7.733242660000002,
-      "ucl": 6.500680242804137,
-      "lcl": -4.493982118668299,
+      "latest": 7.4057231350000015,
+      "ucl": 6.957801237021791,
+      "lcl": -4.791066756009049,
       "severity": "moderate",
-      "message": "latest value 7.7332 is above control limits [-4.4940, 6.5007]"
+      "message": "latest value 7.4057 is above control limits [-4.7911, 6.9578]"
     },
     {
       "metric": "rolling_timeout_failure_rate",
-      "latest": 0.03333333333333333,
-      "ucl": 0.022737897673333392,
+      "latest": 0.06666666666666667,
+      "ucl": 0.026993138805119003,
       "lcl": 0,
       "severity": "high",
-      "message": "latest value 0.0333 is above control limits [0.0000, 0.0227]"
+      "message": "latest value 0.0667 is above control limits [0.0000, 0.0270]"
     }
   ]
 }
