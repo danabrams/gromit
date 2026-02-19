@@ -3,6 +3,7 @@ package tdd
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -397,5 +398,38 @@ func TestRunCycles_RedEscalation_RetriesThenEscalates(t *testing.T) {
 	}
 	if invokedTiers[2] != "high" {
 		t.Fatalf("expected third attempt at high tier, got %q", invokedTiers[2])
+	}
+}
+
+func TestRunCycles_UnrecoverableFailure_NoHigherTier(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return fmt.Errorf("invocation failed")
+	}
+	// Already at highest tier, no escalation possible
+	orch.escalateTierFn = func(currentTier string) string {
+		return "" // no higher tier
+	}
+	orch.getGitHeadFn = func() (string, error) { return "abc123", nil }
+	orch.gitResetFn = func(commit string) error { return nil }
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "high",
+	}
+
+	state := singleRequirementState()
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err == nil {
+		t.Fatal("expected error for unrecoverable failure")
+	}
+
+	want := "invocation failed after retry and escalation"
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("expected error containing %q, got %q", want, err.Error())
 	}
 }
