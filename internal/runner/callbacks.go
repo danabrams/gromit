@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -18,6 +20,7 @@ import (
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/tdd"
 	"github.com/danabrams/gromit/internal/runner/validation"
 	"github.com/danabrams/gromit/internal/usagelimit"
 )
@@ -521,6 +524,141 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 	))
 
 	return methExec
+}
+
+type tddOrchestrator struct {
+	runCyclesFn func(ctx context.Context, bc *runtypes.BeadContext) error
+}
+
+func (o *tddOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadContext) error {
+	if o != nil && o.runCyclesFn != nil {
+		return o.runCyclesFn(ctx, bc)
+	}
+	return fmt.Errorf("tdd orchestrator is not configured")
+}
+
+func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
+	if r == nil {
+		return nil
+	}
+
+	return &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+			if bc == nil || bc.Bead == nil {
+				return fmt.Errorf("bead context is nil")
+			}
+
+			var activeBC *runtypes.BeadContext
+			orch := tdd.NewCycleOrchestrator(r.cfg, r.output, tdd.CycleOrchestratorDeps{
+				RenderRedFn: func(handoff *tdd.RedHandoff, bc *runtypes.BeadContext) (string, error) {
+					if r.renderer == nil {
+						return "", fmt.Errorf("renderer not configured")
+					}
+					ctx := &prompt.TDDRedContext{
+						BeadTitle:        bc.Bead.Title,
+						SpecExcerpt:      handoff.SpecExcerpt,
+						TestFileContents: handoff.TestFiles,
+						APISurface:       handoff.APISurface,
+						CycleSummary:     handoff.CycleSummary,
+					}
+					return r.renderer.RenderTDDRed(ctx)
+				},
+				RenderGreenFn: func(handoff *tdd.GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+					if r.renderer == nil {
+						return "", fmt.Errorf("renderer not configured")
+					}
+					ctx := &prompt.TDDGreenContext{
+						BeadTitle:         bc.Bead.Title,
+						FailingTest:       handoff.FailingTest,
+						TestFailureOutput: handoff.TestFailureOutput,
+						ImplFileContents:  handoff.ImplFiles,
+					}
+					return r.renderer.RenderTDDGreen(ctx)
+				},
+				InvokeFn: func(ctx context.Context, promptText, tier string) error {
+					if activeBC == nil {
+						return fmt.Errorf("bead context is nil")
+					}
+					if r.escalationHandler == nil {
+						return fmt.Errorf("escalation handler not configured")
+					}
+					activeBC.Tier = tier
+					invResult, err := r.makeInvokeFn()(ctx, activeBC, promptText)
+					if err != nil {
+						return err
+					}
+					if invResult == nil || invResult.Result == nil {
+						return fmt.Errorf("invocation returned nil result")
+					}
+					if !invResult.Result.Success {
+						return fmt.Errorf("invocation failed: %s", runtypes.TruncateOutput(invResult.Result.Output))
+					}
+					return nil
+				},
+				ValidateFn: func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+					result, err := r.runDirectValidationCheck(ctx, commands, workDir)
+					if err != nil {
+						return "", false, err
+					}
+					if result == nil {
+						return "", false, fmt.Errorf("validation returned nil result")
+					}
+					return result.Output, claude.IsValidationPassed(result), nil
+				},
+				RunRefactorFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+					if r.methodologyExec == nil {
+						return fmt.Errorf("methodology executor not configured")
+					}
+					return r.methodologyExec.RunRefactorPhase(ctx, bc)
+				},
+				EscalateTierFn: func(currentTier string) string {
+					if r.escalationPolicy == nil {
+						return ""
+					}
+					return r.escalationPolicy.NextTier(currentTier)
+				},
+				ReadFileFn: func(path string) (string, error) {
+					content, err := os.ReadFile(path)
+					if err != nil {
+						return "", err
+					}
+					return string(content), nil
+				},
+				GetDiffFn: func() (string, error) {
+					if activeBC == nil || activeBC.StartCommit == "" {
+						return "", nil
+					}
+					return r.getDiff(activeBC.StartCommit)
+				},
+				GetGitHeadFn: r.gitHeadFn,
+				GitResetFn: func(commit string) error {
+					resetCmd := exec.Command("git", "reset", "--hard", commit)
+					return resetCmd.Run()
+				},
+			})
+
+			maxCycles := config.DefaultMaxTDDCycles
+			if r.cfg != nil && r.cfg.Methodology.MaxTDDCycles > 0 {
+				maxCycles = r.cfg.Methodology.MaxTDDCycles
+			}
+
+			state := tdd.CycleState{
+				CycleNumber: 0,
+				MaxCycles:   maxCycles,
+				Remaining:   append([]string(nil), bc.Bead.ExpectedOutputs...),
+				Done:        len(bc.Bead.ExpectedOutputs) == 0,
+			}
+			if bc.StartCommit != "" {
+				if diff, err := r.getDiff(bc.StartCommit); err == nil {
+					state.TouchedFiles = methodology.ParseDiffFiles(diff)
+				}
+			}
+
+			activeBC = bc
+			defer func() { activeBC = nil }()
+			return orch.RunCycles(ctx, bc, state)
+		},
+	}
 }
 
 func summarizeATDDProviderOutput(output string) string {

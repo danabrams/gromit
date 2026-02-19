@@ -66,7 +66,7 @@ type Runner struct {
 	validationPolicy   policy.ValidationPolicy
 	stuckPolicy        policy.StuckPolicy
 	methodologyExec    *methodology.Executor
-	tddOrchestrator    TDDOrchestrator
+	tddOrchestrator    *tddOrchestrator
 	cycleOrchestrator  *cycleOrchestrator
 	validationRunner   *validation.Runner
 	reviewer           *reviewpkg.Reviewer

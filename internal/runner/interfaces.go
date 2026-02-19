@@ -8,7 +8,6 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
@@ -40,11 +39,6 @@ type BeadClient interface {
 // FailureAnalyzer abstracts the failure analysis operations used by the runner.
 type FailureAnalyzer interface {
 	Analyze(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error)
-}
-
-// TDDOrchestrator abstracts fresh-context TDD cycle execution.
-type TDDOrchestrator interface {
-	RunCycles(ctx context.Context, bc *runtypes.BeadContext) error
 }
 
 // PromptRenderer abstracts the prompt rendering operations used by the runner.

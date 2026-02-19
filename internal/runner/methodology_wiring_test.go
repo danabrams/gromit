@@ -89,6 +89,30 @@ func TestNewRunnerWithDeps_WiresMethodologyExec(t *testing.T) {
 	}
 }
 
+func TestNewRunnerWithDeps_WiresTDDOrchestrator(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	cfg.Methodology.TDD = true
+	cfg.Methodology.FreshContextPerCycle = true
+
+	var buf strings.Builder
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   newMockRouter(),
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockRenderer{},
+		CmdRunner: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "VALIDATION_PASSED", "", 0, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+
+	if r.tddOrchestrator == nil {
+		t.Fatal("NewRunnerWithDeps should wire tddOrchestrator field on Runner")
+	}
+}
+
 // --- processBead delegates ATDD acceptance generation to methodologyExec ---
 
 // Expected failure: processBead currently calls r.runAcceptanceTestsWithRetry (local method)

@@ -49,6 +49,38 @@ type CycleOrchestrator struct {
 	cfg            *config.Config
 }
 
+// CycleOrchestratorDeps holds callback dependencies for building a CycleOrchestrator.
+type CycleOrchestratorDeps struct {
+	RenderRedFn    RenderRedFn
+	RenderGreenFn  RenderGreenFn
+	InvokeFn       InvokeFn
+	ValidateFn     ValidateFn
+	RunRefactorFn  RunRefactorFn
+	EscalateTierFn EscalateTierFn
+	GetDiffFn      GetDiffFn
+	ReadFileFn     ReadFileFn
+	GetGitHeadFn   GetGitHeadFn
+	GitResetFn     GitResetFn
+}
+
+// NewCycleOrchestrator creates a TDD cycle orchestrator with injected callbacks.
+func NewCycleOrchestrator(cfg *config.Config, output io.Writer, deps CycleOrchestratorDeps) *CycleOrchestrator {
+	return &CycleOrchestrator{
+		renderRedFn:    deps.RenderRedFn,
+		renderGreenFn:  deps.RenderGreenFn,
+		invokeFn:       deps.InvokeFn,
+		validateFn:     deps.ValidateFn,
+		runRefactorFn:  deps.RunRefactorFn,
+		escalateTierFn: deps.EscalateTierFn,
+		getDiffFn:      deps.GetDiffFn,
+		readFileFn:     deps.ReadFileFn,
+		getGitHeadFn:   deps.GetGitHeadFn,
+		gitResetFn:     deps.GitResetFn,
+		output:         output,
+		cfg:            cfg,
+	}
+}
+
 // RunCycles executes TDD cycles until the state is complete.
 func (o *CycleOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadContext, state CycleState) error {
 	for !state.IsComplete() {

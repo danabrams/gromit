@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -175,17 +176,6 @@ func TestPrepareMethodology_TDDSelectsRenderTDDBuild(t *testing.T) {
 	}
 }
 
-type mockTDDOrchestrator struct {
-	runCyclesFn func(ctx context.Context, bc *runtypes.BeadContext) error
-}
-
-func (m *mockTDDOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadContext) error {
-	if m.runCyclesFn != nil {
-		return m.runCyclesFn(ctx, bc)
-	}
-	return nil
-}
-
 func TestPrepareMethodology_TDDFreshContextRunsOrchestrator(t *testing.T) {
 	tddBuildCalled := false
 	orchestratorCalled := false
@@ -202,7 +192,7 @@ func TestPrepareMethodology_TDDFreshContextRunsOrchestrator(t *testing.T) {
 		},
 	}
 	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
-	r.tddOrchestrator = &mockTDDOrchestrator{
+	r.tddOrchestrator = &tddOrchestrator{
 		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
 			orchestratorCalled = true
 			return nil
@@ -233,6 +223,42 @@ func TestPrepareMethodology_TDDFreshContextRunsOrchestrator(t *testing.T) {
 	}
 	if !bc.Result.FirstPassSuccess {
 		t.Fatal("bc.Result.FirstPassSuccess should be true when tddOrchestrator.RunCycles succeeds")
+	}
+}
+
+func TestPrepareMethodology_TDDFreshContextOrchestratorErrorSetsResultAndDone(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	wantErr := fmt.Errorf("orchestrator failed")
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+			return wantErr
+		},
+	}
+	b := newTestBead("tdd-fresh-context-2", "Implement feature with orchestrator error")
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !tddActive {
+		t.Fatal("prepareMethodologyForBead should return tddActive=true when TDD is enabled")
+	}
+	if !done {
+		t.Fatal("prepareMethodologyForBead should return done=true when tddOrchestrator.RunCycles fails")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("bc.Result.Error should be set when tddOrchestrator.RunCycles fails")
+	}
+	if bc.Result.Error != wantErr {
+		t.Fatalf("bc.Result.Error = %v, want %v", bc.Result.Error, wantErr)
+	}
+	if bc.Result.Success {
+		t.Fatal("bc.Result.Success should remain false when tddOrchestrator.RunCycles fails")
 	}
 }
 
