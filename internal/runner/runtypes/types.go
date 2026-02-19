@@ -118,6 +118,8 @@ type IterationResult struct {
 
 	// TDD phase metrics (nil when TDD methodology is inactive)
 	PhaseMetrics []PhaseMetric `json:"phase_metrics,omitempty"`
+	// Prompt diagnostics for token attribution and shaping decisions.
+	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 }
 
 // PhaseMetric captures per-phase metrics for TDD cycle tracking.

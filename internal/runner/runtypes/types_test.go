@@ -107,6 +107,14 @@ func TestBeadContext_AllFieldsExported(t *testing.T) {
 // TestIterationResult_InRuntypes verifies that IterationResult is defined in runtypes
 // with all expected fields matching the original runner.IterationResult.
 func TestIterationResult_InRuntypes(t *testing.T) {
+	promptDiagnostics := &prompt.PromptDiagnostics{
+		PromptType:      "build",
+		EstimatedTokens: 1234,
+		SectionTokens: map[string]int{
+			prompt.SectionRules: 100,
+		},
+	}
+
 	result := IterationResult{
 		BeadID:                "bead-42",
 		BeadTitle:             "Add feature X",
@@ -137,6 +145,7 @@ func TestIterationResult_InRuntypes(t *testing.T) {
 		StallTier:             "active",
 		RateLimitHits:         2,
 		RateLimitRecoveryMs:   1500,
+		PromptDiagnostics:     promptDiagnostics,
 	}
 
 	// Verify key fields to confirm the struct shape is correct
@@ -169,6 +178,9 @@ func TestIterationResult_InRuntypes(t *testing.T) {
 	}
 	if result.RateLimitRecoveryMs != 1500 {
 		t.Errorf("RateLimitRecoveryMs = %d, want %d", result.RateLimitRecoveryMs, 1500)
+	}
+	if result.PromptDiagnostics != promptDiagnostics {
+		t.Error("PromptDiagnostics should match assigned diagnostics pointer")
 	}
 }
 

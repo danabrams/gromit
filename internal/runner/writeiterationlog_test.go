@@ -13,6 +13,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/andon"
 )
 
@@ -173,6 +174,43 @@ func TestWriteIterationLog_PropagatesValidationDurationMs(t *testing.T) {
 
 	if logEntry.ValidationDurationMs != 1450 {
 		t.Errorf("expected ValidationDurationMs=1450, got %d", logEntry.ValidationDurationMs)
+	}
+}
+
+func TestWriteIterationLog_PropagatesPromptDiagnostics(t *testing.T) {
+	r, tmpDir := newTestRunnerWithLogger(t, false)
+
+	result := &IterationResult{
+		BeadID:    "test-prompt-diag",
+		BeadTitle: "Prompt diagnostics propagation",
+		Model:     "sonnet",
+		Success:   true,
+		PromptDiagnostics: &prompt.PromptDiagnostics{
+			PromptType:      "build",
+			EstimatedTokens: 777,
+			SectionTokens: map[string]int{
+				prompt.SectionRules: 101,
+			},
+		},
+		Duration: 1 * time.Second,
+	}
+
+	r.writeIterationLog(5, result)
+
+	var logEntry logger.IterationLog
+	unmarshalSingleIterationLogInto(t, tmpDir, &logEntry)
+
+	if logEntry.PromptDiagnostics == nil {
+		t.Fatal("expected PromptDiagnostics to be propagated to iteration log")
+	}
+	if logEntry.PromptDiagnostics.PromptType != "build" {
+		t.Errorf("PromptType = %q, want %q", logEntry.PromptDiagnostics.PromptType, "build")
+	}
+	if logEntry.PromptDiagnostics.EstimatedTokens != 777 {
+		t.Errorf("EstimatedTokens = %d, want 777", logEntry.PromptDiagnostics.EstimatedTokens)
+	}
+	if got := logEntry.PromptDiagnostics.SectionTokens[prompt.SectionRules]; got != 101 {
+		t.Errorf("SectionTokens[%q] = %d, want 101", prompt.SectionRules, got)
 	}
 }
 

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 func TestReadAllLogsEmpty(t *testing.T) {
@@ -826,6 +828,67 @@ func TestLogIterationWithCostAndTokens(t *testing.T) {
 	}
 	if !contains(content, `"output_tokens":3000`) {
 		t.Errorf("log should contain output_tokens field with value 3000")
+	}
+}
+
+func TestLogIterationWithPromptDiagnostics(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	log := &IterationLog{
+		Timestamp: time.Now(),
+		Iteration: 1,
+		BeadID:    "b1",
+		BeadTitle: "Prompt diagnostics bead",
+		Model:     "sonnet",
+		Success:   true,
+		PromptDiagnostics: &prompt.PromptDiagnostics{
+			PromptType:      "build",
+			EstimatedTokens: 321,
+			SectionTokens: map[string]int{
+				prompt.SectionRules: 40,
+			},
+		},
+	}
+	if err := l.LogIteration(log); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !contains(content, `"prompt_diagnostics":{"prompt_type":"build","estimated_tokens":321`) {
+		t.Fatalf("log should contain prompt_diagnostics field, got %s", content)
+	}
+
+	emptyLog := &IterationLog{
+		Timestamp: time.Now(),
+		Iteration: 2,
+		BeadID:    "b2",
+		BeadTitle: "No diagnostics",
+		Model:     "haiku",
+		Success:   true,
+	}
+	if err := l.LogIteration(emptyLog); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err = os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := bytes.Split(bytes.TrimSpace(data), []byte("\n"))
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 log lines, got %d", len(lines))
+	}
+	if contains(string(lines[1]), `"prompt_diagnostics"`) {
+		t.Fatalf("expected prompt_diagnostics to be omitted when nil, got %s", string(lines[1]))
 	}
 }
 

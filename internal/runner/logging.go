@@ -96,6 +96,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		CriteriaCovered:           result.CriteriaCovered,
 		CriteriaUntestable:        result.CriteriaUntestable,
 		UncoveredCriteria:         result.UncoveredCriteria,
+		PromptDiagnostics:         result.PromptDiagnostics,
 	})
 }
 

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // IterationLog represents a single iteration's outcome
@@ -65,10 +67,11 @@ type IterationLog struct {
 	RecurrenceCount  int    `json:"recurrence_count,omitempty"`
 
 	// Coverage tracking fields
-	CriteriaTotal      int      `json:"criteria_total,omitempty"`
-	CriteriaCovered    int      `json:"criteria_covered,omitempty"`
-	CriteriaUntestable int      `json:"criteria_untestable,omitempty"`
-	UncoveredCriteria  []string `json:"uncovered_criteria,omitempty"`
+	CriteriaTotal      int                       `json:"criteria_total,omitempty"`
+	CriteriaCovered    int                       `json:"criteria_covered,omitempty"`
+	CriteriaUntestable int                       `json:"criteria_untestable,omitempty"`
+	UncoveredCriteria  []string                  `json:"uncovered_criteria,omitempty"`
+	PromptDiagnostics  *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 }
 
 // ReviewLog represents a review's outcome (light or thorough)
