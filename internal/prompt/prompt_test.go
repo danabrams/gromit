@@ -1499,6 +1499,8 @@ func TestRenderCoverageValidationRealTemplateIncludesInputs(t *testing.T) {
 		ctx.TestCode,
 		"`covers`",
 		"`reason`",
+		`{"covers": bool, "reason": "one sentence"}`,
+		"ValidationResponse is the only response contract to follow.",
 	}
 	for _, want := range wantContains {
 		if !strings.Contains(result, want) {

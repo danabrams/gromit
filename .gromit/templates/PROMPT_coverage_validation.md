@@ -20,11 +20,13 @@ Criterion #{{.CriterionNumber}}: {{.CriterionText}}
 
 ## Output
 
-Respond with a JSON object that exactly matches the schema below. Output JSON only; no markdown, commentary, or extra text.
+ValidationResponse is the only response contract to follow.
+Respond with exactly one top-level JSON object in the form `{"covers": bool, "reason": "one sentence"}`.
+Output JSON only; no markdown, commentary, or extra text.
 
 Required top-level fields:
 - `covers` (boolean)
-- `reason` (string)
+- `reason` (string, exactly one sentence)
 
 Example:
 
