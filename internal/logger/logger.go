@@ -161,48 +161,34 @@ func (l *Logger) ensureFile() error {
 	return nil
 }
 
-// LogIteration writes an iteration result to the log
-func (l *Logger) LogIteration(log *IterationLog) error {
+func (l *Logger) logRecord(record any) error {
 	if l == nil {
 		return nil
 	}
 	if err := l.ensureFile(); err != nil {
 		return err
 	}
-	return l.encoder.Encode(log)
+	return l.encoder.Encode(record)
+}
+
+// LogIteration writes an iteration result to the log
+func (l *Logger) LogIteration(log *IterationLog) error {
+	return l.logRecord(log)
 }
 
 // LogReview writes a review result to the log
 func (l *Logger) LogReview(log *ReviewLog) error {
-	if l == nil {
-		return nil
-	}
-	if err := l.ensureFile(); err != nil {
-		return err
-	}
-	return l.encoder.Encode(log)
+	return l.logRecord(log)
 }
 
 // LogTDDPhase writes a TDD phase record to the log
 func (l *Logger) LogTDDPhase(rec *TDDPhaseRecord) error {
-	if l == nil {
-		return nil
-	}
-	if err := l.ensureFile(); err != nil {
-		return err
-	}
-	return l.encoder.Encode(rec)
+	return l.logRecord(rec)
 }
 
 // LogTDDSummary writes a TDD summary record to the log
 func (l *Logger) LogTDDSummary(rec *TDDSummaryRecord) error {
-	if l == nil {
-		return nil
-	}
-	if err := l.ensureFile(); err != nil {
-		return err
-	}
-	return l.encoder.Encode(rec)
+	return l.logRecord(rec)
 }
 
 // Close closes the log file
