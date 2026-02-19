@@ -43,7 +43,11 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		result.AcceptanceFailureArtifact = artifactPath
 	}
 
-	r.logIterationWithWarning(&logger.IterationLog{
+	r.logIterationWithWarning(newIterationLogEntry(iteration, result, errStr, outcome, artifactPath))
+}
+
+func newIterationLogEntry(iteration int, result *IterationResult, errStr, outcome, artifactPath string) *logger.IterationLog {
+	return &logger.IterationLog{
 		Timestamp:                 time.Now(),
 		Iteration:                 iteration,
 		BeadID:                    result.BeadID,
@@ -98,7 +102,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		CriteriaUntestable:        result.CriteriaUntestable,
 		UncoveredCriteria:         result.UncoveredCriteria,
 		PromptDiagnostics:         result.PromptDiagnostics,
-	})
+	}
 }
 
 func ensureFailureAndonEnvelope(result *IterationResult) {
