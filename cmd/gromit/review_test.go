@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -58,6 +59,170 @@ func TestReviewGitCommandFn_CanBeOverridden(t *testing.T) {
 	}
 	if len(capturedArgs) < 2 || capturedArgs[0] != "rev-parse" || capturedArgs[1] != "HEAD" {
 		t.Errorf("expected args [rev-parse HEAD], got %v", capturedArgs)
+	}
+}
+
+func TestFindFirstCommitForBead_UsesInjectedGitWithFixedStrings(t *testing.T) {
+	origCommandFn := reviewGitCommandFn
+	origOutputFn := reviewGitOutputFn
+	t.Cleanup(func() {
+		reviewGitCommandFn = origCommandFn
+		reviewGitOutputFn = origOutputFn
+	})
+
+	var gotName string
+	var gotArgs []string
+	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
+		gotName = name
+		gotArgs = append([]string{}, arg...)
+		return exec.Command("echo", "stub")
+	}
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return []byte("newest\nmiddle\nearliest\n"), nil
+	}
+
+	commit, err := findFirstCommitForBead("gromit-[abc]")
+	if err != nil {
+		t.Fatalf("findFirstCommitForBead() error = %v", err)
+	}
+	if commit != "earliest" {
+		t.Fatalf("findFirstCommitForBead() = %q, want %q", commit, "earliest")
+	}
+	if gotName != "git" {
+		t.Fatalf("command name = %q, want %q", gotName, "git")
+	}
+	wantArgs := []string{"log", "--all", "--format=%H", "--grep", "--fixed-strings", "gromit-[abc]"}
+	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
+		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
+func TestFindFirstCommitForBead_GitErrorReturnsEmptyWithoutError(t *testing.T) {
+	origCommandFn := reviewGitCommandFn
+	origOutputFn := reviewGitOutputFn
+	t.Cleanup(func() {
+		reviewGitCommandFn = origCommandFn
+		reviewGitOutputFn = origOutputFn
+	})
+
+	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
+		return exec.Command("echo", "stub")
+	}
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return nil, errors.New("no commits")
+	}
+
+	commit, err := findFirstCommitForBead("gromit-abc")
+	if err != nil {
+		t.Fatalf("findFirstCommitForBead() error = %v, want nil", err)
+	}
+	if commit != "" {
+		t.Fatalf("findFirstCommitForBead() = %q, want empty commit", commit)
+	}
+}
+
+func TestGetCommitTimestamp_UsesInjectedGit(t *testing.T) {
+	origCommandFn := reviewGitCommandFn
+	origOutputFn := reviewGitOutputFn
+	t.Cleanup(func() {
+		reviewGitCommandFn = origCommandFn
+		reviewGitOutputFn = origOutputFn
+	})
+
+	var gotName string
+	var gotArgs []string
+	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
+		gotName = name
+		gotArgs = append([]string{}, arg...)
+		return exec.Command("echo", "stub")
+	}
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return []byte("1700000000\n"), nil
+	}
+
+	ts, err := getCommitTimestamp("abc123")
+	if err != nil {
+		t.Fatalf("getCommitTimestamp() error = %v", err)
+	}
+	if ts != 1700000000 {
+		t.Fatalf("getCommitTimestamp() = %d, want %d", ts, int64(1700000000))
+	}
+	if gotName != "git" {
+		t.Fatalf("command name = %q, want %q", gotName, "git")
+	}
+	wantArgs := []string{"log", "-1", "--format=%at", "abc123", "--"}
+	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
+		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
+func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
+	origCommandFn := reviewGitCommandFn
+	origOutputFn := reviewGitOutputFn
+	t.Cleanup(func() {
+		reviewGitCommandFn = origCommandFn
+		reviewGitOutputFn = origOutputFn
+	})
+
+	var gotName string
+	var gotArgs []string
+	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
+		gotName = name
+		gotArgs = append([]string{}, arg...)
+		return exec.Command("echo", "stub")
+	}
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return []byte("diff output\n"), nil
+	}
+
+	diff, err := runGitDiffForReview("abc123", "git diff --stat", "--stat")
+	if err != nil {
+		t.Fatalf("runGitDiffForReview() error = %v", err)
+	}
+	if diff != "diff output\n" {
+		t.Fatalf("runGitDiffForReview() = %q, want %q", diff, "diff output\n")
+	}
+	if gotName != "git" {
+		t.Fatalf("command name = %q, want %q", gotName, "git")
+	}
+	wantArgs := []string{"diff", "--stat", "abc123", "--"}
+	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
+		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
+func TestGetGitHeadForReview_UsesInjectedGit(t *testing.T) {
+	origCommandFn := reviewGitCommandFn
+	origOutputFn := reviewGitOutputFn
+	t.Cleanup(func() {
+		reviewGitCommandFn = origCommandFn
+		reviewGitOutputFn = origOutputFn
+	})
+
+	var gotName string
+	var gotArgs []string
+	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
+		gotName = name
+		gotArgs = append([]string{}, arg...)
+		return exec.Command("echo", "stub")
+	}
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return []byte("deadbeef\n"), nil
+	}
+
+	head, err := getGitHeadForReview()
+	if err != nil {
+		t.Fatalf("getGitHeadForReview() error = %v", err)
+	}
+	if head != "deadbeef" {
+		t.Fatalf("getGitHeadForReview() = %q, want %q", head, "deadbeef")
+	}
+	if gotName != "git" {
+		t.Fatalf("command name = %q, want %q", gotName, "git")
+	}
+	wantArgs := []string{"rev-parse", "HEAD"}
+	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
+		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
 	}
 }
 
