@@ -2766,7 +2766,6 @@ func setupRunStopChTestRunner(t *testing.T, beads *mockBeadClient) *Runner {
 		},
 	}
 	cfg.Paths.Logs = t.TempDir()
-	cfg.Preflight.CompileCheck = boolPtr(false)
 
 	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
@@ -2796,7 +2795,7 @@ func setupRunStopChTestRunner(t *testing.T, beads *mockBeadClient) *Runner {
 	return r
 }
 
-func TestSetupRunStopChTestRunnerSetsLogsAndCompileCheck(t *testing.T) {
+func TestSetupRunStopChTestRunnerSetsLogs(t *testing.T) {
 	beads := &mockBeadClient{}
 	r := setupRunStopChTestRunner(t, beads)
 
@@ -2809,13 +2808,6 @@ func TestSetupRunStopChTestRunnerSetsLogsAndCompileCheck(t *testing.T) {
 	}
 	if !info.IsDir() {
 		t.Fatalf("expected cfg.Paths.Logs to be a directory, got %v", info.Mode())
-	}
-
-	if r.cfg.Preflight.CompileCheck == nil {
-		t.Fatal("expected cfg.Preflight.CompileCheck to be set")
-	}
-	if *r.cfg.Preflight.CompileCheck {
-		t.Fatal("expected cfg.Preflight.CompileCheck to be false")
 	}
 }
 

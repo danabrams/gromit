@@ -512,18 +512,19 @@ func (r *Runner) maybeRunFinalFullValidation(ctx context.Context) error {
 	return r.runFullValidationGate(ctx, "final", 0)
 }
 
-// runCompilationCheck runs "go build ./..." before Claude invocation.
+// runCompilationCheck runs the configured compile_command before Claude invocation.
 // If compilation fails, the errors are appended to the build prompt so the
 // agent can fix them. Non-blocking: never prevents the bead from proceeding.
+// A blank CompileCommand disables the check.
 func (r *Runner) runCompilationCheck(ctx context.Context, bc *runtypes.BeadContext) {
-	if r.cfg.Preflight.CompileCheck != nil && !*r.cfg.Preflight.CompileCheck {
+	if r.cfg.Preflight.CompileCommand == "" {
 		return
 	}
 
 	buildCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	_, stderr, exitCode, _ := r.runCmd(buildCtx, "go build ./...", ".")
+	_, stderr, exitCode, _ := r.runCmd(buildCtx, r.cfg.Preflight.CompileCommand, ".")
 	if exitCode == 0 {
 		return
 	}

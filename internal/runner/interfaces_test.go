@@ -691,9 +691,6 @@ func newRunnerWithMocks(t *testing.T, cfg *config.Config, deps Deps) (*Runner, *
 	if cfg.Paths.Logs == "" {
 		cfg.Paths.Logs = t.TempDir()
 	}
-	if cfg.Preflight.CompileCheck == nil {
-		cfg.Preflight.CompileCheck = boolPtrInterfaces(false)
-	}
 
 	if deps.Beads == nil {
 		deps.Beads = &mockBeadClient{}
@@ -724,7 +721,7 @@ func newRunnerWithMocks(t *testing.T, cfg *config.Config, deps Deps) (*Runner, *
 	return r, &buf
 }
 
-func TestNewRunnerWithMocksSetsLogsAndCompileCheck(t *testing.T) {
+func TestNewRunnerWithMocksSetsLogs(t *testing.T) {
 	cfg := &config.Config{}
 
 	_, _ = newRunnerWithMocks(t, cfg, Deps{})
@@ -738,13 +735,6 @@ func TestNewRunnerWithMocksSetsLogsAndCompileCheck(t *testing.T) {
 	}
 	if !info.IsDir() {
 		t.Fatalf("expected cfg.Paths.Logs to be a directory, got %v", info.Mode())
-	}
-
-	if cfg.Preflight.CompileCheck == nil {
-		t.Fatal("expected cfg.Preflight.CompileCheck to be set")
-	}
-	if *cfg.Preflight.CompileCheck {
-		t.Fatal("expected cfg.Preflight.CompileCheck to be false")
 	}
 }
 
@@ -1332,8 +1322,8 @@ func TestProcessBeadWithMocks_ValidationEnabled(t *testing.T) {
 	if !result.Validated {
 		t.Error("expected Validated=true")
 	}
-	if cmdRunCount != 2 { // 1 compilation check + 1 validation command
-		t.Errorf("expected 2 command executions (compilation check + validation), got %d", cmdRunCount)
+	if cmdRunCount != 1 { // 1 validation command (compile_command is empty, so no compilation check)
+		t.Errorf("expected 1 command execution (validation), got %d", cmdRunCount)
 	}
 }
 
@@ -1385,8 +1375,8 @@ func TestProcessBeadWithMocks_ValidationUsesInjectedCmdRunner(t *testing.T) {
 	if !result.Validated {
 		t.Error("expected Validated=true when validation commands pass")
 	}
-	if cmdRunCount != 2 { // 1 compilation check + 1 validation command
-		t.Errorf("expected injected CmdRunner called 2 times (compilation check + validation), got %d", cmdRunCount)
+	if cmdRunCount != 1 { // 1 validation command (compile_command is empty, so no compilation check)
+		t.Errorf("expected injected CmdRunner called 1 time (validation only), got %d", cmdRunCount)
 	}
 }
 

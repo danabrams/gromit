@@ -10,10 +10,9 @@ import (
 )
 
 func TestRunCompilationCheck_ErrorsAppendedToPrompt(t *testing.T) {
-	enabled := true
 	r := &Runner{
 		cfg: &config.Config{
-			Preflight: config.PreflightConfig{CompileCheck: &enabled},
+			Preflight: config.PreflightConfig{CompileCommand: "go build ./..."},
 		},
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			if strings.Contains(command, "go build") {
@@ -42,10 +41,9 @@ func TestRunCompilationCheck_ErrorsAppendedToPrompt(t *testing.T) {
 }
 
 func TestRunCompilationCheck_NoErrors(t *testing.T) {
-	enabled := true
 	r := &Runner{
 		cfg: &config.Config{
-			Preflight: config.PreflightConfig{CompileCheck: &enabled},
+			Preflight: config.PreflightConfig{CompileCommand: "go build ./..."},
 		},
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			return "", "", 0, nil
@@ -68,10 +66,9 @@ func TestRunCompilationCheck_NoErrors(t *testing.T) {
 }
 
 func TestRunCompilationCheck_Disabled(t *testing.T) {
-	disabled := false
 	r := &Runner{
 		cfg: &config.Config{
-			Preflight: config.PreflightConfig{CompileCheck: &disabled},
+			Preflight: config.PreflightConfig{CompileCommand: ""},
 		},
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			t.Fatal("should not be called when disabled")
