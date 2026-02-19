@@ -119,10 +119,10 @@ func trackEscalationTargets(modelMap map[string]ModelStats, entries []IterationL
 
 // SpecCost represents aggregated cost and usage statistics for a spec
 type SpecCost struct {
-	TotalCostUSD float64
-	Iterations   int
-	Beads        int
-	ModelMix     map[string]int
+	TotalCostUSD float64        `json:"total_cost_usd"`
+	Iterations   int            `json:"iterations"`
+	Beads        int            `json:"beads"`
+	ModelMix     map[string]int `json:"model_mix"`
 }
 
 const unassignedSpecID = "(unassigned)"

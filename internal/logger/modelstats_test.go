@@ -1020,6 +1020,32 @@ func keysOf(m map[string]interface{}) []string {
 	return keys
 }
 
+// TestSpecCost_JSONTagsAreSnakeCase verifies SpecCost serializes with snake_case field names
+func TestSpecCost_JSONTagsAreSnakeCase(t *testing.T) {
+	sc := SpecCost{
+		TotalCostUSD: 1.50,
+		Iterations:   5,
+		Beads:        3,
+		ModelMix:     map[string]int{"opus": 2},
+	}
+
+	data, err := json.Marshal(sc)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+
+	for _, key := range []string{"total_cost_usd", "iterations", "beads", "model_mix"} {
+		if _, ok := raw[key]; !ok {
+			t.Errorf("expected JSON key %q not found in output; got keys: %v", key, keysOf(raw))
+		}
+	}
+}
+
 // TestSpecCost_Struct verifies the SpecCost struct fields are accessible
 func TestSpecCost_Struct(t *testing.T) {
 	sc := SpecCost{
