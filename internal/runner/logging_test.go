@@ -31,6 +31,30 @@ func TestWriteIterationLog_PropagatesFailurePhase(t *testing.T) {
 	}
 }
 
+func TestWriteIterationLog_PropagatesFailureCategory(t *testing.T) {
+	mockLog := &mockIterationLogger{}
+	r := &Runner{
+		logger: mockLog,
+		output: &strings.Builder{},
+	}
+
+	result := &runtypes.IterationResult{
+		BeadID:          "bead-1",
+		Model:           "haiku",
+		Success:         false,
+		FailureCategory: "rate_limited",
+	}
+
+	r.writeIterationLog(1, result)
+
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(mockLog.Logs))
+	}
+	if mockLog.Logs[0].FailureCategory != "rate_limited" {
+		t.Errorf("FailureCategory = %q, want %q", mockLog.Logs[0].FailureCategory, "rate_limited")
+	}
+}
+
 func TestWriteIterationLog_PropagatesSpecID(t *testing.T) {
 	mockLog := &mockIterationLogger{}
 	r := &Runner{
