@@ -86,6 +86,26 @@ type ReviewLog struct {
 	DurationMs     int64     `json:"duration_ms"`
 }
 
+// TDDPhaseRecord represents a single TDD phase (red/green/refactor) event in the JSONL log.
+type TDDPhaseRecord struct {
+	Type               string    `json:"type"`
+	Timestamp          time.Time `json:"timestamp"`
+	BeadID             string    `json:"bead_id"`
+	Phase              string    `json:"phase"`
+	CycleNumber        int       `json:"cycle_number"`
+	Model              string    `json:"model"`
+	Tier               string    `json:"tier"`
+	InputTokens        int       `json:"input_tokens"`
+	OutputTokens       int       `json:"output_tokens"`
+	DurationMs         int64     `json:"duration_ms"`
+	Success            bool      `json:"success"`
+	Escalated          bool      `json:"escalated"`
+	EscalatedFrom      string    `json:"escalated_from,omitempty"`
+	CriteriaTotal      int       `json:"criteria_total,omitempty"`
+	CriteriaCovered    int       `json:"criteria_covered,omitempty"`
+	CriteriaUntestable int       `json:"criteria_untestable,omitempty"`
+}
+
 // Logger writes iteration logs to a file.
 // The log file is created lazily on the first LogIteration call to avoid
 // leaving empty 0-byte files when runs fail before processing any bead.

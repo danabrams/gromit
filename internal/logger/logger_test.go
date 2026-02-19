@@ -903,6 +903,63 @@ func TestReadLogFileBackwardCompatibility(t *testing.T) {
 	}
 }
 
+// TestTDDPhaseRecord_Fields verifies TDDPhaseRecord has a type discriminator
+// and all per-phase metric fields for JSONL logging.
+func TestTDDPhaseRecord_Fields(t *testing.T) {
+	rec := TDDPhaseRecord{
+		Type:               "tdd_phase",
+		Timestamp:          time.Now(),
+		BeadID:             "bead-xyz",
+		Phase:              "red",
+		CycleNumber:        1,
+		Model:              "haiku",
+		Tier:               "low",
+		InputTokens:        1000,
+		OutputTokens:       500,
+		DurationMs:         2500,
+		Success:            false,
+		Escalated:          false,
+		EscalatedFrom:      "",
+		CriteriaTotal:      4,
+		CriteriaCovered:    2,
+		CriteriaUntestable: 0,
+	}
+
+	if rec.Type != "tdd_phase" {
+		t.Errorf("Type = %q, want %q", rec.Type, "tdd_phase")
+	}
+	if rec.BeadID != "bead-xyz" {
+		t.Errorf("BeadID = %q, want %q", rec.BeadID, "bead-xyz")
+	}
+	if rec.Phase != "red" {
+		t.Errorf("Phase = %q, want %q", rec.Phase, "red")
+	}
+	if rec.CycleNumber != 1 {
+		t.Errorf("CycleNumber = %d, want 1", rec.CycleNumber)
+	}
+	if rec.Model != "haiku" {
+		t.Errorf("Model = %q, want %q", rec.Model, "haiku")
+	}
+	if rec.Tier != "low" {
+		t.Errorf("Tier = %q, want %q", rec.Tier, "low")
+	}
+	if rec.InputTokens != 1000 {
+		t.Errorf("InputTokens = %d, want 1000", rec.InputTokens)
+	}
+	if rec.OutputTokens != 500 {
+		t.Errorf("OutputTokens = %d, want 500", rec.OutputTokens)
+	}
+	if rec.DurationMs != 2500 {
+		t.Errorf("DurationMs = %d, want 2500", rec.DurationMs)
+	}
+	if rec.Success {
+		t.Error("Success should be false")
+	}
+	if rec.CriteriaTotal != 4 {
+		t.Errorf("CriteriaTotal = %d, want 4", rec.CriteriaTotal)
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsAt(s, substr))
