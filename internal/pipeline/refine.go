@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/danabrams/gromit/skills"
 )
 
 // Refine executes the refine workflow interactively.
@@ -126,25 +128,9 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult
 func (p *Pipeline) buildRefinePrompt(ideaText string) string {
 	if ideaText == "" {
 		// Blank session
-		return fmt.Sprintf(`## Context
-
-Specs directory: %s
-
-## Instructions
-
-(skill content would go here)`, p.paths.SpecsDir)
+		return fmt.Sprintf("## Context\n\nSpecs directory: %s\n\n## Instructions\n\n%s", p.paths.SpecsDir, skills.RefineSkill)
 	}
 
 	// Normal session with idea text
-	return fmt.Sprintf(`Idea to refine:
-
-%s
-
-## Context
-
-Specs directory: %s
-
-## Instructions
-
-(skill content would go here)`, ideaText, p.paths.SpecsDir)
+	return fmt.Sprintf("Idea to refine:\n\n%s\n\n## Context\n\nSpecs directory: %s\n\n## Instructions\n\n%s", ideaText, p.paths.SpecsDir, skills.RefineSkill)
 }
