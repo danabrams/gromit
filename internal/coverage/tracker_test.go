@@ -26,6 +26,27 @@ func TestNewTracker_NextUncoveredReturnsCriterion(t *testing.T) {
 	}
 }
 
+func TestUncoveredCriteria_ReturnsOnlyUncheckedItems(t *testing.T) {
+	criteria := []Criterion{
+		{Number: 1, Text: "First"},
+		{Number: 2, Text: "Second"},
+		{Number: 3, Text: "Third"},
+	}
+	tracker := NewTracker(criteria, 2)
+	tracker.MarkCovered(1)
+	tracker.RecordRejection(3)
+	tracker.RecordRejection(3)
+
+	uncovered := tracker.UncoveredCriteria()
+
+	if len(uncovered) != 1 {
+		t.Fatalf("UncoveredCriteria() len = %d, want 1", len(uncovered))
+	}
+	if uncovered[0].Number != 2 {
+		t.Fatalf("UncoveredCriteria()[0].Number = %d, want 2", uncovered[0].Number)
+	}
+}
+
 func TestIsComplete_ReturnsTrueWhenAllCoveredOrUntestable(t *testing.T) {
 	criteria := []Criterion{
 		{Number: 1, Text: "First"},
