@@ -960,6 +960,39 @@ func TestTDDPhaseRecord_Fields(t *testing.T) {
 	}
 }
 
+// TestTDDSummaryRecord_Fields verifies TDDSummaryRecord has a type discriminator
+// and all summary fields for a completed TDD bead run.
+func TestTDDSummaryRecord_Fields(t *testing.T) {
+	rec := TDDSummaryRecord{
+		Type:            "tdd_summary",
+		Timestamp:       time.Now(),
+		BeadID:          "bead-xyz",
+		TotalCycles:     3,
+		TotalPhases:     9,
+		Success:         true,
+		TotalDurationMs: 15000,
+	}
+
+	if rec.Type != "tdd_summary" {
+		t.Errorf("Type = %q, want %q", rec.Type, "tdd_summary")
+	}
+	if rec.BeadID != "bead-xyz" {
+		t.Errorf("BeadID = %q, want %q", rec.BeadID, "bead-xyz")
+	}
+	if rec.TotalCycles != 3 {
+		t.Errorf("TotalCycles = %d, want 3", rec.TotalCycles)
+	}
+	if rec.TotalPhases != 9 {
+		t.Errorf("TotalPhases = %d, want 9", rec.TotalPhases)
+	}
+	if !rec.Success {
+		t.Error("Success should be true")
+	}
+	if rec.TotalDurationMs != 15000 {
+		t.Errorf("TotalDurationMs = %d, want 15000", rec.TotalDurationMs)
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsAt(s, substr))

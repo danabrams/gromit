@@ -106,6 +106,17 @@ type TDDPhaseRecord struct {
 	CriteriaUntestable int       `json:"criteria_untestable,omitempty"`
 }
 
+// TDDSummaryRecord represents a summary of a full TDD bead run in the JSONL log.
+type TDDSummaryRecord struct {
+	Type            string    `json:"type"`
+	Timestamp       time.Time `json:"timestamp"`
+	BeadID          string    `json:"bead_id"`
+	TotalCycles     int       `json:"total_cycles"`
+	TotalPhases     int       `json:"total_phases"`
+	Success         bool      `json:"success"`
+	TotalDurationMs int64     `json:"total_duration_ms"`
+}
+
 // Logger writes iteration logs to a file.
 // The log file is created lazily on the first LogIteration call to avoid
 // leaving empty 0-byte files when runs fail before processing any bead.
