@@ -259,9 +259,9 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	}
 
 	tierToModel := map[string]string{
-		"high":   "opus",
-		"medium": "sonnet",
-		"low":    "haiku",
+		provider.TierHigh:   "opus",
+		provider.TierMedium: "sonnet",
+		provider.TierLow:    "haiku",
 	}
 	claudeProvider := provider.NewClaudeProvider(claudeClient, tierToModel)
 

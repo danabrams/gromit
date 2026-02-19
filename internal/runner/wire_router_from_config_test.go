@@ -62,7 +62,7 @@ func TestNewRunnerWithProvidersBuildsMultiProviderRouter(t *testing.T) {
 				"codex":  40,
 			},
 			Fallback: config.FallbackConfig{
-				Enabled:  true,
+				Enabled:  boolPtr(true),
 				Cooldown: "30m",
 			},
 		},
@@ -119,7 +119,7 @@ func TestNewRunnerWithProvidersSelectsCorrectProviderForPhase(t *testing.T) {
 				"codex":  40,
 			},
 			Fallback: config.FallbackConfig{
-				Enabled:  true,
+				Enabled:  boolPtr(true),
 				Cooldown: "30m",
 			},
 		},
@@ -457,7 +457,7 @@ func TestNewRunnerWithProvidersCooldownParsed(t *testing.T) {
 				"codex":  50,
 			},
 			Fallback: config.FallbackConfig{
-				Enabled:  true,
+				Enabled:  boolPtr(true),
 				Cooldown: "1h",
 			},
 		},

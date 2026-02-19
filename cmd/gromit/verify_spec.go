@@ -381,7 +381,7 @@ func defaultVerifySpecCodexTierToModelMap() map[string]string {
 }
 
 func parseVerifySpecFallbackCooldown(cfg *config.Config) time.Duration {
-	if cfg == nil || !cfg.Routing.Fallback.Enabled || cfg.Routing.Fallback.Cooldown == "" {
+	if cfg == nil || !cfg.Routing.Fallback.EnabledOrDefault(len(cfg.Providers) > 1) || cfg.Routing.Fallback.Cooldown == "" {
 		return 0
 	}
 	cooldown, err := time.ParseDuration(cfg.Routing.Fallback.Cooldown)

@@ -67,7 +67,7 @@ func setupTwoProviderConfig(t *testing.T) *config.Config {
 				"openai": 40,
 			},
 			Fallback: config.FallbackConfig{
-				Enabled:  true,
+				Enabled:  boolPtr(true),
 				Cooldown: "30m",
 			},
 		},
@@ -517,7 +517,7 @@ func TestNewRunnerCooldownParsing(t *testing.T) {
 					PhasePreferences: map[string]string{"build": "claude"},
 					Ratio:            map[string]int{"claude": 50, "openai": 50},
 					Fallback: config.FallbackConfig{
-						Enabled:  true,
+						Enabled:  boolPtr(true),
 						Cooldown: tt.cooldown,
 					},
 				},

@@ -345,8 +345,15 @@ type RoutingConfig struct {
 }
 
 type FallbackConfig struct {
-	Enabled  bool   `yaml:"enabled"`
+	Enabled  *bool  `yaml:"enabled"`
 	Cooldown string `yaml:"cooldown"`
+}
+
+func (f FallbackConfig) EnabledOrDefault(multiProvider bool) bool {
+	if f.Enabled == nil {
+		return multiProvider
+	}
+	return *f.Enabled
 }
 
 type StreamConfig struct {
@@ -735,9 +742,10 @@ func (c *Config) SetDefaults() {
 			c.Routing.Fallback.Cooldown = "30m"
 		}
 
-		// Enable fallback for multi-provider configs
-		if len(c.Providers) > 1 && !c.Routing.Fallback.Enabled {
-			c.Routing.Fallback.Enabled = true
+		// Enable fallback by default for multi-provider configs.
+		if c.Routing.Fallback.Enabled == nil {
+			enabled := len(c.Providers) > 1
+			c.Routing.Fallback.Enabled = &enabled
 		}
 	}
 

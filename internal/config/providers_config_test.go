@@ -157,7 +157,7 @@ routing:
 		t.Errorf("Routing.Ratio[openai] = %d, want 40", cfg.Routing.Ratio["openai"])
 	}
 
-	if !cfg.Routing.Fallback.Enabled {
+	if !cfg.Routing.Fallback.EnabledOrDefault(len(cfg.Providers) > 1) {
 		t.Error("Routing.Fallback.Enabled = false, want true")
 	}
 	if cfg.Routing.Fallback.Cooldown != "30m" {

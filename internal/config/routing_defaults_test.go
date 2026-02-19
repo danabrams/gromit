@@ -71,8 +71,8 @@ func TestSetDefaultsRoutingDefaults(t *testing.T) {
 			}
 
 			// Verify fallback enabled state
-			if cfg.Routing.Fallback.Enabled != tt.wantFallbackOn {
-				t.Errorf("Routing.Fallback.Enabled = %v, want %v", cfg.Routing.Fallback.Enabled, tt.wantFallbackOn)
+			if cfg.Routing.Fallback.EnabledOrDefault(len(tt.providers) > 1) != tt.wantFallbackOn {
+				t.Errorf("Routing.Fallback.Enabled = %v, want %v", cfg.Routing.Fallback.EnabledOrDefault(len(tt.providers) > 1), tt.wantFallbackOn)
 			}
 		})
 	}
@@ -125,7 +125,7 @@ func TestSetDefaultsDoesNotAddRoutingWhenNoProviders(t *testing.T) {
 	if cfgNoProviders.Routing.Fallback.Cooldown != "" {
 		t.Errorf("no-providers: Routing.Fallback.Cooldown = %q, want empty", cfgNoProviders.Routing.Fallback.Cooldown)
 	}
-	if cfgNoProviders.Routing.Fallback.Enabled {
+	if cfgNoProviders.Routing.Fallback.EnabledOrDefault(false) {
 		t.Error("no-providers: Routing.Fallback.Enabled = true, want false")
 	}
 
@@ -180,7 +180,7 @@ providers:
 	}
 
 	// Fallback should default to enabled with 30m cooldown
-	if !cfg.Routing.Fallback.Enabled {
+	if !cfg.Routing.Fallback.EnabledOrDefault(len(cfg.Providers) > 1) {
 		t.Error("Routing.Fallback.Enabled = false, want true for multi-provider config")
 	}
 	if cfg.Routing.Fallback.Cooldown != "30m" {
@@ -228,7 +228,27 @@ routing:
 	}
 
 	// Fallback should be enabled by default for multi-provider
-	if !cfg.Routing.Fallback.Enabled {
+	if !cfg.Routing.Fallback.EnabledOrDefault(len(cfg.Providers) > 1) {
 		t.Error("Routing.Fallback.Enabled = false, want true (default for multi-provider)")
+	}
+}
+
+func TestSetDefaultsPreservesFallbackDisabled(t *testing.T) {
+	disabled := false
+	cfg := &Config{
+		Providers: map[string]ProviderDef{
+			"claude": {Binary: "claude"},
+			"codex":  {Binary: "codex"},
+		},
+		Routing: RoutingConfig{
+			Fallback: FallbackConfig{
+				Enabled: &disabled,
+			},
+		},
+	}
+	cfg.SetDefaults()
+
+	if cfg.Routing.Fallback.EnabledOrDefault(true) {
+		t.Error("Routing.Fallback.Enabled = true, want false when explicitly disabled")
 	}
 }
