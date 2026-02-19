@@ -123,6 +123,25 @@ func TestSummarizeWindow_MixedPhaseRates(t *testing.T) {
 	assertFloatNear(t, summary.TimeoutFailureRate, 0.2, "TimeoutFailureRate")
 }
 
+func TestBuildIterationMetrics_SinglePhaseRollingRates(t *testing.T) {
+	entries := []IterationLog{
+		makeIterationLog(false, "build"),
+		makeIterationLog(false, "build"),
+		makeIterationLog(false, "build"),
+	}
+
+	metrics := buildIterationMetrics(entries, 3)
+	if len(metrics) != 3 {
+		t.Fatalf("expected 3 metrics, got %d", len(metrics))
+	}
+
+	last := metrics[2]
+	assertFloatNear(t, last.RollingBuildFailureRate, 1, "RollingBuildFailureRate")
+	assertFloatNear(t, last.RollingPreflightFailureRate, 0, "RollingPreflightFailureRate")
+	assertFloatNear(t, last.RollingValidationFailureRate, 0, "RollingValidationFailureRate")
+	assertFloatNear(t, last.RollingTimeoutFailureRate, 0, "RollingTimeoutFailureRate")
+}
+
 func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,

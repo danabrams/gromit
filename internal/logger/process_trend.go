@@ -17,28 +17,32 @@ const defaultTrendWindowSize = 30
 
 // IterationMetric stores a single iteration with rolling-window process metrics.
 type IterationMetric struct {
-	Timestamp               time.Time `json:"timestamp"`
-	Iteration               int       `json:"iteration"`
-	BeadID                  string    `json:"bead_id"`
-	Model                   string    `json:"model"`
-	Provider                string    `json:"provider,omitempty"`
-	FailurePhase            string    `json:"failure_phase,omitempty"`
-	FailureCategory         string    `json:"failure_category,omitempty"`
-	Success                 bool      `json:"success"`
-	FirstPassSuccess        bool      `json:"first_pass_success"`
-	Escalated               bool      `json:"escalated"`
-	DurationMs              int64     `json:"duration_ms"`
-	CostUSD                 float64   `json:"cost_usd"`
-	MTTRProxyMs             int64     `json:"mttr_proxy_ms,omitempty"`
-	RollingSuccessRate      float64   `json:"rolling_success_rate"`
-	RollingFailureRate      float64   `json:"rolling_failure_rate"`
-	RollingFirstPassSuccess float64   `json:"rolling_first_pass_success_rate"`
-	RollingEscalationRate   float64   `json:"rolling_escalation_rate"`
-	RollingAvgDurationMs    float64   `json:"rolling_avg_duration_ms"`
-	RollingP95DurationMs    float64   `json:"rolling_p95_duration_ms"`
-	RollingAvgCostUSD       float64   `json:"rolling_avg_cost_usd"`
-	RollingAvgMTTRProxyMs   float64   `json:"rolling_avg_mttr_proxy_ms"`
-	FilesTouched            int       `json:"files_touched,omitempty"`
+	Timestamp                    time.Time `json:"timestamp"`
+	Iteration                    int       `json:"iteration"`
+	BeadID                       string    `json:"bead_id"`
+	Model                        string    `json:"model"`
+	Provider                     string    `json:"provider,omitempty"`
+	FailurePhase                 string    `json:"failure_phase,omitempty"`
+	FailureCategory              string    `json:"failure_category,omitempty"`
+	Success                      bool      `json:"success"`
+	FirstPassSuccess             bool      `json:"first_pass_success"`
+	Escalated                    bool      `json:"escalated"`
+	DurationMs                   int64     `json:"duration_ms"`
+	CostUSD                      float64   `json:"cost_usd"`
+	MTTRProxyMs                  int64     `json:"mttr_proxy_ms,omitempty"`
+	RollingSuccessRate           float64   `json:"rolling_success_rate"`
+	RollingFailureRate           float64   `json:"rolling_failure_rate"`
+	RollingFirstPassSuccess      float64   `json:"rolling_first_pass_success_rate"`
+	RollingEscalationRate        float64   `json:"rolling_escalation_rate"`
+	RollingAvgDurationMs         float64   `json:"rolling_avg_duration_ms"`
+	RollingP95DurationMs         float64   `json:"rolling_p95_duration_ms"`
+	RollingAvgCostUSD            float64   `json:"rolling_avg_cost_usd"`
+	RollingAvgMTTRProxyMs        float64   `json:"rolling_avg_mttr_proxy_ms"`
+	RollingPreflightFailureRate  float64   `json:"rolling_preflight_failure_rate"`
+	RollingBuildFailureRate      float64   `json:"rolling_build_failure_rate"`
+	RollingValidationFailureRate float64   `json:"rolling_validation_failure_rate"`
+	RollingTimeoutFailureRate    float64   `json:"rolling_timeout_failure_rate"`
+	FilesTouched                 int       `json:"files_touched,omitempty"`
 }
 
 // ProcessTrendWindow summarizes metrics over the latest rolling window.
@@ -250,28 +254,32 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 		w := summarizeWindow(window)
 
 		metrics = append(metrics, IterationMetric{
-			Timestamp:               entry.Timestamp,
-			Iteration:               entry.Iteration,
-			BeadID:                  entry.BeadID,
-			Model:                   entry.Model,
-			Provider:                entry.Provider,
-			FailurePhase:            entry.FailurePhase,
-			FailureCategory:         entry.FailureCategory,
-			Success:                 entry.Success,
-			FirstPassSuccess:        entry.FirstPassSuccess,
-			Escalated:               entry.Escalated,
-			DurationMs:              entry.DurationMs,
-			CostUSD:                 entry.CostUSD,
-			MTTRProxyMs:             entry.MTTRProxyMs,
-			FilesTouched:            entry.FilesTouched,
-			RollingSuccessRate:      w.SuccessRate,
-			RollingFailureRate:      w.FailureRate,
-			RollingFirstPassSuccess: w.FirstPassSuccess,
-			RollingEscalationRate:   w.EscalationRate,
-			RollingAvgDurationMs:    w.AvgDurationMs,
-			RollingP95DurationMs:    w.P95DurationMs,
-			RollingAvgCostUSD:       w.AvgCostUSD,
-			RollingAvgMTTRProxyMs:   w.AvgMTTRProxyMs,
+			Timestamp:                    entry.Timestamp,
+			Iteration:                    entry.Iteration,
+			BeadID:                       entry.BeadID,
+			Model:                        entry.Model,
+			Provider:                     entry.Provider,
+			FailurePhase:                 entry.FailurePhase,
+			FailureCategory:              entry.FailureCategory,
+			Success:                      entry.Success,
+			FirstPassSuccess:             entry.FirstPassSuccess,
+			Escalated:                    entry.Escalated,
+			DurationMs:                   entry.DurationMs,
+			CostUSD:                      entry.CostUSD,
+			MTTRProxyMs:                  entry.MTTRProxyMs,
+			FilesTouched:                 entry.FilesTouched,
+			RollingSuccessRate:           w.SuccessRate,
+			RollingFailureRate:           w.FailureRate,
+			RollingFirstPassSuccess:      w.FirstPassSuccess,
+			RollingEscalationRate:        w.EscalationRate,
+			RollingAvgDurationMs:         w.AvgDurationMs,
+			RollingP95DurationMs:         w.P95DurationMs,
+			RollingAvgCostUSD:            w.AvgCostUSD,
+			RollingAvgMTTRProxyMs:        w.AvgMTTRProxyMs,
+			RollingPreflightFailureRate:  w.PreflightFailureRate,
+			RollingBuildFailureRate:      w.BuildFailureRate,
+			RollingValidationFailureRate: w.ValidationFailureRate,
+			RollingTimeoutFailureRate:    w.TimeoutFailureRate,
 		})
 	}
 
