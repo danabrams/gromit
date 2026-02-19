@@ -18,6 +18,7 @@ import (
 
 const (
 	defaultTrendWindowSize         = 30
+	promptSectionTopLimit          = 10
 	metricRollingSuccessRate       = "rolling_success_rate"
 	metricRollingFirstPassSuccess  = "rolling_first_pass_success_rate"
 	metricRollingEscalationRate    = "rolling_escalation_rate"
@@ -142,6 +143,14 @@ type ProcessTrend struct {
 	PromptTokenSummary PromptTokenSummary  `json:"prompt_token_summary"`
 	ControlLimits      []TrendControlLimit `json:"control_limits"`
 	Anomalies          []TrendAnomaly      `json:"anomalies"`
+}
+
+func newPromptTokenSummary() PromptTokenSummary {
+	return PromptTokenSummary{
+		ByPromptType:          []PromptTypeSummary{},
+		BySectionTop10:        []PromptSectionSummary{},
+		BudgetActionFrequency: map[string]int{},
+	}
 }
 
 // BuildContinuousMetrics generates iteration_metrics.jsonl and process_trend.json.
@@ -344,17 +353,13 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 
 func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend {
 	trend := &ProcessTrend{
-		GeneratedAt:     time.Now().UTC(),
-		TotalIterations: len(metrics),
-		WindowSize:      windowSize,
-		LatestWindow:    ProcessTrendWindow{},
-		PromptTokenSummary: PromptTokenSummary{
-			ByPromptType:          []PromptTypeSummary{},
-			BySectionTop10:        []PromptSectionSummary{},
-			BudgetActionFrequency: map[string]int{},
-		},
-		ControlLimits: []TrendControlLimit{},
-		Anomalies:     []TrendAnomaly{},
+		GeneratedAt:        time.Now().UTC(),
+		TotalIterations:    len(metrics),
+		WindowSize:         windowSize,
+		LatestWindow:       ProcessTrendWindow{},
+		PromptTokenSummary: newPromptTokenSummary(),
+		ControlLimits:      []TrendControlLimit{},
+		Anomalies:          []TrendAnomaly{},
 	}
 	if len(metrics) == 0 {
 		return trend
@@ -411,11 +416,7 @@ func extractMetric(metrics []IterationMetric, pick func(IterationMetric) float64
 }
 
 func summarizePromptTokens(metrics []IterationMetric, windowSize int) PromptTokenSummary {
-	summary := PromptTokenSummary{
-		ByPromptType:          []PromptTypeSummary{},
-		BySectionTop10:        []PromptSectionSummary{},
-		BudgetActionFrequency: map[string]int{},
-	}
+	summary := newPromptTokenSummary()
 	if len(metrics) == 0 {
 		return summary
 	}
@@ -480,8 +481,8 @@ func summarizePromptTokens(metrics []IterationMetric, windowSize int) PromptToke
 		}
 		return sections[i].EstimatedTokens > sections[j].EstimatedTokens
 	})
-	if len(sections) > 10 {
-		sections = sections[:10]
+	if len(sections) > promptSectionTopLimit {
+		sections = sections[:promptSectionTopLimit]
 	}
 	summary.BySectionTop10 = sections
 
