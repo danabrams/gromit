@@ -67,6 +67,7 @@ type PromptRenderer interface {
 	LoadRules() (string, error)
 	LoadRulesForPhase(phase string) (string, error)
 	GetLearningsFile() *learnings.File
+	LastDiagnostics() *prompt.PromptDiagnostics
 }
 
 // IterationLogger abstracts the iteration log writing used by the runner.

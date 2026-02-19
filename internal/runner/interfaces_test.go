@@ -306,6 +306,10 @@ func (m *mockPromptRenderer) GetLearningsFile() *learnings.File {
 	return m.LearningsFile
 }
 
+func (m *mockPromptRenderer) LastDiagnostics() *prompt.PromptDiagnostics {
+	return nil
+}
+
 func (m *mockPromptRenderer) RenderAcceptanceTests(ctx *prompt.Context) (string, error) {
 	if m.RenderAcceptanceTestsFn != nil {
 		return m.RenderAcceptanceTestsFn(ctx)
@@ -465,6 +469,10 @@ func (m *mockRenderer) GetLearningsFile() *learnings.File {
 	return nil
 }
 
+func (m *mockRenderer) LastDiagnostics() *prompt.PromptDiagnostics {
+	return nil
+}
+
 func (m *mockRenderer) RenderAcceptanceTests(ctx *prompt.Context) (string, error) {
 	return "mock acceptance tests prompt", nil
 }
@@ -585,6 +593,13 @@ func TestPromptRendererInterfaceIncludesRenderTDDPhases(t *testing.T) {
 	}
 	if greenOutput == "" {
 		t.Fatal("expected non-empty green output")
+	}
+}
+
+func TestPromptRendererInterfaceIncludesLastDiagnostics(t *testing.T) {
+	var r PromptRenderer = &mockPromptRenderer{}
+	if got := r.LastDiagnostics(); got != nil {
+		t.Fatalf("LastDiagnostics() = %#v, want nil", got)
 	}
 }
 

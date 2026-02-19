@@ -573,6 +573,93 @@ Model: {{.Model}}`
 	}
 }
 
+func TestLastDiagnosticsNilRenderer(t *testing.T) {
+	var r *Renderer
+	if got := r.LastDiagnostics(); got != nil {
+		t.Fatalf("LastDiagnostics() = %#v, want nil", got)
+	}
+}
+
+func TestRenderBuildAndReviewUpdateLastDiagnostics(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_build.md"), []byte("Build {{.Bead.Title}}"), 0644); err != nil {
+		t.Fatalf("WriteFile(build template) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_review.md"), []byte("Review {{.Diff}}"), 0644); err != nil {
+		t.Fatalf("WriteFile(review template) error = %v", err)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	buildCtx := &Context{
+		Bead: &bead.Bead{
+			ID:              "b-1",
+			Title:           "Implement diagnostics",
+			Description:     "Wire prompt diagnostics through renderer",
+			Labels:          []string{},
+			ExpectedOutputs: []string{},
+		},
+		Rules: "Use explicit defaults",
+		Spec:  "Acceptance criteria",
+		Model: "sonnet",
+	}
+
+	if _, err := r.RenderBuild(buildCtx); err != nil {
+		t.Fatalf("RenderBuild() error = %v", err)
+	}
+
+	buildDiagnostics := r.LastDiagnostics()
+	if buildDiagnostics == nil {
+		t.Fatal("expected LastDiagnostics() to return non-nil after RenderBuild")
+	}
+	if buildDiagnostics.PromptType != "build" {
+		t.Fatalf("PromptType after RenderBuild = %q, want %q", buildDiagnostics.PromptType, "build")
+	}
+	if buildDiagnostics.EstimatedTokens <= 0 {
+		t.Fatalf("EstimatedTokens after RenderBuild = %d, want > 0", buildDiagnostics.EstimatedTokens)
+	}
+	for _, section := range []string{SectionRules, SectionSpec, SectionTaskIdentity} {
+		if _, ok := buildDiagnostics.SectionTokens[section]; !ok {
+			t.Fatalf("RenderBuild diagnostics missing section key %q", section)
+		}
+	}
+
+	reviewCtx := &ReviewContext{
+		Bead: &bead.Bead{
+			ID:              "b-2",
+			Title:           "Review diagnostics",
+			Description:     "Check review section mapping",
+			Labels:          []string{},
+			ExpectedOutputs: []string{},
+		},
+		Diff:  "diff --git a/file.go b/file.go\n+line",
+		Model: "sonnet",
+	}
+
+	if _, err := r.RenderReview(reviewCtx); err != nil {
+		t.Fatalf("RenderReview() error = %v", err)
+	}
+
+	reviewDiagnostics := r.LastDiagnostics()
+	if reviewDiagnostics == nil {
+		t.Fatal("expected LastDiagnostics() to return non-nil after RenderReview")
+	}
+	if reviewDiagnostics.PromptType != "review" {
+		t.Fatalf("PromptType after RenderReview = %q, want %q", reviewDiagnostics.PromptType, "review")
+	}
+	if reviewDiagnostics.EstimatedTokens <= 0 {
+		t.Fatalf("EstimatedTokens after RenderReview = %d, want > 0", reviewDiagnostics.EstimatedTokens)
+	}
+	if _, ok := reviewDiagnostics.SectionTokens[SectionDiff]; !ok {
+		t.Fatalf("RenderReview diagnostics missing section key %q", SectionDiff)
+	}
+}
+
 func TestRenderThoroughReview(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
