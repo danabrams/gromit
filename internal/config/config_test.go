@@ -95,6 +95,18 @@ func TestNormalizeNilFieldsInitializesDefinitionsMap(t *testing.T) {
 	}
 }
 
+func TestNormalizeNilFields_MandatoryCommandsInitialized(t *testing.T) {
+	cfg := &Config{}
+	cfg.NormalizeNilFields()
+
+	if cfg.Validation.MandatoryCommands == nil {
+		t.Error("Validation.MandatoryCommands is nil, want empty slice")
+	}
+	if len(cfg.Validation.MandatoryCommands) != 0 {
+		t.Errorf("len(Validation.MandatoryCommands) = %d, want 0", len(cfg.Validation.MandatoryCommands))
+	}
+}
+
 func TestSetDefaultsRunbookTTLDays(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()

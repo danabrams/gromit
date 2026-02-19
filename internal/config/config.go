@@ -153,6 +153,7 @@ type ValidationConfig struct {
 	Commands             []string      `yaml:"commands"`
 	FastCommands         []string      `yaml:"fast_commands"`
 	FullCommands         []string      `yaml:"full_commands"`
+	MandatoryCommands    []string      `yaml:"mandatory_commands"`
 	PhaseTimeoutSeconds  int           `yaml:"phase_timeout_seconds"`
 	MaxParallelCommands  int           `yaml:"max_parallel_commands"`
 	CommandTimeout       time.Duration `yaml:"command_timeout"`
@@ -440,6 +441,9 @@ func (c *Config) NormalizeNilFields() {
 	}
 	if c.Validation.FullCommands == nil {
 		c.Validation.FullCommands = []string{}
+	}
+	if c.Validation.MandatoryCommands == nil {
+		c.Validation.MandatoryCommands = []string{}
 	}
 	if c.Andon.HardStops.BulkDeleteAllowlist == nil {
 		c.Andon.HardStops.BulkDeleteAllowlist = []string{}
