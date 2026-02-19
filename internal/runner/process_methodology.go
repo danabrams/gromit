@@ -7,6 +7,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -113,6 +114,13 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		injectScopedTestCommand(bc)
 
 		if !executeWithRetry() {
+			if bc.Result.FailurePhase == "" {
+				if bc.Result.TimeoutType != "" || isTimeoutOrCanceledError(bc.Result.Error) {
+					bc.Result.FailurePhase = logger.FailurePhaseTimeout
+				} else {
+					bc.Result.FailurePhase = logger.FailurePhaseBuild
+				}
+			}
 			return bc.Result
 		}
 

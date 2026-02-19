@@ -16,10 +16,10 @@ import (
 const defaultTrendWindowSize = 30
 
 const (
-	failurePhasePreflight  = "preflight"
-	failurePhaseBuild      = "build"
-	failurePhaseValidation = "validation"
-	failurePhaseTimeout    = "timeout"
+	FailurePhasePreflight  = "preflight"
+	FailurePhaseBuild      = "build"
+	FailurePhaseValidation = "validation"
+	FailurePhaseTimeout    = "timeout"
 )
 
 // IterationMetric stores a single iteration with rolling-window process metrics.
@@ -485,13 +485,13 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		}
 		if !e.Success {
 			switch e.FailurePhase {
-			case failurePhasePreflight:
+			case FailurePhasePreflight:
 				preflightFailures++
-			case failurePhaseBuild:
+			case FailurePhaseBuild:
 				buildFailures++
-			case failurePhaseValidation:
+			case FailurePhaseValidation:
 				validationFailures++
-			case failurePhaseTimeout:
+			case FailurePhaseTimeout:
 				timeoutFailures++
 			}
 		}

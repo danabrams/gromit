@@ -65,7 +65,7 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 			Iteration:       1,
 			BeadID:          "b-1",
 			Model:           "sonnet",
-			FailurePhase:    failurePhaseValidation,
+			FailurePhase:    FailurePhaseValidation,
 			FailureCategory: "rate_limited",
 			Success:         false,
 		},
@@ -77,8 +77,8 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 	}
 
 	got := metrics[0]
-	if got.FailurePhase != failurePhaseValidation {
-		t.Errorf("FailurePhase = %q, want %q", got.FailurePhase, failurePhaseValidation)
+	if got.FailurePhase != FailurePhaseValidation {
+		t.Errorf("FailurePhase = %q, want %q", got.FailurePhase, FailurePhaseValidation)
 	}
 	if got.FailureCategory != "rate_limited" {
 		t.Errorf("FailureCategory = %q, want %q", got.FailureCategory, "rate_limited")
@@ -110,10 +110,10 @@ func TestSummarizeWindow_AllSuccessPhaseRatesZero(t *testing.T) {
 func TestSummarizeWindow_MixedPhaseRates(t *testing.T) {
 	window := []IterationLog{
 		makeIterationLog(true, ""),
-		makeIterationLog(false, failurePhasePreflight),
-		makeIterationLog(false, failurePhaseBuild),
-		makeIterationLog(false, failurePhaseValidation),
-		makeIterationLog(false, failurePhaseTimeout),
+		makeIterationLog(false, FailurePhasePreflight),
+		makeIterationLog(false, FailurePhaseBuild),
+		makeIterationLog(false, FailurePhaseValidation),
+		makeIterationLog(false, FailurePhaseTimeout),
 	}
 
 	summary := summarizeWindow(window)
@@ -125,9 +125,9 @@ func TestSummarizeWindow_MixedPhaseRates(t *testing.T) {
 
 func TestBuildIterationMetrics_SinglePhaseRollingRates(t *testing.T) {
 	entries := []IterationLog{
-		makeIterationLog(false, failurePhaseBuild),
-		makeIterationLog(false, failurePhaseBuild),
-		makeIterationLog(false, failurePhaseBuild),
+		makeIterationLog(false, FailurePhaseBuild),
+		makeIterationLog(false, FailurePhaseBuild),
+		makeIterationLog(false, FailurePhaseBuild),
 	}
 
 	metrics := buildIterationMetrics(entries, 3)
@@ -144,8 +144,8 @@ func TestBuildIterationMetrics_SinglePhaseRollingRates(t *testing.T) {
 
 func TestBuildProcessTrend_PhaseRatesSumToFailureRate(t *testing.T) {
 	entries := []IterationLog{
-		makeIterationLog(false, failurePhasePreflight),
-		makeIterationLog(false, failurePhaseBuild),
+		makeIterationLog(false, FailurePhasePreflight),
+		makeIterationLog(false, FailurePhaseBuild),
 		makeIterationLog(true, ""),
 	}
 
