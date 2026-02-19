@@ -38,3 +38,28 @@ Some intro.
 		t.Fatalf("criteria[1].Text = %q, want %q", criteria[1].Text, "Reject invalid input")
 	}
 }
+
+func TestParseCriteria_CompoundCriteria(t *testing.T) {
+	spec := `# My Spec
+
+## Acceptance Criteria
+
+- Validates input format
+  including length, characters, and encoding
+- Allows retries
+`
+
+	criteria, err := ParseCriteria(spec)
+	if err != nil {
+		t.Fatalf("ParseCriteria() error: %v", err)
+	}
+
+	if len(criteria) != 2 {
+		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
+	}
+
+	want := "Validates input format including length, characters, and encoding"
+	if criteria[0].Text != want {
+		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, want)
+	}
+}

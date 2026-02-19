@@ -20,16 +20,25 @@ func ParseCriteria(specContent string) ([]Criterion, error) {
 	}
 
 	criteria := make([]Criterion, 0)
+	currentIdx := -1
 	for _, line := range strings.Split(section, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "-") {
+		if strings.HasPrefix(trimmed, "-") {
+			text := strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
+			if text == "" {
+				currentIdx = -1
+				continue
+			}
+			criteria = append(criteria, Criterion{Number: len(criteria) + 1, Text: text})
+			currentIdx = len(criteria) - 1
 			continue
 		}
-		text := strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
-		if text == "" {
-			continue
+		if currentIdx != -1 && (strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")) {
+			cont := strings.TrimSpace(line)
+			if cont != "" {
+				criteria[currentIdx].Text += " " + cont
+			}
 		}
-		criteria = append(criteria, Criterion{Number: len(criteria) + 1, Text: text})
 	}
 	return criteria, nil
 }
