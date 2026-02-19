@@ -317,6 +317,31 @@ func TestIterationResult_SpecID(t *testing.T) {
 	}
 }
 
+// TestIterationResult_CoverageFields verifies that IterationResult has the four
+// coverage result fields required by the coverage tracker feature.
+func TestIterationResult_CoverageFields(t *testing.T) {
+	result := IterationResult{
+		BeadID:             "bead-cov",
+		CriteriaTotal:      10,
+		CriteriaCovered:    7,
+		CriteriaUntestable: 1,
+		UncoveredCriteria:  []string{"criterion A", "criterion B"},
+	}
+
+	if result.CriteriaTotal != 10 {
+		t.Errorf("CriteriaTotal = %d, want 10", result.CriteriaTotal)
+	}
+	if result.CriteriaCovered != 7 {
+		t.Errorf("CriteriaCovered = %d, want 7", result.CriteriaCovered)
+	}
+	if result.CriteriaUntestable != 1 {
+		t.Errorf("CriteriaUntestable = %d, want 1", result.CriteriaUntestable)
+	}
+	if len(result.UncoveredCriteria) != 2 || result.UncoveredCriteria[0] != "criterion A" {
+		t.Errorf("UncoveredCriteria = %v, want [criterion A criterion B]", result.UncoveredCriteria)
+	}
+}
+
 // TestCallbackFunctionTypes verifies that the callback function types are defined
 // and can be used with the correct signatures.
 func TestCallbackFunctionTypes(t *testing.T) {

@@ -109,6 +109,12 @@ type IterationResult struct {
 	MTTRProxyMs      int64
 	EscalationClass  string
 	RecurrenceCount  int
+
+	// Coverage tracking fields
+	CriteriaTotal      int
+	CriteriaCovered    int
+	CriteriaUntestable int
+	UncoveredCriteria  []string
 }
 
 // HardStopApprovalState captures explicit approval for hard-stop actions.
