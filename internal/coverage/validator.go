@@ -22,14 +22,22 @@ func (s *SelfReport) normalizeNilFields() {
 	}
 }
 
-func ParseSelfReport(output string) (*SelfReport, error) {
+func parseEmbeddedJSON(output string, label string, dest any) error {
 	if output == "" {
-		return nil, fmt.Errorf("self report output is empty")
+		return fmt.Errorf("%s output is empty", label)
 	}
 
+	if err := jsonutil.ExtractObject(output, dest); err != nil {
+		return fmt.Errorf("parsing %s JSON: %w", label, err)
+	}
+
+	return nil
+}
+
+func ParseSelfReport(output string) (*SelfReport, error) {
 	var report SelfReport
-	if err := jsonutil.ExtractObject(output, &report); err != nil {
-		return nil, fmt.Errorf("parsing self report JSON: %w", err)
+	if err := parseEmbeddedJSON(output, "self report", &report); err != nil {
+		return nil, err
 	}
 
 	report.normalizeNilFields()
@@ -38,13 +46,9 @@ func ParseSelfReport(output string) (*SelfReport, error) {
 }
 
 func ParseValidationResponse(output string) (*ValidationResponse, error) {
-	if output == "" {
-		return nil, fmt.Errorf("validation response output is empty")
-	}
-
 	var resp ValidationResponse
-	if err := jsonutil.ExtractObject(output, &resp); err != nil {
-		return nil, fmt.Errorf("parsing validation response JSON: %w", err)
+	if err := parseEmbeddedJSON(output, "validation response", &resp); err != nil {
+		return nil, err
 	}
 
 	return &resp, nil
