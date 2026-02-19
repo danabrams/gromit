@@ -389,6 +389,31 @@ func TestPhaseMetric_CoreFields(t *testing.T) {
 	}
 }
 
+// TestPhaseMetric_EscalatedFromAndCriteriaFields verifies PhaseMetric has
+// escalated_from and criteria tracking fields.
+func TestPhaseMetric_EscalatedFromAndCriteriaFields(t *testing.T) {
+	pm := PhaseMetric{
+		Phase:              "green",
+		EscalatedFrom:      "haiku",
+		CriteriaTotal:      5,
+		CriteriaCovered:    3,
+		CriteriaUntestable: 1,
+	}
+
+	if pm.EscalatedFrom != "haiku" {
+		t.Errorf("EscalatedFrom = %q, want %q", pm.EscalatedFrom, "haiku")
+	}
+	if pm.CriteriaTotal != 5 {
+		t.Errorf("CriteriaTotal = %d, want 5", pm.CriteriaTotal)
+	}
+	if pm.CriteriaCovered != 3 {
+		t.Errorf("CriteriaCovered = %d, want 3", pm.CriteriaCovered)
+	}
+	if pm.CriteriaUntestable != 1 {
+		t.Errorf("CriteriaUntestable = %d, want 1", pm.CriteriaUntestable)
+	}
+}
+
 // TestCallbackFunctionTypes verifies that the callback function types are defined
 // and can be used with the correct signatures.
 func TestCallbackFunctionTypes(t *testing.T) {
