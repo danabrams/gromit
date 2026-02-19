@@ -14,6 +14,15 @@ Thumbs.db
 # Test binaries
 *.test
 
+# Scratch notes
+debug.md
+devug.md
+fixed.md
+fixes.md
+progress.md
+testfailure.md
+testfix.md
+
 # Test coverage
 coverage.out
 

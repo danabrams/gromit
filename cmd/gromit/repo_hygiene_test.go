@@ -101,3 +101,66 @@ func TestRepoHygiene_CodexHomeNotTracked(t *testing.T) {
 		t.Error(".codex-home/ is still tracked by git; remove with 'git rm -r --cached .codex-home/'")
 	}
 }
+
+func TestRepoHygiene_ScratchFilesRemovedAndIgnored(t *testing.T) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("could not find project root: %v", err)
+	}
+
+	scratchFiles := []string{
+		"debug.md",
+		"devug.md",
+		"fixed.md",
+		"fixes.md",
+		"progress.md",
+		"testfailure.md",
+		"testfix.md",
+		"runner.test",
+	}
+
+	t.Run("scratch files are not tracked by git", func(t *testing.T) {
+		args := append([]string{"ls-files"}, scratchFiles...)
+		cmd := exec.Command("git", args...)
+		cmd.Dir = projectRoot
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("git ls-files failed: %v", err)
+		}
+		if strings.TrimSpace(string(out)) != "" {
+			t.Fatalf("scratch files still tracked by git:\n%s", strings.TrimSpace(string(out)))
+		}
+	})
+
+	t.Run("gitignore contains scratch markdown patterns", func(t *testing.T) {
+		gitignorePath := filepath.Join(projectRoot, ".gitignore")
+		data, err := os.ReadFile(gitignorePath)
+		if err != nil {
+			t.Fatalf("could not read .gitignore: %v", err)
+		}
+
+		requiredPatterns := []string{
+			"debug.md",
+			"devug.md",
+			"fixed.md",
+			"fixes.md",
+			"progress.md",
+			"testfailure.md",
+			"testfix.md",
+		}
+
+		lines := strings.Split(string(data), "\n")
+		for _, pattern := range requiredPatterns {
+			found := false
+			for _, line := range lines {
+				if strings.TrimSpace(line) == pattern {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf(".gitignore missing scratch file pattern %q", pattern)
+			}
+		}
+	})
+}
