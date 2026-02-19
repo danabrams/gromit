@@ -177,3 +177,37 @@ func TestTDD_FreshContext_FlagFalse_UsesSingleInvocation(t *testing.T) {
 		t.Fatal("expected non-nil result")
 	}
 }
+
+func TestTDD_LabelOverride_TDDFalse_SkipsOrchestrator(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+
+	orchestratorCalled := false
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+			orchestratorCalled = true
+			return nil
+		},
+	}
+
+	b := newTestBead("tdd-label-override-1", "Implement feature with override")
+	b.Labels = []string{"tdd:false"}
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if tddActive {
+		t.Fatal("expected tddActive=false when bead label has tdd:false")
+	}
+	if done {
+		t.Fatal("expected done=false when TDD is inactive for this bead")
+	}
+	if orchestratorCalled {
+		t.Fatal("expected orchestrator to be skipped when tdd:false label is present")
+	}
+}
