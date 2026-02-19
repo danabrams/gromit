@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -980,6 +981,43 @@ func TestCostPerSpec_EmptyDir(t *testing.T) {
 	if len(result) != 0 {
 		t.Errorf("Expected 0 specs, got %d", len(result))
 	}
+}
+
+// TestModelStats_JSONTagsAreSnakeCase verifies ModelStats serializes with snake_case field names
+func TestModelStats_JSONTagsAreSnakeCase(t *testing.T) {
+	ms := ModelStats{
+		Model:           "opus",
+		Iterations:      10,
+		Successes:       8,
+		Failures:        2,
+		EscalationsTo:   3,
+		EscalationsFrom: 1,
+		TotalCostUSD:    12.50,
+	}
+
+	data, err := json.Marshal(ms)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+
+	for _, key := range []string{"model", "iterations", "successes", "failures", "escalations_to", "escalations_from", "total_cost_usd"} {
+		if _, ok := raw[key]; !ok {
+			t.Errorf("expected JSON key %q not found in output; got keys: %v", key, keysOf(raw))
+		}
+	}
+}
+
+func keysOf(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // TestSpecCost_Struct verifies the SpecCost struct fields are accessible

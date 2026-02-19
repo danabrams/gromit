@@ -7,13 +7,13 @@ import (
 
 // ModelStats represents aggregated statistics for a specific model
 type ModelStats struct {
-	Model           string
-	Iterations      int
-	Successes       int
-	Failures        int
-	EscalationsTo   int
-	EscalationsFrom int
-	TotalCostUSD    float64
+	Model           string  `json:"model"`
+	Iterations      int     `json:"iterations"`
+	Successes       int     `json:"successes"`
+	Failures        int     `json:"failures"`
+	EscalationsTo   int     `json:"escalations_to"`
+	EscalationsFrom int     `json:"escalations_from"`
+	TotalCostUSD    float64 `json:"total_cost_usd"`
 }
 
 // SuccessRate returns the success rate as a float64 (0.0-1.0)
