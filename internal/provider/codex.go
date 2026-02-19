@@ -834,6 +834,19 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				}
 			}
 
+		case "result":
+			// Extract usage from native result events (matches Claude's reporting path).
+			// Some codex provider versions report token usage in a "result" event with
+			// a nested "usage" field rather than via "turn.completed" events.
+			if event.Usage != nil {
+				if usage == nil {
+					usage = event.Usage
+				}
+				if usage.TotalCostUSD == 0 && event.TotalCostUSD > 0 {
+					usage.TotalCostUSD = event.TotalCostUSD
+				}
+			}
+
 		case "turn.completed":
 			// Extract usage data
 			if event.Usage != nil {

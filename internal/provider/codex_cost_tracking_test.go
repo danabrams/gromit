@@ -6,6 +6,38 @@ import (
 	"testing"
 )
 
+// TestProcessCodexStreamExtractsUsageFromResultEvent verifies that processCodexStream
+// extracts token usage from native "result" events (matching Claude's reporting path).
+// Some codex provider versions report token usage in a top-level "result" event with
+// a nested "usage" field rather than via "turn.completed" events.
+func TestProcessCodexStreamExtractsUsageFromResultEvent(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+		`{"type":"result","usage":{"input_tokens":1500,"output_tokens":400,"total_cost_usd":0.025}}`,
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+
+	_, usage, _, err := processCodexStream(reader, &output, nil, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if usage == nil {
+		t.Fatal("usage is nil, want non-nil when result event has usage data")
+	}
+	if usage.InputTokens != 1500 {
+		t.Errorf("usage.InputTokens = %d, want 1500", usage.InputTokens)
+	}
+	if usage.OutputTokens != 400 {
+		t.Errorf("usage.OutputTokens = %d, want 400", usage.OutputTokens)
+	}
+	if usage.TotalCostUSD != 0.025 {
+		t.Errorf("usage.TotalCostUSD = %f, want 0.025", usage.TotalCostUSD)
+	}
+}
+
 // TestProcessCodexStreamReturnsCostWithNilHandler verifies that cost data is
 // extracted from turn.completed events even when EventHandler is nil.
 // This is the core of the cost tracking bug: preserve_provider_output mode
