@@ -56,3 +56,30 @@ func TestBuildContinuousMetrics_FilesTouched(t *testing.T) {
 		t.Errorf("FailureCategory = %q, want %q", metric.FailureCategory, "rate_limited")
 	}
 }
+
+func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Timestamp:       time.Now(),
+			Iteration:       1,
+			BeadID:          "b-1",
+			Model:           "sonnet",
+			FailurePhase:    "validation",
+			FailureCategory: "rate_limited",
+			Success:         false,
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 10)
+	if len(metrics) != 1 {
+		t.Fatalf("expected 1 metric, got %d", len(metrics))
+	}
+
+	got := metrics[0]
+	if got.FailurePhase != "validation" {
+		t.Errorf("FailurePhase = %q, want %q", got.FailurePhase, "validation")
+	}
+	if got.FailureCategory != "rate_limited" {
+		t.Errorf("FailureCategory = %q, want %q", got.FailureCategory, "rate_limited")
+	}
+}

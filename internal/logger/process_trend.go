@@ -22,6 +22,7 @@ type IterationMetric struct {
 	BeadID                  string    `json:"bead_id"`
 	Model                   string    `json:"model"`
 	Provider                string    `json:"provider,omitempty"`
+	FailurePhase            string    `json:"failure_phase,omitempty"`
 	FailureCategory         string    `json:"failure_category,omitempty"`
 	Success                 bool      `json:"success"`
 	FirstPassSuccess        bool      `json:"first_pass_success"`
@@ -250,6 +251,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			BeadID:                  entry.BeadID,
 			Model:                   entry.Model,
 			Provider:                entry.Provider,
+			FailurePhase:            entry.FailurePhase,
 			FailureCategory:         entry.FailureCategory,
 			Success:                 entry.Success,
 			FirstPassSuccess:        entry.FirstPassSuccess,
