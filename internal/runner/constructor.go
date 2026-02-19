@@ -104,6 +104,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 		escalationPolicy:  policy.NewConfigEscalationPolicy(cfg),
 		methodologyPolicy: policy.NewConfigMethodologyPolicy(cfg),
 		validationPolicy:  policy.NewConfigValidationPolicy(cfg),
+		stuckPolicy:       policy.NewConfigStuckPolicy(cfg),
 		output:            syncOut,
 		syncOut:           syncOut,
 		gromitDir:         gromitDir,
