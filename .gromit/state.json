@@ -1,10 +1,10 @@
 {
   "last_retro": "2026-02-19T09:25:22.343895298Z",
-  "iterations_since_review": 3,
+  "iterations_since_review": 5,
   "clean_exit": false,
-  "updated_at": "2026-02-19T09:45:54.377509274Z",
+  "updated_at": "2026-02-19T10:00:22.537100853Z",
   "provider_counts": {
-    "claude": 4,
-    "openai": 5
+    "claude": 6,
+    "openai": 9
   }
 }
