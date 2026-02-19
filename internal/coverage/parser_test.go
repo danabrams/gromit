@@ -4,6 +4,24 @@ import (
 	"testing"
 )
 
+func TestParseCriteria_EmptySection(t *testing.T) {
+	spec := `# My Spec
+
+## Acceptance Criteria
+
+## Another Section
+`
+
+	criteria, err := ParseCriteria(spec)
+	if err != nil {
+		t.Fatalf("ParseCriteria() error: %v", err)
+	}
+
+	if len(criteria) != 0 {
+		t.Fatalf("len(criteria) = %d, want 0", len(criteria))
+	}
+}
+
 func TestParseCriteria_ExtractsBullets(t *testing.T) {
 	spec := `# My Spec
 
