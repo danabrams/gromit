@@ -1491,20 +1491,17 @@ func TestRenderCoverageValidationRealTemplateIncludesInputs(t *testing.T) {
 		t.Fatalf("RenderCoverageValidation() error = %v", err)
 	}
 
-	if !strings.Contains(result, "Coverage Validation") {
-		t.Error("expected template header in output")
+	wantContains := []string{
+		"Coverage Validation",
+		ctx.Criterion,
+		ctx.TestCode,
+		"`covers`",
+		"`reason`",
 	}
-	if !strings.Contains(result, ctx.Criterion) {
-		t.Error("expected criterion in output")
-	}
-	if !strings.Contains(result, ctx.TestCode) {
-		t.Error("expected test code in output")
-	}
-	if !strings.Contains(result, "`covers`") {
-		t.Error("expected covers field instruction in output")
-	}
-	if !strings.Contains(result, "`reason`") {
-		t.Error("expected reason field instruction in output")
+	for _, want := range wantContains {
+		if !strings.Contains(result, want) {
+			t.Errorf("expected %q in output", want)
+		}
 	}
 }
 
@@ -1604,10 +1601,14 @@ func TestRenderCoverageValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderCoverageValidation() error = %v", err)
 	}
-	if !strings.Contains(result, "Handles empty input") {
-		t.Error("expected criterion in output")
+
+	wantContains := []string{
+		"Handles empty input",
+		"func TestExample",
 	}
-	if !strings.Contains(result, "func TestExample") {
-		t.Error("expected test code in output")
+	for _, want := range wantContains {
+		if !strings.Contains(result, want) {
+			t.Errorf("expected %q in output", want)
+		}
 	}
 }
