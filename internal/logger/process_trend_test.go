@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/failurephase"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 func TestBuildContinuousMetrics_FilesTouched(t *testing.T) {
@@ -110,6 +111,36 @@ func TestBuildIterationMetrics_CopiesTokenCounts(t *testing.T) {
 	}
 	if metrics[0].OutputTokens != 350 {
 		t.Errorf("metrics[0].OutputTokens = %d, want 350", metrics[0].OutputTokens)
+	}
+}
+
+func TestBuildIterationMetrics_CopiesPromptDiagnostics(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Timestamp: time.Now(),
+			Iteration: 1,
+			BeadID:    "bead-prompt",
+			Model:     "gpt-4",
+			Success:   true,
+			PromptDiagnostics: &prompt.PromptDiagnostics{
+				PromptType:      "build",
+				EstimatedTokens: 321,
+			},
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 10)
+	if len(metrics) != 1 {
+		t.Fatalf("len(metrics) = %d, want 1", len(metrics))
+	}
+	if metrics[0].PromptDiagnostics == nil {
+		t.Fatal("PromptDiagnostics = nil, want non-nil")
+	}
+	if metrics[0].PromptDiagnostics.PromptType != "build" {
+		t.Errorf("PromptType = %q, want %q", metrics[0].PromptDiagnostics.PromptType, "build")
+	}
+	if metrics[0].PromptDiagnostics.EstimatedTokens != 321 {
+		t.Errorf("EstimatedTokens = %d, want %d", metrics[0].PromptDiagnostics.EstimatedTokens, 321)
 	}
 }
 
@@ -275,6 +306,106 @@ func TestBuildProcessTrend_PhaseRateControlLimitsClampedToZeroOne(t *testing.T) 
 			t.Errorf("phase-rate control limit %q not found", name)
 		}
 	}
+}
+
+func TestBuildProcessTrend_AggregatesPromptTokenSummary(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Iteration: 1,
+			PromptDiagnostics: &prompt.PromptDiagnostics{
+				PromptType:      "build",
+				EstimatedTokens: 100,
+				SectionTokens: map[string]int{
+					"rules": 60,
+					"spec":  40,
+				},
+				ShapeActions:   []string{"trim_rules", "trim_rules"},
+				ReportedTokens: 120,
+				TokenDeltaPct:  -16.6667,
+			},
+		},
+		{
+			Iteration: 2,
+			PromptDiagnostics: &prompt.PromptDiagnostics{
+				PromptType:      "build",
+				EstimatedTokens: 200,
+				SectionTokens: map[string]int{
+					"rules": 50,
+					"diff":  150,
+				},
+				ShapeActions:   []string{"trim_spec"},
+				ReportedTokens: 220,
+				TokenDeltaPct:  -9.0909,
+			},
+		},
+		{
+			Iteration: 3,
+			PromptDiagnostics: &prompt.PromptDiagnostics{
+				PromptType:      "plan",
+				EstimatedTokens: 50,
+				SectionTokens: map[string]int{
+					"task_identity": 50,
+				},
+				ReportedTokens: 0,
+				TokenDeltaPct:  80,
+			},
+		},
+		{
+			Iteration: 4,
+			PromptDiagnostics: &prompt.PromptDiagnostics{
+				PromptType:      "review",
+				EstimatedTokens: 300,
+				SectionTokens: map[string]int{
+					"r11": 1, "r10": 2, "r9": 3, "r8": 4, "r7": 5, "r6": 6,
+					"r5": 7, "r4": 8, "r3": 9, "r2": 10, "r1": 11,
+				},
+				ShapeActions:   []string{"trim_rules", "trim_spec", "trim_spec"},
+				ReportedTokens: 300,
+				TokenDeltaPct:  0,
+			},
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 3)
+	trend := buildProcessTrend(metrics, 3)
+
+	gotTypes := trend.PromptTokenSummary.ByPromptType
+	if len(gotTypes) != 3 {
+		t.Fatalf("len(ByPromptType) = %d, want 3", len(gotTypes))
+	}
+	if gotTypes[0].PromptType != "review" || gotTypes[0].InvocationCount != 1 || gotTypes[0].AvgEstimatedTokens != 300 {
+		t.Errorf("ByPromptType[0] = %+v, want review with count 1 avg 300", gotTypes[0])
+	}
+	if gotTypes[1].PromptType != "build" || gotTypes[1].InvocationCount != 1 || gotTypes[1].AvgEstimatedTokens != 200 {
+		t.Errorf("ByPromptType[1] = %+v, want build with count 1 avg 200", gotTypes[1])
+	}
+	if gotTypes[2].PromptType != "plan" || gotTypes[2].InvocationCount != 1 || gotTypes[2].AvgEstimatedTokens != 50 {
+		t.Errorf("ByPromptType[2] = %+v, want plan with count 1 avg 50", gotTypes[2])
+	}
+
+	gotSections := trend.PromptTokenSummary.BySectionTop10
+	if len(gotSections) != 10 {
+		t.Fatalf("len(BySectionTop10) = %d, want 10", len(gotSections))
+	}
+	for _, section := range gotSections {
+		if section.Section == "r11" {
+			t.Fatal("expected lowest section r11 to be trimmed from top 10")
+		}
+	}
+
+	if trend.PromptTokenSummary.BudgetActionFrequency["trim_spec"] != 3 {
+		t.Errorf("BudgetActionFrequency[trim_spec] = %d, want 3", trend.PromptTokenSummary.BudgetActionFrequency["trim_spec"])
+	}
+	if trend.PromptTokenSummary.BudgetActionFrequency["trim_rules"] != 1 {
+		t.Errorf("BudgetActionFrequency[trim_rules] = %d, want 1", trend.PromptTokenSummary.BudgetActionFrequency["trim_rules"])
+	}
+
+	drift := trend.PromptTokenSummary.ReconciliationDrift
+	if drift.SampleCount != 2 {
+		t.Fatalf("SampleCount = %d, want 2", drift.SampleCount)
+	}
+	assertFloatNear(t, drift.MeanAbsTokenDeltaPct, 4.54545, "MeanAbsTokenDeltaPct")
+	assertFloatNear(t, drift.P95AbsTokenDeltaPct, 8.636355, "P95AbsTokenDeltaPct")
 }
 
 func makeIterationLog(success bool, phase string) IterationLog {

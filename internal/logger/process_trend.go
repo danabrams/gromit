@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/failurephase"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 const (
@@ -37,34 +38,63 @@ var phaseRateMetrics = []string{
 
 // IterationMetric stores a single iteration with rolling-window process metrics.
 type IterationMetric struct {
-	Timestamp                    time.Time `json:"timestamp"`
-	Iteration                    int       `json:"iteration"`
-	BeadID                       string    `json:"bead_id"`
-	Model                        string    `json:"model"`
-	Provider                     string    `json:"provider,omitempty"`
-	FailurePhase                 string    `json:"failure_phase,omitempty"`
-	FailureCategory              string    `json:"failure_category,omitempty"`
-	Success                      bool      `json:"success"`
-	FirstPassSuccess             bool      `json:"first_pass_success"`
-	Escalated                    bool      `json:"escalated"`
-	DurationMs                   int64     `json:"duration_ms"`
-	CostUSD                      float64   `json:"cost_usd"`
-	InputTokens                  int       `json:"input_tokens,omitempty"`
-	OutputTokens                 int       `json:"output_tokens,omitempty"`
-	MTTRProxyMs                  int64     `json:"mttr_proxy_ms,omitempty"`
-	RollingSuccessRate           float64   `json:"rolling_success_rate"`
-	RollingFailureRate           float64   `json:"rolling_failure_rate"`
-	RollingFirstPassSuccess      float64   `json:"rolling_first_pass_success_rate"`
-	RollingEscalationRate        float64   `json:"rolling_escalation_rate"`
-	RollingAvgDurationMs         float64   `json:"rolling_avg_duration_ms"`
-	RollingP95DurationMs         float64   `json:"rolling_p95_duration_ms"`
-	RollingAvgCostUSD            float64   `json:"rolling_avg_cost_usd"`
-	RollingAvgMTTRProxyMs        float64   `json:"rolling_avg_mttr_proxy_ms"`
-	RollingPreflightFailureRate  float64   `json:"rolling_preflight_failure_rate"`
-	RollingBuildFailureRate      float64   `json:"rolling_build_failure_rate"`
-	RollingValidationFailureRate float64   `json:"rolling_validation_failure_rate"`
-	RollingTimeoutFailureRate    float64   `json:"rolling_timeout_failure_rate"`
-	FilesTouched                 int       `json:"files_touched,omitempty"`
+	Timestamp                    time.Time                 `json:"timestamp"`
+	Iteration                    int                       `json:"iteration"`
+	BeadID                       string                    `json:"bead_id"`
+	Model                        string                    `json:"model"`
+	Provider                     string                    `json:"provider,omitempty"`
+	FailurePhase                 string                    `json:"failure_phase,omitempty"`
+	FailureCategory              string                    `json:"failure_category,omitempty"`
+	Success                      bool                      `json:"success"`
+	FirstPassSuccess             bool                      `json:"first_pass_success"`
+	Escalated                    bool                      `json:"escalated"`
+	DurationMs                   int64                     `json:"duration_ms"`
+	CostUSD                      float64                   `json:"cost_usd"`
+	InputTokens                  int                       `json:"input_tokens,omitempty"`
+	OutputTokens                 int                       `json:"output_tokens,omitempty"`
+	MTTRProxyMs                  int64                     `json:"mttr_proxy_ms,omitempty"`
+	RollingSuccessRate           float64                   `json:"rolling_success_rate"`
+	RollingFailureRate           float64                   `json:"rolling_failure_rate"`
+	RollingFirstPassSuccess      float64                   `json:"rolling_first_pass_success_rate"`
+	RollingEscalationRate        float64                   `json:"rolling_escalation_rate"`
+	RollingAvgDurationMs         float64                   `json:"rolling_avg_duration_ms"`
+	RollingP95DurationMs         float64                   `json:"rolling_p95_duration_ms"`
+	RollingAvgCostUSD            float64                   `json:"rolling_avg_cost_usd"`
+	RollingAvgMTTRProxyMs        float64                   `json:"rolling_avg_mttr_proxy_ms"`
+	RollingPreflightFailureRate  float64                   `json:"rolling_preflight_failure_rate"`
+	RollingBuildFailureRate      float64                   `json:"rolling_build_failure_rate"`
+	RollingValidationFailureRate float64                   `json:"rolling_validation_failure_rate"`
+	RollingTimeoutFailureRate    float64                   `json:"rolling_timeout_failure_rate"`
+	FilesTouched                 int                       `json:"files_touched,omitempty"`
+	PromptDiagnostics            *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
+}
+
+// PromptTypeSummary captures aggregate token usage for one prompt type.
+type PromptTypeSummary struct {
+	PromptType         string  `json:"prompt_type"`
+	InvocationCount    int     `json:"invocation_count"`
+	AvgEstimatedTokens float64 `json:"avg_estimated_tokens"`
+}
+
+// PromptSectionSummary captures aggregate token usage for one prompt section.
+type PromptSectionSummary struct {
+	Section         string `json:"section"`
+	EstimatedTokens int    `json:"estimated_tokens"`
+}
+
+// ReconciliationDrift captures estimate-vs-reported token drift distribution.
+type ReconciliationDrift struct {
+	SampleCount          int     `json:"sample_count"`
+	MeanAbsTokenDeltaPct float64 `json:"mean_abs_token_delta_pct"`
+	P95AbsTokenDeltaPct  float64 `json:"p95_abs_token_delta_pct"`
+}
+
+// PromptTokenSummary captures prompt-level token accounting metrics.
+type PromptTokenSummary struct {
+	ByPromptType          []PromptTypeSummary    `json:"by_prompt_type"`
+	BySectionTop10        []PromptSectionSummary `json:"by_section_top_10"`
+	BudgetActionFrequency map[string]int         `json:"budget_action_frequency"`
+	ReconciliationDrift   ReconciliationDrift    `json:"reconciliation_drift"`
 }
 
 // ProcessTrendWindow summarizes metrics over the latest rolling window.
@@ -105,12 +135,13 @@ type TrendAnomaly struct {
 
 // ProcessTrend is a continuously regenerated trend snapshot.
 type ProcessTrend struct {
-	GeneratedAt     time.Time           `json:"generated_at"`
-	TotalIterations int                 `json:"total_iterations"`
-	WindowSize      int                 `json:"window_size"`
-	LatestWindow    ProcessTrendWindow  `json:"latest_window"`
-	ControlLimits   []TrendControlLimit `json:"control_limits"`
-	Anomalies       []TrendAnomaly      `json:"anomalies"`
+	GeneratedAt        time.Time           `json:"generated_at"`
+	TotalIterations    int                 `json:"total_iterations"`
+	WindowSize         int                 `json:"window_size"`
+	LatestWindow       ProcessTrendWindow  `json:"latest_window"`
+	PromptTokenSummary PromptTokenSummary  `json:"prompt_token_summary"`
+	ControlLimits      []TrendControlLimit `json:"control_limits"`
+	Anomalies          []TrendAnomaly      `json:"anomalies"`
 }
 
 // BuildContinuousMetrics generates iteration_metrics.jsonl and process_trend.json.
@@ -292,6 +323,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			OutputTokens:                 entry.OutputTokens,
 			MTTRProxyMs:                  entry.MTTRProxyMs,
 			FilesTouched:                 entry.FilesTouched,
+			PromptDiagnostics:            entry.PromptDiagnostics,
 			RollingSuccessRate:           w.SuccessRate,
 			RollingFailureRate:           w.FailureRate,
 			RollingFirstPassSuccess:      w.FirstPassSuccess,
@@ -316,8 +348,13 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		TotalIterations: len(metrics),
 		WindowSize:      windowSize,
 		LatestWindow:    ProcessTrendWindow{},
-		ControlLimits:   []TrendControlLimit{},
-		Anomalies:       []TrendAnomaly{},
+		PromptTokenSummary: PromptTokenSummary{
+			ByPromptType:          []PromptTypeSummary{},
+			BySectionTop10:        []PromptSectionSummary{},
+			BudgetActionFrequency: map[string]int{},
+		},
+		ControlLimits: []TrendControlLimit{},
+		Anomalies:     []TrendAnomaly{},
 	}
 	if len(metrics) == 0 {
 		return trend
@@ -338,6 +375,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		ValidationFailureRate: latest.RollingValidationFailureRate,
 		TimeoutFailureRate:    latest.RollingTimeoutFailureRate,
 	}
+	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
 
 	series := map[string][]float64{
 		metricRollingSuccessRate:       extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingSuccessRate }),
@@ -370,6 +408,90 @@ func extractMetric(metrics []IterationMetric, pick func(IterationMetric) float64
 		values = append(values, pick(m))
 	}
 	return values
+}
+
+func summarizePromptTokens(metrics []IterationMetric, windowSize int) PromptTokenSummary {
+	summary := PromptTokenSummary{
+		ByPromptType:          []PromptTypeSummary{},
+		BySectionTop10:        []PromptSectionSummary{},
+		BudgetActionFrequency: map[string]int{},
+	}
+	if len(metrics) == 0 {
+		return summary
+	}
+
+	start := len(metrics) - windowSize
+	if start < 0 {
+		start = 0
+	}
+
+	typeTotals := map[string]int{}
+	typeCounts := map[string]int{}
+	sectionTotals := map[string]int{}
+	absDeltaPct := make([]float64, 0, len(metrics)-start)
+
+	for i := start; i < len(metrics); i++ {
+		diag := metrics[i].PromptDiagnostics
+		if diag == nil {
+			continue
+		}
+
+		typeTotals[diag.PromptType] += diag.EstimatedTokens
+		typeCounts[diag.PromptType]++
+
+		for section, tokens := range diag.SectionTokens {
+			sectionTotals[section] += tokens
+		}
+		for _, action := range diag.ShapeActions {
+			summary.BudgetActionFrequency[action]++
+		}
+		if diag.ReportedTokens > 0 {
+			absDeltaPct = append(absDeltaPct, math.Abs(diag.TokenDeltaPct))
+		}
+	}
+
+	for promptType, count := range typeCounts {
+		if count <= 0 {
+			continue
+		}
+		summary.ByPromptType = append(summary.ByPromptType, PromptTypeSummary{
+			PromptType:         promptType,
+			InvocationCount:    count,
+			AvgEstimatedTokens: float64(typeTotals[promptType]) / float64(count),
+		})
+	}
+	sort.Slice(summary.ByPromptType, func(i, j int) bool {
+		if summary.ByPromptType[i].AvgEstimatedTokens == summary.ByPromptType[j].AvgEstimatedTokens {
+			return summary.ByPromptType[i].PromptType < summary.ByPromptType[j].PromptType
+		}
+		return summary.ByPromptType[i].AvgEstimatedTokens > summary.ByPromptType[j].AvgEstimatedTokens
+	})
+
+	sections := make([]PromptSectionSummary, 0, len(sectionTotals))
+	for section, tokens := range sectionTotals {
+		sections = append(sections, PromptSectionSummary{
+			Section:         section,
+			EstimatedTokens: tokens,
+		})
+	}
+	sort.Slice(sections, func(i, j int) bool {
+		if sections[i].EstimatedTokens == sections[j].EstimatedTokens {
+			return sections[i].Section < sections[j].Section
+		}
+		return sections[i].EstimatedTokens > sections[j].EstimatedTokens
+	})
+	if len(sections) > 10 {
+		sections = sections[:10]
+	}
+	summary.BySectionTop10 = sections
+
+	summary.ReconciliationDrift = ReconciliationDrift{
+		SampleCount:          len(absDeltaPct),
+		MeanAbsTokenDeltaPct: meanFloat64(absDeltaPct),
+		P95AbsTokenDeltaPct:  percentileFloat64(absDeltaPct, 95),
+	}
+
+	return summary
 }
 
 func computeControlLimit(metric string, values []float64) TrendControlLimit {
@@ -576,6 +698,31 @@ func percentileInt64(values []int64, percentile int) float64 {
 	return float64(sorted[low])*(1-weight) + float64(sorted[high])*weight
 }
 
+func percentileFloat64(values []float64, percentile int) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	if percentile <= 0 {
+		return values[0]
+	}
+	if percentile >= 100 {
+		return values[len(values)-1]
+	}
+
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+
+	rank := float64(percentile) / 100.0 * float64(len(sorted)-1)
+	low := int(math.Floor(rank))
+	high := int(math.Ceil(rank))
+	if low == high {
+		return sorted[low]
+	}
+
+	weight := rank - float64(low)
+	return sorted[low]*(1-weight) + sorted[high]*weight
+}
+
 func meanAndStdDev(values []float64) (float64, float64) {
 	if len(values) == 0 {
 		return 0, 0
@@ -596,6 +743,17 @@ func meanAndStdDev(values []float64) (float64, float64) {
 	}
 	variance = variance / float64(len(values))
 	return mean, math.Sqrt(variance)
+}
+
+func meanFloat64(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	var sum float64
+	for _, v := range values {
+		sum += v
+	}
+	return sum / float64(len(values))
 }
 
 func isRateMetric(metric string) bool {
