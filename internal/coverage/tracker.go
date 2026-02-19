@@ -9,9 +9,9 @@ import (
 type Status int
 
 const (
-	Unchecked  Status = iota
-	Covered    Status = iota
-	Untestable Status = iota
+	Unchecked Status = iota
+	Covered
+	Untestable
 )
 
 // CriterionState tracks a criterion and its coverage status.
@@ -70,13 +70,8 @@ func (t *CoverageTracker) FormatCoverageState(targeting int) string {
 	}
 
 	uncovered := t.UncoveredCriteria()
-	parts := make([]string, len(uncovered))
-	for i, cs := range uncovered {
-		parts[i] = fmt.Sprintf("#%d", cs.Number)
-	}
-
 	return fmt.Sprintf("## Coverage State\nTargeting criterion #%d: %q\nRemaining uncovered: %s",
-		targeting, targetText, strings.Join(parts, ", "))
+		targeting, targetText, formatCriteriaNumbers(uncovered))
 }
 
 // Summary renders a human-readable coverage summary for bead comments.
@@ -96,22 +91,22 @@ func (t *CoverageTracker) Summary() string {
 	fmt.Fprintf(&sb, "Coverage: %d/%d criteria covered", covered, total)
 
 	if len(uncovered) > 0 {
-		parts := make([]string, len(uncovered))
-		for i, cs := range uncovered {
-			parts[i] = fmt.Sprintf("#%d", cs.Number)
-		}
-		fmt.Fprintf(&sb, "\nUncovered: %s", strings.Join(parts, ", "))
+		fmt.Fprintf(&sb, "\nUncovered: %s", formatCriteriaNumbers(uncovered))
 	}
 
 	if len(untestable) > 0 {
-		parts := make([]string, len(untestable))
-		for i, cs := range untestable {
-			parts[i] = fmt.Sprintf("#%d", cs.Number)
-		}
-		fmt.Fprintf(&sb, "\nUntestable: %s", strings.Join(parts, ", "))
+		fmt.Fprintf(&sb, "\nUntestable: %s", formatCriteriaNumbers(untestable))
 	}
 
 	return sb.String()
+}
+
+func formatCriteriaNumbers(criteria []CriterionState) string {
+	parts := make([]string, len(criteria))
+	for i, cs := range criteria {
+		parts[i] = fmt.Sprintf("#%d", cs.Number)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // UntestableCriteria returns all criteria in Untestable state.
