@@ -131,18 +131,14 @@ func (p *Pipeline) validateExploreDeps() error {
 	if p.deps == nil {
 		return fmt.Errorf("pipeline: nil dependencies")
 	}
-
-	requiredDeps := map[string]interface{}{
-		"AgentResolver":  p.deps.AgentResolver,
-		"PromptRenderer": p.deps.PromptRenderer,
-		"BacklogClient":  p.deps.BacklogClient,
+	if p.deps.AgentResolver == nil {
+		return fmt.Errorf("pipeline: nil AgentResolver")
 	}
-
-	for name, dep := range requiredDeps {
-		if dep == nil {
-			return fmt.Errorf("pipeline: nil %s", name)
-		}
+	if p.deps.PromptRenderer == nil {
+		return fmt.Errorf("pipeline: nil PromptRenderer")
 	}
-
+	if p.deps.BacklogClient == nil {
+		return fmt.Errorf("pipeline: nil BacklogClient")
+	}
 	return nil
 }

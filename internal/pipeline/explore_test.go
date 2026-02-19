@@ -54,6 +54,16 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 			paths:   &Paths{},
 			wantErr: "nil BacklogClient",
 		},
+		{
+			name: "AgentResolver checked before PromptRenderer when both nil",
+			deps: &Deps{
+				AgentResolver:  nil,
+				PromptRenderer: nil,
+				BacklogClient:  &testBacklogClient{},
+			},
+			paths:   &Paths{},
+			wantErr: "nil AgentResolver",
+		},
 	}
 
 	for _, tc := range tests {
