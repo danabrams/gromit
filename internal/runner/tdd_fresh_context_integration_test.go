@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
@@ -31,7 +30,6 @@ func TestTDD_FreshContext_FullValidationAfterCycles(t *testing.T) {
 		validationCalls++
 		return "", "", 0, nil
 	}, nil, nil)
-	r.methodologyExec = methodology.NewExecutor(r.cfg, nil, nil, nil, nil)
 
 	orchestratorCalled := false
 	r.tddOrchestrator = &tddOrchestrator{
