@@ -38,25 +38,25 @@ func NewTracker(criteria []Criterion, maxRejections int) *CoverageTracker {
 
 // RecordRejection increments rejection count; transitions to Untestable at threshold.
 func (t *CoverageTracker) RecordRejection(n int) {
-	for i := range t.criteria {
-		if t.criteria[i].Number == n {
-			t.criteria[i].RejectionCount++
-			if t.criteria[i].RejectionCount >= t.maxRejections {
-				t.criteria[i].Status = Untestable
-			}
-			return
-		}
+	cs := t.findCriterionState(n)
+	if cs == nil || cs.Status != Unchecked {
+		return
+	}
+
+	cs.RejectionCount++
+	if cs.RejectionCount >= t.maxRejections {
+		cs.Status = Untestable
 	}
 }
 
 // MarkCovered transitions a criterion to Covered by its number.
 func (t *CoverageTracker) MarkCovered(n int) {
-	for i := range t.criteria {
-		if t.criteria[i].Number == n {
-			t.criteria[i].Status = Covered
-			return
-		}
+	cs := t.findCriterionState(n)
+	if cs == nil || cs.Status != Unchecked {
+		return
 	}
+
+	cs.Status = Covered
 }
 
 // FormatCoverageState renders the coverage state block for prompt injection.
@@ -111,24 +111,12 @@ func formatCriteriaNumbers(criteria []CriterionState) string {
 
 // UntestableCriteria returns all criteria in Untestable state.
 func (t *CoverageTracker) UntestableCriteria() []CriterionState {
-	result := make([]CriterionState, 0)
-	for _, cs := range t.criteria {
-		if cs.Status == Untestable {
-			result = append(result, cs)
-		}
-	}
-	return result
+	return t.criteriaByStatus(Untestable)
 }
 
 // UncoveredCriteria returns all criteria still in Unchecked state.
 func (t *CoverageTracker) UncoveredCriteria() []CriterionState {
-	result := make([]CriterionState, 0)
-	for _, cs := range t.criteria {
-		if cs.Status == Unchecked {
-			result = append(result, cs)
-		}
-	}
-	return result
+	return t.criteriaByStatus(Unchecked)
 }
 
 // IsComplete returns true when all criteria are Covered or Untestable.
@@ -150,4 +138,23 @@ func (t *CoverageTracker) NextUncovered() *Criterion {
 		}
 	}
 	return nil
+}
+
+func (t *CoverageTracker) findCriterionState(number int) *CriterionState {
+	for i := range t.criteria {
+		if t.criteria[i].Number == number {
+			return &t.criteria[i]
+		}
+	}
+	return nil
+}
+
+func (t *CoverageTracker) criteriaByStatus(status Status) []CriterionState {
+	result := make([]CriterionState, 0)
+	for _, cs := range t.criteria {
+		if cs.Status == status {
+			result = append(result, cs)
+		}
+	}
+	return result
 }
