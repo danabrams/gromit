@@ -1076,11 +1076,19 @@ func TestRunCycles_InitialValidationNonGreen_RunsRefactorAndFinalValidation(t *t
 func TestRunCycles_RefactorValidationFailure_RevertContinue_AdvancesToNextCycle(t *testing.T) {
 	orch := newTestOrchestrator()
 
+	var phases []string
+	var redSpecExcerpts []string
 	redInvocations := 0
 	refactorCalls := 0
 	resetCalls := 0
 
 	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		redSpecExcerpts = append(redSpecExcerpts, handoff.SpecExcerpt)
+		if redInvocations == 0 {
+			phases = append(phases, "renderRedCycle1")
+		} else {
+			phases = append(phases, "renderRedCycle2")
+		}
 		return "red", nil
 	}
 	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
@@ -1097,20 +1105,28 @@ func TestRunCycles_RefactorValidationFailure_RevertContinue_AdvancesToNextCycle(
 		validateCall++
 		switch validateCall {
 		case 1:
+			phases = append(phases, "validateRedCycle1")
 			return "FAIL", false, nil // Cycle 1 red validation.
 		case 2:
+			phases = append(phases, "validateGreenCycle1")
 			return "PASS", true, nil // Cycle 1 green validation.
 		case 3:
+			phases = append(phases, "validatePostRefactorCycle1")
 			return "FAIL", false, nil // Cycle 1 post-refactor validation triggers revert.
 		case 4:
+			phases = append(phases, "validateFinalCycle1")
 			return "PASS", true, nil // Cycle 1 final validation after revert.
 		case 5:
+			phases = append(phases, "validateRedCycle2")
 			return "FAIL", false, nil // Cycle 2 red validation.
 		case 6:
+			phases = append(phases, "validateGreenCycle2")
 			return "PASS", true, nil // Cycle 2 green validation.
 		case 7:
+			phases = append(phases, "validatePostRefactorCycle2")
 			return "PASS", true, nil // Cycle 2 post-refactor validation.
 		case 8:
+			phases = append(phases, "validateFinalCycle2")
 			return "PASS", true, nil // Cycle 2 final validation.
 		default:
 			t.Fatalf("unexpected validation call %d", validateCall)
@@ -1153,5 +1169,33 @@ func TestRunCycles_RefactorValidationFailure_RevertContinue_AdvancesToNextCycle(
 	}
 	if resetCalls != 1 {
 		t.Fatalf("expected one revert after failed post-refactor validation, got %d", resetCalls)
+	}
+
+	if len(redSpecExcerpts) != 2 {
+		t.Fatalf("expected red phase to run two cycles, got spec excerpts %v", redSpecExcerpts)
+	}
+	if redSpecExcerpts[0] != "req A" || redSpecExcerpts[1] != "req B" {
+		t.Fatalf("expected cycle state progression req A -> req B, got %v", redSpecExcerpts)
+	}
+
+	expectedPhases := []string{
+		"renderRedCycle1",
+		"validateRedCycle1",
+		"validateGreenCycle1",
+		"validatePostRefactorCycle1",
+		"validateFinalCycle1",
+		"renderRedCycle2",
+		"validateRedCycle2",
+		"validateGreenCycle2",
+		"validatePostRefactorCycle2",
+		"validateFinalCycle2",
+	}
+	if len(phases) != len(expectedPhases) {
+		t.Fatalf("phases length = %d, want %d: %v", len(phases), len(expectedPhases), phases)
+	}
+	for i, want := range expectedPhases {
+		if phases[i] != want {
+			t.Fatalf("phases[%d] = %q, want %q (all: %v)", i, phases[i], want, phases)
+		}
 	}
 }
