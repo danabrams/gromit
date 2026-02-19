@@ -275,17 +275,17 @@ func (r *Runner) runDirectValidationCheck(ctx context.Context, commands []string
 }
 
 // runRefactorWithRouter executes a refactor invocation using the router with automatic fallback.
-// Returns the result and any error. This helper centralizes the router selection and usage limit
-// fallback pattern used by the methodology.Executor's refactor callback.
-func (r *Runner) runRefactorWithRouter(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+// Returns the result, stream stats, and any error. This helper centralizes the router selection
+// and usage limit fallback pattern used by the methodology.Executor's refactor callback.
+func (r *Runner) runRefactorWithRouter(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 	if r.router == nil {
-		return nil, fmt.Errorf("runner router is nil")
+		return nil, nil, fmt.Errorf("runner router is nil")
 	}
 
 	phase := "build"
 	p, modelName := r.router.Select(phase, tier)
 	if p == nil {
-		return nil, fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
+		return nil, nil, fmt.Errorf("no providers available for phase=%s tier=%s", phase, tier)
 	}
 
 	r.log("Running refactor with model: %s", modelName)
@@ -326,7 +326,7 @@ func (r *Runner) runRefactorWithRouter(ctx context.Context, prompt string, tier 
 		}
 	}
 
-	return claudeResult, err
+	return claudeResult, stats, err
 }
 
 // validationPreflight checks whether validation should run and verifies prerequisites.

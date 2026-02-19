@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
@@ -272,8 +273,8 @@ func TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec(t *testing.T) {
 			refactorPromptRendered = "refactor-prompt-via-methodologyExec"
 			return "refactor prompt", nil
 		},
-		func(ctx context.Context, p string, tier string) (*claude.Result, error) {
-			return &claude.Result{Success: true}, nil
+		func(ctx context.Context, p string, tier string) (*claude.Result, *logger.StreamStats, error) {
+			return &claude.Result{Success: true}, nil, nil
 		},
 		nil, // validateFn — keep the ATDD validateFn (tests should fail before implementation)
 		func(commit string) error { return nil },

@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
@@ -2513,8 +2514,8 @@ func configureRefactorWithDiff(r *Runner, refactorInvoked *bool) {
 			return "diff --git a/a.go b/a.go\n+line", nil
 		},
 		func(ctx *prompt.Context) (string, error) { return "refactor prompt", nil },
-		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-			return &claude.Result{Success: true}, nil
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+			return &claude.Result{Success: true}, nil, nil
 		},
 		nil,
 		nil,

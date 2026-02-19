@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -25,7 +26,7 @@ func IsATDDAlreadyDone(err error) bool {
 }
 
 // RefactorInvokeFn executes a refactor Claude invocation with a prompt and tier.
-type RefactorInvokeFn func(ctx context.Context, prompt string, tier string) (*claude.Result, error)
+type RefactorInvokeFn func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error)
 
 // RenderRefactorFn renders the refactor prompt from a prompt context.
 type RenderRefactorFn func(ctx *prompt.Context) (string, error)
@@ -191,7 +192,7 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 		e.log("Warning: refactorInvokeFn not configured, skipping refactor")
 		return nil
 	}
-	claudeResult, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
+	claudeResult, _, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		e.log("Warning: refactor invocation failed: %v", err)
 		return nil
@@ -268,7 +269,7 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 	if e.refactorInvokeFn == nil {
 		return nil
 	}
-	claudeResult, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
+	claudeResult, _, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		e.log("Warning: retry refactor invocation failed: %v - skipping refactoring", err)
 		return nil

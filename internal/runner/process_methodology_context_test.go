@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/methodology"
@@ -24,7 +25,7 @@ const (
 
 func setTestRefactorDeps(
 	r *Runner,
-	invoke func(ctx context.Context, prompt string, tier string) (*claude.Result, error),
+	invoke func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error),
 ) {
 	r.methodologyExec = r.makeMethodologyExec()
 	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
@@ -50,8 +51,8 @@ func TestRunRefactorAndPostChecks_ValidationUsesParentContext(t *testing.T) {
 	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 
 	r.cfg.Refactor.MinFilesChanged = 0
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-		return nil, ctx.Err()
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		return nil, nil, ctx.Err()
 	})
 
 	parentCtx := context.Background()
@@ -92,8 +93,8 @@ func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesParentContext(t *tes
 	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 
 	r.cfg.Refactor.MinFilesChanged = 0
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-		return nil, ctx.Err()
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		return nil, nil, ctx.Err()
 	})
 
 	parentCtx := context.Background()
@@ -140,10 +141,10 @@ func TestRunRefactorAndPostChecks_RefactorUsesPhaseContext(t *testing.T) {
 	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{
 		RefactorSeconds: 120,
 	}
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		refactorCtxDeadline, refactorCtxHadDeadline = ctx.Deadline()
 		refactorCtxErr = ctx.Err()
-		return &claude.Result{Success: true}, nil
+		return &claude.Result{Success: true}, nil, nil
 	})
 
 	parentCtx := context.Background()
@@ -200,9 +201,9 @@ func TestRunRefactorAndPostChecks_ValidationGetsFreshContextAfterRefactorTimeout
 		RefactorSeconds: 120,
 	}
 	r.cfg.Validation.PhaseTimeoutSeconds = 180
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		// Simulate refactor timing out.
-		return nil, context.DeadlineExceeded
+		return nil, nil, context.DeadlineExceeded
 	})
 
 	parentCtx := context.Background()
@@ -264,8 +265,8 @@ func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesPhaseContext(t *test
 		RefactorSeconds: 120,
 	}
 	r.cfg.Validation.PhaseTimeoutSeconds = 180
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-		return &claude.Result{Success: true}, nil
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		return &claude.Result{Success: true}, nil, nil
 	})
 
 	parentCtx := context.Background()
@@ -446,8 +447,8 @@ func TestRunRefactorAndPostChecks_ValidationPhaseClampedByRunDeadline(t *testing
 		RefactorSeconds: 120,
 	}
 	r.cfg.Validation.PhaseTimeoutSeconds = 180
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-		return &claude.Result{Success: true}, nil
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		return &claude.Result{Success: true}, nil, nil
 	})
 
 	bc := &runtypes.BeadContext{
@@ -651,9 +652,9 @@ func TestRunRefactorAndPostChecks_RefactorTimeoutThenValidationSucceeds_NoTermin
 		RefactorSeconds: 120,
 	}
 	r.cfg.Validation.PhaseTimeoutSeconds = 180
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		// Simulate refactor timing out.
-		return nil, context.DeadlineExceeded
+		return nil, nil, context.DeadlineExceeded
 	})
 
 	bc := &runtypes.BeadContext{
@@ -704,9 +705,9 @@ func TestRunRefactorAndPostChecks_ValidationTimeoutIndependentOfRefactorTimeout(
 
 	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
 	r.cfg.Refactor.MinFilesChanged = 0
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		// Refactor also times out.
-		return nil, context.DeadlineExceeded
+		return nil, nil, context.DeadlineExceeded
 	})
 
 	bc := &runtypes.BeadContext{
@@ -756,9 +757,9 @@ func TestRunRefactorAndPostChecks_DefaultFallbackWhenPhaseTimeoutsOmitted(t *tes
 	// Explicitly zero: no phase timeout overrides configured.
 	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{}
 	r.cfg.Validation.PhaseTimeoutSeconds = 0
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		refactorCtxDeadline, refactorCtxHadDeadline = ctx.Deadline()
-		return &claude.Result{Success: true}, nil
+		return &claude.Result{Success: true}, nil, nil
 	})
 
 	bc := &runtypes.BeadContext{
@@ -817,8 +818,8 @@ func TestRunRefactorAndPostChecks_SetsValidationPhaseAttributionOnTimeout(t *tes
 
 	r, _, _ := setupDirectValidationRunner(t, cfg, cmdRunner)
 	r.cfg.Refactor.MinFilesChanged = 0
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-		return &claude.Result{Success: true}, nil
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		return &claude.Result{Success: true}, nil, nil
 	})
 
 	bc := &runtypes.BeadContext{

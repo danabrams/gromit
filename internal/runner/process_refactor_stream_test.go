@@ -34,7 +34,7 @@ func TestRunRefactorWithRouter_UsesStreamRun(t *testing.T) {
 		output: io.Discard,
 	}
 
-	result, err := r.runRefactorWithRouter(context.Background(), "refactor prompt", provider.TierMedium)
+	result, _, err := r.runRefactorWithRouter(context.Background(), "refactor prompt", provider.TierMedium)
 	if err != nil {
 		t.Fatalf("runRefactorWithRouter() error = %v", err)
 	}

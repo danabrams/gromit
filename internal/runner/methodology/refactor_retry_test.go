@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -171,9 +172,9 @@ func TestRunRefactorPhase_SkipsWhenBelowFileThreshold(t *testing.T) {
 	}
 
 	refactorInvokeCalled := false
-	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		refactorInvokeCalled = true
-		return &claude.Result{Success: true}, nil
+		return &claude.Result{Success: true}, nil, nil
 	}
 
 	exec := NewExecutorWithRefactor(cfg, &buf, NewRefactorDeps(
@@ -211,10 +212,10 @@ func TestRunRefactorPhase_ExecutesRefactorAndRevalidates(t *testing.T) {
 
 	var invokedPrompt string
 	var invokedTier string
-	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		invokedPrompt = prompt
 		invokedTier = tier
-		return &claude.Result{Success: true}, nil
+		return &claude.Result{Success: true}, nil, nil
 	}
 
 	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
@@ -262,9 +263,9 @@ func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
 	}
 
 	refactorCallCount := 0
-	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		refactorCallCount++
-		return &claude.Result{Success: true}, nil
+		return &claude.Result{Success: true}, nil, nil
 	}
 
 	validateCallCount := 0
@@ -327,8 +328,8 @@ func TestRunRefactorPhase_RevertsOnBothValidationFailures(t *testing.T) {
 		return "refactor prompt", nil
 	}
 
-	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-		return &claude.Result{Success: true}, nil
+	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		return &claude.Result{Success: true}, nil, nil
 	}
 
 	// Both validations fail

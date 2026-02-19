@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/methodology"
@@ -160,9 +161,9 @@ func TestRunRefactorAndPostChecks_UsesMethodologyPolicyMinRefactorBudget(t *test
 	r, _, _ := setupDirectValidationRunner(t, nil, nil)
 
 	refactorInvoked := false
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		refactorInvoked = true
-		return &claude.Result{Success: true}, nil
+		return &claude.Result{Success: true}, nil, nil
 	})
 	r.cfg.Refactor.MinFilesChanged = 0
 	r.cfg.Validation.Enabled = false
@@ -203,8 +204,8 @@ func TestRunRefactorAndPostChecks_UsesMethodologyPolicyMinRevalidationBudget(t *
 	}
 	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
-		return &claude.Result{Success: true}, nil
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		return &claude.Result{Success: true}, nil, nil
 	})
 	r.cfg.Refactor.MinFilesChanged = 0
 	r.cfg.Validation.Enabled = true
@@ -309,9 +310,9 @@ func TestRunRefactorAndPostChecks_UsesMethodologyPolicyPhaseTimeout(t *testing.T
 
 	var refactorDeadline time.Time
 	var refactorDeadlineSet bool
-	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		refactorDeadline, refactorDeadlineSet = ctx.Deadline()
-		return &claude.Result{Success: true}, nil
+		return &claude.Result{Success: true}, nil, nil
 	})
 	r.cfg.Refactor.MinFilesChanged = 0
 	r.cfg.Methodology.PhaseTimeouts = config.MethodologyPhaseTimeout{
