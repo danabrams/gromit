@@ -405,7 +405,9 @@ func TestRunCycles_EarlyGreen_AdvancesToDoneAfterRefactor(t *testing.T) {
 		case 1:
 			return "PASS", true, nil // Red validation unexpectedly passes (early-green path)
 		case 2:
-			return "PASS", true, nil // Post-refactor validation
+			return "PASS", true, nil // Post-refactor validation (inside executeRefactorPhase)
+		case 3:
+			return "PASS", true, nil // Final validation after refactor phase
 		default:
 			t.Fatalf("unexpected additional validation call %d", validateCall)
 			return "", false, nil
@@ -845,6 +847,70 @@ func TestRunCycles_RefactorFnError_NonBlocking(t *testing.T) {
 	err := orch.RunCycles(context.Background(), bc, state)
 	if err != nil {
 		t.Fatalf("expected no error (refactor error is non-blocking), got %v", err)
+	}
+}
+
+func TestRunCycles_EarlyGreen_FinalValidationRunsAfterRefactor(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	var phases []string
+	validateCall := 0
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			phases = append(phases, "initialValidation")
+			return "PASS", true, nil // Early green: red validation passes
+		case 2:
+			phases = append(phases, "refactorInternalValidation")
+			return "PASS", true, nil // Inside executeRefactorPhase
+		case 3:
+			phases = append(phases, "finalValidation")
+			return "PASS", true, nil // Final validation after refactor
+		default:
+			t.Fatalf("unexpected validation call %d", validateCall)
+		}
+		return "", false, nil
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		phases = append(phases, "refactor")
+		return nil
+	}
+	orch.getGitHeadFn = func() (string, error) { return "abc", nil }
+	orch.gitResetFn = func(commit string) error { return nil }
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify 3 validation calls: initial, refactor-internal, final
+	if validateCall != 3 {
+		t.Fatalf("expected 3 validation calls (initial, refactor-internal, final), got %d", validateCall)
+	}
+
+	// Verify final validation follows refactor
+	expectedOrder := []string{"initialValidation", "refactor", "refactorInternalValidation", "finalValidation"}
+	if len(phases) != len(expectedOrder) {
+		t.Fatalf("expected phases %v, got %v", expectedOrder, phases)
+	}
+	for i, want := range expectedOrder {
+		if phases[i] != want {
+			t.Fatalf("phase[%d]: expected %q, got %q (full: %v)", i, want, phases[i], phases)
+		}
 	}
 }
 

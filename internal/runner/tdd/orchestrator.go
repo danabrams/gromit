@@ -164,6 +164,13 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	if passed {
 		// Tests pass unexpectedly — nothing left to implement
 		o.executeRefactorPhase(ctx, bc)
+
+		// Final validation after refactor phase completes.
+		_, _, finalErr := o.validateFn(ctx, nil, "")
+		if finalErr != nil {
+			return fmt.Errorf("final validation: %w", finalErr)
+		}
+
 		state.Done = true
 		*state = AssembleCycleState(*state, "")
 		return nil
