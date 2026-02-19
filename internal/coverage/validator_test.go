@@ -35,3 +35,20 @@ func TestParseValidationResponse_ValidJSON(t *testing.T) {
 		t.Fatalf("Reason = %q, want %q", resp.Reason, "matches criterion")
 	}
 }
+
+func TestParseSelfReport_EmbeddedJSON(t *testing.T) {
+	output := "noise before {\"targeting\": 2, \"remaining\": [4]} trailing text"
+
+	report, err := ParseSelfReport(output)
+	if err != nil {
+		t.Fatalf("ParseSelfReport() error: %v", err)
+	}
+
+	if report.Targeting != 2 {
+		t.Fatalf("Targeting = %d, want 2", report.Targeting)
+	}
+
+	if len(report.Remaining) != 1 || report.Remaining[0] != 4 {
+		t.Fatalf("Remaining = %v, want [4]", report.Remaining)
+	}
+}
