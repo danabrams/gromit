@@ -31,7 +31,7 @@ func parseEmbeddedJSON(output string, label string, dest any) error {
 	var lastErr error
 
 	for {
-		start := strings.Index(output[searchFrom:], "{")
+		start := strings.IndexByte(output[searchFrom:], '{')
 		if start == -1 {
 			break
 		}
@@ -43,12 +43,12 @@ func parseEmbeddedJSON(output string, label string, dest any) error {
 			continue
 		}
 
-		if err := json.Unmarshal([]byte(jsonBlock), dest); err == nil {
+		err := json.Unmarshal([]byte(jsonBlock), dest)
+		if err == nil {
 			return nil
-		} else {
-			lastErr = err
-			searchFrom = start + 1
 		}
+		lastErr = err
+		searchFrom = start + 1
 	}
 
 	if lastErr != nil {
