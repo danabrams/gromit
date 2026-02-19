@@ -26,6 +26,29 @@ func TestNewTracker_NextUncoveredReturnsCriterion(t *testing.T) {
 	}
 }
 
+func TestIsComplete_ReturnsTrueWhenAllCoveredOrUntestable(t *testing.T) {
+	criteria := []Criterion{
+		{Number: 1, Text: "First"},
+		{Number: 2, Text: "Second"},
+	}
+	tracker := NewTracker(criteria, 2)
+
+	if tracker.IsComplete() {
+		t.Fatal("IsComplete() = true before any criteria covered, want false")
+	}
+
+	tracker.MarkCovered(1)
+	if tracker.IsComplete() {
+		t.Fatal("IsComplete() = true with one still unchecked, want false")
+	}
+
+	tracker.RecordRejection(2)
+	tracker.RecordRejection(2)
+	if !tracker.IsComplete() {
+		t.Fatal("IsComplete() = false when criterion 1 covered and criterion 2 untestable, want true")
+	}
+}
+
 func TestRecordRejection_TransitionsToUntestableAtThreshold(t *testing.T) {
 	criteria := []Criterion{{Number: 1, Text: "Tricky criterion"}}
 	tracker := NewTracker(criteria, 2)

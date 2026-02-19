@@ -54,6 +54,16 @@ func (t *CoverageTracker) MarkCovered(n int) {
 	}
 }
 
+// IsComplete returns true when all criteria are Covered or Untestable.
+func (t *CoverageTracker) IsComplete() bool {
+	for _, cs := range t.criteria {
+		if cs.Status == Unchecked {
+			return false
+		}
+	}
+	return true
+}
+
 // NextUncovered returns the lowest-numbered unchecked criterion, or nil if none remain.
 func (t *CoverageTracker) NextUncovered() *Criterion {
 	for i := range t.criteria {
