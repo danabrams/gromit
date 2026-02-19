@@ -124,6 +124,9 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 }
 
 func showRefinePicker(unrefined []*backlog.Idea, reader io.Reader) int {
+	newIdeaIndex := len(unrefined)
+	maxChoice := newIdeaIndex + 1
+
 	fmt.Println("Select an idea to refine:")
 	fmt.Println()
 	for i, idea := range unrefined {
@@ -133,19 +136,19 @@ func showRefinePicker(unrefined []*backlog.Idea, reader io.Reader) int {
 			fmt.Printf("     Context: %s\n", idea.Context)
 		}
 	}
-	fmt.Printf("  %d. [new]     Something new...\n", len(unrefined)+1)
+	fmt.Printf("  %d. [new]     Something new...\n", maxChoice)
 
-	fmt.Printf("\nChoice [1-%d]: ", len(unrefined)+1)
+	fmt.Printf("\nChoice [1-%d]: ", maxChoice)
 	lineReader := bufio.NewReader(reader)
 	choiceStr, err := lineReader.ReadString('\n')
 	if err != nil {
-		return len(unrefined)
+		return newIdeaIndex
 	}
 
 	var choice int
 	n, _ := fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choice)
-	if n != 1 || choice < 1 || choice > len(unrefined)+1 {
-		return len(unrefined)
+	if n != 1 || choice < 1 || choice > maxChoice {
+		return newIdeaIndex
 	}
 	return choice - 1
 }
