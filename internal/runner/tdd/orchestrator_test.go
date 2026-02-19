@@ -149,6 +149,9 @@ func TestRunCycles_SingleCycle_CorrectCallSequence(t *testing.T) {
 		case 3:
 			phases = append(phases, "validateRefactor")
 			return "PASS", true, nil // Expected: tests still pass after refactor
+		case 4:
+			phases = append(phases, "validateFinal")
+			return "PASS", true, nil // Expected: final validation still passes.
 		}
 		return "", false, nil
 	}
@@ -171,6 +174,7 @@ func TestRunCycles_SingleCycle_CorrectCallSequence(t *testing.T) {
 	expected := []string{
 		"renderRed", "invokeRed", "validateRed",
 		"renderGreen", "invokeGreen", "validateGreen",
+		"refactor", "validateRefactor", "validateFinal",
 	}
 
 	if len(phases) != len(expected) {
@@ -441,7 +445,7 @@ func TestRunCycles_EarlyGreen_AdvancesToDoneAfterRefactor(t *testing.T) {
 	}
 }
 
-func TestRunCycles_InitialValidationNonGreen_SkipsRefactor(t *testing.T) {
+func TestRunCycles_InitialValidationNonGreen_RunsRefactorAfterGreenValidation(t *testing.T) {
 	orch := newTestOrchestrator()
 
 	refactorCalls := 0
@@ -463,6 +467,10 @@ func TestRunCycles_InitialValidationNonGreen_SkipsRefactor(t *testing.T) {
 			return "FAIL", false, nil // Initial validation is non-green.
 		case 2:
 			return "PASS", true, nil // Green validation passes.
+		case 3:
+			return "PASS", true, nil // Post-refactor validation.
+		case 4:
+			return "PASS", true, nil // Final validation.
 		default:
 			t.Fatalf("unexpected additional validation call %d", validateCall)
 			return "", false, nil
@@ -484,8 +492,8 @@ func TestRunCycles_InitialValidationNonGreen_SkipsRefactor(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if refactorCalls != 0 {
-		t.Fatalf("expected refactor phase to be skipped when initial validation is non-green, got %d", refactorCalls)
+	if refactorCalls != 1 {
+		t.Fatalf("expected refactor phase to run once after green validation, got %d", refactorCalls)
 	}
 }
 
@@ -523,7 +531,7 @@ func TestRunCycles_RedEscalation_RetriesThenEscalates(t *testing.T) {
 	validateCall := 0
 	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
 		validateCall++
-		switch validateCall % 3 {
+		switch validateCall {
 		case 1:
 			return "FAIL", false, nil
 		default:
@@ -593,7 +601,7 @@ func TestRunCycles_UnrecoverableFailure_NoHigherTier(t *testing.T) {
 	}
 }
 
-func TestRunCycles_InitialValidationNonGreen_RefactorNotAttempted(t *testing.T) {
+func TestRunCycles_InitialValidationNonGreen_RefactorRunsAndDoesNotRevertOnPassingPostChecks(t *testing.T) {
 	orch := newTestOrchestrator()
 
 	var resetToCommit string
@@ -617,6 +625,10 @@ func TestRunCycles_InitialValidationNonGreen_RefactorNotAttempted(t *testing.T) 
 			return "FAIL", false, nil // Red: fail
 		case 2:
 			return "PASS", true, nil // Green: pass
+		case 3:
+			return "PASS", true, nil // Post-refactor validation: pass
+		case 4:
+			return "PASS", true, nil // Final validation: pass
 		}
 		return "PASS", true, nil
 	}
@@ -641,11 +653,11 @@ func TestRunCycles_InitialValidationNonGreen_RefactorNotAttempted(t *testing.T) 
 		t.Fatalf("expected no error (refactor failure is non-blocking), got %v", err)
 	}
 
-	if refactorCalled {
-		t.Fatal("expected refactor phase to be skipped when initial validation is non-green")
+	if !refactorCalled {
+		t.Fatal("expected refactor phase to run after green validation")
 	}
 	if resetToCommit != "" {
-		t.Fatalf("expected no git reset because refactor phase should be skipped, got %q", resetToCommit)
+		t.Fatalf("expected no git reset when post-refactor validation passes, got %q", resetToCommit)
 	}
 }
 
@@ -721,7 +733,7 @@ func TestRunCycles_GreenEscalation_RetriesThenEscalates(t *testing.T) {
 	validateCall := 0
 	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
 		validateCall++
-		switch validateCall % 3 {
+		switch validateCall {
 		case 1:
 			return "FAIL", false, nil
 		default:
@@ -960,7 +972,7 @@ func TestRunCycles_WritesPhaseStatusToOutput(t *testing.T) {
 	}
 }
 
-func TestRunCycles_InitialValidationNonGreen_PreservesPreRefactorBehavior(t *testing.T) {
+func TestRunCycles_InitialValidationNonGreen_RunsRefactorAndFinalValidation(t *testing.T) {
 	orch := newTestOrchestrator()
 
 	var phases []string
@@ -995,8 +1007,14 @@ func TestRunCycles_InitialValidationNonGreen_PreservesPreRefactorBehavior(t *tes
 		case 2:
 			phases = append(phases, "validateGreen")
 			return "PASS", true, nil
+		case 3:
+			phases = append(phases, "validatePostRefactor")
+			return "PASS", true, nil
+		case 4:
+			phases = append(phases, "validateFinal")
+			return "PASS", true, nil
 		default:
-			phases = append(phases, "unexpectedFinalValidation")
+			phases = append(phases, "unexpectedValidation")
 			t.Fatalf("unexpected validation call %d", validateCall)
 			return "", false, nil
 		}
@@ -1032,6 +1050,10 @@ func TestRunCycles_InitialValidationNonGreen_PreservesPreRefactorBehavior(t *tes
 		"renderGreen",
 		"invokeGreen",
 		"validateGreen",
+		"getGitHead",
+		"refactor",
+		"validatePostRefactor",
+		"validateFinal",
 	}
 	if len(phases) != len(expectedPhases) {
 		t.Fatalf("phases length = %d, want %d: %v", len(phases), len(expectedPhases), phases)
@@ -1045,5 +1067,88 @@ func TestRunCycles_InitialValidationNonGreen_PreservesPreRefactorBehavior(t *tes
 	expectedOutput := "cycle 1: red phase — writing failing test\ncycle 1: green phase — implementing to pass\n"
 	if buf.String() != expectedOutput {
 		t.Fatalf("output mismatch:\n got: %q\nwant: %q", buf.String(), expectedOutput)
+	}
+}
+
+func TestRunCycles_RefactorValidationFailure_RevertContinue_AdvancesToNextCycle(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	redInvocations := 0
+	refactorCalls := 0
+	resetCalls := 0
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		if prompt == "red" {
+			redInvocations++
+		}
+		return nil
+	}
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "FAIL", false, nil // Cycle 1 red validation.
+		case 2:
+			return "PASS", true, nil // Cycle 1 green validation.
+		case 3:
+			return "FAIL", false, nil // Cycle 1 post-refactor validation triggers revert.
+		case 4:
+			return "PASS", true, nil // Cycle 1 final validation after revert.
+		case 5:
+			return "FAIL", false, nil // Cycle 2 red validation.
+		case 6:
+			return "PASS", true, nil // Cycle 2 green validation.
+		case 7:
+			return "PASS", true, nil // Cycle 2 post-refactor validation.
+		case 8:
+			return "PASS", true, nil // Cycle 2 final validation.
+		default:
+			t.Fatalf("unexpected validation call %d", validateCall)
+			return "", false, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		refactorCalls++
+		return nil
+	}
+	orch.getGitHeadFn = func() (string, error) { return "pre-refactor-commit", nil }
+	orch.gitResetFn = func(commit string) error {
+		resetCalls++
+		if commit != "pre-refactor-commit" {
+			t.Fatalf("git reset commit = %q, want %q", commit, "pre-refactor-commit")
+		}
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := CycleState{
+		CycleNumber: 0,
+		MaxCycles:   10,
+		Remaining:   []string{"req A", "req B"},
+	}
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if redInvocations != 2 {
+		t.Fatalf("expected two completed cycles, got %d red invocations", redInvocations)
+	}
+	if refactorCalls != 2 {
+		t.Fatalf("expected refactor to run once per green cycle, got %d", refactorCalls)
+	}
+	if resetCalls != 1 {
+		t.Fatalf("expected one revert after failed post-refactor validation, got %d", resetCalls)
 	}
 }

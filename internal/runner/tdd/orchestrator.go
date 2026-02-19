@@ -199,6 +199,11 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green validation failed: tests still failing after green phase")
 	}
 
+	o.executeRefactorPhase(ctx, bc)
+	if err := o.runFinalValidation(ctx); err != nil {
+		return err
+	}
+
 	// Advance state
 	*state = AssembleCycleState(*state, "")
 	return nil
