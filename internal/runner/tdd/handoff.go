@@ -16,6 +16,12 @@ type GreenHandoff struct {
 	ImplFiles         map[string]string
 }
 
+// RefactorHandoff contains context for behavior-preserving cleanup in the refactor phase.
+type RefactorHandoff struct {
+	ImplFiles map[string]string
+	TestFiles map[string]string
+}
+
 // CycleState tracks TDD cycle progress across iterations.
 type CycleState struct {
 	CycleNumber int
