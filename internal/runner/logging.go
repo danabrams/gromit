@@ -51,6 +51,7 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 		SpecID:                    result.SpecID,
 		Model:                     result.Model,
 		Provider:                  result.Provider,
+		FailurePhase:              result.FailurePhase,
 		FailureCategory:           result.FailureCategory,
 		Success:                   result.Success,
 		Validated:                 result.Validated,
