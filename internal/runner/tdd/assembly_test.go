@@ -73,3 +73,42 @@ func TestAssembleRedHandoffFirstCycleReturnsEmptyMapsAndSpecExcerpt(t *testing.T
 		t.Fatalf("expected empty impl files on first cycle, got %d", len(handoff.ImplFiles))
 	}
 }
+
+func TestAssembleRedHandoffReadsExistingFilesOnSubsequentCycles(t *testing.T) {
+	state := CycleState{
+		CycleNumber: 2,
+		MaxCycles:   10,
+		Remaining:   []string{"users can reset password"},
+		TouchedFiles: []string{
+			"internal/auth/login_test.go",
+			"internal/auth/login.go",
+		},
+	}
+
+	readFile := fakeReadFile(map[string]string{
+		"internal/auth/login_test.go": "package auth\n\nfunc TestLogin(t *testing.T) {}",
+		"internal/auth/login.go":      "package auth\n\nfunc Login() {}",
+	})
+	getDiff := fakeGetDiff()
+
+	handoff, err := AssembleRedHandoff(state, readFile, getDiff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if handoff.SpecExcerpt != "users can reset password" {
+		t.Fatalf("expected next remaining spec, got %q", handoff.SpecExcerpt)
+	}
+	if len(handoff.TestFiles) != 1 {
+		t.Fatalf("expected 1 test file, got %d", len(handoff.TestFiles))
+	}
+	if handoff.TestFiles["internal/auth/login_test.go"] == "" {
+		t.Fatalf("expected test file content to be populated")
+	}
+	if len(handoff.ImplFiles) != 1 {
+		t.Fatalf("expected 1 impl file, got %d", len(handoff.ImplFiles))
+	}
+	if handoff.ImplFiles["internal/auth/login.go"] == "" {
+		t.Fatalf("expected impl file content to be populated")
+	}
+}
