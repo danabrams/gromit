@@ -14,6 +14,19 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+func assertPromptDiagnosticsReconciled(t *testing.T, diag *prompt.PromptDiagnostics, reportedTokens, tokenDelta int) {
+	t.Helper()
+	if diag == nil {
+		t.Fatal("expected PromptDiagnostics to be set")
+	}
+	if diag.ReportedTokens != reportedTokens {
+		t.Fatalf("ReportedTokens = %d, want %d", diag.ReportedTokens, reportedTokens)
+	}
+	if diag.TokenDelta != tokenDelta {
+		t.Fatalf("TokenDelta = %d, want %d", diag.TokenDelta, tokenDelta)
+	}
+}
+
 func TestSummarizeATDDProviderOutput(t *testing.T) {
 	if got := summarizeATDDProviderOutput("   "); got != "no provider output" {
 		t.Fatalf("expected empty output sentinel, got %q", got)
@@ -95,15 +108,7 @@ func TestMakeMethodologyExec_ATDDCapturesStreamCostData(t *testing.T) {
 	if bc.Result.CostUSD != 1.23 {
 		t.Fatalf("CostUSD = %.2f, want 1.23", bc.Result.CostUSD)
 	}
-	if bc.Result.PromptDiagnostics == nil {
-		t.Fatal("expected PromptDiagnostics to be set")
-	}
-	if bc.Result.PromptDiagnostics.ReportedTokens != 10 {
-		t.Fatalf("ReportedTokens = %d, want 10", bc.Result.PromptDiagnostics.ReportedTokens)
-	}
-	if bc.Result.PromptDiagnostics.TokenDelta != -2 {
-		t.Fatalf("TokenDelta = %d, want -2", bc.Result.PromptDiagnostics.TokenDelta)
-	}
+	assertPromptDiagnosticsReconciled(t, bc.Result.PromptDiagnostics, 10, -2)
 }
 
 func TestMakeInvokeFn_ReconcilesPromptDiagnosticsAfterRetryRender(t *testing.T) {
@@ -157,13 +162,5 @@ func TestMakeInvokeFn_ReconcilesPromptDiagnosticsAfterRetryRender(t *testing.T) 
 	if invResult == nil || invResult.Result == nil {
 		t.Fatal("expected invocation result")
 	}
-	if bc.Result.PromptDiagnostics == nil {
-		t.Fatal("expected PromptDiagnostics to be captured")
-	}
-	if bc.Result.PromptDiagnostics.ReportedTokens != 10 {
-		t.Fatalf("ReportedTokens = %d, want 10", bc.Result.PromptDiagnostics.ReportedTokens)
-	}
-	if bc.Result.PromptDiagnostics.TokenDelta != 2 {
-		t.Fatalf("TokenDelta = %d, want 2", bc.Result.PromptDiagnostics.TokenDelta)
-	}
+	assertPromptDiagnosticsReconciled(t, bc.Result.PromptDiagnostics, 10, 2)
 }

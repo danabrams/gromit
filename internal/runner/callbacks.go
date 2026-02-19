@@ -58,7 +58,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 			rendered, renderErr := r.renderer.RenderBuild(r.shapeMethodologyPromptContext("green", bc.PromptCtx))
 			if renderErr == nil {
 				bc.BuildPrompt = rendered
-				bc.Result.PromptDiagnostics = r.renderer.LastDiagnostics()
+				r.capturePromptDiagnostics(bc.Result)
 			}
 		}
 
@@ -85,9 +85,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 			bc.Result.CostUSD = r.estimatedCostUSD(invResult.ProviderName, bc.Result.Model, costUSD, inputTokens, outputTokens)
 			bc.Result.InputTokens = inputTokens
 			bc.Result.OutputTokens = outputTokens
-			if inputTokens > 0 && bc.Result.PromptDiagnostics != nil {
-				bc.Result.PromptDiagnostics.Reconcile(inputTokens)
-			}
+			reconcilePromptDiagnostics(bc.Result.PromptDiagnostics, inputTokens)
 		}
 
 		// Check scope-too-large
@@ -290,9 +288,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if r.router == nil {
 			return fmt.Errorf("router not configured")
 		}
-		if r.renderer != nil {
-			bc.Result.PromptDiagnostics = r.renderer.LastDiagnostics()
-		}
+		r.capturePromptDiagnostics(bc.Result)
 		applyCostData := func(stats *logger.StreamStats) {
 			if stats == nil {
 				return
@@ -301,9 +297,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			bc.Result.CostUSD = costUSD
 			bc.Result.InputTokens = inputTokens
 			bc.Result.OutputTokens = outputTokens
-			if inputTokens > 0 && bc.Result.PromptDiagnostics != nil {
-				bc.Result.PromptDiagnostics.Reconcile(inputTokens)
-			}
+			reconcilePromptDiagnostics(bc.Result.PromptDiagnostics, inputTokens)
 		}
 		streamInvoke := func(p provider.Provider, modelName string, attempt string) (*provider.Result, *logger.StreamStats, error) {
 			startedAt := time.Now()
@@ -534,6 +528,19 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 	))
 
 	return methExec
+}
+
+func (r *Runner) capturePromptDiagnostics(result *runtypes.IterationResult) {
+	if r == nil || r.renderer == nil || result == nil {
+		return
+	}
+	result.PromptDiagnostics = r.renderer.LastDiagnostics()
+}
+
+func reconcilePromptDiagnostics(diag *prompt.PromptDiagnostics, inputTokens int) {
+	if inputTokens > 0 && diag != nil {
+		diag.Reconcile(inputTokens)
+	}
 }
 
 type tddOrchestrator struct {
