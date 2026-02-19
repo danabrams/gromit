@@ -336,9 +336,12 @@ func (r *Renderer) LastDiagnostics() *PromptDiagnostics {
 
 // RenderBuild renders the build prompt for a bead
 func (r *Renderer) RenderBuild(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
+	var shapeReport *ShapeReport
+	ctx, shapeReport = r.shapeBuildContext(ctx, promptPhaseBuild)
 	if r != nil {
-		r.lastDiagnostics = r.computeBuildDiagnostics("build", ctx)
+		diagnostics := r.computeBuildDiagnostics("build", ctx)
+		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
+		r.lastDiagnostics = diagnostics
 	}
 	return r.render("PROMPT_build.md", ctx)
 }
@@ -479,54 +482,72 @@ func (r *Renderer) RenderSpecGate(ctx *SpecGateContext) (string, error) {
 
 // RenderReview renders the light review prompt
 func (r *Renderer) RenderReview(ctx *ReviewContext) (string, error) {
-	ctx = r.shapeReviewContext(ctx)
+	var shapeReport *ShapeReport
+	ctx, shapeReport = r.shapeReviewContext(ctx)
 	if r != nil {
-		r.lastDiagnostics = r.computeReviewDiagnostics(ctx)
+		diagnostics := r.computeReviewDiagnostics(ctx)
+		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
+		r.lastDiagnostics = diagnostics
 	}
 	return r.render("PROMPT_review.md", ctx)
 }
 
 // RenderThoroughReview renders the thorough review prompt
 func (r *Renderer) RenderThoroughReview(ctx *ThoroughReviewContext) (string, error) {
-	ctx = r.shapeThoroughReviewContext(ctx)
+	var shapeReport *ShapeReport
+	ctx, shapeReport = r.shapeThoroughReviewContext(ctx)
 	if r != nil {
-		r.lastDiagnostics = r.computeThoroughReviewDiagnostics(ctx)
+		diagnostics := r.computeThoroughReviewDiagnostics(ctx)
+		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
+		r.lastDiagnostics = diagnostics
 	}
 	return r.render("PROMPT_thorough_review.md", ctx)
 }
 
 // RenderAcceptanceTests renders the acceptance tests prompt for ATDD workflow
 func (r *Renderer) RenderAcceptanceTests(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
+	var shapeReport *ShapeReport
+	ctx, shapeReport = r.shapeBuildContext(ctx, promptPhaseBuild)
 	if r != nil {
-		r.lastDiagnostics = r.computeBuildDiagnostics("acceptance_tests", ctx)
+		diagnostics := r.computeBuildDiagnostics("acceptance_tests", ctx)
+		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
+		r.lastDiagnostics = diagnostics
 	}
 	return r.render("PROMPT_acceptance_tests.md", ctx)
 }
 
 // RenderATDDBuild renders the ATDD-aware build prompt
 func (r *Renderer) RenderATDDBuild(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
+	var shapeReport *ShapeReport
+	ctx, shapeReport = r.shapeBuildContext(ctx, promptPhaseBuild)
 	if r != nil {
-		r.lastDiagnostics = r.computeBuildDiagnostics("atdd_build", ctx)
+		diagnostics := r.computeBuildDiagnostics("atdd_build", ctx)
+		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
+		r.lastDiagnostics = diagnostics
 	}
 	return r.render("PROMPT_atdd_build.md", ctx)
 }
 
 // RenderRefactor renders the refactor prompt for code quality improvements
 func (r *Renderer) RenderRefactor(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
+	var shapeReport *ShapeReport
+	ctx, shapeReport = r.shapeBuildContext(ctx, promptPhaseBuild)
 	if r != nil {
-		r.lastDiagnostics = r.computeBuildDiagnostics("refactor", ctx)
+		diagnostics := r.computeBuildDiagnostics("refactor", ctx)
+		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
+		r.lastDiagnostics = diagnostics
 	}
 	return r.render("PROMPT_refactor.md", ctx)
 }
 
 // RenderTDDBuild renders the TDD-aware build prompt
 func (r *Renderer) RenderTDDBuild(ctx *Context) (string, error) {
-	ctx = r.shapeBuildContext(ctx, promptPhaseBuild)
+	var shapeReport *ShapeReport
+	ctx, shapeReport = r.shapeBuildContext(ctx, promptPhaseBuild)
 	if r != nil {
-		r.lastDiagnostics = r.computeBuildDiagnostics("tdd_build", ctx)
+		diagnostics := r.computeBuildDiagnostics("tdd_build", ctx)
+		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
+		r.lastDiagnostics = diagnostics
 	}
 	return r.render("PROMPT_tdd_build.md", ctx)
 }
@@ -1052,33 +1073,44 @@ func stripPhaseAnnotation(headerLine string) string {
 
 // shapeBuildContext applies budget shaping to a Context before rendering.
 // Returns the original context if budget is zero or context is under budget.
-func (r *Renderer) shapeBuildContext(ctx *Context, phase string) *Context {
+func (r *Renderer) shapeBuildContext(ctx *Context, phase string) (*Context, *ShapeReport) {
 	if r == nil || r.budgetMaxChars <= 0 || ctx == nil {
-		return ctx
+		return ctx, nil
 	}
 	shaped, report := ShapeContextForBudget(ctx, r.budgetMaxChars, r.budgetLearningCapChars, phase)
 	logBudgetTrim(report)
-	return shaped
+	return shaped, report
 }
 
 // shapeReviewContext applies budget shaping to a ReviewContext before rendering.
-func (r *Renderer) shapeReviewContext(ctx *ReviewContext) *ReviewContext {
+func (r *Renderer) shapeReviewContext(ctx *ReviewContext) (*ReviewContext, *ShapeReport) {
 	if r == nil || r.budgetMaxChars <= 0 || ctx == nil {
-		return ctx
+		return ctx, nil
 	}
 	shaped, report := ShapeReviewContextForBudget(ctx, r.budgetMaxChars, promptPhaseReview)
 	logBudgetTrim(report)
-	return shaped
+	return shaped, report
 }
 
 // shapeThoroughReviewContext applies budget shaping to a ThoroughReviewContext before rendering.
-func (r *Renderer) shapeThoroughReviewContext(ctx *ThoroughReviewContext) *ThoroughReviewContext {
+func (r *Renderer) shapeThoroughReviewContext(ctx *ThoroughReviewContext) (*ThoroughReviewContext, *ShapeReport) {
 	if r == nil || r.budgetMaxChars <= 0 || ctx == nil {
-		return ctx
+		return ctx, nil
 	}
 	shaped, report := ShapeThoroughReviewContextForBudget(ctx, r.budgetMaxChars, promptPhaseReview)
 	logBudgetTrim(report)
-	return shaped
+	return shaped, report
+}
+
+func applyShapeReportToDiagnostics(diagnostics *PromptDiagnostics, report *ShapeReport, budgetMaxChars int) {
+	if diagnostics == nil || report == nil {
+		return
+	}
+
+	diagnostics.BudgetMaxChars = budgetMaxChars
+	diagnostics.ShapeActions = append([]string{}, report.TrimActions...)
+	diagnostics.PreShapeTokens = report.PreShapeTokens
+	diagnostics.PostShapeTokens = report.PostShapeTokens
 }
 
 func logBudgetTrim(report *ShapeReport) {

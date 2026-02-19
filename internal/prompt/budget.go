@@ -42,10 +42,12 @@ func measureRetroContext(rules, learnings string) int {
 
 // ShapeReport describes what trimming was applied to a context.
 type ShapeReport struct {
-	BeforeChars  int
-	AfterChars   int
-	TrimActions  []string
-	SectionSizes map[string]int
+	BeforeChars     int
+	AfterChars      int
+	PreShapeTokens  int
+	PostShapeTokens int
+	TrimActions     []string
+	SectionSizes    map[string]int
 }
 
 // ShapeRetroForBudget trims retro rules/learnings context to fit within maxChars.
@@ -54,9 +56,12 @@ func ShapeRetroForBudget(rules, learnings string, maxChars int) (string, string,
 	shapedLearnings := learnings
 
 	beforeChars := measureRetroContext(shapedRules, shapedLearnings)
+	preShapeTokens := measureRetroContextTokens(shapedRules, shapedLearnings)
 	report := &ShapeReport{
-		BeforeChars: beforeChars,
-		AfterChars:  beforeChars,
+		BeforeChars:     beforeChars,
+		AfterChars:      beforeChars,
+		PreShapeTokens:  preShapeTokens,
+		PostShapeTokens: preShapeTokens,
 		SectionSizes: map[string]int{
 			"Rules":     len(shapedRules),
 			"Learnings": len(shapedLearnings),
@@ -96,6 +101,7 @@ func ShapeRetroForBudget(rules, learnings string, maxChars int) (string, string,
 
 func finishRetroReport(rules, learnings string, report *ShapeReport) (string, string, *ShapeReport) {
 	report.AfterChars = measureRetroContext(rules, learnings)
+	report.PostShapeTokens = measureRetroContextTokens(rules, learnings)
 	report.SectionSizes["Rules"] = len(rules)
 	report.SectionSizes["Learnings"] = len(learnings)
 	return rules, learnings, report
@@ -134,6 +140,10 @@ func measureContext(ctx *Context) int {
 	return total
 }
 
+func measureRetroContextTokens(rules, learnings string) int {
+	return EstimateTokens(rules) + EstimateTokens(learnings)
+}
+
 // sectionSizes returns a map of context section names to their character counts.
 func sectionSizes(ctx *Context) map[string]int {
 	sizes := map[string]int{
@@ -164,10 +174,13 @@ func sectionSizes(ctx *Context) map[string]int {
 func ShapeContextForBudget(ctx *Context, maxChars int, learningCapChars int, phase string) (*Context, *ShapeReport) {
 	shaped := cloneMethodologyContext(ctx)
 	beforeChars := measureContext(shaped)
+	preShapeTokens := measureContextTokens(shaped)
 
 	report := &ShapeReport{
-		BeforeChars:  beforeChars,
-		SectionSizes: sectionSizes(shaped),
+		BeforeChars:     beforeChars,
+		PreShapeTokens:  preShapeTokens,
+		PostShapeTokens: preShapeTokens,
+		SectionSizes:    sectionSizes(shaped),
 	}
 
 	if beforeChars <= maxChars {
@@ -305,6 +318,7 @@ func truncateWithMarker(s string, targetLen int) string {
 
 func finishReport(ctx *Context, report *ShapeReport) (*Context, *ShapeReport) {
 	report.AfterChars = measureContext(ctx)
+	report.PostShapeTokens = measureContextTokens(ctx)
 	report.SectionSizes = sectionSizes(ctx)
 	return ctx, report
 }
@@ -317,6 +331,23 @@ func measureReviewContext(ctx *ReviewContext) int {
 	}
 	if ctx.ParentBead != nil {
 		total += len(ctx.ParentBead.ID) + len(ctx.ParentBead.Title) + len(ctx.ParentBead.Description)
+	}
+	return total
+}
+
+func measureContextTokens(ctx *Context) int {
+	total := EstimateTokens(ctx.ClaudeMD) + EstimateTokens(ctx.Rules) + EstimateTokens(ctx.Spec)
+	for _, l := range ctx.ConfirmedLearnings {
+		total += EstimateTokens(l.Content)
+	}
+	for _, l := range ctx.RecentLearnings {
+		total += EstimateTokens(l.Content)
+	}
+	if ctx.Bead != nil {
+		total += EstimateTokens(ctx.Bead.ID) + EstimateTokens(ctx.Bead.Title) + EstimateTokens(ctx.Bead.Description)
+	}
+	if ctx.ParentBead != nil {
+		total += EstimateTokens(ctx.ParentBead.ID) + EstimateTokens(ctx.ParentBead.Title) + EstimateTokens(ctx.ParentBead.Description)
 	}
 	return total
 }
@@ -346,10 +377,13 @@ func cloneReviewContext(ctx *ReviewContext) *ReviewContext {
 func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string) (*ReviewContext, *ShapeReport) {
 	shaped := cloneReviewContext(ctx)
 	beforeChars := measureReviewContext(shaped)
+	preShapeTokens := measureReviewContextTokens(shaped)
 
 	report := &ShapeReport{
-		BeforeChars:  beforeChars,
-		SectionSizes: reviewSectionSizes(shaped),
+		BeforeChars:     beforeChars,
+		PreShapeTokens:  preShapeTokens,
+		PostShapeTokens: preShapeTokens,
+		SectionSizes:    reviewSectionSizes(shaped),
 	}
 
 	if beforeChars <= maxChars {
@@ -388,6 +422,7 @@ func ShapeReviewContextForBudget(ctx *ReviewContext, maxChars int, phase string)
 
 func finishReviewReport(ctx *ReviewContext, report *ShapeReport) (*ReviewContext, *ShapeReport) {
 	report.AfterChars = measureReviewContext(ctx)
+	report.PostShapeTokens = measureReviewContextTokens(ctx)
 	report.SectionSizes = reviewSectionSizes(ctx)
 	return ctx, report
 }
@@ -397,6 +432,17 @@ func measureThoroughReviewContext(ctx *ThoroughReviewContext) int {
 	total := len(ctx.ClaudeMD) + len(ctx.Rules) + len(ctx.Diff)
 	for _, b := range ctx.CompletedBeads {
 		total += len(b.ID) + len(b.Title) + len(b.Description)
+	}
+	return total
+}
+
+func measureReviewContextTokens(ctx *ReviewContext) int {
+	total := EstimateTokens(ctx.ClaudeMD) + EstimateTokens(ctx.Rules) + EstimateTokens(ctx.Spec) + EstimateTokens(ctx.Diff)
+	if ctx.Bead != nil {
+		total += EstimateTokens(ctx.Bead.ID) + EstimateTokens(ctx.Bead.Title) + EstimateTokens(ctx.Bead.Description)
+	}
+	if ctx.ParentBead != nil {
+		total += EstimateTokens(ctx.ParentBead.ID) + EstimateTokens(ctx.ParentBead.Title) + EstimateTokens(ctx.ParentBead.Description)
 	}
 	return total
 }
@@ -428,10 +474,13 @@ func cloneThoroughReviewContext(ctx *ThoroughReviewContext) *ThoroughReviewConte
 func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars int, phase string) (*ThoroughReviewContext, *ShapeReport) {
 	shaped := cloneThoroughReviewContext(ctx)
 	beforeChars := measureThoroughReviewContext(shaped)
+	preShapeTokens := measureThoroughReviewContextTokens(shaped)
 
 	report := &ShapeReport{
-		BeforeChars:  beforeChars,
-		SectionSizes: thoroughReviewSectionSizes(shaped),
+		BeforeChars:     beforeChars,
+		PreShapeTokens:  preShapeTokens,
+		PostShapeTokens: preShapeTokens,
+		SectionSizes:    thoroughReviewSectionSizes(shaped),
 	}
 
 	if beforeChars <= maxChars {
@@ -470,6 +519,15 @@ func ShapeThoroughReviewContextForBudget(ctx *ThoroughReviewContext, maxChars in
 
 func finishThoroughReviewReport(ctx *ThoroughReviewContext, report *ShapeReport) (*ThoroughReviewContext, *ShapeReport) {
 	report.AfterChars = measureThoroughReviewContext(ctx)
+	report.PostShapeTokens = measureThoroughReviewContextTokens(ctx)
 	report.SectionSizes = thoroughReviewSectionSizes(ctx)
 	return ctx, report
+}
+
+func measureThoroughReviewContextTokens(ctx *ThoroughReviewContext) int {
+	total := EstimateTokens(ctx.ClaudeMD) + EstimateTokens(ctx.Rules) + EstimateTokens(ctx.Diff)
+	for _, b := range ctx.CompletedBeads {
+		total += EstimateTokens(b.ID) + EstimateTokens(b.Title) + EstimateTokens(b.Description)
+	}
+	return total
 }

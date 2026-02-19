@@ -54,6 +54,12 @@ func TestShapeContextForBudget_UnderBudgetUnchanged(t *testing.T) {
 	if report.BeforeChars != report.AfterChars {
 		t.Errorf("expected before == after chars, got %d != %d", report.BeforeChars, report.AfterChars)
 	}
+	if report.PreShapeTokens != report.PostShapeTokens {
+		t.Errorf("expected pre/post tokens unchanged, got %d != %d", report.PreShapeTokens, report.PostShapeTokens)
+	}
+	if report.PreShapeTokens <= 0 {
+		t.Errorf("expected pre-shape token estimate > 0, got %d", report.PreShapeTokens)
+	}
 }
 
 func TestShapeContextForBudget_DropRecentLearningsFirst(t *testing.T) {
@@ -86,6 +92,9 @@ func TestShapeContextForBudget_DropRecentLearningsFirst(t *testing.T) {
 	}
 	if report.AfterChars >= report.BeforeChars {
 		t.Errorf("expected AfterChars < BeforeChars, got %d >= %d", report.AfterChars, report.BeforeChars)
+	}
+	if report.PostShapeTokens >= report.PreShapeTokens {
+		t.Errorf("expected PostShapeTokens < PreShapeTokens, got %d >= %d", report.PostShapeTokens, report.PreShapeTokens)
 	}
 }
 
@@ -461,6 +470,9 @@ func TestShapeReviewContextForBudget_TrimsClaudeMDAndSpec(t *testing.T) {
 	if len(report.TrimActions) == 0 {
 		t.Error("expected at least one trim action")
 	}
+	if report.PostShapeTokens >= report.PreShapeTokens {
+		t.Errorf("expected PostShapeTokens < PreShapeTokens, got %d >= %d", report.PostShapeTokens, report.PreShapeTokens)
+	}
 }
 
 func TestShapeThoroughReviewContextForBudget_UnderBudgetUnchanged(t *testing.T) {
@@ -506,6 +518,9 @@ func TestShapeThoroughReviewContextForBudget_TrimsOverBudget(t *testing.T) {
 	}
 	if len(report.TrimActions) == 0 {
 		t.Error("expected at least one trim action")
+	}
+	if report.PostShapeTokens >= report.PreShapeTokens {
+		t.Errorf("expected PostShapeTokens < PreShapeTokens, got %d >= %d", report.PostShapeTokens, report.PreShapeTokens)
 	}
 }
 
@@ -744,6 +759,9 @@ func TestShapeRetroForBudget_TrimsLearningsBeforeRules(t *testing.T) {
 	if !hasTrimAction(report.TrimActions, trimCapRetroLearnings) {
 		t.Fatalf("expected trim action %q, got %v", trimCapRetroLearnings, report.TrimActions)
 	}
+	if report.PostShapeTokens >= report.PreShapeTokens {
+		t.Fatalf("expected PostShapeTokens < PreShapeTokens, got %d >= %d", report.PostShapeTokens, report.PreShapeTokens)
+	}
 }
 
 func TestShapeRetroForBudget_DropsLearningsThenTruncatesRules(t *testing.T) {
@@ -821,6 +839,42 @@ func TestRenderBuild_NoShapingWhenUnderBudget(t *testing.T) {
 
 	if !strings.Contains(result, "ClaudeMD:short") {
 		t.Error("expected ClaudeMD preserved when under budget")
+	}
+}
+
+func TestRenderBuild_DiagnosticsIncludeShapeReportFields(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_build.md", "ClaudeMD:{{.ClaudeMD}}|Rules:{{.Rules}}")
+	r.SetBudgetConfig(50, 2000)
+
+	ctx := &Context{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+	}
+	ctx.normalizeNilFields()
+
+	if _, err := r.RenderBuild(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	diagnostics := r.LastDiagnostics()
+	if diagnostics == nil {
+		t.Fatal("expected diagnostics after render")
+	}
+	if diagnostics.BudgetMaxChars != 50 {
+		t.Fatalf("BudgetMaxChars = %d, want %d", diagnostics.BudgetMaxChars, 50)
+	}
+	if diagnostics.PreShapeTokens <= 0 {
+		t.Fatalf("PreShapeTokens = %d, want > 0", diagnostics.PreShapeTokens)
+	}
+	if diagnostics.PostShapeTokens <= 0 {
+		t.Fatalf("PostShapeTokens = %d, want > 0", diagnostics.PostShapeTokens)
+	}
+	if diagnostics.PostShapeTokens >= diagnostics.PreShapeTokens {
+		t.Fatalf("PostShapeTokens = %d, want < PreShapeTokens = %d", diagnostics.PostShapeTokens, diagnostics.PreShapeTokens)
+	}
+	if len(diagnostics.ShapeActions) == 0 {
+		t.Fatal("expected non-empty ShapeActions when build shaping is active")
 	}
 }
 
@@ -1012,6 +1066,78 @@ func TestRenderThoroughReview_NoShapingWhenBudgetZero(t *testing.T) {
 
 	if !strings.Contains(result, strings.Repeat("c", 500)) {
 		t.Error("expected ClaudeMD preserved when budget is zero")
+	}
+}
+
+func TestRenderReview_DiagnosticsIncludeShapeReportFields(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_review.md", "ClaudeMD:{{.ClaudeMD}}|Rules:{{.Rules}}")
+	r.SetBudgetConfig(50, 2000)
+
+	ctx := &ReviewContext{
+		Bead:     &bead.Bead{ID: "b1", Title: "T"},
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+		Diff:     "diff",
+		Spec:     strings.Repeat("s", 200),
+	}
+
+	if _, err := r.RenderReview(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	diagnostics := r.LastDiagnostics()
+	if diagnostics == nil {
+		t.Fatal("expected diagnostics after render")
+	}
+	if diagnostics.BudgetMaxChars != 50 {
+		t.Fatalf("BudgetMaxChars = %d, want %d", diagnostics.BudgetMaxChars, 50)
+	}
+	if diagnostics.PreShapeTokens <= 0 {
+		t.Fatalf("PreShapeTokens = %d, want > 0", diagnostics.PreShapeTokens)
+	}
+	if diagnostics.PostShapeTokens <= 0 {
+		t.Fatalf("PostShapeTokens = %d, want > 0", diagnostics.PostShapeTokens)
+	}
+	if diagnostics.PostShapeTokens >= diagnostics.PreShapeTokens {
+		t.Fatalf("PostShapeTokens = %d, want < PreShapeTokens = %d", diagnostics.PostShapeTokens, diagnostics.PreShapeTokens)
+	}
+	if len(diagnostics.ShapeActions) == 0 {
+		t.Fatal("expected non-empty ShapeActions when review shaping is active")
+	}
+}
+
+func TestRenderThoroughReview_DiagnosticsIncludeShapeReportFields(t *testing.T) {
+	r := setupRendererWithTemplate(t, "PROMPT_thorough_review.md", "ClaudeMD:{{.ClaudeMD}}|Rules:{{.Rules}}")
+	r.SetBudgetConfig(50, 2000)
+
+	ctx := &ThoroughReviewContext{
+		ClaudeMD: strings.Repeat("c", 500),
+		Rules:    "rules",
+		Diff:     strings.Repeat("d", 200),
+	}
+
+	if _, err := r.RenderThoroughReview(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	diagnostics := r.LastDiagnostics()
+	if diagnostics == nil {
+		t.Fatal("expected diagnostics after render")
+	}
+	if diagnostics.BudgetMaxChars != 50 {
+		t.Fatalf("BudgetMaxChars = %d, want %d", diagnostics.BudgetMaxChars, 50)
+	}
+	if diagnostics.PreShapeTokens <= 0 {
+		t.Fatalf("PreShapeTokens = %d, want > 0", diagnostics.PreShapeTokens)
+	}
+	if diagnostics.PostShapeTokens <= 0 {
+		t.Fatalf("PostShapeTokens = %d, want > 0", diagnostics.PostShapeTokens)
+	}
+	if diagnostics.PostShapeTokens >= diagnostics.PreShapeTokens {
+		t.Fatalf("PostShapeTokens = %d, want < PreShapeTokens = %d", diagnostics.PostShapeTokens, diagnostics.PreShapeTokens)
+	}
+	if len(diagnostics.ShapeActions) == 0 {
+		t.Fatal("expected non-empty ShapeActions when thorough review shaping is active")
 	}
 }
 
