@@ -384,6 +384,62 @@ func TestRunCycles_EarlyGreen_RefactorValidationFailure_RevertsToPreRefactorComm
 	}
 }
 
+func TestRunCycles_EarlyGreen_AdvancesToDoneAfterRefactor(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	redInvocations := 0
+	refactorCalls := 0
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		if prompt == "red" {
+			redInvocations++
+		}
+		return nil
+	}
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "PASS", true, nil // Red validation unexpectedly passes (early-green path)
+		case 2:
+			return "PASS", true, nil // Post-refactor validation
+		default:
+			t.Fatalf("unexpected additional validation call %d", validateCall)
+			return "", false, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		refactorCalls++
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := CycleState{
+		CycleNumber: 0,
+		MaxCycles:   10,
+		Remaining:   []string{"req A", "req B", "req C"},
+	}
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if redInvocations != 1 {
+		t.Fatalf("expected exactly one red invocation before done, got %d", redInvocations)
+	}
+	if refactorCalls != 1 {
+		t.Fatalf("expected exactly one refactor invocation before done, got %d", refactorCalls)
+	}
+}
+
 func TestRunCycles_RedEscalation_RetriesThenEscalates(t *testing.T) {
 	orch := newTestOrchestrator()
 
