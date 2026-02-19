@@ -30,25 +30,16 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 	atddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "atdd")
 	if r.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		if specName := bead.FindSpecLabel(bc.Bead.Labels); specName != "" {
-			atddLabelOverride := ""
+			atddWouldBeActive := r.cfg.Methodology.ATDD
 			for _, label := range bc.Bead.Labels {
 				if label == "atdd:true" {
-					atddLabelOverride = "true"
+					atddWouldBeActive = true
 					break
 				}
 				if label == "atdd:false" {
-					atddLabelOverride = "false"
+					atddWouldBeActive = false
 					break
 				}
-			}
-			atddWouldBeActive := false
-			switch atddLabelOverride {
-			case "true":
-				atddWouldBeActive = true
-			case "false":
-				atddWouldBeActive = false
-			default:
-				atddWouldBeActive = r.cfg.Methodology.ATDD
 			}
 			if atddWouldBeActive && !atddActive {
 				r.log("Skipping ATDD: spec granularity active for spec:%s", specName)
