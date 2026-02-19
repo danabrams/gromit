@@ -184,7 +184,11 @@ func computeScopedTestCommand(packages []string) string {
 			continue
 		}
 		seen[pkg] = true
-		targets = append(targets, "./"+pkg+"/...")
+		if pkg == "." {
+			targets = append(targets, "./...")
+		} else {
+			targets = append(targets, "./"+pkg+"/...")
+		}
 	}
 	if len(targets) == 0 {
 		return ""

@@ -328,6 +328,15 @@ diff --git a/internal/runner/process.go b/internal/runner/process.go
 index 789..abc def`,
 			expected: []string{"internal/runner"},
 		},
+		{
+			name: "root-level go file returns dot",
+			diff: `diff --git a/main.go b/main.go
+index 123..456 789
+--- a/main.go
++++ b/main.go
+@@ -1,3 +1,4 @@`,
+			expected: []string{"."},
+		},
 	}
 
 	for _, tt := range tests {

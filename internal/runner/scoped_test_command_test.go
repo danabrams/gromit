@@ -40,6 +40,20 @@ func TestComputeScopedTestCommand_MultiplePackages(t *testing.T) {
 	}
 }
 
+func TestComputeScopedTestCommand_RootPackage(t *testing.T) {
+	result := computeScopedTestCommand([]string{"."})
+	if result != "go test ./..." {
+		t.Errorf("expected 'go test ./...', got %q", result)
+	}
+}
+
+func TestComputeScopedTestCommand_RootAndSubpackage(t *testing.T) {
+	result := computeScopedTestCommand([]string{".", "internal/runner"})
+	if result != "go test ./... ./internal/runner/..." {
+		t.Errorf("expected 'go test ./... ./internal/runner/...', got %q", result)
+	}
+}
+
 // TestInjectScopedTestCommand_PopulatesPromptContextFromTouchedPackages verifies that
 // injectScopedTestCommand sets bc.PromptCtx.ScopedTestCommand from bc.TouchedPackages.
 func TestInjectScopedTestCommand_PopulatesPromptContextFromTouchedPackages(t *testing.T) {
