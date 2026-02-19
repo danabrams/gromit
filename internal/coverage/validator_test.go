@@ -61,3 +61,20 @@ func TestParseSelfReport_MalformedJSON(t *testing.T) {
 		t.Fatal("ParseSelfReport() expected error, got nil")
 	}
 }
+
+func TestParseValidationResponse_EmbeddedJSON(t *testing.T) {
+	output := "prefix {\"covers\": false, \"reason\": \"missing assertion\"} suffix"
+
+	resp, err := ParseValidationResponse(output)
+	if err != nil {
+		t.Fatalf("ParseValidationResponse() error: %v", err)
+	}
+
+	if resp.Covers {
+		t.Fatalf("Covers = true, want false")
+	}
+
+	if resp.Reason != "missing assertion" {
+		t.Fatalf("Reason = %q, want %q", resp.Reason, "missing assertion")
+	}
+}
