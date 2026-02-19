@@ -903,6 +903,89 @@ func TestReadLogFileBackwardCompatibility(t *testing.T) {
 	}
 }
 
+func TestReadLogFileSkipsNonIterationRecords(t *testing.T) {
+	dir := t.TempDir()
+
+	iteration := IterationLog{
+		Timestamp:  time.Date(2026, 2, 5, 12, 0, 0, 0, time.UTC),
+		Iteration:  1,
+		BeadID:     "b1",
+		BeadTitle:  "Task 1",
+		Model:      "sonnet",
+		Success:    true,
+		Validated:  true,
+		Escalated:  false,
+		DurationMs: 1000,
+	}
+	review := ReviewLog{
+		Timestamp:      time.Date(2026, 2, 5, 12, 1, 0, 0, time.UTC),
+		Type:           "review",
+		ReviewType:     "light",
+		Iteration:      1,
+		BeadID:         "b1",
+		Model:          "sonnet",
+		Passed:         true,
+		FixesApplied:   1,
+		BeadsCreated:   0,
+		BacklogCreated: 0,
+		DurationMs:     500,
+	}
+	phase := TDDPhaseRecord{
+		Type:               "tdd_phase",
+		Timestamp:          time.Date(2026, 2, 5, 12, 2, 0, 0, time.UTC),
+		BeadID:             "b2",
+		Phase:              "red",
+		CycleNumber:        1,
+		Model:              "haiku",
+		Tier:               "low",
+		InputTokens:        100,
+		OutputTokens:       50,
+		DurationMs:         250,
+		Success:            false,
+		Escalated:          false,
+		CriteriaTotal:      2,
+		CriteriaCovered:    1,
+		CriteriaUntestable: 0,
+	}
+	summary := TDDSummaryRecord{
+		Type:            "tdd_summary",
+		Timestamp:       time.Date(2026, 2, 5, 12, 3, 0, 0, time.UTC),
+		BeadID:          "b3",
+		TotalCycles:     1,
+		TotalPhases:     3,
+		Success:         true,
+		TotalDurationMs: 700,
+	}
+
+	var buf bytes.Buffer
+	for _, record := range []any{iteration, review, phase, summary} {
+		data, err := json.Marshal(record)
+		if err != nil {
+			t.Fatalf("marshal record: %v", err)
+		}
+		buf.Write(data)
+		buf.WriteByte('\n')
+	}
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), buf.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := readLogFile(filepath.Join(dir, "run-20260205-120000.jsonl"))
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 iteration entry, got %d", len(entries))
+	}
+	if entries[0].BeadID != "b1" {
+		t.Errorf("expected bead_id b1, got %q", entries[0].BeadID)
+	}
+	if !entries[0].Success {
+		t.Errorf("expected success true for iteration log")
+	}
+}
+
 // TestTDDPhaseRecord_Fields verifies TDDPhaseRecord has a type discriminator
 // and all per-phase metric fields for JSONL logging.
 func TestTDDPhaseRecord_Fields(t *testing.T) {

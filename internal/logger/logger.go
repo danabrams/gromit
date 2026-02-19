@@ -376,15 +376,42 @@ func readLogFile(path string) ([]IterationLog, error) {
 		return nil, err
 	}
 
-	entries := []IterationLog{}
 	dec := json.NewDecoder(bytes.NewReader(data))
+	return decodeIterationLogs(dec), nil
+}
+
+func decodeIterationLogs(dec *json.Decoder) []IterationLog {
+	entries := []IterationLog{}
 	for dec.More() {
-		var entry IterationLog
-		if err := dec.Decode(&entry); err != nil {
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err != nil {
 			break
+		}
+		if !isIterationLogRecord(raw) {
+			continue
+		}
+		var entry IterationLog
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			continue
 		}
 		entries = append(entries, entry)
 	}
+	return entries
+}
 
-	return entries, nil
+func isIterationLogRecord(raw json.RawMessage) bool {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return false
+	}
+	if _, ok := fields["iteration"]; !ok {
+		return false
+	}
+	if _, ok := fields["bead_id"]; !ok {
+		return false
+	}
+	if _, ok := fields["success"]; !ok {
+		return false
+	}
+	return true
 }

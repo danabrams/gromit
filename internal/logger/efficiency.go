@@ -313,15 +313,6 @@ func readEfficiencyLogFile(path string) ([]IterationLog, error) {
 		return nil, err
 	}
 
-	entries := []IterationLog{}
 	dec := json.NewDecoder(bytes.NewReader(data))
-	for dec.More() {
-		var entry IterationLog
-		if err := dec.Decode(&entry); err != nil {
-			break
-		}
-		entries = append(entries, entry)
-	}
-
-	return entries, nil
+	return decodeIterationLogs(dec), nil
 }
