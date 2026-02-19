@@ -82,6 +82,10 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		bc.Result.Error = fmt.Errorf("TDD fresh-context orchestration enabled but tddOrchestrator not wired")
 		return
 	}
+	if len(bc.Bead.ExpectedOutputs) == 0 {
+		bc.Result.Error = fmt.Errorf("TDD fresh-context-per-cycle active but bead %s has no ExpectedOutputs; falling back would silently succeed with zero cycles", bc.Bead.ID)
+		return
+	}
 	if err := r.tddOrchestrator.RunCycles(ctx, bc); err != nil {
 		bc.Result.Error = err
 		return

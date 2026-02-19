@@ -199,6 +199,7 @@ func TestPrepareMethodology_TDDFreshContextRunsOrchestrator(t *testing.T) {
 		},
 	}
 	b := newTestBead("tdd-fresh-context-1", "Implement feature with cycle orchestration")
+	b.ExpectedOutputs = []string{"implement feature X"} // required for TDD fresh-context path
 	bc := newBeadContextForMethodology(b)
 
 	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
@@ -226,6 +227,47 @@ func TestPrepareMethodology_TDDFreshContextRunsOrchestrator(t *testing.T) {
 	}
 }
 
+// TestPrepareMethodology_TDDFreshContextErrorsWhenNoExpectedOutputs verifies that
+// when TDD fresh-context-per-cycle routes a bead with no ExpectedOutputs, the
+// runner sets an error rather than silently succeeding with zero cycles.
+func TestPrepareMethodology_TDDFreshContextErrorsWhenNoExpectedOutputs(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+		},
+	}
+	orchestratorCalled := false
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+			orchestratorCalled = true
+			return nil
+		},
+	}
+	b := newTestBead("tdd-no-outputs-1", "Fix nil pointer dereference in createRefinePipeline")
+	b.ExpectedOutputs = []string{} // no expected outputs — bug-fix bead
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !tddActive {
+		t.Fatal("expected tddActive=true")
+	}
+	if !done {
+		t.Fatal("expected done=true")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected bc.Result.Error to be set when bead has no ExpectedOutputs, got nil")
+	}
+	if bc.Result.Success {
+		t.Fatal("expected bc.Result.Success=false when bead has no ExpectedOutputs")
+	}
+	if orchestratorCalled {
+		t.Fatal("expected orchestrator NOT to be called when bead has no ExpectedOutputs")
+	}
+}
+
 func TestPrepareMethodology_TDDFreshContextOrchestratorErrorSetsResultAndDone(t *testing.T) {
 	cfg := &config.Config{
 		Methodology: config.MethodologyConfig{
@@ -241,6 +283,7 @@ func TestPrepareMethodology_TDDFreshContextOrchestratorErrorSetsResultAndDone(t 
 		},
 	}
 	b := newTestBead("tdd-fresh-context-2", "Implement feature with orchestrator error")
+	b.ExpectedOutputs = []string{"implement feature X"} // required for TDD fresh-context path
 	bc := newBeadContextForMethodology(b)
 
 	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)

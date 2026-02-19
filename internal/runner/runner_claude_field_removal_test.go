@@ -3,12 +3,10 @@ package runner
 import (
 	"context"
 	"io"
-	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/analyzer"
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/provider"
 )
@@ -70,28 +68,6 @@ func TestDepsStructDoesNotRequireClaudeField(t *testing.T) {
 	if !hasRouter {
 		t.Error("Deps struct should have 'Router' field")
 	}
-}
-
-// TestNewRunnerWithDepsWorksWithOnlyRouter verifies that NewRunnerWithDeps
-// can create a runner with only Router in deps (no Claude field)
-// Expected failure: NewRunnerWithDeps requires Claude field in deps or fallback logic still exists
-func TestNewRunnerWithDepsWorksWithOnlyRouter(t *testing.T) {
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-
-	cfg := &config.Config{
-		Paths: config.PathsConfig{
-			GromitDir: gromitDir,
-		},
-	}
-	cfg.SetDefaults()
-
-	// Test will fail because:
-	// 1. Deps still has Claude field alongside Router
-	// 2. NewRunnerWithDeps signature still accepts Claude in deps
-	// The test documents the desired end state where only Router is needed
-
-	t.Skip("Test documents desired behavior - Deps struct and NewRunnerWithDeps need updating to remove Claude field dependency")
 }
 
 // TestLearningsAdapterCanUseProviderInterface verifies that the learnings adapter

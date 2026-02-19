@@ -41,6 +41,7 @@ func TestTDD_FreshContext_FullValidationAfterCycles(t *testing.T) {
 
 	b := newTestBead("tdd-validation-1", "Implement feature with cycles")
 	b.Labels = []string{"tdd:true"}
+	b.ExpectedOutputs = []string{"implement feature"}
 	bc := newBeadContextForMethodology(b)
 
 	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
@@ -84,6 +85,7 @@ func TestTDD_FreshContext_DelegatesToOrchestrator(t *testing.T) {
 
 	b := newTestBead("tdd-fresh-context-1", "Implement feature with fresh context")
 	b.Labels = []string{"tdd:true"}
+	b.ExpectedOutputs = []string{"implement feature"}
 	bc := newBeadContextForMethodology(b)
 
 	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
@@ -123,6 +125,7 @@ func TestTDD_FreshContext_FallsBackOnOrchestratorError(t *testing.T) {
 
 	b := newTestBead("tdd-fresh-context-2", "Implement feature with orchestrator failure")
 	b.Labels = []string{"tdd:true"}
+	b.ExpectedOutputs = []string{"implement feature"}
 	bc := newBeadContextForMethodology(b)
 
 	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
