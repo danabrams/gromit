@@ -98,6 +98,48 @@ func TestIterationLog_FailurePhaseJSONTag(t *testing.T) {
 	}
 }
 
+// TestIterationLog_CoverageFieldsJSONTags verifies that IterationLog has the four
+// coverage fields with correct json tags and omitempty behavior.
+func TestIterationLog_CoverageFieldsJSONTags(t *testing.T) {
+	log := &IterationLog{
+		BeadID:             "bead-cov",
+		Model:              "sonnet",
+		CriteriaTotal:      10,
+		CriteriaCovered:    7,
+		CriteriaUntestable: 1,
+		UncoveredCriteria:  []string{"criterion A", "criterion B"},
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"criteria_total\":10") {
+		t.Errorf("expected criteria_total in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"criteria_covered\":7") {
+		t.Errorf("expected criteria_covered in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"criteria_untestable\":1") {
+		t.Errorf("expected criteria_untestable in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"uncovered_criteria\":[\"criterion A\",\"criterion B\"]") {
+		t.Errorf("expected uncovered_criteria in JSON, got %s", s)
+	}
+
+	emptyData, err := json.Marshal(IterationLog{})
+	if err != nil {
+		t.Fatalf("marshal empty log: %v", err)
+	}
+	e := string(emptyData)
+	for _, key := range []string{"criteria_total", "criteria_covered", "criteria_untestable", "uncovered_criteria"} {
+		if strings.Contains(e, key) {
+			t.Errorf("expected %s to be omitted from empty log, got %s", key, e)
+		}
+	}
+}
+
 func TestIterationLog_ProviderAndFailureCategoryJSONTags(t *testing.T) {
 	log := &IterationLog{
 		BeadID:          "test-1",

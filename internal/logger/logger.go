@@ -63,6 +63,12 @@ type IterationLog struct {
 	MTTRProxyMs      int64  `json:"mttr_proxy_ms,omitempty"`
 	EscalationClass  string `json:"escalation_class,omitempty"`
 	RecurrenceCount  int    `json:"recurrence_count,omitempty"`
+
+	// Coverage tracking fields
+	CriteriaTotal      int      `json:"criteria_total,omitempty"`
+	CriteriaCovered    int      `json:"criteria_covered,omitempty"`
+	CriteriaUntestable int      `json:"criteria_untestable,omitempty"`
+	UncoveredCriteria  []string `json:"uncovered_criteria,omitempty"`
 }
 
 // ReviewLog represents a review's outcome (light or thorough)
