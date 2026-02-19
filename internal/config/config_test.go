@@ -2889,8 +2889,8 @@ func TestMethodologyMaxTDDCyclesDefaultsToTen(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
 
-	if cfg.Methodology.MaxTDDCycles != 10 {
-		t.Errorf("expected max_tdd_cycles=10, got %d", cfg.Methodology.MaxTDDCycles)
+	if cfg.Methodology.MaxTDDCycles != DefaultMaxTDDCycles {
+		t.Errorf("expected max_tdd_cycles=%d, got %d", DefaultMaxTDDCycles, cfg.Methodology.MaxTDDCycles)
 	}
 }
 

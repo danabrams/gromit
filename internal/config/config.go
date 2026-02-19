@@ -26,6 +26,7 @@ const (
 	DefaultAndonL2TimeCapMinutes = 15
 
 	DefaultRunbookTTLDays = 14
+	DefaultMaxTDDCycles   = 10
 
 	DefaultAndonConfigDocSectionTitle = "# Andon autonomy controls"
 
@@ -664,7 +665,7 @@ func (c *Config) SetDefaults() {
 		c.Methodology.Granularity = MethodologyGranularityBead
 	}
 	if c.Methodology.MaxTDDCycles == 0 {
-		c.Methodology.MaxTDDCycles = 10
+		c.Methodology.MaxTDDCycles = DefaultMaxTDDCycles
 	}
 	if c.Git.AutoPush == nil {
 		t := true
