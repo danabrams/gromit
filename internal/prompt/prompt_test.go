@@ -1011,6 +1011,43 @@ func TestTDDGreenContextFields(t *testing.T) {
 	}
 }
 
+func TestRenderTDDGreen(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Green for: {{.BeadTitle}}
+Test: {{.FailingTest}}
+Output: {{.TestFailureOutput}}
+ImplFiles: {{len .ImplFileContents}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_tdd_green.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &TDDGreenContext{
+		BeadTitle:         "Add parser",
+		FailingTest:       "TestParseFoo",
+		TestFailureOutput: "expected foo",
+		ImplFileContents:  map[string]string{"parser.go": "impl"},
+	}
+
+	result, err := r.RenderTDDGreen(ctx)
+	if err != nil {
+		t.Fatalf("RenderTDDGreen() error = %v", err)
+	}
+	if !strings.Contains(result, "Add parser") {
+		t.Error("expected bead title in output")
+	}
+	if !strings.Contains(result, "TestParseFoo") {
+		t.Error("expected failing test in output")
+	}
+	if !strings.Contains(result, "expected foo") {
+		t.Error("expected failure output in output")
+	}
+	if !strings.Contains(result, "ImplFiles: 1") {
+		t.Error("expected impl file count in output")
+	}
+}
+
 func TestMethodologyPhaseShaping_TemplateCompatibility(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	if _, err := os.Stat(filepath.Join(templatesDir, "PROMPT_acceptance_tests.md")); os.IsNotExist(err) {
