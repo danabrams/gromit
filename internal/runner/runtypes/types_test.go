@@ -414,6 +414,43 @@ func TestPhaseMetric_EscalatedFromAndCriteriaFields(t *testing.T) {
 	}
 }
 
+// TestIterationResult_PhaseMetrics verifies IterationResult has a PhaseMetrics slice
+// that is zero-value safe (nil by default) and accepts PhaseMetric values.
+func TestIterationResult_PhaseMetrics(t *testing.T) {
+	t.Run("zero value has nil PhaseMetrics", func(t *testing.T) {
+		result := IterationResult{}
+		if result.PhaseMetrics != nil {
+			t.Error("zero-value IterationResult.PhaseMetrics should be nil")
+		}
+	})
+
+	t.Run("PhaseMetrics accepts appended values", func(t *testing.T) {
+		result := IterationResult{BeadID: "bead-1"}
+		result.PhaseMetrics = append(result.PhaseMetrics, PhaseMetric{
+			Phase:       "red",
+			CycleNumber: 1,
+			BeadID:      "bead-1",
+			Success:     false,
+		})
+		result.PhaseMetrics = append(result.PhaseMetrics, PhaseMetric{
+			Phase:       "green",
+			CycleNumber: 1,
+			BeadID:      "bead-1",
+			Success:     true,
+		})
+
+		if len(result.PhaseMetrics) != 2 {
+			t.Errorf("PhaseMetrics length = %d, want 2", len(result.PhaseMetrics))
+		}
+		if result.PhaseMetrics[0].Phase != "red" {
+			t.Errorf("PhaseMetrics[0].Phase = %q, want %q", result.PhaseMetrics[0].Phase, "red")
+		}
+		if result.PhaseMetrics[1].Phase != "green" {
+			t.Errorf("PhaseMetrics[1].Phase = %q, want %q", result.PhaseMetrics[1].Phase, "green")
+		}
+	})
+}
+
 // TestCallbackFunctionTypes verifies that the callback function types are defined
 // and can be used with the correct signatures.
 func TestCallbackFunctionTypes(t *testing.T) {

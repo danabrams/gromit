@@ -115,6 +115,9 @@ type IterationResult struct {
 	CriteriaCovered    int
 	CriteriaUntestable int
 	UncoveredCriteria  []string
+
+	// TDD phase metrics (nil when TDD methodology is inactive)
+	PhaseMetrics []PhaseMetric `json:"phase_metrics,omitempty"`
 }
 
 // PhaseMetric captures per-phase metrics for TDD cycle tracking.
