@@ -107,6 +107,10 @@ func parseDecomposeOutput(output string) ([]SubTask, error) {
 	var subTasks []SubTask
 	parseArrayErr := jsonutil.ExtractArray(output, &subTasks)
 	if parseArrayErr != nil {
+		if strings.Contains(output, "[") && !strings.Contains(output, "]") {
+			return nil, fmt.Errorf("parsing decompose output: malformed JSON array: missing closing bracket")
+		}
+
 		// Fallback for wrapper formats:
 		// {"sub_tasks":[...]} / {"subtasks":[...]} / {"tasks":[...]} / {"items":[...]}
 		var wrapped struct {
