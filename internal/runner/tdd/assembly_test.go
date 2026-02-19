@@ -178,3 +178,31 @@ func TestAssembleRefactorHandoffReadsAllTouchedFiles(t *testing.T) {
 		t.Fatalf("expected session.go content to be populated")
 	}
 }
+
+func TestAssembleCycleStateIncrementsCycleAndMovesFirstRemainingToCovered(t *testing.T) {
+	prev := CycleState{
+		CycleNumber:  1,
+		MaxCycles:    10,
+		CoveredSoFar: []string{},
+		Remaining:    []string{"req A", "req B", "req C"},
+		TouchedFiles: []string{"a.go"},
+	}
+
+	next := AssembleCycleState(prev, "some red phase output")
+
+	if next.CycleNumber != 2 {
+		t.Fatalf("expected CycleNumber 2, got %d", next.CycleNumber)
+	}
+	if next.MaxCycles != 10 {
+		t.Fatalf("expected MaxCycles preserved at 10, got %d", next.MaxCycles)
+	}
+	if len(next.CoveredSoFar) != 1 || next.CoveredSoFar[0] != "req A" {
+		t.Fatalf("expected CoveredSoFar to contain 'req A', got %v", next.CoveredSoFar)
+	}
+	if len(next.Remaining) != 2 || next.Remaining[0] != "req B" {
+		t.Fatalf("expected Remaining to start with 'req B', got %v", next.Remaining)
+	}
+	if len(next.TouchedFiles) != 1 || next.TouchedFiles[0] != "a.go" {
+		t.Fatalf("expected TouchedFiles preserved, got %v", next.TouchedFiles)
+	}
+}

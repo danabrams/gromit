@@ -122,3 +122,29 @@ func AssembleRefactorHandoff(readFile ReadFileFn, touchedFiles []string) (*Refac
 		TestFiles: testFiles,
 	}, nil
 }
+
+// AssembleCycleState creates the next cycle state from the previous one.
+// It increments the cycle number and moves the first remaining requirement
+// to covered.
+func AssembleCycleState(prevState CycleState, redOutput string) CycleState {
+	next := CycleState{
+		CycleNumber:  prevState.CycleNumber + 1,
+		MaxCycles:    prevState.MaxCycles,
+		TouchedFiles: prevState.TouchedFiles,
+		Done:         prevState.Done,
+	}
+
+	// Copy covered and move first remaining to covered
+	next.CoveredSoFar = make([]string, len(prevState.CoveredSoFar))
+	copy(next.CoveredSoFar, prevState.CoveredSoFar)
+
+	if len(prevState.Remaining) > 0 {
+		next.CoveredSoFar = append(next.CoveredSoFar, prevState.Remaining[0])
+		next.Remaining = make([]string, len(prevState.Remaining)-1)
+		copy(next.Remaining, prevState.Remaining[1:])
+	} else {
+		next.Remaining = []string{}
+	}
+
+	return next
+}
