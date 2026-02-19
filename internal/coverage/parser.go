@@ -23,17 +23,32 @@ func ParseCriteria(specContent string) ([]Criterion, error) {
 	}
 
 	var criteria []Criterion
+	var current *Criterion
 	for _, line := range strings.Split(section, "\n") {
-		line = strings.TrimSpace(line)
-		m := bulletRe.FindStringSubmatch(line)
-		if m == nil {
+		m := bulletRe.FindStringSubmatch(strings.TrimSpace(line))
+		if m != nil {
+			if current != nil {
+				criteria = append(criteria, *current)
+			}
+			var n int
+			if _, err := fmt.Sscan(m[1], &n); err != nil {
+				current = nil
+				continue
+			}
+			c := Criterion{Number: n, Text: m[2]}
+			current = &c
 			continue
 		}
-		var n int
-		if _, err := fmt.Sscan(m[1], &n); err != nil {
-			continue
+		// Continuation line: indented non-empty text appended to current criterion.
+		if current != nil && len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
+			cont := strings.TrimSpace(line)
+			if cont != "" {
+				current.Text += " " + cont
+			}
 		}
-		criteria = append(criteria, Criterion{Number: n, Text: m[2]})
+	}
+	if current != nil {
+		criteria = append(criteria, *current)
 	}
 
 	if criteria == nil {

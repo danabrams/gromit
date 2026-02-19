@@ -4,6 +4,31 @@ import (
 	"testing"
 )
 
+func TestParseCriteria_CompoundCriterion(t *testing.T) {
+	spec := `# My Spec
+
+## Acceptance Criteria
+
+- AC1: The system validates input format
+  including length, characters, and encoding
+- AC2: Short one
+`
+
+	criteria, err := ParseCriteria(spec)
+	if err != nil {
+		t.Fatalf("ParseCriteria() error: %v", err)
+	}
+
+	if len(criteria) != 2 {
+		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
+	}
+
+	want := "The system validates input format including length, characters, and encoding"
+	if criteria[0].Text != want {
+		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, want)
+	}
+}
+
 func TestParseCriteria_EmptySection(t *testing.T) {
 	spec := `# My Spec
 
