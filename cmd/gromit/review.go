@@ -102,6 +102,10 @@ func runReview(cmd *cobra.Command, args []string) error {
 	return runReviewNonInteractive(cfg, fromCommit, diff)
 }
 
+func resolveReviewRendererPaths(cfg *config.Config) (string, string, string) {
+	return resolveTemplatesDir(cfg), resolveSpecsDir(cfg), resolveProjectClaudeMD(cfg)
+}
+
 func determineReviewScope(cfg *config.Config) (string, error) {
 	return determineReviewScopeWithClient(cfg, nil)
 }
@@ -126,13 +130,13 @@ func determineReviewScopeWithClient(cfg *config.Config, beadsClient *bead.Client
 				return "", fmt.Errorf("creating bead client: %w", err)
 			}
 		}
-		return getSpecBaseCommit(beadsClient, reviewSpec, cfg.Paths.Specs)
+		return getSpecBaseCommit(beadsClient, reviewSpec, resolveSpecsDir(cfg))
 	}
 
 	if reviewEpic != "" {
 		// Find the earliest commit from beads in this epic
 		gromitDir := resolveGromitDir(cfg)
-		return getEpicBaseCommit(reviewEpic, cfg.Paths.Specs, gromitDir)
+		return getEpicBaseCommit(reviewEpic, resolveSpecsDir(cfg), gromitDir)
 	}
 
 	// Default: use last review commit from state
@@ -316,12 +320,8 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 	// Build pipeline and dependencies
 	gromitDir := resolveGromitDir(cfg)
 
-	renderer, err := prompt.NewRenderer(
-		cfg.Paths.Templates,
-		cfg.Paths.Specs,
-		cfg.Paths.ProjectClaudeMD,
-		gromitDir,
-	)
+	templatesDir, specsDir, claudeMDPath := resolveReviewRendererPaths(cfg)
+	renderer, err := prompt.NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating renderer: %w", err)
 	}
@@ -370,12 +370,8 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	// Build pipeline and dependencies
 	gromitDir := resolveGromitDir(cfg)
 
-	renderer, err := prompt.NewRenderer(
-		cfg.Paths.Templates,
-		cfg.Paths.Specs,
-		cfg.Paths.ProjectClaudeMD,
-		gromitDir,
-	)
+	templatesDir, specsDir, claudeMDPath := resolveReviewRendererPaths(cfg)
+	renderer, err := prompt.NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating renderer: %w", err)
 	}

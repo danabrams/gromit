@@ -26,6 +26,22 @@ func saveReviewFlags(t *testing.T) {
 	})
 }
 
+func TestResolveReviewRendererPaths_Defaults(t *testing.T) {
+	cfg := &config.Config{}
+
+	templatesDir, specsDir, claudeMDPath := resolveReviewRendererPaths(cfg)
+
+	if templatesDir != ".gromit/templates" {
+		t.Errorf("expected templates dir default to .gromit/templates, got %q", templatesDir)
+	}
+	if specsDir != ".gromit/specs" {
+		t.Errorf("expected specs dir default to .gromit/specs, got %q", specsDir)
+	}
+	if claudeMDPath != "CLAUDE.md" {
+		t.Errorf("expected project CLAUDE.md default to CLAUDE.md, got %q", claudeMDPath)
+	}
+}
+
 // TestValidateCommitRef verifies that commit refs starting with "-" are rejected.
 func TestValidateCommitRef(t *testing.T) {
 	tests := []struct {
