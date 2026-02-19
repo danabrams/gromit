@@ -61,16 +61,7 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 	tddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "tdd")
 	if tddActive {
 		if r.cfg.Methodology.FreshContextPerCycle {
-			if r.tddOrchestrator == nil {
-				bc.Result.Error = fmt.Errorf("TDD fresh-context orchestration enabled but tddOrchestrator not wired")
-				return atddActive, tddActive, true
-			}
-			if err := r.tddOrchestrator.RunCycles(ctx, bc); err != nil {
-				bc.Result.Error = err
-				return atddActive, tddActive, true
-			}
-			bc.Result.Success = true
-			bc.Result.FirstPassSuccess = true
+			r.runTDDFreshContextCycles(ctx, bc)
 			return atddActive, tddActive, true
 		}
 		r.log("TDD enabled, using TDD build prompt with red-green-refactor cycles...")
@@ -83,6 +74,19 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 	}
 
 	return atddActive, tddActive, false
+}
+
+func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.BeadContext) {
+	if r.tddOrchestrator == nil {
+		bc.Result.Error = fmt.Errorf("TDD fresh-context orchestration enabled but tddOrchestrator not wired")
+		return
+	}
+	if err := r.tddOrchestrator.RunCycles(ctx, bc); err != nil {
+		bc.Result.Error = err
+		return
+	}
+	bc.Result.Success = true
+	bc.Result.FirstPassSuccess = true
 }
 
 func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadContext) bool {
