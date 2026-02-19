@@ -8,6 +8,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -163,4 +164,46 @@ func TestMakeInvokeFn_ReconcilesPromptDiagnosticsAfterRetryRender(t *testing.T) 
 		t.Fatal("expected invocation result")
 	}
 	assertPromptDiagnosticsReconciled(t, bc.Result.PromptDiagnostics, 10, 2)
+}
+
+func TestMakeMethodologyExec_WiresCoverageValidationCallbackAtLowTier(t *testing.T) {
+	var gotTier string
+	mockProvider := &mockProviderWithRouterTracking{
+		runFn: func(ctx context.Context, promptText, tier string) (*provider.Result, error) {
+			gotTier = tier
+			return &provider.Result{
+				Success: true,
+				Output:  `{"covers": true, "reason": "criterion is covered by direct assertions."}`,
+			}, nil
+		},
+	}
+	r := &Runner{
+		cfg:    &config.Config{},
+		router: provider.NewSingleProviderRouter(mockProvider),
+		renderer: &mockPromptRenderer{
+			RenderCoverageValidFn: func(ctx *prompt.CoverageValidationContext) (string, error) {
+				return "coverage-validation-prompt", nil
+			},
+		},
+	}
+
+	methExec := r.makeMethodologyExec()
+	if methExec == nil {
+		t.Fatal("expected makeMethodologyExec to return executor")
+	}
+
+	resp, err := methExec.ValidateCoverage(
+		context.Background(),
+		"func TestFeature(t *testing.T) {}",
+		coverage.Criterion{Number: 1, Text: "feature works"},
+	)
+	if err != nil {
+		t.Fatalf("ValidateCoverage returned error: %v", err)
+	}
+	if resp == nil || !resp.Covers {
+		t.Fatalf("expected coverage response with Covers=true, got %#v", resp)
+	}
+	if gotTier != provider.TierLow {
+		t.Fatalf("coverage validation tier = %q, want %q", gotTier, provider.TierLow)
+	}
 }

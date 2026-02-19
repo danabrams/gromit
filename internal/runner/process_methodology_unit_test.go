@@ -8,6 +8,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -193,7 +194,7 @@ func TestPrepareMethodology_TDDFreshContextRunsOrchestrator(t *testing.T) {
 	}
 	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
 	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			orchestratorCalled = true
 			return nil
 		},
@@ -247,7 +248,7 @@ func TestPrepareMethodology_TDDFreshContextUsesTitleFallbackWhenNoExpectedOutput
 	}
 	r, buf := newMinimalRunnerForMethodology(t, cfg, renderer)
 	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			orchestratorCalled = true
 			return nil
 		},
@@ -298,7 +299,7 @@ func TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputsAndEmpt
 	}
 	r, buf := newMinimalRunnerForMethodology(t, cfg, renderer)
 	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			orchestratorCalled = true
 			return nil
 		},
@@ -342,7 +343,7 @@ func TestPrepareMethodology_TDDFreshContextOrchestratorErrorSetsResultAndDone(t 
 	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
 	wantErr := fmt.Errorf("orchestrator failed")
 	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			return wantErr
 		},
 	}
@@ -366,6 +367,105 @@ func TestPrepareMethodology_TDDFreshContextOrchestratorErrorSetsResultAndDone(t 
 	}
 	if bc.Result.Success {
 		t.Fatal("bc.Result.Success should remain false when tddOrchestrator.RunCycles fails")
+	}
+}
+
+func TestRunTDDFreshContextCycles_InitializesCoverageTrackerFromSpec(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+
+	var gotCriteria []coverage.Criterion
+	var trackerObserved bool
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
+			trackerObserved = tracker != nil
+			gotCriteria = append([]coverage.Criterion(nil), criteria...)
+			for _, criterion := range criteria {
+				tracker.MarkCovered(criterion.Number)
+			}
+			return nil
+		},
+	}
+
+	b := newTestBead("tdd-coverage-init-1", "Implement feature with coverage criteria")
+	b.Labels = []string{"spec:auth"}
+	b.ExpectedOutputs = []string{"implement feature X"}
+	bc := newBeadContextForMethodology(b)
+	bc.PromptCtx.Spec = `# Auth
+
+## Acceptance Criteria
+- Handles valid credential logins
+- Rejects invalid credential logins`
+
+	handled := r.runTDDFreshContextCycles(context.Background(), bc)
+	if !handled {
+		t.Fatal("expected runTDDFreshContextCycles to handle fresh-context path")
+	}
+	if !trackerObserved {
+		t.Fatal("expected a coverage tracker to be initialized when spec criteria are present")
+	}
+	if len(gotCriteria) != 2 {
+		t.Fatalf("expected 2 parsed coverage criteria, got %d", len(gotCriteria))
+	}
+	if bc.Result.Error != nil {
+		t.Fatalf("expected no error, got %v", bc.Result.Error)
+	}
+	if bc.Result.CriteriaTotal != 2 {
+		t.Fatalf("CriteriaTotal = %d, want 2", bc.Result.CriteriaTotal)
+	}
+	if bc.Result.CriteriaCovered != 2 {
+		t.Fatalf("CriteriaCovered = %d, want 2", bc.Result.CriteriaCovered)
+	}
+}
+
+func TestRunTDDFreshContextCycles_RerunsUntilCoverageTrackerComplete(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+			MaxTDDCycles:         3,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+
+	orchestratorCalls := 0
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
+			orchestratorCalls++
+			if orchestratorCalls == 1 {
+				// Simulate Claude self-reporting completion while tracker still has unchecked criteria.
+				return nil
+			}
+			if tracker != nil && len(criteria) > 0 {
+				tracker.MarkCovered(criteria[0].Number)
+			}
+			return nil
+		},
+	}
+
+	b := newTestBead("tdd-coverage-rerun-1", "Implement feature with disagreement")
+	b.Labels = []string{"spec:auth"}
+	b.ExpectedOutputs = []string{"implement feature X"}
+	bc := newBeadContextForMethodology(b)
+	bc.PromptCtx.Spec = `# Auth
+
+## Acceptance Criteria
+- Criterion one`
+
+	handled := r.runTDDFreshContextCycles(context.Background(), bc)
+	if !handled {
+		t.Fatal("expected runTDDFreshContextCycles to handle fresh-context path")
+	}
+	if bc.Result.Error != nil {
+		t.Fatalf("expected no error, got %v", bc.Result.Error)
+	}
+	if orchestratorCalls != 2 {
+		t.Fatalf("expected 2 orchestrator passes when tracker remains incomplete, got %d", orchestratorCalls)
 	}
 }
 

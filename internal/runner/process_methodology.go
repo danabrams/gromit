@@ -8,6 +8,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
@@ -102,8 +103,35 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		r.log("TDD fresh-context using title fallback for bead %s because ExpectedOutputs are empty", bc.Bead.ID)
 		bc.Bead.ExpectedOutputs = append([]string(nil), effectiveOutputs...)
 	}
-	if err := r.tddOrchestrator.RunCycles(ctx, bc); err != nil {
-		bc.Result.Error = err
+
+	coverageTracker, coverageCriteria, err := buildCoverageTrackerFromSpec(bc)
+	if err != nil {
+		bc.Result.Error = fmt.Errorf("building TDD coverage tracker: %w", err)
+		return true
+	}
+	updateIterationCoverageMetrics(bc.Result, coverageTracker)
+
+	maxOrchestratorPasses := config.DefaultMaxTDDCycles
+	if r.cfg != nil && r.cfg.Methodology.MaxTDDCycles > 0 {
+		maxOrchestratorPasses = r.cfg.Methodology.MaxTDDCycles
+	}
+	if maxOrchestratorPasses < 1 {
+		maxOrchestratorPasses = 1
+	}
+
+	for pass := 0; pass < maxOrchestratorPasses; pass++ {
+		if err := r.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria); err != nil {
+			bc.Result.Error = err
+			return true
+		}
+		updateIterationCoverageMetrics(bc.Result, coverageTracker)
+		if coverageTracker == nil || coverageTracker.IsComplete() {
+			break
+		}
+		r.log("TDD coverage tracker reports unchecked criteria after cycle pass %d; injecting additional cycles", pass+1)
+	}
+	if coverageTracker != nil && !coverageTracker.IsComplete() {
+		bc.Result.Error = fmt.Errorf("tdd fresh-context stopped with unchecked coverage criteria")
 		return true
 	}
 	if r.cfg.Validation.Enabled && r.validationRunner != nil {
@@ -115,6 +143,59 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 	bc.Result.Success = true
 	bc.Result.FirstPassSuccess = true
 	return true
+}
+
+func buildCoverageTrackerFromSpec(bc *runtypes.BeadContext) (*coverage.CoverageTracker, []coverage.Criterion, error) {
+	if bc == nil || bc.Bead == nil || bc.PromptCtx == nil {
+		return nil, nil, nil
+	}
+	if bead.FindSpecLabel(bc.Bead.Labels) == "" {
+		return nil, nil, nil
+	}
+	specContent := strings.TrimSpace(bc.PromptCtx.Spec)
+	if specContent == "" {
+		return nil, nil, nil
+	}
+	criteria, err := coverage.ParseCriteria(specContent)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(criteria) == 0 {
+		return nil, nil, nil
+	}
+	return coverage.NewTracker(criteria, 2), criteria, nil
+}
+
+func updateIterationCoverageMetrics(result *runtypes.IterationResult, tracker *coverage.CoverageTracker) {
+	if result == nil {
+		return
+	}
+	if tracker == nil {
+		result.CriteriaTotal = 0
+		result.CriteriaCovered = 0
+		result.CriteriaUntestable = 0
+		result.UncoveredCriteria = []string{}
+		return
+	}
+	uncovered := tracker.UncoveredCriteria()
+	untestable := tracker.UntestableCriteria()
+	knownTotal := len(uncovered) + len(untestable)
+	criteriaTotal := result.CriteriaTotal
+	if criteriaTotal < knownTotal {
+		criteriaTotal = knownTotal
+	}
+	uncoveredTexts := make([]string, 0, len(uncovered))
+	for _, criterion := range uncovered {
+		uncoveredTexts = append(uncoveredTexts, criterion.Text)
+	}
+	result.CriteriaTotal = criteriaTotal
+	result.CriteriaUntestable = len(untestable)
+	covered := criteriaTotal - len(uncovered) - len(untestable)
+	if covered < 0 {
+		covered = 0
+	}
+	result.CriteriaCovered = covered
+	result.UncoveredCriteria = uncoveredTexts
 }
 
 func tddExpectedOutputsOrTitle(b *bead.Bead) []string {

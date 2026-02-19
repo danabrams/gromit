@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -508,6 +509,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 	// Wire analysis support for VerifyTestsFailWithRetry
 	methExec.SetAnalyzeFn(analyzeFn)
 	methExec.SetGetDiffFn(getDiffFn)
+	methExec.SetCoverageValidateFn(r.makeCoverageValidateFn())
 
 	// Wire refactor deps
 	methExec.SetRefactorDeps(methodology.NewRefactorDeps(
@@ -530,6 +532,52 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 	return methExec
 }
 
+func (r *Runner) makeCoverageValidateFn() methodology.CoverageValidateFn {
+	return func(ctx context.Context, testCode string, criterion coverage.Criterion) (*coverage.ValidationResponse, error) {
+		if r.renderer == nil {
+			return nil, fmt.Errorf("renderer not configured")
+		}
+		if r.router == nil {
+			return nil, fmt.Errorf("router not configured")
+		}
+		promptText, err := r.renderer.RenderCoverageValidation(&prompt.CoverageValidationContext{
+			TestCode:        testCode,
+			CriterionNumber: criterion.Number,
+			CriterionText:   criterion.Text,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("rendering coverage validation prompt: %w", err)
+		}
+
+		p, modelName := r.router.Select("build", provider.TierLow)
+		if p == nil {
+			return nil, fmt.Errorf("no providers available for coverage validation")
+		}
+		result, err := p.Run(ctx, promptText, provider.TierLow)
+		if err != nil {
+			return nil, fmt.Errorf("coverage validation provider invocation failed (provider=%s model=%s): %w", p.Name(), modelName, err)
+		}
+		if result == nil {
+			return nil, fmt.Errorf("coverage validation returned nil result")
+		}
+		if !result.Success {
+			return nil, fmt.Errorf(
+				"coverage validation failed (provider=%s model=%s exit_code=%d): %s",
+				p.Name(),
+				modelName,
+				result.ExitCode,
+				runtypes.TruncateOutput(result.Output),
+			)
+		}
+
+		resp, err := coverage.ParseValidationResponse(result.Output)
+		if err != nil {
+			return nil, fmt.Errorf("parsing coverage validation response: %w", err)
+		}
+		return resp, nil
+	}
+}
+
 func (r *Runner) capturePromptDiagnostics(result *runtypes.IterationResult) {
 	if r == nil || r.renderer == nil || result == nil {
 		return
@@ -544,12 +592,12 @@ func reconcilePromptDiagnostics(diag *prompt.PromptDiagnostics, inputTokens int)
 }
 
 type tddOrchestrator struct {
-	runCyclesFn func(ctx context.Context, bc *runtypes.BeadContext) error
+	runCyclesFn func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error
 }
 
-func (o *tddOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadContext) error {
+func (o *tddOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 	if o != nil && o.runCyclesFn != nil {
-		return o.runCyclesFn(ctx, bc)
+		return o.runCyclesFn(ctx, bc, tracker, criteria)
 	}
 	return fmt.Errorf("tdd orchestrator is not configured")
 }
@@ -560,24 +608,52 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 	}
 
 	return &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			if bc == nil || bc.Bead == nil {
 				return fmt.Errorf("bead context is nil")
 			}
 
 			var activeBC *runtypes.BeadContext
+			var currentCoverageState string
+			var lastRenderedPhase string
+			var pendingCoverageCriterion *coverage.Criterion
+			var lastSelfReport *coverage.SelfReport
+			var lastFailingTestCode string
+			criteriaByNumber := make(map[int]coverage.Criterion, len(criteria))
+			for _, criterion := range criteria {
+				criteriaByNumber[criterion.Number] = criterion
+			}
+
 			orch := tdd.NewCycleOrchestrator(r.cfg, r.output, tdd.CycleOrchestratorDeps{
 				RenderRedFn: func(handoff *tdd.RedHandoff, bc *runtypes.BeadContext) (string, error) {
 					if r.renderer == nil {
 						return "", fmt.Errorf("renderer not configured")
 					}
+
+					specExcerpt := handoff.SpecExcerpt
+					currentCoverageState = ""
+					if tracker != nil {
+						nextCriterion := tracker.NextUncovered()
+						if nextCriterion != nil {
+							copied := *nextCriterion
+							pendingCoverageCriterion = &copied
+							currentCoverageState = tracker.FormatCoverageState(nextCriterion.Number)
+							if strings.TrimSpace(specExcerpt) == "" {
+								specExcerpt = currentCoverageState
+							} else {
+								specExcerpt = specExcerpt + "\n\n" + currentCoverageState
+							}
+						}
+					}
+
 					ctx := &prompt.TDDRedContext{
 						BeadTitle:        bc.Bead.Title,
-						SpecExcerpt:      handoff.SpecExcerpt,
+						SpecExcerpt:      specExcerpt,
 						TestFileContents: handoff.TestFiles,
 						APISurface:       handoff.APISurface,
 						CycleSummary:     handoff.CycleSummary,
 					}
+					lastRenderedPhase = "red"
 					return r.renderer.RenderTDDRed(ctx)
 				},
 				RenderGreenFn: func(handoff *tdd.GreenHandoff, bc *runtypes.BeadContext) (string, error) {
@@ -590,6 +666,8 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 						TestFailureOutput: handoff.TestFailureOutput,
 						ImplFileContents:  handoff.ImplFiles,
 					}
+					lastFailingTestCode = handoff.FailingTest
+					lastRenderedPhase = "green"
 					return r.renderer.RenderTDDGreen(ctx)
 				},
 				InvokeFn: func(ctx context.Context, promptText, tier string) error {
@@ -610,6 +688,10 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 					if !invResult.Result.Success {
 						return fmt.Errorf("invocation failed: %s", runtypes.TruncateOutput(invResult.Result.Output))
 					}
+					selfReport, reportErr := coverage.ParseSelfReport(invResult.Result.Output)
+					if reportErr == nil {
+						lastSelfReport = selfReport
+					}
 					return nil
 				},
 				ValidateFn: func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
@@ -620,7 +702,39 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 					if result == nil {
 						return "", false, fmt.Errorf("validation returned nil result")
 					}
-					return result.Output, claude.IsValidationPassed(result), nil
+					passed := claude.IsValidationPassed(result)
+					if !passed || tracker == nil || r.methodologyExec == nil || lastRenderedPhase != "green" {
+						return result.Output, passed, nil
+					}
+
+					target := pendingCoverageCriterion
+					if lastSelfReport != nil && lastSelfReport.Targeting > 0 {
+						if criterion, ok := criteriaByNumber[lastSelfReport.Targeting]; ok {
+							copied := criterion
+							target = &copied
+						}
+					}
+					if target == nil {
+						return result.Output, passed, nil
+					}
+
+					coverageResult, coverageErr := r.methodologyExec.ValidateCoverage(ctx, lastFailingTestCode, *target)
+					if coverageErr != nil {
+						return "", false, fmt.Errorf("coverage validation failed: %w", coverageErr)
+					}
+					if coverageResult != nil && coverageResult.Covers {
+						tracker.MarkCovered(target.Number)
+					} else {
+						tracker.RecordRejection(target.Number)
+					}
+					updateIterationCoverageMetrics(activeBC.Result, tracker)
+
+					if lastSelfReport != nil && len(lastSelfReport.Remaining) == 0 && !tracker.IsComplete() {
+						r.log("TDD coverage disagreement: self-report done but tracker has unchecked criteria (%s)", currentCoverageState)
+					}
+					lastRenderedPhase = ""
+					pendingCoverageCriterion = nil
+					return result.Output, passed, nil
 				},
 				RunRefactorFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
 					if r.methodologyExec == nil {
@@ -659,11 +773,22 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 				maxCycles = r.cfg.Methodology.MaxTDDCycles
 			}
 
+			remaining := append([]string(nil), bc.Bead.ExpectedOutputs...)
+			done := len(remaining) == 0
+			if tracker != nil {
+				uncovered := tracker.UncoveredCriteria()
+				remaining = make([]string, 0, len(uncovered))
+				for _, criterion := range uncovered {
+					remaining = append(remaining, criterion.Text)
+				}
+				done = tracker.IsComplete()
+			}
+
 			state := tdd.CycleState{
 				CycleNumber: 0,
 				MaxCycles:   maxCycles,
-				Remaining:   append([]string(nil), bc.Bead.ExpectedOutputs...),
-				Done:        len(bc.Bead.ExpectedOutputs) == 0,
+				Remaining:   remaining,
+				Done:        done,
 			}
 			if bc.StartCommit != "" {
 				if diff, err := r.getDiff(bc.StartCommit); err == nil {

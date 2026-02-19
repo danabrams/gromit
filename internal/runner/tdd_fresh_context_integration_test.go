@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
@@ -33,7 +34,7 @@ func TestTDD_FreshContext_FullValidationAfterCycles(t *testing.T) {
 
 	orchestratorCalled := false
 	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			orchestratorCalled = true
 			return nil
 		},
@@ -77,7 +78,7 @@ func TestTDD_FreshContext_DelegatesToOrchestrator(t *testing.T) {
 
 	orchestratorCalled := false
 	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			orchestratorCalled = true
 			return nil
 		},
@@ -118,7 +119,7 @@ func TestTDD_FreshContext_FallsBackOnOrchestratorError(t *testing.T) {
 
 	wantErr := errors.New("orchestrator failed")
 	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			return wantErr
 		},
 	}
@@ -190,7 +191,7 @@ func TestTDD_LabelOverride_TDDFalse_SkipsOrchestrator(t *testing.T) {
 
 	orchestratorCalled := false
 	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			orchestratorCalled = true
 			return nil
 		},
@@ -224,7 +225,7 @@ func TestTDD_ConfigToggle_PreservesExistingBehavior(t *testing.T) {
 
 	orchestratorCalled := false
 	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			orchestratorCalled = true
 			return nil
 		},
