@@ -86,3 +86,15 @@ func TestShowRefinePickerSomethingNewOptionSelectsCorrectly(t *testing.T) {
 		t.Fatalf("expected choice %d for 'something new' input, got %d", len(unrefined), choice)
 	}
 }
+
+func TestShowRefinePickerNegativeInputSelectsNew(t *testing.T) {
+	unrefined := []*backlog.Idea{
+		{ID: "idea-1", Text: "First", Type: "task"},
+	}
+
+	choice := showRefinePicker(unrefined, strings.NewReader("-1\n"))
+
+	if choice != len(unrefined) {
+		t.Fatalf("expected choice %d for negative input, got %d", len(unrefined), choice)
+	}
+}
