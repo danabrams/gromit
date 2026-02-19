@@ -11,7 +11,6 @@ import (
 
 // TestPipeline_ExploreValidatesDeps verifies that Explore returns an error when required dependencies are nil.
 func TestPipeline_ExploreValidatesDeps(t *testing.T) {
-	// Expected failure: Pipeline.Explore method does not exist yet with full dependency validation
 	tests := []struct {
 		name    string
 		deps    *Deps
