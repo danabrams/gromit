@@ -1,6 +1,9 @@
 package coverage
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNewTracker_NextUncoveredReturnsNilForEmpty(t *testing.T) {
 	tracker := NewTracker([]Criterion{}, 2)
@@ -23,6 +26,30 @@ func TestNewTracker_NextUncoveredReturnsCriterion(t *testing.T) {
 	}
 	if next.Number != 1 {
 		t.Fatalf("NextUncovered().Number = %d, want 1", next.Number)
+	}
+}
+
+func TestSummary_RendersHumanReadableSummary(t *testing.T) {
+	criteria := []Criterion{
+		{Number: 1, Text: "First criterion"},
+		{Number: 2, Text: "Second criterion"},
+		{Number: 3, Text: "Third criterion"},
+	}
+	tracker := NewTracker(criteria, 2)
+	tracker.MarkCovered(1)
+	tracker.RecordRejection(2)
+	tracker.RecordRejection(2)
+
+	got := tracker.Summary()
+
+	if !strings.Contains(got, "1/3") {
+		t.Errorf("Summary() = %q, want it to contain covered count 1/3", got)
+	}
+	if !strings.Contains(got, "#3") {
+		t.Errorf("Summary() = %q, want it to mention uncovered criterion #3", got)
+	}
+	if !strings.Contains(got, "#2") {
+		t.Errorf("Summary() = %q, want it to mention untestable criterion #2", got)
 	}
 }
 

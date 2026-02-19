@@ -79,6 +79,41 @@ func (t *CoverageTracker) FormatCoverageState(targeting int) string {
 		targeting, targetText, strings.Join(parts, ", "))
 }
 
+// Summary renders a human-readable coverage summary for bead comments.
+func (t *CoverageTracker) Summary() string {
+	total := len(t.criteria)
+	covered := 0
+	for _, cs := range t.criteria {
+		if cs.Status == Covered {
+			covered++
+		}
+	}
+
+	uncovered := t.UncoveredCriteria()
+	untestable := t.UntestableCriteria()
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Coverage: %d/%d criteria covered", covered, total)
+
+	if len(uncovered) > 0 {
+		parts := make([]string, len(uncovered))
+		for i, cs := range uncovered {
+			parts[i] = fmt.Sprintf("#%d", cs.Number)
+		}
+		fmt.Fprintf(&sb, "\nUncovered: %s", strings.Join(parts, ", "))
+	}
+
+	if len(untestable) > 0 {
+		parts := make([]string, len(untestable))
+		for i, cs := range untestable {
+			parts[i] = fmt.Sprintf("#%d", cs.Number)
+		}
+		fmt.Fprintf(&sb, "\nUntestable: %s", strings.Join(parts, ", "))
+	}
+
+	return sb.String()
+}
+
 // UntestableCriteria returns all criteria in Untestable state.
 func (t *CoverageTracker) UntestableCriteria() []CriterionState {
 	result := make([]CriterionState, 0)
