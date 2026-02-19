@@ -8,6 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/failurephase"
+	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -150,7 +151,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		if bc.StartCommit != "" {
 			diff, err := r.getDiff(bc.StartCommit)
 			if err == nil && diff != "" {
-				bc.TouchedPackages = detectTouchedPackages(diff)
+				bc.TouchedPackages = methodology.DetectTouchedPackages(diff)
 			}
 		}
 
@@ -303,7 +304,7 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 			if bc.StartCommit != "" {
 				diff, err := r.getDiff(bc.StartCommit)
 				if err == nil && diff != "" {
-					bc.TouchedPackages = detectTouchedPackages(diff)
+					bc.TouchedPackages = methodology.DetectTouchedPackages(diff)
 				}
 			}
 

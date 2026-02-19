@@ -47,7 +47,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		}
 		if bc.StartCommit != "" {
 			if diff, err := r.getDiff(bc.StartCommit); err == nil && diff != "" {
-				bc.TouchedPackages = detectTouchedPackages(diff)
+				bc.TouchedPackages = methodology.DetectTouchedPackages(diff)
 			}
 		}
 		injectScopedTestCommand(bc)

@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -331,7 +332,7 @@ index 789..abc def`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := detectTouchedPackages(tt.diff)
+			result := methodology.DetectTouchedPackages(tt.diff)
 			if len(result) != len(tt.expected) {
 				t.Errorf("detectTouchedPackages() returned %d packages, expected %d", len(result), len(tt.expected))
 				t.Errorf("got: %v", result)

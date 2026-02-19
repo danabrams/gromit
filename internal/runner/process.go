@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
@@ -167,62 +168,7 @@ func (r *Runner) handleScopeTooLarge(bc *runtypes.BeadContext, claudeResult *cla
 	bc.Result.Error = fmt.Errorf("scope too large: %s - needs breakdown", explanation)
 }
 
-// parseDiffFiles extracts file paths from git diff output.
-// Returns a slice of file paths in the order they appear.
-func parseDiffFiles(diff string) []string {
-	if diff == "" {
-		return nil
-	}
-
-	var files []string
-	for _, line := range strings.Split(diff, "\n") {
-		if strings.HasPrefix(line, "diff --git ") {
-			// Extract file path from "diff --git a/path b/path"
-			parts := strings.Fields(line)
-			if len(parts) >= 4 {
-				filePath := strings.TrimPrefix(parts[3], "b/")
-				files = append(files, filePath)
-			}
-		}
-	}
-	return files
-}
-
-// detectTouchedPackages extracts unique Go package paths from git diff output.
-// Only considers .go files (excludes README.md, etc.).
-// Returns a slice of package paths in the order they appear (deduplicated).
-func detectTouchedPackages(diff string) []string {
-	files := parseDiffFiles(diff)
-	if len(files) == 0 {
-		return []string{}
-	}
-
-	seen := make(map[string]bool)
-	var packages []string
-
-	for _, filePath := range files {
-		// Only consider .go files
-		if !strings.HasSuffix(filePath, ".go") {
-			continue
-		}
-
-		// Extract package directory (everything except the filename)
-		lastSlash := strings.LastIndex(filePath, "/")
-		if lastSlash == -1 {
-			// File is in root directory
-			continue
-		}
-		pkgPath := filePath[:lastSlash]
-
-		// Add to results if not already seen
-		if !seen[pkgPath] {
-			seen[pkgPath] = true
-			packages = append(packages, pkgPath)
-		}
-	}
-
-	return packages
-}
+var _ = methodology.DetectTouchedPackages
 
 // computeScopedTestCommand constructs an explicit "go test ./pkg/..." command
 // for the given touched package paths. Returns an empty string when packages
