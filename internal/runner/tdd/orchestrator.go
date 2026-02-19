@@ -208,19 +208,24 @@ func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtyp
 	}
 
 	// Capture pre-refactor state for revert.
-	var preRefactorCommit string
+	preRefactorCommit := ""
 	if o.getGitHeadFn != nil {
-		preRefactorCommit, _ = o.getGitHeadFn()
+		commit, _ := o.getGitHeadFn()
+		preRefactorCommit = commit
 	}
 
 	_ = o.runRefactorFn(ctx, bc)
 
 	// Verify tests still pass after refactor.
-	_, passed, err := o.validateFn(ctx, nil, "")
-	if err == nil && !passed {
-		// Refactor broke tests — revert and continue.
-		if preRefactorCommit != "" && o.gitResetFn != nil {
-			_ = o.gitResetFn(preRefactorCommit)
-		}
+	_, passed, validateErr := o.validateFn(ctx, nil, "")
+	if validateErr != nil || passed {
+		return
 	}
+
+	// Refactor broke tests — revert and continue.
+	if preRefactorCommit == "" || o.gitResetFn == nil {
+		return
+	}
+
+	_ = o.gitResetFn(preRefactorCommit)
 }
