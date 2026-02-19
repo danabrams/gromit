@@ -143,3 +143,38 @@ func TestAssembleGreenHandoffCapturesTestContentAndFailure(t *testing.T) {
 		t.Fatalf("expected failing test content to be populated")
 	}
 }
+
+func TestAssembleRefactorHandoffReadsAllTouchedFiles(t *testing.T) {
+	touchedFiles := []string{
+		"internal/auth/login_test.go",
+		"internal/auth/login.go",
+		"internal/auth/session.go",
+	}
+
+	readFile := fakeReadFile(map[string]string{
+		"internal/auth/login_test.go": "package auth\n\nfunc TestLogin(t *testing.T) {}",
+		"internal/auth/login.go":      "package auth\n\nfunc Login() {}",
+		"internal/auth/session.go":    "package auth\n\nfunc Session() {}",
+	})
+
+	handoff, err := AssembleRefactorHandoff(readFile, touchedFiles)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(handoff.TestFiles) != 1 {
+		t.Fatalf("expected 1 test file, got %d", len(handoff.TestFiles))
+	}
+	if handoff.TestFiles["internal/auth/login_test.go"] == "" {
+		t.Fatalf("expected test file content to be populated")
+	}
+	if len(handoff.ImplFiles) != 2 {
+		t.Fatalf("expected 2 impl files, got %d", len(handoff.ImplFiles))
+	}
+	if handoff.ImplFiles["internal/auth/login.go"] == "" {
+		t.Fatalf("expected login.go content to be populated")
+	}
+	if handoff.ImplFiles["internal/auth/session.go"] == "" {
+		t.Fatalf("expected session.go content to be populated")
+	}
+}

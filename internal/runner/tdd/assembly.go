@@ -93,3 +93,32 @@ func AssembleGreenHandoff(testOutput string, readFile ReadFileFn, touchedFiles [
 		ImplFiles:         implFiles,
 	}, nil
 }
+
+// AssembleRefactorHandoff builds context for the refactor phase.
+// It reads all touched test and impl files for behavior-preserving cleanup.
+func AssembleRefactorHandoff(readFile ReadFileFn, touchedFiles []string) (*RefactorHandoff, error) {
+	testPaths, implPaths := ClassifyTouchedFiles(touchedFiles)
+
+	testFiles := make(map[string]string, len(testPaths))
+	for _, p := range testPaths {
+		content, err := readFile(p)
+		if err != nil {
+			return nil, err
+		}
+		testFiles[p] = content
+	}
+
+	implFiles := make(map[string]string, len(implPaths))
+	for _, p := range implPaths {
+		content, err := readFile(p)
+		if err != nil {
+			return nil, err
+		}
+		implFiles[p] = content
+	}
+
+	return &RefactorHandoff{
+		ImplFiles: implFiles,
+		TestFiles: testFiles,
+	}, nil
+}
