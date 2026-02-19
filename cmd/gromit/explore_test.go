@@ -107,7 +107,13 @@ func TestExplorePromptRenderer_RenderExploreBuildsPromptDiagnostics(t *testing.T
 		t.Fatalf("PromptType = %q, want %q", diagnostics.PromptType, "explore")
 	}
 
-	for _, key := range []string{"topic", prompt.SectionClaudeMD, prompt.SectionRules, "learnings", "instructions"} {
+	for _, key := range []string{
+		exploreSectionTopic,
+		prompt.SectionClaudeMD,
+		prompt.SectionRules,
+		exploreSectionLearnings,
+		exploreSectionInstructions,
+	} {
 		if _, ok := diagnostics.SectionTokens[key]; !ok {
 			t.Fatalf("SectionTokens missing key %q", key)
 		}

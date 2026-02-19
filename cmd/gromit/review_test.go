@@ -163,18 +163,61 @@ func TestCliLogWriter_WriteIncludesPromptDiagnosticsFromProvider(t *testing.T) {
 	}
 }
 
-func TestRunReviewNonInteractive_WiresRendererLastDiagnosticsIntoLogAdapter(t *testing.T) {
-	data, err := os.ReadFile("review.go")
-	if err != nil {
-		t.Fatalf("ReadFile(review.go) error = %v", err)
+func TestCliLogWriter_WriteUsesProviderAtWriteTime(t *testing.T) {
+	logsDir := t.TempDir()
+	initialDiagnostics := &prompt.PromptDiagnostics{PromptType: "initial"}
+	updatedDiagnostics := &prompt.PromptDiagnostics{PromptType: "updated"}
+	currentDiagnostics := initialDiagnostics
+
+	writer := &cliLogWriter{
+		logsDir: logsDir,
+		promptDiagnosticsProvider: func() *prompt.PromptDiagnostics {
+			return currentDiagnostics
+		},
 	}
 
-	source := string(data)
-	if !strings.Contains(source, "promptDiagnosticsProvider") {
-		t.Fatal("review.go missing promptDiagnosticsProvider wiring in non-interactive review path")
+	// Match runReviewNonInteractive behavior: diagnostics are read when logs are written.
+	currentDiagnostics = updatedDiagnostics
+
+	entry := &pipeline.LogEntry{
+		Type:   "review",
+		Passed: true,
 	}
-	if !strings.Contains(source, "renderer.LastDiagnostics()") {
-		t.Fatal("runReviewNonInteractive should wire renderer.LastDiagnostics() to the log adapter")
+	if err := writer.Write(entry); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("Glob() error = %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(files))
+	}
+
+	content, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 log line, got %d", len(lines))
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &raw); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	diagRaw, ok := raw["prompt_diagnostics"]
+	if !ok {
+		t.Fatalf("expected prompt_diagnostics in review log entry: %s", lines[0])
+	}
+	diagMap, ok := diagRaw.(map[string]any)
+	if !ok {
+		t.Fatalf("prompt_diagnostics has unexpected type %T", diagRaw)
+	}
+	if got, _ := diagMap["prompt_type"].(string); got != "updated" {
+		t.Fatalf("prompt_type = %q, want %q", got, "updated")
 	}
 }
 

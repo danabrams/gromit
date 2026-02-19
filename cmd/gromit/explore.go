@@ -44,6 +44,11 @@ const exploreChooseAgentHelpExample = `  gromit explore --choose-agent "Audit on
 const exploreAgentSelectionHelpSentence = "Agent selection priority: --agent, --choose-agent, agents.phases.explore, then the configured default agent."
 const exploreAgentOverrideFlag = "--from-override"
 const explorePhaseConfigFlag = "--from-phase-config"
+const (
+	exploreSectionTopic        = "topic"
+	exploreSectionLearnings    = "learnings"
+	exploreSectionInstructions = "instructions"
+)
 
 func init() {
 	exploreCmd.Flags().StringVar(&exploreModel, "model", "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
@@ -256,16 +261,15 @@ func (r *explorePromptRenderer) RenderExplore(input *pipeline.ExplorePromptInput
 ### Session Flow
 
 Start by understanding the topic, then alternate between discussing ideas and capturing them. End the session when the problem space feels well-mapped and the key ideas have been captured as artifacts.`
-	if r != nil {
-		sectionTokens := prompt.EstimateSectionTokens(map[string]string{
-			"topic":                topic,
-			prompt.SectionClaudeMD: claudeMD,
-			prompt.SectionRules:    rules,
-			"learnings":            learningsSection,
-			"instructions":         fmt.Sprintf(instructionsSection, specsDir, gromitDir),
-		})
-		r.lastDiagnostics = prompt.NewDiagnostics("explore", sectionTokens)
-	}
+	renderedInstructions := fmt.Sprintf(instructionsSection, specsDir, gromitDir)
+	sectionTokens := prompt.EstimateSectionTokens(map[string]string{
+		exploreSectionTopic:        topic,
+		prompt.SectionClaudeMD:     claudeMD,
+		prompt.SectionRules:        rules,
+		exploreSectionLearnings:    learningsSection,
+		exploreSectionInstructions: renderedInstructions,
+	})
+	r.lastDiagnostics = prompt.NewDiagnostics("explore", sectionTokens)
 
 	// Build the system prompt
 	var sb strings.Builder
@@ -314,7 +318,7 @@ Specs directory: %s
 
 	// Exploration instructions
 	sb.WriteString("## Instructions\n\n")
-	sb.WriteString(fmt.Sprintf(instructionsSection, specsDir, gromitDir))
+	sb.WriteString(renderedInstructions)
 	sb.WriteString("\n")
 
 	return sb.String(), nil
