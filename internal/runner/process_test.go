@@ -2350,6 +2350,47 @@ func TestBuildPromptForBead_LowComplexityKeepsSonnet(t *testing.T) {
 	}
 }
 
+func TestBuildPromptForBead_SkipsScopeEscalationWhenTierHigh(t *testing.T) {
+	var buf strings.Builder
+	cfg := &config.Config{
+		ScopeCheck: config.ScopeCheckConfig{
+			Enabled: true,
+			Model:   "haiku",
+		},
+	}
+	r := &Runner{
+		cfg:               cfg,
+		renderer:          &mockPromptRenderer{},
+		output:            &buf,
+		escalationHandler: newTestEscalationHandler(cfg),
+	}
+	bc := &runtypes.BeadContext{
+		Bead:             &bead.Bead{ID: "test-1", Title: "Test", Labels: []string{}},
+		Model:            "opus",
+		Tier:             provider.TierHigh,
+		Result:           &IterationResult{Model: "opus"},
+		RetriesThisModel: 2,
+		ScopeEstimate: &prompt.ScopeEstimate{
+			Complexity:                   "high",
+			EstimatedIterations:          2,
+			CanCompleteInSingleIteration: false,
+			Rationale:                    "Large change",
+			Blockers:                     []string{},
+		},
+	}
+
+	err := r.buildPromptForBead(context.Background(), bc, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bc.RetriesThisModel != 2 {
+		t.Errorf("expected retriesThisModel to remain 2, got %d", bc.RetriesThisModel)
+	}
+	if strings.Contains(buf.String(), "auto-escalating") {
+		t.Errorf("should not auto-escalate when tier already high, got: %s", buf.String())
+	}
+}
+
 func TestWriteIterationLog_DiagnosticFields(t *testing.T) {
 	mockLog := &mockIterationLogger{}
 

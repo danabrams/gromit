@@ -115,8 +115,12 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 		}
 		if scopeEstimate != nil {
 			if scopeEstimate.Complexity == "high" {
-				r.log("Scope check: complexity=high, auto-escalating to high tier")
-				r.escalationHandler.EscalateTier(bc, provider.TierHigh)
+				if bc.Tier != provider.TierHigh {
+					r.log("Scope check: complexity=high, auto-escalating to high tier")
+					r.escalationHandler.EscalateTier(bc, provider.TierHigh)
+				} else {
+					r.log("Scope check: complexity=high")
+				}
 			} else {
 				r.log("Scope check: complexity=%s", scopeEstimate.Complexity)
 			}
