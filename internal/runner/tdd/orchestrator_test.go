@@ -489,54 +489,6 @@ func TestRunCycles_InitialValidationNonGreen_SkipsRefactor(t *testing.T) {
 	}
 }
 
-func TestRunCycles_InitialValidationNonGreen_SkipsRefactorPhase(t *testing.T) {
-	orch := newTestOrchestrator()
-
-	refactorCalls := 0
-
-	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
-		return "red", nil
-	}
-	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
-		return "green", nil
-	}
-	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
-		return nil
-	}
-	validateCall := 0
-	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
-		validateCall++
-		switch validateCall {
-		case 1:
-			return "FAIL", false, nil // Initial validation is non-green.
-		case 2:
-			return "PASS", true, nil // Green validation passes.
-		default:
-			t.Fatalf("unexpected additional validation call %d", validateCall)
-			return "", false, nil
-		}
-	}
-	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
-		refactorCalls++
-		return nil
-	}
-
-	bc := &runtypes.BeadContext{
-		Result: &runtypes.IterationResult{},
-		Tier:   "medium",
-	}
-	state := singleRequirementState()
-
-	err := orch.RunCycles(context.Background(), bc, state)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if refactorCalls != 0 {
-		t.Fatalf("expected refactor phase to be skipped when initial validation is non-green, got %d calls", refactorCalls)
-	}
-}
-
 func TestRunCycles_RedEscalation_RetriesThenEscalates(t *testing.T) {
 	orch := newTestOrchestrator()
 
