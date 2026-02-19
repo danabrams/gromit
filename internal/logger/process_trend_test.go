@@ -162,6 +162,40 @@ func TestBuildProcessTrend_PhaseRatesSumToFailureRate(t *testing.T) {
 	assertFloatNear(t, sum, trend.LatestWindow.FailureRate, "PhaseFailureRateSum")
 }
 
+func TestBuildProcessTrend_HasNineControlLimitsWithPhaseRates(t *testing.T) {
+	entries := []IterationLog{
+		makeIterationLog(false, failurephase.Preflight),
+		makeIterationLog(false, failurephase.Build),
+		makeIterationLog(false, failurephase.Validation),
+		makeIterationLog(false, failurephase.Timeout),
+		makeIterationLog(true, ""),
+	}
+
+	metrics := buildIterationMetrics(entries, 5)
+	trend := buildProcessTrend(metrics, 5)
+
+	if len(trend.ControlLimits) != 9 {
+		t.Errorf("expected 9 control limits, got %d", len(trend.ControlLimits))
+	}
+
+	phaseRateNames := map[string]bool{
+		"rolling_preflight_failure_rate":  false,
+		"rolling_build_failure_rate":      false,
+		"rolling_validation_failure_rate": false,
+		"rolling_timeout_failure_rate":    false,
+	}
+	for _, cl := range trend.ControlLimits {
+		if _, ok := phaseRateNames[cl.Metric]; ok {
+			phaseRateNames[cl.Metric] = true
+		}
+	}
+	for name, found := range phaseRateNames {
+		if !found {
+			t.Errorf("control limit %q not found in trend", name)
+		}
+	}
+}
+
 func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,

@@ -323,6 +323,10 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		"rolling_escalation_rate":         extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingEscalationRate }),
 		"rolling_avg_duration_ms":         extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingAvgDurationMs }),
 		"rolling_avg_cost_usd":            extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingAvgCostUSD }),
+		"rolling_preflight_failure_rate":  extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingPreflightFailureRate }),
+		"rolling_build_failure_rate":      extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingBuildFailureRate }),
+		"rolling_validation_failure_rate": extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingValidationFailureRate }),
+		"rolling_timeout_failure_rate":    extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate }),
 	}
 
 	for metricName, values := range series {
