@@ -561,11 +561,12 @@ func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger
 // - Create specs
 // - Select and persist experiments
 func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment, dir string) error {
-	promptText := buildClaudeCodePrompt(analysis, efficiency, experiment)
+	promptText := BuildClaudeCodePrompt(analysis, efficiency, experiment)
 	return runInteractiveClaude(promptText, dir, os.Stdin, os.Stdout, os.Stderr)
 }
 
-func buildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment) string {
+// BuildClaudeCodePrompt builds the prompt for the interactive retro review session.
+func BuildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment) string {
 	// Build the prompt with analysis and instructions
 	var prompt strings.Builder
 

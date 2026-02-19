@@ -45,7 +45,7 @@ func TestBuildClaudeCodePrompt_IncludesEfficiencyAndExperimentSections(t *testin
 		Change:     "Test change",
 	}
 
-	prompt := buildClaudeCodePrompt("analysis", efficiency, experiment)
+	prompt := BuildClaudeCodePrompt("analysis", efficiency, experiment)
 
 	if !strings.Contains(prompt, "# Efficiency Analysis") {
 		t.Fatalf("prompt missing efficiency section: %q", prompt)

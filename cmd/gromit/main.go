@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -113,6 +114,8 @@ func init() {
 	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip interactive session and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md")
 	retroCmd.Flags().StringVar(&retroSpecFlag, "spec", "", "Scope retro to a specific spec")
 	retroCmd.Flags().StringVar(&retroEpicFlag, "epic", "", "Scope retro to a specific epic")
+	retroCmd.Flags().String("agent", "", "Override the default agent for this retro session")
+	retroCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
 
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(statusCmd)
@@ -221,7 +224,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	// Build bead filter from flags
 	var beadFilter map[string]bool
 	var labels []string
-	specsDir := filepath.Join(gromitDir, "specs")
+	specsDir := resolveSpecsDir(cfg)
 
 	if retroSpecFlag != "" {
 		if err := scope.ValidateSpec(specsDir, retroSpecFlag); err != nil {
@@ -299,7 +302,31 @@ func runRetro(cmd *cobra.Command, args []string) error {
 
 	// Default: launch interactive review and application session
 	fmt.Println("\nLaunching interactive review session...")
-	if err := retro.LaunchClaudeCode(result.Analysis, result.Efficiency, result.Experiment, ""); err != nil {
+
+	promptText := retro.BuildClaudeCodePrompt(result.Analysis, result.Efficiency, result.Experiment)
+	tmpDir := filepath.Join(gromitDir, "tmp")
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		return fmt.Errorf("creating tmp dir: %w", err)
+	}
+	promptFile, err := os.CreateTemp(tmpDir, "retro-prompt-*.md")
+	if err != nil {
+		return fmt.Errorf("creating temp prompt file: %w", err)
+	}
+	promptPath := promptFile.Name()
+	defer os.Remove(promptPath)
+	if _, err := promptFile.WriteString(promptText); err != nil {
+		promptFile.Close()
+		return fmt.Errorf("writing prompt file: %w", err)
+	}
+	promptFile.Close()
+
+	agentFlag, _ := cmd.Flags().GetString("agent")
+	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
+	selectedAgent, err := agent.Resolve(cfg, "retro", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	if err != nil {
+		return fmt.Errorf("resolving agent: %w", err)
+	}
+	if err := selectedAgent.Launch(promptPath); err != nil {
 		return fmt.Errorf("launching interactive review session: %w", err)
 	}
 
