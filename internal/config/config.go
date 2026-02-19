@@ -254,7 +254,7 @@ type MethodologyPhaseTimeout struct {
 }
 
 type GitConfig struct {
-	AutoPush    *bool `yaml:"auto_push"`
+	AutoPush    *bool  `yaml:"auto_push"`
 	PushFailure string `yaml:"push_failure"`
 	PushTimeout int    `yaml:"push_timeout"`
 }
