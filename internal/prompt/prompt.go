@@ -150,6 +150,21 @@ type TDDRedContext struct {
 	PrevFailure       string
 }
 
+// TDDGreenContext holds data for TDD green-phase prompt template.
+type TDDGreenContext struct {
+	BeadID            string
+	BeadTitle         string
+	FailingTest       string
+	TestFailureOutput string
+	ImplFileContents  map[string]string
+	Rules             string
+	WorkDir           string
+	ScopedTestCommand string
+	IsRetry           bool
+	FailureContext    string
+	PrevFailure       string
+}
+
 // ScopeEstimate represents the result of scope estimation
 type ScopeEstimate struct {
 	Complexity                   string   `json:"complexity"`
