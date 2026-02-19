@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // decomposeDepthWarnThreshold is the depth at which a warning is logged during decomposition.
@@ -24,7 +25,7 @@ const defaultMaxDecomposeDepth = 10
 
 // DecomposeTask calls Claude (opus) to decompose a task and returns parsed sub-tasks
 // Does NOT create beads - just gets the decomposition
-func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, error) {
+func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
 	if r == nil {
 		return nil, fmt.Errorf("runner is nil")
 	}
@@ -108,12 +109,12 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 
 // parseDecomposeOutput parses Claude's JSON array decompose output into []SubTask
 // It's resilient to non-pure JSON output (e.g., explanatory text before/after the JSON)
-func parseDecomposeOutput(output string) ([]SubTask, error) {
+func parseDecomposeOutput(output string) ([]runtypes.SubTask, error) {
 	if output == "" {
 		return nil, fmt.Errorf("decompose output is empty")
 	}
 
-	var subTasks []SubTask
+	var subTasks []runtypes.SubTask
 	parseArrayErr := jsonutil.ExtractArray(output, &subTasks)
 	if parseArrayErr != nil {
 		if strings.Contains(output, "[") && !strings.Contains(output, "]") {
@@ -123,10 +124,10 @@ func parseDecomposeOutput(output string) ([]SubTask, error) {
 		// Fallback for wrapper formats:
 		// {"sub_tasks":[...]} / {"subtasks":[...]} / {"tasks":[...]} / {"items":[...]}
 		var wrapped struct {
-			SubTasks []SubTask `json:"sub_tasks"`
-			Subtasks []SubTask `json:"subtasks"`
-			Tasks    []SubTask `json:"tasks"`
-			Items    []SubTask `json:"items"`
+			SubTasks []runtypes.SubTask `json:"sub_tasks"`
+			Subtasks []runtypes.SubTask `json:"subtasks"`
+			Tasks    []runtypes.SubTask `json:"tasks"`
+			Items    []runtypes.SubTask `json:"items"`
 		}
 		if err := jsonutil.ExtractObject(output, &wrapped); err == nil {
 			switch {
@@ -164,7 +165,7 @@ func previewDecomposeOutput(output string) string {
 	return output
 }
 
-func buildSubTaskDescription(subTask SubTask) string {
+func buildSubTaskDescription(subTask runtypes.SubTask) string {
 	if subTask.Description == "" {
 		return ""
 	}
@@ -186,7 +187,7 @@ func buildSubTaskDescription(subTask SubTask) string {
 
 // CreateSubBeads creates child beads from decomposed sub-tasks, comments on the original
 // bead with the new sub-bead IDs, and closes the original bead.
-func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []SubTask) error {
+func (r *Runner) CreateSubBeads(ctx context.Context, b *bead.Bead, subTasks []runtypes.SubTask) error {
 	if r == nil {
 		return fmt.Errorf("runner is nil")
 	}
