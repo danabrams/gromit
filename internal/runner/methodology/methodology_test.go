@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -848,35 +849,35 @@ func TestValidateCoverage_InvokesCallback(t *testing.T) {
 	exec := NewExecutor(cfg, &buf, nil, nil, nil)
 
 	var gotCtx context.Context
-	var gotBead *runtypes.BeadContext
 	var gotTestCode string
-	var gotCriterion string
+	gotCriterion := coverage.Criterion{}
 
-	exec.SetCoverageValidateFn(func(ctx context.Context, bc *runtypes.BeadContext, testCode, criterion string) (*claude.Result, error) {
+	exec.SetCoverageValidateFn(func(ctx context.Context, testCode string, criterion coverage.Criterion) (*coverage.ValidationResponse, error) {
 		gotCtx = ctx
-		gotBead = bc
 		gotTestCode = testCode
 		gotCriterion = criterion
-		return &claude.Result{Success: true}, nil
+		return &coverage.ValidationResponse{
+			Covers: true,
+			Reason: "ok",
+		}, nil
 	})
 
 	ctx := context.Background()
-	bc := newTestBeadContext()
-	_, err := exec.ValidateCoverage(ctx, bc, "package foo\n", "criterion-1")
+	_, err := exec.ValidateCoverage(ctx, "package foo\n", coverage.Criterion{Number: 2, Text: "criterion-1"})
 	if err != nil {
 		t.Fatalf("ValidateCoverage returned unexpected error: %v", err)
 	}
 	if gotCtx != ctx {
 		t.Fatal("ValidateCoverage should pass through the context")
 	}
-	if gotBead != bc {
-		t.Fatal("ValidateCoverage should pass through the bead context")
-	}
 	if gotTestCode != "package foo\n" {
 		t.Fatalf("ValidateCoverage passed testCode %q, want %q", gotTestCode, "package foo\n")
 	}
-	if gotCriterion != "criterion-1" {
-		t.Fatalf("ValidateCoverage passed criterion %q, want %q", gotCriterion, "criterion-1")
+	if gotCriterion.Number != 2 {
+		t.Fatalf("ValidateCoverage passed criterion number %d, want %d", gotCriterion.Number, 2)
+	}
+	if gotCriterion.Text != "criterion-1" {
+		t.Fatalf("ValidateCoverage passed criterion text %q, want %q", gotCriterion.Text, "criterion-1")
 	}
 }
 
@@ -886,14 +887,14 @@ func TestValidateCoverage_PropagatesResultAndError(t *testing.T) {
 
 	exec := NewExecutor(cfg, &buf, nil, nil, nil)
 
-	expectedResult := &claude.Result{Success: false, Output: "missing coverage", ExitCode: 1}
+	expectedResult := &coverage.ValidationResponse{Covers: false, Reason: "missing coverage"}
 	expectedErr := errors.New("coverage check failed")
 
-	exec.SetCoverageValidateFn(func(ctx context.Context, bc *runtypes.BeadContext, testCode, criterion string) (*claude.Result, error) {
+	exec.SetCoverageValidateFn(func(ctx context.Context, testCode string, criterion coverage.Criterion) (*coverage.ValidationResponse, error) {
 		return expectedResult, expectedErr
 	})
 
-	result, err := exec.ValidateCoverage(context.Background(), newTestBeadContext(), "package foo\n", "criterion-2")
+	result, err := exec.ValidateCoverage(context.Background(), "package foo\n", coverage.Criterion{Number: 3, Text: "criterion-2"})
 	if result != expectedResult {
 		t.Fatalf("ValidateCoverage result = %#v, want %#v", result, expectedResult)
 	}

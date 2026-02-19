@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -25,7 +26,7 @@ type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string)
 type ValidateDirectFn func(ctx context.Context, commands []string, workDir string) (*claude.Result, error)
 
 // CoverageValidateFn validates coverage for a test code snippet and criterion.
-type CoverageValidateFn func(ctx context.Context, bc *runtypes.BeadContext, testCode, criterion string) (*claude.Result, error)
+type CoverageValidateFn func(ctx context.Context, testCode string, criterion coverage.Criterion) (*coverage.ValidationResponse, error)
 
 // Executor handles ATDD workflow phases: writing acceptance tests,
 // verifying they fail before implementation, refactoring, and retry wrappers.
@@ -104,11 +105,11 @@ func (e *Executor) SetRefactorDeps(deps RefactorDeps) {
 }
 
 // ValidateCoverage delegates coverage validation to the configured callback.
-func (e *Executor) ValidateCoverage(ctx context.Context, bc *runtypes.BeadContext, testCode, criterion string) (*claude.Result, error) {
+func (e *Executor) ValidateCoverage(ctx context.Context, testCode string, criterion coverage.Criterion) (*coverage.ValidationResponse, error) {
 	if e.coverageValidateFn == nil {
 		return nil, fmt.Errorf("coverage validate function not configured")
 	}
-	return e.coverageValidateFn(ctx, bc, testCode, criterion)
+	return e.coverageValidateFn(ctx, testCode, criterion)
 }
 
 // AcceptanceCommands returns a copy of the given commands with "-tags acceptance"
