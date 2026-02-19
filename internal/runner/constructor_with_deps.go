@@ -106,6 +106,7 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log, r.showPartialProgress)
 	r.validationRunner = validation.NewRunner(cfg, cmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
 	r.methodologyExec = r.makeMethodologyExec()
+	r.cycleOrchestrator = &cycleOrchestrator{runner: r}
 	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		r.specOrchestrator = newSpecOrchestrator(r)
 	}

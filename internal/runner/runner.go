@@ -66,6 +66,7 @@ type Runner struct {
 	validationPolicy   policy.ValidationPolicy
 	stuckPolicy        policy.StuckPolicy
 	methodologyExec    *methodology.Executor
+	cycleOrchestrator  *cycleOrchestrator
 	validationRunner   *validation.Runner
 	reviewer           *reviewpkg.Reviewer
 	analyzer           FailureAnalyzer
@@ -260,6 +261,13 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 		return r.escalationHandler.ExecuteWithRetry(ctx, bc, invokeFn)
 	}
 
+	return r.runMethodologyExecution(ctx, bc, atddActive, tddActive, executeWithRetry)
+}
+
+func (r *Runner) runMethodologyExecution(ctx context.Context, bc *runtypes.BeadContext, atddActive bool, tddActive bool, executeWithRetry func() bool) *IterationResult {
+	if tddActive && r.cfg.Methodology.FreshContextPerCycle && r.cycleOrchestrator != nil {
+		return r.cycleOrchestrator.Execute(ctx, bc, atddActive, executeWithRetry)
+	}
 	return r.executeBuildAndMethodologyLoop(ctx, bc, atddActive, tddActive, executeWithRetry)
 }
 
