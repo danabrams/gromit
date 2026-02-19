@@ -175,6 +175,67 @@ func TestPrepareMethodology_TDDSelectsRenderTDDBuild(t *testing.T) {
 	}
 }
 
+type mockTDDOrchestrator struct {
+	runCyclesFn func(ctx context.Context, bc *runtypes.BeadContext) error
+}
+
+func (m *mockTDDOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadContext) error {
+	if m.runCyclesFn != nil {
+		return m.runCyclesFn(ctx, bc)
+	}
+	return nil
+}
+
+func TestPrepareMethodology_TDDFreshContextRunsOrchestrator(t *testing.T) {
+	tddBuildCalled := false
+	orchestratorCalled := false
+	renderer := &mockPromptRenderer{
+		RenderTDDBuildFn: func(ctx *prompt.Context) (string, error) {
+			tddBuildCalled = true
+			return "tdd-build-prompt", nil
+		},
+	}
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, renderer)
+	r.tddOrchestrator = &mockTDDOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+			orchestratorCalled = true
+			return nil
+		},
+	}
+	b := newTestBead("tdd-fresh-context-1", "Implement feature with cycle orchestration")
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !tddActive {
+		t.Fatal("prepareMethodologyForBead should return tddActive=true when TDD is enabled")
+	}
+	if !done {
+		t.Fatal("prepareMethodologyForBead should return done=true after tdd orchestrator success")
+	}
+	if !orchestratorCalled {
+		t.Fatal("prepareMethodologyForBead should call tddOrchestrator.RunCycles when fresh_context_per_cycle=true")
+	}
+	if tddBuildCalled {
+		t.Fatal("prepareMethodologyForBead should not call RenderTDDBuild when fresh_context_per_cycle=true")
+	}
+	if bc.Result.Error != nil {
+		t.Fatalf("bc.Result.Error = %v, want nil", bc.Result.Error)
+	}
+	if !bc.Result.Success {
+		t.Fatal("bc.Result.Success should be true when tddOrchestrator.RunCycles succeeds")
+	}
+	if !bc.Result.FirstPassSuccess {
+		t.Fatal("bc.Result.FirstPassSuccess should be true when tddOrchestrator.RunCycles succeeds")
+	}
+}
+
 // TestPrepareMethodology_TDDInactiveDoesNotSetBuildPrompt verifies that when
 // neither TDD nor ATDD is active, prepareMethodologyForBead does not set
 // bc.BuildPrompt, leaving the caller to use RenderBuild.

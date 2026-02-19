@@ -60,6 +60,19 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 
 	tddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "tdd")
 	if tddActive {
+		if r.cfg.Methodology.FreshContextPerCycle {
+			if r.tddOrchestrator == nil {
+				bc.Result.Error = fmt.Errorf("TDD fresh-context orchestration enabled but tddOrchestrator not wired")
+				return atddActive, tddActive, true
+			}
+			if err := r.tddOrchestrator.RunCycles(ctx, bc); err != nil {
+				bc.Result.Error = err
+				return atddActive, tddActive, true
+			}
+			bc.Result.Success = true
+			bc.Result.FirstPassSuccess = true
+			return atddActive, tddActive, true
+		}
 		r.log("TDD enabled, using TDD build prompt with red-green-refactor cycles...")
 		buildPrompt, err := r.renderer.RenderTDDBuild(bc.PromptCtx)
 		if err != nil {
