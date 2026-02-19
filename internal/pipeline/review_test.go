@@ -14,6 +14,12 @@ import (
 func TestReviewInteractiveWorkflow_BuildsContextAndReturnsSession(t *testing.T) {
 	mockAgent := &reviewAcceptanceMockAgent{
 		name: "opus",
+		launchInDirFunc: func(promptPath string, dir string) error {
+			if dir != "/tmp/review-launch" {
+				t.Errorf("LaunchInDir called with dir=%q, want %q", dir, "/tmp/review-launch")
+			}
+			return nil
+		},
 	}
 	mockAgentResolver := &reviewAcceptanceMockAgentResolver{
 		resolveFunc: func(phase string, flagOverride string, choosePicker bool) (Agent, error) {
@@ -48,6 +54,7 @@ func TestReviewInteractiveWorkflow_BuildsContextAndReturnsSession(t *testing.T) 
 		FromCommit: "abc123",
 		Diff:       "diff content",
 		AgentName:  "opus",
+		LaunchDir:  "/tmp/review-launch",
 	}
 
 	session, err := p.ReviewInteractive(ctx, input)
@@ -515,9 +522,10 @@ func TestReviewNonInteractiveWorkflow_NilDependenciesError(t *testing.T) {
 // Mock types for review acceptance tests
 
 type reviewAcceptanceMockAgent struct {
-	name        string
-	launchFunc  func(promptPath string) error
-	launchError error
+	name            string
+	launchFunc      func(promptPath string) error
+	launchInDirFunc func(promptPath string, dir string) error
+	launchError     error
 }
 
 func (m *reviewAcceptanceMockAgent) Name() string {
@@ -526,6 +534,16 @@ func (m *reviewAcceptanceMockAgent) Name() string {
 
 func (m *reviewAcceptanceMockAgent) Launch(promptPath string) error {
 	if m.launchFunc != nil {
+		return m.launchFunc(promptPath)
+	}
+	return m.launchError
+}
+
+func (m *reviewAcceptanceMockAgent) LaunchInDir(promptPath, dir string) error {
+	if m.launchInDirFunc != nil {
+		return m.launchInDirFunc(promptPath, dir)
+	}
+	if m.launchFunc != nil && dir == "" {
 		return m.launchFunc(promptPath)
 	}
 	return m.launchError

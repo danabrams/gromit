@@ -594,8 +594,9 @@ func (m *mockAgentResolver) Resolve(phase, flagOverride string, choosePicker boo
 }
 
 type mockAgent struct {
-	NameFn   func() string
-	LaunchFn func(promptPath string) error
+	NameFn        func() string
+	LaunchFn      func(promptPath string) error
+	LaunchInDirFn func(promptPath string, dir string) error
 }
 
 func (m *mockAgent) Name() string {
@@ -607,6 +608,16 @@ func (m *mockAgent) Name() string {
 
 func (m *mockAgent) Launch(promptPath string) error {
 	if m.LaunchFn != nil {
+		return m.LaunchFn(promptPath)
+	}
+	return nil
+}
+
+func (m *mockAgent) LaunchInDir(promptPath, dir string) error {
+	if m.LaunchInDirFn != nil {
+		return m.LaunchInDirFn(promptPath, dir)
+	}
+	if m.LaunchFn != nil && dir == "" {
 		return m.LaunchFn(promptPath)
 	}
 	return nil

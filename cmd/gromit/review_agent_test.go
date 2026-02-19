@@ -212,7 +212,7 @@ agents:
 // TestReviewUsesAgentLaunchNotDirectExec verifies review uses pipeline which uses agent abstraction
 func TestReviewUsesAgentLaunchNotDirectExec(t *testing.T) {
 	// This acceptance test verifies that the review command has been refactored
-	// to use the pipeline pattern, which in turn uses agent.Launch() instead of exec.Command directly
+	// to use the pipeline pattern, which in turn uses agent.LaunchInDir() instead of exec.Command directly
 
 	// Read the review.go source code
 	reviewSource, err := os.ReadFile("review.go")
@@ -340,6 +340,10 @@ func TestReviewInteractiveOnlyUsesAgentSelection(t *testing.T) {
 		t.Error("runReviewNonInteractive contains agent.Launch - should remain unchanged (only interactive mode uses agents)")
 	}
 
+	if strings.Contains(nonInteractiveFn, "agent.LaunchInDir") {
+		t.Error("runReviewNonInteractive contains agent.LaunchInDir - should remain unchanged (only interactive mode uses agents)")
+	}
+
 	// runReviewNonInteractive should still use claude.Client (unchanged)
 	if !strings.Contains(nonInteractiveFn, "claude.NewClient") {
 		t.Error("runReviewNonInteractive missing claude.NewClient - non-interactive path may be broken")
@@ -411,14 +415,14 @@ func TestReviewAgentSelectionIntegration(t *testing.T) {
 			}
 		}
 
-		// Verify pipeline has agent.Launch integration
+		// Verify pipeline has agent.LaunchInDir integration
 		pipelineSource, err := os.ReadFile("../../internal/pipeline/pipeline.go")
 		if err != nil {
 			t.Skipf("Cannot read pipeline.go: %v", err)
 		}
 
-		if !strings.Contains(string(pipelineSource), ".Launch(") {
-			t.Error("pipeline.go does not call .Launch() - agent launch not integrated in pipeline")
+		if !strings.Contains(string(pipelineSource), ".LaunchInDir(") {
+			t.Error("pipeline.go does not call .LaunchInDir() - agent launch not integrated in pipeline")
 		}
 	})
 

@@ -110,6 +110,7 @@ type ReviewInput struct {
 	Model      string // Model to use for review
 	Timeout    int    // Timeout in seconds
 	AgentName  string // Optional agent override (for interactive mode)
+	LaunchDir  string // Working directory for interactive agent launch
 	Spec       string // Spec label to scope review (used by CLI to resolve FromCommit)
 	Epic       string // Epic label to scope review (used by CLI to resolve FromCommit)
 }

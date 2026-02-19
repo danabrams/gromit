@@ -106,6 +106,7 @@ type AgentResolver interface {
 type Agent interface {
 	Name() string
 	Launch(promptPath string) error
+	LaunchInDir(promptPath, dir string) error
 }
 
 // ClaudeClient abstracts Claude CLI operations for non-interactive workflows.
@@ -231,7 +232,7 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 	// Launch agent and return session
 	// For now, we launch synchronously and return a simple session wrapper
 	// TODO: implement actual async session management
-	if err := agent.Launch(promptPath); err != nil {
+	if err := agent.LaunchInDir(promptPath, input.LaunchDir); err != nil {
 		os.Remove(promptPath)
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}

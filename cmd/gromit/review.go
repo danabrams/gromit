@@ -378,6 +378,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 		Diff:       diff,
 		Model:      cfg.Review.Thorough.Model,
 		AgentName:  reviewAgent,
+		LaunchDir:  interactiveLaunchDir(gromitDir),
 	}
 
 	// Call pipeline
