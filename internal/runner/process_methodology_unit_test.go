@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -654,5 +655,135 @@ func TestExecuteBuildLoop_FirstPassSuccess_FalseAfterEscalation(t *testing.T) {
 	}
 	if result.FirstPassSuccess {
 		t.Error("expected FirstPassSuccess=false when escalation occurred")
+	}
+}
+
+func TestUpdateIterationCoverageMetrics_UsesFinalTrackerState(t *testing.T) {
+	result := &runtypes.IterationResult{
+		CriteriaTotal:      42,
+		CriteriaCovered:    42,
+		CriteriaUntestable: 0,
+		UncoveredCriteria:  []string{"stale"},
+	}
+	tracker := coverage.NewTracker([]coverage.Criterion{
+		{Number: 1, Text: "First"},
+		{Number: 2, Text: "Second"},
+		{Number: 3, Text: "Third"},
+	}, 2)
+	tracker.MarkCovered(1)
+	tracker.RecordRejection(2)
+	tracker.RecordRejection(2)
+
+	updateIterationCoverageMetrics(result, tracker)
+
+	if result.CriteriaTotal != 3 {
+		t.Fatalf("CriteriaTotal = %d, want 3", result.CriteriaTotal)
+	}
+	if result.CriteriaCovered != 1 {
+		t.Fatalf("CriteriaCovered = %d, want 1", result.CriteriaCovered)
+	}
+	if result.CriteriaUntestable != 1 {
+		t.Fatalf("CriteriaUntestable = %d, want 1", result.CriteriaUntestable)
+	}
+	if len(result.UncoveredCriteria) != 1 || result.UncoveredCriteria[0] != "Third" {
+		t.Fatalf("UncoveredCriteria = %v, want [Third]", result.UncoveredCriteria)
+	}
+}
+
+func TestRunTDDFreshContextCycles_AddsCoverageCommentForIncompleteCoverage(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+			MaxTDDCycles:         1,
+		},
+	}
+	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	beads := &mockBeadClient{}
+	r.beads = beads
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
+			return nil
+		},
+	}
+
+	b := newTestBead("tdd-comment-1", "Implement feature with incomplete coverage")
+	b.Labels = []string{"spec:auth"}
+	b.ExpectedOutputs = []string{"implement feature X"}
+	bc := newBeadContextForMethodology(b)
+	bc.PromptCtx.Spec = `# Auth
+
+## Acceptance Criteria
+- Criterion one
+- Criterion two`
+
+	handled := r.runTDDFreshContextCycles(context.Background(), bc)
+
+	if !handled {
+		t.Fatal("expected runTDDFreshContextCycles to handle fresh-context path")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected error when coverage remains incomplete after max cycles")
+	}
+	if bc.Result.CriteriaTotal != 2 {
+		t.Fatalf("CriteriaTotal = %d, want 2", bc.Result.CriteriaTotal)
+	}
+	if bc.Result.CriteriaCovered != 0 {
+		t.Fatalf("CriteriaCovered = %d, want 0", bc.Result.CriteriaCovered)
+	}
+	if bc.Result.CriteriaUntestable != 0 {
+		t.Fatalf("CriteriaUntestable = %d, want 0", bc.Result.CriteriaUntestable)
+	}
+	if len(bc.Result.UncoveredCriteria) != 2 {
+		t.Fatalf("UncoveredCriteria len = %d, want 2", len(bc.Result.UncoveredCriteria))
+	}
+	if len(beads.Comments) != 1 {
+		t.Fatalf("expected 1 bead comment, got %d", len(beads.Comments))
+	}
+	if beads.Comments[0].ID != b.ID {
+		t.Fatalf("comment bead id = %q, want %q", beads.Comments[0].ID, b.ID)
+	}
+	if !strings.Contains(beads.Comments[0].Comment, "Coverage: 0/2 criteria covered") {
+		t.Fatalf("comment %q missing coverage summary", beads.Comments[0].Comment)
+	}
+	if !strings.Contains(buf.String(), "TDD coverage summary for bead tdd-comment-1") {
+		t.Fatalf("expected coverage summary log, got:\n%s", buf.String())
+	}
+}
+
+func TestRunTDDFreshContextCycles_CoverageCommentFailureLogsWarning(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+			MaxTDDCycles:         1,
+		},
+	}
+	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	beads := &mockBeadClient{
+		AddCommentFn: func(id, comment string) error {
+			return errors.New("comment add failed")
+		},
+	}
+	r.beads = beads
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
+			return nil
+		},
+	}
+
+	b := newTestBead("tdd-comment-2", "Implement feature with comment failure")
+	b.Labels = []string{"spec:auth"}
+	b.ExpectedOutputs = []string{"implement feature X"}
+	bc := newBeadContextForMethodology(b)
+	bc.PromptCtx.Spec = `# Auth
+
+## Acceptance Criteria
+- Criterion one`
+
+	r.runTDDFreshContextCycles(context.Background(), bc)
+
+	if !strings.Contains(buf.String(), "Warning: failed to add coverage summary comment: comment add failed") {
+		t.Fatalf("expected warning log when AddComment fails, got:\n%s", buf.String())
 	}
 }

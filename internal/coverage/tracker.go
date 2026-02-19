@@ -158,3 +158,16 @@ func (t *CoverageTracker) criteriaByStatus(status Status) []CriterionState {
 	}
 	return result
 }
+
+// TotalCriteria returns the total number of tracked criteria.
+func (t *CoverageTracker) TotalCriteria() int {
+	if t == nil {
+		return 0
+	}
+	return len(t.criteria)
+}
+
+// CoveredCriteria returns all criteria in Covered state.
+func (t *CoverageTracker) CoveredCriteria() []CriterionState {
+	return t.criteriaByStatus(Covered)
+}

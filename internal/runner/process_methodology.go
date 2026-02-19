@@ -111,6 +111,7 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		bc.Result.Error = fmt.Errorf("building TDD coverage tracker: %w", err)
 		return true
 	}
+	defer r.finalizeTDDCoverageSummary(bc, coverageTracker)
 	updateIterationCoverageMetrics(bc.Result, coverageTracker)
 
 	maxOrchestratorPasses := resolveMaxTDDCycles(r.cfg)
@@ -186,23 +187,36 @@ func updateIterationCoverageMetrics(result *runtypes.IterationResult, tracker *c
 	}
 	uncovered := tracker.UncoveredCriteria()
 	untestable := tracker.UntestableCriteria()
-	knownTotal := len(uncovered) + len(untestable)
-	criteriaTotal := result.CriteriaTotal
-	if criteriaTotal < knownTotal {
-		criteriaTotal = knownTotal
-	}
 	uncoveredTexts := make([]string, 0, len(uncovered))
 	for _, criterion := range uncovered {
 		uncoveredTexts = append(uncoveredTexts, criterion.Text)
 	}
-	result.CriteriaTotal = criteriaTotal
+	result.CriteriaTotal = tracker.TotalCriteria()
 	result.CriteriaUntestable = len(untestable)
-	covered := criteriaTotal - len(uncovered) - len(untestable)
-	if covered < 0 {
-		covered = 0
-	}
-	result.CriteriaCovered = covered
+	result.CriteriaCovered = len(tracker.CoveredCriteria())
 	result.UncoveredCriteria = uncoveredTexts
+}
+
+func (r *Runner) finalizeTDDCoverageSummary(bc *runtypes.BeadContext, tracker *coverage.CoverageTracker) {
+	if r == nil || bc == nil || bc.Result == nil || bc.Bead == nil || tracker == nil {
+		return
+	}
+
+	updateIterationCoverageMetrics(bc.Result, tracker)
+	summary := tracker.Summary()
+	r.log("TDD coverage summary for bead %s:\n%s", bc.Bead.ID, summary)
+
+	uncovered := tracker.UncoveredCriteria()
+	untestable := tracker.UntestableCriteria()
+	if len(uncovered) == 0 && len(untestable) == 0 {
+		return
+	}
+	if r.beads == nil {
+		return
+	}
+	if err := r.beads.AddComment(bc.Bead.ID, summary); err != nil {
+		r.log("Warning: failed to add coverage summary comment: %v", err)
+	}
 }
 
 func tddExpectedOutputsOrTitle(b *bead.Bead) []string {
