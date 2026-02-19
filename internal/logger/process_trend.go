@@ -15,7 +15,25 @@ import (
 	"github.com/danabrams/gromit/internal/failurephase"
 )
 
-const defaultTrendWindowSize = 30
+const (
+	defaultTrendWindowSize         = 30
+	metricRollingSuccessRate       = "rolling_success_rate"
+	metricRollingFirstPassSuccess  = "rolling_first_pass_success_rate"
+	metricRollingEscalationRate    = "rolling_escalation_rate"
+	metricRollingAvgDurationMs     = "rolling_avg_duration_ms"
+	metricRollingAvgCostUSD        = "rolling_avg_cost_usd"
+	metricRollingPreflightFailure  = "rolling_preflight_failure_rate"
+	metricRollingBuildFailure      = "rolling_build_failure_rate"
+	metricRollingValidationFailure = "rolling_validation_failure_rate"
+	metricRollingTimeoutFailure    = "rolling_timeout_failure_rate"
+)
+
+var phaseRateMetrics = []string{
+	metricRollingPreflightFailure,
+	metricRollingBuildFailure,
+	metricRollingValidationFailure,
+	metricRollingTimeoutFailure,
+}
 
 // IterationMetric stores a single iteration with rolling-window process metrics.
 type IterationMetric struct {
@@ -318,15 +336,15 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 	}
 
 	series := map[string][]float64{
-		"rolling_success_rate":            extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingSuccessRate }),
-		"rolling_first_pass_success_rate": extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingFirstPassSuccess }),
-		"rolling_escalation_rate":         extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingEscalationRate }),
-		"rolling_avg_duration_ms":         extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingAvgDurationMs }),
-		"rolling_avg_cost_usd":            extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingAvgCostUSD }),
-		"rolling_preflight_failure_rate":  extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingPreflightFailureRate }),
-		"rolling_build_failure_rate":      extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingBuildFailureRate }),
-		"rolling_validation_failure_rate": extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingValidationFailureRate }),
-		"rolling_timeout_failure_rate":    extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate }),
+		metricRollingSuccessRate:       extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingSuccessRate }),
+		metricRollingFirstPassSuccess:  extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingFirstPassSuccess }),
+		metricRollingEscalationRate:    extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingEscalationRate }),
+		metricRollingAvgDurationMs:     extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingAvgDurationMs }),
+		metricRollingAvgCostUSD:        extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingAvgCostUSD }),
+		metricRollingPreflightFailure:  extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingPreflightFailureRate }),
+		metricRollingBuildFailure:      extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingBuildFailureRate }),
+		metricRollingValidationFailure: extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingValidationFailureRate }),
+		metricRollingTimeoutFailure:    extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate }),
 	}
 
 	for metricName, values := range series {

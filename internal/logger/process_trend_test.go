@@ -178,11 +178,9 @@ func TestBuildProcessTrend_HasNineControlLimitsWithPhaseRates(t *testing.T) {
 		t.Errorf("expected 9 control limits, got %d", len(trend.ControlLimits))
 	}
 
-	phaseRateNames := map[string]bool{
-		"rolling_preflight_failure_rate":  false,
-		"rolling_build_failure_rate":      false,
-		"rolling_validation_failure_rate": false,
-		"rolling_timeout_failure_rate":    false,
+	phaseRateNames := make(map[string]bool, len(phaseRateMetrics))
+	for _, name := range phaseRateMetrics {
+		phaseRateNames[name] = false
 	}
 	for _, cl := range trend.ControlLimits {
 		if _, ok := phaseRateNames[cl.Metric]; ok {
@@ -209,7 +207,7 @@ func TestBuildProcessTrend_BuildRateSpikeTriggersHighSeverityAnomaly(t *testing.
 
 	var found bool
 	for _, a := range trend.Anomalies {
-		if a.Metric == "rolling_build_failure_rate" && a.Severity == "high" {
+		if a.Metric == metricRollingBuildFailure && a.Severity == "high" {
 			found = true
 			break
 		}
@@ -230,11 +228,9 @@ func TestBuildProcessTrend_PhaseRateControlLimitsClampedToZeroOne(t *testing.T) 
 
 	trend := buildProcessTrend(metrics, 10)
 
-	phaseRates := map[string]bool{
-		"rolling_preflight_failure_rate":  false,
-		"rolling_build_failure_rate":      false,
-		"rolling_validation_failure_rate": false,
-		"rolling_timeout_failure_rate":    false,
+	phaseRates := make(map[string]bool, len(phaseRateMetrics))
+	for _, name := range phaseRateMetrics {
+		phaseRates[name] = false
 	}
 	for _, cl := range trend.ControlLimits {
 		if _, ok := phaseRates[cl.Metric]; !ok {
