@@ -112,11 +112,24 @@ func (r *Runner) estimatedCostUSD(providerName, model string, reportedCostUSD fl
 		return reportedCostUSD
 	}
 
-	provDef, ok := r.providerCostDefs[providerName]
-	if !ok {
-		return reportedCostUSD
+	for _, candidate := range costProviderCandidates(providerName) {
+		provDef, ok := r.providerCostDefs[candidate]
+		if ok {
+			return provDef.EstimateCostForModel(model, inputTokens, outputTokens)
+		}
 	}
-	return provDef.EstimateCostForModel(model, inputTokens, outputTokens)
+	return reportedCostUSD
+}
+
+func costProviderCandidates(providerName string) []string {
+	switch providerName {
+	case "codex":
+		return []string{"codex", "openai"}
+	case "openai":
+		return []string{"openai", "codex"}
+	default:
+		return []string{providerName}
+	}
 }
 
 func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, err error) (*runtypes.InvocationResult, error) {
