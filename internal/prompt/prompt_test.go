@@ -948,6 +948,43 @@ func TestTDDRedContextFields(t *testing.T) {
 	}
 }
 
+func TestRenderTDDRed(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Red for: {{.BeadTitle}}
+Spec: {{.SpecExcerpt}}
+Files: {{len .TestFileContents}}
+Retry: {{.IsRetry}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_tdd_red.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &TDDRedContext{
+		BeadTitle:        "Add parser",
+		SpecExcerpt:      "Must parse foo",
+		TestFileContents: map[string]string{"parser_test.go": "test"},
+		IsRetry:          true,
+	}
+
+	result, err := r.RenderTDDRed(ctx)
+	if err != nil {
+		t.Fatalf("RenderTDDRed() error = %v", err)
+	}
+	if !strings.Contains(result, "Add parser") {
+		t.Error("expected bead title in output")
+	}
+	if !strings.Contains(result, "Must parse foo") {
+		t.Error("expected spec excerpt in output")
+	}
+	if !strings.Contains(result, "Files: 1") {
+		t.Error("expected test file count in output")
+	}
+	if !strings.Contains(result, "Retry: true") {
+		t.Error("expected retry value in output")
+	}
+}
+
 func TestMethodologyPhaseShaping_TemplateCompatibility(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	if _, err := os.Stat(filepath.Join(templatesDir, "PROMPT_acceptance_tests.md")); os.IsNotExist(err) {
