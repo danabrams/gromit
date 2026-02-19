@@ -84,3 +84,20 @@ func TestRepoHygiene_CodexHomeIgnored(t *testing.T) {
 		t.Error(".gitignore does not contain '.codex-home/' to prevent local Codex runtime artifacts from being tracked")
 	}
 }
+
+func TestRepoHygiene_CodexHomeNotTracked(t *testing.T) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("could not find project root: %v", err)
+	}
+
+	cmd := exec.Command("git", "ls-files", ".codex-home")
+	cmd.Dir = projectRoot
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git ls-files failed: %v", err)
+	}
+	if strings.TrimSpace(string(out)) != "" {
+		t.Error(".codex-home/ is still tracked by git; remove with 'git rm -r --cached .codex-home/'")
+	}
+}
