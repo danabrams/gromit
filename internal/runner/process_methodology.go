@@ -85,6 +85,12 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		bc.Result.Error = err
 		return
 	}
+	if r.cfg.Validation.Enabled && r.validationRunner != nil {
+		if err := r.runValidationWithRecoveryForStage(ctx, bc, true); err != nil {
+			bc.Result.Error = err
+			return
+		}
+	}
 	bc.Result.Success = true
 	bc.Result.FirstPassSuccess = true
 }
