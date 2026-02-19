@@ -439,7 +439,7 @@ func TestRunCycles_EarlyGreen_AdvancesToDoneAfterRefactor(t *testing.T) {
 	}
 }
 
-func TestRunCycles_StandardGreen_CallsRefactorExactlyOncePerCycle(t *testing.T) {
+func TestRunCycles_InitialValidationNonGreen_SkipsRefactor(t *testing.T) {
 	orch := newTestOrchestrator()
 
 	refactorCalls := 0
@@ -458,11 +458,9 @@ func TestRunCycles_StandardGreen_CallsRefactorExactlyOncePerCycle(t *testing.T) 
 		validateCall++
 		switch validateCall {
 		case 1:
-			return "FAIL", false, nil // Red validation fails as expected
+			return "FAIL", false, nil // Initial validation is non-green.
 		case 2:
-			return "PASS", true, nil // Green validation passes
-		case 3:
-			return "PASS", true, nil // Post-refactor validation passes
+			return "PASS", true, nil // Green validation passes.
 		default:
 			t.Fatalf("unexpected additional validation call %d", validateCall)
 			return "", false, nil
