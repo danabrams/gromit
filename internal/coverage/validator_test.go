@@ -78,3 +78,12 @@ func TestParseValidationResponse_EmbeddedJSON(t *testing.T) {
 		t.Fatalf("Reason = %q, want %q", resp.Reason, "missing assertion")
 	}
 }
+
+func TestParseValidationResponse_MalformedJSON(t *testing.T) {
+	output := `{"covers": tru, "reason": "typo"}`
+
+	_, err := ParseValidationResponse(output)
+	if err == nil {
+		t.Fatal("ParseValidationResponse() expected error, got nil")
+	}
+}
