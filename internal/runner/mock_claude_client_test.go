@@ -8,10 +8,8 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 )
 
-// Legacy test mocks - these are kept for backward compatibility
-// with tests that haven't been migrated to use Provider/Router yet.
-// New tests should use mockProviderWithRouterTracking instead.
-
+// mockClaudeClient is a test helper for adapters that still build routers from a
+// claude.Client-compatible interface.
 type mockClaudeClient struct {
 	RunFn           func(ctx context.Context, prompt string, model string) (*claude.Result, error)
 	StreamRunFn     func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -84,4 +85,92 @@ func TestSkippedTestCleanup(t *testing.T) {
 		}
 	})
 
+}
+
+// TestSkippedTestCleanup_GromitJ99sy verifies acceptance criteria for
+// "Delete entirely-skipped test files violating t.Skip rules".
+func TestSkippedTestCleanup_GromitJ99sy(t *testing.T) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("could not find project root: %v", err)
+	}
+
+	t.Run("entirely-skipped test files are deleted", func(t *testing.T) {
+		paths := []string{
+			filepath.Join(projectRoot, "cmd", "gromit", "explore_pipeline_adapter_test.go"),
+			filepath.Join(projectRoot, "cmd", "gromit", "retro_launch_in_dir_integration_test.go"),
+			filepath.Join(projectRoot, "internal", "runner", "integration_test.go"),
+			filepath.Join(projectRoot, "internal", "runner", "legacy_mocks_test.go"),
+		}
+
+		for _, path := range paths {
+			_, err := os.Stat(path)
+			if err == nil {
+				t.Fatalf("%s should be deleted (entirely skipped)", path)
+			}
+			if !os.IsNotExist(err) {
+				t.Fatalf("unexpected error checking for %s: %v", path, err)
+			}
+		}
+	})
+
+	t.Run("backlog contains ideas for skipped test behaviors (gromit-j99sy)", func(t *testing.T) {
+		ideas := loadBacklogIdeas(t)
+
+		skippedBehaviors := []struct {
+			description string
+			matchFn     func(text string) bool
+		}{
+			{
+				description: "explore CLI delegates to Pipeline.Explore and reports created artifacts",
+				matchFn: func(text string) bool {
+					hasExplore := containsAny(text, "explore")
+					hasPipeline := containsAny(text, "pipeline", "pipeline.explore")
+					hasArtifacts := containsAny(text, "created", "epic", "spec", "backlog")
+					return hasExplore && hasPipeline && hasArtifacts
+				},
+			},
+			{
+				description: "explore prompt renderer and helper reuse",
+				matchFn: func(text string) bool {
+					hasRenderer := containsAny(text, "renderer", "renderexplore", "prompt")
+					hasExplore := containsAny(text, "explore")
+					hasHelpers := containsAny(text, "helpers", "artifact", "listmarkdownfiles")
+					return hasRenderer && hasExplore && hasHelpers
+				},
+			},
+			{
+				description: "retro worktree dir passed to LaunchClaudeCode",
+				matchFn: func(text string) bool {
+					hasRetro := containsAny(text, "retro")
+					hasDir := containsAny(text, "dir", "directory", "worktree")
+					hasLaunch := containsAny(text, "launchclaudecode")
+					return hasRetro && hasDir && hasLaunch
+				},
+			},
+			{
+				description: "runner integration coverage updated for router-based flows",
+				matchFn: func(text string) bool {
+					hasRunner := containsAny(text, "runner", "run loop", "runloop")
+					hasRouter := containsAny(text, "router")
+					hasIntegration := containsAny(text, "integration")
+					return hasRunner && hasRouter && hasIntegration
+				},
+			},
+		}
+
+		for _, behavior := range skippedBehaviors {
+			found := false
+			for _, idea := range ideas {
+				textLower := strings.ToLower(idea.Text + " " + idea.Context)
+				if behavior.matchFn(textLower) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("no backlog idea found for: %s", behavior.description)
+			}
+		}
+	})
 }
