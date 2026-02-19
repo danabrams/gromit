@@ -15,6 +15,8 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+const coverageTrackerMaxRejections = 2
+
 func (r *Runner) ensureMethodologyPolicy() {
 	if r == nil {
 		return
@@ -111,13 +113,7 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 	}
 	updateIterationCoverageMetrics(bc.Result, coverageTracker)
 
-	maxOrchestratorPasses := config.DefaultMaxTDDCycles
-	if r.cfg != nil && r.cfg.Methodology.MaxTDDCycles > 0 {
-		maxOrchestratorPasses = r.cfg.Methodology.MaxTDDCycles
-	}
-	if maxOrchestratorPasses < 1 {
-		maxOrchestratorPasses = 1
-	}
+	maxOrchestratorPasses := resolveMaxTDDCycles(r.cfg)
 
 	for pass := 0; pass < maxOrchestratorPasses; pass++ {
 		if err := r.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria); err != nil {
@@ -163,7 +159,18 @@ func buildCoverageTrackerFromSpec(bc *runtypes.BeadContext) (*coverage.CoverageT
 	if len(criteria) == 0 {
 		return nil, nil, nil
 	}
-	return coverage.NewTracker(criteria, 2), criteria, nil
+	return coverage.NewTracker(criteria, coverageTrackerMaxRejections), criteria, nil
+}
+
+func resolveMaxTDDCycles(cfg *config.Config) int {
+	maxCycles := config.DefaultMaxTDDCycles
+	if cfg != nil && cfg.Methodology.MaxTDDCycles > 0 {
+		maxCycles = cfg.Methodology.MaxTDDCycles
+	}
+	if maxCycles < 1 {
+		return 1
+	}
+	return maxCycles
 }
 
 func updateIterationCoverageMetrics(result *runtypes.IterationResult, tracker *coverage.CoverageTracker) {

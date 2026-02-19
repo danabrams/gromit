@@ -12,7 +12,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -37,6 +36,11 @@ type greenPhasePromptShaper interface {
 type refactorPhasePromptShaper interface {
 	ShapeRefactorPhaseContext(ctx *prompt.Context) *prompt.Context
 }
+
+const (
+	tddPhaseRed   = "red"
+	tddPhaseGreen = "green"
+)
 
 // makeInvokeFn creates an InvokeFn callback that wraps the Runner's Claude invocation,
 // handling cost data, scope-too-large, usage limit detection, and timeout classification.
@@ -653,7 +657,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 						APISurface:       handoff.APISurface,
 						CycleSummary:     handoff.CycleSummary,
 					}
-					lastRenderedPhase = "red"
+					lastRenderedPhase = tddPhaseRed
 					return r.renderer.RenderTDDRed(ctx)
 				},
 				RenderGreenFn: func(handoff *tdd.GreenHandoff, bc *runtypes.BeadContext) (string, error) {
@@ -667,7 +671,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 						ImplFileContents:  handoff.ImplFiles,
 					}
 					lastFailingTestCode = handoff.FailingTest
-					lastRenderedPhase = "green"
+					lastRenderedPhase = tddPhaseGreen
 					return r.renderer.RenderTDDGreen(ctx)
 				},
 				InvokeFn: func(ctx context.Context, promptText, tier string) error {
@@ -703,7 +707,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 						return "", false, fmt.Errorf("validation returned nil result")
 					}
 					passed := claude.IsValidationPassed(result)
-					if !passed || tracker == nil || r.methodologyExec == nil || lastRenderedPhase != "green" {
+					if !passed || tracker == nil || r.methodologyExec == nil || lastRenderedPhase != tddPhaseGreen {
 						return result.Output, passed, nil
 					}
 
@@ -768,10 +772,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 				},
 			})
 
-			maxCycles := config.DefaultMaxTDDCycles
-			if r.cfg != nil && r.cfg.Methodology.MaxTDDCycles > 0 {
-				maxCycles = r.cfg.Methodology.MaxTDDCycles
-			}
+			maxCycles := resolveMaxTDDCycles(r.cfg)
 
 			remaining := append([]string(nil), bc.Bead.ExpectedOutputs...)
 			done := len(remaining) == 0
