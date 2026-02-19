@@ -26,6 +26,23 @@ func TestNewTracker_NextUncoveredReturnsCriterion(t *testing.T) {
 	}
 }
 
+func TestFormatCoverageState_RendersTargetingAndRemaining(t *testing.T) {
+	criteria := []Criterion{
+		{Number: 1, Text: "First criterion"},
+		{Number: 2, Text: "Second criterion"},
+		{Number: 3, Text: "Third criterion"},
+	}
+	tracker := NewTracker(criteria, 2)
+	tracker.MarkCovered(2)
+
+	got := tracker.FormatCoverageState(1)
+
+	want := "## Coverage State\nTargeting criterion #1: \"First criterion\"\nRemaining uncovered: #1, #3"
+	if got != want {
+		t.Fatalf("FormatCoverageState() =\n%q\nwant:\n%q", got, want)
+	}
+}
+
 func TestUntestableCriteria_ReturnsOnlyUntestableItems(t *testing.T) {
 	criteria := []Criterion{
 		{Number: 1, Text: "First"},

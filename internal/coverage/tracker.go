@@ -1,5 +1,10 @@
 package coverage
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Status represents the coverage state of a single criterion.
 type Status int
 
@@ -52,6 +57,26 @@ func (t *CoverageTracker) MarkCovered(n int) {
 			return
 		}
 	}
+}
+
+// FormatCoverageState renders the coverage state block for prompt injection.
+func (t *CoverageTracker) FormatCoverageState(targeting int) string {
+	var targetText string
+	for _, cs := range t.criteria {
+		if cs.Number == targeting {
+			targetText = cs.Text
+			break
+		}
+	}
+
+	uncovered := t.UncoveredCriteria()
+	parts := make([]string, len(uncovered))
+	for i, cs := range uncovered {
+		parts[i] = fmt.Sprintf("#%d", cs.Number)
+	}
+
+	return fmt.Sprintf("## Coverage State\nTargeting criterion #%d: %q\nRemaining uncovered: %s",
+		targeting, targetText, strings.Join(parts, ", "))
 }
 
 // UntestableCriteria returns all criteria in Untestable state.
