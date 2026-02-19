@@ -246,9 +246,8 @@ func readPackageSynopsis(pkg *ast.Package) string {
 		return ""
 	}
 
-	if file, ok := pkg.Files["doc.go"]; ok && file != nil && file.Doc != nil {
-		synopsis := strings.TrimSpace(doc.Synopsis(file.Doc.Text()))
-		if synopsis != "" {
+	if file, ok := pkg.Files["doc.go"]; ok && file != nil {
+		if synopsis := commentSynopsis(file.Doc); synopsis != "" {
 			return synopsis
 		}
 	}
@@ -261,17 +260,24 @@ func readPackageSynopsis(pkg *ast.Package) string {
 
 	for _, fileName := range fileNames {
 		file := pkg.Files[fileName]
-		if file == nil || file.Doc == nil {
+		if file == nil {
 			continue
 		}
 
-		synopsis := strings.TrimSpace(doc.Synopsis(file.Doc.Text()))
-		if synopsis != "" {
+		if synopsis := commentSynopsis(file.Doc); synopsis != "" {
 			return synopsis
 		}
 	}
 
 	return ""
+}
+
+func commentSynopsis(group *ast.CommentGroup) string {
+	if group == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(doc.Synopsis(group.Text()))
 }
 
 func normalizeScopedPath(path string) string {
