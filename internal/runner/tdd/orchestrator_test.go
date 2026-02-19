@@ -283,3 +283,47 @@ func TestRunCycles_TerminatesAtMaxCycles(t *testing.T) {
 		t.Fatalf("expected 2 cycles (max), got %d", cycleCount)
 	}
 }
+
+func TestRunCycles_CoverageDone_TestsPassUnexpectedlyInRedPhase(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	greenCalled := false
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	// Red validation: tests pass unexpectedly
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		return "PASS", true, nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		greenCalled = true
+		return "green", nil
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := CycleState{
+		CycleNumber: 0,
+		MaxCycles:   10,
+		Remaining:   []string{"req A", "req B"},
+	}
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if greenCalled {
+		t.Fatal("green phase should not be called when red validation passes unexpectedly")
+	}
+}
