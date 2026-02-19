@@ -14,6 +14,18 @@ func TestCycleStateIsCompleteWhenDone(t *testing.T) {
 	}
 }
 
+func TestCycleStateIsCompleteWhenCycleReachesMax(t *testing.T) {
+	state := CycleState{
+		CycleNumber: 3,
+		MaxCycles:   3,
+		Done:        false,
+	}
+
+	if !state.IsComplete() {
+		t.Fatalf("expected IsComplete to be true when cycle number reaches max cycles")
+	}
+}
+
 func TestRedHandoffNilMapsAreSafeToRead(t *testing.T) {
 	var handoff RedHandoff
 
