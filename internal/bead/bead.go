@@ -461,12 +461,7 @@ func (c *Client) runCreate(title string, priority int, labels []string, expected
 	}
 
 	if len(expectedOutputs) > 0 {
-		acceptancePath, cleanup, err := writeTempFile("bd-acceptance-*.txt", strings.Join(expectedOutputs, "\n"))
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-		args = append(args, "--acceptance", acceptancePath)
+		args = append(args, "--acceptance", strings.Join(expectedOutputs, "\n"))
 	}
 
 	args = append(args, extraArgs...)
