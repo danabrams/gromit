@@ -117,6 +117,8 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 	gromitDir := resolveGromitDir(cfg)
 	epicsDir := filepath.Join(gromitDir, "epics")
 	specsDir := resolveSpecsDir(cfg)
+	templatesDir := resolveTemplatesDir(cfg)
+	projectClaudeMDPath := resolveProjectClaudeMD(cfg)
 
 	// Ensure directories exist
 	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
@@ -128,9 +130,9 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 
 	// Create renderer
 	renderer, err := prompt.NewRenderer(
-		resolveTemplatesDir(cfg),
-		resolveSpecsDir(cfg),
-		resolveProjectClaudeMD(cfg),
+		templatesDir,
+		specsDir,
+		projectClaudeMDPath,
 		gromitDir,
 	)
 	if err != nil {
@@ -278,7 +280,7 @@ Specs directory: %s
 	sb.WriteString("1. **Understand the problem space** — If a topic was provided above, start there. Otherwise, ask the user what they want to explore. Read relevant code and docs to ground your understanding.\n\n")
 	sb.WriteString("2. **Brainstorm broadly** — Think through the problem from multiple angles. Consider user needs, technical constraints, edge cases, and alternative approaches. Discuss ideas with the user — this is a collaborative session.\n\n")
 	sb.WriteString("3. **Break it down** — As ideas crystallize, capture them as the appropriate artifact type:\n\n")
-	sb.WriteString(fmt.Sprintf("   - **Backlog items** — Quick ideas, rough feature requests, bugs, or chores. Add these by running: gromit add \"<idea>\". Optionally provide context when prompted. These flow through the refine → plan → decompose pipeline later.\n"))
+	sb.WriteString("   - **Backlog items** — Quick ideas, rough feature requests, bugs, or chores. Add these by running: gromit add \"<idea>\". Optionally provide context when prompted. These flow through the refine → plan → decompose pipeline later.\n")
 	sb.WriteString(fmt.Sprintf("   - **Specs** — For ideas that are well-understood enough to specify, write a spec file to %s/<name>.md. A spec describes what to build, why, acceptance criteria, and key decisions. See existing specs in that directory for the format.\n", specsDir))
 	sb.WriteString(fmt.Sprintf("   - **Epics** — For large initiatives that span multiple specs, write an epic file to %s/epics/<name>.md with frontmatter containing epic_id and created fields.\n\n", gromitDir))
 	sb.WriteString("4. **Prefer backlog items** — When in doubt, use gromit add. Backlog items are cheap and get refined later. Only write specs for ideas you've discussed enough to specify clearly. Only create epics when the scope genuinely spans multiple independent specs.\n\n")
