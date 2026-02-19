@@ -132,6 +132,9 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 		return fmt.Errorf("rendering build prompt: %w", err)
 	}
 	bc.BuildPrompt = buildPrompt
+	if bc.Result != nil {
+		bc.Result.PromptDiagnostics = r.renderer.LastDiagnostics()
+	}
 
 	return nil
 }

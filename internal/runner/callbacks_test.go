@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -58,6 +59,15 @@ func TestMakeMethodologyExec_ATDDCapturesStreamCostData(t *testing.T) {
 			RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
 				return "acceptance prompt", nil
 			},
+			LastDiagnosticsFn: func() *prompt.PromptDiagnostics {
+				return &prompt.PromptDiagnostics{
+					PromptType:      "acceptance_tests",
+					EstimatedTokens: 8,
+					SectionTokens: map[string]int{
+						prompt.SectionRules: 8,
+					},
+				}
+			},
 		},
 	}
 	bc := &runtypes.BeadContext{
@@ -84,5 +94,76 @@ func TestMakeMethodologyExec_ATDDCapturesStreamCostData(t *testing.T) {
 	}
 	if bc.Result.CostUSD != 1.23 {
 		t.Fatalf("CostUSD = %.2f, want 1.23", bc.Result.CostUSD)
+	}
+	if bc.Result.PromptDiagnostics == nil {
+		t.Fatal("expected PromptDiagnostics to be set")
+	}
+	if bc.Result.PromptDiagnostics.ReportedTokens != 10 {
+		t.Fatalf("ReportedTokens = %d, want 10", bc.Result.PromptDiagnostics.ReportedTokens)
+	}
+	if bc.Result.PromptDiagnostics.TokenDelta != -2 {
+		t.Fatalf("TokenDelta = %d, want -2", bc.Result.PromptDiagnostics.TokenDelta)
+	}
+}
+
+func TestMakeInvokeFn_ReconcilesPromptDiagnosticsAfterRetryRender(t *testing.T) {
+	mockProvider := &mockProviderWithRouterTracking{
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:      true,
+				Model:        "model-a",
+				InputTokens:  10,
+				OutputTokens: 1,
+			}, nil
+		},
+	}
+	mockRouter := provider.NewSingleProviderRouter(mockProvider)
+	diag := &prompt.PromptDiagnostics{
+		PromptType:      "build",
+		EstimatedTokens: 12,
+		SectionTokens: map[string]int{
+			prompt.SectionTemplateStatic: 12,
+		},
+	}
+	r := &Runner{
+		cfg:     &config.Config{},
+		router:  mockRouter,
+		invoker: newInvokerForTest(mockRouter, io.Discard, nil),
+		output:  io.Discard,
+		renderer: &mockPromptRenderer{
+			RenderBuildFn: func(ctx *prompt.Context) (string, error) {
+				return "retry prompt", nil
+			},
+			LastDiagnosticsFn: func() *prompt.PromptDiagnostics {
+				return diag
+			},
+		},
+	}
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "b2", Title: "Retry Prompt"},
+		Tier:        provider.TierLow,
+		Result:      &runtypes.IterationResult{},
+		BuildPrompt: "old prompt",
+		PromptCtx: &prompt.Context{
+			IsRetry: true,
+		},
+		ParentCtx: context.Background(),
+	}
+
+	invResult, err := r.makeInvokeFn()(context.Background(), bc, "ignored")
+	if err != nil {
+		t.Fatalf("makeInvokeFn returned error: %v", err)
+	}
+	if invResult == nil || invResult.Result == nil {
+		t.Fatal("expected invocation result")
+	}
+	if bc.Result.PromptDiagnostics == nil {
+		t.Fatal("expected PromptDiagnostics to be captured")
+	}
+	if bc.Result.PromptDiagnostics.ReportedTokens != 10 {
+		t.Fatalf("ReportedTokens = %d, want 10", bc.Result.PromptDiagnostics.ReportedTokens)
+	}
+	if bc.Result.PromptDiagnostics.TokenDelta != 2 {
+		t.Fatalf("TokenDelta = %d, want 2", bc.Result.PromptDiagnostics.TokenDelta)
 	}
 }

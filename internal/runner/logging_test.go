@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -103,5 +104,41 @@ func TestWriteIterationLog_PropagatesSpecID(t *testing.T) {
 	}
 	if mockLog.Logs[0].SpecID != "my-spec" {
 		t.Errorf("SpecID = %q, want %q", mockLog.Logs[0].SpecID, "my-spec")
+	}
+}
+
+func TestWriteIterationLog_PropagatesPromptDiagnosticsToMockLogger(t *testing.T) {
+	mockLog := &mockIterationLogger{}
+	r := &Runner{
+		logger: mockLog,
+		output: &strings.Builder{},
+	}
+
+	result := &runtypes.IterationResult{
+		BeadID:    "bead-1",
+		BeadTitle: "Test Bead",
+		Model:     "haiku",
+		Success:   true,
+		PromptDiagnostics: &prompt.PromptDiagnostics{
+			PromptType:      "build",
+			EstimatedTokens: 144,
+			ReportedTokens:  128,
+			TokenDelta:      16,
+		},
+	}
+
+	r.writeIterationLog(1, result)
+
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(mockLog.Logs))
+	}
+	if mockLog.Logs[0].PromptDiagnostics == nil {
+		t.Fatal("expected PromptDiagnostics in iteration log")
+	}
+	if mockLog.Logs[0].PromptDiagnostics.PromptType != "build" {
+		t.Errorf("PromptType = %q, want %q", mockLog.Logs[0].PromptDiagnostics.PromptType, "build")
+	}
+	if mockLog.Logs[0].PromptDiagnostics.ReportedTokens != 128 {
+		t.Errorf("ReportedTokens = %d, want 128", mockLog.Logs[0].PromptDiagnostics.ReportedTokens)
 	}
 }

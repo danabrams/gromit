@@ -76,6 +76,9 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 			return atddActive, tddActive, true
 		}
 		bc.BuildPrompt = buildPrompt
+		if bc.Result != nil {
+			bc.Result.PromptDiagnostics = r.renderer.LastDiagnostics()
+		}
 	}
 
 	return atddActive, tddActive, false
@@ -154,6 +157,9 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 		return false
 	}
 	bc.BuildPrompt = buildPrompt
+	if bc.Result != nil {
+		bc.Result.PromptDiagnostics = r.renderer.LastDiagnostics()
+	}
 	return true
 }
 

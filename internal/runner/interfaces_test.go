@@ -188,6 +188,7 @@ type mockPromptRenderer struct {
 	LoadRulesFn             func() (string, error)
 	LoadRulesForPhaseFn     func(phase string) (string, error)
 	SetSiblingResolverFn    func(resolver prompt.SiblingTouchedPackagesResolver)
+	LastDiagnosticsFn       func() *prompt.PromptDiagnostics
 	LearningsFile           *learnings.File
 }
 
@@ -314,6 +315,9 @@ func (m *mockPromptRenderer) SetSiblingTouchedPackagesResolver(resolver prompt.S
 }
 
 func (m *mockPromptRenderer) LastDiagnostics() *prompt.PromptDiagnostics {
+	if m.LastDiagnosticsFn != nil {
+		return m.LastDiagnosticsFn()
+	}
 	return nil
 }
 
