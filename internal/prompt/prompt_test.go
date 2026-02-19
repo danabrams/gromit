@@ -113,6 +113,157 @@ func TestBuildContextNilBead(t *testing.T) {
 	}
 }
 
+func setupBuildContextScopedRenderer(t *testing.T, claudeMD string, specContent string) (*Renderer, string) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll(specs) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("rules"), 0644); err != nil {
+		t.Fatalf("WriteFile(RULES.md) error = %v", err)
+	}
+	claudePath := filepath.Join(tmpDir, "CLAUDE.md")
+	if err := os.WriteFile(claudePath, []byte(claudeMD), 0644); err != nil {
+		t.Fatalf("WriteFile(CLAUDE.md) error = %v", err)
+	}
+	if strings.TrimSpace(specContent) != "" {
+		if err := os.WriteFile(filepath.Join(specsDir, "dynamic-map.md"), []byte(specContent), 0644); err != nil {
+			t.Fatalf("WriteFile(spec) error = %v", err)
+		}
+	}
+
+	r, err := NewRenderer("", specsDir, claudePath, gromitDir)
+	if err != nil {
+		t.Fatalf("NewRenderer() error = %v", err)
+	}
+	return r, tmpDir
+}
+
+func TestBuildContext_ScopesArchitectureWithLayer1AndLayer2Packages(t *testing.T) {
+	originalClaude := `# Project
+
+## Architecture
+
+- ` + "`internal/bead/`" + ` — Bead lifecycle.
+- ` + "`internal/prompt/`" + ` — Old text to replace.
+
+## Key Principles
+
+1. Keep exact principle text.
+2. Preserve behavior.
+`
+	spec := "Touch internal/prompt/prompt.go."
+
+	r, _ := setupBuildContextScopedRenderer(t, originalClaude, spec)
+	r.SetSiblingTouchedPackagesResolver(func(current *bead.Bead, parent *bead.Bead) ([]string, error) {
+		return []string{"internal/runner"}, nil
+	})
+
+	ctx, err := r.BuildContext(&bead.Bead{
+		ID:              "b-1",
+		Title:           "scope",
+		Description:     "Update cmd/gromit/main.go for wiring.",
+		Labels:          []string{"spec:dynamic-map"},
+		ExpectedOutputs: []string{},
+	}, nil, 1, "sonnet")
+	if err != nil {
+		t.Fatalf("BuildContext() error = %v", err)
+	}
+
+	if !strings.Contains(ctx.ClaudeMD, "## Architecture") {
+		t.Fatalf("expected Architecture section, got:\n%s", ctx.ClaudeMD)
+	}
+	if strings.Contains(ctx.ClaudeMD, "internal/bead/") {
+		t.Fatalf("expected static architecture list to be replaced, got:\n%s", ctx.ClaudeMD)
+	}
+	for _, want := range []string{
+		"- `cmd/gromit/` —",
+		"- `internal/prompt/` —",
+		"- `internal/runner/` —",
+		"## Key Principles\n\n1. Keep exact principle text.\n2. Preserve behavior.",
+	} {
+		if !strings.Contains(ctx.ClaudeMD, want) {
+			t.Fatalf("expected %q in scoped CLAUDE content:\n%s", want, ctx.ClaudeMD)
+		}
+	}
+}
+
+func TestBuildContext_NoDiscoveredPackagesKeepsFullClaudeFallback(t *testing.T) {
+	originalClaude := `# Project
+
+## Architecture
+
+- ` + "`internal/bead/`" + ` — Bead lifecycle.
+
+## Key Principles
+
+1. Keep exact principle text.
+`
+	r, _ := setupBuildContextScopedRenderer(t, originalClaude, "")
+
+	ctx, err := r.BuildContext(&bead.Bead{
+		ID:              "b-2",
+		Title:           "no-scope",
+		Labels:          []string{},
+		ExpectedOutputs: []string{},
+	}, nil, 1, "sonnet")
+	if err != nil {
+		t.Fatalf("BuildContext() error = %v", err)
+	}
+
+	if ctx.ClaudeMD != originalClaude {
+		t.Fatalf("expected full CLAUDE fallback unchanged\nwant:\n%s\n\ngot:\n%s", originalClaude, ctx.ClaudeMD)
+	}
+}
+
+func TestBuildContext_ScopedArchitectureIsDeterministic(t *testing.T) {
+	originalClaude := `# Project
+
+## Architecture
+
+- ` + "`internal/bead/`" + ` — Bead lifecycle.
+
+## Key Principles
+
+1. Keep exact principle text.
+`
+	spec := "Work touches internal/prompt/prompt.go and cmd/gromit/main.go."
+	r, _ := setupBuildContextScopedRenderer(t, originalClaude, spec)
+	r.SetSiblingTouchedPackagesResolver(func(current *bead.Bead, parent *bead.Bead) ([]string, error) {
+		return []string{"internal/runner", "cmd/gromit", "internal/runner/"}, nil
+	})
+
+	testBead := &bead.Bead{
+		ID:              "b-3",
+		Title:           "deterministic",
+		Description:     "Also updates internal/prompt and cmd/gromit/.",
+		Labels:          []string{"spec:dynamic-map"},
+		ExpectedOutputs: []string{},
+	}
+	ctx1, err := r.BuildContext(testBead, nil, 1, "sonnet")
+	if err != nil {
+		t.Fatalf("BuildContext() first call error = %v", err)
+	}
+	ctx2, err := r.BuildContext(testBead, nil, 2, "sonnet")
+	if err != nil {
+		t.Fatalf("BuildContext() second call error = %v", err)
+	}
+
+	if ctx1.ClaudeMD != ctx2.ClaudeMD {
+		t.Fatalf("expected deterministic scoped CLAUDE output\nfirst:\n%s\n\nsecond:\n%s", ctx1.ClaudeMD, ctx2.ClaudeMD)
+	}
+
+	cmdPos := strings.Index(ctx1.ClaudeMD, "- `cmd/gromit/`")
+	promptPos := strings.Index(ctx1.ClaudeMD, "- `internal/prompt/`")
+	runnerPos := strings.Index(ctx1.ClaudeMD, "- `internal/runner/`")
+	if cmdPos == -1 || promptPos == -1 || runnerPos == -1 || !(cmdPos < promptPos && promptPos < runnerPos) {
+		t.Fatalf("expected deterministic sorted architecture bullets, got:\n%s", ctx1.ClaudeMD)
+	}
+}
+
 func TestRenderNilRenderer(t *testing.T) {
 	var r *Renderer
 	_, err := r.RenderBuild(nil)

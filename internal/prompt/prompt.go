@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -885,6 +886,7 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	}
 
 	r.enrichSiblingTouchedPackages(ctx, b, parent)
+	r.applyScopedClaudeContext(ctx)
 
 	ctx.normalizeNilFields()
 	return ctx, nil
@@ -913,6 +915,62 @@ func (r *Renderer) enrichSiblingTouchedPackages(ctx *Context, current, parent *b
 	if err == nil && siblingTouched != nil {
 		ctx.SiblingTouchedPackages = siblingTouched
 	}
+}
+
+// applyScopedClaudeContext scopes CLAUDE architecture context when package discovery finds targets.
+// Fallback remains the full CLAUDE.md content when no scoped packages are discovered.
+func (r *Renderer) applyScopedClaudeContext(ctx *Context) {
+	if r == nil || ctx == nil {
+		return
+	}
+
+	layer1Paths := extractScopedPackagePathsFromText(
+		ctx.Spec,
+		beadDescription(ctx.Bead),
+		beadDescription(ctx.ParentBead),
+	)
+	mergedPaths := mergeScopedPackagePaths(layer1Paths, ctx.SiblingTouchedPackages)
+	if len(mergedPaths) == 0 {
+		return
+	}
+
+	sections := parseClaudeSections(ctx.ClaudeMD)
+	entries := resolveScopedArchitectureEntries(mergedPaths, sections.ArchitectureBody, ctx.WorkDir)
+	ctx.ClaudeMD = renderScopedClaudeContent(ctx.ClaudeMD, entries)
+}
+
+func mergeScopedPackagePaths(pathGroups ...[]string) []string {
+	if len(pathGroups) == 0 {
+		return []string{}
+	}
+
+	unique := make(map[string]struct{})
+	for _, paths := range pathGroups {
+		for _, path := range paths {
+			normalized := normalizeScopedPath(path)
+			if normalized == "" {
+				continue
+			}
+			unique[normalized] = struct{}{}
+		}
+	}
+
+	merged := make([]string, 0, len(unique))
+	for path := range unique {
+		merged = append(merged, path)
+	}
+	if len(merged) == 0 {
+		return []string{}
+	}
+	sort.Strings(merged)
+	return merged
+}
+
+func beadDescription(b *bead.Bead) string {
+	if b == nil {
+		return ""
+	}
+	return b.Description
 }
 
 // LoadRules loads the RULES.md file
