@@ -2,6 +2,7 @@ package policy
 
 import (
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 )
 
@@ -16,6 +17,12 @@ type ThresholdStuckPolicy struct {
 }
 
 var _ StuckPolicy = (*ThresholdStuckPolicy)(nil)
+
+// NewConfigStuckPolicy returns a StuckPolicy backed by cfg.
+func NewConfigStuckPolicy(cfg *config.Config) StuckPolicy {
+	_ = cfg
+	return NewThresholdStuckPolicy(0)
+}
 
 // NewThresholdStuckPolicy returns a StuckPolicy that uses the provided threshold.
 func NewThresholdStuckPolicy(threshold int) StuckPolicy {

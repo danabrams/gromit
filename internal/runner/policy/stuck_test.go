@@ -4,9 +4,20 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/runner/policy"
 )
+
+func TestNewConfigStuckPolicy_NotNil(t *testing.T) {
+	cfg := &config.Config{}
+
+	p := policy.NewConfigStuckPolicy(cfg)
+
+	if p == nil {
+		t.Fatal("expected NewConfigStuckPolicy to return a policy")
+	}
+}
 
 func TestThresholdStuckPolicy_IsStuck_Boundary(t *testing.T) {
 	cases := []struct {
