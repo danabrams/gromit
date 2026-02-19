@@ -113,7 +113,7 @@ func TestBuildContextNilBead(t *testing.T) {
 	}
 }
 
-func setupBuildContextScopedRenderer(t *testing.T, claudeMD string, specContent string) (*Renderer, string) {
+func setupBuildContextScopedRenderer(t *testing.T, claudeMD string, specContent string) *Renderer {
 	t.Helper()
 
 	tmpDir := t.TempDir()
@@ -139,7 +139,7 @@ func setupBuildContextScopedRenderer(t *testing.T, claudeMD string, specContent 
 	if err != nil {
 		t.Fatalf("NewRenderer() error = %v", err)
 	}
-	return r, tmpDir
+	return r
 }
 
 func assertKeyPrinciplesPreserved(t *testing.T, claudeMD string) {
@@ -201,7 +201,7 @@ func TestBuildContext_ScopedArchitectureAcceptanceMatrix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, _ := setupBuildContextScopedRenderer(t, originalClaude, tt.specContent)
+			r := setupBuildContextScopedRenderer(t, originalClaude, tt.specContent)
 			if tt.siblingTouched != nil {
 				siblingTouched := append([]string(nil), tt.siblingTouched...)
 				r.SetSiblingTouchedPackagesResolver(func(current *bead.Bead, parent *bead.Bead) ([]string, error) {
@@ -266,7 +266,7 @@ func TestBuildContext_ScopedArchitectureIsDeterministicAndSmallerForTwoPackages(
 2. Preserve behavior.
 `
 	spec := "Work touches internal/prompt/prompt.go and cmd/gromit/main.go."
-	r, _ := setupBuildContextScopedRenderer(t, originalClaude, spec)
+	r := setupBuildContextScopedRenderer(t, originalClaude, spec)
 
 	testBead := &bead.Bead{
 		ID:              "b-3",
