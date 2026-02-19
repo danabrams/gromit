@@ -14,6 +14,7 @@ import (
 
 var h2HeaderPattern = regexp.MustCompile(`(?m)^##\s+([^\n#][^\n]*)\s*$`)
 var architectureBulletPattern = regexp.MustCompile("(?m)^\\s*-\\s*`([^`]+)`\\s*(?:—|-)\\s*(.+?)\\s*$")
+var scopedPackagePattern = regexp.MustCompile(`(?:internal|cmd)/[A-Za-z0-9._/\-]+`)
 
 // ScopedArchitectureEntry describes one architecture bullet line.
 type ScopedArchitectureEntry struct {
@@ -288,6 +289,64 @@ func normalizeScopedPath(path string) string {
 		return ""
 	}
 	return normalized + "/"
+}
+
+// extractScopedPackagePathsFromText discovers package paths in spec/bead/parent text.
+// It normalizes path formatting, removes likely file suffixes, deduplicates, and sorts.
+func extractScopedPackagePathsFromText(spec, beadDescription, parentDescription string) []string {
+	if strings.TrimSpace(spec) == "" && strings.TrimSpace(beadDescription) == "" && strings.TrimSpace(parentDescription) == "" {
+		return []string{}
+	}
+
+	unique := make(map[string]struct{})
+	for _, source := range []string{spec, beadDescription, parentDescription} {
+		matches := scopedPackagePattern.FindAllString(source, -1)
+		for _, match := range matches {
+			normalized := normalizeDiscoveredScopedPath(match)
+			if normalized == "" {
+				continue
+			}
+			unique[normalized] = struct{}{}
+		}
+	}
+
+	paths := make([]string, 0, len(unique))
+	for path := range unique {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func normalizeDiscoveredScopedPath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	trimmed = strings.TrimPrefix(trimmed, "./")
+	trimmed = strings.Trim(trimmed, "/")
+	if trimmed == "" {
+		return ""
+	}
+
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+
+	if parts[len(parts)-1] == "..." {
+		parts = parts[:len(parts)-1]
+	}
+	if len(parts) < 2 {
+		return ""
+	}
+
+	last := parts[len(parts)-1]
+	if strings.Contains(last, ".") {
+		parts = parts[:len(parts)-1]
+	}
+	if len(parts) < 2 {
+		return ""
+	}
+
+	return normalizeScopedPath(strings.Join(parts, "/"))
 }
 
 // renderScopedClaudeContent replaces only the Architecture section while preserving

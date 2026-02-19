@@ -215,3 +215,48 @@ package beta
 		t.Fatalf("unexpected resolved entries:\nwant: %#v\n got: %#v", want, entries)
 	}
 }
+
+func TestExtractScopedPackagePathsFromText_CollectsFromAllSources(t *testing.T) {
+	spec := `
+Research:
+- Update internal/prompt/claude_scoping.go and internal/runner/run_iteration.go
+- Touch cmd/gromit/main.go for wiring
+`
+	beadDescription := "Scope only internal/prompt/ and cmd/gromit/"
+	parentDescription := "Parent context references internal/logger for follow-up."
+
+	got := extractScopedPackagePathsFromText(spec, beadDescription, parentDescription)
+	want := []string{
+		"cmd/gromit/",
+		"internal/logger/",
+		"internal/prompt/",
+		"internal/runner/",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected discovered package paths:\nwant: %#v\n got: %#v", want, got)
+	}
+}
+
+func TestExtractScopedPackagePathsFromText_DeduplicatesAndNormalizes(t *testing.T) {
+	spec := "internal/prompt internal/prompt/ ./internal/prompt/ cmd/gromit/... cmd/gromit/main.go"
+
+	got := extractScopedPackagePathsFromText(spec, "", "")
+	want := []string{
+		"cmd/gromit/",
+		"internal/prompt/",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected normalized paths:\nwant: %#v\n got: %#v", want, got)
+	}
+}
+
+func TestExtractScopedPackagePathsFromText_IgnoresInvalidOrIncompleteCandidates(t *testing.T) {
+	spec := "ignore internal/ and cmd/ and random/path and internal/.hidden"
+
+	got := extractScopedPackagePathsFromText(spec, "", "")
+	if len(got) != 0 {
+		t.Fatalf("expected no extracted paths, got %#v", got)
+	}
+}
