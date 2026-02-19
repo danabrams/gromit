@@ -879,3 +879,25 @@ func TestValidateCoverage_InvokesCallback(t *testing.T) {
 		t.Fatalf("ValidateCoverage passed criterion %q, want %q", gotCriterion, "criterion-1")
 	}
 }
+
+func TestValidateCoverage_PropagatesResultAndError(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	exec := NewExecutor(cfg, &buf, nil, nil, nil)
+
+	expectedResult := &claude.Result{Success: false, Output: "missing coverage", ExitCode: 1}
+	expectedErr := errors.New("coverage check failed")
+
+	exec.SetCoverageValidateFn(func(ctx context.Context, bc *runtypes.BeadContext, testCode, criterion string) (*claude.Result, error) {
+		return expectedResult, expectedErr
+	})
+
+	result, err := exec.ValidateCoverage(context.Background(), newTestBeadContext(), "package foo\n", "criterion-2")
+	if result != expectedResult {
+		t.Fatalf("ValidateCoverage result = %#v, want %#v", result, expectedResult)
+	}
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("ValidateCoverage error = %v, want %v", err, expectedErr)
+	}
+}
