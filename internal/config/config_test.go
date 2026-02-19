@@ -2894,6 +2894,26 @@ func TestMethodologyMaxTDDCyclesDefaultsToTen(t *testing.T) {
 	}
 }
 
+func TestMethodologyMaxTDDCyclesParsesFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `methodology:
+  max_tdd_cycles: 7
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Methodology.MaxTDDCycles != 7 {
+		t.Errorf("expected max_tdd_cycles=7, got %d", cfg.Methodology.MaxTDDCycles)
+	}
+}
+
 func TestMethodologyGranularityParsing(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -205,6 +205,7 @@ state:
 methodology:
   atdd: false
   tdd: true
+  # max_tdd_cycles: 10  # Maximum red/green/refactor loops per bead before stopping (default: 10)
   # granularity: "bead"  # "bead" or "spec"
   # Optional phase-specific time budgets (seconds). Any zero/omitted value falls back to claude.bead_timeout.
   # phase_timeouts:
