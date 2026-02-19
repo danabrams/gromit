@@ -840,3 +840,42 @@ func TestRunAcceptanceTestsWithRetry_PropagatesContextCanceled(t *testing.T) {
 		t.Fatalf("invocation count = %d, want 0 (should not invoke when context is already canceled)", invocationCount)
 	}
 }
+
+func TestValidateCoverage_InvokesCallback(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	exec := NewExecutor(cfg, &buf, nil, nil, nil)
+
+	var gotCtx context.Context
+	var gotBead *runtypes.BeadContext
+	var gotTestCode string
+	var gotCriterion string
+
+	exec.SetCoverageValidateFn(func(ctx context.Context, bc *runtypes.BeadContext, testCode, criterion string) (*claude.Result, error) {
+		gotCtx = ctx
+		gotBead = bc
+		gotTestCode = testCode
+		gotCriterion = criterion
+		return &claude.Result{Success: true}, nil
+	})
+
+	ctx := context.Background()
+	bc := newTestBeadContext()
+	_, err := exec.ValidateCoverage(ctx, bc, "package foo\n", "criterion-1")
+	if err != nil {
+		t.Fatalf("ValidateCoverage returned unexpected error: %v", err)
+	}
+	if gotCtx != ctx {
+		t.Fatal("ValidateCoverage should pass through the context")
+	}
+	if gotBead != bc {
+		t.Fatal("ValidateCoverage should pass through the bead context")
+	}
+	if gotTestCode != "package foo\n" {
+		t.Fatalf("ValidateCoverage passed testCode %q, want %q", gotTestCode, "package foo\n")
+	}
+	if gotCriterion != "criterion-1" {
+		t.Fatalf("ValidateCoverage passed criterion %q, want %q", gotCriterion, "criterion-1")
+	}
+}

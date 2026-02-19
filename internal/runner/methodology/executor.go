@@ -24,21 +24,25 @@ type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string)
 // ValidateDirectFn runs validation commands directly and returns the result.
 type ValidateDirectFn func(ctx context.Context, commands []string, workDir string) (*claude.Result, error)
 
+// CoverageValidateFn validates coverage for a test code snippet and criterion.
+type CoverageValidateFn func(ctx context.Context, bc *runtypes.BeadContext, testCode, criterion string) (*claude.Result, error)
+
 // Executor handles ATDD workflow phases: writing acceptance tests,
 // verifying they fail before implementation, refactoring, and retry wrappers.
 type Executor struct {
-	cfg              *config.Config
-	output           io.Writer
-	renderFn         RenderFn
-	invokeFn         InvokeFn
-	validateFn       ValidateDirectFn
-	escalateTierFn   EscalateTierFn
-	analyzeFn        AnalyzeFn
-	getDiffFn        GetDiffFn
-	renderRefactorFn RenderRefactorFn
-	refactorInvokeFn RefactorInvokeFn
-	gitResetFn       GitResetFn
-	getGitHeadFn     GetGitHeadFn
+	cfg                *config.Config
+	output             io.Writer
+	renderFn           RenderFn
+	invokeFn           InvokeFn
+	validateFn         ValidateDirectFn
+	coverageValidateFn CoverageValidateFn
+	escalateTierFn     EscalateTierFn
+	analyzeFn          AnalyzeFn
+	getDiffFn          GetDiffFn
+	renderRefactorFn   RenderRefactorFn
+	refactorInvokeFn   RefactorInvokeFn
+	gitResetFn         GitResetFn
+	getGitHeadFn       GetGitHeadFn
 }
 
 // AcceptanceVerificationError captures failure details when post-build
@@ -78,6 +82,11 @@ func (e *Executor) SetGetDiffFn(fn GetDiffFn) {
 	e.getDiffFn = fn
 }
 
+// SetCoverageValidateFn sets the coverage validation callback.
+func (e *Executor) SetCoverageValidateFn(fn CoverageValidateFn) {
+	e.coverageValidateFn = fn
+}
+
 // SetRefactorDeps sets the refactor-phase dependencies.
 // Only sets refactor-specific fields; does not overwrite getDiffFn or validateFn
 // if they were already set by the constructor or other setters.
@@ -92,6 +101,14 @@ func (e *Executor) SetRefactorDeps(deps RefactorDeps) {
 	}
 	e.gitResetFn = deps.gitResetFn
 	e.getGitHeadFn = deps.getGitHeadFn
+}
+
+// ValidateCoverage delegates coverage validation to the configured callback.
+func (e *Executor) ValidateCoverage(ctx context.Context, bc *runtypes.BeadContext, testCode, criterion string) (*claude.Result, error) {
+	if e.coverageValidateFn == nil {
+		return nil, fmt.Errorf("coverage validate function not configured")
+	}
+	return e.coverageValidateFn(ctx, bc, testCode, criterion)
 }
 
 // AcceptanceCommands returns a copy of the given commands with "-tags acceptance"
