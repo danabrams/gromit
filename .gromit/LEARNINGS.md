@@ -35,74 +35,36 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-19 | Preserve orchestrator behavior by re-running existing tests after extraction | patterns
-
-After refactoring the orchestrator and updating call-sites, keep the existing orchestrator regression tests as mandatory smoke coverage. Re-running tests in `internal/runner/` (especially `*orchestrator*_test.go` and cycle/fresh-context tests) validates behavior parity with prior execution paths and catches call-site regressions that unit tests in isolation may miss.
-
-### 2026-02-19 | gpt-5.3-codex Structural Cost Multiplier | patterns
-
-gpt-5.3-codex averages $22.77/iteration vs $2.46 for gpt-5.2-codex (9x) despite similar per-token pricing. Top 4 most expensive iterations in the last 30 were all 5.3-codex ($55, $42, $42, $22). Token counts are reported as 0 for all codex iterations, so root cause (prompt size vs output verbosity vs retry loops) cannot be diagnosed. Until token reporting is fixed and the cause identified, prefer gpt-5.2-codex for cost-sensitive routing.
-
-### 2026-02-19 | Codex Token Reporting Must Parse Output Metrics | patterns
+### 2026-02-19 | Codex Cost Opacity and Token Reporting Gap | patterns
 *Related to: gpt-5.3-codex Structural Cost Multiplier*
 
-Codex provider runs must parse token usage from the provider output and populate `input_tokens` and `output_tokens` in `iteration_metrics.jsonl`, matching Claude’s token-reporting path. Leaving both values at zero hides root causes for cost anomalies (e.g., 9x cost difference between gpt-5.3-codex and gpt-5.2-codex), so parse and surface token metrics at the same stage Codex output is consumed.
+gpt-5.3-codex averages $22.77/iteration vs $2.46 for gpt-5.2-codex (9x cost multiplier). Root cause cannot be diagnosed because the codex provider reports 0 for both input_tokens and output_tokens in iteration_metrics.jsonl. The codex output parser must extract and populate token usage metrics, matching Claude's token-reporting path via `{"type":"result"}` events. Until token reporting is fixed and the cost differential explained, prefer gpt-5.2-codex for cost-sensitive routing.
 
-### 2026-02-18 | Documentation Test Enforcement for RULES.md | conventions
-Documentation tests in bead_sizing_docs_test.go enforce that RULES.md stays in sync with implemented behavior. Any changes to file sizing rules must update both the code AND the corresponding RULES.md documentation section.
+### 2026-02-19 | Runner Sub-Package Isolation via runtypes | architecture
+*Related to: code-review*
+*Promoted to RULES.md Architecture section.*
+
+The runner sub-package split maintains clean isolation: no sub-package imports another sub-package, all production files under 500 lines, facade files under 1000 lines. All cross-cutting types live in runtypes/, which serves as the dependency-inversion boundary. Type aliases in the parent runner package maintain backward compatibility.
 
 ### 2026-02-19 | Agent Resolver Adapter Duplication | patterns
 *Related to: code-review*
 
 Agent resolver adapters (cliAgentResolver, agentResolverAdapter, exploreAgentResolver) are copy-pasted across cmd/gromit files — any interface change requires updating 3+ places.
 
-### 2026-02-19 | Go Interface Nil Check Gotcha in Pipeline | gotchas
-*Related to: code-review*
-
-The pipeline.validateReviewDeps function uses Go interface nil checks which do not catch typed nil pointers — this is a general Go gotcha worth documenting.
-
 ### 2026-02-19 | Source-Text-Reading Test Anti-Pattern | gotchas
 *Related to: code-review*
 
 Source-text-reading test pattern (os.ReadFile + strings.Contains on .go files) has become widespread in *_agent_test.go files — these tests are fragile to refactoring and should be replaced before they multiply further.
 
-### 2026-02-19 | Runner Sub-Package Split Quality | patterns
-*Related to: code-review*
-
-The runner sub-package split is well-executed: no sub-package imports another sub-package, all production files under 500 lines, facade files under 1000 lines, and type aliases maintain backward compatibility.
-
-### 2026-02-19 | Acceptance Test Line Budget Utilization | patterns
-*Related to: code-review*
-
-The acceptance test line budget is at 61.5% utilization (3,688 of 6,000 lines) — healthy headroom.
+### 2026-02-19 | Temp File Pattern for CLI Prompts | conventions
+Interactive commands must write large prompts to temp files before passing to Claude CLI to avoid OS ARG_MAX limits. debug.go correctly follows this pattern (writes to .gromit/tmp/); retro.go does not and passes prompt text directly as a CLI argument. New interactive commands should follow the debug.go pattern.
 
 ### 2026-02-19 | Debug Command Model Flag Override | gotchas
 *Related to: code-review*
 
 The debug command's --model flag defaults to opus so the model override block always executes for the Claude agent, silently discarding any resolved agent configuration.
 
-### 2026-02-19 | Factory Functions Must Propagate Errors | gotchas
-
-Constructor/factory functions that call other functions which can fail (e.g., backlog.NewFile) must return (*T, error) and propagate errors to callers. Returning nil on error without changing the signature leaves callers unable to detect failure. The createRefinePipeline function returned nil on backlog.NewFile failure, but was called at line 61 without nil checks, causing a panic when dereferencing. Solution: change signature to return error and check it before using the result.
-
-### 2026-02-19 | Runner Sub-Package Isolation Pattern | architecture
-
-The runner sub-package split maintains clean isolation — no sub-package imports another sub-package. All cross-cutting types live in runtypes/. When a sub-package needs types from another, they go through runtypes as the dependency-inversion boundary.
-
-### 2026-02-19 | StreamLogger.LogEvent Is Nil-Safe | conventions
-
-StreamLogger.LogEvent checks `sl == nil` at the top, making it safe to call on nil StreamLogger pointers. This means Invoker lifecycle log methods that check `inv == nil` but not `inv.streamLogger == nil` are actually safe — no additional nil guard needed.
-
-### 2026-02-19 | Temp File Pattern for CLI Prompts | conventions
-
-Interactive commands must write large prompts to temp files before passing to Claude CLI to avoid OS ARG_MAX limits. debug.go correctly follows this pattern (writes to .gromit/tmp/); retro.go does not and passes prompt text directly as a CLI argument. New interactive commands should follow the debug.go pattern.
-
-### 2026-02-19 | Policy Interface Compile-Time Checks | conventions
-
-All four runner policy interfaces (EscalationPolicy, MethodologyPolicy, StuckPolicy, ValidationPolicy) correctly include `var _ Interface = (*Impl)(nil)` compile-time checks. This pattern catches interface drift at compile time rather than runtime.
-
 ### 2026-02-19 | SetDefaults Zero-Value Sentinel Limitation | gotchas
-
 Config SetDefaults() uses `if field == 0` guards for integer fields, which prevents users from intentionally setting zero. This is problematic for fields where zero is meaningful (e.g., PushTimeout where 0 should disable the timeout per PushTimeoutDuration() docs). Fields needing a disable-via-zero semantic should use *int or a sentinel like -1.
 
 ---

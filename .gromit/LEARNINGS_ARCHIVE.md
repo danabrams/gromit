@@ -4,6 +4,71 @@ Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-19.
 
 ---
 
+### 2026-02-19 | Preserve orchestrator behavior by re-running existing tests after extraction | patterns
+After refactoring the orchestrator and updating call-sites, keep the existing orchestrator regression tests as mandatory smoke coverage. Re-running tests in `internal/runner/` (especially `*orchestrator*_test.go` and cycle/fresh-context tests) validates behavior parity with prior execution paths and catches call-site regressions that unit tests in isolation may miss.
+
+*Archived from provisional: filtered: generic engineering advice — 're-run existing tests after refactoring' is universal advice*
+
+### 2026-02-19 | gpt-5.3-codex Structural Cost Multiplier | patterns
+gpt-5.3-codex averages $22.77/iteration vs $2.46 for gpt-5.2-codex (9x) despite similar per-token pricing. Top 4 most expensive iterations in the last 30 were all 5.3-codex ($55, $42, $42, $22). Token counts are reported as 0 for all codex iterations, so root cause (prompt size vs output verbosity vs retry loops) cannot be diagnosed. Until token reporting is fixed and the cause identified, prefer gpt-5.2-codex for cost-sensitive routing.
+
+*Archived from provisional: consolidated into "Codex Cost Opacity and Token Reporting Gap" entry*
+
+### 2026-02-19 | Codex Token Reporting Must Parse Output Metrics | patterns
+*Related to: gpt-5.3-codex Structural Cost Multiplier*
+
+Codex provider runs must parse token usage from the provider output and populate `input_tokens` and `output_tokens` in `iteration_metrics.jsonl`, matching Claude's token-reporting path. Leaving both values at zero hides root causes for cost anomalies (e.g., 9x cost difference between gpt-5.3-codex and gpt-5.2-codex), so parse and surface token metrics at the same stage Codex output is consumed.
+
+*Archived from provisional: consolidated into "Codex Cost Opacity and Token Reporting Gap" entry*
+
+### 2026-02-19 | Runner Sub-Package Split Quality | patterns
+*Related to: code-review*
+
+The runner sub-package split is well-executed: no sub-package imports another sub-package, all production files under 500 lines, facade files under 1000 lines, and type aliases maintain backward compatibility.
+
+*Archived from provisional: consolidated into "Runner Sub-Package Isolation via runtypes" entry*
+
+### 2026-02-19 | Runner Sub-Package Isolation Pattern | architecture
+The runner sub-package split maintains clean isolation — no sub-package imports another sub-package. All cross-cutting types live in runtypes/. When a sub-package needs types from another, they go through runtypes as the dependency-inversion boundary.
+
+*Archived from provisional: consolidated into "Runner Sub-Package Isolation via runtypes" entry*
+
+### 2026-02-19 | Acceptance Test Line Budget Utilization | patterns
+*Related to: code-review*
+
+The acceptance test line budget is at 61.5% utilization (3,688 of 6,000 lines) — healthy headroom.
+
+*Archived from provisional: point-in-time snapshot; budget is codified as a rule in RULES.md Test Quality section*
+
+### 2026-02-19 | Policy Interface Compile-Time Checks | conventions
+All four runner policy interfaces (EscalationPolicy, MethodologyPolicy, StuckPolicy, ValidationPolicy) correctly include `var _ Interface = (*Impl)(nil)` compile-time checks. This pattern catches interface drift at compile time rather than runtime.
+
+*Archived from provisional: already codified in RULES.md Code Style section (compile-time interface checks rule)*
+
+### 2026-02-19 | StreamLogger.LogEvent Is Nil-Safe | conventions
+StreamLogger.LogEvent checks `sl == nil` at the top, making it safe to call on nil StreamLogger pointers. This means Invoker lifecycle log methods that check `inv == nil` but not `inv.streamLogger == nil` are actually safe — no additional nil guard needed.
+
+*Archived from provisional: documents existing code behavior, not a constraint or pattern to follow*
+
+### 2026-02-18 | Documentation Test Enforcement for RULES.md | conventions
+Documentation tests in bead_sizing_docs_test.go enforce that RULES.md stays in sync with implemented behavior. Any changes to file sizing rules must update both the code AND the corresponding RULES.md documentation section.
+
+*Archived from provisional: filtered: generic advice ('keep docs in sync with code'); the test itself enforces this automatically*
+
+### 2026-02-19 | Factory Functions Must Propagate Errors | gotchas
+Constructor/factory functions that call other functions which can fail (e.g., backlog.NewFile) must return (*T, error) and propagate errors to callers. Returning nil on error without changing the signature leaves callers unable to detect failure. The createRefinePipeline function returned nil on backlog.NewFile failure, but was called at line 61 without nil checks, causing a panic when dereferencing. Solution: change signature to return error and check it before using the result.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-19 | Go Interface Nil Check Gotcha in Pipeline | gotchas
+*Related to: code-review*
+
+The pipeline.validateReviewDeps function uses Go interface nil checks which do not catch typed nil pointers — this is a general Go gotcha worth documenting.
+
+*Archived from provisional: filtered: generic engineering advice*
+
+---
+
 ### 2026-02-19 | Touched-Package Validation Blocks on Pre-existing Failures | conventions
 *Promoted from provisional — recurring operational surprise across multiple iterations*
 

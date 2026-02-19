@@ -41,6 +41,10 @@ These are non-negotiable constraints for this project. Gromit will always follow
 
 - "Backlog" always means the ideas backlog (`gromit add` / `.gromit/backlog.jsonl`), not beads. Beads are work items; backlog items are raw ideas awaiting refinement
 
+## Architecture <!-- phases: build, review -->
+
+- Runner sub-packages (`internal/runner/*/`) must not import sibling sub-packages. All cross-cutting types live in `runtypes/`, which serves as the dependency-inversion boundary. Type aliases in the parent `runner` package maintain backward compatibility. Keep all production files under 500 lines and facade files under 1000 lines
+
 ## Process <!-- phases: build -->
 
 - Pipeline methods should use input/output structs, validate dependencies first, use renderer processing, resolve agents via `agents.ResolveByName`, and define post-processing change detection. Keep pipeline tests next to their command files
