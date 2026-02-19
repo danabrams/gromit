@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -208,7 +209,7 @@ func appendToGitignore(path string) {
 
 	var missing []string
 	for _, entry := range entries {
-		if !contains(current, entry) {
+		if !strings.Contains(current, entry) {
 			missing = append(missing, entry)
 		}
 	}
@@ -228,19 +229,6 @@ func appendToGitignore(path string) {
 		f.WriteString(entry + "\n")
 	}
 	fmt.Println("  Updated .gitignore")
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsString(s, substr))
-}
-
-func containsString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 const defaultConfig = `# Gromit Configuration
