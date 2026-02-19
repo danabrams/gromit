@@ -285,6 +285,17 @@ func TestInvocationResult_AllFields(t *testing.T) {
 	}
 }
 
+// TestIterationResult_FailurePhase verifies that IterationResult has a FailurePhase field.
+func TestIterationResult_FailurePhase(t *testing.T) {
+	result := IterationResult{
+		BeadID:       "bead-1",
+		FailurePhase: "validation",
+	}
+	if result.FailurePhase != "validation" {
+		t.Errorf("FailurePhase = %q, want %q", result.FailurePhase, "validation")
+	}
+}
+
 func TestIterationResult_FilesTouched(t *testing.T) {
 	result := IterationResult{
 		BeadID:       "test-1",

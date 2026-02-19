@@ -60,6 +60,7 @@ type IterationResult struct {
 	SpecID                  string
 	Model                   string
 	Provider                string `json:"provider,omitempty"`
+	FailurePhase            string `json:"failure_phase,omitempty"`
 	FailureCategory         string `json:"failure_category,omitempty"`
 	Success                 bool
 	Validated               bool
