@@ -818,27 +818,23 @@ func IsTestOnlyBead(title string) bool {
 	return false
 }
 
+// proactiveDecomposeKeywords matches broad-scope keywords as whole words only.
+// This prevents false positives on identifiers like "RefactorInvokeFn" or "ExtractArray"
+// where the keyword is embedded in a CamelCase name rather than used as a verb/noun.
+var proactiveDecomposeKeywords = regexp.MustCompile(
+	`(?i)\b(infrastructure|e2e|consolidate|extract|shared|refactor)\b`,
+)
+
 // IsProactiveDecompositionCandidate returns true if the bead's title contains keywords
 // that signal broad scope and should trigger proactive decomposition before first attempt.
+// Keywords must appear as whole words — "Refactor the auth system" matches but
+// "Update RefactorInvokeFn" does not.
 func IsProactiveDecompositionCandidate(title string) bool {
-	t := strings.ToLower(strings.TrimSpace(title))
+	t := strings.TrimSpace(title)
 	if t == "" {
 		return false
 	}
-	keywords := []string{
-		"infrastructure",
-		"e2e",
-		"consolidate",
-		"extract",
-		"shared",
-		"refactor",
-	}
-	for _, kw := range keywords {
-		if strings.Contains(t, kw) {
-			return true
-		}
-	}
-	return false
+	return proactiveDecomposeKeywords.MatchString(t)
 }
 
 // IsProactiveDecompositionCandidateWithDesc returns true if the bead should be proactively

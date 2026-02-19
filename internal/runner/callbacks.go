@@ -15,7 +15,6 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
-	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -146,7 +145,9 @@ func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext
 		return stampTimeoutType(invResult, "stall"), err
 	case "bead":
 		bc.Result.TimeoutType = "bead"
-		escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
+		if r.renderer != nil {
+			escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
+		}
 		return stampTimeoutType(invResult, "bead"), fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 	case "invocation":
 		bc.Result.TimeoutType = "invocation"
@@ -521,9 +522,6 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 
 	return methExec
 }
-
-var _ provider.Provider = nil
-var _ execution.Provider = nil
 
 func summarizeATDDProviderOutput(output string) string {
 	trimmed := strings.TrimSpace(output)

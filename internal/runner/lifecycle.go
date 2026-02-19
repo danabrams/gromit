@@ -543,14 +543,20 @@ func hasCommandWithPrefix(commands []string, requiredPrefix string) bool {
 	return false
 }
 
+var (
+	goTestPattern  = regexp.MustCompile(`(?:^|[;&|]\s*|\s)go\s+test\b`)
+	goVetPattern   = regexp.MustCompile(`(?:^|[;&|]\s*|\s)go\s+vet\b`)
+	goBuildPattern = regexp.MustCompile(`(?:^|[;&|]\s*|\s)go\s+build\b`)
+)
+
 func mandatoryCommandPattern(requiredPrefix string) *regexp.Regexp {
 	switch strings.TrimSpace(requiredPrefix) {
 	case "go test":
-		return regexp.MustCompile(`(?:^|[;&|]\s*|\s)go\s+test\b`)
+		return goTestPattern
 	case "go vet":
-		return regexp.MustCompile(`(?:^|[;&|]\s*|\s)go\s+vet\b`)
+		return goVetPattern
 	case "go build":
-		return regexp.MustCompile(`(?:^|[;&|]\s*|\s)go\s+build\b`)
+		return goBuildPattern
 	default:
 		escaped := regexp.QuoteMeta(strings.TrimSpace(requiredPrefix))
 		return regexp.MustCompile(`(?:^|[;&|]\s*|\s)` + escaped + `(?:\s|$)`)

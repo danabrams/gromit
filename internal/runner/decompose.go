@@ -12,6 +12,11 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+// maxDecomposeDepth limits how deeply beads can be recursively decomposed.
+// Depth is measured by counting "." separators in the bead ID (e.g., "gromit-abc.1.2" = depth 2).
+// This prevents runaway decomposition from creating IDs that exceed maxIDLength (128).
+const maxDecomposeDepth = 10
+
 // DecomposeTask calls Claude (opus) to decompose a task and returns parsed sub-tasks
 // Does NOT create beads - just gets the decomposition
 func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, error) {
@@ -20,6 +25,9 @@ func (r *Runner) DecomposeTask(ctx context.Context, b *bead.Bead) ([]SubTask, er
 	}
 	if b == nil {
 		return nil, fmt.Errorf("bead is nil")
+	}
+	if depth := strings.Count(b.ID, "."); depth >= maxDecomposeDepth {
+		return nil, fmt.Errorf("bead %s is at decomposition depth %d (max %d): refusing to decompose further", b.ID, depth, maxDecomposeDepth)
 	}
 	if r.beads == nil {
 		return nil, fmt.Errorf("runner beads client is nil")

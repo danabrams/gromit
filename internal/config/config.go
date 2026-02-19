@@ -480,6 +480,9 @@ func (c *Config) NormalizeNilFields() {
 		if def.Models == nil {
 			def.Models = make(map[string]string)
 		}
+		if def.ModelCosts == nil {
+			def.ModelCosts = map[string]*ModelCost{}
+		}
 		c.Providers[name] = def
 	}
 	// Normalize Routing fields

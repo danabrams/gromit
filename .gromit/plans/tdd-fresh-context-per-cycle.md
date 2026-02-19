@@ -172,7 +172,7 @@ type CycleState struct {
 
 ---
 
-### Task 2: Add MaxTDDCycles config field
+### Task 2: Add MaxTDDCycles config field and FreshContextPerCycle feature flag
 
 **Files:**
 - Modify: `internal/config/config.go`
@@ -180,12 +180,15 @@ type CycleState struct {
 - Modify: `gromit.yaml`
 
 **What to Do:**
-Add `MaxTDDCycles int` field with YAML tag `max_tdd_cycles` to `MethodologyConfig`. Default to 10 in `SetDefaults()` when zero. Add commented documentation in `gromit.yaml` under the methodology section.
+Add `MaxTDDCycles int` field with YAML tag `max_tdd_cycles` to `MethodologyConfig`. Default to 10 in `SetDefaults()` when zero. *(Done — commit c29a465.)*
+
+Add `FreshContextPerCycle bool` field with YAML tag `fresh_context_per_cycle` to `MethodologyConfig`. Default is `false` (Go zero value — no `SetDefaults` change needed). When `false`, TDD uses existing single-invocation behavior. When `true`, TDD delegates to the new `CycleOrchestrator`. Add test for YAML deserialization of the flag. Document in `gromit.yaml`.
 
 **Acceptance Criteria:**
-- `MaxTDDCycles` defaults to 10 when unset
-- YAML deserialization populates the field correctly
-- Documented in gromit.yaml with comment explaining purpose
+- `MaxTDDCycles` defaults to 10 when unset *(done)*
+- `FreshContextPerCycle` defaults to `false` when unset
+- YAML deserialization populates both fields correctly
+- Documented in gromit.yaml with comments explaining purpose
 
 **Dependencies:** None
 
@@ -341,7 +344,8 @@ Add `tddOrchestrator *tdd.CycleOrchestrator` field to `Runner`. In `makeMethodol
 - Other deps from existing runner fields
 
 In `prepareMethodologyForBead`, when `tddActive`:
-- Instead of rendering a single TDD build prompt, call `r.tddOrchestrator.RunCycles(ctx, bc)`
+- **Check `cfg.Methodology.FreshContextPerCycle`** — if `false`, fall through to existing single-invocation TDD build prompt (preserving current behavior)
+- If `true`, call `r.tddOrchestrator.RunCycles(ctx, bc)` instead of rendering a single TDD build prompt
 - If `RunCycles` returns nil (success), set a flag so `executeBuildAndMethodologyLoop` knows cycles already ran
 - If `RunCycles` returns error, set `bc.Result.Error` and return `done = true`
 
@@ -351,7 +355,8 @@ In `executeBuildAndMethodologyLoop`, when TDD cycles already ran:
 - Skip refactor (already happened per-cycle)
 
 **Acceptance Criteria:**
-- When `tdd:true`, orchestrator `RunCycles` is called instead of single TDD build prompt render
+- When `tdd:true` AND `fresh_context_per_cycle: true`, orchestrator `RunCycles` is called instead of single TDD build prompt render
+- When `tdd:true` but `fresh_context_per_cycle: false` (default), existing single-invocation behavior is preserved
 - When `tdd:false` or TDD not active, existing behavior unchanged
 - After cycles complete, full validation still runs
 
@@ -367,9 +372,10 @@ In `executeBuildAndMethodologyLoop`, when TDD cycles already ran:
 
 **What to Do:**
 Add integration-level tests that verify the TDD path through `prepareMethodologyForBead` and `executeBuildAndMethodologyLoop` with mock orchestrator:
-- `TestTDD_FreshContext_DelegatesToOrchestrator` — TDD active, verify orchestrator called
+- `TestTDD_FreshContext_DelegatesToOrchestrator` — TDD active + `fresh_context_per_cycle: true`, verify orchestrator called
 - `TestTDD_FreshContext_FallsBackOnOrchestratorError` — orchestrator returns error, bead fails
 - `TestTDD_FreshContext_FullValidationAfterCycles` — after cycles, full validation runs
+- `TestTDD_FreshContext_FlagFalse_UsesSingleInvocation` — TDD active + `fresh_context_per_cycle: false` (default), verify existing single-invocation path used
 - `TestTDD_LabelOverride_TDDFalse_SkipsOrchestrator` — `tdd:false` label bypasses orchestrator
 - `TestTDD_ConfigToggle_PreservesExistingBehavior` — `methodology.tdd: false` in config, no orchestrator
 

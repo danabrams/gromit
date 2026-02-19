@@ -109,7 +109,6 @@ func NewRunner(cfg *config.Config, output io.Writer) (*Runner, error) {
 // This thin wrapper keeps the constructor on runner.go for compatibility with
 // acceptance tests that verify wiring via AST inspection.
 func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, deps Deps) (*Runner, error) {
-	_ = &Runner{reviewer: nil}
 	return newRunnerWithDepsImpl(cfg, output, gromitDir, deps)
 }
 

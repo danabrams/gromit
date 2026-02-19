@@ -29,6 +29,11 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
 
+### 2026-02-19 | Touched-Package Validation Blocks on Pre-existing Failures | conventions
+*Promoted from provisional — recurring operational surprise across multiple iterations*
+
+The validation script (test_touched.sh) tests all packages modified in the current branch. Pre-existing test failures in touched packages will block new beads. Verify all tests pass in target packages before beginning dependent work.
+
 ---
 
 ## Provisional
@@ -37,9 +42,6 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 ### 2026-02-18 | Documentation Test Enforcement for RULES.md | conventions
 Documentation tests in bead_sizing_docs_test.go enforce that RULES.md stays in sync with implemented behavior. Any changes to file sizing rules must update both the code AND the corresponding RULES.md documentation section.
-
-### 2026-02-18 | Touched-Package Validation Blocks on Pre-existing Failures | conventions
-The validation script (test_touched.sh) runs tests for all packages that have been modified in the current branch. Pre-existing test failures in touched files will block new task completion. Always verify all tests pass in modified packages before implementing dependent changes, or unrelated work in the same package directory will inherit those failures.
 
 ---
 

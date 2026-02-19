@@ -224,12 +224,6 @@ func detectTouchedPackages(diff string) []string {
 	return packages
 }
 
-// scopeValidationCommands scopes "go test ./..." commands to touched packages.
-// Non-go-test commands and commands without "./..." are returned unchanged.
-func scopeValidationCommands(commands []string, touchedPackages []string) []string {
-	return config.ScopeGoTestCommands(commands, touchedPackages)
-}
-
 // computeScopedTestCommand constructs an explicit "go test ./pkg/..." command
 // for the given touched package paths. Returns an empty string when packages
 // is nil or empty, so callers can use the generic fallback instruction.
@@ -437,7 +431,7 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 
 	r.log("Running validation commands directly (fast gate)...")
 	commands := r.cfg.Validation.FastCommandsOrDefault()
-	commands = scopeValidationCommands(commands, bc.TouchedPackages)
+	commands = config.ScopeGoTestCommands(commands, bc.TouchedPackages)
 
 	// Capture output before validation to extract failure output afterward
 	outputBefore := bc.Result.Output
@@ -470,7 +464,7 @@ func (r *Runner) runValidationWithRecoveryForStage(ctx context.Context, bc *runt
 
 	r.log("Running validation commands directly (fast gate)...")
 	commands := r.cfg.Validation.FastCommandsOrDefault()
-	commands = scopeValidationCommands(commands, bc.TouchedPackages)
+	commands = config.ScopeGoTestCommands(commands, bc.TouchedPackages)
 
 	// Delegate core validation + recovery to validation.Runner
 	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, "fast")

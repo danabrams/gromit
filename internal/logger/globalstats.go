@@ -100,10 +100,13 @@ func UpdateGlobalStats(path string, runStats map[string]ModelStats) error {
 	}
 	tempPath := tempFile.Name()
 
-	// Ensure cleanup on error
+	// Ensure temp file cleanup on error (removed after successful rename)
+	cleanupTemp := true
 	defer func() {
-		tempFile.Close()
-		os.Remove(tempPath) // Clean up temp file if rename fails
+		if cleanupTemp {
+			tempFile.Close()
+			os.Remove(tempPath)
+		}
 	}()
 
 	// Marshal and write to temp file
@@ -125,5 +128,6 @@ func UpdateGlobalStats(path string, runStats map[string]ModelStats) error {
 		return fmt.Errorf("renaming temp file: %w", err)
 	}
 
+	cleanupTemp = false
 	return nil
 }

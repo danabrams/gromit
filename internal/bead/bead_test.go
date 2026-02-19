@@ -2788,6 +2788,31 @@ func TestIsProactiveDecompositionCandidate_KeywordDetection(t *testing.T) {
 			title: "",
 			want:  false,
 		},
+		{
+			name:  "keyword embedded in CamelCase identifier - RefactorInvokeFn",
+			title: "Update RefactorInvokeFn type to return StreamStats",
+			want:  false,
+		},
+		{
+			name:  "keyword embedded in CamelCase - ExtractArray",
+			title: "Fix ExtractArray parsing edge case",
+			want:  false,
+		},
+		{
+			name:  "keyword embedded in CamelCase - SharedConfig",
+			title: "Update SharedConfig struct fields",
+			want:  false,
+		},
+		{
+			name:  "keyword as standalone verb still matches",
+			title: "Refactor config loading to use interfaces",
+			want:  true,
+		},
+		{
+			name:  "keyword as standalone word mid-sentence",
+			title: "Plan to extract helpers into shared package",
+			want:  true,
+		},
 	}
 
 	for _, tt := range tests {

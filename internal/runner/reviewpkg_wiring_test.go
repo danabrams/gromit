@@ -73,14 +73,14 @@ func TestRunnerStructHasReviewerField(t *testing.T) {
 
 // --- Constructor wiring ---
 
-// TestNewRunnerWithDepsWiresReviewer verifies that NewRunnerWithDeps creates
+// TestNewRunnerWithDepsWiresReviewer verifies that newRunnerWithDepsImpl creates
 // and assigns a reviewpkg.Reviewer to the Runner's reviewer field.
 // Uses AST to check that the constructor body contains reviewer assignment.
 func TestNewRunnerWithDepsWiresReviewer(t *testing.T) {
 	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, filepath.Join("runner.go"), nil, parser.ParseComments)
+	node, err := parser.ParseFile(fset, filepath.Join("constructor_with_deps.go"), nil, parser.ParseComments)
 	if err != nil {
-		t.Fatalf("failed to parse runner.go: %v", err)
+		t.Fatalf("failed to parse constructor_with_deps.go: %v", err)
 	}
 
 	for _, decl := range node.Decls {
@@ -88,7 +88,7 @@ func TestNewRunnerWithDepsWiresReviewer(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if funcDecl.Name.Name != "NewRunnerWithDeps" {
+		if funcDecl.Name.Name != "newRunnerWithDepsImpl" {
 			continue
 		}
 
@@ -119,12 +119,12 @@ func TestNewRunnerWithDepsWiresReviewer(t *testing.T) {
 		})
 
 		if !hasReviewerAssignment {
-			t.Error("NewRunnerWithDeps does not assign the reviewer field — " +
+			t.Error("newRunnerWithDepsImpl does not assign the reviewer field — " +
 				"should create a reviewpkg.Reviewer and assign it to r.reviewer")
 		}
 		return
 	}
-	t.Fatal("NewRunnerWithDeps not found in runner.go")
+	t.Fatal("newRunnerWithDepsImpl not found in constructor_with_deps.go")
 }
 
 // TestNewRunnerWiresReviewer verifies that the production NewRunner constructor

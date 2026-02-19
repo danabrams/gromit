@@ -35,6 +35,9 @@ func (v *GateVerdict) FailedCriteria() []CriterionResult {
 			failed = append(failed, r)
 		}
 	}
+	if failed == nil {
+		failed = []CriterionResult{}
+	}
 	return failed
 }
 

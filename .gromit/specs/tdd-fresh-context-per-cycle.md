@@ -150,6 +150,7 @@ Escalation applies to the failing phase's invocation, not the whole cycle.
 - Cycle loop terminates on spec coverage, max cycles, or unrecoverable failure
 - Phase-level escalation: a failing phase retries/escalates independently
 - Refactor failure reverts and skips rather than failing the cycle
+- Feature gated behind `fresh_context_per_cycle: true` in methodology config (default: false, preserving existing single-invocation behavior)
 - Existing TDD config toggles and label overrides continue to work
 - Unit tests cover:
   - handoff assembly between each phase transition (red→green, green→refactor, refactor→next-red)
@@ -168,6 +169,8 @@ Escalation applies to the failing phase's invocation, not the whole cycle.
 4. **Lightweight validation between phases, full validation at the end.** Running `go test ./touched-package` between phases is fast and catches regressions immediately. Full `go test ./...` runs once at the end.
 
 5. **Phase-level escalation.** If the green phase can't make a test pass, escalate that phase's model. Don't restart the whole cycle at a higher tier.
+
+6. **Feature flag gated.** The fresh-context-per-cycle behavior is behind `fresh_context_per_cycle: true` in methodology config. Default is `false` — existing single-invocation TDD remains the default until this feature is validated in production. When the flag is off, TDD works exactly as before.
 
 ## Research & Context
 

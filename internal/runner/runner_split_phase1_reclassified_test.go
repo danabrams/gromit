@@ -165,7 +165,6 @@ func verifyRunnerSplitPhase1Layout(t *testing.T) string {
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/provider", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/prompt", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/escalation", "callbacks.go")
-	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/execution", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/methodology", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/reviewpkg", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/runtypes", "callbacks.go")

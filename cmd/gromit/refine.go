@@ -148,7 +148,10 @@ func showRefinePicker(unrefined []*backlog.Idea, reader io.Reader) int {
 }
 
 func createRefinePipeline(cfg *config.Config, gromitDir, specsDir, plansDir string) *pipeline.Pipeline {
-	bf, _ := backlog.NewFile(gromitDir)
+	bf, err := backlog.NewFile(gromitDir)
+	if err != nil {
+		return nil
+	}
 
 	deps := &pipeline.Deps{
 		AgentResolver: &agentResolverAdapter{cfg: cfg},

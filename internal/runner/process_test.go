@@ -513,7 +513,7 @@ func TestScopeValidationCommands_ScopesGoTestWildcard(t *testing.T) {
 	commands := []string{"go test ./...", "golangci-lint run ./..."}
 	touched := []string{"internal/runner", "internal/provider"}
 
-	got := scopeValidationCommands(commands, touched)
+	got := config.ScopeGoTestCommands(commands, touched)
 	want := []string{
 		"go test ./internal/runner/... ./internal/provider/...",
 		"golangci-lint run ./...",
@@ -531,7 +531,7 @@ func TestScopeValidationCommands_ScopesGoTestWildcard(t *testing.T) {
 
 func TestScopeValidationCommands_EmptyTouchedPackagesReturnsUnchanged(t *testing.T) {
 	commands := []string{"go test ./...", "go vet ./..."}
-	got := scopeValidationCommands(commands, nil)
+	got := config.ScopeGoTestCommands(commands, nil)
 
 	if len(got) != len(commands) {
 		t.Fatalf("got %d commands, want %d", len(got), len(commands))

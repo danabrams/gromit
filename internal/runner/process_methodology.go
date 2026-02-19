@@ -136,17 +136,15 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		// Use a phase context so intermediate validation is not pre-canceled by bead timeout.
 		runPostSuccess := r.methodologyPolicy.ShouldDeferPostSuccess(atddActive, tddActive)
 		validationGateCtx := ctx
-		var validationGateCancel context.CancelFunc
 		if atddActive || tddActive {
 			valTimeoutSec := r.cfg.Validation.ResolvePhaseTimeoutSeconds(int(bc.BeadTimeout.Seconds()))
+			var validationGateCancel context.CancelFunc
 			var valMeta phaseContextMeta
 			validationGateCtx, validationGateCancel, valMeta = newPhaseContext(bc, "validation_gate", valTimeoutSec)
+			defer validationGateCancel()
 			r.log("Intermediate validation phase context: timeout=%s source=%s", valMeta.EffectiveTimeout.Round(time.Second), valMeta.TimeoutSource)
 		}
 		if err := r.runValidationWithRecoveryForStage(validationGateCtx, bc, runPostSuccess); err != nil {
-			if validationGateCancel != nil {
-				validationGateCancel()
-			}
 			setPhaseAttribution(bc.Result, "validation_gate", err)
 			if bc.Result.FailurePhase == "" {
 				if isTimeoutOrCanceledError(err) {
@@ -157,9 +155,6 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 			}
 			bc.Result.Error = err
 			return bc.Result
-		}
-		if validationGateCancel != nil {
-			validationGateCancel()
 		}
 
 		if atddActive || tddActive {
