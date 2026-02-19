@@ -13,3 +13,14 @@ func TestCycleStateIsCompleteWhenDone(t *testing.T) {
 		t.Fatalf("expected IsComplete to be true when done is true")
 	}
 }
+
+func TestRedHandoffNilMapsAreSafeToRead(t *testing.T) {
+	var handoff RedHandoff
+
+	if len(handoff.TestFiles) != 0 {
+		t.Fatalf("expected zero test files, got %d", len(handoff.TestFiles))
+	}
+	if len(handoff.ImplFiles) != 0 {
+		t.Fatalf("expected zero impl files, got %d", len(handoff.ImplFiles))
+	}
+}
