@@ -31,6 +31,19 @@ func NewTracker(criteria []Criterion, maxRejections int) *CoverageTracker {
 	return &CoverageTracker{criteria: states, maxRejections: maxRejections}
 }
 
+// RecordRejection increments rejection count; transitions to Untestable at threshold.
+func (t *CoverageTracker) RecordRejection(n int) {
+	for i := range t.criteria {
+		if t.criteria[i].Number == n {
+			t.criteria[i].RejectionCount++
+			if t.criteria[i].RejectionCount >= t.maxRejections {
+				t.criteria[i].Status = Untestable
+			}
+			return
+		}
+	}
+}
+
 // MarkCovered transitions a criterion to Covered by its number.
 func (t *CoverageTracker) MarkCovered(n int) {
 	for i := range t.criteria {

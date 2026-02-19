@@ -26,6 +26,21 @@ func TestNewTracker_NextUncoveredReturnsCriterion(t *testing.T) {
 	}
 }
 
+func TestRecordRejection_TransitionsToUntestableAtThreshold(t *testing.T) {
+	criteria := []Criterion{{Number: 1, Text: "Tricky criterion"}}
+	tracker := NewTracker(criteria, 2)
+
+	tracker.RecordRejection(1)
+	if tracker.NextUncovered() == nil {
+		t.Fatal("after 1 rejection: NextUncovered() = nil, criterion should still be unchecked")
+	}
+
+	tracker.RecordRejection(1)
+	if tracker.NextUncovered() != nil {
+		t.Fatal("after 2 rejections: NextUncovered() should return nil (criterion is now untestable)")
+	}
+}
+
 func TestMarkCovered_NextUncoveredSkipsCoveredCriterion(t *testing.T) {
 	criteria := []Criterion{
 		{Number: 1, Text: "First"},
