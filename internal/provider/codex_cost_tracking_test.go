@@ -38,6 +38,69 @@ func TestProcessCodexStreamExtractsUsageFromResultEvent(t *testing.T) {
 	}
 }
 
+// TestProcessCodexStreamExtractsUsageFromNestedResultPayload verifies usage
+// extraction when codex emits token data under result.usage.
+func TestProcessCodexStreamExtractsUsageFromNestedResultPayload(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+		`{"type":"result","result":{"status":"success","usage":{"input_tokens":2400,"cached_input_tokens":300,"output_tokens":650,"total_cost_usd":0.044}}}`,
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+
+	_, usage, _, err := processCodexStream(reader, &output, nil, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if usage == nil {
+		t.Fatal("usage is nil, want non-nil when nested result.usage is present")
+	}
+	if usage.InputTokens != 2400 {
+		t.Errorf("usage.InputTokens = %d, want 2400", usage.InputTokens)
+	}
+	if usage.CachedInputTokens != 300 {
+		t.Errorf("usage.CachedInputTokens = %d, want 300", usage.CachedInputTokens)
+	}
+	if usage.OutputTokens != 650 {
+		t.Errorf("usage.OutputTokens = %d, want 650", usage.OutputTokens)
+	}
+	if usage.TotalCostUSD != 0.044 {
+		t.Errorf("usage.TotalCostUSD = %f, want 0.044", usage.TotalCostUSD)
+	}
+}
+
+// TestProcessCodexStreamExtractsUsageFromResultTokenFields verifies usage
+// extraction when result events include direct token fields.
+func TestProcessCodexStreamExtractsUsageFromResultTokenFields(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+		`{"type":"result","input_tokens":1800,"output_tokens":450,"total_cost_usd":0.031}`,
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+
+	_, usage, _, err := processCodexStream(reader, &output, nil, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if usage == nil {
+		t.Fatal("usage is nil, want non-nil when result has direct token fields")
+	}
+	if usage.InputTokens != 1800 {
+		t.Errorf("usage.InputTokens = %d, want 1800", usage.InputTokens)
+	}
+	if usage.OutputTokens != 450 {
+		t.Errorf("usage.OutputTokens = %d, want 450", usage.OutputTokens)
+	}
+	if usage.TotalCostUSD != 0.031 {
+		t.Errorf("usage.TotalCostUSD = %f, want 0.031", usage.TotalCostUSD)
+	}
+}
+
 // TestProcessCodexStreamReturnsCostWithNilHandler verifies that cost data is
 // extracted from turn.completed events even when EventHandler is nil.
 // This is the core of the cost tracking bug: preserve_provider_output mode

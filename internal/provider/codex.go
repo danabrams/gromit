@@ -701,8 +701,19 @@ type codexEvent struct {
 	Delta        *codexDelta     `json:"delta,omitempty"`
 	Status       string          `json:"status,omitempty"`
 	Usage        *codexUsage     `json:"usage,omitempty"`
+	Result       *codexResult    `json:"result,omitempty"`
 	ErrorInfo    *codexErrorInfo `json:"error,omitempty"`
 	TotalCostUSD float64         `json:"total_cost_usd,omitempty"`
+	InputTokens  int             `json:"input_tokens,omitempty"`
+	OutputTokens int             `json:"output_tokens,omitempty"`
+}
+
+// codexResult represents nested result payloads used by some Codex event shapes.
+type codexResult struct {
+	Usage        *codexUsage `json:"usage,omitempty"`
+	TotalCostUSD float64     `json:"total_cost_usd,omitempty"`
+	InputTokens  int         `json:"input_tokens,omitempty"`
+	OutputTokens int         `json:"output_tokens,omitempty"`
 }
 
 // processCodexStream reads Codex JSONL events from reader, converts them to StreamEvent format,
@@ -838,13 +849,9 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			// Extract usage from native result events (matches Claude's reporting path).
 			// Some codex provider versions report token usage in a "result" event with
 			// a nested "usage" field rather than via "turn.completed" events.
-			if event.Usage != nil {
-				if usage == nil {
-					usage = event.Usage
-				}
-				if usage.TotalCostUSD == 0 && event.TotalCostUSD > 0 {
-					usage.TotalCostUSD = event.TotalCostUSD
-				}
+			resultUsage := extractUsageFromResultEvent(event)
+			if resultUsage != nil {
+				usage = mergeCodexUsage(usage, resultUsage)
 			}
 
 		case "turn.completed":
@@ -955,4 +962,80 @@ func usageOutputTokens(usage *codexUsage) int {
 		return 0
 	}
 	return usage.OutputTokens
+}
+
+func extractUsageFromResultEvent(event codexEvent) *codexUsage {
+	var usage codexUsage
+	found := false
+
+	if event.Usage != nil {
+		usage = *event.Usage
+		found = true
+	}
+	if event.InputTokens > 0 {
+		usage.InputTokens = event.InputTokens
+		found = true
+	}
+	if event.OutputTokens > 0 {
+		usage.OutputTokens = event.OutputTokens
+		found = true
+	}
+	if event.TotalCostUSD > 0 {
+		usage.TotalCostUSD = event.TotalCostUSD
+		found = true
+	}
+	if event.Result != nil {
+		if event.Result.Usage != nil {
+			merged := mergeCodexUsage(&usage, event.Result.Usage)
+			if merged != nil {
+				usage = *merged
+			}
+			found = true
+		}
+		if event.Result.InputTokens > 0 {
+			usage.InputTokens = event.Result.InputTokens
+			found = true
+		}
+		if event.Result.OutputTokens > 0 {
+			usage.OutputTokens = event.Result.OutputTokens
+			found = true
+		}
+		if event.Result.TotalCostUSD > 0 {
+			usage.TotalCostUSD = event.Result.TotalCostUSD
+			found = true
+		}
+	}
+	if !found {
+		return nil
+	}
+	return &usage
+}
+
+func mergeCodexUsage(existing *codexUsage, incoming *codexUsage) *codexUsage {
+	if existing == nil && incoming == nil {
+		return nil
+	}
+	if existing == nil {
+		merged := *incoming
+		return &merged
+	}
+	if incoming == nil {
+		merged := *existing
+		return &merged
+	}
+
+	merged := *existing
+	if incoming.InputTokens > 0 {
+		merged.InputTokens = incoming.InputTokens
+	}
+	if incoming.CachedInputTokens > 0 {
+		merged.CachedInputTokens = incoming.CachedInputTokens
+	}
+	if incoming.OutputTokens > 0 {
+		merged.OutputTokens = incoming.OutputTokens
+	}
+	if incoming.TotalCostUSD > 0 {
+		merged.TotalCostUSD = incoming.TotalCostUSD
+	}
+	return &merged
 }
