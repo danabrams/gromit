@@ -43,6 +43,11 @@ var reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
 }
 
 const defaultThoroughReviewTimeoutSeconds = 900
+const (
+	reviewGitDiffErrPrefix     = "git diff"
+	reviewGitDiffStatErrPrefix = "git diff --stat"
+	reviewGitHeadErrPrefix     = "git rev-parse HEAD"
+)
 
 func runReviewGitOutput(args ...string) ([]byte, error) {
 	cmd := reviewGitCommandFn("git", args...)
@@ -318,20 +323,20 @@ func findEarliestCommitFromBeads(beads []*bead.Bead) string {
 }
 
 func getGitDiffForReview(fromCommit string) (string, error) {
-	return runGitDiffForReview(fromCommit, "git diff")
+	return runGitDiffForReview(fromCommit, reviewGitDiffErrPrefix)
 }
 
 func getGitDiffStatForReview(fromCommit string) (string, error) {
-	return runGitDiffForReview(fromCommit, "git diff --stat", "--stat")
+	return runGitDiffForReview(fromCommit, reviewGitDiffStatErrPrefix, "--stat")
 }
 
 func runGitDiffForReview(fromCommit string, errPrefix string, args ...string) (string, error) {
 	if err := validateCommitRef(fromCommit); err != nil {
 		return "", err
 	}
-	cmdArgs := append([]string{"diff"}, args...)
-	cmdArgs = append(cmdArgs, fromCommit, "--")
-	out, err := runReviewGitOutput(cmdArgs...)
+	diffArgs := append([]string{"diff"}, args...)
+	diffArgs = append(diffArgs, fromCommit, "--")
+	out, err := runReviewGitOutput(diffArgs...)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", errPrefix, err)
 	}
@@ -506,7 +511,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 func getGitHeadForReview() (string, error) {
 	out, err := runReviewGitOutput("rev-parse", "HEAD")
 	if err != nil {
-		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
+		return "", fmt.Errorf("%s: %w", reviewGitHeadErrPrefix, err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
