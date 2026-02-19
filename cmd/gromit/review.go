@@ -260,7 +260,7 @@ func getCommitTimestamp(commit string) (int64, error) {
 	if err := validateCommitRef(commit); err != nil {
 		return 0, err
 	}
-	cmd := exec.Command("git", "log", "-1", "--format=%at", "--", commit)
+	cmd := exec.Command("git", "log", "-1", "--format=%at", commit, "--")
 	out, err := cmd.Output()
 	if err != nil {
 		return 0, err
@@ -300,7 +300,7 @@ func runGitDiffForReview(fromCommit string, errPrefix string, args ...string) (s
 		return "", err
 	}
 	cmdArgs := append([]string{"diff"}, args...)
-	cmdArgs = append(cmdArgs, "--", fromCommit)
+	cmdArgs = append(cmdArgs, fromCommit, "--")
 	cmd := exec.Command("git", cmdArgs...)
 	out, err := cmd.Output()
 	if err != nil {
