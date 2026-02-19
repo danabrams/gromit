@@ -1,6 +1,7 @@
 package coverage
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -10,6 +11,8 @@ type Criterion struct {
 	Number int
 	Text   string
 }
+
+var errCriteriaSectionNotFound = errors.New("acceptance criteria section not found")
 
 // ParseCriteria extracts acceptance criteria from the "## Acceptance Criteria"
 // section of a spec document.
@@ -48,7 +51,7 @@ func ParseCriteria(specContent string) ([]Criterion, error) {
 func extractSection(content, header string) (string, error) {
 	idx := strings.Index(content, header)
 	if idx == -1 {
-		return "", fmt.Errorf("section %q not found", header)
+		return "", fmt.Errorf("%w: %s", errCriteriaSectionNotFound, header)
 	}
 	rest := content[idx+len(header):]
 

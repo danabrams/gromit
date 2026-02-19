@@ -1,6 +1,9 @@
 package coverage
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestParseCriteria_ParsesBullets(t *testing.T) {
 	spec := `# My Spec
@@ -61,5 +64,21 @@ func TestParseCriteria_CompoundCriteria(t *testing.T) {
 	want := "Validates input format including length, characters, and encoding"
 	if criteria[0].Text != want {
 		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, want)
+	}
+}
+
+func TestParseCriteria_MissingSection(t *testing.T) {
+	spec := `# My Spec
+
+No acceptance criteria here.
+`
+
+	_, err := ParseCriteria(spec)
+	if err == nil {
+		t.Fatal("ParseCriteria() expected error, got nil")
+	}
+
+	if !errors.Is(err, errCriteriaSectionNotFound) {
+		t.Fatalf("ParseCriteria() error = %v, want errors.Is(..., errCriteriaSectionNotFound)", err)
 	}
 }
