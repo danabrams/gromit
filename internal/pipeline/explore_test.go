@@ -82,6 +82,33 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 			}
 		})
 	}
+
+	// Typed nil tests: a typed nil (e.g. (*T)(nil)) is a non-nil interface in Go,
+	// so it passes == nil checks. These cases verify validateExploreDeps does not
+	// falsely reject typed nils.
+	typedNilTests := []struct {
+		name string
+		deps *Deps
+	}{
+		{
+			name: "typed nil AgentResolver passes validation",
+			deps: &Deps{
+				AgentResolver:  (*testAgentResolver)(nil),
+				PromptRenderer: &testPromptRenderer{},
+				BacklogClient:  &testBacklogClient{},
+			},
+		},
+	}
+
+	for _, tc := range typedNilTests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := New(tc.deps, &Paths{})
+			err := p.validateExploreDeps()
+			if err != nil {
+				t.Errorf("validateExploreDeps() = %v, want nil for typed nil dep", err)
+			}
+		})
+	}
 }
 
 // TestPipeline_ExploreRecordsExistingArtifacts verifies that Explore takes pre-session snapshots
