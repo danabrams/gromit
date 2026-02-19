@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -38,11 +37,7 @@ func TestSkippedTestCleanup(t *testing.T) {
 		// Each skipped behavior source must have at least one matching backlog entry.
 		// We use specific keyword combinations to avoid false positives from
 		// pre-existing backlog entries about related features.
-		skippedBehaviors := []struct {
-			description string
-			// matchFn returns true if the idea text+context matches this behavior.
-			matchFn func(text string) bool
-		}{
+		assertBacklogContainsBehaviors(t, ideas, []backlogBehaviorCheck{
 			{
 				description: "run command scope flags (--spec, --epic) integration with runLoop",
 				matchFn: func(text string) bool {
@@ -68,21 +63,7 @@ func TestSkippedTestCleanup(t *testing.T) {
 					return hasEviction && hasBehavior
 				},
 			},
-		}
-
-		for _, behavior := range skippedBehaviors {
-			found := false
-			for _, idea := range ideas {
-				textLower := strings.ToLower(idea.Text + " " + idea.Context)
-				if behavior.matchFn(textLower) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Errorf("no backlog idea found for: %s", behavior.description)
-			}
-		}
+		})
 	})
 
 }
@@ -117,10 +98,7 @@ func TestSkippedTestCleanup_GromitJ99sy(t *testing.T) {
 	t.Run("backlog contains ideas for skipped test behaviors (gromit-j99sy)", func(t *testing.T) {
 		ideas := loadBacklogIdeas(t)
 
-		skippedBehaviors := []struct {
-			description string
-			matchFn     func(text string) bool
-		}{
+		assertBacklogContainsBehaviors(t, ideas, []backlogBehaviorCheck{
 			{
 				description: "explore CLI delegates to Pipeline.Explore and reports created artifacts",
 				matchFn: func(text string) bool {
@@ -157,20 +135,6 @@ func TestSkippedTestCleanup_GromitJ99sy(t *testing.T) {
 					return hasRunner && hasRouter && hasIntegration
 				},
 			},
-		}
-
-		for _, behavior := range skippedBehaviors {
-			found := false
-			for _, idea := range ideas {
-				textLower := strings.ToLower(idea.Text + " " + idea.Context)
-				if behavior.matchFn(textLower) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Errorf("no backlog idea found for: %s", behavior.description)
-			}
-		}
+		})
 	})
 }

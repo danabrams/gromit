@@ -55,3 +55,28 @@ func containsAny(text string, substrs ...string) bool {
 	}
 	return false
 }
+
+// backlogBehaviorCheck describes a behavior that should have a matching backlog idea.
+type backlogBehaviorCheck struct {
+	description string
+	matchFn     func(text string) bool
+}
+
+// assertBacklogContainsBehaviors verifies that each behavior check finds at least
+// one matching idea in the backlog.
+func assertBacklogContainsBehaviors(t *testing.T, ideas []backlogIdea, behaviors []backlogBehaviorCheck) {
+	t.Helper()
+	for _, behavior := range behaviors {
+		found := false
+		for _, idea := range ideas {
+			textLower := strings.ToLower(idea.Text + " " + idea.Context)
+			if behavior.matchFn(textLower) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("no backlog idea found for: %s", behavior.description)
+		}
+	}
+}
