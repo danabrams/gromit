@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -103,5 +104,41 @@ func TestTDD_FreshContext_DelegatesToOrchestrator(t *testing.T) {
 	}
 	if !bc.Result.Success {
 		t.Fatal("expected success when orchestrator completes without error")
+	}
+}
+
+func TestTDD_FreshContext_FallsBackOnOrchestratorError(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+
+	wantErr := errors.New("orchestrator failed")
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext) error {
+			return wantErr
+		},
+	}
+
+	b := newTestBead("tdd-fresh-context-2", "Implement feature with orchestrator failure")
+	b.Labels = []string{"tdd:true"}
+	bc := newBeadContextForMethodology(b)
+
+	_, tddActive, done := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if !tddActive {
+		t.Fatal("expected tddActive=true")
+	}
+	if !done {
+		t.Fatal("expected done=true when orchestrator fails")
+	}
+	if !errors.Is(bc.Result.Error, wantErr) {
+		t.Fatalf("expected orchestrator error %v, got %v", wantErr, bc.Result.Error)
+	}
+	if bc.Result.Success {
+		t.Fatal("expected success=false when orchestrator returns an error")
 	}
 }
