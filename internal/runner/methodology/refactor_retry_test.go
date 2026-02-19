@@ -502,6 +502,43 @@ func TestRunAcceptanceTestsWithRetry_FailsFastOnCanceledContext(t *testing.T) {
 	}
 }
 
+func TestRunAcceptanceTestsWithRetry_StopsOnCyclicEscalationChain(t *testing.T) {
+	cfg := newTestConfigWithEscalation()
+	cfg.Escalation.MaxRetriesPerModel = 0                   // escalate immediately
+	cfg.Escalation.Chain = []string{"low", "medium", "low"} // cyclic chain
+	var buf strings.Builder
+
+	invokeCount := 0
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		return "acceptance prompt", nil
+	}
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, p string) error {
+		invokeCount++
+		return fmt.Errorf("always fails")
+	}
+
+	escalateTierFn := func(bc *runtypes.BeadContext, nextTier string) {
+		bc.Tier = nextTier
+	}
+
+	exec := NewExecutorWithEscalation(cfg, &buf, renderFn, invokeFn, nil, escalateTierFn)
+	bc := newTestBeadContextWithTier(provider.TierLow)
+
+	err := exec.RunAcceptanceTestsWithRetry(context.Background(), bc)
+	if err == nil {
+		t.Fatal("RunAcceptanceTestsWithRetry should return error on cyclic escalation chain")
+	}
+	if !strings.Contains(err.Error(), "all tiers") {
+		t.Errorf("error should mention all tiers exhausted, got: %v", err)
+	}
+	// With chain ["low", "medium", "low"] and maxRetries=0:
+	// 1 attempt at low, escalate to medium, 1 attempt at medium, escalate to low (already visited) -> stop
+	// Total: 2 invocations
+	if invokeCount > 3 {
+		t.Errorf("should not loop excessively on cyclic chain, got %d invocations", invokeCount)
+	}
+}
+
 // --- VerifyTestsFailWithRetry tests ---
 
 func TestVerifyTestsFailWithRetry_ReturnsNilWhenTestsFail(t *testing.T) {

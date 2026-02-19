@@ -314,6 +314,7 @@ func (e *Executor) RunAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes
 	retries := 0
 	maxRetries := e.cfg.Escalation.MaxRetriesPerModel
 	currentTier := bc.Tier
+	visitedTiers := map[string]struct{}{currentTier: {}}
 
 	for {
 		if err := ctx.Err(); err != nil {
@@ -346,11 +347,16 @@ func (e *Executor) RunAcceptanceTestsWithRetry(ctx context.Context, bc *runtypes
 			return fmt.Errorf("acceptance tests failed with all tiers: %w", err)
 		}
 
+		if _, visited := visitedTiers[nextTier]; visited {
+			return fmt.Errorf("acceptance tests failed with all tiers: %w", err)
+		}
+
 		e.log("Escalating acceptance tests from tier %s to %s", currentTier, nextTier)
 		if e.escalateTierFn != nil {
 			e.escalateTierFn(bc, nextTier)
 		}
 		currentTier = nextTier
+		visitedTiers[currentTier] = struct{}{}
 		retries = 0
 	}
 }
