@@ -196,6 +196,29 @@ func TestBuildProcessTrend_HasNineControlLimitsWithPhaseRates(t *testing.T) {
 	}
 }
 
+func TestBuildProcessTrend_BuildRateSpikeTriggersHighSeverityAnomaly(t *testing.T) {
+	// 29 metrics with 0 build failure rate, then 1 spike to 1.0.
+	// Mean ≈ 0.033, stddev ≈ 0.18; spike is >5σ away → high severity.
+	metrics := make([]IterationMetric, 30)
+	for i := range metrics {
+		metrics[i] = IterationMetric{RollingBuildFailureRate: 0}
+	}
+	metrics[29].RollingBuildFailureRate = 1.0
+
+	trend := buildProcessTrend(metrics, 30)
+
+	var found bool
+	for _, a := range trend.Anomalies {
+		if a.Metric == "rolling_build_failure_rate" && a.Severity == "high" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected high-severity anomaly for rolling_build_failure_rate spike, none found")
+	}
+}
+
 func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,
