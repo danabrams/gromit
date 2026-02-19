@@ -14,33 +14,36 @@ type Criterion struct {
 
 var errCriteriaSectionNotFound = errors.New("acceptance criteria section not found")
 
+const acceptanceCriteriaHeader = "## Acceptance Criteria"
+
 // ParseCriteria extracts acceptance criteria from the "## Acceptance Criteria"
 // section of a spec document.
 func ParseCriteria(specContent string) ([]Criterion, error) {
-	section, err := extractSection(specContent, "## Acceptance Criteria")
+	section, err := extractSection(specContent, acceptanceCriteriaHeader)
 	if err != nil {
 		return nil, err
 	}
 
 	criteria := make([]Criterion, 0)
-	currentIdx := -1
+	lastCriterionIndex := -1
 	for _, line := range strings.Split(section, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "-") {
 			text := strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
 			if text == "" {
-				currentIdx = -1
+				lastCriterionIndex = -1
 				continue
 			}
 			criteria = append(criteria, Criterion{Number: len(criteria) + 1, Text: text})
-			currentIdx = len(criteria) - 1
+			lastCriterionIndex = len(criteria) - 1
 			continue
 		}
-		if currentIdx != -1 && (strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")) {
-			cont := strings.TrimSpace(line)
-			if cont != "" {
-				criteria[currentIdx].Text += " " + cont
-			}
+		if lastCriterionIndex == -1 || !isIndented(line) {
+			continue
+		}
+		cont := strings.TrimSpace(line)
+		if cont != "" {
+			criteria[lastCriterionIndex].Text += " " + cont
 		}
 	}
 	return criteria, nil
@@ -61,4 +64,8 @@ func extractSection(content, header string) (string, error) {
 		rest = rest[:nextIdx]
 	}
 	return rest, nil
+}
+
+func isIndented(line string) bool {
+	return strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
 }
