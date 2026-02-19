@@ -539,6 +539,42 @@ func TestRunAcceptanceTestsWithRetry_StopsOnCyclicEscalationChain(t *testing.T) 
 	}
 }
 
+func TestRunAcceptanceTestsWithRetry_StopsOnSameTierEscalation(t *testing.T) {
+	cfg := newTestConfigWithEscalation()
+	cfg.Escalation.MaxRetriesPerModel = 0         // escalate immediately
+	cfg.Escalation.Chain = []string{"low", "low"} // same tier repeated
+	var buf strings.Builder
+
+	invokeCount := 0
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		return "acceptance prompt", nil
+	}
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, p string) error {
+		invokeCount++
+		return fmt.Errorf("always fails")
+	}
+
+	escalateTierFn := func(bc *runtypes.BeadContext, nextTier string) {
+		bc.Tier = nextTier
+	}
+
+	exec := NewExecutorWithEscalation(cfg, &buf, renderFn, invokeFn, nil, escalateTierFn)
+	bc := newTestBeadContextWithTier(provider.TierLow)
+
+	err := exec.RunAcceptanceTestsWithRetry(context.Background(), bc)
+	if err == nil {
+		t.Fatal("RunAcceptanceTestsWithRetry should return error on same-tier escalation")
+	}
+	if !strings.Contains(err.Error(), "all tiers") {
+		t.Errorf("error should mention all tiers exhausted, got: %v", err)
+	}
+	// With chain ["low", "low"] and maxRetries=0:
+	// 1 attempt at low, NextEscalationTier returns "low" (already visited) -> stop
+	if invokeCount != 1 {
+		t.Errorf("should only invoke once before detecting same-tier loop, got %d", invokeCount)
+	}
+}
+
 // --- VerifyTestsFailWithRetry tests ---
 
 func TestVerifyTestsFailWithRetry_ReturnsNilWhenTestsFail(t *testing.T) {
