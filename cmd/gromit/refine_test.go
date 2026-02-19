@@ -43,3 +43,17 @@ func TestShowRefinePickerZeroInputSelectsNew(t *testing.T) {
 		t.Fatalf("expected choice %d for zero input, got %d", len(unrefined), choice)
 	}
 }
+
+func TestShowRefinePickerOutOfBoundsHighSelectsNew(t *testing.T) {
+	unrefined := []*backlog.Idea{
+		{ID: "idea-1", Text: "First", Type: "task"},
+		{ID: "idea-2", Text: "Second", Type: "feature"},
+	}
+
+	// Max valid choice is 3 (len+1 = "something new"), so 99 is out of bounds
+	choice := showRefinePicker(unrefined, strings.NewReader("99\n"))
+
+	if choice != len(unrefined) {
+		t.Fatalf("expected choice %d for out-of-bounds input, got %d", len(unrefined), choice)
+	}
+}
