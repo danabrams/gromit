@@ -164,14 +164,8 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	if passed {
 		// Tests pass unexpectedly — nothing left to implement
 		o.executeRefactorPhase(ctx, bc)
-
-		// Final validation after refactor phase completes.
-		_, finalPassed, finalErr := o.validateFn(ctx, nil, "")
-		if finalErr != nil {
-			return fmt.Errorf("final validation: %w", finalErr)
-		}
-		if !finalPassed {
-			return fmt.Errorf("final validation failed: tests failing after refactor phase")
+		if err := o.runFinalValidation(ctx); err != nil {
+			return err
 		}
 
 		state.Done = true
@@ -226,7 +220,10 @@ func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtyp
 
 	// Verify tests still pass after refactor.
 	_, passed, validateErr := o.validateFn(ctx, nil, "")
-	if validateErr != nil || passed {
+	if validateErr != nil {
+		return
+	}
+	if passed {
 		return
 	}
 
@@ -236,4 +233,16 @@ func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtyp
 	}
 
 	_ = o.gitResetFn(preRefactorCommit)
+}
+
+func (o *CycleOrchestrator) runFinalValidation(ctx context.Context) error {
+	// Final validation must run immediately after refactor in the same cycle.
+	_, finalPassed, finalErr := o.validateFn(ctx, nil, "")
+	if finalErr != nil {
+		return fmt.Errorf("final validation: %w", finalErr)
+	}
+	if !finalPassed {
+		return fmt.Errorf("final validation failed: tests failing after refactor phase")
+	}
+	return nil
 }
