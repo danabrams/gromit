@@ -18,3 +18,20 @@ func TestParseSelfReport_ValidJSON(t *testing.T) {
 		t.Fatalf("Remaining = %v, want [5 7]", report.Remaining)
 	}
 }
+
+func TestParseValidationResponse_ValidJSON(t *testing.T) {
+	output := `{"covers": true, "reason": "matches criterion"}`
+
+	resp, err := ParseValidationResponse(output)
+	if err != nil {
+		t.Fatalf("ParseValidationResponse() error: %v", err)
+	}
+
+	if !resp.Covers {
+		t.Fatalf("Covers = false, want true")
+	}
+
+	if resp.Reason != "matches criterion" {
+		t.Fatalf("Reason = %q, want %q", resp.Reason, "matches criterion")
+	}
+}
