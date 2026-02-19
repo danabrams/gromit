@@ -232,3 +232,54 @@ func TestRunCycles_MultipleCycles_LoopsThroughRequirements(t *testing.T) {
 		t.Fatalf("expected 3 cycles (one per requirement), got %d", cycleCount)
 	}
 }
+
+func TestRunCycles_TerminatesAtMaxCycles(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	cycleCount := 0
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall % 3 {
+		case 1:
+			return "FAIL", false, nil
+		default:
+			return "PASS", true, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		cycleCount++
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	// MaxCycles=2 but 5 requirements: should stop after 2 cycles
+	state := CycleState{
+		CycleNumber: 0,
+		MaxCycles:   2,
+		Remaining:   []string{"req A", "req B", "req C", "req D", "req E"},
+	}
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cycleCount != 2 {
+		t.Fatalf("expected 2 cycles (max), got %d", cycleCount)
+	}
+}
