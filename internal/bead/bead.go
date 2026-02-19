@@ -451,7 +451,7 @@ func (c *Client) CreateWithDepsAndDescription(title string, priority int, labels
 	return c.runCreate(title, priority, labels, expectedOutputs, description, extra)
 }
 
-// runCreate builds args, writes large strings to temp files, invokes bd create, and parses the result.
+// runCreate builds args, writes description content to a temp file, invokes bd create, and parses the result.
 // extraArgs are inserted after acceptance (e.g. --parent or --deps flags).
 func (c *Client) runCreate(title string, priority int, labels []string, expectedOutputs []string, description string, extraArgs []string) (*Bead, error) {
 	args := []string{"create", title, "--priority", fmt.Sprintf("%d", priority), "--json"}
@@ -461,7 +461,8 @@ func (c *Client) runCreate(title string, priority int, labels []string, expected
 	}
 
 	if len(expectedOutputs) > 0 {
-		args = append(args, "--acceptance", strings.Join(expectedOutputs, "\n"))
+		acceptance := strings.Join(expectedOutputs, "\n")
+		args = append(args, "--acceptance", acceptance)
 	}
 
 	args = append(args, extraArgs...)
