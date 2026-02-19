@@ -132,8 +132,8 @@ created: 2026-02-11
 	if result.PromptDiagnostics == nil {
 		t.Fatal("PromptDiagnostics = nil, want populated diagnostics")
 	}
-	if result.PromptDiagnostics.PromptType != "decompose" {
-		t.Errorf("PromptDiagnostics.PromptType = %q, want %q", result.PromptDiagnostics.PromptType, "decompose")
+	if result.PromptDiagnostics.PromptType != decomposePromptType {
+		t.Errorf("PromptDiagnostics.PromptType = %q, want %q", result.PromptDiagnostics.PromptType, decomposePromptType)
 	}
 	if result.PromptDiagnostics.EstimatedTokens == 0 {
 		t.Error("PromptDiagnostics.EstimatedTokens = 0, want non-zero estimate")
@@ -940,11 +940,11 @@ func TestBuildDecomposePrompt_ConstructsPromptDiagnostics(t *testing.T) {
 	if diagnostics == nil {
 		t.Fatal("diagnostics = nil, want non-nil")
 	}
-	if diagnostics.PromptType != "decompose" {
-		t.Fatalf("PromptType = %q, want %q", diagnostics.PromptType, "decompose")
+	if diagnostics.PromptType != decomposePromptType {
+		t.Fatalf("PromptType = %q, want %q", diagnostics.PromptType, decomposePromptType)
 	}
 
-	templateStatic := fmt.Sprintf(decomposePromptTemplate, planName, "", "", planName)
+	templateStatic := decomposeTemplateStatic(planName)
 	wantSectionTokens := map[string]int{
 		prompt.SectionPlanBody:          prompt.EstimateTokens(planBody),
 		prompt.SectionSkillInstructions: prompt.EstimateTokens(skillContent),

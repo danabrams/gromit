@@ -14,6 +14,11 @@ import (
 	"github.com/danabrams/gromit/skills"
 )
 
+const (
+	decomposePromptType = "decompose"
+	specLabelFormat     = "spec:%s"
+)
+
 // beadDef represents a bead definition from the provider's JSON output.
 type beadDef struct {
 	Title              string   `json:"title"`
@@ -99,7 +104,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		priority := parsePriority(def.Priority)
 
 		// Build labels: always include spec:<name>
-		labels := []string{fmt.Sprintf("spec:%s", input.PlanName)}
+		labels := []string{specLabel(input.PlanName)}
 
 		// Resolve dependencies from depends_on_index
 		var dependencies []string
@@ -169,12 +174,16 @@ Each bead must include: title, description, priority, acceptance_criteria, depen
 The spec label will be added automatically: spec:%s
 `
 
+func decomposeTemplateStatic(planName string) string {
+	return fmt.Sprintf(decomposePromptTemplate, planName, "", "", planName)
+}
+
 // buildDecomposePrompt constructs the prompt for the configured provider.
 func buildDecomposePrompt(planName, planBody, skillContent string) (string, *prompt.PromptDiagnostics) {
 	promptText := fmt.Sprintf(decomposePromptTemplate, planName, planBody, skillContent, planName)
-	templateStatic := fmt.Sprintf(decomposePromptTemplate, planName, "", "", planName)
+	templateStatic := decomposeTemplateStatic(planName)
 
-	diagnostics := prompt.NewDiagnostics("decompose", map[string]int{
+	diagnostics := prompt.NewDiagnostics(decomposePromptType, map[string]int{
 		prompt.SectionPlanBody:          prompt.EstimateTokens(planBody),
 		prompt.SectionSkillInstructions: prompt.EstimateTokens(skillContent),
 		prompt.SectionTemplateStatic:    prompt.EstimateTokens(templateStatic),
@@ -204,6 +213,10 @@ func newCreatedBeadFromDef(def beadDef, planName, beadID string) CreatedBead {
 	bead.ID = beadID
 	bead.Title = def.Title
 	bead.Priority = parsePriority(def.Priority)
-	bead.Labels = []string{fmt.Sprintf("spec:%s", planName)}
+	bead.Labels = []string{specLabel(planName)}
 	return bead
+}
+
+func specLabel(planName string) string {
+	return fmt.Sprintf(specLabelFormat, planName)
 }
