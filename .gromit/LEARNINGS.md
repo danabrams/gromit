@@ -67,6 +67,18 @@ The debug command's --model flag defaults to opus so the model override block al
 ### 2026-02-19 | SetDefaults Zero-Value Sentinel Limitation | gotchas
 Config SetDefaults() uses `if field == 0` guards for integer fields, which prevents users from intentionally setting zero. This is problematic for fields where zero is meaningful (e.g., PushTimeout where 0 should disable the timeout per PushTimeoutDuration() docs). Fields needing a disable-via-zero semantic should use *int or a sentinel like -1.
 
+### 2026-02-19 | Define Shared Helpers Before Wiring Call Sites | conventions
+*Related to: gromit-jmqps*
+When adding fallback logic (like title-as-expected-output), define it once as a shared helper and wire all call sites through it from the start. The expected_outputs wiring shows the same pattern implemented 5 different ways across packages (expectedOutputsOrTitle helper in 2 packages, inline in 3 others), creating maintenance burden.
+
+### 2026-02-19 | normalizeNilFields Single Responsibility | conventions
+*Related to: gromit-176m0*
+normalizeNilFields() should remain a pure nil-to-empty-slice converter. Data transformations between fields (like AcceptanceCriteria to ExpectedOutputs mapping) belong in a separate resolution step to preserve single-responsibility and avoid surprising side effects during normalization.
+
+### 2026-02-19 | Expected Outputs Now Populated at All Creation Sites | patterns
+*Related to: code-review*
+The expected_outputs field is now populated at all bead creation sites (review, decomposition, spec gate, epilogue), providing consistent acceptance criteria for runner methodology. Decompose passes SubTask.AcceptanceCriteria directly; other sites fall back to title as a single expected output when no explicit outputs are available.
+
 ---
 
 ## Archived

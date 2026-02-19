@@ -326,7 +326,8 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolving agent: %w", err)
 	}
-	if err := selectedAgent.Launch(promptPath); err != nil {
+	launchDir := interactiveLaunchDir(gromitDir)
+	if err := selectedAgent.LaunchInDir(promptPath, launchDir); err != nil {
 		return fmt.Errorf("launching interactive review session: %w", err)
 	}
 
