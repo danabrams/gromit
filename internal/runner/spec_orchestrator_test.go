@@ -172,3 +172,23 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_IdempotentBySpecName(t *testing.
 		t.Fatal("expected git commands to run on first call")
 	}
 }
+
+func TestSpecOrchestrator_CommitAcceptanceTests_StagesOnlyAcceptanceTests(t *testing.T) {
+	var commands []string
+	orchestrator := &SpecOrchestrator{
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			commands = append(commands, command)
+			return "", "", 0, nil
+		},
+	}
+
+	if err := orchestrator.commitAcceptanceTests(context.Background(), "demo-spec"); err != nil {
+		t.Fatalf("commitAcceptanceTests returned error: %v", err)
+	}
+	if len(commands) == 0 {
+		t.Fatal("expected git commands to run")
+	}
+	if commands[0] != "git add -- ':(glob)**/*_acceptance_test.go'" {
+		t.Fatalf("expected scoped git add command, got %q", commands[0])
+	}
+}

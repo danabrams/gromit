@@ -103,7 +103,7 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 }
 
 func (o *SpecOrchestrator) commitAcceptanceTests(ctx context.Context, specName string) error {
-	_, stderr, exitCode, err := o.runCmd(ctx, "git add -A", "")
+	_, stderr, exitCode, err := o.runCmd(ctx, "git add -- ':(glob)**/*_acceptance_test.go'", "")
 	if err != nil {
 		return fmt.Errorf("staging acceptance tests: %w", err)
 	}
