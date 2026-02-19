@@ -72,6 +72,32 @@ func TestIterationLog_SpecIDJSONTag(t *testing.T) {
 	}
 }
 
+// TestIterationLog_FailurePhaseJSONTag verifies that IterationLog has a FailurePhase field
+// with json tag "failure_phase" and omitempty behavior.
+func TestIterationLog_FailurePhaseJSONTag(t *testing.T) {
+	log := &IterationLog{
+		BeadID:       "bead-1",
+		Model:        "sonnet",
+		FailurePhase: "validation",
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	if !strings.Contains(string(data), "\"failure_phase\":\"validation\"") {
+		t.Fatalf("expected failure_phase in JSON, got %s", string(data))
+	}
+
+	emptyData, err := json.Marshal(IterationLog{})
+	if err != nil {
+		t.Fatalf("marshal empty log: %v", err)
+	}
+	if strings.Contains(string(emptyData), "failure_phase") {
+		t.Fatalf("expected failure_phase to be omitted, got %s", string(emptyData))
+	}
+}
+
 func TestIterationLog_ProviderAndFailureCategoryJSONTags(t *testing.T) {
 	log := &IterationLog{
 		BeadID:          "test-1",

@@ -18,6 +18,7 @@ type IterationLog struct {
 	SpecID                  string    `json:"spec_id,omitempty"`
 	Model                   string    `json:"model"`
 	Provider                string    `json:"provider,omitempty"`
+	FailurePhase            string    `json:"failure_phase,omitempty"`
 	FailureCategory         string    `json:"failure_category,omitempty"`
 	Success                 bool      `json:"success"`
 	Validated               bool      `json:"validated"`
