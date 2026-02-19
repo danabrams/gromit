@@ -179,5 +179,8 @@ type GitDiffFn func(startCommit string) (string, error)
 // CmdRunnerFn runs a shell command and returns its output.
 type CmdRunnerFn func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error)
 
+// ArgvRunnerFn runs a program with explicit args and returns its output.
+type ArgvRunnerFn func(ctx context.Context, program string, args []string, workDir string) (stdout string, stderr string, exitCode int, err error)
+
 // AutoFixFn runs auto-fix tools (gofmt/goimports) on changed files since a commit.
 type AutoFixFn func(startCommit string) error

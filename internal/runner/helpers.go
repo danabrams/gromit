@@ -110,12 +110,46 @@ func defaultCmdRunner(ctx context.Context, command string, workDir string) (stri
 	return stdout.String(), stderr.String(), 0, nil
 }
 
+// defaultArgvRunner executes a program with explicit args and returns stdout, stderr, exit code.
+// Non-zero exit codes are returned as exitCode (not as an error).
+func defaultArgvRunner(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+	cmd := exec.CommandContext(ctx, program, args...)
+	cmd.Dir = workDir
+	cmd.Stdin = bytes.NewReader(nil)
+	cmd.Env = append(
+		os.Environ(),
+		"GIT_TERMINAL_PROMPT=0",
+		"CI=1",
+		"NONINTERACTIVE=1",
+		"TERM=dumb",
+	)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return stdout.String(), stderr.String(), exitErr.ExitCode(), nil
+		}
+		return stdout.String(), stderr.String(), -1, err
+	}
+	return stdout.String(), stderr.String(), 0, nil
+}
+
 // runCmd calls the injectable cmdRunnerFn, falling back to defaultCmdRunner if unset.
 func (r *Runner) runCmd(ctx context.Context, command string, workDir string) (string, string, int, error) {
 	if r.cmdRunnerFn != nil {
 		return r.cmdRunnerFn(ctx, command, workDir)
 	}
 	return defaultCmdRunner(ctx, command, workDir)
+}
+
+// runArgv calls the injectable argvRunnerFn, falling back to defaultArgvRunner if unset.
+func (r *Runner) runArgv(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+	if r.argvRunnerFn != nil {
+		return r.argvRunnerFn(ctx, program, args, workDir)
+	}
+	return defaultArgvRunner(ctx, program, args, workDir)
 }
 
 // extractExpectedFiles parses a bead description for file creation patterns

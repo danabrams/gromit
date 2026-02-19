@@ -2280,11 +2280,12 @@ func TestNoNewDirectExecCommand(t *testing.T) {
 	// These are legacy — ideally they'd all migrate to runCmd, but for now
 	// this test prevents the count from increasing.
 	//
-	// runner.go: getHeadCommit, getDiffStat, getDiffFull (local git, safe)
-	// runner.go: defaultCmdRunner (the one valid call site behind runCmd)
+	// helpers.go: getGitHead, getGitDiffStat, getGitDiff (local git, safe)
+	// helpers.go: defaultCmdRunner (the one valid call site behind runCmd)
+	// helpers.go: defaultArgvRunner (the one valid call site behind runArgv)
 	// runner.go: runBetweenIterationsCommand (user-configured shell command)
 	// process.go: 2x git reset --hard (refactor rollback)
-	const knownCount = 7
+	const knownCount = 8
 
 	entries, err := os.ReadDir(".")
 	if err != nil {

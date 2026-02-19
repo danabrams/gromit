@@ -82,6 +82,7 @@ type Runner struct {
 	gitDiffFn          func(string) (string, error)                                                                                      // injectable for testing; defaults to getGitDiff
 	gitHeadFn          func() (string, error)                                                                                            // injectable for testing; defaults to getGitHead
 	cmdRunnerFn        func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error) // injectable for testing; defaults to defaultCmdRunner
+	argvRunnerFn       runtypes.ArgvRunnerFn                                                                                             // injectable for testing; defaults to defaultArgvRunner
 	processChecker     func(int) bool                                                                                                    // injectable for testing; defaults to IsProcessAlive
 	autoFixFn          func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
 	lookupHostFn       func(ctx context.Context, host string) ([]string, error)                                                          // injectable DNS lookup for codex preflight
