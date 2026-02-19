@@ -9,6 +9,13 @@ type RedHandoff struct {
 	CycleSummary string
 }
 
+// GreenHandoff contains context for implementing code to satisfy failing tests.
+type GreenHandoff struct {
+	FailingTest       string
+	TestFailureOutput string
+	ImplFiles         map[string]string
+}
+
 // CycleState tracks TDD cycle progress across iterations.
 type CycleState struct {
 	CycleNumber int

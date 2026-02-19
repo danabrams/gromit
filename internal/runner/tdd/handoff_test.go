@@ -24,3 +24,11 @@ func TestRedHandoffNilMapsAreSafeToRead(t *testing.T) {
 		t.Fatalf("expected zero impl files, got %d", len(handoff.ImplFiles))
 	}
 }
+
+func TestGreenHandoffNilMapIsSafeToRead(t *testing.T) {
+	var handoff GreenHandoff
+
+	if len(handoff.ImplFiles) != 0 {
+		t.Fatalf("expected zero impl files, got %d", len(handoff.ImplFiles))
+	}
+}
