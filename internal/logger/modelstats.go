@@ -155,27 +155,27 @@ func CostPerSpec(logsDir string) (map[string]SpecCost, error) {
 			if specID == "" {
 				specID = unassignedSpecID
 			}
-			a := accum[specID]
-			if a == nil {
-				a = &specAccum{
+			spec := accum[specID]
+			if spec == nil {
+				spec = &specAccum{
 					beadIDs:  make(map[string]struct{}),
 					modelMix: make(map[string]int),
 				}
-				accum[specID] = a
+				accum[specID] = spec
 			}
-			a.totalCostUSD += entry.CostUSD
-			a.iterations++
-			a.beadIDs[entry.BeadID] = struct{}{}
-			a.modelMix[entry.Model]++
+			spec.totalCostUSD += entry.CostUSD
+			spec.iterations++
+			spec.beadIDs[entry.BeadID] = struct{}{}
+			spec.modelMix[entry.Model]++
 		}
 	}
 
-	for specID, a := range accum {
+	for specID, spec := range accum {
 		result[specID] = SpecCost{
-			TotalCostUSD: a.totalCostUSD,
-			Iterations:   a.iterations,
-			Beads:        len(a.beadIDs),
-			ModelMix:     a.modelMix,
+			TotalCostUSD: spec.totalCostUSD,
+			Iterations:   spec.iterations,
+			Beads:        len(spec.beadIDs),
+			ModelMix:     spec.modelMix,
 		}
 	}
 
