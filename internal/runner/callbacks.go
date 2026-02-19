@@ -282,6 +282,15 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if r.router == nil {
 			return fmt.Errorf("router not configured")
 		}
+		applyCostData := func(stats *logger.StreamStats) {
+			if stats == nil {
+				return
+			}
+			costUSD, inputTokens, outputTokens := stats.CostData()
+			bc.Result.CostUSD = costUSD
+			bc.Result.InputTokens = inputTokens
+			bc.Result.OutputTokens = outputTokens
+		}
 		streamInvoke := func(p provider.Provider, modelName string, attempt string) (*provider.Result, *logger.StreamStats, error) {
 			startedAt := time.Now()
 			var eventCount int64
@@ -394,12 +403,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			bc.Result.EscalatedTo = modelName
 		}
 		result, stats, err := streamInvoke(p, modelName, "primary")
-		if stats != nil {
-			costUSD, inputTokens, outputTokens := stats.CostData()
-			bc.Result.CostUSD = costUSD
-			bc.Result.InputTokens = inputTokens
-			bc.Result.OutputTokens = outputTokens
-		}
+		applyCostData(stats)
 		if err != nil {
 			if p.IsUsageLimitError(result, err) {
 				r.router.MarkUnavailable(p.Name())
@@ -407,12 +411,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				if p2 != nil {
 					bc.Model = modelName2
 					result, stats, err = streamInvoke(p2, modelName2, "usage-limit-fallback")
-					if stats != nil {
-						costUSD, inputTokens, outputTokens := stats.CostData()
-						bc.Result.CostUSD = costUSD
-						bc.Result.InputTokens = inputTokens
-						bc.Result.OutputTokens = outputTokens
-					}
+					applyCostData(stats)
 				}
 			}
 			if err != nil {
@@ -428,12 +427,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
 			if p2 != nil && p2.Name() != p.Name() {
 				fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "codex-transport-fallback")
-				if fallbackStats != nil {
-					costUSD, inputTokens, outputTokens := fallbackStats.CostData()
-					bc.Result.CostUSD = costUSD
-					bc.Result.InputTokens = inputTokens
-					bc.Result.OutputTokens = outputTokens
-				}
+				applyCostData(fallbackStats)
 				if fallbackErr != nil {
 					return fmt.Errorf(
 						"acceptance tests failed after codex transport fallback (provider=%s model=%s): primary={%s} fallback_err=%v",
