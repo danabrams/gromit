@@ -483,15 +483,17 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		if e.Escalated {
 			escalations++
 		}
-		switch e.FailurePhase {
-		case failurePhasePreflight:
-			preflightFailures++
-		case failurePhaseBuild:
-			buildFailures++
-		case failurePhaseValidation:
-			validationFailures++
-		case failurePhaseTimeout:
-			timeoutFailures++
+		if !e.Success {
+			switch e.FailurePhase {
+			case failurePhasePreflight:
+				preflightFailures++
+			case failurePhaseBuild:
+				buildFailures++
+			case failurePhaseValidation:
+				validationFailures++
+			case failurePhaseTimeout:
+				timeoutFailures++
+			}
 		}
 
 		durationTotal += e.DurationMs

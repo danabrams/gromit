@@ -602,8 +602,8 @@ func (m *cliLearningsManager) Add(content string) error {
 		return err
 	}
 
-	learningsFile.Add("review", content, learnings.CategoryPatterns)
-	return nil
+	_, err = learningsFile.Add("review", content, learnings.CategoryPatterns)
+	return err
 }
 
 // cliClaudeRunner implements learnings.ClaudeRunner interface for the Claude client
