@@ -993,6 +993,62 @@ func TestTDDSummaryRecord_Fields(t *testing.T) {
 	}
 }
 
+// TestLogTDDPhase_WritesRecordToJSONL verifies LogTDDPhase writes a TDDPhaseRecord
+// to the JSONL log file using the existing encoder pattern.
+func TestLogTDDPhase_WritesRecordToJSONL(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	rec := &TDDPhaseRecord{
+		Type:        "tdd_phase",
+		Timestamp:   time.Now(),
+		BeadID:      "bead-123",
+		Phase:       "green",
+		CycleNumber: 2,
+		Model:       "sonnet",
+		Tier:        "medium",
+		Success:     true,
+		DurationMs:  4500,
+	}
+
+	if err := l.LogTDDPhase(rec); err != nil {
+		t.Fatalf("LogTDDPhase() error: %v", err)
+	}
+
+	data, err := os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatalf("reading log file: %v", err)
+	}
+	content := string(data)
+
+	if !contains(content, `"type":"tdd_phase"`) {
+		t.Errorf("log should contain type tdd_phase, got: %s", content)
+	}
+	if !contains(content, `"bead_id":"bead-123"`) {
+		t.Errorf("log should contain bead_id, got: %s", content)
+	}
+	if !contains(content, `"phase":"green"`) {
+		t.Errorf("log should contain phase green, got: %s", content)
+	}
+	if !contains(content, `"cycle_number":2`) {
+		t.Errorf("log should contain cycle_number 2, got: %s", content)
+	}
+}
+
+// TestLogTDDPhase_NilLoggerReturnsNil verifies that calling LogTDDPhase on a nil
+// Logger returns nil without panicking.
+func TestLogTDDPhase_NilLoggerReturnsNil(t *testing.T) {
+	var l *Logger
+	rec := &TDDPhaseRecord{Type: "tdd_phase", BeadID: "b1"}
+	if err := l.LogTDDPhase(rec); err != nil {
+		t.Errorf("nil logger LogTDDPhase should return nil, got: %v", err)
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsAt(s, substr))
