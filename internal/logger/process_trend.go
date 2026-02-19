@@ -11,15 +11,17 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/danabrams/gromit/internal/failurephase"
 )
 
 const defaultTrendWindowSize = 30
 
 const (
-	FailurePhasePreflight  = "preflight"
-	FailurePhaseBuild      = "build"
-	FailurePhaseValidation = "validation"
-	FailurePhaseTimeout    = "timeout"
+	FailurePhasePreflight  = failurephase.Preflight
+	FailurePhaseBuild      = failurephase.Build
+	FailurePhaseValidation = failurephase.Validation
+	FailurePhaseTimeout    = failurephase.Timeout
 )
 
 // IterationMetric stores a single iteration with rolling-window process metrics.

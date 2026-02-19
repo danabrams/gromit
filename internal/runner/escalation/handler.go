@@ -2,6 +2,7 @@ package escalation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -212,6 +214,21 @@ func (h *Handler) checkRetryBudgetAfterFailure(bc *runtypes.BeadContext) error {
 	return nil
 }
 
+func (h *Handler) setBuildFailurePhase(bc *runtypes.BeadContext) {
+	if bc == nil || bc.Result == nil {
+		return
+	}
+	bc.Result.FailurePhase = failurephase.Build
+}
+
+func (h *Handler) setBuildTimeoutFailurePhase(bc *runtypes.BeadContext) {
+	if bc == nil || bc.Result == nil {
+		return
+	}
+	bc.Result.FailurePhase = failurephase.Timeout
+	bc.Result.TimeoutPhase = "build"
+}
+
 // HandleEscalation tries to escalate to the next tier or decompose the task.
 // Returns true if the retry loop should continue, false if processBead should return.
 func (h *Handler) HandleEscalation(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) (continueLoop bool) {
@@ -362,12 +379,14 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		select {
 		case <-ctx.Done():
 			bc.Result.Error = ctx.Err()
+			h.setBuildTimeoutFailurePhase(bc)
 			return false
 		default:
 		}
 
 		if budgetErr := h.checkRetryBudgetBeforeAttempt(bc); budgetErr != nil {
 			bc.Result.Error = budgetErr
+			h.setBuildFailurePhase(bc)
 			return false
 		}
 		bc.AttemptsThisBead++
@@ -380,6 +399,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 				if h.HandleStallTimeout(ctx, bc) {
 					continue
 				}
+				h.setBuildTimeoutFailurePhase(bc)
 				return false
 			}
 			if invResult != nil && invResult.TimeoutType == "invocation" {
@@ -387,6 +407,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 				if h.HandleInvocationTimeout(ctx, bc) {
 					continue
 				}
+				h.setBuildTimeoutFailurePhase(bc)
 				return false
 			}
 			if invResult != nil && invResult.TimeoutType == "bead" {
@@ -394,14 +415,21 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 				if h.HandleBeadTimeout(bc) {
 					continue
 				}
+				h.setBuildTimeoutFailurePhase(bc)
 				return false
 			}
 			bc.Result.Error = fmt.Errorf("claude invocation: %w", err)
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				h.setBuildTimeoutFailurePhase(bc)
+			} else {
+				h.setBuildFailurePhase(bc)
+			}
 			return false
 		}
 
 		if invResult == nil || invResult.Result == nil {
 			bc.Result.Error = fmt.Errorf("claude returned nil result")
+			h.setBuildFailurePhase(bc)
 			return false
 		}
 
@@ -414,6 +442,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 
 		if budgetErr := h.checkRetryBudgetAfterFailure(bc); budgetErr != nil {
 			bc.Result.Error = budgetErr
+			h.setBuildFailurePhase(bc)
 			return false
 		}
 
@@ -426,6 +455,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		select {
 		case <-ctx.Done():
 			bc.Result.Error = ctx.Err()
+			h.setBuildTimeoutFailurePhase(bc)
 			return false
 		default:
 		}
@@ -433,6 +463,9 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		// Analyze failure and decide: retry, escalate, or stop
 		if h.AnalyzeAndHandleFailure(ctx, bc, claudeResult) {
 			continue
+		}
+		if bc.Result != nil && bc.Result.FailurePhase == "" {
+			h.setBuildFailurePhase(bc)
 		}
 		return false
 	}

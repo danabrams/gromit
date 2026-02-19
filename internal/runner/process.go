@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/preflight"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -356,6 +357,7 @@ func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadCo
 	r.validationFailures = r.validationRunner.Failures()
 
 	if valErr != nil && errors.Is(valErr, validation.ErrValidationFailed) {
+		bc.Result.FailurePhase = failurephase.Validation
 		r.log("\nValidation failed.")
 		if failureOutput != "" {
 			r.log("%s", failureOutput)
@@ -384,6 +386,12 @@ func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadCo
 		return errValidationFailed
 	} else if valErr != nil {
 		// Non-validation error (e.g., command execution failure)
+		if isTimeoutOrCanceledError(valErr) {
+			bc.Result.FailurePhase = failurephase.Timeout
+			setPhaseAttribution(bc.Result, "validation", valErr)
+		} else {
+			bc.Result.FailurePhase = failurephase.Validation
+		}
 		return valErr
 	}
 

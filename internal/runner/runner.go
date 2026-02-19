@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -222,10 +223,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	bc, beadCtx, beadCancel, err := r.setupBeadContext(ctx, b, iteration, deadline, scopeEstimate)
 	if err != nil {
 		return &IterationResult{
-			BeadID:    b.ID,
-			BeadTitle: b.Title,
-			Error:     err,
-			Duration:  time.Since(start),
+			BeadID:       b.ID,
+			BeadTitle:    b.Title,
+			Error:        err,
+			FailurePhase: failurephase.Preflight,
+			Duration:     time.Since(start),
 		}
 	}
 	defer beadCancel()
@@ -241,6 +243,7 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 
 	if err := r.buildPromptForBead(ctx, bc, iteration); err != nil {
 		bc.Result.Error = err
+		bc.Result.FailurePhase = failurephase.Preflight
 		return bc.Result
 	}
 
@@ -312,6 +315,7 @@ func setPhaseAttribution(result *IterationResult, phase string, err error) {
 	}
 	if isTimeoutOrCanceledError(err) {
 		result.TimeoutPhase = phase
+		result.FailurePhase = failurephase.Timeout
 	}
 }
 

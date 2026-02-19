@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -999,6 +1000,9 @@ func TestExecuteWithRetry_StopsWhenAttemptBudgetExceeded(t *testing.T) {
 	if got := bc.Result.Error.Error(); got == "" || !strings.Contains(got, "retry budget exceeded") {
 		t.Fatalf("unexpected error: %v", bc.Result.Error)
 	}
+	if bc.Result.FailurePhase != failurephase.Build {
+		t.Fatalf("FailurePhase = %q, want %q", bc.Result.FailurePhase, failurephase.Build)
+	}
 }
 
 func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
@@ -1018,6 +1022,12 @@ func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
 	success := h.ExecuteWithRetry(ctx, bc, invokeFn)
 	if success {
 		t.Error("ExecuteWithRetry should return false when context is cancelled")
+	}
+	if bc.Result.FailurePhase != failurephase.Timeout {
+		t.Fatalf("FailurePhase = %q, want %q", bc.Result.FailurePhase, failurephase.Timeout)
+	}
+	if bc.Result.TimeoutPhase != "build" {
+		t.Fatalf("TimeoutPhase = %q, want %q", bc.Result.TimeoutPhase, "build")
 	}
 }
 

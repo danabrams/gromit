@@ -7,7 +7,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -116,9 +116,9 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		if !executeWithRetry() {
 			if bc.Result.FailurePhase == "" {
 				if bc.Result.TimeoutType != "" || isTimeoutOrCanceledError(bc.Result.Error) {
-					bc.Result.FailurePhase = logger.FailurePhaseTimeout
+					bc.Result.FailurePhase = failurephase.Timeout
 				} else {
-					bc.Result.FailurePhase = logger.FailurePhaseBuild
+					bc.Result.FailurePhase = failurephase.Build
 				}
 			}
 			return bc.Result
@@ -148,6 +148,13 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 				validationGateCancel()
 			}
 			setPhaseAttribution(bc.Result, "validation_gate", err)
+			if bc.Result.FailurePhase == "" {
+				if isTimeoutOrCanceledError(err) {
+					bc.Result.FailurePhase = failurephase.Timeout
+				} else {
+					bc.Result.FailurePhase = failurephase.Validation
+				}
+			}
 			bc.Result.Error = err
 			return bc.Result
 		}

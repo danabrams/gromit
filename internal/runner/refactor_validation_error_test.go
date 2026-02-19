@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -60,6 +61,9 @@ func TestSetPhaseAttribution_SetsTimeoutPhaseOnDeadlineExceeded(t *testing.T) {
 	if result.TimeoutPhase != "validation" {
 		t.Fatalf("TimeoutPhase = %q, want %q", result.TimeoutPhase, "validation")
 	}
+	if result.FailurePhase != failurephase.Timeout {
+		t.Fatalf("FailurePhase = %q, want %q", result.FailurePhase, failurephase.Timeout)
+	}
 }
 
 func TestSetPhaseAttribution_SetsTimeoutPhaseOnCanceled(t *testing.T) {
@@ -67,6 +71,9 @@ func TestSetPhaseAttribution_SetsTimeoutPhaseOnCanceled(t *testing.T) {
 	setPhaseAttribution(result, "refactor", context.Canceled)
 	if result.TimeoutPhase != "refactor" {
 		t.Fatalf("TimeoutPhase = %q, want %q", result.TimeoutPhase, "refactor")
+	}
+	if result.FailurePhase != failurephase.Timeout {
+		t.Fatalf("FailurePhase = %q, want %q", result.FailurePhase, failurephase.Timeout)
 	}
 }
 
