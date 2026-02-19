@@ -142,6 +142,24 @@ func TestBuildIterationMetrics_SinglePhaseRollingRates(t *testing.T) {
 	assertFloatNear(t, last.RollingTimeoutFailureRate, 0, "RollingTimeoutFailureRate")
 }
 
+func TestBuildProcessTrend_PhaseRatesSumToFailureRate(t *testing.T) {
+	entries := []IterationLog{
+		makeIterationLog(false, "preflight"),
+		makeIterationLog(false, "build"),
+		makeIterationLog(true, ""),
+	}
+
+	metrics := buildIterationMetrics(entries, 3)
+	trend := buildProcessTrend(metrics, 3)
+
+	sum := trend.LatestWindow.PreflightFailureRate +
+		trend.LatestWindow.BuildFailureRate +
+		trend.LatestWindow.ValidationFailureRate +
+		trend.LatestWindow.TimeoutFailureRate
+
+	assertFloatNear(t, sum, trend.LatestWindow.FailureRate, "PhaseFailureRateSum")
+}
+
 func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,

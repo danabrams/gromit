@@ -301,14 +301,18 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 
 	latest := metrics[len(metrics)-1]
 	trend.LatestWindow = ProcessTrendWindow{
-		SuccessRate:      latest.RollingSuccessRate,
-		FailureRate:      latest.RollingFailureRate,
-		FirstPassSuccess: latest.RollingFirstPassSuccess,
-		EscalationRate:   latest.RollingEscalationRate,
-		AvgDurationMs:    latest.RollingAvgDurationMs,
-		P95DurationMs:    latest.RollingP95DurationMs,
-		AvgCostUSD:       latest.RollingAvgCostUSD,
-		AvgMTTRProxyMs:   latest.RollingAvgMTTRProxyMs,
+		SuccessRate:           latest.RollingSuccessRate,
+		FailureRate:           latest.RollingFailureRate,
+		FirstPassSuccess:      latest.RollingFirstPassSuccess,
+		EscalationRate:        latest.RollingEscalationRate,
+		AvgDurationMs:         latest.RollingAvgDurationMs,
+		P95DurationMs:         latest.RollingP95DurationMs,
+		AvgCostUSD:            latest.RollingAvgCostUSD,
+		AvgMTTRProxyMs:        latest.RollingAvgMTTRProxyMs,
+		PreflightFailureRate:  latest.RollingPreflightFailureRate,
+		BuildFailureRate:      latest.RollingBuildFailureRate,
+		ValidationFailureRate: latest.RollingValidationFailureRate,
+		TimeoutFailureRate:    latest.RollingTimeoutFailureRate,
 	}
 
 	series := map[string][]float64{
