@@ -852,12 +852,8 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	// Get working directory
 	ctx.WorkDir, _ = os.Getwd()
 
-	// Find and load spec (check bead first, then parent)
-	specName := bead.FindSpecLabel(b.Labels)
-	if specName == "" && parent != nil {
-		specName = bead.FindSpecLabel(parent.Labels)
-	}
-
+	// Find and load spec (check bead first, then parent).
+	specName := specLabelFromCurrentOrParent(b, parent)
 	if specName != "" {
 		spec, err := r.LoadSpec(specName)
 		if err != nil {
@@ -867,16 +863,35 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 		ctx.SpecName = specName
 	}
 
-	// Sibling enrichment is optional; resolver failures should not fail context build.
-	if r.siblingTouchedPackagesResolver != nil {
-		siblingTouched, err := r.siblingTouchedPackagesResolver(b, parent)
-		if err == nil && siblingTouched != nil {
-			ctx.SiblingTouchedPackages = siblingTouched
-		}
-	}
+	r.enrichSiblingTouchedPackages(ctx, b, parent)
 
 	ctx.normalizeNilFields()
 	return ctx, nil
+}
+
+// specLabelFromCurrentOrParent resolves the spec label from the current bead first,
+// then falls back to the parent bead.
+func specLabelFromCurrentOrParent(current, parent *bead.Bead) string {
+	if current == nil {
+		return ""
+	}
+	specName := bead.FindSpecLabel(current.Labels)
+	if specName == "" && parent != nil {
+		specName = bead.FindSpecLabel(parent.Labels)
+	}
+	return specName
+}
+
+// enrichSiblingTouchedPackages applies optional sibling package enrichment.
+// Resolver failures intentionally degrade to no enrichment.
+func (r *Renderer) enrichSiblingTouchedPackages(ctx *Context, current, parent *bead.Bead) {
+	if r == nil || ctx == nil || r.siblingTouchedPackagesResolver == nil {
+		return
+	}
+	siblingTouched, err := r.siblingTouchedPackagesResolver(current, parent)
+	if err == nil && siblingTouched != nil {
+		ctx.SiblingTouchedPackages = siblingTouched
+	}
 }
 
 // LoadRules loads the RULES.md file
