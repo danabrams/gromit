@@ -187,9 +187,10 @@ type PrecheckVerificationConfig struct {
 }
 
 type PreflightConfig struct {
-	AutoInstall  string   `yaml:"auto_install"`  // ask | always | never
-	Tools        []string `yaml:"tools"`         // optional explicit list
-	CompileCheck *bool    `yaml:"compile_check"` // run go build ./... before each invocation
+	AutoInstall    string   `yaml:"auto_install"`    // ask | always | never
+	Tools          []string `yaml:"tools"`           // optional explicit list
+	CompileCheck   *bool    `yaml:"compile_check"`   // run go build ./... before each invocation
+	CompileCommand string   `yaml:"compile_command"` // shell command to run before each invocation
 }
 
 type ClaudeConfig struct {

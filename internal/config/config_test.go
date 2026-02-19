@@ -107,6 +107,27 @@ func TestNormalizeNilFields_MandatoryCommandsInitialized(t *testing.T) {
 	}
 }
 
+func TestCompileCommandYAMLDeserialization(t *testing.T) {
+	yamlContent := `
+preflight:
+  compile_command: "go build ./..."
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Preflight.CompileCommand != "go build ./..." {
+		t.Errorf("Preflight.CompileCommand = %q, want %q", cfg.Preflight.CompileCommand, "go build ./...")
+	}
+}
+
 func TestMandatoryCommandsYAMLDeserialization(t *testing.T) {
 	yamlContent := `
 validation:
