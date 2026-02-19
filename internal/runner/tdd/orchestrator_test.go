@@ -291,6 +291,7 @@ func TestRunCycles_CoverageDone_TestsPassUnexpectedlyInRedPhase(t *testing.T) {
 	orch := newTestOrchestrator()
 
 	greenCalled := false
+	refactorCalls := 0
 
 	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
 		return "red", nil
@@ -307,6 +308,7 @@ func TestRunCycles_CoverageDone_TestsPassUnexpectedlyInRedPhase(t *testing.T) {
 		return "green", nil
 	}
 	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		refactorCalls++
 		return nil
 	}
 
@@ -328,6 +330,9 @@ func TestRunCycles_CoverageDone_TestsPassUnexpectedlyInRedPhase(t *testing.T) {
 
 	if greenCalled {
 		t.Fatal("green phase should not be called when red validation passes unexpectedly")
+	}
+	if refactorCalls != 1 {
+		t.Fatalf("expected refactor phase to be called exactly once, got %d", refactorCalls)
 	}
 }
 

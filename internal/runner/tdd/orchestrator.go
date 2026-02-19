@@ -163,6 +163,7 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	}
 	if passed {
 		// Tests pass unexpectedly — nothing left to implement
+		o.executeRefactorPhase(ctx, bc)
 		state.Done = true
 		*state = AssembleCycleState(*state, "")
 		return nil
