@@ -32,6 +32,10 @@ var (
 	reviewChooseAgent    bool
 )
 
+// reviewGitCommandFn is the injectable function for constructing git subcommands
+// used by review helpers. Tests may replace this to avoid real subprocess calls.
+var reviewGitCommandFn = exec.Command
+
 const defaultThoroughReviewTimeoutSeconds = 900
 
 var reviewCmd = &cobra.Command{

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -11,6 +12,30 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/scope"
 )
+
+// TestReviewGitCommandFn_CanBeOverridden verifies that reviewGitCommandFn is a
+// package-level injectable variable with the expected signature.
+func TestReviewGitCommandFn_CanBeOverridden(t *testing.T) {
+	orig := reviewGitCommandFn
+	t.Cleanup(func() { reviewGitCommandFn = orig })
+
+	var capturedName string
+	var capturedArgs []string
+	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
+		capturedName = name
+		capturedArgs = arg
+		return exec.Command("echo", "stub")
+	}
+
+	_ = reviewGitCommandFn("git", "rev-parse", "HEAD")
+
+	if capturedName != "git" {
+		t.Errorf("expected captured name %q, got %q", "git", capturedName)
+	}
+	if len(capturedArgs) < 2 || capturedArgs[0] != "rev-parse" || capturedArgs[1] != "HEAD" {
+		t.Errorf("expected args [rev-parse HEAD], got %v", capturedArgs)
+	}
+}
 
 // saveReviewFlags saves the current review flag values and registers a cleanup
 // to restore them after the test completes.
