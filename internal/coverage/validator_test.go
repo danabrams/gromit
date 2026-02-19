@@ -52,3 +52,12 @@ func TestParseSelfReport_EmbeddedJSON(t *testing.T) {
 		t.Fatalf("Remaining = %v, want [4]", report.Remaining)
 	}
 }
+
+func TestParseSelfReport_MalformedJSON(t *testing.T) {
+	output := `{"targeting": 1, "remaining": [2, }`
+
+	_, err := ParseSelfReport(output)
+	if err == nil {
+		t.Fatal("ParseSelfReport() expected error, got nil")
+	}
+}
