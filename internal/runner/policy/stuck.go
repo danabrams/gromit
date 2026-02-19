@@ -20,8 +20,7 @@ var _ StuckPolicy = (*ThresholdStuckPolicy)(nil)
 
 // NewConfigStuckPolicy returns a StuckPolicy backed by cfg.
 func NewConfigStuckPolicy(cfg *config.Config) StuckPolicy {
-	_ = cfg
-	return NewThresholdStuckPolicy(0)
+	return NewThresholdStuckPolicy(cfg.Loop.StuckBeadThreshold)
 }
 
 // NewThresholdStuckPolicy returns a StuckPolicy that uses the provided threshold.

@@ -19,6 +19,37 @@ func TestNewConfigStuckPolicy_NotNil(t *testing.T) {
 	}
 }
 
+func TestNewConfigStuckPolicy_UsesThreshold(t *testing.T) {
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StuckBeadThreshold: 3,
+		},
+	}
+
+	p := policy.NewConfigStuckPolicy(cfg)
+	b := &bead.Bead{ID: "bead-1"}
+
+	cases := []struct {
+		name     string
+		failures int
+		want     bool
+	}{
+		{"below threshold", 2, false},
+		{"at threshold", 3, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stats := map[string]logger.BeadStats{
+				b.ID: {Failures: tc.failures},
+			}
+			if got := p.IsStuck(b, stats); got != tc.want {
+				t.Errorf("IsStuck() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestThresholdStuckPolicy_IsStuck_Boundary(t *testing.T) {
 	cases := []struct {
 		name      string
