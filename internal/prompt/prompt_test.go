@@ -12,6 +12,33 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
+const (
+	tddBuildSectionDescription   = "### Description"
+	tddBuildSectionCoverageState = "## Coverage State"
+	tddBuildSectionInstructions  = "## Instructions"
+)
+
+func requireSectionOrder(t *testing.T, rendered string, sectionLabels ...string) []int {
+	t.Helper()
+
+	indices := make([]int, len(sectionLabels))
+	for i, label := range sectionLabels {
+		index := strings.Index(rendered, label)
+		if index == -1 {
+			t.Fatalf("expected section %q in output", label)
+		}
+		indices[i] = index
+	}
+
+	for i := 1; i < len(indices); i++ {
+		if indices[i] <= indices[i-1] {
+			t.Fatalf("expected section %q after %q", sectionLabels[i], sectionLabels[i-1])
+		}
+	}
+
+	return indices
+}
+
 func TestValidateSpecName(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -1228,6 +1255,7 @@ func TestRenderTDDBuild_CoverageStateSection(t *testing.T) {
 	if !strings.Contains(result, "Remaining uncovered: #2, #3") {
 		t.Error("expected coverage state details in output")
 	}
+	requireSectionOrder(t, result, tddBuildSectionDescription, tddBuildSectionCoverageState, tddBuildSectionInstructions)
 }
 
 func TestRenderTDDBuild_CoverageStateSectionAbsentWhenEmpty(t *testing.T) {
@@ -1247,6 +1275,7 @@ func TestRenderTDDBuild_CoverageStateSectionAbsentWhenEmpty(t *testing.T) {
 	if strings.Contains(result, "## Coverage State") {
 		t.Error("Coverage State section should be absent when CoverageState is empty")
 	}
+	requireSectionOrder(t, result, tddBuildSectionDescription, tddBuildSectionInstructions)
 }
 
 func TestTDDRedContextFields(t *testing.T) {
