@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-02-19T19:07:31.632027355Z",
-  "total_iterations": 444,
+  "generated_at": "2026-02-19T19:17:06.22442812Z",
+  "total_iterations": 445,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 0.7666666666666667,
-    "failure_rate": 0.23333333333333334,
-    "first_pass_success_rate": 0.7333333333333333,
+    "success_rate": 0.8,
+    "failure_rate": 0.2,
+    "first_pass_success_rate": 0.7666666666666667,
     "escalation_rate": 0.03333333333333333,
-    "avg_duration_ms": 292659.1666666667,
+    "avg_duration_ms": 309356.9666666667,
     "p95_duration_ms": 783822.899999999,
-    "avg_cost_usd": 3.5508879916666674,
+    "avg_cost_usd": 3.764535108333334,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -19,19 +19,19 @@
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 3.5508879916666674,
-      "mean": 1.2779897987660038,
-      "std_dev": 2.061788424783103,
-      "ucl": 7.463355073115313,
-      "lcl": -4.907375475583304
+      "latest": 3.764535108333334,
+      "mean": 1.2835775410346946,
+      "std_dev": 2.062833419128199,
+      "ucl": 7.472077798419292,
+      "lcl": -4.904922716349903
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 292659.1666666667,
-      "mean": 621247.3988145634,
-      "std_dev": 298516.40153651,
-      "ucl": 1516796.6034240932,
-      "lcl": -274301.8057949665
+      "latest": 309356.9666666667,
+      "mean": 620546.5214389501,
+      "std_dev": 298546.3044906592,
+      "ucl": 1516185.434910928,
+      "lcl": -275092.3920330276
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -44,16 +44,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0.03333333333333333,
-      "mean": 0.04804804804804841,
-      "std_dev": 0.05755002779663167,
-      "ucl": 0.22069813143794342,
+      "mean": 0.0480149812734086,
+      "std_dev": 0.05748955091753647,
+      "ucl": 0.220483634026018,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 0.7333333333333333,
-      "mean": 0.3825825825825823,
-      "std_dev": 0.43350301244482264,
+      "latest": 0.7666666666666667,
+      "mean": 0.3834456928838949,
+      "std_dev": 0.43339741659205183,
       "ucl": 1,
       "lcl": 0
     },
@@ -67,18 +67,18 @@
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 0.7666666666666667,
-      "mean": 0.7431927864052085,
-      "std_dev": 0.22182145602916475,
+      "latest": 0.8,
+      "mean": 0.743320443064972,
+      "std_dev": 0.22158840535354868,
       "ucl": 1,
-      "lcl": 0.07772841831771415
+      "lcl": 0.07855522700432593
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.006756756756756761,
-      "std_dev": 0.0187013805245874,
-      "ucl": 0.06286089833051896,
+      "mean": 0.006741573033707869,
+      "std_dev": 0.01868309555315076,
+      "ucl": 0.06279085969316016,
       "lcl": 0
     },
     {
