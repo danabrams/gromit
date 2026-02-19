@@ -178,6 +178,8 @@ type mockPromptRenderer struct {
 	RenderAcceptanceTestsFn func(ctx *prompt.Context) (string, error)
 	RenderATDDBuildFn       func(ctx *prompt.Context) (string, error)
 	RenderTDDBuildFn        func(ctx *prompt.Context) (string, error)
+	RenderTDDRedFn          func(ctx *prompt.TDDRedContext) (string, error)
+	RenderTDDGreenFn        func(ctx *prompt.TDDGreenContext) (string, error)
 	RenderRefactorFn        func(ctx *prompt.Context) (string, error)
 	RenderTestFixFn         func(ctx *prompt.TestFixContext) (string, error)
 	LoadSpecFn              func(name string) (string, error)
@@ -324,6 +326,20 @@ func (m *mockPromptRenderer) RenderTDDBuild(ctx *prompt.Context) (string, error)
 	return "mock tdd build prompt", nil
 }
 
+func (m *mockPromptRenderer) RenderTDDRed(ctx *prompt.TDDRedContext) (string, error) {
+	if m.RenderTDDRedFn != nil {
+		return m.RenderTDDRedFn(ctx)
+	}
+	return "mock tdd red prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderTDDGreen(ctx *prompt.TDDGreenContext) (string, error) {
+	if m.RenderTDDGreenFn != nil {
+		return m.RenderTDDGreenFn(ctx)
+	}
+	return "mock tdd green prompt", nil
+}
+
 func (m *mockPromptRenderer) RenderRefactor(ctx *prompt.Context) (string, error) {
 	if m.RenderRefactorFn != nil {
 		return m.RenderRefactorFn(ctx)
@@ -453,6 +469,14 @@ func (m *mockRenderer) RenderTDDBuild(ctx *prompt.Context) (string, error) {
 	return "mock tdd build prompt", nil
 }
 
+func (m *mockRenderer) RenderTDDRed(ctx *prompt.TDDRedContext) (string, error) {
+	return "mock tdd red prompt", nil
+}
+
+func (m *mockRenderer) RenderTDDGreen(ctx *prompt.TDDGreenContext) (string, error) {
+	return "mock tdd green prompt", nil
+}
+
 func (m *mockRenderer) RenderRefactor(ctx *prompt.Context) (string, error) {
 	return "mock refactor prompt", nil
 }
@@ -513,6 +537,26 @@ func TestPromptRendererInterfaceIncludesRenderSpecGate(t *testing.T) {
 	}
 	if output == "" {
 		t.Fatal("expected non-empty output")
+	}
+}
+
+func TestPromptRendererInterfaceIncludesRenderTDDPhases(t *testing.T) {
+	var r PromptRenderer = &mockPromptRenderer{}
+
+	redOutput, err := r.RenderTDDRed(&prompt.TDDRedContext{BeadTitle: "b"})
+	if err != nil {
+		t.Fatalf("RenderTDDRed() error = %v", err)
+	}
+	if redOutput == "" {
+		t.Fatal("expected non-empty red output")
+	}
+
+	greenOutput, err := r.RenderTDDGreen(&prompt.TDDGreenContext{BeadTitle: "b"})
+	if err != nil {
+		t.Fatalf("RenderTDDGreen() error = %v", err)
+	}
+	if greenOutput == "" {
+		t.Fatal("expected non-empty green output")
 	}
 }
 
