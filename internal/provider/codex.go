@@ -716,6 +716,14 @@ type codexResult struct {
 	OutputTokens int         `json:"output_tokens,omitempty"`
 }
 
+func emitStreamEvent(handler EventHandler, streamEvent map[string]interface{}) {
+	if handler == nil {
+		return
+	}
+	eventJSON, _ := json.Marshal(streamEvent)
+	handler(eventJSON)
+}
+
 // processCodexStream reads Codex JSONL events from reader, converts them to StreamEvent format,
 // and calls handlers for each event. Returns the final result text (from last agent_message),
 // token usage data (from turn.completed), error info (from failed turn.completed), and any error encountered.
@@ -775,13 +783,7 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 		// Handle different event types
 		switch event.Type {
 		case "thread.started":
-			if handler != nil {
-				streamEvent := map[string]interface{}{
-					"type": "system",
-				}
-				eventJSON, _ := json.Marshal(streamEvent)
-				handler(eventJSON)
-			}
+			emitStreamEvent(handler, map[string]interface{}{"type": "system"})
 
 		case "item.started":
 			if event.Item != nil && toolHandler != nil {
@@ -828,21 +830,17 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				}
 
 				// Emit assistant event
-				if handler != nil {
-					streamEvent := map[string]interface{}{
-						"type": "assistant",
-						"message": map[string]interface{}{
-							"content": []map[string]interface{}{
-								{
-									"type": "text",
-									"text": event.Item.Text,
-								},
+				emitStreamEvent(handler, map[string]interface{}{
+					"type": "assistant",
+					"message": map[string]interface{}{
+						"content": []map[string]interface{}{
+							{
+								"type": "text",
+								"text": event.Item.Text,
 							},
 						},
-					}
-					eventJSON, _ := json.Marshal(streamEvent)
-					handler(eventJSON)
-				}
+					},
+				})
 			}
 
 		case "result":
@@ -870,30 +868,26 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			}
 
 			// Emit error event for failure conditions
-			if handler != nil && event.ErrorInfo != nil {
-				streamEvent := map[string]interface{}{
+			if event.ErrorInfo != nil {
+				emitStreamEvent(handler, map[string]interface{}{
 					"type":    "error",
 					"subtype": event.ErrorInfo.Type,
 					"message": event.ErrorInfo.Message,
-				}
-				eventJSON, _ := json.Marshal(streamEvent)
-				handler(eventJSON)
+				})
 			}
 
 			// Emit result event with token usage
-			if handler != nil && event.Usage != nil {
+			if event.Usage != nil {
 				totalCostUSD := event.TotalCostUSD
 				if totalCostUSD == 0 && event.Usage.TotalCostUSD > 0 {
 					totalCostUSD = event.Usage.TotalCostUSD
 				}
-				streamEvent := map[string]interface{}{
+				emitStreamEvent(handler, map[string]interface{}{
 					"type":           "result",
 					"total_cost_usd": totalCostUSD,
 					"input_tokens":   event.Usage.InputTokens,
 					"output_tokens":  event.Usage.OutputTokens,
-				}
-				eventJSON, _ := json.Marshal(streamEvent)
-				handler(eventJSON)
+				})
 			}
 		}
 	}
@@ -972,18 +966,7 @@ func extractUsageFromResultEvent(event codexEvent) *codexUsage {
 		usage = *event.Usage
 		found = true
 	}
-	if event.InputTokens > 0 {
-		usage.InputTokens = event.InputTokens
-		found = true
-	}
-	if event.OutputTokens > 0 {
-		usage.OutputTokens = event.OutputTokens
-		found = true
-	}
-	if event.TotalCostUSD > 0 {
-		usage.TotalCostUSD = event.TotalCostUSD
-		found = true
-	}
+	found = applyUsageScalars(&usage, event.InputTokens, event.OutputTokens, event.TotalCostUSD) || found
 	if event.Result != nil {
 		if event.Result.Usage != nil {
 			merged := mergeCodexUsage(&usage, event.Result.Usage)
@@ -992,23 +975,29 @@ func extractUsageFromResultEvent(event codexEvent) *codexUsage {
 			}
 			found = true
 		}
-		if event.Result.InputTokens > 0 {
-			usage.InputTokens = event.Result.InputTokens
-			found = true
-		}
-		if event.Result.OutputTokens > 0 {
-			usage.OutputTokens = event.Result.OutputTokens
-			found = true
-		}
-		if event.Result.TotalCostUSD > 0 {
-			usage.TotalCostUSD = event.Result.TotalCostUSD
-			found = true
-		}
+		found = applyUsageScalars(&usage, event.Result.InputTokens, event.Result.OutputTokens, event.Result.TotalCostUSD) || found
 	}
 	if !found {
 		return nil
 	}
 	return &usage
+}
+
+func applyUsageScalars(usage *codexUsage, inputTokens, outputTokens int, totalCostUSD float64) bool {
+	applied := false
+	if inputTokens > 0 {
+		usage.InputTokens = inputTokens
+		applied = true
+	}
+	if outputTokens > 0 {
+		usage.OutputTokens = outputTokens
+		applied = true
+	}
+	if totalCostUSD > 0 {
+		usage.TotalCostUSD = totalCostUSD
+		applied = true
+	}
+	return applied
 }
 
 func mergeCodexUsage(existing *codexUsage, incoming *codexUsage) *codexUsage {
