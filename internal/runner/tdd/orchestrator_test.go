@@ -686,7 +686,7 @@ func TestExecuteRefactorPhase_ValidationFailure_ResetsToPreRefactorCommit(t *tes
 		Result: &runtypes.IterationResult{},
 	}
 
-	orch.executeRefactorPhase(context.Background(), bc)
+	outcome := orch.executeRefactorPhase(context.Background(), bc)
 
 	if refactorCalls != 1 {
 		t.Fatalf("expected runRefactorFn to be called exactly once, got %d", refactorCalls)
@@ -696,6 +696,9 @@ func TestExecuteRefactorPhase_ValidationFailure_ResetsToPreRefactorCommit(t *tes
 	}
 	if resetToCommit != "pre-refactor-commit" {
 		t.Fatalf("expected git reset to pre-refactor commit, got %q", resetToCommit)
+	}
+	if outcome != refactorOutcomeRevertedContinue {
+		t.Fatalf("expected refactor outcome %q, got %q", refactorOutcomeRevertedContinue, outcome)
 	}
 }
 

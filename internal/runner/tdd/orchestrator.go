@@ -33,6 +33,13 @@ type GetGitHeadFn func() (string, error)
 // GitResetFn resets the working tree to a given commit.
 type GitResetFn func(commit string) error
 
+type refactorOutcome string
+
+const (
+	refactorOutcomeContinue         refactorOutcome = "continue"
+	refactorOutcomeRevertedContinue refactorOutcome = "reverted_continue"
+)
+
 // CycleOrchestrator runs TDD red-green-refactor cycles with fresh context per phase.
 type CycleOrchestrator struct {
 	renderRedFn    RenderRedFn
@@ -163,7 +170,10 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	}
 	if passed {
 		// Tests pass unexpectedly — nothing left to implement
-		o.executeRefactorPhase(ctx, bc)
+		outcome := o.executeRefactorPhase(ctx, bc)
+		if outcome != refactorOutcomeContinue && outcome != refactorOutcomeRevertedContinue {
+			return fmt.Errorf("refactor phase: unsupported outcome %q", outcome)
+		}
 		if err := o.runFinalValidation(ctx); err != nil {
 			return err
 		}
@@ -199,7 +209,10 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green validation failed: tests still failing after green phase")
 	}
 
-	o.executeRefactorPhase(ctx, bc)
+	outcome := o.executeRefactorPhase(ctx, bc)
+	if outcome != refactorOutcomeContinue && outcome != refactorOutcomeRevertedContinue {
+		return fmt.Errorf("refactor phase: unsupported outcome %q", outcome)
+	}
 	if err := o.runFinalValidation(ctx); err != nil {
 		return err
 	}
@@ -209,9 +222,9 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	return nil
 }
 
-func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtypes.BeadContext) {
+func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtypes.BeadContext) refactorOutcome {
 	if o.runRefactorFn == nil {
-		return
+		return refactorOutcomeContinue
 	}
 
 	// Capture pre-refactor state for revert.
@@ -226,18 +239,19 @@ func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtyp
 	// Verify tests still pass after refactor.
 	_, passed, validateErr := o.validateFn(ctx, nil, "")
 	if validateErr != nil {
-		return
+		return refactorOutcomeContinue
 	}
 	if passed {
-		return
+		return refactorOutcomeContinue
 	}
 
 	// Refactor broke tests — revert and continue.
 	if preRefactorCommit == "" || o.gitResetFn == nil {
-		return
+		return refactorOutcomeContinue
 	}
 
 	_ = o.gitResetFn(preRefactorCommit)
+	return refactorOutcomeRevertedContinue
 }
 
 func (o *CycleOrchestrator) runFinalValidation(ctx context.Context) error {
