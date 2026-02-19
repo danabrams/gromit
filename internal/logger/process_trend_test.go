@@ -87,6 +87,32 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 	}
 }
 
+func TestBuildIterationMetrics_CopiesTokenCounts(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Timestamp:    time.Now(),
+			Iteration:    1,
+			BeadID:       "bead-tok",
+			Model:        "gpt-4",
+			Provider:     "codex",
+			Success:      true,
+			InputTokens:  1200,
+			OutputTokens: 350,
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 10)
+	if len(metrics) != 1 {
+		t.Fatalf("len(metrics) = %d, want 1", len(metrics))
+	}
+	if metrics[0].InputTokens != 1200 {
+		t.Errorf("metrics[0].InputTokens = %d, want 1200", metrics[0].InputTokens)
+	}
+	if metrics[0].OutputTokens != 350 {
+		t.Errorf("metrics[0].OutputTokens = %d, want 350", metrics[0].OutputTokens)
+	}
+}
+
 func TestSummarizeWindow_AllSuccessPhaseRatesZero(t *testing.T) {
 	window := []IterationLog{
 		{Success: true},

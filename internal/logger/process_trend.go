@@ -49,6 +49,8 @@ type IterationMetric struct {
 	Escalated                    bool      `json:"escalated"`
 	DurationMs                   int64     `json:"duration_ms"`
 	CostUSD                      float64   `json:"cost_usd"`
+	InputTokens                  int       `json:"input_tokens,omitempty"`
+	OutputTokens                 int       `json:"output_tokens,omitempty"`
 	MTTRProxyMs                  int64     `json:"mttr_proxy_ms,omitempty"`
 	RollingSuccessRate           float64   `json:"rolling_success_rate"`
 	RollingFailureRate           float64   `json:"rolling_failure_rate"`
@@ -286,6 +288,8 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			Escalated:                    entry.Escalated,
 			DurationMs:                   entry.DurationMs,
 			CostUSD:                      entry.CostUSD,
+			InputTokens:                  entry.InputTokens,
+			OutputTokens:                 entry.OutputTokens,
 			MTTRProxyMs:                  entry.MTTRProxyMs,
 			FilesTouched:                 entry.FilesTouched,
 			RollingSuccessRate:           w.SuccessRate,
