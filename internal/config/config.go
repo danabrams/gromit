@@ -254,8 +254,9 @@ type MethodologyPhaseTimeout struct {
 }
 
 type GitConfig struct {
-	AutoPush    *bool  `yaml:"auto_push"`
+	AutoPush    *bool `yaml:"auto_push"`
 	PushFailure string `yaml:"push_failure"`
+	PushTimeout int    `yaml:"push_timeout"`
 }
 
 type StateConfig struct {
@@ -677,6 +678,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Git.PushFailure == "" {
 		c.Git.PushFailure = "warn"
+	}
+	if c.Git.PushTimeout == 0 {
+		c.Git.PushTimeout = 60
 	}
 	if c.State.StaleThreshold == 0 {
 		c.State.StaleThreshold = 60

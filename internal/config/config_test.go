@@ -3188,6 +3188,15 @@ func TestGitConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestGitConfigDefaultPushTimeout(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Git.PushTimeout != 60 {
+		t.Errorf("expected default git push_timeout=60, got %d", cfg.Git.PushTimeout)
+	}
+}
+
 func TestGitConfigFromYAML(t *testing.T) {
 	tests := []struct {
 		name              string
