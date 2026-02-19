@@ -1,6 +1,7 @@
 package tdd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -604,5 +605,56 @@ func TestRunCycles_RefactorFnError_NonBlocking(t *testing.T) {
 	err := orch.RunCycles(context.Background(), bc, state)
 	if err != nil {
 		t.Fatalf("expected no error (refactor error is non-blocking), got %v", err)
+	}
+}
+
+func TestRunCycles_WritesPhaseStatusToOutput(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	var buf bytes.Buffer
+	orch.output = &buf
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "FAIL", false, nil
+		default:
+			return "PASS", true, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+	orch.getGitHeadFn = func() (string, error) { return "abc", nil }
+	orch.gitResetFn = func(commit string) error { return nil }
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := singleRequirementState()
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "red") {
+		t.Fatalf("expected output to contain 'red' phase info, got %q", output)
+	}
+	if !strings.Contains(output, "green") {
+		t.Fatalf("expected output to contain 'green' phase info, got %q", output)
 	}
 }

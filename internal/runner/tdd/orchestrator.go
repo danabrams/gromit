@@ -3,6 +3,7 @@ package tdd
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -44,6 +45,7 @@ type CycleOrchestrator struct {
 	readFileFn     ReadFileFn
 	getGitHeadFn   GetGitHeadFn
 	gitResetFn     GitResetFn
+	output         io.Writer
 	cfg            *config.Config
 }
 
@@ -84,7 +86,15 @@ func (o *CycleOrchestrator) invokeWithRetryAndEscalation(ctx context.Context, pr
 	return fmt.Errorf("invocation failed after retry and escalation: %w", err)
 }
 
+func (o *CycleOrchestrator) logf(format string, args ...interface{}) {
+	if o.output != nil {
+		_, _ = fmt.Fprintf(o.output, format+"\n", args...)
+	}
+}
+
 func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadContext, state *CycleState) error {
+	o.logf("cycle %d: red phase — writing failing test", state.CycleNumber+1)
+
 	// RED: assemble handoff -> render prompt -> invoke
 	redHandoff, err := AssembleRedHandoff(*state, o.readFileFn, o.getDiffFn)
 	if err != nil {
@@ -114,6 +124,8 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		*state = AssembleCycleState(*state, "")
 		return nil
 	}
+
+	o.logf("cycle %d: green phase — implementing to pass", state.CycleNumber+1)
 
 	// GREEN: assemble handoff -> render prompt -> invoke
 	greenHandoff, err := AssembleGreenHandoff(valOutput, o.readFileFn, state.TouchedFiles)
