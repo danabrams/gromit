@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // TestDecomposeWorkflow_E2E verifies the complete Decompose workflow through Pipeline.Decompose()
@@ -126,6 +128,15 @@ created: 2026-02-11
 	// Verify beads were created
 	if len(result.CreatedBeads) != 2 {
 		t.Errorf("CreatedBeads count = %d, want 2", len(result.CreatedBeads))
+	}
+	if result.PromptDiagnostics == nil {
+		t.Fatal("PromptDiagnostics = nil, want populated diagnostics")
+	}
+	if result.PromptDiagnostics.PromptType != "decompose" {
+		t.Errorf("PromptDiagnostics.PromptType = %q, want %q", result.PromptDiagnostics.PromptType, "decompose")
+	}
+	if result.PromptDiagnostics.EstimatedTokens == 0 {
+		t.Error("PromptDiagnostics.EstimatedTokens = 0, want non-zero estimate")
 	}
 
 	// Verify plan frontmatter was updated
@@ -910,6 +921,44 @@ func TestDecomposeWorkflow_NilDependenciesError(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "nil dependencies") && !strings.Contains(err.Error(), "dependencies") {
 		t.Errorf("Error message = %q, want message about nil dependencies", err.Error())
+	}
+}
+
+func TestBuildDecomposePrompt_ConstructsPromptDiagnostics(t *testing.T) {
+	planName := "authentication"
+	planBody := "# Plan\n\nImplement auth flow"
+	skillContent := "Skill guidance"
+
+	promptText, diagnostics := buildDecomposePrompt(planName, planBody, skillContent)
+	if !strings.Contains(promptText, planBody) {
+		t.Fatalf("prompt missing plan body content")
+	}
+	if !strings.Contains(promptText, skillContent) {
+		t.Fatalf("prompt missing skill instructions content")
+	}
+
+	if diagnostics == nil {
+		t.Fatal("diagnostics = nil, want non-nil")
+	}
+	if diagnostics.PromptType != "decompose" {
+		t.Fatalf("PromptType = %q, want %q", diagnostics.PromptType, "decompose")
+	}
+
+	templateStatic := fmt.Sprintf(decomposePromptTemplate, planName, "", "", planName)
+	wantSectionTokens := map[string]int{
+		prompt.SectionPlanBody:          prompt.EstimateTokens(planBody),
+		prompt.SectionSkillInstructions: prompt.EstimateTokens(skillContent),
+		prompt.SectionTemplateStatic:    prompt.EstimateTokens(templateStatic),
+	}
+	for section, want := range wantSectionTokens {
+		if got := diagnostics.SectionTokens[section]; got != want {
+			t.Errorf("SectionTokens[%q] = %d, want %d", section, got, want)
+		}
+	}
+
+	wantEstimated := wantSectionTokens[prompt.SectionPlanBody] + wantSectionTokens[prompt.SectionSkillInstructions] + wantSectionTokens[prompt.SectionTemplateStatic]
+	if diagnostics.EstimatedTokens != wantEstimated {
+		t.Errorf("EstimatedTokens = %d, want %d", diagnostics.EstimatedTokens, wantEstimated)
 	}
 }
 

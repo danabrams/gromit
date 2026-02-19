@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/skills"
 )
 
@@ -46,10 +47,10 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	}
 
 	// Build prompt with embedded skill content
-	prompt := buildDecomposePrompt(input.PlanName, planBody, skills.DecomposeSkill)
+	promptText, promptDiagnostics := buildDecomposePrompt(input.PlanName, planBody, skills.DecomposeSkill)
 
 	// Run provider non-interactively
-	claudeResult, err := p.deps.ClaudeClient.Run(prompt, "sonnet")
+	claudeResult, err := p.deps.ClaudeClient.Run(promptText, "sonnet")
 	if err != nil {
 		return nil, fmt.Errorf("invoking provider: %w", err)
 	}
@@ -79,6 +80,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	// Review mode: return proposed beads without creating them
 	if input.Review {
 		result := NewDecomposeResult()
+		result.PromptDiagnostics = promptDiagnostics
 		for _, def := range beadDefs {
 			bead := newCreatedBeadFromDef(def, input.PlanName, "")
 			result.CreatedBeads = append(result.CreatedBeads, bead)
@@ -89,6 +91,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 
 	// Create beads
 	result := NewDecomposeResult()
+	result.PromptDiagnostics = promptDiagnostics
 	createdIDs := []string{}
 
 	for i, def := range beadDefs {
@@ -167,8 +170,17 @@ The spec label will be added automatically: spec:%s
 `
 
 // buildDecomposePrompt constructs the prompt for the configured provider.
-func buildDecomposePrompt(planName, planBody, skillContent string) string {
-	return fmt.Sprintf(decomposePromptTemplate, planName, planBody, skillContent, planName)
+func buildDecomposePrompt(planName, planBody, skillContent string) (string, *prompt.PromptDiagnostics) {
+	promptText := fmt.Sprintf(decomposePromptTemplate, planName, planBody, skillContent, planName)
+	templateStatic := fmt.Sprintf(decomposePromptTemplate, planName, "", "", planName)
+
+	diagnostics := prompt.NewDiagnostics("decompose", map[string]int{
+		prompt.SectionPlanBody:          prompt.EstimateTokens(planBody),
+		prompt.SectionSkillInstructions: prompt.EstimateTokens(skillContent),
+		prompt.SectionTemplateStatic:    prompt.EstimateTokens(templateStatic),
+	})
+
+	return promptText, diagnostics
 }
 
 // parsePriority converts priority string (P0, P1, P2) to int (0, 1, 2).

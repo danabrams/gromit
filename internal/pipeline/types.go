@@ -1,5 +1,7 @@
 package pipeline
 
+import "github.com/danabrams/gromit/internal/prompt"
+
 // EventType represents the type of event in an interactive session.
 type EventType int
 
@@ -92,8 +94,9 @@ func NewCreatedBead() CreatedBead {
 // DecomposeResult contains the output from the Decompose workflow.
 // Use NewDecomposeResult() to create instances with properly initialized slices.
 type DecomposeResult struct {
-	CreatedBeads []CreatedBead `json:"created_beads"`
-	PlanUpdated  bool          `json:"plan_updated"`
+	CreatedBeads      []CreatedBead             `json:"created_beads"`
+	PlanUpdated       bool                      `json:"plan_updated"`
+	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 }
 
 // NewDecomposeResult creates a DecomposeResult with initialized slices.
