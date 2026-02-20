@@ -132,7 +132,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolving agent: %w", err)
 	}
 
-	if debugModel != "" && selectedAgent.Name() == "claude" {
+	if shouldOverrideDebugModel(cmd, selectedAgent) {
 		binary := "claude"
 		var flags []string
 		if cfg != nil {
@@ -149,6 +149,19 @@ func runDebug(cmd *cobra.Command, args []string) error {
 
 	// Post-session artifact detection
 	return detectAndReportArtifacts(reportsDir, plansDir, existingReports, existingPlans, existingBacklogItems, bf, cfg)
+}
+
+func shouldOverrideDebugModel(cmd *cobra.Command, selectedAgent agent.Agent) bool {
+	if cmd == nil || selectedAgent == nil || selectedAgent.Name() != "claude" {
+		return false
+	}
+
+	modelFlag := cmd.Flags().Lookup("model")
+	if modelFlag == nil {
+		return false
+	}
+
+	return cmd.Flags().Changed("model")
 }
 
 // buildDebugPrompt constructs the system prompt for the debug session.
