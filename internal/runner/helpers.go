@@ -92,6 +92,8 @@ var nonInteractiveEnv = []string{
 	"TERM=dumb",
 }
 
+const execFailureExitCode = -1
+
 func prepareCommand(cmd *exec.Cmd, workDir string) {
 	cmd.Dir = workDir
 	cmd.Stdin = bytes.NewReader(nil)
@@ -133,7 +135,7 @@ func runCommand(cmd *exec.Cmd) (string, string, int, error) {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return stdout.String(), stderr.String(), exitErr.ExitCode(), nil
 		}
-		return stdout.String(), stderr.String(), -1, err
+		return stdout.String(), stderr.String(), execFailureExitCode, err
 	}
 	return stdout.String(), stderr.String(), 0, nil
 }

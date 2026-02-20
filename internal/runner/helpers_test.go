@@ -133,8 +133,8 @@ func TestDefaultArgvRunnerExecFailure(t *testing.T) {
 	if !errors.Is(err, exec.ErrNotFound) {
 		t.Fatalf("error = %v, want ErrNotFound", err)
 	}
-	if exitCode != -1 {
-		t.Fatalf("exitCode = %d, want -1", exitCode)
+	if exitCode != execFailureExitCode {
+		t.Fatalf("exitCode = %d, want %d", exitCode, execFailureExitCode)
 	}
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
