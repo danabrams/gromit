@@ -260,10 +260,6 @@ func (r *Runner) verifyScopedSpecAcceptance(ctx context.Context, st *runLoopStat
 	}
 	shouldRetry := false
 
-	if st != nil && st.specGateRetries == nil {
-		st.specGateRetries = make(map[string]int)
-	}
-
 	specsDir := r.cfg.Paths.Specs
 	for _, specName := range r.scopedSpecNames() {
 		if err := scope.ValidateSpec(specsDir, specName); err != nil {
@@ -277,27 +273,24 @@ func (r *Runner) verifyScopedSpecAcceptance(ctx context.Context, st *runLoopStat
 		if err != nil {
 			return false, err
 		}
-		if verdict != nil && !verdict.Passed {
-			failures := convertFailedCriteria(verdict.FailedCriteria())
-			retryCount := 0
-			if st != nil {
-				retryCount = st.specGateRetries[specName]
-			}
-			if retryCount >= maxRetries {
-				r.log("spec_gate_retry_exhausted spec=%s retries=%d max_retries=%d failed_criteria=%d", specName, retryCount, maxRetries, len(failures))
-				return false, nil
-			}
-
-			ids, err := SynthesizeFixBeads(ctx, specName, failures, r.beads)
-			if err != nil {
-				return false, err
-			}
-			if st != nil {
-				st.specGateRetries[specName] = retryCount + 1
-			}
-			r.log("spec_gate_retry_scheduled spec=%s retry=%d max_retries=%d synthesized_fix_beads=%d", specName, retryCount+1, maxRetries, len(ids))
-			shouldRetry = true
+		if verdict == nil || verdict.Passed {
+			continue
 		}
+
+		failures := convertFailedCriteria(verdict.FailedCriteria())
+		retryCount := st.specGateRetryCount(specName)
+		if retryCount >= maxRetries {
+			r.log("spec_gate_retry_exhausted spec=%s retries=%d max_retries=%d failed_criteria=%d", specName, retryCount, maxRetries, len(failures))
+			return false, nil
+		}
+
+		ids, err := SynthesizeFixBeads(ctx, specName, failures, r.beads)
+		if err != nil {
+			return false, err
+		}
+		retryCount = st.incrementSpecGateRetry(specName)
+		r.log("spec_gate_retry_scheduled spec=%s retry=%d max_retries=%d synthesized_fix_beads=%d", specName, retryCount, maxRetries, len(ids))
+		shouldRetry = true
 	}
 
 	return shouldRetry, nil

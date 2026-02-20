@@ -26,6 +26,24 @@ type runLoopState struct {
 	l3StopLine          bool // set when L3 stop-line halts state mutations
 }
 
+func (st *runLoopState) specGateRetryCount(specName string) int {
+	if st == nil || st.specGateRetries == nil {
+		return 0
+	}
+	return st.specGateRetries[specName]
+}
+
+func (st *runLoopState) incrementSpecGateRetry(specName string) int {
+	if st == nil {
+		return 0
+	}
+	if st.specGateRetries == nil {
+		st.specGateRetries = make(map[string]int)
+	}
+	st.specGateRetries[specName]++
+	return st.specGateRetries[specName]
+}
+
 func (r *Runner) validateRunPrerequisites() error {
 	if r == nil {
 		return fmt.Errorf("runner is nil")
