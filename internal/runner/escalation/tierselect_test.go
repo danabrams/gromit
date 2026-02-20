@@ -93,6 +93,58 @@ func TestSelectTier_LabelOverride(t *testing.T) {
 	}
 }
 
+func TestSelectTier_TestOnlyBeadRoutesToLow(t *testing.T) {
+	// SelectTier should route test-only beads to low tier unless an explicit
+	// complexity label overrides the selection.
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			P0: provider.TierHigh,
+			P1: provider.TierMedium,
+			P2: provider.TierLow,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	testOnlyTitles := []string{
+		"Add tests for escalation handler",
+		"Write tests for tier selection",
+	}
+
+	for _, title := range testOnlyTitles {
+		b := &bead.Bead{ID: "test-only-001", Title: title, Priority: 0, Labels: []string{}}
+		result := SelectTier(cfg, b)
+		if result != provider.TierLow {
+			t.Errorf("SelectTier(%q) = %q, want %q for test-only bead", title, result, provider.TierLow)
+		}
+	}
+}
+
+func TestSelectTier_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
+	// When a test-only bead has an explicit complexity label, SelectTier
+	// should respect the label override instead of defaulting to low.
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			Labels: map[string]string{
+				"complexity:high": provider.TierHigh,
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	b := &bead.Bead{
+		ID:       "test-override-001",
+		Title:    "Add tests for complex feature",
+		Priority: 1,
+		Labels:   []string{"complexity:high"},
+	}
+	result := SelectTier(cfg, b)
+	if result == provider.TierLow {
+		t.Errorf("SelectTier() = %q, want override (not low) when complexity:high label present", result)
+	}
+}
+
 func TestSelectModel_PriorityBasedSelection(t *testing.T) {
 	// SelectModel should return the legacy model name based on bead priority.
 	cfg := &config.Config{}

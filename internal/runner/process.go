@@ -39,6 +39,10 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 
 	r.ensureEscalationPolicy()
 	tier := r.escalationPolicy.SelectInitialTier(b.Priority, b.Labels)
+	// Route test-only beads to low tier unless an explicit complexity label overrides
+	if bead.IsTestOnlyBead(b.Title) && !hasComplexityLabelOverride(b.Labels, r.cfg) {
+		tier = provider.TierLow
+	}
 	model := r.escalationPolicy.SelectModel(b.Priority, b.Labels) // legacy model name for display/timeouts
 
 	_, _, _, beadTimeoutSec := r.cfg.Claude.TimeoutsForModel(model)
@@ -520,4 +524,18 @@ func (r *Runner) runFullValidationGate(ctx context.Context, beadID string, itera
 		return nil
 	}
 	return r.handleValidationResult(ctx, bc, valErr, bc.Result.Output, false)
+}
+
+// hasComplexityLabelOverride returns true if any of the bead's labels match
+// a configured label override in models.labels (e.g., "complexity:high").
+func hasComplexityLabelOverride(labels []string, cfg *config.Config) bool {
+	if cfg == nil {
+		return false
+	}
+	for _, label := range labels {
+		if _, ok := cfg.Models.Labels[label]; ok {
+			return true
+		}
+	}
+	return false
 }

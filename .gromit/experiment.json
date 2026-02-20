@@ -1,20 +1,17 @@
 {
-  "name": "Prune learnings from build prompts",
-  "hypothesis": "LEARNINGS.md adds ~2K tokens to every build prompt. Since all actionable patterns are promoted to RULES.md, removing learnings from build prompts will not decrease first-pass rate but will reduce input token usage and iteration cost",
-  "change": "Remove LEARNINGS.md content from build phase prompt rendering. Keep RULES.md and all other context intact. Learnings remain available in review and retro phases",
-  "measurement": "Compare over next 50 build iterations: (1) first-pass rate should remain within 2% of 96.7% baseline, (2) avg input tokens should decrease, (3) success rate should remain within 1 std dev of baseline",
-  "risk": "Some provisional learnings may contain useful context for edge cases not yet promoted to rules. Could cause regression on novel failure patterns",
-  "primary_concern": "claude",
-  "started_at": "2026-02-20T12:00:00Z",
-  "status": "failed",
-  "study_summary": "Learnings successfully excluded from build prompts (confirmed_learnings=0, recent_learnings=0 in all 30 iterations). However, learnings were only ~2K tokens — <0.3% of total input. Input tokens actually increased 35% (770K → 1.04M) due to model mix shifting to Codex (29/30 iterations). Cost increased 31% ($1.45 → $1.90). Success rate improved from 77.6% to 96.7% but this is attributable to micro-decomposition rules, not the experiment. The hypothesis was wrong: the real cost driver is Codex full-repo context at 1M+ tokens, not prompt content.",
-  "act_decision": "abandon",
-  "act_date": "2026-02-20",
+  "name": "Low-tier routing for test-only beads",
+  "hypothesis": "Beads matching IsTestOnlyBead() (title starts with 'Add tests for'/'Write tests for') succeed on the low tier (haiku for Claude, gpt-5.3-codex-spark for Codex) at >=85% first-pass rate, reducing cost from ~$1.07-$2.13 to ~$0.25-$0.47 per test bead",
+  "change": "In SelectTier() and process.go setupBeadContext, return low tier for beads where bead.IsTestOnlyBead() returns true, unless the bead has a complexity label override. This routes to haiku or codex-spark based on the existing provider routing ratio (claude:1, openai:99)",
+  "measurement": "Track success rate and cost of test-only beads on low tier over 20 iterations. Success threshold: >=85% first-pass success rate. Cost threshold: >=40% reduction vs medium-tier baseline for test beads",
+  "risk": "Test-only beads may still require understanding complex package internals. Lower-tier models may produce tests that compile but don't meaningfully cover behavior. Mitigation: validation phase catches compilation failures; review phase catches weak tests; escalation chain promotes to medium/high on failure",
+  "primary_concern": "any",
+  "started_at": "2026-02-20T18:00:00Z",
+  "status": "doing",
   "baseline_metrics": {
-    "avg_cost_per_bead": 1.4488646177385898,
-    "avg_duration_ms": 588094,
-    "avg_input_tokens": 770864.3630705394,
-    "avg_output_tokens": 5057.811203319502,
-    "failure_rate": 0.22406639004149378
+    "avg_cost_per_bead": 1.71752058,
+    "avg_duration_ms": 340425.63,
+    "avg_input_tokens": 935543.7171717172,
+    "avg_output_tokens": 6043.575757575758,
+    "failure_rate": 0.01
   }
 }
