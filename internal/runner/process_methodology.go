@@ -19,6 +19,8 @@ import (
 const (
 	coverageTrackerMaxRejections              = 2
 	tddFreshContextCoverageIncompleteErrorMsg = "tdd fresh-context stopped with unchecked coverage criteria"
+	methodologyATDD                           = "atdd"
+	methodologyTDD                            = "tdd"
 )
 
 func (r *Runner) ensureMethodologyPolicy() {
@@ -37,15 +39,8 @@ func (r *Runner) ensureMethodologyPolicy() {
 
 func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.BeadContext) (atddActive bool, tddActive bool, done bool) {
 	r.ensureMethodologyPolicy()
-	atddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "atdd")
-	if atddActive && r.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
-		r.log("Skipping ATDD: spec granularity active (per-bead ATDD disabled)")
-		atddActive = false
-	}
-	if atddActive && bead.IsTestOnlyBead(bc.Bead.Title) {
-		r.log("Skipping ATDD: bead is test-only")
-		atddActive = false
-	}
+	atddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, methodologyATDD)
+	atddActive = r.applyATDDSkipPolicies(bc, atddActive)
 
 	if atddActive {
 		if !r.runATDDPreBuildPhases(ctx, bc) {
@@ -53,7 +48,7 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 		}
 	}
 
-	tddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "tdd")
+	tddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, methodologyTDD)
 	if tddActive {
 		if r.cfg.Methodology.FreshContextPerCycle {
 			if r.runTDDFreshContextCycles(ctx, bc) {
@@ -75,6 +70,21 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 	}
 
 	return atddActive, tddActive, false
+}
+
+func (r *Runner) applyATDDSkipPolicies(bc *runtypes.BeadContext, atddActive bool) bool {
+	if !atddActive {
+		return false
+	}
+	if r.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
+		r.log("Skipping ATDD: spec granularity active (per-bead ATDD disabled)")
+		return false
+	}
+	if bead.IsTestOnlyBead(bc.Bead.Title) {
+		r.log("Skipping ATDD: bead is test-only")
+		return false
+	}
+	return true
 }
 
 // runTDDFreshContextCycles runs the TDD fresh-context orchestrator for beads
