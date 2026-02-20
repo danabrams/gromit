@@ -3114,21 +3114,40 @@ func TestMethodologyGranularityParsing(t *testing.T) {
 }
 
 func TestMethodologyGranularityRejectsInvalid(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
-	yaml := `methodology:
+	tests := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "unknown granularity",
+			yaml: `methodology:
   granularity: "task"
-`
-	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
+`,
+		},
+		{
+			name: "uppercase granularity",
+			yaml: `methodology:
+  granularity: "SPEC"
+`,
+		},
 	}
 
-	_, err := Load(cfgPath)
-	if err == nil {
-		t.Fatal("expected error for invalid granularity")
-	}
-	if !strings.Contains(err.Error(), "methodology.granularity") {
-		t.Errorf("expected granularity error, got %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			_, err := Load(cfgPath)
+			if err == nil {
+				t.Fatal("expected error for invalid granularity")
+			}
+			if !strings.Contains(err.Error(), "methodology.granularity") {
+				t.Errorf("expected granularity error, got %v", err)
+			}
+		})
 	}
 }
 
