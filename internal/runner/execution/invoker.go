@@ -14,6 +14,11 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+const (
+	buildPhase              = "build"
+	toolCallEventBufferSize = 100
+)
+
 // StallTimeoutFunc returns stall detection timeouts for a given model name.
 // Returns (0, 0) to disable stall detection.
 type StallTimeoutFunc func(model string) (stallTimeout, stallTimeoutActive time.Duration)
@@ -67,7 +72,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		return nil, fmt.Errorf("runner router is nil")
 	}
 
-	phase := "build"
+	phase := buildPhase
 	tier := bc.Tier
 
 	inv.logLifecycleStart(tier)
@@ -100,7 +105,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	var toolCallEvents chan claude.ToolEvent
 	var stopHeartbeat func()
 	if inv.overwriteOut != nil && !preserveProviderTerminalStream {
-		toolCallEvents = make(chan claude.ToolEvent, 100)
+		toolCallEvents = make(chan claude.ToolEvent, toolCallEventBufferSize)
 		var stallTimeout, stallTimeoutActive time.Duration
 		if inv.stallTimeoutFn != nil {
 			stallTimeout, stallTimeoutActive = inv.stallTimeoutFn(modelName)

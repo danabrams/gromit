@@ -19,6 +19,8 @@ import (
 	"github.com/danabrams/gromit/internal/usagelimit"
 )
 
+const atddProgressLogInterval = 15 * time.Second
+
 type redPhasePromptShaper interface {
 	ShapeRedPhaseContext(ctx *prompt.Context) *prompt.Context
 }
@@ -247,7 +249,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				r.log("Warning: could not create stream stats for ATDD: %v", statsErr)
 			}
 			go func() {
-				ticker := time.NewTicker(15 * time.Second)
+				ticker := time.NewTicker(atddProgressLogInterval)
 				defer ticker.Stop()
 				for {
 					select {
