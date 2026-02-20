@@ -1278,6 +1278,32 @@ func TestRenderTDDBuild_CoverageStateSectionAbsentWhenEmpty(t *testing.T) {
 	requireSectionOrder(t, result, tddBuildSectionDescription, tddBuildSectionInstructions)
 }
 
+func TestRenderTDDBuild_CoverageStateSectionOmitsTargetLineWhenTargetCriterionEmpty(t *testing.T) {
+	r := setupRealTemplateRenderer(t)
+
+	ctx := &Context{
+		Bead:          testBead(),
+		Model:         "sonnet",
+		Iteration:     1,
+		CoverageState: "Remaining uncovered: #2",
+	}
+
+	result, err := r.RenderTDDBuild(ctx)
+	if err != nil {
+		t.Fatalf("RenderTDDBuild() error = %v", err)
+	}
+	if !strings.Contains(result, "## Coverage State") {
+		t.Error("expected Coverage State section when CoverageState is populated")
+	}
+	if strings.Contains(result, "Target criterion:") {
+		t.Error("target criterion line should be absent when TargetCriterion is empty")
+	}
+	if !strings.Contains(result, "Remaining uncovered: #2") {
+		t.Error("expected coverage state details in output")
+	}
+	requireSectionOrder(t, result, tddBuildSectionDescription, tddBuildSectionCoverageState, tddBuildSectionInstructions)
+}
+
 func TestTDDRedContextFields(t *testing.T) {
 	tp := reflect.TypeOf(TDDRedContext{})
 	got := make([]string, 0, tp.NumField())
