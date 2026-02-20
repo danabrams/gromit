@@ -69,6 +69,18 @@ func TestFailedCriteria_allPass_returnsEmpty(t *testing.T) {
 	}
 }
 
+func TestFailedCriteria_nilVerdict_returnsEmpty(t *testing.T) {
+	var verdict *GateVerdict
+
+	failed := verdict.FailedCriteria()
+	if failed == nil {
+		t.Fatal("FailedCriteria() returned nil, want empty slice")
+	}
+	if len(failed) != 0 {
+		t.Errorf("FailedCriteria() returned %d items, want 0", len(failed))
+	}
+}
+
 func TestParseVerdict_invalidJSON_returnsError(t *testing.T) {
 	_, err := ParseVerdict([]byte(`not json`))
 	if err == nil {
