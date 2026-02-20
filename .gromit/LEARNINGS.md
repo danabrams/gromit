@@ -35,6 +35,11 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
+### 2026-02-20 | Package-Level Routing Consolidation Leaves Dead Helpers | gotchas
+*Related to: code-review*
+
+When migrating inline routing logic (e.g., manual test-only tier override in setupBeadContext) to a package-level function (escalation.SelectTier), check for helper functions at the old call site that become dead code. escalation.SelectTier() consolidates low-complexity signal counting, test-only routing, complexity:high bypass, and config fallback into one function, eliminating the need for hasComplexityLabelOverride and similar inline helpers.
+
 ### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
 *Related to: code-review*
 
