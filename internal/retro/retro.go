@@ -666,7 +666,7 @@ func BuildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport,
 		prompt.WriteString("**Key efficiency indicators:**\n")
 		prompt.WriteString(fmt.Sprintf("- Current avg cost per bead: $%.4f\n", efficiency.CurrentAvgCostPerBead))
 		prompt.WriteString(fmt.Sprintf("- Historical avg cost per bead: $%.4f\n", efficiency.HistoricalAvgCostPerBead))
-		if efficiency.CostDelta != 0 {
+		if efficiency.CostDelta != 0 && efficiency.HistoricalAvgCostPerBead != 0 {
 			direction := "more expensive"
 			if efficiency.CostDelta < 0 {
 				direction = "cheaper"

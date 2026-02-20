@@ -114,3 +114,20 @@ func TestBuildClaudeCodePrompt_IncludesEfficiencyAndExperimentSections(t *testin
 		t.Fatalf("prompt missing explicit-approval guardrail for experiment decisions: %q", prompt)
 	}
 }
+
+func TestBuildClaudeCodePrompt_SkipsCostDeltaPercentWhenHistoricalCostIsZero(t *testing.T) {
+	efficiency := &logger.EfficiencyReport{
+		CurrentAvgCostPerBead:    1.5,
+		HistoricalAvgCostPerBead: 0,
+		CostDelta:                0.5,
+	}
+
+	prompt := BuildClaudeCodePrompt("analysis", efficiency, nil)
+
+	if !strings.Contains(prompt, "- Historical avg cost per bead: $0.0000") {
+		t.Fatalf("prompt missing historical avg cost line: %q", prompt)
+	}
+	if strings.Contains(prompt, "- Cost delta:") {
+		t.Fatalf("prompt should not include cost delta percentage when historical avg is zero: %q", prompt)
+	}
+}
