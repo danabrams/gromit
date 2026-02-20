@@ -665,28 +665,7 @@ func TestComputeProviderMetrics(t *testing.T) {
 				if !ok {
 					t.Fatalf("unexpected provider metric for %q", metric.Name)
 				}
-				if metric.TotalInvocations != wantMetric.TotalInvocations {
-					t.Errorf("%s.TotalInvocations = %d, want %d", metric.Name, metric.TotalInvocations, wantMetric.TotalInvocations)
-				}
-				if metric.Successes != wantMetric.Successes {
-					t.Errorf("%s.Successes = %d, want %d", metric.Name, metric.Successes, wantMetric.Successes)
-				}
-				assertFloatNear(t, metric.SuccessRate, wantMetric.SuccessRate, metric.Name+".SuccessRate")
-				if metric.TransportFailures != wantMetric.TransportFailures {
-					t.Errorf("%s.TransportFailures = %d, want %d", metric.Name, metric.TransportFailures, wantMetric.TransportFailures)
-				}
-				assertFloatNear(t, metric.TransportFailureRate, wantMetric.TransportFailureRate, metric.Name+".TransportFailureRate")
-				if metric.FallbacksTriggered != wantMetric.FallbacksTriggered {
-					t.Errorf("%s.FallbacksTriggered = %d, want %d", metric.Name, metric.FallbacksTriggered, wantMetric.FallbacksTriggered)
-				}
-				assertFloatNear(t, metric.AvgDurationMs, wantMetric.AvgDurationMs, metric.Name+".AvgDurationMs")
-				assertFloatNear(t, metric.TotalCostUSD, wantMetric.TotalCostUSD, metric.Name+".TotalCostUSD")
-				if metric.TotalInputTokens != wantMetric.TotalInputTokens {
-					t.Errorf("%s.TotalInputTokens = %d, want %d", metric.Name, metric.TotalInputTokens, wantMetric.TotalInputTokens)
-				}
-				if metric.TotalOutputTokens != wantMetric.TotalOutputTokens {
-					t.Errorf("%s.TotalOutputTokens = %d, want %d", metric.Name, metric.TotalOutputTokens, wantMetric.TotalOutputTokens)
-				}
+				assertProviderMetricsEqual(t, metric, wantMetric)
 			}
 		})
 	}
@@ -775,5 +754,31 @@ func assertFloatNear(t *testing.T, got, want float64, label string) {
 	t.Helper()
 	if math.Abs(got-want) > 0.0001 {
 		t.Errorf("%s = %v, want %v", label, got, want)
+	}
+}
+
+func assertProviderMetricsEqual(t *testing.T, got, want ProviderMetrics) {
+	t.Helper()
+	if got.TotalInvocations != want.TotalInvocations {
+		t.Errorf("%s.TotalInvocations = %d, want %d", got.Name, got.TotalInvocations, want.TotalInvocations)
+	}
+	if got.Successes != want.Successes {
+		t.Errorf("%s.Successes = %d, want %d", got.Name, got.Successes, want.Successes)
+	}
+	assertFloatNear(t, got.SuccessRate, want.SuccessRate, got.Name+".SuccessRate")
+	if got.TransportFailures != want.TransportFailures {
+		t.Errorf("%s.TransportFailures = %d, want %d", got.Name, got.TransportFailures, want.TransportFailures)
+	}
+	assertFloatNear(t, got.TransportFailureRate, want.TransportFailureRate, got.Name+".TransportFailureRate")
+	if got.FallbacksTriggered != want.FallbacksTriggered {
+		t.Errorf("%s.FallbacksTriggered = %d, want %d", got.Name, got.FallbacksTriggered, want.FallbacksTriggered)
+	}
+	assertFloatNear(t, got.AvgDurationMs, want.AvgDurationMs, got.Name+".AvgDurationMs")
+	assertFloatNear(t, got.TotalCostUSD, want.TotalCostUSD, got.Name+".TotalCostUSD")
+	if got.TotalInputTokens != want.TotalInputTokens {
+		t.Errorf("%s.TotalInputTokens = %d, want %d", got.Name, got.TotalInputTokens, want.TotalInputTokens)
+	}
+	if got.TotalOutputTokens != want.TotalOutputTokens {
+		t.Errorf("%s.TotalOutputTokens = %d, want %d", got.Name, got.TotalOutputTokens, want.TotalOutputTokens)
 	}
 }

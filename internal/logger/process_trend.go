@@ -416,15 +416,10 @@ func computeProviderMetrics(entries []IterationMetric) []ProviderMetrics {
 		totalOutputTokens int
 	}
 
-	totalsByProvider := map[string]*providerTotals{}
+	totalsByProvider := map[string]providerTotals{}
 	for _, entry := range entries {
 		name := resolveProviderName(entry.Provider, entry.Model)
 		totals := totalsByProvider[name]
-		if totals == nil {
-			totals = &providerTotals{}
-			totalsByProvider[name] = totals
-		}
-
 		totals.totalInvocations++
 		if entry.Success {
 			totals.successes++
@@ -439,29 +434,20 @@ func computeProviderMetrics(entries []IterationMetric) []ProviderMetrics {
 		totals.totalCostUSD += entry.CostUSD
 		totals.totalInputTokens += entry.InputTokens
 		totals.totalOutputTokens += entry.OutputTokens
+		totalsByProvider[name] = totals
 	}
 
 	metrics := make([]ProviderMetrics, 0, len(totalsByProvider))
 	for name, totals := range totalsByProvider {
-		total := float64(totals.totalInvocations)
-		successRate := 0.0
-		transportFailureRate := 0.0
-		avgDurationMs := 0.0
-		if total > 0 {
-			successRate = float64(totals.successes) / total
-			transportFailureRate = float64(totals.transportFailures) / total
-			avgDurationMs = float64(totals.totalDurationMs) / total
-		}
-
 		metrics = append(metrics, ProviderMetrics{
 			Name:                 name,
 			TotalInvocations:     totals.totalInvocations,
 			Successes:            totals.successes,
-			SuccessRate:          successRate,
+			SuccessRate:          fraction(totals.successes, totals.totalInvocations),
 			TransportFailures:    totals.transportFailures,
-			TransportFailureRate: transportFailureRate,
+			TransportFailureRate: fraction(totals.transportFailures, totals.totalInvocations),
 			FallbacksTriggered:   totals.fallbacks,
-			AvgDurationMs:        avgDurationMs,
+			AvgDurationMs:        averageInt64(totals.totalDurationMs, totals.totalInvocations),
 			TotalCostUSD:         totals.totalCostUSD,
 			TotalInputTokens:     totals.totalInputTokens,
 			TotalOutputTokens:    totals.totalOutputTokens,
@@ -472,6 +458,20 @@ func computeProviderMetrics(entries []IterationMetric) []ProviderMetrics {
 		return metrics[i].Name < metrics[j].Name
 	})
 	return metrics
+}
+
+func fraction(numerator, denominator int) float64 {
+	if denominator <= 0 {
+		return 0
+	}
+	return float64(numerator) / float64(denominator)
+}
+
+func averageInt64(total int64, count int) float64 {
+	if count <= 0 {
+		return 0
+	}
+	return float64(total) / float64(count)
 }
 
 func resolveProviderName(providerName, modelName string) string {
