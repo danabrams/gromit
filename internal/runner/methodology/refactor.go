@@ -216,9 +216,7 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 		return nil
 	}
 
-	e.updateTouchedPackagesFromDiff(bc)
-
-	validationCommands := config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+	validationCommands := e.refactorValidationCommands(bc)
 	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
 	if err != nil {
 		e.log("Warning: refactor re-validation invocation failed: %v", err)
@@ -242,6 +240,16 @@ func (e *Executor) applyRefactorStreamStats(bc *runtypes.BeadContext, stats *log
 	bc.Result.CostUSD += costUSD
 	bc.Result.InputTokens += inputTokens
 	bc.Result.OutputTokens += outputTokens
+}
+
+func (e *Executor) refactorValidationCommands(bc *runtypes.BeadContext) []string {
+	commands := e.cfg.Validation.FastCommandsOrDefault()
+	if bc == nil {
+		return commands
+	}
+
+	e.updateTouchedPackagesFromDiff(bc)
+	return config.ScopeGoTestCommands(commands, bc.TouchedPackages)
 }
 
 func (e *Executor) updateTouchedPackagesFromDiff(bc *runtypes.BeadContext) bool {
@@ -311,10 +319,7 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 	if e.validateFn == nil {
 		return nil
 	}
-	validationCommands := config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
-	if e.updateTouchedPackagesFromDiff(bc) {
-		validationCommands = config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
-	}
+	validationCommands := e.refactorValidationCommands(bc)
 	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
 
 	if err != nil || valResult == nil || !claude.IsValidationPassed(valResult) {
