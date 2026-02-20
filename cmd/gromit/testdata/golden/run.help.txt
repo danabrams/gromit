@@ -13,8 +13,10 @@ Usage:
 
 Flags:
       --dry-run                 Show what would run without executing
+      --epic string             Filter to beads for a specific epic
   -h, --help                    help for run
   -n, --max-iterations int      Maximum iterations (0 = unlimited)
+      --spec string             Filter to beads for a specific spec
   -t, --time-budget int         Time budget in minutes (0 = unlimited)
   -H, --time-budget-hours int   Time budget in hours (0 = unlimited)
 

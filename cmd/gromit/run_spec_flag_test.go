@@ -27,6 +27,7 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 
 	origConfigPath := configPath
 	origRunSpec := runSpecFlag
+	origRunEpic := runEpicFlag
 
 	t.Chdir(tempDir)
 
@@ -35,19 +36,47 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 	cleanup = func() {
 		configPath = origConfigPath
 		runSpecFlag = origRunSpec
+		runEpicFlag = origRunEpic
 	}
 
 	return specsDir, cleanup
 }
 
-// TestRunCmd_SpecFlagRegistered verifies that --spec flag is registered on the run command.
-func TestRunCmd_SpecFlagRegistered(t *testing.T) {
-	flag := runCmd.Flags().Lookup("spec")
-	if flag == nil {
-		t.Fatal("run command should have --spec flag")
+// TestRunCmd_ScopeFlagsRegistered verifies that --spec and --epic flags are registered.
+func TestRunCmd_ScopeFlagsRegistered(t *testing.T) {
+	tests := []struct {
+		name string
+	}{
+		{name: "spec"},
+		{name: "epic"},
 	}
-	if flag.Value.Type() != "string" {
-		t.Errorf("--spec flag should be string, got %s", flag.Value.Type())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flag := runCmd.Flags().Lookup(tt.name)
+			if flag == nil {
+				t.Fatalf("run command should have --%s flag", tt.name)
+			}
+			if flag.Value.Type() != "string" {
+				t.Errorf("--%s flag should be string, got %s", tt.name, flag.Value.Type())
+			}
+		})
+	}
+}
+
+func TestRunLoop_ScopeFlagsMutuallyExclusive(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	runSpecFlag = "auth"
+	runEpicFlag = "gromit-123"
+
+	err := runLoop(runCmd, []string{})
+	if err == nil {
+		t.Fatal("runLoop should fail when --spec and --epic are both set")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("expected mutually exclusive error, got: %v", err)
 	}
 }
 
@@ -66,6 +95,7 @@ func TestRunLoop_SpecFlagNonexistentSpec(t *testing.T) {
 	}
 
 	runSpecFlag = "nonexistent-spec"
+	runEpicFlag = ""
 
 	err := runLoop(runCmd, []string{})
 
@@ -95,6 +125,7 @@ func TestRunLoop_SpecFlagValidSpec(t *testing.T) {
 	}
 
 	runSpecFlag = "auth"
+	runEpicFlag = ""
 
 	err := runLoop(runCmd, []string{})
 
@@ -107,5 +138,50 @@ func TestRunLoop_SpecFlagValidSpec(t *testing.T) {
 		if strings.Contains(errMsg, "Available specs") {
 			t.Errorf("Error should not list available specs for valid spec, got: %v", err)
 		}
+	}
+}
+
+func TestRunLoop_EpicFlagMissingSpecsDir(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	// Remove .gromit/specs to force ResolveEpic error path.
+	if err := os.RemoveAll(filepath.Join(".gromit", "specs")); err != nil {
+		t.Fatalf("failed removing specs dir: %v", err)
+	}
+
+	runSpecFlag = ""
+	runEpicFlag = "gromit-123"
+
+	err := runLoop(runCmd, []string{})
+	if err == nil {
+		t.Fatal("runLoop with --epic and missing specs dir should return error")
+	}
+	if !strings.Contains(err.Error(), "resolving epic scope:") {
+		t.Fatalf("expected epic resolution error, got: %v", err)
+	}
+}
+
+func TestRunLoop_EpicFlagValidScope(t *testing.T) {
+	specsDir, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	specContent := `---
+id: auth
+epic: gromit-123
+---
+
+# Auth spec
+`
+	if err := os.WriteFile(filepath.Join(specsDir, "auth.md"), []byte(specContent), 0644); err != nil {
+		t.Fatalf("failed writing spec file: %v", err)
+	}
+
+	runSpecFlag = ""
+	runEpicFlag = "gromit-123"
+
+	err := runLoop(runCmd, []string{})
+	if err != nil && strings.Contains(err.Error(), "resolving epic scope:") {
+		t.Fatalf("runLoop should not fail epic scope resolution for a valid epic: %v", err)
 	}
 }

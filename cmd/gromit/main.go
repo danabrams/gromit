@@ -32,6 +32,7 @@ var (
 	retroSpecFlag     string
 	retroEpicFlag     string
 	runSpecFlag       string
+	runEpicFlag       string
 )
 
 var retroResolveAgentFn = agent.Resolve
@@ -116,6 +117,7 @@ func init() {
 	runCmd.Flags().IntVarP(&timeBudgetMinutes, "time-budget", "t", 0, "Time budget in minutes (0 = unlimited)")
 	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
 	runCmd.Flags().StringVar(&runSpecFlag, "spec", "", "Filter to beads for a specific spec")
+	runCmd.Flags().StringVar(&runEpicFlag, "epic", "", "Filter to beads for a specific epic")
 
 	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip interactive session and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md")
 	retroCmd.Flags().StringVar(&retroSpecFlag, "spec", "", "Scope retro to a specific spec")
@@ -141,6 +143,10 @@ func loadConfig() (*config.Config, error) {
 }
 
 func runLoop(cmd *cobra.Command, args []string) error {
+	if err := scope.ValidateFlags(runEpicFlag, runSpecFlag); err != nil {
+		return err
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -158,11 +164,17 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		cancel()
 	}()
 
-	// Validate --spec flag if set
+	specsDir := resolveSpecsDir(cfg)
+	var labels []string
 	if runSpecFlag != "" {
-		specsDir := resolveSpecsDir(cfg)
 		if err := scope.ValidateSpec(specsDir, runSpecFlag); err != nil {
 			return fmt.Errorf("validating spec: %w", err)
+		}
+		labels = scope.ResolveSpec(runSpecFlag)
+	} else if runEpicFlag != "" {
+		labels, err = scope.ResolveEpic(runEpicFlag, specsDir)
+		if err != nil {
+			return fmt.Errorf("resolving epic scope: %w", err)
 		}
 	}
 
@@ -182,9 +194,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create runner: %w", err)
 	}
-	if runSpecFlag != "" {
-		r.SetLabelFilters(scope.ResolveSpec(runSpecFlag))
-	}
+	r.SetLabelFilters(labels)
 	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, nil, dryRun)
 }
 

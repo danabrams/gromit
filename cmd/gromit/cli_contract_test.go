@@ -141,6 +141,8 @@ func TestCLIContract_Flags(t *testing.T) {
 				"dry-run":           "bool", // --dry-run
 				"time-budget":       "int",  // -t, --time-budget
 				"time-budget-hours": "int",  // -H, --time-budget-hours
+				"spec":              "string",
+				"epic":              "string",
 			},
 		},
 		{
