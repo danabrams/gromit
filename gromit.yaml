@@ -147,6 +147,10 @@ validation:
     - "go test -vet=off -p 4 -parallel 4 ./..."
     - "go vet ./..."
     - "go build ./..."
+  mandatory_commands:  # prefixes that must appear in the validation command set
+    - "go test"
+    - "go vet"
+    - "go build"
   max_validation_retries: 1  # one recovery loop; unchanged failures stop immediately
 
 # Pre-flight checks - verify required tools before validation
