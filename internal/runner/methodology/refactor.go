@@ -11,7 +11,6 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -126,12 +125,6 @@ func NewExecutorWithAnalysis(cfg *config.Config, output io.Writer, renderFn Rend
 // ShouldRunRefactor determines whether the refactor phase should run based on
 // bead complexity tier and number of files changed.
 func (e *Executor) ShouldRunRefactor(bc *runtypes.BeadContext, diff string) bool {
-	// Skip refactor for haiku-tier beads
-	if bc.Tier == provider.TierLow {
-		e.log("Skipping refactor: haiku-tier bead")
-		return false
-	}
-
 	// Check file count threshold
 	minFiles := e.cfg.Refactor.MinFilesChanged
 	if minFiles == 0 {

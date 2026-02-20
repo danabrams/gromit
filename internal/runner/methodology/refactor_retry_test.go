@@ -82,11 +82,11 @@ func TestShouldRunRefactor(t *testing.T) {
 		want            bool
 	}{
 		{
-			name:            "skips refactor for low-tier beads",
+			name:            "runs refactor for low-tier beads when threshold is met",
 			tier:            provider.TierLow,
 			diff:            "diff --git a/file1.go b/file1.go\ndiff --git a/file2.go b/file2.go\ndiff --git a/file3.go b/file3.go\ndiff --git a/file4.go b/file4.go",
 			minFilesChanged: 3,
-			want:            false,
+			want:            true,
 		},
 		{
 			name:            "always runs when threshold is zero",
