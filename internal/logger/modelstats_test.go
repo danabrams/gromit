@@ -1105,3 +1105,60 @@ func TestCostPerCompletedBead_NoCompletedBeads(t *testing.T) {
 		t.Errorf("Expected 0 completed beads, got %d", len(costs))
 	}
 }
+
+func TestReadModelStats_NormalizesLegacyCodex53HistoricalCosts(t *testing.T) {
+	dir := t.TempDir()
+	runID := "20260219-093235"
+
+	logs := []IterationLog{
+		{
+			BeadID:       "b1",
+			Model:        "gpt-5.3-codex",
+			Provider:     "codex",
+			Success:      true,
+			CostUSD:      55.29474125000001, // old inflated estimate
+			InputTokens:  6125167,
+			OutputTokens: 24279,
+		},
+	}
+	writeTestLogFile(t, dir, runID, logs)
+
+	stats, err := ReadModelStats(dir)
+	if err != nil {
+		t.Fatalf("ReadModelStats failed: %v", err)
+	}
+
+	got := stats["gpt-5.3-codex"].TotalCostUSD
+	want := 11.05894825 // corrected estimate with current gpt-5.3-codex rate
+	if diff := got - want; diff > 0.0000001 || diff < -0.0000001 {
+		t.Fatalf("TotalCostUSD = %.8f, want %.8f", got, want)
+	}
+}
+
+func TestReadModelStats_PreservesNonLegacyCodex53Costs(t *testing.T) {
+	dir := t.TempDir()
+	runID := "20260219-120000"
+
+	logs := []IterationLog{
+		{
+			BeadID:       "b1",
+			Model:        "gpt-5.3-codex",
+			Provider:     "codex",
+			Success:      true,
+			CostUSD:      9.25, // does not match the old legacy estimate signature
+			InputTokens:  6125167,
+			OutputTokens: 24279,
+		},
+	}
+	writeTestLogFile(t, dir, runID, logs)
+
+	stats, err := ReadModelStats(dir)
+	if err != nil {
+		t.Fatalf("ReadModelStats failed: %v", err)
+	}
+
+	got := stats["gpt-5.3-codex"].TotalCostUSD
+	if got != 9.25 {
+		t.Fatalf("TotalCostUSD = %.8f, want 9.25000000", got)
+	}
+}

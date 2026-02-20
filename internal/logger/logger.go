@@ -404,6 +404,7 @@ func decodeIterationLogs(dec *json.Decoder) []IterationLog {
 		if err := json.Unmarshal(raw, &entry); err != nil {
 			continue
 		}
+		entry = normalizeHistoricalIterationCost(entry)
 		entries = append(entries, entry)
 	}
 	return entries
