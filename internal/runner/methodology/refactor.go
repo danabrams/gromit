@@ -192,7 +192,7 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 		e.log("Warning: refactorInvokeFn not configured, skipping refactor")
 		return nil
 	}
-	claudeResult, _, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
+	claudeResult, stats, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		e.log("Warning: refactor invocation failed: %v", err)
 		return nil
@@ -200,6 +200,12 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 	if claudeResult == nil || !claudeResult.Success {
 		e.log("Warning: refactor phase failed")
 		return nil
+	}
+	if bc.Result != nil && stats != nil {
+		costUSD, inputTokens, outputTokens := stats.CostData()
+		bc.Result.CostUSD += costUSD
+		bc.Result.InputTokens += inputTokens
+		bc.Result.OutputTokens += outputTokens
 	}
 
 	e.log("Refactor phase complete, re-validating...")
