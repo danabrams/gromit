@@ -3104,6 +3104,64 @@ func TestMethodologyFreshContextPerCycleDefaultsFalseWhenUnset(t *testing.T) {
 	}
 }
 
+func TestMethodologyATDDPromptDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if !cfg.Methodology.ATDDPrompt.IncludeRules {
+		t.Error("expected default ATDDPrompt.IncludeRules=true")
+	}
+	if !cfg.Methodology.ATDDPrompt.IncludeSpec {
+		t.Error("expected default ATDDPrompt.IncludeSpec=true")
+	}
+	if !cfg.Methodology.ATDDPrompt.IncludeClaudeMD {
+		t.Error("expected default ATDDPrompt.IncludeClaudeMD=true")
+	}
+	if cfg.Methodology.ATDDPrompt.MaxChars != 20000 {
+		t.Errorf("expected default ATDDPrompt.MaxChars=20000, got %d", cfg.Methodology.ATDDPrompt.MaxChars)
+	}
+	if cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars != 2000 {
+		t.Errorf("expected default ATDDPrompt.MaxConfirmedLearningChars=2000, got %d", cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars)
+	}
+}
+
+func TestMethodologyATDDPromptConfigFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `methodology:
+  atdd_prompt:
+    include_rules: false
+    include_spec: false
+    include_claude_md: false
+    max_chars: 12345
+    max_confirmed_learning_chars: 456
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Methodology.ATDDPrompt.IncludeRules != false {
+		t.Errorf("expected include_rules=false, got %t", cfg.Methodology.ATDDPrompt.IncludeRules)
+	}
+	if cfg.Methodology.ATDDPrompt.IncludeSpec != false {
+		t.Errorf("expected include_spec=false, got %t", cfg.Methodology.ATDDPrompt.IncludeSpec)
+	}
+	if cfg.Methodology.ATDDPrompt.IncludeClaudeMD != false {
+		t.Errorf("expected include_claude_md=false, got %t", cfg.Methodology.ATDDPrompt.IncludeClaudeMD)
+	}
+	if cfg.Methodology.ATDDPrompt.MaxChars != 12345 {
+		t.Errorf("expected max_chars=12345, got %d", cfg.Methodology.ATDDPrompt.MaxChars)
+	}
+	if cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars != 456 {
+		t.Errorf("expected max_confirmed_learning_chars=456, got %d", cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars)
+	}
+}
+
 func TestMethodologyGranularityParsing(t *testing.T) {
 	tests := []struct {
 		name        string

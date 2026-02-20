@@ -226,6 +226,12 @@ methodology:
   tdd: true
   # max_tdd_cycles: 10  # Maximum red/green/refactor loops per bead before stopping (default: 10)
   # spec_gate_max_retries: 3  # Max scoped spec-gate fix synthesis retries before stopping (default: 3)
+  # atdd_prompt:
+  #   include_rules: true  # Include RULES.md in ATDD build prompts
+  #   include_spec: true  # Include spec text in ATDD build prompts
+  #   include_claude_md: true  # Include CLAUDE.md in ATDD build prompts
+  #   max_chars: 20000  # Character budget for ATDD prompts (0 = unlimited)
+  #   max_confirmed_learning_chars: 2000  # Max chars from confirmed learnings in ATDD prompts
   fresh_context_per_cycle: true  # Use a fresh invocation context for each TDD cycle instead of single-invocation flow
   # granularity: "bead"  # "bead" or "spec" (default: "bead")
   # Optional phase-specific time budgets (seconds). Any zero/omitted value falls back to claude.bead_timeout.

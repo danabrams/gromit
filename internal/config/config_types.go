@@ -248,9 +248,62 @@ type MethodologyConfig struct {
 	TDD                  bool                    `yaml:"tdd"`
 	MaxTDDCycles         int                     `yaml:"max_tdd_cycles"`
 	SpecGateMaxRetries   int                     `yaml:"spec_gate_max_retries"`
+	ATDDPrompt           ATDDPromptConfig        `yaml:"atdd_prompt"`
 	FreshContextPerCycle bool                    `yaml:"fresh_context_per_cycle"`
 	Granularity          string                  `yaml:"granularity"`
 	PhaseTimeouts        MethodologyPhaseTimeout `yaml:"phase_timeouts"`
+}
+
+type ATDDPromptConfig struct {
+	IncludeRules              bool `yaml:"include_rules"`
+	IncludeSpec               bool `yaml:"include_spec"`
+	IncludeClaudeMD           bool `yaml:"include_claude_md"`
+	MaxChars                  int  `yaml:"max_chars"`
+	MaxConfirmedLearningChars int  `yaml:"max_confirmed_learning_chars"`
+
+	includeRulesSet              bool `yaml:"-"`
+	includeSpecSet               bool `yaml:"-"`
+	includeClaudeMDSet           bool `yaml:"-"`
+	maxCharsSet                  bool `yaml:"-"`
+	maxConfirmedLearningCharsSet bool `yaml:"-"`
+}
+
+func (c *ATDDPromptConfig) UnmarshalYAML(value *yaml.Node) error {
+	type atddPromptDecode struct {
+		IncludeRules              *bool `yaml:"include_rules"`
+		IncludeSpec               *bool `yaml:"include_spec"`
+		IncludeClaudeMD           *bool `yaml:"include_claude_md"`
+		MaxChars                  *int  `yaml:"max_chars"`
+		MaxConfirmedLearningChars *int  `yaml:"max_confirmed_learning_chars"`
+	}
+
+	var decoded atddPromptDecode
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+
+	if decoded.IncludeRules != nil {
+		c.IncludeRules = *decoded.IncludeRules
+		c.includeRulesSet = true
+	}
+	if decoded.IncludeSpec != nil {
+		c.IncludeSpec = *decoded.IncludeSpec
+		c.includeSpecSet = true
+	}
+	if decoded.IncludeClaudeMD != nil {
+		c.IncludeClaudeMD = *decoded.IncludeClaudeMD
+		c.includeClaudeMDSet = true
+	}
+	if decoded.MaxChars != nil {
+		c.MaxChars = *decoded.MaxChars
+		c.maxCharsSet = true
+	}
+	if decoded.MaxConfirmedLearningChars != nil {
+		c.MaxConfirmedLearningChars = *decoded.MaxConfirmedLearningChars
+		c.maxConfirmedLearningCharsSet = true
+	}
+
+	return nil
 }
 
 type MethodologyPhaseTimeout struct {
