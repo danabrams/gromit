@@ -14,21 +14,23 @@ import (
 // newSpecOrchestrator creates a SpecOrchestrator wired to the runner's dependencies.
 func newSpecOrchestrator(r *Runner) *SpecOrchestrator {
 	return &SpecOrchestrator{
-		renderer:    r.renderer,
-		router:      r.router,
-		beads:       r.beads,
-		cfg:         r.cfg,
-		cmdRunnerFn: r.cmdRunnerFn,
+		renderer:     r.renderer,
+		router:       r.router,
+		beads:        r.beads,
+		cfg:          r.cfg,
+		cmdRunnerFn:  r.cmdRunnerFn,
+		argvRunnerFn: r.argvRunnerFn,
 	}
 }
 
 // SpecOrchestrator coordinates spec-level acceptance test authoring.
 type SpecOrchestrator struct {
-	renderer    PromptRenderer
-	router      *provider.Router
-	beads       BeadClient
-	cfg         *config.Config
-	cmdRunnerFn func(ctx context.Context, command string, workDir string) (string, string, int, error)
+	renderer     PromptRenderer
+	router       *provider.Router
+	beads        BeadClient
+	cfg          *config.Config
+	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (string, string, int, error)
+	argvRunnerFn func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error)
 
 	authoredSpecs map[string]bool
 }
@@ -103,7 +105,7 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 }
 
 func (o *SpecOrchestrator) commitAcceptanceTests(ctx context.Context, specName string) error {
-	_, stderr, exitCode, err := o.runCmd(ctx, "git add -- ':(glob)**/*_acceptance_test.go'", "")
+	_, stderr, exitCode, err := o.runArgv(ctx, "git", []string{"add", "--", ":(glob)**/*_acceptance_test.go"}, "")
 	if err != nil {
 		return fmt.Errorf("staging acceptance tests: %w", err)
 	}
@@ -112,7 +114,7 @@ func (o *SpecOrchestrator) commitAcceptanceTests(ctx context.Context, specName s
 	}
 
 	message := fmt.Sprintf("test(spec): add acceptance tests for %s", specName)
-	_, stderr, exitCode, err = o.runCmd(ctx, fmt.Sprintf("git commit -m %q", message), "")
+	_, stderr, exitCode, err = o.runArgv(ctx, "git", []string{"commit", "-m", message}, "")
 	if err != nil {
 		return fmt.Errorf("committing acceptance tests: %w", err)
 	}
@@ -126,9 +128,28 @@ func (o *SpecOrchestrator) commitAcceptanceTests(ctx context.Context, specName s
 	return nil
 }
 
-func (o *SpecOrchestrator) runCmd(ctx context.Context, command string, workDir string) (string, string, int, error) {
-	if o.cmdRunnerFn != nil {
-		return o.cmdRunnerFn(ctx, command, workDir)
+func (o *SpecOrchestrator) runArgv(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+	if o.argvRunnerFn != nil {
+		return o.argvRunnerFn(ctx, program, args, workDir)
 	}
-	return defaultCmdRunner(ctx, command, workDir)
+	if o.cmdRunnerFn != nil {
+		return o.cmdRunnerFn(ctx, shellJoin(program, args), workDir)
+	}
+	return defaultArgvRunner(ctx, program, args, workDir)
+}
+
+func shellJoin(program string, args []string) string {
+	quoted := make([]string, 0, len(args)+1)
+	quoted = append(quoted, shellQuote(program))
+	for _, arg := range args {
+		quoted = append(quoted, shellQuote(arg))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }

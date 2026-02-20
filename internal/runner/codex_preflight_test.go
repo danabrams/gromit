@@ -85,7 +85,13 @@ func TestPreflightCodex_FailsWhenNotLoggedIn(t *testing.T) {
 		lookPathFn: func(file string) (string, error) {
 			return "/usr/bin/codex", nil
 		},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			if program != "codex" {
+				return "", "", -1, fmt.Errorf("unexpected program: %s", program)
+			}
+			if len(args) != 2 || args[0] != "login" || args[1] != "status" {
+				return "", "", -1, fmt.Errorf("unexpected args: %#v", args)
+			}
 			return "Not logged in", "", 0, nil
 		},
 	}
@@ -118,8 +124,14 @@ func TestPreflightCodex_PassesWhenAllChecksPass(t *testing.T) {
 			return "/usr/bin/codex", nil
 		},
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			if command != "codex login status" {
-				return "", "", -1, errors.New("unexpected command")
+			return "", "", -1, errors.New("unexpected shell command runner call")
+		},
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			if program != "codex" {
+				return "", "", -1, errors.New("unexpected program")
+			}
+			if len(args) != 2 || args[0] != "login" || args[1] != "status" {
+				return "", "", -1, errors.New("unexpected args")
 			}
 			return "Logged in using ChatGPT", "", 0, nil
 		},

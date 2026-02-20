@@ -80,6 +80,11 @@ const (
 	specGateDiffCommand = "git diff"
 )
 
+var (
+	specGateTestArgv = []string{"test", "-tags", "acceptance", "./..."}
+	specGateDiffArgv = []string{"diff"}
+)
+
 func (r *Runner) buildSpecGate() (*specgate.Gate, error) {
 	if r == nil || r.cfg == nil {
 		return nil, fmt.Errorf("runner config is nil")
@@ -94,10 +99,10 @@ func (r *Runner) buildSpecGate() (*specgate.Gate, error) {
 		Model:     r.cfg.SpecGate.Model,
 		MaxCycles: r.cfg.SpecGate.MaxCycles,
 		RunTests: func(ctx context.Context) (string, error) {
-			return r.runSpecGateCommand(ctx, specGateTestCommand)
+			return r.runSpecGateArgvCommand(ctx, "go", specGateTestArgv, specGateTestCommand)
 		},
 		GetDiff: func(ctx context.Context) (string, error) {
-			return r.runSpecGateCommand(ctx, specGateDiffCommand)
+			return r.runSpecGateArgvCommand(ctx, "git", specGateDiffArgv, specGateDiffCommand)
 		},
 		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
 			_, criteriaBlock, specBody, err := loadSpecGateInputs(specsDir, specName)
@@ -122,6 +127,24 @@ func (r *Runner) buildSpecGate() (*specgate.Gate, error) {
 	}
 
 	return gate, nil
+}
+
+func (r *Runner) runSpecGateArgvCommand(ctx context.Context, program string, args []string, display string) (string, error) {
+	stdout, stderr, exitCode, err := r.runArgv(ctx, program, args, "")
+	if err != nil {
+		return "", err
+	}
+
+	output := strings.TrimSpace(strings.Join([]string{stdout, stderr}, "\n"))
+	if exitCode != 0 {
+		if output == "" {
+			output = fmt.Sprintf("%s (exit %d)", display, exitCode)
+		} else {
+			output = fmt.Sprintf("%s (exit %d)\n%s", display, exitCode, output)
+		}
+	}
+
+	return strings.TrimSpace(output), nil
 }
 
 func (r *Runner) runSpecGateCommand(ctx context.Context, command string) (string, error) {

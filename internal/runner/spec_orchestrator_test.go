@@ -86,6 +86,10 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 	cfg.NormalizeNilFields()
 
 	var commands []string
+	var argvCalls []struct {
+		program string
+		args    []string
+	}
 	orchestrator := &SpecOrchestrator{
 		cfg:      cfg,
 		router:   router,
@@ -93,6 +97,13 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 		renderer: renderer,
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			commands = append(commands, command)
+			return "", "", 0, nil
+		},
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			argvCalls = append(argvCalls, struct {
+				program string
+				args    []string
+			}{program: program, args: append([]string(nil), args...)})
 			return "", "", 0, nil
 		},
 	}
@@ -115,8 +126,14 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 	if receivedRules != rulesContent {
 		t.Fatalf("expected rules %q, got %q", rulesContent, receivedRules)
 	}
-	if len(commands) == 0 {
-		t.Fatal("expected git commands to run for committing tests")
+	if len(commands) != 0 {
+		t.Fatalf("expected no shell command calls, got %v", commands)
+	}
+	if len(argvCalls) != 2 {
+		t.Fatalf("expected two argv command calls, got %d", len(argvCalls))
+	}
+	if argvCalls[0].program != "git" || strings.Join(argvCalls[0].args, " ") != "add -- :(glob)**/*_acceptance_test.go" {
+		t.Fatalf("unexpected first argv call: %#v", argvCalls[0])
 	}
 }
 
@@ -147,6 +164,7 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_IdempotentBySpecName(t *testing.
 	cfg.NormalizeNilFields()
 
 	cmdCalls := 0
+	argvCalls := 0
 	orchestrator := &SpecOrchestrator{
 		cfg:      cfg,
 		router:   router,
@@ -154,6 +172,10 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_IdempotentBySpecName(t *testing.
 		renderer: renderer,
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			cmdCalls++
+			return "", "", 0, nil
+		},
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			argvCalls++
 			return "", "", 0, nil
 		},
 	}
@@ -168,16 +190,21 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_IdempotentBySpecName(t *testing.
 	if providerRunCalls != 1 {
 		t.Fatalf("expected provider to be invoked once, got %d", providerRunCalls)
 	}
-	if cmdCalls == 0 {
-		t.Fatal("expected git commands to run on first call")
+	if cmdCalls != 0 {
+		t.Fatalf("expected no shell command calls, got %d", cmdCalls)
+	}
+	if argvCalls != 2 {
+		t.Fatalf("expected two argv calls for first execution, got %d", argvCalls)
 	}
 }
 
 func TestSpecOrchestrator_CommitAcceptanceTests_StagesOnlyAcceptanceTests(t *testing.T) {
-	var commands []string
+	var programs []string
+	var argvs [][]string
 	orchestrator := &SpecOrchestrator{
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			commands = append(commands, command)
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			programs = append(programs, program)
+			argvs = append(argvs, append([]string(nil), args...))
 			return "", "", 0, nil
 		},
 	}
@@ -185,10 +212,13 @@ func TestSpecOrchestrator_CommitAcceptanceTests_StagesOnlyAcceptanceTests(t *tes
 	if err := orchestrator.commitAcceptanceTests(context.Background(), "demo-spec"); err != nil {
 		t.Fatalf("commitAcceptanceTests returned error: %v", err)
 	}
-	if len(commands) == 0 {
+	if len(argvs) == 0 {
 		t.Fatal("expected git commands to run")
 	}
-	if commands[0] != "git add -- ':(glob)**/*_acceptance_test.go'" {
-		t.Fatalf("expected scoped git add command, got %q", commands[0])
+	if programs[0] != "git" {
+		t.Fatalf("expected git program, got %q", programs[0])
+	}
+	if strings.Join(argvs[0], " ") != "add -- :(glob)**/*_acceptance_test.go" {
+		t.Fatalf("expected scoped git add argv, got %#v", argvs[0])
 	}
 }

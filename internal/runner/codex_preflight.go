@@ -48,7 +48,7 @@ func (r *Runner) preflightCodex(ctx context.Context) error {
 
 	loginCtx, loginCancel := context.WithTimeout(ctx, 8*time.Second)
 	defer loginCancel()
-	stdout, stderr, exitCode, statusErr := r.runCmd(loginCtx, "codex login status", "")
+	stdout, stderr, exitCode, statusErr := r.runArgv(loginCtx, "codex", []string{"login", "status"}, "")
 	combined := strings.TrimSpace(strings.TrimSpace(stdout) + "\n" + strings.TrimSpace(stderr))
 	if statusErr != nil {
 		return fmt.Errorf("codex preflight failed: checking login status: %w (output: %s)", statusErr, summarizeCodexPreflightOutput(combined))
