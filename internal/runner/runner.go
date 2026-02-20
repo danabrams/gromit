@@ -24,7 +24,6 @@ import (
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
-	"github.com/danabrams/gromit/internal/specgate"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tmux"
 )
@@ -99,7 +98,7 @@ type Runner struct {
 	successfulBeads    int                                                                                                               // count of successful bead completions in the current run
 	successesSinceFull int                                                                                                               // successful beads since last full validation gate
 	specOrchestrator   *SpecOrchestrator                                                                                                 // coordinates spec-level acceptance test authoring when enabled
-	specGate           *specgate.Gate                                                                                                    // evaluates spec acceptance criteria when enabled
+	specGate           *SpecGate                                                                                                         // evaluates spec acceptance criteria when enabled
 	specGateCycles     map[string]int                                                                                                    // per-spec auto-trigger cycle counts for the current run
 }
 

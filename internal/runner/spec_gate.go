@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -9,12 +10,213 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/specgate"
 )
+
+const (
+	specGateInvocationFailureName = "spec gate analysis"
+)
+
+// SpecGateValidationRunner executes validation commands for spec gate checks.
+type SpecGateValidationRunner interface {
+	RunDirect(ctx context.Context, commands []string, workDir string) (*claude.Result, error)
+}
+
+// GateFailure is a structured spec gate failure.
+type GateFailure struct {
+	TestName     string `json:"test_name"`
+	Message      string `json:"message"`
+	SuggestedFix string `json:"suggested_fix"`
+}
+
+// GateResult is the spec gate verification result.
+type GateResult struct {
+	Passed   bool          `json:"passed"`
+	Failures []GateFailure `json:"failures"`
+}
+
+// normalizeNilFields ensures nil slices are normalized to empty slices.
+func (r *GateResult) normalizeNilFields() {
+	if r == nil {
+		return
+	}
+	if r.Failures == nil {
+		r.Failures = []GateFailure{}
+	}
+}
+
+// SpecGate verifies a spec by running validation then analyzing failures via provider.
+type SpecGate struct {
+	validationRunner SpecGateValidationRunner
+	renderer         PromptRenderer
+	router           *provider.Router
+	cfg              *config.Config
+	workDir          string
+}
+
+// Verify runs validation and returns a structured gate result.
+func (g *SpecGate) Verify(ctx context.Context, specName, specContent string) (*GateResult, error) {
+	if err := g.validate(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(specName) == "" {
+		return nil, fmt.Errorf("spec name is empty")
+	}
+
+	validationResult, err := g.validationRunner.RunDirect(ctx, g.cfg.Validation.FullCommandsOrDefault(), g.workDir)
+	if err != nil {
+		return nil, fmt.Errorf("running spec gate validation: %w", err)
+	}
+	if validationResult == nil {
+		return nil, fmt.Errorf("spec gate validation returned nil result")
+	}
+
+	if validationResult.Success {
+		return &GateResult{Passed: true, Failures: []GateFailure{}}, nil
+	}
+
+	failureOutput := strings.TrimSpace(validationResult.Output)
+	if failureOutput == "" {
+		failureOutput = "validation failed"
+	}
+
+	analysis, err := g.analyzeValidationFailure(ctx, specContent, failureOutput)
+	if err != nil {
+		return g.providerInvocationFailure(err), nil
+	}
+
+	analysis.Passed = false
+	analysis.normalizeNilFields()
+	if len(analysis.Failures) == 0 {
+		analysis.Failures = []GateFailure{{
+			TestName: specGateInvocationFailureName,
+			Message:  failureOutput,
+		}}
+	}
+
+	return analysis, nil
+}
+
+func (g *SpecGate) validate() error {
+	if g == nil {
+		return fmt.Errorf("spec gate is nil")
+	}
+	if g.cfg == nil {
+		return fmt.Errorf("spec gate config is nil")
+	}
+	if g.validationRunner == nil {
+		return fmt.Errorf("spec gate validation runner is nil")
+	}
+	if g.renderer == nil {
+		return fmt.Errorf("spec gate renderer is nil")
+	}
+	return nil
+}
+
+func (g *SpecGate) analyzeValidationFailure(ctx context.Context, specContent, failureOutput string) (*GateResult, error) {
+	criteria, criteriaBlock := extractAcceptanceCriteria(specContent)
+	acceptance := criteriaBlock
+	if strings.TrimSpace(acceptance) == "" {
+		acceptance = formatAcceptanceCriteria(criteria)
+	}
+
+	promptText, err := g.renderer.RenderSpecGate(&prompt.SpecGateContext{
+		SpecCriteria:       specContent,
+		FailureOutput:      failureOutput,
+		AcceptanceCriteria: acceptance,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("rendering spec gate prompt: %w", err)
+	}
+
+	rawResult, err := g.invokeProvider(ctx, promptText)
+	if err != nil {
+		return nil, err
+	}
+
+	parsed, err := parseGateResult(rawResult)
+	if err != nil {
+		return nil, fmt.Errorf("parsing spec gate result: %w", err)
+	}
+	return parsed, nil
+}
+
+func (g *SpecGate) invokeProvider(ctx context.Context, promptText string) ([]byte, error) {
+	if g.router == nil {
+		return nil, fmt.Errorf("spec gate router is nil")
+	}
+
+	tier := provider.TierFromLegacyModel(g.cfg.SpecGate.Model)
+	p, _ := g.router.Select("build", tier)
+	if p == nil {
+		return nil, fmt.Errorf("no providers available for tier %q", tier)
+	}
+
+	result, err := p.Run(ctx, promptText, tier)
+	if err != nil && p.IsUsageLimitError(result, err) {
+		g.router.MarkUnavailable(p.Name())
+		p, _ = g.router.Select("build", tier)
+		if p != nil {
+			result, err = p.Run(ctx, promptText, tier)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("provider returned nil result")
+	}
+
+	return []byte(result.Output), nil
+}
+
+func (g *SpecGate) providerInvocationFailure(err error) *GateResult {
+	result := &GateResult{
+		Passed: false,
+		Failures: []GateFailure{{
+			TestName: specGateInvocationFailureName,
+			Message:  fmt.Sprintf("provider invocation failed: %v", err),
+		}},
+	}
+	result.normalizeNilFields()
+	return result
+}
+
+func parseGateResult(data []byte) (*GateResult, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+
+	var result GateResult
+	if err := json.Unmarshal(data, &result); err == nil {
+		if _, hasFailures := fields["failures"]; hasFailures {
+			result.normalizeNilFields()
+			return &result, nil
+		}
+	}
+
+	legacy, err := specgate.ParseVerdict(data)
+	if err != nil {
+		return nil, err
+	}
+
+	converted := &GateResult{Passed: legacy.Passed, Failures: []GateFailure{}}
+	for _, criterion := range legacy.FailedCriteria() {
+		converted.Failures = append(converted.Failures, GateFailure{
+			TestName: criterion.Criterion,
+			Message:  criterion.Evidence,
+		})
+	}
+	converted.normalizeNilFields()
+	return converted, nil
+}
 
 func (r *Runner) maybeRunSpecGate(ctx context.Context, specName string) error {
 	if r == nil || r.cfg == nil {
@@ -59,24 +261,51 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, specName string) error {
 		return nil
 	}
 
-	criteria, _, _, err := loadSpecGateInputs(specsDir, specName)
+	_, _, specBody, err := loadSpecGateInputs(specsDir, specName)
 	if err != nil {
 		return err
 	}
 
-	verdict, err := r.specGate.Run(ctx, specName, criteria)
+	result, err := r.specGate.Verify(ctx, specName, specBody)
 	if err != nil {
 		return err
 	}
 	r.specGateCycles[specName] = currentCycles + 1
 
-	if verdict != nil && !verdict.Passed {
+	if result != nil && !result.Passed {
 		creator := &specGateBeadCreator{beads: r.beads}
-		if _, err := specgate.SynthesizeFixBeads(ctx, specName, verdict.FailedCriteria(), "P1", creator); err != nil {
+		failures := gateFailuresToCriteria(result.Failures)
+		if _, err := specgate.SynthesizeFixBeads(ctx, specName, failures, "P1", creator); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func gateFailuresToCriteria(failures []GateFailure) []specgate.CriterionResult {
+	if len(failures) == 0 {
+		return []specgate.CriterionResult{}
+	}
+	results := make([]specgate.CriterionResult, 0, len(failures))
+	for _, failure := range failures {
+		testName := strings.TrimSpace(failure.TestName)
+		if testName == "" {
+			testName = specGateInvocationFailureName
+		}
+		evidenceParts := make([]string, 0, 2)
+		if msg := strings.TrimSpace(failure.Message); msg != "" {
+			evidenceParts = append(evidenceParts, msg)
+		}
+		if fix := strings.TrimSpace(failure.SuggestedFix); fix != "" {
+			evidenceParts = append(evidenceParts, "Suggested fix: "+fix)
+		}
+		results = append(results, specgate.CriterionResult{
+			Criterion: testName,
+			Passed:    false,
+			Evidence:  strings.TrimSpace(strings.Join(evidenceParts, "\n")),
+		})
+	}
+	return results
 }
 
 func hasOpenBeads(beads []*bead.Bead) bool {
@@ -100,118 +329,23 @@ func isScopedRunLabel(filters []string, label string) bool {
 	return false
 }
 
-const (
-	specGateTestCommand = "go test -tags acceptance ./..."
-	specGateDiffCommand = "git diff"
-)
-
-var (
-	specGateTestArgv = []string{"test", "-tags", "acceptance", "./..."}
-	specGateDiffArgv = []string{"diff"}
-)
-
-func (r *Runner) buildSpecGate() (*specgate.Gate, error) {
+func (r *Runner) buildSpecGate() (*SpecGate, error) {
 	if r == nil || r.cfg == nil {
 		return nil, fmt.Errorf("runner config is nil")
 	}
 	if r.renderer == nil {
 		return nil, fmt.Errorf("prompt renderer is nil")
 	}
-
-	specsDir := r.cfg.Paths.Specs
-
-	gate := &specgate.Gate{
-		Model:     r.cfg.SpecGate.Model,
-		MaxCycles: r.cfg.SpecGate.MaxCycles,
-		RunTests: func(ctx context.Context) (string, error) {
-			return r.runSpecGateArgvCommand(ctx, "go", specGateTestArgv, specGateTestCommand)
-		},
-		GetDiff: func(ctx context.Context) (string, error) {
-			return r.runSpecGateArgvCommand(ctx, "git", specGateDiffArgv, specGateDiffCommand)
-		},
-		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
-			_, criteriaBlock, specBody, err := loadSpecGateInputs(specsDir, specName)
-			if err != nil {
-				return "", err
-			}
-			acceptance := criteriaBlock
-			if strings.TrimSpace(acceptance) == "" {
-				acceptance = formatAcceptanceCriteria(criteria)
-			}
-			promptCtx := &prompt.SpecGateContext{
-				SpecCriteria:       specBody,
-				TestOutput:         testOutput,
-				CumulativeDiff:     diff,
-				AcceptanceCriteria: acceptance,
-			}
-			return r.renderer.RenderSpecGate(promptCtx)
-		},
-		InvokeLLM: func(ctx context.Context, model, promptText string) ([]byte, error) {
-			return r.invokeSpecGateLLM(ctx, model, promptText)
-		},
+	if r.validationRunner == nil {
+		return nil, fmt.Errorf("validation runner is nil")
 	}
 
-	return gate, nil
-}
-
-func (r *Runner) runSpecGateArgvCommand(ctx context.Context, program string, args []string, display string) (string, error) {
-	stdout, stderr, exitCode, err := r.runArgv(ctx, program, args, "")
-	if err != nil {
-		return "", err
-	}
-
-	return formatSpecGateCommandOutput(display, stdout, stderr, exitCode), nil
-}
-
-func (r *Runner) runSpecGateCommand(ctx context.Context, command string) (string, error) {
-	stdout, stderr, exitCode, err := r.runCmd(ctx, command, "")
-	if err != nil {
-		return "", err
-	}
-
-	return formatSpecGateCommandOutput(command, stdout, stderr, exitCode), nil
-}
-
-func formatSpecGateCommandOutput(display, stdout, stderr string, exitCode int) string {
-	output := strings.TrimSpace(strings.Join([]string{stdout, stderr}, "\n"))
-	if exitCode != 0 {
-		if output == "" {
-			output = fmt.Sprintf("%s (exit %d)", display, exitCode)
-		} else {
-			output = fmt.Sprintf("%s (exit %d)\n%s", display, exitCode, output)
-		}
-	}
-
-	return strings.TrimSpace(output)
-}
-
-func (r *Runner) invokeSpecGateLLM(ctx context.Context, model, promptText string) ([]byte, error) {
-	if r.router == nil {
-		return nil, fmt.Errorf("router is nil")
-	}
-
-	tier := provider.TierFromLegacyModel(model)
-	p, _ := r.router.Select("build", tier)
-	if p == nil {
-		return nil, fmt.Errorf("no providers available for tier %q", tier)
-	}
-
-	result, err := p.Run(ctx, promptText, tier)
-	if err != nil && p.IsUsageLimitError(result, err) {
-		r.router.MarkUnavailable(p.Name())
-		p, _ = r.router.Select("build", tier)
-		if p != nil {
-			result, err = p.Run(ctx, promptText, tier)
-		}
-	}
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		return nil, fmt.Errorf("provider returned nil result")
-	}
-
-	return []byte(result.Output), nil
+	return &SpecGate{
+		cfg:              r.cfg,
+		validationRunner: r.validationRunner,
+		renderer:         r.renderer,
+		router:           r.router,
+	}, nil
 }
 
 var acceptanceCriteriaNumberedRE = regexp.MustCompile(`^\d+[.)]\s+(.+)$`)
