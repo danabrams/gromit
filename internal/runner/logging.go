@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/runner/andon"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 var artifactBeadIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
@@ -44,6 +45,114 @@ func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
 	}
 
 	r.logIterationWithWarning(newIterationLogEntry(iteration, result, errStr, outcome, artifactPath))
+	if len(result.PhaseMetrics) > 0 {
+		r.writeTDDMetrics(result.BeadID, result.Success, result.PhaseMetrics)
+	}
+}
+
+type tddMetricsLogger interface {
+	LogTDDPhase(rec *logger.TDDPhaseRecord) error
+	LogTDDSummary(rec *logger.TDDSummaryRecord) error
+}
+
+func (r *Runner) writeTDDMetrics(beadID string, success bool, phaseMetrics []runtypes.PhaseMetric) {
+	if r == nil || r.logger == nil || len(phaseMetrics) == 0 {
+		return
+	}
+
+	tddLogger, ok := r.logger.(tddMetricsLogger)
+	if !ok {
+		return
+	}
+
+	phaseTotals := make(map[string]int, len(phaseMetrics))
+	phaseSuccess := make(map[string]int, len(phaseMetrics))
+	cycles := make(map[int]struct{}, len(phaseMetrics))
+	var totalInputTokens int
+	var totalOutputTokens int
+	var totalDurationMs int64
+	var escalationCount int
+
+	for _, metric := range phaseMetrics {
+		if beadID == "" && metric.BeadID != "" {
+			beadID = metric.BeadID
+		}
+
+		if err := tddLogger.LogTDDPhase(&logger.TDDPhaseRecord{
+			Type:               "tdd_phase",
+			Timestamp:          time.Now(),
+			BeadID:             metric.BeadID,
+			Phase:              metric.Phase,
+			CycleNumber:        metric.CycleNumber,
+			Model:              metric.Model,
+			Tier:               metric.Tier,
+			InputTokens:        metric.InputTokens,
+			OutputTokens:       metric.OutputTokens,
+			DurationMs:         metric.DurationMs,
+			Success:            metric.Success,
+			Escalated:          metric.Escalated,
+			EscalatedFrom:      metric.EscalatedFrom,
+			CriteriaTotal:      metric.CriteriaTotal,
+			CriteriaCovered:    metric.CriteriaCovered,
+			CriteriaUntestable: metric.CriteriaUntestable,
+		}); err != nil {
+			r.log("Warning: failed to write TDD phase log: %v", err)
+			return
+		}
+
+		cycles[metric.CycleNumber] = struct{}{}
+		phaseTotals[metric.Phase]++
+		if metric.Success {
+			phaseSuccess[metric.Phase]++
+		}
+		totalInputTokens += metric.InputTokens
+		totalOutputTokens += metric.OutputTokens
+		totalDurationMs += metric.DurationMs
+		if metric.Escalated {
+			escalationCount++
+		}
+	}
+
+	phaseSuccessRates := make(map[string]float64, len(phaseTotals))
+	for phase, total := range phaseTotals {
+		if total == 0 {
+			phaseSuccessRates[phase] = 0
+			continue
+		}
+		phaseSuccessRates[phase] = float64(phaseSuccess[phase]) / float64(total)
+	}
+
+	if beadID == "" {
+		beadID = resultBeadIDFromMetrics(phaseMetrics)
+	}
+	if beadID == "" {
+		beadID = artifactFallbackBeadID
+	}
+
+	if err := tddLogger.LogTDDSummary(&logger.TDDSummaryRecord{
+		Type:              "tdd_summary",
+		Timestamp:         time.Now(),
+		BeadID:            beadID,
+		TotalCycles:       len(cycles),
+		TotalPhases:       len(phaseMetrics),
+		Success:           success,
+		TotalDurationMs:   totalDurationMs,
+		TotalInputTokens:  totalInputTokens,
+		TotalOutputTokens: totalOutputTokens,
+		PhaseSuccessRates: phaseSuccessRates,
+		EscalationCount:   escalationCount,
+	}); err != nil {
+		r.log("Warning: failed to write TDD summary log: %v", err)
+	}
+}
+
+func resultBeadIDFromMetrics(metrics []runtypes.PhaseMetric) string {
+	for _, metric := range metrics {
+		if metric.BeadID != "" {
+			return metric.BeadID
+		}
+	}
+	return ""
 }
 
 func newIterationLogEntry(iteration int, result *IterationResult, errStr, outcome, artifactPath string) *logger.IterationLog {
