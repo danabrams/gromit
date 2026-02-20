@@ -274,13 +274,14 @@ func findFirstCommitForBead(beadID string) (string, error) {
 		return "", nil // No commits found - not an error, just no work yet
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) > 0 && lines[0] != "" {
-		// git log returns newest first, so the last line is the earliest commit
-		return lines[len(lines)-1], nil
+	trimmedOutput := strings.TrimSpace(string(out))
+	if trimmedOutput == "" {
+		return "", nil
 	}
 
-	return "", nil
+	commitHashes := strings.Split(trimmedOutput, "\n")
+	// git log returns newest first, so the last line is the earliest commit.
+	return commitHashes[len(commitHashes)-1], nil
 }
 
 func isCommitEarlier(commit1, commit2 string) bool {
