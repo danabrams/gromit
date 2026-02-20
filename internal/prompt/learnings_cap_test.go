@@ -11,6 +11,23 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
+func newBuildContextTestBead() *bead.Bead {
+	return &bead.Bead{
+		ID:              "test-1",
+		Title:           "Test bead",
+		Priority:        1,
+		Labels:          []string{},
+		ExpectedOutputs: []string{},
+	}
+}
+
+func writeTestFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile %s: %v", path, err)
+	}
+}
+
 // setupRendererWithLearnings creates a Renderer with a learnings file
 // containing N confirmed learnings of known sizes. Each learning has
 // content of approximately targetCharLen characters. Learnings are
@@ -24,7 +41,11 @@ func setupRendererWithLearnings(t *testing.T, n int, targetCharLen int) *Rendere
 	sb.WriteString("# Learnings\n\n## Confirmed\n\n")
 	for i := 0; i < n; i++ {
 		prefix := "Learning content for entry number "
-		padding := strings.Repeat("x", targetCharLen-len(prefix)-5)
+		paddingLen := targetCharLen - len(prefix) - 5
+		if paddingLen < 0 {
+			paddingLen = 0
+		}
+		padding := strings.Repeat("x", paddingLen)
 		content := prefix + padding
 		date := time.Date(2026, 1, 1+i, 0, 0, 0, 0, time.UTC)
 		sb.WriteString("### " + date.Format("2006-01-02") + " | Entry " + string(rune('A'+i)) + " | patterns\n\n")
@@ -32,7 +53,7 @@ func setupRendererWithLearnings(t *testing.T, n int, targetCharLen int) *Rendere
 	}
 	sb.WriteString("## Provisional\n\n## Archived\n")
 
-	os.WriteFile(filepath.Join(tmpDir, "LEARNINGS.md"), []byte(sb.String()), 0644)
+	writeTestFile(t, filepath.Join(tmpDir, "LEARNINGS.md"), sb.String())
 
 	lf, err := learnings.NewFile(tmpDir)
 	if err != nil {
@@ -43,9 +64,11 @@ func setupRendererWithLearnings(t *testing.T, n int, targetCharLen int) *Rendere
 	}
 
 	// Create minimal template and CLAUDE.md so BuildContext doesn't error
-	os.MkdirAll(filepath.Join(tmpDir, "templates"), 0755)
-	os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte("# Test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "RULES.md"), []byte("# Rules"), 0644)
+	if err := os.MkdirAll(filepath.Join(tmpDir, "templates"), 0o755); err != nil {
+		t.Fatalf("MkdirAll templates: %v", err)
+	}
+	writeTestFile(t, filepath.Join(tmpDir, "CLAUDE.md"), "# Test")
+	writeTestFile(t, filepath.Join(tmpDir, "RULES.md"), "# Rules")
 
 	return &Renderer{
 		templatesDir:  filepath.Join(tmpDir, "templates"),
@@ -59,13 +82,7 @@ func setupRendererWithLearnings(t *testing.T, n int, targetCharLen int) *Rendere
 }
 
 func TestBuildContext_LearningsCapApplied(t *testing.T) {
-	testBead := &bead.Bead{
-		ID:              "test-1",
-		Title:           "Test bead",
-		Priority:        1,
-		Labels:          []string{},
-		ExpectedOutputs: []string{},
-	}
+	testBead := newBuildContextTestBead()
 
 	tests := []struct {
 		name             string
@@ -134,13 +151,7 @@ func TestBuildContext_LearningsCapPrefersMostRecent(t *testing.T) {
 	r := setupRendererWithLearnings(t, 5, 100)
 	r.SetMaxLearningChars(250) // Budget fits ~2 entries of 100 chars each
 
-	testBead := &bead.Bead{
-		ID:              "test-1",
-		Title:           "Test bead",
-		Priority:        1,
-		Labels:          []string{},
-		ExpectedOutputs: []string{},
-	}
+	testBead := newBuildContextTestBead()
 
 	ctx, err := r.BuildContext(testBead, nil, 1, "sonnet")
 	if err != nil {
@@ -167,13 +178,7 @@ func TestBuildContext_ZeroBudgetBackwardCompatible(t *testing.T) {
 	// Explicitly set zero to confirm backward-compatible behavior
 	r.SetMaxLearningChars(0)
 
-	testBead := &bead.Bead{
-		ID:              "test-1",
-		Title:           "Test bead",
-		Priority:        1,
-		Labels:          []string{},
-		ExpectedOutputs: []string{},
-	}
+	testBead := newBuildContextTestBead()
 
 	ctx, err := r.BuildContext(testBead, nil, 1, "sonnet")
 	if err != nil {

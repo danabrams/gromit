@@ -13,6 +13,28 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 )
 
+func writeFixtureFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile %s: %v", path, err)
+	}
+}
+
+func setupRunnerFixtureDirs(t *testing.T) (tmpDir, gromitDir, templatesDir, specsDir, logsDir string) {
+	t.Helper()
+	tmpDir = t.TempDir()
+	gromitDir = filepath.Join(tmpDir, ".gromit")
+	templatesDir = filepath.Join(gromitDir, "templates")
+	specsDir = filepath.Join(gromitDir, "specs")
+	logsDir = filepath.Join(gromitDir, "logs")
+	for _, dir := range []string{templatesDir, specsDir, logsDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("MkdirAll %s: %v", dir, err)
+		}
+	}
+	return tmpDir, gromitDir, templatesDir, specsDir, logsDir
+}
+
 func TestNewRunnerWiresMaxLearningCharsIntoRenderer(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -33,30 +55,10 @@ func TestNewRunnerWiresMaxLearningCharsIntoRenderer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
-			gromitDir := filepath.Join(tmpDir, ".gromit")
-			templatesDir := filepath.Join(gromitDir, "templates")
-			specsDir := filepath.Join(gromitDir, "specs")
-			logsDir := filepath.Join(gromitDir, "logs")
-			if err := os.MkdirAll(templatesDir, 0o755); err != nil {
-				t.Fatalf("MkdirAll templates: %v", err)
-			}
-			if err := os.MkdirAll(specsDir, 0o755); err != nil {
-				t.Fatalf("MkdirAll specs: %v", err)
-			}
-			if err := os.MkdirAll(logsDir, 0o755); err != nil {
-				t.Fatalf("MkdirAll logs: %v", err)
-			}
-
-			if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte("# test"), 0o644); err != nil {
-				t.Fatalf("WriteFile CLAUDE.md: %v", err)
-			}
-			if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("# rules"), 0o644); err != nil {
-				t.Fatalf("WriteFile RULES.md: %v", err)
-			}
-			if err := os.WriteFile(filepath.Join(gromitDir, "LEARNINGS.md"), []byte(testLearningsMarkdown(4, 120)), 0o644); err != nil {
-				t.Fatalf("WriteFile LEARNINGS.md: %v", err)
-			}
+			tmpDir, gromitDir, templatesDir, specsDir, logsDir := setupRunnerFixtureDirs(t)
+			writeFixtureFile(t, filepath.Join(tmpDir, "CLAUDE.md"), "# test")
+			writeFixtureFile(t, filepath.Join(gromitDir, "RULES.md"), "# rules")
+			writeFixtureFile(t, filepath.Join(gromitDir, "LEARNINGS.md"), testLearningsMarkdown(4, 120))
 
 			cfg := &config.Config{
 				Paths: config.PathsConfig{
