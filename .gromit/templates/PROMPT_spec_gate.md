@@ -52,6 +52,7 @@ CumulativeDiff:
 GateVerdict is the only response contract to follow. Do not use any other format or response contract.
 
 Respond with a JSON object that exactly matches the GateVerdict schema. Include every required field with the exact field names and value types, and include no additional fields.
+All required keys must be present. Preserve the required GateVerdict structure and nesting exactly.
 Output JSON only and include no narrative text.
 
 Your response must be one top-level JSON object and nothing else. Do not include markdown, commentary, or any explanation outside the JSON.
@@ -66,6 +67,11 @@ Required result fields:
 - `criterion` (string)
 - `passed` (boolean)
 - `evidence` (string)
+
+Required structure:
+- Top-level value must be an object containing `passed` and `results`
+- `results` must be an array
+- Each element in `results` must be an object containing `criterion`, `passed`, and `evidence`
 
 ## Example Output
 

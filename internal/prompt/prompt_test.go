@@ -1650,6 +1650,7 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 	wantStrs := []string{
 		"GateVerdict",
 		"exactly matches the GateVerdict schema",
+		"All required keys must be present",
 		"JSON only",
 		"no narrative",
 		"FAIL: TestFoo",
@@ -1700,6 +1701,9 @@ func TestRenderSpecGateRealTemplateDefinesGateVerdictSchema(t *testing.T) {
 		"Required result fields:",
 		"`criterion` (string)",
 		"`evidence` (string)",
+		"Required structure:",
+		"`results` must be an array",
+		"must be an object containing `criterion`, `passed`, and `evidence`",
 	}
 	for _, want := range wantStrs {
 		if !strings.Contains(result, want) {
