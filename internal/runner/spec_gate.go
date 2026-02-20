@@ -15,8 +15,8 @@ import (
 	"github.com/danabrams/gromit/internal/specgate"
 )
 
-func (r *Runner) maybeRunSpecGate(ctx context.Context, st *runLoopState, specName string) error {
-	if r == nil || st == nil || r.cfg == nil {
+func (r *Runner) maybeRunSpecGate(ctx context.Context, specName string) error {
+	if r == nil || r.cfg == nil {
 		return nil
 	}
 	if specName == "" {
@@ -37,6 +37,9 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, st *runLoopState, specNam
 	if len(labels) == 0 {
 		return fmt.Errorf("no label found for spec %q", specName)
 	}
+	if !isScopedRunLabel(r.labelFilters, labels[0]) {
+		return nil
+	}
 
 	beads, err := r.beads.ListWithLabel(labels[0])
 	if err != nil {
@@ -48,10 +51,10 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, st *runLoopState, specNam
 		}
 	}
 
-	if st.specGateCycles == nil {
-		st.specGateCycles = make(map[string]int)
+	if r.specGateCycles == nil {
+		r.specGateCycles = make(map[string]int)
 	}
-	if r.cfg.SpecGate.MaxCycles > 0 && st.specGateCycles[specName] >= r.cfg.SpecGate.MaxCycles {
+	if r.cfg.SpecGate.MaxCycles > 0 && r.specGateCycles[specName] >= r.cfg.SpecGate.MaxCycles {
 		return nil
 	}
 
@@ -64,7 +67,7 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, st *runLoopState, specNam
 	if err != nil {
 		return err
 	}
-	st.specGateCycles[specName]++
+	r.specGateCycles[specName]++
 
 	if verdict != nil && !verdict.Passed {
 		creator := &specGateBeadCreator{beads: r.beads}
@@ -73,6 +76,18 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, st *runLoopState, specNam
 		}
 	}
 	return nil
+}
+
+func isScopedRunLabel(filters []string, label string) bool {
+	if len(filters) == 0 {
+		return false
+	}
+	for _, filter := range filters {
+		if strings.EqualFold(strings.TrimSpace(filter), label) {
+			return true
+		}
+	}
+	return false
 }
 
 const (

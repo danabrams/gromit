@@ -19,7 +19,6 @@ type runLoopState struct {
 	beadStats           map[string]logger.BeadStats
 	skippedBeads        map[string]bool
 	testsAuthoredBySpec map[string]bool
-	specGateCycles      map[string]int
 	sf                  *state.File
 	interactiveFile     *state.InteractiveFile
 	l3StopLine          bool // set when L3 stop-line halts state mutations
@@ -49,6 +48,7 @@ func (r *Runner) resetPerRunState() {
 	r.touchedPackages = make(map[string]bool)
 	r.successfulBeads = 0
 	r.successesSinceFull = 0
+	r.specGateCycles = make(map[string]int)
 	if r.validationRunner != nil {
 		r.validationRunner.ResetFailures()
 	}
@@ -58,7 +58,6 @@ func (r *Runner) initRunLoopState(deadline time.Time) (*runLoopState, func(), er
 	st := &runLoopState{
 		skippedBeads:        make(map[string]bool),
 		testsAuthoredBySpec: make(map[string]bool),
-		specGateCycles:      make(map[string]int),
 	}
 
 	statusWriter, err := NewStatusWriter(r.gromitDir)

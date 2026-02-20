@@ -100,6 +100,7 @@ type Runner struct {
 	successesSinceFull int                                                                                                               // successful beads since last full validation gate
 	specOrchestrator   *SpecOrchestrator                                                                                                 // coordinates spec-level acceptance test authoring when enabled
 	specGate           *specgate.Gate                                                                                                    // evaluates spec acceptance criteria when enabled
+	specGateCycles     map[string]int                                                                                                    // per-spec auto-trigger cycle counts for the current run
 }
 
 // NewRunner creates a new runner.

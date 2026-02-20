@@ -269,7 +269,7 @@ func (r *Runner) handleSuccessfulIteration(ctx context.Context, b *bead.Bead, st
 		r.log("Warning: failed to sync beads: %v", err)
 	}
 
-	if err := r.maybeRunSpecGate(ctx, st, bead.FindSpecLabel(b.Labels)); err != nil {
+	if err := r.maybeRunSpecGate(ctx, bead.FindSpecLabel(b.Labels)); err != nil {
 		return err
 	}
 

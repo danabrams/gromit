@@ -136,9 +136,10 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
 			return net.DefaultResolver.LookupHost(ctx, host)
 		},
-		lookPathFn:    exec.LookPath,
-		stdinStatFn:   os.Stdin.Stat,
-		promptYesNoFn: func(question string) (bool, error) { return promptYesNo(os.Stdin, syncOut, question) },
+		lookPathFn:     exec.LookPath,
+		stdinStatFn:    os.Stdin.Stat,
+		promptYesNoFn:  func(question string) (bool, error) { return promptYesNo(os.Stdin, syncOut, question) },
+		specGateCycles: make(map[string]int),
 	}
 	if cfg.Worktree.IsEnabled() {
 		manager, mgrErr := worktree.NewManager(mainDir)
