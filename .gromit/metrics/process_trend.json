@@ -1,47 +1,43 @@
 {
-  "generated_at": "2026-02-20T15:31:52.594943246Z",
-  "total_iterations": 611,
+  "generated_at": "2026-02-20T16:44:47.859827421Z",
+  "total_iterations": 622,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 0.9666666666666667,
-    "failure_rate": 0.03333333333333333,
-    "first_pass_success_rate": 0.9666666666666667,
+    "success_rate": 1,
+    "failure_rate": 0,
+    "first_pass_success_rate": 1,
     "escalation_rate": 0,
-    "avg_duration_ms": 363986.73333333334,
-    "p95_duration_ms": 828255.45,
-    "avg_validation_ms": 0,
-    "p95_validation_ms": 0,
-    "avg_cost_usd": 1.9490595916666666,
+    "avg_duration_ms": 399304.93333333335,
+    "p95_duration_ms": 860097.5499999998,
+    "avg_validation_ms": 31.363636363636363,
+    "p95_validation_ms": 66,
+    "avg_cost_usd": 2.620349383333333,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
     "validation_failure_rate": 0,
-    "timeout_failure_rate": 0.03333333333333333
+    "timeout_failure_rate": 0
   },
   "prompt_token_summary": {
     "by_prompt_type": [
       {
         "prompt_type": "build",
         "invocation_count": 30,
-        "avg_estimated_tokens": 2922.8
+        "avg_estimated_tokens": 2534.5666666666666
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 74790
+        "estimated_tokens": 67041
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 4929
-      },
-      {
-        "section": "spec",
-        "estimated_tokens": 4065
+        "estimated_tokens": 4954
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 3810
+        "estimated_tokens": 3952
       },
       {
         "section": "template_static",
@@ -58,39 +54,43 @@
       {
         "section": "recent_learnings",
         "estimated_tokens": 0
+      },
+      {
+        "section": "spec",
+        "estimated_tokens": 0
       }
     ],
     "budget_action_frequency": {},
     "reconciliation_drift": {
-      "sample_count": 29,
-      "mean_abs_token_delta_pct": 1531.2423631305346,
-      "p95_abs_token_delta_pct": 99.92705982849631
+      "sample_count": 30,
+      "mean_abs_token_delta_pct": 677.4793341623184,
+      "p95_abs_token_delta_pct": 99.96338446674548
     }
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 1.9490595916666666,
-      "mean": 1.0243840137841347,
-      "std_dev": 0.791022307419974,
-      "ucl": 3.397450936044057,
-      "lcl": -1.3486829084757876
+      "latest": 2.620349383333333,
+      "mean": 1.0421516214047795,
+      "std_dev": 0.7956236887821362,
+      "ucl": 3.4290226877511882,
+      "lcl": -1.344719444941629
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 363986.73333333334,
-      "mean": 543420.1462744122,
-      "std_dev": 285508.40499282704,
-      "ucl": 1399945.3612528932,
-      "lcl": -313105.068704069
+      "latest": 399304.93333333335,
+      "mean": 540335.3358097521,
+      "std_dev": 283909.66416132584,
+      "ucl": 1392064.3282937296,
+      "lcl": -311393.65667422535
     },
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 0,
-      "mean": 0,
-      "std_dev": 0,
-      "ucl": 0,
-      "lcl": 0
+      "latest": 31.363636363636363,
+      "mean": 0.37197874472794085,
+      "std_dev": 2.8350761645630653,
+      "ucl": 8.877207238417135,
+      "lcl": -8.133249748961255
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -103,16 +103,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.037643207855974206,
-      "std_dev": 0.05251945832878037,
-      "ucl": 0.1952015828423153,
+      "mean": 0.03697749196141518,
+      "std_dev": 0.05228890797390766,
+      "ucl": 0.19384421588313813,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 0.9666666666666667,
-      "mean": 0.5425531914893605,
-      "std_dev": 0.4528430633295912,
+      "latest": 1,
+      "mean": 0.5506430868167191,
+      "std_dev": 0.45285263211199756,
       "ucl": 1,
       "lcl": 0
     },
@@ -126,18 +126,18 @@
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 0.9666666666666667,
-      "mean": 0.8056916483861064,
-      "std_dev": 0.21568323748669915,
+      "latest": 1,
+      "mean": 0.8091279697168987,
+      "std_dev": 0.21529623476251886,
       "ucl": 1,
-      "lcl": 0.15864193592600895
+      "lcl": 0.1632392654293422
     },
     {
       "metric": "rolling_timeout_failure_rate",
-      "latest": 0.03333333333333333,
-      "mean": 0.008183306055646473,
-      "std_dev": 0.018151286940166867,
-      "ucl": 0.06263716687614708,
+      "latest": 0,
+      "mean": 0.008038585209003206,
+      "std_dev": 0.018022373384409904,
+      "ucl": 0.06210570536223292,
       "lcl": 0
     },
     {
@@ -149,5 +149,14 @@
       "lcl": 0
     }
   ],
-  "anomalies": []
+  "anomalies": [
+    {
+      "metric": "rolling_avg_validation_ms",
+      "latest": 31.363636363636363,
+      "ucl": 8.877207238417135,
+      "lcl": -8.133249748961255,
+      "severity": "high",
+      "message": "latest value 31.3636 is above control limits [-8.1332, 8.8772]"
+    }
+  ]
 }
