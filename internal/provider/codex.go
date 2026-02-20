@@ -98,20 +98,6 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 	if err != nil {
 		return nil, err
 	}
-	// Parse JSONL output for normalized agent text and usage metadata.
-	parsedText, usage, _, parseErr := processCodexStream(strings.NewReader(result.Output), nil, nil, nil)
-	if parseErr == nil {
-		if parsedText != "" {
-			result.Output = parsedText
-		}
-		result.CostUSD = usageCost(usage)
-		result.InputTokens = usageInputTokens(usage)
-		result.CachedInputTokens = usageCachedInputTokens(usage)
-		result.OutputTokens = usageOutputTokens(usage)
-	} else if text := extractAgentTextFromJSONL(result.Output); text != "" {
-		// Keep legacy text extraction as a fallback for unexpected parse failures.
-		result.Output = text
-	}
 	return result, nil
 }
 
@@ -300,21 +286,45 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 	}
 
 	output := stdout.String()
+	output, usage := parseCodexOutputAndUsage(output)
 	exitCode, err := cp.extractExitCode(err)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Result{
-		Success:         exitCode == 0,
-		Output:          output,
-		Stderr:          stderr.String(),
-		Diagnostics:     buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
-		FailureCategory: classifyCodexFailure(exitCode, output, stderr.String()),
-		ExitCode:        exitCode,
-		Duration:        duration,
-		Model:           model,
+		Success:           exitCode == 0,
+		Output:            output,
+		Stderr:            stderr.String(),
+		Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, stderr.String()),
+		FailureCategory:   classifyCodexFailure(exitCode, output, stderr.String()),
+		ExitCode:          exitCode,
+		Duration:          duration,
+		Model:             model,
+		CostUSD:           usageCost(usage),
+		InputTokens:       usageInputTokens(usage),
+		CachedInputTokens: usageCachedInputTokens(usage),
+		OutputTokens:      usageOutputTokens(usage),
 	}, nil
+}
+
+// parseCodexOutputAndUsage normalizes JSONL output from non-streaming codex runs.
+// It prefers structured stream parsing and falls back to legacy text extraction on parse failure.
+func parseCodexOutputAndUsage(rawOutput string) (string, *codexUsage) {
+	parsedText, usage, _, parseErr := processCodexStream(strings.NewReader(rawOutput), nil, nil, nil)
+	if parseErr == nil {
+		if parsedText != "" {
+			return parsedText, usage
+		}
+		return rawOutput, usage
+	}
+
+	if text := extractAgentTextFromJSONL(rawOutput); text != "" {
+		// Keep legacy text extraction as a fallback for unexpected parse failures.
+		return text, usage
+	}
+
+	return rawOutput, usage
 }
 
 // RunValidation constructs a validation prompt and runs it via Codex.
