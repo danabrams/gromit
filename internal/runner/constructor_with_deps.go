@@ -118,9 +118,7 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 	r.cycleOrchestrator = &cycleOrchestrator{runner: r}
 	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		r.specOrchestrator = newSpecOrchestrator(r)
-	}
-	if cfg.SpecGate.IsEnabled() {
-		gate, err := r.buildSpecGate()
+		gate, err := newSpecGate(r)
 		if err != nil {
 			return nil, err
 		}

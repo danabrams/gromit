@@ -106,6 +106,12 @@ func (r *Runner) maybeAuthorSpecAcceptance(ctx context.Context, b *bead.Bead, st
 	if r == nil || b == nil || st == nil {
 		return nil
 	}
+	if len(r.labelFilters) == 0 {
+		return nil
+	}
+	if r.isScopedSpecOrchestrationEnabled() {
+		return nil
+	}
 	if r.specOrchestrator == nil {
 		return nil
 	}
@@ -125,6 +131,9 @@ func (r *Runner) maybeAuthorSpecAcceptance(ctx context.Context, b *bead.Bead, st
 
 func (r *Runner) maybeRunSpecGate(ctx context.Context, b *bead.Bead, st *runLoopState) error {
 	if r == nil || r.cfg == nil || b == nil || st == nil {
+		return nil
+	}
+	if r.isScopedSpecOrchestrationEnabled() {
 		return nil
 	}
 	if !r.cfg.SpecGate.IsEnabled() || !r.cfg.SpecGate.IsAutoTrigger() {
@@ -196,6 +205,75 @@ func hasOpenBeads(beads []*bead.Bead) bool {
 		}
 	}
 	return false
+}
+
+func (r *Runner) isScopedSpecOrchestrationEnabled() bool {
+	return r != nil && r.specOrchestrator != nil && len(r.labelFilters) > 0
+}
+
+func (r *Runner) scopedSpecNames() []string {
+	if r == nil {
+		return nil
+	}
+	specNames := make([]string, 0, len(r.labelFilters))
+	seen := make(map[string]bool, len(r.labelFilters))
+	for _, label := range r.labelFilters {
+		specName := bead.FindSpecLabel([]string{strings.TrimSpace(label)})
+		if specName == "" || seen[specName] {
+			continue
+		}
+		seen[specName] = true
+		specNames = append(specNames, specName)
+	}
+	return specNames
+}
+
+func (r *Runner) authorScopedSpecAcceptanceTests(ctx context.Context, st *runLoopState) error {
+	if !r.isScopedSpecOrchestrationEnabled() || st == nil {
+		return nil
+	}
+	specsDir := r.cfg.Paths.Specs
+	for _, specName := range r.scopedSpecNames() {
+		if err := scope.ValidateSpec(specsDir, specName); err != nil {
+			return err
+		}
+		if err := r.specOrchestrator.AuthorAcceptanceTests(ctx, specName); err != nil {
+			return err
+		}
+		st.testsAuthoredBySpec[specName] = true
+	}
+	return nil
+}
+
+func (r *Runner) verifyScopedSpecAcceptance(ctx context.Context, scopedRunCompleted bool) error {
+	if !scopedRunCompleted || !r.isScopedSpecOrchestrationEnabled() || r.specGate == nil || r.beads == nil {
+		return nil
+	}
+	if !r.cfg.SpecGate.IsEnabled() {
+		return nil
+	}
+
+	specsDir := r.cfg.Paths.Specs
+	for _, specName := range r.scopedSpecNames() {
+		if err := scope.ValidateSpec(specsDir, specName); err != nil {
+			return err
+		}
+		criteria, _, _, err := loadSpecGateInputs(specsDir, specName)
+		if err != nil {
+			return err
+		}
+		verdict, err := r.specGate.Run(ctx, specName, criteria)
+		if err != nil {
+			return err
+		}
+		if verdict != nil && !verdict.Passed {
+			if _, err := SynthesizeFixBeads(ctx, specName, convertFailedCriteria(verdict.FailedCriteria()), r.beads); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func isScopedRunLabel(filters []string, label string) bool {

@@ -155,9 +155,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	r.cycleOrchestrator = &cycleOrchestrator{runner: r}
 	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		r.specOrchestrator = newSpecOrchestrator(r)
-	}
-	if cfg.SpecGate.IsEnabled() {
-		gate, err := r.buildSpecGate()
+		gate, err := newSpecGate(r)
 		if err != nil {
 			return nil, nil, err
 		}

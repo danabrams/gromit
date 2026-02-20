@@ -16,10 +16,18 @@ import (
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/specgate"
 	"github.com/danabrams/gromit/internal/usagelimit"
 )
 
 const atddProgressLogInterval = 15 * time.Second
+
+func newSpecGate(r *Runner) (*specgate.Gate, error) {
+	if r == nil {
+		return nil, fmt.Errorf("runner is nil")
+	}
+	return r.buildSpecGate()
+}
 
 type redPhasePromptShaper interface {
 	ShapeRedPhaseContext(ctx *prompt.Context) *prompt.Context

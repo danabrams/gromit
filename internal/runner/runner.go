@@ -163,6 +163,10 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 	defer cleanup()
 
+	if err := r.authorScopedSpecAcceptanceTests(ctx, st); err != nil {
+		return r.handleRunError(err)
+	}
+
 	r.log("")
 
 	runThoroughReview := func(iteration int) {
@@ -172,6 +176,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 	}
 
+	scopedRunCompleted := false
 	for {
 		stop, loopErr := r.shouldStopLoop(ctx, stopCh, st, effectiveMaxIterations, deadline)
 		if loopErr != nil {
@@ -191,6 +196,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			} else {
 				r.log("No more work available, stopping")
 			}
+			scopedRunCompleted = true
 			break
 		}
 
@@ -201,6 +207,10 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		if stop {
 			break
 		}
+	}
+
+	if err := r.verifyScopedSpecAcceptance(ctx, scopedRunCompleted); err != nil {
+		return r.handleRunError(err)
 	}
 
 	return r.finishRun(ctx, st)

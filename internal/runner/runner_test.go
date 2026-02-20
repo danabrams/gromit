@@ -195,7 +195,7 @@ func TestExtractDeletedFiles(t *testing.T) {
 	}
 }
 
-func TestMaybeAuthorSpecAcceptance_FirstBeadCallsOrchestrator(t *testing.T) {
+func TestMaybeAuthorSpecAcceptance_SkipsWhenScopedOrchestrationActive(t *testing.T) {
 	var loadSpecCalls int
 	renderer := &mockPromptRenderer{
 		LoadSpecFn: func(name string) (string, error) {
@@ -228,18 +228,21 @@ func TestMaybeAuthorSpecAcceptance_FirstBeadCallsOrchestrator(t *testing.T) {
 		},
 	}
 
-	r := &Runner{specOrchestrator: orchestrator}
+	r := &Runner{
+		specOrchestrator: orchestrator,
+		labelFilters:     []string{"spec:demo-spec"},
+	}
 	st := &runLoopState{testsAuthoredBySpec: make(map[string]bool)}
 	b := &bead.Bead{Labels: []string{"spec:demo-spec"}}
 
 	if err := r.maybeAuthorSpecAcceptance(context.Background(), b, st); err != nil {
 		t.Fatalf("maybeAuthorSpecAcceptance() error: %v", err)
 	}
-	if loadSpecCalls != 1 {
-		t.Fatalf("expected LoadSpec to be called once, got %d", loadSpecCalls)
+	if loadSpecCalls != 0 {
+		t.Fatalf("expected LoadSpec to be skipped, got %d calls", loadSpecCalls)
 	}
-	if !st.testsAuthoredBySpec["demo-spec"] {
-		t.Fatalf("expected testsAuthoredBySpec to be marked for demo-spec")
+	if st.testsAuthoredBySpec["demo-spec"] {
+		t.Fatal("expected testsAuthoredBySpec to remain unset in scoped mode")
 	}
 }
 
@@ -268,6 +271,9 @@ func TestNewRunnerWithDepsInitializesSpecOrchestratorWhenGranularitySpec(t *test
 func TestNewRunnerWithDepsInitializesSpecGateWhenEnabled(t *testing.T) {
 	enabled := true
 	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			Granularity: config.MethodologyGranularitySpec,
+		},
 		SpecGate: config.SpecGateConfig{Enabled: &enabled},
 	}
 
@@ -283,6 +289,189 @@ func TestNewRunnerWithDepsInitializesSpecGateWhenEnabled(t *testing.T) {
 	}
 	if r.specGate == nil {
 		t.Fatal("expected specGate to be initialized when spec gate is enabled")
+	}
+}
+
+func TestRun_ScopedSpecOrchestrationAuthorsBeforeLoopAndVerifiesAfterLoop(t *testing.T) {
+	specsDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(specsDir, "demo-spec.md"), []byte("## Acceptance Criteria\n- works\n"), 0o644); err != nil {
+		t.Fatalf("failed to write spec fixture: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	cfg.Paths.Specs = specsDir
+	cfg.Methodology.Granularity = config.MethodologyGranularitySpec
+	enabled := true
+	cfg.SpecGate.Enabled = &enabled
+
+	authoredBeforeReady := false
+	readyCalls := 0
+	beads := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			if !authoredBeforeReady {
+				t.Fatal("expected spec acceptance authoring before fetching scoped beads")
+			}
+			readyCalls++
+			if readyCalls == 1 {
+				return &bead.Bead{
+					ID:              "task-1",
+					Title:           "Scoped task",
+					Priority:        1,
+					Labels:          []string{"spec:demo-spec"},
+					ExpectedOutputs: []string{},
+				}, nil
+			}
+			return nil, nil
+		},
+		ShowFn: func(id string) (*bead.Bead, error) {
+			return &bead.Bead{ID: id, Status: "open"}, nil
+		},
+	}
+
+	authorModel := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "ok"}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, io.Discard, t.TempDir(), Deps{
+		Beads:    beads,
+		Router:   newMockRouterFromClaudeClient(authorModel),
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps error: %v", err)
+	}
+
+	authorCalls := 0
+	r.specOrchestrator = &SpecOrchestrator{
+		cfg:      cfg,
+		router:   r.router,
+		beads:    beads,
+		renderer: &mockPromptRenderer{LoadRulesForPhaseFn: func(phase string) (string, error) { return "rules", nil }, RenderSpecAcceptanceFn: func(ctx *prompt.SpecAcceptanceContext) (string, error) { return "author prompt", nil }},
+		specContentLoader: &mockSpecContentLoader{
+			loadSpecContentFn: func(specName string) (string, error) {
+				authorCalls++
+				authoredBeforeReady = true
+				return "## Acceptance Criteria\n- works\n", nil
+			},
+		},
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			if len(args) > 0 && args[0] == "commit" {
+				return "", "nothing to commit", 1, nil
+			}
+			return "", "", 0, nil
+		},
+	}
+
+	specGateRuns := 0
+	r.specGate = newSpecGateStub(
+		func(ctx context.Context) (string, error) {
+			specGateRuns++
+			return "VALIDATION_PASSED", nil
+		},
+		`{"passed":true,"results":[]}`,
+	)
+	r.SetLabelFilters([]string{"spec:demo-spec"})
+
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if authorCalls != 1 {
+		t.Fatalf("spec authoring calls = %d, want 1", authorCalls)
+	}
+	if specGateRuns != 1 {
+		t.Fatalf("spec gate verification runs = %d, want 1", specGateRuns)
+	}
+}
+
+func TestRun_NonScopedRunSkipsSpecOrchestration(t *testing.T) {
+	specsDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(specsDir, "demo-spec.md"), []byte("## Acceptance Criteria\n- works\n"), 0o644); err != nil {
+		t.Fatalf("failed to write spec fixture: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	cfg.Paths.Specs = specsDir
+	cfg.Methodology.Granularity = config.MethodologyGranularitySpec
+	enabled := true
+	cfg.SpecGate.Enabled = &enabled
+
+	readyCalls := 0
+	beads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			readyCalls++
+			if readyCalls == 1 {
+				return &bead.Bead{
+					ID:              "task-1",
+					Title:           "Unscoped task",
+					Priority:        1,
+					Labels:          []string{"spec:demo-spec"},
+					ExpectedOutputs: []string{},
+				}, nil
+			}
+			return nil, nil
+		},
+		ShowFn: func(id string) (*bead.Bead, error) {
+			return &bead.Bead{ID: id, Status: "open"}, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+	}
+
+	r, err := NewRunnerWithDeps(cfg, io.Discard, t.TempDir(), Deps{
+		Beads:    beads,
+		Router:   newMockRouterFromClaudeClient(mockClaude),
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps error: %v", err)
+	}
+
+	authorCalls := 0
+	r.specOrchestrator = &SpecOrchestrator{
+		specContentLoader: &mockSpecContentLoader{
+			loadSpecContentFn: func(specName string) (string, error) {
+				authorCalls++
+				return "## Acceptance Criteria\n- works\n", nil
+			},
+		},
+	}
+
+	specGateRuns := 0
+	r.specGate = newSpecGateStub(
+		func(ctx context.Context) (string, error) {
+			specGateRuns++
+			return "VALIDATION_PASSED", nil
+		},
+		`{"passed":true,"results":[]}`,
+	)
+
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if authorCalls != 0 {
+		t.Fatalf("spec authoring calls = %d, want 0", authorCalls)
+	}
+	if specGateRuns != 0 {
+		t.Fatalf("spec gate verification runs = %d, want 0", specGateRuns)
 	}
 }
 
