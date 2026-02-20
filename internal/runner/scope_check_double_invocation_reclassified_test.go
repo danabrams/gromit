@@ -11,9 +11,110 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
+
+type scopeCheckDedupHarnessOptions struct {
+	ReadyFn         func() (*bead.Bead, error)
+	GetParentFn     func(b *bead.Bead) (*bead.Bead, error)
+	BuildContextFn  func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
+	RenderBuildFn   func(ctx *prompt.Context) (string, error)
+	RenderScopeFn   func(ctx *prompt.ScopeContext) (string, error)
+	RunFn           func(ctx context.Context, p string, model string) (*claude.Result, error)
+	StreamRunFn     func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error)
+	RunValidationFn func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error)
+}
+
+type scopeCheckDedupHarness struct {
+	runner          *Runner
+	renderScopeMu   sync.Mutex
+	renderScopeCall int
+}
+
+func (h *scopeCheckDedupHarness) RenderScopeCalls() int {
+	h.renderScopeMu.Lock()
+	defer h.renderScopeMu.Unlock()
+	return h.renderScopeCall
+}
+
+func newScopeCheckDedupHarness(t *testing.T, cfg *config.Config, estimate *prompt.ScopeEstimate, opts scopeCheckDedupHarnessOptions) *scopeCheckDedupHarness {
+	t.Helper()
+
+	mockBeads := &mockBeadClient{}
+	if opts.ReadyFn != nil {
+		mockBeads.ReadyFn = opts.ReadyFn
+	}
+	if opts.GetParentFn != nil {
+		mockBeads.GetParentFn = opts.GetParentFn
+	} else {
+		mockBeads.GetParentFn = func(b *bead.Bead) (*bead.Bead, error) {
+			return nil, nil
+		}
+	}
+
+	h := &scopeCheckDedupHarness{}
+	mockRenderer := &mockPromptRenderer{
+		RenderScopeFn: opts.RenderScopeFn,
+		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+			if opts.BuildContextFn != nil {
+				return opts.BuildContextFn(b, parent, iteration, model)
+			}
+			return &prompt.Context{
+				Bead:       b,
+				ParentBead: parent,
+				Iteration:  iteration,
+				Model:      model,
+			}, nil
+		},
+		RenderBuildFn: func(ctx *prompt.Context) (string, error) {
+			if opts.RenderBuildFn != nil {
+				return opts.RenderBuildFn(ctx)
+			}
+			return "mock build prompt", nil
+		},
+	}
+
+	if mockRenderer.RenderScopeFn == nil {
+		mockRenderer.RenderScopeFn = func(ctx *prompt.ScopeContext) (string, error) {
+			h.renderScopeMu.Lock()
+			h.renderScopeCall++
+			h.renderScopeMu.Unlock()
+			data, err := json.Marshal(estimate)
+			if err != nil {
+				t.Fatalf("failed to marshal scope estimate: %v", err)
+			}
+			return string(data), nil
+		}
+	}
+
+	mockClaude := &mockClaudeClient{}
+	mockClaude.RunFn = opts.RunFn
+	if mockClaude.RunFn == nil {
+		mockClaude.RunFn = func(ctx context.Context, p string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: p}, nil
+		}
+	}
+	mockClaude.StreamRunFn = opts.StreamRunFn
+	mockClaude.RunValidationFn = opts.RunValidationFn
+
+	var buf strings.Builder
+	runner, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		Deps{
+			Beads:    mockBeads,
+			Router:   newMockRouterFromClaudeClient(mockClaude),
+			Analyzer: &mockFailureAnalyzer{},
+			Renderer: mockRenderer,
+			Logger:   &mockIterationLogger{},
+		})
+	if err != nil {
+		t.Fatalf("Failed to create runner: %v", err)
+	}
+
+	h.runner = runner
+	return h
+}
 
 // TestScopeCheckNotDuplicatedInProcessBead verifies that when block_oversized is
 // enabled and a bead passes the scope gate, the estimate from the gate is passed
@@ -43,77 +144,28 @@ func TestScopeCheckNotDuplicatedInProcessBead(t *testing.T) {
 		CanCompleteInSingleIteration: true,
 		Blockers:                     []string{},
 	}
-
-	mockBeads := &mockBeadClient{
+	h := newScopeCheckDedupHarness(t, cfg, estimate, scopeCheckDedupHarnessOptions{
 		ReadyFn: func() (*bead.Bead, error) {
 			return testBead, nil
-		},
-		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
-			return nil, nil
-		},
-	}
-
-	// Track how many times RenderScope is called (scope check invocations)
-	var renderScopeMu sync.Mutex
-	renderScopeCallCount := 0
-	mockRenderer := &mockPromptRenderer{
-		RenderScopeFn: func(ctx *prompt.ScopeContext) (string, error) {
-			renderScopeMu.Lock()
-			renderScopeCallCount++
-			renderScopeMu.Unlock()
-			data, err := json.Marshal(estimate)
-			if err != nil {
-				t.Fatalf("failed to marshal scope estimate: %v", err)
-			}
-			return string(data), nil
-		},
-		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
-			return &prompt.Context{
-				Bead:       b,
-				ParentBead: parent,
-				Iteration:  iteration,
-				Model:      model,
-			}, nil
-		},
-		RenderBuildFn: func(ctx *prompt.Context) (string, error) {
-			return "mock build prompt", nil
-		},
-	}
-
-	mockClaude := &mockClaudeClient{
-		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
-			return &claude.Result{Success: true, Output: p}, nil
 		},
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "mock output"}, nil
 		},
-	}
-
-	var buf strings.Builder
-	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-		Deps{
-			Beads:    mockBeads,
-			Router:   newMockRouterFromClaudeClient(mockClaude),
-			Analyzer: &mockFailureAnalyzer{},
-			Renderer: mockRenderer,
-			Logger:   &mockIterationLogger{},
-		})
-	if err != nil {
-		t.Fatalf("Failed to create runner: %v", err)
-	}
+		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "mock validation pass"}, nil
+		},
+	})
 
 	ctx := context.Background()
 
 	// Simulate the scope gate check in Run() (first call at runner.go:414)
-	scopeEstimate := r.checkScope(ctx, testBead)
+	scopeEstimate := h.runner.checkScope(ctx, testBead)
 	if scopeEstimate == nil {
 		t.Fatal("checkScope returned nil")
 	}
 
 	// Verify the scope gate called RenderScope once
-	renderScopeMu.Lock()
-	gateCallCount := renderScopeCallCount
-	renderScopeMu.Unlock()
+	gateCallCount := h.RenderScopeCalls()
 	if gateCallCount != 1 {
 		t.Fatalf("expected 1 RenderScope call from scope gate, got %d", gateCallCount)
 	}
@@ -121,15 +173,13 @@ func TestScopeCheckNotDuplicatedInProcessBead(t *testing.T) {
 	// Now simulate processBead which calls buildPromptForBead
 	// This is where the duplicate call currently happens (process.go:117)
 	deadline := time.Time{} // no deadline
-	result := r.processBead(ctx, testBead, 1, deadline, scopeEstimate)
+	result := h.runner.processBead(ctx, testBead, 1, deadline, scopeEstimate)
 
 	// ACCEPTANCE CRITERION: No additional RenderScope call from buildPromptForBead
 	// The current implementation calls checkScope again in process.go:117 when
 	// scopeEstimate is nil, but the fix will pass scopeEstimate from the gate
 	// into setupBeadContext and then into buildPromptForBead.
-	renderScopeMu.Lock()
-	finalCount := renderScopeCallCount
-	renderScopeMu.Unlock()
+	finalCount := h.RenderScopeCalls()
 	if finalCount != 1 {
 		t.Errorf("expected exactly 1 RenderScope call (scope gate only), got %d (processBead called checkScope again)", finalCount)
 	}
@@ -161,30 +211,15 @@ func TestSetupBeadContextAcceptsScopeEstimate(t *testing.T) {
 		Blockers:                     []string{},
 	}
 
-	mockBeads := &mockBeadClient{
-		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
-			return nil, nil
-		},
-	}
-
-	var buf strings.Builder
-	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-		Deps{
-			Beads:    mockBeads,
-			Router:   newMockRouter(),
-			Analyzer: &mockFailureAnalyzer{},
-			Renderer: &mockPromptRenderer{},
-			Logger:   &mockIterationLogger{},
-		})
-	if err != nil {
-		t.Fatalf("Failed to create runner: %v", err)
-	}
+	h := newScopeCheckDedupHarness(t, cfg, estimate, scopeCheckDedupHarnessOptions{
+		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) { return nil, nil },
+	})
 
 	ctx := context.Background()
 	deadline := time.Time{} // no deadline
 
 	// Call setupBeadContext with a scopeEstimate
-	bc, _, cancel, err := r.setupBeadContext(ctx, testBead, 1, deadline, estimate)
+	bc, _, cancel, err := h.runner.setupBeadContext(ctx, testBead, 1, deadline, estimate)
 	defer cancel()
 	if err != nil {
 		t.Fatalf("setupBeadContext error: %v", err)
@@ -215,109 +250,47 @@ func TestScopeCheckReclassified_CachedEstimateSkipsDuplicateInvocation(t *testin
 		ExpectedOutputs: []string{},
 	}
 
-	// Pre-computed estimate (from scope gate)
-	cachedEstimate := &prompt.ScopeEstimate{
-		Complexity:                   "medium",
-		EstimatedIterations:          1,
-		CanCompleteInSingleIteration: true,
-		Blockers:                     []string{},
+	cases := []struct {
+		name          string
+		complexity    string
+		expectedModel string
+	}{
+		{name: "cached estimate does not re-check scope", complexity: "medium", expectedModel: "sonnet"},
+		{name: "cached high complexity escalates", complexity: "high", expectedModel: "opus"},
 	}
 
-	mockBeads := &mockBeadClient{
-		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
-			return nil, nil
-		},
-	}
-
-	// Track RenderScope calls
-	var renderScopeMu sync.Mutex
-	renderScopeCallCount := 0
-	mockRenderer := &mockPromptRenderer{
-		RenderScopeFn: func(ctx *prompt.ScopeContext) (string, error) {
-			renderScopeMu.Lock()
-			renderScopeCallCount++
-			renderScopeMu.Unlock()
-			// This should not be called when estimate is cached
-			data, err := json.Marshal(cachedEstimate)
-			if err != nil {
-				t.Fatalf("failed to marshal scope estimate: %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			estimate := &prompt.ScopeEstimate{
+				Complexity:                   tc.complexity,
+				EstimatedIterations:          1,
+				CanCompleteInSingleIteration: true,
+				Blockers:                     []string{},
 			}
-			return string(data), nil
-		},
-		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
-			return &prompt.Context{
-				Bead:       b,
-				ParentBead: parent,
-				Iteration:  iteration,
-				Model:      model,
-			}, nil
-		},
-		RenderBuildFn: func(ctx *prompt.Context) (string, error) {
-			return "mock build prompt", nil
-		},
-	}
+			h := newScopeCheckDedupHarness(t, cfg, estimate, scopeCheckDedupHarnessOptions{
+				GetParentFn: func(b *bead.Bead) (*bead.Bead, error) { return nil, nil },
+			})
+			ctx := context.Background()
 
-	var buf strings.Builder
-	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-		Deps{
-			Beads:    mockBeads,
-			Router:   newMockRouter(),
-			Analyzer: &mockFailureAnalyzer{},
-			Renderer: mockRenderer,
-			Logger:   &mockIterationLogger{},
+			bc := &runtypes.BeadContext{
+				Bead:          testBead,
+				Parent:        nil,
+				Result:        &IterationResult{Model: "sonnet"},
+				Model:         "sonnet",
+				ScopeEstimate: estimate,
+			}
+
+			if err := h.runner.buildPromptForBead(ctx, bc, 1); err != nil {
+				t.Fatalf("buildPromptForBead error: %v", err)
+			}
+
+			if h.RenderScopeCalls() != 0 {
+				t.Errorf("expected 0 RenderScope calls (estimate cached), got %d", h.RenderScopeCalls())
+			}
+			if bc.Model != tc.expectedModel {
+				t.Errorf("expected model %q, got %s", tc.expectedModel, bc.Model)
+			}
 		})
-	if err != nil {
-		t.Fatalf("Failed to create runner: %v", err)
-	}
-
-	ctx := context.Background()
-
-	// Create a BeadContext with cached ScopeEstimate
-	bc := &runtypes.BeadContext{
-		Bead:          testBead,
-		Parent:        nil,
-		Result:        &IterationResult{Model: "sonnet"},
-		Model:         "sonnet",
-		ScopeEstimate: cachedEstimate, // Pre-populated from scope gate
-	}
-
-	// Call buildPromptForBead with cached estimate
-	err = r.buildPromptForBead(ctx, bc, 1)
-	if err != nil {
-		t.Fatalf("buildPromptForBead error: %v", err)
-	}
-
-	// ACCEPTANCE CRITERION: RenderScope should NOT be called because estimate is cached
-	// The current implementation at process.go:117 calls checkScope regardless of
-	// whether bc.ScopeEstimate is set. The fix will check if bc.ScopeEstimate != nil
-	// before calling checkScope.
-	renderScopeMu.Lock()
-	finalCount := renderScopeCallCount
-	renderScopeMu.Unlock()
-	if finalCount != 0 {
-		t.Errorf("expected 0 RenderScope calls (estimate cached), got %d", finalCount)
-	}
-
-	// ACCEPTANCE CRITERION: Auto-escalation should use the cached estimate
-	// If complexity is "high", model should be escalated to opus using cached data
-	bc.ScopeEstimate.Complexity = "high"
-	bc.Model = "sonnet" // Reset model
-	err = r.buildPromptForBead(ctx, bc, 1)
-	if err != nil {
-		t.Fatalf("buildPromptForBead error on retry: %v", err)
-	}
-
-	// Model should be escalated based on cached complexity without calling checkScope
-	if bc.Model != "opus" {
-		t.Errorf("expected model escalated to opus based on cached complexity=high, got %s", bc.Model)
-	}
-
-	// Verify still no additional RenderScope calls
-	renderScopeMu.Lock()
-	finalCount = renderScopeCallCount
-	renderScopeMu.Unlock()
-	if finalCount != 0 {
-		t.Errorf("expected 0 RenderScope calls (cached for escalation too), got %d", finalCount)
 	}
 }
 
@@ -351,43 +324,13 @@ func TestProcessBeadReceivesScopeEstimateFromRun(t *testing.T) {
 		Blockers:                     []string{},
 	}
 
-	mockBeads := &mockBeadClient{
+	h := newScopeCheckDedupHarness(t, cfg, estimate, scopeCheckDedupHarnessOptions{
 		ReadyFn: func() (*bead.Bead, error) {
 			return testBead, nil
 		},
 		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
 			return nil, nil
 		},
-	}
-
-	var renderScopeMu sync.Mutex
-	renderScopeCallCount := 0
-	mockRenderer := &mockPromptRenderer{
-		RenderScopeFn: func(ctx *prompt.ScopeContext) (string, error) {
-			renderScopeMu.Lock()
-			renderScopeCallCount++
-			renderScopeMu.Unlock()
-			data, err := json.Marshal(estimate)
-			if err != nil {
-				t.Fatalf("failed to marshal scope estimate: %v", err)
-			}
-			return string(data), nil
-		},
-		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
-			return &prompt.Context{
-				Bead:       b,
-				ParentBead: parent,
-				Iteration:  iteration,
-				Model:      model,
-			}, nil
-		},
-		RenderBuildFn: func(ctx *prompt.Context) (string, error) {
-			return "mock build prompt", nil
-		},
-	}
-
-	// Mock Claude to succeed quickly so we can verify scope check call count
-	mockClaude := &mockClaudeClient{
 		RunFn: func(ctx context.Context, p string, model string) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: p}, nil
 		},
@@ -397,25 +340,12 @@ func TestProcessBeadReceivesScopeEstimateFromRun(t *testing.T) {
 		RunValidationFn: func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "mock validation pass"}, nil
 		},
-	}
-
-	var buf strings.Builder
-	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-		Deps{
-			Beads:    mockBeads,
-			Router:   newMockRouterFromClaudeClient(mockClaude),
-			Analyzer: &mockFailureAnalyzer{},
-			Renderer: mockRenderer,
-			Logger:   &mockIterationLogger{},
-		})
-	if err != nil {
-		t.Fatalf("Failed to create runner: %v", err)
-	}
+	})
 
 	ctx := context.Background()
 
 	// Run a single iteration (max 1 iteration)
-	err = r.Run(ctx, 1, time.Time{}, nil, false)
+	err := h.runner.Run(ctx, 1, time.Time{}, nil, false)
 	if err != nil {
 		// Errors are expected in test setup (e.g., git operations), don't fail
 		t.Logf("Run error (expected in test): %v", err)
@@ -423,9 +353,7 @@ func TestProcessBeadReceivesScopeEstimateFromRun(t *testing.T) {
 
 	// ACCEPTANCE CRITERION: RenderScope should be called exactly once
 	// (from scope gate only, not from buildPromptForBead)
-	renderScopeMu.Lock()
-	finalCount := renderScopeCallCount
-	renderScopeMu.Unlock()
+	finalCount := h.RenderScopeCalls()
 	if finalCount != 1 {
 		t.Errorf("expected exactly 1 RenderScope call (scope gate only), got %d", finalCount)
 	}
@@ -458,38 +386,23 @@ func TestProcessBeadSignatureIncludesScopeEstimate(t *testing.T) {
 		CanCompleteInSingleIteration: true,
 		Blockers:                     []string{},
 	}
-
-	mockBeads := &mockBeadClient{
+	h := newScopeCheckDedupHarness(t, cfg, nil, scopeCheckDedupHarnessOptions{
 		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
 			return nil, nil
 		},
-	}
-
-	mockClaude := &mockClaudeClient{
+		RenderScopeFn: func(ctx *prompt.ScopeContext) (string, error) {
+			return "", nil
+		},
+		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+			return &prompt.Context{}, nil
+		},
+		RenderBuildFn: func(ctx *prompt.Context) (string, error) {
+			return "mock", nil
+		},
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
 			return &claude.Result{Success: true, Output: "mock output"}, nil
 		},
-	}
-
-	var buf strings.Builder
-	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-		Deps{
-			Beads:    mockBeads,
-			Router:   newMockRouterFromClaudeClient(mockClaude),
-			Analyzer: &mockFailureAnalyzer{},
-			Renderer: &mockPromptRenderer{
-				BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
-					return &prompt.Context{}, nil
-				},
-				RenderBuildFn: func(ctx *prompt.Context) (string, error) {
-					return "mock", nil
-				},
-			},
-			Logger: &mockIterationLogger{},
-		})
-	if err != nil {
-		t.Fatalf("Failed to create runner: %v", err)
-	}
+	})
 
 	ctx := context.Background()
 	deadline := time.Time{}
@@ -497,7 +410,7 @@ func TestProcessBeadSignatureIncludesScopeEstimate(t *testing.T) {
 	// ACCEPTANCE CRITERION: This call should compile with scopeEstimate parameter
 	// The current processBead signature doesn't accept scopeEstimate, so this will
 	// fail to compile. The fix will add the parameter.
-	result := r.processBead(ctx, testBead, 1, deadline, estimate)
+	result := h.runner.processBead(ctx, testBead, 1, deadline, estimate)
 
 	// Basic verification that processBead ran
 	if result == nil {

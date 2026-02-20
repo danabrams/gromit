@@ -77,6 +77,34 @@ func setupTwoProviderConfig(t *testing.T) *config.Config {
 	return cfg
 }
 
+func newRouterFromConfig(t *testing.T, cfg *config.Config) *Runner {
+	t.Helper()
+
+	runner, err := NewRunner(cfg, os.Stdout)
+	if err != nil {
+		t.Fatalf("NewRunner() error = %v", err)
+	}
+	if runner.router == nil {
+		t.Fatal("expected runner.router to be non-nil")
+	}
+	return runner
+}
+
+func assertRouterSelection(t *testing.T, runner *Runner, phase string, tier string, expectedProvider string, expectedModel string) {
+	t.Helper()
+
+	p, model := runner.router.Select(phase, tier)
+	if p == nil {
+		t.Fatalf("router.Select(%q, %q) returned nil provider", phase, tier)
+	}
+	if expectedProvider != "" && p.Name() != expectedProvider {
+		t.Fatalf("router.Select(%q, %q) provider = %q, want %q", phase, tier, p.Name(), expectedProvider)
+	}
+	if expectedModel != "" && model != expectedModel {
+		t.Errorf("router.Select(%q, %q) model = %q, want %q", phase, tier, model, expectedModel)
+	}
+}
+
 // TestNewRunnerBuildRouterFromTwoProviderConfig verifies that NewRunner()
 // constructs a functional multi-provider router when cfg.HasProviders() is true
 // with two providers defined.
@@ -90,15 +118,7 @@ func TestNewRunnerBuildRouterFromTwoProviderConfig(t *testing.T) {
 		t.Fatal("expected cfg.HasProviders() to be true for two-provider config")
 	}
 
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
-
-	// After implementation, the router must be non-nil and functional
-	if runner.router == nil {
-		t.Fatal("expected runner.router to be non-nil when providers config is present")
-	}
+	runner := newRouterFromConfig(t, cfg)
 
 	// The router should be able to select a provider for each configured phase
 	for _, phase := range []string{"build", "validate", "analyze", "review"} {
@@ -119,13 +139,7 @@ func TestNewRunnerBuildRouterFromTwoProviderConfig(t *testing.T) {
 func TestBuildRouterReclassified_PhasePreferenceRouting(t *testing.T) {
 	cfg := setupTwoProviderConfig(t)
 
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
-	if runner.router == nil {
-		t.Fatal("expected router to be non-nil")
-	}
+	runner := newRouterFromConfig(t, cfg)
 
 	tests := []struct {
 		phase         string
@@ -143,18 +157,7 @@ func TestBuildRouterReclassified_PhasePreferenceRouting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.phase+"_"+tt.tier, func(t *testing.T) {
-			p, model := runner.router.Select(tt.phase, tt.tier)
-			if p == nil {
-				t.Fatal("Select returned nil provider")
-			}
-			if p.Name() != tt.expectedProv {
-				t.Errorf("Select(%q, %q) provider = %q, want %q",
-					tt.phase, tt.tier, p.Name(), tt.expectedProv)
-			}
-			if model != tt.expectedModel {
-				t.Errorf("Select(%q, %q) model = %q, want %q",
-					tt.phase, tt.tier, model, tt.expectedModel)
-			}
+			assertRouterSelection(t, runner, tt.phase, tt.tier, tt.expectedProv, tt.expectedModel)
 		})
 	}
 }
@@ -166,13 +169,7 @@ func TestBuildRouterReclassified_PhasePreferenceRouting(t *testing.T) {
 func TestNewRunnerRouterUsesRatioForAnyPhases(t *testing.T) {
 	cfg := setupTwoProviderConfig(t)
 
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
-	if runner.router == nil {
-		t.Fatal("expected router to be non-nil")
-	}
+	runner := newRouterFromConfig(t, cfg)
 
 	// "validate" is configured as "any" — the ratio balancer should pick a provider.
 	// With a fresh router (0 counts), the provider furthest below its ratio target
@@ -217,13 +214,7 @@ func TestBuildRouterReclassified_CooldownParsing(t *testing.T) {
 	cfg := setupTwoProviderConfig(t)
 	// Fallback.Cooldown is "30m" in setupTwoProviderConfig
 
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
-	if runner.router == nil {
-		t.Fatal("expected router to be non-nil")
-	}
+	runner := newRouterFromConfig(t, cfg)
 
 	// Select both providers to verify they're available initially
 	p1, _ := runner.router.Select("build", provider.TierMedium) // claude preferred
@@ -264,10 +255,7 @@ func TestNewRunnerWiresLearningsFilterWithDefaultProvider(t *testing.T) {
 		t.Fatalf("failed to create LEARNINGS.md: %v", err)
 	}
 
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
+	runner := newRouterFromConfig(t, cfg)
 
 	// When the TODO is implemented, the analyzer should be created using
 	// the default provider (claude when present), not the fallback ClaudeClientAdapter.
@@ -288,46 +276,17 @@ func TestNewRunnerWiresLearningsFilterWithDefaultProvider(t *testing.T) {
 // Expected failure: The TODO at runner.go:103 is not implemented - the
 // HasProviders() branch does not construct a router.
 func TestNewRunnerSingleClaudeProviderConfig(t *testing.T) {
-	tmpDir := t.TempDir()
-	templatesDir := filepath.Join(tmpDir, ".gromit", "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatalf("failed to create templates dir: %v", err)
-	}
-
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 300,
+	cfg := setupSingleProviderConfig(t, "claude", config.ProviderDef{
+		Binary:         "claude",
+		Flags:          []string{"--no-input"},
+		PromptDelivery: "stdin",
+		Models: map[string]string{
+			"high":   "opus",
+			"medium": "sonnet",
+			"low":    "haiku",
 		},
-		Paths: config.PathsConfig{
-			Templates: templatesDir,
-		},
-		Models: config.ModelsConfig{
-			Validation: "low",
-		},
-		Providers: map[string]config.ProviderDef{
-			"claude": {
-				Binary:         "claude",
-				Flags:          []string{"--no-input"},
-				PromptDelivery: "stdin",
-				Models: map[string]string{
-					"high":   "opus",
-					"medium": "sonnet",
-					"low":    "haiku",
-				},
-			},
-		},
-		Routing: config.RoutingConfig{
-			Ratio: map[string]int{"claude": 100},
-		},
-	}
-	cfg.SetDefaults()
-	cfg.NormalizeNilFields()
-
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
+	})
+	runner := newRouterFromConfig(t, cfg)
 
 	if runner.router == nil {
 		t.Fatal("expected router to be non-nil for single-provider config via HasProviders() path")
@@ -352,50 +311,18 @@ func TestNewRunnerSingleClaudeProviderConfig(t *testing.T) {
 // Expected failure: The TODO at runner.go:103 is not implemented - router is nil,
 // and no CodexProvider is constructed from config.
 func TestNewRunnerCodexProviderTierMapping(t *testing.T) {
-	tmpDir := t.TempDir()
-	templatesDir := filepath.Join(tmpDir, ".gromit", "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatalf("failed to create templates dir: %v", err)
-	}
-
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 300,
+	cfg := setupSingleProviderConfig(t, "openai", config.ProviderDef{
+		Binary:         "codex",
+		Flags:          []string{},
+		PromptDelivery: "prompt_file_arg",
+		PromptFlag:     "--prompt",
+		Models: map[string]string{
+			"high":   "o3",
+			"medium": "gpt-4o",
+			"low":    "gpt-4o-mini",
 		},
-		Paths: config.PathsConfig{
-			Templates: templatesDir,
-		},
-		Models: config.ModelsConfig{
-			Validation: "low",
-		},
-		Providers: map[string]config.ProviderDef{
-			"openai": {
-				Binary:         "codex",
-				Flags:          []string{},
-				PromptDelivery: "prompt_file_arg",
-				PromptFlag:     "--prompt",
-				Models: map[string]string{
-					"high":   "o3",
-					"medium": "gpt-4o",
-					"low":    "gpt-4o-mini",
-				},
-			},
-		},
-		Routing: config.RoutingConfig{
-			Ratio: map[string]int{"openai": 100},
-		},
-	}
-	cfg.SetDefaults()
-	cfg.NormalizeNilFields()
-
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
-	if runner.router == nil {
-		t.Fatal("expected router to be non-nil for codex-only provider config")
-	}
+	})
+	runner := newRouterFromConfig(t, cfg)
 
 	tests := []struct {
 		tier          string
@@ -408,16 +335,7 @@ func TestNewRunnerCodexProviderTierMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.tier, func(t *testing.T) {
-			p, model := runner.router.Select("build", tt.tier)
-			if p == nil {
-				t.Fatal("Select returned nil provider")
-			}
-			if p.Name() != "codex" {
-				t.Errorf("Select returned provider %q, want 'codex'", p.Name())
-			}
-			if model != tt.expectedModel {
-				t.Errorf("Select(%q) model = %q, want %q", tt.tier, model, tt.expectedModel)
-			}
+			assertRouterSelection(t, runner, "build", tt.tier, "codex", tt.expectedModel)
 		})
 	}
 }
@@ -441,13 +359,7 @@ func TestNewRunnerRouterUsesStateFileForCounts(t *testing.T) {
 		t.Fatalf("failed to write state.json: %v", err)
 	}
 
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
-	if runner.router == nil {
-		t.Fatal("expected router to be non-nil")
-	}
+	runner := newRouterFromConfig(t, cfg)
 
 	// With counts claude:10, openai:5, the ratio target is 60/40.
 	// Current actual: claude=66.7%, openai=33.3%.
@@ -525,13 +437,7 @@ func TestNewRunnerCooldownParsing(t *testing.T) {
 			cfg.SetDefaults()
 			cfg.NormalizeNilFields()
 
-			runner, err := NewRunner(cfg, os.Stdout)
-			if err != nil {
-				t.Fatalf("NewRunner() error = %v", err)
-			}
-			if runner.router == nil {
-				t.Fatal("expected router to be non-nil")
-			}
+			runner := newRouterFromConfig(t, cfg)
 
 			// Mark claude unavailable, then verify it stays unavailable
 			// (the cooldown should be the configured duration, not 0)
@@ -562,13 +468,7 @@ func TestNewRunnerCooldownParsing(t *testing.T) {
 func TestNewRunnerRouterProviderNames(t *testing.T) {
 	cfg := setupTwoProviderConfig(t)
 
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
-	if runner.router == nil {
-		t.Fatal("expected router to be non-nil")
-	}
+	runner := newRouterFromConfig(t, cfg)
 
 	// Select the build phase (prefers claude) to verify claude provider exists
 	pClaude, _ := runner.router.Select("build", provider.TierMedium)
@@ -602,13 +502,7 @@ func TestNewRunnerRouterProviderNames(t *testing.T) {
 func TestNewRunnerRouterAllTierMappingsForBothProviders(t *testing.T) {
 	cfg := setupTwoProviderConfig(t)
 
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
-	if runner.router == nil {
-		t.Fatal("expected router to be non-nil")
-	}
+	runner := newRouterFromConfig(t, cfg)
 
 	// Test claude provider tier mappings via phase preferences (build prefers claude)
 	claudeTests := []struct {
@@ -682,10 +576,7 @@ func TestNewRunnerRouterAnalyzerUsesClaudeAsDefault(t *testing.T) {
 		t.Fatalf("failed to create LEARNINGS.md: %v", err)
 	}
 
-	runner, err := NewRunner(cfg, os.Stdout)
-	if err != nil {
-		t.Fatalf("NewRunner() error = %v", err)
-	}
+	runner := newRouterFromConfig(t, cfg)
 
 	// Both router and analyzer must be non-nil
 	if runner.router == nil {
