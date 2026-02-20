@@ -9,9 +9,6 @@ import (
 // TestReady_UsesLimit3 verifies that Ready() calls bd with --limit 3 instead of --limit 10.
 // This reduces the number of beads fetched and parsed when filtering out epics.
 func TestReady_UsesLimit3(t *testing.T) {
-	// Expected failure: Ready() currently uses --limit 10 at bead.go:197
-	// This test verifies the command args contain --limit 3 instead
-
 	var capturedArgs []string
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
@@ -54,9 +51,6 @@ func TestReady_UsesLimit3(t *testing.T) {
 // TestReadyWithLabel_UsesLimit3 verifies that ReadyWithLabel() uses --limit 3
 // for consistency with Ready().
 func TestReadyWithLabel_UsesLimit3(t *testing.T) {
-	// Expected failure: ReadyWithLabel() currently uses --limit 10 at bead.go:298
-	// For consistency, it should use the same batch size as Ready()
-
 	var capturedArgs []string
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
@@ -93,9 +87,6 @@ func TestReadyWithLabel_UsesLimit3(t *testing.T) {
 // TestReady_StillFiltersEpicsCorrectly verifies that reducing the batch size
 // from 10 to 3 does not break epic filtering behavior.
 func TestReady_StillFiltersEpicsCorrectly(t *testing.T) {
-	// Expected failure: This test verifies the behavior remains correct with --limit 3.
-	// If the first 3 results are all epics, Ready() should return nil (not error).
-
 	testCases := []struct {
 		name         string
 		bdOutput     string

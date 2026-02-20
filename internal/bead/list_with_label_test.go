@@ -116,10 +116,15 @@ func TestListWithLabel_ValidLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			gotArgs = nil
+
 			_, err := c.ListWithLabel(tt.label)
 			if err != nil {
 				t.Errorf("ListWithLabel(%q) unexpected error: %v", tt.label, err)
 				return
+			}
+			if len(gotArgs) == 0 {
+				t.Fatalf("ListWithLabel(%q) did not invoke RunFn", tt.label)
 			}
 			want := []string{"list", "--json", "--label", tt.label, "--sort", "priority", "--all", "--limit", "0"}
 			if !hasSubsequence(gotArgs, want) {

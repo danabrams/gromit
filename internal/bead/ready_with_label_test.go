@@ -113,6 +113,8 @@ func TestReadyWithLabel_ValidLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			gotArgs = nil
+
 			_, err := c.ReadyWithLabel(tt.label)
 			if err != nil {
 				t.Errorf("ReadyWithLabel(%q) unexpected error: %v", tt.label, err)
