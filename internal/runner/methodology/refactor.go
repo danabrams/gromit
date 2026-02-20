@@ -192,16 +192,16 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 		e.log("Warning: refactorInvokeFn not configured, skipping refactor")
 		return nil
 	}
-	claudeResult, stats, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
+	refactorResult, refactorStats, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		e.log("Warning: refactor invocation failed: %v", err)
 		return nil
 	}
-	if claudeResult == nil || !claudeResult.Success {
+	if refactorResult == nil || !refactorResult.Success {
 		e.log("Warning: refactor phase failed")
 		return nil
 	}
-	e.applyRefactorStreamStats(bc, stats)
+	e.applyRefactorStreamStats(bc, refactorStats)
 
 	e.log("Refactor phase complete, re-validating...")
 
@@ -216,11 +216,7 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 		return nil
 	}
 
-	if diff, diffErr := e.getDiffFn(bc.StartCommit); diffErr == nil {
-		if touched := DetectTouchedPackages(diff); len(touched) > 0 {
-			bc.TouchedPackages = touched
-		}
-	}
+	e.updateTouchedPackagesFromDiff(bc)
 
 	validationCommands := config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
 	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
@@ -246,6 +242,24 @@ func (e *Executor) applyRefactorStreamStats(bc *runtypes.BeadContext, stats *log
 	bc.Result.CostUSD += costUSD
 	bc.Result.InputTokens += inputTokens
 	bc.Result.OutputTokens += outputTokens
+}
+
+func (e *Executor) updateTouchedPackagesFromDiff(bc *runtypes.BeadContext) bool {
+	if e.getDiffFn == nil || bc == nil {
+		return false
+	}
+
+	diff, err := e.getDiffFn(bc.StartCommit)
+	if err != nil {
+		return false
+	}
+
+	if touched := DetectTouchedPackages(diff); len(touched) > 0 {
+		bc.TouchedPackages = touched
+		return true
+	}
+
+	return false
 }
 
 // handleRefactorValidationFailure reverts the refactor changes and retries once.
@@ -281,12 +295,12 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 	if e.refactorInvokeFn == nil {
 		return nil
 	}
-	claudeResult, _, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
+	retryResult, _, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		e.log("Warning: retry refactor invocation failed: %v - skipping refactoring", err)
 		return nil
 	}
-	if claudeResult == nil || !claudeResult.Success {
+	if retryResult == nil || !retryResult.Success {
 		e.log("Warning: retry refactor failed - skipping refactoring")
 		return nil
 	}
@@ -297,11 +311,8 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 		return nil
 	}
 	validationCommands := config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
-	if diff, diffErr := e.getDiffFn(bc.StartCommit); diffErr == nil {
-		if touched := DetectTouchedPackages(diff); len(touched) > 0 {
-			bc.TouchedPackages = touched
-			validationCommands = config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
-		}
+	if e.updateTouchedPackagesFromDiff(bc) {
+		validationCommands = config.ScopeGoTestCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
 	}
 	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
 
