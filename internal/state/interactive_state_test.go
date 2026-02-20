@@ -3,6 +3,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -679,6 +680,64 @@ func TestInteractiveFilePendingWorktreeBranchesFileLocking(t *testing.T) {
 	branchSet := pendingBranchSet(branches)
 	if len(branchSet) != 2 || !branchSet["feature/a"] || !branchSet["feature/b"] {
 		t.Fatalf("pending branches = %v, want feature/a and feature/b", branches)
+	}
+}
+
+func TestInteractiveFilePendingWorktreeBranchesFileLockingConcurrentAdds(t *testing.T) {
+	dir := t.TempDir()
+	branchesToAdd := []string{
+		"feature/a",
+		"feature/b",
+		"feature/a",
+		"feature/c",
+		"feature/d",
+		"feature/b",
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(branchesToAdd))
+
+	for _, branch := range branchesToAdd {
+		wg.Add(1)
+		branch := branch
+		go func() {
+			defer wg.Done()
+			f, err := NewInteractiveFile(dir)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if err := f.AddPendingWorktreeBranch(branch); err != nil {
+				errCh <- err
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("AddPendingWorktreeBranch: %v", err)
+		}
+	}
+
+	f, _ := NewInteractiveFile(dir)
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+
+	branchSet := pendingBranchSet(branches)
+	if len(branchSet) != 4 {
+		t.Fatalf("expected 4 unique branches, got %d (%v)", len(branchSet), branches)
+	}
+
+	expected := []string{"feature/a", "feature/b", "feature/c", "feature/d"}
+	for _, branch := range expected {
+		if !branchSet[branch] {
+			t.Fatalf("pending branches missing %q: %v", branch, branches)
+		}
 	}
 }
 
