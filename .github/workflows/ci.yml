@@ -33,6 +33,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Shared-state guard + top-5 package tests
+        run: make test-parallel-safe-top5
+
       - name: Unit tests
         run: make test-unit
 

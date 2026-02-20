@@ -1,4 +1,4 @@
-.PHONY: build install install-skill lint install-hooks test-touched test-timing test-acceptance-timing test-profile test-unit test-acceptance test-e2e-live test-ci
+.PHONY: build install install-skill lint install-hooks shared-state-guard test-parallel-safe-top5 test-touched test-timing test-acceptance-timing test-profile test-unit test-acceptance test-e2e-live test-ci
 
 GOLANGCI_LINT_VERSION := $(shell cat .golangci-version)
 
@@ -21,6 +21,12 @@ install-hooks:
 	@echo "Installed git hooks path: .githooks"
 	@echo "Pinned golangci-lint version: $(GOLANGCI_LINT_VERSION)"
 
+shared-state-guard:
+	./scripts/check_shared_state_test_calls.sh
+
+test-parallel-safe-top5: shared-state-guard
+	go test ./internal/runner ./cmd/gromit ./internal/provider ./test/testutil ./internal/bead
+
 test-touched:
 	./scripts/test_touched.sh
 
@@ -42,4 +48,4 @@ test-acceptance:
 test-e2e-live:
 	./scripts/test_e2e_live.sh
 
-test-ci: test-unit test-acceptance
+test-ci: test-parallel-safe-top5 test-unit test-acceptance

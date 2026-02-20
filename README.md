@@ -89,6 +89,7 @@ make install-hooks
 ```bash
 make test-touched  # Run go test only for packages touched in current git diff
 make test-timing   # Run go test -json, print slowest tests/packages, enforce package budgets
+make test-parallel-safe-top5  # Guard shared-state calls and test the top 5 packages in one command
 ```
 
 `make test-timing` uses `scripts/test_package_budgets.txt` and defaults to a 45s budget for packages without an explicit override.
