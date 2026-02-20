@@ -124,7 +124,16 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 					return nil
 				},
 				ValidateFn: func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
-					result, err := r.runDirectValidationCheck(ctx, commands, workDir)
+					validationCommands := commands
+					if len(validationCommands) == 0 && r.cfg != nil {
+						validationCommands = r.cfg.Validation.FastCommandsOrDefault()
+					}
+					validationWorkDir := workDir
+					if strings.TrimSpace(validationWorkDir) == "" && activeBC != nil && activeBC.PromptCtx != nil {
+						validationWorkDir = activeBC.PromptCtx.WorkDir
+					}
+
+					result, err := r.runDirectValidationCheck(ctx, validationCommands, validationWorkDir)
 					if err != nil {
 						return "", false, err
 					}

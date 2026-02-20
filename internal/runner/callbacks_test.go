@@ -12,7 +12,10 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
 func assertPromptDiagnosticsReconciled(t *testing.T, diag *prompt.PromptDiagnostics, reportedTokens, tokenDelta int) {
@@ -205,5 +208,188 @@ func TestMakeMethodologyExec_WiresCoverageValidationCallbackAtLowTier(t *testing
 	}
 	if gotTier != provider.TierLow {
 		t.Fatalf("coverage validation tier = %q, want %q", gotTier, provider.TierLow)
+	}
+}
+
+func TestMakeTDDOrchestrator_CoverageTrackerFlow(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		covers            bool
+		maxRejections     int
+		wantCovered       int
+		wantUntestable    int
+		wantCoveredNumber int
+		wantUntestableID  int
+	}{
+		{
+			name:              "marks_criterion_covered",
+			covers:            true,
+			maxRejections:     2,
+			wantCovered:       1,
+			wantUntestable:    0,
+			wantCoveredNumber: 2,
+		},
+		{
+			name:             "records_rejection_for_targeted_criterion",
+			covers:           false,
+			maxRejections:    1,
+			wantCovered:      0,
+			wantUntestable:   1,
+			wantUntestableID: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Methodology: config.MethodologyConfig{
+					MaxTDDCycles: 1,
+				},
+				Validation: config.ValidationConfig{
+					Enabled:  true,
+					Commands: []string{"go test ./internal/runner/..."},
+				},
+			}
+			cfg.SetDefaults()
+			cfg.NormalizeNilFields()
+
+			var redSpecExcerpt string
+			renderer := &mockPromptRenderer{
+				RenderTDDRedFn: func(ctx *prompt.TDDRedContext) (string, error) {
+					redSpecExcerpt = ctx.SpecExcerpt
+					return "red-prompt", nil
+				},
+				RenderTDDGreenFn: func(ctx *prompt.TDDGreenContext) (string, error) {
+					return "green-prompt", nil
+				},
+			}
+
+			invocations := 0
+			mockProvider := &mockProviderWithRouterTracking{
+				streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+					invocations++
+					if invocations == 1 {
+						return &provider.Result{
+							Success: true,
+							Output:  `{"targeting": 2, "remaining": [1]}`,
+						}, nil
+					}
+					return &provider.Result{
+						Success: true,
+						Output:  `{"targeting": 2, "remaining": []}`,
+					}, nil
+				},
+			}
+			router := provider.NewSingleProviderRouter(mockProvider)
+
+			workDir := t.TempDir()
+			commandCalls := 0
+			var seenCommands []string
+			var seenWorkDirs []string
+			cmdRunner := func(ctx context.Context, command string, validationWorkDir string) (string, string, int, error) {
+				commandCalls++
+				seenCommands = append(seenCommands, command)
+				seenWorkDirs = append(seenWorkDirs, validationWorkDir)
+				if commandCalls == 1 {
+					return "", "red failed as expected", 1, nil
+				}
+				return "ok", "", 0, nil
+			}
+
+			methExec := methodology.NewExecutor(cfg, io.Discard, nil, nil, nil)
+			coverageCalls := 0
+			gotCriterion := coverage.Criterion{}
+			methExec.SetCoverageValidateFn(func(ctx context.Context, testCode string, criterion coverage.Criterion) (*coverage.ValidationResponse, error) {
+				coverageCalls++
+				gotCriterion = criterion
+				return &coverage.ValidationResponse{Covers: tt.covers, Reason: "test"}, nil
+			})
+
+			r := &Runner{
+				cfg:               cfg,
+				router:            router,
+				invoker:           newInvokerForTest(router, io.Discard, nil),
+				renderer:          renderer,
+				output:            io.Discard,
+				methodologyExec:   methExec,
+				validationRunner:  validation.NewRunner(cfg, cmdRunner, nil, nil),
+				escalationHandler: escalation.NewHandler(cfg, nil, nil, nil, nil, nil, nil),
+			}
+
+			bc := &runtypes.BeadContext{
+				Bead: &bead.Bead{
+					ID:              "tdd-cov-1",
+					Title:           "coverage run",
+					ExpectedOutputs: []string{"criterion one", "criterion two"},
+				},
+				Tier:      provider.TierLow,
+				PromptCtx: &prompt.Context{WorkDir: workDir},
+				Result:    &runtypes.IterationResult{},
+				ParentCtx: context.Background(),
+			}
+			criteria := []coverage.Criterion{
+				{Number: 1, Text: "criterion one"},
+				{Number: 2, Text: "criterion two"},
+			}
+			tracker := coverage.NewTracker(criteria, tt.maxRejections)
+
+			orch := r.makeTDDOrchestrator()
+			if err := orch.RunCycles(context.Background(), bc, tracker, criteria); err != nil {
+				t.Fatalf("RunCycles returned error: %v", err)
+			}
+
+			if !strings.Contains(redSpecExcerpt, "## Coverage State") {
+				t.Fatalf("red phase spec excerpt missing coverage state: %q", redSpecExcerpt)
+			}
+			if !strings.Contains(redSpecExcerpt, "Targeting criterion #1") {
+				t.Fatalf("red phase spec excerpt missing first-target criterion: %q", redSpecExcerpt)
+			}
+			if coverageCalls != 1 {
+				t.Fatalf("ValidateCoverage calls = %d, want 1", coverageCalls)
+			}
+			if gotCriterion.Number != 2 {
+				t.Fatalf("ValidateCoverage criterion number = %d, want 2 (from self-report targeting)", gotCriterion.Number)
+			}
+			if commandCalls < 3 {
+				t.Fatalf("validation command calls = %d, want at least 3 (red + green + final)", commandCalls)
+			}
+			if len(seenCommands) != commandCalls {
+				t.Fatalf("seen commands count = %d, want %d", len(seenCommands), commandCalls)
+			}
+			for i, command := range seenCommands {
+				if command != "go test ./internal/runner/..." {
+					t.Fatalf("validation command[%d] = %q, want configured default command", i, command)
+				}
+			}
+			for i, seenWorkDir := range seenWorkDirs {
+				if seenWorkDir != workDir {
+					t.Fatalf("validation workDir[%d] = %q, want %q", i, seenWorkDir, workDir)
+				}
+			}
+			if len(tracker.CoveredCriteria()) != tt.wantCovered {
+				t.Fatalf("covered criteria count = %d, want %d", len(tracker.CoveredCriteria()), tt.wantCovered)
+			}
+			if len(tracker.UntestableCriteria()) != tt.wantUntestable {
+				t.Fatalf("untestable criteria count = %d, want %d", len(tracker.UntestableCriteria()), tt.wantUntestable)
+			}
+			if tt.wantCoveredNumber > 0 && tracker.CoveredCriteria()[0].Number != tt.wantCoveredNumber {
+				t.Fatalf("covered criterion number = %d, want %d", tracker.CoveredCriteria()[0].Number, tt.wantCoveredNumber)
+			}
+			if tt.wantUntestableID > 0 && tracker.UntestableCriteria()[0].Number != tt.wantUntestableID {
+				t.Fatalf("untestable criterion number = %d, want %d", tracker.UntestableCriteria()[0].Number, tt.wantUntestableID)
+			}
+			if bc.Result.CriteriaTotal != 2 {
+				t.Fatalf("CriteriaTotal = %d, want 2", bc.Result.CriteriaTotal)
+			}
+			if bc.Result.CriteriaCovered != tt.wantCovered {
+				t.Fatalf("CriteriaCovered = %d, want %d", bc.Result.CriteriaCovered, tt.wantCovered)
+			}
+			if bc.Result.CriteriaUntestable != tt.wantUntestable {
+				t.Fatalf("CriteriaUntestable = %d, want %d", bc.Result.CriteriaUntestable, tt.wantUntestable)
+			}
+		})
 	}
 }
