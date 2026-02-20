@@ -41,16 +41,7 @@ func (r *Runner) captureRunbookEntry(bc *runtypes.BeadContext, result *Iteration
 		entry.EscalationChain = append([]string{}, r.cfg.Escalation.Chain...)
 	}
 
-	if bc != nil {
-		if bc.Bead != nil && entry.BeadTitle == "" {
-			entry.BeadTitle = bc.Bead.Title
-		}
-		entry.StartCommit = bc.StartCommit
-		entry.Prompt = bc.BuildPrompt
-		if bc.PromptCtx != nil && strings.TrimSpace(bc.PromptCtx.ScopedTestCommand) != "" {
-			entry.ValidationCommands = []string{strings.TrimSpace(bc.PromptCtx.ScopedTestCommand)}
-		}
-	}
+	applyRunbookContext(&entry, bc)
 
 	entry.FailureOutput = truncateRunbookFailureOutput(pickRunbookFailureOutput(result))
 
@@ -64,6 +55,29 @@ func (r *Runner) captureRunbookEntry(bc *runtypes.BeadContext, result *Iteration
 	if err := runbook.Append(r.gromitDir, entry); err != nil {
 		r.log("Warning: failed to append runbook entry for bead %s: %v", result.BeadID, err)
 	}
+}
+
+func applyRunbookContext(entry *runbook.Entry, bc *runtypes.BeadContext) {
+	if entry == nil || bc == nil {
+		return
+	}
+
+	if bc.Bead != nil && entry.BeadTitle == "" {
+		entry.BeadTitle = bc.Bead.Title
+	}
+	entry.StartCommit = bc.StartCommit
+	entry.Prompt = bc.BuildPrompt
+
+	if scoped := scopedValidationCommand(bc); scoped != "" {
+		entry.ValidationCommands = []string{scoped}
+	}
+}
+
+func scopedValidationCommand(bc *runtypes.BeadContext) string {
+	if bc == nil || bc.PromptCtx == nil {
+		return ""
+	}
+	return strings.TrimSpace(bc.PromptCtx.ScopedTestCommand)
 }
 
 func pickRunbookFailureOutput(result *IterationResult) string {
