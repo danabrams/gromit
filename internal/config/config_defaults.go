@@ -252,6 +252,21 @@ func (c *Config) SetDefaults() {
 		c.Stream.PreserveProviderOutput = boolPtr(true)
 	}
 
+	if c.Routing.CircuitBreaker.Enabled {
+		if c.Routing.CircuitBreaker.WindowSize == 0 {
+			c.Routing.CircuitBreaker.WindowSize = 10
+		}
+		if c.Routing.CircuitBreaker.FailureThreshold == 0 {
+			c.Routing.CircuitBreaker.FailureThreshold = 0.3
+		}
+		if c.Routing.CircuitBreaker.DegradedFloor == 0 {
+			c.Routing.CircuitBreaker.DegradedFloor = 20
+		}
+		if c.Routing.CircuitBreaker.RecoverySuccesses == 0 {
+			c.Routing.CircuitBreaker.RecoverySuccesses = 5
+		}
+	}
+
 	// Worktree defaults
 	if c.Worktree.Enabled == nil {
 		c.Worktree.Enabled = boolPtr(true)

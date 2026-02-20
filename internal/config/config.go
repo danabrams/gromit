@@ -32,6 +32,9 @@ func (c *Config) Validate() error {
 	if err := c.Methodology.Validate(); err != nil {
 		return err
 	}
+	if err := c.Routing.CircuitBreaker.Validate(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -48,6 +51,27 @@ func (m MethodologyConfig) Validate() error {
 			m.Granularity,
 		)
 	}
+}
+
+func (c CircuitBreakerConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+
+	if c.WindowSize <= 0 {
+		return fmt.Errorf("routing.circuit_breaker.window_size must be > 0 (got %d)", c.WindowSize)
+	}
+	if c.FailureThreshold <= 0 || c.FailureThreshold > 1 {
+		return fmt.Errorf("routing.circuit_breaker.failure_threshold must be > 0 and <= 1 (got %v)", c.FailureThreshold)
+	}
+	if c.DegradedFloor <= 0 || c.DegradedFloor > 100 {
+		return fmt.Errorf("routing.circuit_breaker.degraded_floor must be > 0 and <= 100 (got %d)", c.DegradedFloor)
+	}
+	if c.RecoverySuccesses <= 0 {
+		return fmt.Errorf("routing.circuit_breaker.recovery_successes must be > 0 (got %d)", c.RecoverySuccesses)
+	}
+
+	return nil
 }
 
 // ScopeGoTestCommands scopes "go test ./..." commands to touched packages.

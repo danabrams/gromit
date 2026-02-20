@@ -4562,3 +4562,126 @@ func assertSpecGateDefaults(t *testing.T, cfg *Config, context string) {
 		t.Errorf("*SpecGate.AutoTrigger = false, want true%s", context)
 	}
 }
+
+func TestRoutingCircuitBreakerDefaultsWhenEnabled(t *testing.T) {
+	yamlContent := `
+routing:
+  circuit_breaker:
+    enabled: true
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.Routing.CircuitBreaker.Enabled {
+		t.Fatal("Routing.CircuitBreaker.Enabled = false, want true")
+	}
+	if cfg.Routing.CircuitBreaker.WindowSize != 10 {
+		t.Errorf("Routing.CircuitBreaker.WindowSize = %d, want 10", cfg.Routing.CircuitBreaker.WindowSize)
+	}
+	if cfg.Routing.CircuitBreaker.FailureThreshold != 0.3 {
+		t.Errorf("Routing.CircuitBreaker.FailureThreshold = %v, want 0.3", cfg.Routing.CircuitBreaker.FailureThreshold)
+	}
+	if cfg.Routing.CircuitBreaker.DegradedFloor != 20 {
+		t.Errorf("Routing.CircuitBreaker.DegradedFloor = %d, want 20", cfg.Routing.CircuitBreaker.DegradedFloor)
+	}
+	if cfg.Routing.CircuitBreaker.RecoverySuccesses != 5 {
+		t.Errorf("Routing.CircuitBreaker.RecoverySuccesses = %d, want 5", cfg.Routing.CircuitBreaker.RecoverySuccesses)
+	}
+}
+
+func TestRoutingCircuitBreakerOmittedNoBehaviorChange(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	if cfg.Routing.CircuitBreaker.Enabled {
+		t.Error("Routing.CircuitBreaker.Enabled = true, want false when omitted")
+	}
+	if cfg.Routing.CircuitBreaker.WindowSize != 0 {
+		t.Errorf("Routing.CircuitBreaker.WindowSize = %d, want 0 when omitted", cfg.Routing.CircuitBreaker.WindowSize)
+	}
+	if cfg.Routing.CircuitBreaker.FailureThreshold != 0 {
+		t.Errorf("Routing.CircuitBreaker.FailureThreshold = %v, want 0 when omitted", cfg.Routing.CircuitBreaker.FailureThreshold)
+	}
+	if cfg.Routing.CircuitBreaker.DegradedFloor != 0 {
+		t.Errorf("Routing.CircuitBreaker.DegradedFloor = %d, want 0 when omitted", cfg.Routing.CircuitBreaker.DegradedFloor)
+	}
+	if cfg.Routing.CircuitBreaker.RecoverySuccesses != 0 {
+		t.Errorf("Routing.CircuitBreaker.RecoverySuccesses = %d, want 0 when omitted", cfg.Routing.CircuitBreaker.RecoverySuccesses)
+	}
+}
+
+func TestRoutingCircuitBreakerValidationRejectsInvalidWhenEnabled(t *testing.T) {
+	tests := []struct {
+		name        string
+		yamlContent string
+		wantError   string
+	}{
+		{
+			name: "invalid window_size",
+			yamlContent: `
+routing:
+  circuit_breaker:
+    enabled: true
+    window_size: -1
+`,
+			wantError: "routing.circuit_breaker.window_size",
+		},
+		{
+			name: "invalid failure_threshold",
+			yamlContent: `
+routing:
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 1.2
+`,
+			wantError: "routing.circuit_breaker.failure_threshold",
+		},
+		{
+			name: "invalid degraded_floor",
+			yamlContent: `
+routing:
+  circuit_breaker:
+    enabled: true
+    degraded_floor: 101
+`,
+			wantError: "routing.circuit_breaker.degraded_floor",
+		},
+		{
+			name: "invalid recovery_successes",
+			yamlContent: `
+routing:
+  circuit_breaker:
+    enabled: true
+    recovery_successes: -1
+`,
+			wantError: "routing.circuit_breaker.recovery_successes",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yamlContent), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := Load(cfgPath)
+			if err == nil {
+				t.Fatal("Load() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("Load() error = %v, want error containing %q", err, tt.wantError)
+			}
+		})
+	}
+}

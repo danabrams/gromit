@@ -344,14 +344,23 @@ func (p ProviderDef) EstimateCostForModel(model string, inputTokens, outputToken
 }
 
 type RoutingConfig struct {
-	PhasePreferences map[string]string `yaml:"phase_preferences"`
-	Ratio            map[string]int    `yaml:"ratio"`
-	Fallback         FallbackConfig    `yaml:"fallback"`
+	PhasePreferences map[string]string    `yaml:"phase_preferences"`
+	Ratio            map[string]int       `yaml:"ratio"`
+	Fallback         FallbackConfig       `yaml:"fallback"`
+	CircuitBreaker   CircuitBreakerConfig `yaml:"circuit_breaker"`
 }
 
 type FallbackConfig struct {
 	Enabled  *bool  `yaml:"enabled"`
 	Cooldown string `yaml:"cooldown"`
+}
+
+type CircuitBreakerConfig struct {
+	Enabled           bool    `yaml:"enabled"`
+	WindowSize        int     `yaml:"window_size"`
+	FailureThreshold  float64 `yaml:"failure_threshold"`
+	DegradedFloor     int     `yaml:"degraded_floor"`
+	RecoverySuccesses int     `yaml:"recovery_successes"`
 }
 
 type StreamConfig struct {

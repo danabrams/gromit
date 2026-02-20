@@ -67,6 +67,12 @@ routing:
   fallback:
     enabled: true
     cooldown: 30m
+  # circuit_breaker:
+  #   enabled: false
+  #   window_size: 10
+  #   failure_threshold: 0.3
+  #   degraded_floor: 20
+  #   recovery_successes: 5
 
 # Stream output behavior
 stream:
