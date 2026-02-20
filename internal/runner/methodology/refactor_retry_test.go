@@ -310,6 +310,61 @@ func TestRunRefactorPhase_AccumulatesRefactorStreamStatsOntoExistingResult(t *te
 	}
 }
 
+func TestRunRefactorPhase_PreservesExistingResultWhenRefactorStatsNil(t *testing.T) {
+	cfg := newTestConfigWithEscalation()
+	cfg.Refactor.MinFilesChanged = 0 // always run
+	var buf strings.Builder
+
+	getDiffFn := func(startCommit string) (string, error) {
+		return "diff --git a/file1.go b/file1.go\n+impl code", nil
+	}
+
+	renderRefactorFn := func(ctx *prompt.Context) (string, error) {
+		return "refactor this code", nil
+	}
+
+	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		return &claude.Result{Success: true}, nil, nil
+	}
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
+	}
+
+	getGitHeadFn := func() (string, error) {
+		return "deadbeef", nil
+	}
+
+	exec := NewExecutorWithRefactor(cfg, &buf, NewRefactorDeps(
+		getDiffFn,
+		renderRefactorFn,
+		refactorInvokeFn,
+		validateFn,
+		nil, // gitResetFn - not needed when validation passes
+		getGitHeadFn,
+	))
+
+	bc := newTestBeadContextWithTier(provider.TierMedium)
+	bc.Result.CostUSD = 1.20
+	bc.Result.InputTokens = 1000
+	bc.Result.OutputTokens = 400
+
+	err := exec.RunRefactorPhase(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("RunRefactorPhase should return nil on success, got: %v", err)
+	}
+
+	if bc.Result.CostUSD != 1.20 {
+		t.Fatalf("CostUSD = %v, want 1.20", bc.Result.CostUSD)
+	}
+	if bc.Result.InputTokens != 1000 {
+		t.Fatalf("InputTokens = %d, want 1000", bc.Result.InputTokens)
+	}
+	if bc.Result.OutputTokens != 400 {
+		t.Fatalf("OutputTokens = %d, want 400", bc.Result.OutputTokens)
+	}
+}
+
 func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 0
