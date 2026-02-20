@@ -63,47 +63,8 @@ func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
 		return commands
 	}
 
-	uniqueTouched := make([]string, 0, len(touchedPackages))
-	seen := make(map[string]struct{}, len(touchedPackages))
-	for _, pkg := range touchedPackages {
-		trimmed := strings.TrimSpace(pkg)
-		normalized := strings.Trim(strings.TrimPrefix(trimmed, "./"), "/")
-		if trimmed == "." || normalized == "." {
-			normalized = "."
-		}
-		if _, exists := seen[normalized]; normalized == "" || exists {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		uniqueTouched = append(uniqueTouched, normalized)
-	}
-
-	// Collapse nested package scopes to avoid duplicate work.
-	// Example: when both internal/runner and internal/runner/andon are touched,
-	// only keep internal/runner because it already includes children via /...
-	collapsed := make([]string, 0, len(uniqueTouched))
-	for _, pkg := range uniqueTouched {
-		coveredByParent := false
-		for _, parent := range collapsed {
-			if pkg == parent || strings.HasPrefix(pkg, parent+"/") {
-				coveredByParent = true
-				break
-			}
-		}
-		if coveredByParent {
-			continue
-		}
-
-		// Keep a separate backing array to avoid mutating entries while iterating collapsed.
-		filtered := make([]string, 0, len(collapsed))
-		for _, existing := range collapsed {
-			if existing == pkg || strings.HasPrefix(existing, pkg+"/") {
-				continue
-			}
-			filtered = append(filtered, existing)
-		}
-		collapsed = append(filtered, pkg)
-	}
+	uniqueTouched := normalizeTouchedPackages(touchedPackages)
+	collapsed := collapsePackageScopes(uniqueTouched)
 
 	scopedPackages := make([]string, 0, len(collapsed))
 	for _, pkg := range collapsed {
@@ -143,4 +104,57 @@ func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
 	}
 
 	return scoped
+}
+
+func normalizeTouchedPackages(touchedPackages []string) []string {
+	uniqueTouched := make([]string, 0, len(touchedPackages))
+	seen := make(map[string]struct{}, len(touchedPackages))
+
+	for _, pkg := range touchedPackages {
+		trimmed := strings.TrimSpace(pkg)
+		normalized := strings.Trim(strings.TrimPrefix(trimmed, "./"), "/")
+		if trimmed == "." || normalized == "." {
+			normalized = "."
+		}
+
+		if _, exists := seen[normalized]; normalized == "" || exists {
+			continue
+		}
+
+		seen[normalized] = struct{}{}
+		uniqueTouched = append(uniqueTouched, normalized)
+	}
+
+	return uniqueTouched
+}
+
+// collapsePackageScopes removes child packages when a parent package already
+// covers them via `/...`.
+func collapsePackageScopes(packages []string) []string {
+	collapsed := make([]string, 0, len(packages))
+
+	for _, pkg := range packages {
+		coveredByParent := false
+		for _, parent := range collapsed {
+			if pkg == parent || strings.HasPrefix(pkg, parent+"/") {
+				coveredByParent = true
+				break
+			}
+		}
+		if coveredByParent {
+			continue
+		}
+
+		// Keep a separate backing array to avoid mutating entries while iterating collapsed.
+		filtered := make([]string, 0, len(collapsed))
+		for _, existing := range collapsed {
+			if existing == pkg || strings.HasPrefix(existing, pkg+"/") {
+				continue
+			}
+			filtered = append(filtered, existing)
+		}
+		collapsed = append(filtered, pkg)
+	}
+
+	return collapsed
 }

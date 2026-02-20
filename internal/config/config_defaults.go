@@ -1,5 +1,11 @@
 package config
 
+const defaultPhaseAgent = "claude"
+
+func boolPtr(value bool) *bool {
+	return &value
+}
+
 func (c *Config) SetDefaults() {
 	if c.Models.P0 == "" {
 		c.Models.P0 = ModelOpus
@@ -59,12 +65,10 @@ func (c *Config) SetDefaults() {
 		c.Validation.MaxParallelCommands = 1
 	}
 	if c.Validation.NonInteractive == nil {
-		t := true
-		c.Validation.NonInteractive = &t
+		c.Validation.NonInteractive = boolPtr(true)
 	}
 	if c.Validation.RunFinalFullGate == nil {
-		t := true
-		c.Validation.RunFinalFullGate = &t
+		c.Validation.RunFinalFullGate = boolPtr(true)
 	}
 	if c.Refactor.MinFilesChanged == 0 {
 		c.Refactor.MinFilesChanged = 3
@@ -112,12 +116,10 @@ func (c *Config) SetDefaults() {
 		c.ScopeCheck.Model = ModelHaiku
 	}
 	if c.ScopeCheck.BlockOversized == nil {
-		t := true
-		c.ScopeCheck.BlockOversized = &t
+		c.ScopeCheck.BlockOversized = boolPtr(true)
 	}
 	if c.Precheck.Enabled == nil {
-		f := false
-		c.Precheck.Enabled = &f
+		c.Precheck.Enabled = boolPtr(false)
 	}
 	if c.Precheck.Model == "" {
 		c.Precheck.Model = ModelHaiku
@@ -126,8 +128,7 @@ func (c *Config) SetDefaults() {
 		c.Precheck.TimeoutSeconds = 120
 	}
 	if c.Precheck.Verification.Enabled == nil {
-		t := true
-		c.Precheck.Verification.Enabled = &t
+		c.Precheck.Verification.Enabled = boolPtr(true)
 	}
 	if c.Precheck.Verification.TimeoutSeconds == 0 {
 		c.Precheck.Verification.TimeoutSeconds = 120
@@ -145,15 +146,13 @@ func (c *Config) SetDefaults() {
 		c.Loop.MaxDecomposeDepth = 10
 	}
 	if c.Loop.LearnFromSuccess == nil {
-		t := true
-		c.Loop.LearnFromSuccess = &t
+		c.Loop.LearnFromSuccess = boolPtr(true)
 	}
 	if c.Review.Model == "" {
 		c.Review.Model = ModelSonnet
 	}
 	if c.Review.MatchBuildModel == nil {
-		t := true
-		c.Review.MatchBuildModel = &t
+		c.Review.MatchBuildModel = boolPtr(true)
 	}
 	if c.Review.Timeout == 0 {
 		c.Review.Timeout = 120
@@ -165,8 +164,7 @@ func (c *Config) SetDefaults() {
 		c.Review.Thorough.EveryNIterations = 5
 	}
 	if c.Review.Thorough.OnEpicComplete == nil {
-		t := true
-		c.Review.Thorough.OnEpicComplete = &t
+		c.Review.Thorough.OnEpicComplete = boolPtr(true)
 	}
 	if c.Review.Thorough.Timeout == 0 {
 		c.Review.Thorough.Timeout = 900
@@ -178,8 +176,7 @@ func (c *Config) SetDefaults() {
 		c.Methodology.MaxTDDCycles = DefaultMaxTDDCycles
 	}
 	if c.Git.AutoPush == nil {
-		t := true
-		c.Git.AutoPush = &t
+		c.Git.AutoPush = boolPtr(true)
 	}
 	if c.Git.PushFailure == "" {
 		c.Git.PushFailure = "warn"
@@ -200,19 +197,19 @@ func (c *Config) SetDefaults() {
 		c.Prompt.Budget.LearningCapChars = 2000
 	}
 	if c.Agents.Phases.Refine == "" {
-		c.Agents.Phases.Refine = "claude"
+		c.Agents.Phases.Refine = defaultPhaseAgent
 	}
 	if c.Agents.Phases.Plan == "" {
-		c.Agents.Phases.Plan = "claude"
+		c.Agents.Phases.Plan = defaultPhaseAgent
 	}
 	if c.Agents.Phases.Review == "" {
-		c.Agents.Phases.Review = "claude"
+		c.Agents.Phases.Review = defaultPhaseAgent
 	}
 	if c.Agents.Phases.Explore == "" {
-		c.Agents.Phases.Explore = "claude"
+		c.Agents.Phases.Explore = defaultPhaseAgent
 	}
 	if c.Agents.Phases.Debug == "" {
-		c.Agents.Phases.Debug = "claude"
+		c.Agents.Phases.Debug = defaultPhaseAgent
 	}
 
 	// Routing defaults - only when providers are configured
@@ -246,18 +243,15 @@ func (c *Config) SetDefaults() {
 	}
 
 	if c.Stream.PreserveProviderOutput == nil {
-		t := true
-		c.Stream.PreserveProviderOutput = &t
+		c.Stream.PreserveProviderOutput = boolPtr(true)
 	}
 
 	// Worktree defaults
 	if c.Worktree.Enabled == nil {
-		t := true
-		c.Worktree.Enabled = &t
+		c.Worktree.Enabled = boolPtr(true)
 	}
 	if c.Worktree.AutoMerge == nil {
-		t := true
-		c.Worktree.AutoMerge = &t
+		c.Worktree.AutoMerge = boolPtr(true)
 	}
 	if c.Worktree.MergeFailure == "" {
 		c.Worktree.MergeFailure = "warn"
@@ -279,12 +273,10 @@ func (c *Config) SetDefaults() {
 		c.Session.FixTier = "medium"
 	}
 	if c.Session.Review == nil {
-		t := true
-		c.Session.Review = &t
+		c.Session.Review = boolPtr(true)
 	}
 	if c.Session.Retro == nil {
-		t := true
-		c.Session.Retro = &t
+		c.Session.Retro = boolPtr(true)
 	}
 	if c.SpecGate.MaxCycles == 0 {
 		c.SpecGate.MaxCycles = 3
@@ -293,7 +285,6 @@ func (c *Config) SetDefaults() {
 		c.SpecGate.Model = ModelSonnet
 	}
 	if c.SpecGate.AutoTrigger == nil {
-		t := true
-		c.SpecGate.AutoTrigger = &t
+		c.SpecGate.AutoTrigger = boolPtr(true)
 	}
 }
