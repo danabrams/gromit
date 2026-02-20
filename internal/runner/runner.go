@@ -242,6 +242,11 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	defer beadCancel()
 	defer func() { bc.Result.Duration = time.Since(start) }()
 	defer func() {
+		if bc.Result != nil {
+			bc.Result.ActualTier = bc.Tier
+		}
+	}()
+	defer func() {
 		if bc.StartCommit != "" {
 			if diff, err := r.getDiff(bc.StartCommit); err == nil {
 				bc.Result.FilesTouched = len(methodology.ParseDiffFiles(diff))

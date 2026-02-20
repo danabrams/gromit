@@ -175,6 +175,29 @@ func TestWriteIterationLog_PropagatesTierFields(t *testing.T) {
 	}
 }
 
+func TestWriteIterationLog_PropagatesTierFieldsToJSONL(t *testing.T) {
+	r, tmpDir := newTestRunnerWithLogger(t, false)
+	result := &IterationResult{
+		BeadID:       "bead-tier-jsonl",
+		BeadTitle:    "Tier JSONL propagation",
+		Model:        "sonnet",
+		Success:      true,
+		Duration:     time.Second,
+		OriginalTier: "low",
+		ActualTier:   "high",
+	}
+
+	r.writeIterationLog(1, result)
+
+	entry := unmarshalSingleIterationLogEntry(t, tmpDir)
+	if got := entry["original_tier"]; got != "low" {
+		t.Fatalf("original_tier = %v, want %q", got, "low")
+	}
+	if got := entry["actual_tier"]; got != "high" {
+		t.Fatalf("actual_tier = %v, want %q", got, "high")
+	}
+}
+
 func TestWriteIterationLog_WritesTDDMetricsToJSONL(t *testing.T) {
 	r, tmpDir := newTestRunnerWithLogger(t, false)
 	result := &IterationResult{

@@ -104,6 +104,9 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 	if bc.Result.BeadID != "test-1" {
 		t.Errorf("expected BeadID 'test-1', got %q", bc.Result.BeadID)
 	}
+	if bc.Result.OriginalTier != bc.Tier {
+		t.Errorf("expected OriginalTier %q, got %q", bc.Tier, bc.Result.OriginalTier)
+	}
 	if bc.MaxRetries != 2 {
 		t.Errorf("expected maxRetries=2, got %d", bc.MaxRetries)
 	}
@@ -2968,5 +2971,8 @@ func TestProcessBead_FilesTouched(t *testing.T) {
 
 	if result.FilesTouched != 3 {
 		t.Errorf("FilesTouched = %d, want 3", result.FilesTouched)
+	}
+	if result.ActualTier != provider.TierMedium {
+		t.Errorf("ActualTier = %q, want %q", result.ActualTier, provider.TierMedium)
 	}
 }
