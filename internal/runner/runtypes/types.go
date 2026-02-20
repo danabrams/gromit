@@ -26,12 +26,14 @@ type BeadContext struct {
 	Iteration     int
 
 	// Retry tracking
-	RetriesThisModel     int
-	TotalRetriesThisBead int
-	MaxRetries           int
-	MaxRetriesPerBead    int
-	AttemptsThisBead     int
-	MaxAttemptsPerBead   int
+	RetriesThisModel       int
+	TotalRetriesThisBead   int
+	MaxRetries             int
+	MaxRetriesPerBead      int
+	AttemptsThisBead       int
+	MaxAttemptsPerBead     int
+	CumulativeInputTokens  int
+	CumulativeOutputTokens int
 
 	// Context management
 	ParentCtx     context.Context

@@ -23,25 +23,27 @@ func TestBeadContext_AllFieldsExported(t *testing.T) {
 	parentBead := &bead.Bead{ID: "parent-1", Title: "Parent bead"}
 
 	bc := BeadContext{
-		Bead:                 testBead,
-		Parent:               parentBead,
-		Result:               &IterationResult{BeadID: "test-1"},
-		Model:                "opus",
-		Tier:                 "high",
-		BuildProvider:        "claude",
-		PromptCtx:            promptCtx,
-		BuildPrompt:          "build this feature",
-		StartCommit:          "abc123",
-		Iteration:            3,
-		RetriesThisModel:     1,
-		TotalRetriesThisBead: 2,
-		MaxRetries:           3,
-		MaxRetriesPerBead:    5,
-		ParentCtx:            parentCtx,
-		BeadTimeout:          10 * time.Minute,
-		RunDeadline:          deadline,
-		ScopeEstimate:        scopeEst,
-		TouchedPackages:      []string{"internal/runner", "internal/config"},
+		Bead:                   testBead,
+		Parent:                 parentBead,
+		Result:                 &IterationResult{BeadID: "test-1"},
+		Model:                  "opus",
+		Tier:                   "high",
+		BuildProvider:          "claude",
+		PromptCtx:              promptCtx,
+		BuildPrompt:            "build this feature",
+		StartCommit:            "abc123",
+		Iteration:              3,
+		RetriesThisModel:       1,
+		TotalRetriesThisBead:   2,
+		MaxRetries:             3,
+		MaxRetriesPerBead:      5,
+		CumulativeInputTokens:  987,
+		CumulativeOutputTokens: 654,
+		ParentCtx:              parentCtx,
+		BeadTimeout:            10 * time.Minute,
+		RunDeadline:            deadline,
+		ScopeEstimate:          scopeEst,
+		TouchedPackages:        []string{"internal/runner", "internal/config"},
 	}
 
 	// Verify all fields are set correctly by reading them back
@@ -86,6 +88,12 @@ func TestBeadContext_AllFieldsExported(t *testing.T) {
 	}
 	if bc.MaxRetriesPerBead != 5 {
 		t.Errorf("MaxRetriesPerBead = %d, want %d", bc.MaxRetriesPerBead, 5)
+	}
+	if bc.CumulativeInputTokens != 987 {
+		t.Errorf("CumulativeInputTokens = %d, want %d", bc.CumulativeInputTokens, 987)
+	}
+	if bc.CumulativeOutputTokens != 654 {
+		t.Errorf("CumulativeOutputTokens = %d, want %d", bc.CumulativeOutputTokens, 654)
 	}
 	if bc.ParentCtx != parentCtx {
 		t.Error("ParentCtx does not match")
