@@ -28,7 +28,7 @@ import (
 	"github.com/danabrams/gromit/internal/tmux"
 )
 
-var errValidationFailed = errors.New("validation failed")
+var errValidationFailed = validation.ErrValidationFailed
 
 const (
 	l3StopLineMarker                 = "l3 stop-line"

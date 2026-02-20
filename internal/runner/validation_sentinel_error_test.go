@@ -15,6 +15,12 @@ import (
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
+func TestValidationSentinelError_UsesValidationPackageSentinel(t *testing.T) {
+	if errValidationFailed != validation.ErrValidationFailed {
+		t.Fatalf("runner sentinel must reuse validation sentinel")
+	}
+}
+
 // TestValidationSentinelError_RecoveryDistinguishesErrorTypes verifies that
 // runValidationWithRecovery correctly distinguishes validation failures
 // (which should trigger recovery) from other errors (which should not).
