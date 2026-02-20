@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/danabrams/gromit/internal/failurephase"
@@ -191,87 +190,6 @@ func ReadProcessTrend(path string) (*ProcessTrend, error) {
 		return nil, fmt.Errorf("parsing process trend: %w", err)
 	}
 	return &trend, nil
-}
-
-// AsyncTrendUpdater continuously regenerates process trend metrics without blocking the run loop.
-type AsyncTrendUpdater struct {
-	logsDir    string
-	metricsDir string
-	windowSize int
-	onError    func(error)
-
-	triggerCh chan struct{}
-	stopCh    chan struct{}
-	wg        sync.WaitGroup
-	once      sync.Once
-}
-
-// NewAsyncTrendUpdater creates and starts an asynchronous trend updater.
-func NewAsyncTrendUpdater(logsDir, metricsDir string, windowSize int, onError func(error)) *AsyncTrendUpdater {
-	u := &AsyncTrendUpdater{
-		logsDir:    logsDir,
-		metricsDir: metricsDir,
-		windowSize: windowSize,
-		onError:    onError,
-		triggerCh:  make(chan struct{}, 1),
-		stopCh:     make(chan struct{}),
-	}
-	u.wg.Add(1)
-	go u.loop()
-	return u
-}
-
-// Trigger schedules a trend refresh. Multiple rapid calls are coalesced.
-func (u *AsyncTrendUpdater) Trigger() {
-	if u == nil {
-		return
-	}
-	select {
-	case u.triggerCh <- struct{}{}:
-	default:
-	}
-}
-
-// Close stops the background worker and waits for shutdown.
-func (u *AsyncTrendUpdater) Close() {
-	if u == nil {
-		return
-	}
-	u.once.Do(func() {
-		close(u.stopCh)
-		u.wg.Wait()
-	})
-}
-
-func (u *AsyncTrendUpdater) loop() {
-	defer u.wg.Done()
-	for {
-		select {
-		case <-u.stopCh:
-			return
-		case <-u.triggerCh:
-			u.refresh()
-			u.drainPending()
-		}
-	}
-}
-
-func (u *AsyncTrendUpdater) drainPending() {
-	for {
-		select {
-		case <-u.triggerCh:
-			u.refresh()
-		default:
-			return
-		}
-	}
-}
-
-func (u *AsyncTrendUpdater) refresh() {
-	_, err := BuildContinuousMetrics(u.logsDir, u.metricsDir, u.windowSize)
-	if err != nil && u.onError != nil {
-		u.onError(err)
-	}
 }
 
 func readAllIterationLogsSorted(logsDir string) ([]IterationLog, error) {
@@ -672,89 +590,6 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		ValidationFailureRate: float64(validationFailures) / count,
 		TimeoutFailureRate:    float64(timeoutFailures) / count,
 	}
-}
-
-func percentileInt64(values []int64, percentile int) float64 {
-	if len(values) == 0 {
-		return 0
-	}
-	if percentile <= 0 {
-		return float64(values[0])
-	}
-	if percentile >= 100 {
-		return float64(values[len(values)-1])
-	}
-
-	sorted := append([]int64(nil), values...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
-
-	rank := float64(percentile) / 100.0 * float64(len(sorted)-1)
-	low := int(math.Floor(rank))
-	high := int(math.Ceil(rank))
-	if low == high {
-		return float64(sorted[low])
-	}
-
-	weight := rank - float64(low)
-	return float64(sorted[low])*(1-weight) + float64(sorted[high])*weight
-}
-
-func percentileFloat64(values []float64, percentile int) float64 {
-	if len(values) == 0 {
-		return 0
-	}
-	if percentile <= 0 {
-		return values[0]
-	}
-	if percentile >= 100 {
-		return values[len(values)-1]
-	}
-
-	sorted := append([]float64(nil), values...)
-	sort.Float64s(sorted)
-
-	rank := float64(percentile) / 100.0 * float64(len(sorted)-1)
-	low := int(math.Floor(rank))
-	high := int(math.Ceil(rank))
-	if low == high {
-		return sorted[low]
-	}
-
-	weight := rank - float64(low)
-	return sorted[low]*(1-weight) + sorted[high]*weight
-}
-
-func meanAndStdDev(values []float64) (float64, float64) {
-	if len(values) == 0 {
-		return 0, 0
-	}
-	var sum float64
-	for _, v := range values {
-		sum += v
-	}
-	mean := sum / float64(len(values))
-	if len(values) == 1 {
-		return mean, 0
-	}
-
-	var variance float64
-	for _, v := range values {
-		d := v - mean
-		variance += d * d
-	}
-	variance = variance / float64(len(values))
-	return mean, math.Sqrt(variance)
-}
-
-func meanFloat64(values []float64) float64 {
-	if len(values) == 0 {
-		return 0
-	}
-	var sum float64
-	for _, v := range values {
-		sum += v
-	}
-	return sum / float64(len(values))
 }
 
 func isRateMetric(metric string) bool {
