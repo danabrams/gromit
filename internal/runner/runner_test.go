@@ -222,9 +222,6 @@ func TestMaybeAuthorSpecAcceptance_FirstBeadCallsOrchestrator(t *testing.T) {
 		renderer: renderer,
 		router:   newMockRouterFromClaudeClient(mockClaude),
 		cfg:      &config.Config{},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			return "", "", 0, nil
-		},
 		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
 			return "", "", 0, nil
 		},

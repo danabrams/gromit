@@ -28,9 +28,6 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_MissingSpecReturnsError(t *testi
 		router:   router,
 		beads:    &mockBeadClient{},
 		renderer: renderer,
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			return "", "", 0, nil
-		},
 	}
 
 	err := orchestrator.AuthorAcceptanceTests(context.Background(), "missing-spec")
@@ -85,7 +82,6 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	var commands []string
 	var argvCalls []struct {
 		program string
 		args    []string
@@ -95,10 +91,6 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 		router:   router,
 		beads:    &mockBeadClient{},
 		renderer: renderer,
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			commands = append(commands, command)
-			return "", "", 0, nil
-		},
 		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
 			argvCalls = append(argvCalls, struct {
 				program string
@@ -125,9 +117,6 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 	}
 	if receivedRules != rulesContent {
 		t.Fatalf("expected rules %q, got %q", rulesContent, receivedRules)
-	}
-	if len(commands) != 0 {
-		t.Fatalf("expected no shell command calls, got %v", commands)
 	}
 	if len(argvCalls) != 2 {
 		t.Fatalf("expected two argv command calls, got %d", len(argvCalls))
@@ -163,17 +152,12 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_IdempotentBySpecName(t *testing.
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	cmdCalls := 0
 	argvCalls := 0
 	orchestrator := &SpecOrchestrator{
 		cfg:      cfg,
 		router:   router,
 		beads:    &mockBeadClient{},
 		renderer: renderer,
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			cmdCalls++
-			return "", "", 0, nil
-		},
 		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
 			argvCalls++
 			return "", "", 0, nil
@@ -189,9 +173,6 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_IdempotentBySpecName(t *testing.
 
 	if providerRunCalls != 1 {
 		t.Fatalf("expected provider to be invoked once, got %d", providerRunCalls)
-	}
-	if cmdCalls != 0 {
-		t.Fatalf("expected no shell command calls, got %d", cmdCalls)
 	}
 	if argvCalls != 2 {
 		t.Fatalf("expected two argv calls for first execution, got %d", argvCalls)
@@ -257,12 +238,7 @@ func TestSpecOrchestrator_RunArgv_UsesConfiguredArgvRunner(t *testing.T) {
 
 func TestSpecOrchestrator_RunArgv_FallsBackToDefaultArgvRunner(t *testing.T) {
 	workDir := t.TempDir()
-	orchestrator := &SpecOrchestrator{
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			t.Fatal("cmdRunnerFn should not be called by runArgv fallback")
-			return "", "", 0, nil
-		},
-	}
+	orchestrator := &SpecOrchestrator{}
 
 	stdout, stderr, exitCode, err := orchestrator.runArgv(
 		context.Background(),

@@ -18,7 +18,6 @@ func newSpecOrchestrator(r *Runner) *SpecOrchestrator {
 		router:       r.router,
 		beads:        r.beads,
 		cfg:          r.cfg,
-		cmdRunnerFn:  r.cmdRunnerFn,
 		argvRunnerFn: r.argvRunnerFn,
 	}
 }
@@ -29,7 +28,6 @@ type SpecOrchestrator struct {
 	router       *provider.Router
 	beads        BeadClient
 	cfg          *config.Config
-	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (string, string, int, error)
 	argvRunnerFn ArgvRunnerFn
 
 	authoredSpecs map[string]bool
