@@ -850,3 +850,66 @@ func TestRunTDDFreshContextCycles_CoverageCommentFailureLogsWarning(t *testing.T
 		t.Fatalf("expected warning log when AddComment fails, got:\n%s", buf.String())
 	}
 }
+
+func TestRunTDDFreshContextCycles_AddsCoverageCommentForUntestableCriteria(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+			MaxTDDCycles:         1,
+		},
+	}
+	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	beads := &mockBeadClient{}
+	r.beads = beads
+	r.tddOrchestrator = &tddOrchestrator{
+		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
+			if tracker != nil && len(criteria) > 0 {
+				tracker.RecordRejection(criteria[0].Number)
+				tracker.RecordRejection(criteria[0].Number)
+			}
+			return nil
+		},
+	}
+
+	b := newTestBead("tdd-comment-untestable-1", "Implement feature with untestable criterion")
+	b.Labels = []string{"spec:auth"}
+	b.ExpectedOutputs = []string{"implement feature X"}
+	bc := newBeadContextForMethodology(b)
+	bc.PromptCtx.Spec = `# Auth
+
+## Acceptance Criteria
+- Criterion one`
+
+	handled := r.runTDDFreshContextCycles(context.Background(), bc)
+	if !handled {
+		t.Fatal("expected runTDDFreshContextCycles to handle fresh-context path")
+	}
+	if bc.Result.Error != nil {
+		t.Fatalf("expected no error when only criterion is marked untestable, got %v", bc.Result.Error)
+	}
+	if bc.Result.CriteriaTotal != 1 {
+		t.Fatalf("CriteriaTotal = %d, want 1", bc.Result.CriteriaTotal)
+	}
+	if bc.Result.CriteriaCovered != 0 {
+		t.Fatalf("CriteriaCovered = %d, want 0", bc.Result.CriteriaCovered)
+	}
+	if bc.Result.CriteriaUntestable != 1 {
+		t.Fatalf("CriteriaUntestable = %d, want 1", bc.Result.CriteriaUntestable)
+	}
+	if len(bc.Result.UncoveredCriteria) != 0 {
+		t.Fatalf("UncoveredCriteria len = %d, want 0", len(bc.Result.UncoveredCriteria))
+	}
+	if len(beads.Comments) != 1 {
+		t.Fatalf("expected 1 bead comment, got %d", len(beads.Comments))
+	}
+	if !strings.Contains(beads.Comments[0].Comment, "Coverage: 0/1 criteria covered") {
+		t.Fatalf("comment %q missing coverage summary", beads.Comments[0].Comment)
+	}
+	if !strings.Contains(beads.Comments[0].Comment, "Untestable: #1") {
+		t.Fatalf("comment %q missing untestable criterion summary", beads.Comments[0].Comment)
+	}
+	if !strings.Contains(buf.String(), "TDD coverage summary for bead tdd-comment-untestable-1") {
+		t.Fatalf("expected coverage summary log, got:\n%s", buf.String())
+	}
+}
