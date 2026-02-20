@@ -1636,16 +1636,24 @@ func renderSpecGateRealTemplate(t *testing.T, ctx *SpecGateContext) string {
 	return result
 }
 
-func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) {
-	ctx := &SpecGateContext{
+func newMinimalSpecGateRealTemplateContext() *SpecGateContext {
+	return &SpecGateContext{
+		SpecCriteria: "Must return 200",
+	}
+}
+
+func newPopulatedSpecGateRealTemplateContext() *SpecGateContext {
+	return &SpecGateContext{
 		SpecCriteria:       "Must return 200",
 		FailureOutput:      "status was 500",
 		TestOutput:         "FAIL: TestFoo",
 		CumulativeDiff:     "+func foo() {}",
 		AcceptanceCriteria: "API returns 200",
 	}
+}
 
-	result := renderSpecGateRealTemplate(t, ctx)
+func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) {
+	result := renderSpecGateRealTemplate(t, newPopulatedSpecGateRealTemplateContext())
 
 	wantStrs := []string{
 		"GateVerdict",
@@ -1665,15 +1673,7 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 }
 
 func TestRenderSpecGateRealTemplateIncludesLabeledSections(t *testing.T) {
-	ctx := &SpecGateContext{
-		SpecCriteria:       "Must return 200",
-		FailureOutput:      "status was 500",
-		TestOutput:         "FAIL: TestFoo",
-		CumulativeDiff:     "+func foo() {}",
-		AcceptanceCriteria: "API returns 200",
-	}
-
-	result := renderSpecGateRealTemplate(t, ctx)
+	result := renderSpecGateRealTemplate(t, newPopulatedSpecGateRealTemplateContext())
 
 	wantStrs := []string{
 		"TestOutput:",
@@ -1688,11 +1688,7 @@ func TestRenderSpecGateRealTemplateIncludesLabeledSections(t *testing.T) {
 }
 
 func TestRenderSpecGateRealTemplateDefinesGateVerdictSchema(t *testing.T) {
-	ctx := &SpecGateContext{
-		SpecCriteria: "Must return 200",
-	}
-
-	result := renderSpecGateRealTemplate(t, ctx)
+	result := renderSpecGateRealTemplate(t, newMinimalSpecGateRealTemplateContext())
 
 	wantStrs := []string{
 		"Required top-level fields:",
@@ -1713,11 +1709,7 @@ func TestRenderSpecGateRealTemplateDefinesGateVerdictSchema(t *testing.T) {
 }
 
 func TestRenderSpecGateRealTemplateIncludesExampleOutput(t *testing.T) {
-	ctx := &SpecGateContext{
-		SpecCriteria: "Must return 200",
-	}
-
-	result := renderSpecGateRealTemplate(t, ctx)
+	result := renderSpecGateRealTemplate(t, newMinimalSpecGateRealTemplateContext())
 
 	if !strings.Contains(result, "Example Output") {
 		t.Errorf("RenderSpecGate() real template missing Example Output section\ngot:\n%s", result)
@@ -1728,11 +1720,7 @@ func TestRenderSpecGateRealTemplateIncludesExampleOutput(t *testing.T) {
 }
 
 func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T) {
-	ctx := &SpecGateContext{
-		SpecCriteria: "Must return 200",
-	}
-
-	result := renderSpecGateRealTemplate(t, ctx)
+	result := renderSpecGateRealTemplate(t, newMinimalSpecGateRealTemplateContext())
 
 	if !strings.Contains(result, "Must return 200") {
 		t.Error("expected spec criteria in rendered output")
@@ -1752,11 +1740,7 @@ func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T)
 }
 
 func TestRenderSpecGateRealTemplateEnforcesJSONOnlyOutput(t *testing.T) {
-	ctx := &SpecGateContext{
-		SpecCriteria: "Must return 200",
-	}
-
-	result := renderSpecGateRealTemplate(t, ctx)
+	result := renderSpecGateRealTemplate(t, newMinimalSpecGateRealTemplateContext())
 
 	wantStrs := []string{
 		"one top-level JSON",
@@ -1770,11 +1754,7 @@ func TestRenderSpecGateRealTemplateEnforcesJSONOnlyOutput(t *testing.T) {
 }
 
 func TestRenderSpecGateRealTemplateDisallowsOtherResponseContracts(t *testing.T) {
-	ctx := &SpecGateContext{
-		SpecCriteria: "Must return 200",
-	}
-
-	result := renderSpecGateRealTemplate(t, ctx)
+	result := renderSpecGateRealTemplate(t, newMinimalSpecGateRealTemplateContext())
 
 	want := "only response contract"
 	if !strings.Contains(result, want) {
@@ -1783,11 +1763,7 @@ func TestRenderSpecGateRealTemplateDisallowsOtherResponseContracts(t *testing.T)
 }
 
 func TestRenderSpecGateRealTemplateRejectsPermissiveLanguage(t *testing.T) {
-	ctx := &SpecGateContext{
-		SpecCriteria: "Must return 200",
-	}
-
-	result := renderSpecGateRealTemplate(t, ctx)
+	result := renderSpecGateRealTemplate(t, newMinimalSpecGateRealTemplateContext())
 
 	permissive := regexp.MustCompile(`(?i)\b(partial|approximate|best[- ]?effort)\b`)
 	if match := permissive.FindString(result); match != "" {
