@@ -1139,6 +1139,142 @@ func TestExecuteWithRetry_TokenBudgetExceededAttemptsDecompositionBeforeInvocati
 	}
 }
 
+func newTokenBudgetHandlerWithDecomposition(cfg *config.Config, analyzer FailureAnalyzer, decomposeCalled, createSubCalled *bool) *Handler {
+	return NewHandler(
+		cfg,
+		analyzer,
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			*decomposeCalled = true
+			return []runtypes.SubTask{{Title: "split-1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			*createSubCalled = true
+			return nil
+		},
+		nil,
+		nil,
+	)
+}
+
+func TestExecuteWithRetry_RefactorTokensCanExhaustBudgetBeforeNextAttempt(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Claude.MaxInputTokensPerBead = 100
+
+	analyzeCalls := 0
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			analyzeCalls++
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				Suggestion:  "retry after refactor",
+			}, nil
+		},
+	}
+
+	decomposeCalled := false
+	createSubCalled := false
+	h := newTokenBudgetHandlerWithDecomposition(cfg, mfa, &decomposeCalled, &createSubCalled)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+
+	invokeCalls := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invokeCalls++
+		bc.Result.InputTokens = 40 // initial build usage below cap
+		if invokeCalls == 1 {
+			// Simulate refactor-phase input tokens recorded before the next retry-budget check.
+			bc.CumulativeInputTokens += 70
+			return &runtypes.InvocationResult{Result: &claude.Result{Success: false, Output: "fail 1"}}, nil
+		}
+		return &runtypes.InvocationResult{Result: &claude.Result{Success: true, Output: "unexpected"}}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected retry flow to stop after refactor-augmented token budget exhaustion")
+	}
+	if invokeCalls != 1 {
+		t.Fatalf("expected second attempt to be blocked by budget gate, invokeCalls=%d", invokeCalls)
+	}
+	if !decomposeCalled {
+		t.Fatal("expected decomposition when refactor tokens pushed cumulative tokens over budget")
+	}
+	if !createSubCalled {
+		t.Fatal("expected sub-bead creation after decomposition")
+	}
+	if !bc.Result.Decomposed {
+		t.Fatal("expected decomposed result when retry is blocked by token budget")
+	}
+	if analyzeCalls != 1 {
+		t.Fatalf("Analyze calls=%d, want 1", analyzeCalls)
+	}
+}
+
+func TestExecuteWithRetry_RefactorTokensUnderCapStillPermitRetryAttempt(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Claude.MaxInputTokensPerBead = 100
+
+	analyzeCalls := 0
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			analyzeCalls++
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				Suggestion:  "retry after refactor",
+			}, nil
+		},
+	}
+
+	decomposeCalled := false
+	createSubCalled := false
+	h := newTokenBudgetHandlerWithDecomposition(cfg, mfa, &decomposeCalled, &createSubCalled)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+
+	invokeCalls := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invokeCalls++
+		switch invokeCalls {
+		case 1:
+			bc.Result.InputTokens = 40
+			// Refactor tokens stay under cap; next attempt should be allowed.
+			bc.CumulativeInputTokens += 50
+			return &runtypes.InvocationResult{Result: &claude.Result{Success: false, Output: "fail 1"}}, nil
+		case 2:
+			bc.Result.InputTokens = 5
+			return &runtypes.InvocationResult{Result: &claude.Result{Success: true, Output: "ok"}}, nil
+		default:
+			t.Fatalf("unexpected invoke call %d", invokeCalls)
+			return nil, nil
+		}
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if !success {
+		t.Fatal("expected retry to proceed when refactor-augmented cumulative tokens remain under cap")
+	}
+	if invokeCalls != 2 {
+		t.Fatalf("expected second attempt to run, invokeCalls=%d", invokeCalls)
+	}
+	if decomposeCalled {
+		t.Fatal("did not expect decomposition while cumulative tokens are under cap")
+	}
+	if createSubCalled {
+		t.Fatal("did not expect sub-bead creation while cumulative tokens are under cap")
+	}
+	if bc.CumulativeInputTokens != 95 {
+		t.Fatalf("CumulativeInputTokens=%d, want 95", bc.CumulativeInputTokens)
+	}
+	if analyzeCalls != 1 {
+		t.Fatalf("Analyze calls=%d, want 1", analyzeCalls)
+	}
+}
+
 func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
 	// When the context is cancelled, ExecuteWithRetry should stop and return false.
 	cfg := newTestConfig()
