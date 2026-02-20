@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/scope"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 // TestReviewGitOutputFn_CanBeOverridden verifies that reviewGitOutputFn is a
@@ -223,6 +224,72 @@ func TestGetGitHeadForReview_UsesInjectedGit(t *testing.T) {
 	wantArgs := []string{"rev-parse", "HEAD"}
 	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
 		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
+func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
+	origCommandFn := reviewGitCommandFn
+	origOutputFn := reviewGitOutputFn
+	t.Cleanup(func() {
+		reviewGitCommandFn = origCommandFn
+		reviewGitOutputFn = origOutputFn
+	})
+
+	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
+		return exec.Command("echo", "stub")
+	}
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return []byte("deadbeef\n"), nil
+	}
+
+	gromitDir := t.TempDir()
+	manager := &cliStateManager{gromitDir: gromitDir}
+	if err := manager.SetLastReviewCommit("from-commit"); err != nil {
+		t.Fatalf("SetLastReviewCommit() error = %v", err)
+	}
+
+	sf, err := state.NewInteractiveFile(gromitDir)
+	if err != nil {
+		t.Fatalf("NewInteractiveFile() error = %v", err)
+	}
+	if err := sf.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if sf.LastReviewCommit() != "deadbeef" {
+		t.Fatalf("LastReviewCommit() = %q, want %q", sf.LastReviewCommit(), "deadbeef")
+	}
+}
+
+func TestCliStateManagerSetLastReviewCommit_FallsBackToProvidedCommit(t *testing.T) {
+	origCommandFn := reviewGitCommandFn
+	origOutputFn := reviewGitOutputFn
+	t.Cleanup(func() {
+		reviewGitCommandFn = origCommandFn
+		reviewGitOutputFn = origOutputFn
+	})
+
+	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
+		return exec.Command("echo", "stub")
+	}
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return nil, errors.New("git failure")
+	}
+
+	gromitDir := t.TempDir()
+	manager := &cliStateManager{gromitDir: gromitDir}
+	if err := manager.SetLastReviewCommit("fallback-commit"); err != nil {
+		t.Fatalf("SetLastReviewCommit() error = %v", err)
+	}
+
+	sf, err := state.NewInteractiveFile(gromitDir)
+	if err != nil {
+		t.Fatalf("NewInteractiveFile() error = %v", err)
+	}
+	if err := sf.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if sf.LastReviewCommit() != "fallback-commit" {
+		t.Fatalf("LastReviewCommit() = %q, want %q", sf.LastReviewCommit(), "fallback-commit")
 	}
 }
 

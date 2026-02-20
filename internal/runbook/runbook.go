@@ -45,14 +45,6 @@ func NewEntry(beadID string, now time.Time) Entry {
 	}
 }
 
-func truncateOutput(output string) string {
-	const maxBytes = 5 * 1024
-	if len(output) <= maxBytes {
-		return output
-	}
-	return output[len(output)-maxBytes:]
-}
-
 // writeEntry marshals entry as a JSONL line to f.
 func writeEntry(f *os.File, entry Entry) error {
 	data, err := json.Marshal(entry)

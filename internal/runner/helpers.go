@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -94,7 +95,33 @@ var nonInteractiveEnv = []string{
 func prepareCommand(cmd *exec.Cmd, workDir string) {
 	cmd.Dir = workDir
 	cmd.Stdin = bytes.NewReader(nil)
-	cmd.Env = append(os.Environ(), nonInteractiveEnv...)
+	env := append(os.Environ(), nonInteractiveEnv...)
+	env = append(env, validationGoCacheEnv(workDir)...)
+	cmd.Env = env
+}
+
+func validationGoCacheEnv(workDir string) []string {
+	root := strings.TrimSpace(workDir)
+	if root == "" {
+		root = "."
+	}
+
+	buildCache := filepath.Join(root, ".gromit", "tmp", "go-build-cache")
+	modCache := filepath.Join(root, ".gromit", "tmp", "go-mod-cache")
+	goPath := filepath.Join(root, ".gromit", "tmp", "go-path")
+
+	for _, dir := range []string{buildCache, modCache, goPath} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			continue
+		}
+	}
+
+	env := []string{
+		"GOCACHE=" + buildCache,
+		"GOMODCACHE=" + modCache,
+		"GOPATH=" + goPath,
+	}
+	return env
 }
 
 func runCommand(cmd *exec.Cmd) (string, string, int, error) {

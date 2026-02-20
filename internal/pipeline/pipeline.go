@@ -3,9 +3,9 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"strings"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/review"
 )

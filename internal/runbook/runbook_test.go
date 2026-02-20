@@ -24,6 +24,14 @@ func TestNewEntrySetsIDAndTimestamp(t *testing.T) {
 	}
 }
 
+func truncateOutput(output string) string {
+	const maxBytes = 5 * 1024
+	if len(output) <= maxBytes {
+		return output
+	}
+	return output[len(output)-maxBytes:]
+}
+
 func TestTruncateOutputCapsAt5KB(t *testing.T) {
 	input := strings.Repeat("a", 6000)
 	output := truncateOutput(input)

@@ -115,6 +115,33 @@ func TestGromitYamlDocumentsMaxCrossRunFailures(t *testing.T) {
 	}
 }
 
+func TestGromitYamlDocumentsLearningsConfig(t *testing.T) {
+	content, err := os.ReadFile("../../gromit.yaml")
+	if err != nil {
+		t.Fatalf("failed to read gromit.yaml: %v", err)
+	}
+
+	text := string(content)
+
+	t.Run("has_learnings_comment_header", func(t *testing.T) {
+		if !strings.Contains(text, "# Learnings") {
+			t.Error("gromit.yaml missing Learnings section comment header")
+		}
+	})
+
+	t.Run("has_commented_learnings_section", func(t *testing.T) {
+		if !strings.Contains(text, "# learnings:") {
+			t.Error("gromit.yaml missing commented-out learnings configuration")
+		}
+	})
+
+	t.Run("documents_max_learning_chars", func(t *testing.T) {
+		if !strings.Contains(text, "#   max_learning_chars:") {
+			t.Error("gromit.yaml missing max_learning_chars example in commented learnings section")
+		}
+	})
+}
+
 // Expected failure: gromit.yaml does not have a commented worktree section yet
 // TestGromitYamlDocumentsWorktreeConfig verifies that the reference gromit.yaml
 // includes a commented-out worktree configuration section showing how to enable

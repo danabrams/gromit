@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -46,7 +47,8 @@ func TestRunArgvUsesInjectedRunner(t *testing.T) {
 }
 
 func TestDefaultArgvRunnerSetsEnv(t *testing.T) {
-	stdout, stderr, exitCode, err := defaultArgvRunner(context.Background(), "env", nil, t.TempDir())
+	workDir := t.TempDir()
+	stdout, stderr, exitCode, err := defaultArgvRunner(context.Background(), "env", nil, workDir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,6 +63,9 @@ func TestDefaultArgvRunnerSetsEnv(t *testing.T) {
 		"CI=1",
 		"NONINTERACTIVE=1",
 		"TERM=dumb",
+		"GOCACHE=" + filepath.Join(workDir, ".gromit", "tmp", "go-build-cache"),
+		"GOMODCACHE=" + filepath.Join(workDir, ".gromit", "tmp", "go-mod-cache"),
+		"GOPATH=" + filepath.Join(workDir, ".gromit", "tmp", "go-path"),
 	} {
 		if !strings.Contains(stdout, expected) {
 			t.Fatalf("stdout missing %q", expected)

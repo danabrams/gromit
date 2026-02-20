@@ -392,6 +392,10 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 		return fmt.Errorf("review interactive: %w", err)
 	}
 
+	if err := recordInteractiveReviewCompletion(gromitDir, fromCommit); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -532,6 +536,16 @@ func shortCommit(commit string) string {
 		return commit[:8]
 	}
 	return commit
+}
+
+func recordInteractiveReviewCompletion(gromitDir, fromCommit string) error {
+	stateAdapter := &cliStateManager{
+		gromitDir: gromitDir,
+	}
+	if err := stateAdapter.SetLastReviewCommit(fromCommit); err != nil {
+		return fmt.Errorf("recording review completion: %w", err)
+	}
+	return nil
 }
 
 // cliAgentResolver adapts agent.Resolve to the pipeline.AgentResolver interface
