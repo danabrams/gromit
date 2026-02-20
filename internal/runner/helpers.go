@@ -172,6 +172,8 @@ func (r *Runner) runArgv(ctx context.Context, program string, args []string, wor
 	return defaultArgvRunner(ctx, program, args, workDir)
 }
 
+// isInteractiveStdin reports whether stdin appears to be attached to a TTY.
+// statFn is injected for testability.
 func isInteractiveStdin(statFn func() (os.FileInfo, error)) bool {
 	if statFn == nil {
 		return false
@@ -186,14 +188,8 @@ func isInteractiveStdin(statFn func() (os.FileInfo, error)) bool {
 }
 
 func parseYesNoResponse(input string) bool {
-	switch strings.ToLower(strings.TrimSpace(input)) {
-	case "y", "yes":
-		return true
-	case "n", "no", "":
-		return false
-	default:
-		return false
-	}
+	normalized := strings.ToLower(strings.TrimSpace(input))
+	return normalized == "y" || normalized == "yes"
 }
 
 // extractExpectedFiles parses a bead description for file creation patterns
