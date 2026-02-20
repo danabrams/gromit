@@ -26,6 +26,8 @@ type IterationLog struct {
 	Validated               bool      `json:"validated"`
 	Escalated               bool      `json:"escalated"`
 	EscalatedTo             string    `json:"escalated_to,omitempty"`
+	OriginalTier            string    `json:"original_tier,omitempty"`
+	ActualTier              string    `json:"actual_tier,omitempty"`
 	DurationMs              int64     `json:"duration_ms"`
 	CostUSD                 float64   `json:"cost_usd"`
 	InputTokens             int       `json:"input_tokens"`

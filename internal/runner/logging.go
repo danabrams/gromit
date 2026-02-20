@@ -181,6 +181,8 @@ func newIterationLogEntry(iteration int, result *IterationResult, errStr, outcom
 		Validated:                 result.Validated,
 		Escalated:                 result.Escalated,
 		EscalatedTo:               result.EscalatedTo,
+		OriginalTier:              result.OriginalTier,
+		ActualTier:                result.ActualTier,
 		DurationMs:                result.Duration.Milliseconds(),
 		CostUSD:                   result.CostUSD,
 		InputTokens:               result.InputTokens,

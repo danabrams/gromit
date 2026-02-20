@@ -171,6 +171,37 @@ func TestIterationLog_ProviderAndFailureCategoryJSONTags(t *testing.T) {
 	}
 }
 
+func TestIterationLog_TierFieldsJSONTags(t *testing.T) {
+	log := &IterationLog{
+		BeadID:       "test-1",
+		Model:        "sonnet",
+		OriginalTier: "low",
+		ActualTier:   "medium",
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	if !strings.Contains(string(data), "\"original_tier\":\"low\"") {
+		t.Fatalf("expected original_tier in JSON, got %s", string(data))
+	}
+	if !strings.Contains(string(data), "\"actual_tier\":\"medium\"") {
+		t.Fatalf("expected actual_tier in JSON, got %s", string(data))
+	}
+
+	emptyData, err := json.Marshal(IterationLog{})
+	if err != nil {
+		t.Fatalf("marshal empty log: %v", err)
+	}
+	if strings.Contains(string(emptyData), "original_tier") {
+		t.Fatalf("expected original_tier to be omitted, got %s", string(emptyData))
+	}
+	if strings.Contains(string(emptyData), "actual_tier") {
+		t.Fatalf("expected actual_tier to be omitted, got %s", string(emptyData))
+	}
+}
+
 func TestIterationLog_TouchedPackagesJSONTag(t *testing.T) {
 	log := &IterationLog{
 		BeadID:          "test-1",

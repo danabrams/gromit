@@ -135,6 +135,8 @@ func TestIterationResult_InRuntypes(t *testing.T) {
 		Error:                 nil,
 		Escalated:             false,
 		EscalatedTo:           "",
+		OriginalTier:          "low",
+		ActualTier:            "medium",
 		Decomposed:            false,
 		Output:                "build output here",
 		CostUSD:               0.15,
@@ -186,6 +188,12 @@ func TestIterationResult_InRuntypes(t *testing.T) {
 	}
 	if result.RateLimitRecoveryMs != 1500 {
 		t.Errorf("RateLimitRecoveryMs = %d, want %d", result.RateLimitRecoveryMs, 1500)
+	}
+	if result.OriginalTier != "low" {
+		t.Errorf("OriginalTier = %q, want %q", result.OriginalTier, "low")
+	}
+	if result.ActualTier != "medium" {
+		t.Errorf("ActualTier = %q, want %q", result.ActualTier, "medium")
 	}
 	if result.PromptDiagnostics != promptDiagnostics {
 		t.Error("PromptDiagnostics should match assigned diagnostics pointer")

@@ -146,6 +146,35 @@ func TestWriteIterationLog_PropagatesPromptDiagnosticsToMockLogger(t *testing.T)
 	}
 }
 
+func TestWriteIterationLog_PropagatesTierFields(t *testing.T) {
+	mockLog := &mockIterationLogger{}
+	r := &Runner{
+		logger: mockLog,
+		output: &strings.Builder{},
+	}
+
+	result := &runtypes.IterationResult{
+		BeadID:       "bead-1",
+		BeadTitle:    "Test Bead",
+		Model:        "haiku",
+		Success:      true,
+		OriginalTier: "low",
+		ActualTier:   "medium",
+	}
+
+	r.writeIterationLog(1, result)
+
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(mockLog.Logs))
+	}
+	if mockLog.Logs[0].OriginalTier != "low" {
+		t.Errorf("OriginalTier = %q, want %q", mockLog.Logs[0].OriginalTier, "low")
+	}
+	if mockLog.Logs[0].ActualTier != "medium" {
+		t.Errorf("ActualTier = %q, want %q", mockLog.Logs[0].ActualTier, "medium")
+	}
+}
+
 func TestWriteIterationLog_WritesTDDMetricsToJSONL(t *testing.T) {
 	r, tmpDir := newTestRunnerWithLogger(t, false)
 	result := &IterationResult{

@@ -70,6 +70,8 @@ type IterationResult struct {
 	Error                   error
 	Escalated               bool
 	EscalatedTo             string
+	OriginalTier            string
+	ActualTier              string
 	Decomposed              bool
 	Output                  string
 	CostUSD                 float64
