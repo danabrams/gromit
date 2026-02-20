@@ -114,7 +114,8 @@ func TestClientRun_SubprocessExitErrorWrapsStderr(t *testing.T) {
 }
 
 func TestClientRun_SubprocessNonExitErrorIsUnchanged(t *testing.T) {
-	c := &Client{binary: filepath.Join(t.TempDir(), "missing-bd")}
+	missingBinary := filepath.Join(t.TempDir(), "missing-bd")
+	c := &Client{binary: missingBinary}
 
 	out, err := c.run("ready", "--json")
 	if out != "" {
@@ -122,6 +123,14 @@ func TestClientRun_SubprocessNonExitErrorIsUnchanged(t *testing.T) {
 	}
 	if err == nil {
 		t.Fatal("run() error = nil, want non-nil")
+	}
+
+	_, expectedErr := exec.Command(missingBinary, "ready", "--json").Output()
+	if expectedErr == nil {
+		t.Fatal("expected raw exec.Command().Output() error, got nil")
+	}
+	if err.Error() != expectedErr.Error() {
+		t.Fatalf("run() error text = %q, want %q", err.Error(), expectedErr.Error())
 	}
 
 	var exitErr *exec.ExitError
