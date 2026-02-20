@@ -14,15 +14,16 @@ func TestRulesPhaseCharBudgets(t *testing.T) {
 		phase    string
 		maxChars int
 	}{
-		{"build", 8000},
-		{"review", 6000},
-		{"plan", 2000},
-		{"refine", 2000},
-		{"retro", 2000},
-		{"validate", 2000},
+		{phase: "build", maxChars: 8000},
+		{phase: "review", maxChars: 6000},
+		{phase: "plan", maxChars: 2000},
+		{phase: "refine", maxChars: 2000},
+		{phase: "retro", maxChars: 2000},
+		{phase: "validate", maxChars: 2000},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.phase, func(t *testing.T) {
 			result, err := r.LoadRulesForPhase(tt.phase)
 			if err != nil {
