@@ -16,6 +16,22 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 )
 
+func setTestHomeAndGoPath(t *testing.T) string {
+	t.Helper()
+
+	homeDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	goPath := os.Getenv("GOPATH")
+	if goPath == "" {
+		goPath = filepath.Join(originalHome, "go")
+	}
+
+	t.Setenv("HOME", homeDir)
+	t.Setenv("GOPATH", goPath)
+
+	return homeDir
+}
+
 // Expected failure: Run() does not call logger.ReadRunModelStats after loop completes
 // Expected failure: Run() does not call logger.UpdateGlobalStats with run stats
 // Expected failure: Global stats file is not created at ~/.gromit/stats.json
@@ -25,13 +41,7 @@ func TestRun_UpdatesGlobalStatsAfterCompletion(t *testing.T) {
 	logsDir := filepath.Join(tmpDir, "logs")
 
 	// Setup temp home directory for global stats
-	homeDir := t.TempDir()
-	goPath := os.Getenv("GOPATH")
-	if goPath == "" {
-		goPath = filepath.Join(os.Getenv("HOME"), "go")
-	}
-	t.Setenv("HOME", homeDir)
-	t.Setenv("GOPATH", goPath)
+	homeDir := setTestHomeAndGoPath(t)
 
 	expectedGlobalStatsPath := filepath.Join(homeDir, ".gromit", "stats.json")
 
@@ -112,13 +122,7 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 	tmpDir := t.TempDir()
 	logsDir := filepath.Join(tmpDir, "logs")
 
-	homeDir := t.TempDir()
-	goPath2 := os.Getenv("GOPATH")
-	if goPath2 == "" {
-		goPath2 = filepath.Join(os.Getenv("HOME"), "go")
-	}
-	t.Setenv("HOME", homeDir)
-	t.Setenv("GOPATH", goPath2)
+	homeDir := setTestHomeAndGoPath(t)
 
 	expectedGlobalStatsPath := filepath.Join(homeDir, ".gromit", "stats.json")
 
