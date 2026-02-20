@@ -196,6 +196,18 @@ func TestNormalizeNilFieldsInitializesProvidersAndRouting(t *testing.T) {
 	}
 }
 
+func TestNormalizeNilFieldsInitializesNilProvidersMap(t *testing.T) {
+	cfg := &Config{}
+	cfg.NormalizeNilFields()
+
+	if cfg.Providers == nil {
+		t.Error("Providers is nil after NormalizeNilFields, want empty map")
+	}
+	if len(cfg.Providers) != 0 {
+		t.Errorf("len(Providers) = %d, want 0", len(cfg.Providers))
+	}
+}
+
 // TestSetDefaultsLeavesProvidersUntouched verifies that SetDefaults does not
 // modify the Providers configuration when it exists.
 // Expected failure: ProvidersConfig field does not exist on Config yet

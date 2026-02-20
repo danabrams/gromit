@@ -484,6 +484,9 @@ func (c *Config) NormalizeNilFields() {
 		}
 	}
 	// Normalize Providers fields
+	if c.Providers == nil {
+		c.Providers = make(map[string]ProviderDef)
+	}
 	for name, def := range c.Providers {
 		if def.Flags == nil {
 			def.Flags = []string{}
