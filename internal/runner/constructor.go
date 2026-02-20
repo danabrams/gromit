@@ -42,6 +42,22 @@ var defaultCodexTierToModelMap = map[string]string{
 	"low":    "gpt-5.3-codex-spark",
 }
 
+type runnerPolicies struct {
+	escalation  policy.EscalationPolicy
+	methodology policy.MethodologyPolicy
+	validation  policy.ValidationPolicy
+	stuck       policy.StuckPolicy
+}
+
+func newRunnerPolicies(cfg *config.Config) runnerPolicies {
+	return runnerPolicies{
+		escalation:  policy.NewConfigEscalationPolicy(cfg),
+		methodology: policy.NewConfigMethodologyPolicy(cfg),
+		validation:  policy.NewConfigValidationPolicy(cfg),
+		stuck:       policy.NewConfigStuckPolicy(cfg),
+	}
+}
+
 func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Reviewer, error) {
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("config is nil")
@@ -93,6 +109,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 
 	stallTimeoutFn := makeStallTimeoutFn(cfg)
 	inv := buildInvoker(router, syncOut, stallTimeoutFn, cfg)
+	policies := newRunnerPolicies(cfg)
 
 	r := &Runner{
 		cfg:               cfg,
@@ -103,10 +120,10 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 		analyzer:          analyzerObj,
 		renderer:          renderer,
 		logger:            log,
-		escalationPolicy:  policy.NewConfigEscalationPolicy(cfg),
-		methodologyPolicy: policy.NewConfigMethodologyPolicy(cfg),
-		validationPolicy:  policy.NewConfigValidationPolicy(cfg),
-		stuckPolicy:       policy.NewConfigStuckPolicy(cfg),
+		escalationPolicy:  policies.escalation,
+		methodologyPolicy: policies.methodology,
+		validationPolicy:  policies.validation,
+		stuckPolicy:       policies.stuck,
 		output:            syncOut,
 		syncOut:           syncOut,
 		gromitDir:         gromitDir,

@@ -7,7 +7,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 )
 
-func TestNewRunnerWiresStuckPolicy(t *testing.T) {
+func TestNewRunnerWiresConfigBackedPolicies(t *testing.T) {
 	tmpDir := setupNewRunnerDirs(t)
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -25,6 +25,15 @@ func TestNewRunnerWiresStuckPolicy(t *testing.T) {
 
 	if r.stuckPolicy == nil {
 		t.Fatal("expected NewRunner to wire stuckPolicy")
+	}
+	if r.escalationPolicy == nil {
+		t.Fatal("expected NewRunner to wire escalationPolicy")
+	}
+	if r.validationPolicy == nil {
+		t.Fatal("expected NewRunner to wire validationPolicy")
+	}
+	if r.methodologyPolicy == nil {
+		t.Fatal("expected NewRunner to wire methodologyPolicy")
 	}
 }
 
