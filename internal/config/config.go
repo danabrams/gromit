@@ -913,7 +913,7 @@ func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
 			continue
 		}
 
-		filtered := collapsed[:0]
+		filtered := make([]string, 0, len(collapsed))
 		for _, existing := range collapsed {
 			if existing == pkg || strings.HasPrefix(existing, pkg+"/") {
 				continue

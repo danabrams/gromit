@@ -3884,6 +3884,24 @@ func TestScopeGoTestCommands_CollapsesNestedPackages(t *testing.T) {
 	}
 }
 
+func TestScopeGoTestCommands_CollapsesInterleavedChildren(t *testing.T) {
+	commands := []string{"go test -count=1 ./..."}
+	// Parent "x" appears after children "x/a" and "x/b", interleaved with
+	// unrelated packages "y" and "z". This exercises the filter loop where
+	// multiple elements are removed while others are kept.
+	touched := []string{"x/a", "y", "x/b", "z", "x"}
+
+	got := ScopeGoTestCommands(commands, touched)
+	want := "go test -count=1 ./y/... ./z/... ./x/..."
+
+	if len(got) != 1 {
+		t.Fatalf("ScopeGoTestCommands returned %d commands, want 1", len(got))
+	}
+	if got[0] != want {
+		t.Fatalf("scoped go test command = %q, want %q", got[0], want)
+	}
+}
+
 func TestScopeGoTestCommands_IncludesRootPackage(t *testing.T) {
 	commands := []string{"go test -count=1 ./..."}
 	touched := []string{".", "internal/runner"}
