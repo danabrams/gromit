@@ -613,10 +613,19 @@ func TestExecuteBuildLoop_FirstPassSuccess_NoRetriesNoEscalation(t *testing.T) {
 }
 
 func TestExecuteBuildLoop_RecordsGreenPhaseMetric(t *testing.T) {
-	cfg := &config.Config{}
-	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	var bc *runtypes.BeadContext
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		if bc != nil {
+			// Simulate later phases updating aggregate usage after green finishes.
+			bc.Result.CostUSD = 9.99
+			bc.Result.InputTokens = 900
+			bc.Result.OutputTokens = 450
+		}
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 	b := newTestBead("green-metric-1", "Implement feature")
-	bc := newBeadContextForMethodology(b)
+	bc = newBeadContextForMethodology(b)
 	bc.Model = "sonnet"
 	bc.Tier = "medium"
 
@@ -626,6 +635,7 @@ func TestExecuteBuildLoop_RecordsGreenPhaseMetric(t *testing.T) {
 		false,
 		false,
 		func() bool {
+			bc.Result.CostUSD = 1.23
 			bc.Result.InputTokens = 111
 			bc.Result.OutputTokens = 37
 			return true
@@ -650,6 +660,9 @@ func TestExecuteBuildLoop_RecordsGreenPhaseMetric(t *testing.T) {
 	}
 	if metric.Tier != "medium" {
 		t.Fatalf("Tier = %q, want %q", metric.Tier, "medium")
+	}
+	if metric.CostUSD != 1.23 {
+		t.Fatalf("CostUSD = %f, want 1.23", metric.CostUSD)
 	}
 	if metric.InputTokens != 111 || metric.OutputTokens != 37 {
 		t.Fatalf("tokens = (%d,%d), want (111,37)", metric.InputTokens, metric.OutputTokens)

@@ -378,6 +378,7 @@ func TestPhaseMetric_CoreFields(t *testing.T) {
 		BeadID:       "bead-abc",
 		Model:        "haiku",
 		Tier:         "low",
+		CostUSD:      0.42,
 		InputTokens:  1500,
 		OutputTokens: 800,
 		DurationMs:   3200,
@@ -399,6 +400,9 @@ func TestPhaseMetric_CoreFields(t *testing.T) {
 	}
 	if pm.Tier != "low" {
 		t.Errorf("Tier = %q, want %q", pm.Tier, "low")
+	}
+	if pm.CostUSD != 0.42 {
+		t.Errorf("CostUSD = %f, want 0.42", pm.CostUSD)
 	}
 	if pm.InputTokens != 1500 {
 		t.Errorf("InputTokens = %d, want 1500", pm.InputTokens)

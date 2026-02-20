@@ -285,6 +285,31 @@ func (r *Runner) recordPhaseMetric(
 	phaseStart time.Time,
 	success bool,
 ) {
+	if bc == nil || bc.Result == nil {
+		return
+	}
+	r.recordPhaseMetricWithUsage(
+		bc,
+		phase,
+		cycleNumber,
+		phaseStart,
+		success,
+		bc.Result.CostUSD,
+		bc.Result.InputTokens,
+		bc.Result.OutputTokens,
+	)
+}
+
+func (r *Runner) recordPhaseMetricWithUsage(
+	bc *runtypes.BeadContext,
+	phase string,
+	cycleNumber int,
+	phaseStart time.Time,
+	success bool,
+	costUSD float64,
+	inputTokens int,
+	outputTokens int,
+) {
 	if bc == nil || bc.Result == nil || bc.Bead == nil {
 		return
 	}
@@ -304,8 +329,9 @@ func (r *Runner) recordPhaseMetric(
 		BeadID:             bc.Bead.ID,
 		Model:              bc.Model,
 		Tier:               bc.Tier,
-		InputTokens:        bc.Result.InputTokens,
-		OutputTokens:       bc.Result.OutputTokens,
+		CostUSD:            costUSD,
+		InputTokens:        inputTokens,
+		OutputTokens:       outputTokens,
 		DurationMs:         durationMs,
 		Success:            success,
 		Escalated:          bc.Result.Escalated,
@@ -330,8 +356,12 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		injectScopedTestCommand(bc)
 
 		greenPhaseStart := time.Now()
-		if !executeWithRetry() {
-			r.recordPhaseMetric(bc, "green", cycleNumber, greenPhaseStart, false)
+		greenSuccess := executeWithRetry()
+		greenCostUSD := bc.Result.CostUSD
+		greenInputTokens := bc.Result.InputTokens
+		greenOutputTokens := bc.Result.OutputTokens
+		if !greenSuccess {
+			r.recordPhaseMetricWithUsage(bc, "green", cycleNumber, greenPhaseStart, false, greenCostUSD, greenInputTokens, greenOutputTokens)
 			if bc.Result.FailurePhase == "" {
 				if bc.Result.TimeoutType != "" || isTimeoutOrCanceledError(bc.Result.Error) {
 					bc.Result.FailurePhase = failurephase.Timeout
@@ -341,7 +371,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 			}
 			return bc.Result
 		}
-		r.recordPhaseMetric(bc, "green", cycleNumber, greenPhaseStart, true)
+		r.recordPhaseMetricWithUsage(bc, "green", cycleNumber, greenPhaseStart, true, greenCostUSD, greenInputTokens, greenOutputTokens)
 
 		r.refreshTouchedPackagesFromStartCommit(bc)
 

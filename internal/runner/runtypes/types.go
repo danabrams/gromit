@@ -125,20 +125,21 @@ type IterationResult struct {
 
 // PhaseMetric captures per-phase metrics for TDD cycle tracking.
 type PhaseMetric struct {
-	Phase              string `json:"phase"`
-	CycleNumber        int    `json:"cycle_number"`
-	BeadID             string `json:"bead_id"`
-	Model              string `json:"model"`
-	Tier               string `json:"tier"`
-	InputTokens        int    `json:"input_tokens"`
-	OutputTokens       int    `json:"output_tokens"`
-	DurationMs         int64  `json:"duration_ms"`
-	Success            bool   `json:"success"`
-	Escalated          bool   `json:"escalated"`
-	EscalatedFrom      string `json:"escalated_from,omitempty"`
-	CriteriaTotal      int    `json:"criteria_total,omitempty"`
-	CriteriaCovered    int    `json:"criteria_covered,omitempty"`
-	CriteriaUntestable int    `json:"criteria_untestable,omitempty"`
+	Phase              string  `json:"phase"`
+	CycleNumber        int     `json:"cycle_number"`
+	BeadID             string  `json:"bead_id"`
+	Model              string  `json:"model"`
+	Tier               string  `json:"tier"`
+	CostUSD            float64 `json:"cost_usd"`
+	InputTokens        int     `json:"input_tokens"`
+	OutputTokens       int     `json:"output_tokens"`
+	DurationMs         int64   `json:"duration_ms"`
+	Success            bool    `json:"success"`
+	Escalated          bool    `json:"escalated"`
+	EscalatedFrom      string  `json:"escalated_from,omitempty"`
+	CriteriaTotal      int     `json:"criteria_total,omitempty"`
+	CriteriaCovered    int     `json:"criteria_covered,omitempty"`
+	CriteriaUntestable int     `json:"criteria_untestable,omitempty"`
 }
 
 // HardStopApprovalState captures explicit approval for hard-stop actions.
