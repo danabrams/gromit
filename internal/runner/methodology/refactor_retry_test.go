@@ -175,6 +175,30 @@ func TestApplyRefactorStreamStats_ZeroCostDataLeavesExistingResultUnchanged(t *t
 	assertResultCostData(t, bc.Result, 1.20, 1000, 400)
 }
 
+func TestApplyRefactorStreamStats_IncrementsCumulativeInputTokens(t *testing.T) {
+	cfg := newTestConfigWithEscalation()
+	exec := NewExecutor(cfg, nil, nil, nil, nil)
+
+	bc := newTestBeadContextWithTier(provider.TierMedium)
+	bc.Result.InputTokens = 1000
+	bc.CumulativeInputTokens = 500
+
+	stats, err := logger.NewStreamStats()
+	if err != nil {
+		t.Fatalf("NewStreamStats() failed: %v", err)
+	}
+	stats.MergeCostData(0.10, 300, 50)
+
+	exec.applyRefactorStreamStats(bc, stats)
+
+	if bc.Result.InputTokens != 1300 {
+		t.Errorf("Result.InputTokens = %d, want 1300", bc.Result.InputTokens)
+	}
+	if bc.CumulativeInputTokens != 800 {
+		t.Errorf("CumulativeInputTokens = %d, want 800", bc.CumulativeInputTokens)
+	}
+}
+
 func TestRunRefactorPhase_SkipsWhenNoDiff(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
