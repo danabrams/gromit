@@ -404,14 +404,7 @@ func (r *Runner) runBetweenIterationsCommand() {
 
 	r.log("Running between-iterations command: %s", command)
 	stdout, stderr, exitCode, err := r.runCmd(context.Background(), command, "")
-	if r.output != nil {
-		if stdout != "" {
-			_, _ = fmt.Fprint(r.output, stdout)
-		}
-		if stderr != "" {
-			_, _ = fmt.Fprint(r.output, stderr)
-		}
-	}
+	r.writeCommandOutput(stdout, stderr)
 	if err != nil {
 		r.log("Warning: between-iterations command failed: %v", err)
 		return
@@ -435,14 +428,7 @@ func (r *Runner) runEndOfLoopCommand() error {
 
 	r.log("Running end-of-loop command: %s", command)
 	stdout, stderr, exitCode, err := r.runCmd(context.Background(), command, "")
-	if r.output != nil {
-		if stdout != "" {
-			_, _ = fmt.Fprint(r.output, stdout)
-		}
-		if stderr != "" {
-			_, _ = fmt.Fprint(r.output, stderr)
-		}
-	}
+	r.writeCommandOutput(stdout, stderr)
 	if err != nil {
 		return fmt.Errorf("end-of-loop command failed: %w", err)
 	}
@@ -450,6 +436,18 @@ func (r *Runner) runEndOfLoopCommand() error {
 		return fmt.Errorf("end-of-loop command failed (exit %d): %s", exitCode, strings.TrimSpace(stderr))
 	}
 	return nil
+}
+
+func (r *Runner) writeCommandOutput(stdout string, stderr string) {
+	if r == nil || r.output == nil {
+		return
+	}
+	if stdout != "" {
+		_, _ = fmt.Fprint(r.output, stdout)
+	}
+	if stderr != "" {
+		_, _ = fmt.Fprint(r.output, stderr)
+	}
 }
 
 // SetLabelFilters sets optional spec labels to filter beads by
