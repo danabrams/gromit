@@ -49,7 +49,10 @@ CumulativeDiff:
 
 ## Output
 
-GateVerdict is the only response contract to follow. Do not use any other format or response contract.
+### Response Contract
+
+The model must follow the `GateVerdict` contract.
+`GateVerdict` is the only response contract to follow. Do not use any other format or response contract.
 Every response must conform to the GateVerdict schema at the schema level.
 
 Respond with a JSON object that exactly matches the GateVerdict schema. Include every required field with the exact field names and value types, and include no additional fields.
