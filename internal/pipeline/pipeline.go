@@ -366,28 +366,35 @@ func (p *Pipeline) validateReviewDeps() error {
 		return fmt.Errorf("pipeline: nil dependencies")
 	}
 
-	if p.deps.ClaudeClient == nil || isTypedNil(p.deps.ClaudeClient) {
-		return fmt.Errorf("pipeline: nil ClaudeClient")
+	if err := requireNonNilDep("ClaudeClient", p.deps.ClaudeClient); err != nil {
+		return err
 	}
-	if p.deps.ReviewRenderer == nil || isTypedNil(p.deps.ReviewRenderer) {
-		return fmt.Errorf("pipeline: nil ReviewRenderer")
+	if err := requireNonNilDep("ReviewRenderer", p.deps.ReviewRenderer); err != nil {
+		return err
 	}
-	if p.deps.BeadClient == nil || isTypedNil(p.deps.BeadClient) {
-		return fmt.Errorf("pipeline: nil BeadClient")
+	if err := requireNonNilDep("BeadClient", p.deps.BeadClient); err != nil {
+		return err
 	}
-	if p.deps.BacklogClient == nil || isTypedNil(p.deps.BacklogClient) {
-		return fmt.Errorf("pipeline: nil BacklogClient")
+	if err := requireNonNilDep("BacklogClient", p.deps.BacklogClient); err != nil {
+		return err
 	}
-	if p.deps.LearningsManager == nil || isTypedNil(p.deps.LearningsManager) {
-		return fmt.Errorf("pipeline: nil LearningsManager")
+	if err := requireNonNilDep("LearningsManager", p.deps.LearningsManager); err != nil {
+		return err
 	}
-	if p.deps.LogWriter == nil || isTypedNil(p.deps.LogWriter) {
-		return fmt.Errorf("pipeline: nil LogWriter")
+	if err := requireNonNilDep("LogWriter", p.deps.LogWriter); err != nil {
+		return err
 	}
-	if p.deps.StateManager == nil || isTypedNil(p.deps.StateManager) {
-		return fmt.Errorf("pipeline: nil StateManager")
+	if err := requireNonNilDep("StateManager", p.deps.StateManager); err != nil {
+		return err
 	}
 
+	return nil
+}
+
+func requireNonNilDep(name string, dep any) error {
+	if dep == nil || isTypedNil(dep) {
+		return fmt.Errorf("pipeline: nil %s", name)
+	}
 	return nil
 }
 
