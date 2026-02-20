@@ -5,6 +5,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -266,6 +268,109 @@ func TestFinishRun_CallsEpilogueWhenSessionIterationsSet(t *testing.T) {
 	}
 	if sf2.LastRetro().IsZero() {
 		t.Error("finishRun() did not run epilogue retro (LastRetro is zero)")
+	}
+}
+
+const (
+	finishRunCallPush = "push"
+	finishRunCallEnd  = "end"
+)
+
+func newFinishRunCommandTestRunner(
+	t *testing.T,
+	endOfLoopCommand string,
+	onPush func(),
+	onEndCommand func(command string) (stdout string, stderr string, exitCode int, err error),
+) *Runner {
+	t.Helper()
+
+	autoPush := true
+	r := &Runner{
+		cfg: &config.Config{
+			Git: config.GitConfig{
+				AutoPush:    &autoPush,
+				PushFailure: "stop",
+			},
+			Loop: config.LoopConfig{
+				EndOfLoopCommand: endOfLoopCommand,
+			},
+		},
+		output: &bytes.Buffer{},
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			if program == "git" && slices.Equal(args, sessionCompletionPushArgv) && onPush != nil {
+				onPush()
+			}
+			return "", "", 0, nil
+		},
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			if onEndCommand == nil {
+				return "", "", 0, nil
+			}
+			return onEndCommand(command)
+		},
+	}
+
+	return r
+}
+
+func TestFinishRun_RunsEndOfLoopCommandAfterSessionCompletion(t *testing.T) {
+	var calls []string
+
+	r := newFinishRunCommandTestRunner(
+		t,
+		"echo done",
+		func() {
+			calls = append(calls, finishRunCallPush)
+		},
+		func(command string) (string, string, int, error) {
+			calls = append(calls, finishRunCallEnd)
+			if command != "echo done" {
+				t.Fatalf("unexpected command: %q", command)
+			}
+			return "", "", 0, nil
+		},
+	)
+
+	if err := r.finishRun(context.Background(), &runLoopState{}); err != nil {
+		t.Fatalf("finishRun() error = %v", err)
+	}
+
+	pushIdx := slices.Index(calls, finishRunCallPush)
+	endIdx := slices.Index(calls, finishRunCallEnd)
+	if pushIdx < 0 {
+		t.Fatalf("expected session completion git push call, got calls %v", calls)
+	}
+	if endIdx < 0 {
+		t.Fatalf("expected end-of-loop command call, got calls %v", calls)
+	}
+	if endIdx < pushIdx {
+		t.Fatalf("expected end-of-loop command after session completion, got calls %v", calls)
+	}
+}
+
+func TestFinishRun_PropagatesEndOfLoopCommandFailure(t *testing.T) {
+	pushCalled := false
+
+	r := newFinishRunCommandTestRunner(
+		t,
+		"echo fail",
+		func() {
+			pushCalled = true
+		},
+		func(command string) (string, string, int, error) {
+			return "", "boom", 9, nil
+		},
+	)
+
+	err := r.finishRun(context.Background(), &runLoopState{})
+	if err == nil {
+		t.Fatal("finishRun() error = nil, want end-of-loop command error")
+	}
+	if !strings.Contains(err.Error(), "end-of-loop command failed") {
+		t.Fatalf("finishRun() error = %v, want end-of-loop command failure", err)
+	}
+	if !pushCalled {
+		t.Fatal("expected session completion to run before end-of-loop command failure")
 	}
 }
 

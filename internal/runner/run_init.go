@@ -202,5 +202,9 @@ func (r *Runner) finishRun(ctx context.Context, st *runLoopState) error {
 		}
 	}
 
+	if err := r.runEndOfLoopCommand(); err != nil {
+		return err
+	}
+
 	return nil
 }
