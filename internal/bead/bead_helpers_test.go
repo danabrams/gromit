@@ -5,7 +5,6 @@ import "testing"
 func TestIsLeafBead(t *testing.T) {
 	t.Parallel()
 
-	two := 2
 	tests := []struct {
 		name string
 		bead *Bead
@@ -28,7 +27,7 @@ func TestIsLeafBead(t *testing.T) {
 		},
 		{
 			name: "positive dependent count is non-leaf",
-			bead: &Bead{DependentCount: &two},
+			bead: &Bead{DependentCount: intPtr(2)},
 			want: false,
 		},
 	}
