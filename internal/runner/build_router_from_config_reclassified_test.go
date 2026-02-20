@@ -90,6 +90,81 @@ func newRouterFromConfig(t *testing.T, cfg *config.Config) *Runner {
 	return runner
 }
 
+const (
+	testPhaseBuild    = "build"
+	testPhaseValidate = "validate"
+	testPhaseAnalyze  = "analyze"
+	testPhaseReview   = "review"
+)
+
+func createTestLearningsFile(t *testing.T, cfg *config.Config) {
+	t.Helper()
+
+	gromitDir := filepath.Dir(cfg.Paths.Templates)
+	learningsPath := filepath.Join(gromitDir, "LEARNINGS.md")
+	if err := os.WriteFile(learningsPath, []byte("# Learnings\n"), 0644); err != nil {
+		t.Fatalf("failed to create LEARNINGS.md: %v", err)
+	}
+}
+
+func createStateFile(t *testing.T, cfg *config.Config, contents string) {
+	t.Helper()
+
+	gromitDir := filepath.Dir(cfg.Paths.Templates)
+	if err := os.WriteFile(filepath.Join(gromitDir, "state.json"), []byte(contents), 0644); err != nil {
+		t.Fatalf("failed to write state.json: %v", err)
+	}
+}
+
+func newRouterConfigWithCooldown(t *testing.T, cooldown string) *config.Config {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, ".gromit", "templates")
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("failed to create templates dir: %v", err)
+	}
+
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 300,
+		},
+		Paths: config.PathsConfig{
+			Templates: templatesDir,
+		},
+		Models: config.ModelsConfig{
+			Validation: "low",
+		},
+		Providers: map[string]config.ProviderDef{
+			"claude": {
+				Binary: "claude",
+				Models: map[string]string{
+					"high": "opus", "medium": "sonnet", "low": "haiku",
+				},
+			},
+			"openai": {
+				Binary:     "codex",
+				PromptFlag: "--prompt",
+				Models: map[string]string{
+					"high": "o3", "medium": "gpt-4o", "low": "gpt-4o-mini",
+				},
+			},
+		},
+		Routing: config.RoutingConfig{
+			PhasePreferences: map[string]string{testPhaseBuild: "claude"},
+			Ratio:            map[string]int{"claude": 50, "openai": 50},
+			Fallback: config.FallbackConfig{
+				Enabled:  boolPtr(true),
+				Cooldown: cooldown,
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	return cfg
+}
+
 func assertRouterSelection(t *testing.T, runner *Runner, phase string, tier string, expectedProvider string, expectedModel string) {
 	t.Helper()
 
@@ -121,7 +196,7 @@ func TestNewRunnerBuildRouterFromTwoProviderConfig(t *testing.T) {
 	runner := newRouterFromConfig(t, cfg)
 
 	// The router should be able to select a provider for each configured phase
-	for _, phase := range []string{"build", "validate", "analyze", "review"} {
+	for _, phase := range []string{testPhaseBuild, testPhaseValidate, testPhaseAnalyze, testPhaseReview} {
 		p, model := runner.router.Select(phase, provider.TierMedium)
 		if p == nil {
 			t.Errorf("router.Select(%q, %q) returned nil provider", phase, provider.TierMedium)
@@ -148,11 +223,9 @@ func TestBuildRouterReclassified_PhasePreferenceRouting(t *testing.T) {
 		expectedModel string
 	}{
 		// "build" prefers "claude" → should select claude with sonnet for medium tier
-		{"build", "claude", provider.TierMedium, "sonnet"},
-		// "review" prefers "claude" → should select claude with opus for high tier
-		{"review", "claude", provider.TierHigh, "opus"},
-		// "build" prefers "claude" → should select claude with haiku for low tier
-		{"build", "claude", provider.TierLow, "haiku"},
+		{phase: testPhaseBuild, expectedProv: "claude", tier: provider.TierMedium, expectedModel: "sonnet"},
+		{phase: testPhaseReview, expectedProv: "claude", tier: provider.TierHigh, expectedModel: "opus"},
+		{phase: testPhaseBuild, expectedProv: "claude", tier: provider.TierLow, expectedModel: "haiku"},
 	}
 
 	for _, tt := range tests {
@@ -175,7 +248,7 @@ func TestNewRunnerRouterUsesRatioForAnyPhases(t *testing.T) {
 	// With a fresh router (0 counts), the provider furthest below its ratio target
 	// should be selected first. Claude has 60% target vs openai 40%, so claude
 	// has the larger gap (60-0=60 > 40-0=40) and should be selected first.
-	p, model := runner.router.Select("validate", provider.TierLow)
+	p, model := runner.router.Select(testPhaseValidate, provider.TierLow)
 	if p == nil {
 		t.Fatal("Select returned nil provider for 'any' phase")
 	}
@@ -193,7 +266,7 @@ func TestNewRunnerRouterUsesRatioForAnyPhases(t *testing.T) {
 
 	// After one claude invocation (count now claude:1, openai:0),
 	// openai should be further below its target and get selected next.
-	p2, model2 := runner.router.Select("validate", provider.TierLow)
+	p2, model2 := runner.router.Select(testPhaseValidate, provider.TierLow)
 	if p2 == nil {
 		t.Fatal("second Select returned nil provider")
 	}
@@ -217,7 +290,7 @@ func TestBuildRouterReclassified_CooldownParsing(t *testing.T) {
 	runner := newRouterFromConfig(t, cfg)
 
 	// Select both providers to verify they're available initially
-	p1, _ := runner.router.Select("build", provider.TierMedium) // claude preferred
+	p1, _ := runner.router.Select(testPhaseBuild, provider.TierMedium) // claude preferred
 	if p1 == nil {
 		t.Fatal("expected claude provider to be available")
 	}
@@ -227,7 +300,7 @@ func TestBuildRouterReclassified_CooldownParsing(t *testing.T) {
 
 	// The "build" phase prefers "claude", but claude is now unavailable.
 	// The router should fall back to the other provider.
-	p2, model := runner.router.Select("build", provider.TierMedium)
+	p2, model := runner.router.Select(testPhaseBuild, provider.TierMedium)
 	if p2 == nil {
 		t.Fatal("expected fallback provider when preferred is unavailable")
 	}
@@ -248,12 +321,7 @@ func TestBuildRouterReclassified_CooldownParsing(t *testing.T) {
 func TestNewRunnerWiresLearningsFilterWithDefaultProvider(t *testing.T) {
 	cfg := setupTwoProviderConfig(t)
 
-	// Create a LEARNINGS.md so the learnings file gets loaded
-	gromitDir := filepath.Dir(cfg.Paths.Templates)
-	learningsPath := filepath.Join(gromitDir, "LEARNINGS.md")
-	if err := os.WriteFile(learningsPath, []byte("# Learnings\n"), 0644); err != nil {
-		t.Fatalf("failed to create LEARNINGS.md: %v", err)
-	}
+	createTestLearningsFile(t, cfg)
 
 	runner := newRouterFromConfig(t, cfg)
 
@@ -293,7 +361,7 @@ func TestNewRunnerSingleClaudeProviderConfig(t *testing.T) {
 	}
 
 	// Select should return claude for any phase
-	p, model := runner.router.Select("build", provider.TierHigh)
+	p, model := runner.router.Select(testPhaseBuild, provider.TierHigh)
 	if p == nil {
 		t.Fatal("Select returned nil provider")
 	}
@@ -335,7 +403,7 @@ func TestNewRunnerCodexProviderTierMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.tier, func(t *testing.T) {
-			assertRouterSelection(t, runner, "build", tt.tier, "codex", tt.expectedModel)
+			assertRouterSelection(t, runner, testPhaseBuild, tt.tier, "codex", tt.expectedModel)
 		})
 	}
 }
@@ -350,14 +418,10 @@ func TestNewRunnerRouterUsesStateFileForCounts(t *testing.T) {
 	cfg := setupTwoProviderConfig(t)
 
 	// Create the gromit dir and state.json with pre-existing provider counts
-	gromitDir := filepath.Dir(cfg.Paths.Templates)
-	stateJSON := `{
+	createStateFile(t, cfg, `{
 		"provider_counts": {"claude": 10, "openai": 5},
 		"clean_exit": true
-	}`
-	if err := os.WriteFile(filepath.Join(gromitDir, "state.json"), []byte(stateJSON), 0644); err != nil {
-		t.Fatalf("failed to write state.json: %v", err)
-	}
+	}`)
 
 	runner := newRouterFromConfig(t, cfg)
 
@@ -365,7 +429,7 @@ func TestNewRunnerRouterUsesStateFileForCounts(t *testing.T) {
 	// Current actual: claude=66.7%, openai=33.3%.
 	// OpenAI is further below its target (40-33.3=6.7) vs claude (60-66.7=-6.7).
 	// So "any" phases should prefer openai to rebalance.
-	p, _ := runner.router.Select("validate", provider.TierLow)
+	p, _ := runner.router.Select(testPhaseValidate, provider.TierLow)
 	if p == nil {
 		t.Fatal("Select returned nil provider")
 	}
@@ -393,62 +457,20 @@ func TestNewRunnerCooldownParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
-			templatesDir := filepath.Join(tmpDir, ".gromit", "templates")
-			if err := os.MkdirAll(templatesDir, 0755); err != nil {
-				t.Fatalf("failed to create templates dir: %v", err)
-			}
-
-			cfg := &config.Config{
-				Claude: config.ClaudeConfig{
-					Binary:  "claude",
-					Timeout: 300,
-				},
-				Paths: config.PathsConfig{
-					Templates: templatesDir,
-				},
-				Models: config.ModelsConfig{
-					Validation: "low",
-				},
-				Providers: map[string]config.ProviderDef{
-					"claude": {
-						Binary: "claude",
-						Models: map[string]string{
-							"high": "opus", "medium": "sonnet", "low": "haiku",
-						},
-					},
-					"openai": {
-						Binary:     "codex",
-						PromptFlag: "--prompt",
-						Models: map[string]string{
-							"high": "o3", "medium": "gpt-4o", "low": "gpt-4o-mini",
-						},
-					},
-				},
-				Routing: config.RoutingConfig{
-					PhasePreferences: map[string]string{"build": "claude"},
-					Ratio:            map[string]int{"claude": 50, "openai": 50},
-					Fallback: config.FallbackConfig{
-						Enabled:  boolPtr(true),
-						Cooldown: tt.cooldown,
-					},
-				},
-			}
-			cfg.SetDefaults()
-			cfg.NormalizeNilFields()
+			cfg := newRouterConfigWithCooldown(t, tt.cooldown)
 
 			runner := newRouterFromConfig(t, cfg)
 
 			// Mark claude unavailable, then verify it stays unavailable
 			// (the cooldown should be the configured duration, not 0)
-			p1, _ := runner.router.Select("build", provider.TierMedium)
+			p1, _ := runner.router.Select(testPhaseBuild, provider.TierMedium)
 			if p1 == nil {
 				t.Fatal("no provider available")
 			}
 			runner.router.MarkUnavailable("claude")
 
 			// Claude should now be unavailable, so build falls back
-			p2, _ := runner.router.Select("build", provider.TierMedium)
+			p2, _ := runner.router.Select(testPhaseBuild, provider.TierMedium)
 			if p2 == nil {
 				t.Fatal("expected fallback provider")
 			}
@@ -471,7 +493,7 @@ func TestNewRunnerRouterProviderNames(t *testing.T) {
 	runner := newRouterFromConfig(t, cfg)
 
 	// Select the build phase (prefers claude) to verify claude provider exists
-	pClaude, _ := runner.router.Select("build", provider.TierMedium)
+	pClaude, _ := runner.router.Select(testPhaseBuild, provider.TierMedium)
 	if pClaude == nil {
 		t.Fatal("Select(build) returned nil provider")
 	}
@@ -483,7 +505,7 @@ func TestNewRunnerRouterProviderNames(t *testing.T) {
 	runner.router.MarkUnavailable("claude")
 
 	// Now build phase should fall back to the codex provider
-	pCodex, _ := runner.router.Select("build", provider.TierMedium)
+	pCodex, _ := runner.router.Select(testPhaseBuild, provider.TierMedium)
 	if pCodex == nil {
 		t.Fatal("Select(build) after marking claude unavailable returned nil provider")
 	}
@@ -516,7 +538,7 @@ func TestNewRunnerRouterAllTierMappingsForBothProviders(t *testing.T) {
 
 	for _, tt := range claudeTests {
 		t.Run("claude_"+tt.tier, func(t *testing.T) {
-			p, model := runner.router.Select("build", tt.tier)
+			p, model := runner.router.Select(testPhaseBuild, tt.tier)
 			if p == nil {
 				t.Fatal("Select returned nil")
 			}
@@ -543,7 +565,7 @@ func TestNewRunnerRouterAllTierMappingsForBothProviders(t *testing.T) {
 
 	for _, tt := range codexTests {
 		t.Run("codex_"+tt.tier, func(t *testing.T) {
-			p, model := runner.router.Select("build", tt.tier)
+			p, model := runner.router.Select(testPhaseBuild, tt.tier)
 			if p == nil {
 				t.Fatal("Select returned nil after claude marked unavailable")
 			}
@@ -587,7 +609,7 @@ func TestNewRunnerRouterAnalyzerUsesClaudeAsDefault(t *testing.T) {
 	}
 
 	// Verify that the router can select claude (proving the provider was built correctly)
-	p, _ := runner.router.Select("build", provider.TierMedium)
+	p, _ := runner.router.Select(testPhaseBuild, provider.TierMedium)
 	if p == nil {
 		t.Fatal("router.Select returned nil provider")
 	}

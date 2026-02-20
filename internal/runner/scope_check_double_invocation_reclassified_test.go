@@ -39,6 +39,32 @@ func (h *scopeCheckDedupHarness) RenderScopeCalls() int {
 	return h.renderScopeCall
 }
 
+func newScopeCheckBead(id, title string) *bead.Bead {
+	return &bead.Bead{
+		ID:              id,
+		Title:           title,
+		Priority:        1,
+		Labels:          []string{},
+		ExpectedOutputs: []string{},
+	}
+}
+
+func newScopeEstimate(complexity string) *prompt.ScopeEstimate {
+	return &prompt.ScopeEstimate{
+		Complexity:                   complexity,
+		EstimatedIterations:          1,
+		CanCompleteInSingleIteration: true,
+		Blockers:                     []string{},
+	}
+}
+
+func assertRenderScopeCallCount(t *testing.T, harness *scopeCheckDedupHarness, expected int) {
+	t.Helper()
+	if got := harness.RenderScopeCalls(); got != expected {
+		t.Errorf("expected %d RenderScope calls, got %d", expected, got)
+	}
+}
+
 func newScopeCheckDedupHarness(t *testing.T, cfg *config.Config, estimate *prompt.ScopeEstimate, opts scopeCheckDedupHarnessOptions) *scopeCheckDedupHarness {
 	t.Helper()
 
@@ -130,20 +156,9 @@ func TestScopeCheckNotDuplicatedInProcessBead(t *testing.T) {
 	blockOversized := true
 	cfg.ScopeCheck.BlockOversized = &blockOversized
 
-	testBead := &bead.Bead{
-		ID:              "test-no-duplicate",
-		Title:           "Test bead for no duplicate scope check",
-		Priority:        1,
-		Labels:          []string{},
-		ExpectedOutputs: []string{},
-	}
+	testBead := newScopeCheckBead("test-no-duplicate", "Test bead for no duplicate scope check")
 
-	estimate := &prompt.ScopeEstimate{
-		Complexity:                   "medium",
-		EstimatedIterations:          1,
-		CanCompleteInSingleIteration: true,
-		Blockers:                     []string{},
-	}
+	estimate := newScopeEstimate("medium")
 	h := newScopeCheckDedupHarness(t, cfg, estimate, scopeCheckDedupHarnessOptions{
 		ReadyFn: func() (*bead.Bead, error) {
 			return testBead, nil
@@ -165,10 +180,7 @@ func TestScopeCheckNotDuplicatedInProcessBead(t *testing.T) {
 	}
 
 	// Verify the scope gate called RenderScope once
-	gateCallCount := h.RenderScopeCalls()
-	if gateCallCount != 1 {
-		t.Fatalf("expected 1 RenderScope call from scope gate, got %d", gateCallCount)
-	}
+	assertRenderScopeCallCount(t, h, 1)
 
 	// Now simulate processBead which calls buildPromptForBead
 	// This is where the duplicate call currently happens (process.go:117)
@@ -179,10 +191,7 @@ func TestScopeCheckNotDuplicatedInProcessBead(t *testing.T) {
 	// The current implementation calls checkScope again in process.go:117 when
 	// scopeEstimate is nil, but the fix will pass scopeEstimate from the gate
 	// into setupBeadContext and then into buildPromptForBead.
-	finalCount := h.RenderScopeCalls()
-	if finalCount != 1 {
-		t.Errorf("expected exactly 1 RenderScope call (scope gate only), got %d (processBead called checkScope again)", finalCount)
-	}
+	assertRenderScopeCallCount(t, h, 1)
 
 	// Verify processBead completed without error
 	if result.Error != nil {
@@ -196,20 +205,9 @@ func TestScopeCheckNotDuplicatedInProcessBead(t *testing.T) {
 func TestSetupBeadContextAcceptsScopeEstimate(t *testing.T) {
 	cfg := baseScopeGateConfig()
 
-	testBead := &bead.Bead{
-		ID:              "test-setup-context",
-		Title:           "Test setup context",
-		Priority:        1,
-		Labels:          []string{},
-		ExpectedOutputs: []string{},
-	}
+	testBead := newScopeCheckBead("test-setup-context", "Test setup context")
 
-	estimate := &prompt.ScopeEstimate{
-		Complexity:                   "low",
-		EstimatedIterations:          1,
-		CanCompleteInSingleIteration: true,
-		Blockers:                     []string{},
-	}
+	estimate := newScopeEstimate("low")
 
 	h := newScopeCheckDedupHarness(t, cfg, estimate, scopeCheckDedupHarnessOptions{
 		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) { return nil, nil },
@@ -242,13 +240,7 @@ func TestSetupBeadContextAcceptsScopeEstimate(t *testing.T) {
 func TestScopeCheckReclassified_CachedEstimateSkipsDuplicateInvocation(t *testing.T) {
 	cfg := baseScopeGateConfig()
 
-	testBead := &bead.Bead{
-		ID:              "test-cached-estimate",
-		Title:           "Test cached estimate",
-		Priority:        1,
-		Labels:          []string{},
-		ExpectedOutputs: []string{},
-	}
+	testBead := newScopeCheckBead("test-cached-estimate", "Test cached estimate")
 
 	cases := []struct {
 		name          string
@@ -261,12 +253,7 @@ func TestScopeCheckReclassified_CachedEstimateSkipsDuplicateInvocation(t *testin
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			estimate := &prompt.ScopeEstimate{
-				Complexity:                   tc.complexity,
-				EstimatedIterations:          1,
-				CanCompleteInSingleIteration: true,
-				Blockers:                     []string{},
-			}
+			estimate := newScopeEstimate(tc.complexity)
 			h := newScopeCheckDedupHarness(t, cfg, estimate, scopeCheckDedupHarnessOptions{
 				GetParentFn: func(b *bead.Bead) (*bead.Bead, error) { return nil, nil },
 			})
@@ -284,9 +271,7 @@ func TestScopeCheckReclassified_CachedEstimateSkipsDuplicateInvocation(t *testin
 				t.Fatalf("buildPromptForBead error: %v", err)
 			}
 
-			if h.RenderScopeCalls() != 0 {
-				t.Errorf("expected 0 RenderScope calls (estimate cached), got %d", h.RenderScopeCalls())
-			}
+			assertRenderScopeCallCount(t, h, 0)
 			if bc.Model != tc.expectedModel {
 				t.Errorf("expected model %q, got %s", tc.expectedModel, bc.Model)
 			}
@@ -309,20 +294,9 @@ func TestProcessBeadReceivesScopeEstimateFromRun(t *testing.T) {
 	blockOversized := true
 	cfg.ScopeCheck.BlockOversized = &blockOversized
 
-	testBead := &bead.Bead{
-		ID:              "test-wiring",
-		Title:           "Test Run to processBead wiring",
-		Priority:        1,
-		Labels:          []string{},
-		ExpectedOutputs: []string{},
-	}
+	testBead := newScopeCheckBead("test-wiring", "Test Run to processBead wiring")
 
-	estimate := &prompt.ScopeEstimate{
-		Complexity:                   "medium",
-		EstimatedIterations:          1,
-		CanCompleteInSingleIteration: true,
-		Blockers:                     []string{},
-	}
+	estimate := newScopeEstimate("medium")
 
 	h := newScopeCheckDedupHarness(t, cfg, estimate, scopeCheckDedupHarnessOptions{
 		ReadyFn: func() (*bead.Bead, error) {
@@ -353,10 +327,7 @@ func TestProcessBeadReceivesScopeEstimateFromRun(t *testing.T) {
 
 	// ACCEPTANCE CRITERION: RenderScope should be called exactly once
 	// (from scope gate only, not from buildPromptForBead)
-	finalCount := h.RenderScopeCalls()
-	if finalCount != 1 {
-		t.Errorf("expected exactly 1 RenderScope call (scope gate only), got %d", finalCount)
-	}
+	assertRenderScopeCallCount(t, h, 1)
 }
 
 // TestProcessBeadSignatureIncludesScopeEstimate verifies that processBead's
@@ -372,20 +343,9 @@ func TestProcessBeadSignatureIncludesScopeEstimate(t *testing.T) {
 
 	cfg := baseScopeGateConfig()
 
-	testBead := &bead.Bead{
-		ID:              "test-signature",
-		Title:           "Test processBead signature",
-		Priority:        1,
-		Labels:          []string{},
-		ExpectedOutputs: []string{},
-	}
+	testBead := newScopeCheckBead("test-signature", "Test processBead signature")
 
-	estimate := &prompt.ScopeEstimate{
-		Complexity:                   "low",
-		EstimatedIterations:          1,
-		CanCompleteInSingleIteration: true,
-		Blockers:                     []string{},
-	}
+	estimate := newScopeEstimate("low")
 	h := newScopeCheckDedupHarness(t, cfg, nil, scopeCheckDedupHarnessOptions{
 		GetParentFn: func(b *bead.Bead) (*bead.Bead, error) {
 			return nil, nil
