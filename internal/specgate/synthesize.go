@@ -10,7 +10,6 @@ import (
 
 const (
 	maxSynthesizedFixBeads = 5
-	maxFixBeadTitleRunes   = 80
 )
 
 // BeadCreator creates beads for spec fixes.
@@ -42,7 +41,7 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []Criteri
 	createErrors := make([]error, 0, limit)
 	for i := 0; i < limit; i++ {
 		failure := failures[i]
-		title := truncateTitle(failure.Criterion, maxFixBeadTitleRunes)
+		title := formatFailureTitle(failure)
 		description := formatFailureDescription(failure)
 		id, err := creator.Create(ctx, title, description, priority, []string{label})
 		if err != nil {
@@ -57,21 +56,24 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []Criteri
 	return ids, nil
 }
 
-func truncateTitle(title string, max int) string {
-	if max <= 0 {
-		return ""
+func formatFailureTitle(failure CriterionResult) string {
+	criterion := strings.TrimSpace(failure.Criterion)
+	if criterion == "" {
+		criterion = "unnamed criterion"
 	}
-	runes := []rune(title)
-	if len(runes) <= max {
-		return title
-	}
-	return string(runes[:max])
+	return fmt.Sprintf("Fix: %s", criterion)
 }
 
 func formatFailureDescription(failure CriterionResult) string {
+	criterion := strings.TrimSpace(failure.Criterion)
+	if criterion == "" {
+		criterion = "unnamed criterion"
+	}
+
 	parts := []string{
-		fmt.Sprintf("Criterion: %s", strings.TrimSpace(failure.Criterion)),
+		fmt.Sprintf("Criterion: %s", criterion),
 		fmt.Sprintf("Evidence: %s", strings.TrimSpace(failure.Evidence)),
+		fmt.Sprintf("Fix direction: Implement changes so '%s' passes in verify-spec.", criterion),
 	}
 	return strings.Join(parts, "\n")
 }
