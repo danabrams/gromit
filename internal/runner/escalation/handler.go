@@ -32,6 +32,7 @@ type DecomposeFn func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, er
 type CreateSubFn func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error
 
 const integrityUnsafeStateCategory analyzer.Category = "integrity_unsafe_state"
+const failureContextTruncatedPrefix = "[truncated] "
 
 // InvokeFn executes a single Claude invocation. The facade wraps
 // execution.Invoker.Execute and returns a runtypes.InvocationResult.
@@ -188,17 +189,33 @@ func firstNonNilContext(contexts ...context.Context) context.Context {
 	return context.Background()
 }
 
-func (h *Handler) checkRetryBudgetBeforeAttempt(bc *runtypes.BeadContext) error {
+func (h *Handler) checkRetryBudgetBeforeAttempt(ctx context.Context, bc *runtypes.BeadContext) (handled bool, err error) {
 	if bc == nil {
-		return fmt.Errorf("bead context is nil")
+		return false, fmt.Errorf("bead context is nil")
 	}
 	if bc.MaxAttemptsPerBead > 0 && bc.AttemptsThisBead >= bc.MaxAttemptsPerBead {
-		return fmt.Errorf("retry budget exceeded: attempts %d/%d", bc.AttemptsThisBead, bc.MaxAttemptsPerBead)
+		return false, fmt.Errorf("retry budget exceeded: attempts %d/%d", bc.AttemptsThisBead, bc.MaxAttemptsPerBead)
 	}
 	if bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() && time.Since(bc.BeadStartTime) >= bc.BeadTimeout {
-		return fmt.Errorf("retry budget exceeded: bead wall-clock %s reached (timeout=%s)", time.Since(bc.BeadStartTime).Round(time.Second), bc.BeadTimeout)
+		return false, fmt.Errorf("retry budget exceeded: bead wall-clock %s reached (timeout=%s)", time.Since(bc.BeadStartTime).Round(time.Second), bc.BeadTimeout)
 	}
-	return nil
+	if h != nil && h.cfg != nil {
+		maxInputTokens := h.cfg.Claude.TokenBudgetForModel(bc.Model)
+		if maxInputTokens > 0 && bc.CumulativeInputTokens > maxInputTokens {
+			failureReason := fmt.Sprintf(
+				"retry budget exceeded: cumulative input tokens %d/%d",
+				bc.CumulativeInputTokens,
+				maxInputTokens,
+			)
+			decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
+			if decomposeCtx.Err() != nil {
+				return false, fmt.Errorf("%s (decomposition skipped: parent context canceled: %w)", failureReason, decomposeCtx.Err())
+			}
+			h.AttemptDecomposition(decomposeCtx, bc, failureReason)
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (h *Handler) checkRetryBudgetAfterFailure(bc *runtypes.BeadContext) error {
@@ -227,6 +244,29 @@ func (h *Handler) setBuildTimeoutFailurePhase(bc *runtypes.BeadContext) {
 	}
 	bc.Result.FailurePhase = failurephase.Timeout
 	bc.Result.TimeoutPhase = "build"
+}
+
+func (h *Handler) addInvocationTokensToCumulative(bc *runtypes.BeadContext) {
+	if bc == nil || bc.Result == nil {
+		return
+	}
+	bc.CumulativeInputTokens += bc.Result.InputTokens
+	bc.CumulativeOutputTokens += bc.Result.OutputTokens
+}
+
+func (h *Handler) truncateFailureContext(failureContext string) string {
+	if h == nil || h.cfg == nil {
+		return failureContext
+	}
+	maxChars := h.cfg.Claude.MaxFailureContextChars
+	if maxChars <= 0 || len(failureContext) <= maxChars {
+		return failureContext
+	}
+	if maxChars <= len(failureContextTruncatedPrefix) {
+		return failureContextTruncatedPrefix[:maxChars]
+	}
+	tailLen := maxChars - len(failureContextTruncatedPrefix)
+	return failureContextTruncatedPrefix + failureContext[len(failureContext)-tailLen:]
 }
 
 // HandleEscalation tries to escalate to the next tier or decompose the task.
@@ -312,7 +352,7 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 
 				if bc.PromptCtx != nil {
 					bc.PromptCtx.IsRetry = true
-					bc.PromptCtx.FailureContext = analysis.Suggestion
+					bc.PromptCtx.FailureContext = h.truncateFailureContext(analysis.Suggestion)
 				}
 
 				h.log("Andon L1: recoverable failure retrying (attempt %d/%d)", bc.RetriesThisModel, l1RetryCap)
@@ -385,9 +425,16 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		default:
 		}
 
-		if budgetErr := h.checkRetryBudgetBeforeAttempt(bc); budgetErr != nil {
+		budgetHandled, budgetErr := h.checkRetryBudgetBeforeAttempt(ctx, bc)
+		if budgetErr != nil {
 			bc.Result.Error = budgetErr
 			h.setBuildFailurePhase(bc)
+			return false
+		}
+		if budgetHandled {
+			if bc.Result != nil && bc.Result.Error != nil && bc.Result.FailurePhase == "" {
+				h.setBuildFailurePhase(bc)
+			}
 			return false
 		}
 		bc.AttemptsThisBead++
@@ -433,6 +480,8 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			h.setBuildFailurePhase(bc)
 			return false
 		}
+
+		h.addInvocationTokensToCumulative(bc)
 
 		claudeResult := invResult.Result
 		bc.Result.Output = claudeResult.Output

@@ -364,6 +364,46 @@ func TestAnalyzeAndHandleFailure_RecoverableRetrySetsPromptContext(t *testing.T)
 	}
 }
 
+func TestAnalyzeAndHandleFailure_RecoverableRetryTruncatesFailureContextTail(t *testing.T) {
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategorySyntax,
+				Recoverable: true,
+				RootCause:   "large compiler output",
+				Suggestion:  "0123456789012345678901234567890123456789",
+			}, nil
+		},
+	}
+	cfg := newTestConfig()
+	cfg.Claude.MaxFailureContextChars = 24
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.PromptCtx = &prompt.Context{
+		Model:              "sonnet",
+		ConfirmedLearnings: []learnings.Learning{},
+		RecentLearnings:    []learnings.Learning{},
+	}
+	claudeResult := &claude.Result{Success: false, Output: "compile error"}
+
+	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
+	if !continueLoop {
+		t.Fatal("expected continueLoop=true for recoverable failure")
+	}
+
+	const prefix = "[truncated] "
+	if !strings.HasPrefix(bc.PromptCtx.FailureContext, prefix) {
+		t.Fatalf("expected FailureContext to start with %q, got %q", prefix, bc.PromptCtx.FailureContext)
+	}
+	if len(bc.PromptCtx.FailureContext) != cfg.Claude.MaxFailureContextChars {
+		t.Fatalf("expected FailureContext length=%d, got %d", cfg.Claude.MaxFailureContextChars, len(bc.PromptCtx.FailureContext))
+	}
+	if !strings.HasSuffix(bc.PromptCtx.FailureContext, "890123456789") {
+		t.Fatalf("expected tail-preserving truncation, got %q", bc.PromptCtx.FailureContext)
+	}
+}
+
 func TestAnalyzeAndHandleFailure_AnalysisErrorEscalates(t *testing.T) {
 	// When the analyzer returns an error, the handler should fall back to
 	// HandleEscalation logic (escalate tier or decompose).
@@ -1008,6 +1048,94 @@ func TestExecuteWithRetry_StopsWhenAttemptBudgetExceeded(t *testing.T) {
 	}
 	if bc.Result.FailurePhase != failurephase.Build {
 		t.Fatalf("FailurePhase = %q, want %q", bc.Result.FailurePhase, failurephase.Build)
+	}
+}
+
+func TestExecuteWithRetry_AccumulatesTokensAcrossInvocations(t *testing.T) {
+	cfg := newTestConfig()
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{Category: analyzer.CategoryLogic, Recoverable: true, Suggestion: "retry"}, nil
+		},
+	}
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	callCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		callCount++
+		if callCount == 1 {
+			bc.Result.InputTokens = 120
+			bc.Result.OutputTokens = 40
+			return &runtypes.InvocationResult{Result: &claude.Result{Success: false, Output: "fail 1"}}, nil
+		}
+		bc.Result.InputTokens = 30
+		bc.Result.OutputTokens = 10
+		return &runtypes.InvocationResult{Result: &claude.Result{Success: true, Output: "ok"}}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if !success {
+		t.Fatal("expected success after retry")
+	}
+	if bc.CumulativeInputTokens != 150 {
+		t.Fatalf("CumulativeInputTokens=%d, want 150", bc.CumulativeInputTokens)
+	}
+	if bc.CumulativeOutputTokens != 50 {
+		t.Fatalf("CumulativeOutputTokens=%d, want 50", bc.CumulativeOutputTokens)
+	}
+}
+
+func TestExecuteWithRetry_TokenBudgetExceededAttemptsDecompositionBeforeInvocation(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Claude.MaxInputTokensPerBead = 100
+
+	decomposeCalled := false
+	createSubCalled := false
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "split-1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.CumulativeInputTokens = 101
+	bc.ParentCtx = context.Background()
+
+	invokeCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invokeCount++
+		return &runtypes.InvocationResult{Result: &claude.Result{Success: true, Output: "unexpected"}}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected false because decomposition path stops bead execution")
+	}
+	if invokeCount != 0 {
+		t.Fatalf("expected no invocation when token budget already exceeded, got %d", invokeCount)
+	}
+	if !decomposeCalled {
+		t.Fatal("expected decomposition when token budget exceeded before attempt")
+	}
+	if !createSubCalled {
+		t.Fatal("expected sub-bead creation after decomposition")
+	}
+	if !bc.Result.Decomposed {
+		t.Fatal("expected decomposed flag set after successful decomposition")
+	}
+	if bc.Result.Error != nil {
+		t.Fatalf("expected nil error on successful decomposition, got %v", bc.Result.Error)
 	}
 }
 
