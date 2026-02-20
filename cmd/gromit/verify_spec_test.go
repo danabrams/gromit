@@ -242,6 +242,48 @@ id: my-spec
 	}
 }
 
+func TestRunVerifySpec_DoesNotCreateBeadsWithoutFlag(t *testing.T) {
+	specContent := `---
+id: my-spec
+---
+
+# My Spec
+
+## Acceptance Criteria
+
+- First criterion
+`
+	setupVerifySpecTest(t, "my-spec", specContent)
+
+	prevRunner := verifySpecGateRunner
+	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
+		return &specgate.GateVerdict{
+			Passed:  false,
+			Results: []specgate.CriterionResult{{Criterion: "First criterion", Passed: false, Evidence: "missing"}},
+		}, nil
+	}
+	prevCreate := verifySpecFixBeadsFn
+	called := false
+	verifySpecFixBeadsFn = func(ctx context.Context, specName string, verdict *specgate.GateVerdict) ([]string, error) {
+		called = true
+		return []string{"gromit-123"}, nil
+	}
+	verifySpecCreateBeads = false
+
+	t.Cleanup(func() {
+		verifySpecGateRunner = prevRunner
+		verifySpecFixBeadsFn = prevCreate
+		verifySpecCreateBeads = false
+	})
+
+	if err := runVerifySpec(verifySpecCmd, []string{"my-spec"}); err == nil {
+		t.Fatal("expected error on gate failure")
+	}
+	if called {
+		t.Fatal("did not expect fix beads creation when --create-beads is disabled")
+	}
+}
+
 func TestVerifySpecCmd_CreateBeadsPrintsIDs(t *testing.T) {
 	specContent := `---
 id: my-spec
