@@ -146,7 +146,7 @@ func (r *Router) selectByRatio() string {
 	var selectedName string
 	largestGap := -1.0
 
-	for name, targetRatio := range r.ratio {
+	for name, configuredRatio := range r.ratio {
 		if !r.isAvailable(name) {
 			continue
 		}
@@ -157,8 +157,8 @@ func (r *Router) selectByRatio() string {
 			currentPercent = float64(currentCount) / float64(totalCount) * 100.0
 		}
 
-		targetPercent := float64(r.effectiveRatio(name, targetRatio))
-		gap := targetPercent - currentPercent
+		effectiveTargetPercent := float64(r.effectiveRatio(name, configuredRatio))
+		gap := effectiveTargetPercent - currentPercent
 
 		if gap > largestGap {
 			largestGap = gap
@@ -173,6 +173,7 @@ func (r *Router) effectiveRatio(providerName string, configuredRatio int) int {
 	if r == nil {
 		return configuredRatio
 	}
+	// CircuitBreaker methods are nil-receiver safe, so this passes through when disabled.
 	return r.circuitBreaker.EffectiveRatio(providerName, configuredRatio)
 }
 

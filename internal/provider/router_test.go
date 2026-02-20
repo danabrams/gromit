@@ -583,6 +583,8 @@ func TestRouterSelectRatioBalancing(t *testing.T) {
 }
 
 func TestRouterSelectPrefersNonDegradedProviderMoreOften(t *testing.T) {
+	const selectionRuns = 30
+
 	cb := &CircuitBreaker{
 		windowSize:       2,
 		failureThreshold: 0.25,
@@ -607,7 +609,7 @@ func TestRouterSelectPrefersNonDegradedProviderMoreOften(t *testing.T) {
 		"claude": 0,
 		"codex":  0,
 	}
-	for i := 0; i < 30; i++ {
+	for i := 0; i < selectionRuns; i++ {
 		p, _ := r.Select("build", TierMedium)
 		if p == nil {
 			t.Fatal("Select() returned nil provider")
