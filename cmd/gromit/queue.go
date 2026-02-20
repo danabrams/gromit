@@ -57,6 +57,7 @@ func showQueue(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("getting all beads: %w", err)
 	}
+	readyBeads = enrichReadyBeads(bc, readyBeads, allBeads)
 
 	var beadStats map[string]logger.BeadStats
 	beadStats, err = logger.ReadPerBeadStats(cfg.Paths.Logs)
@@ -70,7 +71,6 @@ func showQueue(cmd *cobra.Command, args []string) error {
 		beadStats,
 		cfg.Loop.StuckBeadThreshold,
 	)
-	blockedBeads = enrichBlockedBeads(bc, blockedBeads)
 
 	printQueueByStatus(cfg, readyBeads, blockedBeads, stuckBeads, allBeads, queueBySpec, isColorEnabled())
 	return nil
@@ -308,28 +308,57 @@ func dependencyIDs(deps []bead.Dependency) []string {
 	return ids
 }
 
-func enrichBlockedBeads(bc *bead.Client, blocked []*bead.Bead) []*bead.Bead {
-	if bc == nil || len(blocked) == 0 {
-		return blocked
+func enrichReadyBeads(_ *bead.Client, readyBeads, allBeads []*bead.Bead) []*bead.Bead {
+	if len(readyBeads) == 0 {
+		return readyBeads
 	}
-	enriched := make([]*bead.Bead, 0, len(blocked))
-	for _, b := range blocked {
+	openByID := make(map[string]*bead.Bead, len(allBeads))
+	for _, b := range allBeads {
+		if b == nil || strings.TrimSpace(b.ID) == "" {
+			continue
+		}
+		openByID[b.ID] = b
+	}
+	enriched := make([]*bead.Bead, 0, len(readyBeads))
+	for _, b := range readyBeads {
 		if b == nil {
 			continue
 		}
-		needsDetails := b.Parent == "" && len(b.Dependencies) == 0 && len(b.BlockedBy) == 0 && len(b.DependsOn) == 0
-		if !needsDetails {
-			enriched = append(enriched, b)
-			continue
-		}
-		full, err := bc.Show(b.ID)
-		if err == nil && full != nil {
-			enriched = append(enriched, full)
+		if open, ok := openByID[b.ID]; ok && open != nil {
+			clone := *b
+			clone.Labels = mergeLabels(b.Labels, open.Labels)
+			if clone.Parent == "" {
+				clone.Parent = open.Parent
+			}
+			enriched = append(enriched, &clone)
 			continue
 		}
 		enriched = append(enriched, b)
 	}
 	return enriched
+}
+
+func mergeLabels(primary, secondary []string) []string {
+	if len(primary) == 0 && len(secondary) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]bool, len(primary)+len(secondary))
+	out := make([]string, 0, len(primary)+len(secondary))
+	for _, label := range primary {
+		if strings.TrimSpace(label) == "" || seen[label] {
+			continue
+		}
+		out = append(out, label)
+		seen[label] = true
+	}
+	for _, label := range secondary {
+		if strings.TrimSpace(label) == "" || seen[label] {
+			continue
+		}
+		out = append(out, label)
+		seen[label] = true
+	}
+	return out
 }
 
 // truncateTitle returns a title truncated to maxLen characters with ellipsis if needed

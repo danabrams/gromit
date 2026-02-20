@@ -157,3 +157,22 @@ func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
 		t.Fatalf("stuck = %+v, want [stuck-ready stuck-blocked]", stuck)
 	}
 }
+
+func TestEnrichReadyBeads_MergesLabelsFromOpenList(t *testing.T) {
+	ready := []*bead.Bead{
+		{ID: "r1", Labels: []string{"tdd:true"}},
+		{ID: "r2", Labels: nil},
+	}
+	open := []*bead.Bead{
+		{ID: "r1", Labels: []string{"spec:alpha", "backend"}},
+		{ID: "r2", Labels: []string{"spec:beta"}},
+	}
+
+	enriched := enrichReadyBeads(nil, ready, open)
+	if bead.FindSpecLabel(enriched[0].Labels) != "alpha" {
+		t.Fatalf("r1 spec = %q, want alpha (labels=%v)", bead.FindSpecLabel(enriched[0].Labels), enriched[0].Labels)
+	}
+	if bead.FindSpecLabel(enriched[1].Labels) != "beta" {
+		t.Fatalf("r2 spec = %q, want beta (labels=%v)", bead.FindSpecLabel(enriched[1].Labels), enriched[1].Labels)
+	}
+}
