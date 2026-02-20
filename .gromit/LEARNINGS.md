@@ -58,9 +58,13 @@ Config SetDefaults() uses `if field == 0` guards for integer fields, which preve
 
 When adding fallback logic (like title-as-expected-output), define it once as a shared helper and wire all call sites through it from the start. The expected_outputs wiring shows the same pattern implemented 5 different ways across packages (expectedOutputsOrTitle helper in 2 packages, inline in 3 others), creating maintenance burden.
 
+### 2026-02-20 | Runner argv injection propagates through spec orchestration | conventions
+*Related to: successful bead*
+
+Threading `r.argvRunnerFn` into `SpecOrchestrator` construction keeps acceptance-test orchestration on the injected runner path instead of default behavior. Ensure all spec orchestrator creation paths copy that runner function so git/test argv commands remain testable and environment-consistent end-to-end.
+
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
-
