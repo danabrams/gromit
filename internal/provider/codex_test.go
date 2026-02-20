@@ -968,6 +968,46 @@ func TestCodexProviderStreamRunWithContextCancellationJSONMode(t *testing.T) {
 	}
 }
 
+func TestCodexProviderRun_PropagatesUsageToResult(t *testing.T) {
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+cat > /dev/null
+echo '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}'
+echo '{"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":3210,"cached_input_tokens":210,"output_tokens":987,"total_cost_usd":0.051}}}'
+exit 0
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock codex binary: %v", err)
+	}
+
+	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
+	ctx := context.Background()
+	result, err := cp.Run(ctx, "prompt", TierMedium)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if result == nil {
+		t.Fatal("Run() returned nil result")
+	}
+	if result.Output != "done" {
+		t.Errorf("Output = %q, want %q", result.Output, "done")
+	}
+	if result.InputTokens != 3210 {
+		t.Errorf("InputTokens = %d, want 3210", result.InputTokens)
+	}
+	if result.CachedInputTokens != 210 {
+		t.Errorf("CachedInputTokens = %d, want 210", result.CachedInputTokens)
+	}
+	if result.OutputTokens != 987 {
+		t.Errorf("OutputTokens = %d, want 987", result.OutputTokens)
+	}
+	if result.CostUSD != 0.051 {
+		t.Errorf("CostUSD = %v, want 0.051", result.CostUSD)
+	}
+}
+
 func TestCodexProviderStreamRun_PropagatesUsageToResult(t *testing.T) {
 	tempDir := t.TempDir()
 

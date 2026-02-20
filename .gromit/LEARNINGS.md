@@ -63,6 +63,11 @@ When adding fallback logic (like title-as-expected-output), define it once as a 
 
 Threading `r.argvRunnerFn` into `SpecOrchestrator` construction keeps acceptance-test orchestration on the injected runner path instead of default behavior. Ensure all spec orchestrator creation paths copy that runner function so git/test argv commands remain testable and environment-consistent end-to-end.
 
+### 2026-02-20 | Client.run uses RunFn as the only test hook before subprocess | patterns
+*Related to: successful bead*
+
+`(*Client).run()` should check only `RunFn` first for override execution; when `RunFn` is nil it must execute the existing subprocess flow (`exec.Command` + `c.Dir` + `Output` + `*exec.ExitError` stderr wrapping) unchanged. This keeps injectable tests isolated while preventing accidental divergence in real `bd` invocation behavior.
+
 ---
 
 ## Archived

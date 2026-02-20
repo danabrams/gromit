@@ -37,16 +37,39 @@ type codexItem struct {
 	ToolName string `json:"tool_name"`
 }
 
+// codexContentBlock represents content blocks in assistant-style events.
+type codexContentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+}
+
+// codexMessage represents assistant-style message payloads.
+type codexMessage struct {
+	Content []codexContentBlock `json:"content,omitempty"`
+}
+
 // codexDelta represents incremental text from Codex delta events.
 type codexDelta struct {
 	Text string `json:"text"`
+}
+
+// codexResponse represents response payloads from response.completed events.
+type codexResponse struct {
+	Status       string          `json:"status,omitempty"`
+	Usage        *codexUsage     `json:"usage,omitempty"`
+	TotalCostUSD float64         `json:"total_cost_usd,omitempty"`
+	InputTokens  int             `json:"input_tokens,omitempty"`
+	OutputTokens int             `json:"output_tokens,omitempty"`
+	ErrorInfo    *codexErrorInfo `json:"error,omitempty"`
 }
 
 // codexEvent represents a top-level Codex JSONL event.
 type codexEvent struct {
 	Type         string          `json:"type"`
 	Item         *codexItem      `json:"item,omitempty"`
+	Message      *codexMessage   `json:"message,omitempty"`
 	Delta        *codexDelta     `json:"delta,omitempty"`
+	Response     *codexResponse  `json:"response,omitempty"`
 	Status       string          `json:"status,omitempty"`
 	Usage        *codexUsage     `json:"usage,omitempty"`
 	Result       *codexResult    `json:"result,omitempty"`
@@ -211,6 +234,16 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				})
 			}
 
+		case "assistant":
+			text := extractAssistantText(event.Message)
+			if text == "" {
+				continue
+			}
+			lastAgentText = text
+			if output != nil {
+				_, _ = output.Write([]byte(text))
+			}
+
 		case "result":
 			// Extract usage from native result events (matches Claude's reporting path).
 			// Some codex provider versions report token usage in a "result" event with
@@ -255,6 +288,31 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 					"total_cost_usd": totalCostUSD,
 					"input_tokens":   event.Usage.InputTokens,
 					"output_tokens":  event.Usage.OutputTokens,
+				})
+			}
+
+		case "response.completed":
+			responseUsage := extractUsageFromResponseEvent(event)
+			if responseUsage != nil {
+				usage = mergeCodexUsage(usage, responseUsage)
+				emitStreamEvent(handler, map[string]interface{}{
+					"type":           "result",
+					"total_cost_usd": responseUsage.TotalCostUSD,
+					"input_tokens":   responseUsage.InputTokens,
+					"output_tokens":  responseUsage.OutputTokens,
+				})
+			}
+			if event.ErrorInfo != nil {
+				errInfo = event.ErrorInfo
+			}
+			if event.Response != nil && event.Response.ErrorInfo != nil {
+				errInfo = event.Response.ErrorInfo
+			}
+			if errInfo != nil {
+				emitStreamEvent(handler, map[string]interface{}{
+					"type":    "error",
+					"subtype": errInfo.Type,
+					"message": errInfo.Message,
 				})
 			}
 		}
@@ -320,6 +378,46 @@ func extractUsageFromResultEvent(event codexEvent) *codexUsage {
 		return nil
 	}
 	return &usage
+}
+
+func extractUsageFromResponseEvent(event codexEvent) *codexUsage {
+	var usage codexUsage
+	found := false
+
+	if event.Usage != nil {
+		usage = *event.Usage
+		found = true
+	}
+	found = applyUsageScalars(&usage, event.InputTokens, event.OutputTokens, event.TotalCostUSD) || found
+
+	if event.Response != nil {
+		if event.Response.Usage != nil {
+			merged := mergeCodexUsage(&usage, event.Response.Usage)
+			if merged != nil {
+				usage = *merged
+			}
+			found = true
+		}
+		found = applyUsageScalars(&usage, event.Response.InputTokens, event.Response.OutputTokens, event.Response.TotalCostUSD) || found
+	}
+	if !found {
+		return nil
+	}
+	return &usage
+}
+
+func extractAssistantText(message *codexMessage) string {
+	if message == nil {
+		return ""
+	}
+	var sb strings.Builder
+	for _, block := range message.Content {
+		if block.Type != "text" || block.Text == "" {
+			continue
+		}
+		sb.WriteString(block.Text)
+	}
+	return sb.String()
 }
 
 func applyUsageScalars(usage *codexUsage, inputTokens, outputTokens int, totalCostUSD float64) bool {

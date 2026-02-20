@@ -98,9 +98,18 @@ func (cp *CodexProvider) Run(ctx context.Context, prompt string, tier string) (*
 	if err != nil {
 		return nil, err
 	}
-	// Extract agent text from JSONL events so callers get the model's
-	// actual response rather than raw JSONL lines.
-	if text := extractAgentTextFromJSONL(result.Output); text != "" {
+	// Parse JSONL output for normalized agent text and usage metadata.
+	parsedText, usage, _, parseErr := processCodexStream(strings.NewReader(result.Output), nil, nil, nil)
+	if parseErr == nil {
+		if parsedText != "" {
+			result.Output = parsedText
+		}
+		result.CostUSD = usageCost(usage)
+		result.InputTokens = usageInputTokens(usage)
+		result.CachedInputTokens = usageCachedInputTokens(usage)
+		result.OutputTokens = usageOutputTokens(usage)
+	} else if text := extractAgentTextFromJSONL(result.Output); text != "" {
+		// Keep legacy text extraction as a fallback for unexpected parse failures.
 		result.Output = text
 	}
 	return result, nil
