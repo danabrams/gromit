@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -584,26 +585,13 @@ func containsImport(content, pkg string) bool {
 	singleLine := fmt.Sprintf(`import "%s"`, pkg)
 	multiLineQuoted := fmt.Sprintf(`"%s"`, pkg)
 
-	return containsString(content, singleLine) || containsString(content, multiLineQuoted)
+	return strings.Contains(content, singleLine) || strings.Contains(content, multiLineQuoted)
 }
 
 func hasFunction(content, funcName string) bool {
 	// Check for function definition
 	funcDef := fmt.Sprintf("func %s(", funcName)
-	return containsString(content, funcDef)
-}
-
-func containsString(content, substr string) bool {
-	return len(content) > 0 && len(substr) > 0 && indexString(content, substr) >= 0
-}
-
-func indexString(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
+	return strings.Contains(content, funcDef)
 }
 
 // Ensure mocks compile against the new interface signatures
