@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -59,7 +60,7 @@ func newTestBeadContextWithTier(tier string) *runtypes.BeadContext {
 func assertResultCostData(t *testing.T, result *runtypes.IterationResult, wantCost float64, wantInput, wantOutput int) {
 	t.Helper()
 
-	if result.CostUSD != wantCost {
+	if math.Abs(result.CostUSD-wantCost) > 1e-9 {
 		t.Fatalf("CostUSD = %v, want %v", result.CostUSD, wantCost)
 	}
 	if result.InputTokens != wantInput {
@@ -414,9 +415,24 @@ func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
 	}
 
 	refactorCallCount := 0
+	initialRefactorStats, err := logger.NewStreamStats()
+	if err != nil {
+		t.Fatalf("NewStreamStats() failed: %v", err)
+	}
+	initialRefactorStats.MergeCostData(0.25, 150, 80)
+
+	retryRefactorStats, err := logger.NewStreamStats()
+	if err != nil {
+		t.Fatalf("NewStreamStats() failed: %v", err)
+	}
+	retryRefactorStats.MergeCostData(0.35, 220, 110)
+
 	refactorInvokeFn := func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
 		refactorCallCount++
-		return &claude.Result{Success: true}, nil, nil
+		if refactorCallCount == 1 {
+			return &claude.Result{Success: true}, initialRefactorStats, nil
+		}
+		return &claude.Result{Success: true}, retryRefactorStats, nil
 	}
 
 	validateCallCount := 0
@@ -450,8 +466,11 @@ func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
 	))
 
 	bc := newTestBeadContextWithTier(provider.TierMedium)
+	bc.Result.CostUSD = 1.20
+	bc.Result.InputTokens = 1000
+	bc.Result.OutputTokens = 400
 
-	err := exec.RunRefactorPhase(context.Background(), bc)
+	err = exec.RunRefactorPhase(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("RunRefactorPhase should return nil even on validation failure (non-blocking), got: %v", err)
 	}
@@ -464,6 +483,7 @@ func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
 	if validateCallCount != 2 {
 		t.Errorf("validation should be called twice (initial + after retry), got %d", validateCallCount)
 	}
+	assertResultCostData(t, bc.Result, 1.80, 1370, 590)
 }
 
 func TestRunRefactorPhase_RevertsOnBothValidationFailures(t *testing.T) {

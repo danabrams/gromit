@@ -295,7 +295,7 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 	if e.refactorInvokeFn == nil {
 		return nil
 	}
-	retryResult, _, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
+	retryResult, retryStats, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		e.log("Warning: retry refactor invocation failed: %v - skipping refactoring", err)
 		return nil
@@ -304,6 +304,7 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 		e.log("Warning: retry refactor failed - skipping refactoring")
 		return nil
 	}
+	e.applyRefactorStreamStats(bc, retryStats)
 
 	e.log("Retry refactor complete, re-validating...")
 
