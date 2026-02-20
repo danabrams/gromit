@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func TestCodexProviderRunSetsWaitDelay(t *testing.T) {
@@ -37,7 +36,7 @@ func TestCodexProviderRunSetsWaitDelay(t *testing.T) {
 		t.Fatal("expected command to be created")
 	}
 
-	if captured.WaitDelay != 100*time.Millisecond {
-		t.Fatalf("expected WaitDelay 100ms, got %v", captured.WaitDelay)
+	if captured.WaitDelay != codexCommandWaitDelay {
+		t.Fatalf("expected WaitDelay %v, got %v", codexCommandWaitDelay, captured.WaitDelay)
 	}
 }
