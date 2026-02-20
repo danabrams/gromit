@@ -403,6 +403,70 @@ func TestRunDelegatesToReviewerRunThorough(t *testing.T) {
 	t.Fatal("Run not found in runner.go")
 }
 
+// TestReviewerUsesPhaseFilteredRulesForReviewInvocations verifies reviewpkg's
+// RunLight and RunThorough load rules through LoadRulesForPhase("review")
+// rather than LoadRules().
+func TestReviewerUsesPhaseFilteredRulesForReviewInvocations(t *testing.T) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filepath.Join("reviewpkg", "reviewer.go"), nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("failed to parse reviewpkg/reviewer.go: %v", err)
+	}
+
+	targets := map[string]bool{
+		"RunLight":    true,
+		"RunThorough": true,
+	}
+
+	for _, decl := range node.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok || funcDecl.Recv == nil || len(funcDecl.Recv.List) == 0 {
+			continue
+		}
+		if !targets[funcDecl.Name.Name] {
+			continue
+		}
+
+		var hasLoadRules bool
+		var hasPhaseLoadReview bool
+		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			switch sel.Sel.Name {
+			case "LoadRules":
+				hasLoadRules = true
+			case "LoadRulesForPhase":
+				if len(call.Args) != 1 {
+					return true
+				}
+				lit, ok := call.Args[0].(*ast.Ident)
+				if ok && lit.Name == "reviewPhase" {
+					hasPhaseLoadReview = true
+				}
+			}
+			return true
+		})
+
+		if hasLoadRules {
+			t.Errorf("%s calls LoadRules(); expected LoadRulesForPhase(reviewPhase)", funcDecl.Name.Name)
+		}
+		if !hasPhaseLoadReview {
+			t.Errorf("%s does not call LoadRulesForPhase(reviewPhase)", funcDecl.Name.Name)
+		}
+		delete(targets, funcDecl.Name.Name)
+	}
+
+	for missing := range targets {
+		t.Errorf("missing expected method in reviewer.go: %s", missing)
+	}
+}
+
 // --- process.go does not call removed local review methods ---
 
 // TestProcessGoDoesNotCallLocalReviewMethods verifies that process.go does not

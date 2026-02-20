@@ -162,6 +162,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 	runThoroughReview := func(iteration int) {
 		if st.interactiveFile != nil && r.reviewer != nil {
+			// Reviewer owns review prompt construction, including review-phase rules.
 			r.reviewer.RunThorough(ctx, st.interactiveFile, iteration, deadline, r.getHead)
 		}
 	}
