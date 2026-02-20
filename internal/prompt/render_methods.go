@@ -125,23 +125,24 @@ func (r *Renderer) RenderSpecAcceptance(ctx *SpecAcceptanceContext) (string, err
 
 // RenderSpecGate renders the spec gate prompt.
 func (r *Renderer) RenderSpecGate(ctx *SpecGateContext) (string, error) {
+	const specGateTemplate = "PROMPT_spec_gate.md"
 	if r != nil {
-		spec := ""
-		failure := ""
-		diff := ""
+		specCriteriaAndAcceptance := ""
+		failureAndTestOutput := ""
+		cumulativeDiff := ""
 		if ctx != nil {
-			spec = ctx.SpecCriteria + "\n" + ctx.AcceptanceCriteria
-			failure = ctx.FailureOutput + "\n" + ctx.TestOutput
-			diff = ctx.CumulativeDiff
+			specCriteriaAndAcceptance = ctx.SpecCriteria + "\n" + ctx.AcceptanceCriteria
+			failureAndTestOutput = ctx.FailureOutput + "\n" + ctx.TestOutput
+			cumulativeDiff = ctx.CumulativeDiff
 		}
 		r.lastDiagnostics = r.computeDiagnostics("spec_gate", map[string]string{
-			SectionSpec:           spec,
-			SectionFailureContext: failure,
-			SectionDiff:           diff,
-			SectionTemplateStatic: "PROMPT_spec_gate.md",
+			SectionSpec:           specCriteriaAndAcceptance,
+			SectionFailureContext: failureAndTestOutput,
+			SectionDiff:           cumulativeDiff,
+			SectionTemplateStatic: specGateTemplate,
 		})
 	}
-	return r.render("PROMPT_spec_gate.md", ctx)
+	return r.render(specGateTemplate, ctx)
 }
 
 // RenderReview renders the light review prompt.
