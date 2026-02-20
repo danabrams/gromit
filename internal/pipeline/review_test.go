@@ -31,7 +31,7 @@ func TestReviewInteractiveWorkflow_BuildsContextAndReturnsSession(t *testing.T) 
 	}
 
 	promptRendered := false
-	mockRenderer := &reviewAcceptanceMockPromptRenderer{
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
 		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			promptRendered = true
 			// Verify context contains Diff and Model
@@ -95,7 +95,7 @@ func TestReviewInteractiveWorkflow_NilDependenciesError(t *testing.T) {
 // TestReviewNonInteractiveWorkflow_E2E verifies the complete non-interactive review workflow
 // Expected failure: Pipeline.ReviewNonInteractive method does not exist yet
 func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
-	mockRenderer := &reviewAcceptanceMockPromptRenderer{
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
 		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			return "# Review Prompt", nil
 		},
@@ -277,7 +277,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 // TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel verifies beads get from-review label
 // Expected failure: Pipeline.ReviewNonInteractive method does not exist yet
 func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing.T) {
-	mockRenderer := &reviewAcceptanceMockPromptRenderer{
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
 		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			return "# Review", nil
 		},
@@ -365,7 +365,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 // TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels verifies backlog items get from-review and backlog labels
 // Expected failure: Pipeline.ReviewNonInteractive method does not exist yet
 func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
-	mockRenderer := &reviewAcceptanceMockPromptRenderer{
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
 		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			return "# Review", nil
 		},
@@ -445,7 +445,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 // Note: The ClaudeClient interface doesn't expose timeout directly; timeout handling
 // is expected to be managed via context at a higher level (e.g., in the CLI adapter)
 func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
-	mockRenderer := &reviewAcceptanceMockPromptRenderer{
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
 		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
 			return "# Review", nil
 		},
@@ -523,7 +523,7 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 	newValidDeps := func() *Deps {
 		return &Deps{
 			ClaudeClient:     &reviewAcceptanceMockClaudeClient{},
-			ReviewRenderer:   &reviewAcceptanceMockPromptRenderer{},
+			ReviewRenderer:   &reviewAcceptanceMockReviewRenderer{},
 			BeadClient:       &reviewAcceptanceMockBeadClient{},
 			BacklogClient:    &reviewAcceptanceMockBacklogClient{},
 			LearningsManager: &reviewAcceptanceMockLearningsManager{},
@@ -653,30 +653,14 @@ func (m *reviewAcceptanceMockAgentResolver) Resolve(phase string, flagOverride s
 	return nil, fmt.Errorf("not implemented")
 }
 
-type reviewAcceptanceMockPromptRenderer struct {
+type reviewAcceptanceMockReviewRenderer struct {
 	renderThoroughReviewFunc func(input *ThoroughReviewPromptInput) (string, error)
 }
 
-func (m *reviewAcceptanceMockPromptRenderer) RenderRefine(input *RefinePromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-func (m *reviewAcceptanceMockPromptRenderer) RenderPlan(input *PlanPromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-func (m *reviewAcceptanceMockPromptRenderer) RenderDecompose(input *DecomposePromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-func (m *reviewAcceptanceMockPromptRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
+func (m *reviewAcceptanceMockReviewRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
 	if m.renderThoroughReviewFunc != nil {
 		return m.renderThoroughReviewFunc(input)
 	}
-	return "", fmt.Errorf("not implemented")
-}
-
-func (m *reviewAcceptanceMockPromptRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 

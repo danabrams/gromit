@@ -38,7 +38,7 @@ func TestPipelineExplore_PropagatesChooseAgentToResolver(t *testing.T) {
 			return mockAgent, nil
 		},
 	}
-	mockRenderer := &mockPromptRenderer{
+	mockRenderer := &mockExploreRenderer{
 		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
 			return "explore prompt", nil
 		},

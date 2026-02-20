@@ -333,7 +333,7 @@ func TestDecompose_NoTypeAssertions(t *testing.T) {
 // TestPromptRenderer_ThoroughReview_TypedInput verifies RenderThoroughReview accepts typed ThoroughReviewPromptInput
 // Expected failure: RenderThoroughReview currently accepts interface{} and ThoroughReviewPromptInput type does not exist
 func TestPromptRenderer_ThoroughReview_TypedInput(t *testing.T) {
-	mockRenderer := &typedInterfacesPromptRenderer{
+	mockRenderer := &typedInterfacesReviewRenderer{
 		renderThoroughReviewFn: func(input *ThoroughReviewPromptInput) (string, error) {
 			if input.FromCommit != "abc123" {
 				return "", fmt.Errorf("unexpected FromCommit: %s", input.FromCommit)
@@ -423,7 +423,7 @@ func TestReviewNonInteractive_UsesTypedClaudeResult(t *testing.T) {
 			return nil
 		},
 	}
-	mockRenderer := &typedInterfacesPromptRenderer{
+	mockRenderer := &typedInterfacesReviewRenderer{
 		renderThoroughReviewFn: func(input *ThoroughReviewPromptInput) (string, error) {
 			return "review prompt", nil
 		},
@@ -516,30 +516,14 @@ func (m *typedInterfacesBeadClient) Close(id string) error {
 	return fmt.Errorf("not implemented")
 }
 
-type typedInterfacesPromptRenderer struct {
+type typedInterfacesReviewRenderer struct {
 	renderThoroughReviewFn func(input *ThoroughReviewPromptInput) (string, error)
 }
 
-func (m *typedInterfacesPromptRenderer) RenderRefine(input *RefinePromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-func (m *typedInterfacesPromptRenderer) RenderPlan(input *PlanPromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-func (m *typedInterfacesPromptRenderer) RenderDecompose(input *DecomposePromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-func (m *typedInterfacesPromptRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
+func (m *typedInterfacesReviewRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
 	if m.renderThoroughReviewFn != nil {
 		return m.renderThoroughReviewFn(input)
 	}
-	return "", fmt.Errorf("not implemented")
-}
-
-func (m *typedInterfacesPromptRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
@@ -625,5 +609,5 @@ func indexString(s, substr string) int {
 // Ensure mocks compile against the new interface signatures
 var _ ClaudeClient = (*typedInterfacesClaudeClient)(nil)
 var _ BeadClient = (*typedInterfacesBeadClient)(nil)
-var _ ReviewRenderer = (*typedInterfacesPromptRenderer)(nil)
+var _ ReviewRenderer = (*typedInterfacesReviewRenderer)(nil)
 var _ LogWriter = (*typedInterfacesLogWriter)(nil)

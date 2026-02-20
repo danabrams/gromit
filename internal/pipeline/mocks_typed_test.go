@@ -11,7 +11,7 @@ func TestAllMocks_SatisfyInterfacesWithTypedSignatures(t *testing.T) {
 	// Compile-time checks - these will fail if mocks don't match interfaces
 	var _ ClaudeClient = (*testClaudeClient)(nil)
 	var _ BeadClient = (*testBeadClient)(nil)
-	var _ ReviewRenderer = (*testPromptRenderer)(nil)
+	var _ ReviewRenderer = (*testReviewRenderer)(nil)
 
 	// Verify ClaudeClient mock returns typed ClaudeRunResult
 	t.Run("ClaudeClient returns typed ClaudeRunResult", func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestAllMocks_SatisfyInterfacesWithTypedSignatures(t *testing.T) {
 
 	// Verify PromptRenderer.RenderThoroughReview accepts typed input
 	t.Run("PromptRenderer.RenderThoroughReview accepts typed input", func(t *testing.T) {
-		mock := &testPromptRenderer{}
+		mock := &testReviewRenderer{}
 		input := &ThoroughReviewPromptInput{
 			FromCommit: "abc123",
 			Diff:       "diff content",

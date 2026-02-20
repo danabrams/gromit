@@ -27,7 +27,7 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 			name: "nil AgentResolver",
 			deps: &Deps{
 				AgentResolver:   nil,
-				ExploreRenderer: &testPromptRenderer{},
+				ExploreRenderer: &testExploreRenderer{},
 				BacklogClient:   &testBacklogClient{},
 			},
 			paths:   &Paths{},
@@ -47,7 +47,7 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 			name: "nil BacklogClient",
 			deps: &Deps{
 				AgentResolver:   &testAgentResolver{},
-				ExploreRenderer: &testPromptRenderer{},
+				ExploreRenderer: &testExploreRenderer{},
 				BacklogClient:   nil,
 			},
 			paths:   &Paths{},
@@ -94,7 +94,7 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 			name: "typed nil AgentResolver passes validation",
 			deps: &Deps{
 				AgentResolver:   (*testAgentResolver)(nil),
-				ExploreRenderer: &testPromptRenderer{},
+				ExploreRenderer: &testExploreRenderer{},
 				BacklogClient:   &testBacklogClient{},
 			},
 			wantErr: "",
@@ -103,7 +103,7 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 			name: "all deps present passes validation",
 			deps: &Deps{
 				AgentResolver:   &testAgentResolver{},
-				ExploreRenderer: &testPromptRenderer{},
+				ExploreRenderer: &testExploreRenderer{},
 				BacklogClient:   &testBacklogClient{},
 			},
 			wantErr: "",
@@ -183,7 +183,7 @@ func TestPipeline_ExploreRecordsExistingArtifacts(t *testing.T) {
 		},
 	}
 
-	mockRenderer := &mockPromptRenderer{
+	mockRenderer := &mockExploreRenderer{
 		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
 			recordedEpics, _ = ListMarkdownFiles(epicsDir)
 			recordedSpecs, _ = ListMarkdownFiles(specsDir)
@@ -235,7 +235,7 @@ func TestPipeline_ExploreBuildsPromptWithContext(t *testing.T) {
 
 	var capturedContext *ExplorePromptInput
 
-	mockRenderer := &mockPromptRenderer{
+	mockRenderer := &mockExploreRenderer{
 		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
 			capturedContext = input
 			return "explore prompt with full context", nil
@@ -316,7 +316,7 @@ func TestPipeline_ExploreWritesTempFile(t *testing.T) {
 		},
 	}
 
-	mockRenderer := &mockPromptRenderer{
+	mockRenderer := &mockExploreRenderer{
 		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
 			return "test explore prompt content", nil
 		},
@@ -373,7 +373,7 @@ func TestPipeline_ExploreResolvesAgent(t *testing.T) {
 
 	deps := &Deps{
 		AgentResolver:   mockAgentResolver,
-		ExploreRenderer: &testPromptRenderer{},
+		ExploreRenderer: &testExploreRenderer{},
 		BacklogClient:   &testBacklogClient{},
 	}
 
@@ -453,7 +453,7 @@ func TestPipeline_ExplorePostProcessingDetectsNewArtifacts(t *testing.T) {
 
 	deps := &Deps{
 		AgentResolver:   mockAgentResolver,
-		ExploreRenderer: &testPromptRenderer{},
+		ExploreRenderer: &testExploreRenderer{},
 		BacklogClient:   mockBacklog,
 	}
 
@@ -506,7 +506,7 @@ func TestPipeline_ExploreReturnsExploreResult(t *testing.T) {
 
 	deps := &Deps{
 		AgentResolver:   mockAgentResolver,
-		ExploreRenderer: &testPromptRenderer{},
+		ExploreRenderer: &testExploreRenderer{},
 		BacklogClient:   &testBacklogClient{},
 	}
 
@@ -558,7 +558,7 @@ func TestPipeline_ExploreRespectsContext(t *testing.T) {
 
 	deps := &Deps{
 		AgentResolver:   mockAgentResolver,
-		ExploreRenderer: &testPromptRenderer{},
+		ExploreRenderer: &testExploreRenderer{},
 		BacklogClient:   &testBacklogClient{},
 	}
 
@@ -658,44 +658,11 @@ func (m *mockBacklogClient) Update(id string, fn func(*Idea)) error {
 	return nil
 }
 
-type mockPromptRenderer struct {
-	RenderRefineFn         func(input *RefinePromptInput) (string, error)
-	RenderPlanFn           func(input *PlanPromptInput) (string, error)
-	RenderDecomposeFn      func(input *DecomposePromptInput) (string, error)
-	RenderThoroughReviewFn func(input *ThoroughReviewPromptInput) (string, error)
-	RenderExploreFn        func(input *ExplorePromptInput) (string, error)
+type mockExploreRenderer struct {
+	RenderExploreFn func(input *ExplorePromptInput) (string, error)
 }
 
-func (m *mockPromptRenderer) RenderRefine(input *RefinePromptInput) (string, error) {
-	if m.RenderRefineFn != nil {
-		return m.RenderRefineFn(input)
-	}
-	return "refine prompt", nil
-}
-
-func (m *mockPromptRenderer) RenderPlan(input *PlanPromptInput) (string, error) {
-	if m.RenderPlanFn != nil {
-		return m.RenderPlanFn(input)
-	}
-	return "plan prompt", nil
-}
-
-func (m *mockPromptRenderer) RenderDecompose(input *DecomposePromptInput) (string, error) {
-	if m.RenderDecomposeFn != nil {
-		return m.RenderDecomposeFn(input)
-	}
-	return "decompose prompt", nil
-}
-
-func (m *mockPromptRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
-	if m.RenderThoroughReviewFn != nil {
-		return m.RenderThoroughReviewFn(input)
-	}
-	return "review prompt", nil
-}
-
-// RenderExplore is a new method that doesn't exist yet in the PromptRenderer interface
-func (m *mockPromptRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
+func (m *mockExploreRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
 	if m.RenderExploreFn != nil {
 		return m.RenderExploreFn(input)
 	}

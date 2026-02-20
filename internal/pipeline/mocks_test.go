@@ -5,11 +5,11 @@ var _ AgentResolver = (*testAgentResolver)(nil)
 var _ ClaudeClient = (*testClaudeClient)(nil)
 var _ BeadClient = (*testBeadClient)(nil)
 var _ BacklogClient = (*testBacklogClient)(nil)
-var _ RefineRenderer = (*testPromptRenderer)(nil)
-var _ PlanRenderer = (*testPromptRenderer)(nil)
-var _ DecomposeRenderer = (*testPromptRenderer)(nil)
-var _ ReviewRenderer = (*testPromptRenderer)(nil)
-var _ ExploreRenderer = (*testPromptRenderer)(nil)
+var _ RefineRenderer = (*testRefineRenderer)(nil)
+var _ PlanRenderer = (*testPlanRenderer)(nil)
+var _ DecomposeRenderer = (*testDecomposeRenderer)(nil)
+var _ ReviewRenderer = (*testReviewRenderer)(nil)
+var _ ExploreRenderer = (*testExploreRenderer)(nil)
 var _ LearningsManager = (*testLearningsManager)(nil)
 var _ StateManager = (*testStateManager)(nil)
 var _ LogWriter = (*testLogWriter)(nil)
@@ -70,26 +70,33 @@ func (m *testBacklogClient) Update(id string, fn func(*Idea)) error {
 	return nil
 }
 
-// testPromptRenderer is a mock for unit tests
-type testPromptRenderer struct{}
+type testRefineRenderer struct{}
 
-func (m *testPromptRenderer) RenderRefine(input *RefinePromptInput) (string, error) {
+func (m *testRefineRenderer) RenderRefine(input *RefinePromptInput) (string, error) {
 	return "", nil
 }
 
-func (m *testPromptRenderer) RenderPlan(input *PlanPromptInput) (string, error) {
+type testPlanRenderer struct{}
+
+func (m *testPlanRenderer) RenderPlan(input *PlanPromptInput) (string, error) {
 	return "", nil
 }
 
-func (m *testPromptRenderer) RenderDecompose(input *DecomposePromptInput) (string, error) {
+type testDecomposeRenderer struct{}
+
+func (m *testDecomposeRenderer) RenderDecompose(input *DecomposePromptInput) (string, error) {
 	return "", nil
 }
 
-func (m *testPromptRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
+type testReviewRenderer struct{}
+
+func (m *testReviewRenderer) RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error) {
 	return "", nil
 }
 
-func (m *testPromptRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
+type testExploreRenderer struct{}
+
+func (m *testExploreRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {
 	return "", nil
 }
 
