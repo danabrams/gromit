@@ -3,11 +3,13 @@ package runner
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunArgvUsesInjectedRunner(t *testing.T) {
@@ -143,3 +145,97 @@ func TestDefaultArgvRunnerExecFailure(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 }
+
+func TestIsInteractiveStdin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		statFn func() (os.FileInfo, error)
+		want   bool
+	}{
+		{
+			name: "interactive tty",
+			statFn: func() (os.FileInfo, error) {
+				return staticFileInfo{mode: os.ModeCharDevice}, nil
+			},
+			want: true,
+		},
+		{
+			name: "piped stdin is non-interactive",
+			statFn: func() (os.FileInfo, error) {
+				return staticFileInfo{mode: os.ModeNamedPipe}, nil
+			},
+			want: false,
+		},
+		{
+			name: "redirected file stdin is non-interactive",
+			statFn: func() (os.FileInfo, error) {
+				return staticFileInfo{mode: 0}, nil
+			},
+			want: false,
+		},
+		{
+			name: "stat error",
+			statFn: func() (os.FileInfo, error) {
+				return nil, errors.New("stat failed")
+			},
+			want: false,
+		},
+		{
+			name: "nil stat function",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isInteractiveStdin(tt.statFn); got != tt.want {
+				t.Fatalf("isInteractiveStdin() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseYesNoResponse(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{name: "y", input: "y", want: true},
+		{name: "yes", input: "yes", want: true},
+		{name: "uppercase yes", input: "YES", want: true},
+		{name: "surrounded whitespace", input: "  y  ", want: true},
+		{name: "n", input: "n", want: false},
+		{name: "no", input: "no", want: false},
+		{name: "empty", input: "", want: false},
+		{name: "whitespace empty", input: " \n\t ", want: false},
+		{name: "unexpected value", input: "maybe", want: false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := parseYesNoResponse(tt.input); got != tt.want {
+				t.Fatalf("parseYesNoResponse(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+type staticFileInfo struct {
+	mode os.FileMode
+}
+
+func (s staticFileInfo) Name() string       { return "stdin" }
+func (s staticFileInfo) Size() int64        { return 0 }
+func (s staticFileInfo) Mode() os.FileMode  { return s.mode }
+func (s staticFileInfo) ModTime() time.Time { return time.Time{} }
+func (s staticFileInfo) IsDir() bool        { return false }
+func (s staticFileInfo) Sys() interface{}   { return nil }

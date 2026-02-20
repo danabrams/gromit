@@ -172,6 +172,30 @@ func (r *Runner) runArgv(ctx context.Context, program string, args []string, wor
 	return defaultArgvRunner(ctx, program, args, workDir)
 }
 
+func isInteractiveStdin(statFn func() (os.FileInfo, error)) bool {
+	if statFn == nil {
+		return false
+	}
+
+	info, err := statFn()
+	if err != nil || info == nil {
+		return false
+	}
+
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
+func parseYesNoResponse(input string) bool {
+	switch strings.ToLower(strings.TrimSpace(input)) {
+	case "y", "yes":
+		return true
+	case "n", "no", "":
+		return false
+	default:
+		return false
+	}
+}
+
 // extractExpectedFiles parses a bead description for file creation patterns
 // like "Create internal/runner/adapters.go" and returns the file paths.
 // This enables deterministic precheck rejection for beads that describe
