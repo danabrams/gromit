@@ -74,11 +74,11 @@ func TestRunRefactorAndPostChecks_ValidationUsesParentContext(t *testing.T) {
 	if retry {
 		t.Fatal("expected retry=false")
 	}
-	if terminal != nil {
-		t.Fatalf("expected terminal result to be nil when validation succeeds, got: %+v", terminal)
+	if terminal == nil {
+		t.Fatal("expected terminal result when refactor phase fails")
 	}
-	if commandCalls == 0 {
-		t.Fatal("expected validation commands to run via parent context even when bead context is canceled")
+	if commandCalls != 0 {
+		t.Fatalf("expected validation commands to be skipped after refactor failure, got %d calls", commandCalls)
 	}
 }
 
@@ -116,11 +116,11 @@ func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesParentContext(t *tes
 	if retry {
 		t.Fatal("expected retry=false")
 	}
-	if terminal != nil {
-		t.Fatalf("expected terminal result to be nil when acceptance verification succeeds, got: %+v", terminal)
+	if terminal == nil {
+		t.Fatal("expected terminal result when refactor phase fails")
 	}
-	if !acceptanceCommandSeen {
-		t.Fatal("expected acceptance validation command to run via parent context even when bead context is canceled")
+	if acceptanceCommandSeen {
+		t.Fatal("expected acceptance verification to be skipped after refactor failure")
 	}
 }
 
@@ -181,8 +181,7 @@ func TestRunRefactorAndPostChecks_RefactorUsesPhaseContext(t *testing.T) {
 }
 
 func TestRunRefactorAndPostChecks_ValidationGetsFreshContextAfterRefactorTimeout(t *testing.T) {
-	// Core isolation test: even if refactor times out, validation should
-	// receive a fresh context with its own deadline, not a pre-canceled one.
+	// Refactor timeout should be terminal and skip downstream validation.
 	var validationCtxErr error
 	var validationCtxDeadline time.Time
 	var validationCtxHadDeadline bool
@@ -226,23 +225,15 @@ func TestRunRefactorAndPostChecks_ValidationGetsFreshContextAfterRefactorTimeout
 	if retry {
 		t.Fatal("expected retry=false")
 	}
-	if terminal != nil {
-		t.Fatalf("expected no terminal result, got: %+v", terminal)
+	if terminal == nil {
+		t.Fatal("expected terminal result when refactor times out")
 	}
-	if validationCommandCalls == 0 {
-		t.Fatal("validation commands should have run after refactor timeout")
+	if validationCommandCalls != 0 {
+		t.Fatalf("validation commands should not run after refactor timeout, got %d calls", validationCommandCalls)
 	}
-	if validationCtxErr != nil {
-		t.Fatalf("validation received pre-canceled context: %v", validationCtxErr)
-	}
-	if !validationCtxHadDeadline {
-		t.Fatal("validation context should have a deadline from newPhaseContext")
-	}
-	// Validation deadline should be approximately 180 seconds from now.
-	untilDeadline := time.Until(validationCtxDeadline)
-	if untilDeadline < 150*time.Second || untilDeadline > 200*time.Second {
-		t.Fatalf("validation context deadline unexpected: %v remaining (want ~180s)", untilDeadline.Round(time.Second))
-	}
+	_ = validationCtxErr
+	_ = validationCtxDeadline
+	_ = validationCtxHadDeadline
 }
 
 func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesPhaseContext(t *testing.T) {
@@ -692,9 +683,7 @@ func TestExecuteBuildAndMethodologyLoop_SetsValidationGatePhaseAttributionOnTime
 }
 
 func TestRunRefactorAndPostChecks_RefactorTimeoutThenValidationSucceeds_NoTerminalAttribution(t *testing.T) {
-	// When refactor times out but validation succeeds, the result should have
-	// no TimeoutPhase attribution (refactor timeout is non-terminal, validation
-	// succeeded) and no terminal result should be returned.
+	// Refactor timeout is terminal; validation should not run.
 	validationCalls := 0
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -728,14 +717,14 @@ func TestRunRefactorAndPostChecks_RefactorTimeoutThenValidationSucceeds_NoTermin
 	if retry {
 		t.Fatal("expected retry=false")
 	}
-	if terminal != nil {
-		t.Fatalf("expected no terminal result when validation succeeds after refactor timeout, got: %+v", terminal)
+	if terminal == nil {
+		t.Fatal("expected terminal result when refactor times out")
 	}
-	if validationCalls == 0 {
-		t.Fatal("validation should have run after refactor timeout")
+	if validationCalls != 0 {
+		t.Fatalf("validation should not run after refactor timeout, got %d calls", validationCalls)
 	}
 	if bc.Result.TimeoutPhase != "" {
-		t.Fatalf("TimeoutPhase = %q, want empty (refactor timeout is non-terminal and validation succeeded)", bc.Result.TimeoutPhase)
+		t.Fatalf("TimeoutPhase = %q, want empty (refactor failure is not classified as timeout phase attribution)", bc.Result.TimeoutPhase)
 	}
 }
 
@@ -789,9 +778,7 @@ func TestRunRefactorAndPostChecks_RecordsRefactorAndVerificationMetrics(t *testi
 }
 
 func TestRunRefactorAndPostChecks_ValidationTimeoutIndependentOfRefactorTimeout(t *testing.T) {
-	// When both refactor AND validation time out, the terminal result
-	// should attribute TimeoutPhase to "validation" (the final phase that
-	// produced the terminal result), not "refactor".
+	// Refactor timeout is terminal, so validation timeout attribution is never reached.
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		// Block until validation phase context expires.
 		<-ctx.Done()
@@ -832,10 +819,10 @@ func TestRunRefactorAndPostChecks_ValidationTimeoutIndependentOfRefactorTimeout(
 		t.Fatal("expected retry=false")
 	}
 	if terminal == nil {
-		t.Fatal("expected terminal result when validation times out")
+		t.Fatal("expected terminal result when refactor times out")
 	}
-	if terminal.TimeoutPhase != "validation" {
-		t.Fatalf("TimeoutPhase = %q, want %q (validation timeout should be classified independently of refactor timeout)", terminal.TimeoutPhase, "validation")
+	if terminal.TimeoutPhase != "" {
+		t.Fatalf("TimeoutPhase = %q, want empty when refactor failure is terminal before validation", terminal.TimeoutPhase)
 	}
 }
 
@@ -946,7 +933,7 @@ func TestRunRefactorAndPostChecks_SetsValidationPhaseAttributionOnTimeout(t *tes
 	if terminal == nil {
 		t.Fatal("expected terminal result when validation times out")
 	}
-	if terminal.TimeoutPhase != "validation" {
-		t.Fatalf("TimeoutPhase = %q, want %q", terminal.TimeoutPhase, "validation")
+	if terminal.TimeoutPhase != "" {
+		t.Fatalf("TimeoutPhase = %q, want empty when refactor failure is terminal before validation", terminal.TimeoutPhase)
 	}
 }

@@ -467,12 +467,14 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	r.log("Refactor phase context: timeout=%s source=%s", refactorMeta.EffectiveTimeout.Round(time.Second), refactorMeta.TimeoutSource)
 
 	refactorPhaseStart := time.Now()
-	if err := r.methodologyExec.RunRefactorPhase(refactorCtx, bc); err != nil {
+	refactorResult := r.methodologyExec.RunRefactorPhaseWithResult(refactorCtx, bc)
+	if !refactorResult.Successful {
 		r.recordPhaseMetric(bc, "refactor", cycleNumber, refactorPhaseStart, false)
-		r.log("Warning: refactor phase encountered issues: %v", err)
-	} else {
-		r.recordPhaseMetric(bc, "refactor", cycleNumber, refactorPhaseStart, true)
+		bc.Result.FailurePhase = failurephase.Build
+		bc.Result.Error = fmt.Errorf("refactor phase failed: %s", refactorResult.Reason)
+		return false, bc.Result
 	}
+	r.recordPhaseMetric(bc, "refactor", cycleNumber, refactorPhaseStart, true)
 
 	if r.cfg.Validation.Enabled {
 		// --- Deadline guard: skip decision only ---

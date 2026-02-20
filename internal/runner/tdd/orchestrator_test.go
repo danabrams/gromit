@@ -772,7 +772,7 @@ func TestRunCycles_GreenEscalation_RetriesThenEscalates(t *testing.T) {
 	}
 }
 
-func TestRunCycles_RefactorFnError_NonBlocking(t *testing.T) {
+func TestRunCycles_RefactorFnError_IsTerminal(t *testing.T) {
 	orch := newTestOrchestrator()
 
 	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
@@ -812,8 +812,8 @@ func TestRunCycles_RefactorFnError_NonBlocking(t *testing.T) {
 
 	state := singleRequirementState()
 	err := orch.RunCycles(context.Background(), bc, state)
-	if err != nil {
-		t.Fatalf("expected no error (refactor error is non-blocking), got %v", err)
+	if err == nil {
+		t.Fatal("expected refactor error to be terminal")
 	}
 }
 

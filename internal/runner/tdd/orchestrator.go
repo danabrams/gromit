@@ -38,11 +38,12 @@ type refactorOutcome string
 const (
 	refactorOutcomeContinue         refactorOutcome = "continue"
 	refactorOutcomeRevertedContinue refactorOutcome = "reverted_continue"
+	refactorOutcomeFailed           refactorOutcome = "failed"
 )
 
 func isSupportedRefactorOutcome(outcome refactorOutcome) bool {
 	switch outcome {
-	case refactorOutcomeContinue, refactorOutcomeRevertedContinue:
+	case refactorOutcomeContinue, refactorOutcomeRevertedContinue, refactorOutcomeFailed:
 		return true
 	default:
 		return false
@@ -228,6 +229,9 @@ func (o *CycleOrchestrator) runRefactorAndFinalValidation(ctx context.Context, b
 	if !isSupportedRefactorOutcome(outcome) {
 		return fmt.Errorf("refactor phase: unsupported outcome %q", outcome)
 	}
+	if outcome == refactorOutcomeFailed {
+		return fmt.Errorf("refactor phase failed")
+	}
 	return o.runFinalValidation(ctx)
 }
 
@@ -243,7 +247,9 @@ func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtyp
 		preRefactorCommit = commit
 	}
 
-	_ = o.runRefactorFn(ctx, bc)
+	if err := o.runRefactorFn(ctx, bc); err != nil {
+		return refactorOutcomeFailed
+	}
 
 	// Verify tests still pass after refactor.
 	_, passed, validateErr := o.validateFn(ctx, nil, "")

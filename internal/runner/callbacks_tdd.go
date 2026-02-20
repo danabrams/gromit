@@ -169,7 +169,11 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 					if r.methodologyExec == nil {
 						return fmt.Errorf("methodology executor not configured")
 					}
-					return r.methodologyExec.RunRefactorPhase(ctx, bc)
+					result := r.methodologyExec.RunRefactorPhaseWithResult(ctx, bc)
+					if !result.Successful {
+						return fmt.Errorf("refactor phase failed: %s", result.Reason)
+					}
+					return nil
 				},
 				EscalateTierFn: func(currentTier string) string {
 					if r.escalationPolicy == nil {

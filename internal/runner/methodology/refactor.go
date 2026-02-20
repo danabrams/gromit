@@ -56,6 +56,15 @@ type RefactorDeps struct {
 	getGitHeadFn     GetGitHeadFn
 }
 
+// RefactorPhaseResult reports whether the refactor phase completed successfully.
+// Skipped outcomes are considered successful phase completion.
+type RefactorPhaseResult struct {
+	Successful bool
+	Attempted  bool
+	Skipped    bool
+	Reason     string
+}
+
 // NewRefactorDeps creates a RefactorDeps with the given callbacks.
 func NewRefactorDeps(
 	getDiffFn GetDiffFn,
@@ -144,62 +153,69 @@ func (e *Executor) ShouldRunRefactor(bc *runtypes.BeadContext, diff string) bool
 // if refactoring fails - it logs a warning and continues (working code without
 // refactoring is better than broken code).
 func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContext) error {
+	_ = e.RunRefactorPhaseWithResult(ctx, bc)
+	return nil
+}
+
+// RunRefactorPhaseWithResult runs the refactoring phase and returns whether it
+// completed successfully.
+func (e *Executor) RunRefactorPhaseWithResult(ctx context.Context, bc *runtypes.BeadContext) RefactorPhaseResult {
 	if e.getDiffFn == nil {
 		e.log("Warning: getDiffFn not configured, skipping refactor")
-		return nil
+		return RefactorPhaseResult{Successful: true, Skipped: true, Reason: "diff_not_configured"}
 	}
 
 	// Check if there are any changes to refactor
 	diff, err := e.getDiffFn(bc.StartCommit)
 	if err != nil {
 		e.log("Warning: could not get git diff: %v", err)
-		return nil
+		return RefactorPhaseResult{Successful: true, Skipped: true, Reason: "diff_unavailable"}
 	}
 	if diff == "" {
 		e.log("No changes to refactor, skipping refactor phase")
-		return nil
+		return RefactorPhaseResult{Successful: true, Skipped: true, Reason: "no_changes"}
 	}
 
 	// Check if refactor should run based on complexity and file count
 	if !e.ShouldRunRefactor(bc, diff) {
-		return nil
+		return RefactorPhaseResult{Successful: true, Skipped: true, Reason: "policy_skipped"}
 	}
 
 	// Capture pre-refactor commit for potential revert
 	if e.getGitHeadFn == nil {
 		e.log("Warning: getGitHeadFn not configured, skipping refactor")
-		return nil
+		return RefactorPhaseResult{Successful: true, Skipped: true, Reason: "git_head_not_configured"}
 	}
 	preRefactorCommit, err := e.getGitHeadFn()
 	if err != nil {
 		e.log("Warning: could not capture pre-refactor commit: %v", err)
-		return nil
+		return RefactorPhaseResult{Successful: true, Skipped: true, Reason: "git_head_unavailable"}
 	}
 
 	// Render refactor prompt
 	if e.renderRefactorFn == nil {
 		e.log("Warning: renderRefactorFn not configured, skipping refactor")
-		return nil
+		return RefactorPhaseResult{Successful: true, Skipped: true, Reason: "render_not_configured"}
 	}
 	refactorPrompt, err := e.renderRefactorFn(bc.PromptCtx)
 	if err != nil {
 		e.log("Warning: could not render refactor prompt: %v", err)
-		return nil
+		return RefactorPhaseResult{Successful: true, Skipped: true, Reason: "render_failed"}
 	}
 
 	// Execute refactor invocation
 	if e.refactorInvokeFn == nil {
 		e.log("Warning: refactorInvokeFn not configured, skipping refactor")
-		return nil
+		return RefactorPhaseResult{Successful: true, Skipped: true, Reason: "invoke_not_configured"}
 	}
 	refactorResult, refactorStats, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		e.log("Warning: refactor invocation failed: %v", err)
-		return nil
+		return RefactorPhaseResult{Successful: false, Attempted: true, Reason: "invoke_failed"}
 	}
 	if refactorResult == nil || !refactorResult.Success {
 		e.log("Warning: refactor phase failed")
-		return nil
+		return RefactorPhaseResult{Successful: false, Attempted: true, Reason: "invoke_unsuccessful"}
 	}
 	e.applyRefactorStreamStats(bc, refactorStats)
 
@@ -208,27 +224,33 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 	// Re-validate after refactoring
 	if !e.cfg.Validation.Enabled {
 		e.log("Validation not enabled, cannot verify refactoring")
-		return nil
+		return RefactorPhaseResult{Successful: true, Attempted: true, Reason: "validation_disabled"}
 	}
 
 	if e.validateFn == nil {
 		e.log("Warning: validateFn not configured, cannot re-validate after refactor")
-		return nil
+		return RefactorPhaseResult{Successful: false, Attempted: true, Reason: "validation_not_configured"}
 	}
 
 	validationCommands := e.refactorValidationCommands(bc)
 	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
 	if err != nil {
 		e.log("Warning: refactor re-validation invocation failed: %v", err)
-		return e.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "re-validation invocation failed")
+		if e.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "re-validation invocation failed") {
+			return RefactorPhaseResult{Successful: true, Attempted: true, Reason: "retry_succeeded"}
+		}
+		return RefactorPhaseResult{Successful: false, Attempted: true, Reason: "revalidation_invocation_failed"}
 	}
 
 	if valResult == nil || !claude.IsValidationPassed(valResult) {
-		return e.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "tests failed after refactoring")
+		if e.handleRefactorValidationFailure(ctx, bc, preRefactorCommit, "tests failed after refactoring") {
+			return RefactorPhaseResult{Successful: true, Attempted: true, Reason: "retry_succeeded"}
+		}
+		return RefactorPhaseResult{Successful: false, Attempted: true, Reason: "revalidation_failed"}
 	}
 
 	e.log("Refactor re-validation passed")
-	return nil
+	return RefactorPhaseResult{Successful: true, Attempted: true, Reason: "passed"}
 }
 
 func (e *Executor) applyRefactorStreamStats(bc *runtypes.BeadContext, stats *logger.StreamStats) {
@@ -272,8 +294,8 @@ func (e *Executor) updateTouchedPackagesFromDiff(bc *runtypes.BeadContext) bool 
 }
 
 // handleRefactorValidationFailure reverts the refactor changes and retries once.
-// Returns nil (not an error) after handling - refactor failures are non-blocking.
-func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runtypes.BeadContext, preRefactorCommit string, reason string) error {
+// Returns true when the retry path succeeds.
+func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runtypes.BeadContext, preRefactorCommit string, reason string) bool {
 	e.log("Refactor validation failed: %s", reason)
 	e.log("Reverting to pre-refactor state: %s", preRefactorCommit)
 
@@ -281,7 +303,7 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 	if e.gitResetFn != nil {
 		if err := e.gitResetFn(preRefactorCommit); err != nil {
 			e.log("Warning: could not revert refactor changes: %v", err)
-			return nil
+			return false
 		}
 	}
 
@@ -292,33 +314,33 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 	bc.PromptCtx.FailureContext = fmt.Sprintf("Previous refactoring broke tests: %s. Be more conservative this time.", reason)
 
 	if e.renderRefactorFn == nil {
-		return nil
+		return false
 	}
 	refactorPrompt, err := e.renderRefactorFn(bc.PromptCtx)
 	if err != nil {
 		e.log("Warning: could not render retry refactor prompt: %v", err)
-		return nil
+		return false
 	}
 
 	// Execute retry refactor
 	if e.refactorInvokeFn == nil {
-		return nil
+		return false
 	}
 	retryResult, retryStats, err := e.refactorInvokeFn(ctx, refactorPrompt, bc.Tier)
 	if err != nil {
 		e.log("Warning: retry refactor invocation failed: %v - skipping refactoring", err)
-		return nil
+		return false
 	}
 	if retryResult == nil || !retryResult.Success {
 		e.log("Warning: retry refactor failed - skipping refactoring")
-		return nil
+		return false
 	}
 	e.applyRefactorStreamStats(bc, retryStats)
 
 	e.log("Retry refactor complete, re-validating...")
 
 	if e.validateFn == nil {
-		return nil
+		return false
 	}
 	validationCommands := e.refactorValidationCommands(bc)
 	valResult, err := e.validateFn(ctx, validationCommands, bc.PromptCtx.WorkDir)
@@ -331,11 +353,11 @@ func (e *Executor) handleRefactorValidationFailure(ctx context.Context, bc *runt
 				e.log("Warning: could not revert retry refactor changes: %v", err)
 			}
 		}
-		return nil
+		return false
 	}
 
 	e.log("Retry refactor re-validation passed")
-	return nil
+	return true
 }
 
 // RunAcceptanceTestsWithRetry runs the acceptance test phase with retry and escalation logic.
