@@ -190,17 +190,17 @@ func TestSelectModel_PriorityBasedSelection(t *testing.T) {
 		{
 			name:      "P1 gets sonnet",
 			bead:      &bead.Bead{ID: "p1", Priority: 1, Labels: []string{}},
-			wantModel: "sonnet",
+			wantModel: defaultModelSonnet,
 		},
 		{
 			name:      "P2 gets haiku",
 			bead:      &bead.Bead{ID: "p2", Priority: 2, Labels: []string{}},
-			wantModel: "haiku",
+			wantModel: defaultModelHaiku,
 		},
 		{
 			name:      "nil bead gets sonnet default",
 			bead:      nil,
-			wantModel: "sonnet",
+			wantModel: defaultModelSonnet,
 		},
 	}
 
@@ -230,8 +230,8 @@ func TestSelectModel_TestOnlyBeadRoutesToHaiku(t *testing.T) {
 	for _, title := range testOnlyTitles {
 		b := &bead.Bead{ID: "test-only-001", Title: title, Priority: 0, Labels: []string{}}
 		result := SelectModel(cfg, b)
-		if result != "haiku" {
-			t.Errorf("SelectModel(%q) = %q, want %q for test-only bead", title, result, "haiku")
+		if result != defaultModelHaiku {
+			t.Errorf("SelectModel(%q) = %q, want %q for test-only bead", title, result, defaultModelHaiku)
 		}
 	}
 }
@@ -256,7 +256,7 @@ func TestSelectModel_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
 		Labels:   []string{"complexity:high"},
 	}
 	result := SelectModel(cfg, b)
-	if result == "haiku" {
+	if result == defaultModelHaiku {
 		t.Errorf("SelectModel() = %q, want override (not haiku) when complexity:high label present", result)
 	}
 }
@@ -264,8 +264,8 @@ func TestSelectModel_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
 func TestSelectModel_NilConfigReturnsSonnet(t *testing.T) {
 	// SelectModel should return "sonnet" as a safe default when config is nil.
 	result := SelectModel(nil, &bead.Bead{ID: "test-001", Priority: 0})
-	if result != "sonnet" {
-		t.Errorf("SelectModel(nil config) = %q, want %q", result, "sonnet")
+	if result != defaultModelSonnet {
+		t.Errorf("SelectModel(nil config) = %q, want %q", result, defaultModelSonnet)
 	}
 }
 

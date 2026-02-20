@@ -12,6 +12,8 @@ const (
 	lowFileCountMax               = 3
 	complexityHighLabel           = "complexity:high"
 	lowComplexityTDDDisabledLabel = "tdd:false"
+	defaultModelSonnet            = "sonnet"
+	defaultModelHaiku             = "haiku"
 )
 
 // SelectTier returns the abstract tier (high/medium/low) for a bead based on
@@ -26,10 +28,8 @@ func SelectTier(cfg *config.Config, b *bead.Bead) string {
 		return provider.TierMedium
 	}
 
-	if bead.HasLabel(b.Labels, complexityHighLabel) {
-		return cfg.SelectTier(b.Priority, b.Labels)
-	}
-	if isLowComplexity(cfg, b) {
+	hasComplexityHigh := bead.HasLabel(b.Labels, complexityHighLabel)
+	if !hasComplexityHigh && isLowComplexity(cfg, b) {
 		return provider.TierLow
 	}
 	return cfg.SelectTier(b.Priority, b.Labels)
@@ -39,11 +39,8 @@ func SelectTier(cfg *config.Config, b *bead.Bead) string {
 // its priority and labels. Routes test-only beads to haiku unless a complexity
 // label overrides the selection. Returns "sonnet" as a safe default for nil inputs.
 func SelectModel(cfg *config.Config, b *bead.Bead) string {
-	if b == nil {
-		return "sonnet"
-	}
-	if cfg == nil {
-		return "sonnet"
+	if b == nil || cfg == nil {
+		return defaultModelSonnet
 	}
 	// Route test-only beads to haiku unless an explicit complexity label overrides
 	if bead.IsTestOnlyBead(b.Title) {
@@ -52,7 +49,7 @@ func SelectModel(cfg *config.Config, b *bead.Bead) string {
 				return cfg.SelectModel(b.Priority, b.Labels)
 			}
 		}
-		return "haiku"
+		return defaultModelHaiku
 	}
 	return cfg.SelectModel(b.Priority, b.Labels)
 }
