@@ -1275,6 +1275,104 @@ func TestExecuteWithRetry_RefactorTokensUnderCapStillPermitRetryAttempt(t *testi
 	}
 }
 
+func TestExecuteWithRetry_MultiRefactorCyclesStopAtTokenBudget(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Claude.MaxInputTokensPerBead = 140
+	cfg.Andon.L1RetryCap = 10
+
+	analyzeCalls := 0
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			analyzeCalls++
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				Suggestion:  "retry after refactor",
+			}, nil
+		},
+	}
+
+	decomposeCalled := false
+	createSubCalled := false
+	var logLines []string
+	h := NewHandler(
+		cfg,
+		mfa,
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "split-1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			return nil
+		},
+		func(format string, args ...interface{}) {
+			logLines = append(logLines, fmt.Sprintf(format, args...))
+		},
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+	bc.MaxRetries = 10
+	bc.MaxRetriesPerBead = 10
+
+	const (
+		buildInputPerAttempt    = 20
+		refactorInputPerFailure = 30
+	)
+	invokeCalls := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invokeCalls++
+		switch invokeCalls {
+		case 1, 2, 3:
+			bc.Result.InputTokens = buildInputPerAttempt
+			// Simulate each failed attempt entering a refactor cycle before the next retry.
+			bc.CumulativeInputTokens += refactorInputPerFailure
+			return &runtypes.InvocationResult{Result: &claude.Result{Success: false, Output: fmt.Sprintf("fail %d", invokeCalls)}}, nil
+		case 4:
+			bc.Result.InputTokens = buildInputPerAttempt
+			return &runtypes.InvocationResult{Result: &claude.Result{Success: true, Output: "unexpected success"}}, nil
+		default:
+			t.Fatalf("unexpected invoke call %d", invokeCalls)
+			return nil, nil
+		}
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected retry flow to stop when refactor-augmented cumulative tokens exceed budget")
+	}
+	if invokeCalls != 3 {
+		t.Fatalf("expected budget gate to block attempt 4, invokeCalls=%d", invokeCalls)
+	}
+	if analyzeCalls != 3 {
+		t.Fatalf("Analyze calls=%d, want 3", analyzeCalls)
+	}
+	if !decomposeCalled {
+		t.Fatal("expected decomposition when cumulative token budget is exceeded")
+	}
+	if !createSubCalled {
+		t.Fatal("expected sub-bead creation after token-budget decomposition")
+	}
+	if !bc.Result.Decomposed {
+		t.Fatal("expected decomposed result when token budget gate stops retries")
+	}
+	if bc.CumulativeInputTokens != 150 {
+		t.Fatalf("CumulativeInputTokens=%d, want 150", bc.CumulativeInputTokens)
+	}
+	joinedLogs := strings.Join(logLines, "\n")
+	if !strings.Contains(joinedLogs, "retry budget exceeded: cumulative input tokens 150/140") {
+		t.Fatalf("logs did not identify token budget gate, got:\n%s", joinedLogs)
+	}
+	// Regression guard: invocation tokens alone are only 60 after 3 attempts.
+	// Without refactor-phase additions, attempt 4 would not be blocked by token budget.
+	if bc.CumulativeInputTokens-buildInputPerAttempt*invokeCalls >= cfg.Claude.MaxInputTokensPerBead {
+		t.Fatalf("test invariant broken: invocation-only tokens should stay under cap")
+	}
+}
+
 func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
 	// When the context is cancelled, ExecuteWithRetry should stop and return false.
 	cfg := newTestConfig()
