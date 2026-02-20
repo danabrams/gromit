@@ -131,14 +131,9 @@ func (p *Pipeline) validateExploreDeps() error {
 	if p.deps == nil {
 		return fmt.Errorf("pipeline: nil dependencies")
 	}
-	if p.deps.AgentResolver == nil {
-		return fmt.Errorf("pipeline: nil AgentResolver")
-	}
-	if p.deps.ExploreRenderer == nil {
-		return fmt.Errorf("pipeline: nil ExploreRenderer")
-	}
-	if p.deps.BacklogClient == nil {
-		return fmt.Errorf("pipeline: nil BacklogClient")
-	}
-	return nil
+	return validateRequiredDeps([]namedDependency{
+		{name: "AgentResolver", dep: p.deps.AgentResolver},
+		{name: "ExploreRenderer", dep: p.deps.ExploreRenderer},
+		{name: "BacklogClient", dep: p.deps.BacklogClient},
+	})
 }

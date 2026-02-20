@@ -54,7 +54,7 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 			wantErr: "nil BacklogClient",
 		},
 		{
-			name: "AgentResolver checked before PromptRenderer when both nil",
+			name: "AgentResolver checked before ExploreRenderer when both nil",
 			deps: &Deps{
 				AgentResolver:   nil,
 				ExploreRenderer: nil,
@@ -83,21 +83,28 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 	}
 
 	// Direct validateExploreDeps tests: typed nil and all-present success cases.
-	// A typed nil (e.g. (*T)(nil)) is a non-nil interface in Go, so it passes
-	// == nil checks. These cases verify behavior of validateExploreDeps directly.
 	directCases := []struct {
 		name    string
 		deps    *Deps
 		wantErr string
 	}{
 		{
-			name: "typed nil AgentResolver passes validation",
+			name: "typed nil AgentResolver fails validation",
 			deps: &Deps{
 				AgentResolver:   (*testAgentResolver)(nil),
 				ExploreRenderer: &testExploreRenderer{},
 				BacklogClient:   &testBacklogClient{},
 			},
-			wantErr: "",
+			wantErr: "nil AgentResolver",
+		},
+		{
+			name: "typed nil ExploreRenderer fails validation",
+			deps: &Deps{
+				AgentResolver:   &testAgentResolver{},
+				ExploreRenderer: (*testExploreRenderer)(nil),
+				BacklogClient:   &testBacklogClient{},
+			},
+			wantErr: "nil ExploreRenderer",
 		},
 		{
 			name: "all deps present passes validation",

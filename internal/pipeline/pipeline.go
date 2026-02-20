@@ -203,13 +203,15 @@ func (p *Pipeline) Plan(ctx context.Context, input PlanInput) (*PlanSession, err
 // It validates deps, builds ThoroughReviewContext, renders prompt, writes temp file,
 // resolves agent, gets command, and returns ReviewSession with no post-processing.
 func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*ReviewSession, error) {
-	if p.deps == nil || p.deps.AgentResolver == nil {
+	if p.deps == nil {
 		return nil, fmt.Errorf("pipeline: nil dependencies")
 	}
 
-	// Validate required dependencies
-	if p.deps.ReviewRenderer == nil {
-		return nil, fmt.Errorf("pipeline: nil ReviewRenderer")
+	if err := validateRequiredDeps([]namedDependency{
+		{name: "AgentResolver", dep: p.deps.AgentResolver},
+		{name: "ReviewRenderer", dep: p.deps.ReviewRenderer},
+	}); err != nil {
+		return nil, err
 	}
 
 	// Build ThoroughReviewContext
@@ -366,29 +368,15 @@ func (p *Pipeline) validateReviewDeps() error {
 		return fmt.Errorf("pipeline: nil dependencies")
 	}
 
-	if err := requireNonNilDep("ClaudeClient", p.deps.ClaudeClient); err != nil {
-		return err
-	}
-	if err := requireNonNilDep("ReviewRenderer", p.deps.ReviewRenderer); err != nil {
-		return err
-	}
-	if err := requireNonNilDep("BeadClient", p.deps.BeadClient); err != nil {
-		return err
-	}
-	if err := requireNonNilDep("BacklogClient", p.deps.BacklogClient); err != nil {
-		return err
-	}
-	if err := requireNonNilDep("LearningsManager", p.deps.LearningsManager); err != nil {
-		return err
-	}
-	if err := requireNonNilDep("LogWriter", p.deps.LogWriter); err != nil {
-		return err
-	}
-	if err := requireNonNilDep("StateManager", p.deps.StateManager); err != nil {
-		return err
-	}
-
-	return nil
+	return validateRequiredDeps([]namedDependency{
+		{name: "ClaudeClient", dep: p.deps.ClaudeClient},
+		{name: "ReviewRenderer", dep: p.deps.ReviewRenderer},
+		{name: "BeadClient", dep: p.deps.BeadClient},
+		{name: "BacklogClient", dep: p.deps.BacklogClient},
+		{name: "LearningsManager", dep: p.deps.LearningsManager},
+		{name: "LogWriter", dep: p.deps.LogWriter},
+		{name: "StateManager", dep: p.deps.StateManager},
+	})
 }
 
 func requireNonNilDep(name string, dep any) error {
@@ -410,4 +398,18 @@ func isTypedNil(value any) bool {
 	default:
 		return false
 	}
+}
+
+type namedDependency struct {
+	name string
+	dep  any
+}
+
+func validateRequiredDeps(deps []namedDependency) error {
+	for _, dep := range deps {
+		if err := requireNonNilDep(dep.name, dep.dep); err != nil {
+			return err
+		}
+	}
+	return nil
 }
