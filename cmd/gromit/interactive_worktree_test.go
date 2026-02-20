@@ -30,24 +30,46 @@ func (m *mockPendingBranchRecorder) AddPendingWorktreeBranch(branch string) erro
 	return nil
 }
 
-func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
+var (
+	_ sessionWorktreeCreator = (*mockSessionWorktreeCreator)(nil)
+	_ pendingBranchRecorder  = (*mockPendingBranchRecorder)(nil)
+)
+
+func setupRunWithSessionWorktreeTest(t *testing.T, command string) (mainDir string, gromitDir string, session *worktree.SessionWorktree) {
 	t.Helper()
 
-	mainDir := t.TempDir()
-	gromitDir := filepath.Join(mainDir, ".gromit")
-	session := &worktree.SessionWorktree{
-		BranchName:  "gromit/refine-123",
-		WorktreeDir: filepath.Join(mainDir, "session-refine"),
+	mainDir = t.TempDir()
+	gromitDir = filepath.Join(mainDir, ".gromit")
+	session = &worktree.SessionWorktree{
+		BranchName:  "gromit/" + command + "-test-branch",
+		WorktreeDir: filepath.Join(mainDir, "session-"+command),
 	}
+
+	return mainDir, gromitDir, session
+}
+
+func withInteractiveWorktreeFactories(
+	t *testing.T,
+	managerFn func(mainDir string) (sessionWorktreeCreator, error),
+	stateFileFn func(gromitDir string) (pendingBranchRecorder, error),
+) {
+	t.Helper()
 
 	origManagerFn := interactiveWorktreeNewManagerFn
 	origStateFileFn := interactiveWorktreeNewStateFileFn
+	interactiveWorktreeNewManagerFn = managerFn
+	interactiveWorktreeNewStateFileFn = stateFileFn
 	t.Cleanup(func() {
 		interactiveWorktreeNewManagerFn = origManagerFn
 		interactiveWorktreeNewStateFileFn = origStateFileFn
 	})
+}
 
-	interactiveWorktreeNewManagerFn = func(gotMainDir string) (sessionWorktreeCreator, error) {
+func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "refine")
+	session.BranchName = "gromit/refine-123"
+
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
 		if gotMainDir != mainDir {
 			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
 		}
@@ -59,10 +81,9 @@ func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
 				return session, nil
 			},
 		}, nil
-	}
-	interactiveWorktreeNewStateFileFn = func(string) (pendingBranchRecorder, error) {
+	}, func(string) (pendingBranchRecorder, error) {
 		return &mockPendingBranchRecorder{}, nil
-	}
+	})
 
 	callbackCalled := false
 	callbackDir := ""
@@ -89,33 +110,18 @@ func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
 }
 
 func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
-	t.Helper()
+	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "plan")
+	session.BranchName = "gromit/plan-456"
 
-	mainDir := t.TempDir()
-	gromitDir := filepath.Join(mainDir, ".gromit")
-	session := &worktree.SessionWorktree{
-		BranchName:  "gromit/plan-456",
-		WorktreeDir: filepath.Join(mainDir, "session-plan"),
-	}
-
-	origManagerFn := interactiveWorktreeNewManagerFn
-	origStateFileFn := interactiveWorktreeNewStateFileFn
-	t.Cleanup(func() {
-		interactiveWorktreeNewManagerFn = origManagerFn
-		interactiveWorktreeNewStateFileFn = origStateFileFn
-	})
-
-	interactiveWorktreeNewManagerFn = func(string) (sessionWorktreeCreator, error) {
+	recordedBranch := ""
+	callbackRan := false
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
 		return &mockSessionWorktreeCreator{
 			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
 				return session, nil
 			},
 		}, nil
-	}
-
-	recordedBranch := ""
-	callbackRan := false
-	interactiveWorktreeNewStateFileFn = func(string) (pendingBranchRecorder, error) {
+	}, func(string) (pendingBranchRecorder, error) {
 		return &mockPendingBranchRecorder{
 			AddPendingWorktreeBranchFn: func(branch string) error {
 				if !callbackRan {
@@ -125,7 +131,7 @@ func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 				return nil
 			},
 		}, nil
-	}
+	})
 
 	_, err := runWithSessionWorktree(gromitDir, "plan", func(string) error {
 		callbackRan = true
@@ -140,39 +146,24 @@ func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 }
 
 func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T) {
-	t.Helper()
+	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "explore")
+	session.BranchName = "gromit/explore-789"
 
-	mainDir := t.TempDir()
-	gromitDir := filepath.Join(mainDir, ".gromit")
-	session := &worktree.SessionWorktree{
-		BranchName:  "gromit/explore-789",
-		WorktreeDir: filepath.Join(mainDir, "session-explore"),
-	}
-
-	origManagerFn := interactiveWorktreeNewManagerFn
-	origStateFileFn := interactiveWorktreeNewStateFileFn
-	t.Cleanup(func() {
-		interactiveWorktreeNewManagerFn = origManagerFn
-		interactiveWorktreeNewStateFileFn = origStateFileFn
-	})
-
-	interactiveWorktreeNewManagerFn = func(string) (sessionWorktreeCreator, error) {
+	recordCalled := false
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
 		return &mockSessionWorktreeCreator{
 			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
 				return session, nil
 			},
 		}, nil
-	}
-
-	recordCalled := false
-	interactiveWorktreeNewStateFileFn = func(string) (pendingBranchRecorder, error) {
+	}, func(string) (pendingBranchRecorder, error) {
 		return &mockPendingBranchRecorder{
 			AddPendingWorktreeBranchFn: func(string) error {
 				recordCalled = true
 				return nil
 			},
 		}, nil
-	}
+	})
 
 	wantErr := errors.New("callback failed")
 	_, err := runWithSessionWorktree(gromitDir, "explore", func(string) error {
