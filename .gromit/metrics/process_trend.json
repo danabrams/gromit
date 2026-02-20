@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-02-20T03:18:46.366458772Z",
-  "total_iterations": 507,
+  "generated_at": "2026-02-20T03:23:59.555102846Z",
+  "total_iterations": 508,
   "window_size": 30,
   "latest_window": {
     "success_rate": 1,
     "failure_rate": 0,
     "first_pass_success_rate": 1,
     "escalation_rate": 0,
-    "avg_duration_ms": 320428.8333333333,
+    "avg_duration_ms": 326636.63333333336,
     "p95_duration_ms": 890440.3499999999,
-    "avg_cost_usd": 1.5344158166666664,
+    "avg_cost_usd": 1.5662729333333332,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -20,14 +20,14 @@
     "by_prompt_type": [
       {
         "prompt_type": "build",
-        "invocation_count": 25,
-        "avg_estimated_tokens": 3551.52
+        "invocation_count": 26,
+        "avg_estimated_tokens": 3519.8846153846152
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 62233
+        "estimated_tokens": 64727
       },
       {
         "section": "spec",
@@ -35,19 +35,19 @@
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 2942
+        "estimated_tokens": 3031
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 2405
+        "estimated_tokens": 2548
       },
       {
         "section": "template_static",
-        "estimated_tokens": 50
+        "estimated_tokens": 52
       },
       {
         "section": "failure_context",
-        "estimated_tokens": 25
+        "estimated_tokens": 26
       },
       {
         "section": "confirmed_learnings",
@@ -67,27 +67,27 @@
       "truncate Spec": 3
     },
     "reconciliation_drift": {
-      "sample_count": 25,
-      "mean_abs_token_delta_pct": 2163.197458873966,
-      "p95_abs_token_delta_pct": 12928.21350915289
+      "sample_count": 26,
+      "mean_abs_token_delta_pct": 2083.8282106339075,
+      "p95_abs_token_delta_pct": 12126.443357029408
     }
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 1.5344158166666664,
-      "mean": 1.4165878924170394,
-      "std_dev": 1.9863156899606467,
-      "ucl": 7.37553496229898,
-      "lcl": -4.542359177464901
+      "latest": 1.5662729333333332,
+      "mean": 1.4168825480093945,
+      "std_dev": 1.984370783144703,
+      "ucl": 7.369994897443504,
+      "lcl": -4.536229801424715
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 320428.8333333333,
-      "mean": 585093.3679953964,
-      "std_dev": 295570.6276067238,
-      "ucl": 1471805.2508155678,
-      "lcl": -301618.51482477505
+      "latest": 326636.63333333336,
+      "mean": 584584.5948956679,
+      "std_dev": 295501.7097326575,
+      "ucl": 1471089.7240936402,
+      "lcl": -301920.5343023045
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -100,16 +100,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.04339250493096685,
-      "std_dev": 0.055525864565023106,
-      "ucl": 0.20997009862603616,
+      "mean": 0.04330708661417361,
+      "std_dev": 0.05550451978946403,
+      "ucl": 0.20982064598256572,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "latest": 1,
-      "mean": 0.4546351084812624,
-      "std_dev": 0.4488203710838087,
+      "mean": 0.4557086614173229,
+      "std_dev": 0.44902952705996757,
       "ucl": 1,
       "lcl": 0
     },
@@ -124,17 +124,17 @@
     {
       "metric": "rolling_success_rate",
       "latest": 1,
-      "mean": 0.7717506847414433,
-      "std_dev": 0.2213887203443583,
+      "mean": 0.772199994417149,
+      "std_dev": 0.22140197837147726,
       "ucl": 1,
-      "lcl": 0.10758452370836835
+      "lcl": 0.10799405930271722
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.00788954635108481,
-      "std_dev": 0.018701997250372925,
-      "ucl": 0.06399553810220358,
+      "mean": 0.007874015748031492,
+      "std_dev": 0.018686853030265186,
+      "ucl": 0.06393457483882706,
       "lcl": 0
     },
     {
