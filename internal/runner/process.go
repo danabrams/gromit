@@ -65,10 +65,19 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 		r.log("Warning: failed to get parent bead: %v", err)
 	}
 
+	specID := bead.FindSpecLabel(b.Labels)
+	result := &IterationResult{
+		BeadID:       b.ID,
+		BeadTitle:    b.Title,
+		Model:        model,
+		SpecID:       specID,
+		OriginalTier: tier,
+	}
+
 	bc := &runtypes.BeadContext{
 		Bead:               b,
 		Parent:             parent,
-		Result:             &IterationResult{BeadID: b.ID, BeadTitle: b.Title, Model: model, SpecID: bead.FindSpecLabel(b.Labels), OriginalTier: tier},
+		Result:             result,
 		Model:              model, // legacy model name, will be updated by router
 		Tier:               tier,
 		StartCommit:        startCommit,
