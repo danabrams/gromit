@@ -9,6 +9,37 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 )
 
+func writeReviewTestConfig(t *testing.T, configContent string) (string, string) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, ".gromit", "templates")
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	return tmpDir, configPath
+}
+
+func extractFunction(source, name string) (string, bool) {
+	startIdx := strings.Index(source, "func "+name)
+	if startIdx == -1 {
+		return "", false
+	}
+
+	endIdx := strings.Index(source[startIdx:], "\nfunc ")
+	if endIdx == -1 {
+		return source[startIdx:], true
+	}
+	endIdx += startIdx
+	return source[startIdx:endIdx], true
+}
+
 // TestReviewCommandHasAgentFlag verifies review command has --agent flag
 func TestReviewCommandHasAgentFlag(t *testing.T) {
 	// This test will fail until --agent flag is added to review command
@@ -39,17 +70,7 @@ func TestReviewCommandHasChooseAgentFlag(t *testing.T) {
 func TestReviewUsesAgentResolve(t *testing.T) {
 	// This test verifies the integration by creating a minimal config and checking
 	// that the agent selection behavior works end-to-end
-	tmpDir := t.TempDir()
-
-	// Create minimal gromit config with custom agent
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	templatesDir := filepath.Join(gromitDir, "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	configContent := `
+	tmpDir, configPath := writeReviewTestConfig(t, `
 agents:
   definitions:
     test-agent:
@@ -57,10 +78,7 @@ agents:
       flags: []
   phases:
     review: test-agent
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
+`)
 
 	// Change to temp directory so config is found
 	origDir, err := os.Getwd()
@@ -97,23 +115,11 @@ func TestReviewFlagOverrideTakesPriority(t *testing.T) {
 	// This acceptance test verifies the priority order:
 	// --agent flag should override agents.phases config
 
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	templatesDir := filepath.Join(gromitDir, "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create config with phase default
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	configContent := `
+	_, configPath := writeReviewTestConfig(t, `
 agents:
   phases:
     review: codex
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
+`)
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -136,25 +142,14 @@ func TestReviewChooseAgentTriggersPickerBehavior(t *testing.T) {
 	// This acceptance test verifies that --choose-agent flag is wired up correctly
 	// The actual picker interaction would be tested in integration tests
 
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	templatesDir := filepath.Join(gromitDir, "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	configContent := `
+	_, configPath := writeReviewTestConfig(t, `
 agents:
   definitions:
     agent1:
       binary: "echo"
     agent2:
       binary: "cat"
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
+`)
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -175,24 +170,13 @@ agents:
 func TestReviewAgentPromptConfigTriggersPicker(t *testing.T) {
 	// This acceptance test verifies agents.prompt: true config is respected
 
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	templatesDir := filepath.Join(gromitDir, "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	configContent := `
+	_, configPath := writeReviewTestConfig(t, `
 agents:
   prompt: true
   definitions:
     agent1:
       binary: "echo"
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
+`)
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -244,17 +228,7 @@ func TestReviewUsesAgentLaunchNotDirectExec(t *testing.T) {
 	// The old code had: exec.Command(cfg.Claude.Binary, args...)
 	// After refactoring, this should be gone from runReviewInteractive (replaced with pipeline call)
 	// Note: runReviewNonInteractive should still use exec.Command via pipeline
-	if strings.Contains(sourceStr, "func runReviewInteractive") {
-		// Extract just the runReviewInteractive function to check it specifically
-		startIdx := strings.Index(sourceStr, "func runReviewInteractive")
-		endIdx := strings.Index(sourceStr[startIdx:], "\nfunc ")
-		if endIdx == -1 {
-			endIdx = len(sourceStr)
-		} else {
-			endIdx += startIdx
-		}
-		interactiveFn := sourceStr[startIdx:endIdx]
-
+	if interactiveFn, ok := extractFunction(sourceStr, "runReviewInteractive"); ok {
 		// Check that exec.Command(cfg.Claude.Binary is not in runReviewInteractive
 		if strings.Contains(interactiveFn, "exec.Command(cfg.Claude.Binary") {
 			t.Error("runReviewInteractive still contains direct exec.Command(cfg.Claude.Binary...) - old code not removed")
@@ -316,19 +290,10 @@ func TestReviewInteractiveOnlyUsesAgentSelection(t *testing.T) {
 
 	sourceStr := string(reviewSource)
 
-	// Extract runReviewNonInteractive function
-	startIdx := strings.Index(sourceStr, "func runReviewNonInteractive")
-	if startIdx == -1 {
+	nonInteractiveFn, ok := extractFunction(sourceStr, "runReviewNonInteractive")
+	if !ok {
 		t.Fatal("Cannot find runReviewNonInteractive function")
 	}
-
-	endIdx := strings.Index(sourceStr[startIdx:], "\nfunc ")
-	if endIdx == -1 {
-		endIdx = len(sourceStr)
-	} else {
-		endIdx += startIdx
-	}
-	nonInteractiveFn := sourceStr[startIdx:endIdx]
 
 	// runReviewNonInteractive should NOT use agent.Resolve or agent.Launch
 	if strings.Contains(nonInteractiveFn, "agent.Resolve") {
@@ -433,19 +398,10 @@ func TestReviewAgentSelectionIntegration(t *testing.T) {
 
 		sourceStr := string(reviewSource)
 
-		// Extract runReviewInteractive function
-		startIdx := strings.Index(sourceStr, "func runReviewInteractive")
-		if startIdx == -1 {
+		interactiveFn, ok := extractFunction(sourceStr, "runReviewInteractive")
+		if !ok {
 			t.Skip("Cannot find runReviewInteractive function")
 		}
-
-		endIdx := strings.Index(sourceStr[startIdx:], "\nfunc ")
-		if endIdx == -1 {
-			endIdx = len(sourceStr)
-		} else {
-			endIdx += startIdx
-		}
-		interactiveFn := sourceStr[startIdx:endIdx]
 
 		// Check that old patterns are removed from interactive function
 		oldPatterns := []string{
@@ -476,19 +432,10 @@ func TestReviewAgentSelectionIntegration(t *testing.T) {
 
 		sourceStr := string(reviewSource)
 
-		// Extract runReviewNonInteractive function
-		startIdx := strings.Index(sourceStr, "func runReviewNonInteractive")
-		if startIdx == -1 {
+		nonInteractiveFn, ok := extractFunction(sourceStr, "runReviewNonInteractive")
+		if !ok {
 			t.Skip("Cannot find runReviewNonInteractive function")
 		}
-
-		endIdx := strings.Index(sourceStr[startIdx:], "\nfunc ")
-		if endIdx == -1 {
-			endIdx = len(sourceStr)
-		} else {
-			endIdx += startIdx
-		}
-		nonInteractiveFn := sourceStr[startIdx:endIdx]
 
 		// Verify non-interactive path still uses claude.Client
 		if !strings.Contains(nonInteractiveFn, "claude.NewClient") {
@@ -507,23 +454,11 @@ func TestReviewAgentConfigBackwardCompatibility(t *testing.T) {
 	// This acceptance test verifies backward compatibility
 	// Existing configs without agents section should still work (defaults to claude)
 
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	templatesDir := filepath.Join(gromitDir, "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create minimal config WITHOUT agents section (legacy config)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	configContent := `
+	_, configPath := writeReviewTestConfig(t, `
 claude:
   binary: "claude"
   flags: []
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
+`)
 
 	cfg, err := config.Load(configPath)
 	if err != nil {

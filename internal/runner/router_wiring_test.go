@@ -1,7 +1,7 @@
 package runner
 
 import (
-	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -79,21 +79,13 @@ func TestNewRunnerWithDepsFallsBackToWrappingClaude(t *testing.T) {
 // TestNewRunnerCreatesRouterWhenNoProviders verifies that NewRunner wraps
 // Claude client when cfg.HasProviders() is false
 func TestNewRunnerCreatesRouterWhenNoProviders(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create template and spec directories
-	if err := os.MkdirAll(tmpDir+"/templates", 0755); err != nil {
-		t.Fatalf("Failed to create templates dir: %v", err)
-	}
-	if err := os.MkdirAll(tmpDir+"/specs", 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
-	}
+	tmpDir := setupNewRunnerDirs(t)
 
 	// Create a config without providers (backward compat mode)
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			Templates: tmpDir + "/templates",
-			Specs:     tmpDir + "/specs",
+			Templates: filepath.Join(tmpDir, "templates"),
+			Specs:     filepath.Join(tmpDir, "specs"),
 		},
 		Claude: config.ClaudeConfig{
 			Binary: "claude",
@@ -113,15 +105,7 @@ func TestNewRunnerCreatesRouterWhenNoProviders(t *testing.T) {
 // TestNewRunnerWithProvidersConfigLeavesTodo verifies that NewRunner
 // leaves router as nil (TODO) when cfg.HasProviders() is true
 func TestNewRunnerWithProvidersConfigLeavesTodo(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create template and spec directories
-	if err := os.MkdirAll(tmpDir+"/templates", 0755); err != nil {
-		t.Fatalf("Failed to create templates dir: %v", err)
-	}
-	if err := os.MkdirAll(tmpDir+"/specs", 0755); err != nil {
-		t.Fatalf("Failed to create specs dir: %v", err)
-	}
+	tmpDir := setupNewRunnerDirs(t)
 
 	// Create a config with providers defined
 	cfg := &config.Config{
@@ -136,8 +120,8 @@ func TestNewRunnerWithProvidersConfigLeavesTodo(t *testing.T) {
 			},
 		},
 		Paths: config.PathsConfig{
-			Templates: tmpDir + "/templates",
-			Specs:     tmpDir + "/specs",
+			Templates: filepath.Join(tmpDir, "templates"),
+			Specs:     filepath.Join(tmpDir, "specs"),
 		},
 		Claude: config.ClaudeConfig{
 			Binary: "claude",
