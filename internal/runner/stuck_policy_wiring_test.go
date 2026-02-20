@@ -39,7 +39,7 @@ func TestNewRunnerWiresConfigBackedPolicies(t *testing.T) {
 
 func TestNewRunnerWithDepsDefaultsStuckPolicy(t *testing.T) {
 	var buf strings.Builder
-	r, err := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(), Deps{})
+	r, err := NewRunnerWithDeps(&config.Config{}, &buf, t.TempDir(), Deps{Renderer: &mockPromptRenderer{}})
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps() error = %v", err)
 	}

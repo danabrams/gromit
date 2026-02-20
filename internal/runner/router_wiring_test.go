@@ -29,7 +29,8 @@ func TestDepsHasRouterField(t *testing.T) {
 	// Create a Deps struct with a Router
 	mockRouter := &provider.Router{}
 	deps := Deps{
-		Router: mockRouter,
+		Router:   mockRouter,
+		Renderer: &mockPromptRenderer{},
 	}
 
 	if deps.Router != mockRouter {
@@ -42,7 +43,8 @@ func TestNewRunnerWithDepsUsesProvidedRouter(t *testing.T) {
 	cfg := &config.Config{}
 	mockRouter := &provider.Router{}
 	deps := Deps{
-		Router: mockRouter,
+		Router:   mockRouter,
+		Renderer: &mockPromptRenderer{},
 	}
 
 	runner, err := NewRunnerWithDeps(cfg, nil, "/tmp/gromit", deps)
@@ -60,7 +62,8 @@ func TestNewRunnerWithDepsUsesProvidedRouter(t *testing.T) {
 func TestNewRunnerWithDepsFallsBackToWrappingClaude(t *testing.T) {
 	cfg := &config.Config{}
 	deps := Deps{
-		Router: newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
+		Renderer: &mockPromptRenderer{},
 	}
 
 	runner, err := NewRunnerWithDeps(cfg, nil, "/tmp/gromit", deps)

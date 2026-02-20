@@ -30,7 +30,7 @@ func TestInitRunLoopState_SkipsBeadsWithConsecutiveFailures(t *testing.T) {
 		Paths: config.PathsConfig{Logs: filepath.Join(tmpDir, "logs")},
 	}
 	var buf strings.Builder
-	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{})
+	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{Renderer: &mockPromptRenderer{}})
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps error: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestInitRunLoopState_UsesInjectedGitHeadFnForReviewBaseline(t *testing.T) {
 		Paths: config.PathsConfig{Logs: filepath.Join(tmpDir, "logs")},
 	}
 	var buf strings.Builder
-	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{})
+	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{Renderer: &mockPromptRenderer{}})
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps error: %v", err)
 	}

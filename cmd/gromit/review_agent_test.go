@@ -292,10 +292,9 @@ func TestReviewPreservesPromptBuilding(t *testing.T) {
 
 	pipelineStr := string(pipelineSource)
 	pipelinePatterns := []string{
-		"RenderThoroughReview", // Rendering review prompt
-		"CreateTemp",           // Creating temp file for prompt
-		"WriteString",          // Writing prompt to temp file
-		"promptPath",           // Prompt file path variable
+		"RenderThoroughReview",       // Rendering review prompt
+		"writeTempPromptWithPattern", // Temp prompt creation helper
+		"promptPath",                 // Prompt file path variable
 	}
 
 	for _, pattern := range pipelinePatterns {

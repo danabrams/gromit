@@ -527,8 +527,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 	}
 }
 
-// ExecuteWithRetryWithEscalation runs the build loop with optional escalation behavior.
-// When escalationEnabled is false, it performs retries without tier escalation.
+// ExecuteWithRetryWithEscalation runs the build loop with optional escalation behavior; when escalationEnabled is false, it performs retries without tier escalation.
 func (h *Handler) ExecuteWithRetryWithEscalation(ctx context.Context, bc *runtypes.BeadContext, invokeFn InvokeFn, escalationEnabled bool) bool {
 	if h == nil {
 		return false

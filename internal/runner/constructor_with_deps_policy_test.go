@@ -37,7 +37,10 @@ func TestNewRunnerWithDepsImplUsesInjectedArgvRunner(t *testing.T) {
 		return "ok", "warn", 3, nil
 	}
 
-	r, err := newRunnerWithDepsImpl(&config.Config{}, io.Discard, t.TempDir(), Deps{ArgvRunner: custom})
+	r, err := newRunnerWithDepsImpl(&config.Config{}, io.Discard, t.TempDir(), Deps{
+		ArgvRunner: custom,
+		Renderer:   &mockPromptRenderer{},
+	})
 	if err != nil {
 		t.Fatalf("newRunnerWithDepsImpl error: %v", err)
 	}
@@ -57,7 +60,7 @@ func TestNewRunnerWithDepsImplUsesInjectedArgvRunner(t *testing.T) {
 func TestNewRunnerWithDepsImplDefaultsArgvRunner(t *testing.T) {
 	t.Parallel()
 
-	r, err := newRunnerWithDepsImpl(&config.Config{}, io.Discard, t.TempDir(), Deps{})
+	r, err := newRunnerWithDepsImpl(&config.Config{}, io.Discard, t.TempDir(), Deps{Renderer: &mockPromptRenderer{}})
 	if err != nil {
 		t.Fatalf("newRunnerWithDepsImpl error: %v", err)
 	}
