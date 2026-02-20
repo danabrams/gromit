@@ -65,6 +65,21 @@ Codex stream event handling uses two different patterns for usage accumulation: 
 
 Splitting a monolithic PromptRenderer into five phase-specific interfaces (RefineRenderer, PlanRenderer, DecomposeRenderer, ReviewRenderer, ExploreRenderer) eliminates stub not-implemented methods from adapters and enables compile-time single-responsibility enforcement. Each adapter only implements the method its pipeline needs.
 
+### 2026-02-20 | Signal-Based Low-Complexity Tier Routing | patterns
+*Related to: code-review*
+
+Low-complexity tier selection uses countLowComplexitySignals >= threshold (default 2) instead of a single-dimension test-only check. Signals: low-complexity title pattern, test-only bead, tdd:false label, 1-3 expected files, leaf bead. complexity:high label bypasses low-complexity routing entirely.
+
+### 2026-02-20 | OriginalTier/ActualTier Escalation Tracking | conventions
+*Related to: code-review*
+
+OriginalTier is set once in setupBeadContext from the initial SelectTier call; ActualTier is captured via deferred bc.Tier snapshot after escalation may have changed it. This pair enables retrospective analysis of escalation effectiveness.
+
+### 2026-02-20 | Runbook Capture Best-Effort Semantics | conventions
+*Related to: code-review*
+
+Runbook capture uses best-effort semantics: getHead and runbook.Append failures are logged as warnings, not propagated as errors. This prevents auxiliary diagnostics from interrupting the main iteration loop.
+
 ---
 
 ## Archived
