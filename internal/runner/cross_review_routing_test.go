@@ -120,6 +120,7 @@ func TestCrossReviewRoutesToOppositeProvider(t *testing.T) {
 		map[string]int{"claude": 50, "openai": 50},
 		0,
 		stateFile,
+		nil,
 	)
 
 	cfg := &config.Config{
@@ -201,6 +202,7 @@ func TestCrossReviewReverseDirection(t *testing.T) {
 		map[string]int{"claude": 50, "openai": 50},
 		0,
 		stateFile,
+		nil,
 	)
 
 	cfg := &config.Config{

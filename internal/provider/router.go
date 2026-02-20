@@ -6,13 +6,14 @@ import (
 
 // Router handles provider selection and routing logic
 type Router struct {
-	providers   map[string]Provider
-	preferences map[string]string
-	ratio       map[string]int
-	counts      map[string]int
-	unavailable map[string]time.Time
-	cooldown    time.Duration
-	stateFn     StateFile
+	providers      map[string]Provider
+	preferences    map[string]string
+	ratio          map[string]int
+	counts         map[string]int
+	unavailable    map[string]time.Time
+	cooldown       time.Duration
+	stateFn        StateFile
+	circuitBreaker *CircuitBreaker
 }
 
 // StateFile is the interface for persisting provider routing state
@@ -24,20 +25,31 @@ type StateFile interface {
 }
 
 // NewRouter creates a new Router instance with the provided configuration
-func NewRouter(providers map[string]Provider, preferences map[string]string, ratio map[string]int, cooldown time.Duration, stateFn StateFile) *Router {
-	counts := stateFn.GetProviderCounts()
-	if counts == nil {
-		counts = make(map[string]int)
+func NewRouter(
+	providers map[string]Provider,
+	preferences map[string]string,
+	ratio map[string]int,
+	cooldown time.Duration,
+	stateFn StateFile,
+	circuitBreaker *CircuitBreaker,
+) *Router {
+	counts := make(map[string]int)
+	if stateFn != nil {
+		counts = stateFn.GetProviderCounts()
+		if counts == nil {
+			counts = make(map[string]int)
+		}
 	}
 
 	return &Router{
-		providers:   providers,
-		preferences: preferences,
-		ratio:       ratio,
-		counts:      counts,
-		unavailable: make(map[string]time.Time),
-		cooldown:    cooldown,
-		stateFn:     stateFn,
+		providers:      providers,
+		preferences:    preferences,
+		ratio:          ratio,
+		counts:         counts,
+		unavailable:    make(map[string]time.Time),
+		cooldown:       cooldown,
+		stateFn:        stateFn,
+		circuitBreaker: circuitBreaker,
 	}
 }
 
@@ -55,10 +67,11 @@ func NewSingleProviderRouter(p Provider) *Router {
 		ratio: map[string]int{
 			name: 100,
 		},
-		counts:      make(map[string]int),
-		unavailable: make(map[string]time.Time),
-		cooldown:    0,
-		stateFn:     nil,
+		counts:         make(map[string]int),
+		unavailable:    make(map[string]time.Time),
+		cooldown:       0,
+		stateFn:        nil,
+		circuitBreaker: nil,
 	}
 }
 
@@ -144,7 +157,7 @@ func (r *Router) selectByRatio() string {
 			currentPercent = float64(currentCount) / float64(totalCount) * 100.0
 		}
 
-		targetPercent := float64(targetRatio)
+		targetPercent := float64(r.effectiveRatio(name, targetRatio))
 		gap := targetPercent - currentPercent
 
 		if gap > largestGap {
@@ -154,6 +167,13 @@ func (r *Router) selectByRatio() string {
 	}
 
 	return selectedName
+}
+
+func (r *Router) effectiveRatio(providerName string, configuredRatio int) int {
+	if r == nil {
+		return configuredRatio
+	}
+	return r.circuitBreaker.EffectiveRatio(providerName, configuredRatio)
 }
 
 // selectProvider returns the provider and model name, and increments count
@@ -210,4 +230,12 @@ func (r *Router) RecordInvocation(name string) {
 	if r.stateFn != nil {
 		r.stateFn.IncrementProviderCount(name)
 	}
+}
+
+// RecordOutcome records an invocation outcome in the circuit breaker.
+func (r *Router) RecordOutcome(providerName, failureCategory string) {
+	if r == nil {
+		return
+	}
+	r.circuitBreaker.Record(providerName, failureCategory)
 }

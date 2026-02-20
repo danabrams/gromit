@@ -206,6 +206,7 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 			cfg.Routing.Ratio,
 			parseFallbackCooldown(cfg),
 			sf,
+			nil,
 		)
 
 		learningsProvider := selectLearningsProvider(providers)

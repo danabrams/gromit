@@ -738,6 +738,7 @@ func TestMethodologyExec_InvokeFn_CodexTransportFailureFallsBackToAlternateProvi
 		map[string]int{"codex": 100, "claude": 100},
 		time.Minute,
 		&crossReviewMockStateFile{},
+		nil,
 	)
 
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{

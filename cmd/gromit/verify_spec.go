@@ -332,6 +332,7 @@ func buildVerifySpecRouter(cfg *config.Config) (*provider.Router, error) {
 			cfg.Routing.Ratio,
 			parseVerifySpecFallbackCooldown(cfg),
 			nil,
+			nil,
 		), nil
 	}
 

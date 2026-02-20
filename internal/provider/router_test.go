@@ -159,7 +159,7 @@ func TestNewRouterConstructorExists(t *testing.T) {
 	cooldown := 30 * time.Minute
 	stateFn := &mockStateFile{}
 
-	r := NewRouter(providers, preferences, ratio, cooldown, stateFn)
+	r := NewRouter(providers, preferences, ratio, cooldown, stateFn, nil)
 
 	if r == nil {
 		t.Fatal("NewRouter() returned nil")
@@ -185,7 +185,7 @@ func TestNewRouterInitializesFields(t *testing.T) {
 	cooldown := 30 * time.Minute
 	stateFn := &mockStateFile{}
 
-	r := NewRouter(providers, preferences, ratio, cooldown, stateFn)
+	r := NewRouter(providers, preferences, ratio, cooldown, stateFn, nil)
 
 	if r == nil {
 		t.Fatal("NewRouter() returned nil")
@@ -233,6 +233,7 @@ func TestNewRouterInitializesCounts(t *testing.T) {
 		map[string]int{"claude": 100},
 		30*time.Minute,
 		stateFn,
+		nil,
 	)
 
 	if r == nil {
@@ -578,6 +579,77 @@ func TestRouterSelectRatioBalancing(t *testing.T) {
 	provName := provider.Name()
 	if provName != "claude" && provName != "openai" {
 		t.Errorf("Select() returned unexpected provider %q", provName)
+	}
+}
+
+func TestRouterSelectPrefersNonDegradedProviderMoreOften(t *testing.T) {
+	cb := &CircuitBreaker{
+		windowSize:       2,
+		failureThreshold: 0.25,
+		degradedFloor:    10,
+	}
+
+	r := NewRouter(
+		map[string]Provider{
+			"claude": &mockProviderWithModels{name: "claude", models: map[string]string{TierMedium: "sonnet"}},
+			"codex":  &mockProviderWithModels{name: "codex", models: map[string]string{TierMedium: "gpt-4o"}},
+		},
+		map[string]string{"build": "any"},
+		map[string]int{"codex": 80, "claude": 20},
+		0,
+		&mockStateFile{},
+		cb,
+	)
+
+	r.RecordOutcome("codex", FailureCategoryTransportDisconnect)
+
+	selectionCounts := map[string]int{
+		"claude": 0,
+		"codex":  0,
+	}
+	for i := 0; i < 30; i++ {
+		p, _ := r.Select("build", TierMedium)
+		if p == nil {
+			t.Fatal("Select() returned nil provider")
+		}
+		selectionCounts[p.Name()]++
+	}
+
+	if selectionCounts["claude"] <= selectionCounts["codex"] {
+		t.Fatalf("expected non-degraded provider to be selected more often, got claude=%d codex=%d",
+			selectionCounts["claude"], selectionCounts["codex"])
+	}
+}
+
+func TestRouterSelectByRatioUsesConfiguredRatioWhenCircuitBreakerIsNil(t *testing.T) {
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+			"codex":  &mockProvider{name: "codex"},
+		},
+		ratio:       map[string]int{"codex": 70, "claude": 30},
+		counts:      map[string]int{"codex": 10, "claude": 90},
+		unavailable: map[string]time.Time{},
+	}
+
+	selected := r.selectByRatio()
+	if selected != "codex" {
+		t.Fatalf("selectByRatio() = %q, want %q", selected, "codex")
+	}
+}
+
+func TestRouterRecordOutcomeDelegatesToCircuitBreaker(t *testing.T) {
+	cb := &CircuitBreaker{
+		windowSize:       1,
+		failureThreshold: 0.5,
+		degradedFloor:    10,
+	}
+	r := &Router{circuitBreaker: cb}
+
+	r.RecordOutcome("claude", FailureCategoryTransportDisconnect)
+
+	if !cb.IsDegraded("claude") {
+		t.Fatal("RecordOutcome() did not delegate to circuit breaker")
 	}
 }
 
