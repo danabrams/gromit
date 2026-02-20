@@ -1,6 +1,9 @@
 package specgate
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // RunTestsFn runs the test suite and returns its output.
 type RunTestsFn func(ctx context.Context) (string, error)
@@ -27,6 +30,22 @@ type Gate struct {
 
 // Run evaluates the given acceptance criteria for specName, returning a GateVerdict.
 func (g *Gate) Run(ctx context.Context, specName string, acceptanceCriteria []string) (*GateVerdict, error) {
+	if g == nil {
+		return nil, fmt.Errorf("gate is nil")
+	}
+	if g.RunTests == nil {
+		return nil, fmt.Errorf("run tests dependency is nil")
+	}
+	if g.GetDiff == nil {
+		return nil, fmt.Errorf("get diff dependency is nil")
+	}
+	if g.RenderPrompt == nil {
+		return nil, fmt.Errorf("render prompt dependency is nil")
+	}
+	if g.InvokeLLM == nil {
+		return nil, fmt.Errorf("invoke llm dependency is nil")
+	}
+
 	testOutput, err := g.RunTests(ctx)
 	if err != nil {
 		return nil, err
@@ -44,7 +63,16 @@ func (g *Gate) Run(ctx context.Context, specName string, acceptanceCriteria []st
 
 	rawVerdict, err := g.InvokeLLM(ctx, g.Model, prompt)
 	if err != nil {
-		return nil, err
+		return &GateVerdict{
+			Passed: false,
+			Results: []CriterionResult{
+				{
+					Criterion: "LLM invocation",
+					Passed:    false,
+					Evidence:  fmt.Sprintf("model %q invocation failed: %v", g.Model, err),
+				},
+			},
+		}, nil
 	}
 
 	return ParseVerdict(rawVerdict)
