@@ -995,14 +995,22 @@ func TestRenderSpecGate(t *testing.T) {
 	templatesDir := filepath.Join(tmpDir, "templates")
 	os.MkdirAll(templatesDir, 0755)
 
-	tmpl := `Spec Gate\nCriteria: {{.SpecCriteria}}\nFailure: {{.FailureOutput}}`
+	tmpl := `Spec Gate
+Criteria: {{.SpecCriteria}}
+Failure: {{.FailureOutput}}
+TestOutput: {{.TestOutput}}
+Diff: {{.CumulativeDiff}}
+Acceptance: {{.AcceptanceCriteria}}`
 	os.WriteFile(filepath.Join(templatesDir, "PROMPT_spec_gate.md"), []byte(tmpl), 0644)
 
 	r := &Renderer{templatesDir: templatesDir}
 
 	ctx := &SpecGateContext{
-		SpecCriteria:  "Must return 200",
-		FailureOutput: "status was 500",
+		SpecCriteria:       "Must return 200",
+		FailureOutput:      "status was 500",
+		TestOutput:         "FAIL: TestFoo expected 200 got 500",
+		CumulativeDiff:     "+func handler() { return 500 }",
+		AcceptanceCriteria: "All endpoints return expected HTTP status codes",
 	}
 
 	result, err := r.RenderSpecGate(ctx)
@@ -1014,6 +1022,15 @@ func TestRenderSpecGate(t *testing.T) {
 	}
 	if !strings.Contains(result, "status was 500") {
 		t.Error("expected failure output in output")
+	}
+	if !strings.Contains(result, "FAIL: TestFoo expected 200 got 500") {
+		t.Error("expected test output in output")
+	}
+	if !strings.Contains(result, "+func handler() { return 500 }") {
+		t.Error("expected cumulative diff in output")
+	}
+	if !strings.Contains(result, "All endpoints return expected HTTP status codes") {
+		t.Error("expected acceptance criteria in output")
 	}
 }
 
@@ -1661,6 +1678,8 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 		"exactly matches the GateVerdict schema",
 		"All required keys must be present",
 		"Any omission of required keys, type mismatches, structural changes, or extra fields is invalid.",
+		"one result object per criterion",
+		"code fences",
 		"JSON only",
 		"no narrative",
 		"FAIL: TestFoo",

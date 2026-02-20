@@ -51,8 +51,9 @@ CumulativeDiff:
 
 1. Compare the test output and diff against the acceptance criteria
 2. For each criterion, determine whether it passes or fails based on the evidence
-3. Set `passed` to true only when all criteria pass
-4. Return your result using the `GateVerdict` response contract
+3. Emit one result object per criterion with that criterion name, `passed`, and `evidence`
+4. Set `passed` to true only when all criteria pass
+5. Return your result using the `GateVerdict` response contract
 
 ## GateVerdict Response Contract
 
@@ -64,7 +65,7 @@ All required keys must be present. Preserve the required GateVerdict structure a
 Any omission of required keys, type mismatches, structural changes, or extra fields is invalid.
 Output JSON only and include no narrative text.
 
-Your response must be one top-level JSON object and nothing else. Do not include markdown, commentary, or any explanation outside the JSON.
+Your response must be one top-level JSON object and nothing else. Do not include markdown, code fences, commentary, or any explanation outside the JSON.
 
 ## GateVerdict Schema
 

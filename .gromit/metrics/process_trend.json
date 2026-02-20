@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-02-20T06:52:35.647600187Z",
-  "total_iterations": 540,
+  "generated_at": "2026-02-20T10:37:58.771747522Z",
+  "total_iterations": 580,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 1,
-    "failure_rate": 0,
-    "first_pass_success_rate": 1,
-    "escalation_rate": 0.03333333333333333,
-    "avg_duration_ms": 389434.0333333333,
-    "p95_duration_ms": 886790.4999999998,
-    "avg_cost_usd": 1.7570006416666666,
+    "success_rate": 0.9666666666666667,
+    "failure_rate": 0.03333333333333333,
+    "first_pass_success_rate": 0.9666666666666667,
+    "escalation_rate": 0,
+    "avg_duration_ms": 278599.5333333333,
+    "p95_duration_ms": 750043.1499999991,
+    "avg_cost_usd": 1.8953482333333331,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -20,34 +20,34 @@
     "by_prompt_type": [
       {
         "prompt_type": "build",
-        "invocation_count": 30,
-        "avg_estimated_tokens": 3088.3
+        "invocation_count": 29,
+        "avg_estimated_tokens": 2725.9655172413795
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 74820
-      },
-      {
-        "section": "spec",
-        "estimated_tokens": 8160
-      },
-      {
-        "section": "claude_md",
-        "estimated_tokens": 5272
+        "estimated_tokens": 72326
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 4307
+        "estimated_tokens": 4103
+      },
+      {
+        "section": "claude_md",
+        "estimated_tokens": 1347
+      },
+      {
+        "section": "spec",
+        "estimated_tokens": 1190
       },
       {
         "section": "template_static",
-        "estimated_tokens": 60
+        "estimated_tokens": 58
       },
       {
         "section": "failure_context",
-        "estimated_tokens": 30
+        "estimated_tokens": 29
       },
       {
         "section": "confirmed_learnings",
@@ -60,27 +60,27 @@
     ],
     "budget_action_frequency": {},
     "reconciliation_drift": {
-      "sample_count": 30,
-      "mean_abs_token_delta_pct": 99.33908593067139,
-      "p95_abs_token_delta_pct": 99.8883869749527
+      "sample_count": 29,
+      "mean_abs_token_delta_pct": 98.19573365874204,
+      "p95_abs_token_delta_pct": 99.9309941765732
     }
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 1.7570006416666666,
-      "mean": 1.4161588199174804,
-      "std_dev": 1.9250020578826033,
-      "ucl": 7.191164993565291,
-      "lcl": -4.358847353730329
+      "latest": 1.8953482333333331,
+      "mean": 1.4571052190754703,
+      "std_dev": 1.8650330221311724,
+      "ucl": 7.052204285468988,
+      "lcl": -4.1379938473180475
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 389434.0333333333,
-      "mean": 570162.6241487638,
-      "std_dev": 292367.51729909447,
-      "ucl": 1447265.1760460474,
-      "lcl": -306939.9277485196
+      "latest": 278599.5333333333,
+      "mean": 557106.2584603433,
+      "std_dev": 286591.5275779044,
+      "ucl": 1416880.8411940564,
+      "lcl": -302668.32427336986
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -92,17 +92,17 @@
     },
     {
       "metric": "rolling_escalation_rate",
-      "latest": 0.03333333333333333,
-      "mean": 0.041851851851852265,
-      "std_dev": 0.05429558889943931,
-      "ucl": 0.20473861855017017,
+      "latest": 0,
+      "mean": 0.03965517241379352,
+      "std_dev": 0.05315952157217541,
+      "ucl": 0.19913373713031976,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 1,
-      "mean": 0.487962962962963,
-      "std_dev": 0.4540865731468062,
+      "latest": 0.9666666666666667,
+      "mean": 0.5224137931034476,
+      "std_dev": 0.45608646467312275,
       "ucl": 1,
       "lcl": 0
     },
@@ -116,18 +116,18 @@
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 1,
-      "mean": 0.7856992540072439,
-      "std_dev": 0.22137506073316257,
+      "latest": 0.9666666666666667,
+      "mean": 0.7996165468343298,
+      "std_dev": 0.2196814031842413,
       "ucl": 1,
-      "lcl": 0.12157407180775626
+      "lcl": 0.140572337281606
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.007407407407407404,
-      "std_dev": 0.01821981314999826,
-      "ucl": 0.062066846857402186,
+      "mean": 0.006896551724137928,
+      "std_dev": 0.017680238432251756,
+      "ucl": 0.0599372670208932,
       "lcl": 0
     },
     {
