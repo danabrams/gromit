@@ -6,6 +6,16 @@ import (
 	"strings"
 )
 
+const (
+	selfReportLabel         = "self report"
+	validationResponseLabel = "validation response"
+)
+
+var (
+	selfReportKeys         = []string{"targeting", "remaining"}
+	validationResponseKeys = []string{"covers", "reason"}
+)
+
 type SelfReport struct {
 	Targeting int   `json:"targeting"`
 	Remaining []int `json:"remaining"`
@@ -30,6 +40,7 @@ func parseEmbeddedJSON(output string, label string, expectedKeys []string, dest 
 	searchFrom := 0
 	var lastErr error
 
+	// Scan for candidate JSON objects and parse the first one that contains the expected keys.
 	for {
 		start := strings.IndexByte(output[searchFrom:], '{')
 		if start == -1 {
@@ -133,7 +144,7 @@ func extractBracketedJSON(text string) string {
 
 func ParseSelfReport(output string) (*SelfReport, error) {
 	var report SelfReport
-	if err := parseEmbeddedJSON(output, "self report", []string{"targeting", "remaining"}, &report); err != nil {
+	if err := parseEmbeddedJSON(output, selfReportLabel, selfReportKeys, &report); err != nil {
 		return nil, err
 	}
 
@@ -144,7 +155,7 @@ func ParseSelfReport(output string) (*SelfReport, error) {
 
 func ParseValidationResponse(output string) (*ValidationResponse, error) {
 	var resp ValidationResponse
-	if err := parseEmbeddedJSON(output, "validation response", []string{"covers", "reason"}, &resp); err != nil {
+	if err := parseEmbeddedJSON(output, validationResponseLabel, validationResponseKeys, &resp); err != nil {
 		return nil, err
 	}
 
