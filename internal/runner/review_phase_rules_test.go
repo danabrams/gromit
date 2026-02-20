@@ -292,3 +292,55 @@ func TestReviewInvocationsCallLoadRulesForPhaseNotLoadRules(t *testing.T) {
 		}
 	})
 }
+
+// TestLightReviewDoesNotLoadClaudeMD verifies that runLightReview does not
+// call LoadClaudeMD(). Review prompts should only use phase-filtered rules and
+// explicit context wiring.
+func TestLightReviewDoesNotLoadClaudeMD(t *testing.T) {
+	mockProv := &mockProviderWithRouterTracking{
+		name: "test-provider",
+		runFn: func(ctx context.Context, p, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Model:   "sonnet",
+				Output:  `{"summary": "ok", "issues": [], "suggestions": []}`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(mockProv)
+
+	var loadClaudeMDCalled bool
+	mockRend := &mockPromptRenderer{
+		LoadClaudeMDFn: func() (string, error) {
+			loadClaudeMDCalled = true
+			return "# CLAUDE", nil
+		},
+		LoadRulesForPhaseFn: func(phase string) (string, error) {
+			return "review rules", nil
+		},
+		RenderReviewFn: func(ctx *prompt.ReviewContext) (string, error) {
+			return "review prompt", nil
+		},
+	}
+
+	cfg := &config.Config{
+		Review: config.ReviewConfig{
+			Enabled: true,
+			Timeout: 60,
+		},
+	}
+	cfg.SetDefaults()
+
+	gitDiffFn := func(commit string) (string, error) {
+		return "diff --git a/code.go b/code.go\n+println(\"hello\")", nil
+	}
+
+	reviewer := reviewpkg.NewReviewer(cfg, router, nil, mockRend, gitDiffFn, nil)
+
+	b := &bead.Bead{ID: "test-no-claude-md", Priority: 1, Title: "Test bead"}
+	_, _ = reviewer.RunLight(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{}, "")
+
+	if loadClaudeMDCalled {
+		t.Error("runLightReview called LoadClaudeMD() — review phase should not load CLAUDE.md")
+	}
+}
