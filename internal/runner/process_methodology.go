@@ -51,11 +51,8 @@ func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.Bea
 	tddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, methodologyTDD)
 	if tddActive {
 		if r.cfg.Methodology.FreshContextPerCycle {
-			if r.runTDDFreshContextCycles(ctx, bc) {
-				return atddActive, tddActive, true
-			}
-			// Fresh-context couldn't handle this bead (no ExpectedOutputs);
-			// fall through to the normal TDD build prompt below.
+			r.runTDDFreshContextCycles(ctx, bc)
+			return atddActive, tddActive, true
 		}
 		r.log("TDD enabled, using TDD build prompt with red-green-refactor cycles...")
 		buildPrompt, err := r.renderer.RenderTDDBuild(bc.PromptCtx)
@@ -87,10 +84,8 @@ func (r *Runner) applyATDDSkipPolicies(bc *runtypes.BeadContext, atddActive bool
 	return true
 }
 
-// runTDDFreshContextCycles runs the TDD fresh-context orchestrator for beads
-// with ExpectedOutputs. Returns true if it handled the bead (caller should
-// return done=true), false if it could not handle it (caller should fall
-// through to the normal TDD build prompt path).
+// runTDDFreshContextCycles runs the TDD fresh-context orchestrator.
+// It always handles TDD execution when fresh-context mode is enabled.
 func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.BeadContext) bool {
 	if r.tddOrchestrator == nil {
 		bc.Result.Error = fmt.Errorf("TDD fresh-context orchestration enabled but tddOrchestrator not wired")
@@ -98,8 +93,8 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 	}
 	effectiveOutputs := tddExpectedOutputsOrTitle(bc.Bead)
 	if len(effectiveOutputs) == 0 {
-		r.log("TDD fresh-context skipped for bead %s (no ExpectedOutputs); falling back to standard TDD build", bc.Bead.ID)
-		return false
+		bc.Result.Error = fmt.Errorf("TDD fresh-context requires ExpectedOutputs or a non-empty bead title (bead=%s)", bc.Bead.ID)
+		return true
 	}
 	if len(bc.Bead.ExpectedOutputs) == 0 {
 		r.log("TDD fresh-context using title fallback for bead %s because ExpectedOutputs are empty", bc.Bead.ID)
