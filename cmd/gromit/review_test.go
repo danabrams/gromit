@@ -92,7 +92,7 @@ func TestFindFirstCommitForBead_UsesInjectedGitWithFixedStrings(t *testing.T) {
 	if gotName != "git" {
 		t.Fatalf("command name = %q, want %q", gotName, "git")
 	}
-	wantArgs := []string{"log", "--all", "--format=%H", "--grep", "--fixed-strings", "gromit-[abc]"}
+	wantArgs := []string{"log", "--all", "--format=%H", "--fixed-strings", "--grep", "gromit-[abc]"}
 	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
 		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
 	}

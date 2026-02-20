@@ -269,7 +269,7 @@ func findFirstCommitForBead(beadID string) (string, error) {
 	if beadID == "" || strings.HasPrefix(beadID, "-") {
 		return "", fmt.Errorf("invalid bead ID %q: must not be empty or start with '-'", beadID)
 	}
-	out, err := runReviewGitOutput("log", "--all", "--format=%H", "--grep", "--fixed-strings", beadID)
+	out, err := runReviewGitOutput("log", "--all", "--format=%H", "--fixed-strings", "--grep", beadID)
 	if err != nil {
 		return "", nil // No commits found - not an error, just no work yet
 	}
