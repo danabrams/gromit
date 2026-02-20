@@ -32,6 +32,7 @@ type Runner struct {
 	autoFixFn         runtypes.AutoFixFn
 	executeFn         ExecuteFn
 	failures          []string // accumulated validation failure summaries
+	elapsed           time.Duration
 	lastFailureOutput string
 }
 
@@ -62,6 +63,16 @@ func (r *Runner) Failures() []string {
 // ResetFailures clears accumulated validation failure summaries.
 func (r *Runner) ResetFailures() {
 	r.failures = []string{}
+}
+
+// ElapsedMs returns the accumulated validation command execution time in milliseconds.
+func (r *Runner) ElapsedMs() int64 {
+	return r.elapsed.Milliseconds()
+}
+
+// ResetElapsed clears accumulated validation command execution time.
+func (r *Runner) ResetElapsed() {
+	r.elapsed = 0
 }
 
 // RunDirect executes validation commands directly via the injected command runner.
@@ -240,6 +251,11 @@ func (r *Runner) runCommands(ctx context.Context, commands []string, workDir str
 	if len(commands) == 0 {
 		return nil, nil
 	}
+	start := time.Now()
+	defer func() {
+		r.elapsed += time.Since(start)
+	}()
+
 	maxParallel := r.cfg.Validation.MaxParallelCommands
 	if maxParallel <= 1 || len(commands) == 1 {
 		results := make([]commandResult, 0, len(commands))

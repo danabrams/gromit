@@ -236,6 +236,80 @@ func TestRunDirect_ParallelCommands_BoundedConcurrency(t *testing.T) {
 	}
 }
 
+func TestElapsedMs_RunDirectAccumulatesElapsedTime(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./..."}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		time.Sleep(5 * time.Millisecond)
+		return "ok", "", 0, nil
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	result, err := r.RunDirect(context.Background(), cfg.Validation.Commands, "/tmp/test")
+	if err != nil {
+		t.Fatalf("RunDirect returned unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("RunDirect expected success, got %+v", result)
+	}
+	if got := r.ElapsedMs(); got <= 0 {
+		t.Fatalf("ElapsedMs() = %d, want > 0", got)
+	}
+}
+
+func TestElapsedMs_RunWithRecoveryAccumulatesAcrossRetry(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./..."}
+	cfg.Validation.MaxValidationRetries = 1
+
+	callCount := 0
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		callCount++
+		time.Sleep(5 * time.Millisecond)
+		if callCount == 1 {
+			return "", "format error", 1, nil
+		}
+		return "ok", "", 0, nil
+	}
+
+	autoFix := func(startCommit string) error { return nil }
+
+	r := NewRunner(cfg, cmdRunner, autoFix, nil)
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	if err := r.RunWithRecovery(context.Background(), bc); err != nil {
+		t.Fatalf("RunWithRecovery returned unexpected error: %v", err)
+	}
+	if got := r.ElapsedMs(); got < 8 {
+		t.Fatalf("ElapsedMs() = %d, want >= 8 after recovery retry", got)
+	}
+}
+
+func TestResetElapsed_ZeroesAccumulator(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./..."}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		time.Sleep(5 * time.Millisecond)
+		return "ok", "", 0, nil
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	if _, err := r.RunDirect(context.Background(), cfg.Validation.Commands, "/tmp/test"); err != nil {
+		t.Fatalf("RunDirect returned unexpected error: %v", err)
+	}
+	if got := r.ElapsedMs(); got <= 0 {
+		t.Fatalf("ElapsedMs() before reset = %d, want > 0", got)
+	}
+
+	r.ResetElapsed()
+	if got := r.ElapsedMs(); got != 0 {
+		t.Fatalf("ElapsedMs() after reset = %d, want 0", got)
+	}
+}
+
 // --- RunWithRecovery tests ---
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
