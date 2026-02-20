@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+const (
+	maxSynthesizedFixBeads = 5
+	maxFixBeadTitleRunes   = 80
+)
+
 // BeadCreator creates beads for spec fixes.
 type BeadCreator interface {
 	Create(ctx context.Context, title, description, priority string, labels []string) (string, error)
@@ -22,17 +27,22 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []Criteri
 		return nil, errors.New("bead creator is required")
 	}
 
-	var ids []string
+	ids := make([]string, 0, len(failures))
 	limit := len(failures)
-	if limit > 5 {
-		limit = 5
-		log.Printf("specgate: capped fix bead synthesis for spec %q at 5 failures (%d remaining)", specName, len(failures)-limit)
+	if limit > maxSynthesizedFixBeads {
+		limit = maxSynthesizedFixBeads
+		log.Printf(
+			"specgate: capped fix bead synthesis for spec %q at %d failures (%d remaining)",
+			specName,
+			maxSynthesizedFixBeads,
+			len(failures)-limit,
+		)
 	}
 	label := fmt.Sprintf("spec:%s", specName)
-	createErrors := make([]error, 0)
+	createErrors := make([]error, 0, limit)
 	for i := 0; i < limit; i++ {
 		failure := failures[i]
-		title := truncateTitle(failure.Criterion, 80)
+		title := truncateTitle(failure.Criterion, maxFixBeadTitleRunes)
 		description := formatFailureDescription(failure)
 		id, err := creator.Create(ctx, title, description, priority, []string{label})
 		if err != nil {
@@ -40,9 +50,6 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []Criteri
 			continue
 		}
 		ids = append(ids, id)
-	}
-	if ids == nil {
-		ids = []string{}
 	}
 	if len(createErrors) > 0 {
 		return ids, errors.Join(createErrors...)
