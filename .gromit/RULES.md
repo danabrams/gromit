@@ -1,6 +1,6 @@
 # Rules
 
-These are non-negotiable constraints for this project. Gromit will always follow these.
+These are non-negotiable constraints for this project.
 
 ## Code Style <!-- phases: build, review -->
 
@@ -19,7 +19,7 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - Router selection is tier -> model: choose `low|medium|high`, then resolve `haiku|sonnet|opus`. Fields like `SetEscalatedTo` store model names, not tier labels. Keep this in `internal/runner/escalation/` using `SelectTier()`, `SelectModel()`, and `Handler.ExecuteWithRetry`
 - Mock implementations use the FnField pattern: optional function pointer fields with nil-safe defaults (returning zero values or no-op behavior). Tests set only the callbacks needed for the specific code path under test. Do not require full mock setup when only one method is being exercised
 - State fields in Runner that accumulate per-run (e.g., slices, maps) must be reset at the start of Run(), not in individual phases. This ensures a fresh accumulator within each invocation while allowing safe in-run mutation and non-destructive reads
-- Renderer is the central coordinator for context/state setup. Modifications to how data flows into rendering (e.g., character limits, feature flags) happen in NewRunner() by calling Renderer setter methods after initialization; BuildContext() reads those configured values. Do not bypass the Renderer to inject rendering state directly
+- Renderer coordinates context/state setup. Configure rendering flow in NewRunner() via Renderer setters; BuildContext() reads configured values. Do not bypass Renderer state
 
 ## Safety <!-- phases: build, review -->
 
