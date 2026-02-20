@@ -15,6 +15,13 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+const (
+	reviewPhase        = "review"
+	reviewTypeLight    = "light"
+	reviewTypeThorough = "thorough"
+	backlogPriority    = 2
+)
+
 // Router selects providers for review invocations.
 type Router interface {
 	Select(phase, tier string) (provider.Provider, string)
@@ -157,7 +164,7 @@ func (r *Reviewer) RunLight(ctx context.Context, b *bead.Bead, parent *bead.Bead
 	}
 
 	// Load review rules
-	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
+	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase(reviewPhase)
 
 	// Load spec if present
 	specName := bead.FindSpecLabel(b.Labels)
@@ -184,10 +191,10 @@ func (r *Reviewer) RunLight(ctx context.Context, b *bead.Bead, parent *bead.Bead
 
 	// Select provider via router — use cross-review if configured
 	var p provider.Provider
-	if r.cfg.Routing.PhasePreferences["review"] == "cross" && buildProvider != "" {
+	if r.cfg.Routing.PhasePreferences[reviewPhase] == "cross" && buildProvider != "" {
 		p, _ = r.router.SelectCross(buildProvider, tier)
 	} else {
-		p, _ = r.router.Select("review", tier)
+		p, _ = r.router.Select(reviewPhase, tier)
 	}
 	if p == nil {
 		return nil, fmt.Errorf("no provider available for review")
@@ -269,7 +276,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 		}
 		_, err := r.beads.CreateWithParentAndDescription(
 			bi.Title,
-			2, // P2 for backlog
+			backlogPriority, // P2 for backlog
 			labels,
 			expectedOutputs,
 			"", // no parent
@@ -310,7 +317,7 @@ func (r *Reviewer) WriteReviewLog(iteration int, beadID string, model string, re
 	_ = r.logger.LogReview(&logger.ReviewLog{
 		Timestamp:      time.Now(),
 		Type:           "review",
-		ReviewType:     "light",
+		ReviewType:     reviewTypeLight,
 		Iteration:      iteration,
 		BeadID:         beadID,
 		Model:          model,
@@ -376,7 +383,7 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 		Diff:  diff,
 		Model: r.cfg.Review.Thorough.Model,
 	}
-	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
+	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase(reviewPhase)
 	reviewPrompt, err := r.renderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
 		r.log("Warning: could not render thorough review prompt: %v", err)
@@ -384,7 +391,7 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 	}
 
 	// Select provider (always high tier for thorough review)
-	p, _ := r.router.Select("review", provider.TierHigh)
+	p, _ := r.router.Select(reviewPhase, provider.TierHigh)
 	if p == nil {
 		r.log("Warning: no provider available for thorough review")
 		return
@@ -420,7 +427,7 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 		_ = r.logger.LogReview(&logger.ReviewLog{
 			Timestamp:      time.Now(),
 			Type:           "review",
-			ReviewType:     "thorough",
+			ReviewType:     reviewTypeThorough,
 			Iteration:      iteration,
 			Model:          providerResult.Model,
 			Passed:         result.Passed,
