@@ -20,6 +20,8 @@ const (
 	artifactFallbackBeadID   = "unknown-bead"
 	artifactDirPerm          = 0o755
 	artifactFilePerm         = 0o644
+	tddPhaseRecordType       = "tdd_phase"
+	tddSummaryRecordType     = "tdd_summary"
 )
 
 func (r *Runner) writeIterationLog(iteration int, result *IterationResult) {
@@ -78,24 +80,7 @@ func (r *Runner) writeTDDMetrics(beadID string, success bool, phaseMetrics []run
 			beadID = metric.BeadID
 		}
 
-		if err := tddLogger.LogTDDPhase(&logger.TDDPhaseRecord{
-			Type:               "tdd_phase",
-			Timestamp:          time.Now(),
-			BeadID:             metric.BeadID,
-			Phase:              metric.Phase,
-			CycleNumber:        metric.CycleNumber,
-			Model:              metric.Model,
-			Tier:               metric.Tier,
-			InputTokens:        metric.InputTokens,
-			OutputTokens:       metric.OutputTokens,
-			DurationMs:         metric.DurationMs,
-			Success:            metric.Success,
-			Escalated:          metric.Escalated,
-			EscalatedFrom:      metric.EscalatedFrom,
-			CriteriaTotal:      metric.CriteriaTotal,
-			CriteriaCovered:    metric.CriteriaCovered,
-			CriteriaUntestable: metric.CriteriaUntestable,
-		}); err != nil {
+		if err := tddLogger.LogTDDPhase(newTDDPhaseRecord(metric)); err != nil {
 			r.log("Warning: failed to write TDD phase log: %v", err)
 			return
 		}
@@ -113,14 +98,7 @@ func (r *Runner) writeTDDMetrics(beadID string, success bool, phaseMetrics []run
 		}
 	}
 
-	phaseSuccessRates := make(map[string]float64, len(phaseTotals))
-	for phase, total := range phaseTotals {
-		if total == 0 {
-			phaseSuccessRates[phase] = 0
-			continue
-		}
-		phaseSuccessRates[phase] = float64(phaseSuccess[phase]) / float64(total)
-	}
+	phaseSuccessRates := calculatePhaseSuccessRates(phaseTotals, phaseSuccess)
 
 	if beadID == "" {
 		beadID = resultBeadIDFromMetrics(phaseMetrics)
@@ -130,7 +108,7 @@ func (r *Runner) writeTDDMetrics(beadID string, success bool, phaseMetrics []run
 	}
 
 	if err := tddLogger.LogTDDSummary(&logger.TDDSummaryRecord{
-		Type:              "tdd_summary",
+		Type:              tddSummaryRecordType,
 		Timestamp:         time.Now(),
 		BeadID:            beadID,
 		TotalCycles:       len(cycles),
@@ -144,6 +122,39 @@ func (r *Runner) writeTDDMetrics(beadID string, success bool, phaseMetrics []run
 	}); err != nil {
 		r.log("Warning: failed to write TDD summary log: %v", err)
 	}
+}
+
+func newTDDPhaseRecord(metric runtypes.PhaseMetric) *logger.TDDPhaseRecord {
+	return &logger.TDDPhaseRecord{
+		Type:               tddPhaseRecordType,
+		Timestamp:          time.Now(),
+		BeadID:             metric.BeadID,
+		Phase:              metric.Phase,
+		CycleNumber:        metric.CycleNumber,
+		Model:              metric.Model,
+		Tier:               metric.Tier,
+		InputTokens:        metric.InputTokens,
+		OutputTokens:       metric.OutputTokens,
+		DurationMs:         metric.DurationMs,
+		Success:            metric.Success,
+		Escalated:          metric.Escalated,
+		EscalatedFrom:      metric.EscalatedFrom,
+		CriteriaTotal:      metric.CriteriaTotal,
+		CriteriaCovered:    metric.CriteriaCovered,
+		CriteriaUntestable: metric.CriteriaUntestable,
+	}
+}
+
+func calculatePhaseSuccessRates(phaseTotals, phaseSuccess map[string]int) map[string]float64 {
+	rates := make(map[string]float64, len(phaseTotals))
+	for phase, total := range phaseTotals {
+		if total == 0 {
+			rates[phase] = 0
+			continue
+		}
+		rates[phase] = float64(phaseSuccess[phase]) / float64(total)
+	}
+	return rates
 }
 
 func resultBeadIDFromMetrics(metrics []runtypes.PhaseMetric) string {
