@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/escalation"
@@ -245,35 +246,61 @@ func (r *Runner) authorScopedSpecAcceptanceTests(ctx context.Context, st *runLoo
 	return nil
 }
 
-func (r *Runner) verifyScopedSpecAcceptance(ctx context.Context, noMoreReadyBeads bool) error {
+func (r *Runner) verifyScopedSpecAcceptance(ctx context.Context, st *runLoopState, noMoreReadyBeads bool) (bool, error) {
 	if !noMoreReadyBeads || !r.isScopedSpecOrchestrationEnabled() || r.specGate == nil || r.beads == nil {
-		return nil
+		return false, nil
 	}
 	if !r.cfg.SpecGate.IsEnabled() {
-		return nil
+		return false, nil
+	}
+
+	maxRetries := r.cfg.Methodology.SpecGateMaxRetries
+	if maxRetries <= 0 {
+		maxRetries = config.DefaultSpecGateMaxRetries
+	}
+	shouldRetry := false
+
+	if st != nil && st.specGateRetries == nil {
+		st.specGateRetries = make(map[string]int)
 	}
 
 	specsDir := r.cfg.Paths.Specs
 	for _, specName := range r.scopedSpecNames() {
 		if err := scope.ValidateSpec(specsDir, specName); err != nil {
-			return err
+			return false, err
 		}
 		criteria, _, _, err := loadSpecGateInputs(specsDir, specName)
 		if err != nil {
-			return err
+			return false, err
 		}
 		verdict, err := r.specGate.Run(ctx, specName, criteria)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if verdict != nil && !verdict.Passed {
-			if _, err := SynthesizeFixBeads(ctx, specName, convertFailedCriteria(verdict.FailedCriteria()), r.beads); err != nil {
-				return err
+			failures := convertFailedCriteria(verdict.FailedCriteria())
+			retryCount := 0
+			if st != nil {
+				retryCount = st.specGateRetries[specName]
 			}
+			if retryCount >= maxRetries {
+				r.log("spec_gate_retry_exhausted spec=%s retries=%d max_retries=%d failed_criteria=%d", specName, retryCount, maxRetries, len(failures))
+				return false, nil
+			}
+
+			ids, err := SynthesizeFixBeads(ctx, specName, failures, r.beads)
+			if err != nil {
+				return false, err
+			}
+			if st != nil {
+				st.specGateRetries[specName] = retryCount + 1
+			}
+			r.log("spec_gate_retry_scheduled spec=%s retry=%d max_retries=%d synthesized_fix_beads=%d", specName, retryCount+1, maxRetries, len(ids))
+			shouldRetry = true
 		}
 	}
 
-	return nil
+	return shouldRetry, nil
 }
 
 func isScopedRunLabel(filters []string, label string) bool {

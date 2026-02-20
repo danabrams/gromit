@@ -19,6 +19,7 @@ type runLoopState struct {
 	beadStats           map[string]logger.BeadStats
 	skippedBeads        map[string]bool
 	specGateCycles      map[string]int
+	specGateRetries     map[string]int
 	testsAuthoredBySpec map[string]bool
 	sf                  *state.File
 	interactiveFile     *state.InteractiveFile
@@ -58,6 +59,7 @@ func (r *Runner) initRunLoopState(deadline time.Time) (*runLoopState, func(), er
 	st := &runLoopState{
 		skippedBeads:        make(map[string]bool),
 		specGateCycles:      make(map[string]int),
+		specGateRetries:     make(map[string]int),
 		testsAuthoredBySpec: make(map[string]bool),
 	}
 

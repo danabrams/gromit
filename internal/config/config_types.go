@@ -22,9 +22,10 @@ const (
 	DefaultAndonL1TimeCapMinutes = 2
 	DefaultAndonL2TimeCapMinutes = 15
 
-	DefaultRunbookTTLDays    = 14
-	DefaultMaxTDDCycles      = 10
-	DefaultSpecGateMaxCycles = 3
+	DefaultRunbookTTLDays     = 14
+	DefaultMaxTDDCycles       = 10
+	DefaultSpecGateMaxCycles  = 3
+	DefaultSpecGateMaxRetries = 3
 
 	DefaultAndonConfigDocSectionTitle = "# Andon autonomy controls"
 
@@ -246,6 +247,7 @@ type MethodologyConfig struct {
 	ATDD                 bool                    `yaml:"atdd"`
 	TDD                  bool                    `yaml:"tdd"`
 	MaxTDDCycles         int                     `yaml:"max_tdd_cycles"`
+	SpecGateMaxRetries   int                     `yaml:"spec_gate_max_retries"`
 	FreshContextPerCycle bool                    `yaml:"fresh_context_per_cycle"`
 	Granularity          string                  `yaml:"granularity"`
 	PhaseTimeouts        MethodologyPhaseTimeout `yaml:"phase_timeouts"`

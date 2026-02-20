@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,6 +24,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/specgate"
 )
 
 func TestCheckExpectedOutputs(t *testing.T) {
@@ -472,6 +474,141 @@ func TestRun_NonScopedRunSkipsSpecOrchestration(t *testing.T) {
 	}
 	if specGateRuns != 0 {
 		t.Fatalf("spec gate verification runs = %d, want 0", specGateRuns)
+	}
+}
+
+func TestRun_ScopedSpecGateFailureSynthesizesFixBeadAndReentersLoop(t *testing.T) {
+	specsDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(specsDir, "demo-spec.md"), []byte("## Acceptance Criteria\n- works\n"), 0o644); err != nil {
+		t.Fatalf("failed to write spec fixture: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	cfg.Paths.Specs = specsDir
+	cfg.Methodology.Granularity = config.MethodologyGranularitySpec
+	cfg.Methodology.SpecGateMaxRetries = 2
+	enabled := true
+	cfg.SpecGate.Enabled = &enabled
+
+	var queue []*bead.Bead
+	queue = append(queue, &bead.Bead{
+		ID:              "task-1",
+		Title:           "Scoped task",
+		Priority:        1,
+		Labels:          []string{"spec:demo-spec"},
+		ExpectedOutputs: []string{},
+	})
+
+	var readyCalls int
+	var createCalls int
+	beads := &mockBeadClient{
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			readyCalls++
+			if len(queue) == 0 {
+				return nil, nil
+			}
+			next := queue[0]
+			queue = queue[1:]
+			return next, nil
+		},
+		CreateFn: func(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error) {
+			createCalls++
+			fix := &bead.Bead{
+				ID:              "fix-1",
+				Title:           title,
+				Priority:        priority,
+				Labels:          labels,
+				ExpectedOutputs: expectedOutputs,
+			}
+			queue = append(queue, fix)
+			return fix, nil
+		},
+		ShowFn: func(id string) (*bead.Bead, error) {
+			return &bead.Bead{ID: id, Status: "open"}, nil
+		},
+	}
+
+	mockClaude := &mockClaudeClient{
+		RunFn: func(ctx context.Context, prompt string, model string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "ok"}, nil
+		},
+		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "done"}, nil
+		},
+	}
+
+	var output bytes.Buffer
+	r, err := NewRunnerWithDeps(cfg, &output, t.TempDir(), Deps{
+		Beads:    beads,
+		Router:   newMockRouterFromClaudeClient(mockClaude),
+		Analyzer: &mockFailureAnalyzer{},
+		Renderer: &mockPromptRenderer{},
+		Logger:   &mockIterationLogger{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps error: %v", err)
+	}
+
+	r.specOrchestrator = &SpecOrchestrator{
+		cfg:      cfg,
+		router:   r.router,
+		beads:    beads,
+		renderer: &mockPromptRenderer{LoadRulesForPhaseFn: func(phase string) (string, error) { return "rules", nil }, RenderSpecAcceptanceFn: func(ctx *prompt.SpecAcceptanceContext) (string, error) { return "author prompt", nil }},
+		specContentLoader: &mockSpecContentLoader{
+			loadSpecContentFn: func(specName string) (string, error) {
+				return "## Acceptance Criteria\n- works\n", nil
+			},
+		},
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			if len(args) > 0 && args[0] == "commit" {
+				return "", "nothing to commit", 1, nil
+			}
+			return "", "", 0, nil
+		},
+	}
+
+	specGateRuns := 0
+	r.specGate = &specgate.Gate{
+		RunTests: func(ctx context.Context) (string, error) {
+			specGateRuns++
+			if specGateRuns == 1 {
+				return "tests failing", nil
+			}
+			return "VALIDATION_PASSED", nil
+		},
+		GetDiff: func(ctx context.Context) (string, error) {
+			return "", nil
+		},
+		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
+			return "prompt", nil
+		},
+		InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
+			if specGateRuns == 1 {
+				return []byte(`{"passed":false,"results":[{"criterion":"works","passed":false,"evidence":"failed"}]}`), nil
+			}
+			return []byte(`{"passed":true,"results":[]}`), nil
+		},
+		Model: "sonnet",
+	}
+	r.SetLabelFilters([]string{"spec:demo-spec"})
+
+	if err := r.Run(context.Background(), 0, time.Time{}, nil, true); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	if createCalls != 1 {
+		t.Fatalf("fix bead create calls = %d, want 1", createCalls)
+	}
+	if specGateRuns != 2 {
+		t.Fatalf("spec gate runs = %d, want 2", specGateRuns)
+	}
+	if readyCalls < 3 {
+		t.Fatalf("ready calls = %d, want at least 3", readyCalls)
+	}
+	if !strings.Contains(output.String(), "[DRY RUN] Would process bead fix-1") {
+		t.Fatalf("expected synthesized fix bead to be processed in dry run, got output: %q", output.String())
 	}
 }
 

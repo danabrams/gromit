@@ -181,6 +181,9 @@ func (c *Config) SetDefaults() {
 	if c.Methodology.MaxTDDCycles == 0 {
 		c.Methodology.MaxTDDCycles = DefaultMaxTDDCycles
 	}
+	if c.Methodology.SpecGateMaxRetries == 0 {
+		c.Methodology.SpecGateMaxRetries = DefaultSpecGateMaxRetries
+	}
 	if c.Git.AutoPush == nil {
 		c.Git.AutoPush = boolPtr(true)
 	}

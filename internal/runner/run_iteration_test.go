@@ -1,9 +1,12 @@
 package runner
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -257,6 +260,98 @@ func TestMaybeRunSpecGate_FailedVerdictSynthesizesSpecLabeledFixBeads(t *testing
 	}
 	if len(createdLabels) != 1 || createdLabels[0] != demoSpecLabel {
 		t.Fatalf("created labels = %v, want [%s]", createdLabels, demoSpecLabel)
+	}
+}
+
+func TestVerifyScopedSpecAcceptance_GateFailureSchedulesRetry(t *testing.T) {
+	specsDir := writeSpecGateTestSpec(t, demoSpecName)
+	var created int
+
+	enabled := true
+	r := &Runner{
+		cfg: &config.Config{
+			Paths:       config.PathsConfig{Specs: specsDir},
+			SpecGate:    config.SpecGateConfig{Enabled: &enabled},
+			Methodology: config.MethodologyConfig{SpecGateMaxRetries: 2},
+		},
+		output:           io.Discard,
+		labelFilters:     []string{demoSpecLabel},
+		specOrchestrator: &SpecOrchestrator{},
+		beads: &mockBeadClient{
+			CreateFn: func(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error) {
+				created++
+				return &bead.Bead{ID: "fix-1"}, nil
+			},
+		},
+		specGate: newSpecGateStub(
+			func(ctx context.Context) (string, error) {
+				return "tests failing", nil
+			},
+			`{"passed":false,"results":[{"criterion":"works","passed":false,"evidence":"failed"}]}`,
+		),
+	}
+
+	st := &runLoopState{specGateRetries: map[string]int{}}
+	retry, err := r.verifyScopedSpecAcceptance(context.Background(), st, true)
+	if err != nil {
+		t.Fatalf("verifyScopedSpecAcceptance() error: %v", err)
+	}
+	if !retry {
+		t.Fatal("verifyScopedSpecAcceptance() retry = false, want true")
+	}
+	if created != 1 {
+		t.Fatalf("created fix beads = %d, want 1", created)
+	}
+	if got := st.specGateRetries[demoSpecName]; got != 1 {
+		t.Fatalf("specGateRetries[%s] = %d, want 1", demoSpecName, got)
+	}
+}
+
+func TestVerifyScopedSpecAcceptance_StopsWhenRetryBudgetExhausted(t *testing.T) {
+	specsDir := writeSpecGateTestSpec(t, demoSpecName)
+	var created int
+	var out bytes.Buffer
+
+	enabled := true
+	r := &Runner{
+		cfg: &config.Config{
+			Paths:       config.PathsConfig{Specs: specsDir},
+			SpecGate:    config.SpecGateConfig{Enabled: &enabled},
+			Methodology: config.MethodologyConfig{SpecGateMaxRetries: 2},
+		},
+		output:           &out,
+		labelFilters:     []string{demoSpecLabel},
+		specOrchestrator: &SpecOrchestrator{},
+		beads: &mockBeadClient{
+			CreateFn: func(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error) {
+				created++
+				return &bead.Bead{ID: "fix-1"}, nil
+			},
+		},
+		specGate: newSpecGateStub(
+			func(ctx context.Context) (string, error) {
+				return "tests failing", nil
+			},
+			`{"passed":false,"results":[{"criterion":"works","passed":false,"evidence":"failed"}]}`,
+		),
+	}
+
+	st := &runLoopState{specGateRetries: map[string]int{demoSpecName: 2}}
+	retry, err := r.verifyScopedSpecAcceptance(context.Background(), st, true)
+	if err != nil {
+		t.Fatalf("verifyScopedSpecAcceptance() error: %v", err)
+	}
+	if retry {
+		t.Fatal("verifyScopedSpecAcceptance() retry = true, want false")
+	}
+	if created != 0 {
+		t.Fatalf("created fix beads = %d, want 0", created)
+	}
+	if got := st.specGateRetries[demoSpecName]; got != 2 {
+		t.Fatalf("specGateRetries[%s] = %d, want 2", demoSpecName, got)
+	}
+	if !strings.Contains(out.String(), "spec_gate_retry_exhausted spec=demo-spec retries=2 max_retries=2") {
+		t.Fatalf("expected structured retry exhaustion log, got: %q", out.String())
 	}
 }
 

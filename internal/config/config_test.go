@@ -3035,6 +3035,35 @@ func TestMethodologyMaxTDDCyclesParsesFromYAML(t *testing.T) {
 	}
 }
 
+func TestMethodologySpecGateMaxRetriesDefaultsToThree(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Methodology.SpecGateMaxRetries != DefaultSpecGateMaxRetries {
+		t.Errorf("expected spec_gate_max_retries=%d, got %d", DefaultSpecGateMaxRetries, cfg.Methodology.SpecGateMaxRetries)
+	}
+}
+
+func TestMethodologySpecGateMaxRetriesParsesFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `methodology:
+  spec_gate_max_retries: 6
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Methodology.SpecGateMaxRetries != 6 {
+		t.Errorf("expected spec_gate_max_retries=6, got %d", cfg.Methodology.SpecGateMaxRetries)
+	}
+}
+
 func TestMethodologyFreshContextPerCycleParsesFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")

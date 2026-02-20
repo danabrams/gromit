@@ -176,7 +176,6 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 	}
 
-	noMoreReadyBeads := false
 	for {
 		stop, loopErr := r.shouldStopLoop(ctx, stopCh, st, effectiveMaxIterations, deadline)
 		if loopErr != nil {
@@ -191,12 +190,20 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			return r.handleRunError(fmt.Errorf("getting next bead: %w", err))
 		}
 		if b == nil {
+			shouldRetryScoped, err := r.verifyScopedSpecAcceptance(ctx, st, true)
+			if err != nil {
+				return r.handleRunError(err)
+			}
+			if shouldRetryScoped {
+				r.log("Scoped spec gate synthesized fix beads; resuming scoped bead loop")
+				continue
+			}
+
 			if len(st.skippedBeads) > 0 {
 				r.log("All ready beads are blocked or stuck. Stopping loop.")
 			} else {
 				r.log("No more work available, stopping")
 			}
-			noMoreReadyBeads = true
 			break
 		}
 
@@ -207,10 +214,6 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		if stop {
 			break
 		}
-	}
-
-	if err := r.verifyScopedSpecAcceptance(ctx, noMoreReadyBeads); err != nil {
-		return r.handleRunError(err)
 	}
 
 	return r.finishRun(ctx, st)
