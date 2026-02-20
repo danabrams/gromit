@@ -30,7 +30,7 @@ type SpecOrchestrator struct {
 	beads        BeadClient
 	cfg          *config.Config
 	cmdRunnerFn  func(ctx context.Context, command string, workDir string) (string, string, int, error)
-	argvRunnerFn func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error)
+	argvRunnerFn ArgvRunnerFn
 
 	authoredSpecs map[string]bool
 }
