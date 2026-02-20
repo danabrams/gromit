@@ -405,7 +405,9 @@ func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) er
 	outputBefore := bc.Result.Output
 
 	// Delegate core validation (command execution + failure accumulation) to validation.Runner
+	r.validationRunner.ResetElapsed()
 	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, "fast")
+	bc.Result.ValidationDurationMs += r.validationRunner.ElapsedMs()
 
 	// Extract the failure output appended by the validation runner
 	failureOutput := strings.TrimPrefix(bc.Result.Output, outputBefore)
@@ -435,7 +437,9 @@ func (r *Runner) runValidationWithRecoveryForStage(ctx context.Context, bc *runt
 	commands = config.ScopeGoTestCommands(commands, bc.TouchedPackages)
 
 	// Delegate core validation + recovery to validation.Runner
+	r.validationRunner.ResetElapsed()
 	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, "fast")
+	bc.Result.ValidationDurationMs += r.validationRunner.ElapsedMs()
 
 	return r.handleValidationResult(ctx, bc, valErr, bc.Result.Output, runPostSuccess)
 }
@@ -519,7 +523,9 @@ func (r *Runner) runFullValidationGate(ctx context.Context, beadID string, itera
 		label = "final"
 	}
 	r.log("Running %s full validation gate (%d commands)", label, len(commands))
+	r.validationRunner.ResetElapsed()
 	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, "full")
+	bc.Result.ValidationDurationMs += r.validationRunner.ElapsedMs()
 	if valErr == nil {
 		if label == "final" {
 			r.log("Final full validation gate passed")

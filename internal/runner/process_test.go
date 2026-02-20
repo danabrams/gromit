@@ -627,6 +627,144 @@ func TestRunFullValidationGate_LeavesFullCommandsUnscoped(t *testing.T) {
 	}
 }
 
+func newValidationDurationTestRunner(t *testing.T, cfg *config.Config, cmdSleep *time.Duration) *Runner {
+	t.Helper()
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		if cmdSleep != nil && *cmdSleep > 0 {
+			time.Sleep(*cmdSleep)
+		}
+		return "ok", "", 0, nil
+	}
+
+	return &Runner{
+		cfg:              cfg,
+		output:           &strings.Builder{},
+		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
+	}
+}
+
+func newValidationDurationBeadContext(t *testing.T, initialDurationMs int64) *runtypes.BeadContext {
+	t.Helper()
+
+	return &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1", Title: "bead"},
+		Result: &IterationResult{
+			ValidationDurationMs: initialDurationMs,
+		},
+		PromptCtx: &prompt.Context{WorkDir: t.TempDir()},
+	}
+}
+
+func TestRunValidation_ResetsElapsedAndAccumulatesValidationDuration(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:      true,
+			FastCommands: []string{"go test ./..."},
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	cmdSleep := 120 * time.Millisecond
+	r := newValidationDurationTestRunner(t, cfg, &cmdSleep)
+
+	seedBC := newValidationDurationBeadContext(t, 0)
+	if err := r.validationRunner.RunWithRecoveryForCommands(context.Background(), seedBC, cfg.Validation.FastCommandsOrDefault(), "fast"); err != nil {
+		t.Fatalf("seed validation run failed: %v", err)
+	}
+	if seeded := r.validationRunner.ElapsedMs(); seeded < 100 {
+		t.Fatalf("expected seeded elapsed >= 100ms, got %dms", seeded)
+	}
+
+	cmdSleep = 20 * time.Millisecond
+	bc := newValidationDurationBeadContext(t, 7)
+	if err := r.runValidation(context.Background(), bc); err != nil {
+		t.Fatalf("runValidation() error = %v", err)
+	}
+
+	increment := bc.Result.ValidationDurationMs - 7
+	if increment <= 0 {
+		t.Fatalf("expected ValidationDurationMs to increase, got increment=%d", increment)
+	}
+	if increment >= 100 {
+		t.Fatalf("expected reset elapsed to avoid seeded carry-over; increment=%dms", increment)
+	}
+}
+
+func TestRunValidationWithRecoveryForStage_ResetsElapsedAndAccumulatesValidationDuration(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:      true,
+			FastCommands: []string{"go test ./..."},
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	cmdSleep := 120 * time.Millisecond
+	r := newValidationDurationTestRunner(t, cfg, &cmdSleep)
+
+	seedBC := newValidationDurationBeadContext(t, 0)
+	if err := r.validationRunner.RunWithRecoveryForCommands(context.Background(), seedBC, cfg.Validation.FastCommandsOrDefault(), "fast"); err != nil {
+		t.Fatalf("seed validation run failed: %v", err)
+	}
+	if seeded := r.validationRunner.ElapsedMs(); seeded < 100 {
+		t.Fatalf("expected seeded elapsed >= 100ms, got %dms", seeded)
+	}
+
+	cmdSleep = 20 * time.Millisecond
+	bc := newValidationDurationBeadContext(t, 11)
+	if err := r.runValidationWithRecoveryForStage(context.Background(), bc, true); err != nil {
+		t.Fatalf("runValidationWithRecoveryForStage() error = %v", err)
+	}
+
+	increment := bc.Result.ValidationDurationMs - 11
+	if increment <= 0 {
+		t.Fatalf("expected ValidationDurationMs to increase, got increment=%d", increment)
+	}
+	if increment >= 100 {
+		t.Fatalf("expected reset elapsed to avoid seeded carry-over; increment=%dms", increment)
+	}
+}
+
+func TestRunFullValidationGate_ResetsElapsedBeforeValidation(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:      true,
+			FastCommands: []string{"go test ./..."},
+			FullCommands: []string{"go test ./..."},
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	cmdSleep := 120 * time.Millisecond
+	r := newValidationDurationTestRunner(t, cfg, &cmdSleep)
+
+	seedBC := newValidationDurationBeadContext(t, 0)
+	if err := r.validationRunner.RunWithRecoveryForCommands(context.Background(), seedBC, cfg.Validation.FastCommandsOrDefault(), "fast"); err != nil {
+		t.Fatalf("seed validation run failed: %v", err)
+	}
+	if seeded := r.validationRunner.ElapsedMs(); seeded < 100 {
+		t.Fatalf("expected seeded elapsed >= 100ms, got %dms", seeded)
+	}
+
+	cmdSleep = 20 * time.Millisecond
+	if err := r.runFullValidationGate(context.Background(), "b1", 1); err != nil {
+		t.Fatalf("runFullValidationGate() error = %v", err)
+	}
+
+	if got := r.validationRunner.ElapsedMs(); got <= 0 {
+		t.Fatalf("expected elapsed > 0ms after full gate, got %dms", got)
+	} else if got >= 100 {
+		t.Fatalf("expected reset elapsed to avoid seeded carry-over; got %dms", got)
+	}
+}
+
 func TestMaybeRunPeriodicFullValidation_UsesCadenceAndFullCommands(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{
