@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
 )
 
 // BeadCreator creates beads for spec fixes.
@@ -24,19 +26,26 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []Criteri
 	limit := len(failures)
 	if limit > 5 {
 		limit = 5
+		log.Printf("specgate: capped fix bead synthesis for spec %q at 5 failures (%d remaining)", specName, len(failures)-limit)
 	}
 	label := fmt.Sprintf("spec:%s", specName)
+	createErrors := make([]error, 0)
 	for i := 0; i < limit; i++ {
 		failure := failures[i]
 		title := truncateTitle(failure.Criterion, 80)
-		id, err := creator.Create(ctx, title, failure.Evidence, priority, []string{label})
+		description := formatFailureDescription(failure)
+		id, err := creator.Create(ctx, title, description, priority, []string{label})
 		if err != nil {
-			return nil, err
+			createErrors = append(createErrors, fmt.Errorf("create bead for criterion %q: %w", failure.Criterion, err))
+			continue
 		}
 		ids = append(ids, id)
 	}
 	if ids == nil {
 		ids = []string{}
+	}
+	if len(createErrors) > 0 {
+		return ids, errors.Join(createErrors...)
 	}
 	return ids, nil
 }
@@ -50,4 +59,12 @@ func truncateTitle(title string, max int) string {
 		return title
 	}
 	return string(runes[:max])
+}
+
+func formatFailureDescription(failure CriterionResult) string {
+	parts := []string{
+		fmt.Sprintf("Criterion: %s", strings.TrimSpace(failure.Criterion)),
+		fmt.Sprintf("Evidence: %s", strings.TrimSpace(failure.Evidence)),
+	}
+	return strings.Join(parts, "\n")
 }
