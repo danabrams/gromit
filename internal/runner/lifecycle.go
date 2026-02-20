@@ -47,6 +47,7 @@ const (
 	defaultUnclearQualityFailureRootCauseText = "unresolved unclear post-recovery quality failure"
 	metricsCommitMessage                      = "chore(metrics): update process trend artifacts"
 	stateCommitMessage                        = "chore(state): update run state"
+	worktreeMergeFailureStopMode              = "stop"
 )
 
 var (
@@ -373,12 +374,12 @@ func (r *Runner) mergeInteractiveBranches() error {
 		return nil
 	}
 
-	branches, err := r.worktreeManager.PendingBranches()
+	pendingBranches, err := r.worktreeManager.PendingBranches()
 	if err != nil {
 		return r.handleMergeFailure(fmt.Errorf("list pending branches: %w", err))
 	}
 
-	for _, branch := range branches {
+	for _, branch := range pendingBranches {
 		if err := r.worktreeManager.MergeBack(branch); err != nil {
 			if err := r.handleMergeFailure(fmt.Errorf("merge back %s: %w", branch, err)); err != nil {
 				return err
@@ -393,7 +394,7 @@ func (r *Runner) handleMergeFailure(err error) error {
 	if r == nil || r.cfg == nil {
 		return err
 	}
-	if strings.EqualFold(r.cfg.Worktree.MergeFailure, "stop") {
+	if strings.EqualFold(r.cfg.Worktree.MergeFailure, worktreeMergeFailureStopMode) {
 		return err
 	}
 	r.log("Warning: merge back failed: %v", err)

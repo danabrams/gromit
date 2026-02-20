@@ -15,11 +15,7 @@ import (
 
 func TestRunnerRun_MergeInteractiveBranchesStopsOnFailure(t *testing.T) {
 	cfg := baseWorktreeMergeConfig()
-	enabled := true
-	autoMerge := true
-	cfg.Worktree.Enabled = &enabled
-	cfg.Worktree.AutoMerge = &autoMerge
-	cfg.Worktree.MergeFailure = "stop"
+	configureWorktreeMerge(cfg, true, "stop")
 
 	mockWorktrees := &mockWorktreeManager{
 		PendingBranchesFn: func() ([]string, error) {
@@ -41,11 +37,7 @@ func TestRunnerRun_MergeInteractiveBranchesStopsOnFailure(t *testing.T) {
 
 func TestRunnerRun_SkipsMergeWhenAutoMergeDisabled(t *testing.T) {
 	cfg := baseWorktreeMergeConfig()
-	enabled := true
-	autoMerge := false
-	cfg.Worktree.Enabled = &enabled
-	cfg.Worktree.AutoMerge = &autoMerge
-	cfg.Worktree.MergeFailure = "warn"
+	configureWorktreeMerge(cfg, false, "warn")
 
 	mergeCalls := 0
 	mockWorktrees := &mockWorktreeManager{
@@ -162,4 +154,11 @@ func baseWorktreeMergeConfig() *config.Config {
 	cfg.Precheck.Enabled = &precheck
 
 	return cfg
+}
+
+func configureWorktreeMerge(cfg *config.Config, autoMerge bool, mergeFailure string) {
+	enabled := true
+	cfg.Worktree.Enabled = &enabled
+	cfg.Worktree.AutoMerge = &autoMerge
+	cfg.Worktree.MergeFailure = mergeFailure
 }

@@ -12,11 +12,7 @@ import (
 // smoke-matrix: keep | rationale: Covers critical end-to-end merge-failure warning path to ensure run loop continues under configured warn mode. | destination: internal/runner/worktree_merge_acceptance_test.go:TestRunnerSmoke_WorktreeMergeModesEndToEnd
 func TestRunnerSmoke_WorktreeMergeModesEndToEnd(t *testing.T) {
 	cfg := baseWorktreeMergeConfig()
-	enabled := true
-	autoMerge := true
-	cfg.Worktree.Enabled = &enabled
-	cfg.Worktree.AutoMerge = &autoMerge
-	cfg.Worktree.MergeFailure = "warn"
+	configureWorktreeMerge(cfg, true, "warn")
 
 	branches := []string{"gromit/review-123", "gromit/retro-456"}
 	mergeCalls := []string{}
