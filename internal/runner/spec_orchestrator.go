@@ -15,6 +15,12 @@ import (
 	"github.com/danabrams/gromit/internal/runner/escalation"
 )
 
+const (
+	buildPhase                = "build"
+	specAcceptanceTestsHeader = "## Existing Spec-Level Tests"
+	gitAcceptanceTestsGlob    = ":(glob)**/*_acceptance_test.go"
+)
+
 // newSpecOrchestrator creates a SpecOrchestrator wired to the runner's dependencies.
 func newSpecOrchestrator(r *Runner) *SpecOrchestrator {
 	var (
@@ -59,6 +65,8 @@ type SpecContentLoader interface {
 type fileSpecContentLoader struct {
 	specsDir string
 }
+
+var _ SpecContentLoader = (*fileSpecContentLoader)(nil)
 
 func (l *fileSpecContentLoader) LoadSpecContent(specName string) (string, error) {
 	if l == nil {
@@ -171,14 +179,14 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 		return fmt.Errorf("loading existing acceptance tests for %s: %w", specName, err)
 	}
 
-	rules, err := o.renderer.LoadRulesForPhase("build")
+	rules, err := o.renderer.LoadRulesForPhase(buildPhase)
 	if err != nil {
 		return fmt.Errorf("loading rules: %w", err)
 	}
 
 	specForPrompt := spec
 	if strings.TrimSpace(existingTests) != "" {
-		specForPrompt = strings.TrimSpace(spec) + "\n\n## Existing Spec-Level Tests\n\n" + strings.TrimSpace(existingTests)
+		specForPrompt = strings.TrimSpace(spec) + "\n\n" + specAcceptanceTestsHeader + "\n\n" + strings.TrimSpace(existingTests)
 	}
 
 	acceptancePrompt, err := o.renderer.RenderSpecAcceptance(&prompt.SpecAcceptanceContext{
@@ -191,7 +199,7 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 
 	tier := escalation.SelectTier(o.cfg, nil)
 
-	p, modelName := o.router.Select("build", tier)
+	p, modelName := o.router.Select(buildPhase, tier)
 	if p == nil {
 		return fmt.Errorf("no provider available for spec acceptance")
 	}
@@ -199,7 +207,7 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 	result, err := p.Run(ctx, acceptancePrompt, tier)
 	if err != nil && p.IsUsageLimitError(result, err) {
 		o.router.MarkUnavailable(p.Name())
-		if fallback, fallbackModel := o.router.Select("build", tier); fallback != nil {
+		if fallback, fallbackModel := o.router.Select(buildPhase, tier); fallback != nil {
 			p = fallback
 			modelName = fallbackModel
 			result, err = p.Run(ctx, acceptancePrompt, tier)
@@ -233,7 +241,7 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 }
 
 func (o *SpecOrchestrator) commitAcceptanceTests(ctx context.Context, specName string) error {
-	_, stderr, exitCode, err := o.runArgv(ctx, "git", []string{"add", "--", ":(glob)**/*_acceptance_test.go"}, "")
+	_, stderr, exitCode, err := o.runArgv(ctx, "git", []string{"add", "--", gitAcceptanceTestsGlob}, "")
 	if err != nil {
 		return fmt.Errorf("staging acceptance tests: %w", err)
 	}
