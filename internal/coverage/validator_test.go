@@ -62,6 +62,40 @@ func TestParseSelfReport_MalformedJSON(t *testing.T) {
 	}
 }
 
+func TestParseSelfReport_SkipsUnrelatedJSON(t *testing.T) {
+	output := `prefix {"foo":"bar"} middle {"targeting": 1, "remaining": [2, 3]} suffix`
+
+	report, err := ParseSelfReport(output)
+	if err != nil {
+		t.Fatalf("ParseSelfReport() error: %v", err)
+	}
+
+	if report.Targeting != 1 {
+		t.Fatalf("Targeting = %d, want 1", report.Targeting)
+	}
+
+	if len(report.Remaining) != 2 || report.Remaining[0] != 2 || report.Remaining[1] != 3 {
+		t.Fatalf("Remaining = %v, want [2 3]", report.Remaining)
+	}
+}
+
+func TestParseSelfReport_NormalizesMissingRemaining(t *testing.T) {
+	output := `{"targeting": 4, "remaining": null}`
+
+	report, err := ParseSelfReport(output)
+	if err != nil {
+		t.Fatalf("ParseSelfReport() error: %v", err)
+	}
+
+	if report.Remaining == nil {
+		t.Fatal("Remaining = nil, want empty slice")
+	}
+
+	if len(report.Remaining) != 0 {
+		t.Fatalf("Remaining len = %d, want 0", len(report.Remaining))
+	}
+}
+
 func TestParseValidationResponse_EmbeddedJSON(t *testing.T) {
 	output := "prefix {\"covers\": false, \"reason\": \"missing assertion\"} suffix"
 
@@ -85,5 +119,22 @@ func TestParseValidationResponse_MalformedJSON(t *testing.T) {
 	_, err := ParseValidationResponse(output)
 	if err == nil {
 		t.Fatal("ParseValidationResponse() expected error, got nil")
+	}
+}
+
+func TestParseValidationResponse_SkipsUnrelatedJSON(t *testing.T) {
+	output := `start {"targeting":1,"remaining":[2]} then {"covers": true, "reason": "ok"}`
+
+	resp, err := ParseValidationResponse(output)
+	if err != nil {
+		t.Fatalf("ParseValidationResponse() error: %v", err)
+	}
+
+	if !resp.Covers {
+		t.Fatal("Covers = false, want true")
+	}
+
+	if resp.Reason != "ok" {
+		t.Fatalf("Reason = %q, want %q", resp.Reason, "ok")
 	}
 }

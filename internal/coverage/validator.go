@@ -22,8 +22,8 @@ func (s *SelfReport) normalizeNilFields() {
 	}
 }
 
-func parseEmbeddedJSON(output string, label string, dest any) error {
-	if output == "" {
+func parseEmbeddedJSON(output string, label string, expectedKeys []string, dest any) error {
+	if strings.TrimSpace(output) == "" {
 		return fmt.Errorf("%s output is empty", label)
 	}
 
@@ -43,6 +43,11 @@ func parseEmbeddedJSON(output string, label string, dest any) error {
 			continue
 		}
 
+		if !hasExpectedKeys(jsonBlock, expectedKeys) {
+			searchFrom = start + 1
+			continue
+		}
+
 		err := json.Unmarshal([]byte(jsonBlock), dest)
 		if err == nil {
 			return nil
@@ -56,6 +61,25 @@ func parseEmbeddedJSON(output string, label string, dest any) error {
 	}
 
 	return fmt.Errorf("no %s JSON block found", label)
+}
+
+func hasExpectedKeys(jsonBlock string, expectedKeys []string) bool {
+	if len(expectedKeys) == 0 {
+		return true
+	}
+
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(jsonBlock), &object); err != nil {
+		return false
+	}
+
+	for _, key := range expectedKeys {
+		if _, ok := object[key]; !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 // extractBracketedJSON finds the first balanced JSON object starting at the
@@ -109,7 +133,7 @@ func extractBracketedJSON(text string) string {
 
 func ParseSelfReport(output string) (*SelfReport, error) {
 	var report SelfReport
-	if err := parseEmbeddedJSON(output, "self report", &report); err != nil {
+	if err := parseEmbeddedJSON(output, "self report", []string{"targeting", "remaining"}, &report); err != nil {
 		return nil, err
 	}
 
@@ -120,7 +144,7 @@ func ParseSelfReport(output string) (*SelfReport, error) {
 
 func ParseValidationResponse(output string) (*ValidationResponse, error) {
 	var resp ValidationResponse
-	if err := parseEmbeddedJSON(output, "validation response", &resp); err != nil {
+	if err := parseEmbeddedJSON(output, "validation response", []string{"covers", "reason"}, &resp); err != nil {
 		return nil, err
 	}
 
