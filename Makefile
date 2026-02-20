@@ -25,7 +25,7 @@ shared-state-guard:
 	./scripts/check_shared_state_test_calls.sh
 
 test-parallel-safe-top5: shared-state-guard
-	go test ./internal/runner ./cmd/gromit ./internal/provider ./test/testutil ./internal/bead
+	./scripts/verify_top5_parallel_execution.sh
 
 test-touched:
 	./scripts/test_touched.sh

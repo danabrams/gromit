@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-02-20T17:29:49.863450361Z",
-  "total_iterations": 623,
+  "generated_at": "2026-02-20T21:18:52.325267915Z",
+  "total_iterations": 641,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 1,
-    "failure_rate": 0,
-    "first_pass_success_rate": 1,
+    "success_rate": 0.9666666666666667,
+    "failure_rate": 0.03333333333333333,
+    "first_pass_success_rate": 0.9666666666666667,
     "escalation_rate": 0,
-    "avg_duration_ms": 411578.6666666667,
-    "p95_duration_ms": 860097.5499999998,
-    "avg_validation_ms": 34.333333333333336,
-    "p95_validation_ms": 68.35,
-    "avg_cost_usd": 2.6396104749999996,
+    "avg_duration_ms": 446226.2,
+    "p95_duration_ms": 1041772.4999999993,
+    "avg_validation_ms": 37.06896551724138,
+    "p95_validation_ms": 67,
+    "avg_cost_usd": 2.7481577,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -22,30 +22,34 @@
     "by_prompt_type": [
       {
         "prompt_type": "build",
-        "invocation_count": 30,
-        "avg_estimated_tokens": 2518.133333333333
+        "invocation_count": 29,
+        "avg_estimated_tokens": 2575.1724137931033
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 66342
+        "estimated_tokens": 52229
+      },
+      {
+        "section": "spec",
+        "estimated_tokens": 13424
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 5108
+        "estimated_tokens": 4838
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 4004
+        "estimated_tokens": 4102
       },
       {
         "section": "template_static",
-        "estimated_tokens": 60
+        "estimated_tokens": 58
       },
       {
         "section": "failure_context",
-        "estimated_tokens": 30
+        "estimated_tokens": 29
       },
       {
         "section": "confirmed_learnings",
@@ -54,43 +58,80 @@
       {
         "section": "recent_learnings",
         "estimated_tokens": 0
-      },
-      {
-        "section": "spec",
-        "estimated_tokens": 0
       }
     ],
     "budget_action_frequency": {},
     "reconciliation_drift": {
-      "sample_count": 30,
-      "mean_abs_token_delta_pct": 1067.7662696911264,
-      "p95_abs_token_delta_pct": 6537.879744346692
+      "sample_count": 29,
+      "mean_abs_token_delta_pct": 1110.3010096111022,
+      "p95_abs_token_delta_pct": 7231.784921763845
     }
   },
+  "provider_metrics": [
+    {
+      "name": "claude",
+      "total_invocations": 278,
+      "successes": 197,
+      "success_rate": 0.7086330935251799,
+      "transport_failures": 0,
+      "transport_failure_rate": 0,
+      "fallbacks_triggered": 12,
+      "avg_duration_ms": 484094.5323741007,
+      "total_cost_usd": 218.24062750000002,
+      "total_input_tokens": 1552020,
+      "total_output_tokens": 638953
+    },
+    {
+      "name": "codex",
+      "total_invocations": 233,
+      "successes": 230,
+      "success_rate": 0.9871244635193133,
+      "transport_failures": 0,
+      "transport_failure_rate": 0,
+      "fallbacks_triggered": 3,
+      "avg_duration_ms": 392118.56652360514,
+      "total_cost_usd": 515.6637885000001,
+      "total_input_tokens": 305486536,
+      "total_output_tokens": 1837395
+    },
+    {
+      "name": "openai",
+      "total_invocations": 130,
+      "successes": 102,
+      "success_rate": 0.7846153846153846,
+      "transport_failures": 0,
+      "transport_failure_rate": 0,
+      "fallbacks_triggered": 8,
+      "avg_duration_ms": 887107.176923077,
+      "total_cost_usd": 0,
+      "total_input_tokens": 254216903,
+      "total_output_tokens": 1201195
+    }
+  ],
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 2.6396104749999996,
-      "mean": 1.04471576081665,
-      "std_dev": 0.7975528244618719,
-      "ucl": 3.4373742342022657,
-      "lcl": -1.347942712568966
+      "latest": 2.7481577,
+      "mean": 1.0922289901280906,
+      "std_dev": 0.8346502393350382,
+      "ucl": 3.596179708133205,
+      "lcl": -1.411721727877024
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 411578.6666666667,
-      "mean": 540128.6637886557,
-      "std_dev": 283728.5384926048,
-      "ucl": 1391314.27926647,
-      "lcl": -311056.9516891587
+      "latest": 446226.2,
+      "mean": 537686.7671976066,
+      "std_dev": 280126.84126397525,
+      "ucl": 1378067.2909895324,
+      "lcl": -302693.75659431913
     },
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 34.333333333333336,
-      "mean": 0.42649135241430586,
-      "std_dev": 3.142149852851386,
-      "ucl": 9.852940910968464,
-      "lcl": -8.999958206139851
+      "latest": 37.06896551724138,
+      "mean": 1.4339690703508998,
+      "std_dev": 6.692478833223039,
+      "ucl": 21.51140557002002,
+      "lcl": -18.643467429318218
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -103,16 +144,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.03691813804173393,
-      "std_dev": 0.05226789149931083,
-      "ucl": 0.19372181253966644,
+      "mean": 0.03588143525741067,
+      "std_dev": 0.051888487479428445,
+      "ucl": 0.191546897695696,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 1,
-      "mean": 0.5513643659711065,
-      "std_dev": 0.45284646821401836,
+      "latest": 0.9666666666666667,
+      "mean": 0.5631825273010903,
+      "std_dev": 0.45182934896065163,
       "ucl": 1,
       "lcl": 0
     },
@@ -126,18 +167,18 @@
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 1,
-      "mean": 0.8094343453674334,
-      "std_dev": 0.21525903312726258,
+      "latest": 0.9666666666666667,
+      "mean": 0.8140056118001735,
+      "std_dev": 0.2139225456303979,
       "ucl": 1,
-      "lcl": 0.16365724598564568
+      "lcl": 0.17223797490897985
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.008025682182985544,
-      "std_dev": 0.018010778443479907,
-      "ucl": 0.06205801751342526,
+      "mean": 0.007800312012480491,
+      "std_dev": 0.017805530445507603,
+      "ucl": 0.0612169033490033,
       "lcl": 0
     },
     {
@@ -152,11 +193,11 @@
   "anomalies": [
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 34.333333333333336,
-      "ucl": 9.852940910968464,
-      "lcl": -8.999958206139851,
+      "latest": 37.06896551724138,
+      "ucl": 21.51140557002002,
+      "lcl": -18.643467429318218,
       "severity": "high",
-      "message": "latest value 34.3333 is above control limits [-9.0000, 9.8529]"
+      "message": "latest value 37.0690 is above control limits [-18.6435, 21.5114]"
     }
   ]
 }
