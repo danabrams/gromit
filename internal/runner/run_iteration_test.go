@@ -12,8 +12,13 @@ import (
 	"github.com/danabrams/gromit/internal/specgate"
 )
 
+const (
+	demoSpecName  = "demo-spec"
+	demoSpecLabel = "spec:demo-spec"
+)
+
 func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
-	specsDir := writeSpecGateTestSpec(t, "demo-spec")
+	specsDir := writeSpecGateTestSpec(t, demoSpecName)
 
 	tests := []struct {
 		name              string
@@ -34,8 +39,8 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "runs when enabled scoped no open beads and cycle budget remains",
 			enabled:           true,
 			autoTrigger:       true,
-			beadLabels:        []string{"spec:demo-spec"},
-			labelFilters:      []string{"spec:demo-spec"},
+			beadLabels:        []string{demoSpecLabel},
+			labelFilters:      []string{demoSpecLabel},
 			openSpecBeads:     false,
 			maxCycles:         2,
 			initialCycles:     0,
@@ -50,7 +55,7 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			enabled:           true,
 			autoTrigger:       true,
 			beadLabels:        []string{"priority:p1"},
-			labelFilters:      []string{"spec:demo-spec"},
+			labelFilters:      []string{demoSpecLabel},
 			maxCycles:         2,
 			initialCycles:     0,
 			hasGate:           true,
@@ -63,7 +68,7 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when run is not scoped",
 			enabled:           true,
 			autoTrigger:       true,
-			beadLabels:        []string{"spec:demo-spec"},
+			beadLabels:        []string{demoSpecLabel},
 			labelFilters:      nil,
 			maxCycles:         2,
 			initialCycles:     0,
@@ -77,8 +82,8 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when auto-trigger disabled",
 			enabled:           true,
 			autoTrigger:       false,
-			beadLabels:        []string{"spec:demo-spec"},
-			labelFilters:      []string{"spec:demo-spec"},
+			beadLabels:        []string{demoSpecLabel},
+			labelFilters:      []string{demoSpecLabel},
 			maxCycles:         2,
 			initialCycles:     0,
 			hasGate:           true,
@@ -91,8 +96,8 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when spec gate disabled",
 			enabled:           false,
 			autoTrigger:       true,
-			beadLabels:        []string{"spec:demo-spec"},
-			labelFilters:      []string{"spec:demo-spec"},
+			beadLabels:        []string{demoSpecLabel},
+			labelFilters:      []string{demoSpecLabel},
 			maxCycles:         2,
 			initialCycles:     0,
 			hasGate:           true,
@@ -105,8 +110,8 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when open beads remain",
 			enabled:           true,
 			autoTrigger:       true,
-			beadLabels:        []string{"spec:demo-spec"},
-			labelFilters:      []string{"spec:demo-spec"},
+			beadLabels:        []string{demoSpecLabel},
+			labelFilters:      []string{demoSpecLabel},
 			openSpecBeads:     true,
 			maxCycles:         2,
 			initialCycles:     0,
@@ -120,8 +125,8 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when max cycles exhausted",
 			enabled:           true,
 			autoTrigger:       true,
-			beadLabels:        []string{"spec:demo-spec"},
-			labelFilters:      []string{"spec:demo-spec"},
+			beadLabels:        []string{demoSpecLabel},
+			labelFilters:      []string{demoSpecLabel},
 			maxCycles:         2,
 			initialCycles:     2,
 			hasGate:           true,
@@ -134,8 +139,8 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when gate is not wired",
 			enabled:           true,
 			autoTrigger:       true,
-			beadLabels:        []string{"spec:demo-spec"},
-			labelFilters:      []string{"spec:demo-spec"},
+			beadLabels:        []string{demoSpecLabel},
+			labelFilters:      []string{demoSpecLabel},
 			maxCycles:         2,
 			initialCycles:     0,
 			hasGate:           false,
@@ -148,8 +153,8 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when bead client is not wired",
 			enabled:           true,
 			autoTrigger:       true,
-			beadLabels:        []string{"spec:demo-spec"},
-			labelFilters:      []string{"spec:demo-spec"},
+			beadLabels:        []string{demoSpecLabel},
+			labelFilters:      []string{demoSpecLabel},
 			maxCycles:         2,
 			initialCycles:     0,
 			hasGate:           true,
@@ -186,25 +191,16 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 				r.beads = beads
 			}
 			if tt.hasGate {
-				r.specGate = &specgate.Gate{
-					RunTests: func(ctx context.Context) (string, error) {
+				r.specGate = newSpecGateStub(
+					func(ctx context.Context) (string, error) {
 						runTestsCalls++
 						return "VALIDATION_PASSED", nil
 					},
-					GetDiff: func(ctx context.Context) (string, error) {
-						return "", nil
-					},
-					RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
-						return "prompt", nil
-					},
-					InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
-						return []byte(`{"passed":true,"results":[]}`), nil
-					},
-					Model: "sonnet",
-				}
+					`{"passed":true,"results":[]}`,
+				)
 			}
 
-			st := &runLoopState{specGateCycles: map[string]int{"demo-spec": tt.initialCycles}}
+			st := &runLoopState{specGateCycles: map[string]int{demoSpecName: tt.initialCycles}}
 			b := &bead.Bead{ID: "b1", Title: "Spec bead", Labels: tt.beadLabels}
 
 			if err := r.maybeRunSpecGate(context.Background(), b, st); err != nil {
@@ -216,15 +212,15 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			if runTestsCalls != tt.wantRunTestsCalls {
 				t.Fatalf("RunTests calls = %d, want %d", runTestsCalls, tt.wantRunTestsCalls)
 			}
-			if got := st.specGateCycles["demo-spec"]; got != tt.wantCycles {
-				t.Fatalf("specGateCycles[demo-spec] = %d, want %d", got, tt.wantCycles)
+			if got := st.specGateCycles[demoSpecName]; got != tt.wantCycles {
+				t.Fatalf("specGateCycles[%s] = %d, want %d", demoSpecName, got, tt.wantCycles)
 			}
 		})
 	}
 }
 
 func TestMaybeRunSpecGate_FailedVerdictSynthesizesSpecLabeledFixBeads(t *testing.T) {
-	specsDir := writeSpecGateTestSpec(t, "demo-spec")
+	specsDir := writeSpecGateTestSpec(t, demoSpecName)
 	var createdLabels []string
 
 	beads := &mockBeadClient{
@@ -245,31 +241,22 @@ func TestMaybeRunSpecGate_FailedVerdictSynthesizesSpecLabeledFixBeads(t *testing
 			SpecGate: config.SpecGateConfig{Enabled: &enabled, AutoTrigger: &auto, MaxCycles: 2},
 		},
 		beads:        beads,
-		labelFilters: []string{"spec:demo-spec"},
-		specGate: &specgate.Gate{
-			RunTests: func(ctx context.Context) (string, error) {
+		labelFilters: []string{demoSpecLabel},
+		specGate: newSpecGateStub(
+			func(ctx context.Context) (string, error) {
 				return "tests failing", nil
 			},
-			GetDiff: func(ctx context.Context) (string, error) {
-				return "", nil
-			},
-			RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
-				return "prompt", nil
-			},
-			InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
-				return []byte(`{"passed":false,"results":[{"criterion":"works","passed":false,"evidence":"failed"}]}`), nil
-			},
-			Model: "sonnet",
-		},
+			`{"passed":false,"results":[{"criterion":"works","passed":false,"evidence":"failed"}]}`,
+		),
 	}
 
 	st := &runLoopState{specGateCycles: map[string]int{}}
-	b := &bead.Bead{ID: "b1", Title: "Spec bead", Labels: []string{"spec:demo-spec"}}
+	b := &bead.Bead{ID: "b1", Title: "Spec bead", Labels: []string{demoSpecLabel}}
 	if err := r.maybeRunSpecGate(context.Background(), b, st); err != nil {
 		t.Fatalf("maybeRunSpecGate() error: %v", err)
 	}
-	if len(createdLabels) != 1 || createdLabels[0] != "spec:demo-spec" {
-		t.Fatalf("created labels = %v, want [spec:demo-spec]", createdLabels)
+	if len(createdLabels) != 1 || createdLabels[0] != demoSpecLabel {
+		t.Fatalf("created labels = %v, want [%s]", createdLabels, demoSpecLabel)
 	}
 }
 
@@ -290,7 +277,7 @@ func TestHandleSuccessfulIteration_RunsSpecGateAfterSync(t *testing.T) {
 		},
 	}
 
-	specsDir := writeSpecGateTestSpec(t, "demo-spec")
+	specsDir := writeSpecGateTestSpec(t, demoSpecName)
 	auto := true
 	enabled := true
 	r := &Runner{
@@ -299,30 +286,21 @@ func TestHandleSuccessfulIteration_RunsSpecGateAfterSync(t *testing.T) {
 			SpecGate: config.SpecGateConfig{Enabled: &enabled, AutoTrigger: &auto, MaxCycles: 2},
 		},
 		beads:        beads,
-		labelFilters: []string{"spec:demo-spec"},
-		specGate: &specgate.Gate{
-			RunTests: func(ctx context.Context) (string, error) {
+		labelFilters: []string{demoSpecLabel},
+		specGate: newSpecGateStub(
+			func(ctx context.Context) (string, error) {
 				if !syncCalled {
 					t.Fatalf("expected sync to occur before spec gate")
 				}
 				runTestsCalls++
 				return "VALIDATION_PASSED", nil
 			},
-			GetDiff: func(ctx context.Context) (string, error) {
-				return "", nil
-			},
-			RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
-				return "prompt", nil
-			},
-			InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
-				return []byte(`{"passed":true,"results":[]}`), nil
-			},
-			Model: "sonnet",
-		},
+			`{"passed":true,"results":[]}`,
+		),
 	}
 
 	st := &runLoopState{specGateCycles: map[string]int{}}
-	b := &bead.Bead{ID: "b1", Title: "Spec bead", Labels: []string{"spec:demo-spec"}}
+	b := &bead.Bead{ID: "b1", Title: "Spec bead", Labels: []string{demoSpecLabel}}
 	result := &IterationResult{Model: "sonnet"}
 
 	if err := r.handleSuccessfulIteration(context.Background(), b, st, result, 1, time.Time{}, func(int) {}); err != nil {
@@ -343,4 +321,20 @@ func writeSpecGateTestSpec(t *testing.T, specName string) string {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 	return specsDir
+}
+
+func newSpecGateStub(runTestsFn func(ctx context.Context) (string, error), verdictJSON string) *specgate.Gate {
+	return &specgate.Gate{
+		RunTests: runTestsFn,
+		GetDiff: func(ctx context.Context) (string, error) {
+			return "", nil
+		},
+		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
+			return "prompt", nil
+		},
+		InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
+			return []byte(verdictJSON), nil
+		},
+		Model: "sonnet",
+	}
 }
