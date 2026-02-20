@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-02-20T05:08:13.460003785Z",
-  "total_iterations": 528,
+  "generated_at": "2026-02-20T05:14:01.059086017Z",
+  "total_iterations": 530,
   "window_size": 30,
   "latest_window": {
     "success_rate": 1,
     "failure_rate": 0,
     "first_pass_success_rate": 1,
     "escalation_rate": 0.03333333333333333,
-    "avg_duration_ms": 331066.43333333335,
+    "avg_duration_ms": 333277.5333333333,
     "p95_duration_ms": 853957.15,
-    "avg_cost_usd": 1.4062638333333335,
+    "avg_cost_usd": 1.4054504333333333,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -21,7 +21,7 @@
       {
         "prompt_type": "build",
         "invocation_count": 30,
-        "avg_estimated_tokens": 3046.633333333333
+        "avg_estimated_tokens": 3078.866666666667
       }
     ],
     "by_section_top_10": [
@@ -31,15 +31,15 @@
       },
       {
         "section": "spec",
-        "estimated_tokens": 7368
+        "estimated_tokens": 8160
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 5219
+        "estimated_tokens": 5274
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 3902
+        "estimated_tokens": 4022
       },
       {
         "section": "template_static",
@@ -61,26 +61,26 @@
     "budget_action_frequency": {},
     "reconciliation_drift": {
       "sample_count": 30,
-      "mean_abs_token_delta_pct": 99.30471821283977,
+      "mean_abs_token_delta_pct": 99.28238629660352,
       "p95_abs_token_delta_pct": 99.87305843377607
     }
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 1.4062638333333335,
-      "mean": 1.4135317120841655,
-      "std_dev": 1.946563317617638,
-      "ucl": 7.2532216649370795,
-      "lcl": -4.426158240768748
+      "latest": 1.4054504333333333,
+      "mean": 1.4135232774788165,
+      "std_dev": 1.9428871232428748,
+      "ucl": 7.242184647207441,
+      "lcl": -4.4151380922498085
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 331066.43333333335,
-      "mean": 575193.0442683066,
-      "std_dev": 293712.8888336803,
-      "ucl": 1456331.7107693474,
-      "lcl": -305945.62223273434
+      "latest": 333277.5333333333,
+      "mean": 574281.3127176085,
+      "std_dev": 293532.23971938546,
+      "ucl": 1454878.031875765,
+      "lcl": -306315.4064405478
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -93,16 +93,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0.03333333333333333,
-      "mean": 0.04204545454545493,
-      "std_dev": 0.05489375677807895,
-      "ucl": 0.2067267248796918,
+      "mean": 0.04201257861635259,
+      "std_dev": 0.05479268961722072,
+      "ucl": 0.20639064746801472,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "latest": 1,
-      "mean": 0.4763257575757576,
-      "std_dev": 0.4525337031292377,
+      "mean": 0.4783018867924529,
+      "std_dev": 0.4528188546799604,
       "ucl": 1,
       "lcl": 0
     },
@@ -117,17 +117,17 @@
     {
       "metric": "rolling_success_rate",
       "latest": 1,
-      "mean": 0.7808287825074085,
-      "std_dev": 0.22147966932905458,
+      "mean": 0.7816558437054938,
+      "std_dev": 0.22146945912417274,
       "ucl": 1,
-      "lcl": 0.1163897745202448
+      "lcl": 0.11724746633297556
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.0075757575757575725,
-      "std_dev": 0.018391051975790985,
-      "ucl": 0.06274891350313053,
+      "mean": 0.007547169811320751,
+      "std_dev": 0.018362195045111773,
+      "ucl": 0.06263375494665607,
       "lcl": 0
     },
     {
