@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+const llmInvocationCriterion = "LLM invocation"
+
 // RunTestsFn runs the test suite and returns its output.
 type RunTestsFn func(ctx context.Context) (string, error)
 
@@ -30,20 +32,8 @@ type Gate struct {
 
 // Run evaluates the given acceptance criteria for specName, returning a GateVerdict.
 func (g *Gate) Run(ctx context.Context, specName string, acceptanceCriteria []string) (*GateVerdict, error) {
-	if g == nil {
-		return nil, fmt.Errorf("gate is nil")
-	}
-	if g.RunTests == nil {
-		return nil, fmt.Errorf("run tests dependency is nil")
-	}
-	if g.GetDiff == nil {
-		return nil, fmt.Errorf("get diff dependency is nil")
-	}
-	if g.RenderPrompt == nil {
-		return nil, fmt.Errorf("render prompt dependency is nil")
-	}
-	if g.InvokeLLM == nil {
-		return nil, fmt.Errorf("invoke llm dependency is nil")
+	if err := g.validate(); err != nil {
+		return nil, err
 	}
 
 	testOutput, err := g.RunTests(ctx)
@@ -63,17 +53,40 @@ func (g *Gate) Run(ctx context.Context, specName string, acceptanceCriteria []st
 
 	rawVerdict, err := g.InvokeLLM(ctx, g.Model, prompt)
 	if err != nil {
-		return &GateVerdict{
-			Passed: false,
-			Results: []CriterionResult{
-				{
-					Criterion: "LLM invocation",
-					Passed:    false,
-					Evidence:  fmt.Sprintf("model %q invocation failed: %v", g.Model, err),
-				},
-			},
-		}, nil
+		return g.llmInvocationFailureVerdict(err), nil
 	}
 
 	return ParseVerdict(rawVerdict)
+}
+
+func (g *Gate) validate() error {
+	if g == nil {
+		return fmt.Errorf("gate is nil")
+	}
+	if g.RunTests == nil {
+		return fmt.Errorf("run tests dependency is nil")
+	}
+	if g.GetDiff == nil {
+		return fmt.Errorf("get diff dependency is nil")
+	}
+	if g.RenderPrompt == nil {
+		return fmt.Errorf("render prompt dependency is nil")
+	}
+	if g.InvokeLLM == nil {
+		return fmt.Errorf("invoke llm dependency is nil")
+	}
+	return nil
+}
+
+func (g *Gate) llmInvocationFailureVerdict(err error) *GateVerdict {
+	return &GateVerdict{
+		Passed: false,
+		Results: []CriterionResult{
+			{
+				Criterion: llmInvocationCriterion,
+				Passed:    false,
+				Evidence:  fmt.Sprintf("model %q invocation failed: %v", g.Model, err),
+			},
+		},
+	}
 }
