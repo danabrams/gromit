@@ -13,17 +13,16 @@ import (
 	"github.com/danabrams/gromit/internal/state"
 )
 
+const (
+	reviewRulesPhase = "review"
+	fullRulesFixture = "## Code Style <!-- phases: build, review -->\nUse go fmt\n\n## Process <!-- phases: build -->\nAlways run tests\n"
+	reviewRules      = "## Code Style\nUse go fmt\n"
+)
+
 // TestLightReviewUsesPhaseFilteredRules verifies that runLightReview passes
 // phase-filtered rules (from LoadRulesForPhase("review")) to the ReviewContext,
 // not the full unfiltered rules from LoadRules().
-//
-// Expected failure: runLightReview currently calls LoadRules() instead of
-// LoadRulesForPhase("review"), so the ReviewContext.Rules will contain the
-// full rules content rather than the review-phase-filtered content.
 func TestLightReviewUsesPhaseFilteredRules(t *testing.T) {
-	fullRules := "## Code Style <!-- phases: build, review -->\nUse go fmt\n\n## Process <!-- phases: build -->\nAlways run tests\n"
-	reviewPhaseRules := "## Code Style\nUse go fmt\n"
-
 	var capturedRules string
 
 	mockProv := &mockProviderWithRouterTracking{
@@ -40,13 +39,13 @@ func TestLightReviewUsesPhaseFilteredRules(t *testing.T) {
 
 	mockRend := &mockPromptRenderer{
 		LoadRulesFn: func() (string, error) {
-			return fullRules, nil
+			return fullRulesFixture, nil
 		},
 		LoadRulesForPhaseFn: func(phase string) (string, error) {
-			if phase == "review" {
-				return reviewPhaseRules, nil
+			if phase == reviewRulesPhase {
+				return reviewRules, nil
 			}
-			return fullRules, nil
+			return fullRulesFixture, nil
 		},
 		RenderReviewFn: func(ctx *prompt.ReviewContext) (string, error) {
 			capturedRules = ctx.Rules
@@ -74,10 +73,10 @@ func TestLightReviewUsesPhaseFilteredRules(t *testing.T) {
 
 	// The rules passed to the review context should be the phase-filtered
 	// version (excluding Process section), not the full rules.
-	if capturedRules != reviewPhaseRules {
-		t.Errorf("runLightReview passed wrong rules to ReviewContext.\ngot:  %q\nwant: %q", capturedRules, reviewPhaseRules)
+	if capturedRules != reviewRules {
+		t.Errorf("runLightReview passed wrong rules to ReviewContext.\ngot:  %q\nwant: %q", capturedRules, reviewRules)
 	}
-	if capturedRules == fullRules {
+	if capturedRules == fullRulesFixture {
 		t.Error("runLightReview passed full unfiltered rules instead of review-phase-filtered rules")
 	}
 }
@@ -85,14 +84,7 @@ func TestLightReviewUsesPhaseFilteredRules(t *testing.T) {
 // TestThoroughReviewUsesPhaseFilteredRules verifies that runThoroughReview
 // passes phase-filtered rules (from LoadRulesForPhase("review")) to the
 // ThoroughReviewContext, not the full unfiltered rules from LoadRules().
-//
-// Expected failure: runThoroughReview currently calls LoadRules() instead of
-// LoadRulesForPhase("review"), so the ThoroughReviewContext.Rules will contain
-// the full rules content rather than the review-phase-filtered content.
 func TestThoroughReviewUsesPhaseFilteredRules(t *testing.T) {
-	fullRules := "## Code Style <!-- phases: build, review -->\nUse go fmt\n\n## Process <!-- phases: build -->\nAlways run tests\n"
-	reviewPhaseRules := "## Code Style\nUse go fmt\n"
-
 	var capturedRules string
 
 	mockProv := &mockProviderWithRouterTracking{
@@ -109,13 +101,13 @@ func TestThoroughReviewUsesPhaseFilteredRules(t *testing.T) {
 
 	mockRend := &mockPromptRenderer{
 		LoadRulesFn: func() (string, error) {
-			return fullRules, nil
+			return fullRulesFixture, nil
 		},
 		LoadRulesForPhaseFn: func(phase string) (string, error) {
-			if phase == "review" {
-				return reviewPhaseRules, nil
+			if phase == reviewRulesPhase {
+				return reviewRules, nil
 			}
-			return fullRules, nil
+			return fullRulesFixture, nil
 		},
 		RenderThoroughReviewFn: func(ctx *prompt.ThoroughReviewContext) (string, error) {
 			capturedRules = ctx.Rules
@@ -157,10 +149,10 @@ func TestThoroughReviewUsesPhaseFilteredRules(t *testing.T) {
 	})
 
 	// The rules passed to the thorough review context should be phase-filtered.
-	if capturedRules != reviewPhaseRules {
-		t.Errorf("runThoroughReview passed wrong rules to ThoroughReviewContext.\ngot:  %q\nwant: %q", capturedRules, reviewPhaseRules)
+	if capturedRules != reviewRules {
+		t.Errorf("runThoroughReview passed wrong rules to ThoroughReviewContext.\ngot:  %q\nwant: %q", capturedRules, reviewRules)
 	}
-	if capturedRules == fullRules {
+	if capturedRules == fullRulesFixture {
 		t.Error("runThoroughReview passed full unfiltered rules instead of review-phase-filtered rules")
 	}
 }
@@ -168,9 +160,6 @@ func TestThoroughReviewUsesPhaseFilteredRules(t *testing.T) {
 // TestReviewInvocationsCallLoadRulesForPhaseNotLoadRules verifies that review
 // functions call LoadRulesForPhase("review") and do NOT call LoadRules().
 // This ensures the phase-filtering path is used rather than the unfiltered path.
-//
-// Expected failure: Both runLightReview and runThoroughReview currently call
-// LoadRules() rather than LoadRulesForPhase("review").
 func TestReviewInvocationsCallLoadRulesForPhaseNotLoadRules(t *testing.T) {
 	mockProv := &mockProviderWithRouterTracking{
 		name: "test-provider",
@@ -221,8 +210,8 @@ func TestReviewInvocationsCallLoadRulesForPhaseNotLoadRules(t *testing.T) {
 		if !loadRulesForPhaseCalled {
 			t.Error("runLightReview did not call LoadRulesForPhase")
 		}
-		if loadRulesForPhaseArg != "review" {
-			t.Errorf("LoadRulesForPhase called with phase %q, want %q", loadRulesForPhaseArg, "review")
+		if loadRulesForPhaseArg != reviewRulesPhase {
+			t.Errorf("LoadRulesForPhase called with phase %q, want %q", loadRulesForPhaseArg, reviewRulesPhase)
 		}
 		if loadRulesCalled {
 			t.Error("runLightReview called LoadRules() directly — should use LoadRulesForPhase(\"review\") instead")
@@ -284,8 +273,8 @@ func TestReviewInvocationsCallLoadRulesForPhaseNotLoadRules(t *testing.T) {
 		if !loadRulesForPhaseCalled {
 			t.Error("runThoroughReview did not call LoadRulesForPhase")
 		}
-		if loadRulesForPhaseArg != "review" {
-			t.Errorf("LoadRulesForPhase called with phase %q, want %q", loadRulesForPhaseArg, "review")
+		if loadRulesForPhaseArg != reviewRulesPhase {
+			t.Errorf("LoadRulesForPhase called with phase %q, want %q", loadRulesForPhaseArg, reviewRulesPhase)
 		}
 		if loadRulesCalled {
 			t.Error("runThoroughReview called LoadRules() directly — should use LoadRulesForPhase(\"review\") instead")
