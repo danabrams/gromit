@@ -193,23 +193,27 @@ type PreflightConfig struct {
 }
 
 type ClaudeConfig struct {
-	Binary             string                           `yaml:"binary"`
-	Timeout            int                              `yaml:"timeout"`
-	StallTimeout       int                              `yaml:"stall_timeout"`
-	StallTimeoutActive int                              `yaml:"stall_timeout_active"`
-	BeadTimeout        int                              `yaml:"bead_timeout"`
-	AnalysisTimeout    int                              `yaml:"analysis_timeout"`
-	Flags              []string                         `yaml:"flags"`
-	ModelTimeouts      map[string]ModelTimeoutOverrides `yaml:"model_timeouts"`
+	Binary                 string                           `yaml:"binary"`
+	Timeout                int                              `yaml:"timeout"`
+	StallTimeout           int                              `yaml:"stall_timeout"`
+	StallTimeoutActive     int                              `yaml:"stall_timeout_active"`
+	BeadTimeout            int                              `yaml:"bead_timeout"`
+	AnalysisTimeout        int                              `yaml:"analysis_timeout"`
+	MaxFailureContextChars int                              `yaml:"max_failure_context_chars"`
+	MaxInputTokensPerBead  int                              `yaml:"max_input_tokens_per_bead"`
+	Flags                  []string                         `yaml:"flags"`
+	ModelTimeouts          map[string]ModelTimeoutOverrides `yaml:"model_timeouts"`
 }
 
 // ModelTimeoutOverrides allows per-model timeout tuning.
 // Non-zero values override the corresponding top-level ClaudeConfig defaults.
 type ModelTimeoutOverrides struct {
-	Timeout            int `yaml:"timeout"`
-	StallTimeout       int `yaml:"stall_timeout"`
-	StallTimeoutActive int `yaml:"stall_timeout_active"`
-	BeadTimeout        int `yaml:"bead_timeout"`
+	Timeout                int `yaml:"timeout"`
+	StallTimeout           int `yaml:"stall_timeout"`
+	StallTimeoutActive     int `yaml:"stall_timeout_active"`
+	BeadTimeout            int `yaml:"bead_timeout"`
+	MaxFailureContextChars int `yaml:"max_failure_context_chars"`
+	MaxInputTokensPerBead  int `yaml:"max_input_tokens_per_bead"`
 }
 
 type PathsConfig struct {

@@ -254,6 +254,18 @@ func (c ClaudeConfig) TimeoutsForModel(model string) (invocationTimeout, stallTi
 	return
 }
 
+// TokenBudgetForModel returns the effective max input tokens budget for a model.
+// A non-zero per-model override takes precedence over the top-level default.
+func (c ClaudeConfig) TokenBudgetForModel(model string) int {
+	tokenBudget := c.MaxInputTokensPerBead
+
+	if overrides, ok := c.ModelTimeouts[model]; ok && overrides.MaxInputTokensPerBead > 0 {
+		tokenBudget = overrides.MaxInputTokensPerBead
+	}
+
+	return tokenBudget
+}
+
 // ShouldBlockOversized returns whether over-scoped beads should be blocked before execution (defaults to true).
 func (s ScopeCheckConfig) ShouldBlockOversized() bool {
 	if s.BlockOversized == nil {

@@ -37,6 +37,12 @@ func (c *Config) SetDefaults() {
 	if c.Claude.AnalysisTimeout == 0 {
 		c.Claude.AnalysisTimeout = 120 // 2 minutes for failure analysis
 	}
+	if c.Claude.MaxFailureContextChars == 0 {
+		c.Claude.MaxFailureContextChars = 2000
+	}
+	if c.Claude.MaxInputTokensPerBead == 0 {
+		c.Claude.MaxInputTokensPerBead = 400000
+	}
 	if c.Paths.GromitDir == "" {
 		c.Paths.GromitDir = ".gromit"
 	}

@@ -452,6 +452,43 @@ func TestStallTimeoutFromYAML(t *testing.T) {
 	}
 }
 
+func TestClaudeFailureContextAndTokenBudgetDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Claude.MaxFailureContextChars != 2000 {
+		t.Errorf("expected MaxFailureContextChars=2000, got %d", cfg.Claude.MaxFailureContextChars)
+	}
+	if cfg.Claude.MaxInputTokensPerBead != 400000 {
+		t.Errorf("expected MaxInputTokensPerBead=400000, got %d", cfg.Claude.MaxInputTokensPerBead)
+	}
+}
+
+func TestClaudeFailureContextAndTokenBudgetFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yamlContent := `
+claude:
+  max_failure_context_chars: 4096
+  max_input_tokens_per_bead: 250000
+`
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Claude.MaxFailureContextChars != 4096 {
+		t.Errorf("expected MaxFailureContextChars=4096, got %d", cfg.Claude.MaxFailureContextChars)
+	}
+	if cfg.Claude.MaxInputTokensPerBead != 250000 {
+		t.Errorf("expected MaxInputTokensPerBead=250000, got %d", cfg.Claude.MaxInputTokensPerBead)
+	}
+}
+
 func TestLoadMissingFile(t *testing.T) {
 	_, err := Load("/nonexistent/path/gromit.yaml")
 	if err == nil {
@@ -3676,6 +3713,56 @@ func TestTimeoutsForModel_ReturnsInvocationTimeout(t *testing.T) {
 	invocationTimeout, _, _, _ = cfg.TimeoutsForModel("opus")
 	if invocationTimeout != 900 {
 		t.Errorf("opus invocation timeout: got %d, want 900 (base default)", invocationTimeout)
+	}
+}
+
+func TestTokenBudgetForModel_DefaultAndOverride(t *testing.T) {
+	cfg := ClaudeConfig{
+		MaxInputTokensPerBead: 400000,
+		ModelTimeouts: map[string]ModelTimeoutOverrides{
+			"sonnet": {
+				MaxInputTokensPerBead: 200000,
+			},
+		},
+	}
+
+	if got := cfg.TokenBudgetForModel("sonnet"); got != 200000 {
+		t.Errorf("TokenBudgetForModel(sonnet) = %d, want 200000", got)
+	}
+	if got := cfg.TokenBudgetForModel("opus"); got != 400000 {
+		t.Errorf("TokenBudgetForModel(opus) = %d, want 400000", got)
+	}
+}
+
+func TestTokenBudgetForModel_LoadFromYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlContent := `
+claude:
+  max_input_tokens_per_bead: 400000
+  model_timeouts:
+    sonnet:
+      max_input_tokens_per_bead: 150000
+`
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Claude.MaxInputTokensPerBead != 400000 {
+		t.Errorf("expected top-level MaxInputTokensPerBead=400000, got %d", cfg.Claude.MaxInputTokensPerBead)
+	}
+	if got := cfg.Claude.ModelTimeouts["sonnet"].MaxInputTokensPerBead; got != 150000 {
+		t.Errorf("expected sonnet override MaxInputTokensPerBead=150000, got %d", got)
+	}
+	if got := cfg.Claude.TokenBudgetForModel("sonnet"); got != 150000 {
+		t.Errorf("TokenBudgetForModel(sonnet) = %d, want 150000", got)
+	}
+	if got := cfg.Claude.TokenBudgetForModel("opus"); got != 400000 {
+		t.Errorf("TokenBudgetForModel(opus) = %d, want 400000", got)
 	}
 }
 
