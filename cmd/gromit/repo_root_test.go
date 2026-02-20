@@ -16,17 +16,7 @@ func TestEnsureRepoRootFromSubdir(t *testing.T) {
 		t.Fatalf("create subdir: %v", err)
 	}
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	defer func() {
-		_ = os.Chdir(origDir)
-	}()
-
-	if err := os.Chdir(subdir); err != nil {
-		t.Fatalf("chdir to subdir: %v", err)
-	}
+	t.Chdir(subdir)
 
 	if err := ensureRepoRoot(); err != nil {
 		t.Fatalf("ensureRepoRoot: %v", err)

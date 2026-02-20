@@ -305,11 +305,5 @@ func setupVerifySpecTest(t *testing.T, specName string, specContent string) {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(origDir)
-	})
+	t.Chdir(tmpDir)
 }

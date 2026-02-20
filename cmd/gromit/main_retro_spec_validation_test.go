@@ -89,18 +89,14 @@ func setupRetroTestEnv(t *testing.T) (tempDir, gromitDir, specsDir string, clean
 	origSpec := retroSpecFlag
 	origEpic := retroEpicFlag
 	origConfigPath := configPath
-	origCwd, _ := os.Getwd()
 
 	// Change to temp dir so config is found
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to chdir: %v", err)
-	}
+	t.Chdir(tempDir)
 
 	cleanup = func() {
 		retroSpecFlag = origSpec
 		retroEpicFlag = origEpic
 		configPath = origConfigPath
-		os.Chdir(origCwd)
 	}
 
 	return tempDir, gromitDir, specsDir, cleanup

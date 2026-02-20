@@ -117,9 +117,7 @@ func TestStatsCmd_DisplaysProjectStats(t *testing.T) {
 	logFile.Close()
 
 	// Change to tmpDir so config loading works
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Execute stats command
 	output := captureStdout(t, func() {
@@ -208,9 +206,7 @@ func TestStatsCmd_DisplaysGlobalStats(t *testing.T) {
 	}
 
 	// Set HOME env var for test
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", homeDir)
+	t.Setenv("HOME", homeDir)
 
 	// Create gromit.yaml config
 	configPath := filepath.Join(tmpDir, "gromit.yaml")
@@ -249,9 +245,7 @@ func TestStatsCmd_DisplaysGlobalStats(t *testing.T) {
 	logFile.Close()
 
 	// Change to tmpDir so config loading works
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Execute stats command
 	output := captureStdout(t, func() {
@@ -330,9 +324,7 @@ func TestStatsCmd_JSONOutput(t *testing.T) {
 	logFile.Close()
 
 	// Change to tmpDir so config loading works
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Execute stats command with --json flag
 	output := captureStdout(t, func() {
@@ -405,9 +397,7 @@ func TestStatsCmd_JSONOutputIncludesCostPerSpec(t *testing.T) {
 	logFile.Close()
 
 	// Change to tmpDir so config loading works
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Execute stats command with --json flag
 	output := captureStdout(t, func() {
@@ -492,9 +482,7 @@ func TestStatsCmd_TDDTextOutput(t *testing.T) {
 	}
 	logFile.Close()
 
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	output := captureStdout(t, func() {
 		rootCmd.SetArgs([]string{"stats", "--tdd"})
@@ -570,9 +558,7 @@ func TestStatsCmd_TDDJSONOutputIncludesMetrics(t *testing.T) {
 	}
 	logFile.Close()
 
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	output := captureStdout(t, func() {
 		rootCmd.SetArgs([]string{"stats", "--json", "--tdd"})
@@ -662,9 +648,7 @@ func TestStatsCmd_ShowsCostPerSpecSortedByTotalCost(t *testing.T) {
 	logFile.Close()
 
 	// Change to tmpDir so config loading works
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Execute stats command
 	output := captureStdout(t, func() {
@@ -761,9 +745,7 @@ func TestStatsCmd_ShowsCostPerCompletedBead(t *testing.T) {
 	logFile.Close()
 
 	// Change to tmpDir so config loading works
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Execute stats command
 	output := captureStdout(t, func() {
@@ -798,9 +780,7 @@ func TestStatsCmd_HandlesNoGlobalStats(t *testing.T) {
 
 	// Set HOME env var to a non-existent location (no global stats)
 	homeDir := filepath.Join(tmpDir, "home")
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", homeDir)
+	t.Setenv("HOME", homeDir)
 
 	// Create gromit.yaml config
 	configPath := filepath.Join(tmpDir, "gromit.yaml")
@@ -839,9 +819,7 @@ func TestStatsCmd_HandlesNoGlobalStats(t *testing.T) {
 	logFile.Close()
 
 	// Change to tmpDir so config loading works
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Execute stats command - should not error even without global stats
 	output := captureStdout(t, func() {
@@ -945,9 +923,7 @@ func TestStatsCmd_ShowsEscalationFrequency(t *testing.T) {
 	logFile.Close()
 
 	// Change to tmpDir so config loading works
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Execute stats command
 	output := captureStdout(t, func() {
@@ -1012,9 +988,7 @@ func TestStatsCmd_ShowsIterationsAndBeadsInSpecOutput(t *testing.T) {
 	}
 	logFile.Close()
 
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	output := captureStdout(t, func() {
 		rootCmd.SetArgs([]string{"stats"})

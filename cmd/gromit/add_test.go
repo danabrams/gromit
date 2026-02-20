@@ -29,14 +29,7 @@ func TestAddCommand_MultiWordContext(t *testing.T) {
 	}
 
 	// Change to temp directory so config is found
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	t.Chdir(tmpDir)
 
 	tests := []struct {
 		name            string
@@ -138,14 +131,7 @@ func TestAddCommand_CategoryChoice(t *testing.T) {
 	}
 
 	// Change to temp directory
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	defer os.Chdir(oldDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
+	t.Chdir(tmpDir)
 
 	// Use an idea that won't auto-categorize (ambiguous)
 	ideaText := "Do something"

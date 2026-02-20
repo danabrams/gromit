@@ -27,18 +27,14 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 
 	origConfigPath := configPath
 	origRunSpec := runSpecFlag
-	origCwd, _ := os.Getwd()
 
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to chdir: %v", err)
-	}
+	t.Chdir(tempDir)
 
 	configPath = "gromit.yaml"
 
 	cleanup = func() {
 		configPath = origConfigPath
 		runSpecFlag = origRunSpec
-		os.Chdir(origCwd)
 	}
 
 	return specsDir, cleanup

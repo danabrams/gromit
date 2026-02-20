@@ -288,16 +288,7 @@ func TestNewRunnerWithDepsInitializesSpecGateWhenEnabled(t *testing.T) {
 
 func TestDeterministicPrecheckReason(t *testing.T) {
 	tmpDir := t.TempDir()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() failed: %v", err)
-	}
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Chdir() failed: %v", err)
-	}
-	defer func() {
-		_ = os.Chdir(wd)
-	}()
+	t.Chdir(tmpDir)
 
 	t.Run("missing created file", func(t *testing.T) {
 		desc := "1. Create internal/foo/new_file.go with implementation."

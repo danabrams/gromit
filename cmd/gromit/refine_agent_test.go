@@ -69,14 +69,7 @@ agents:
 	}
 
 	// Change to temp directory so config is found
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Chdir(origDir)
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
+	t.Chdir(tmpDir)
 
 	// Try to load config - this verifies the config structure is correct
 	cfg, err := config.Load(configPath)

@@ -14,14 +14,7 @@ import (
 func runInstallSkillInDir(t *testing.T, projectDir string, force bool) (string, error) {
 	t.Helper()
 
-	oldDir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	if err := os.Chdir(projectDir); err != nil {
-		return "", err
-	}
-	defer os.Chdir(oldDir)
+	t.Chdir(projectDir)
 
 	oldForce := forceInstallSkill
 	forceInstallSkill = force

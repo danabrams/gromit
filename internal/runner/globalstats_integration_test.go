@@ -26,26 +26,12 @@ func TestRun_UpdatesGlobalStatsAfterCompletion(t *testing.T) {
 
 	// Setup temp home directory for global stats
 	homeDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	originalGoPath := os.Getenv("GOPATH")
-	if err := os.Setenv("HOME", homeDir); err != nil {
-		t.Fatalf("os.Setenv HOME: %v", err)
-	}
-	goPath := originalGoPath
+	goPath := os.Getenv("GOPATH")
 	if goPath == "" {
-		goPath = filepath.Join(originalHome, "go")
+		goPath = filepath.Join(os.Getenv("HOME"), "go")
 	}
-	if err := os.Setenv("GOPATH", goPath); err != nil {
-		t.Fatalf("os.Setenv GOPATH: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", originalHome); err != nil {
-			t.Fatalf("restore HOME: %v", err)
-		}
-		if err := os.Setenv("GOPATH", originalGoPath); err != nil {
-			t.Fatalf("restore GOPATH: %v", err)
-		}
-	}()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("GOPATH", goPath)
 
 	expectedGlobalStatsPath := filepath.Join(homeDir, ".gromit", "stats.json")
 
@@ -127,26 +113,12 @@ func TestRun_UsesCurrentRunIDForModelStatsAggregation(t *testing.T) {
 	logsDir := filepath.Join(tmpDir, "logs")
 
 	homeDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	originalGoPath := os.Getenv("GOPATH")
-	if err := os.Setenv("HOME", homeDir); err != nil {
-		t.Fatalf("os.Setenv HOME: %v", err)
+	goPath2 := os.Getenv("GOPATH")
+	if goPath2 == "" {
+		goPath2 = filepath.Join(os.Getenv("HOME"), "go")
 	}
-	goPath := originalGoPath
-	if goPath == "" {
-		goPath = filepath.Join(originalHome, "go")
-	}
-	if err := os.Setenv("GOPATH", goPath); err != nil {
-		t.Fatalf("os.Setenv GOPATH: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", originalHome); err != nil {
-			t.Fatalf("restore HOME: %v", err)
-		}
-		if err := os.Setenv("GOPATH", originalGoPath); err != nil {
-			t.Fatalf("restore GOPATH: %v", err)
-		}
-	}()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("GOPATH", goPath2)
 
 	expectedGlobalStatsPath := filepath.Join(homeDir, ".gromit", "stats.json")
 
@@ -265,15 +237,7 @@ func TestRun_LogsWarningOnGlobalStatsUpdateFailure(t *testing.T) {
 
 	// Setup unwritable home directory to cause UpdateGlobalStats to fail
 	homeDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", homeDir); err != nil {
-		t.Fatalf("os.Setenv HOME: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", originalHome); err != nil {
-			t.Fatalf("restore HOME: %v", err)
-		}
-	}()
+	t.Setenv("HOME", homeDir)
 
 	gromitDir := filepath.Join(homeDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0555); err != nil { // Read-only directory
@@ -337,15 +301,7 @@ func TestRun_AccumulatesStatsFromMultipleIterations(t *testing.T) {
 	logsDir := filepath.Join(tmpDir, "logs")
 
 	homeDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", homeDir); err != nil {
-		t.Fatalf("os.Setenv HOME: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", originalHome); err != nil {
-			t.Fatalf("restore HOME: %v", err)
-		}
-	}()
+	t.Setenv("HOME", homeDir)
 
 	expectedGlobalStatsPath := filepath.Join(homeDir, ".gromit", "stats.json")
 
@@ -422,15 +378,7 @@ func TestRun_UsesUserHomeDirForGlobalStatsPath(t *testing.T) {
 	logsDir := filepath.Join(tmpDir, "logs")
 
 	homeDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", homeDir); err != nil {
-		t.Fatalf("os.Setenv HOME: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", originalHome); err != nil {
-			t.Fatalf("restore HOME: %v", err)
-		}
-	}()
+	t.Setenv("HOME", homeDir)
 
 	// Setup bead queue
 	beadQueue := []*bead.Bead{

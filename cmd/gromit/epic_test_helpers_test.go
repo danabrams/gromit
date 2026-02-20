@@ -37,14 +37,7 @@ func prependFakeTools(t *testing.T, testDir string) {
 // chdirTo changes to dir and restores the original working directory on test cleanup.
 func chdirTo(t *testing.T, dir string) {
 	t.Helper()
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	t.Cleanup(func() { os.Chdir(oldDir) })
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("failed to change directory to %s: %v", dir, err)
-	}
+	t.Chdir(dir)
 }
 
 // writeGromitConfig writes a minimal gromit.yaml to tmpDir configuring the provided path directories.
@@ -138,18 +131,7 @@ decomposed: %v
 
 		writeGromitConfig(t, tmpDir, epicsDir, specsDir, plansDir)
 
-		wd, err := os.Getwd()
-		if err != nil {
-			complexEpicStatusResult.err = fmt.Errorf("failed to get working directory: %w", err)
-			return
-		}
-		if err := os.Chdir(tmpDir); err != nil {
-			complexEpicStatusResult.err = fmt.Errorf("failed to change directory to %s: %w", tmpDir, err)
-			return
-		}
-		defer func() {
-			_ = os.Chdir(wd)
-		}()
+		t.Chdir(tmpDir)
 
 		complexEpicStatusResult.stdout, complexEpicStatusResult.stderr, complexEpicStatusResult.exitCode = runGromitCobra(t, "epic", "status", "gromit-xyz")
 	})
