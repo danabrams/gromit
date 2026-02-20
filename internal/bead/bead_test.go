@@ -920,11 +920,7 @@ func TestReadyExcludesEpics(t *testing.T) {
 
 // TestClientShowValidation tests that Show() validates bead IDs before execution
 func TestClientShowValidation(t *testing.T) {
-	c := &Client{
-		RunFn: func(args ...string) (string, error) {
-			return "", fmt.Errorf("run should not be called for invalid bead IDs")
-		},
-	}
+	c := newValidationOnlyClient()
 
 	tests := []struct {
 		name    string
@@ -975,11 +971,7 @@ func TestClientShowValidation(t *testing.T) {
 
 // TestClientCloseValidation tests that Close() validates bead IDs before execution
 func TestClientCloseValidation(t *testing.T) {
-	c := &Client{
-		RunFn: func(args ...string) (string, error) {
-			return "", fmt.Errorf("run should not be called for invalid bead IDs")
-		},
-	}
+	c := newValidationOnlyClient()
 
 	tests := []struct {
 		name string
@@ -1020,11 +1012,7 @@ func TestClientCloseValidation(t *testing.T) {
 
 // TestClientAddCommentValidation tests that AddComment() validates bead IDs
 func TestClientAddCommentValidation(t *testing.T) {
-	c := &Client{
-		RunFn: func(args ...string) (string, error) {
-			return "", fmt.Errorf("run should not be called for invalid bead IDs")
-		},
-	}
+	c := newValidationOnlyClient()
 
 	tests := []struct {
 		name    string
@@ -1111,6 +1099,14 @@ func TestClientAddComment_UsesTempFile(t *testing.T) {
 	}
 	if _, err := os.Stat(gotPath); !os.IsNotExist(err) {
 		t.Fatalf("temp file should be cleaned up, stat err=%v", err)
+	}
+}
+
+func newValidationOnlyClient() *Client {
+	return &Client{
+		RunFn: func(args ...string) (string, error) {
+			return "", fmt.Errorf("run should not be called for invalid bead IDs")
+		},
 	}
 }
 
