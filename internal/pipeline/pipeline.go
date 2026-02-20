@@ -3,7 +3,6 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -206,27 +205,15 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 
 	// Write temp file
 	tmpDir := filepath.Join(p.paths.GromitDir, "tmp")
-	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
-		return nil, fmt.Errorf("creating tmp dir: %w", err)
-	}
-
-	promptFile, err := os.CreateTemp(tmpDir, "review-prompt-*.md")
+	promptPath, cleanup, err := writeTempPromptWithPattern(tmpDir, "review-prompt-*.md", renderedPrompt)
 	if err != nil {
-		return nil, fmt.Errorf("creating temp prompt file: %w", err)
+		return nil, err
 	}
-	promptPath := promptFile.Name()
-
-	if _, err := promptFile.WriteString(renderedPrompt); err != nil {
-		promptFile.Close()
-		os.Remove(promptPath)
-		return nil, fmt.Errorf("writing prompt file: %w", err)
-	}
-	promptFile.Close()
+	defer cleanup()
 
 	// Resolve agent
 	agent, err := p.deps.AgentResolver.Resolve("review", input.AgentName, false)
 	if err != nil {
-		os.Remove(promptPath)
 		return nil, fmt.Errorf("resolving agent: %w", err)
 	}
 
@@ -234,12 +221,8 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 	// For now, we launch synchronously and return a simple session wrapper
 	// TODO: implement actual async session management
 	if err := agent.LaunchInDir(promptPath, input.LaunchDir); err != nil {
-		os.Remove(promptPath)
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}
-
-	// Clean up temp file after launch
-	os.Remove(promptPath)
 
 	// Return empty session wrapper (interactive mode has no post-processing)
 	return &ReviewSession{}, nil
