@@ -260,20 +260,21 @@ func (r *Renderer) RenderTestFix(ctx *TestFixContext) (string, error) {
 
 // RenderCoverageValidation renders the coverage validation prompt.
 func (r *Renderer) RenderCoverageValidation(ctx *CoverageValidationContext) (string, error) {
+	const coverageValidationTemplate = "PROMPT_coverage_validation.md"
 	if r != nil {
 		taskIdentity := "criterion=0"
-		planBody := ""
+		criterionAndTestCode := ""
 		if ctx != nil {
 			taskIdentity = fmt.Sprintf("criterion=%d", ctx.CriterionNumber)
-			planBody = ctx.CriterionText + "\n" + ctx.TestCode
+			criterionAndTestCode = ctx.CriterionText + "\n" + ctx.TestCode
 		}
 		r.lastDiagnostics = r.computeDiagnostics("coverage_validation", map[string]string{
 			SectionTaskIdentity:   taskIdentity,
-			SectionPlanBody:       planBody,
-			SectionTemplateStatic: "PROMPT_coverage_validation.md",
+			SectionPlanBody:       criterionAndTestCode,
+			SectionTemplateStatic: coverageValidationTemplate,
 		})
 	}
-	return r.render("PROMPT_coverage_validation.md", ctx)
+	return r.render(coverageValidationTemplate, ctx)
 }
 
 func (r *Renderer) renderBuildPrompt(promptType, templateName string, ctx *Context) (string, error) {
