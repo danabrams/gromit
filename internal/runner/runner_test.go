@@ -2126,35 +2126,73 @@ func TestRunSessionCompletion(t *testing.T) {
 }
 
 func TestRunSessionCompletion_UsesTimeoutContextForPullAndPush(t *testing.T) {
-	r, pullHasDeadline, pushHasDeadline := newSessionCompletionDeadlineProbeRunner(5)
+	r, probe := newSessionCompletionDeadlineProbeRunner(5)
 
 	if err := r.runSessionCompletion(); err != nil {
 		t.Fatalf("runSessionCompletion() error = %v", err)
 	}
-	if !*pullHasDeadline {
+	if !probe.pullHasDeadline {
 		t.Fatal("expected git pull --rebase to use a context with deadline")
 	}
-	if !*pushHasDeadline {
+	if !probe.pushHasDeadline {
 		t.Fatal("expected git push to use a context with deadline")
 	}
 }
 
 func TestRunSessionCompletion_TimeoutZeroDisablesNetworkDeadlines(t *testing.T) {
-	r, pullHasDeadline, pushHasDeadline := newSessionCompletionDeadlineProbeRunner(0)
+	r, probe := newSessionCompletionDeadlineProbeRunner(0)
 
 	if err := r.runSessionCompletion(); err != nil {
 		t.Fatalf("runSessionCompletion() error = %v", err)
 	}
-	if *pullHasDeadline {
+	if probe.pullHasDeadline {
 		t.Fatal("expected git pull --rebase to use background context when push_timeout=0")
 	}
-	if *pushHasDeadline {
+	if probe.pushHasDeadline {
 		t.Fatal("expected git push to use background context when push_timeout=0")
 	}
 }
 
-func newSessionCompletionDeadlineProbeRunner(pushTimeout int) (*Runner, *bool, *bool) {
+func TestRunSessionCompletion_LocalArtifactGitOpsUseBackgroundContext(t *testing.T) {
+	r, probe := newSessionCompletionLocalOpsDeadlineProbeRunner(60)
+
+	if err := r.runSessionCompletion(); err != nil {
+		t.Fatalf("runSessionCompletion() error = %v", err)
+	}
+	if probe.metricsStatusHasDeadline {
+		t.Fatal("expected metrics status check to use background context when push_timeout=60")
+	}
+	if probe.metricsAddHasDeadline {
+		t.Fatal("expected metrics add to use background context when push_timeout=60")
+	}
+	if probe.metricsCommitHasDeadline {
+		t.Fatal("expected metrics commit to use background context when push_timeout=60")
+	}
+	if probe.stateStatusHasDeadline {
+		t.Fatal("expected state status check to use background context when push_timeout=60")
+	}
+	if probe.stateAddHasDeadline {
+		t.Fatal("expected state add to use background context when push_timeout=60")
+	}
+	if probe.stateCommitHasDeadline {
+		t.Fatal("expected state commit to use background context when push_timeout=60")
+	}
+}
+
+type sessionCompletionDeadlineProbe struct {
+	pullHasDeadline          bool
+	pushHasDeadline          bool
+	metricsStatusHasDeadline bool
+	metricsAddHasDeadline    bool
+	metricsCommitHasDeadline bool
+	stateStatusHasDeadline   bool
+	stateAddHasDeadline      bool
+	stateCommitHasDeadline   bool
+}
+
+func newSessionCompletionDeadlineProbeRunner(pushTimeout int) (*Runner, *sessionCompletionDeadlineProbe) {
 	autoPush := true
+	probe := &sessionCompletionDeadlineProbe{}
 	r := &Runner{
 		cfg: &config.Config{
 			Git: config.GitConfig{
@@ -2166,21 +2204,59 @@ func newSessionCompletionDeadlineProbeRunner(pushTimeout int) (*Runner, *bool, *
 		output: &strings.Builder{},
 	}
 
-	var pullHasDeadline bool
-	var pushHasDeadline bool
 	r.argvRunnerFn = func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
 		if program == "git" && slices.Equal(args, sessionCompletionPullArgv) {
-			_, pullHasDeadline = ctx.Deadline()
+			_, probe.pullHasDeadline = ctx.Deadline()
 			return "", "", 0, nil
 		}
 		if program == "git" && slices.Equal(args, sessionCompletionPushArgv) {
-			_, pushHasDeadline = ctx.Deadline()
+			_, probe.pushHasDeadline = ctx.Deadline()
 			return "", "", 0, nil
 		}
 		return "", "", 0, nil
 	}
 
-	return r, &pullHasDeadline, &pushHasDeadline
+	return r, probe
+}
+
+func newSessionCompletionLocalOpsDeadlineProbeRunner(pushTimeout int) (*Runner, *sessionCompletionDeadlineProbe) {
+	r, probe := newSessionCompletionDeadlineProbeRunner(pushTimeout)
+	r.argvRunnerFn = func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+		if program != "git" {
+			return "", "", 0, nil
+		}
+
+		switch {
+		case slices.Equal(args, sessionCompletionPullArgv):
+			_, probe.pullHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		case slices.Equal(args, metricsStatusArgv):
+			_, probe.metricsStatusHasDeadline = ctx.Deadline()
+			return " M .gromit/metrics/process_trend.json\n", "", 0, nil
+		case slices.Equal(args, metricsAddArgv):
+			_, probe.metricsAddHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		case slices.Equal(args, metricsCommitArgv):
+			_, probe.metricsCommitHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		case slices.Equal(args, stateStatusArgv):
+			_, probe.stateStatusHasDeadline = ctx.Deadline()
+			return " M .gromit/state.json\n", "", 0, nil
+		case slices.Equal(args, stateAddArgv):
+			_, probe.stateAddHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		case slices.Equal(args, stateCommitArgv):
+			_, probe.stateCommitHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		case slices.Equal(args, sessionCompletionPushArgv):
+			_, probe.pushHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		default:
+			return "", "", 0, nil
+		}
+	}
+
+	return r, probe
 }
 
 func TestRunSessionCompletion_PushDeadlineExceededHonorsPushFailurePolicy(t *testing.T) {
