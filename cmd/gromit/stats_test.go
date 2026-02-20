@@ -1043,38 +1043,52 @@ func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 
 	// Reset command flags before execution
-	statsCmd.Flags().Set("json", "false")
-	statsCmd.Flags().Set("tdd", "false")
+	if err := statsCmd.Flags().Set("json", "false"); err != nil {
+		t.Fatalf("failed to reset --json flag: %v", err)
+	}
+	if err := statsCmd.Flags().Set("tdd", "false"); err != nil {
+		t.Fatalf("failed to reset --tdd flag: %v", err)
+	}
 
 	// Create a pipe to capture stdout
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("failed to create pipe: %v", err)
 	}
+	defer r.Close()
 
 	// Save original stdout and replace it
 	origStdout := os.Stdout
 	os.Stdout = w
 
 	// Capture output in a goroutine to avoid deadlock
-	done := make(chan string)
+	type captureResult struct {
+		output string
+		err    error
+	}
+	done := make(chan captureResult, 1)
 	go func() {
 		var buf strings.Builder
-		io.Copy(&buf, r)
-		done <- buf.String()
+		_, copyErr := io.Copy(&buf, r)
+		done <- captureResult{output: buf.String(), err: copyErr}
 	}()
 
 	// Run the function
 	fn()
 
 	// Close writer to signal goroutine
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Fatalf("failed to close stdout writer: %v", err)
+	}
 
 	// Restore stdout
 	os.Stdout = origStdout
 
 	// Wait for captured output
-	output := <-done
+	result := <-done
+	if result.err != nil {
+		t.Fatalf("failed to capture stdout: %v", result.err)
+	}
 
-	return output
+	return result.output
 }

@@ -99,17 +99,11 @@ func loadStatsData(cfg *config.Config) (*statsData, error) {
 
 	var tddMetrics *logger.TDDStats
 	if statsTDD {
-		if _, err := logger.ReadTDDPhaseRecords(logsDir); err != nil {
-			return nil, fmt.Errorf("reading tdd phase records: %w", err)
-		}
-		if _, err := logger.ReadTDDSummaries(logsDir); err != nil {
-			return nil, fmt.Errorf("reading tdd summaries: %w", err)
-		}
-		metrics, err := logger.AggregateTDDStats(logsDir)
+		metrics, err := loadTDDMetrics(logsDir)
 		if err != nil {
-			return nil, fmt.Errorf("aggregating tdd stats: %w", err)
+			return nil, err
 		}
-		tddMetrics = &metrics
+		tddMetrics = metrics
 	}
 
 	return &statsData{
@@ -119,6 +113,20 @@ func loadStatsData(cfg *config.Config) (*statsData, error) {
 		costPerSpec:  costPerSpec,
 		tddMetrics:   tddMetrics,
 	}, nil
+}
+
+func loadTDDMetrics(logsDir string) (*logger.TDDStats, error) {
+	if _, err := logger.ReadTDDPhaseRecords(logsDir); err != nil {
+		return nil, fmt.Errorf("reading tdd phase records: %w", err)
+	}
+	if _, err := logger.ReadTDDSummaries(logsDir); err != nil {
+		return nil, fmt.Errorf("reading tdd summaries: %w", err)
+	}
+	metrics, err := logger.AggregateTDDStats(logsDir)
+	if err != nil {
+		return nil, fmt.Errorf("aggregating tdd stats: %w", err)
+	}
+	return &metrics, nil
 }
 
 type statsJSONOutput struct {
