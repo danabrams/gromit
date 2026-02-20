@@ -123,6 +123,61 @@ func TestShouldRunRefactor(t *testing.T) {
 
 // --- RunRefactorPhase tests ---
 
+func TestApplyRefactorStreamStats_AddsCostDataOntoExistingResult(t *testing.T) {
+	cfg := newTestConfigWithEscalation()
+	exec := NewExecutor(cfg, nil, nil, nil, nil)
+
+	bc := newTestBeadContextWithTier(provider.TierMedium)
+	bc.Result.CostUSD = 1.20
+	bc.Result.InputTokens = 1000
+	bc.Result.OutputTokens = 400
+
+	stats, err := logger.NewStreamStats()
+	if err != nil {
+		t.Fatalf("NewStreamStats() failed: %v", err)
+	}
+	stats.MergeCostData(0.30, 200, 120)
+
+	exec.applyRefactorStreamStats(bc, stats)
+
+	if bc.Result.CostUSD != 1.50 {
+		t.Fatalf("CostUSD = %v, want 1.50", bc.Result.CostUSD)
+	}
+	if bc.Result.InputTokens != 1200 {
+		t.Fatalf("InputTokens = %d, want 1200", bc.Result.InputTokens)
+	}
+	if bc.Result.OutputTokens != 520 {
+		t.Fatalf("OutputTokens = %d, want 520", bc.Result.OutputTokens)
+	}
+}
+
+func TestApplyRefactorStreamStats_ZeroCostDataLeavesExistingResultUnchanged(t *testing.T) {
+	cfg := newTestConfigWithEscalation()
+	exec := NewExecutor(cfg, nil, nil, nil, nil)
+
+	bc := newTestBeadContextWithTier(provider.TierMedium)
+	bc.Result.CostUSD = 1.20
+	bc.Result.InputTokens = 1000
+	bc.Result.OutputTokens = 400
+
+	stats, err := logger.NewStreamStats()
+	if err != nil {
+		t.Fatalf("NewStreamStats() failed: %v", err)
+	}
+
+	exec.applyRefactorStreamStats(bc, stats)
+
+	if bc.Result.CostUSD != 1.20 {
+		t.Fatalf("CostUSD = %v, want 1.20", bc.Result.CostUSD)
+	}
+	if bc.Result.InputTokens != 1000 {
+		t.Fatalf("InputTokens = %d, want 1000", bc.Result.InputTokens)
+	}
+	if bc.Result.OutputTokens != 400 {
+		t.Fatalf("OutputTokens = %d, want 400", bc.Result.OutputTokens)
+	}
+}
+
 func TestRunRefactorPhase_SkipsWhenNoDiff(t *testing.T) {
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
