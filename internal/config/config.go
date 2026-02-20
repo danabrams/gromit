@@ -878,22 +878,28 @@ func (v ValidationConfig) ResolvePhaseTimeoutSeconds(beadTimeoutSeconds int) int
 // ScopeGoTestCommands scopes "go test ./..." commands to touched packages.
 // Non-go-test commands and commands without "./..." are returned unchanged.
 func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
+	const (
+		goCommand       = "go"
+		testCommand     = "test"
+		allPackagesExpr = "./..."
+	)
+
 	if len(commands) == 0 || len(touchedPackages) == 0 {
 		return commands
 	}
 
 	uniqueTouched := make([]string, 0, len(touchedPackages))
-	seen := make(map[string]bool, len(touchedPackages))
+	seen := make(map[string]struct{}, len(touchedPackages))
 	for _, pkg := range touchedPackages {
 		trimmed := strings.TrimSpace(pkg)
 		normalized := strings.Trim(strings.TrimPrefix(trimmed, "./"), "/")
-		if trimmed == "." || strings.TrimSpace(normalized) == "." {
+		if trimmed == "." || normalized == "." {
 			normalized = "."
 		}
-		if normalized == "" || seen[normalized] {
+		if _, exists := seen[normalized]; normalized == "" || exists {
 			continue
 		}
-		seen[normalized] = true
+		seen[normalized] = struct{}{}
 		uniqueTouched = append(uniqueTouched, normalized)
 	}
 
@@ -913,6 +919,7 @@ func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
 			continue
 		}
 
+		// Keep a separate backing array to avoid mutating entries while iterating collapsed.
 		filtered := make([]string, 0, len(collapsed))
 		for _, existing := range collapsed {
 			if existing == pkg || strings.HasPrefix(existing, pkg+"/") {
@@ -938,7 +945,7 @@ func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
 	scoped := make([]string, 0, len(commands))
 	for _, command := range commands {
 		fields := strings.Fields(command)
-		if len(fields) < 3 || fields[0] != "go" || fields[1] != "test" {
+		if len(fields) < 3 || fields[0] != goCommand || fields[1] != testCommand {
 			scoped = append(scoped, command)
 			continue
 		}
@@ -946,7 +953,7 @@ func ScopeGoTestCommands(commands []string, touchedPackages []string) []string {
 		replaced := false
 		rebuilt := make([]string, 0, len(fields)+len(scopedPackages))
 		for _, token := range fields {
-			if token == "./..." {
+			if token == allPackagesExpr {
 				rebuilt = append(rebuilt, scopedPackages...)
 				replaced = true
 				continue
