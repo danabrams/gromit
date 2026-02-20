@@ -58,40 +58,9 @@ Config SetDefaults() uses `if field == 0` guards for integer fields, which preve
 
 When adding fallback logic (like title-as-expected-output), define it once as a shared helper and wire all call sites through it from the start. The expected_outputs wiring shows the same pattern implemented 5 different ways across packages (expectedOutputsOrTitle helper in 2 packages, inline in 3 others), creating maintenance burden.
 
-### 2026-02-20 | Runner Sub-Package Dependency Boundary | patterns
-*Related to: code-review*
-
-The runner sub-package split correctly uses runtypes/ as the dependency-inversion boundary — no sibling sub-package imports were found in production code. Policy files in runner/policy/ (escalation, methodology, stuck, validation) all follow conventions well: compile-time checks, no sibling imports, under 500 lines, FnField pattern. The InvocationResult type consolidation from duplicated definitions into runtypes/ was the correct resolution of a prior type duplication anti-pattern.
-
-### 2026-02-20 | Git Flag Injection Prevention | conventions
-*Related to: code-review*
-
-Security hardening in git commands (validateCommitRef rejecting strings starting with -, validateBeadID, trailing -- sentinels) is good defensive practice against flag injection via user-controlled inputs like bead IDs.
-
 ---
 
 ## Archived
 
 *No longer relevant or superseded.*
-
-### 2026-02-20 | Git Command Flag Ordering | gotchas
-*Related to: code-review*
-
-Git's --grep flag takes the next positional argument as its pattern value. Placing --fixed-strings between --grep and the actual pattern causes --fixed-strings to be interpreted as the grep pattern. Always place the pattern value immediately after --grep, or use --grep=value syntax.
-
-*Archived from provisional: filtered: generic engineering advice*
-
-### 2026-02-20 | Slice Aliasing in Filter Loops | gotchas
-*Related to: code-review*
-
-Using filtered := slice[:0] to filter in-place creates a slice that aliases the same backing array. Appending to filtered while ranging over the original slice overwrites elements that are still being iterated. Use make([]string, 0, len(slice)) instead when the source slice is also the range target.
-
-*Archived from provisional: filtered: generic engineering advice*
-
-### 2026-02-20 | ParseDir File Keys Are Full Paths | gotchas
-*Related to: code-review*
-
-When using go/parser.ParseDir, pkg.Files keys are full file paths (e.g., /home/user/project/internal/foo/doc.go), not base filenames. Direct key lookups like pkg.Files["doc.go"] will never match. Must iterate files and check filepath.Base(fileName) instead.
-
-*Archived from provisional: filtered: generic engineering advice*
 

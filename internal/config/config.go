@@ -265,7 +265,8 @@ type StateConfig struct {
 }
 
 type LearningsConfig struct {
-	MaxLearningChars int `yaml:"max_learning_chars"`
+	MaxLearningChars   int  `yaml:"max_learning_chars"`
+	SkipBuildLearnings bool `yaml:"skip_build_learnings"`
 }
 
 type PromptConfig struct {

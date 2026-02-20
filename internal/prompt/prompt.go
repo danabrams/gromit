@@ -240,9 +240,10 @@ type Renderer struct {
 	rulesPath              string
 	gromitDir              string
 	learningsFile          *learnings.File
-	maxLearningChars       int // Character budget for confirmed learnings; 0 means no cap
-	budgetMaxChars         int // Total prompt budget in chars; 0 means no budget shaping
-	budgetLearningCapChars int // Learning cap used during budget shaping
+	maxLearningChars       int  // Character budget for confirmed learnings; 0 means no cap
+	skipBuildLearnings     bool // When true, omit learnings from build prompts (experiment)
+	budgetMaxChars         int  // Total prompt budget in chars; 0 means no budget shaping
+	budgetLearningCapChars int  // Learning cap used during budget shaping
 
 	// Cache fields - files are immutable during a run, so cache after first load
 	claudeMDCache   *string                       // Cached CLAUDE.md content
@@ -308,6 +309,14 @@ func (r *Renderer) SetMaxLearningChars(maxChars int) {
 		return
 	}
 	r.maxLearningChars = maxChars
+}
+
+// SetSkipBuildLearnings controls whether learnings are omitted from build prompts.
+func (r *Renderer) SetSkipBuildLearnings(skip bool) {
+	if r == nil {
+		return
+	}
+	r.skipBuildLearnings = skip
 }
 
 // SetBudgetConfig sets the prompt budget shaping configuration.
@@ -865,8 +874,8 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	}
 	ctx.Rules = rules
 
-	// Load learnings
-	if r.learningsFile != nil {
+	// Load learnings (skipped during build-learnings-pruning experiment)
+	if r.learningsFile != nil && !r.skipBuildLearnings {
 		ctx.ConfirmedLearnings = r.learningsFile.GetConfirmedFiltered(learnings.FilterOptions{
 			MaxChars: r.maxLearningChars,
 		})

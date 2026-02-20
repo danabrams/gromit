@@ -68,6 +68,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 		return nil, nil, err
 	}
 	renderer.SetMaxLearningChars(cfg.Learnings.MaxLearningChars)
+	renderer.SetSkipBuildLearnings(cfg.Learnings.SkipBuildLearnings)
 	renderer.SetBudgetConfig(cfg.Prompt.Budget.MaxChars, cfg.Prompt.Budget.LearningCapChars)
 
 	beadsClient, err := bead.NewClient()

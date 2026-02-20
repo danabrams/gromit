@@ -129,9 +129,9 @@ func TestGromitYamlDocumentsLearningsConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("has_commented_learnings_section", func(t *testing.T) {
-		if !strings.Contains(text, "# learnings:") {
-			t.Error("gromit.yaml missing commented-out learnings configuration")
+	t.Run("has_learnings_section", func(t *testing.T) {
+		if !strings.Contains(text, "learnings:") {
+			t.Error("gromit.yaml missing learnings configuration section")
 		}
 	})
 
