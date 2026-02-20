@@ -15,23 +15,13 @@ import (
 func TestRunGromitWithStdin(t *testing.T) {
 	t.Parallel()
 
-	// Create a temporary test binary that echoes stdin
-	tmpDir := t.TempDir()
-	testBinary := filepath.Join(tmpDir, "test-echo")
-
-	// Write a simple script that echoes stdin and exits with the first arg as exit code
-	scriptContent := `#!/bin/bash
+	testScriptContent := `#!/bin/bash
 cat
 exit ${1:-0}
 `
-	if err := os.WriteFile(testBinary, []byte(scriptContent), 0755); err != nil {
-		t.Fatalf("Failed to create test binary: %v", err)
-	}
-
 	tests := []struct {
 		name         string
-		binary       string
-		dir          string
+		useTmpDir    bool
 		environ      []string
 		stdin        string
 		args         []string
@@ -41,8 +31,7 @@ exit ${1:-0}
 	}{
 		{
 			name:         "basic stdin echo",
-			binary:       testBinary,
-			dir:          "",
+			useTmpDir:    false,
 			environ:      nil,
 			stdin:        "hello world\n",
 			args:         []string{"0"},
@@ -52,8 +41,7 @@ exit ${1:-0}
 		},
 		{
 			name:         "non-zero exit code",
-			binary:       testBinary,
-			dir:          "",
+			useTmpDir:    false,
 			environ:      nil,
 			stdin:        "test input\n",
 			args:         []string{"42"},
@@ -63,8 +51,7 @@ exit ${1:-0}
 		},
 		{
 			name:         "empty stdin",
-			binary:       testBinary,
-			dir:          "",
+			useTmpDir:    false,
 			environ:      nil,
 			stdin:        "",
 			args:         []string{"0"},
@@ -74,8 +61,7 @@ exit ${1:-0}
 		},
 		{
 			name:         "with dir set",
-			binary:       testBinary,
-			dir:          tmpDir,
+			useTmpDir:    true,
 			environ:      nil,
 			stdin:        "test\n",
 			args:         []string{"0"},
@@ -85,8 +71,7 @@ exit ${1:-0}
 		},
 		{
 			name:         "with environ set",
-			binary:       testBinary,
-			dir:          "",
+			useTmpDir:    false,
 			environ:      []string{"FOO=bar"},
 			stdin:        "test\n",
 			args:         []string{"0"},
@@ -96,8 +81,7 @@ exit ${1:-0}
 		},
 		{
 			name:         "nonexistent binary",
-			binary:       "/nonexistent/binary",
-			dir:          "",
+			useTmpDir:    false,
 			environ:      nil,
 			stdin:        "test\n",
 			args:         []string{},
@@ -112,7 +96,17 @@ exit ${1:-0}
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			stdout, stderr, exitCode, err := RunGromitWithStdin(tt.binary, tt.dir, tt.environ, tt.stdin, tt.args...)
+			tmpDir := t.TempDir()
+			testBinary := createTempShellScript(t, tmpDir, "test-echo", testScriptContent)
+			if tt.name == "nonexistent binary" {
+				testBinary = filepath.Join(tmpDir, "missing-binary")
+			}
+			dir := ""
+			if tt.useTmpDir {
+				dir = tmpDir
+			}
+
+			stdout, stderr, exitCode, err := RunGromitWithStdin(testBinary, dir, tt.environ, tt.stdin, tt.args...)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("RunGromitWithStdin() error = %v, wantErr %v", err, tt.wantErr)
@@ -134,6 +128,16 @@ exit ${1:-0}
 			}
 		})
 	}
+}
+
+func createTempShellScript(t *testing.T, dir, name, content string) string {
+	t.Helper()
+
+	scriptPath := filepath.Join(dir, name)
+	if err := os.WriteFile(scriptPath, []byte(content), 0755); err != nil {
+		t.Fatalf("failed to create test shell script %s: %v", scriptPath, err)
+	}
+	return scriptPath
 }
 
 func TestRunGromitWithStdin_EmptyDirNotSet(t *testing.T) {

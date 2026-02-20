@@ -16,9 +16,9 @@ import (
 // file contains only true StreamRun end-to-end behavior and excludes internal
 // event parsing/wiring tests.
 func TestProviderAcceptanceSurfaceOnlyStreamingE2E(t *testing.T) {
-	AssertProviderAcceptanceReclassificationImplemented(t)
+	repoRoot := AssertProviderAcceptanceReclassificationImplemented(t)
 
-	acceptancePath := filepath.Join("internal", "provider", "codex_streaming_acceptance_test.go")
+	acceptancePath := filepath.Join(repoRoot, "internal", "provider", "codex_streaming_acceptance_test.go")
 	src, err := os.ReadFile(acceptancePath)
 	if err != nil {
 		t.Fatalf("read %s: %v", acceptancePath, err)
@@ -52,9 +52,10 @@ func TestProviderAcceptanceSurfaceOnlyStreamingE2E(t *testing.T) {
 // TestProviderReclassifiedBehaviorRunsInUnitSuite verifies internal parsing and
 // wiring behavior tests are visible under normal go test (without acceptance tag).
 func TestProviderReclassifiedBehaviorRunsInUnitSuite(t *testing.T) {
-	AssertProviderAcceptanceReclassificationImplemented(t)
+	repoRoot := AssertProviderAcceptanceReclassificationImplemented(t)
 
 	cmd := exec.Command("go", "test", "-list", "TestProcessCodexStream", "./internal/provider")
+	cmd.Dir = repoRoot
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -78,16 +79,16 @@ func TestProviderReclassifiedBehaviorRunsInUnitSuite(t *testing.T) {
 // TestProviderAcceptanceSuiteHasReducedFootprint verifies acceptance-tag runs in
 // internal/provider are reduced to a slim E2E surface.
 func TestProviderAcceptanceSuiteHasReducedFootprint(t *testing.T) {
-	AssertProviderAcceptanceReclassificationImplemented(t)
+	repoRoot := AssertProviderAcceptanceReclassificationImplemented(t)
 
 	maxAllowed := codexProviderAcceptanceMaxTests
 
-	baseline, err := listProviderTests(t, false)
+	baseline, err := listProviderTests(t, repoRoot, false)
 	if err != nil {
 		t.Fatalf("list baseline unit tests: %v", err)
 	}
 
-	withAcceptance, err := listProviderTests(t, true)
+	withAcceptance, err := listProviderTests(t, repoRoot, true)
 	if err != nil {
 		t.Fatalf("list acceptance-tag test set: %v", err)
 	}
@@ -102,7 +103,7 @@ func TestProviderAcceptanceSuiteHasReducedFootprint(t *testing.T) {
 	}
 }
 
-func listProviderTests(t *testing.T, withAcceptance bool) ([]string, error) {
+func listProviderTests(t *testing.T, repoRoot string, withAcceptance bool) ([]string, error) {
 	t.Helper()
 
 	args := []string{"test", "-list", "^Test"}
@@ -112,6 +113,7 @@ func listProviderTests(t *testing.T, withAcceptance bool) ([]string, error) {
 	args = append(args, "./internal/provider")
 
 	cmd := exec.Command("go", args...)
+	cmd.Dir = repoRoot
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out

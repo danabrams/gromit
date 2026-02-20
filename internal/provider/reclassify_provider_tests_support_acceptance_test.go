@@ -10,7 +10,7 @@ import (
 
 const codexProviderAcceptanceMaxTests = 15
 
-func AssertProviderAcceptanceReclassificationImplemented(t *testing.T) {
+func AssertProviderAcceptanceReclassificationImplemented(t *testing.T) string {
 	t.Helper()
 
 	wd, err := os.Getwd()
@@ -20,10 +20,7 @@ func AssertProviderAcceptanceReclassificationImplemented(t *testing.T) {
 	dir := wd
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			if chdirErr := os.Chdir(dir); chdirErr != nil {
-				t.Fatalf("chdir to repo root: %v", chdirErr)
-			}
-			return
+			return dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

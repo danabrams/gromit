@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"io"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -200,6 +201,7 @@ func TestEventHandlerSignature(t *testing.T) {
 func TestToolCallHandlerSignature(t *testing.T) {
 	eventReceived := false
 	var capturedEvent ToolEvent
+	scriptPath := filepath.Join(t.TempDir(), "script.sh")
 
 	var handler ToolCallHandler = func(event ToolEvent) {
 		eventReceived = true
@@ -208,7 +210,7 @@ func TestToolCallHandlerSignature(t *testing.T) {
 
 	testEvent := ToolEvent{
 		ToolName:  "bash",
-		FilePath:  "/tmp/script.sh",
+		FilePath:  scriptPath,
 		Timestamp: time.Now(),
 	}
 
@@ -221,8 +223,8 @@ func TestToolCallHandlerSignature(t *testing.T) {
 	if capturedEvent.ToolName != "bash" {
 		t.Errorf("ToolCallHandler captured ToolName = %q, want %q", capturedEvent.ToolName, "bash")
 	}
-	if capturedEvent.FilePath != "/tmp/script.sh" {
-		t.Errorf("ToolCallHandler captured FilePath = %q, want %q", capturedEvent.FilePath, "/tmp/script.sh")
+	if capturedEvent.FilePath != scriptPath {
+		t.Errorf("ToolCallHandler captured FilePath = %q, want %q", capturedEvent.FilePath, scriptPath)
 	}
 }
 
@@ -246,7 +248,7 @@ func TestProviderMethodSignatures(t *testing.T) {
 	_, _ = impl.StreamRun(ctx, "prompt", TierHigh, output, handler, toolHandler)
 
 	// Verify RunValidation(ctx, commands, tier, workDir) (*Result, error)
-	_, _ = impl.RunValidation(ctx, []string{"test"}, TierLow, "/tmp")
+	_, _ = impl.RunValidation(ctx, []string{"test"}, TierLow, t.TempDir())
 
 	// Verify IsUsageLimitError(result, err) bool
 	_ = impl.IsUsageLimitError(&Result{}, nil)

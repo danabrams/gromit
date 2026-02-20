@@ -29,7 +29,7 @@ exit 0
 
 	ctx := context.Background()
 	commands := []string{"go test", "go vet"}
-	workDir := "/tmp/test"
+	workDir := t.TempDir()
 
 	result, err := cp.RunValidation(ctx, commands, TierLow, workDir)
 

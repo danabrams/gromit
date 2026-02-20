@@ -171,10 +171,11 @@ func TestClaudeProviderRunValidationMethodSignature(t *testing.T) {
 	cp := &ClaudeProvider{}
 
 	commands := []string{"go test ./..."}
+	workDir := t.TempDir()
 
 	// Verify we can call RunValidation() with the expected signature
 	// We expect it to fail since client is nil, but the method should exist
-	_, err := cp.RunValidation(nil, commands, TierLow, "/tmp")
+	_, err := cp.RunValidation(nil, commands, TierLow, workDir)
 
 	// We expect an error (nil client), but the method signature should be correct
 	if err == nil {
