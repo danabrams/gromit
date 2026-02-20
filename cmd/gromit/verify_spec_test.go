@@ -36,6 +36,16 @@ func TestVerifySpecCmd_Flags(t *testing.T) {
 	}
 }
 
+func TestVerifySpecCmd_ArgParsing(t *testing.T) {
+	_, stderr, exitCode := runGromitCobra(t, "verify-spec")
+	if exitCode != 1 {
+		t.Fatalf("exit code = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr, "accepts 1 arg(s), received 0") {
+		t.Fatalf("stderr = %q, want argument count error", stderr)
+	}
+}
+
 func TestExtractAcceptanceCriteria(t *testing.T) {
 	body := `# Title
 
@@ -67,6 +77,49 @@ func TestExtractAcceptanceCriteria(t *testing.T) {
 	}
 }
 
+func TestVerifySpecCmd_OutputTableFormat(t *testing.T) {
+	specContent := `---
+id: my-spec
+---
+
+# My Spec
+
+## Acceptance Criteria
+
+- First criterion
+- Second criterion
+`
+	setupVerifySpecTest(t, "my-spec", specContent)
+
+	prevRunner := verifySpecGateRunner
+	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
+		return &specgate.GateVerdict{
+			Passed: true,
+			Results: []specgate.CriterionResult{
+				{Criterion: "First criterion", Passed: true, Evidence: "covered by unit tests"},
+				{Criterion: "Second criterion", Passed: false, Evidence: "missing assertion"},
+			},
+		}, nil
+	}
+	t.Cleanup(func() {
+		verifySpecGateRunner = prevRunner
+	})
+
+	stdout, stderr, exitCode := runGromitCobra(t, "verify-spec", "my-spec")
+	if exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0 (stderr: %s)", exitCode, stderr)
+	}
+	if !strings.Contains(stdout, "CRITERION") || !strings.Contains(stdout, "STATUS") || !strings.Contains(stdout, "EVIDENCE") {
+		t.Fatalf("stdout missing table header columns, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "First criterion") || !strings.Contains(stdout, "PASS") || !strings.Contains(stdout, "covered by unit tests") {
+		t.Fatalf("stdout missing PASS row details, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "Second criterion") || !strings.Contains(stdout, "FAIL") || !strings.Contains(stdout, "missing assertion") {
+		t.Fatalf("stdout missing FAIL row details, got: %q", stdout)
+	}
+}
+
 func TestRunVerifySpec_PassReturnsNil(t *testing.T) {
 	specContent := `---
 id: my-spec
@@ -89,7 +142,7 @@ id: my-spec
 			t.Fatalf("criteria = %v, want [First criterion]", criteria)
 		}
 		return &specgate.GateVerdict{
-			Passed: true,
+			Passed:  true,
 			Results: []specgate.CriterionResult{{Criterion: "First criterion", Passed: true, Evidence: "ok"}},
 		}, nil
 	}
@@ -100,6 +153,50 @@ id: my-spec
 	verifySpecCreateBeads = false
 	if err := runVerifySpec(verifySpecCmd, []string{"my-spec"}); err != nil {
 		t.Fatalf("runVerifySpec returned error: %v", err)
+	}
+}
+
+func TestVerifySpecCmd_ExitCodePassAndFail(t *testing.T) {
+	specContent := `---
+id: my-spec
+---
+
+# My Spec
+
+## Acceptance Criteria
+
+- First criterion
+`
+	setupVerifySpecTest(t, "my-spec", specContent)
+
+	prevRunner := verifySpecGateRunner
+	t.Cleanup(func() {
+		verifySpecGateRunner = prevRunner
+	})
+
+	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
+		return &specgate.GateVerdict{
+			Passed:  true,
+			Results: []specgate.CriterionResult{{Criterion: "First criterion", Passed: true, Evidence: "ok"}},
+		}, nil
+	}
+	_, stderr, exitCode := runGromitCobra(t, "verify-spec", "my-spec")
+	if exitCode != 0 {
+		t.Fatalf("pass case exit code = %d, want 0 (stderr: %s)", exitCode, stderr)
+	}
+
+	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
+		return &specgate.GateVerdict{
+			Passed:  false,
+			Results: []specgate.CriterionResult{{Criterion: "First criterion", Passed: false, Evidence: "missing"}},
+		}, nil
+	}
+	_, stderr, exitCode = runGromitCobra(t, "verify-spec", "my-spec")
+	if exitCode != 1 {
+		t.Fatalf("fail case exit code = %d, want 1 (stderr: %s)", exitCode, stderr)
+	}
+	if !strings.Contains(stderr, "spec gate failed") {
+		t.Fatalf("stderr = %q, want spec gate failed", stderr)
 	}
 }
 
@@ -119,18 +216,18 @@ id: my-spec
 	prevRunner := verifySpecGateRunner
 	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
 		return &specgate.GateVerdict{
-			Passed: false,
+			Passed:  false,
 			Results: []specgate.CriterionResult{{Criterion: "First criterion", Passed: false, Evidence: "missing"}},
 		}, nil
 	}
 	prevCreate := verifySpecFixBeadsFn
 	called := false
-	verifySpecFixBeadsFn = func(ctx context.Context, specName string, verdict *specgate.GateVerdict) error {
+	verifySpecFixBeadsFn = func(ctx context.Context, specName string, verdict *specgate.GateVerdict) ([]string, error) {
 		called = true
-		return nil
+		return []string{"gromit-123"}, nil
 	}
 	verifySpecCreateBeads = true
-	
+
 	t.Cleanup(func() {
 		verifySpecGateRunner = prevRunner
 		verifySpecFixBeadsFn = prevCreate
@@ -142,6 +239,46 @@ id: my-spec
 	}
 	if !called {
 		t.Fatal("expected fix beads creation on failure")
+	}
+}
+
+func TestVerifySpecCmd_CreateBeadsPrintsIDs(t *testing.T) {
+	specContent := `---
+id: my-spec
+---
+
+# My Spec
+
+## Acceptance Criteria
+
+- First criterion
+`
+	setupVerifySpecTest(t, "my-spec", specContent)
+
+	prevRunner := verifySpecGateRunner
+	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
+		return &specgate.GateVerdict{
+			Passed:  false,
+			Results: []specgate.CriterionResult{{Criterion: "First criterion", Passed: false, Evidence: "missing"}},
+		}, nil
+	}
+	prevCreate := verifySpecFixBeadsFn
+	verifySpecFixBeadsFn = func(ctx context.Context, specName string, verdict *specgate.GateVerdict) ([]string, error) {
+		return []string{"gromit-a", "gromit-b"}, nil
+	}
+
+	t.Cleanup(func() {
+		verifySpecGateRunner = prevRunner
+		verifySpecFixBeadsFn = prevCreate
+		verifySpecCreateBeads = false
+	})
+
+	stdout, _, exitCode := runGromitCobra(t, "verify-spec", "my-spec", "--create-beads")
+	if exitCode != 1 {
+		t.Fatalf("exit code = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stdout, "Created fix beads: gromit-a, gromit-b") {
+		t.Fatalf("stdout = %q, want created bead IDs", stdout)
 	}
 }
 

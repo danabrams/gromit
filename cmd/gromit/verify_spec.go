@@ -76,8 +76,12 @@ func runVerifySpec(cmd *cobra.Command, args []string) error {
 	}
 
 	if verifySpecCreateBeads {
-		if err := verifySpecFixBeadsFn(ctx, specName, verdict); err != nil {
+		createdIDs, err := verifySpecFixBeadsFn(ctx, specName, verdict)
+		if err != nil {
 			return fmt.Errorf("creating fix beads: %w", err)
+		}
+		if len(createdIDs) > 0 {
+			fmt.Printf("Created fix beads: %s\n", strings.Join(createdIDs, ", "))
 		}
 	}
 
@@ -159,13 +163,13 @@ func printSpecGateVerdict(verdict *specgate.GateVerdict) {
 	}
 
 	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(writer, "RESULT\tCRITERION\tEVIDENCE")
+	fmt.Fprintln(writer, "CRITERION\tSTATUS\tEVIDENCE")
 	for _, result := range verdict.Results {
 		status := "PASS"
 		if !result.Passed {
 			status = "FAIL"
 		}
-		fmt.Fprintf(writer, "%s\t%s\t%s\n", status, result.Criterion, result.Evidence)
+		fmt.Fprintf(writer, "%s\t%s\t%s\n", result.Criterion, status, result.Evidence)
 	}
 	_ = writer.Flush()
 }
@@ -393,22 +397,21 @@ func parseVerifySpecFallbackCooldown(cfg *config.Config) time.Duration {
 	return cooldown
 }
 
-func createSpecGateFixBeads(ctx context.Context, specName string, verdict *specgate.GateVerdict) error {
+func createSpecGateFixBeads(ctx context.Context, specName string, verdict *specgate.GateVerdict) ([]string, error) {
 	if verdict == nil {
-		return nil
+		return []string{}, nil
 	}
 	failures := verdict.FailedCriteria()
 	if len(failures) == 0 {
-		return nil
+		return []string{}, nil
 	}
 
 	creator, err := newSpecGateBeadCreator()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = specgate.SynthesizeFixBeads(ctx, specName, failures, "P1", creator)
-	return err
+	return specgate.SynthesizeFixBeads(ctx, specName, failures, "P1", creator)
 }
 
 type specGateBeadCreator struct {
