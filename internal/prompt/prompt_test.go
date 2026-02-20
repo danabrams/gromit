@@ -1657,7 +1657,7 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 
 	wantStrs := []string{
 		"GateVerdict",
-		"Every response must conform to the GateVerdict schema at the schema level.",
+		"Every response must conform to the `GateVerdict` schema at the schema level.",
 		"exactly matches the GateVerdict schema",
 		"All required keys must be present",
 		"Any omission of required keys, type mismatches, structural changes, or extra fields is invalid.",
@@ -1721,22 +1721,25 @@ func TestRenderSpecGateRealTemplateIncludesExampleOutput(t *testing.T) {
 	}
 }
 
-func TestRenderSpecGateRealTemplateEmptyOptionalFieldsOmitSections(t *testing.T) {
+func TestRenderSpecGateRealTemplateEmptyOptionalFieldsRenderPlaceholders(t *testing.T) {
 	result := renderSpecGateRealTemplate(t, newMinimalSpecGateRealTemplateContext())
 
 	if !strings.Contains(result, "Must return 200") {
 		t.Error("expected spec criteria in rendered output")
 	}
 
-	absentSections := []string{
+	wantSections := []string{
 		"## Test Output",
-		"## Failure Output",
 		"## Cumulative Diff",
 		"## Acceptance Criteria",
+		"TestOutput:",
+		"CumulativeDiff:",
+		"AcceptanceCriteria:",
+		"[none]",
 	}
-	for _, section := range absentSections {
-		if strings.Contains(result, section) {
-			t.Errorf("expected empty field section %q to be omitted from output\ngot:\n%s", section, result)
+	for _, section := range wantSections {
+		if !strings.Contains(result, section) {
+			t.Errorf("expected empty field section %q to be rendered with placeholder\ngot:\n%s", section, result)
 		}
 	}
 }

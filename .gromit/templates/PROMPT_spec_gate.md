@@ -2,11 +2,13 @@
 
 You are verifying whether the implementation satisfies the specification acceptance criteria.
 
-{{if .AcceptanceCriteria}}
 ## Acceptance Criteria
 
 AcceptanceCriteria:
+{{if .AcceptanceCriteria}}
 {{.AcceptanceCriteria}}
+{{else}}
+[none]
 {{end}}
 
 {{if .SpecCriteria}}
@@ -15,14 +17,16 @@ AcceptanceCriteria:
 {{.SpecCriteria}}
 {{end}}
 
-{{if .TestOutput}}
 ## Test Output
 
 TestOutput:
 ```
+{{if .TestOutput}}
 {{.TestOutput}}
-```
+{{else}}
+[none]
 {{end}}
+```
 
 {{if .FailureOutput}}
 ## Failure Output
@@ -32,29 +36,29 @@ TestOutput:
 ```
 {{end}}
 
-{{if .CumulativeDiff}}
 ## Cumulative Diff
 
 CumulativeDiff:
 ```diff
+{{if .CumulativeDiff}}
 {{.CumulativeDiff}}
-```
+{{else}}
+[none]
 {{end}}
+```
 
 ## Instructions
 
 1. Compare the test output and diff against the acceptance criteria
 2. For each criterion, determine whether it passes or fails based on the evidence
 3. Set `passed` to true only when all criteria pass
+4. Return your result using the `GateVerdict` response contract
 
-## Output
+## GateVerdict Response Contract
 
-### Response Contract
-
-The model must follow the `GateVerdict` contract.
+The model **must** follow the `GateVerdict` response contract.
 `GateVerdict` is the only response contract to follow. Do not use any other format or response contract.
-Every response must conform to the GateVerdict schema at the schema level.
-
+Every response must conform to the `GateVerdict` schema at the schema level.
 Respond with a JSON object that exactly matches the GateVerdict schema. Include every required field with the exact field names and value types, and include no additional fields.
 All required keys must be present. Preserve the required GateVerdict structure and nesting exactly.
 Any omission of required keys, type mismatches, structural changes, or extra fields is invalid.
