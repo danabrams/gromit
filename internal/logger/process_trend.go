@@ -18,6 +18,14 @@ import (
 const (
 	defaultTrendWindowSize         = 30
 	promptSectionTopLimit          = 10
+	controlLimitSigmaMultiplier    = 3
+	highSeveritySigmaThreshold     = 4
+	anomalySeverityModerate        = "moderate"
+	anomalySeverityHigh            = "high"
+	anomalyDirectionAbove          = "above"
+	anomalyDirectionBelow          = "below"
+	iterationMetricsFilename       = "iteration_metrics.jsonl"
+	processTrendFilename           = "process_trend.json"
 	metricRollingSuccessRate       = "rolling_success_rate"
 	metricRollingFirstPassSuccess  = "rolling_first_pass_success_rate"
 	metricRollingEscalationRate    = "rolling_escalation_rate"
@@ -419,8 +427,8 @@ func computeControlLimit(metric string, values []float64) TrendControlLimit {
 		latest = values[len(values)-1]
 	}
 	mean, stddev := meanAndStdDev(values)
-	ucl := mean + 3*stddev
-	lcl := mean - 3*stddev
+	ucl := mean + controlLimitSigmaMultiplier*stddev
+	lcl := mean - controlLimitSigmaMultiplier*stddev
 
 	if isRateMetric(metric) {
 		ucl = clamp(ucl, 0, 1)
@@ -442,19 +450,19 @@ func detectAnomaly(limit TrendControlLimit) (TrendAnomaly, bool) {
 		return TrendAnomaly{}, false
 	}
 
-	severity := "moderate"
+	severity := anomalySeverityModerate
 	if limit.StdDev == 0 {
-		severity = "high"
+		severity = anomalySeverityHigh
 	} else {
 		distance := math.Abs(limit.Latest-limit.Mean) / limit.StdDev
-		if distance >= 4 {
-			severity = "high"
+		if distance >= highSeveritySigmaThreshold {
+			severity = anomalySeverityHigh
 		}
 	}
 
-	dir := "above"
+	dir := anomalyDirectionAbove
 	if limit.Latest < limit.LCL {
-		dir = "below"
+		dir = anomalyDirectionBelow
 	}
 	return TrendAnomaly{
 		Metric:   limit.Metric,
@@ -479,7 +487,7 @@ func writeIterationMetrics(metricsDir string, metrics []IterationMetric) error {
 		}
 	}
 
-	target := filepath.Join(metricsDir, "iteration_metrics.jsonl")
+	target := filepath.Join(metricsDir, iterationMetricsFilename)
 	return writeAtomic(target, buf.Bytes())
 }
 
@@ -496,7 +504,7 @@ func writeProcessTrend(metricsDir string, trend *ProcessTrend) error {
 		return fmt.Errorf("marshalling process trend: %w", err)
 	}
 
-	target := filepath.Join(metricsDir, "process_trend.json")
+	target := filepath.Join(metricsDir, processTrendFilename)
 	return writeAtomic(target, data)
 }
 
