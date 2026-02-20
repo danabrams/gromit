@@ -114,6 +114,47 @@ func TestBuildIterationMetrics_CopiesTokenCounts(t *testing.T) {
 	}
 }
 
+func TestBuildIterationMetrics_CopiesValidationDurationAndRollingStats(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Timestamp:            time.Now(),
+			Iteration:            1,
+			BeadID:               "bead-val-1",
+			Model:                "gpt-4",
+			Success:              true,
+			ValidationDurationMs: 100,
+		},
+		{
+			Timestamp:            time.Now().Add(time.Second),
+			Iteration:            2,
+			BeadID:               "bead-val-2",
+			Model:                "gpt-4",
+			Success:              true,
+			ValidationDurationMs: 0,
+		},
+		{
+			Timestamp:            time.Now().Add(2 * time.Second),
+			Iteration:            3,
+			BeadID:               "bead-val-3",
+			Model:                "gpt-4",
+			Success:              true,
+			ValidationDurationMs: 300,
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 3)
+	if len(metrics) != 3 {
+		t.Fatalf("len(metrics) = %d, want 3", len(metrics))
+	}
+
+	last := metrics[2]
+	if last.ValidationDurationMs != 300 {
+		t.Errorf("ValidationDurationMs = %d, want 300", last.ValidationDurationMs)
+	}
+	assertFloatNear(t, last.RollingAvgValidationMs, 200, "RollingAvgValidationMs")
+	assertFloatNear(t, last.RollingP95ValidationMs, 290, "RollingP95ValidationMs")
+}
+
 func TestBuildIterationMetrics_CopiesPromptDiagnostics(t *testing.T) {
 	entries := []IterationLog{
 		{
@@ -182,6 +223,18 @@ func TestSummarizeWindow_MixedPhaseRates(t *testing.T) {
 	assertFloatNear(t, summary.TimeoutFailureRate, 0.2, "TimeoutFailureRate")
 }
 
+func TestSummarizeWindow_ValidationDurationExcludesZeroEntries(t *testing.T) {
+	window := []IterationLog{
+		{Success: true, ValidationDurationMs: 0},
+		{Success: true, ValidationDurationMs: 100},
+		{Success: true, ValidationDurationMs: 300},
+	}
+
+	summary := summarizeWindow(window)
+	assertFloatNear(t, summary.AvgValidationMs, 200, "AvgValidationMs")
+	assertFloatNear(t, summary.P95ValidationMs, 290, "P95ValidationMs")
+}
+
 func TestBuildIterationMetrics_SinglePhaseRollingRates(t *testing.T) {
 	entries := []IterationLog{
 		makeIterationLog(false, failurephase.Build),
@@ -242,6 +295,42 @@ func TestBuildProcessTrend_HasNineControlLimitsWithPhaseRates(t *testing.T) {
 		}
 	}
 	assertAllPhaseRateMetricsFound(t, phaseRateNames, "control limit")
+}
+
+func TestBuildProcessTrend_IncludesRollingAvgValidationControlLimit(t *testing.T) {
+	entries := []IterationLog{
+		{Success: true, ValidationDurationMs: 50},
+		{Success: true, ValidationDurationMs: 100},
+		{Success: true, ValidationDurationMs: 200},
+	}
+
+	metrics := buildIterationMetrics(entries, 3)
+	trend := buildProcessTrend(metrics, 3)
+
+	if _, ok := findControlLimit(trend.ControlLimits, metricRollingAvgValidationMs); !ok {
+		t.Fatalf("control limits missing %q", metricRollingAvgValidationMs)
+	}
+}
+
+func TestBuildProcessTrend_ValidationDurationSpikeTriggersHighSeverityAnomaly(t *testing.T) {
+	metrics := make([]IterationMetric, 30)
+	for i := 0; i < 29; i++ {
+		metrics[i] = IterationMetric{RollingAvgValidationMs: 0}
+	}
+	metrics[29] = IterationMetric{RollingAvgValidationMs: 1000}
+
+	trend := buildProcessTrend(metrics, 30)
+
+	var found bool
+	for _, a := range trend.Anomalies {
+		if a.Metric == metricRollingAvgValidationMs && a.Severity == anomalySeverityHigh {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected high-severity anomaly for %s spike", metricRollingAvgValidationMs)
+	}
 }
 
 func TestBuildProcessTrend_BuildRateSpikeTriggersHighSeverityAnomaly(t *testing.T) {
@@ -394,6 +483,58 @@ func TestBuildProcessTrend_AggregatesPromptTokenSummary(t *testing.T) {
 	assertFloatNear(t, drift.P95AbsTokenDeltaPct, 8.636355, "P95AbsTokenDeltaPct")
 }
 
+func TestBuildContinuousMetrics_ValidationDurationControlLimitInProcessTrendFile(t *testing.T) {
+	logsDir := t.TempDir()
+	metricsDir := t.TempDir()
+
+	l, err := NewLogger(logsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.LogIteration(&IterationLog{
+		Timestamp:            time.Now(),
+		Iteration:            1,
+		BeadID:               "vd-1",
+		Model:                "sonnet",
+		Success:              true,
+		DurationMs:           5000,
+		ValidationDurationMs: 1200,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.LogIteration(&IterationLog{
+		Timestamp:            time.Now().Add(time.Second),
+		Iteration:            2,
+		BeadID:               "vd-2",
+		Model:                "sonnet",
+		Success:              true,
+		DurationMs:           6000,
+		ValidationDurationMs: 2000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	l.Close()
+
+	trend, err := BuildContinuousMetrics(logsDir, metricsDir, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trend == nil {
+		t.Fatal("BuildContinuousMetrics returned nil trend")
+	}
+
+	readTrend, err := ReadProcessTrend(filepath.Join(metricsDir, processTrendFilename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if readTrend == nil {
+		t.Fatal("ReadProcessTrend returned nil trend")
+	}
+	if _, ok := findControlLimit(readTrend.ControlLimits, metricRollingAvgValidationMs); !ok {
+		t.Fatalf("process_trend.json control limits missing %q", metricRollingAvgValidationMs)
+	}
+}
+
 func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,
@@ -416,6 +557,15 @@ func assertAllPhaseRateMetricsFound(t *testing.T, found map[string]bool, label s
 			t.Errorf("%s %q not found", label, name)
 		}
 	}
+}
+
+func findControlLimit(controlLimits []TrendControlLimit, metric string) (TrendControlLimit, bool) {
+	for _, cl := range controlLimits {
+		if cl.Metric == metric {
+			return cl, true
+		}
+	}
+	return TrendControlLimit{}, false
 }
 
 func assertFloatNear(t *testing.T, got, want float64, label string) {

@@ -30,6 +30,7 @@ const (
 	metricRollingFirstPassSuccess  = "rolling_first_pass_success_rate"
 	metricRollingEscalationRate    = "rolling_escalation_rate"
 	metricRollingAvgDurationMs     = "rolling_avg_duration_ms"
+	metricRollingAvgValidationMs   = "rolling_avg_validation_ms"
 	metricRollingAvgCostUSD        = "rolling_avg_cost_usd"
 	metricRollingPreflightFailure  = "rolling_preflight_failure_rate"
 	metricRollingBuildFailure      = "rolling_build_failure_rate"
@@ -67,6 +68,10 @@ var trendControlLimitSeries = []metricSeriesDefinition{
 		pick: func(m IterationMetric) float64 { return m.RollingAvgDurationMs },
 	},
 	{
+		name: metricRollingAvgValidationMs,
+		pick: func(m IterationMetric) float64 { return m.RollingAvgValidationMs },
+	},
+	{
 		name: metricRollingAvgCostUSD,
 		pick: func(m IterationMetric) float64 { return m.RollingAvgCostUSD },
 	},
@@ -101,6 +106,7 @@ type IterationMetric struct {
 	FirstPassSuccess             bool                      `json:"first_pass_success"`
 	Escalated                    bool                      `json:"escalated"`
 	DurationMs                   int64                     `json:"duration_ms"`
+	ValidationDurationMs         int64                     `json:"validation_duration_ms,omitempty"`
 	CostUSD                      float64                   `json:"cost_usd"`
 	InputTokens                  int                       `json:"input_tokens,omitempty"`
 	OutputTokens                 int                       `json:"output_tokens,omitempty"`
@@ -111,6 +117,8 @@ type IterationMetric struct {
 	RollingEscalationRate        float64                   `json:"rolling_escalation_rate"`
 	RollingAvgDurationMs         float64                   `json:"rolling_avg_duration_ms"`
 	RollingP95DurationMs         float64                   `json:"rolling_p95_duration_ms"`
+	RollingAvgValidationMs       float64                   `json:"rolling_avg_validation_ms"`
+	RollingP95ValidationMs       float64                   `json:"rolling_p95_validation_ms"`
 	RollingAvgCostUSD            float64                   `json:"rolling_avg_cost_usd"`
 	RollingAvgMTTRProxyMs        float64                   `json:"rolling_avg_mttr_proxy_ms"`
 	RollingPreflightFailureRate  float64                   `json:"rolling_preflight_failure_rate"`
@@ -157,6 +165,8 @@ type ProcessTrendWindow struct {
 	EscalationRate        float64 `json:"escalation_rate"`
 	AvgDurationMs         float64 `json:"avg_duration_ms"`
 	P95DurationMs         float64 `json:"p95_duration_ms"`
+	AvgValidationMs       float64 `json:"avg_validation_ms"`
+	P95ValidationMs       float64 `json:"p95_validation_ms"`
 	AvgCostUSD            float64 `json:"avg_cost_usd"`
 	AvgMTTRProxyMs        float64 `json:"avg_mttr_proxy_ms"`
 	PreflightFailureRate  float64 `json:"preflight_failure_rate"`
@@ -297,6 +307,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			FirstPassSuccess:             entry.FirstPassSuccess,
 			Escalated:                    entry.Escalated,
 			DurationMs:                   entry.DurationMs,
+			ValidationDurationMs:         entry.ValidationDurationMs,
 			CostUSD:                      entry.CostUSD,
 			InputTokens:                  entry.InputTokens,
 			OutputTokens:                 entry.OutputTokens,
@@ -309,6 +320,8 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingEscalationRate:        w.EscalationRate,
 			RollingAvgDurationMs:         w.AvgDurationMs,
 			RollingP95DurationMs:         w.P95DurationMs,
+			RollingAvgValidationMs:       w.AvgValidationMs,
+			RollingP95ValidationMs:       w.P95ValidationMs,
 			RollingAvgCostUSD:            w.AvgCostUSD,
 			RollingAvgMTTRProxyMs:        w.AvgMTTRProxyMs,
 			RollingPreflightFailureRate:  w.PreflightFailureRate,
@@ -343,6 +356,8 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		EscalationRate:        latest.RollingEscalationRate,
 		AvgDurationMs:         latest.RollingAvgDurationMs,
 		P95DurationMs:         latest.RollingP95DurationMs,
+		AvgValidationMs:       latest.RollingAvgValidationMs,
+		P95ValidationMs:       latest.RollingP95ValidationMs,
 		AvgCostUSD:            latest.RollingAvgCostUSD,
 		AvgMTTRProxyMs:        latest.RollingAvgMTTRProxyMs,
 		PreflightFailureRate:  latest.RollingPreflightFailureRate,
@@ -570,10 +585,13 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 	var successes, firstPasses, escalations int
 	var preflightFailures, buildFailures, validationFailures, timeoutFailures int
 	var durationTotal int64
+	var validationDurationTotal int64
+	var validationDurationCount int
 	var costTotal float64
 	var mttrTotal int64
 	var mttrCount int
 	durations := make([]int64, 0, len(window))
+	validationDurations := make([]int64, 0, len(window))
 
 	for _, e := range window {
 		if e.Success {
@@ -599,6 +617,11 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		}
 
 		durationTotal += e.DurationMs
+		if e.ValidationDurationMs > 0 {
+			validationDurationTotal += e.ValidationDurationMs
+			validationDurationCount++
+			validationDurations = append(validationDurations, e.ValidationDurationMs)
+		}
 		costTotal += e.CostUSD
 		durations = append(durations, e.DurationMs)
 
@@ -610,6 +633,10 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 
 	count := float64(len(window))
 	avgDuration := float64(durationTotal) / count
+	avgValidationDuration := 0.0
+	if validationDurationCount > 0 {
+		avgValidationDuration = float64(validationDurationTotal) / float64(validationDurationCount)
+	}
 	avgCost := costTotal / count
 	avgMTTR := 0.0
 	if mttrCount > 0 {
@@ -623,6 +650,8 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		EscalationRate:        float64(escalations) / count,
 		AvgDurationMs:         avgDuration,
 		P95DurationMs:         percentileInt64(durations, 95),
+		AvgValidationMs:       avgValidationDuration,
+		P95ValidationMs:       percentileInt64(validationDurations, 95),
 		AvgCostUSD:            avgCost,
 		AvgMTTRProxyMs:        avgMTTR,
 		PreflightFailureRate:  float64(preflightFailures) / count,
