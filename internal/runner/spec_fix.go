@@ -11,6 +11,9 @@ import (
 const (
 	maxSynthesizedSpecFixBeads = 5
 	defaultGateFailureName     = "unnamed gate failure"
+	fixBeadPriority            = 0
+	specLabelPrefix            = "spec:"
+	fixBeadTitlePrefix         = "Fix: "
 )
 
 // SynthesizeFixBeads creates up to five P0 fix beads for gate failures.
@@ -35,13 +38,13 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []GateFai
 
 	ids := make([]string, 0, limit)
 	createErrors := make([]error, 0, limit)
-	label := fmt.Sprintf("spec:%s", strings.TrimSpace(specName))
+	label := specLabel(specName)
 
 	for i := 0; i < limit; i++ {
 		failure := failures[i]
 		title := gateFailureTitle(failure)
 		description := gateFailureDescription(failure)
-		b, err := beadClient.Create(title, 0, []string{label}, []string{description})
+		b, err := beadClient.Create(title, fixBeadPriority, []string{label}, []string{description})
 		if err != nil {
 			createErrors = append(createErrors, fmt.Errorf("create bead for %q: %w", failureName(failure), err))
 			continue
@@ -60,7 +63,7 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []GateFai
 }
 
 func gateFailureTitle(failure GateFailure) string {
-	return fmt.Sprintf("Fix: %s", failureName(failure))
+	return fmt.Sprintf("%s%s", fixBeadTitlePrefix, failureName(failure))
 }
 
 func gateFailureDescription(failure GateFailure) string {
@@ -84,4 +87,8 @@ func failureName(failure GateFailure) string {
 		return defaultGateFailureName
 	}
 	return name
+}
+
+func specLabel(specName string) string {
+	return fmt.Sprintf("%s%s", specLabelPrefix, strings.TrimSpace(specName))
 }
