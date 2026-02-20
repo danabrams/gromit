@@ -2397,11 +2397,12 @@ paths:
 
 // Tests for BetweenIterationsCommand configuration
 
-func TestBetweenIterationsCommandDefault(t *testing.T) {
-	// Test that BetweenIterationsCommand defaults to empty string when absent
+func loadConfigFromYAML(t *testing.T, yamlContent string) *Config {
+	t.Helper()
+
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")
-	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
 
@@ -2409,6 +2410,60 @@ func TestBetweenIterationsCommandDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loading config: %v", err)
 	}
+
+	return cfg
+}
+
+func assertLoopCommandFromYAML(t *testing.T, fieldLabel string, yamlKey string, getCommand func(*Config) string) {
+	t.Helper()
+
+	tests := []struct {
+		name     string
+		command  string
+		expected string
+	}{
+		{
+			name:     "Simple command",
+			command:  "make",
+			expected: "make",
+		},
+		{
+			name:     "Command with flags",
+			command:  "go build -o gromit",
+			expected: "go build -o gromit",
+		},
+		{
+			name:     "Command with shell operators",
+			command:  "make && go install",
+			expected: "make && go install",
+		},
+		{
+			name:     "Empty string",
+			command:  "",
+			expected: "",
+		},
+		{
+			name:     "Command with path",
+			command:  "./scripts/rebuild.sh",
+			expected: "./scripts/rebuild.sh",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			yaml := "loop:\n  " + yamlKey + ": \"" + tt.command + "\"\n"
+			cfg := loadConfigFromYAML(t, yaml)
+
+			if got := getCommand(cfg); got != tt.expected {
+				t.Errorf("expected %s=%q, got %q", fieldLabel, tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestBetweenIterationsCommandDefault(t *testing.T) {
+	// Test that BetweenIterationsCommand defaults to empty string when absent
+	cfg := loadConfigFromYAML(t, "")
 
 	if cfg.Loop.BetweenIterationsCommand != "" {
 		t.Errorf("expected default BetweenIterationsCommand='', got %q", cfg.Loop.BetweenIterationsCommand)
@@ -2417,76 +2472,23 @@ func TestBetweenIterationsCommandDefault(t *testing.T) {
 
 func TestBetweenIterationsCommandFromYAML(t *testing.T) {
 	// Test that BetweenIterationsCommand loads correctly from YAML
-	tests := []struct {
-		name     string
-		yaml     string
-		expected string
-	}{
-		{
-			name:     "Simple command",
-			yaml:     "loop:\n  between_iterations_command: \"make\"\n",
-			expected: "make",
-		},
-		{
-			name:     "Command with flags",
-			yaml:     "loop:\n  between_iterations_command: \"go build -o gromit\"\n",
-			expected: "go build -o gromit",
-		},
-		{
-			name:     "Command with shell operators",
-			yaml:     "loop:\n  between_iterations_command: \"make && go install\"\n",
-			expected: "make && go install",
-		},
-		{
-			name:     "Empty string",
-			yaml:     "loop:\n  between_iterations_command: \"\"\n",
-			expected: "",
-		},
-		{
-			name:     "Command with path",
-			yaml:     "loop:\n  between_iterations_command: \"./scripts/rebuild.sh\"\n",
-			expected: "./scripts/rebuild.sh",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, "gromit.yaml")
-			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
-				t.Fatalf("writing config: %v", err)
-			}
-
-			cfg, err := Load(cfgPath)
-			if err != nil {
-				t.Fatalf("loading config: %v", err)
-			}
-
-			if cfg.Loop.BetweenIterationsCommand != tt.expected {
-				t.Errorf("expected BetweenIterationsCommand=%q, got %q", tt.expected, cfg.Loop.BetweenIterationsCommand)
-			}
-		})
-	}
+	assertLoopCommandFromYAML(
+		t,
+		"BetweenIterationsCommand",
+		"between_iterations_command",
+		func(cfg *Config) string { return cfg.Loop.BetweenIterationsCommand },
+	)
 }
 
 func TestBetweenIterationsCommandWithOtherLoopSettings(t *testing.T) {
 	// Test that between_iterations_command works alongside other loop settings
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `loop:
   max_iterations: 20
   stop_on_failure: true
   stuck_bead_threshold: 5
   between_iterations_command: "make"
 `
-	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
-	}
-
-	cfg, err := Load(cfgPath)
-	if err != nil {
-		t.Fatalf("loading config: %v", err)
-	}
+	cfg := loadConfigFromYAML(t, yaml)
 
 	// Check all loop settings
 	if cfg.Loop.MaxIterations != 20 {
@@ -2505,8 +2507,6 @@ func TestBetweenIterationsCommandWithOtherLoopSettings(t *testing.T) {
 
 func TestBetweenIterationsCommandPreservedAcrossFullConfig(t *testing.T) {
 	// Test that between_iterations_command is preserved when loading a full config
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `models:
   p0: opus
   p1: sonnet
@@ -2524,14 +2524,7 @@ validation:
 claude:
   timeout: 600
 `
-	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
-	}
-
-	cfg, err := Load(cfgPath)
-	if err != nil {
-		t.Fatalf("loading config: %v", err)
-	}
+	cfg := loadConfigFromYAML(t, yaml)
 
 	// Check other sections still work
 	if cfg.Models.P0 != "opus" {
@@ -2554,16 +2547,7 @@ claude:
 
 func TestEndOfLoopCommandDefault(t *testing.T) {
 	// Test that EndOfLoopCommand defaults to empty string when absent
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
-	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
-	}
-
-	cfg, err := Load(cfgPath)
-	if err != nil {
-		t.Fatalf("loading config: %v", err)
-	}
+	cfg := loadConfigFromYAML(t, "")
 
 	if cfg.Loop.EndOfLoopCommand != "" {
 		t.Errorf("expected default EndOfLoopCommand='', got %q", cfg.Loop.EndOfLoopCommand)
@@ -2572,76 +2556,23 @@ func TestEndOfLoopCommandDefault(t *testing.T) {
 
 func TestEndOfLoopCommandFromYAML(t *testing.T) {
 	// Test that EndOfLoopCommand loads correctly from YAML
-	tests := []struct {
-		name     string
-		yaml     string
-		expected string
-	}{
-		{
-			name:     "Simple command",
-			yaml:     "loop:\n  end_of_loop_command: \"make\"\n",
-			expected: "make",
-		},
-		{
-			name:     "Command with flags",
-			yaml:     "loop:\n  end_of_loop_command: \"go build -o gromit\"\n",
-			expected: "go build -o gromit",
-		},
-		{
-			name:     "Command with shell operators",
-			yaml:     "loop:\n  end_of_loop_command: \"make && go install\"\n",
-			expected: "make && go install",
-		},
-		{
-			name:     "Empty string",
-			yaml:     "loop:\n  end_of_loop_command: \"\"\n",
-			expected: "",
-		},
-		{
-			name:     "Command with path",
-			yaml:     "loop:\n  end_of_loop_command: \"./scripts/rebuild.sh\"\n",
-			expected: "./scripts/rebuild.sh",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, "gromit.yaml")
-			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
-				t.Fatalf("writing config: %v", err)
-			}
-
-			cfg, err := Load(cfgPath)
-			if err != nil {
-				t.Fatalf("loading config: %v", err)
-			}
-
-			if cfg.Loop.EndOfLoopCommand != tt.expected {
-				t.Errorf("expected EndOfLoopCommand=%q, got %q", tt.expected, cfg.Loop.EndOfLoopCommand)
-			}
-		})
-	}
+	assertLoopCommandFromYAML(
+		t,
+		"EndOfLoopCommand",
+		"end_of_loop_command",
+		func(cfg *Config) string { return cfg.Loop.EndOfLoopCommand },
+	)
 }
 
 func TestEndOfLoopCommandWithOtherLoopSettings(t *testing.T) {
 	// Test that end_of_loop_command works alongside other loop settings
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `loop:
   max_iterations: 20
   stop_on_failure: true
   stuck_bead_threshold: 5
   end_of_loop_command: "make"
 `
-	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
-	}
-
-	cfg, err := Load(cfgPath)
-	if err != nil {
-		t.Fatalf("loading config: %v", err)
-	}
+	cfg := loadConfigFromYAML(t, yaml)
 
 	// Check all loop settings
 	if cfg.Loop.MaxIterations != 20 {
@@ -2660,8 +2591,6 @@ func TestEndOfLoopCommandWithOtherLoopSettings(t *testing.T) {
 
 func TestEndOfLoopCommandPreservedAcrossFullConfig(t *testing.T) {
 	// Test that end_of_loop_command is preserved when loading a full config
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `models:
   p0: opus
   p1: sonnet
@@ -2679,14 +2608,7 @@ validation:
 claude:
   timeout: 600
 `
-	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
-	}
-
-	cfg, err := Load(cfgPath)
-	if err != nil {
-		t.Fatalf("loading config: %v", err)
-	}
+	cfg := loadConfigFromYAML(t, yaml)
 
 	// Check other sections still work
 	if cfg.Models.P0 != "opus" {
