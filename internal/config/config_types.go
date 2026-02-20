@@ -22,8 +22,9 @@ const (
 	DefaultAndonL1TimeCapMinutes = 2
 	DefaultAndonL2TimeCapMinutes = 15
 
-	DefaultRunbookTTLDays = 14
-	DefaultMaxTDDCycles   = 10
+	DefaultRunbookTTLDays    = 14
+	DefaultMaxTDDCycles      = 10
+	DefaultSpecGateMaxCycles = 3
 
 	DefaultAndonConfigDocSectionTitle = "# Andon autonomy controls"
 

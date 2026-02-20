@@ -285,7 +285,7 @@ func (c *Config) SetDefaults() {
 		c.Session.Retro = boolPtr(true)
 	}
 	if c.SpecGate.MaxCycles == 0 {
-		c.SpecGate.MaxCycles = 3
+		c.SpecGate.MaxCycles = DefaultSpecGateMaxCycles
 	}
 	if c.SpecGate.Model == "" {
 		c.SpecGate.Model = ModelSonnet

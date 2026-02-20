@@ -4543,8 +4543,8 @@ func assertSpecGateDefaults(t *testing.T, cfg *Config, context string) {
 		context = " " + context
 	}
 
-	if cfg.SpecGate.MaxCycles != 3 {
-		t.Errorf("SpecGate.MaxCycles = %d, want 3%s", cfg.SpecGate.MaxCycles, context)
+	if cfg.SpecGate.MaxCycles != DefaultSpecGateMaxCycles {
+		t.Errorf("SpecGate.MaxCycles = %d, want %d%s", cfg.SpecGate.MaxCycles, DefaultSpecGateMaxCycles, context)
 	}
 	if cfg.SpecGate.Model != ModelSonnet {
 		t.Errorf("SpecGate.Model = %q, want %q%s", cfg.SpecGate.Model, ModelSonnet, context)
