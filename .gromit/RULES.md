@@ -53,9 +53,9 @@ These are non-negotiable constraints for this project.
 - Always run tests before committing
 - Follow existing patterns in the codebase
 - Config fields: set defaults in `setDefaults()` (sentinel `0`; use `*int`/`-1` when zero is meaningful), update `NormalizeNilFields()` for nested structs/slices, test omitted-YAML defaults. Use `json:"field,omitempty"` for optional fields. Mirror new `IterationResult` fields into `IterationLog` in `writeIterationLog()`
-- Split beads that touch 6+ files across unrelated packages; target 1-3 files per leaf bead for highest first-pass success. For large facades (1000+ lines), delegate in batches of 3-5 methods per bead. Decompose to 5+ levels deep if needed to achieve narrow leaf scope. When decomposition produces exactly 1 child bead, skip further decomposition and execute the child directly — single-child splits indicate the scope is already atomic
+- Split beads touching 6+ files across unrelated packages; target 1-3 files per leaf bead. For large facades (1000+ lines), batch 3-5 methods per bead. Decompose 5+ levels deep for narrow scope. Skip single-child decompositions (already atomic)
 - Never split natural units: Interface + implementation + mock updates, implementation + tests, companion methods, command flags+wiring, or template+registration
-- If failure analysis says scope is too broad, decompose instead of escalating model tier. If the highest tier times out or fails, split into sub-beads and retry those
+- If scope too broad, decompose instead of escalating tier. If apex tier times out or fails, split into sub-beads and retry
 - Pre-split likely broad work (titles containing infrastructure/E2E/consolidate/extract/shared/refactor, or 3+ new types plus new behavior). Preferred decomposition orders: test infra (fixtures -> helpers -> tests), interface extraction (interface -> mocks -> callers), package extraction (create package -> move impl -> wire callers -> remove old), and cross-package helper extraction (pure helpers -> dependency-heavy helpers -> caller wiring)
 - Shared-package refactors (for example learnings/config) must rerun affected dependent test suites after each commit; verify each diff still matches intent
 - Test-only bead detection belongs in `bead.IsTestOnlyBead()` (prefix patterns like "Add tests for"/"Write tests for"), alongside `IsMethodologyActive()`
