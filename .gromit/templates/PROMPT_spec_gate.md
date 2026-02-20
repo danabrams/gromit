@@ -50,9 +50,11 @@ CumulativeDiff:
 ## Output
 
 GateVerdict is the only response contract to follow. Do not use any other format or response contract.
+Every response must conform to the GateVerdict schema at the schema level.
 
 Respond with a JSON object that exactly matches the GateVerdict schema. Include every required field with the exact field names and value types, and include no additional fields.
 All required keys must be present. Preserve the required GateVerdict structure and nesting exactly.
+Any omission of required keys, type mismatches, structural changes, or extra fields is invalid.
 Output JSON only and include no narrative text.
 
 Your response must be one top-level JSON object and nothing else. Do not include markdown, commentary, or any explanation outside the JSON.

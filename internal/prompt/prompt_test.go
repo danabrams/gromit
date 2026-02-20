@@ -1657,8 +1657,10 @@ func TestRenderSpecGateRealTemplateContainsGateVerdictInstruction(t *testing.T) 
 
 	wantStrs := []string{
 		"GateVerdict",
+		"Every response must conform to the GateVerdict schema at the schema level.",
 		"exactly matches the GateVerdict schema",
 		"All required keys must be present",
+		"Any omission of required keys, type mismatches, structural changes, or extra fields is invalid.",
 		"JSON only",
 		"no narrative",
 		"FAIL: TestFoo",
