@@ -20,8 +20,10 @@ const (
 	defaultPromptMaxChars             = 20000
 	defaultPromptLearningCharsCap     = 2000
 
-	DefaultInvocationTimeoutSeconds = 900 // 15 minutes
-	DefaultPipelineTimeoutSeconds   = 1800
+	DefaultInvocationTimeoutSeconds  = 900 // 15 minutes
+	DefaultPipelineTimeoutSeconds    = 1800
+	DefaultStallTimeoutSeconds       = 120
+	DefaultStallTimeoutActiveSeconds = 300
 
 	DefaultAndonAssumptionBudget = 2
 	DefaultAndonL1RetryCap       = 2

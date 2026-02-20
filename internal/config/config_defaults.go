@@ -29,10 +29,10 @@ func (c *Config) SetDefaults() {
 		c.Claude.PipelineTimeout = DefaultPipelineTimeoutSeconds
 	}
 	if c.Claude.StallTimeout == 0 {
-		c.Claude.StallTimeout = 120
+		c.Claude.StallTimeout = DefaultStallTimeoutSeconds
 	}
 	if c.Claude.StallTimeoutActive == 0 {
-		c.Claude.StallTimeoutActive = 300
+		c.Claude.StallTimeoutActive = DefaultStallTimeoutActiveSeconds
 	}
 	if c.Claude.BeadTimeout == 0 {
 		c.Claude.BeadTimeout = 1200 // 20 minutes max per bead

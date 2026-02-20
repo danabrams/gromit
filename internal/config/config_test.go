@@ -409,8 +409,8 @@ func TestLoadAndDefaults(t *testing.T) {
 func TestStallTimeoutDefault(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
-	if cfg.Claude.StallTimeout != 120 {
-		t.Errorf("expected default StallTimeout=120, got %d", cfg.Claude.StallTimeout)
+	if cfg.Claude.StallTimeout != DefaultStallTimeoutSeconds {
+		t.Errorf("expected default StallTimeout=%d, got %d", DefaultStallTimeoutSeconds, cfg.Claude.StallTimeout)
 	}
 }
 
@@ -425,8 +425,8 @@ func TestPipelineTimeoutDefault(t *testing.T) {
 func TestStallTimeoutActiveDefault(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
-	if cfg.Claude.StallTimeoutActive != 300 {
-		t.Errorf("expected default StallTimeoutActive=300, got %d", cfg.Claude.StallTimeoutActive)
+	if cfg.Claude.StallTimeoutActive != DefaultStallTimeoutActiveSeconds {
+		t.Errorf("expected default StallTimeoutActive=%d, got %d", DefaultStallTimeoutActiveSeconds, cfg.Claude.StallTimeoutActive)
 	}
 }
 
