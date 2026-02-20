@@ -28,6 +28,8 @@ import (
 	"github.com/danabrams/gromit/internal/tmux"
 )
 
+// errValidationFailed aliases validation.ErrValidationFailed so runner internals
+// and tests share one sentinel for errors.Is checks.
 var errValidationFailed = validation.ErrValidationFailed
 
 const (

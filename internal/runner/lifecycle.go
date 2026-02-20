@@ -567,10 +567,8 @@ func isValidationFailureError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, errValidationFailed) {
-		return true
-	}
-	return strings.Contains(strings.ToLower(err.Error()), validationFailedMessageFragment)
+	return errors.Is(err, errValidationFailed) ||
+		strings.Contains(strings.ToLower(err.Error()), validationFailedMessageFragment)
 }
 
 func (r *Runner) escalateUnclearPostRecoveryQualityFailure(ctx context.Context, b *bead.Bead, result *IterationResult) {
