@@ -26,10 +26,6 @@ Recent observations that may be relevant:
 
 ## Project Context
 
-{{if .ClaudeMD}}
-{{.ClaudeMD}}
-{{end}}
-
 ## Current Task
 
 **ID:** {{.Bead.ID}}
