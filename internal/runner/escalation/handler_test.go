@@ -1139,7 +1139,25 @@ func TestExecuteWithRetry_TokenBudgetExceededAttemptsDecompositionBeforeInvocati
 	}
 }
 
-func newTokenBudgetHandlerWithDecomposition(cfg *config.Config, analyzer FailureAnalyzer, decomposeCalled, createSubCalled *bool) *Handler {
+func newRecoverableRefactorAnalyzer(analyzeCalls *int) FailureAnalyzer {
+	return &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			(*analyzeCalls)++
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				Suggestion:  "retry after refactor",
+			}, nil
+		},
+	}
+}
+
+func newTokenBudgetHandlerWithDecomposition(
+	cfg *config.Config,
+	analyzer FailureAnalyzer,
+	decomposeCalled, createSubCalled *bool,
+	logf func(format string, args ...interface{}),
+) *Handler {
 	return NewHandler(
 		cfg,
 		analyzer,
@@ -1152,7 +1170,7 @@ func newTokenBudgetHandlerWithDecomposition(cfg *config.Config, analyzer Failure
 			*createSubCalled = true
 			return nil
 		},
-		nil,
+		logf,
 		nil,
 	)
 }
@@ -1162,20 +1180,11 @@ func TestExecuteWithRetry_RefactorTokensCanExhaustBudgetBeforeNextAttempt(t *tes
 	cfg.Claude.MaxInputTokensPerBead = 100
 
 	analyzeCalls := 0
-	mfa := &mockFailureAnalyzer{
-		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
-			analyzeCalls++
-			return &analyzer.Analysis{
-				Category:    analyzer.CategoryLogic,
-				Recoverable: true,
-				Suggestion:  "retry after refactor",
-			}, nil
-		},
-	}
+	mfa := newRecoverableRefactorAnalyzer(&analyzeCalls)
 
 	decomposeCalled := false
 	createSubCalled := false
-	h := newTokenBudgetHandlerWithDecomposition(cfg, mfa, &decomposeCalled, &createSubCalled)
+	h := newTokenBudgetHandlerWithDecomposition(cfg, mfa, &decomposeCalled, &createSubCalled, nil)
 
 	bc := newTestBeadContext()
 	bc.ParentCtx = context.Background()
@@ -1218,20 +1227,11 @@ func TestExecuteWithRetry_RefactorTokensUnderCapStillPermitRetryAttempt(t *testi
 	cfg.Claude.MaxInputTokensPerBead = 100
 
 	analyzeCalls := 0
-	mfa := &mockFailureAnalyzer{
-		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
-			analyzeCalls++
-			return &analyzer.Analysis{
-				Category:    analyzer.CategoryLogic,
-				Recoverable: true,
-				Suggestion:  "retry after refactor",
-			}, nil
-		},
-	}
+	mfa := newRecoverableRefactorAnalyzer(&analyzeCalls)
 
 	decomposeCalled := false
 	createSubCalled := false
-	h := newTokenBudgetHandlerWithDecomposition(cfg, mfa, &decomposeCalled, &createSubCalled)
+	h := newTokenBudgetHandlerWithDecomposition(cfg, mfa, &decomposeCalled, &createSubCalled, nil)
 
 	bc := newTestBeadContext()
 	bc.ParentCtx = context.Background()
@@ -1281,36 +1281,19 @@ func TestExecuteWithRetry_MultiRefactorCyclesStopAtTokenBudget(t *testing.T) {
 	cfg.Andon.L1RetryCap = 10
 
 	analyzeCalls := 0
-	mfa := &mockFailureAnalyzer{
-		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
-			analyzeCalls++
-			return &analyzer.Analysis{
-				Category:    analyzer.CategoryLogic,
-				Recoverable: true,
-				Suggestion:  "retry after refactor",
-			}, nil
-		},
-	}
+	mfa := newRecoverableRefactorAnalyzer(&analyzeCalls)
 
 	decomposeCalled := false
 	createSubCalled := false
 	var logLines []string
-	h := NewHandler(
+	h := newTokenBudgetHandlerWithDecomposition(
 		cfg,
 		mfa,
-		&mockBeadClient{},
-		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
-			decomposeCalled = true
-			return []runtypes.SubTask{{Title: "split-1"}}, nil
-		},
-		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
-			createSubCalled = true
-			return nil
-		},
+		&decomposeCalled,
+		&createSubCalled,
 		func(format string, args ...interface{}) {
 			logLines = append(logLines, fmt.Sprintf(format, args...))
 		},
-		nil,
 	)
 
 	bc := newTestBeadContext()
