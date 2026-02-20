@@ -181,8 +181,10 @@ func TestCLIContract_Flags(t *testing.T) {
 			flags: map[string]string{},
 		},
 		{
-			name:  "queue",
-			flags: map[string]string{},
+			name: "queue",
+			flags: map[string]string{
+				"by-spec": "bool", // --by-spec
+			},
 		},
 		{
 			name:  "triage",

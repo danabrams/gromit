@@ -6,6 +6,7 @@ Usage:
   gromit queue [flags]
 
 Flags:
+      --by-spec       Group queue output by spec label
   -h, --help   help for queue
 
 Global Flags:

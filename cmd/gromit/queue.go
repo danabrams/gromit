@@ -2,10 +2,22 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"sort"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/spf13/cobra"
 )
+
+const (
+	ansiReset = "\x1b[0m"
+	ansiBold  = "\x1b[1m"
+	ansiGreen = "\x1b[32m"
+	ansiRed   = "\x1b[31m"
+)
+
+var queueBySpec bool
 
 var queueCmd = &cobra.Command{
 	Use:   "queue",
@@ -17,6 +29,7 @@ Also shows any blocked beads and the reason they can't be processed yet.`,
 }
 
 func init() {
+	queueCmd.Flags().BoolVar(&queueBySpec, "by-spec", false, "Group queue output by spec label")
 	rootCmd.AddCommand(queueCmd)
 }
 
@@ -46,38 +59,115 @@ func showQueue(cmd *cobra.Command, args []string) error {
 	// Identify blocked beads (open but not ready)
 	blockedBeads := findBlockedBeads(readyBeads, allBeads)
 
-	// Display ready queue
+	printQueueByStatus(cfg, readyBeads, blockedBeads, allBeads, queueBySpec, isColorEnabled())
+	return nil
+}
+
+func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, allBeads []*bead.Bead, bySpec bool, useColor bool) {
 	if len(readyBeads) > 0 {
 		fmt.Println("Queue (" + fmt.Sprintf("%d", len(readyBeads)) + " beads ready):")
-		for i, b := range readyBeads {
+		printBeadsBySpec(readyBeads, bySpec, func(queueIndex int, b *bead.Bead) {
 			model := cfg.SelectModel(b.Priority, b.Labels)
-			priorityStr := fmt.Sprintf("P%d", b.Priority)
-			fmt.Printf("  %d. [%s] %s  %s  → %s\n",
-				i+1,
-				priorityStr,
+			line := fmt.Sprintf("  %d. [P%d] %s  %s  → %s",
+				queueIndex+1,
+				b.Priority,
 				b.ID,
 				truncateTitle(b.Title, 30),
 				model)
-		}
+			fmt.Println(colorizeLine(line, ansiBold+ansiGreen, useColor))
+		})
 	} else {
 		fmt.Println("Queue: empty (no beads ready)")
 	}
 
-	// Display blocked beads
 	if len(blockedBeads) > 0 {
 		fmt.Println()
 		fmt.Println("Blocked (" + fmt.Sprintf("%d", len(blockedBeads)) + "):")
-		for _, b := range blockedBeads {
+		printBeadsBySpec(blockedBeads, bySpec, func(_ int, b *bead.Bead) {
 			reasonStr := getReason(b, allBeads)
-			fmt.Printf("  [P%d] %s  %s  (%s)\n",
+			line := fmt.Sprintf("  [P%d] %s  %s  (%s)",
 				b.Priority,
 				b.ID,
 				truncateTitle(b.Title, 30),
 				reasonStr)
+			fmt.Println(colorizeLine(line, ansiRed, useColor))
+		})
+	}
+}
+
+type queueModelSelector interface {
+	SelectModel(priority int, labels []string) string
+}
+
+func printBeadsBySpec(beads []*bead.Bead, bySpec bool, printFn func(queueIndex int, b *bead.Bead)) {
+	if !bySpec {
+		for i, b := range beads {
+			printFn(i, b)
 		}
+		return
 	}
 
-	return nil
+	grouped := groupBeadsBySpec(beads)
+	keys := orderedSpecKeys(grouped)
+	queueIndex := 0
+	for _, key := range keys {
+		fmt.Printf("  Spec: %s\n", formatSpecGroupName(key))
+		for _, b := range grouped[key] {
+			printFn(queueIndex, b)
+			queueIndex++
+		}
+	}
+}
+
+func groupBeadsBySpec(beads []*bead.Bead) map[string][]*bead.Bead {
+	grouped := make(map[string][]*bead.Bead)
+	for _, b := range beads {
+		spec := bead.FindSpecLabel(b.Labels)
+		grouped[spec] = append(grouped[spec], b)
+	}
+	return grouped
+}
+
+func orderedSpecKeys(grouped map[string][]*bead.Bead) []string {
+	keys := make([]string, 0, len(grouped))
+	for key := range grouped {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i] == "" {
+			return false
+		}
+		if keys[j] == "" {
+			return true
+		}
+		return keys[i] < keys[j]
+	})
+	return keys
+}
+
+func formatSpecGroupName(spec string) string {
+	if strings.TrimSpace(spec) == "" {
+		return "(none)"
+	}
+	return spec
+}
+
+func isColorEnabled() bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	fi, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
+}
+
+func colorizeLine(line, color string, useColor bool) string {
+	if !useColor {
+		return line
+	}
+	return color + line + ansiReset
 }
 
 // getReadyBeads fetches ready beads using bd ready --json
