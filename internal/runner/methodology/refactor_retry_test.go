@@ -180,22 +180,29 @@ func TestApplyRefactorStreamStats_IncrementsCumulativeInputTokens(t *testing.T) 
 	exec := NewExecutor(cfg, nil, nil, nil, nil)
 
 	bc := newTestBeadContextWithTier(provider.TierMedium)
-	bc.Result.InputTokens = 1000
-	bc.CumulativeInputTokens = 500
+	const (
+		existingResultInput     = 1000
+		existingCumulativeInput = 500
+		refactorInputTokens     = 300
+	)
+	bc.Result.InputTokens = existingResultInput
+	bc.CumulativeInputTokens = existingCumulativeInput
 
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("NewStreamStats() failed: %v", err)
 	}
-	stats.MergeCostData(0.10, 300, 50)
+	stats.MergeCostData(0.10, refactorInputTokens, 50)
 
 	exec.applyRefactorStreamStats(bc, stats)
 
-	if bc.Result.InputTokens != 1300 {
-		t.Errorf("Result.InputTokens = %d, want 1300", bc.Result.InputTokens)
+	wantResultInput := existingResultInput + refactorInputTokens
+	if bc.Result.InputTokens != wantResultInput {
+		t.Errorf("Result.InputTokens = %d, want %d", bc.Result.InputTokens, wantResultInput)
 	}
-	if bc.CumulativeInputTokens != 800 {
-		t.Errorf("CumulativeInputTokens = %d, want 800", bc.CumulativeInputTokens)
+	wantCumulativeInput := existingCumulativeInput + refactorInputTokens
+	if bc.CumulativeInputTokens != wantCumulativeInput {
+		t.Errorf("CumulativeInputTokens = %d, want %d", bc.CumulativeInputTokens, wantCumulativeInput)
 	}
 }
 

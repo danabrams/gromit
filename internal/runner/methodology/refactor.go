@@ -236,11 +236,11 @@ func (e *Executor) applyRefactorStreamStats(bc *runtypes.BeadContext, stats *log
 		return
 	}
 
-	costUSD, inputTokens, outputTokens := stats.CostData()
+	costUSD, refactorInputTokens, outputTokens := stats.CostData()
 	bc.Result.CostUSD += costUSD
-	bc.Result.InputTokens += inputTokens
+	bc.Result.InputTokens += refactorInputTokens
 	bc.Result.OutputTokens += outputTokens
-	bc.CumulativeInputTokens += inputTokens
+	bc.CumulativeInputTokens += refactorInputTokens
 }
 
 func (e *Executor) refactorValidationCommands(bc *runtypes.BeadContext) []string {
