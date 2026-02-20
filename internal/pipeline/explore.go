@@ -111,14 +111,14 @@ func ensureNonNil(s []string) []string {
 
 // diffBacklogItems returns IDs of backlog items in current that are not in existing.
 func diffBacklogItems(existing, current []*Idea) []string {
-	existingSet := make(map[string]bool)
+	existingSet := make(map[string]struct{}, len(existing))
 	for _, idea := range existing {
-		existingSet[idea.ID] = true
+		existingSet[idea.ID] = struct{}{}
 	}
 
-	var newIDs []string
+	newIDs := make([]string, 0, len(current))
 	for _, idea := range current {
-		if !existingSet[idea.ID] {
+		if _, exists := existingSet[idea.ID]; !exists {
 			newIDs = append(newIDs, idea.ID)
 		}
 	}

@@ -214,16 +214,9 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 		return nil, err
 	}
 
-	// Build ThoroughReviewContext
-	reviewCtx := &ThoroughReviewPromptInput{
-		FromCommit: input.FromCommit,
-		Diff:       input.Diff,
-	}
-
-	// Render prompt
-	renderedPrompt, err := p.deps.ReviewRenderer.RenderThoroughReview(reviewCtx)
+	renderedPrompt, err := p.renderReviewPrompt(input)
 	if err != nil {
-		return nil, fmt.Errorf("rendering review prompt: %w", err)
+		return nil, err
 	}
 
 	// Write temp file
@@ -261,19 +254,12 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 		return nil, err
 	}
 
-	// Build and render prompt
-	reviewCtx := &ThoroughReviewPromptInput{
-		FromCommit: input.FromCommit,
-		Diff:       input.Diff,
-	}
-	renderedPrompt, err := p.deps.ReviewRenderer.RenderThoroughReview(reviewCtx)
+	renderedPrompt, err := p.renderReviewPrompt(input)
 	if err != nil {
-		return nil, fmt.Errorf("rendering review prompt: %w", err)
+		return nil, err
 	}
 
-	// Call Claude - use context for timeout if needed
-	// The ClaudeClient interface doesn't directly support timeout,
-	// but the mock tests expect it, so we'll need to fix the interface or the tests
+	// Call Claude
 	claudeResult, err := p.deps.ClaudeClient.Run(renderedPrompt, input.Model)
 	if err != nil {
 		return nil, fmt.Errorf("review invocation: %w", err)
@@ -360,6 +346,19 @@ func expectedOutputsOrTitle(outputs []string, title string) []string {
 		return []string{}
 	}
 	return []string{trimmedTitle}
+}
+
+func (p *Pipeline) renderReviewPrompt(input ReviewInput) (string, error) {
+	reviewCtx := &ThoroughReviewPromptInput{
+		FromCommit: input.FromCommit,
+		Diff:       input.Diff,
+	}
+
+	renderedPrompt, err := p.deps.ReviewRenderer.RenderThoroughReview(reviewCtx)
+	if err != nil {
+		return "", fmt.Errorf("rendering review prompt: %w", err)
+	}
+	return renderedPrompt, nil
 }
 
 // validateReviewDeps checks that all required dependencies for ReviewNonInteractive are present.
