@@ -40,7 +40,7 @@ func (c *Config) Validate() error {
 
 // Validate ensures methodology settings are supported.
 func (m MethodologyConfig) Validate() error {
-	switch strings.ToLower(m.Granularity) {
+	switch m.Granularity {
 	case MethodologyGranularityBead, MethodologyGranularitySpec:
 		return nil
 	default:
