@@ -9,6 +9,17 @@ import (
 	"testing"
 )
 
+func writeExecutableScript(t *testing.T, script string) string {
+	t.Helper()
+
+	binaryPath := filepath.Join(t.TempDir(), "fake-bd")
+	if err := os.WriteFile(binaryPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile(%q): %v", binaryPath, err)
+	}
+
+	return binaryPath
+}
+
 func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
 	var gotArgs []string
 	c := &Client{
@@ -40,18 +51,12 @@ func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
 }
 
 func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
-	binDir := t.TempDir()
 	workDir := t.TempDir()
-	binaryPath := filepath.Join(binDir, "fake-bd")
-
 	script := "#!/bin/sh\n" +
 		"printf 'FAKE_BINARY\\n'\n" +
 		"printf '%s\\n' \"$PWD\"\n" +
 		"printf '%s\\n' \"$*\"\n"
-
-	if err := os.WriteFile(binaryPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("WriteFile(%q): %v", binaryPath, err)
-	}
+	binaryPath := writeExecutableScript(t, script)
 
 	c := &Client{
 		binary: binaryPath,
@@ -79,16 +84,10 @@ func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
 }
 
 func TestClientRun_SubprocessExitErrorWrapsStderr(t *testing.T) {
-	binDir := t.TempDir()
-	binaryPath := filepath.Join(binDir, "fake-bd")
-
 	script := "#!/bin/sh\n" +
 		"printf 'bd failed on stderr\\n' >&2\n" +
 		"exit 17\n"
-
-	if err := os.WriteFile(binaryPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("WriteFile(%q): %v", binaryPath, err)
-	}
+	binaryPath := writeExecutableScript(t, script)
 
 	c := &Client{binary: binaryPath}
 
