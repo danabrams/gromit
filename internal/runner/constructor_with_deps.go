@@ -30,6 +30,7 @@ type Deps struct {
 	ValidationPolicy  policy.ValidationPolicy
 	StuckPolicy       policy.StuckPolicy
 	CmdRunner         func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error)
+	ArgvRunner        ArgvRunnerFn
 }
 
 // newRunnerWithDepsImpl creates a runner with explicitly provided dependencies.
@@ -73,6 +74,10 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 	if deps.CmdRunner != nil {
 		cmdRunner = deps.CmdRunner
 	}
+	argvRunner := defaultArgvRunner
+	if deps.ArgvRunner != nil {
+		argvRunner = deps.ArgvRunner
+	}
 
 	stuckPolicy := deps.StuckPolicy
 	if stuckPolicy == nil {
@@ -97,6 +102,7 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 		gitDiffFn:         getGitDiff,
 		gitHeadFn:         getGitHead,
 		cmdRunnerFn:       cmdRunner,
+		argvRunnerFn:      argvRunner,
 		processChecker:    IsProcessAlive,
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
 			return net.DefaultResolver.LookupHost(ctx, host)
@@ -131,3 +137,7 @@ type IterationResult = runtypes.IterationResult
 // SubTask represents a single sub-task from task decomposition.
 // Type alias for backward compatibility — canonical definition is in runtypes.
 type SubTask = runtypes.SubTask
+
+// ArgvRunnerFn runs an executable with argv and returns output plus exit metadata.
+// Type alias for backward compatibility — canonical definition is in runtypes.
+type ArgvRunnerFn = runtypes.ArgvRunnerFn
