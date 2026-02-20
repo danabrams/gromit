@@ -54,6 +54,10 @@ func TestRetroUsesAgentLaunchNotDirectExec(t *testing.T) {
 		t.Error("main.go does not call .LaunchInDir(promptPath, launchDir) - retro launch args incorrect")
 	}
 
+	if strings.Contains(sourceStr, "selectedAgent.Launch(promptPath)") {
+		t.Error("main.go still calls selectedAgent.Launch(promptPath) - should use LaunchInDir with launchDir")
+	}
+
 	if strings.Contains(sourceStr, "retro.LaunchClaudeCode") {
 		t.Error("main.go still contains retro.LaunchClaudeCode - migration not complete")
 	}
