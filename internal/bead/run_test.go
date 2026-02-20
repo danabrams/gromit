@@ -9,6 +9,19 @@ import (
 	"testing"
 )
 
+func assertRunArgsEqual(t *testing.T, got, want []string) {
+	t.Helper()
+
+	if len(got) != len(want) {
+		t.Fatalf("run() args len = %d, want %d; args=%v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("run() arg[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func writeExecutableScript(t *testing.T, script string) string {
 	t.Helper()
 
@@ -40,14 +53,7 @@ func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
 	}
 
 	wantArgs := []string{"ready", "--json"}
-	if len(gotArgs) != len(wantArgs) {
-		t.Fatalf("run() args len = %d, want %d; args=%v", len(gotArgs), len(wantArgs), gotArgs)
-	}
-	for i, want := range wantArgs {
-		if gotArgs[i] != want {
-			t.Fatalf("run() arg[%d] = %q, want %q", i, gotArgs[i], want)
-		}
-	}
+	assertRunArgsEqual(t, gotArgs, wantArgs)
 }
 
 func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
