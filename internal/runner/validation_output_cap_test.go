@@ -251,6 +251,39 @@ func TestMakeValidationExecuteFn_UsesGreenShapedContextForRenderBuild(t *testing
 	}
 }
 
+func TestMakeValidationExecuteFn_SetsPromptContextBeadWhenMissing(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+
+	renderer := &rendererShapeGreenCapture{}
+	r := &Runner{
+		cfg:      cfg,
+		renderer: renderer,
+		output:   io.Discard,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "full-gate", Title: "full validation gate"},
+		Result: &runtypes.IterationResult{Output: "validation failed"},
+		PromptCtx: &prompt.Context{
+			FailureContext: "existing context",
+		},
+	}
+
+	fn := r.makeValidationExecuteFn()
+	_ = fn(context.Background(), bc)
+
+	if renderer.renderCtx == nil {
+		t.Fatal("expected RenderBuild to be called")
+	}
+	if renderer.renderCtx.Bead == nil {
+		t.Fatal("expected PromptCtx.Bead to be populated before RenderBuild")
+	}
+	if renderer.renderCtx.Bead.ID != "full-gate" {
+		t.Fatalf("expected PromptCtx.Bead.ID %q, got %q", "full-gate", renderer.renderCtx.Bead.ID)
+	}
+}
+
 func TestMakeValidationExecuteFn_DisablesEscalationDuringValidation(t *testing.T) {
 	_, _, fn := setupValidationEscalationRunner(t, &provider.Result{
 		Success:  false,

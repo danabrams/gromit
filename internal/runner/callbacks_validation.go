@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -16,6 +17,16 @@ import (
 // the escalation handler's ExecuteWithRetry for Claude-based validation fix attempts.
 func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
 	return func(ctx context.Context, bc *runtypes.BeadContext) bool {
+		if bc == nil || bc.Result == nil {
+			return false
+		}
+		if bc.PromptCtx == nil {
+			bc.PromptCtx = &prompt.Context{}
+		}
+		if bc.PromptCtx.Bead == nil {
+			bc.PromptCtx.Bead = bc.Bead
+		}
+
 		// Render a build prompt for the validation fix
 		bc.PromptCtx.IsRetry = true
 		bc.PromptCtx.PrevFailure = runtypes.TruncateOutput(bc.Result.Output)

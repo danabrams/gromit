@@ -502,7 +502,7 @@ func (r *Runner) runFullValidationGate(ctx context.Context, beadID string, itera
 	bc := &runtypes.BeadContext{
 		Bead:      b,
 		ParentCtx: ctx,
-		PromptCtx: &prompt.Context{WorkDir: workDir},
+		PromptCtx: &prompt.Context{WorkDir: workDir, Bead: b},
 		Result: &runtypes.IterationResult{
 			BeadID:    beadID,
 			BeadTitle: "full validation gate",

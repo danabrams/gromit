@@ -77,6 +77,40 @@ func TestDefaultArgvRunnerSetsEnv(t *testing.T) {
 	}
 }
 
+func TestValidationGoCacheEnvUsesAbsolutePaths(t *testing.T) {
+	env := validationGoCacheEnv(".")
+	if len(env) == 0 {
+		t.Fatal("validationGoCacheEnv returned empty env")
+	}
+
+	found := map[string]bool{
+		"GOCACHE":    false,
+		"GOMODCACHE": false,
+		"GOPATH":     false,
+	}
+
+	for _, entry := range env {
+		parts := strings.SplitN(entry, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key, value := parts[0], parts[1]
+		if _, ok := found[key]; !ok {
+			continue
+		}
+		found[key] = true
+		if !filepath.IsAbs(value) {
+			t.Fatalf("%s path must be absolute, got %q", key, value)
+		}
+	}
+
+	for key, ok := range found {
+		if !ok {
+			t.Fatalf("missing %s entry", key)
+		}
+	}
+}
+
 func TestDefaultArgvRunnerSuccess(t *testing.T) {
 	workDir := t.TempDir()
 	stdout, stderr, exitCode, err := defaultArgvRunner(

@@ -121,6 +121,9 @@ func validationGoCacheEnv(workDir string) []string {
 	if root == "" {
 		root = "."
 	}
+	if absRoot, err := filepath.Abs(root); err == nil {
+		root = absRoot
+	}
 
 	buildCache := filepath.Join(root, ".gromit", "tmp", "go-build-cache")
 	modCache := filepath.Join(root, ".gromit", "tmp", "go-mod-cache")
