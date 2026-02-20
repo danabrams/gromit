@@ -10,6 +10,7 @@ TARGET_DIRS=(
   "test/testutil"
   "internal/bead"
 )
+SHARED_STATE_CALL_PATTERN='os\.(Chdir|Setenv)\('
 
 if [[ ! -f "$ALLOWLIST_FILE" ]]; then
   echo "Missing allowlist: $ALLOWLIST_FILE"
@@ -21,19 +22,22 @@ if ! LC_ALL=C sort -c "$ALLOWLIST_FILE"; then
   exit 1
 fi
 
-tmp_current="$(mktemp)"
-tmp_new="$(mktemp)"
-trap 'rm -f "$tmp_current" "$tmp_new"' EXIT
+current_calls_file="$(mktemp)"
+new_calls_file="$(mktemp)"
+trap 'rm -f "$current_calls_file" "$new_calls_file"' EXIT
 
-rg --glob '*_test.go' --no-heading --no-line-number -o 'os\.(Chdir|Setenv)\(' "${TARGET_DIRS[@]}" \
-  | LC_ALL=C sort \
-  >"$tmp_current" || true
+collect_guarded_test_calls() {
+  rg --glob '*_test.go' --no-heading --no-line-number -o "$SHARED_STATE_CALL_PATTERN" "${TARGET_DIRS[@]}" \
+    | LC_ALL=C sort \
+    >"$current_calls_file" || true
+}
 
-LC_ALL=C comm -13 "$ALLOWLIST_FILE" "$tmp_current" >"$tmp_new"
+collect_guarded_test_calls
+LC_ALL=C comm -13 "$ALLOWLIST_FILE" "$current_calls_file" >"$new_calls_file"
 
-if [[ -s "$tmp_new" ]]; then
+if [[ -s "$new_calls_file" ]]; then
   echo "Found newly introduced shared-state test calls in guarded packages:"
-  cat "$tmp_new"
+  cat "$new_calls_file"
   echo
   echo "Use t.Setenv(), helper seams, or per-test isolation instead of adding new os.Chdir/os.Setenv usage."
   echo "If a new usage is unavoidable, update $ALLOWLIST_FILE in the same change with rationale."
