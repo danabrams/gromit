@@ -131,13 +131,22 @@ func (t *CoverageTracker) IsComplete() bool {
 
 // NextUncovered returns the lowest-numbered unchecked criterion, or nil if none remain.
 func (t *CoverageTracker) NextUncovered() *Criterion {
+	minUncheckedIdx := -1
 	for i := range t.criteria {
-		if t.criteria[i].Status == Unchecked {
-			c := t.criteria[i].Criterion
-			return &c
+		if t.criteria[i].Status != Unchecked {
+			continue
+		}
+
+		if minUncheckedIdx == -1 || t.criteria[i].Number < t.criteria[minUncheckedIdx].Number {
+			minUncheckedIdx = i
 		}
 	}
-	return nil
+	if minUncheckedIdx == -1 {
+		return nil
+	}
+
+	c := t.criteria[minUncheckedIdx].Criterion
+	return &c
 }
 
 func (t *CoverageTracker) findCriterionState(number int) *CriterionState {

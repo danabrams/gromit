@@ -29,6 +29,24 @@ func TestNewTracker_NextUncoveredReturnsCriterion(t *testing.T) {
 	}
 }
 
+func TestNextUncovered_ReturnsLowestCriterionNumber(t *testing.T) {
+	criteria := []Criterion{
+		{Number: 3, Text: "Third"},
+		{Number: 1, Text: "First"},
+		{Number: 2, Text: "Second"},
+	}
+	tracker := NewTracker(criteria, 2)
+	tracker.MarkCovered(1)
+
+	next := tracker.NextUncovered()
+	if next == nil {
+		t.Fatal("NextUncovered() = nil, want criterion 2")
+	}
+	if next.Number != 2 {
+		t.Fatalf("NextUncovered().Number = %d, want 2", next.Number)
+	}
+}
+
 func TestSummary_RendersHumanReadableSummary(t *testing.T) {
 	criteria := []Criterion{
 		{Number: 1, Text: "First criterion"},
@@ -131,6 +149,14 @@ func TestIsComplete_ReturnsTrueWhenAllCoveredOrUntestable(t *testing.T) {
 	tracker.RecordRejection(2)
 	if !tracker.IsComplete() {
 		t.Fatal("IsComplete() = false when criterion 1 covered and criterion 2 untestable, want true")
+	}
+}
+
+func TestIsComplete_ReturnsTrueForEmptyTracker(t *testing.T) {
+	tracker := NewTracker([]Criterion{}, 2)
+
+	if !tracker.IsComplete() {
+		t.Fatal("IsComplete() = false for empty tracker, want true")
 	}
 }
 
