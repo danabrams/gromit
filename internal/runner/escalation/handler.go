@@ -196,16 +196,19 @@ func (h *Handler) checkRetryBudgetBeforeAttempt(ctx context.Context, bc *runtype
 	if bc.MaxAttemptsPerBead > 0 && bc.AttemptsThisBead >= bc.MaxAttemptsPerBead {
 		return false, fmt.Errorf("retry budget exceeded: attempts %d/%d", bc.AttemptsThisBead, bc.MaxAttemptsPerBead)
 	}
-	if bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() && time.Since(bc.BeadStartTime) >= bc.BeadTimeout {
-		return false, fmt.Errorf("retry budget exceeded: bead wall-clock %s reached (timeout=%s)", time.Since(bc.BeadStartTime).Round(time.Second), bc.BeadTimeout)
+	if bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
+		elapsed := time.Since(bc.BeadStartTime)
+		if elapsed >= bc.BeadTimeout {
+			return false, fmt.Errorf("retry budget exceeded: bead wall-clock %s reached (timeout=%s)", elapsed.Round(time.Second), bc.BeadTimeout)
+		}
 	}
 	if h != nil && h.cfg != nil {
-		maxInputTokens := h.cfg.Claude.TokenBudgetForModel(bc.Model)
-		if maxInputTokens > 0 && bc.CumulativeInputTokens > maxInputTokens {
+		tokenBudgetCap := h.cfg.Claude.TokenBudgetForModel(bc.Model)
+		if tokenBudgetCap > 0 && bc.CumulativeInputTokens > tokenBudgetCap {
 			failureReason := fmt.Sprintf(
 				"retry budget exceeded: cumulative input tokens %d/%d",
 				bc.CumulativeInputTokens,
-				maxInputTokens,
+				tokenBudgetCap,
 			)
 			decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
 			if decomposeCtx.Err() != nil {
@@ -225,8 +228,11 @@ func (h *Handler) checkRetryBudgetAfterFailure(bc *runtypes.BeadContext) error {
 	if bc.MaxAttemptsPerBead > 0 && bc.AttemptsThisBead >= bc.MaxAttemptsPerBead {
 		return fmt.Errorf("retry budget exceeded after failed attempt: %d/%d", bc.AttemptsThisBead, bc.MaxAttemptsPerBead)
 	}
-	if bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() && time.Since(bc.BeadStartTime) >= bc.BeadTimeout {
-		return fmt.Errorf("retry budget exceeded after failed attempt: bead wall-clock %s reached (timeout=%s)", time.Since(bc.BeadStartTime).Round(time.Second), bc.BeadTimeout)
+	if bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
+		elapsed := time.Since(bc.BeadStartTime)
+		if elapsed >= bc.BeadTimeout {
+			return fmt.Errorf("retry budget exceeded after failed attempt: bead wall-clock %s reached (timeout=%s)", elapsed.Round(time.Second), bc.BeadTimeout)
+		}
 	}
 	return nil
 }
