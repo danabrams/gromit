@@ -38,6 +38,8 @@ var retroResolveAgentFn = agent.Resolve
 var retroSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 var retroRecordStateFn = recordRetroState
 
+const retroSessionCommand = "retro"
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -357,13 +359,13 @@ func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromi
 
 	agentFlag, _ := cmd.Flags().GetString("agent")
 	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
-	selectedAgent, err := retroResolveAgentFn(cfg, "retro", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	selectedAgent, err := retroResolveAgentFn(cfg, retroSessionCommand, agentFlag, chooseAgent, os.Stdin, os.Stdout)
 	if err != nil {
 		return fmt.Errorf("resolving agent: %w", err)
 	}
 
 	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	_, err = retroSessionLauncherFn(gromitDir, "retro", conflictSettings, func(sessionDir string) error {
+	_, err = retroSessionLauncherFn(gromitDir, retroSessionCommand, conflictSettings, func(sessionDir string) error {
 		if err := selectedAgent.LaunchInDir(promptPath, sessionDir); err != nil {
 			return fmt.Errorf("launching interactive review session: %w", err)
 		}

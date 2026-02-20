@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -21,6 +22,8 @@ var (
 	decomposeForce   bool
 	decomposeNoChain bool
 )
+
+const decomposeSessionCommand = "decompose"
 
 var decomposeSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 var decomposeSinglePlanInDirFn = decomposeSinglePlanInCurrentDir
@@ -154,17 +157,21 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 // Respects package-level flags: decomposeReview, decomposeForce, decomposeNoChain.
 func decomposeSinglePlan(planName string, cfg *config.Config) error {
 	if decomposeReview {
-		gromitDir := resolveGromitDir(cfg)
-		conflictSettings := sessionConflictSettingsFromConfig(cfg)
-		_, err := decomposeSessionLauncherFn(gromitDir, "decompose", conflictSettings, func(sessionDir string) error {
-			return decomposeRunInDirFn(sessionDir, func() error {
-				return decomposeSinglePlanInDirFn(planName, cfg)
-			})
-		})
-		return err
+		return runDecomposeReviewInSession(planName, cfg)
 	}
 
 	return decomposeSinglePlanInDirFn(planName, cfg)
+}
+
+func runDecomposeReviewInSession(planName string, cfg *config.Config) error {
+	gromitDir := resolveGromitDir(cfg)
+	conflictSettings := sessionConflictSettingsFromConfig(cfg)
+	_, err := decomposeSessionLauncherFn(gromitDir, decomposeSessionCommand, conflictSettings, func(sessionDir string) error {
+		return decomposeRunInDirFn(sessionDir, func() error {
+			return decomposeSinglePlanInDirFn(planName, cfg)
+		})
+	})
+	return err
 }
 
 func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error {
@@ -407,15 +414,10 @@ func filterUndecomposedPlans(plansDir string, force bool) ([]planInfo, error) {
 		})
 	}
 
-	// Sort by name for consistent ordering
-	// Using a simple bubble sort since we expect few plans
-	for i := 0; i < len(plans); i++ {
-		for j := i + 1; j < len(plans); j++ {
-			if plans[i].Name > plans[j].Name {
-				plans[i], plans[j] = plans[j], plans[i]
-			}
-		}
-	}
+	// Sort by name for consistent ordering.
+	sort.Slice(plans, func(i, j int) bool {
+		return plans[i].Name < plans[j].Name
+	})
 
 	return plans, nil
 }

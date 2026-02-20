@@ -44,6 +44,7 @@ var reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
 
 const defaultThoroughReviewTimeoutSeconds = 900
 const (
+	reviewSessionCommand       = "review"
 	reviewGitDiffErrPrefix     = "git diff"
 	reviewGitDiffStatErrPrefix = "git diff --stat"
 	reviewGitHeadErrPrefix     = "git rev-parse HEAD"
@@ -358,7 +359,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 	gromitDir := resolveGromitDir(cfg)
 	conflictSettings := sessionConflictSettingsFromConfig(cfg)
 
-	_, err := reviewInteractiveSessionLauncherFn(gromitDir, "review", conflictSettings, func(sessionDir string) error {
+	_, err := reviewInteractiveSessionLauncherFn(gromitDir, reviewSessionCommand, conflictSettings, func(sessionDir string) error {
 		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, sessionDir)
 	})
 	if err != nil {
