@@ -188,21 +188,7 @@ type explorePromptRenderer struct {
 	lastDiagnostics *prompt.PromptDiagnostics
 }
 
-func (r *explorePromptRenderer) RenderRefine(input *pipeline.RefinePromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-func (r *explorePromptRenderer) RenderPlan(input *pipeline.PlanPromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-func (r *explorePromptRenderer) RenderDecompose(input *pipeline.DecomposePromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-func (r *explorePromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewPromptInput) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
+var _ pipeline.ExploreRenderer = (*explorePromptRenderer)(nil)
 
 func (r *explorePromptRenderer) RenderExplore(input *pipeline.ExplorePromptInput) (string, error) {
 	// Extract topic from typed input

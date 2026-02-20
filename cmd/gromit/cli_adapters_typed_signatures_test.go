@@ -3,45 +3,40 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/pipeline"
 )
 
-// TestPromptRendererAdapter_UsesTypedInputs verifies cliPromptRenderer methods take typed pipeline input structs
-func TestPromptRendererAdapter_UsesTypedInputs(t *testing.T) {
-	// Expected failure: PromptRenderer.RenderRefine, RenderPlan, RenderDecompose still use interface{} parameters
-	reviewPath := filepath.Join(".", "review.go")
-	content, err := os.ReadFile(reviewPath)
-	if err != nil {
-		t.Fatalf("reading review.go: %v", err)
+// TestPromptRendererAdapter_SingleWorkflowMethods verifies adapters only expose
+// the workflow-specific render method each pipeline interface requires.
+func TestPromptRendererAdapter_SingleWorkflowMethods(t *testing.T) {
+	var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
+	var _ pipeline.ExploreRenderer = (*explorePromptRenderer)(nil)
+
+	reviewType := reflect.TypeOf((*cliPromptRenderer)(nil))
+	if _, ok := reviewType.MethodByName("RenderThoroughReview"); !ok {
+		t.Fatal("cliPromptRenderer must implement RenderThoroughReview")
 	}
 
-	contentStr := string(content)
-
-	// Verify RenderRefine takes typed input
-	if !containsTypedSignature(contentStr, "RenderRefine", "RefinePromptInput") {
-		t.Error("cliPromptRenderer.RenderRefine should take *pipeline.RefinePromptInput, not interface{}")
+	unexpectedReviewMethods := []string{"RenderRefine", "RenderPlan", "RenderDecompose", "RenderExplore"}
+	for _, methodName := range unexpectedReviewMethods {
+		if _, ok := reviewType.MethodByName(methodName); ok {
+			t.Errorf("cliPromptRenderer should not expose %s", methodName)
+		}
 	}
 
-	// Verify RenderPlan takes typed input
-	if !containsTypedSignature(contentStr, "RenderPlan", "PlanPromptInput") {
-		t.Error("cliPromptRenderer.RenderPlan should take *pipeline.PlanPromptInput, not interface{}")
+	exploreType := reflect.TypeOf((*explorePromptRenderer)(nil))
+	if _, ok := exploreType.MethodByName("RenderExplore"); !ok {
+		t.Fatal("explorePromptRenderer must implement RenderExplore")
 	}
-
-	// Verify RenderDecompose takes typed input
-	if !containsTypedSignature(contentStr, "RenderDecompose", "DecomposePromptInput") {
-		t.Error("cliPromptRenderer.RenderDecompose should take *pipeline.DecomposePromptInput, not interface{}")
-	}
-
-	// Verify RenderExplore takes typed input
-	if !containsTypedSignature(contentStr, "RenderExplore", "ExplorePromptInput") {
-		t.Error("cliPromptRenderer.RenderExplore should take *pipeline.ExplorePromptInput, not interface{}")
-	}
-
-	// Verify no interface{} parameters remain in cliPromptRenderer methods
-	rendererSection := extractCLIPromptRendererSection(contentStr)
-	if strings.Contains(rendererSection, "input interface{}") || strings.Contains(rendererSection, "ctx interface{}") {
-		t.Error("cliPromptRenderer methods should use typed parameters, not interface{}")
+	unexpectedExploreMethods := []string{"RenderRefine", "RenderPlan", "RenderDecompose", "RenderThoroughReview"}
+	for _, methodName := range unexpectedExploreMethods {
+		if _, ok := exploreType.MethodByName(methodName); ok {
+			t.Errorf("explorePromptRenderer should not expose %s", methodName)
+		}
 	}
 }
 
