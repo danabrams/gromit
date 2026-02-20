@@ -48,10 +48,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 			var lastSelfReport *coverage.SelfReport
 			var lastFailingTestCode string
 			invokeFn := r.makeInvokeFn()
-			criteriaByNumber := make(map[int]coverage.Criterion, len(criteria))
-			for _, criterion := range criteria {
-				criteriaByNumber[criterion.Number] = criterion
-			}
+			criteriaByNumber := criteriaIndexByNumber(criteria)
 
 			orch := tdd.NewCycleOrchestrator(r.cfg, r.output, tdd.CycleOrchestratorDeps{
 				RenderRedFn: func(handoff *tdd.RedHandoff, bc *runtypes.BeadContext) (string, error) {
@@ -145,13 +142,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 						return result.Output, passed, nil
 					}
 
-					target := pendingCoverageCriterion
-					if lastSelfReport != nil && lastSelfReport.Targeting > 0 {
-						if criterion, ok := criteriaByNumber[lastSelfReport.Targeting]; ok {
-							copied := criterion
-							target = &copied
-						}
-					}
+					target := resolveCoverageTargetCriterion(pendingCoverageCriterion, lastSelfReport, criteriaByNumber)
 					if target == nil {
 						return result.Output, passed, nil
 					}
@@ -214,16 +205,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 
 			maxCycles := resolveMaxTDDCycles(r.cfg)
 
-			remaining := append([]string(nil), bc.Bead.ExpectedOutputs...)
-			done := len(remaining) == 0
-			if tracker != nil {
-				uncovered := tracker.UncoveredCriteria()
-				remaining = make([]string, 0, len(uncovered))
-				for _, criterion := range uncovered {
-					remaining = append(remaining, criterion.Text)
-				}
-				done = tracker.IsComplete()
-			}
+			remaining, done := resolveInitialCycleState(bc.Bead.ExpectedOutputs, tracker)
 
 			state := tdd.CycleState{
 				CycleNumber: 0,
@@ -242,4 +224,44 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 			return orch.RunCycles(ctx, bc, state)
 		},
 	}
+}
+
+func criteriaIndexByNumber(criteria []coverage.Criterion) map[int]coverage.Criterion {
+	index := make(map[int]coverage.Criterion, len(criteria))
+	for _, criterion := range criteria {
+		index[criterion.Number] = criterion
+	}
+	return index
+}
+
+func resolveCoverageTargetCriterion(
+	pending *coverage.Criterion,
+	report *coverage.SelfReport,
+	criteriaByNumber map[int]coverage.Criterion,
+) *coverage.Criterion {
+	target := pending
+	if report == nil || report.Targeting <= 0 {
+		return target
+	}
+	criterion, ok := criteriaByNumber[report.Targeting]
+	if !ok {
+		return target
+	}
+	copied := criterion
+	return &copied
+}
+
+func resolveInitialCycleState(expectedOutputs []string, tracker *coverage.CoverageTracker) ([]string, bool) {
+	remaining := append([]string(nil), expectedOutputs...)
+	done := len(remaining) == 0
+	if tracker == nil {
+		return remaining, done
+	}
+
+	uncovered := tracker.UncoveredCriteria()
+	remaining = make([]string, 0, len(uncovered))
+	for _, criterion := range uncovered {
+		remaining = append(remaining, criterion.Text)
+	}
+	return remaining, tracker.IsComplete()
 }
