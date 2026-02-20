@@ -3024,7 +3024,6 @@ func TestRun_EarlyExitEndOfLoopPromptFlowOnError(t *testing.T) {
 		command          string
 		interactive      bool
 		promptAnswer     bool
-		promptErr        error
 		cmdExit          int
 		cmdErr           error
 		cmdStderr        string
@@ -3106,7 +3105,7 @@ func TestRun_EarlyExitEndOfLoopPromptFlowOnError(t *testing.T) {
 				if question != earlyExitPrompt {
 					t.Fatalf("prompt question = %q, want %q", question, earlyExitPrompt)
 				}
-				return tt.promptAnswer, tt.promptErr
+				return tt.promptAnswer, nil
 			}
 
 			r.stdinStatFn = func() (os.FileInfo, error) {

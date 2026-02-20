@@ -17,7 +17,8 @@ func (r *Runner) handleRunError(runErr error) error {
 	if r == nil || r.cfg == nil {
 		return runErr
 	}
-	if strings.TrimSpace(r.cfg.Loop.EndOfLoopCommand) == "" {
+	endOfLoopCommand := strings.TrimSpace(r.cfg.Loop.EndOfLoopCommand)
+	if endOfLoopCommand == "" {
 		return runErr
 	}
 
