@@ -1,6 +1,28 @@
 # Learnings Archive
 
-Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-19.
+Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-20.
+
+---
+
+### 2026-02-19 | normalizeNilFields Single Responsibility | conventions
+*Related to: gromit-176m0*
+normalizeNilFields() should remain a pure nil-to-empty-slice converter. Data transformations between fields (like AcceptanceCriteria to ExpectedOutputs mapping) belong in a separate resolution step to preserve single-responsibility and avoid surprising side effects during normalization.
+
+*Archived from provisional: promoted to RULES.md Code Style section (normalizeNilFields rule strengthened with SRP constraint). Rule is the source of truth.*
+
+### 2026-02-19 | Prompt Context Budget Experiment Results | patterns
+*Related to: experiment*
+
+Experiment "Prompt context budget for sonnet builds" (2026-02-17 to 2026-02-19): Setting Renderer.SetMaxContextChars() to 30K for sonnet-tier builds. After 9 sonnet iterations (target was 30), avg sonnet cost dropped from $1.97 to $1.00, but was confounded by concurrent micro-decomposition improvement. Inconclusive.
+
+*Archived from provisional: experiment concluded as inconclusive on 2026-02-19. First-pass rate improvement was system-wide (micro-decomposition), not experiment-specific.*
+
+### 2026-02-19 | Codex Cost Opacity and Token Reporting Gap | patterns
+*Related to: gpt-5.3-codex Structural Cost Multiplier*
+
+gpt-5.3-codex averages $22.77/iteration vs $2.46 for gpt-5.2-codex (9x cost multiplier). Root cause cannot be diagnosed because the codex provider reports 0 for both input_tokens and output_tokens.
+
+*Archived from provisional: token reporting is now fixed (gromit-h5ktw, Feb 19). Cost differential now observable — replaced by new "gpt-5.3-codex Cost Structure" learning with actual token data.*
 
 ---
 

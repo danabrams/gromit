@@ -378,6 +378,7 @@ After applying retro changes to LEARNINGS.md (archives, consolidations, promotio
 - Generate 2-4 experiment recommendations based on efficiency data (not more, not less)
 - Each experiment must be concrete, testable, and have clear measurement criteria
 - During interactive review, the user will select at most one experiment to run (never multiple)
+- Before setting or changing any experiment decision, get explicit user approval; if the session retries, re-confirm approval before finalizing
 - Run Five Whys only for top 1-2 highest-impact items; do not apply mechanically to all findings
 {{- end }}
 {{- if .Experiment }}

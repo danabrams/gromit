@@ -35,15 +35,10 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-19 | Prompt Context Budget Experiment Results | patterns
-*Related to: experiment*
+### 2026-02-20 | gpt-5.3-codex Cost Parity with 5.2 | patterns
+*Related to: Codex Cost Opacity (archived), token reporting fix (gromit-h5ktw)*
 
-Experiment "Prompt context budget for sonnet builds" (2026-02-17 to 2026-02-19): Setting Renderer.SetMaxContextChars() to 30K for sonnet-tier builds. After 9 sonnet iterations (target was 30), avg sonnet cost dropped from $1.97 to $1.00, but was confounded by concurrent micro-decomposition improvement. One $4.49 outlier persisted. Success rate unchanged at 88-89%. First-pass rate jump (4% to 89%) was system-wide, not experiment-specific. Inconclusive — the context budget may help but the effect cannot be isolated from decomposition improvements.
-
-### 2026-02-19 | Codex Cost Opacity and Token Reporting Gap | patterns
-*Related to: gpt-5.3-codex Structural Cost Multiplier*
-
-gpt-5.3-codex averages $22.77/iteration vs $2.46 for gpt-5.2-codex (9x cost multiplier). Root cause cannot be diagnosed because the codex provider reports 0 for both input_tokens and output_tokens in iteration_metrics.jsonl. The codex output parser must extract and populate token usage metrics, matching Claude's token-reporting path via `{"type":"result"}` events. Until token reporting is fixed and the cost differential explained, prefer gpt-5.2-codex for cost-sensitive routing.
+gpt-5.3-codex and gpt-5.2-codex have comparable per-token pricing (5.3 may be slightly cheaper). Early retro data showing a 3x-9x cost multiplier was based on ~100 iterations with miscalculated cost metrics. With token reporting fixed (82/82 iterations reporting non-zero tokens on Feb 19), actual costs are comparable. Model selection between 5.2 and 5.3 should be based on capability and success rate, not cost.
 
 ### 2026-02-19 | Agent Resolver Adapter Duplication | patterns
 *Related to: code-review*
@@ -61,10 +56,6 @@ Config SetDefaults() uses `if field == 0` guards for integer fields, which preve
 ### 2026-02-19 | Define Shared Helpers Before Wiring Call Sites | conventions
 *Related to: gromit-jmqps*
 When adding fallback logic (like title-as-expected-output), define it once as a shared helper and wire all call sites through it from the start. The expected_outputs wiring shows the same pattern implemented 5 different ways across packages (expectedOutputsOrTitle helper in 2 packages, inline in 3 others), creating maintenance burden.
-
-### 2026-02-19 | normalizeNilFields Single Responsibility | conventions
-*Related to: gromit-176m0*
-normalizeNilFields() should remain a pure nil-to-empty-slice converter. Data transformations between fields (like AcceptanceCriteria to ExpectedOutputs mapping) belong in a separate resolution step to preserve single-responsibility and avoid surprising side effects during normalization.
 
 ---
 

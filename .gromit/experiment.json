@@ -1,17 +1,17 @@
 {
-  "name": "Shorter codex timeout (10min vs 15min)",
-  "hypothesis": "Codex iterations that succeed tend to complete within 10 minutes; iterations exceeding 10 minutes rarely recover. A 10-minute timeout will save ~5 minutes of wall-clock time per timeout without increasing failure rate",
-  "change": "Reduce codex provider timeout from 15 minutes to 10 minutes in routing config",
-  "measurement": "Compare timeout rate and total wall-clock time per bead over next 30 codex iterations; success rate should remain within 1 standard deviation of current",
-  "risk": "Some legitimate codex completions between 10-15 minutes would be killed, potentially increasing retry cost",
-  "primary_concern": "codex",
-  "started_at": "2026-02-19T12:00:00Z",
-  "status": "active",
+  "name": "Prune learnings from build prompts",
+  "hypothesis": "LEARNINGS.md adds ~2K tokens to every build prompt. Since all actionable patterns are promoted to RULES.md, removing learnings from build prompts will not decrease first-pass rate but will reduce input token usage and iteration cost",
+  "change": "Remove LEARNINGS.md content from build phase prompt rendering. Keep RULES.md and all other context intact. Learnings remain available in review and retro phases",
+  "measurement": "Compare over next 50 build iterations: (1) first-pass rate should remain within 2% of 96.7% baseline, (2) avg input tokens should decrease, (3) success rate should remain within 1 std dev of baseline",
+  "risk": "Some provisional learnings may contain useful context for edge cases not yet promoted to rules. Could cause regression on novel failure patterns",
+  "primary_concern": "claude",
+  "started_at": "2026-02-20T12:00:00Z",
+  "status": "planned",
   "baseline_metrics": {
-    "avg_cost_per_bead": 1.3937896705298016,
-    "avg_duration_ms": 603184.6909492274,
-    "avg_input_tokens": 739527.9183222958,
-    "avg_output_tokens": 4908.139072847682,
-    "failure_rate": 0.23841059602649006
+    "avg_cost_per_bead": 1.4488646177385898,
+    "avg_duration_ms": 588094,
+    "avg_input_tokens": 770864.3630705394,
+    "avg_output_tokens": 5057.811203319502,
+    "failure_rate": 0.22406639004149378
   }
 }

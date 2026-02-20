@@ -7,7 +7,7 @@ These are non-negotiable constraints for this project. Gromit will always follow
 - Use `go fmt` standard formatting
 - Use `error` return values, not panics, for recoverable failures. Exception: panic is acceptable in test helpers and init() where failure is unrecoverable
 - Config struct fields must have sensible zero-value defaults or explicit defaults in `setDefaults()`
-- After unmarshaling JSON structs and after file loading, use `normalizeNilFields()` to convert nil slices to empty slices — prevents bugs with nil checks, range operations, and JSON serialization (`nil` → `null` vs `[]` → `[]`)
+- After unmarshaling JSON structs and after file loading, use `normalizeNilFields()` to convert nil slices to empty slices — prevents bugs with nil checks, range operations, and JSON serialization (`nil` → `null` vs `[]` → `[]`). `normalizeNilFields()` must remain a pure nil-to-empty converter; data transformations between fields (e.g., mapping AcceptanceCriteria to ExpectedOutputs) belong in a separate resolution step after normalization
 - Keep packages focused: one package should not reach into another package's internal types
 - `bead.Client` semantics: `Ready()`/`CountReady()` are unblocked-only (`bd ready`); `List()` returns all open beads (`bd list --status open`)
 - Functions that run subprocesses or prompts must inject those dependencies for testability

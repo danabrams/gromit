@@ -689,7 +689,7 @@ func BuildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport,
 		}
 
 		prompt.WriteString("The retro analysis above includes a comparison of current metrics against the baseline. ")
-		prompt.WriteString("You need to decide whether to:\n\n")
+		prompt.WriteString("Work with the user to decide whether to:\n\n")
 		prompt.WriteString("1. **Keep** - The experiment was successful; integrate the change as standard practice (delete experiment.json)\n")
 		prompt.WriteString("2. **Revert** - The experiment didn't work; undo the change and delete experiment.json\n")
 		prompt.WriteString("3. **Extend** - Need more data; keep experiment.json for another cycle\n\n")
@@ -709,6 +709,7 @@ func BuildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport,
 
 		if experiment != nil {
 			prompt.WriteString("   - An active experiment is being evaluated - decide whether to keep, revert, or extend it\n")
+			prompt.WriteString("   - Get explicit user approval before setting/changing act_decision, and re-confirm on interactive retries\n")
 			prompt.WriteString("   - Persist explicit PDSA fields: status, study_summary, act_decision, and act_date in .gromit/experiment.json\n")
 		}
 
@@ -723,6 +724,7 @@ func BuildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport,
 
 	prompt.WriteString("\n**Important constraints:**\n")
 	prompt.WriteString("- Only select ONE experiment at a time (never multiple)\n")
+	prompt.WriteString("- Never set or change experiment decisions without explicit user approval in this session; if retried, re-confirm approval before finalizing\n")
 	prompt.WriteString("- When selecting an experiment, populate baseline metrics using ComputeBaselineMetrics from the retro package\n")
 	prompt.WriteString("- Experiment recommendations should focus on concrete, testable process changes\n")
 	prompt.WriteString("- Apply Five Whys analysis when investigating efficiency anomalies to identify root causes\n")

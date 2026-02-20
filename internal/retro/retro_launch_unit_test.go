@@ -110,4 +110,7 @@ func TestBuildClaudeCodePrompt_IncludesEfficiencyAndExperimentSections(t *testin
 	if !strings.Contains(prompt, "Test Experiment") {
 		t.Fatalf("prompt missing experiment name: %q", prompt)
 	}
+	if !strings.Contains(prompt, "Never set or change experiment decisions without explicit user approval") {
+		t.Fatalf("prompt missing explicit-approval guardrail for experiment decisions: %q", prompt)
+	}
 }

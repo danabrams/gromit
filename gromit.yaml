@@ -174,10 +174,8 @@ claude:
     haiku:
       stall_timeout: 90        # shorter stall — haiku should respond quickly
       bead_timeout: 900        # shorter bead budget — fail fast on haiku
-    gpt-5.3-codex:
-      timeout: 600             # experiment: 10min vs 15min default — codex successes tend to complete within 10min
-    gpt-5.3-codex-spark:
-      timeout: 600             # experiment: match high-tier codex timeout reduction
+    # gpt-5.3-codex timeout reverted: 10min experiment falsified (18/18 >10min succeeded)
+    # gpt-5.3-codex-spark timeout reverted: matched high-tier codex revert
 
 # Agent selection for interactive sessions
 agents:
