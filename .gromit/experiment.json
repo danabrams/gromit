@@ -6,9 +6,9 @@
   "risk": "Some provisional learnings may contain useful context for edge cases not yet promoted to rules. Could cause regression on novel failure patterns",
   "primary_concern": "claude",
   "started_at": "2026-02-20T12:00:00Z",
-  "status": "doing",
-  "study_summary": "Zero iterations collected during 'planned' phase (2026-02-20). Experiment was not activated — code change was never implemented. PROMPT_build.md still included learnings sections and prompt.go unconditionally loaded them. Latest 30-iteration window shows 100% first-pass rate (strong baseline). Now activated via skip_build_learnings config flag.",
-  "act_decision": "extend",
+  "status": "failed",
+  "study_summary": "Learnings successfully excluded from build prompts (confirmed_learnings=0, recent_learnings=0 in all 30 iterations). However, learnings were only ~2K tokens — <0.3% of total input. Input tokens actually increased 35% (770K → 1.04M) due to model mix shifting to Codex (29/30 iterations). Cost increased 31% ($1.45 → $1.90). Success rate improved from 77.6% to 96.7% but this is attributable to micro-decomposition rules, not the experiment. The hypothesis was wrong: the real cost driver is Codex full-repo context at 1M+ tokens, not prompt content.",
+  "act_decision": "abandon",
   "act_date": "2026-02-20",
   "baseline_metrics": {
     "avg_cost_per_bead": 1.4488646177385898,
