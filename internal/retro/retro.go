@@ -470,6 +470,3 @@ func (r *Retro) captureExperimentLearning(exp *Experiment) {
 		fmt.Fprintf(os.Stderr, "Warning: failed to persist experiment learning state: %v\n", err)
 	}
 }
-
-// enrichBeadStats populates Status, CloseReason, and Comments fields on BeadStats
-// by calling bd show for each bead. Errors are logged as warnings and do not stop enrichment.
