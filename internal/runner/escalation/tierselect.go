@@ -10,13 +10,14 @@ const (
 	lowComplexitySignalThreshold  = 2
 	lowFileCountMin               = 1
 	lowFileCountMax               = 3
+	complexityHighLabel           = "complexity:high"
 	lowComplexityTDDDisabledLabel = "tdd:false"
 )
 
 // SelectTier returns the abstract tier (high/medium/low) for a bead based on
-// its priority and labels. Routes test-only beads to low tier unless a
-// complexity label overrides the selection. Returns TierMedium as a safe
-// default for nil inputs.
+// its priority, labels, and low-complexity signals. Beads marked with
+// complexity:high bypass low-complexity routing and use config selection.
+// Returns TierMedium as a safe default for nil inputs.
 func SelectTier(cfg *config.Config, b *bead.Bead) string {
 	if cfg == nil {
 		return provider.TierMedium
@@ -24,13 +25,11 @@ func SelectTier(cfg *config.Config, b *bead.Bead) string {
 	if b == nil {
 		return provider.TierMedium
 	}
-	// Route test-only beads to low tier unless an explicit complexity label overrides
-	if bead.IsTestOnlyBead(b.Title) {
-		for _, label := range b.Labels {
-			if _, ok := cfg.Models.Labels[label]; ok {
-				return cfg.SelectTier(b.Priority, b.Labels)
-			}
-		}
+
+	if bead.HasLabel(b.Labels, complexityHighLabel) {
+		return cfg.SelectTier(b.Priority, b.Labels)
+	}
+	if isLowComplexity(cfg, b) {
 		return provider.TierLow
 	}
 	return cfg.SelectTier(b.Priority, b.Labels)

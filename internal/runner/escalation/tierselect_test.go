@@ -77,8 +77,8 @@ func TestSelectTier_LabelOverride(t *testing.T) {
 			P1: provider.TierMedium,
 			P2: provider.TierLow,
 			Labels: map[string]string{
-				"complexity:high": provider.TierHigh,
-				"complexity:low":  provider.TierLow,
+				complexityHighLabel: provider.TierHigh,
+				"complexity:low":    provider.TierLow,
 			},
 		},
 	}
@@ -86,10 +86,36 @@ func TestSelectTier_LabelOverride(t *testing.T) {
 	cfg.NormalizeNilFields()
 
 	// P2 bead with complexity:high label should get high tier
-	b := &bead.Bead{ID: "override-001", Priority: 2, Labels: []string{"complexity:high"}}
+	b := &bead.Bead{ID: "override-001", Priority: 2, Labels: []string{complexityHighLabel}}
 	result := SelectTier(cfg, b)
 	if result != provider.TierHigh {
 		t.Errorf("SelectTier(P2, complexity:high) = %q, want %q", result, provider.TierHigh)
+	}
+}
+
+func TestSelectTier_ComplexityHighBypassesLowComplexityRouting(t *testing.T) {
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			P0: provider.TierHigh,
+			P1: provider.TierMedium,
+			P2: provider.TierLow,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	// This bead has enough low-complexity signals but should still use config
+	// selection when complexity:high is present.
+	b := &bead.Bead{
+		ID:       "bypass-001",
+		Title:    "Add tests for tier selection",
+		Priority: 1,
+		Labels:   []string{complexityHighLabel, lowComplexityTDDDisabledLabel},
+	}
+
+	result := SelectTier(cfg, b)
+	if result != provider.TierMedium {
+		t.Errorf("SelectTier() = %q, want %q when complexity:high label is present", result, provider.TierMedium)
 	}
 }
 
@@ -126,7 +152,7 @@ func TestSelectTier_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			Labels: map[string]string{
-				"complexity:high": provider.TierHigh,
+				complexityHighLabel: provider.TierHigh,
 			},
 		},
 	}
@@ -137,7 +163,7 @@ func TestSelectTier_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
 		ID:       "test-override-001",
 		Title:    "Add tests for complex feature",
 		Priority: 1,
-		Labels:   []string{"complexity:high"},
+		Labels:   []string{complexityHighLabel},
 	}
 	result := SelectTier(cfg, b)
 	if result == provider.TierLow {
