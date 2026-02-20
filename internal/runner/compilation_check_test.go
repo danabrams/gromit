@@ -10,15 +10,16 @@ import (
 )
 
 func TestRunCompilationCheck_ErrorsAppendedToPrompt(t *testing.T) {
+	const compileCommand = "go build ./cmd/gromit"
+	executedCommand := ""
+
 	r := &Runner{
 		cfg: &config.Config{
-			Preflight: config.PreflightConfig{CompileCommand: "go build ./..."},
+			Preflight: config.PreflightConfig{CompileCommand: compileCommand},
 		},
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			if strings.Contains(command, "go build") {
-				return "", "internal/foo/bar.go:10: undefined: SomeSymbol", 1, nil
-			}
-			return "", "", 0, nil
+			executedCommand = command
+			return "", "internal/foo/bar.go:10: undefined: SomeSymbol", 1, nil
 		},
 	}
 
@@ -38,14 +39,21 @@ func TestRunCompilationCheck_ErrorsAppendedToPrompt(t *testing.T) {
 	if !bc.Result.CompilationErrors {
 		t.Fatal("expected CompilationErrors flag to be true")
 	}
+	if executedCommand != compileCommand {
+		t.Fatalf("expected compile command %q, got %q", compileCommand, executedCommand)
+	}
 }
 
 func TestRunCompilationCheck_NoErrors(t *testing.T) {
+	const compileCommand = "go build ./..."
+	executedCommand := ""
+
 	r := &Runner{
 		cfg: &config.Config{
-			Preflight: config.PreflightConfig{CompileCommand: "go build ./..."},
+			Preflight: config.PreflightConfig{CompileCommand: compileCommand},
 		},
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			executedCommand = command
 			return "", "", 0, nil
 		},
 	}
@@ -62,6 +70,9 @@ func TestRunCompilationCheck_NoErrors(t *testing.T) {
 	}
 	if bc.Result.CompilationErrors {
 		t.Fatal("expected CompilationErrors flag to be false")
+	}
+	if executedCommand != compileCommand {
+		t.Fatalf("expected compile command %q, got %q", compileCommand, executedCommand)
 	}
 }
 
