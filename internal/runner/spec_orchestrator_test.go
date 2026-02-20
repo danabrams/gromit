@@ -295,3 +295,55 @@ func TestSpecOrchestrator_RunArgv_FallbackReturnsNonZeroExitWithoutError(t *test
 		t.Fatalf("expected stderr to contain boom, got %q", stderr)
 	}
 }
+
+func TestNewSpecOrchestrator_RunArgv_UsesRunnerConfiguredArgvRunner(t *testing.T) {
+	called := false
+	r := &Runner{
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			called = true
+			if program != "tool" {
+				t.Fatalf("program = %q, want %q", program, "tool")
+			}
+			if strings.Join(args, " ") != "a b" {
+				t.Fatalf("args = %v, want %v", args, []string{"a", "b"})
+			}
+			if workDir != "/tmp/work" {
+				t.Fatalf("workDir = %q, want %q", workDir, "/tmp/work")
+			}
+			return "ok", "warn", 9, nil
+		},
+	}
+
+	orchestrator := newSpecOrchestrator(r)
+	stdout, stderr, exitCode, err := orchestrator.runArgv(context.Background(), "tool", []string{"a", "b"}, "/tmp/work")
+	if err != nil {
+		t.Fatalf("runArgv error: %v", err)
+	}
+	if !called {
+		t.Fatal("expected runner-configured argv runner to be called")
+	}
+	if stdout != "ok" || stderr != "warn" || exitCode != 9 {
+		t.Fatalf("runArgv = (%q, %q, %d), want (%q, %q, %d)", stdout, stderr, exitCode, "ok", "warn", 9)
+	}
+}
+
+func TestNewSpecOrchestrator_RunArgv_DefaultPathUsesFallback(t *testing.T) {
+	orchestrator := newSpecOrchestrator(&Runner{})
+	workDir := t.TempDir()
+
+	stdout, stderr, exitCode, err := orchestrator.runArgv(
+		context.Background(),
+		"sh",
+		[]string{"-c", "printf '%s' \"$1\"", "ignored0", "fallback-ok"},
+		workDir,
+	)
+	if err != nil {
+		t.Fatalf("runArgv returned error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr=%q)", exitCode, stderr)
+	}
+	if stdout != "fallback-ok" {
+		t.Fatalf("expected stdout fallback-ok, got %q", stdout)
+	}
+}
