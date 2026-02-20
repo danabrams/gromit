@@ -26,9 +26,11 @@ Examples:
 }
 
 var statsJSON bool
+var statsTDD bool
 
 func init() {
 	statsCmd.Flags().BoolVar(&statsJSON, "json", false, "Output stats as JSON")
+	statsCmd.Flags().BoolVar(&statsTDD, "tdd", false, "Include TDD phase/cycle metrics")
 	rootCmd.AddCommand(statsCmd)
 }
 
@@ -48,10 +50,10 @@ func runStats(cmd *cobra.Command, args []string) error {
 	}
 
 	if statsJSON {
-		return outputJSON(statsData.projectStats, statsData.globalStats, statsData.costPerSpec)
+		return outputJSON(statsData.projectStats, statsData.globalStats, statsData.costPerSpec, statsData.tddMetrics)
 	}
 
-	return outputText(statsData.projectStats, statsData.globalStats, statsData.beadCosts, statsData.costPerSpec)
+	return outputText(statsData.projectStats, statsData.globalStats, statsData.beadCosts, statsData.costPerSpec, statsData.tddMetrics)
 }
 
 type statsData struct {
@@ -59,6 +61,7 @@ type statsData struct {
 	globalStats  *logger.GlobalStats
 	beadCosts    map[string]float64
 	costPerSpec  map[string]logger.SpecCost
+	tddMetrics   *logger.TDDStats
 }
 
 func loadStatsData(cfg *config.Config) (*statsData, error) {
@@ -94,11 +97,27 @@ func loadStatsData(cfg *config.Config) (*statsData, error) {
 		return nil, fmt.Errorf("reading global stats: %w", err)
 	}
 
+	var tddMetrics *logger.TDDStats
+	if statsTDD {
+		if _, err := logger.ReadTDDPhaseRecords(logsDir); err != nil {
+			return nil, fmt.Errorf("reading tdd phase records: %w", err)
+		}
+		if _, err := logger.ReadTDDSummaries(logsDir); err != nil {
+			return nil, fmt.Errorf("reading tdd summaries: %w", err)
+		}
+		metrics, err := logger.AggregateTDDStats(logsDir)
+		if err != nil {
+			return nil, fmt.Errorf("aggregating tdd stats: %w", err)
+		}
+		tddMetrics = &metrics
+	}
+
 	return &statsData{
 		projectStats: projectStats,
 		globalStats:  globalStats,
 		beadCosts:    beadCosts,
 		costPerSpec:  costPerSpec,
+		tddMetrics:   tddMetrics,
 	}, nil
 }
 
@@ -106,13 +125,15 @@ type statsJSONOutput struct {
 	ProjectStats map[string]logger.ModelStats `json:"project_stats"`
 	GlobalStats  *logger.GlobalStats          `json:"global_stats"`
 	CostPerSpec  map[string]logger.SpecCost   `json:"cost_per_spec"`
+	TDDMetrics   *logger.TDDStats             `json:"tdd_metrics"`
 }
 
-func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, costPerSpec map[string]logger.SpecCost) error {
+func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, costPerSpec map[string]logger.SpecCost, tddMetrics *logger.TDDStats) error {
 	output := statsJSONOutput{
 		ProjectStats: projectStats,
 		GlobalStats:  globalStats,
 		CostPerSpec:  costPerSpec,
+		TDDMetrics:   tddMetrics,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")
@@ -124,7 +145,7 @@ func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.G
 	return nil
 }
 
-func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost) error {
+func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost, tddMetrics *logger.TDDStats) error {
 	fmt.Println("Project Model Performance (Escalation rates shown):")
 	fmt.Println()
 	printProjectModelStats(projectStats)
@@ -153,6 +174,11 @@ func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.G
 		fmt.Println("Global Model Performance (all projects, global aggregate):")
 		fmt.Println()
 		printGlobalModelStats(globalStats.Models)
+	}
+
+	if tddMetrics != nil {
+		fmt.Println()
+		printTDDMetrics(*tddMetrics)
 	}
 
 	return nil
@@ -238,4 +264,43 @@ func formatModelMix(mix map[string]int) string {
 		parts = append(parts, fmt.Sprintf("%s:%d", m, mix[m]))
 	}
 	return strings.Join(parts, ", ")
+}
+
+func printTDDMetrics(stats logger.TDDStats) {
+	fmt.Println("TDD Metrics:")
+	fmt.Printf("  avg cycles/bead: %.2f\n", stats.AvgCyclesPerBead)
+	fmt.Printf("  avg cost/cycle: $%.2f\n", stats.AvgCostUSDPerCycle)
+	fmt.Printf("  avg tokens/cycle: in=%.0f out=%.0f\n", stats.AvgInputTokensCycle, stats.AvgOutputTokensCycle)
+
+	if len(stats.PhaseSuccessRates) > 0 {
+		fmt.Println("  per-phase success rates:")
+		for _, phase := range sortedStringFloatKeys(stats.PhaseSuccessRates) {
+			fmt.Printf("    %s: %.0f%%\n", phase, stats.PhaseSuccessRates[phase]*100)
+		}
+	}
+
+	if len(stats.EscalationPatterns) > 0 {
+		fmt.Println("  escalation counts:")
+		for _, pattern := range sortedStringIntKeys(stats.EscalationPatterns) {
+			fmt.Printf("    %s: %d\n", pattern, stats.EscalationPatterns[pattern])
+		}
+	}
+}
+
+func sortedStringFloatKeys(values map[string]float64) []string {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedStringIntKeys(values map[string]int) []string {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

@@ -37,6 +37,15 @@ func TestStatsCmd_Flags(t *testing.T) {
 	if jsonFlag != nil && jsonFlag.Value.Type() != "bool" {
 		t.Errorf("--json flag should be bool, got %s", jsonFlag.Value.Type())
 	}
+
+	// Verify the --tdd flag is available and bool
+	tddFlag := statsCmd.Flags().Lookup("tdd")
+	if tddFlag == nil {
+		t.Error("stats command should have --tdd flag")
+	}
+	if tddFlag != nil && tddFlag.Value.Type() != "bool" {
+		t.Errorf("--tdd flag should be bool, got %s", tddFlag.Value.Type())
+	}
 }
 
 func TestStatsCmd_DisplaysProjectStats(t *testing.T) {
@@ -417,6 +426,176 @@ func TestStatsCmd_JSONOutputIncludesCostPerSpec(t *testing.T) {
 	// Verify JSON includes cost_per_spec
 	if _, ok := result["cost_per_spec"]; !ok {
 		t.Error("JSON output should have cost_per_spec field")
+	}
+}
+
+func TestStatsCmd_TDDTextOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	runID := "20260219-130000"
+	logFilePath := filepath.Join(logsDir, "run-"+runID+".jsonl")
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		t.Fatalf("failed to create log file: %v", err)
+	}
+	encoder := json.NewEncoder(logFile)
+	records := []any{
+		logger.IterationLog{BeadID: "bead-1", Model: "haiku", Success: false, CostUSD: 0.60},
+		logger.IterationLog{BeadID: "bead-1", Model: "sonnet", Success: true, CostUSD: 0.40},
+		logger.TDDPhaseRecord{
+			Type:          "tdd_phase",
+			BeadID:        "bead-1",
+			Phase:         "red",
+			CycleNumber:   1,
+			Model:         "haiku",
+			Success:       false,
+			InputTokens:   100,
+			OutputTokens:  30,
+			Escalated:     true,
+			EscalatedFrom: "haiku",
+		},
+		logger.TDDPhaseRecord{
+			Type:         "tdd_phase",
+			BeadID:       "bead-1",
+			Phase:        "green",
+			CycleNumber:  1,
+			Model:        "sonnet",
+			Success:      true,
+			InputTokens:  120,
+			OutputTokens: 40,
+		},
+		logger.TDDSummaryRecord{
+			Type:        "tdd_summary",
+			BeadID:      "bead-1",
+			TotalCycles: 1,
+			TotalPhases: 2,
+			Success:     true,
+		},
+	}
+	for _, record := range records {
+		if err := encoder.Encode(record); err != nil {
+			t.Fatalf("failed to write log entry: %v", err)
+		}
+	}
+	logFile.Close()
+
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats", "--tdd"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command with --tdd failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "TDD Metrics") {
+		t.Fatalf("output should include TDD metrics section, got:\n%s", output)
+	}
+	if !strings.Contains(output, "avg cycles/bead") || !strings.Contains(output, "avg cost/cycle") {
+		t.Errorf("output should include cycle aggregates, got:\n%s", output)
+	}
+	if !strings.Contains(output, "avg tokens/cycle") {
+		t.Errorf("output should include token aggregates, got:\n%s", output)
+	}
+	if !strings.Contains(output, "per-phase success rates") || !strings.Contains(output, "red") {
+		t.Errorf("output should include per-phase success rates, got:\n%s", output)
+	}
+	if !strings.Contains(output, "escalation counts") || !strings.Contains(output, "haiku->haiku") {
+		t.Errorf("output should include escalation counts, got:\n%s", output)
+	}
+}
+
+func TestStatsCmd_TDDJSONOutputIncludesMetrics(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	runID := "20260219-140000"
+	logFilePath := filepath.Join(logsDir, "run-"+runID+".jsonl")
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		t.Fatalf("failed to create log file: %v", err)
+	}
+	encoder := json.NewEncoder(logFile)
+	records := []any{
+		logger.IterationLog{BeadID: "bead-2", Model: "sonnet", Success: true, CostUSD: 0.30},
+		logger.TDDPhaseRecord{
+			Type:         "tdd_phase",
+			BeadID:       "bead-2",
+			Phase:        "green",
+			CycleNumber:  1,
+			Model:        "sonnet",
+			Success:      true,
+			InputTokens:  60,
+			OutputTokens: 20,
+		},
+		logger.TDDSummaryRecord{
+			Type:        "tdd_summary",
+			BeadID:      "bead-2",
+			TotalCycles: 1,
+			TotalPhases: 1,
+			Success:     true,
+		},
+	}
+	for _, record := range records {
+		if err := encoder.Encode(record); err != nil {
+			t.Fatalf("failed to write log entry: %v", err)
+		}
+	}
+	logFile.Close()
+
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats", "--json", "--tdd"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command with --json --tdd failed: %v", err)
+		}
+	})
+
+	var result map[string]any
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("output should be valid JSON, got parse error: %v", err)
+	}
+
+	rawTDD, ok := result["tdd_metrics"]
+	if !ok {
+		t.Fatalf("JSON output should include tdd_metrics: %v", result)
+	}
+	tddMetrics, ok := rawTDD.(map[string]any)
+	if !ok {
+		t.Fatalf("tdd_metrics should be an object, got %T", rawTDD)
+	}
+	if _, ok := tddMetrics["phase_success_rates"]; !ok {
+		t.Errorf("tdd_metrics should include phase_success_rates, got: %v", tddMetrics)
 	}
 }
 
@@ -865,6 +1044,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	// Reset command flags before execution
 	statsCmd.Flags().Set("json", "false")
+	statsCmd.Flags().Set("tdd", "false")
 
 	// Create a pipe to capture stdout
 	r, w, err := os.Pipe()
