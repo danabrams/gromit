@@ -3,6 +3,10 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -13,22 +17,123 @@ import (
 
 // newSpecOrchestrator creates a SpecOrchestrator wired to the runner's dependencies.
 func newSpecOrchestrator(r *Runner) *SpecOrchestrator {
-	return &SpecOrchestrator{
-		renderer:     r.renderer,
-		router:       r.router,
-		beads:        r.beads,
-		cfg:          r.cfg,
-		argvRunnerFn: r.argvRunnerFn,
+	var (
+		renderer     PromptRenderer
+		router       *provider.Router
+		beads        BeadClient
+		cfg          *config.Config
+		argvRunnerFn ArgvRunnerFn
+		logFn        func(format string, args ...interface{})
+		specsDir     string
+	)
+	if r != nil {
+		renderer = r.renderer
+		router = r.router
+		beads = r.beads
+		cfg = r.cfg
+		argvRunnerFn = r.argvRunnerFn
+		logFn = r.log
+		if r.cfg != nil {
+			specsDir = r.cfg.Paths.Specs
+		}
 	}
+
+	return &SpecOrchestrator{
+		renderer:          renderer,
+		router:            router,
+		beads:             beads,
+		specContentLoader: &fileSpecContentLoader{specsDir: specsDir},
+		cfg:               cfg,
+		argvRunnerFn:      argvRunnerFn,
+		logFn:             logFn,
+	}
+}
+
+// SpecContentLoader loads spec content and existing spec-level tests.
+type SpecContentLoader interface {
+	LoadSpecContent(specName string) (string, error)
+	LoadExistingSpecTests(specName string) (string, error)
+}
+
+// fileSpecContentLoader loads specs and existing tests from the local filesystem.
+type fileSpecContentLoader struct {
+	specsDir string
+}
+
+func (l *fileSpecContentLoader) LoadSpecContent(specName string) (string, error) {
+	if l == nil {
+		return "", fmt.Errorf("spec content loader is nil")
+	}
+	if err := prompt.ValidateSpecName(specName); err != nil {
+		return "", err
+	}
+	path := filepath.Join(l.specsDir, specName+".md")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading spec %s: %w", specName, err)
+	}
+	return string(content), nil
+}
+
+func (l *fileSpecContentLoader) LoadExistingSpecTests(specName string) (string, error) {
+	if l == nil {
+		return "", fmt.Errorf("spec content loader is nil")
+	}
+	if err := prompt.ValidateSpecName(specName); err != nil {
+		return "", err
+	}
+
+	matches := make([]string, 0)
+	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			if path == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, "_acceptance_test.go") {
+			return nil
+		}
+		normalized := filepath.ToSlash(path)
+		if strings.Contains(normalized, specName) {
+			matches = append(matches, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("walking existing acceptance tests: %w", err)
+	}
+	if len(matches) == 0 {
+		return "", nil
+	}
+
+	slices.Sort(matches)
+	var sections []string
+	for _, match := range matches {
+		content, readErr := os.ReadFile(match)
+		if readErr != nil {
+			return "", fmt.Errorf("reading acceptance test %s: %w", match, readErr)
+		}
+		sections = append(sections, fmt.Sprintf("### %s\n%s", filepath.ToSlash(match), string(content)))
+	}
+	return strings.Join(sections, "\n\n"), nil
 }
 
 // SpecOrchestrator coordinates spec-level acceptance test authoring.
 type SpecOrchestrator struct {
-	renderer     PromptRenderer
-	router       *provider.Router
-	beads        BeadClient
-	cfg          *config.Config
-	argvRunnerFn ArgvRunnerFn
+	renderer          PromptRenderer
+	router            *provider.Router
+	beads             BeadClient
+	specContentLoader SpecContentLoader
+	cfg               *config.Config
+	argvRunnerFn      ArgvRunnerFn
+	logFn             func(format string, args ...interface{})
 
 	authoredSpecs map[string]bool
 }
@@ -52,12 +157,18 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 		return nil
 	}
 
-	spec, err := o.renderer.LoadSpec(specName)
+	spec, err := o.loadSpecContent(specName)
 	if err != nil {
 		return fmt.Errorf("loading spec %s: %w", specName, err)
 	}
 	if strings.TrimSpace(spec) == "" {
-		return fmt.Errorf("spec file .gromit/specs/%s.md not found", specName)
+		o.logWarning("skipping spec acceptance authoring for %q: spec file %s not found", specName, filepath.ToSlash(filepath.Join(o.specsDirOrDefault(), specName+".md")))
+		return nil
+	}
+
+	existingTests, err := o.loadExistingSpecTests(specName)
+	if err != nil {
+		return fmt.Errorf("loading existing acceptance tests for %s: %w", specName, err)
 	}
 
 	rules, err := o.renderer.LoadRulesForPhase("build")
@@ -65,8 +176,13 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 		return fmt.Errorf("loading rules: %w", err)
 	}
 
+	specForPrompt := spec
+	if strings.TrimSpace(existingTests) != "" {
+		specForPrompt = strings.TrimSpace(spec) + "\n\n## Existing Spec-Level Tests\n\n" + strings.TrimSpace(existingTests)
+	}
+
 	acceptancePrompt, err := o.renderer.RenderSpecAcceptance(&prompt.SpecAcceptanceContext{
-		Spec:  spec,
+		Spec:  specForPrompt,
 		Rules: rules,
 	})
 	if err != nil {
@@ -75,20 +191,34 @@ func (o *SpecOrchestrator) AuthorAcceptanceTests(ctx context.Context, specName s
 
 	tier := escalation.SelectTier(o.cfg, nil)
 
-	p, _ := o.router.Select("build", tier)
+	p, modelName := o.router.Select("build", tier)
 	if p == nil {
 		return fmt.Errorf("no provider available for spec acceptance")
 	}
 
 	result, err := p.Run(ctx, acceptancePrompt, tier)
+	if err != nil && p.IsUsageLimitError(result, err) {
+		o.router.MarkUnavailable(p.Name())
+		if fallback, fallbackModel := o.router.Select("build", tier); fallback != nil {
+			p = fallback
+			modelName = fallbackModel
+			result, err = p.Run(ctx, acceptancePrompt, tier)
+		}
+	}
 	if err != nil {
-		return fmt.Errorf("spec acceptance invocation: %w", err)
+		return fmt.Errorf("spec acceptance invocation failed (provider=%s model=%s): %w", p.Name(), modelName, err)
 	}
 	if result == nil {
-		return fmt.Errorf("spec acceptance returned nil result")
+		return fmt.Errorf("spec acceptance failed (provider=%s model=%s): nil result", p.Name(), modelName)
 	}
 	if !result.Success {
-		return fmt.Errorf("spec acceptance failed with exit code %d", result.ExitCode)
+		return fmt.Errorf(
+			"spec acceptance failed (provider=%s model=%s): exit=%d failure_category=%s",
+			p.Name(),
+			modelName,
+			result.ExitCode,
+			result.FailureCategory,
+		)
 	}
 
 	if err := o.commitAcceptanceTests(ctx, specName); err != nil {
@@ -131,4 +261,35 @@ func (o *SpecOrchestrator) runArgv(ctx context.Context, program string, args []s
 		return o.argvRunnerFn(ctx, program, args, workDir)
 	}
 	return defaultArgvRunner(ctx, program, args, workDir)
+}
+
+func (o *SpecOrchestrator) loadSpecContent(specName string) (string, error) {
+	if o != nil && o.specContentLoader != nil {
+		return o.specContentLoader.LoadSpecContent(specName)
+	}
+	if o != nil && o.renderer != nil {
+		return o.renderer.LoadSpec(specName)
+	}
+	return "", fmt.Errorf("spec content loader is nil")
+}
+
+func (o *SpecOrchestrator) loadExistingSpecTests(specName string) (string, error) {
+	if o != nil && o.specContentLoader != nil {
+		return o.specContentLoader.LoadExistingSpecTests(specName)
+	}
+	return "", nil
+}
+
+func (o *SpecOrchestrator) specsDirOrDefault() string {
+	if o != nil && o.cfg != nil && strings.TrimSpace(o.cfg.Paths.Specs) != "" {
+		return o.cfg.Paths.Specs
+	}
+	return ".gromit/specs"
+}
+
+func (o *SpecOrchestrator) logWarning(format string, args ...interface{}) {
+	if o == nil || o.logFn == nil {
+		return
+	}
+	o.logFn("Warning: "+format, args...)
 }

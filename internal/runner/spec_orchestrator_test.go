@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,48 +11,88 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 )
 
-func TestSpecOrchestrator_AuthorAcceptanceTests_MissingSpecReturnsError(t *testing.T) {
+type mockSpecContentLoader struct {
+	loadSpecContentFn       func(specName string) (string, error)
+	loadExistingSpecTestsFn func(specName string) (string, error)
+}
+
+func (m *mockSpecContentLoader) LoadSpecContent(specName string) (string, error) {
+	if m != nil && m.loadSpecContentFn != nil {
+		return m.loadSpecContentFn(specName)
+	}
+	return "", nil
+}
+
+func (m *mockSpecContentLoader) LoadExistingSpecTests(specName string) (string, error) {
+	if m != nil && m.loadExistingSpecTestsFn != nil {
+		return m.loadExistingSpecTestsFn(specName)
+	}
+	return "", nil
+}
+
+func TestSpecOrchestrator_AuthorAcceptanceTests_MissingSpecSkipsWithWarning(t *testing.T) {
 	renderer := &mockPromptRenderer{
-		LoadSpecFn: func(name string) (string, error) {
+		RenderSpecAcceptanceFn: func(ctx *prompt.SpecAcceptanceContext) (string, error) {
+			t.Fatal("RenderSpecAcceptance should not be called when spec is missing")
 			return "", nil
 		},
 	}
 
-	router := provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{})
+	providerRunCalls := 0
+	router := provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			providerRunCalls++
+			return &provider.Result{Success: true}, nil
+		},
+	})
 
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
+	argvCalls := 0
+	var warnings []string
 	orchestrator := &SpecOrchestrator{
-		cfg:      cfg,
-		router:   router,
-		beads:    &mockBeadClient{},
-		renderer: renderer,
+		cfg:               cfg,
+		router:            router,
+		beads:             &mockBeadClient{},
+		renderer:          renderer,
+		specContentLoader: &mockSpecContentLoader{},
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			argvCalls++
+			return "", "", 0, nil
+		},
+		logFn: func(format string, args ...interface{}) {
+			warnings = append(warnings, fmt.Sprintf(format, args...))
+		},
 	}
 
 	err := orchestrator.AuthorAcceptanceTests(context.Background(), "missing-spec")
-	if err == nil {
-		t.Fatal("expected error for missing spec, got nil")
+	if err != nil {
+		t.Fatalf("expected missing spec to be skipped without error, got %v", err)
 	}
-	if !strings.Contains(err.Error(), ".gromit/specs/missing-spec.md") {
-		t.Fatalf("error should mention spec path, got %q", err.Error())
+	if providerRunCalls != 0 {
+		t.Fatalf("expected provider not to be invoked, got %d calls", providerRunCalls)
+	}
+	if argvCalls != 0 {
+		t.Fatalf("expected git commands not to run, got %d calls", argvCalls)
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("expected one warning, got %d", len(warnings))
+	}
+	if !strings.Contains(strings.ToLower(warnings[0]), "skipping spec acceptance authoring") {
+		t.Fatalf("warning should mention skip behavior, got %q", warnings[0])
 	}
 }
 
 func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *testing.T) {
 	specContent := "# Spec"
 	rulesContent := "Rules"
+	existingTests := "### internal/spec/demo-spec_acceptance_test.go\npackage spec_test"
 	var receivedSpec string
 	var receivedRules string
 
 	renderer := &mockPromptRenderer{
-		LoadSpecFn: func(name string) (string, error) {
-			if name != "demo-spec" {
-				t.Fatalf("expected spec name demo-spec, got %q", name)
-			}
-			return specContent, nil
-		},
 		LoadRulesForPhaseFn: func(phase string) (string, error) {
 			if phase != "build" {
 				t.Fatalf("expected build phase, got %q", phase)
@@ -91,6 +132,20 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 		router:   router,
 		beads:    &mockBeadClient{},
 		renderer: renderer,
+		specContentLoader: &mockSpecContentLoader{
+			loadSpecContentFn: func(specName string) (string, error) {
+				if specName != "demo-spec" {
+					t.Fatalf("expected spec name demo-spec, got %q", specName)
+				}
+				return specContent, nil
+			},
+			loadExistingSpecTestsFn: func(specName string) (string, error) {
+				if specName != "demo-spec" {
+					t.Fatalf("expected spec name demo-spec, got %q", specName)
+				}
+				return existingTests, nil
+			},
+		},
 		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
 			argvCalls = append(argvCalls, struct {
 				program string
@@ -112,8 +167,14 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 	if receivedTier == "" {
 		t.Fatal("expected tier to be set for provider run")
 	}
-	if receivedSpec != specContent {
-		t.Fatalf("expected spec content %q, got %q", specContent, receivedSpec)
+	if !strings.Contains(receivedSpec, specContent) {
+		t.Fatalf("expected rendered spec to contain original spec content %q, got %q", specContent, receivedSpec)
+	}
+	if !strings.Contains(receivedSpec, "## Existing Spec-Level Tests") {
+		t.Fatalf("expected rendered spec to contain existing tests section, got %q", receivedSpec)
+	}
+	if !strings.Contains(receivedSpec, existingTests) {
+		t.Fatalf("expected rendered spec to contain existing tests, got %q", receivedSpec)
 	}
 	if receivedRules != rulesContent {
 		t.Fatalf("expected rules %q, got %q", rulesContent, receivedRules)
@@ -128,9 +189,6 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_LoadsSpecAndInvokesProvider(t *t
 
 func TestSpecOrchestrator_AuthorAcceptanceTests_IdempotentBySpecName(t *testing.T) {
 	renderer := &mockPromptRenderer{
-		LoadSpecFn: func(name string) (string, error) {
-			return "spec content", nil
-		},
 		LoadRulesForPhaseFn: func(phase string) (string, error) {
 			return "rules", nil
 		},
@@ -158,6 +216,11 @@ func TestSpecOrchestrator_AuthorAcceptanceTests_IdempotentBySpecName(t *testing.
 		router:   router,
 		beads:    &mockBeadClient{},
 		renderer: renderer,
+		specContentLoader: &mockSpecContentLoader{
+			loadSpecContentFn: func(specName string) (string, error) {
+				return "spec content", nil
+			},
+		},
 		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
 			argvCalls++
 			return "", "", 0, nil
