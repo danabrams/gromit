@@ -15,7 +15,7 @@ import (
 )
 
 const atddSkipLogMessage = "Skipping ATDD: bead is test-only"
-const atddSpecGranularitySkipLogMessage = "Skipping ATDD: spec granularity active for spec:"
+const atddSpecGranularitySkipLogMessage = "Skipping ATDD: spec granularity active (per-bead ATDD disabled)"
 
 const (
 	authSpecOneCriterion = `# Auth
@@ -150,7 +150,7 @@ func TestPrepareMethodology_ATDDSkipLogsReason(t *testing.T) {
 }
 
 // TestPrepareMethodology_ATDDSkippedForSpecGranularity verifies that when
-// granularity is set to spec and a bead has a spec label, ATDD is skipped.
+// granularity is set to spec, ATDD is skipped for per-bead execution.
 func TestPrepareMethodology_ATDDSkippedForSpecGranularity(t *testing.T) {
 	cfg := &config.Config{
 		Methodology: config.MethodologyConfig{
@@ -166,7 +166,26 @@ func TestPrepareMethodology_ATDDSkippedForSpecGranularity(t *testing.T) {
 	atddActive, _, _ := r.prepareMethodologyForBead(context.Background(), bc)
 
 	if atddActive {
-		t.Error("prepareMethodologyForBead should skip ATDD when granularity=spec and bead has spec label")
+		t.Error("prepareMethodologyForBead should skip ATDD when granularity=spec")
+	}
+}
+
+func TestPrepareMethodology_ATDDSkippedForSpecGranularityWithoutSpecLabel(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			ATDD:        false,
+			Granularity: config.MethodologyGranularitySpec,
+		},
+	}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("spec-skip-2", "Implement feature")
+	b.Labels = []string{"atdd:true"}
+	bc := newBeadContextForMethodology(b)
+
+	atddActive, _, _ := r.prepareMethodologyForBead(context.Background(), bc)
+
+	if atddActive {
+		t.Error("prepareMethodologyForBead should skip ATDD in spec granularity even with atdd:true label")
 	}
 }
 
@@ -181,7 +200,7 @@ func TestPrepareMethodology_ATDDSkipSpecGranularityLogsReason(t *testing.T) {
 	}
 	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
 	b := newTestBead("spec-log-1", "Implement feature")
-	b.Labels = []string{"spec:auth"}
+	b.Labels = []string{"atdd:true"}
 	bc := newBeadContextForMethodology(b)
 
 	r.prepareMethodologyForBead(context.Background(), bc)

@@ -38,23 +38,9 @@ func (r *Runner) ensureMethodologyPolicy() {
 func (r *Runner) prepareMethodologyForBead(ctx context.Context, bc *runtypes.BeadContext) (atddActive bool, tddActive bool, done bool) {
 	r.ensureMethodologyPolicy()
 	atddActive = r.methodologyPolicy.IsActive(bc.Bead.Labels, "atdd")
-	if r.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
-		if specName := bead.FindSpecLabel(bc.Bead.Labels); specName != "" {
-			atddWouldBeActive := r.cfg.Methodology.ATDD
-			for _, label := range bc.Bead.Labels {
-				if label == "atdd:true" {
-					atddWouldBeActive = true
-					break
-				}
-				if label == "atdd:false" {
-					atddWouldBeActive = false
-					break
-				}
-			}
-			if atddWouldBeActive && !atddActive {
-				r.log("Skipping ATDD: spec granularity active for spec:%s", specName)
-			}
-		}
+	if atddActive && r.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
+		r.log("Skipping ATDD: spec granularity active (per-bead ATDD disabled)")
+		atddActive = false
 	}
 	if atddActive && bead.IsTestOnlyBead(bc.Bead.Title) {
 		r.log("Skipping ATDD: bead is test-only")
