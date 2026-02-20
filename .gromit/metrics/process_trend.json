@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-02-20T16:44:47.859827421Z",
-  "total_iterations": 622,
+  "generated_at": "2026-02-20T17:29:49.863450361Z",
+  "total_iterations": 623,
   "window_size": 30,
   "latest_window": {
     "success_rate": 1,
     "failure_rate": 0,
     "first_pass_success_rate": 1,
     "escalation_rate": 0,
-    "avg_duration_ms": 399304.93333333335,
+    "avg_duration_ms": 411578.6666666667,
     "p95_duration_ms": 860097.5499999998,
-    "avg_validation_ms": 31.363636363636363,
-    "p95_validation_ms": 66,
-    "avg_cost_usd": 2.620349383333333,
+    "avg_validation_ms": 34.333333333333336,
+    "p95_validation_ms": 68.35,
+    "avg_cost_usd": 2.6396104749999996,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -23,21 +23,21 @@
       {
         "prompt_type": "build",
         "invocation_count": 30,
-        "avg_estimated_tokens": 2534.5666666666666
+        "avg_estimated_tokens": 2518.133333333333
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 67041
+        "estimated_tokens": 66342
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 4954
+        "estimated_tokens": 5108
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 3952
+        "estimated_tokens": 4004
       },
       {
         "section": "template_static",
@@ -63,34 +63,34 @@
     "budget_action_frequency": {},
     "reconciliation_drift": {
       "sample_count": 30,
-      "mean_abs_token_delta_pct": 677.4793341623184,
-      "p95_abs_token_delta_pct": 99.96338446674548
+      "mean_abs_token_delta_pct": 1067.7662696911264,
+      "p95_abs_token_delta_pct": 6537.879744346692
     }
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 2.620349383333333,
-      "mean": 1.0421516214047795,
-      "std_dev": 0.7956236887821362,
-      "ucl": 3.4290226877511882,
-      "lcl": -1.344719444941629
+      "latest": 2.6396104749999996,
+      "mean": 1.04471576081665,
+      "std_dev": 0.7975528244618719,
+      "ucl": 3.4373742342022657,
+      "lcl": -1.347942712568966
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 399304.93333333335,
-      "mean": 540335.3358097521,
-      "std_dev": 283909.66416132584,
-      "ucl": 1392064.3282937296,
-      "lcl": -311393.65667422535
+      "latest": 411578.6666666667,
+      "mean": 540128.6637886557,
+      "std_dev": 283728.5384926048,
+      "ucl": 1391314.27926647,
+      "lcl": -311056.9516891587
     },
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 31.363636363636363,
-      "mean": 0.37197874472794085,
-      "std_dev": 2.8350761645630653,
-      "ucl": 8.877207238417135,
-      "lcl": -8.133249748961255
+      "latest": 34.333333333333336,
+      "mean": 0.42649135241430586,
+      "std_dev": 3.142149852851386,
+      "ucl": 9.852940910968464,
+      "lcl": -8.999958206139851
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -103,16 +103,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.03697749196141518,
-      "std_dev": 0.05228890797390766,
-      "ucl": 0.19384421588313813,
+      "mean": 0.03691813804173393,
+      "std_dev": 0.05226789149931083,
+      "ucl": 0.19372181253966644,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "latest": 1,
-      "mean": 0.5506430868167191,
-      "std_dev": 0.45285263211199756,
+      "mean": 0.5513643659711065,
+      "std_dev": 0.45284646821401836,
       "ucl": 1,
       "lcl": 0
     },
@@ -127,17 +127,17 @@
     {
       "metric": "rolling_success_rate",
       "latest": 1,
-      "mean": 0.8091279697168987,
-      "std_dev": 0.21529623476251886,
+      "mean": 0.8094343453674334,
+      "std_dev": 0.21525903312726258,
       "ucl": 1,
-      "lcl": 0.1632392654293422
+      "lcl": 0.16365724598564568
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.008038585209003206,
-      "std_dev": 0.018022373384409904,
-      "ucl": 0.06210570536223292,
+      "mean": 0.008025682182985544,
+      "std_dev": 0.018010778443479907,
+      "ucl": 0.06205801751342526,
       "lcl": 0
     },
     {
@@ -152,11 +152,11 @@
   "anomalies": [
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 31.363636363636363,
-      "ucl": 8.877207238417135,
-      "lcl": -8.133249748961255,
+      "latest": 34.333333333333336,
+      "ucl": 9.852940910968464,
+      "lcl": -8.999958206139851,
       "severity": "high",
-      "message": "latest value 31.3636 is above control limits [-8.1332, 8.8772]"
+      "message": "latest value 34.3333 is above control limits [-9.0000, 9.8529]"
     }
   ]
 }

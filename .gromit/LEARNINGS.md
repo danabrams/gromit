@@ -58,7 +58,7 @@ Splitting a monolithic PromptRenderer into five phase-specific interfaces (Refin
 ### 2026-02-20 | Signal-Based Low-Complexity Tier Routing | patterns
 *Related to: code-review*
 
-Low-complexity tier selection uses countLowComplexitySignals >= threshold (default 2) instead of a single-dimension test-only check. Signals: low-complexity title pattern, test-only bead, tdd:false label, 1-3 expected files, leaf bead. complexity:high label bypasses low-complexity routing entirely.
+Low-complexity tier selection uses countLowComplexitySignals >= threshold (default 2). Signals: low-complexity title pattern, test-only bead, tdd:false label, 1-3 expected files, leaf bead. Test-only beads short-circuit isLowComplexity directly (bypassing signal counting), so the test-only signal in countLowComplexitySignals is only reachable via direct calls, not through the normal SelectTier flow. complexity:high label bypasses low-complexity routing entirely.
 
 ### 2026-02-20 | OriginalTier/ActualTier Escalation Tracking | conventions
 *Related to: code-review*
