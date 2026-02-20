@@ -272,7 +272,7 @@ func TestBuildProcessTrend_PhaseRatesSumToFailureRate(t *testing.T) {
 	assertFloatNear(t, sum, trend.LatestWindow.FailureRate, "PhaseFailureRateSum")
 }
 
-func TestBuildProcessTrend_HasNineControlLimitsWithPhaseRates(t *testing.T) {
+func TestBuildProcessTrend_HasExpectedControlLimitsWithPhaseRates(t *testing.T) {
 	entries := []IterationLog{
 		makeIterationLog(false, failurephase.Preflight),
 		makeIterationLog(false, failurephase.Build),

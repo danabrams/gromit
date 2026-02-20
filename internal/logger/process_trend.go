@@ -17,6 +17,7 @@ import (
 
 const (
 	defaultTrendWindowSize         = 30
+	p95Percentile                  = 95
 	promptSectionTopLimit          = 10
 	controlLimitSigmaMultiplier    = 3
 	highSeveritySigmaThreshold     = 4
@@ -462,7 +463,7 @@ func summarizePromptTokens(metrics []IterationMetric, windowSize int) PromptToke
 	summary.ReconciliationDrift = ReconciliationDrift{
 		SampleCount:          len(absDeltaPct),
 		MeanAbsTokenDeltaPct: meanFloat64(absDeltaPct),
-		P95AbsTokenDeltaPct:  percentileFloat64(absDeltaPct, 95),
+		P95AbsTokenDeltaPct:  percentileFloat64(absDeltaPct, p95Percentile),
 	}
 
 	return summary
@@ -649,9 +650,9 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		FirstPassSuccess:      float64(firstPasses) / count,
 		EscalationRate:        float64(escalations) / count,
 		AvgDurationMs:         avgDuration,
-		P95DurationMs:         percentileInt64(durations, 95),
+		P95DurationMs:         percentileInt64(durations, p95Percentile),
 		AvgValidationMs:       avgValidationDuration,
-		P95ValidationMs:       percentileInt64(validationDurations, 95),
+		P95ValidationMs:       percentileInt64(validationDurations, p95Percentile),
 		AvgCostUSD:            avgCost,
 		AvgMTTRProxyMs:        avgMTTR,
 		PreflightFailureRate:  float64(preflightFailures) / count,
