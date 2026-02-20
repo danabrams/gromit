@@ -16,6 +16,11 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+const (
+	testCommandSleep = 5 * time.Millisecond
+	minRetryElapsed  = int64(8)
+)
+
 // --- Helper functions ---
 
 func newTestConfig() *config.Config {
@@ -38,6 +43,13 @@ func newTestBeadContext() *runtypes.BeadContext {
 		Model:     "sonnet",
 		Result:    &runtypes.IterationResult{},
 		PromptCtx: &prompt.Context{WorkDir: "/tmp/test-project"},
+	}
+}
+
+func newSleepySuccessCmdRunner(delay time.Duration) runtypes.CmdRunnerFn {
+	return func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		time.Sleep(delay)
+		return "ok", "", 0, nil
 	}
 }
 
@@ -239,11 +251,7 @@ func TestRunDirect_ParallelCommands_BoundedConcurrency(t *testing.T) {
 func TestElapsedMs_RunDirectAccumulatesElapsedTime(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
-
-	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-		time.Sleep(5 * time.Millisecond)
-		return "ok", "", 0, nil
-	}
+	cmdRunner := newSleepySuccessCmdRunner(testCommandSleep)
 
 	r := NewRunner(cfg, cmdRunner, nil, nil)
 	result, err := r.RunDirect(context.Background(), cfg.Validation.Commands, "/tmp/test")
@@ -266,7 +274,7 @@ func TestElapsedMs_RunWithRecoveryAccumulatesAcrossRetry(t *testing.T) {
 	callCount := 0
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		callCount++
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(testCommandSleep)
 		if callCount == 1 {
 			return "", "format error", 1, nil
 		}
@@ -282,19 +290,15 @@ func TestElapsedMs_RunWithRecoveryAccumulatesAcrossRetry(t *testing.T) {
 	if err := r.RunWithRecovery(context.Background(), bc); err != nil {
 		t.Fatalf("RunWithRecovery returned unexpected error: %v", err)
 	}
-	if got := r.ElapsedMs(); got < 8 {
-		t.Fatalf("ElapsedMs() = %d, want >= 8 after recovery retry", got)
+	if got := r.ElapsedMs(); got < minRetryElapsed {
+		t.Fatalf("ElapsedMs() = %d, want >= %d after recovery retry", got, minRetryElapsed)
 	}
 }
 
 func TestResetElapsed_ZeroesAccumulator(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
-
-	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-		time.Sleep(5 * time.Millisecond)
-		return "ok", "", 0, nil
-	}
+	cmdRunner := newSleepySuccessCmdRunner(testCommandSleep)
 
 	r := NewRunner(cfg, cmdRunner, nil, nil)
 	if _, err := r.RunDirect(context.Background(), cfg.Validation.Commands, "/tmp/test"); err != nil {
