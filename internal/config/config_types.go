@@ -144,6 +144,7 @@ type LoopConfig struct {
 	MaxCrossRunFailures      int    `yaml:"max_cross_run_failures"`
 	LearnFromSuccess         *bool  `yaml:"learn_from_success"`
 	BetweenIterationsCommand string `yaml:"between_iterations_command"`
+	EndOfLoopCommand         string `yaml:"end_of_loop_command"`
 	MaxDecomposeDepth        int    `yaml:"max_decompose_depth"`
 }
 

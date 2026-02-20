@@ -112,6 +112,7 @@ loop:
   max_cross_run_failures: 5  # Skip bead if it has 5+ consecutive failures across runs
   learn_from_success: true  # Extract learnings from successful iterations (default: true)
   between_iterations_command: ""  # Disabled: avoid rebuilding between iterations
+  end_of_loop_command: ""  # Disabled: no command run when the loop exits
 
 # Scope checking - estimate task complexity before work
 scope_check:
