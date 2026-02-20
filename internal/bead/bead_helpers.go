@@ -57,6 +57,28 @@ func IsTestOnlyBead(title string) bool {
 	return false
 }
 
+// IsLeafBead returns true when the bead has no downstream dependents.
+// A nil DependentCount is treated as 0 (leaf) when dependency metadata
+// is not present in the bead payload.
+func IsLeafBead(b *Bead) bool {
+	if b == nil {
+		return false
+	}
+	if b.DependentCount == nil {
+		return true
+	}
+	return *b.DependentCount == 0
+}
+
+// EstimatedFileCount returns the estimated number of files touched by the bead.
+// If expected outputs are absent, it returns 0 to indicate unknown.
+func EstimatedFileCount(b *Bead) int {
+	if b == nil {
+		return 0
+	}
+	return len(b.ExpectedOutputs)
+}
+
 // proactiveDecomposeKeywords matches broad-scope keywords as whole words only.
 // This prevents false positives on identifiers like "RefactorInvokeFn" or "ExtractArray"
 // where the keyword is embedded in a CamelCase name rather than used as a verb/noun.
