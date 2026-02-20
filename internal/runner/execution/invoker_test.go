@@ -863,6 +863,3 @@ func TestNewInvoker_AcceptsNarrowInterfaces(t *testing.T) {
 		t.Fatal("result should not be nil")
 	}
 }
-
-// Suppress unused import warnings during test compilation
-var _ = logger.NewStreamStats
