@@ -10,6 +10,7 @@ import (
 
 type mockSessionWorktreeCreator struct {
 	CreateSessionWorktreeFn func(command string) (*worktree.SessionWorktree, error)
+	MergeBackFn             func(branch string) error
 }
 
 func (m *mockSessionWorktreeCreator) CreateSessionWorktree(command string) (*worktree.SessionWorktree, error) {
@@ -19,13 +20,28 @@ func (m *mockSessionWorktreeCreator) CreateSessionWorktree(command string) (*wor
 	return nil, nil
 }
 
+func (m *mockSessionWorktreeCreator) MergeBack(branch string) error {
+	if m != nil && m.MergeBackFn != nil {
+		return m.MergeBackFn(branch)
+	}
+	return nil
+}
+
 type mockPendingBranchRecorder struct {
-	AddPendingWorktreeBranchFn func(branch string) error
+	AddPendingWorktreeBranchFn    func(branch string) error
+	RemovePendingWorktreeBranchFn func(branch string) error
 }
 
 func (m *mockPendingBranchRecorder) AddPendingWorktreeBranch(branch string) error {
 	if m != nil && m.AddPendingWorktreeBranchFn != nil {
 		return m.AddPendingWorktreeBranchFn(branch)
+	}
+	return nil
+}
+
+func (m *mockPendingBranchRecorder) RemovePendingWorktreeBranch(branch string) error {
+	if m != nil && m.RemovePendingWorktreeBranchFn != nil {
+		return m.RemovePendingWorktreeBranchFn(branch)
 	}
 	return nil
 }
@@ -52,16 +68,20 @@ func withInteractiveWorktreeFactories(
 	t *testing.T,
 	managerFn func(mainDir string) (sessionWorktreeCreator, error),
 	stateFileFn func(gromitDir string) (pendingBranchRecorder, error),
+	cleanupFn func(mainDir, sessionDir string) error,
 ) {
 	t.Helper()
 
 	origManagerFn := interactiveWorktreeNewManagerFn
 	origStateFileFn := interactiveWorktreeNewStateFileFn
+	origCleanupFn := interactiveWorktreeCleanupSessionFn
 	interactiveWorktreeNewManagerFn = managerFn
 	interactiveWorktreeNewStateFileFn = stateFileFn
+	interactiveWorktreeCleanupSessionFn = cleanupFn
 	t.Cleanup(func() {
 		interactiveWorktreeNewManagerFn = origManagerFn
 		interactiveWorktreeNewStateFileFn = origStateFileFn
+		interactiveWorktreeCleanupSessionFn = origCleanupFn
 	})
 }
 
@@ -83,7 +103,7 @@ func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
 		}, nil
 	}, func(string) (pendingBranchRecorder, error) {
 		return &mockPendingBranchRecorder{}, nil
-	})
+	}, func(string, string) error { return nil })
 
 	callbackCalled := false
 	callbackDir := ""
@@ -131,7 +151,7 @@ func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 				return nil
 			},
 		}, nil
-	})
+	}, func(string, string) error { return nil })
 
 	_, err := runWithSessionWorktree(gromitDir, "plan", func(string) error {
 		callbackRan = true
@@ -163,7 +183,7 @@ func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T
 				return nil
 			},
 		}, nil
-	})
+	}, func(string, string) error { return nil })
 
 	wantErr := errors.New("callback failed")
 	_, err := runWithSessionWorktree(gromitDir, "explore", func(string) error {
@@ -177,5 +197,83 @@ func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T
 	}
 	if recordCalled {
 		t.Fatal("branch should not be recorded when callback fails")
+	}
+}
+
+func TestRunWithSessionWorktreeImmediateMergeSuccessRunsCleanupAndClearsPendingBranch(t *testing.T) {
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
+	session.BranchName = "gromit/debug-123"
+
+	var (
+		addCalled    bool
+		mergeCalled  bool
+		removeCalled bool
+		cleanupMain  string
+		cleanupDir   string
+	)
+
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+			MergeBackFn: func(branch string) error {
+				if !addCalled {
+					t.Fatal("merge happened before pending branch was recorded")
+				}
+				if branch != session.BranchName {
+					t.Fatalf("merge branch = %q, want %q", branch, session.BranchName)
+				}
+				mergeCalled = true
+				return nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			AddPendingWorktreeBranchFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("add branch = %q, want %q", branch, session.BranchName)
+				}
+				addCalled = true
+				return nil
+			},
+			RemovePendingWorktreeBranchFn: func(branch string) error {
+				if !mergeCalled {
+					t.Fatal("pending branch removed before merge succeeded")
+				}
+				if branch != session.BranchName {
+					t.Fatalf("remove branch = %q, want %q", branch, session.BranchName)
+				}
+				removeCalled = true
+				return nil
+			},
+		}, nil
+	}, func(gotMainDir, sessionDir string) error {
+		if !removeCalled {
+			t.Fatal("cleanup happened before pending branch was removed")
+		}
+		cleanupMain = gotMainDir
+		cleanupDir = sessionDir
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "debug", func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktree() error = %v", err)
+	}
+	if !mergeCalled {
+		t.Fatal("expected immediate merge attempt after callback success")
+	}
+	if !removeCalled {
+		t.Fatal("expected pending branch removal after successful merge")
+	}
+	if cleanupMain != mainDir {
+		t.Fatalf("cleanup mainDir = %q, want %q", cleanupMain, mainDir)
+	}
+	if cleanupDir != session.WorktreeDir {
+		t.Fatalf("cleanup sessionDir = %q, want %q", cleanupDir, session.WorktreeDir)
 	}
 }
