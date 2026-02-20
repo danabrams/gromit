@@ -224,10 +224,19 @@ func (r *Runner) runSessionCompletion() error {
 	if !r.cfg.Git.IsAutoPushEnabled() {
 		return nil
 	}
+	networkCtx := func() (context.Context, context.CancelFunc) {
+		timeout := r.cfg.Git.PushTimeoutDuration()
+		if timeout == 0 {
+			return context.Background(), func() {}
+		}
+		return context.WithTimeout(context.Background(), timeout)
+	}
 
 	// Step 1: git pull --rebase with retries
 	for attempt := 1; attempt <= SessionCompletionRebaseRetryCount; attempt++ {
-		_, stderr, exitCode, err := r.runArgv(context.Background(), "git", sessionCompletionPullArgv, "")
+		pullCtx, cancel := networkCtx()
+		_, stderr, exitCode, err := r.runArgv(pullCtx, "git", sessionCompletionPullArgv, "")
+		cancel()
 		if err == nil && exitCode == 0 {
 			break
 		}
@@ -271,7 +280,9 @@ func (r *Runner) runSessionCompletion() error {
 	}
 
 	// Step 3: git push
-	_, stderr, exitCode, err := r.runArgv(context.Background(), "git", sessionCompletionPushArgv, "")
+	pushCtx, cancel := networkCtx()
+	_, stderr, exitCode, err := r.runArgv(pushCtx, "git", sessionCompletionPushArgv, "")
+	cancel()
 	if err != nil || exitCode != 0 {
 		errMsg := "git push failed"
 		if err != nil {

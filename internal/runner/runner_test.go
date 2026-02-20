@@ -2125,6 +2125,162 @@ func TestRunSessionCompletion(t *testing.T) {
 	}
 }
 
+func TestRunSessionCompletion_UsesTimeoutContextForPullAndPush(t *testing.T) {
+	autoPush := true
+	r := &Runner{
+		cfg: &config.Config{
+			Git: config.GitConfig{
+				AutoPush:    &autoPush,
+				PushFailure: "stop",
+				PushTimeout: 5,
+			},
+		},
+		output: &strings.Builder{},
+	}
+
+	var pullHasDeadline bool
+	var pushHasDeadline bool
+	r.argvRunnerFn = func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+		if program == "git" && slices.Equal(args, sessionCompletionPullArgv) {
+			_, pullHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		}
+		if program == "git" && slices.Equal(args, sessionCompletionPushArgv) {
+			_, pushHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	if err := r.runSessionCompletion(); err != nil {
+		t.Fatalf("runSessionCompletion() error = %v", err)
+	}
+	if !pullHasDeadline {
+		t.Fatal("expected git pull --rebase to use a context with deadline")
+	}
+	if !pushHasDeadline {
+		t.Fatal("expected git push to use a context with deadline")
+	}
+}
+
+func TestRunSessionCompletion_TimeoutZeroDisablesNetworkDeadlines(t *testing.T) {
+	autoPush := true
+	r := &Runner{
+		cfg: &config.Config{
+			Git: config.GitConfig{
+				AutoPush:    &autoPush,
+				PushFailure: "stop",
+				PushTimeout: 0,
+			},
+		},
+		output: &strings.Builder{},
+	}
+
+	var pullHasDeadline bool
+	var pushHasDeadline bool
+	r.argvRunnerFn = func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+		if program == "git" && slices.Equal(args, sessionCompletionPullArgv) {
+			_, pullHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		}
+		if program == "git" && slices.Equal(args, sessionCompletionPushArgv) {
+			_, pushHasDeadline = ctx.Deadline()
+			return "", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	if err := r.runSessionCompletion(); err != nil {
+		t.Fatalf("runSessionCompletion() error = %v", err)
+	}
+	if pullHasDeadline {
+		t.Fatal("expected git pull --rebase to use background context when push_timeout=0")
+	}
+	if pushHasDeadline {
+		t.Fatal("expected git push to use background context when push_timeout=0")
+	}
+}
+
+func TestRunSessionCompletion_PushDeadlineExceededHonorsPushFailurePolicy(t *testing.T) {
+	tests := []struct {
+		name         string
+		pushFailure  string
+		wantErr      bool
+		wantLogParts []string
+	}{
+		{
+			name:        "stop returns error",
+			pushFailure: "stop",
+			wantErr:     true,
+		},
+		{
+			name:         "warn logs warning",
+			pushFailure:  "warn",
+			wantErr:      false,
+			wantLogParts: []string{"Warning: git push failed: context deadline exceeded"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			autoPush := true
+			var buf strings.Builder
+			pushCalled := false
+			pushHasDeadline := false
+
+			r := &Runner{
+				cfg: &config.Config{
+					Git: config.GitConfig{
+						AutoPush:    &autoPush,
+						PushFailure: tt.pushFailure,
+						PushTimeout: 3,
+					},
+				},
+				output: &buf,
+			}
+			r.argvRunnerFn = func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+				if program == "git" && slices.Equal(args, sessionCompletionPullArgv) {
+					return "", "", 0, nil
+				}
+				if program == "git" && slices.Equal(args, sessionCompletionPushArgv) {
+					pushCalled = true
+					_, pushHasDeadline = ctx.Deadline()
+					return "", "", 1, context.DeadlineExceeded
+				}
+				return "", "", 0, nil
+			}
+
+			err := r.runSessionCompletion()
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+			if tt.wantErr {
+				if !strings.Contains(err.Error(), "git push failed") {
+					t.Fatalf("expected git push failure in error, got %v", err)
+				}
+				if !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+					t.Fatalf("expected context deadline exceeded in error, got %v", err)
+				}
+			}
+			if !pushCalled {
+				t.Fatal("expected git push to be called")
+			}
+			if !pushHasDeadline {
+				t.Fatal("expected git push to use a context with deadline")
+			}
+			logOutput := buf.String()
+			for _, part := range tt.wantLogParts {
+				if !strings.Contains(logOutput, part) {
+					t.Fatalf("expected log output to contain %q, got %q", part, logOutput)
+				}
+			}
+		})
+	}
+}
+
 type gitArgvCall struct {
 	program string
 	args    []string
