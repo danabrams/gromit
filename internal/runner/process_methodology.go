@@ -341,6 +341,34 @@ func (r *Runner) recordPhaseMetricWithUsage(
 	})
 }
 
+func snapshotIterationUsage(result *runtypes.IterationResult) (costUSD float64, inputTokens int, outputTokens int) {
+	if result == nil {
+		return 0, 0, 0
+	}
+	return result.CostUSD, result.InputTokens, result.OutputTokens
+}
+
+func (r *Runner) recordGreenPhaseMetric(
+	bc *runtypes.BeadContext,
+	cycleNumber int,
+	phaseStart time.Time,
+	success bool,
+	costUSD float64,
+	inputTokens int,
+	outputTokens int,
+) {
+	r.recordPhaseMetricWithUsage(
+		bc,
+		"green",
+		cycleNumber,
+		phaseStart,
+		success,
+		costUSD,
+		inputTokens,
+		outputTokens,
+	)
+}
+
 func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtypes.BeadContext, atddActive bool, tddActive bool, executeWithRetry func() bool) *IterationResult {
 	r.ensureMethodologyPolicy()
 	cycleNumber := 0
@@ -357,11 +385,9 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 
 		greenPhaseStart := time.Now()
 		greenSuccess := executeWithRetry()
-		greenCostUSD := bc.Result.CostUSD
-		greenInputTokens := bc.Result.InputTokens
-		greenOutputTokens := bc.Result.OutputTokens
+		greenCostUSD, greenInputTokens, greenOutputTokens := snapshotIterationUsage(bc.Result)
 		if !greenSuccess {
-			r.recordPhaseMetricWithUsage(bc, "green", cycleNumber, greenPhaseStart, false, greenCostUSD, greenInputTokens, greenOutputTokens)
+			r.recordGreenPhaseMetric(bc, cycleNumber, greenPhaseStart, false, greenCostUSD, greenInputTokens, greenOutputTokens)
 			if bc.Result.FailurePhase == "" {
 				if bc.Result.TimeoutType != "" || isTimeoutOrCanceledError(bc.Result.Error) {
 					bc.Result.FailurePhase = failurephase.Timeout
@@ -371,7 +397,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 			}
 			return bc.Result
 		}
-		r.recordPhaseMetricWithUsage(bc, "green", cycleNumber, greenPhaseStart, true, greenCostUSD, greenInputTokens, greenOutputTokens)
+		r.recordGreenPhaseMetric(bc, cycleNumber, greenPhaseStart, true, greenCostUSD, greenInputTokens, greenOutputTokens)
 
 		r.refreshTouchedPackagesFromStartCommit(bc)
 
