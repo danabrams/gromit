@@ -1,7 +1,9 @@
 package bead
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -73,5 +75,58 @@ func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
 	}
 	if lines[2] != "ready --json --limit 3" {
 		t.Fatalf("run() args = %q, want %q", lines[2], "ready --json --limit 3")
+	}
+}
+
+func TestClientRun_SubprocessExitErrorWrapsStderr(t *testing.T) {
+	binDir := t.TempDir()
+	binaryPath := filepath.Join(binDir, "fake-bd")
+
+	script := "#!/bin/sh\n" +
+		"printf 'bd failed on stderr\\n' >&2\n" +
+		"exit 17\n"
+
+	if err := os.WriteFile(binaryPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile(%q): %v", binaryPath, err)
+	}
+
+	c := &Client{binary: binaryPath}
+
+	out, err := c.run("ready", "--json")
+	if out != "" {
+		t.Fatalf("run() output = %q, want empty string", out)
+	}
+	if err == nil {
+		t.Fatal("run() error = nil, want non-nil")
+	}
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("run() error does not wrap *exec.ExitError: %T %v", err, err)
+	}
+
+	errText := err.Error()
+	if !strings.Contains(errText, "exit status 17") {
+		t.Fatalf("run() error = %q, want to contain %q", errText, "exit status 17")
+	}
+	if !strings.Contains(errText, "bd failed on stderr\n") {
+		t.Fatalf("run() error = %q, want to contain wrapped stderr text", errText)
+	}
+}
+
+func TestClientRun_SubprocessNonExitErrorIsUnchanged(t *testing.T) {
+	c := &Client{binary: filepath.Join(t.TempDir(), "missing-bd")}
+
+	out, err := c.run("ready", "--json")
+	if out != "" {
+		t.Fatalf("run() output = %q, want empty string", out)
+	}
+	if err == nil {
+		t.Fatal("run() error = nil, want non-nil")
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		t.Fatalf("run() error unexpectedly wraps *exec.ExitError: %v", err)
 	}
 }
