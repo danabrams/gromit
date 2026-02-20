@@ -2453,6 +2453,19 @@ func loadConfigFromYAML(t *testing.T, yamlContent string) *Config {
 	return cfg
 }
 
+func loadConfigErrorFromYAML(t *testing.T, yamlContent string) error {
+	t.Helper()
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	_, err := Load(cfgPath)
+	return err
+}
+
 func assertLoopCommandFromYAML(t *testing.T, fieldLabel string, yamlKey string, getCommand func(*Config) string) {
 	t.Helper()
 
@@ -2983,19 +2996,10 @@ func TestMethodologyConfigParsing(t *testing.T) {
 }
 
 func TestMethodologyGranularityDefaultsToBead(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `methodology:
   tdd: true
 `
-	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
-	}
-
-	cfg, err := Load(cfgPath)
-	if err != nil {
-		t.Fatalf("loading config: %v", err)
-	}
+	cfg := loadConfigFromYAML(t, yaml)
 
 	if cfg.Methodology.Granularity != MethodologyGranularityBead {
 		t.Errorf("expected granularity=%s, got %q", MethodologyGranularityBead, cfg.Methodology.Granularity)
@@ -3095,16 +3099,7 @@ func TestMethodologyGranularityParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, "gromit.yaml")
-			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
-				t.Fatalf("writing config: %v", err)
-			}
-
-			cfg, err := Load(cfgPath)
-			if err != nil {
-				t.Fatalf("loading config: %v", err)
-			}
+			cfg := loadConfigFromYAML(t, tt.yaml)
 
 			if cfg.Methodology.Granularity != tt.granularity {
 				t.Errorf("expected granularity=%q, got %q", tt.granularity, cfg.Methodology.Granularity)
@@ -3134,13 +3129,7 @@ func TestMethodologyGranularityRejectsInvalid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, "gromit.yaml")
-			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
-				t.Fatalf("writing config: %v", err)
-			}
-
-			_, err := Load(cfgPath)
+			err := loadConfigErrorFromYAML(t, tt.yaml)
 			if err == nil {
 				t.Fatal("expected error for invalid granularity")
 			}
