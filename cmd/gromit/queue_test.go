@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/logger"
 )
 
 func TestGroupBeadsBySpec(t *testing.T) {
@@ -59,7 +60,7 @@ func TestColorizeLine(t *testing.T) {
 func TestGetReadyBeads_UsesReadyStatusFromBD(t *testing.T) {
 	c := &bead.Client{
 		RunFn: func(args ...string) (string, error) {
-			want := []string{"list", "--json", "--status", "ready", "--sort", "priority", "--limit", "0"}
+			want := []string{"ready", "--json", "--sort", "priority", "--limit", "0"}
 			if len(args) != len(want) {
 				t.Fatalf("run args len = %d, want %d (%v)", len(args), len(want), args)
 			}
@@ -68,7 +69,7 @@ func TestGetReadyBeads_UsesReadyStatusFromBD(t *testing.T) {
 					t.Fatalf("run args[%d] = %q, want %q", i, args[i], want[i])
 				}
 			}
-			return `[{"id":"task-ready","title":"Ready","priority":1,"issue_type":"task","status":"ready"}]`, nil
+			return `[{"id":"task-ready","title":"Ready","priority":1,"issue_type":"task","status":"open"}]`, nil
 		},
 	}
 
@@ -81,5 +82,78 @@ func TestGetReadyBeads_UsesReadyStatusFromBD(t *testing.T) {
 	}
 	if ready[0].ID != "task-ready" {
 		t.Fatalf("ready[0].ID = %q, want task-ready", ready[0].ID)
+	}
+}
+
+func TestGetReason_FromDependencies(t *testing.T) {
+	b := &bead.Bead{
+		ID: "b1",
+		Dependencies: []bead.Dependency{
+			{ID: "dep-a"},
+			{ID: "dep-b"},
+		},
+	}
+	got := getReason(b, nil)
+	want := "blocked by: dep-a, dep-b"
+	if got != want {
+		t.Fatalf("getReason() = %q, want %q", got, want)
+	}
+}
+
+func TestGetReason_FromDependencyCount(t *testing.T) {
+	count := 3
+	b := &bead.Bead{ID: "b1", DependencyCount: &count}
+	got := getReason(b, nil)
+	want := "blocked by 3 dependencies"
+	if got != want {
+		t.Fatalf("getReason() = %q, want %q", got, want)
+	}
+}
+
+func TestFindStuckBeadIDs(t *testing.T) {
+	stats := map[string]logger.BeadStats{
+		"a": {BeadID: "a", Failures: 1},
+		"b": {BeadID: "b", Failures: 3},
+		"c": {BeadID: "c", Failures: 4},
+	}
+
+	stuck := findStuckBeadIDs(stats, 3)
+	if len(stuck) != 2 {
+		t.Fatalf("len(stuck) = %d, want 2", len(stuck))
+	}
+	if !stuck["b"] || !stuck["c"] {
+		t.Fatalf("stuck map missing expected IDs: %v", stuck)
+	}
+	if stuck["a"] {
+		t.Fatalf("stuck map should not include a: %v", stuck)
+	}
+}
+
+func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
+	readyInput := []*bead.Bead{
+		{ID: "ready-1", Priority: 1, Title: "Ready 1"},
+		{ID: "stuck-ready", Priority: 0, Title: "Stuck But Ready"},
+	}
+	all := []*bead.Bead{
+		{ID: "stuck-ready", Priority: 0, Title: "Stuck But Ready"},
+		{ID: "ready-1", Priority: 1, Title: "Ready 1"},
+		{ID: "blocked-1", Priority: 2, Title: "Blocked 1"},
+		{ID: "stuck-blocked", Priority: 2, Title: "Stuck Blocked"},
+	}
+	stats := map[string]logger.BeadStats{
+		"stuck-ready":   {BeadID: "stuck-ready", Failures: 3},
+		"stuck-blocked": {BeadID: "stuck-blocked", Failures: 4},
+	}
+
+	ready, blocked, stuck := partitionQueueBeads(readyInput, all, stats, 3)
+
+	if len(ready) != 1 || ready[0].ID != "ready-1" {
+		t.Fatalf("ready = %+v, want [ready-1]", ready)
+	}
+	if len(blocked) != 1 || blocked[0].ID != "blocked-1" {
+		t.Fatalf("blocked = %+v, want [blocked-1]", blocked)
+	}
+	if len(stuck) != 2 || stuck[0].ID != "stuck-ready" || stuck[1].ID != "stuck-blocked" {
+		t.Fatalf("stuck = %+v, want [stuck-ready stuck-blocked]", stuck)
 	}
 }

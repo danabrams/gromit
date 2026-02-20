@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,7 @@ const (
 	ansiReset = "\x1b[0m"
 	ansiBold  = "\x1b[1m"
 	ansiGreen = "\x1b[32m"
+	ansiWhite = "\x1b[37m"
 	ansiRed   = "\x1b[31m"
 )
 
@@ -56,14 +58,25 @@ func showQueue(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("getting all beads: %w", err)
 	}
 
-	// Identify blocked beads (open but not ready)
-	blockedBeads := findBlockedBeads(readyBeads, allBeads)
+	var beadStats map[string]logger.BeadStats
+	beadStats, err = logger.ReadPerBeadStats(cfg.Paths.Logs)
+	if err != nil {
+		beadStats = map[string]logger.BeadStats{}
+	}
 
-	printQueueByStatus(cfg, readyBeads, blockedBeads, allBeads, queueBySpec, isColorEnabled())
+	readyBeads, blockedBeads, stuckBeads := partitionQueueBeads(
+		readyBeads,
+		allBeads,
+		beadStats,
+		cfg.Loop.StuckBeadThreshold,
+	)
+	blockedBeads = enrichBlockedBeads(bc, blockedBeads)
+
+	printQueueByStatus(cfg, readyBeads, blockedBeads, stuckBeads, allBeads, queueBySpec, isColorEnabled())
 	return nil
 }
 
-func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, allBeads []*bead.Bead, bySpec bool, useColor bool) {
+func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, bySpec bool, useColor bool) {
 	if len(readyBeads) > 0 {
 		fmt.Println("Queue (" + fmt.Sprintf("%d", len(readyBeads)) + " beads ready):")
 		printBeadsBySpec(readyBeads, bySpec, func(queueIndex int, b *bead.Bead) {
@@ -90,6 +103,18 @@ func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, allBea
 				b.ID,
 				truncateTitle(b.Title, 30),
 				reasonStr)
+			fmt.Println(colorizeLine(line, ansiWhite, useColor))
+		})
+	}
+
+	if len(stuckBeads) > 0 {
+		fmt.Println()
+		fmt.Println("Stuck (" + fmt.Sprintf("%d", len(stuckBeads)) + "):")
+		printBeadsBySpec(stuckBeads, bySpec, func(_ int, b *bead.Bead) {
+			line := fmt.Sprintf("  [P%d] %s  %s  (exceeded failure threshold)",
+				b.Priority,
+				b.ID,
+				truncateTitle(b.Title, 30))
 			fmt.Println(colorizeLine(line, ansiRed, useColor))
 		})
 	}
@@ -176,14 +201,55 @@ func getReadyBeads(bc *bead.Client) ([]*bead.Bead, error) {
 	if bc == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	readyBeads, err := bc.ListReady()
+	readyBeads, err := bc.ListReadyWork()
 	if err != nil {
 		return nil, fmt.Errorf("getting ready beads: %w", err)
 	}
 	return readyBeads, nil
 }
 
-// findBlockedBeads returns beads that are open but not in the ready list
+func partitionQueueBeads(
+	readyBeads, allBeads []*bead.Bead,
+	beadStats map[string]logger.BeadStats,
+	stuckThreshold int,
+) (ready []*bead.Bead, blocked []*bead.Bead, stuck []*bead.Bead) {
+	stuckMap := findStuckBeadIDs(beadStats, stuckThreshold)
+
+	readyMap := make(map[string]bool, len(readyBeads))
+	for _, b := range readyBeads {
+		readyMap[b.ID] = true
+		if !stuckMap[b.ID] {
+			ready = append(ready, b)
+		}
+	}
+
+	for _, b := range allBeads {
+		if stuckMap[b.ID] {
+			stuck = append(stuck, b)
+			continue
+		}
+		if !readyMap[b.ID] {
+			blocked = append(blocked, b)
+		}
+	}
+
+	return ready, blocked, stuck
+}
+
+func findStuckBeadIDs(beadStats map[string]logger.BeadStats, threshold int) map[string]bool {
+	stuck := make(map[string]bool)
+	if threshold <= 0 {
+		return stuck
+	}
+	for beadID, stats := range beadStats {
+		if stats.Failures >= threshold {
+			stuck[beadID] = true
+		}
+	}
+	return stuck
+}
+
+// findBlockedBeads returns beads that are open but not in the ready list.
 func findBlockedBeads(readyBeads, allBeads []*bead.Bead) []*bead.Bead {
 	readyMap := make(map[string]bool)
 	for _, b := range readyBeads {
@@ -212,12 +278,58 @@ func getReason(b *bead.Bead, allBeads []*bead.Bead) string {
 				return fmt.Sprintf("blocked by: %s", b.Parent)
 			}
 		}
-		// Parent doesn't exist in open beads, so it should be ready
-		// (this shouldn't happen in normal flow)
-		return "parent closed but still blocked"
+		return fmt.Sprintf("blocked by parent: %s", b.Parent)
 	}
 
-	return "unknown reason"
+	if depIDs := dependencyIDs(b.BlockedBy); len(depIDs) > 0 {
+		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
+	}
+	if depIDs := dependencyIDs(b.DependsOn); len(depIDs) > 0 {
+		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
+	}
+	if depIDs := dependencyIDs(b.Dependencies); len(depIDs) > 0 {
+		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
+	}
+	if b.DependencyCount != nil && *b.DependencyCount > 0 {
+		return fmt.Sprintf("blocked by %d dependencies", *b.DependencyCount)
+	}
+
+	return "dependencies unresolved"
+}
+
+func dependencyIDs(deps []bead.Dependency) []string {
+	ids := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		if strings.TrimSpace(dep.ID) == "" {
+			continue
+		}
+		ids = append(ids, dep.ID)
+	}
+	return ids
+}
+
+func enrichBlockedBeads(bc *bead.Client, blocked []*bead.Bead) []*bead.Bead {
+	if bc == nil || len(blocked) == 0 {
+		return blocked
+	}
+	enriched := make([]*bead.Bead, 0, len(blocked))
+	for _, b := range blocked {
+		if b == nil {
+			continue
+		}
+		needsDetails := b.Parent == "" && len(b.Dependencies) == 0 && len(b.BlockedBy) == 0 && len(b.DependsOn) == 0
+		if !needsDetails {
+			enriched = append(enriched, b)
+			continue
+		}
+		full, err := bc.Show(b.ID)
+		if err == nil && full != nil {
+			enriched = append(enriched, full)
+			continue
+		}
+		enriched = append(enriched, b)
+	}
+	return enriched
 }
 
 // truncateTitle returns a title truncated to maxLen characters with ellipsis if needed

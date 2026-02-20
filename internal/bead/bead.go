@@ -28,7 +28,20 @@ type Bead struct {
 	ExpectedOutputs []string `json:"expected_outputs,omitempty"`
 	// acceptance_criteria is used by current bd JSON responses and should be
 	// treated as equivalent to expected_outputs for runner methodology logic.
-	AcceptanceCriteria string `json:"acceptance_criteria,omitempty"`
+	AcceptanceCriteria string       `json:"acceptance_criteria,omitempty"`
+	Dependencies       []Dependency `json:"dependencies,omitempty"`
+	BlockedBy          []Dependency `json:"blocked_by,omitempty"`
+	DependsOn          []Dependency `json:"depends_on,omitempty"`
+	DependencyCount    *int         `json:"dependency_count,omitempty"`
+	DependentCount     *int         `json:"dependent_count,omitempty"`
+}
+
+// Dependency represents a dependency relation returned by bd show/list.
+type Dependency struct {
+	ID             string `json:"id"`
+	Title          string `json:"title"`
+	Status         string `json:"status"`
+	DependencyType string `json:"dependency_type,omitempty"`
 }
 
 // validBeadID matches alphanumeric characters, hyphens, underscores, and dots.
@@ -67,6 +80,15 @@ func (b *Bead) normalizeNilFields() {
 	}
 	if b.ExpectedOutputs == nil {
 		b.ExpectedOutputs = []string{}
+	}
+	if b.Dependencies == nil {
+		b.Dependencies = []Dependency{}
+	}
+	if b.BlockedBy == nil {
+		b.BlockedBy = []Dependency{}
+	}
+	if b.DependsOn == nil {
+		b.DependsOn = []Dependency{}
 	}
 }
 
@@ -553,6 +575,37 @@ func (c *Client) ListReady() ([]*Bead, error) {
 	var beads []Bead
 	if err := jsonutil.ExtractArray(out, &beads); err != nil {
 		return nil, fmt.Errorf("parsing bd list ready output: %w", err)
+	}
+
+	result := make([]*Bead, len(beads))
+	for i := range beads {
+		beads[i].normalizeNilFields()
+		if err := beads[i].Validate(); err != nil {
+			return nil, fmt.Errorf("invalid ready bead data at index %d: %w", i, err)
+		}
+		result[i] = &beads[i]
+	}
+
+	return result, nil
+}
+
+// ListReadyWork returns all ready work based on bd ready semantics.
+func (c *Client) ListReadyWork() ([]*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
+	out, err := c.run("ready", "--json", "--sort", "priority", "--limit", "0")
+	if err != nil {
+		return nil, fmt.Errorf("bd ready: %w", err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return []*Bead{}, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd ready output: %w", err)
 	}
 
 	result := make([]*Bead, len(beads))
