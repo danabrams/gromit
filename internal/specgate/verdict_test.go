@@ -4,6 +4,35 @@ import (
 	"testing"
 )
 
+func TestParseVerdict_validMixedPassFailJSON(t *testing.T) {
+	input := []byte(`{
+		"passed": false,
+		"results": [
+			{"criterion": "No TODOs", "passed": true, "evidence": "none found"},
+			{"criterion": "Tests pass", "passed": false, "evidence": "1 test failed"}
+		]
+	}`)
+
+	verdict, err := ParseVerdict(input)
+	if err != nil {
+		t.Fatalf("ParseVerdict() error = %v", err)
+	}
+	if verdict.Passed {
+		t.Errorf("verdict.Passed = true, want false")
+	}
+	if len(verdict.Results) != 2 {
+		t.Fatalf("len(verdict.Results) = %d, want 2", len(verdict.Results))
+	}
+
+	failed := verdict.FailedCriteria()
+	if len(failed) != 1 {
+		t.Fatalf("len(FailedCriteria()) = %d, want 1", len(failed))
+	}
+	if failed[0].Criterion != "Tests pass" {
+		t.Errorf("failed[0].Criterion = %q, want %q", failed[0].Criterion, "Tests pass")
+	}
+}
+
 func TestFailedCriteria_returnsOnlyFailedCriteria(t *testing.T) {
 	verdict := &GateVerdict{
 		Passed: false,
@@ -47,26 +76,25 @@ func TestParseVerdict_invalidJSON_returnsError(t *testing.T) {
 	}
 }
 
-func TestParseVerdict_validJSON(t *testing.T) {
-	input := []byte(`{"passed": true, "results": [{"criterion": "No TODOs", "passed": true, "evidence": "grep found nothing"}]}`)
-
-	verdict, err := ParseVerdict(input)
+func TestParseVerdict_missingFields_usesZeroValuesAndNormalizesSlices(t *testing.T) {
+	verdict, err := ParseVerdict([]byte(`{"passed": true}`))
 	if err != nil {
 		t.Fatalf("ParseVerdict() error = %v", err)
 	}
 	if !verdict.Passed {
 		t.Errorf("verdict.Passed = false, want true")
 	}
-	if len(verdict.Results) != 1 {
-		t.Fatalf("len(verdict.Results) = %d, want 1", len(verdict.Results))
+	if verdict.Results == nil {
+		t.Fatal("verdict.Results is nil, want empty slice")
 	}
-	if verdict.Results[0].Criterion != "No TODOs" {
-		t.Errorf("Results[0].Criterion = %q, want %q", verdict.Results[0].Criterion, "No TODOs")
+	if len(verdict.Results) != 0 {
+		t.Errorf("len(verdict.Results) = %d, want 0", len(verdict.Results))
 	}
-	if !verdict.Results[0].Passed {
-		t.Errorf("Results[0].Passed = false, want true")
-	}
-	if verdict.Results[0].Evidence != "grep found nothing" {
-		t.Errorf("Results[0].Evidence = %q, want %q", verdict.Results[0].Evidence, "grep found nothing")
+}
+
+func TestParseVerdict_emptyInput_returnsError(t *testing.T) {
+	_, err := ParseVerdict([]byte{})
+	if err == nil {
+		t.Error("ParseVerdict() expected error for empty input, got nil")
 	}
 }
