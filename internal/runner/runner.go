@@ -277,6 +277,57 @@ func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, d
 	return r.runMethodologyExecution(ctx, bc, atddActive, tddActive, executeWithRetry)
 }
 
+func (r *Runner) processBeadWithContext(ctx context.Context, b *bead.Bead, iteration int, deadline time.Time, scopeEstimate *prompt.ScopeEstimate) (*runtypes.BeadContext, *IterationResult) {
+	start := time.Now()
+
+	bc, beadCtx, beadCancel, err := r.setupBeadContext(ctx, b, iteration, deadline, scopeEstimate)
+	if err != nil {
+		return nil, &IterationResult{
+			BeadID:       b.ID,
+			BeadTitle:    b.Title,
+			Error:        err,
+			FailurePhase: failurephase.Preflight,
+			Duration:     time.Since(start),
+		}
+	}
+	defer beadCancel()
+	defer func() { bc.Result.Duration = time.Since(start) }()
+	defer func() {
+		if bc.Result != nil {
+			bc.Result.ActualTier = bc.Tier
+		}
+	}()
+	defer func() {
+		if bc.StartCommit != "" {
+			if diff, err := r.getDiff(bc.StartCommit); err == nil {
+				bc.Result.FilesTouched = len(methodology.ParseDiffFiles(diff))
+			}
+		}
+		bc.Result.TouchedPackages = append([]string(nil), bc.TouchedPackages...)
+	}()
+	ctx = beadCtx
+
+	if err := r.buildPromptForBead(ctx, bc, iteration); err != nil {
+		bc.Result.Error = err
+		bc.Result.FailurePhase = failurephase.Preflight
+		return bc, bc.Result
+	}
+
+	r.runCompilationCheck(ctx, bc)
+
+	atddActive, tddActive, done := r.prepareMethodologyForBead(ctx, bc)
+	if done {
+		return bc, bc.Result
+	}
+
+	invokeFn := r.makeInvokeFn()
+	executeWithRetry := func() bool {
+		return r.escalationHandler.ExecuteWithRetry(ctx, bc, invokeFn)
+	}
+
+	return bc, r.runMethodologyExecution(ctx, bc, atddActive, tddActive, executeWithRetry)
+}
+
 func (r *Runner) runMethodologyExecution(ctx context.Context, bc *runtypes.BeadContext, atddActive bool, tddActive bool, executeWithRetry func() bool) *IterationResult {
 	if tddActive && r.cfg.Methodology.FreshContextPerCycle && r.cycleOrchestrator != nil {
 		return r.cycleOrchestrator.Execute(ctx, bc, atddActive, executeWithRetry)

@@ -292,10 +292,13 @@ func (r *Runner) processSingleBead(
 		return false, err
 	}
 
-	result := r.processBead(ctx, b, st.iteration, deadline, scopeEstimate)
+	bc, result := r.processBeadWithContext(ctx, b, st.iteration, deadline, scopeEstimate)
 	r.log("")
 	r.logResult(result)
 	r.writeIterationLog(st.iteration, result)
+	if shouldCaptureRunbookEntry(result) {
+		r.captureRunbookEntry(bc, result)
+	}
 
 	st.consecutiveSkips = 0
 	if result.Decomposed && result.Error == nil {
