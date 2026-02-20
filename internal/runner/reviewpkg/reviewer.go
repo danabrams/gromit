@@ -156,8 +156,7 @@ func (r *Reviewer) RunLight(ctx context.Context, b *bead.Bead, parent *bead.Bead
 		Model:      selectReviewModel(r.cfg, buildModel),
 	}
 
-	// Load CLAUDE.md and rules
-	reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
+	// Load review rules
 	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
 
 	// Load spec if present
@@ -245,7 +244,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 			bp.Priority,
 			labels,
 			expectedOutputs,
-			"",  // no parent
+			"", // no parent
 			bp.Description,
 		)
 		if err != nil {
@@ -273,7 +272,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 			2, // P2 for backlog
 			labels,
 			expectedOutputs,
-			"",  // no parent
+			"", // no parent
 			description,
 		)
 		if err != nil {
@@ -286,6 +285,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 
 	return beadsCreated, backlogCreated
 }
+
 // buildReviewBeadLabels constructs the label list for a bead created from a review proposal.
 func buildReviewBeadLabels(proposalLabels []string) []string {
 	labels := []string{"from-review"}
@@ -376,7 +376,6 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 		Diff:  diff,
 		Model: r.cfg.Review.Thorough.Model,
 	}
-	reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
 	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
 	reviewPrompt, err := r.renderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
