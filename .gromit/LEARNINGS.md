@@ -35,11 +35,6 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-19 | Agent Resolver Adapter Duplication | patterns
-*Related to: code-review*
-
-Agent resolver adapters (cliAgentResolver, agentResolverAdapter, exploreAgentResolver) are copy-pasted across cmd/gromit files — any interface change requires updating 3+ places.
-
 ### 2026-02-20 | Runner argv injection propagates through spec orchestration | conventions
 *Related to: successful bead*
 
@@ -50,15 +45,10 @@ Threading `r.argvRunnerFn` into `SpecOrchestrator` construction keeps acceptance
 
 `(*Client).run()` should check only `RunFn` first for override execution; when `RunFn` is nil it must execute the existing subprocess flow (`exec.Command` + `c.Dir` + `Output` + `*exec.ExitError` stderr wrapping) unchanged. This keeps injectable tests isolated while preventing accidental divergence in real `bd` invocation behavior.
 
-### 2026-02-20 | PhaseMetric Must Record Per-Phase Deltas Not Aggregates | gotchas
+### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
 *Related to: code-review*
 
-PhaseMetric cost/token tracking needs a clear convention: record per-phase deltas (via before/after snapshots) for all phase types, not raw cumulative values. The green phase already uses snapshots but red and refactor phases do not.
-
-### 2026-02-20 | Codex Stream Events Need Consistent Usage Merge Semantics | gotchas
-*Related to: code-review*
-
-Codex stream event handling uses two different patterns for usage accumulation: overwrite (turn.completed) vs merge (response.completed, result). Multi-turn sessions need consistent merge semantics.
+Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
 
 ### 2026-02-20 | Phase-Specific Renderer Interfaces Eliminate Stub Methods | patterns
 *Related to: code-review*

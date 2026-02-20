@@ -1479,3 +1479,10 @@ Using filtered := slice[:0] to filter in-place creates a slice that aliases the 
 When using go/parser.ParseDir, pkg.Files keys are full file paths (e.g., /home/user/project/internal/foo/doc.go), not base filenames. Direct key lookups like pkg.Files["doc.go"] will never match. Must iterate files and check filepath.Base(fileName) instead.
 
 *Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-19 | Agent Resolver Adapter Duplication | patterns
+*Related to: code-review*
+
+Agent resolver adapters (cliAgentResolver, agentResolverAdapter, exploreAgentResolver) are copy-pasted across cmd/gromit files — any interface change requires updating 3+ places.
+
+*Archived from provisional: backlog item observation, not operational knowledge. Describes a known consolidation opportunity rather than a constraint or pattern to follow.*
