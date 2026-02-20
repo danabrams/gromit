@@ -27,6 +27,7 @@ These are non-negotiable constraints for this project.
 - Never delete data without explicit confirmation in the spec
 - When passing large strings to Claude CLI, write to temp files instead of using CLI arguments to avoid exceeding OS ARG_MAX limits
 - Shell scripts handling user content must use quoted <<'EOF' heredocs (not unquoted <<EOF) to prevent variable/command expansion, and pass dynamic values via arguments rather than string interpolation to avoid injection
+- Go subprocess calls with user-influenced arguments (bead IDs, commit refs, branch names) must use `runArgv` (argument vector), not `runCmd` (shell string). This prevents shell injection and flag injection via crafted inputs
 
 ## Test Quality <!-- phases: build, review -->
 

@@ -50,14 +50,6 @@ Agent resolver adapters (cliAgentResolver, agentResolverAdapter, exploreAgentRes
 
 The debug command's --model flag defaults to opus so the model override block always executes for the Claude agent, silently discarding any resolved agent configuration.
 
-### 2026-02-19 | SetDefaults Zero-Value Sentinel Limitation | gotchas
-Config SetDefaults() uses `if field == 0` guards for integer fields, which prevents users from intentionally setting zero. This is problematic for fields where zero is meaningful (e.g., PushTimeout where 0 should disable the timeout per PushTimeoutDuration() docs). Fields needing a disable-via-zero semantic should use *int or a sentinel like -1.
-
-### 2026-02-19 | Define Shared Helpers Before Wiring Call Sites | conventions
-*Related to: gromit-jmqps*
-
-When adding fallback logic (like title-as-expected-output), define it once as a shared helper and wire all call sites through it from the start. The expected_outputs wiring shows the same pattern implemented 5 different ways across packages (expectedOutputsOrTitle helper in 2 packages, inline in 3 others), creating maintenance burden.
-
 ### 2026-02-20 | Runner argv injection propagates through spec orchestration | conventions
 *Related to: successful bead*
 
@@ -68,20 +60,10 @@ Threading `r.argvRunnerFn` into `SpecOrchestrator` construction keeps acceptance
 
 `(*Client).run()` should check only `RunFn` first for override execution; when `RunFn` is nil it must execute the existing subprocess flow (`exec.Command` + `c.Dir` + `Output` + `*exec.ExitError` stderr wrapping) unchanged. This keeps injectable tests isolated while preventing accidental divergence in real `bd` invocation behavior.
 
-### 2026-02-20 | runCmd-to-runArgv Migration Must Cover All Git Call Sites | conventions
-*Related to: code-review*
-
-The runCmd-to-runArgv migration for shell injection prevention is nearly complete but two git reset --hard call sites in callbacks.go and callbacks_tdd.go were missed. All subprocess calls with user-influenced arguments should use runArgv.
-
 ### 2026-02-20 | PhaseMetric Must Record Per-Phase Deltas Not Aggregates | gotchas
 *Related to: code-review*
 
 PhaseMetric cost/token tracking needs a clear convention: record per-phase deltas (via before/after snapshots) for all phase types, not raw cumulative values. The green phase already uses snapshots but red and refactor phases do not.
-
-### 2026-02-20 | Config Migration From Hardcoded Defaults Requires YAML Update | gotchas
-*Related to: code-review*
-
-When moving hardcoded defaults (like mandatory quality gate commands) to config-driven behavior, verify that the project's own config file is updated to set the new field — otherwise the feature silently degrades.
 
 ### 2026-02-20 | Codex Stream Events Need Consistent Usage Merge Semantics | gotchas
 *Related to: code-review*
@@ -93,3 +75,15 @@ Codex stream event handling uses two different patterns for usage accumulation: 
 ## Archived
 
 *No longer relevant or superseded.*
+
+### 2026-02-19 | SetDefaults Zero-Value Sentinel Limitation | gotchas
+*Archived 2026-02-20: Redundant with Process rule ('use *int/-1 when zero is meaningful'). Documents a specific PushTimeout violation rather than a new constraint.*
+
+### 2026-02-19 | Define Shared Helpers Before Wiring Call Sites | conventions
+*Archived 2026-02-20: Generic DRY advice. The specific expectedOutputsOrTitle duplication is a backlog item, not a durable pattern.*
+
+### 2026-02-20 | Config Migration From Hardcoded Defaults Requires YAML Update | gotchas
+*Archived 2026-02-20: Redundant with Process rule ('When adding new config types or fields, update the actual gromit.yaml to match').*
+
+### 2026-02-20 | runCmd-to-runArgv Migration Must Cover All Git Call Sites | conventions
+*Archived 2026-02-20: Fix applied (callbacks.go, callbacks_tdd.go converted to runArgv). Now codified as Safety rule.*

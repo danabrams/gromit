@@ -2509,7 +2509,7 @@ func TestRunSessionCompletion_SkipsStateCommitWhenNoChanges(t *testing.T) {
 func TestSubprocessCallSiteAudit(t *testing.T) {
 	const (
 		knownRunCmdCount       = 5
-		knownRunArgvCount      = 8
+		knownRunArgvCount      = 10
 		testCommandCallSite    = `r.runCmd(ctx, testCmd, "")`
 		compileCommandCallSite = `r.runCmd(buildCtx, r.cfg.Preflight.CompileCommand, ".")`
 		betweenIterationsFn    = "func (r *Runner) runBetweenIterationsCommand()"

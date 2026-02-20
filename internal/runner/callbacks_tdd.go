@@ -192,7 +192,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 				},
 				GetGitHeadFn: r.getHead,
 				GitResetFn: func(commit string) error {
-					_, stderr, exitCode, err := r.runCmd(context.Background(), "git reset --hard "+commit, ".")
+					_, stderr, exitCode, err := r.runArgv(context.Background(), "git", []string{"reset", "--hard", commit}, ".")
 					if err != nil {
 						return err
 					}

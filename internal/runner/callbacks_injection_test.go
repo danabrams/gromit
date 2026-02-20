@@ -33,7 +33,7 @@ func TestCallbacksUseInjectedGitDependencies(t *testing.T) {
 		t.Fatal("Runner.makeMethodologyExec not found")
 	}
 	assertNoDirectExecCommand(t, makeMethodologyExec)
-	assertHasReceiverCall(t, makeMethodologyExec, "runCmd")
+	assertHasReceiverCall(t, makeMethodologyExec, "runArgv")
 	assertHasReceiverSelector(t, makeMethodologyExec, "getHead")
 	assertNoIdentifierUse(t, makeMethodologyExec, "getGitHead")
 
@@ -42,7 +42,7 @@ func TestCallbacksUseInjectedGitDependencies(t *testing.T) {
 		t.Fatal("Runner.makeTDDOrchestrator not found")
 	}
 	assertNoDirectExecCommand(t, makeTDDOrchestrator)
-	assertHasReceiverCall(t, makeTDDOrchestrator, "runCmd")
+	assertHasReceiverCall(t, makeTDDOrchestrator, "runArgv")
 	assertHasReceiverSelector(t, makeTDDOrchestrator, "getHead")
 }
 
