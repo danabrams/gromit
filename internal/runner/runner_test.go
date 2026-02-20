@@ -225,6 +225,9 @@ func TestMaybeAuthorSpecAcceptance_FirstBeadCallsOrchestrator(t *testing.T) {
 		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			return "", "", 0, nil
 		},
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			return "", "", 0, nil
+		},
 	}
 
 	r := &Runner{specOrchestrator: orchestrator}

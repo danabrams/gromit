@@ -132,24 +132,5 @@ func (o *SpecOrchestrator) runArgv(ctx context.Context, program string, args []s
 	if o.argvRunnerFn != nil {
 		return o.argvRunnerFn(ctx, program, args, workDir)
 	}
-	if o.cmdRunnerFn != nil {
-		return o.cmdRunnerFn(ctx, shellJoin(program, args), workDir)
-	}
 	return defaultArgvRunner(ctx, program, args, workDir)
-}
-
-func shellJoin(program string, args []string) string {
-	quoted := make([]string, 0, len(args)+1)
-	quoted = append(quoted, shellQuote(program))
-	for _, arg := range args {
-		quoted = append(quoted, shellQuote(arg))
-	}
-	return strings.Join(quoted, " ")
-}
-
-func shellQuote(s string) string {
-	if s == "" {
-		return "''"
-	}
-	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }

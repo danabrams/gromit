@@ -222,3 +222,100 @@ func TestSpecOrchestrator_CommitAcceptanceTests_StagesOnlyAcceptanceTests(t *tes
 		t.Fatalf("expected scoped git add argv, got %#v", argvs[0])
 	}
 }
+
+func TestSpecOrchestrator_RunArgv_UsesConfiguredArgvRunner(t *testing.T) {
+	var gotProgram string
+	var gotArgs []string
+	var gotWorkDir string
+
+	orchestrator := &SpecOrchestrator{
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			gotProgram = program
+			gotArgs = append([]string(nil), args...)
+			gotWorkDir = workDir
+			return "ok", "warn", 7, nil
+		},
+	}
+
+	stdout, stderr, exitCode, err := orchestrator.runArgv(context.Background(), "git", []string{"status", "--short"}, "/tmp")
+	if err != nil {
+		t.Fatalf("runArgv returned error: %v", err)
+	}
+	if stdout != "ok" || stderr != "warn" || exitCode != 7 {
+		t.Fatalf("unexpected runArgv result: stdout=%q stderr=%q exit=%d", stdout, stderr, exitCode)
+	}
+	if gotProgram != "git" {
+		t.Fatalf("expected program git, got %q", gotProgram)
+	}
+	if strings.Join(gotArgs, " ") != "status --short" {
+		t.Fatalf("unexpected args: %#v", gotArgs)
+	}
+	if gotWorkDir != "/tmp" {
+		t.Fatalf("expected workDir /tmp, got %q", gotWorkDir)
+	}
+}
+
+func TestSpecOrchestrator_RunArgv_FallsBackToDefaultArgvRunner(t *testing.T) {
+	workDir := t.TempDir()
+	orchestrator := &SpecOrchestrator{
+		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			t.Fatal("cmdRunnerFn should not be called by runArgv fallback")
+			return "", "", 0, nil
+		},
+	}
+
+	stdout, stderr, exitCode, err := orchestrator.runArgv(
+		context.Background(),
+		"sh",
+		[]string{"-c", "printf '%s' \"$1\"", "ignored0", "argv-ok"},
+		workDir,
+	)
+	if err != nil {
+		t.Fatalf("runArgv returned error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr=%q)", exitCode, stderr)
+	}
+	if stdout != "argv-ok" {
+		t.Fatalf("expected stdout argv-ok, got %q", stdout)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr)
+	}
+
+	// Confirm non-interactive env is still applied by defaultArgvRunner.
+	stdout, stderr, exitCode, err = orchestrator.runArgv(
+		context.Background(),
+		"sh",
+		[]string{"-c", "printf '%s,%s,%s,%s' \"$GIT_TERMINAL_PROMPT\" \"$CI\" \"$NONINTERACTIVE\" \"$TERM\""},
+		workDir,
+	)
+	if err != nil {
+		t.Fatalf("env check runArgv returned error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("expected env check exit code 0, got %d (stderr=%q)", exitCode, stderr)
+	}
+	wantEnv := "0,1,1,dumb"
+	if stdout != wantEnv {
+		t.Fatalf("expected env %q, got %q", wantEnv, stdout)
+	}
+}
+
+func TestSpecOrchestrator_RunArgv_FallbackReturnsNonZeroExitWithoutError(t *testing.T) {
+	orchestrator := &SpecOrchestrator{}
+
+	stdout, stderr, exitCode, err := orchestrator.runArgv(context.Background(), "sh", []string{"-c", "echo boom >&2; exit 13"}, "")
+	if err != nil {
+		t.Fatalf("runArgv returned unexpected error: %v", err)
+	}
+	if exitCode != 13 {
+		t.Fatalf("expected exit code 13, got %d", exitCode)
+	}
+	if strings.TrimSpace(stdout) != "" {
+		t.Fatalf("expected empty stdout, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "boom") {
+		t.Fatalf("expected stderr to contain boom, got %q", stderr)
+	}
+}
