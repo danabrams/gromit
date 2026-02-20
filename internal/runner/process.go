@@ -21,6 +21,11 @@ import (
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
+const (
+	compilationCheckTimeout = 30 * time.Second
+	compilationErrorsPrompt = "\n\n<compilation-errors>\nThe codebase currently has compilation errors. You must fix these as part of your work:\n\n%s\n</compilation-errors>"
+)
+
 // setupBeadContext validates runner state, sets up timeouts, captures git state,
 // fetches parent bead, and selects the initial model.
 func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration int, runDeadline time.Time, scopeEstimate *prompt.ScopeEstimate) (*runtypes.BeadContext, context.Context, context.CancelFunc, error) {
@@ -478,7 +483,7 @@ func (r *Runner) runCompilationCheck(ctx context.Context, bc *runtypes.BeadConte
 		return
 	}
 
-	buildCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	buildCtx, cancel := context.WithTimeout(ctx, compilationCheckTimeout)
 	defer cancel()
 
 	_, stderr, exitCode, _ := r.runCmd(buildCtx, r.cfg.Preflight.CompileCommand, ".")
@@ -488,7 +493,7 @@ func (r *Runner) runCompilationCheck(ctx context.Context, bc *runtypes.BeadConte
 
 	r.log("Pre-build compilation check found errors, injecting into prompt")
 	bc.Result.CompilationErrors = true
-	bc.BuildPrompt += fmt.Sprintf("\n\n<compilation-errors>\nThe codebase currently has compilation errors. You must fix these as part of your work:\n\n%s\n</compilation-errors>", stderr)
+	bc.BuildPrompt += fmt.Sprintf(compilationErrorsPrompt, stderr)
 }
 
 func (r *Runner) runFullValidationGate(ctx context.Context, beadID string, iteration int) error {
