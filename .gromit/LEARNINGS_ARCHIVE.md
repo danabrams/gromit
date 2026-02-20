@@ -1486,3 +1486,59 @@ When using go/parser.ParseDir, pkg.Files keys are full file paths (e.g., /home/u
 Agent resolver adapters (cliAgentResolver, agentResolverAdapter, exploreAgentResolver) are copy-pasted across cmd/gromit files — any interface change requires updating 3+ places.
 
 *Archived from provisional: backlog item observation, not operational knowledge. Describes a known consolidation opportunity rather than a constraint or pattern to follow.*
+
+### 2026-02-20 | Runner argv injection propagates through spec orchestration | conventions
+*Related to: successful bead*
+
+Threading `r.argvRunnerFn` into `SpecOrchestrator` construction keeps acceptance-test orchestration on the injected runner path instead of default behavior. Ensure all spec orchestrator creation paths copy that runner function so git/test argv commands remain testable and environment-consistent end-to-end.
+
+*Archived 2026-02-20: Describes existing wiring pattern visible in the code (argvRunnerFn threading into SpecOrchestrator). No constraint beyond what's already codified in the subprocess injection rule.*
+
+### 2026-02-20 | Client.run uses RunFn as the only test hook before subprocess | patterns
+*Related to: successful bead*
+
+`(*Client).run()` should check only `RunFn` first for override execution; when `RunFn` is nil it must execute the existing subprocess flow (`exec.Command` + `c.Dir` + `Output` + `*exec.ExitError` stderr wrapping) unchanged. This keeps injectable tests isolated while preventing accidental divergence in real `bd` invocation behavior.
+
+*Archived 2026-02-20: Documents existing bead.Client.run() implementation detail. The RunFn-first check is visible in the code itself and follows the established FnField/dependency-injection pattern already in RULES.md.*
+
+### 2026-02-20 | Phase-Specific Renderer Interfaces Eliminate Stub Methods | patterns
+*Related to: code-review*
+
+Splitting a monolithic PromptRenderer into five phase-specific interfaces (RefineRenderer, PlanRenderer, DecomposeRenderer, ReviewRenderer, ExploreRenderer) eliminates stub not-implemented methods from adapters and enables compile-time single-responsibility enforcement. Each adapter only implements the method its pipeline needs.
+
+*Archived 2026-02-20: Describes a completed refactor (monolithic PromptRenderer → phase-specific interfaces). Point-in-time architecture decision now visible in the code. No new constraint for future work.*
+
+### 2026-02-20 | Signal-Based Low-Complexity Tier Routing | patterns
+*Related to: code-review*
+
+Low-complexity tier selection uses countLowComplexitySignals >= threshold (default 2). Signals: low-complexity title pattern, test-only bead, tdd:false label, 1-3 expected files, leaf bead. Test-only beads short-circuit isLowComplexity directly (bypassing signal counting), so the test-only signal in countLowComplexitySignals is only reachable via direct calls, not through the normal SelectTier flow. complexity:high label bypasses low-complexity routing entirely.
+
+*Archived 2026-02-20: Documents existing signal counting implementation in escalation/. The Router rule already covers tier selection; the signal threshold details are implementation-level and visible in the code.*
+
+### 2026-02-20 | Session Worktree Lifecycle Pattern | conventions
+*Related to: code-review*
+
+Interactive commands use a standard session worktree pattern: package-level launcher fn var, session command const, cfg.Worktree.IsEnabled() opt-out check, sessionConflictSettingsFromConfig for settings, and runWithSessionWorktreeWithConflictSettings for lifecycle. The lifecycle is: create worktree → run callback → record pending branch → attempt merge → on success: clear branch + cleanup worktree; on conflict: return handoff error with session preserved. runWithSessionWorktreeWithConflictSettings returns (*SessionWorktree, error) where both can be non-nil on conflict handoff.
+
+*Archived 2026-02-20: Promoted to RULES.md Architecture section. Rule is the source of truth.*
+
+### 2026-02-20 | RefactorPhaseResult Structured Outcome Reporting | patterns
+*Related to: code-review*
+
+RefactorPhaseResult uses Successful+Skipped for safe-to-continue outcomes (diff unavailable, policy skipped, no changes) and Successful=false+Attempted=true for terminal failures (invoke failed, revalidation failed). The Reason field provides machine-readable failure classification for metrics. The old RunRefactorPhase wrapper still returns nil for backward compat; all active call sites use RunRefactorPhaseWithResult where failures are terminal.
+
+*Archived 2026-02-20: Documents existing RefactorPhaseResult struct semantics. Describes how code works, not a constraint. Visible in the code itself.*
+
+### 2026-02-20 | OriginalTier/ActualTier Escalation Tracking | conventions
+*Related to: code-review*
+
+OriginalTier is set once in setupBeadContext from the initial SelectTier call; ActualTier is captured via deferred bc.Tier snapshot after escalation may have changed it. This pair enables retrospective analysis of escalation effectiveness.
+
+*Archived 2026-02-20: Documents existing OriginalTier/ActualTier field naming in setupBeadContext. Describes how code works, not a constraint. Visible in the code itself.*
+
+### 2026-02-20 | Runbook Capture Best-Effort Semantics | conventions
+*Related to: code-review*
+
+Runbook capture uses best-effort semantics: getHead and runbook.Append failures are logged as warnings, not propagated as errors. This prevents auxiliary diagnostics from interrupting the main iteration loop.
+
+*Archived 2026-02-20: Documents existing best-effort semantics for runbook capture. Describes how code works, not a constraint to follow.*

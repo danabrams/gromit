@@ -6,7 +6,10 @@
   "risk": "Medium. Haiku may fail on beads that appear simple but have subtle cross-file dependencies, increasing retries and negating cost savings. Test-only beads may require understanding complex package internals. Mitigation: escalation chain (haiku -> sonnet -> opus) catches failures; validation phase catches compilation errors; review phase catches weak tests.",
   "primary_concern": "any",
   "started_at": "2026-02-20T18:00:00Z",
-  "status": "doing",
+  "status": "study",
+  "study_summary": "Experiment generated insufficient data to evaluate hypothesis. Post-experiment: 10 iterations, all gpt-5.3-codex (medium tier), zero haiku or codex-spark (low tier). Root cause: process.go used escalationPolicy.SelectModel (priority-based) instead of escalation.SelectModel (test-only-bead-aware), causing model/tier mismatch for test-only beads. Fix applied. The rolling_avg_validation_ms UCL anomaly (37.3 vs 20.0) is a metrics baseline artifact from previously-zero validation tracking, unrelated to the experiment.",
+  "act_decision": "extend",
+  "act_date": "2026-02-20",
   "baseline_metrics": {
     "avg_cost_per_bead": 1.71752058,
     "avg_duration_ms": 340425.63,

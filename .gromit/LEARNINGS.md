@@ -35,50 +35,10 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-20 | Runner argv injection propagates through spec orchestration | conventions
-*Related to: successful bead*
-
-Threading `r.argvRunnerFn` into `SpecOrchestrator` construction keeps acceptance-test orchestration on the injected runner path instead of default behavior. Ensure all spec orchestrator creation paths copy that runner function so git/test argv commands remain testable and environment-consistent end-to-end.
-
-### 2026-02-20 | Client.run uses RunFn as the only test hook before subprocess | patterns
-*Related to: successful bead*
-
-`(*Client).run()` should check only `RunFn` first for override execution; when `RunFn` is nil it must execute the existing subprocess flow (`exec.Command` + `c.Dir` + `Output` + `*exec.ExitError` stderr wrapping) unchanged. This keeps injectable tests isolated while preventing accidental divergence in real `bd` invocation behavior.
-
 ### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
 *Related to: code-review*
 
 Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
-
-### 2026-02-20 | Phase-Specific Renderer Interfaces Eliminate Stub Methods | patterns
-*Related to: code-review*
-
-Splitting a monolithic PromptRenderer into five phase-specific interfaces (RefineRenderer, PlanRenderer, DecomposeRenderer, ReviewRenderer, ExploreRenderer) eliminates stub not-implemented methods from adapters and enables compile-time single-responsibility enforcement. Each adapter only implements the method its pipeline needs.
-
-### 2026-02-20 | Signal-Based Low-Complexity Tier Routing | patterns
-*Related to: code-review*
-
-Low-complexity tier selection uses countLowComplexitySignals >= threshold (default 2). Signals: low-complexity title pattern, test-only bead, tdd:false label, 1-3 expected files, leaf bead. Test-only beads short-circuit isLowComplexity directly (bypassing signal counting), so the test-only signal in countLowComplexitySignals is only reachable via direct calls, not through the normal SelectTier flow. complexity:high label bypasses low-complexity routing entirely.
-
-### 2026-02-20 | Session Worktree Lifecycle Pattern | conventions
-*Related to: code-review*
-
-Interactive commands use a standard session worktree pattern: package-level launcher fn var, session command const, cfg.Worktree.IsEnabled() opt-out check, sessionConflictSettingsFromConfig for settings, and runWithSessionWorktreeWithConflictSettings for lifecycle. The lifecycle is: create worktree → run callback → record pending branch → attempt merge → on success: clear branch + cleanup worktree; on conflict: return handoff error with session preserved. runWithSessionWorktreeWithConflictSettings returns (*SessionWorktree, error) where both can be non-nil on conflict handoff.
-
-### 2026-02-20 | RefactorPhaseResult Structured Outcome Reporting | patterns
-*Related to: code-review*
-
-RefactorPhaseResult uses Successful+Skipped for safe-to-continue outcomes (diff unavailable, policy skipped, no changes) and Successful=false+Attempted=true for terminal failures (invoke failed, revalidation failed). The Reason field provides machine-readable failure classification for metrics. The old RunRefactorPhase wrapper still returns nil for backward compat; all active call sites use RunRefactorPhaseWithResult where failures are terminal.
-
-### 2026-02-20 | OriginalTier/ActualTier Escalation Tracking | conventions
-*Related to: code-review*
-
-OriginalTier is set once in setupBeadContext from the initial SelectTier call; ActualTier is captured via deferred bc.Tier snapshot after escalation may have changed it. This pair enables retrospective analysis of escalation effectiveness.
-
-### 2026-02-20 | Runbook Capture Best-Effort Semantics | conventions
-*Related to: code-review*
-
-Runbook capture uses best-effort semantics: getHead and runbook.Append failures are logged as warnings, not propagated as errors. This prevents auxiliary diagnostics from interrupting the main iteration loop.
 
 ---
 

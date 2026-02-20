@@ -48,7 +48,7 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	if bead.IsTestOnlyBead(b.Title) && !hasComplexityLabelOverride(b.Labels, r.cfg) {
 		tier = provider.TierLow
 	}
-	model := r.escalationPolicy.SelectModel(b.Priority, b.Labels) // legacy model name for display/timeouts
+	model := escalation.SelectModel(r.cfg, b) // legacy model name for display/timeouts
 
 	_, _, _, beadTimeoutSec := r.cfg.Claude.TimeoutsForModel(model)
 	beadTimeout := time.Duration(beadTimeoutSec) * time.Second

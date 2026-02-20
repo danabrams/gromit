@@ -75,14 +75,11 @@ func TestSetupBeadContextCallsEscalationPolicySelectInitialTier(t *testing.T) {
 	t.Fatal("setupBeadContext not found in process.go")
 }
 
-// TestSetupBeadContextCallsEscalationPolicySelectModel verifies that
-// setupBeadContext calls r.escalationPolicy.SelectModel() rather than
-// escalation.SelectModel().
-//
-// Expected failure: setupBeadContext (process.go:43) currently calls
-// escalation.SelectModel(r.cfg, b). After implementation, it should call
-// r.escalationPolicy.SelectModel(b.Priority, b.Labels) instead.
-func TestSetupBeadContextCallsEscalationPolicySelectModel(t *testing.T) {
+// TestSetupBeadContextCallsEscalationSelectModel verifies that
+// setupBeadContext calls escalation.SelectModel() (the package-level function)
+// rather than r.escalationPolicy.SelectModel(). The package-level function
+// correctly routes test-only beads to haiku, which the policy method does not.
+func TestSetupBeadContextCallsEscalationSelectModel(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("process.go"), nil, parser.ParseComments)
 	if err != nil {
@@ -127,11 +124,11 @@ func TestSetupBeadContextCallsEscalationPolicySelectModel(t *testing.T) {
 			return true
 		})
 
-		if hasEscalationSelectModel {
-			t.Error("setupBeadContext still calls escalation.SelectModel() — should call r.escalationPolicy.SelectModel(...) instead")
+		if !hasEscalationSelectModel {
+			t.Error("setupBeadContext does not call escalation.SelectModel() — must use the package-level function for correct test-only bead routing to haiku")
 		}
-		if !hasPolicySelectModel {
-			t.Error("setupBeadContext does not call r.escalationPolicy.SelectModel() — model selection should be delegated to the escalation policy")
+		if hasPolicySelectModel {
+			t.Error("setupBeadContext calls r.escalationPolicy.SelectModel() — this does not handle test-only bead routing; use escalation.SelectModel(r.cfg, b) instead")
 		}
 		return
 	}
