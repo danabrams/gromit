@@ -191,16 +191,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 					return r.getDiff(activeBC.StartCommit)
 				},
 				GetGitHeadFn: r.getHead,
-				GitResetFn: func(commit string) error {
-					_, stderr, exitCode, err := r.runArgv(context.Background(), "git", []string{"reset", "--hard", commit}, ".")
-					if err != nil {
-						return err
-					}
-					if exitCode != 0 {
-						return fmt.Errorf("git reset failed: %s", strings.TrimSpace(stderr))
-					}
-					return nil
-				},
+				GitResetFn:   r.resetHard,
 			})
 
 			maxCycles := resolveMaxTDDCycles(r.cfg)

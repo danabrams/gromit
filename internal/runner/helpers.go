@@ -63,6 +63,18 @@ func (r *Runner) getDiff(fromCommit string) (string, error) {
 	return getGitDiff(fromCommit)
 }
 
+// resetHard updates working tree and index to the provided commit.
+func (r *Runner) resetHard(commit string) error {
+	_, stderr, exitCode, err := r.runArgv(context.Background(), "git", []string{"reset", "--hard", commit}, ".")
+	if err != nil {
+		return err
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("git reset failed: %s", strings.TrimSpace(stderr))
+	}
+	return nil
+}
+
 // hasNewPackages returns true if any package in the list is not in the runner's
 // touched packages map. Returns true if the map is nil or empty.
 func (r *Runner) hasNewPackages(packages []string) bool {

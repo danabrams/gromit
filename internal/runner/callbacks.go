@@ -3,7 +3,6 @@ package runner
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -459,16 +458,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		},
 		r.runRefactorWithRouter,
 		validateFn,
-		func(commit string) error {
-			_, stderr, exitCode, err := r.runArgv(context.Background(), "git", []string{"reset", "--hard", commit}, ".")
-			if err != nil {
-				return err
-			}
-			if exitCode != 0 {
-				return fmt.Errorf("git reset failed: %s", strings.TrimSpace(stderr))
-			}
-			return nil
-		},
+		r.resetHard,
 		r.getHead,
 	))
 

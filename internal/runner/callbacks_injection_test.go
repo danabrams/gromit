@@ -33,7 +33,7 @@ func TestCallbacksUseInjectedGitDependencies(t *testing.T) {
 		t.Fatal("Runner.makeMethodologyExec not found")
 	}
 	assertNoDirectExecCommand(t, makeMethodologyExec)
-	assertHasReceiverCall(t, makeMethodologyExec, "runArgv")
+	assertHasReceiverSelector(t, makeMethodologyExec, "resetHard")
 	assertHasReceiverSelector(t, makeMethodologyExec, "getHead")
 	assertNoIdentifierUse(t, makeMethodologyExec, "getGitHead")
 
@@ -42,8 +42,20 @@ func TestCallbacksUseInjectedGitDependencies(t *testing.T) {
 		t.Fatal("Runner.makeTDDOrchestrator not found")
 	}
 	assertNoDirectExecCommand(t, makeTDDOrchestrator)
-	assertHasReceiverCall(t, makeTDDOrchestrator, "runArgv")
+	assertHasReceiverSelector(t, makeTDDOrchestrator, "resetHard")
 	assertHasReceiverSelector(t, makeTDDOrchestrator, "getHead")
+
+	helpersPath := filepath.Join(filepath.Dir(thisFile), "helpers.go")
+	helpersFile, err := parser.ParseFile(fset, helpersPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse helpers.go: %v", err)
+	}
+	resetHardMethod := findRunnerMethod(helpersFile, "resetHard")
+	if resetHardMethod == nil {
+		t.Fatal("Runner.resetHard not found")
+	}
+	assertNoDirectExecCommand(t, resetHardMethod)
+	assertHasReceiverCall(t, resetHardMethod, "runArgv")
 }
 
 func findRunnerMethod(file *ast.File, name string) *ast.FuncDecl {
