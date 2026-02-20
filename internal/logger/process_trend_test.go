@@ -231,24 +231,17 @@ func TestBuildProcessTrend_HasNineControlLimitsWithPhaseRates(t *testing.T) {
 	metrics := buildIterationMetrics(entries, 5)
 	trend := buildProcessTrend(metrics, 5)
 
-	if len(trend.ControlLimits) != 9 {
-		t.Errorf("expected 9 control limits, got %d", len(trend.ControlLimits))
+	if len(trend.ControlLimits) != len(trendControlLimitSeries) {
+		t.Errorf("expected %d control limits, got %d", len(trendControlLimitSeries), len(trend.ControlLimits))
 	}
 
-	phaseRateNames := make(map[string]bool, len(phaseRateMetrics))
-	for _, name := range phaseRateMetrics {
-		phaseRateNames[name] = false
-	}
+	phaseRateNames := phaseRateMetricPresence()
 	for _, cl := range trend.ControlLimits {
 		if _, ok := phaseRateNames[cl.Metric]; ok {
 			phaseRateNames[cl.Metric] = true
 		}
 	}
-	for name, found := range phaseRateNames {
-		if !found {
-			t.Errorf("control limit %q not found in trend", name)
-		}
-	}
+	assertAllPhaseRateMetricsFound(t, phaseRateNames, "control limit")
 }
 
 func TestBuildProcessTrend_BuildRateSpikeTriggersHighSeverityAnomaly(t *testing.T) {
@@ -264,7 +257,7 @@ func TestBuildProcessTrend_BuildRateSpikeTriggersHighSeverityAnomaly(t *testing.
 
 	var found bool
 	for _, a := range trend.Anomalies {
-		if a.Metric == metricRollingBuildFailure && a.Severity == "high" {
+		if a.Metric == metricRollingBuildFailure && a.Severity == anomalySeverityHigh {
 			found = true
 			break
 		}
@@ -285,10 +278,7 @@ func TestBuildProcessTrend_PhaseRateControlLimitsClampedToZeroOne(t *testing.T) 
 
 	trend := buildProcessTrend(metrics, 10)
 
-	phaseRates := make(map[string]bool, len(phaseRateMetrics))
-	for _, name := range phaseRateMetrics {
-		phaseRates[name] = false
-	}
+	phaseRates := phaseRateMetricPresence()
 	for _, cl := range trend.ControlLimits {
 		if _, ok := phaseRates[cl.Metric]; !ok {
 			continue
@@ -301,11 +291,7 @@ func TestBuildProcessTrend_PhaseRateControlLimitsClampedToZeroOne(t *testing.T) 
 			t.Errorf("%s LCL = %v, want >= 0.0", cl.Metric, cl.LCL)
 		}
 	}
-	for name, seen := range phaseRates {
-		if !seen {
-			t.Errorf("phase-rate control limit %q not found", name)
-		}
-	}
+	assertAllPhaseRateMetricsFound(t, phaseRates, "phase-rate control limit")
 }
 
 func TestBuildProcessTrend_AggregatesPromptTokenSummary(t *testing.T) {
@@ -412,6 +398,23 @@ func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,
 		FailurePhase: phase,
+	}
+}
+
+func phaseRateMetricPresence() map[string]bool {
+	seen := make(map[string]bool, len(phaseRateMetrics))
+	for _, name := range phaseRateMetrics {
+		seen[name] = false
+	}
+	return seen
+}
+
+func assertAllPhaseRateMetricsFound(t *testing.T, found map[string]bool, label string) {
+	t.Helper()
+	for name, present := range found {
+		if !present {
+			t.Errorf("%s %q not found", label, name)
+		}
 	}
 }
 

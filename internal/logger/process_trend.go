@@ -44,6 +44,50 @@ var phaseRateMetrics = []string{
 	metricRollingTimeoutFailure,
 }
 
+type metricSeriesDefinition struct {
+	name string
+	pick func(IterationMetric) float64
+}
+
+var trendControlLimitSeries = []metricSeriesDefinition{
+	{
+		name: metricRollingSuccessRate,
+		pick: func(m IterationMetric) float64 { return m.RollingSuccessRate },
+	},
+	{
+		name: metricRollingFirstPassSuccess,
+		pick: func(m IterationMetric) float64 { return m.RollingFirstPassSuccess },
+	},
+	{
+		name: metricRollingEscalationRate,
+		pick: func(m IterationMetric) float64 { return m.RollingEscalationRate },
+	},
+	{
+		name: metricRollingAvgDurationMs,
+		pick: func(m IterationMetric) float64 { return m.RollingAvgDurationMs },
+	},
+	{
+		name: metricRollingAvgCostUSD,
+		pick: func(m IterationMetric) float64 { return m.RollingAvgCostUSD },
+	},
+	{
+		name: metricRollingPreflightFailure,
+		pick: func(m IterationMetric) float64 { return m.RollingPreflightFailureRate },
+	},
+	{
+		name: metricRollingBuildFailure,
+		pick: func(m IterationMetric) float64 { return m.RollingBuildFailureRate },
+	},
+	{
+		name: metricRollingValidationFailure,
+		pick: func(m IterationMetric) float64 { return m.RollingValidationFailureRate },
+	},
+	{
+		name: metricRollingTimeoutFailure,
+		pick: func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate },
+	},
+}
+
 // IterationMetric stores a single iteration with rolling-window process metrics.
 type IterationMetric struct {
 	Timestamp                    time.Time                 `json:"timestamp"`
@@ -308,16 +352,9 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 	}
 	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
 
-	series := map[string][]float64{
-		metricRollingSuccessRate:       extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingSuccessRate }),
-		metricRollingFirstPassSuccess:  extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingFirstPassSuccess }),
-		metricRollingEscalationRate:    extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingEscalationRate }),
-		metricRollingAvgDurationMs:     extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingAvgDurationMs }),
-		metricRollingAvgCostUSD:        extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingAvgCostUSD }),
-		metricRollingPreflightFailure:  extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingPreflightFailureRate }),
-		metricRollingBuildFailure:      extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingBuildFailureRate }),
-		metricRollingValidationFailure: extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingValidationFailureRate }),
-		metricRollingTimeoutFailure:    extractMetric(metrics, func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate }),
+	series := make(map[string][]float64, len(trendControlLimitSeries))
+	for _, metric := range trendControlLimitSeries {
+		series[metric.name] = extractMetric(metrics, metric.pick)
 	}
 
 	for metricName, values := range series {
