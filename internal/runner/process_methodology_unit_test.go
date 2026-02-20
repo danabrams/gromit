@@ -348,7 +348,7 @@ func TestPrepareMethodology_TDDFreshContextUsesTitleFallbackWhenNoExpectedOutput
 	}
 }
 
-func TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputsAndEmptyTitle(t *testing.T) {
+func TestPrepareMethodology_TDDFreshContextErrorsWhenNoExpectedOutputsAndEmptyTitle(t *testing.T) {
 	cfg := &config.Config{
 		Methodology: config.MethodologyConfig{
 			TDD:                  true,
@@ -379,23 +379,26 @@ func TestPrepareMethodology_TDDFreshContextFallsBackWhenNoExpectedOutputsAndEmpt
 	if !tddActive {
 		t.Fatal("expected tddActive=true")
 	}
-	if done {
-		t.Fatal("expected done=false so caller falls through to normal build loop")
+	if !done {
+		t.Fatal("expected done=true when fresh-context mode is enabled")
 	}
-	if bc.Result.Error != nil {
-		t.Fatalf("expected no error, got: %v", bc.Result.Error)
+	if bc.Result.Error == nil {
+		t.Fatal("expected error when bead has no ExpectedOutputs and empty title in fresh-context mode")
 	}
 	if orchestratorCalled {
 		t.Fatal("expected orchestrator NOT to be called when bead has no ExpectedOutputs and empty title")
 	}
-	if !tddBuildCalled {
-		t.Fatal("expected RenderTDDBuild to be called as fallback")
+	if tddBuildCalled {
+		t.Fatal("expected RenderTDDBuild NOT to be called when fresh-context mode is enabled")
 	}
-	if bc.BuildPrompt != "tdd-build-prompt" {
-		t.Errorf("expected BuildPrompt from RenderTDDBuild fallback, got %q", bc.BuildPrompt)
+	if bc.BuildPrompt != "" {
+		t.Errorf("expected BuildPrompt to remain empty, got %q", bc.BuildPrompt)
 	}
-	if !strings.Contains(buf.String(), "falling back to standard TDD build") {
-		t.Errorf("expected fallback log message, got:\n%s", buf.String())
+	if !strings.Contains(bc.Result.Error.Error(), "requires ExpectedOutputs or a non-empty bead title") {
+		t.Fatalf("unexpected error: %v", bc.Result.Error)
+	}
+	if strings.Contains(buf.String(), "falling back to standard TDD build") {
+		t.Errorf("did not expect fallback log message, got:\n%s", buf.String())
 	}
 }
 
