@@ -70,6 +70,11 @@ PhaseMetric cost/token tracking needs a clear convention: record per-phase delta
 
 Codex stream event handling uses two different patterns for usage accumulation: overwrite (turn.completed) vs merge (response.completed, result). Multi-turn sessions need consistent merge semantics.
 
+### 2026-02-20 | Validate Static + Build Gates Before Merge | conventions
+*Related to: successful bead*
+
+Quality gates for a successful bead should include both `go vet ./...` and `go build ./...` at repo scope. Running `go vet` catches static-analysis issues across all packages early, and `go build` confirms repository-wide compilation. Sequence together provides a fast guard against invalid submissions.
+
 ---
 
 ## Archived
