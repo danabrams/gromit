@@ -286,6 +286,9 @@ func (r *Runner) validationPreflight(bc *runtypes.BeadContext) (bool, error) {
 
 	checker, err := preflight.NewChecker(r.cfg.Preflight, r.output)
 	if err != nil {
+		if bc != nil && bc.Result != nil {
+			bc.Result.FailurePhase = failurephase.Preflight
+		}
 		return false, fmt.Errorf("creating preflight checker: %w", err)
 	}
 	if err := checker.Check(r.cfg.Validation.FastCommandsOrDefault()); err != nil {
@@ -327,8 +330,11 @@ func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadCo
 		valAnalysisCtx, valAnalysisCancel := context.WithTimeout(ctx, time.Duration(r.cfg.Claude.AnalysisTimeout)*time.Second)
 		analysis, analyzeErr := r.analyzer.Analyze(valAnalysisCtx, bc.Bead, failureOutput)
 		valAnalysisCancel()
-		if analyzeErr == nil && analysis != nil && r.renderer != nil {
-			escalation.ExtractLearning(bc, analysis, r.renderer.GetLearningsFile())
+		if analyzeErr == nil && analysis != nil {
+			bc.Result.FailureCategory = string(analysis.Category)
+			if r.renderer != nil {
+				escalation.ExtractLearning(bc, analysis, r.renderer.GetLearningsFile())
+			}
 		}
 
 		return errValidationFailed

@@ -247,6 +247,9 @@ func TestAnalyzeAndHandleFailure_UnclearSpecStops(t *testing.T) {
 	if bc.Result.Error == nil {
 		t.Fatal("expected error to be set for unclear spec")
 	}
+	if bc.Result.FailureCategory != string(analyzer.CategoryUnclearSpec) {
+		t.Fatalf("FailureCategory = %q, want %q", bc.Result.FailureCategory, analyzer.CategoryUnclearSpec)
+	}
 }
 
 func TestAnalyzeAndHandleFailure_TaskTooComplexStopsAndComments(t *testing.T) {
@@ -277,6 +280,9 @@ func TestAnalyzeAndHandleFailure_TaskTooComplexStopsAndComments(t *testing.T) {
 	}
 	if len(mbc.comments) == 0 {
 		t.Error("expected a comment to be added to the bead for task too complex")
+	}
+	if bc.Result.FailureCategory != string(analyzer.CategoryTaskTooComplex) {
+		t.Fatalf("FailureCategory = %q, want %q", bc.Result.FailureCategory, analyzer.CategoryTaskTooComplex)
 	}
 }
 

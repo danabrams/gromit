@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/analyzer"
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -128,5 +130,55 @@ func TestRunValidation_SetsFailurePhaseValidation(t *testing.T) {
 	}
 	if bc.Result.FailurePhase != failurephase.Validation {
 		t.Errorf("FailurePhase = %q, want %q", bc.Result.FailurePhase, failurephase.Validation)
+	}
+}
+
+func TestRunValidation_SetsFailureCategoryFromAnalyzer(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+		Preflight: config.PreflightConfig{},
+		Claude:    config.ClaudeConfig{AnalysisTimeout: 30},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	failingCmd := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "FAIL\t./...", 1, nil
+	}
+
+	var buf strings.Builder
+	sw := newSyncWriter(&buf)
+	r := &Runner{
+		cfg:      cfg,
+		renderer: &mockPromptRenderer{},
+		analyzer: &mockFailureAnalyzer{
+			AnalyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+				return &analyzer.Analysis{
+					Category:    analyzer.CategoryEnvironment,
+					Recoverable: false,
+					RootCause:   "toolchain mismatch",
+				}, nil
+			},
+		},
+		output:           sw,
+		syncOut:          sw,
+		validationRunner: validation.NewRunner(cfg, failingCmd, nil, nil),
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:      newTestBead("fp-run-val-2", "Feature bead"),
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{WorkDir: t.TempDir()},
+	}
+
+	err := r.runValidation(context.Background(), bc)
+	if err != errValidationFailed {
+		t.Fatalf("runValidation() error = %v, want %v", err, errValidationFailed)
+	}
+	if bc.Result.FailureCategory != string(analyzer.CategoryEnvironment) {
+		t.Errorf("FailureCategory = %q, want %q", bc.Result.FailureCategory, analyzer.CategoryEnvironment)
 	}
 }

@@ -265,6 +265,7 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 
 	h.log("Analysis: category=%s, recoverable=%v", analysis.Category, analysis.Recoverable)
 	h.log("Root cause: %s", analysis.RootCause)
+	bc.Result.FailureCategory = string(analysis.Category)
 
 	if analysis.Category == integrityUnsafeStateCategory {
 		bc.Result.Error = fmt.Errorf("L3 stop-line: integrity/unsafe-state - %s", analysis.RootCause)

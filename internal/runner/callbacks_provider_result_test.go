@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
@@ -26,10 +27,12 @@ func setupInvokeFnWithProvider(t *testing.T, streamRunFn func(ctx context.Contex
 	mockRouter := provider.NewSingleProviderRouter(mockProvider)
 
 	r := &Runner{
-		cfg:     &config.Config{},
-		router:  mockRouter,
-		invoker: newInvokerForTest(mockRouter, &buf, nil),
-		output:  &buf,
+		cfg:      &config.Config{},
+		router:   mockRouter,
+		invoker:  newInvokerForTest(mockRouter, &buf, nil),
+		output:   &buf,
+		beads:    &mockBeadClient{},
+		renderer: &mockPromptRenderer{},
 	}
 
 	bc := &runtypes.BeadContext{
@@ -157,6 +160,44 @@ func TestMakeInvokeFn_PropagatesFailureCategoryToIterationResult(t *testing.T) {
 
 	if bc.Result.FailureCategory != provider.FailureCategoryTransportDisconnect {
 		t.Fatalf("bc.Result.FailureCategory = %q, want %q", bc.Result.FailureCategory, provider.FailureCategoryTransportDisconnect)
+	}
+}
+
+func TestMakeInvokeFn_SetsBuildFailurePhaseOnScopeTooLarge(t *testing.T) {
+	invokeFn, bc := setupInvokeFnWithProvider(t, func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		return &provider.Result{
+			Success:  false,
+			Output:   "SCOPE_TOO_LARGE: requires touching too many files",
+			ExitCode: 1,
+			Model:    "test-model",
+		}, nil
+	})
+
+	_, err := invokeFn(context.Background(), bc, "prompt")
+	if err == nil {
+		t.Fatal("expected scope-too-large error")
+	}
+	if bc.Result.FailurePhase != failurephase.Build {
+		t.Fatalf("FailurePhase = %q, want %q", bc.Result.FailurePhase, failurephase.Build)
+	}
+}
+
+func TestMakeInvokeFn_SetsBuildFailurePhaseOnUsageLimit(t *testing.T) {
+	invokeFn, bc := setupInvokeFnWithProvider(t, func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		return &provider.Result{
+			Success:  false,
+			Output:   "Error: usage limit exceeded",
+			ExitCode: 1,
+			Model:    "test-model",
+		}, nil
+	})
+
+	_, err := invokeFn(context.Background(), bc, "prompt")
+	if err == nil {
+		t.Fatal("expected usage-limit error")
+	}
+	if bc.Result.FailurePhase != failurephase.Build {
+		t.Fatalf("FailurePhase = %q, want %q", bc.Result.FailurePhase, failurephase.Build)
 	}
 }
 

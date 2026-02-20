@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -65,6 +66,9 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		}
 
 		if invResult == nil || invResult.Result == nil {
+			if bc != nil && bc.Result != nil {
+				bc.Result.FailurePhase = failurephase.Build
+			}
 			return nil, fmt.Errorf("claude returned nil result")
 		}
 
@@ -85,6 +89,9 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		// Check scope-too-large
 		if isTooLarge, explanation := claude.IsScopeTooLarge(invResult.Result); isTooLarge {
 			r.handleScopeTooLarge(bc, invResult.Result, explanation)
+			if bc != nil && bc.Result != nil {
+				bc.Result.FailurePhase = failurephase.Build
+			}
 			return invResult, bc.Result.Error
 		}
 
@@ -98,6 +105,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		}
 		if usagelimit.Check(signals, usagelimit.ClaudePatterns()) {
 			bc.Result.UsageLimited = true
+			bc.Result.FailurePhase = failurephase.Build
 			r.log("Warning: usage limit detected - stopping retry attempts")
 			return nil, fmt.Errorf("usage limit detected: retries or escalation will not resolve this failure (exit code: %d, rate limit events: %d)", invResult.Result.ExitCode, signals.RateLimitHits)
 		}
@@ -154,6 +162,10 @@ func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext
 	}
 
 	if classification.ParentCanceled {
+		if bc != nil && bc.Result != nil {
+			bc.Result.FailurePhase = failurephase.Timeout
+			bc.Result.TimeoutPhase = "build"
+		}
 		return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())
 	}
 

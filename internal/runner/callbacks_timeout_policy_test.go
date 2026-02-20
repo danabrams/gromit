@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -106,5 +107,34 @@ func TestHandleInvokeError_UsesEscalationPolicyClassification(t *testing.T) {
 	}
 	if bc.Result.TimeoutType != "bead" {
 		t.Fatalf("TimeoutType = %q, want %q", bc.Result.TimeoutType, "bead")
+	}
+}
+
+func TestHandleInvokeError_ParentCanceledSetsTimeoutFailurePhase(t *testing.T) {
+	parentCtx, cancelParent := context.WithCancel(context.Background())
+	cancelParent()
+
+	mockPolicy := &mockEscalationPolicy{
+		ClassifyTimeoutFn: func(ctxErr, parentErr error, stallFired bool) policy.TimeoutClassification {
+			return policy.TimeoutClassification{ParentCanceled: true}
+		},
+	}
+
+	r := &Runner{escalationPolicy: mockPolicy}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "bead-2", Title: "Canceled Parent"},
+		ParentCtx: parentCtx,
+		Result:    &IterationResult{},
+	}
+
+	_, err := r.handleInvokeError(context.Background(), bc, nil, context.Canceled)
+	if err == nil {
+		t.Fatal("expected context cancelled error")
+	}
+	if bc.Result.FailurePhase != failurephase.Timeout {
+		t.Fatalf("FailurePhase = %q, want %q", bc.Result.FailurePhase, failurephase.Timeout)
+	}
+	if bc.Result.TimeoutPhase != "build" {
+		t.Fatalf("TimeoutPhase = %q, want %q", bc.Result.TimeoutPhase, "build")
 	}
 }
