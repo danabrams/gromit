@@ -77,168 +77,22 @@ This epic explores ways to make developer onboarding smoother.
 
 // TestEpicStatusCommand_DisplaysLinkedSpecs verifies that status shows specs linked to the epic
 func TestEpicStatusCommand_DisplaysLinkedSpecs(t *testing.T) {
-	tmpDir := t.TempDir()
-	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
-	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
-	if err := os.MkdirAll(epicsDir, 0755); err != nil {
-		t.Fatalf("failed to create epics dir: %v", err)
-	}
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatalf("failed to create specs dir: %v", err)
-	}
-
-	// Create epic document
-	epicContent := `---
-epic_id: gromit-xyz
-created: 2026-02-08
----
-
-# Improve Developer Onboarding
-`
-	if err := os.WriteFile(filepath.Join(epicsDir, "onboarding.md"), []byte(epicContent), 0644); err != nil {
-		t.Fatalf("failed to write epic: %v", err)
-	}
-
-	// Create specs linked to the epic
-	specs := []struct {
-		id       string
-		filename string
-		title    string
-	}{
-		{"auth", "auth.md", "User Authentication"},
-		{"profile", "profile.md", "User Profile Management"},
-	}
-
-	for _, spec := range specs {
-		specContent := fmt.Sprintf(`---
-id: %s
-epic: gromit-xyz
-created: 2026-02-08
----
-
-# %s
-
-This spec describes the implementation.
-`, spec.id, spec.title)
-		specPath := filepath.Join(specsDir, spec.filename)
-		if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
-			t.Fatalf("failed to write spec %s: %v", spec.filename, err)
-		}
-	}
-
-	writeGromitConfig(t, tmpDir, epicsDir, specsDir, "")
-	chdirTo(t, tmpDir)
-
-	stdout, _, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
+	stdout, _, exitCode := runComplexEpicStatusFixture(t)
 
 	// If command succeeds, verify spec display
 	if exitCode == 0 {
-		// Should show both spec IDs
-		if !strings.Contains(stdout, "auth") {
-			t.Errorf("status output should contain spec 'auth', got: %s", stdout)
+		if !strings.Contains(stdout, "auth-spec") {
+			t.Errorf("status output should contain spec 'auth-spec', got: %s", stdout)
 		}
-		if !strings.Contains(stdout, "profile") {
-			t.Errorf("status output should contain spec 'profile', got: %s", stdout)
+		if !strings.Contains(stdout, "profile-spec") {
+			t.Errorf("status output should contain spec 'profile-spec', got: %s", stdout)
 		}
 	}
 }
 
 // TestEpicStatusCommand_ShowsPipelineStages verifies that status displays pipeline stage for each spec
 func TestEpicStatusCommand_ShowsPipelineStages(t *testing.T) {
-	tmpDir := t.TempDir()
-	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
-	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
-	plansDir := filepath.Join(tmpDir, ".gromit", "plans")
-
-	for _, dir := range []string{epicsDir, specsDir, plansDir} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			t.Fatalf("failed to create directory %s: %v", dir, err)
-		}
-	}
-
-	// Create epic
-	epicContent := `---
-epic_id: gromit-xyz
-created: 2026-02-08
----
-
-# Test Epic
-`
-	if err := os.WriteFile(filepath.Join(epicsDir, "test.md"), []byte(epicContent), 0644); err != nil {
-		t.Fatalf("failed to write epic: %v", err)
-	}
-
-	// Create spec without plan (unplanned stage)
-	specUnplanned := `---
-id: unplanned-spec
-epic: gromit-xyz
-created: 2026-02-08
----
-
-# Unplanned Spec
-`
-	if err := os.WriteFile(filepath.Join(specsDir, "unplanned.md"), []byte(specUnplanned), 0644); err != nil {
-		t.Fatalf("failed to write unplanned spec: %v", err)
-	}
-
-	// Create spec with plan but not decomposed (planned stage)
-	specPlanned := `---
-id: planned-spec
-epic: gromit-xyz
-created: 2026-02-08
----
-
-# Planned Spec
-`
-	if err := os.WriteFile(filepath.Join(specsDir, "planned.md"), []byte(specPlanned), 0644); err != nil {
-		t.Fatalf("failed to write planned spec: %v", err)
-	}
-
-	planContent := `---
-id: planned-spec
-source_spec: planned-spec
-created: 2026-02-08
-decomposed: false
----
-
-# Plan
-
-This is the plan.
-`
-	if err := os.WriteFile(filepath.Join(plansDir, "planned-spec.md"), []byte(planContent), 0644); err != nil {
-		t.Fatalf("failed to write plan: %v", err)
-	}
-
-	// Create spec with decomposed plan (decomposed stage)
-	specDecomposed := `---
-id: decomposed-spec
-epic: gromit-xyz
-created: 2026-02-08
----
-
-# Decomposed Spec
-`
-	if err := os.WriteFile(filepath.Join(specsDir, "decomposed.md"), []byte(specDecomposed), 0644); err != nil {
-		t.Fatalf("failed to write decomposed spec: %v", err)
-	}
-
-	decomposedPlan := `---
-id: decomposed-spec
-source_spec: decomposed-spec
-created: 2026-02-08
-decomposed: true
----
-
-# Decomposed Plan
-`
-	if err := os.WriteFile(filepath.Join(plansDir, "decomposed-spec.md"), []byte(decomposedPlan), 0644); err != nil {
-		t.Fatalf("failed to write decomposed plan: %v", err)
-	}
-
-	writeGromitConfig(t, tmpDir, epicsDir, specsDir, plansDir)
-	chdirTo(t, tmpDir)
-
-	stdout, _, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
+	stdout, _, exitCode := runComplexEpicStatusFixture(t)
 
 	// If command succeeds, verify pipeline stages are displayed
 	if exitCode == 0 {
@@ -473,74 +327,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_DisplaysTableFormat verifies that status displays specs in a table-like format
 func TestEpicStatusCommand_DisplaysTableFormat(t *testing.T) {
-	tmpDir := t.TempDir()
-	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
-	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
-	plansDir := filepath.Join(tmpDir, ".gromit", "plans")
-
-	for _, dir := range []string{epicsDir, specsDir, plansDir} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			t.Fatalf("failed to create directory %s: %v", dir, err)
-		}
-	}
-
-	// Create epic
-	epicContent := `---
-epic_id: gromit-xyz
-created: 2026-02-08
----
-
-# Developer Onboarding
-`
-	if err := os.WriteFile(filepath.Join(epicsDir, "onboarding.md"), []byte(epicContent), 0644); err != nil {
-		t.Fatalf("failed to write epic: %v", err)
-	}
-
-	// Create multiple specs with different stages
-	specs := []struct {
-		id      string
-		title   string
-		hasplan bool
-		decomp  bool
-	}{
-		{"auth-spec", "User Authentication", true, true},
-		{"profile-spec", "User Profile", true, false},
-		{"docs-spec", "Documentation", false, false},
-	}
-
-	for _, spec := range specs {
-		specContent := fmt.Sprintf(`---
-id: %s
-epic: gromit-xyz
-created: 2026-02-08
----
-
-# %s
-`, spec.id, spec.title)
-		if err := os.WriteFile(filepath.Join(specsDir, spec.id+".md"), []byte(specContent), 0644); err != nil {
-			t.Fatalf("failed to write spec %s: %v", spec.id, err)
-		}
-
-		if spec.hasplan {
-			planContent := fmt.Sprintf(`---
-id: %s
-source_spec: %s
-created: 2026-02-08
-decomposed: %v
----
-
-# Plan
-`, spec.id, spec.id, spec.decomp)
-			if err := os.WriteFile(filepath.Join(plansDir, spec.id+".md"), []byte(planContent), 0644); err != nil {
-				t.Fatalf("failed to write plan for %s: %v", spec.id, err)
-			}
-		}
-	}
-
-	writeGromitConfig(t, tmpDir, epicsDir, specsDir, plansDir)
-	chdirTo(t, tmpDir)
-
-	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "gromit-xyz")
+	stdout, stderr, exitCode := runComplexEpicStatusFixture(t)
 
 	// Command may require bd binary - if not available, can still verify structure
 	if exitCode != 0 {

@@ -2701,8 +2701,13 @@ func TestRunWritesFinalStatusOnContextCancellation(t *testing.T) {
 		CloseFn:     func(id string) error { return nil },
 	}
 
+	streamStarted := make(chan struct{}, 1)
 	mockProvider := &mockProviderWithRouterTracking{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			select {
+			case streamStarted <- struct{}{}:
+			default:
+			}
 			<-ctx.Done()
 			return &provider.Result{Success: false, Model: "test-sonnet", Output: "cancelled"}, ctx.Err()
 		},
@@ -2720,9 +2725,21 @@ func TestRunWritesFinalStatusOnContextCancellation(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	runCtx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
+	runCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	err = r.Run(runCtx, 1, time.Time{}, nil, false)
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- r.Run(runCtx, 1, time.Time{}, nil, false)
+	}()
+
+	select {
+	case <-streamStarted:
+		cancel()
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("timed out waiting for stream run to start")
+	}
+
+	err = <-runDone
 	if err == nil {
 		t.Fatal("expected run to return context cancellation error")
 	}

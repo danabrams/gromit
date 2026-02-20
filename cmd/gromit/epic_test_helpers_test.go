@@ -4,7 +4,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+)
+
+type epicStatusFixtureResult struct {
+	stdout   string
+	stderr   string
+	exitCode int
+	err      error
+}
+
+var (
+	complexEpicStatusOnce   sync.Once
+	complexEpicStatusResult epicStatusFixtureResult
 )
 
 func prependFakeTools(t *testing.T, testDir string) {
@@ -49,4 +62,100 @@ func writeGromitConfig(t *testing.T, tmpDir, epicsDir, specsDir, plansDir string
 	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
 		t.Fatalf("failed to write gromit.yaml: %v", err)
 	}
+}
+
+// runComplexEpicStatusFixture builds a representative epic/spec/plan workspace once and
+// reuses the single `epic status` invocation output across table/pipeline/linkage assertions.
+func runComplexEpicStatusFixture(t *testing.T) (stdout, stderr string, exitCode int) {
+	t.Helper()
+
+	complexEpicStatusOnce.Do(func() {
+		tmpDir := t.TempDir()
+		epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
+		specsDir := filepath.Join(tmpDir, ".gromit", "specs")
+		plansDir := filepath.Join(tmpDir, ".gromit", "plans")
+
+		for _, dir := range []string{epicsDir, specsDir, plansDir} {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				complexEpicStatusResult.err = fmt.Errorf("failed to create directory %s: %w", dir, err)
+				return
+			}
+		}
+
+		epicContent := `---
+epic_id: gromit-xyz
+created: 2026-02-08
+---
+
+# Developer Onboarding
+`
+		if err := os.WriteFile(filepath.Join(epicsDir, "onboarding.md"), []byte(epicContent), 0644); err != nil {
+			complexEpicStatusResult.err = fmt.Errorf("failed to write epic: %w", err)
+			return
+		}
+
+		specs := []struct {
+			id      string
+			title   string
+			hasPlan bool
+			decomp  bool
+		}{
+			{id: "auth-spec", title: "User Authentication", hasPlan: true, decomp: true},
+			{id: "profile-spec", title: "User Profile", hasPlan: true, decomp: false},
+			{id: "docs-spec", title: "Documentation", hasPlan: false, decomp: false},
+		}
+
+		for _, spec := range specs {
+			specContent := fmt.Sprintf(`---
+id: %s
+epic: gromit-xyz
+created: 2026-02-08
+---
+
+# %s
+`, spec.id, spec.title)
+			if err := os.WriteFile(filepath.Join(specsDir, spec.id+".md"), []byte(specContent), 0644); err != nil {
+				complexEpicStatusResult.err = fmt.Errorf("failed to write spec %s: %w", spec.id, err)
+				return
+			}
+			if !spec.hasPlan {
+				continue
+			}
+			planContent := fmt.Sprintf(`---
+id: %s
+source_spec: %s
+created: 2026-02-08
+decomposed: %v
+---
+
+# Plan
+`, spec.id, spec.id, spec.decomp)
+			if err := os.WriteFile(filepath.Join(plansDir, spec.id+".md"), []byte(planContent), 0644); err != nil {
+				complexEpicStatusResult.err = fmt.Errorf("failed to write plan for %s: %w", spec.id, err)
+				return
+			}
+		}
+
+		writeGromitConfig(t, tmpDir, epicsDir, specsDir, plansDir)
+
+		wd, err := os.Getwd()
+		if err != nil {
+			complexEpicStatusResult.err = fmt.Errorf("failed to get working directory: %w", err)
+			return
+		}
+		if err := os.Chdir(tmpDir); err != nil {
+			complexEpicStatusResult.err = fmt.Errorf("failed to change directory to %s: %w", tmpDir, err)
+			return
+		}
+		defer func() {
+			_ = os.Chdir(wd)
+		}()
+
+		complexEpicStatusResult.stdout, complexEpicStatusResult.stderr, complexEpicStatusResult.exitCode = runGromitCobra(t, "epic", "status", "gromit-xyz")
+	})
+
+	if complexEpicStatusResult.err != nil {
+		t.Fatalf("failed to prepare epic status fixture: %v", complexEpicStatusResult.err)
+	}
+	return complexEpicStatusResult.stdout, complexEpicStatusResult.stderr, complexEpicStatusResult.exitCode
 }

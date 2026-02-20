@@ -1,0 +1,260 @@
+{
+  "generated_at": "2026-02-20T01:10:04+00:00",
+  "input": ".gromit/reports/slow-tests-20260220-010239.jsonl",
+  "top_overall_count": 25,
+  "top_per_package_count": 10,
+  "top_tests_overall": [
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWritesFinalStatusOnContextCancellation",
+      "elapsed_seconds": 0.78
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_ClosesBeadOnSuccess",
+      "elapsed_seconds": 0.71
+    },
+    {
+      "package": "github.com/danabrams/gromit/cmd/gromit",
+      "test": "TestEpicStatusCommand_DisplaysTableFormat",
+      "elapsed_seconds": 0.49
+    },
+    {
+      "package": "github.com/danabrams/gromit/cmd/gromit",
+      "test": "TestEpicStatusCommand_ShowsPipelineStages",
+      "elapsed_seconds": 0.49
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_PrecheckVerificationRejects",
+      "elapsed_seconds": 0.41
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_PrecheckNotMet",
+      "elapsed_seconds": 0.4
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_ConsecutiveSkipCounterResetsAfterRealBuild",
+      "elapsed_seconds": 0.39
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestScopeGate_SkippedWhenScopeCheckDisabled",
+      "elapsed_seconds": 0.36
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunner_NoFiltersUsesReady",
+      "elapsed_seconds": 0.32
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_PrecheckError",
+      "elapsed_seconds": 0.32
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRun_L4Output_IncludesPacketAndThreeDecisionOptionsWithTradeoffs",
+      "elapsed_seconds": 0.31
+    },
+    {
+      "package": "github.com/danabrams/gromit/cmd/gromit",
+      "test": "TestFinalVerification",
+      "elapsed_seconds": 0.3
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_SessionCompletionProtocolOrder",
+      "elapsed_seconds": 0.3
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_PrecheckCountsAsIteration",
+      "elapsed_seconds": 0.3
+    },
+    {
+      "package": "github.com/danabrams/gromit/cmd/gromit",
+      "test": "TestEpicStatusCommand_DisplaysLinkedSpecs",
+      "elapsed_seconds": 0.3
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_PrecheckPassed",
+      "elapsed_seconds": 0.3
+    },
+    {
+      "package": "github.com/danabrams/gromit/cmd/gromit",
+      "test": "TestEpicStatusCommand_GapAnalysisIncludesSpecSummaries",
+      "elapsed_seconds": 0.29
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_ConsecutivePrecheckSkipsHitsLimit",
+      "elapsed_seconds": 0.29
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_PrecheckVerificationError",
+      "elapsed_seconds": 0.29
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRun_L3StopLine_LogsMutationHaltAndSkipsPushMerge",
+      "elapsed_seconds": 0.28
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_SessionCompletionVerifiesUpToDateStatus",
+      "elapsed_seconds": 0.28
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRunWithMocks_PrecheckVerificationConfirms",
+      "elapsed_seconds": 0.28
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestProcessBeadReceivesScopeEstimateFromRun",
+      "elapsed_seconds": 0.27
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestScopeGate_PassesMediumComplexitySingleIteration",
+      "elapsed_seconds": 0.25
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "test": "TestRun_FastGateAllowsMandatoryCoverageFromFullCommands",
+      "elapsed_seconds": 0.22
+    }
+  ],
+  "top_tests_by_package": [
+    {
+      "package": "github.com/danabrams/gromit/cmd/gromit",
+      "tests": [
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestEpicStatusCommand_DisplaysTableFormat",
+          "elapsed_seconds": 0.49
+        },
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestEpicStatusCommand_ShowsPipelineStages",
+          "elapsed_seconds": 0.49
+        },
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestFinalVerification",
+          "elapsed_seconds": 0.3
+        },
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestEpicStatusCommand_DisplaysLinkedSpecs",
+          "elapsed_seconds": 0.3
+        },
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestEpicStatusCommand_GapAnalysisIncludesSpecSummaries",
+          "elapsed_seconds": 0.29
+        },
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestEpicStatusCommand_HandlesSpecWithNoBeads",
+          "elapsed_seconds": 0.2
+        },
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestRunLoop_SpecFlagValidSpec",
+          "elapsed_seconds": 0.19
+        },
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestFinalVerification/live-external_tests_must_be_e2e_live-tagged",
+          "elapsed_seconds": 0.19
+        },
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestEpicStatusCommand_HandlesSpecWithNonStringID",
+          "elapsed_seconds": 0.19
+        },
+        {
+          "package": "github.com/danabrams/gromit/cmd/gromit",
+          "test": "TestEpicStatusCommand_HandlesSpecsWithoutPlans",
+          "elapsed_seconds": 0.19
+        }
+      ]
+    },
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "tests": [
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestRunWritesFinalStatusOnContextCancellation",
+          "elapsed_seconds": 0.78
+        },
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestRunWithMocks_ClosesBeadOnSuccess",
+          "elapsed_seconds": 0.71
+        },
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestRunWithMocks_PrecheckVerificationRejects",
+          "elapsed_seconds": 0.41
+        },
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestRunWithMocks_PrecheckNotMet",
+          "elapsed_seconds": 0.4
+        },
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestRunWithMocks_ConsecutiveSkipCounterResetsAfterRealBuild",
+          "elapsed_seconds": 0.39
+        },
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestScopeGate_SkippedWhenScopeCheckDisabled",
+          "elapsed_seconds": 0.36
+        },
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestRunner_NoFiltersUsesReady",
+          "elapsed_seconds": 0.32
+        },
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestRunWithMocks_PrecheckError",
+          "elapsed_seconds": 0.32
+        },
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestRun_L4Output_IncludesPacketAndThreeDecisionOptionsWithTradeoffs",
+          "elapsed_seconds": 0.31
+        },
+        {
+          "package": "github.com/danabrams/gromit/internal/runner",
+          "test": "TestRunWithMocks_SessionCompletionProtocolOrder",
+          "elapsed_seconds": 0.3
+        }
+      ]
+    }
+  ],
+  "package_totals": [
+    {
+      "package": "github.com/danabrams/gromit/internal/runner",
+      "status": "fail",
+      "elapsed_seconds": 15.416
+    },
+    {
+      "package": "github.com/danabrams/gromit/cmd/gromit",
+      "status": "pass",
+      "elapsed_seconds": 4.006
+    }
+  ],
+  "failed_packages": [
+    "github.com/danabrams/gromit/internal/runner"
+  ]
+}
