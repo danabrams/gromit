@@ -153,13 +153,8 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Runner, *reviewpkg.Re
 	r.methodologyExec = r.makeMethodologyExec()
 	r.tddOrchestrator = r.makeTDDOrchestrator()
 	r.cycleOrchestrator = &cycleOrchestrator{runner: r}
-	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
-		r.specOrchestrator = newSpecOrchestrator(r)
-		gate, err := newSpecGate(r)
-		if err != nil {
-			return nil, nil, err
-		}
-		r.specGate = gate
+	if err := initializeSpecOrchestration(cfg, r); err != nil {
+		return nil, nil, err
 	}
 
 	reviewer := reviewpkg.NewReviewer(cfg, router, beadsClient, renderer, r.gitDiffFn, log)
@@ -216,6 +211,23 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 	}
 	claudeProvider := provider.NewClaudeProvider(claudeClient, defaultTierToModelMap)
 	return provider.NewSingleProviderRouter(claudeProvider), claudeProvider, nil, nil, nil
+}
+
+func initializeSpecOrchestration(cfg *config.Config, r *Runner) error {
+	if cfg == nil || r == nil {
+		return nil
+	}
+	if cfg.Methodology.Granularity != config.MethodologyGranularitySpec {
+		return nil
+	}
+
+	r.specOrchestrator = newSpecOrchestrator(r)
+	gate, err := newSpecGate(r)
+	if err != nil {
+		return err
+	}
+	r.specGate = gate
+	return nil
 }
 
 func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider, map[string]config.ProviderDef, error) {

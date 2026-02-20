@@ -245,8 +245,8 @@ func (r *Runner) authorScopedSpecAcceptanceTests(ctx context.Context, st *runLoo
 	return nil
 }
 
-func (r *Runner) verifyScopedSpecAcceptance(ctx context.Context, scopedRunCompleted bool) error {
-	if !scopedRunCompleted || !r.isScopedSpecOrchestrationEnabled() || r.specGate == nil || r.beads == nil {
+func (r *Runner) verifyScopedSpecAcceptance(ctx context.Context, noMoreReadyBeads bool) error {
+	if !noMoreReadyBeads || !r.isScopedSpecOrchestrationEnabled() || r.specGate == nil || r.beads == nil {
 		return nil
 	}
 	if !r.cfg.SpecGate.IsEnabled() {

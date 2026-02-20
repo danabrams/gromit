@@ -176,7 +176,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 	}
 
-	scopedRunCompleted := false
+	noMoreReadyBeads := false
 	for {
 		stop, loopErr := r.shouldStopLoop(ctx, stopCh, st, effectiveMaxIterations, deadline)
 		if loopErr != nil {
@@ -196,7 +196,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			} else {
 				r.log("No more work available, stopping")
 			}
-			scopedRunCompleted = true
+			noMoreReadyBeads = true
 			break
 		}
 
@@ -209,7 +209,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 	}
 
-	if err := r.verifyScopedSpecAcceptance(ctx, scopedRunCompleted); err != nil {
+	if err := r.verifyScopedSpecAcceptance(ctx, noMoreReadyBeads); err != nil {
 		return r.handleRunError(err)
 	}
 
