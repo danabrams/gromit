@@ -13,6 +13,13 @@ func newConfigValidationPolicy(fullEveryN int) policy.ValidationPolicy {
 	return policy.NewConfigValidationPolicy(cfg)
 }
 
+func newConfigValidationPolicyWithMandatory(fullEveryN int, mandatory []string) policy.ValidationPolicy {
+	cfg := &config.Config{}
+	cfg.Validation.FullValidationEveryN = fullEveryN
+	cfg.Validation.MandatoryCommands = mandatory
+	return policy.NewConfigValidationPolicy(cfg)
+}
+
 func TestSelectGate_ReturnsFastOnNonModuloIteration(t *testing.T) {
 	p := newConfigValidationPolicy(3)
 	if got := p.SelectGate(1); got != policy.GateFast {
@@ -86,8 +93,8 @@ func TestSelectGate_TableDrivenModuloArithmetic(t *testing.T) {
 	}
 }
 
-func TestMandatoryCommandPrefixes_ReturnsGoPrefixes(t *testing.T) {
-	p := newConfigValidationPolicy(0)
+func TestMandatoryCommandPrefixes_ReturnsConfiguredPrefixes(t *testing.T) {
+	p := newConfigValidationPolicyWithMandatory(0, []string{"go test", "go vet", "go build"})
 	want := []string{"go test", "go vet", "go build"}
 	got := p.MandatoryCommandPrefixes()
 	if len(got) != len(want) {
@@ -97,5 +104,13 @@ func TestMandatoryCommandPrefixes_ReturnsGoPrefixes(t *testing.T) {
 		if got[i] != prefix {
 			t.Errorf("MandatoryCommandPrefixes[%d]: got %q, want %q", i, got[i], prefix)
 		}
+	}
+}
+
+func TestMandatoryCommandPrefixes_EmptyWhenUnconfigured(t *testing.T) {
+	p := newConfigValidationPolicy(0)
+	got := p.MandatoryCommandPrefixes()
+	if len(got) != 0 {
+		t.Fatalf("MandatoryCommandPrefixes: got %v, want empty", got)
 	}
 }

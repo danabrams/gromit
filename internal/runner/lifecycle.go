@@ -110,7 +110,7 @@ func (r *Runner) checkRetroSuggestion() {
 // isStuckBeadWithStats checks if a bead has failed too many times across runs
 // using pre-loaded bead statistics (call ReadPerBeadStats once before the loop for efficiency)
 func (r *Runner) isStuckBeadWithStats(b *bead.Bead, beadStats map[string]logger.BeadStats) bool {
-	if r == nil || b == nil || r.cfg == nil {
+	if r == nil || b == nil || r.cfg == nil || r.stuckPolicy == nil {
 		return false
 	}
 
@@ -540,7 +540,11 @@ func (r *Runner) enforceMandatoryQualityGateCoverage(gateName string, commands [
 		return nil
 	}
 
-	mandatoryPrefixes := r.cfg.Validation.MandatoryCommands
+	valPolicy := r.ensureValidationPolicy()
+	if valPolicy == nil {
+		return nil
+	}
+	mandatoryPrefixes := valPolicy.MandatoryCommandPrefixes()
 	if len(mandatoryPrefixes) == 0 {
 		return nil
 	}

@@ -59,5 +59,14 @@ func (p *ConfigValidationPolicy) ShouldEscalateRecovery() bool {
 // MandatoryCommandPrefixes returns the list of command prefixes that must
 // appear in the validation command set.
 func (p *ConfigValidationPolicy) MandatoryCommandPrefixes() []string {
-	return []string{"go test", "go vet", "go build"}
+	if p == nil || p.cfg == nil {
+		return nil
+	}
+	if len(p.cfg.Validation.MandatoryCommands) == 0 {
+		return nil
+	}
+
+	prefixes := make([]string, len(p.cfg.Validation.MandatoryCommands))
+	copy(prefixes, p.cfg.Validation.MandatoryCommands)
+	return prefixes
 }
