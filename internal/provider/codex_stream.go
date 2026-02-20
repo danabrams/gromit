@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+const (
+	codexStreamScannerMaxTokenSize = 10 * 1024 * 1024
+	codexStreamWatchdogInterval    = 10 * time.Second
+)
+
 // codexUsage represents token usage data from Codex turn.completed events.
 type codexUsage struct {
 	InputTokens       int     `json:"input_tokens"`
@@ -93,8 +98,7 @@ func emitStreamEvent(handler EventHandler, streamEvent map[string]interface{}) {
 // token usage data (from turn.completed), error info (from failed turn.completed), and any error encountered.
 func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler, toolHandler ToolCallHandler) (string, *codexUsage, *codexErrorInfo, error) {
 	scanner := bufio.NewScanner(reader)
-	const maxTokenSize = 10 * 1024 * 1024
-	scanner.Buffer(make([]byte, 0, 64*1024), maxTokenSize)
+	scanner.Buffer(make([]byte, 0, 64*1024), codexStreamScannerMaxTokenSize)
 	var lastAgentText string
 	var usage *codexUsage
 	var errInfo *codexErrorInfo
@@ -108,7 +112,7 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 	stopWatchdog := make(chan struct{})
 	if codexDebugEnabled() {
 		go func() {
-			ticker := time.NewTicker(10 * time.Second)
+			ticker := time.NewTicker(codexStreamWatchdogInterval)
 			defer ticker.Stop()
 			for {
 				select {

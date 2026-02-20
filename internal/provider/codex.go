@@ -30,6 +30,7 @@ const (
 	codexRetryBackoffFirst   = 250 * time.Millisecond
 	codexRetryBackoffSecond  = 750 * time.Millisecond
 	codexRetryBackoffDefault = 1500 * time.Millisecond
+	codexCommandWaitDelay    = 100 * time.Millisecond
 )
 
 // Compile-time check to verify CodexProvider implements Provider interface
@@ -125,7 +126,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 	model := cp.ModelForTier(tier)
 	args := cp.buildStreamCommandArgsForTier(model, tier, handler != nil)
 	cmd := execCommandContext(ctx, cp.binaryPath, args...)
-	cmd.WaitDelay = 100 * time.Millisecond
+	cmd.WaitDelay = codexCommandWaitDelay
 	if output != nil {
 		fmt.Fprintf(output, "  cmd: %s %s\n", cp.binaryPath, strings.Join(args, " "))
 		fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))
@@ -260,7 +261,7 @@ func (cp *CodexProvider) runWithRetry(ctx context.Context, run func() (*Result, 
 
 func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args, env []string, effectiveCodexHome string) (*Result, error) {
 	cmd := execCommandContext(ctx, cp.binaryPath, args...)
-	cmd.WaitDelay = 100 * time.Millisecond
+	cmd.WaitDelay = codexCommandWaitDelay
 	cmd.Env = env
 
 	stdin, err := cmd.StdinPipe()
