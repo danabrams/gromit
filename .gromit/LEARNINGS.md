@@ -60,6 +60,16 @@ Splitting a monolithic PromptRenderer into five phase-specific interfaces (Refin
 
 Low-complexity tier selection uses countLowComplexitySignals >= threshold (default 2). Signals: low-complexity title pattern, test-only bead, tdd:false label, 1-3 expected files, leaf bead. Test-only beads short-circuit isLowComplexity directly (bypassing signal counting), so the test-only signal in countLowComplexitySignals is only reachable via direct calls, not through the normal SelectTier flow. complexity:high label bypasses low-complexity routing entirely.
 
+### 2026-02-20 | Session Worktree Lifecycle Pattern | conventions
+*Related to: code-review*
+
+Interactive commands use a standard session worktree pattern: package-level launcher fn var, session command const, cfg.Worktree.IsEnabled() opt-out check, sessionConflictSettingsFromConfig for settings, and runWithSessionWorktreeWithConflictSettings for lifecycle. The lifecycle is: create worktree → run callback → record pending branch → attempt merge → on success: clear branch + cleanup worktree; on conflict: return handoff error with session preserved. runWithSessionWorktreeWithConflictSettings returns (*SessionWorktree, error) where both can be non-nil on conflict handoff.
+
+### 2026-02-20 | RefactorPhaseResult Structured Outcome Reporting | patterns
+*Related to: code-review*
+
+RefactorPhaseResult uses Successful+Skipped for safe-to-continue outcomes (diff unavailable, policy skipped, no changes) and Successful=false+Attempted=true for terminal failures (invoke failed, revalidation failed). The Reason field provides machine-readable failure classification for metrics. The old RunRefactorPhase wrapper still returns nil for backward compat; all active call sites use RunRefactorPhaseWithResult where failures are terminal.
+
 ### 2026-02-20 | OriginalTier/ActualTier Escalation Tracking | conventions
 *Related to: code-review*
 
