@@ -18,6 +18,45 @@ import (
 	"github.com/danabrams/gromit/internal/state"
 )
 
+type gitCommandCapture struct {
+	name string
+	args []string
+}
+
+func stubReviewGit(t *testing.T, output []byte, outputErr error) *gitCommandCapture {
+	t.Helper()
+
+	origCommandFn := reviewGitCommandFn
+	origOutputFn := reviewGitOutputFn
+	t.Cleanup(func() {
+		reviewGitCommandFn = origCommandFn
+		reviewGitOutputFn = origOutputFn
+	})
+
+	capture := &gitCommandCapture{}
+	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
+		capture.name = name
+		capture.args = append([]string{}, arg...)
+		return exec.Command("echo", "stub")
+	}
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return output, outputErr
+	}
+
+	return capture
+}
+
+func assertGitCommand(t *testing.T, capture *gitCommandCapture, wantName string, wantArgs []string) {
+	t.Helper()
+
+	if capture.name != wantName {
+		t.Fatalf("command name = %q, want %q", capture.name, wantName)
+	}
+	if strings.Join(capture.args, "|") != strings.Join(wantArgs, "|") {
+		t.Fatalf("command args = %v, want %v", capture.args, wantArgs)
+	}
+}
+
 // TestReviewGitOutputFn_CanBeOverridden verifies that reviewGitOutputFn is a
 // package-level injectable variable with the expected signature.
 func TestReviewGitOutputFn_CanBeOverridden(t *testing.T) {
@@ -64,23 +103,7 @@ func TestReviewGitCommandFn_CanBeOverridden(t *testing.T) {
 }
 
 func TestFindFirstCommitForBead_UsesInjectedGitWithFixedStrings(t *testing.T) {
-	origCommandFn := reviewGitCommandFn
-	origOutputFn := reviewGitOutputFn
-	t.Cleanup(func() {
-		reviewGitCommandFn = origCommandFn
-		reviewGitOutputFn = origOutputFn
-	})
-
-	var gotName string
-	var gotArgs []string
-	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
-		gotName = name
-		gotArgs = append([]string{}, arg...)
-		return exec.Command("echo", "stub")
-	}
-	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
-		return []byte("newest\nmiddle\nearliest\n"), nil
-	}
+	capture := stubReviewGit(t, []byte("newest\nmiddle\nearliest\n"), nil)
 
 	commit, err := findFirstCommitForBead("gromit-[abc]")
 	if err != nil {
@@ -89,29 +112,12 @@ func TestFindFirstCommitForBead_UsesInjectedGitWithFixedStrings(t *testing.T) {
 	if commit != "earliest" {
 		t.Fatalf("findFirstCommitForBead() = %q, want %q", commit, "earliest")
 	}
-	if gotName != "git" {
-		t.Fatalf("command name = %q, want %q", gotName, "git")
-	}
 	wantArgs := []string{"log", "--all", "--format=%H", "--grep", "gromit-[abc]", "--fixed-strings"}
-	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
-		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
-	}
+	assertGitCommand(t, capture, "git", wantArgs)
 }
 
 func TestFindFirstCommitForBead_GitErrorReturnsEmptyWithoutError(t *testing.T) {
-	origCommandFn := reviewGitCommandFn
-	origOutputFn := reviewGitOutputFn
-	t.Cleanup(func() {
-		reviewGitCommandFn = origCommandFn
-		reviewGitOutputFn = origOutputFn
-	})
-
-	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
-		return exec.Command("echo", "stub")
-	}
-	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
-		return nil, errors.New("no commits")
-	}
+	stubReviewGit(t, nil, errors.New("no commits"))
 
 	commit, err := findFirstCommitForBead("gromit-abc")
 	if err != nil {
@@ -123,23 +129,7 @@ func TestFindFirstCommitForBead_GitErrorReturnsEmptyWithoutError(t *testing.T) {
 }
 
 func TestGetCommitTimestamp_UsesInjectedGit(t *testing.T) {
-	origCommandFn := reviewGitCommandFn
-	origOutputFn := reviewGitOutputFn
-	t.Cleanup(func() {
-		reviewGitCommandFn = origCommandFn
-		reviewGitOutputFn = origOutputFn
-	})
-
-	var gotName string
-	var gotArgs []string
-	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
-		gotName = name
-		gotArgs = append([]string{}, arg...)
-		return exec.Command("echo", "stub")
-	}
-	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
-		return []byte("1700000000\n"), nil
-	}
+	capture := stubReviewGit(t, []byte("1700000000\n"), nil)
 
 	ts, err := getCommitTimestamp("abc123")
 	if err != nil {
@@ -148,33 +138,12 @@ func TestGetCommitTimestamp_UsesInjectedGit(t *testing.T) {
 	if ts != 1700000000 {
 		t.Fatalf("getCommitTimestamp() = %d, want %d", ts, int64(1700000000))
 	}
-	if gotName != "git" {
-		t.Fatalf("command name = %q, want %q", gotName, "git")
-	}
 	wantArgs := []string{"log", "-1", "--format=%at", "abc123", "--"}
-	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
-		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
-	}
+	assertGitCommand(t, capture, "git", wantArgs)
 }
 
 func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
-	origCommandFn := reviewGitCommandFn
-	origOutputFn := reviewGitOutputFn
-	t.Cleanup(func() {
-		reviewGitCommandFn = origCommandFn
-		reviewGitOutputFn = origOutputFn
-	})
-
-	var gotName string
-	var gotArgs []string
-	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
-		gotName = name
-		gotArgs = append([]string{}, arg...)
-		return exec.Command("echo", "stub")
-	}
-	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
-		return []byte("diff output\n"), nil
-	}
+	capture := stubReviewGit(t, []byte("diff output\n"), nil)
 
 	diff, err := runGitDiffForReview("abc123", "git diff --stat", "--stat")
 	if err != nil {
@@ -183,33 +152,12 @@ func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
 	if diff != "diff output\n" {
 		t.Fatalf("runGitDiffForReview() = %q, want %q", diff, "diff output\n")
 	}
-	if gotName != "git" {
-		t.Fatalf("command name = %q, want %q", gotName, "git")
-	}
 	wantArgs := []string{"diff", "--stat", "abc123", "--"}
-	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
-		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
-	}
+	assertGitCommand(t, capture, "git", wantArgs)
 }
 
 func TestGetGitHeadForReview_UsesInjectedGit(t *testing.T) {
-	origCommandFn := reviewGitCommandFn
-	origOutputFn := reviewGitOutputFn
-	t.Cleanup(func() {
-		reviewGitCommandFn = origCommandFn
-		reviewGitOutputFn = origOutputFn
-	})
-
-	var gotName string
-	var gotArgs []string
-	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
-		gotName = name
-		gotArgs = append([]string{}, arg...)
-		return exec.Command("echo", "stub")
-	}
-	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
-		return []byte("deadbeef\n"), nil
-	}
+	capture := stubReviewGit(t, []byte("deadbeef\n"), nil)
 
 	head, err := getGitHeadForReview()
 	if err != nil {
@@ -218,29 +166,12 @@ func TestGetGitHeadForReview_UsesInjectedGit(t *testing.T) {
 	if head != "deadbeef" {
 		t.Fatalf("getGitHeadForReview() = %q, want %q", head, "deadbeef")
 	}
-	if gotName != "git" {
-		t.Fatalf("command name = %q, want %q", gotName, "git")
-	}
 	wantArgs := []string{"rev-parse", "HEAD"}
-	if strings.Join(gotArgs, "|") != strings.Join(wantArgs, "|") {
-		t.Fatalf("command args = %v, want %v", gotArgs, wantArgs)
-	}
+	assertGitCommand(t, capture, "git", wantArgs)
 }
 
 func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
-	origCommandFn := reviewGitCommandFn
-	origOutputFn := reviewGitOutputFn
-	t.Cleanup(func() {
-		reviewGitCommandFn = origCommandFn
-		reviewGitOutputFn = origOutputFn
-	})
-
-	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
-		return exec.Command("echo", "stub")
-	}
-	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
-		return []byte("deadbeef\n"), nil
-	}
+	stubReviewGit(t, []byte("deadbeef\n"), nil)
 
 	gromitDir := t.TempDir()
 	manager := &cliStateManager{gromitDir: gromitDir}
@@ -261,19 +192,7 @@ func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
 }
 
 func TestCliStateManagerSetLastReviewCommit_FallsBackToProvidedCommit(t *testing.T) {
-	origCommandFn := reviewGitCommandFn
-	origOutputFn := reviewGitOutputFn
-	t.Cleanup(func() {
-		reviewGitCommandFn = origCommandFn
-		reviewGitOutputFn = origOutputFn
-	})
-
-	reviewGitCommandFn = func(name string, arg ...string) *exec.Cmd {
-		return exec.Command("echo", "stub")
-	}
-	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
-		return nil, errors.New("git failure")
-	}
+	stubReviewGit(t, nil, errors.New("git failure"))
 
 	gromitDir := t.TempDir()
 	manager := &cliStateManager{gromitDir: gromitDir}
