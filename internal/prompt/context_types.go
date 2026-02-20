@@ -26,8 +26,8 @@ type Context struct {
 	RecentValidationFailures []string // Summaries of recent validation failures from current run
 
 	// Coverage tracking
-	CoverageState   string
-	TargetCriterion string
+	CoverageState   string // Summary of current criterion coverage state for TDD build prompts
+	TargetCriterion string // Specific uncovered criterion to focus in the next TDD cycle
 
 	// Scoped test command for build phase self-checks (e.g. "go test ./internal/runner/... ./internal/config/...")
 	// When non-empty, templates should use this instead of the generic "./..." form.

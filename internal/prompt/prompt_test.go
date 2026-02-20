@@ -18,6 +18,14 @@ const (
 	tddBuildSectionInstructions  = "## Instructions"
 )
 
+func newTDDBuildContextForCoverageTests() *Context {
+	return &Context{
+		Bead:      testBead(),
+		Model:     "sonnet",
+		Iteration: 1,
+	}
+}
+
 func requireSectionOrder(t *testing.T, rendered string, sectionLabels ...string) []int {
 	t.Helper()
 
@@ -1234,13 +1242,9 @@ Model: {{.Model}}`
 func TestRenderTDDBuild_CoverageStateSection(t *testing.T) {
 	r := setupRealTemplateRenderer(t)
 
-	ctx := &Context{
-		Bead:            testBead(),
-		Model:           "sonnet",
-		Iteration:       1,
-		CoverageState:   "Remaining uncovered: #2, #3",
-		TargetCriterion: "Criterion #2: must validate input",
-	}
+	ctx := newTDDBuildContextForCoverageTests()
+	ctx.CoverageState = "Remaining uncovered: #2, #3"
+	ctx.TargetCriterion = "Criterion #2: must validate input"
 
 	result, err := r.RenderTDDBuild(ctx)
 	if err != nil {
@@ -1261,12 +1265,8 @@ func TestRenderTDDBuild_CoverageStateSection(t *testing.T) {
 func TestRenderTDDBuild_CoverageStateSectionAbsentWhenEmpty(t *testing.T) {
 	r := setupRealTemplateRenderer(t)
 
-	ctx := &Context{
-		Bead:      testBead(),
-		Model:     "sonnet",
-		Iteration: 1,
-		// CoverageState and TargetCriterion intentionally empty
-	}
+	ctx := newTDDBuildContextForCoverageTests()
+	// CoverageState and TargetCriterion intentionally empty
 
 	result, err := r.RenderTDDBuild(ctx)
 	if err != nil {
@@ -1281,12 +1281,8 @@ func TestRenderTDDBuild_CoverageStateSectionAbsentWhenEmpty(t *testing.T) {
 func TestRenderTDDBuild_CoverageStateSectionOmitsTargetLineWhenTargetCriterionEmpty(t *testing.T) {
 	r := setupRealTemplateRenderer(t)
 
-	ctx := &Context{
-		Bead:          testBead(),
-		Model:         "sonnet",
-		Iteration:     1,
-		CoverageState: "Remaining uncovered: #2",
-	}
+	ctx := newTDDBuildContextForCoverageTests()
+	ctx.CoverageState = "Remaining uncovered: #2"
 
 	result, err := r.RenderTDDBuild(ctx)
 	if err != nil {
