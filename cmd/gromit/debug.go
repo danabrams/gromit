@@ -48,6 +48,13 @@ const (
 	debugAgentFlag       = "agent"
 	debugChooseAgentFlag = "choose-agent"
 	debugRestoreFlag     = "restore"
+	debugKeepPrompt      = "Keep worktree?"
+	debugWorktreesDir    = "worktrees"
+	debugWorktreePrefix  = "debug-"
+	gitWorktreeCmd       = "worktree"
+	gitWorktreeAddCmd    = "add"
+	gitWorktreeRemoveCmd = "remove"
+	gitDetachFlag        = "--detach"
 	claudeAgentName      = "claude"
 )
 
@@ -209,14 +216,14 @@ func maybeCreateDebugRestoreWorktree(enabled bool, gromitDir, mainDir string, en
 		return ""
 	}
 
-	worktreesDir := filepath.Join(gromitDir, "worktrees")
+	worktreesDir := filepath.Join(gromitDir, debugWorktreesDir)
 	if err := os.MkdirAll(worktreesDir, 0o755); err != nil {
 		fmt.Fprintf(stderr, "Warning: failed to create debug worktrees dir: %v; using context-only mode\n", err)
 		return ""
 	}
 
-	worktreeDir := filepath.Join(worktreesDir, "debug-"+sanitizeRunbookIDForPath(entry.ID))
-	if _, err := gitRun(mainDir, "worktree", "add", "--detach", worktreeDir, failureCommit); err != nil {
+	worktreeDir := filepath.Join(worktreesDir, debugWorktreePrefix+sanitizeRunbookIDForPath(entry.ID))
+	if _, err := gitRun(mainDir, gitWorktreeCmd, gitWorktreeAddCmd, gitDetachFlag, worktreeDir, failureCommit); err != nil {
 		fmt.Fprintf(stderr, "Warning: failed to restore failure commit %s in worktree: %v; using context-only mode\n", failureCommit, err)
 		return ""
 	}
@@ -234,11 +241,11 @@ func maybeCleanupDebugRestoreWorktree(worktreeDir, mainDir string, input io.Read
 		reader = os.Stdin
 	}
 
-	if debugConfirmPromptFn(bufio.NewReader(reader), "Keep worktree?", false) {
+	if debugConfirmPromptFn(bufio.NewReader(reader), debugKeepPrompt, false) {
 		return
 	}
 
-	if _, err := gitRun(mainDir, "worktree", "remove", worktreeDir); err != nil {
+	if _, err := gitRun(mainDir, gitWorktreeCmd, gitWorktreeRemoveCmd, worktreeDir); err != nil {
 		fmt.Fprintf(stderr, "Warning: failed to remove debug worktree %s: %v\n", worktreeDir, err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -873,7 +874,9 @@ func TestResolveRunbookEntryReturnsNilWhenNoEntries(t *testing.T) {
 	}
 }
 
-func TestMaybeCreateDebugRestoreWorktreeCreatesAtFailureCommit(t *testing.T) {
+func setupDebugWorktreeTestDirs(t *testing.T) (string, string) {
+	t.Helper()
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	mainDir := filepath.Join(tmpDir, "repo")
@@ -883,6 +886,12 @@ func TestMaybeCreateDebugRestoreWorktreeCreatesAtFailureCommit(t *testing.T) {
 	if err := os.MkdirAll(mainDir, 0755); err != nil {
 		t.Fatalf("creating main dir: %v", err)
 	}
+
+	return gromitDir, mainDir
+}
+
+func TestMaybeCreateDebugRestoreWorktreeCreatesAtFailureCommit(t *testing.T) {
+	gromitDir, mainDir := setupDebugWorktreeTestDirs(t)
 
 	entry := &runbook.Entry{
 		ID:            "rb-123-gromit-abc",
@@ -897,7 +906,7 @@ func TestMaybeCreateDebugRestoreWorktreeCreatesAtFailureCommit(t *testing.T) {
 		return "", nil
 	}, &bytes.Buffer{})
 
-	expectedDir := filepath.Join(gromitDir, "worktrees", "debug-rb-123-gromit-abc")
+	expectedDir := filepath.Join(gromitDir, debugWorktreesDir, debugWorktreePrefix+"rb-123-gromit-abc")
 	if worktreeDir != expectedDir {
 		t.Fatalf("maybeCreateDebugRestoreWorktree() = %q, want %q", worktreeDir, expectedDir)
 	}
@@ -905,22 +914,14 @@ func TestMaybeCreateDebugRestoreWorktreeCreatesAtFailureCommit(t *testing.T) {
 		t.Fatalf("git dir = %q, want %q", gotDir, mainDir)
 	}
 
-	expectedArgs := []string{"worktree", "add", "--detach", expectedDir, "deadbeef"}
-	if strings.Join(gotArgs, " ") != strings.Join(expectedArgs, " ") {
-		t.Fatalf("git args = %q, want %q", strings.Join(gotArgs, " "), strings.Join(expectedArgs, " "))
+	expectedArgs := []string{gitWorktreeCmd, gitWorktreeAddCmd, gitDetachFlag, expectedDir, "deadbeef"}
+	if !slices.Equal(gotArgs, expectedArgs) {
+		t.Fatalf("git args = %q, want %q", gotArgs, expectedArgs)
 	}
 }
 
 func TestMaybeCreateDebugRestoreWorktreeFallsBackWithoutFailureCommit(t *testing.T) {
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	mainDir := filepath.Join(tmpDir, "repo")
-	if err := os.MkdirAll(gromitDir, 0755); err != nil {
-		t.Fatalf("creating gromit dir: %v", err)
-	}
-	if err := os.MkdirAll(mainDir, 0755); err != nil {
-		t.Fatalf("creating main dir: %v", err)
-	}
+	gromitDir, mainDir := setupDebugWorktreeTestDirs(t)
 
 	entry := &runbook.Entry{ID: "rb-456-gromit-def"}
 	var warnings bytes.Buffer
@@ -943,15 +944,7 @@ func TestMaybeCreateDebugRestoreWorktreeFallsBackWithoutFailureCommit(t *testing
 }
 
 func TestMaybeCreateDebugRestoreWorktreeFallsBackOnGitFailure(t *testing.T) {
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	mainDir := filepath.Join(tmpDir, "repo")
-	if err := os.MkdirAll(gromitDir, 0755); err != nil {
-		t.Fatalf("creating gromit dir: %v", err)
-	}
-	if err := os.MkdirAll(mainDir, 0755); err != nil {
-		t.Fatalf("creating main dir: %v", err)
-	}
+	gromitDir, mainDir := setupDebugWorktreeTestDirs(t)
 
 	entry := &runbook.Entry{
 		ID:            "rb-789-gromit-ghi",
@@ -980,8 +973,8 @@ func TestMaybeCleanupDebugRestoreWorktreeRemovesWhenDeclined(t *testing.T) {
 	promptCalled := false
 	debugConfirmPromptFn = func(reader *bufio.Reader, prompt string, defaultYes bool) bool {
 		promptCalled = true
-		if prompt != "Keep worktree?" {
-			t.Fatalf("prompt = %q, want %q", prompt, "Keep worktree?")
+		if prompt != debugKeepPrompt {
+			t.Fatalf("prompt = %q, want %q", prompt, debugKeepPrompt)
 		}
 		if defaultYes {
 			t.Fatal("defaultYes should be false for keep-worktree prompt")
@@ -998,9 +991,9 @@ func TestMaybeCleanupDebugRestoreWorktreeRemovesWhenDeclined(t *testing.T) {
 	if !promptCalled {
 		t.Fatal("expected keep-worktree prompt to be shown")
 	}
-	expected := []string{"worktree", "remove", "/tmp/worktree"}
-	if strings.Join(gitArgs, " ") != strings.Join(expected, " ") {
-		t.Fatalf("git args = %q, want %q", strings.Join(gitArgs, " "), strings.Join(expected, " "))
+	expected := []string{gitWorktreeCmd, gitWorktreeRemoveCmd, "/tmp/worktree"}
+	if !slices.Equal(gitArgs, expected) {
+		t.Fatalf("git args = %q, want %q", gitArgs, expected)
 	}
 }
 
