@@ -32,6 +32,12 @@ type refactorPhasePromptShaper interface {
 	ShapeRefactorPhaseContext(ctx *prompt.Context) *prompt.Context
 }
 
+func setFailurePhaseIfResult(bc *runtypes.BeadContext, phase string) {
+	if bc != nil && bc.Result != nil {
+		bc.Result.FailurePhase = phase
+	}
+}
+
 // makeInvokeFn creates an InvokeFn callback that wraps the Runner's Claude invocation,
 // handling cost data, scope-too-large, usage limit detection, and timeout classification.
 func (r *Runner) makeInvokeFn() escalation.InvokeFn {
@@ -66,9 +72,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		}
 
 		if invResult == nil || invResult.Result == nil {
-			if bc != nil && bc.Result != nil {
-				bc.Result.FailurePhase = failurephase.Build
-			}
+			setFailurePhaseIfResult(bc, failurephase.Build)
 			return nil, fmt.Errorf("claude returned nil result")
 		}
 
@@ -89,9 +93,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		// Check scope-too-large
 		if isTooLarge, explanation := claude.IsScopeTooLarge(invResult.Result); isTooLarge {
 			r.handleScopeTooLarge(bc, invResult.Result, explanation)
-			if bc != nil && bc.Result != nil {
-				bc.Result.FailurePhase = failurephase.Build
-			}
+			setFailurePhaseIfResult(bc, failurephase.Build)
 			return invResult, bc.Result.Error
 		}
 
@@ -105,7 +107,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		}
 		if usagelimit.Check(signals, usagelimit.ClaudePatterns()) {
 			bc.Result.UsageLimited = true
-			bc.Result.FailurePhase = failurephase.Build
+			setFailurePhaseIfResult(bc, failurephase.Build)
 			r.log("Warning: usage limit detected - stopping retry attempts")
 			return nil, fmt.Errorf("usage limit detected: retries or escalation will not resolve this failure (exit code: %d, rate limit events: %d)", invResult.Result.ExitCode, signals.RateLimitHits)
 		}
@@ -163,7 +165,7 @@ func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext
 
 	if classification.ParentCanceled {
 		if bc != nil && bc.Result != nil {
-			bc.Result.FailurePhase = failurephase.Timeout
+			setFailurePhaseIfResult(bc, failurephase.Timeout)
 			bc.Result.TimeoutPhase = "build"
 		}
 		return nil, fmt.Errorf("context cancelled: %w", bc.ParentCtx.Err())

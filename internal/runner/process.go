@@ -341,7 +341,6 @@ func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadCo
 	} else if valErr != nil {
 		// Non-validation error (e.g., command execution failure)
 		if isTimeoutOrCanceledError(valErr) {
-			bc.Result.FailurePhase = failurephase.Timeout
 			setPhaseAttribution(bc.Result, "validation", valErr)
 		} else {
 			bc.Result.FailurePhase = failurephase.Validation
