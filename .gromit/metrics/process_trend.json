@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-02-20T04:52:03.647779823Z",
-  "total_iterations": 524,
+  "generated_at": "2026-02-20T05:08:13.460003785Z",
+  "total_iterations": 528,
   "window_size": 30,
   "latest_window": {
     "success_rate": 1,
     "failure_rate": 0,
     "first_pass_success_rate": 1,
     "escalation_rate": 0.03333333333333333,
-    "avg_duration_ms": 337484.8,
+    "avg_duration_ms": 331066.43333333335,
     "p95_duration_ms": 853957.15,
-    "avg_cost_usd": 1.2609272083333336,
+    "avg_cost_usd": 1.4062638333333335,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -21,7 +21,7 @@
       {
         "prompt_type": "build",
         "invocation_count": 30,
-        "avg_estimated_tokens": 3020.5
+        "avg_estimated_tokens": 3046.633333333333
       }
     ],
     "by_section_top_10": [
@@ -35,11 +35,11 @@
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 4608
+        "estimated_tokens": 5219
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 3729
+        "estimated_tokens": 3902
       },
       {
         "section": "template_static",
@@ -61,26 +61,26 @@
     "budget_action_frequency": {},
     "reconciliation_drift": {
       "sample_count": 30,
-      "mean_abs_token_delta_pct": 99.27055463877558,
-      "p95_abs_token_delta_pct": 99.84371331666495
+      "mean_abs_token_delta_pct": 99.30471821283977,
+      "p95_abs_token_delta_pct": 99.87305843377607
     }
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 1.2609272083333336,
-      "mean": 1.4137244155638153,
-      "std_dev": 1.9539770917342603,
-      "ucl": 7.275655690766596,
-      "lcl": -4.448206859638965
+      "latest": 1.4062638333333335,
+      "mean": 1.4135317120841655,
+      "std_dev": 1.946563317617638,
+      "ucl": 7.2532216649370795,
+      "lcl": -4.426158240768748
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 337484.8,
-      "mean": 577028.2840464362,
-      "std_dev": 294076.4697849704,
-      "ucl": 1459257.6934013474,
-      "lcl": -305201.125308475
+      "latest": 331066.43333333335,
+      "mean": 575193.0442683066,
+      "std_dev": 293712.8888336803,
+      "ucl": 1456331.7107693474,
+      "lcl": -305945.62223273434
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -93,16 +93,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0.03333333333333333,
-      "mean": 0.042111959287532176,
-      "std_dev": 0.055097578806230126,
-      "ucl": 0.20740469570622255,
+      "mean": 0.04204545454545493,
+      "std_dev": 0.05489375677807895,
+      "ucl": 0.2067267248796918,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "latest": 1,
-      "mean": 0.47232824427480924,
-      "std_dev": 0.4519299008233933,
+      "mean": 0.4763257575757576,
+      "std_dev": 0.4525337031292377,
       "ucl": 1,
       "lcl": 0
     },
@@ -117,17 +117,17 @@
     {
       "metric": "rolling_success_rate",
       "latest": 1,
-      "mean": 0.7791557197784574,
-      "std_dev": 0.22149087980248153,
+      "mean": 0.7808287825074085,
+      "std_dev": 0.22147966932905458,
       "ucl": 1,
-      "lcl": 0.11468308037101282
+      "lcl": 0.1163897745202448
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.007633587786259538,
-      "std_dev": 0.01844915323900684,
-      "ucl": 0.06298104750328007,
+      "mean": 0.0075757575757575725,
+      "std_dev": 0.018391051975790985,
+      "ucl": 0.06274891350313053,
       "lcl": 0
     },
     {
