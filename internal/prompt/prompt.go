@@ -18,6 +18,8 @@ const (
 	promptPhaseBuild  = "build"
 	promptPhaseReview = "review"
 
+	rulesSectionHeaderPrefix = "## "
+
 	// Phase annotation delimiters in RULES.md section headers.
 	phaseAnnotationPrefix = "<!-- phases:"
 	phaseAnnotationSuffix = "-->"
@@ -1037,7 +1039,7 @@ func filterRulesByPhase(content, phase string) string {
 	var current *section
 
 	for _, line := range lines {
-		if strings.HasPrefix(line, "## ") {
+		if strings.HasPrefix(line, rulesSectionHeaderPrefix) {
 			// Save previous section
 			if current != nil {
 				sections = append(sections, *current)
@@ -1090,15 +1092,11 @@ func filterRulesByPhase(content, phase string) string {
 // parsePhaseAnnotation extracts phase names from a <!-- phases: build, review --> comment
 // in a header line. Returns nil if no annotation is found (meaning all phases).
 func parsePhaseAnnotation(headerLine string) []string {
-	idx := strings.Index(headerLine, phaseAnnotationPrefix)
-	if idx < 0 {
+	idx, endIdx, ok := findPhaseAnnotationBounds(headerLine)
+	if !ok {
 		return nil
 	}
-	endIdx := strings.Index(headerLine[idx:], phaseAnnotationSuffix)
-	if endIdx < 0 {
-		return nil
-	}
-	phaseStr := headerLine[idx+len(phaseAnnotationPrefix) : idx+endIdx]
+	phaseStr := headerLine[idx+len(phaseAnnotationPrefix) : endIdx-len(phaseAnnotationSuffix)]
 	parts := strings.Split(phaseStr, ",")
 	var phases []string
 	for _, p := range parts {
@@ -1126,18 +1124,27 @@ func sectionMatchesPhase(phases []string, phase string) bool {
 
 // stripPhaseAnnotation removes the <!-- phases: ... --> comment from a header line.
 func stripPhaseAnnotation(headerLine string) string {
-	idx := strings.Index(headerLine, phaseAnnotationPrefix)
-	if idx < 0 {
-		return headerLine
-	}
-	endIdx := strings.Index(headerLine[idx:], phaseAnnotationSuffix)
-	if endIdx < 0 {
+	idx, endIdx, ok := findPhaseAnnotationBounds(headerLine)
+	if !ok {
 		return headerLine
 	}
 	// Strip the annotation and any trailing whitespace
 	before := strings.TrimRight(headerLine[:idx], " ")
-	after := headerLine[idx+endIdx+len(phaseAnnotationSuffix):]
+	after := headerLine[endIdx:]
 	return before + after
+}
+
+func findPhaseAnnotationBounds(headerLine string) (int, int, bool) {
+	idx := strings.Index(headerLine, phaseAnnotationPrefix)
+	if idx < 0 {
+		return 0, 0, false
+	}
+	relativeEndIdx := strings.Index(headerLine[idx:], phaseAnnotationSuffix)
+	if relativeEndIdx < 0 {
+		return 0, 0, false
+	}
+	endIdx := idx + relativeEndIdx + len(phaseAnnotationSuffix)
+	return idx, endIdx, true
 }
 
 // shapeBuildContext applies budget shaping to a Context before rendering.
