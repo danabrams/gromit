@@ -13,7 +13,7 @@ func TestGate_Run_allPass(t *testing.T) {
 		return []byte(verdictJSON), nil
 	}
 
-	verdict, err := g.Run(context.Background(), "myspec", []string{"No TODOs"})
+	verdict, err := runGate(t, g, []string{"No TODOs"})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -35,7 +35,7 @@ func TestGate_Run_someFail(t *testing.T) {
 		return []byte(verdictJSON), nil
 	}
 
-	verdict, err := g.Run(context.Background(), "myspec", []string{"Tests pass"})
+	verdict, err := runGate(t, g, []string{"Tests pass"})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -54,7 +54,7 @@ func TestGate_Run_testError_returnsError(t *testing.T) {
 		return "", errors.New("tests failed to run")
 	}
 
-	_, err := g.Run(context.Background(), "myspec", []string{"Tests pass"})
+	_, err := runGate(t, g, []string{"Tests pass"})
 	if err == nil {
 		t.Error("Run() expected error when RunTests fails, got nil")
 	}
@@ -66,10 +66,16 @@ func TestGate_Run_llmError_returnsError(t *testing.T) {
 		return nil, errors.New("LLM unavailable")
 	}
 
-	_, err := g.Run(context.Background(), "myspec", []string{"Tests pass"})
+	_, err := runGate(t, g, []string{"Tests pass"})
 	if err == nil {
 		t.Error("Run() expected error when InvokeLLM fails, got nil")
 	}
+}
+
+func runGate(t *testing.T, g Gate, acceptanceCriteria []string) (*GateVerdict, error) {
+	t.Helper()
+
+	return g.Run(context.Background(), "myspec", acceptanceCriteria)
 }
 
 func newGateFixture() Gate {

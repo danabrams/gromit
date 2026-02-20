@@ -21,7 +21,8 @@ type Gate struct {
 	RenderPrompt RenderPromptFn
 	GetDiff      GetDiffFn
 	Model        string
-	MaxCycles    int
+	// MaxCycles is part of gate orchestration config and consumed by callers.
+	MaxCycles int
 }
 
 // Run evaluates the given acceptance criteria for specName, returning a GateVerdict.
@@ -41,10 +42,10 @@ func (g *Gate) Run(ctx context.Context, specName string, acceptanceCriteria []st
 		return nil, err
 	}
 
-	raw, err := g.InvokeLLM(ctx, g.Model, prompt)
+	rawVerdict, err := g.InvokeLLM(ctx, g.Model, prompt)
 	if err != nil {
 		return nil, err
 	}
 
-	return ParseVerdict(raw)
+	return ParseVerdict(rawVerdict)
 }
