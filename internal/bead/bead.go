@@ -41,6 +41,7 @@ const (
 	maxDescriptionLength = 16384
 	maxLabelLength       = 128
 	maxLabelCount        = 64
+	defaultBDBinary      = "bd"
 )
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
@@ -141,12 +142,13 @@ func rejectControlChars(s, fieldName string) error {
 type Client struct {
 	binary string
 	Dir    string // working directory for bd commands; if empty, uses current directory
-	RunFn  func(args ...string) (string, error)
+	// RunFn optionally overrides command execution (primarily for tests).
+	RunFn func(args ...string) (string, error)
 }
 
 // NewClient creates a new bd client
 func NewClient() (*Client, error) {
-	return &Client{binary: "bd"}, nil
+	return &Client{binary: defaultBDBinary}, nil
 }
 
 // parseBeadOutput parses JSON output from a bd command that returns a bead array
