@@ -5,14 +5,19 @@ import (
 	"time"
 )
 
+const (
+	sectionNone = iota
+	sectionConfirmed
+	sectionProvisional
+	sectionArchived
+)
+
 // parseLearnings parses the LEARNINGS.md file content.
 func parseLearnings(content string) (confirmed, provisional, archived []Learning) {
 	// Simple parser - looks for ### headers in Confirmed/Provisional/Archived sections.
 	lines := strings.Split(content, "\n")
 
-	inConfirmed := false
-	inProvisional := false
-	inArchived := false
+	activeSection := sectionNone
 	var current *Learning
 	var contentLines []string
 
@@ -20,42 +25,34 @@ func parseLearnings(content string) (confirmed, provisional, archived []Learning
 		if current != nil && len(contentLines) > 0 {
 			current.Content = strings.TrimSpace(strings.Join(contentLines, "\n"))
 			current.Hash = hashContent(current.Content)
-			if inConfirmed {
+			if activeSection == sectionConfirmed {
 				confirmed = append(confirmed, *current)
-			} else if inProvisional {
+			} else if activeSection == sectionProvisional {
 				provisional = append(provisional, *current)
-			} else if inArchived {
+			} else if activeSection == sectionArchived {
 				archived = append(archived, *current)
 			}
 		}
 	}
 
+	switchSection := func(section int) {
+		saveCurrent()
+		current = nil
+		contentLines = nil
+		activeSection = section
+	}
+
 	for _, line := range lines {
 		if strings.HasPrefix(line, "## Confirmed") {
-			saveCurrent()
-			current = nil
-			contentLines = nil
-			inConfirmed = true
-			inProvisional = false
-			inArchived = false
+			switchSection(sectionConfirmed)
 			continue
 		}
 		if strings.HasPrefix(line, "## Provisional") {
-			saveCurrent()
-			current = nil
-			contentLines = nil
-			inConfirmed = false
-			inProvisional = true
-			inArchived = false
+			switchSection(sectionProvisional)
 			continue
 		}
 		if strings.HasPrefix(line, "## Archived") {
-			saveCurrent()
-			current = nil
-			contentLines = nil
-			inConfirmed = false
-			inProvisional = false
-			inArchived = true
+			switchSection(sectionArchived)
 			continue
 		}
 

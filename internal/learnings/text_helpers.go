@@ -6,13 +6,18 @@ import (
 	"strings"
 )
 
+const (
+	trigramSize     = 3
+	hashPrefixBytes = 8
+)
+
 func hashContent(content string) string {
 	// Normalize: lowercase, remove extra whitespace.
 	normalized := strings.ToLower(strings.TrimSpace(content))
 	normalized = whitespaceRegex.ReplaceAllString(normalized, " ")
 
 	hash := sha256.Sum256([]byte(normalized))
-	return hex.EncodeToString(hash[:8]) // First 8 bytes is enough.
+	return hex.EncodeToString(hash[:hashPrefixBytes]) // First 8 bytes is enough.
 }
 
 // similarity calculates a simple trigram-based similarity score.
@@ -49,11 +54,11 @@ func similarity(a, b string) float64 {
 
 func trigrams(s string) map[string]bool {
 	result := make(map[string]bool)
-	if len(s) < 3 {
+	if len(s) < trigramSize {
 		return result
 	}
-	for i := 0; i <= len(s)-3; i++ {
-		result[s[i:i+3]] = true
+	for i := 0; i <= len(s)-trigramSize; i++ {
+		result[s[i:i+trigramSize]] = true
 	}
 	return result
 }

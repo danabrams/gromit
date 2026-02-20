@@ -6,6 +6,14 @@ import (
 	"strings"
 )
 
+const (
+	classificationSpecific = "specific"
+	classificationGeneric  = "generic"
+	classificationUnknown  = "unknown"
+	classificationModel    = "haiku"
+	archiveReasonGeneric   = "*Archived from provisional: filtered: generic engineering advice*"
+)
+
 // ClaudeRunner is an interface for invoking Claude with a prompt.
 // This enables testing without calling the actual Claude CLI.
 type ClaudeRunner interface {
@@ -43,7 +51,7 @@ func NewLLMFilter(runner ClaudeRunner, projectName, projectDesc string) FilterFu
 		prompt := buildClassificationPrompt(content, projectName, projectDesc)
 
 		// Call Claude with haiku for cost efficiency
-		result, err := runner.Run(context.Background(), prompt, "haiku")
+		result, err := runner.Run(context.Background(), prompt, classificationModel)
 		if err != nil {
 			return false, fmt.Errorf("calling claude: %w", err)
 		}
@@ -52,7 +60,7 @@ func NewLLMFilter(runner ClaudeRunner, projectName, projectDesc string) FilterFu
 		classification := parseClassification(result.Output)
 
 		// Return true if generic (should be filtered), false if specific
-		return classification == "generic", nil
+		return classification == classificationGeneric, nil
 	}
 }
 
@@ -91,31 +99,27 @@ func parseClassification(output string) string {
 	normalized := strings.ToLower(strings.TrimSpace(output))
 
 	// Check for exact single-word matches first (most reliable)
-	if normalized == "specific" {
-		return "specific"
+	if normalized == classificationSpecific {
+		return classificationSpecific
 	}
-	if normalized == "generic" {
-		return "generic"
+	if normalized == classificationGeneric {
+		return classificationGeneric
 	}
 
 	// Check for the classification keywords in the output
-	hasSpecific := strings.Contains(normalized, "specific")
-	hasGeneric := strings.Contains(normalized, "generic")
+	hasSpecific := strings.Contains(normalized, classificationSpecific)
+	hasGeneric := strings.Contains(normalized, classificationGeneric)
 
 	// If both appear or neither appears, it's ambiguous
 	if (hasSpecific && hasGeneric) || (!hasSpecific && !hasGeneric) {
-		return "unknown"
+		return classificationUnknown
 	}
 
 	// Only one keyword present
 	if hasSpecific {
-		return "specific"
+		return classificationSpecific
 	}
-	if hasGeneric {
-		return "generic"
-	}
-
-	return "unknown"
+	return classificationGeneric
 }
 
 // FilterProvisional runs the filter function on all provisional learnings that haven't been
@@ -166,7 +170,7 @@ func (f *File) FilterProvisional(fn FilterFunc, alreadyFiltered map[string]bool)
 		learning := f.provisional[idx]
 
 		// Add reason to content
-		learning.Content = fmt.Sprintf("%s\n\n*Archived from provisional: filtered: generic engineering advice*", learning.Content)
+		learning.Content = fmt.Sprintf("%s\n\n%s", learning.Content, archiveReasonGeneric)
 
 		// Remove from provisional
 		f.provisional = append(f.provisional[:idx], f.provisional[idx+1:]...)
