@@ -16,11 +16,16 @@ func TestCallbacksUseInjectedGitDependencies(t *testing.T) {
 		t.Fatal("runtime.Caller failed")
 	}
 	callbacksPath := filepath.Join(filepath.Dir(thisFile), "callbacks.go")
+	tddPath := filepath.Join(filepath.Dir(thisFile), "callbacks_tdd.go")
 
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, callbacksPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse callbacks.go: %v", err)
+	}
+	tddFile, err := parser.ParseFile(fset, tddPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse callbacks_tdd.go: %v", err)
 	}
 
 	makeMethodologyExec := findRunnerMethod(file, "makeMethodologyExec")
@@ -32,7 +37,7 @@ func TestCallbacksUseInjectedGitDependencies(t *testing.T) {
 	assertHasReceiverSelector(t, makeMethodologyExec, "getHead")
 	assertNoIdentifierUse(t, makeMethodologyExec, "getGitHead")
 
-	makeTDDOrchestrator := findRunnerMethod(file, "makeTDDOrchestrator")
+	makeTDDOrchestrator := findRunnerMethod(tddFile, "makeTDDOrchestrator")
 	if makeTDDOrchestrator == nil {
 		t.Fatal("Runner.makeTDDOrchestrator not found")
 	}

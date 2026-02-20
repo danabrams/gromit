@@ -125,20 +125,22 @@ func TestRunnerSplitPhase1_CallbacksExtracted(t *testing.T) {
 	}
 	runnerDir := filepath.Dir(thisFile)
 	callbacksPath := filepath.Join(runnerDir, "callbacks.go")
+	callbacksValidationPath := filepath.Join(runnerDir, "callbacks_validation.go")
 	runnerPath := filepath.Join(runnerDir, "runner.go")
 
 	callbacksDecls := parseDecls(t, callbacksPath)
 	if callbacksDecls.methods["Runner"] == nil || !callbacksDecls.methods["Runner"]["makeInvokeFn"] {
 		t.Fatal("callbacks.go missing method Runner.makeInvokeFn")
 	}
-	if callbacksDecls.methods["Runner"] == nil || !callbacksDecls.methods["Runner"]["makeValidationExecuteFn"] {
-		t.Fatal("callbacks.go missing method Runner.makeValidationExecuteFn")
-	}
-	if callbacksDecls.methods["Runner"] == nil || !callbacksDecls.methods["Runner"]["makeReviewValidateFn"] {
-		t.Fatal("callbacks.go missing method Runner.makeReviewValidateFn")
-	}
 	if callbacksDecls.methods["Runner"] == nil || !callbacksDecls.methods["Runner"]["makeMethodologyExec"] {
 		t.Fatal("callbacks.go missing method Runner.makeMethodologyExec")
+	}
+	callbacksValidationDecls := parseDecls(t, callbacksValidationPath)
+	if callbacksValidationDecls.methods["Runner"] == nil || !callbacksValidationDecls.methods["Runner"]["makeValidationExecuteFn"] {
+		t.Fatal("callbacks_validation.go missing method Runner.makeValidationExecuteFn")
+	}
+	if callbacksValidationDecls.methods["Runner"] == nil || !callbacksValidationDecls.methods["Runner"]["makeReviewValidateFn"] {
+		t.Fatal("callbacks_validation.go missing method Runner.makeReviewValidateFn")
 	}
 
 	runnerDecls := parseDecls(t, runnerPath)

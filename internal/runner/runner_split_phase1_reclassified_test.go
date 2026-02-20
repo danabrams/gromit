@@ -124,6 +124,7 @@ func verifyRunnerSplitPhase1Layout(t *testing.T) string {
 
 	adaptersPath := filepath.Join(runnerDir, "adapters.go")
 	callbacksPath := filepath.Join(runnerDir, "callbacks.go")
+	callbacksValidationPath := filepath.Join(runnerDir, "callbacks_validation.go")
 	runnerPath := filepath.Join(runnerDir, "runner.go")
 
 	if _, err := os.Stat(adaptersPath); err != nil {
@@ -131,6 +132,9 @@ func verifyRunnerSplitPhase1Layout(t *testing.T) string {
 	}
 	if _, err := os.Stat(callbacksPath); err != nil {
 		t.Fatalf("expected callbacks.go to exist: %v", err)
+	}
+	if _, err := os.Stat(callbacksValidationPath); err != nil {
+		t.Fatalf("expected callbacks_validation.go to exist: %v", err)
 	}
 
 	adaptersDecls := parseSplitFileDecls(t, adaptersPath)
@@ -154,8 +158,6 @@ func verifyRunnerSplitPhase1Layout(t *testing.T) string {
 
 	callbacksDecls := parseSplitFileDecls(t, callbacksPath)
 	mustHaveMethod(t, callbacksDecls, "Runner", "makeInvokeFn", "callbacks.go")
-	mustHaveMethod(t, callbacksDecls, "Runner", "makeValidationExecuteFn", "callbacks.go")
-	mustHaveMethod(t, callbacksDecls, "Runner", "makeReviewValidateFn", "callbacks.go")
 	mustHaveMethod(t, callbacksDecls, "Runner", "makeMethodologyExec", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "context", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "fmt", "callbacks.go")
@@ -165,10 +167,20 @@ func verifyRunnerSplitPhase1Layout(t *testing.T) string {
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/prompt", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/escalation", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/methodology", "callbacks.go")
-	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/reviewpkg", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/runtypes", "callbacks.go")
-	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/runner/validation", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/usagelimit", "callbacks.go")
+
+	callbacksValidationDecls := parseSplitFileDecls(t, callbacksValidationPath)
+	mustHaveMethod(t, callbacksValidationDecls, "Runner", "makeValidationExecuteFn", "callbacks_validation.go")
+	mustHaveMethod(t, callbacksValidationDecls, "Runner", "makeReviewValidateFn", "callbacks_validation.go")
+	mustHaveImport(t, callbacksValidationDecls, "context", "callbacks_validation.go")
+	mustHaveImport(t, callbacksValidationDecls, "fmt", "callbacks_validation.go")
+	mustHaveImport(t, callbacksValidationDecls, "strings", "callbacks_validation.go")
+	mustHaveImport(t, callbacksValidationDecls, "github.com/danabrams/gromit/internal/claude", "callbacks_validation.go")
+	mustHaveImport(t, callbacksValidationDecls, "github.com/danabrams/gromit/internal/provider", "callbacks_validation.go")
+	mustHaveImport(t, callbacksValidationDecls, "github.com/danabrams/gromit/internal/runner/reviewpkg", "callbacks_validation.go")
+	mustHaveImport(t, callbacksValidationDecls, "github.com/danabrams/gromit/internal/runner/runtypes", "callbacks_validation.go")
+	mustHaveImport(t, callbacksValidationDecls, "github.com/danabrams/gromit/internal/runner/validation", "callbacks_validation.go")
 
 	runnerDecls := parseSplitFileDecls(t, runnerPath)
 	if runnerDecls.types["routerAdapter"] {

@@ -275,9 +275,9 @@ func TestProcessGoUsesEscalationLearningFunctions(t *testing.T) {
 // cfg.NextEscalationTier().
 func TestMakeValidationExecuteFnCallsEscalationPolicyNextTier(t *testing.T) {
 	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, filepath.Join("callbacks.go"), nil, parser.ParseComments)
+	node, err := parser.ParseFile(fset, filepath.Join("callbacks_validation.go"), nil, parser.ParseComments)
 	if err != nil {
-		t.Fatalf("failed to parse callbacks.go: %v", err)
+		t.Fatalf("failed to parse callbacks_validation.go: %v", err)
 	}
 
 	for _, decl := range node.Decls {
@@ -324,5 +324,5 @@ func TestMakeValidationExecuteFnCallsEscalationPolicyNextTier(t *testing.T) {
 		}
 		return
 	}
-	t.Fatal("makeValidationExecuteFn not found in callbacks.go")
+	t.Fatal("makeValidationExecuteFn not found in callbacks_validation.go")
 }
