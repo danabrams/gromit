@@ -535,6 +535,209 @@ func TestBuildContinuousMetrics_ValidationDurationControlLimitInProcessTrendFile
 	}
 }
 
+func TestComputeProviderMetrics(t *testing.T) {
+	testCases := []struct {
+		name    string
+		entries []IterationMetric
+		want    map[string]ProviderMetrics
+	}{
+		{
+			name: "groups_by_explicit_provider_and_calculates_rates",
+			entries: []IterationMetric{
+				{
+					Provider:        "claude",
+					Success:         true,
+					DurationMs:      1000,
+					CostUSD:         0.10,
+					InputTokens:     100,
+					OutputTokens:    10,
+					FailureCategory: "",
+				},
+				{
+					Provider:        "claude",
+					Success:         false,
+					DurationMs:      3000,
+					CostUSD:         0.30,
+					InputTokens:     200,
+					OutputTokens:    20,
+					Escalated:       true,
+					FailureCategory: transportDisconnectFailure,
+				},
+				{
+					Provider:        "openai",
+					Success:         true,
+					DurationMs:      500,
+					CostUSD:         0.05,
+					InputTokens:     50,
+					OutputTokens:    5,
+					FailureCategory: "",
+				},
+			},
+			want: map[string]ProviderMetrics{
+				"claude": {
+					Name:                 "claude",
+					TotalInvocations:     2,
+					Successes:            1,
+					SuccessRate:          0.5,
+					TransportFailures:    1,
+					TransportFailureRate: 0.5,
+					FallbacksTriggered:   1,
+					AvgDurationMs:        2000,
+					TotalCostUSD:         0.40,
+					TotalInputTokens:     300,
+					TotalOutputTokens:    30,
+				},
+				"openai": {
+					Name:                 "openai",
+					TotalInvocations:     1,
+					Successes:            1,
+					SuccessRate:          1,
+					TransportFailures:    0,
+					TransportFailureRate: 0,
+					FallbacksTriggered:   0,
+					AvgDurationMs:        500,
+					TotalCostUSD:         0.05,
+					TotalInputTokens:     50,
+					TotalOutputTokens:    5,
+				},
+			},
+		},
+		{
+			name: "infers_provider_from_model_when_provider_missing",
+			entries: []IterationMetric{
+				{
+					Model:        "gpt-5.3-codex",
+					Success:      true,
+					DurationMs:   1500,
+					CostUSD:      0.20,
+					InputTokens:  300,
+					OutputTokens: 30,
+				},
+				{
+					Model:           "sonnet",
+					Success:         false,
+					DurationMs:      2500,
+					CostUSD:         0.15,
+					InputTokens:     400,
+					OutputTokens:    40,
+					FailureCategory: transportDisconnectFailure,
+				},
+			},
+			want: map[string]ProviderMetrics{
+				"openai": {
+					Name:                 "openai",
+					TotalInvocations:     1,
+					Successes:            1,
+					SuccessRate:          1,
+					TransportFailures:    0,
+					TransportFailureRate: 0,
+					FallbacksTriggered:   0,
+					AvgDurationMs:        1500,
+					TotalCostUSD:         0.20,
+					TotalInputTokens:     300,
+					TotalOutputTokens:    30,
+				},
+				"claude": {
+					Name:                 "claude",
+					TotalInvocations:     1,
+					Successes:            0,
+					SuccessRate:          0,
+					TransportFailures:    1,
+					TransportFailureRate: 1,
+					FallbacksTriggered:   0,
+					AvgDurationMs:        2500,
+					TotalCostUSD:         0.15,
+					TotalInputTokens:     400,
+					TotalOutputTokens:    40,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := computeProviderMetrics(tc.entries)
+			if len(got) != len(tc.want) {
+				t.Fatalf("len(got) = %d, want %d", len(got), len(tc.want))
+			}
+			for _, metric := range got {
+				wantMetric, ok := tc.want[metric.Name]
+				if !ok {
+					t.Fatalf("unexpected provider metric for %q", metric.Name)
+				}
+				if metric.TotalInvocations != wantMetric.TotalInvocations {
+					t.Errorf("%s.TotalInvocations = %d, want %d", metric.Name, metric.TotalInvocations, wantMetric.TotalInvocations)
+				}
+				if metric.Successes != wantMetric.Successes {
+					t.Errorf("%s.Successes = %d, want %d", metric.Name, metric.Successes, wantMetric.Successes)
+				}
+				assertFloatNear(t, metric.SuccessRate, wantMetric.SuccessRate, metric.Name+".SuccessRate")
+				if metric.TransportFailures != wantMetric.TransportFailures {
+					t.Errorf("%s.TransportFailures = %d, want %d", metric.Name, metric.TransportFailures, wantMetric.TransportFailures)
+				}
+				assertFloatNear(t, metric.TransportFailureRate, wantMetric.TransportFailureRate, metric.Name+".TransportFailureRate")
+				if metric.FallbacksTriggered != wantMetric.FallbacksTriggered {
+					t.Errorf("%s.FallbacksTriggered = %d, want %d", metric.Name, metric.FallbacksTriggered, wantMetric.FallbacksTriggered)
+				}
+				assertFloatNear(t, metric.AvgDurationMs, wantMetric.AvgDurationMs, metric.Name+".AvgDurationMs")
+				assertFloatNear(t, metric.TotalCostUSD, wantMetric.TotalCostUSD, metric.Name+".TotalCostUSD")
+				if metric.TotalInputTokens != wantMetric.TotalInputTokens {
+					t.Errorf("%s.TotalInputTokens = %d, want %d", metric.Name, metric.TotalInputTokens, wantMetric.TotalInputTokens)
+				}
+				if metric.TotalOutputTokens != wantMetric.TotalOutputTokens {
+					t.Errorf("%s.TotalOutputTokens = %d, want %d", metric.Name, metric.TotalOutputTokens, wantMetric.TotalOutputTokens)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildProcessTrend_IncludesProviderMetrics(t *testing.T) {
+	metrics := []IterationMetric{
+		{
+			Model:        "gpt-5.3-codex",
+			Provider:     "",
+			Success:      true,
+			DurationMs:   1000,
+			CostUSD:      0.25,
+			InputTokens:  200,
+			OutputTokens: 20,
+		},
+		{
+			Model:           "sonnet",
+			Provider:        "",
+			Success:         false,
+			DurationMs:      2000,
+			CostUSD:         0.10,
+			InputTokens:     150,
+			OutputTokens:    15,
+			FailureCategory: transportDisconnectFailure,
+		},
+	}
+
+	trend := buildProcessTrend(metrics, 30)
+	if len(trend.ProviderMetrics) != 2 {
+		t.Fatalf("len(ProviderMetrics) = %d, want 2", len(trend.ProviderMetrics))
+	}
+
+	foundOpenAI := false
+	foundClaude := false
+	for _, metric := range trend.ProviderMetrics {
+		switch metric.Name {
+		case "openai":
+			foundOpenAI = true
+		case "claude":
+			foundClaude = true
+		}
+	}
+	if !foundOpenAI {
+		t.Error("ProviderMetrics missing inferred openai entry")
+	}
+	if !foundClaude {
+		t.Error("ProviderMetrics missing inferred claude entry")
+	}
+}
+
 func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,

@@ -37,6 +37,7 @@ const (
 	metricRollingBuildFailure      = "rolling_build_failure_rate"
 	metricRollingValidationFailure = "rolling_validation_failure_rate"
 	metricRollingTimeoutFailure    = "rolling_timeout_failure_rate"
+	transportDisconnectFailure     = "transport_disconnect"
 )
 
 var phaseRateMetrics = []string{
@@ -196,6 +197,21 @@ type TrendAnomaly struct {
 	Message  string  `json:"message"`
 }
 
+// ProviderMetrics captures provider-level aggregates from iteration metrics.
+type ProviderMetrics struct {
+	Name                 string  `json:"name"`
+	TotalInvocations     int     `json:"total_invocations"`
+	Successes            int     `json:"successes"`
+	SuccessRate          float64 `json:"success_rate"`
+	TransportFailures    int     `json:"transport_failures"`
+	TransportFailureRate float64 `json:"transport_failure_rate"`
+	FallbacksTriggered   int     `json:"fallbacks_triggered"`
+	AvgDurationMs        float64 `json:"avg_duration_ms"`
+	TotalCostUSD         float64 `json:"total_cost_usd"`
+	TotalInputTokens     int     `json:"total_input_tokens"`
+	TotalOutputTokens    int     `json:"total_output_tokens"`
+}
+
 // ProcessTrend is a continuously regenerated trend snapshot.
 type ProcessTrend struct {
 	GeneratedAt        time.Time           `json:"generated_at"`
@@ -203,6 +219,7 @@ type ProcessTrend struct {
 	WindowSize         int                 `json:"window_size"`
 	LatestWindow       ProcessTrendWindow  `json:"latest_window"`
 	PromptTokenSummary PromptTokenSummary  `json:"prompt_token_summary"`
+	ProviderMetrics    []ProviderMetrics   `json:"provider_metrics"`
 	ControlLimits      []TrendControlLimit `json:"control_limits"`
 	Anomalies          []TrendAnomaly      `json:"anomalies"`
 }
@@ -342,6 +359,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		WindowSize:         windowSize,
 		LatestWindow:       ProcessTrendWindow{},
 		PromptTokenSummary: newPromptTokenSummary(),
+		ProviderMetrics:    []ProviderMetrics{},
 		ControlLimits:      []TrendControlLimit{},
 		Anomalies:          []TrendAnomaly{},
 	}
@@ -367,6 +385,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		TimeoutFailureRate:    latest.RollingTimeoutFailureRate,
 	}
 	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
+	trend.ProviderMetrics = computeProviderMetrics(metrics)
 
 	for _, metric := range trendControlLimitSeries {
 		limit := computeControlLimit(metric.name, extractMetric(metrics, metric.pick))
@@ -379,6 +398,94 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 	sort.Slice(trend.ControlLimits, func(i, j int) bool { return trend.ControlLimits[i].Metric < trend.ControlLimits[j].Metric })
 	sort.Slice(trend.Anomalies, func(i, j int) bool { return trend.Anomalies[i].Metric < trend.Anomalies[j].Metric })
 	return trend
+}
+
+func computeProviderMetrics(entries []IterationMetric) []ProviderMetrics {
+	if len(entries) == 0 {
+		return []ProviderMetrics{}
+	}
+
+	type providerTotals struct {
+		totalInvocations  int
+		successes         int
+		transportFailures int
+		fallbacks         int
+		totalDurationMs   int64
+		totalCostUSD      float64
+		totalInputTokens  int
+		totalOutputTokens int
+	}
+
+	totalsByProvider := map[string]*providerTotals{}
+	for _, entry := range entries {
+		name := resolveProviderName(entry.Provider, entry.Model)
+		totals := totalsByProvider[name]
+		if totals == nil {
+			totals = &providerTotals{}
+			totalsByProvider[name] = totals
+		}
+
+		totals.totalInvocations++
+		if entry.Success {
+			totals.successes++
+		}
+		if entry.FailureCategory == transportDisconnectFailure {
+			totals.transportFailures++
+		}
+		if entry.Escalated {
+			totals.fallbacks++
+		}
+		totals.totalDurationMs += entry.DurationMs
+		totals.totalCostUSD += entry.CostUSD
+		totals.totalInputTokens += entry.InputTokens
+		totals.totalOutputTokens += entry.OutputTokens
+	}
+
+	metrics := make([]ProviderMetrics, 0, len(totalsByProvider))
+	for name, totals := range totalsByProvider {
+		total := float64(totals.totalInvocations)
+		successRate := 0.0
+		transportFailureRate := 0.0
+		avgDurationMs := 0.0
+		if total > 0 {
+			successRate = float64(totals.successes) / total
+			transportFailureRate = float64(totals.transportFailures) / total
+			avgDurationMs = float64(totals.totalDurationMs) / total
+		}
+
+		metrics = append(metrics, ProviderMetrics{
+			Name:                 name,
+			TotalInvocations:     totals.totalInvocations,
+			Successes:            totals.successes,
+			SuccessRate:          successRate,
+			TransportFailures:    totals.transportFailures,
+			TransportFailureRate: transportFailureRate,
+			FallbacksTriggered:   totals.fallbacks,
+			AvgDurationMs:        avgDurationMs,
+			TotalCostUSD:         totals.totalCostUSD,
+			TotalInputTokens:     totals.totalInputTokens,
+			TotalOutputTokens:    totals.totalOutputTokens,
+		})
+	}
+
+	sort.Slice(metrics, func(i, j int) bool {
+		return metrics[i].Name < metrics[j].Name
+	})
+	return metrics
+}
+
+func resolveProviderName(providerName, modelName string) string {
+	if providerName != "" {
+		return providerName
+	}
+	lowerModel := strings.ToLower(modelName)
+	if strings.Contains(lowerModel, "gpt") || strings.Contains(lowerModel, "codex") {
+		return "openai"
+	}
+	if lowerModel == "" {
+		return "unknown"
+	}
+	return "claude"
 }
 
 func extractMetric(metrics []IterationMetric, pick func(IterationMetric) float64) []float64 {
