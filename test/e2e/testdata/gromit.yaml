@@ -28,6 +28,10 @@ validation:
   full_commands:
     - "go test ./..."
   full_validation_every_n_successes: 0
+  mandatory_commands:
+    - "go test"
+    - "go vet"
+    - "go build"
   max_validation_retries: 1
   commands:
     - "go test ./..."

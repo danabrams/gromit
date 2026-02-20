@@ -1,8 +1,9 @@
 ---
+created: 2026-02-20T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-20T12:53:35Z"
 id: rules-phase-budgets
 source_spec: rules-phase-budgets
-created: 2026-02-20
-decomposed: false
 ---
 
 # Per-Phase RULES.md Budget Tests Implementation Plan

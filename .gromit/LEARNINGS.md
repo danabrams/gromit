@@ -70,10 +70,28 @@ PhaseMetric cost/token tracking needs a clear convention: record per-phase delta
 
 Codex stream event handling uses two different patterns for usage accumulation: overwrite (turn.completed) vs merge (response.completed, result). Multi-turn sessions need consistent merge semantics.
 
-### 2026-02-20 | Validate Static + Build Gates Before Merge | conventions
-*Related to: successful bead*
+### 2026-02-20 | Environment Variables Require Absolute Paths | gotchas
+When setting GOPATH or similar environment variables that require absolute paths, always convert relative paths using filepath.Abs() or similar absolute path resolution
 
-Quality gates for a successful bead should include both `go vet ./...` and `go build ./...` at repo scope. Running `go vet` catches static-analysis issues across all packages early, and `go build` confirms repository-wide compilation. Sequence together provides a fast guard against invalid submissions.
+### 2026-02-20 | Phase-Specific Renderer Interfaces Eliminate Stub Methods | patterns
+*Related to: code-review*
+
+Splitting a monolithic PromptRenderer into five phase-specific interfaces (RefineRenderer, PlanRenderer, DecomposeRenderer, ReviewRenderer, ExploreRenderer) eliminates stub not-implemented methods from adapters and enables compile-time single-responsibility enforcement. Each adapter only implements the method its pipeline needs.
+
+### 2026-02-20 | CircuitBreaker Nil-Receiver Safety Across All Public Methods | patterns
+*Related to: code-review*
+
+CircuitBreaker implementation follows nil-receiver safety consistently across Record(), EffectiveRatio(), and IsDegraded(). This allows callers to pass nil when the feature is disabled without nil-check boilerplate at every call site.
+
+### 2026-02-20 | Legacy Cost Normalization Guard Pattern Prevents False Positives | patterns
+*Related to: code-review*
+
+Cost normalization for legacy Codex 5.3 pricing uses a nearlyEqual check against the legacy estimate before rewriting. This guard prevents false positives on entries already at correct pricing — worth reusing for future pricing migrations.
+
+### 2026-02-20 | Validation Duration Metrics Thread With Zero-Exclusion | conventions
+*Related to: code-review*
+
+Validation duration metrics properly thread through summarizeWindow → buildIterationMetrics → buildProcessTrend with zero-exclusion for entries without validation data. This prevents entries that skipped validation from diluting the average.
 
 ---
 
@@ -92,3 +110,4 @@ Quality gates for a successful bead should include both `go vet ./...` and `go b
 
 ### 2026-02-20 | runCmd-to-runArgv Migration Must Cover All Git Call Sites | conventions
 *Archived 2026-02-20: Fix applied (callbacks.go, callbacks_tdd.go converted to runArgv). Now codified as Safety rule.*
+

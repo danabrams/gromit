@@ -5,7 +5,7 @@
   "measurement": "Track success rate and cost of test-only beads on low tier over 20 iterations. Success threshold: >=85% first-pass success rate. Cost threshold: >=40% reduction vs medium-tier baseline for test beads",
   "risk": "Test-only beads may still require understanding complex package internals. Lower-tier models may produce tests that compile but don't meaningfully cover behavior. Mitigation: validation phase catches compilation failures; review phase catches weak tests; escalation chain promotes to medium/high on failure",
   "primary_concern": "any",
-  "started_at": "2026-02-20T18:00:00Z",
+  "started_at": "2026-02-20T12:59:16Z",
   "status": "doing",
   "baseline_metrics": {
     "avg_cost_per_bead": 1.71752058,

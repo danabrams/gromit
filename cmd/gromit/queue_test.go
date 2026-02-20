@@ -168,7 +168,7 @@ func TestEnrichReadyBeads_MergesLabelsFromOpenList(t *testing.T) {
 		{ID: "r2", Labels: []string{"spec:beta"}},
 	}
 
-	enriched := enrichReadyBeads(nil, ready, open)
+	enriched := enrichReadyBeads(ready, open)
 	if bead.FindSpecLabel(enriched[0].Labels) != "alpha" {
 		t.Fatalf("r1 spec = %q, want alpha (labels=%v)", bead.FindSpecLabel(enriched[0].Labels), enriched[0].Labels)
 	}

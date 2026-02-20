@@ -57,7 +57,7 @@ func showQueue(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("getting all beads: %w", err)
 	}
-	readyBeads = enrichReadyBeads(bc, readyBeads, allBeads)
+	readyBeads = enrichReadyBeads(readyBeads, allBeads)
 
 	var beadStats map[string]logger.BeadStats
 	beadStats, err = logger.ReadPerBeadStats(cfg.Paths.Logs)
@@ -249,22 +249,6 @@ func findStuckBeadIDs(beadStats map[string]logger.BeadStats, threshold int) map[
 	return stuck
 }
 
-// findBlockedBeads returns beads that are open but not in the ready list.
-func findBlockedBeads(readyBeads, allBeads []*bead.Bead) []*bead.Bead {
-	readyMap := make(map[string]bool)
-	for _, b := range readyBeads {
-		readyMap[b.ID] = true
-	}
-
-	blocked := []*bead.Bead{}
-	for _, b := range allBeads {
-		if !readyMap[b.ID] {
-			blocked = append(blocked, b)
-		}
-	}
-	return blocked
-}
-
 // getReason returns a human-readable reason why a bead is blocked
 func getReason(b *bead.Bead, allBeads []*bead.Bead) string {
 	if b == nil {
@@ -308,7 +292,7 @@ func dependencyIDs(deps []bead.Dependency) []string {
 	return ids
 }
 
-func enrichReadyBeads(_ *bead.Client, readyBeads, allBeads []*bead.Bead) []*bead.Bead {
+func enrichReadyBeads(readyBeads, allBeads []*bead.Bead) []*bead.Bead {
 	if len(readyBeads) == 0 {
 		return readyBeads
 	}
