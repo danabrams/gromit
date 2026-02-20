@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/worktree"
@@ -275,5 +276,212 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessRunsCleanupAndClearsPendingB
 	}
 	if cleanupDir != session.WorktreeDir {
 		t.Fatalf("cleanup sessionDir = %q, want %q", cleanupDir, session.WorktreeDir)
+	}
+}
+
+func TestRunWithSessionWorktreeConflictManualPolicyKeepsPendingBranch(t *testing.T) {
+	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "review")
+	session.BranchName = "gromit/review-111"
+
+	var (
+		removeCalled  bool
+		cleanupCalled bool
+	)
+
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+			MergeBackFn: func(string) error {
+				return errors.New("merge conflict for branch gromit/review-111")
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			RemovePendingWorktreeBranchFn: func(string) error {
+				removeCalled = true
+				return nil
+			},
+		}, nil
+	}, func(string, string) error {
+		cleanupCalled = true
+		return nil
+	})
+
+	result, err := runWithSessionWorktreeWithConflictSettings(gromitDir, "review", sessionConflictSettings{
+		Policy: "manual",
+	}, func(string) error { return nil })
+	if err == nil {
+		t.Fatal("expected conflict handoff error, got nil")
+	}
+	if !isMergeConflictHandoffError(err) {
+		t.Fatalf("expected merge conflict handoff error, got %T (%v)", err, err)
+	}
+	if result == nil {
+		t.Fatal("expected session result to be returned on conflict")
+	}
+	if result.BranchName != session.BranchName {
+		t.Fatalf("result.BranchName = %q, want %q", result.BranchName, session.BranchName)
+	}
+	if removeCalled {
+		t.Fatal("pending branch should remain on manual conflict handoff")
+	}
+	if cleanupCalled {
+		t.Fatal("session worktree should be preserved on manual conflict handoff")
+	}
+	if !strings.Contains(err.Error(), "manual handoff") {
+		t.Fatalf("error should contain manual handoff guidance, got: %v", err)
+	}
+}
+
+func TestRunWithSessionWorktreeConflictAgentPolicyRetriesAndMerges(t *testing.T) {
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "refine")
+	session.BranchName = "gromit/refine-222"
+
+	var (
+		mergeCalls        int
+		resolveCalls      int
+		removeCalled      bool
+		cleanupCalled     bool
+		cleanupMainDirGot string
+	)
+
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+			MergeBackFn: func(branch string) error {
+				mergeCalls++
+				if branch != session.BranchName {
+					t.Fatalf("merge branch = %q, want %q", branch, session.BranchName)
+				}
+				if mergeCalls == 1 {
+					return errors.New("merge conflict")
+				}
+				return nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			RemovePendingWorktreeBranchFn: func(string) error {
+				removeCalled = true
+				return nil
+			},
+		}, nil
+	}, func(gotMainDir, gotSessionDir string) error {
+		cleanupCalled = true
+		cleanupMainDirGot = gotMainDir
+		if gotSessionDir != session.WorktreeDir {
+			t.Fatalf("cleanup session dir = %q, want %q", gotSessionDir, session.WorktreeDir)
+		}
+		return nil
+	})
+
+	result, err := runWithSessionWorktreeWithConflictSettings(gromitDir, "refine", sessionConflictSettings{
+		Policy:   "agent",
+		RetryCap: 2,
+		AgentConflictResolver: func(sessionDir, branch string, attempt int) error {
+			resolveCalls++
+			if sessionDir != session.WorktreeDir {
+				t.Fatalf("resolver sessionDir = %q, want %q", sessionDir, session.WorktreeDir)
+			}
+			if branch != session.BranchName {
+				t.Fatalf("resolver branch = %q, want %q", branch, session.BranchName)
+			}
+			if attempt != 1 {
+				t.Fatalf("resolver attempt = %d, want 1", attempt)
+			}
+			return nil
+		},
+	}, func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktreeWithConflictSettings() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if mergeCalls != 2 {
+		t.Fatalf("merge calls = %d, want 2 (initial + post-resolver)", mergeCalls)
+	}
+	if resolveCalls != 1 {
+		t.Fatalf("resolver calls = %d, want 1", resolveCalls)
+	}
+	if !removeCalled {
+		t.Fatal("expected pending branch removal after agent-assisted merge success")
+	}
+	if !cleanupCalled {
+		t.Fatal("expected cleanup after agent-assisted merge success")
+	}
+	if cleanupMainDirGot != mainDir {
+		t.Fatalf("cleanup mainDir = %q, want %q", cleanupMainDirGot, mainDir)
+	}
+}
+
+func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T) {
+	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
+	session.BranchName = "gromit/debug-333"
+
+	var (
+		mergeCalls    int
+		resolveCalls  int
+		removeCalled  bool
+		cleanupCalled bool
+	)
+
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+			MergeBackFn: func(string) error {
+				mergeCalls++
+				return errors.New("merge conflict")
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			RemovePendingWorktreeBranchFn: func(string) error {
+				removeCalled = true
+				return nil
+			},
+		}, nil
+	}, func(string, string) error {
+		cleanupCalled = true
+		return nil
+	})
+
+	result, err := runWithSessionWorktreeWithConflictSettings(gromitDir, "debug", sessionConflictSettings{
+		Policy:   "agent",
+		RetryCap: 2,
+		AgentConflictResolver: func(string, string, int) error {
+			resolveCalls++
+			return nil
+		},
+	}, func(string) error { return nil })
+	if err == nil {
+		t.Fatal("expected manual-handoff error after exhausted retries")
+	}
+	if !isMergeConflictHandoffError(err) {
+		t.Fatalf("expected merge conflict handoff error, got %T (%v)", err, err)
+	}
+	if !strings.Contains(err.Error(), "after 2 agent attempt(s)") {
+		t.Fatalf("error should include retry attempts, got: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil session result on conflict fallback")
+	}
+	if mergeCalls != 3 {
+		t.Fatalf("merge calls = %d, want 3 (initial + 2 retries)", mergeCalls)
+	}
+	if resolveCalls != 2 {
+		t.Fatalf("resolver calls = %d, want 2", resolveCalls)
+	}
+	if removeCalled {
+		t.Fatal("pending branch should be retained after fallback to manual handoff")
+	}
+	if cleanupCalled {
+		t.Fatal("session worktree should be preserved after fallback to manual handoff")
 	}
 }

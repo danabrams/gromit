@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -47,11 +48,75 @@ var interactiveWorktreeCleanupSessionFn = func(mainDir, sessionDir string) error
 	return nil
 }
 
+const (
+	conflictPolicyManual = "manual"
+	conflictPolicyAgent  = "agent"
+)
+
+type sessionConflictSettings struct {
+	Policy                string
+	RetryCap              int
+	AgentConflictResolver func(sessionDir, branch string, attempt int) error
+}
+
+type mergeConflictHandoffError struct {
+	Policy      string
+	Branch      string
+	SessionDir  string
+	RetryCap    int
+	MergeErr    error
+	ResolverErr error
+}
+
+func (e *mergeConflictHandoffError) Error() string {
+	if e == nil {
+		return ""
+	}
+	policy := strings.ToLower(strings.TrimSpace(e.Policy))
+	if policy == conflictPolicyAgent {
+		base := fmt.Sprintf(
+			"merge conflict persists for branch %q after %d agent attempt(s); resolve manually in %q and keep pending branch for follow-up",
+			e.Branch,
+			e.RetryCap,
+			e.SessionDir,
+		)
+		if e.ResolverErr != nil {
+			return fmt.Sprintf("%s (last resolver error: %v)", base, e.ResolverErr)
+		}
+		return base
+	}
+
+	return fmt.Sprintf(
+		"merge conflict for branch %q; manual handoff required in %q and pending branch retained",
+		e.Branch,
+		e.SessionDir,
+	)
+}
+
+func (e *mergeConflictHandoffError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	if e.ResolverErr != nil {
+		return e.ResolverErr
+	}
+	return e.MergeErr
+}
+
 // runWithSessionWorktree creates a session worktree, runs callback in that
 // session directory context, and records the branch for downstream merge-back.
 func runWithSessionWorktree(
 	gromitDir string,
 	command string,
+	callback func(sessionDir string) error,
+) (*worktree.SessionWorktree, error) {
+	return runWithSessionWorktreeWithConflictSettings(gromitDir, command, sessionConflictSettings{}, callback)
+}
+
+func runWithSessionWorktreeWithConflictSettings(
+	gromitDir string,
+	command string,
+	conflictSettings sessionConflictSettings,
 	callback func(sessionDir string) error,
 ) (*worktree.SessionWorktree, error) {
 	if callback == nil {
@@ -80,14 +145,99 @@ func runWithSessionWorktree(
 	if err := stateFile.AddPendingWorktreeBranch(session.BranchName); err != nil {
 		return nil, fmt.Errorf("recording pending worktree branch %q: %w", session.BranchName, err)
 	}
-	if err := manager.MergeBack(session.BranchName); err == nil {
-		if err := stateFile.RemovePendingWorktreeBranch(session.BranchName); err != nil {
-			return nil, fmt.Errorf("clearing merged pending worktree branch %q: %w", session.BranchName, err)
-		}
-		if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
-			return nil, err
-		}
+
+	if err := attemptMergeWithConflictPolicy(manager, stateFile, mainDir, session, conflictSettings); err != nil {
+		return session, err
 	}
 
 	return session, nil
+}
+
+func attemptMergeWithConflictPolicy(
+	manager sessionWorktreeCreator,
+	stateFile pendingBranchRecorder,
+	mainDir string,
+	session *worktree.SessionWorktree,
+	conflictSettings sessionConflictSettings,
+) error {
+	if err := manager.MergeBack(session.BranchName); err == nil {
+		return clearMergedState(mainDir, session, stateFile)
+	} else {
+		policy, normalizeErr := normalizeConflictPolicy(conflictSettings.Policy)
+		if normalizeErr != nil {
+			return normalizeErr
+		}
+		if policy != conflictPolicyAgent {
+			return &mergeConflictHandoffError{
+				Policy:     conflictPolicyManual,
+				Branch:     session.BranchName,
+				SessionDir: session.WorktreeDir,
+				MergeErr:   err,
+			}
+		}
+
+		retryCap := normalizeRetryCap(conflictSettings.RetryCap)
+		lastMergeErr := err
+		var lastResolverErr error
+
+		for attempt := 1; attempt <= retryCap; attempt++ {
+			if conflictSettings.AgentConflictResolver != nil {
+				if resolveErr := conflictSettings.AgentConflictResolver(session.WorktreeDir, session.BranchName, attempt); resolveErr != nil {
+					lastResolverErr = resolveErr
+					continue
+				}
+			}
+
+			lastResolverErr = nil
+			if mergeErr := manager.MergeBack(session.BranchName); mergeErr != nil {
+				lastMergeErr = mergeErr
+				continue
+			}
+
+			return clearMergedState(mainDir, session, stateFile)
+		}
+
+		return &mergeConflictHandoffError{
+			Policy:      conflictPolicyAgent,
+			Branch:      session.BranchName,
+			SessionDir:  session.WorktreeDir,
+			RetryCap:    retryCap,
+			MergeErr:    lastMergeErr,
+			ResolverErr: lastResolverErr,
+		}
+	}
+}
+
+func clearMergedState(mainDir string, session *worktree.SessionWorktree, stateFile pendingBranchRecorder) error {
+	if err := stateFile.RemovePendingWorktreeBranch(session.BranchName); err != nil {
+		return fmt.Errorf("clearing merged pending worktree branch %q: %w", session.BranchName, err)
+	}
+	if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
+		return err
+	}
+	return nil
+}
+
+func normalizeConflictPolicy(policy string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(policy))
+	switch normalized {
+	case "", "abort", conflictPolicyManual:
+		return conflictPolicyManual, nil
+	case conflictPolicyAgent:
+		return conflictPolicyAgent, nil
+	default:
+		return "", fmt.Errorf("invalid conflict resolution policy %q", policy)
+	}
+}
+
+func normalizeRetryCap(retryCap int) int {
+	if retryCap <= 0 {
+		return 3
+	}
+	return retryCap
+}
+
+func isMergeConflictHandoffError(err error) bool {
+	var handoffErr *mergeConflictHandoffError
+	return errors.As(err, &handoffErr)
 }
