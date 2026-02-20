@@ -25,6 +25,9 @@ func (c *Config) SetDefaults() {
 	if c.Claude.Timeout == 0 {
 		c.Claude.Timeout = DefaultInvocationTimeoutSeconds
 	}
+	if c.Claude.PipelineTimeout == 0 {
+		c.Claude.PipelineTimeout = DefaultPipelineTimeoutSeconds
+	}
 	if c.Claude.StallTimeout == 0 {
 		c.Claude.StallTimeout = 120
 	}

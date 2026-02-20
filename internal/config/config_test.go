@@ -414,6 +414,14 @@ func TestStallTimeoutDefault(t *testing.T) {
 	}
 }
 
+func TestPipelineTimeoutDefault(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+	if cfg.Claude.PipelineTimeout != 1800 {
+		t.Errorf("expected default PipelineTimeout=1800, got %d", cfg.Claude.PipelineTimeout)
+	}
+}
+
 func TestStallTimeoutActiveDefault(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
@@ -449,6 +457,36 @@ func TestStallTimeoutFromYAML(t *testing.T) {
 	}
 	if cfg.Claude.StallTimeout != 60 {
 		t.Errorf("expected StallTimeout=60, got %d", cfg.Claude.StallTimeout)
+	}
+}
+
+func TestPipelineTimeoutFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte("claude:\n  pipeline_timeout: 2400\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Claude.PipelineTimeout != 2400 {
+		t.Errorf("expected PipelineTimeout=2400, got %d", cfg.Claude.PipelineTimeout)
+	}
+}
+
+func TestPipelineTimeoutDefaultWhenOmittedFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte("models:\n  p0: opus\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Claude.PipelineTimeout != DefaultPipelineTimeoutSeconds {
+		t.Errorf("expected PipelineTimeout=%d (default), got %d", DefaultPipelineTimeoutSeconds, cfg.Claude.PipelineTimeout)
 	}
 }
 
@@ -3118,10 +3156,10 @@ func TestMethodologyATDDPromptDefaults(t *testing.T) {
 		t.Error("expected default ATDDPrompt.IncludeClaudeMD=true")
 	}
 	if cfg.Methodology.ATDDPrompt.MaxChars != 20000 {
-		t.Errorf("expected default ATDDPrompt.MaxChars=20000, got %d", cfg.Methodology.ATDDPrompt.MaxChars)
+		t.Errorf("expected default ATDDPrompt.MaxChars=%d, got %d", defaultATDDPromptMaxChars, cfg.Methodology.ATDDPrompt.MaxChars)
 	}
 	if cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars != 2000 {
-		t.Errorf("expected default ATDDPrompt.MaxConfirmedLearningChars=2000, got %d", cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars)
+		t.Errorf("expected default ATDDPrompt.MaxConfirmedLearningChars=%d, got %d", defaultATDDPromptLearningCharsCap, cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars)
 	}
 }
 

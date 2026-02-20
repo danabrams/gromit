@@ -15,7 +15,13 @@ const (
 
 	tokensPer1k = 1000.0
 
+	defaultATDDPromptMaxChars         = 20000
+	defaultATDDPromptLearningCharsCap = 2000
+	defaultPromptMaxChars             = 20000
+	defaultPromptLearningCharsCap     = 2000
+
 	DefaultInvocationTimeoutSeconds = 900 // 15 minutes
+	DefaultPipelineTimeoutSeconds   = 1800
 
 	DefaultAndonAssumptionBudget = 2
 	DefaultAndonL1RetryCap       = 2
@@ -197,6 +203,7 @@ type PreflightConfig struct {
 type ClaudeConfig struct {
 	Binary                 string                           `yaml:"binary"`
 	Timeout                int                              `yaml:"timeout"`
+	PipelineTimeout        int                              `yaml:"pipeline_timeout"`
 	StallTimeout           int                              `yaml:"stall_timeout"`
 	StallTimeoutActive     int                              `yaml:"stall_timeout_active"`
 	BeadTimeout            int                              `yaml:"bead_timeout"`
