@@ -48,16 +48,16 @@ func TestRetroUsesAgentLaunchNotDirectExec(t *testing.T) {
 		t.Error("main.go does not call agent.Resolve - agent selection not integrated for retro")
 	}
 
-	if !strings.Contains(sourceStr, "interactiveLaunchDir") {
-		t.Error("main.go does not call interactiveLaunchDir - retro launch dir not resolved")
+	if !strings.Contains(sourceStr, "runWithSessionWorktreeWithConflictSettings") {
+		t.Error("main.go does not use session worktree launcher for retro interactive flow")
 	}
 
 	if !strings.Contains(sourceStr, ".LaunchInDir(") {
 		t.Error("main.go does not call .LaunchInDir() - agent launch not integrated for retro")
 	}
 
-	if !strings.Contains(sourceStr, ".LaunchInDir(promptPath, launchDir)") {
-		t.Error("main.go does not call .LaunchInDir(promptPath, launchDir) - retro launch args incorrect")
+	if !strings.Contains(sourceStr, ".LaunchInDir(promptPath, sessionDir)") {
+		t.Error("main.go does not call .LaunchInDir(promptPath, sessionDir) in session callback")
 	}
 
 	if strings.Contains(sourceStr, "selectedAgent.Launch(promptPath)") {

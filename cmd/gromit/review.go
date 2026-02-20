@@ -71,6 +71,10 @@ Scope options:
 	RunE: runReview,
 }
 
+var reviewInteractiveSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
+var reviewInteractiveRunnerFn = runReviewInteractiveInDir
+var recordInteractiveReviewCompletionFn = recordInteractiveReviewCompletion
+
 func init() {
 	reviewCmd.Flags().BoolVar(&reviewNonInteractive, "non-interactive", false, "Run review autonomously without interactive session")
 	reviewCmd.Flags().StringVar(&reviewSince, "since", "", "Review from this commit")
@@ -351,7 +355,24 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 	// Print status message
 	fmt.Printf("Launching interactive review session (from commit %s)...\n", shortCommit(fromCommit))
 
-	// Build pipeline and dependencies
+	gromitDir := resolveGromitDir(cfg)
+	conflictSettings := sessionConflictSettingsFromConfig(cfg)
+
+	_, err := reviewInteractiveSessionLauncherFn(gromitDir, "review", conflictSettings, func(sessionDir string) error {
+		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, sessionDir)
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := recordInteractiveReviewCompletionFn(gromitDir, fromCommit); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff string, launchDir string) error {
 	gromitDir := resolveGromitDir(cfg)
 
 	templatesDir, specsDir, claudeMDPath := resolveReviewRendererPaths(cfg)
@@ -387,7 +408,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 		Diff:       diff,
 		Model:      cfg.Review.Thorough.Model,
 		AgentName:  reviewAgent,
-		LaunchDir:  interactiveLaunchDir(gromitDir),
+		LaunchDir:  launchDir,
 	}
 
 	// Call pipeline
@@ -395,11 +416,6 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 	if err != nil {
 		return fmt.Errorf("review interactive: %w", err)
 	}
-
-	if err := recordInteractiveReviewCompletion(gromitDir, fromCommit); err != nil {
-		return err
-	}
-
 	return nil
 }
 

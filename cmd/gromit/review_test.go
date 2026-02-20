@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
+	"github.com/danabrams/gromit/internal/worktree"
 )
 
 type gitCommandCapture struct {
@@ -99,6 +100,107 @@ func TestReviewGitCommandFn_CanBeOverridden(t *testing.T) {
 	}
 	if len(capturedArgs) < 2 || capturedArgs[0] != "rev-parse" || capturedArgs[1] != "HEAD" {
 		t.Errorf("expected args [rev-parse HEAD], got %v", capturedArgs)
+	}
+}
+
+func TestRunReviewInteractive_UsesSessionWorktreeLaunchDir(t *testing.T) {
+	origLauncher := reviewInteractiveSessionLauncherFn
+	origRunner := reviewInteractiveRunnerFn
+	origRecord := recordInteractiveReviewCompletionFn
+	t.Cleanup(func() {
+		reviewInteractiveSessionLauncherFn = origLauncher
+		reviewInteractiveRunnerFn = origRunner
+		recordInteractiveReviewCompletionFn = origRecord
+	})
+
+	cfg := &config.Config{}
+	wantSessionDir := t.TempDir()
+	gotLaunchDir := ""
+	recordCalled := false
+
+	reviewInteractiveSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		if command != "review" {
+			t.Fatalf("command = %q, want %q", command, "review")
+		}
+		wantSettings := sessionConflictSettingsFromConfig(cfg)
+		if conflictSettings.Policy != wantSettings.Policy || conflictSettings.RetryCap != wantSettings.RetryCap {
+			t.Fatalf("conflict settings = %+v, want policy=%q retry_cap=%d", conflictSettings, wantSettings.Policy, wantSettings.RetryCap)
+		}
+		if err := callback(wantSessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "gromit/review-test", WorktreeDir: wantSessionDir}, nil
+	}
+	reviewInteractiveRunnerFn = func(cfg *config.Config, fromCommit, diff, launchDir string) error {
+		gotLaunchDir = launchDir
+		return nil
+	}
+	recordInteractiveReviewCompletionFn = func(gromitDir, fromCommit string) error {
+		recordCalled = true
+		return nil
+	}
+
+	if err := runReviewInteractive(cfg, "abc123", "diff --git a b"); err != nil {
+		t.Fatalf("runReviewInteractive() error = %v", err)
+	}
+	if gotLaunchDir != wantSessionDir {
+		t.Fatalf("launchDir = %q, want %q", gotLaunchDir, wantSessionDir)
+	}
+	if !recordCalled {
+		t.Fatal("expected review completion to be recorded")
+	}
+}
+
+func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
+	origLauncher := reviewInteractiveSessionLauncherFn
+	origRunner := reviewInteractiveRunnerFn
+	origRecord := recordInteractiveReviewCompletionFn
+	t.Cleanup(func() {
+		reviewInteractiveSessionLauncherFn = origLauncher
+		reviewInteractiveRunnerFn = origRunner
+		recordInteractiveReviewCompletionFn = origRecord
+	})
+
+	cfg := &config.Config{}
+	recordCalled := false
+	reviewInteractiveRunnerFn = func(cfg *config.Config, fromCommit, diff, launchDir string) error {
+		return nil
+	}
+	recordInteractiveReviewCompletionFn = func(gromitDir, fromCommit string) error {
+		recordCalled = true
+		return nil
+	}
+	reviewInteractiveSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		return &worktree.SessionWorktree{
+				BranchName:  "gromit/review-conflict",
+				WorktreeDir: "/tmp/session-review",
+			}, &mergeConflictHandoffError{
+				Policy:     conflictPolicyManual,
+				Branch:     "gromit/review-conflict",
+				SessionDir: "/tmp/session-review",
+				MergeErr:   errors.New("merge conflict"),
+			}
+	}
+
+	err := runReviewInteractive(cfg, "abc123", "diff --git a b")
+	if err == nil {
+		t.Fatal("expected conflict handoff error, got nil")
+	}
+	if !isMergeConflictHandoffError(err) {
+		t.Fatalf("expected merge conflict handoff error, got %T (%v)", err, err)
+	}
+	if recordCalled {
+		t.Fatal("review completion should not be recorded when merge handoff occurs")
 	}
 }
 

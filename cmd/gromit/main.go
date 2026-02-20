@@ -34,6 +34,10 @@ var (
 	runSpecFlag       string
 )
 
+var retroResolveAgentFn = agent.Resolve
+var retroSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
+var retroRecordStateFn = recordRetroState
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -301,8 +305,6 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	}
 
 	// Default: launch interactive review and application session
-	fmt.Println("\nLaunching interactive review session...")
-
 	promptText := retro.BuildClaudeCodePrompt(result.Analysis, result.Efficiency, result.Experiment)
 	tmpDir := filepath.Join(gromitDir, "tmp")
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
@@ -320,28 +322,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	}
 	promptFile.Close()
 
-	agentFlag, _ := cmd.Flags().GetString("agent")
-	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
-	selectedAgent, err := agent.Resolve(cfg, "retro", agentFlag, chooseAgent, os.Stdin, os.Stdout)
-	if err != nil {
-		return fmt.Errorf("resolving agent: %w", err)
-	}
-	launchDir := interactiveLaunchDir(gromitDir)
-	if err := selectedAgent.LaunchInDir(promptPath, launchDir); err != nil {
-		return fmt.Errorf("launching interactive review session: %w", err)
-	}
-
-	// Record retro time in state
-	sf, err := state.NewFile(gromitDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not create state file: %v\n", err)
-		return nil
-	}
-	if err := sf.RecordRetro(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not record retro time: %v\n", err)
-	}
-
-	return nil
+	return launchRetroInteractiveSession(cfg, cmd, gromitDir, promptPath)
 }
 
 // buildBeadFilter resolves labels to bead IDs and returns a filter map.
@@ -369,4 +350,40 @@ func buildBeadFilter(ctx context.Context, labels []string) (map[string]bool, err
 	}
 
 	return filter, nil
+}
+
+func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromitDir, promptPath string) error {
+	fmt.Println("\nLaunching interactive review session...")
+
+	agentFlag, _ := cmd.Flags().GetString("agent")
+	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
+	selectedAgent, err := retroResolveAgentFn(cfg, "retro", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	if err != nil {
+		return fmt.Errorf("resolving agent: %w", err)
+	}
+
+	conflictSettings := sessionConflictSettingsFromConfig(cfg)
+	_, err = retroSessionLauncherFn(gromitDir, "retro", conflictSettings, func(sessionDir string) error {
+		if err := selectedAgent.LaunchInDir(promptPath, sessionDir); err != nil {
+			return fmt.Errorf("launching interactive review session: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return retroRecordStateFn(gromitDir)
+}
+
+func recordRetroState(gromitDir string) error {
+	sf, err := state.NewFile(gromitDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not create state file: %v\n", err)
+		return nil
+	}
+	if err := sf.RecordRetro(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not record retro time: %v\n", err)
+	}
+	return nil
 }

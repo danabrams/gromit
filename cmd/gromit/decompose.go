@@ -22,6 +22,10 @@ var (
 	decomposeNoChain bool
 )
 
+var decomposeSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
+var decomposeSinglePlanInDirFn = decomposeSinglePlanInCurrentDir
+var decomposeRunInDirFn = runInDir
+
 var decomposeCmd = &cobra.Command{
 	Use:   "decompose [plan-name]",
 	Short: "Decompose a plan into bd beads",
@@ -149,6 +153,21 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 // (review confirmation, output formatting, chaining).
 // Respects package-level flags: decomposeReview, decomposeForce, decomposeNoChain.
 func decomposeSinglePlan(planName string, cfg *config.Config) error {
+	if decomposeReview {
+		gromitDir := resolveGromitDir(cfg)
+		conflictSettings := sessionConflictSettingsFromConfig(cfg)
+		_, err := decomposeSessionLauncherFn(gromitDir, "decompose", conflictSettings, func(sessionDir string) error {
+			return decomposeRunInDirFn(sessionDir, func() error {
+				return decomposeSinglePlanInDirFn(planName, cfg)
+			})
+		})
+		return err
+	}
+
+	return decomposeSinglePlanInDirFn(planName, cfg)
+}
+
+func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error {
 	// Create Claude client
 	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
 	if err != nil {
@@ -218,6 +237,28 @@ func decomposeSinglePlan(planName string, cfg *config.Config) error {
 	}
 
 	return nil
+}
+
+func runInDir(dir string, fn func() error) error {
+	if fn == nil {
+		return fmt.Errorf("callback is nil")
+	}
+
+	if dir == "" {
+		return fn()
+	}
+
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting current directory: %w", err)
+	}
+
+	if err := os.Chdir(dir); err != nil {
+		return fmt.Errorf("changing directory to %q: %w", dir, err)
+	}
+	defer os.Chdir(originalDir)
+
+	return fn()
 }
 
 // convertToBeadDefs converts pipeline.CreatedBead to CLI beadDef for display.

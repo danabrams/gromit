@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/worktree"
 )
@@ -257,4 +258,14 @@ func normalizeRetryCap(retryCap int) int {
 func isMergeConflictHandoffError(err error) bool {
 	var handoffErr *mergeConflictHandoffError
 	return errors.As(err, &handoffErr)
+}
+
+func sessionConflictSettingsFromConfig(cfg *config.Config) sessionConflictSettings {
+	if cfg == nil {
+		return sessionConflictSettings{}
+	}
+	return sessionConflictSettings{
+		Policy:   cfg.Worktree.ConflictResolution,
+		RetryCap: cfg.Worktree.RetryCap,
+	}
 }

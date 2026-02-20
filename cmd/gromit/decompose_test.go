@@ -1,9 +1,13 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/worktree"
 )
 
 func TestFilterUndecomposedPlans(t *testing.T) {
@@ -315,5 +319,110 @@ func TestFilterUndecomposedPlans_UnreadableFile(t *testing.T) {
 
 	if len(got) > 0 && got[0].Name != "valid" {
 		t.Errorf("filterUndecomposedPlans()[0].Name = %v, want 'valid'", got[0].Name)
+	}
+}
+
+func TestDecomposeSinglePlan_ReviewUsesSessionWorktreeDir(t *testing.T) {
+	origReview := decomposeReview
+	origLauncher := decomposeSessionLauncherFn
+	origRunInDir := decomposeRunInDirFn
+	origCurrentDirFn := decomposeSinglePlanInDirFn
+	t.Cleanup(func() {
+		decomposeReview = origReview
+		decomposeSessionLauncherFn = origLauncher
+		decomposeRunInDirFn = origRunInDir
+		decomposeSinglePlanInDirFn = origCurrentDirFn
+	})
+
+	mainDir := t.TempDir()
+	sessionDir := filepath.Join(mainDir, "session")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("creating session dir: %v", err)
+	}
+
+	decomposeReview = true
+	cfg := &config.Config{}
+	cfg.Paths.GromitDir = filepath.Join(mainDir, ".gromit")
+
+	gotCommand := ""
+	calledInSessionDir := ""
+	decomposeSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		gotCommand = command
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "gromit/decompose-test", WorktreeDir: sessionDir}, nil
+	}
+	decomposeSinglePlanInDirFn = func(planName string, cfg *config.Config) error {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		calledInSessionDir = cwd
+		return nil
+	}
+
+	if err := decomposeSinglePlan("plan-a", cfg); err != nil {
+		t.Fatalf("decomposeSinglePlan() error = %v", err)
+	}
+	if gotCommand != "decompose" {
+		t.Fatalf("command = %q, want %q", gotCommand, "decompose")
+	}
+	if calledInSessionDir != sessionDir {
+		t.Fatalf("decompose executed in %q, want %q", calledInSessionDir, sessionDir)
+	}
+}
+
+func TestDecomposeSinglePlan_ReviewConflictHandoffPropagates(t *testing.T) {
+	origReview := decomposeReview
+	origLauncher := decomposeSessionLauncherFn
+	origCurrentDirFn := decomposeSinglePlanInDirFn
+	t.Cleanup(func() {
+		decomposeReview = origReview
+		decomposeSessionLauncherFn = origLauncher
+		decomposeSinglePlanInDirFn = origCurrentDirFn
+	})
+
+	decomposeReview = true
+	cfg := &config.Config{}
+	cfg.Paths.GromitDir = filepath.Join(t.TempDir(), ".gromit")
+
+	currentDirCalled := false
+	decomposeSinglePlanInDirFn = func(planName string, cfg *config.Config) error {
+		currentDirCalled = true
+		return nil
+	}
+
+	decomposeSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		return &worktree.SessionWorktree{
+				BranchName:  "gromit/decompose-conflict",
+				WorktreeDir: "/tmp/session-decompose",
+			}, &mergeConflictHandoffError{
+				Policy:     conflictPolicyManual,
+				Branch:     "gromit/decompose-conflict",
+				SessionDir: "/tmp/session-decompose",
+				MergeErr:   errors.New("merge conflict"),
+			}
+	}
+
+	err := decomposeSinglePlan("plan-b", cfg)
+	if err == nil {
+		t.Fatal("expected conflict handoff error, got nil")
+	}
+	if !isMergeConflictHandoffError(err) {
+		t.Fatalf("expected merge conflict handoff error, got %T (%v)", err, err)
+	}
+	if currentDirCalled {
+		t.Fatal("decompose execution should not continue when launcher returns conflict handoff")
 	}
 }
