@@ -10,9 +10,7 @@ import (
 )
 
 // TestReadyUsesLimit3 verifies that Ready() calls bd ready with --limit 3 flag.
-// Expected failure: Client.runFn field does not exist yet (compilation will fail).
-// After implementation, this field will allow injecting a mock run function to verify
-// command arguments without spawning subprocesses. The test verifies Ready() calls
+// Uses RunFn injection to verify command arguments without spawning subprocesses. The test verifies Ready() calls
 // run() with: bd ready --json --limit 3 (not --limit 10).
 func TestReadyUsesLimit3(t *testing.T) {
 	tests := []struct {
@@ -65,7 +63,7 @@ func TestReadyUsesLimit3(t *testing.T) {
 
 			c := &Client{
 				binary: "bd",
-				runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+				RunFn:  mockRun,
 			}
 
 			_, err := c.Ready()
@@ -92,7 +90,6 @@ func TestReadyUsesLimit3(t *testing.T) {
 
 // TestReadyLimit3StillFiltersEpicsCorrectly verifies that the smaller batch size
 // of 3 (down from 10) still provides sufficient margin for epic filtering.
-// Expected failure: Client.runFn field does not exist yet (compilation will fail).
 // This test verifies parseBeadOutputExcluding logic works with limit 3.
 func TestReadyLimit3StillFiltersEpicsCorrectly(t *testing.T) {
 	tests := []struct {
@@ -194,7 +191,7 @@ func TestReadyLimit3StillFiltersEpicsCorrectly(t *testing.T) {
 
 			c := &Client{
 				binary: "bd",
-				runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+				RunFn:  mockRun,
 			}
 
 			got, err := c.Ready()
@@ -220,7 +217,6 @@ func TestReadyLimit3StillFiltersEpicsCorrectly(t *testing.T) {
 
 // TestReadyAnyStillUsesLimit1 verifies that ReadyAny() continues to use --limit 1
 // and is not affected by the Ready() limit change.
-// Expected failure: Client.runFn field does not exist yet (compilation will fail).
 // This test ensures ReadyAny behavior remains unchanged.
 func TestReadyAnyStillUsesLimit1(t *testing.T) {
 	bdOutput := `[{
@@ -239,7 +235,7 @@ func TestReadyAnyStillUsesLimit1(t *testing.T) {
 
 	c := &Client{
 		binary: "bd",
-		runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+		RunFn:  mockRun,
 	}
 
 	_, err := c.ReadyAny()
@@ -365,7 +361,7 @@ func TestReadyLimit3PerformanceCharacteristics(t *testing.T) {
 
 			c := &Client{
 				binary: "bd",
-				runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+				RunFn:  mockRun,
 			}
 
 			got, err := c.Ready()
@@ -425,7 +421,7 @@ func TestReadyBatchSizeReductionIntent(t *testing.T) {
 
 	c := &Client{
 		binary: "bd",
-		runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+		RunFn:  mockRun,
 	}
 
 	_, err := c.Ready()
@@ -439,7 +435,6 @@ func TestReadyBatchSizeReductionIntent(t *testing.T) {
 }
 
 // TestReadyLimitValueIsNumeric verifies that the limit argument is a valid number.
-// Expected failure: Client.runFn field does not exist yet (compilation will fail).
 // This test ensures the implementation doesn't accidentally use non-numeric limit.
 func TestReadyLimitValueIsNumeric(t *testing.T) {
 	mockRun := func(args ...string) (string, error) {
@@ -464,7 +459,7 @@ func TestReadyLimitValueIsNumeric(t *testing.T) {
 
 	c := &Client{
 		binary: "bd",
-		runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+		RunFn:  mockRun,
 	}
 
 	_, err := c.Ready()
@@ -475,7 +470,6 @@ func TestReadyLimitValueIsNumeric(t *testing.T) {
 
 // TestReadyCommandStructureWithLimit3 verifies the complete command structure
 // when using --limit 3, ensuring all flags are in correct order.
-// Expected failure: Client.runFn field does not exist yet (compilation will fail).
 // This test verifies the full bd ready command with limit 3.
 func TestReadyCommandStructureWithLimit3(t *testing.T) {
 	var capturedArgs []string
@@ -486,7 +480,7 @@ func TestReadyCommandStructureWithLimit3(t *testing.T) {
 
 	c := &Client{
 		binary: "bd",
-		runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+		RunFn:  mockRun,
 	}
 
 	_, err := c.Ready()
@@ -544,7 +538,7 @@ func TestReadyDoesNotUseLimit10Anymore(t *testing.T) {
 
 	c := &Client{
 		binary: "bd",
-		runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+		RunFn:  mockRun,
 	}
 
 	_, err := c.Ready()

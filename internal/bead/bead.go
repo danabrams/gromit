@@ -142,7 +142,6 @@ type Client struct {
 	binary string
 	Dir    string // working directory for bd commands; if empty, uses current directory
 	RunFn  func(args ...string) (string, error)
-	runFn  func(args ...string) (string, error)
 }
 
 // NewClient creates a new bd client
@@ -688,9 +687,6 @@ func (c *Client) HasOpenChildren(parentID string) (bool, error) {
 func (c *Client) run(args ...string) (string, error) {
 	if c.RunFn != nil {
 		return c.RunFn(args...)
-	}
-	if c.runFn != nil {
-		return c.runFn(args...)
 	}
 	cmd := exec.Command(c.binary, args...)
 	if c.Dir != "" {

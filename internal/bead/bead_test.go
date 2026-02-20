@@ -1058,7 +1058,7 @@ func TestClientAddComment_UsesTempFile(t *testing.T) {
 	var gotPath string
 
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			gotArgs = append([]string(nil), args...)
 			fileIdx := -1
 			for i, arg := range args {
@@ -1164,7 +1164,7 @@ func TestClientCreate(t *testing.T) {
 			var gotArgs []string
 			var gotAcceptance string
 			c := &Client{
-				runFn: func(args ...string) (string, error) {
+				RunFn: func(args ...string) (string, error) {
 					gotArgs = append([]string(nil), args...)
 					accIdx := -1
 					for i, arg := range args {
@@ -1262,7 +1262,7 @@ func TestClientGetParent(t *testing.T) {
 func TestClientSync(t *testing.T) {
 	var gotArgs []string
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			gotArgs = append([]string(nil), args...)
 			return "", nil
 		},
@@ -1279,7 +1279,7 @@ func TestClientSync(t *testing.T) {
 // TestErrorWrapping tests that CLI errors are properly wrapped
 func TestErrorWrapping(t *testing.T) {
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			return "", fmt.Errorf("boom")
 		},
 	}
@@ -1361,7 +1361,7 @@ func TestClientCreateWithParent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var gotArgs []string
 			c := &Client{
-				runFn: func(args ...string) (string, error) {
+				RunFn: func(args ...string) (string, error) {
 					gotArgs = append([]string(nil), args...)
 					return `{"id":"task-001","title":"` + tt.title + `","priority":` + fmt.Sprintf("%d", tt.priority) + `,"issue_type":"task","status":"open"}`, nil
 				},
@@ -1392,14 +1392,14 @@ func TestClientCreateWithParent(t *testing.T) {
 func TestClientCreateInheritsCreateWithParent(t *testing.T) {
 	var createArgs []string
 	createClient := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			createArgs = append([]string(nil), args...)
 			return `{"id":"task-001","title":"Test","priority":1,"issue_type":"task","status":"open"}`, nil
 		},
 	}
 	var parentArgs []string
 	parentClient := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			parentArgs = append([]string(nil), args...)
 			return `{"id":"task-002","title":"Test","priority":1,"issue_type":"task","status":"open"}`, nil
 		},
@@ -1422,7 +1422,7 @@ func TestClientCreateWithParentAndDescription_UsesBodyFile(t *testing.T) {
 	var gotPath string
 
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			gotArgs = append([]string(nil), args...)
 			bodyIdx := -1
 			for i, arg := range args {
@@ -1473,7 +1473,7 @@ func TestClientCreateWithParentAndDescription_PassesAcceptanceInline(t *testing.
 	var gotAcceptance string
 
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			accIdx := -1
 			for i, arg := range args {
 				if arg == "--acceptance" {
@@ -1571,7 +1571,7 @@ func TestClientCreateWithDeps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var gotArgs []string
 			c := &Client{
-				runFn: func(args ...string) (string, error) {
+				RunFn: func(args ...string) (string, error) {
 					gotArgs = append([]string(nil), args...)
 					return `{"id":"task-001","title":"` + tt.title + `","priority":` + fmt.Sprintf("%d", tt.priority) + `,"issue_type":"task","status":"open"}`, nil
 				},
@@ -1608,7 +1608,7 @@ func TestClientCreateWithDepsAndDescription_UsesBodyFile(t *testing.T) {
 	var gotPath string
 
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			gotArgs = append([]string(nil), args...)
 			bodyIdx := -1
 			for i, arg := range args {
@@ -1874,9 +1874,7 @@ func TestClientHasOpenChildrenValidation(t *testing.T) {
 
 // TestHasOpenChildrenWithMockedRun tests HasOpenChildren with a mocked run function
 // to verify it uses the correct bd command arguments with --parent flag.
-// Expected failure: Client.runFn field does not exist yet (compilation will fail).
-// After implementation, this field will allow injecting a mock run function to verify
-// command arguments without spawning subprocesses. The test verifies HasOpenChildren
+// Uses RunFn injection to verify command arguments without spawning subprocesses. The test verifies HasOpenChildren
 // calls run() with: bd list --json --status open --parent <id> --limit 1
 func TestHasOpenChildrenWithMockedRun(t *testing.T) {
 	tests := []struct {
@@ -1931,7 +1929,7 @@ func TestHasOpenChildrenWithMockedRun(t *testing.T) {
 
 			c := &Client{
 				binary: "bd",
-				runFn:  mockRun, // Expected failure: runFn field does not exist on Client struct
+				RunFn:  mockRun,
 			}
 
 			got, err := c.HasOpenChildren(tt.parentID)
@@ -2166,7 +2164,7 @@ func TestClientListReadyIDsErrorWrapping(t *testing.T) {
 // TestClientReadyWithLabelValidation tests that ReadyWithLabel validates label parameter
 func TestClientReadyWithLabelValidation(t *testing.T) {
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			return "[]", nil
 		},
 	}
@@ -2396,7 +2394,7 @@ func TestClientReadyWithLabelExcludesEpics(t *testing.T) {
 // TestClientListWithLabelValidation tests that ListWithLabel validates label parameter
 func TestClientListWithLabelValidation(t *testing.T) {
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			return "[]", nil
 		},
 	}

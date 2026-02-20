@@ -78,7 +78,7 @@ func TestListWithLabel_InvalidLabel(t *testing.T) {
 func TestListWithLabel_ValidLabels(t *testing.T) {
 	var gotArgs []string
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			gotArgs = append([]string(nil), args...)
 			return "[]", nil
 		},
@@ -402,7 +402,7 @@ func TestListWithLabel_HandlesJSONParseErrors(t *testing.T) {
 // TestListWithLabel_ErrorWrapping tests that ListWithLabel() wraps command errors with context
 func TestListWithLabel_ErrorWrapping(t *testing.T) {
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			return "", fmt.Errorf("boom")
 		},
 	}
@@ -545,7 +545,7 @@ func TestListWithLabel_IntegrationReturnsPrioritySortedBeads(t *testing.T) {
 	testLabel := "spec:priority-sort-test"
 	var gotArgs []string
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			gotArgs = append([]string(nil), args...)
 			return `[{"id":"task-2","title":"P0","priority":0,"labels":["` + testLabel + `"],"issue_type":"task","status":"open"},
 				{"id":"task-3","title":"P1","priority":1,"labels":["` + testLabel + `"],"issue_type":"task","status":"open"},
@@ -577,7 +577,7 @@ func TestListWithLabel_IntegrationReturnsPrioritySortedBeads(t *testing.T) {
 // TestListWithLabel_IntegrationConsistentWithListMethod tests ordering consistency between List() and ListWithLabel()
 func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			return `[{"id":"task-a","title":"P0","priority":0,"labels":["test-label"],"issue_type":"task","status":"open"},
 				{"id":"task-b","title":"P1","priority":1,"labels":["test-label"],"issue_type":"task","status":"open"},
 				{"id":"task-c","title":"P2","priority":2,"labels":["test-label"],"issue_type":"task","status":"open"}]`, nil
@@ -619,7 +619,7 @@ func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
 func TestListWithLabel_CommandArgumentsIncludeAllAndLimit(t *testing.T) {
 	var gotArgs []string
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			gotArgs = append([]string(nil), args...)
 			return "[]", nil
 		},

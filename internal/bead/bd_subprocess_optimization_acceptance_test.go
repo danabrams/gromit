@@ -14,7 +14,7 @@ func TestReady_UsesLimit3(t *testing.T) {
 
 	var capturedArgs []string
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			capturedArgs = args
 			// Return valid JSON with one non-epic bead
 			return `[{"id":"test-1","title":"Test","priority":1,"labels":[],"parent":"","issue_type":"task","status":"open","owner":""}]`, nil
@@ -59,7 +59,7 @@ func TestReadyWithLabel_UsesLimit3(t *testing.T) {
 
 	var capturedArgs []string
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			capturedArgs = args
 			return `[{"id":"test-1","title":"Test","priority":1,"labels":["spec:foo"],"parent":"","issue_type":"task","status":"open","owner":""}]`, nil
 		},
@@ -129,7 +129,7 @@ func TestReady_StillFiltersEpicsCorrectly(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &Client{
-				runFn: func(args ...string) (string, error) {
+				RunFn: func(args ...string) (string, error) {
 					// Verify --limit 3
 					limitFound := false
 					for i, arg := range args {
@@ -176,7 +176,7 @@ func TestListReadyIDs_NotAffectedByReadyOptimization(t *testing.T) {
 
 	var capturedArgs []string
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			capturedArgs = args
 			return `[{"id":"test-1","title":"Test 1","priority":1,"labels":[],"parent":"","issue_type":"task","status":"ready","owner":""},{"id":"test-2","title":"Test 2","priority":1,"labels":[],"parent":"","issue_type":"task","status":"ready","owner":""}]`, nil
 		},

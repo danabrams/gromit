@@ -75,7 +75,7 @@ func TestReadyWithLabel_InvalidLabel(t *testing.T) {
 func TestReadyWithLabel_ValidLabels(t *testing.T) {
 	var gotArgs []string
 	c := &Client{
-		runFn: func(args ...string) (string, error) {
+		RunFn: func(args ...string) (string, error) {
 			gotArgs = append([]string(nil), args...)
 			return "[]", nil
 		},
@@ -119,7 +119,7 @@ func TestReadyWithLabel_ValidLabels(t *testing.T) {
 				return
 			}
 			if len(gotArgs) == 0 {
-				t.Fatalf("ReadyWithLabel(%q) did not invoke runFn", tt.label)
+				t.Fatalf("ReadyWithLabel(%q) did not invoke RunFn", tt.label)
 			}
 			if gotArgs[0] != "ready" {
 				t.Errorf("ReadyWithLabel(%q) command = %q, want %q", tt.label, gotArgs[0], "ready")

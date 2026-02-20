@@ -12,7 +12,7 @@ func TestReady_UsesLimit3_Unit(t *testing.T) {
 
 	c := &Client{
 		binary: "bd",
-		runFn:  mockRun,
+		RunFn:  mockRun,
 	}
 
 	_, err := c.Ready()
@@ -45,7 +45,7 @@ func TestReadyWithLabel_UsesLimit3_Unit(t *testing.T) {
 
 	c := &Client{
 		binary: "bd",
-		runFn:  mockRun,
+		RunFn:  mockRun,
 	}
 
 	_, err := c.ReadyWithLabel("spec:foo")
