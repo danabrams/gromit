@@ -39,7 +39,7 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	exploreContext := &ExplorePromptInput{
 		Query: input.Topic,
 	}
-	renderedPrompt, err := p.deps.PromptRenderer.RenderExplore(exploreContext)
+	renderedPrompt, err := p.deps.ExploreRenderer.RenderExplore(exploreContext)
 	if err != nil {
 		return nil, fmt.Errorf("rendering explore prompt: %w", err)
 	}
@@ -134,8 +134,8 @@ func (p *Pipeline) validateExploreDeps() error {
 	if p.deps.AgentResolver == nil {
 		return fmt.Errorf("pipeline: nil AgentResolver")
 	}
-	if p.deps.PromptRenderer == nil {
-		return fmt.Errorf("pipeline: nil PromptRenderer")
+	if p.deps.ExploreRenderer == nil {
+		return fmt.Errorf("pipeline: nil ExploreRenderer")
 	}
 	if p.deps.BacklogClient == nil {
 		return fmt.Errorf("pipeline: nil BacklogClient")

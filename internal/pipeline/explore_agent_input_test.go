@@ -50,9 +50,9 @@ func TestPipelineExplore_PropagatesChooseAgentToResolver(t *testing.T) {
 	}
 
 	deps := &Deps{
-		AgentResolver:  mockAgentResolver,
-		PromptRenderer: mockRenderer,
-		BacklogClient:  mockBacklog,
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: mockRenderer,
+		BacklogClient:   mockBacklog,
 	}
 	paths := &Paths{
 		GromitDir: gromitDir,

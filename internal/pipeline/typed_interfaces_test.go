@@ -436,7 +436,7 @@ func TestReviewNonInteractive_UsesTypedClaudeResult(t *testing.T) {
 		LearningsManager: mockLearnings,
 		StateManager:     mockState,
 		LogWriter:        mockLog,
-		PromptRenderer:   mockRenderer,
+		ReviewRenderer:   mockRenderer,
 	}
 	paths := &Paths{
 		GromitDir: tmpDir,
@@ -625,5 +625,5 @@ func indexString(s, substr string) int {
 // Ensure mocks compile against the new interface signatures
 var _ ClaudeClient = (*typedInterfacesClaudeClient)(nil)
 var _ BeadClient = (*typedInterfacesBeadClient)(nil)
-var _ PromptRenderer = (*typedInterfacesPromptRenderer)(nil)
+var _ ReviewRenderer = (*typedInterfacesPromptRenderer)(nil)
 var _ LogWriter = (*typedInterfacesLogWriter)(nil)

@@ -40,14 +40,18 @@ func TestPaths_FieldAccess(t *testing.T) {
 
 func TestDeps_FieldAccess(t *testing.T) {
 	deps := Deps{
-		AgentResolver:    &testAgentResolver{},
-		ClaudeClient:     &testClaudeClient{},
-		BeadClient:       &testBeadClient{},
-		BacklogClient:    &testBacklogClient{},
-		PromptRenderer:   &testPromptRenderer{},
-		LearningsManager: &testLearningsManager{},
-		StateManager:     &testStateManager{},
-		LogWriter:        &testLogWriter{},
+		AgentResolver:     &testAgentResolver{},
+		ClaudeClient:      &testClaudeClient{},
+		BeadClient:        &testBeadClient{},
+		BacklogClient:     &testBacklogClient{},
+		RefineRenderer:    &testPromptRenderer{},
+		PlanRenderer:      &testPromptRenderer{},
+		DecomposeRenderer: &testPromptRenderer{},
+		ReviewRenderer:    &testPromptRenderer{},
+		ExploreRenderer:   &testPromptRenderer{},
+		LearningsManager:  &testLearningsManager{},
+		StateManager:      &testStateManager{},
+		LogWriter:         &testLogWriter{},
 	}
 
 	if deps.AgentResolver == nil {
@@ -62,8 +66,20 @@ func TestDeps_FieldAccess(t *testing.T) {
 	if deps.BacklogClient == nil {
 		t.Error("BacklogClient field should be set")
 	}
-	if deps.PromptRenderer == nil {
-		t.Error("PromptRenderer field should be set")
+	if deps.RefineRenderer == nil {
+		t.Error("RefineRenderer field should be set")
+	}
+	if deps.PlanRenderer == nil {
+		t.Error("PlanRenderer field should be set")
+	}
+	if deps.DecomposeRenderer == nil {
+		t.Error("DecomposeRenderer field should be set")
+	}
+	if deps.ReviewRenderer == nil {
+		t.Error("ReviewRenderer field should be set")
+	}
+	if deps.ExploreRenderer == nil {
+		t.Error("ExploreRenderer field should be set")
 	}
 	if deps.LearningsManager == nil {
 		t.Error("LearningsManager field should be set")

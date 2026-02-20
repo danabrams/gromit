@@ -372,7 +372,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 
 	deps := &pipeline.Deps{
 		AgentResolver:  agentResolver,
-		PromptRenderer: promptRendererAdapter,
+		ReviewRenderer: promptRendererAdapter,
 	}
 
 	paths := &pipeline.Paths{
@@ -459,7 +459,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	}
 
 	deps := &pipeline.Deps{
-		PromptRenderer:   promptRendererAdapter,
+		ReviewRenderer:   promptRendererAdapter,
 		ClaudeClient:     claudeAdapter,
 		BeadClient:       beadAdapter,
 		BacklogClient:    backlogAdapter,
@@ -562,7 +562,7 @@ func (r *cliAgentResolver) Resolve(phase string, flagOverride string, choosePick
 	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
 }
 
-// cliPromptRenderer adapts prompt.Renderer to pipeline.PromptRenderer interface
+// cliPromptRenderer adapts prompt.Renderer to pipeline.ReviewRenderer interface
 // It loads ClaudeMD and Rules before rendering
 type cliPromptRenderer struct {
 	renderer *prompt.Renderer

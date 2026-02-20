@@ -26,29 +26,29 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 		{
 			name: "nil AgentResolver",
 			deps: &Deps{
-				AgentResolver:  nil,
-				PromptRenderer: &testPromptRenderer{},
-				BacklogClient:  &testBacklogClient{},
+				AgentResolver:   nil,
+				ExploreRenderer: &testPromptRenderer{},
+				BacklogClient:   &testBacklogClient{},
 			},
 			paths:   &Paths{},
 			wantErr: "nil AgentResolver",
 		},
 		{
-			name: "nil PromptRenderer",
+			name: "nil ExploreRenderer",
 			deps: &Deps{
-				AgentResolver:  &testAgentResolver{},
-				PromptRenderer: nil,
-				BacklogClient:  &testBacklogClient{},
+				AgentResolver:   &testAgentResolver{},
+				ExploreRenderer: nil,
+				BacklogClient:   &testBacklogClient{},
 			},
 			paths:   &Paths{},
-			wantErr: "nil PromptRenderer",
+			wantErr: "nil ExploreRenderer",
 		},
 		{
 			name: "nil BacklogClient",
 			deps: &Deps{
-				AgentResolver:  &testAgentResolver{},
-				PromptRenderer: &testPromptRenderer{},
-				BacklogClient:  nil,
+				AgentResolver:   &testAgentResolver{},
+				ExploreRenderer: &testPromptRenderer{},
+				BacklogClient:   nil,
 			},
 			paths:   &Paths{},
 			wantErr: "nil BacklogClient",
@@ -56,9 +56,9 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 		{
 			name: "AgentResolver checked before PromptRenderer when both nil",
 			deps: &Deps{
-				AgentResolver:  nil,
-				PromptRenderer: nil,
-				BacklogClient:  &testBacklogClient{},
+				AgentResolver:   nil,
+				ExploreRenderer: nil,
+				BacklogClient:   &testBacklogClient{},
 			},
 			paths:   &Paths{},
 			wantErr: "nil AgentResolver",
@@ -93,18 +93,18 @@ func TestPipeline_ExploreValidatesDeps(t *testing.T) {
 		{
 			name: "typed nil AgentResolver passes validation",
 			deps: &Deps{
-				AgentResolver:  (*testAgentResolver)(nil),
-				PromptRenderer: &testPromptRenderer{},
-				BacklogClient:  &testBacklogClient{},
+				AgentResolver:   (*testAgentResolver)(nil),
+				ExploreRenderer: &testPromptRenderer{},
+				BacklogClient:   &testBacklogClient{},
 			},
 			wantErr: "",
 		},
 		{
 			name: "all deps present passes validation",
 			deps: &Deps{
-				AgentResolver:  &testAgentResolver{},
-				PromptRenderer: &testPromptRenderer{},
-				BacklogClient:  &testBacklogClient{},
+				AgentResolver:   &testAgentResolver{},
+				ExploreRenderer: &testPromptRenderer{},
+				BacklogClient:   &testBacklogClient{},
 			},
 			wantErr: "",
 		},
@@ -192,9 +192,9 @@ func TestPipeline_ExploreRecordsExistingArtifacts(t *testing.T) {
 	}
 
 	deps := &Deps{
-		AgentResolver:  mockAgentResolver,
-		PromptRenderer: mockRenderer,
-		BacklogClient:  mockBacklog,
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: mockRenderer,
+		BacklogClient:   mockBacklog,
 	}
 
 	paths := &Paths{
@@ -255,9 +255,9 @@ func TestPipeline_ExploreBuildsPromptWithContext(t *testing.T) {
 	}
 
 	deps := &Deps{
-		AgentResolver:  mockAgentResolver,
-		PromptRenderer: mockRenderer,
-		BacklogClient:  &testBacklogClient{},
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: mockRenderer,
+		BacklogClient:   &testBacklogClient{},
 	}
 
 	paths := &Paths{
@@ -274,7 +274,7 @@ func TestPipeline_ExploreBuildsPromptWithContext(t *testing.T) {
 	}
 
 	if capturedContext == nil {
-		t.Fatal("Explore should pass context to PromptRenderer.RenderExplore")
+		t.Fatal("Explore should pass context to ExploreRenderer.RenderExplore")
 	}
 
 	// Verify the context includes the query (previously called Topic)
@@ -323,9 +323,9 @@ func TestPipeline_ExploreWritesTempFile(t *testing.T) {
 	}
 
 	deps := &Deps{
-		AgentResolver:  mockAgentResolver,
-		PromptRenderer: mockRenderer,
-		BacklogClient:  &testBacklogClient{},
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: mockRenderer,
+		BacklogClient:   &testBacklogClient{},
 	}
 
 	paths := &Paths{
@@ -372,9 +372,9 @@ func TestPipeline_ExploreResolvesAgent(t *testing.T) {
 	}
 
 	deps := &Deps{
-		AgentResolver:  mockAgentResolver,
-		PromptRenderer: &testPromptRenderer{},
-		BacklogClient:  &testBacklogClient{},
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: &testPromptRenderer{},
+		BacklogClient:   &testBacklogClient{},
 	}
 
 	paths := &Paths{
@@ -452,9 +452,9 @@ func TestPipeline_ExplorePostProcessingDetectsNewArtifacts(t *testing.T) {
 	}
 
 	deps := &Deps{
-		AgentResolver:  mockAgentResolver,
-		PromptRenderer: &testPromptRenderer{},
-		BacklogClient:  mockBacklog,
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: &testPromptRenderer{},
+		BacklogClient:   mockBacklog,
 	}
 
 	paths := &Paths{
@@ -505,9 +505,9 @@ func TestPipeline_ExploreReturnsExploreResult(t *testing.T) {
 	}
 
 	deps := &Deps{
-		AgentResolver:  mockAgentResolver,
-		PromptRenderer: &testPromptRenderer{},
-		BacklogClient:  &testBacklogClient{},
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: &testPromptRenderer{},
+		BacklogClient:   &testBacklogClient{},
 	}
 
 	paths := &Paths{
@@ -557,9 +557,9 @@ func TestPipeline_ExploreRespectsContext(t *testing.T) {
 	}
 
 	deps := &Deps{
-		AgentResolver:  mockAgentResolver,
-		PromptRenderer: &testPromptRenderer{},
-		BacklogClient:  &testBacklogClient{},
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: &testPromptRenderer{},
+		BacklogClient:   &testBacklogClient{},
 	}
 
 	paths := &Paths{

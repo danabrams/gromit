@@ -41,7 +41,7 @@ func TestReviewInteractiveWorkflow_BuildsContextAndReturnsSession(t *testing.T) 
 
 	deps := &Deps{
 		AgentResolver:  mockAgentResolver,
-		PromptRenderer: mockRenderer,
+		ReviewRenderer: mockRenderer,
 	}
 	paths := &Paths{
 		GromitDir: t.TempDir(),
@@ -67,7 +67,7 @@ func TestReviewInteractiveWorkflow_BuildsContextAndReturnsSession(t *testing.T) 
 	}
 
 	if !promptRendered {
-		t.Error("ReviewInteractive() did not render prompt via PromptRenderer")
+		t.Error("ReviewInteractive() did not render prompt via ReviewRenderer")
 	}
 }
 
@@ -181,7 +181,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 	}
 
 	deps := &Deps{
-		PromptRenderer:   mockRenderer,
+		ReviewRenderer:   mockRenderer,
 		ClaudeClient:     mockClaude,
 		BeadClient:       mockBead,
 		BacklogClient:    mockBacklog,
@@ -315,7 +315,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 	}
 
 	deps := &Deps{
-		PromptRenderer:   mockRenderer,
+		ReviewRenderer:   mockRenderer,
 		ClaudeClient:     mockClaude,
 		BeadClient:       mockBead,
 		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
@@ -402,7 +402,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 	}
 
 	deps := &Deps{
-		PromptRenderer:   mockRenderer,
+		ReviewRenderer:   mockRenderer,
 		ClaudeClient:     mockClaude,
 		BeadClient:       &reviewAcceptanceMockBeadClient{},
 		BacklogClient:    mockBacklog,
@@ -462,7 +462,7 @@ func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
 	}
 
 	deps := &Deps{
-		PromptRenderer:   mockRenderer,
+		ReviewRenderer:   mockRenderer,
 		ClaudeClient:     mockClaude,
 		BeadClient:       &reviewAcceptanceMockBeadClient{},
 		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
@@ -523,7 +523,7 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 	newValidDeps := func() *Deps {
 		return &Deps{
 			ClaudeClient:     &reviewAcceptanceMockClaudeClient{},
-			PromptRenderer:   &reviewAcceptanceMockPromptRenderer{},
+			ReviewRenderer:   &reviewAcceptanceMockPromptRenderer{},
 			BeadClient:       &reviewAcceptanceMockBeadClient{},
 			BacklogClient:    &reviewAcceptanceMockBacklogClient{},
 			LearningsManager: &reviewAcceptanceMockLearningsManager{},
@@ -543,9 +543,9 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 			wantErr: "pipeline: nil ClaudeClient",
 		},
 		{
-			name:    "nil PromptRenderer",
-			mutate:  func(d *Deps) { d.PromptRenderer = nil },
-			wantErr: "pipeline: nil PromptRenderer",
+			name:    "nil ReviewRenderer",
+			mutate:  func(d *Deps) { d.ReviewRenderer = nil },
+			wantErr: "pipeline: nil ReviewRenderer",
 		},
 		{
 			name:    "nil BeadClient",

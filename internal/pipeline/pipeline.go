@@ -73,14 +73,18 @@ type LogEntry struct {
 
 // Deps contains all dependencies for pipeline workflows.
 type Deps struct {
-	AgentResolver    AgentResolver
-	ClaudeClient     ClaudeClient
-	BeadClient       BeadClient
-	BacklogClient    BacklogClient
-	PromptRenderer   PromptRenderer
-	LearningsManager LearningsManager
-	StateManager     StateManager
-	LogWriter        LogWriter
+	AgentResolver     AgentResolver
+	ClaudeClient      ClaudeClient
+	BeadClient        BeadClient
+	BacklogClient     BacklogClient
+	RefineRenderer    RefineRenderer
+	PlanRenderer      PlanRenderer
+	DecomposeRenderer DecomposeRenderer
+	ReviewRenderer    ReviewRenderer
+	ExploreRenderer   ExploreRenderer
+	LearningsManager  LearningsManager
+	StateManager      StateManager
+	LogWriter         LogWriter
 }
 
 // Pipeline orchestrates workflow execution.
@@ -145,12 +149,28 @@ type Idea struct {
 // IdeaJSONKeys defines the expected snake_case JSON keys for Idea.
 var IdeaJSONKeys = []string{"id", "text", "type", "context", "status", "spec_name"}
 
-// PromptRenderer abstracts prompt rendering operations.
-type PromptRenderer interface {
+// RefineRenderer abstracts refine prompt rendering operations.
+type RefineRenderer interface {
 	RenderRefine(input *RefinePromptInput) (string, error)
+}
+
+// PlanRenderer abstracts plan prompt rendering operations.
+type PlanRenderer interface {
 	RenderPlan(input *PlanPromptInput) (string, error)
+}
+
+// DecomposeRenderer abstracts decompose prompt rendering operations.
+type DecomposeRenderer interface {
 	RenderDecompose(input *DecomposePromptInput) (string, error)
+}
+
+// ReviewRenderer abstracts review prompt rendering operations.
+type ReviewRenderer interface {
 	RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error)
+}
+
+// ExploreRenderer abstracts explore prompt rendering operations.
+type ExploreRenderer interface {
 	RenderExplore(input *ExplorePromptInput) (string, error)
 }
 
@@ -188,8 +208,8 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 	}
 
 	// Validate required dependencies
-	if p.deps.PromptRenderer == nil {
-		return nil, fmt.Errorf("pipeline: nil PromptRenderer")
+	if p.deps.ReviewRenderer == nil {
+		return nil, fmt.Errorf("pipeline: nil ReviewRenderer")
 	}
 
 	// Build ThoroughReviewContext
@@ -199,7 +219,7 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 	}
 
 	// Render prompt
-	renderedPrompt, err := p.deps.PromptRenderer.RenderThoroughReview(reviewCtx)
+	renderedPrompt, err := p.deps.ReviewRenderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
 		return nil, fmt.Errorf("rendering review prompt: %w", err)
 	}
@@ -244,7 +264,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 		FromCommit: input.FromCommit,
 		Diff:       input.Diff,
 	}
-	renderedPrompt, err := p.deps.PromptRenderer.RenderThoroughReview(reviewCtx)
+	renderedPrompt, err := p.deps.ReviewRenderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
 		return nil, fmt.Errorf("rendering review prompt: %w", err)
 	}
@@ -349,8 +369,8 @@ func (p *Pipeline) validateReviewDeps() error {
 	if p.deps.ClaudeClient == nil || isTypedNil(p.deps.ClaudeClient) {
 		return fmt.Errorf("pipeline: nil ClaudeClient")
 	}
-	if p.deps.PromptRenderer == nil || isTypedNil(p.deps.PromptRenderer) {
-		return fmt.Errorf("pipeline: nil PromptRenderer")
+	if p.deps.ReviewRenderer == nil || isTypedNil(p.deps.ReviewRenderer) {
+		return fmt.Errorf("pipeline: nil ReviewRenderer")
 	}
 	if p.deps.BeadClient == nil || isTypedNil(p.deps.BeadClient) {
 		return fmt.Errorf("pipeline: nil BeadClient")

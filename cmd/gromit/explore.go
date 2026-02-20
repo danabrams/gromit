@@ -156,9 +156,9 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 	backlogClient := &exploreBacklogClient{file: backlogFile}
 
 	deps := &pipeline.Deps{
-		AgentResolver:  agentResolver,
-		PromptRenderer: promptRenderer,
-		BacklogClient:  backlogClient,
+		AgentResolver:   agentResolver,
+		ExploreRenderer: promptRenderer,
+		BacklogClient:   backlogClient,
 	}
 
 	paths := &pipeline.Paths{
@@ -181,7 +181,7 @@ func (r *exploreAgentResolver) Resolve(phase string, flagOverride string, choose
 	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
 }
 
-// explorePromptRenderer adapts prompt.Renderer to pipeline.PromptRenderer
+// explorePromptRenderer adapts prompt.Renderer to pipeline.ExploreRenderer
 type explorePromptRenderer struct {
 	renderer *prompt.Renderer
 	// lastDiagnostics captures section-level prompt token estimates for explore prompts.

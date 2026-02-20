@@ -47,7 +47,7 @@ func TestPromptRendererAdapter_UsesTypedInputs(t *testing.T) {
 
 // TestPipelineInterfaces_AllTypedSignatures verifies pipeline.go interface definitions use typed signatures
 func TestPipelineInterfaces_AllTypedSignatures(t *testing.T) {
-	// Expected failure: pipeline.PromptRenderer interface still uses interface{} for RenderRefine, RenderPlan, RenderDecompose, RenderExplore
+	// Expected failure: pipeline renderer interfaces still use interface{} or are not split by workflow.
 	pipelinePath := filepath.Join("..", "..", "internal", "pipeline", "pipeline.go")
 	content, err := os.ReadFile(pipelinePath)
 	if err != nil {
@@ -56,15 +56,24 @@ func TestPipelineInterfaces_AllTypedSignatures(t *testing.T) {
 
 	contentStr := string(content)
 
-	// Extract PromptRenderer interface
-	promptRendererSection := extractBetweenMarkers(contentStr, "type PromptRenderer interface", "type LearningsManager interface")
-	if promptRendererSection == "" {
-		t.Fatal("Could not find PromptRenderer interface in pipeline.go")
+	rendererInterfaces := []struct {
+		name      string
+		signature string
+	}{
+		{name: "RefineRenderer", signature: "RenderRefine(input *RefinePromptInput) (string, error)"},
+		{name: "PlanRenderer", signature: "RenderPlan(input *PlanPromptInput) (string, error)"},
+		{name: "DecomposeRenderer", signature: "RenderDecompose(input *DecomposePromptInput) (string, error)"},
+		{name: "ReviewRenderer", signature: "RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error)"},
+		{name: "ExploreRenderer", signature: "RenderExplore(input *ExplorePromptInput) (string, error)"},
 	}
 
-	// Verify no interface{} in PromptRenderer
-	if strings.Contains(promptRendererSection, "interface{}") {
-		t.Error("PromptRenderer interface should use typed input structs, not interface{}")
+	for _, rendererInterface := range rendererInterfaces {
+		if !strings.Contains(contentStr, "type "+rendererInterface.name+" interface") {
+			t.Fatalf("Could not find %s interface in pipeline.go", rendererInterface.name)
+		}
+		if !strings.Contains(contentStr, rendererInterface.signature) {
+			t.Errorf("%s missing expected signature %q", rendererInterface.name, rendererInterface.signature)
+		}
 	}
 
 	// Verify ClaudeClient returns typed result
