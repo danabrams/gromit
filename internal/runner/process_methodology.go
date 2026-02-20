@@ -456,17 +456,9 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	}
 
 	minRefactorBudget := r.methodologyPolicy.MinRefactorBudget()
-	if guard := checkDeadlineGuard(ctx, minRefactorBudget); guard.Skip {
-		r.log("Skipping refactor phase: reason=%s (remaining %s, needed %s)", guard.SkipReason, guard.Remaining.Round(time.Second), guard.Needed)
+	if guard := shouldSkipRefactorForBudget(ctx, bc, minRefactorBudget); guard.Skip {
+		logBudgetSkip(r, "refactor phase", guard)
 		return false, nil
-	}
-
-	if remaining, _, ok := beadRemaining(bc); ok {
-		guard := checkRemainingGuard(remaining, minRefactorBudget)
-		if guard.Skip {
-			r.log("Skipping refactor phase: reason=%s (remaining %s, needed %s)", guard.SkipReason, remaining.Round(time.Second), minRefactorBudget)
-			return false, nil
-		}
 	}
 
 	refactorTimeoutSec := r.methodologyPolicy.PhaseTimeout("refactor", int(bc.BeadTimeout.Seconds()))
@@ -487,21 +479,17 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		// This block decides whether to skip re-validation due to insufficient
 		// bead budget. It sets skipRevalidation=true and has no other effect.
 		// It does NOT affect how validation errors are handled below.
-		skipRevalidation := false
 		minRevalidationBudget := r.methodologyPolicy.MinRevalidationBudget()
-		if remaining, _, ok := beadRemaining(bc); ok {
-			guard := checkRemainingGuard(remaining, minRevalidationBudget)
-			if guard.Skip {
-				r.log("Skipping post-refactor re-validation: reason=%s (remaining %s, needed %s)", guard.SkipReason, remaining.Round(time.Second), minRevalidationBudget)
-				skipRevalidation = true
-			}
+		skipRevalidation := shouldSkipRevalidationForBudget(bc, minRevalidationBudget)
+		if skipRevalidation.Skip {
+			logBudgetSkip(r, "post-refactor re-validation", skipRevalidation)
 		}
 
 		// --- Validation and error propagation ---
 		// When the guard allows re-validation to proceed, any validation error
 		// is always wrapped and returned as a terminal failure. The deadline
 		// guard above cannot suppress real validation failures.
-		if !skipRevalidation {
+		if !skipRevalidation.Skip {
 			r.refreshTouchedPackagesFromStartCommit(bc)
 
 			valTimeoutSec := r.cfg.Validation.ResolvePhaseTimeoutSeconds(int(bc.BeadTimeout.Seconds()))
@@ -555,4 +543,44 @@ func (r *Runner) refreshTouchedPackagesFromStartCommit(bc *runtypes.BeadContext)
 		return
 	}
 	bc.TouchedPackages = methodology.DetectTouchedPackages(diff)
+}
+
+func logBudgetSkip(r *Runner, phase string, guard deadlineGuard) {
+	if r == nil {
+		return
+	}
+	r.log("Skipping %s: reason=%s (remaining %s, needed %s)", phase, guard.SkipReason, guard.Remaining.Round(time.Second), guard.Needed)
+}
+
+func shouldSkipRefactorForBudget(ctx context.Context, bc *runtypes.BeadContext, minBudget time.Duration) deadlineGuard {
+	if guard := checkDeadlineGuard(ctx, minBudget); guard.Skip {
+		return guard
+	}
+	if remaining, _, ok := beadRemaining(bc); ok {
+		guard := checkRemainingGuard(remaining, minBudget)
+		if guard.Skip {
+			return deadlineGuard{
+				Skip:       true,
+				SkipReason: guard.SkipReason,
+				Remaining:  remaining,
+				Needed:     minBudget,
+			}
+		}
+	}
+	return deadlineGuard{}
+}
+
+func shouldSkipRevalidationForBudget(bc *runtypes.BeadContext, minBudget time.Duration) deadlineGuard {
+	if remaining, _, ok := beadRemaining(bc); ok {
+		guard := checkRemainingGuard(remaining, minBudget)
+		if guard.Skip {
+			return deadlineGuard{
+				Skip:       true,
+				SkipReason: guard.SkipReason,
+				Remaining:  remaining,
+				Needed:     minBudget,
+			}
+		}
+	}
+	return deadlineGuard{}
 }
