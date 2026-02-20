@@ -26,6 +26,16 @@ func TestDebugCommandHasChooseAgentFlag(t *testing.T) {
 	}
 }
 
+func TestDebugCommandHasRestoreFlag(t *testing.T) {
+	flag := debugCmd.Flags().Lookup("restore")
+	if flag == nil {
+		t.Fatal("debug command missing --restore flag")
+	}
+	if flag.Value.Type() != "bool" {
+		t.Fatalf("--restore flag type = %q, want %q", flag.Value.Type(), "bool")
+	}
+}
+
 func TestDebugUsesAgentLaunchNotDirectExec(t *testing.T) {
 	debugSource, err := os.ReadFile("debug.go")
 	if err != nil {
@@ -42,8 +52,8 @@ func TestDebugUsesAgentLaunchNotDirectExec(t *testing.T) {
 		t.Error("debug.go does not call agent.Resolve - agent selection not integrated")
 	}
 
-	if !strings.Contains(sourceStr, ".Launch(") {
-		t.Error("debug.go does not call .Launch() - agent launch not integrated")
+	if !strings.Contains(sourceStr, ".LaunchInDir(") {
+		t.Error("debug.go does not call .LaunchInDir() - agent launch not integrated")
 	}
 
 	if strings.Contains(sourceStr, "exec.Command(claudeBinary") {

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -867,5 +870,156 @@ func TestResolveRunbookEntryReturnsNilWhenNoEntries(t *testing.T) {
 	}
 	if entry != nil {
 		t.Errorf("expected nil entry when no runbook entries, got %v", entry.BeadID)
+	}
+}
+
+func TestMaybeCreateDebugRestoreWorktreeCreatesAtFailureCommit(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("creating gromit dir: %v", err)
+	}
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("creating main dir: %v", err)
+	}
+
+	entry := &runbook.Entry{
+		ID:            "rb-123-gromit-abc",
+		FailureCommit: "deadbeef",
+	}
+
+	var gotDir string
+	var gotArgs []string
+	worktreeDir := maybeCreateDebugRestoreWorktree(true, gromitDir, mainDir, entry, func(dir string, args ...string) (string, error) {
+		gotDir = dir
+		gotArgs = append([]string{}, args...)
+		return "", nil
+	}, &bytes.Buffer{})
+
+	expectedDir := filepath.Join(gromitDir, "worktrees", "debug-rb-123-gromit-abc")
+	if worktreeDir != expectedDir {
+		t.Fatalf("maybeCreateDebugRestoreWorktree() = %q, want %q", worktreeDir, expectedDir)
+	}
+	if gotDir != mainDir {
+		t.Fatalf("git dir = %q, want %q", gotDir, mainDir)
+	}
+
+	expectedArgs := []string{"worktree", "add", "--detach", expectedDir, "deadbeef"}
+	if strings.Join(gotArgs, " ") != strings.Join(expectedArgs, " ") {
+		t.Fatalf("git args = %q, want %q", strings.Join(gotArgs, " "), strings.Join(expectedArgs, " "))
+	}
+}
+
+func TestMaybeCreateDebugRestoreWorktreeFallsBackWithoutFailureCommit(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("creating gromit dir: %v", err)
+	}
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("creating main dir: %v", err)
+	}
+
+	entry := &runbook.Entry{ID: "rb-456-gromit-def"}
+	var warnings bytes.Buffer
+	gitCalled := false
+
+	worktreeDir := maybeCreateDebugRestoreWorktree(true, gromitDir, mainDir, entry, func(dir string, args ...string) (string, error) {
+		gitCalled = true
+		return "", nil
+	}, &warnings)
+
+	if worktreeDir != "" {
+		t.Fatalf("expected empty worktree dir, got %q", worktreeDir)
+	}
+	if gitCalled {
+		t.Fatal("expected git worktree add not to be called when failure commit is missing")
+	}
+	if !strings.Contains(warnings.String(), "failure_commit") {
+		t.Fatalf("expected warning to mention missing failure_commit, got %q", warnings.String())
+	}
+}
+
+func TestMaybeCreateDebugRestoreWorktreeFallsBackOnGitFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("creating gromit dir: %v", err)
+	}
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("creating main dir: %v", err)
+	}
+
+	entry := &runbook.Entry{
+		ID:            "rb-789-gromit-ghi",
+		FailureCommit: "cafebabe",
+	}
+	var warnings bytes.Buffer
+
+	worktreeDir := maybeCreateDebugRestoreWorktree(true, gromitDir, mainDir, entry, func(dir string, args ...string) (string, error) {
+		return "", errors.New("bad revision")
+	}, &warnings)
+
+	if worktreeDir != "" {
+		t.Fatalf("expected empty worktree dir on git failure, got %q", worktreeDir)
+	}
+	if !strings.Contains(warnings.String(), "using context-only mode") {
+		t.Fatalf("expected fallback warning, got %q", warnings.String())
+	}
+}
+
+func TestMaybeCleanupDebugRestoreWorktreeRemovesWhenDeclined(t *testing.T) {
+	originalConfirm := debugConfirmPromptFn
+	defer func() {
+		debugConfirmPromptFn = originalConfirm
+	}()
+
+	promptCalled := false
+	debugConfirmPromptFn = func(reader *bufio.Reader, prompt string, defaultYes bool) bool {
+		promptCalled = true
+		if prompt != "Keep worktree?" {
+			t.Fatalf("prompt = %q, want %q", prompt, "Keep worktree?")
+		}
+		if defaultYes {
+			t.Fatal("defaultYes should be false for keep-worktree prompt")
+		}
+		return false
+	}
+
+	var gitArgs []string
+	maybeCleanupDebugRestoreWorktree("/tmp/worktree", "/tmp/repo", strings.NewReader("\n"), func(dir string, args ...string) (string, error) {
+		gitArgs = append([]string{}, args...)
+		return "", nil
+	}, &bytes.Buffer{})
+
+	if !promptCalled {
+		t.Fatal("expected keep-worktree prompt to be shown")
+	}
+	expected := []string{"worktree", "remove", "/tmp/worktree"}
+	if strings.Join(gitArgs, " ") != strings.Join(expected, " ") {
+		t.Fatalf("git args = %q, want %q", strings.Join(gitArgs, " "), strings.Join(expected, " "))
+	}
+}
+
+func TestMaybeCleanupDebugRestoreWorktreeKeepsWhenAccepted(t *testing.T) {
+	originalConfirm := debugConfirmPromptFn
+	defer func() {
+		debugConfirmPromptFn = originalConfirm
+	}()
+	debugConfirmPromptFn = func(reader *bufio.Reader, prompt string, defaultYes bool) bool {
+		return true
+	}
+
+	gitCalled := false
+	maybeCleanupDebugRestoreWorktree("/tmp/worktree", "/tmp/repo", strings.NewReader("\n"), func(dir string, args ...string) (string, error) {
+		gitCalled = true
+		return "", nil
+	}, &bytes.Buffer{})
+
+	if gitCalled {
+		t.Fatal("expected git worktree remove not to be called when user keeps worktree")
 	}
 }

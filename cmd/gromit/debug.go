@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -46,13 +47,20 @@ const (
 	debugModelFlag       = "model"
 	debugAgentFlag       = "agent"
 	debugChooseAgentFlag = "choose-agent"
+	debugRestoreFlag     = "restore"
 	claudeAgentName      = "claude"
 )
+
+type debugGitRunFn func(dir string, args ...string) (string, error)
+
+var debugGitRun debugGitRunFn = runDebugGit
+var debugConfirmPromptFn = confirmPrompt
 
 func init() {
 	debugCmd.Flags().StringVar(&debugModel, debugModelFlag, "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
 	debugCmd.Flags().String(debugAgentFlag, "", "Override the default agent for this debug session")
 	debugCmd.Flags().Bool(debugChooseAgentFlag, false, "Show interactive picker to choose agent")
+	debugCmd.Flags().Bool(debugRestoreFlag, false, "Restore selected runbook failure commit in a temporary worktree")
 	rootCmd.AddCommand(debugCmd)
 }
 
@@ -106,6 +114,15 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("selecting runbook entry: %w", err)
 	}
 
+	mainDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("determining working directory: %w", err)
+	}
+
+	restoreEnabled, _ := cmd.Flags().GetBool(debugRestoreFlag)
+	restoreWorktreeDir := maybeCreateDebugRestoreWorktree(restoreEnabled, gromitDir, mainDir, selectedEntry, debugGitRun, os.Stderr)
+	launchDir := restoreWorktreeDir
+
 	// Build system prompt with full project context
 	systemPrompt, err := buildDebugPrompt(cfg, gromitDir, args, selectedEntry)
 	if err != nil {
@@ -151,9 +168,11 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		selectedAgent = agent.New(claudeAgentName, binary, flags, agent.FileRef, "", nil)
 	}
 
-	if err := selectedAgent.Launch(promptPath); err != nil {
+	if err := selectedAgent.LaunchInDir(promptPath, launchDir); err != nil {
 		return fmt.Errorf("launching agent: %w", err)
 	}
+
+	maybeCleanupDebugRestoreWorktree(restoreWorktreeDir, mainDir, os.Stdin, debugGitRun, os.Stderr)
 
 	// Post-session artifact detection
 	return detectAndReportArtifacts(reportsDir, plansDir, existingReports, existingPlans, existingBacklogItems, bf, cfg)
@@ -170,6 +189,68 @@ func shouldOverrideDebugModel(cmd *cobra.Command, selectedAgent agent.Agent) boo
 	}
 
 	return cmd.Flags().Changed(debugModelFlag)
+}
+
+func runDebugGit(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
+func maybeCreateDebugRestoreWorktree(enabled bool, gromitDir, mainDir string, entry *runbook.Entry, gitRun debugGitRunFn, stderr io.Writer) string {
+	if !enabled || entry == nil {
+		return ""
+	}
+
+	failureCommit := strings.TrimSpace(entry.FailureCommit)
+	if failureCommit == "" {
+		fmt.Fprintf(stderr, "Warning: selected runbook entry %q has no failure_commit; using context-only mode\n", entry.ID)
+		return ""
+	}
+
+	worktreesDir := filepath.Join(gromitDir, "worktrees")
+	if err := os.MkdirAll(worktreesDir, 0o755); err != nil {
+		fmt.Fprintf(stderr, "Warning: failed to create debug worktrees dir: %v; using context-only mode\n", err)
+		return ""
+	}
+
+	worktreeDir := filepath.Join(worktreesDir, "debug-"+sanitizeRunbookIDForPath(entry.ID))
+	if _, err := gitRun(mainDir, "worktree", "add", "--detach", worktreeDir, failureCommit); err != nil {
+		fmt.Fprintf(stderr, "Warning: failed to restore failure commit %s in worktree: %v; using context-only mode\n", failureCommit, err)
+		return ""
+	}
+
+	return worktreeDir
+}
+
+func maybeCleanupDebugRestoreWorktree(worktreeDir, mainDir string, input io.Reader, gitRun debugGitRunFn, stderr io.Writer) {
+	if strings.TrimSpace(worktreeDir) == "" {
+		return
+	}
+
+	reader := input
+	if reader == nil {
+		reader = os.Stdin
+	}
+
+	if debugConfirmPromptFn(bufio.NewReader(reader), "Keep worktree?", false) {
+		return
+	}
+
+	if _, err := gitRun(mainDir, "worktree", "remove", worktreeDir); err != nil {
+		fmt.Fprintf(stderr, "Warning: failed to remove debug worktree %s: %v\n", worktreeDir, err)
+	}
+}
+
+func sanitizeRunbookIDForPath(runbookID string) string {
+	sanitized := strings.TrimSpace(runbookID)
+	if sanitized == "" {
+		return "unknown"
+	}
+
+	replacer := strings.NewReplacer("/", "-", "\\", "-", " ", "-")
+	return replacer.Replace(sanitized)
 }
 
 // buildDebugPrompt constructs the system prompt for the debug session.
