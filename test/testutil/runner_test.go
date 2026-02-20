@@ -13,6 +13,8 @@ import (
 )
 
 func TestRunGromitWithStdin(t *testing.T) {
+	t.Parallel()
+
 	// Create a temporary test binary that echoes stdin
 	tmpDir := t.TempDir()
 	testBinary := filepath.Join(tmpDir, "test-echo")
@@ -106,7 +108,10 @@ exit ${1:-0}
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			stdout, stderr, exitCode, err := RunGromitWithStdin(tt.binary, tt.dir, tt.environ, tt.stdin, tt.args...)
 
 			if (err != nil) != tt.wantErr {
@@ -132,6 +137,8 @@ exit ${1:-0}
 }
 
 func TestRunGromitWithStdin_EmptyDirNotSet(t *testing.T) {
+	t.Parallel()
+
 	// This test verifies that when dir is empty, cmd.Dir is not set
 	// We can't directly observe cmd.Dir after execution, but we can verify
 	// the command runs in the current directory by checking the working directory
@@ -171,6 +178,8 @@ pwd
 }
 
 func TestRunGromitWithStdin_DirIsSet(t *testing.T) {
+	t.Parallel()
+
 	// This test verifies that when dir is non-empty, cmd.Dir is set correctly
 
 	tmpDir := t.TempDir()
@@ -202,6 +211,8 @@ pwd
 }
 
 func TestRunGromitHelperProcessWithStdin(t *testing.T) {
+	t.Parallel()
+
 	tmpDir := t.TempDir()
 	testBinary := filepath.Join(tmpDir, "helper-script")
 
@@ -238,6 +249,8 @@ cat
 }
 
 func TestRunGromitHelperProcessWithStdin_Timeout(t *testing.T) {
+	t.Parallel()
+
 	tmpDir := t.TempDir()
 	testBinary := filepath.Join(tmpDir, "sleep-script")
 

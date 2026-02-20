@@ -3,6 +3,8 @@ package testutil
 import "testing"
 
 func TestPickerStdin_Refine(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		target    string
@@ -59,7 +61,10 @@ func TestPickerStdin_Refine(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			defer func() {
 				r := recover()
 				if tt.wantPanic && r == nil {
@@ -78,6 +83,8 @@ func TestPickerStdin_Refine(t *testing.T) {
 }
 
 func TestPickerStdin_Plan(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		target    string
@@ -122,7 +129,10 @@ func TestPickerStdin_Plan(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			defer func() {
 				r := recover()
 				if tt.wantPanic && r == nil {
@@ -141,6 +151,8 @@ func TestPickerStdin_Plan(t *testing.T) {
 }
 
 func TestPickerStdin_Decompose(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		target    string
@@ -202,7 +214,10 @@ func TestPickerStdin_Decompose(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			defer func() {
 				r := recover()
 				if tt.wantPanic && r == nil {
@@ -221,6 +236,8 @@ func TestPickerStdin_Decompose(t *testing.T) {
 }
 
 func TestPickerStdin_UnknownPickerType(t *testing.T) {
+	t.Parallel()
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("expected panic for unknown picker type but got none")
