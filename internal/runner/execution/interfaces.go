@@ -12,6 +12,7 @@ import (
 type Router interface {
 	Select(phase, tier string) (Provider, string)
 	MarkUnavailable(name string)
+	RecordOutcome(providerName, failureCategory string)
 }
 
 // Provider executes a single LLM invocation with streaming.

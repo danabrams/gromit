@@ -159,6 +159,12 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}
 	}
 
+	failureCategory := ""
+	if providerResult != nil {
+		failureCategory = providerResult.FailureCategory
+	}
+	inv.router.RecordOutcome(p.Name(), failureCategory)
+
 	// Prefer stream-event cost/token data, but fall back to provider-level usage
 	// (e.g., when the provider exposes usage only in terminal turn metadata).
 	if stats != nil && providerResult != nil {

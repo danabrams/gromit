@@ -79,6 +79,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		if invResult.ProviderResult != nil {
 			bc.Result.FailureCategory = invResult.ProviderResult.FailureCategory
 		}
+		r.router.RecordOutcome(bc.Result.Provider, bc.Result.FailureCategory)
 
 		// Populate cost/token data
 		if invResult.Stats != nil {
@@ -299,6 +300,11 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			if stats != nil && result != nil {
 				stats.MergeCostData(result.CostUSD, result.InputTokens, result.OutputTokens)
 			}
+			failureCategory := ""
+			if result != nil {
+				failureCategory = result.FailureCategory
+			}
+			r.router.RecordOutcome(p.Name(), failureCategory)
 			if err != nil {
 				r.log(
 					"ATDD stream error after %s (%s provider=%s model=%s tier=%s events=%d): %v",

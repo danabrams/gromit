@@ -28,6 +28,10 @@ func (a *routerAdapter) MarkUnavailable(name string) {
 	a.r.MarkUnavailable(name)
 }
 
+func (a *routerAdapter) RecordOutcome(providerName, failureCategory string) {
+	a.r.RecordOutcome(providerName, failureCategory)
+}
+
 // makeStallTimeoutFn creates a StallTimeoutFunc that looks up per-model stall
 // timeouts from the config. Used to configure the invoker's heartbeat.
 func makeStallTimeoutFn(cfg *config.Config) execution.StallTimeoutFunc {

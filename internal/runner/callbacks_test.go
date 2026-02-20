@@ -169,6 +169,118 @@ func TestMakeInvokeFn_ReconcilesPromptDiagnosticsAfterRetryRender(t *testing.T) 
 	assertPromptDiagnosticsReconciled(t, bc.Result.PromptDiagnostics, 10, 2)
 }
 
+func TestMakeInvokeFn_RecordsOutcomeWithProviderAndFailureCategory(t *testing.T) {
+	cb := &provider.CircuitBreaker{}
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "test-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:         false,
+				Model:           "model-a",
+				FailureCategory: provider.FailureCategoryTransportDisconnect,
+			}, nil
+		},
+	}
+	mockRouter := provider.NewRouter(
+		map[string]provider.Provider{"test-provider": mockProvider},
+		map[string]string{"build": "test-provider"},
+		map[string]int{"test-provider": 100},
+		0,
+		nil,
+		cb,
+	)
+	r := &Runner{
+		cfg:     &config.Config{},
+		router:  mockRouter,
+		invoker: newInvokerForTest(mockRouter, io.Discard, nil),
+		output:  io.Discard,
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-record"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+		ParentCtx: context.Background(),
+	}
+
+	invResult, err := r.makeInvokeFn()(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("makeInvokeFn returned error: %v", err)
+	}
+	if invResult == nil || invResult.ProviderResult == nil {
+		t.Fatal("expected provider result from invocation")
+	}
+	if !cb.IsDegraded("test-provider") {
+		t.Fatal("expected circuit breaker to degrade after transport_disconnect outcome")
+	}
+}
+
+func TestMakeMethodologyExec_ATDDRecordsSuccessOutcomeWithEmptyFailureCategory(t *testing.T) {
+	cb := &provider.CircuitBreaker{}
+	invocations := 0
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "test-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			invocations++
+			if invocations == 1 {
+				return &provider.Result{
+					Success:         false,
+					FailureCategory: provider.FailureCategoryTransportDisconnect,
+					Output:          "transport failed",
+				}, nil
+			}
+			return &provider.Result{
+				Success: true,
+				Output:  "ok",
+			}, nil
+		},
+	}
+	mockRouter := provider.NewRouter(
+		map[string]provider.Provider{"test-provider": mockProvider},
+		map[string]string{"build": "test-provider"},
+		map[string]int{"test-provider": 100},
+		0,
+		nil,
+		cb,
+	)
+	r := &Runner{
+		router: mockRouter,
+		output: io.Discard,
+		renderer: &mockPromptRenderer{
+			RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+				return "acceptance prompt", nil
+			},
+		},
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-atdd-record"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+	}
+
+	methExec := r.makeMethodologyExec()
+	if methExec == nil {
+		t.Fatal("expected makeMethodologyExec to return executor")
+	}
+
+	if err := methExec.RunAcceptanceTests(context.Background(), bc); err == nil {
+		t.Fatal("expected first acceptance run to fail")
+	}
+	if !cb.IsDegraded("test-provider") {
+		t.Fatal("expected circuit breaker to degrade after ATDD transport_disconnect")
+	}
+
+	for i := 0; i < 5; i++ {
+		if err := methExec.RunAcceptanceTests(context.Background(), bc); err != nil {
+			t.Fatalf("expected acceptance run %d to succeed: %v", i+2, err)
+		}
+	}
+	if cb.IsDegraded("test-provider") {
+		t.Fatal("expected five successful ATDD outcomes with empty failure category to recover degraded provider")
+	}
+}
+
 func TestMakeMethodologyExec_WiresCoverageValidationCallbackAtLowTier(t *testing.T) {
 	var gotTier string
 	mockProvider := &mockProviderWithRouterTracking{

@@ -21,7 +21,14 @@ import (
 type mockRouter struct {
 	selectFn          func(phase, tier string) (Provider, string)
 	markUnavailableFn func(name string)
+	recordOutcomeFn   func(providerName, failureCategory string)
 	markCalls         []string
+	recordCalls       []recordCall
+}
+
+type recordCall struct {
+	providerName    string
+	failureCategory string
 }
 
 func (m *mockRouter) Select(phase, tier string) (Provider, string) {
@@ -35,6 +42,16 @@ func (m *mockRouter) MarkUnavailable(name string) {
 	m.markCalls = append(m.markCalls, name)
 	if m.markUnavailableFn != nil {
 		m.markUnavailableFn(name)
+	}
+}
+
+func (m *mockRouter) RecordOutcome(providerName, failureCategory string) {
+	m.recordCalls = append(m.recordCalls, recordCall{
+		providerName:    providerName,
+		failureCategory: failureCategory,
+	})
+	if m.recordOutcomeFn != nil {
+		m.recordOutcomeFn(providerName, failureCategory)
 	}
 }
 
@@ -288,6 +305,15 @@ func TestInvokerExecute_UsageLimitTriggersProviderFallback(t *testing.T) {
 	}
 	if result.ModelName != "fallback-model" {
 		t.Errorf("ModelName = %q, want %q after fallback", result.ModelName, "fallback-model")
+	}
+	if len(mr.recordCalls) != 1 {
+		t.Fatalf("RecordOutcome call count = %d, want 1", len(mr.recordCalls))
+	}
+	if mr.recordCalls[0].providerName != "provider-b" {
+		t.Fatalf("RecordOutcome provider = %q, want %q", mr.recordCalls[0].providerName, "provider-b")
+	}
+	if mr.recordCalls[0].failureCategory != "" {
+		t.Fatalf("RecordOutcome failure category = %q, want empty", mr.recordCalls[0].failureCategory)
 	}
 }
 
@@ -748,6 +774,40 @@ func TestInvokerExecute_ExposesProviderResult(t *testing.T) {
 	}
 	if result.ProviderResult != expected {
 		t.Fatalf("InvocationResult.ProviderResult = %+v, want %+v", result.ProviderResult, expected)
+	}
+}
+
+func TestInvokerExecute_RecordsFailureCategoryWithRouter(t *testing.T) {
+	mp := &mockProvider{
+		name: "provider-z",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:         false,
+				FailureCategory: provider.FailureCategoryTransportDisconnect,
+			}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-z"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+
+	_, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mr.recordCalls) != 1 {
+		t.Fatalf("RecordOutcome call count = %d, want 1", len(mr.recordCalls))
+	}
+	if mr.recordCalls[0].providerName != "provider-z" {
+		t.Fatalf("RecordOutcome provider = %q, want %q", mr.recordCalls[0].providerName, "provider-z")
+	}
+	if mr.recordCalls[0].failureCategory != provider.FailureCategoryTransportDisconnect {
+		t.Fatalf("RecordOutcome failure category = %q, want %q", mr.recordCalls[0].failureCategory, provider.FailureCategoryTransportDisconnect)
 	}
 }
 

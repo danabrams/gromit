@@ -67,6 +67,9 @@ func (r *stubValidationRouter) Select(phase, tier string) (execution.Provider, s
 
 func (r *stubValidationRouter) MarkUnavailable(name string) {}
 
+func (r *stubValidationRouter) RecordOutcome(providerName, failureCategory string) {
+}
+
 type stubFailureAnalyzer struct{}
 
 func (a *stubFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
