@@ -12,6 +12,10 @@ const (
 	recordTypeField = "type"
 	tddPhaseType    = "tdd_phase"
 	tddSummaryType  = "tdd_summary"
+	runLogPattern   = "run-*.jsonl"
+
+	unknownEscalationFrom = "(unknown)"
+	escalationArrow       = "->"
 )
 
 // TDDStats captures aggregate TDD performance metrics from run JSONL logs.
@@ -29,9 +33,9 @@ type TDDStats struct {
 
 // ReadTDDPhaseRecords reads all run JSONL files and returns only tdd_phase records.
 func ReadTDDPhaseRecords(logsDir string) ([]TDDPhaseRecord, error) {
-	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	files, err := listRunLogFiles(logsDir)
 	if err != nil {
-		return nil, fmt.Errorf("globbing log files: %w", err)
+		return nil, err
 	}
 
 	records := []TDDPhaseRecord{}
@@ -48,9 +52,9 @@ func ReadTDDPhaseRecords(logsDir string) ([]TDDPhaseRecord, error) {
 
 // ReadTDDSummaries reads all run JSONL files and returns only tdd_summary records.
 func ReadTDDSummaries(logsDir string) ([]TDDSummaryRecord, error) {
-	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	files, err := listRunLogFiles(logsDir)
 	if err != nil {
-		return nil, fmt.Errorf("globbing log files: %w", err)
+		return nil, err
 	}
 
 	records := []TDDSummaryRecord{}
@@ -138,50 +142,31 @@ func AggregateTDDStats(logsDir string) (TDDStats, error) {
 }
 
 func readTDDPhaseFile(path string) ([]TDDPhaseRecord, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	dec := json.NewDecoder(bytes.NewReader(data))
-	records := []TDDPhaseRecord{}
-	for dec.More() {
-		var raw json.RawMessage
-		if err := dec.Decode(&raw); err != nil {
-			break
-		}
-		if !hasRecordType(raw, tddPhaseType) {
-			continue
-		}
-
-		var rec TDDPhaseRecord
-		if err := json.Unmarshal(raw, &rec); err != nil {
-			continue
-		}
-		records = append(records, rec)
-	}
-
-	return records, nil
+	return readTypedRecords[TDDPhaseRecord](path, tddPhaseType)
 }
 
 func readTDDSummaryFile(path string) ([]TDDSummaryRecord, error) {
+	return readTypedRecords[TDDSummaryRecord](path, tddSummaryType)
+}
+
+func readTypedRecords[T any](path string, targetType string) ([]T, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(data))
-	records := []TDDSummaryRecord{}
+	records := []T{}
 	for dec.More() {
 		var raw json.RawMessage
 		if err := dec.Decode(&raw); err != nil {
 			break
 		}
-		if !hasRecordType(raw, tddSummaryType) {
+		if !hasRecordType(raw, targetType) {
 			continue
 		}
 
-		var rec TDDSummaryRecord
+		var rec T
 		if err := json.Unmarshal(raw, &rec); err != nil {
 			continue
 		}
@@ -212,9 +197,9 @@ func hasRecordType(raw json.RawMessage, recordType string) bool {
 func escalationPattern(phase TDDPhaseRecord) string {
 	from := phase.EscalatedFrom
 	if from == "" {
-		from = "(unknown)"
+		from = unknownEscalationFrom
 	}
-	return from + "->" + phase.Model
+	return from + escalationArrow + phase.Model
 }
 
 func readIterationCostForBeads(logsDir string, beadFilter map[string]bool) (float64, error) {
@@ -222,9 +207,9 @@ func readIterationCostForBeads(logsDir string, beadFilter map[string]bool) (floa
 		return 0, nil
 	}
 
-	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	files, err := listRunLogFiles(logsDir)
 	if err != nil {
-		return 0, fmt.Errorf("globbing log files: %w", err)
+		return 0, err
 	}
 
 	var totalCost float64
@@ -241,4 +226,12 @@ func readIterationCostForBeads(logsDir string, beadFilter map[string]bool) (floa
 	}
 
 	return totalCost, nil
+}
+
+func listRunLogFiles(logsDir string) ([]string, error) {
+	files, err := filepath.Glob(filepath.Join(logsDir, runLogPattern))
+	if err != nil {
+		return nil, fmt.Errorf("globbing log files: %w", err)
+	}
+	return files, nil
 }
