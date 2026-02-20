@@ -63,6 +63,13 @@ var (
 	stateCommitArgv             = []string{"commit", "-m", stateCommitMessage}
 )
 
+type generatedArtifactCommitSpec struct {
+	name       string
+	statusArgv []string
+	addArgv    []string
+	commitArgv []string
+}
+
 // checkRetroSuggestion checks if a retro should be suggested and prints a message
 func (r *Runner) checkRetroSuggestion() {
 	if r.cfg == nil {
@@ -290,37 +297,12 @@ func (r *Runner) commitGeneratedMetrics() error {
 		return nil
 	}
 
-	stdout, stderr, exitCode, err := r.runArgv(context.Background(), "git", metricsStatusArgv, "")
-	if err != nil {
-		return fmt.Errorf("checking generated metrics changes: %w", err)
-	}
-	if exitCode != 0 {
-		return fmt.Errorf("checking generated metrics changes (exit %d): %s", exitCode, stderr)
-	}
-	if strings.TrimSpace(stdout) == "" {
-		return nil
-	}
-
-	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", metricsAddArgv, "")
-	if err != nil {
-		return fmt.Errorf("staging generated metrics: %w", err)
-	}
-	if exitCode != 0 {
-		return fmt.Errorf("staging generated metrics (exit %d): %s", exitCode, stderr)
-	}
-
-	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", metricsCommitArgv, "")
-	if err != nil {
-		return fmt.Errorf("committing generated metrics: %w", err)
-	}
-	if exitCode != 0 {
-		if strings.Contains(strings.ToLower(stderr), "nothing to commit") {
-			return nil
-		}
-		return fmt.Errorf("committing generated metrics (exit %d): %s", exitCode, stderr)
-	}
-
-	return nil
+	return r.commitGeneratedArtifact(generatedArtifactCommitSpec{
+		name:       "generated metrics",
+		statusArgv: metricsStatusArgv,
+		addArgv:    metricsAddArgv,
+		commitArgv: metricsCommitArgv,
+	})
 }
 
 func (r *Runner) commitGeneratedState() error {
@@ -328,34 +310,43 @@ func (r *Runner) commitGeneratedState() error {
 		return nil
 	}
 
-	stdout, stderr, exitCode, err := r.runArgv(context.Background(), "git", stateStatusArgv, "")
+	return r.commitGeneratedArtifact(generatedArtifactCommitSpec{
+		name:       "generated state",
+		statusArgv: stateStatusArgv,
+		addArgv:    stateAddArgv,
+		commitArgv: stateCommitArgv,
+	})
+}
+
+func (r *Runner) commitGeneratedArtifact(spec generatedArtifactCommitSpec) error {
+	stdout, stderr, exitCode, err := r.runArgv(context.Background(), "git", spec.statusArgv, "")
 	if err != nil {
-		return fmt.Errorf("checking generated state changes: %w", err)
+		return fmt.Errorf("checking %s changes: %w", spec.name, err)
 	}
 	if exitCode != 0 {
-		return fmt.Errorf("checking generated state changes (exit %d): %s", exitCode, stderr)
+		return fmt.Errorf("checking %s changes (exit %d): %s", spec.name, exitCode, stderr)
 	}
 	if strings.TrimSpace(stdout) == "" {
 		return nil
 	}
 
-	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", stateAddArgv, "")
+	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", spec.addArgv, "")
 	if err != nil {
-		return fmt.Errorf("staging generated state: %w", err)
+		return fmt.Errorf("staging %s: %w", spec.name, err)
 	}
 	if exitCode != 0 {
-		return fmt.Errorf("staging generated state (exit %d): %s", exitCode, stderr)
+		return fmt.Errorf("staging %s (exit %d): %s", spec.name, exitCode, stderr)
 	}
 
-	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", stateCommitArgv, "")
+	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", spec.commitArgv, "")
 	if err != nil {
-		return fmt.Errorf("committing generated state: %w", err)
+		return fmt.Errorf("committing %s: %w", spec.name, err)
 	}
 	if exitCode != 0 {
 		if strings.Contains(strings.ToLower(stderr), "nothing to commit") {
 			return nil
 		}
-		return fmt.Errorf("committing generated state (exit %d): %s", exitCode, stderr)
+		return fmt.Errorf("committing %s (exit %d): %s", spec.name, exitCode, stderr)
 	}
 
 	return nil
