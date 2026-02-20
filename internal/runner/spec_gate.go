@@ -135,6 +135,19 @@ func (r *Runner) runSpecGateArgvCommand(ctx context.Context, program string, arg
 		return "", err
 	}
 
+	return formatSpecGateCommandOutput(display, stdout, stderr, exitCode), nil
+}
+
+func (r *Runner) runSpecGateCommand(ctx context.Context, command string) (string, error) {
+	stdout, stderr, exitCode, err := r.runCmd(ctx, command, "")
+	if err != nil {
+		return "", err
+	}
+
+	return formatSpecGateCommandOutput(command, stdout, stderr, exitCode), nil
+}
+
+func formatSpecGateCommandOutput(display, stdout, stderr string, exitCode int) string {
 	output := strings.TrimSpace(strings.Join([]string{stdout, stderr}, "\n"))
 	if exitCode != 0 {
 		if output == "" {
@@ -144,25 +157,7 @@ func (r *Runner) runSpecGateArgvCommand(ctx context.Context, program string, arg
 		}
 	}
 
-	return strings.TrimSpace(output), nil
-}
-
-func (r *Runner) runSpecGateCommand(ctx context.Context, command string) (string, error) {
-	stdout, stderr, exitCode, err := r.runCmd(ctx, command, "")
-	if err != nil {
-		return "", err
-	}
-
-	output := strings.TrimSpace(strings.Join([]string{stdout, stderr}, "\n"))
-	if exitCode != 0 {
-		if output == "" {
-			output = fmt.Sprintf("%s (exit %d)", command, exitCode)
-		} else {
-			output = fmt.Sprintf("%s (exit %d)\n%s", command, exitCode, output)
-		}
-	}
-
-	return strings.TrimSpace(output), nil
+	return strings.TrimSpace(output)
 }
 
 func (r *Runner) invokeSpecGateLLM(ctx context.Context, model, promptText string) ([]byte, error) {
