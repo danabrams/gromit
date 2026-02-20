@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-02-20T00:57:47.162470367Z",
-  "total_iterations": 491,
+  "generated_at": "2026-02-20T01:53:47.2655276Z",
+  "total_iterations": 493,
   "window_size": 30,
   "latest_window": {
     "success_rate": 1,
     "failure_rate": 0,
     "first_pass_success_rate": 1,
     "escalation_rate": 0,
-    "avg_duration_ms": 330593.4666666667,
+    "avg_duration_ms": 303626.6666666667,
     "p95_duration_ms": 867264.7499999998,
-    "avg_cost_usd": 2.105278983333333,
+    "avg_cost_usd": 1.8590968749999999,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -20,14 +20,14 @@
     "by_prompt_type": [
       {
         "prompt_type": "build",
-        "invocation_count": 9,
-        "avg_estimated_tokens": 4967.444444444444
+        "invocation_count": 11,
+        "avg_estimated_tokens": 4565.272727272727
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 22329
+        "estimated_tokens": 27317
       },
       {
         "section": "spec",
@@ -35,19 +35,19 @@
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 1218
-      },
-      {
-        "section": "template_static",
-        "estimated_tokens": 18
-      },
-      {
-        "section": "failure_context",
-        "estimated_tokens": 9
+        "estimated_tokens": 1455
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 0
+        "estimated_tokens": 280
+      },
+      {
+        "section": "template_static",
+        "estimated_tokens": 22
+      },
+      {
+        "section": "failure_context",
+        "estimated_tokens": 11
       },
       {
         "section": "confirmed_learnings",
@@ -67,27 +67,27 @@
       "truncate Spec": 3
     },
     "reconciliation_drift": {
-      "sample_count": 9,
-      "mean_abs_token_delta_pct": 4050.3195978014055,
-      "p95_abs_token_delta_pct": 21446.941255053956
+      "sample_count": 11,
+      "mean_abs_token_delta_pct": 4789.763824998555,
+      "p95_abs_token_delta_pct": 25906.93277310924
     }
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 2.105278983333333,
-      "mean": 1.4123539950042887,
-      "std_dev": 2.018000418341164,
-      "ucl": 7.466355250027782,
-      "lcl": -4.641647260019203
+      "latest": 1.8590968749999999,
+      "mean": 1.4143544471881793,
+      "std_dev": 2.014149017274044,
+      "ucl": 7.456801499010312,
+      "lcl": -4.628092604633953
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 330593.4666666667,
-      "mean": 594720.2011004741,
-      "std_dev": 295398.16503794864,
-      "ucl": 1480914.6962143201,
-      "lcl": -291474.2940133718
+      "latest": 303626.6666666667,
+      "mean": 593570.8131311686,
+      "std_dev": 295348.3583806261,
+      "ucl": 1479615.8882730468,
+      "lcl": -292474.2620107096
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -100,16 +100,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.044806517311609353,
-      "std_dev": 0.055859045709911494,
-      "ucl": 0.21238365444134383,
+      "mean": 0.04462474645030465,
+      "std_dev": 0.05581833319103399,
+      "ucl": 0.21207974602340662,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "latest": 1,
-      "mean": 0.4368635437881874,
-      "std_dev": 0.44496756830665657,
+      "mean": 0.43914807302231246,
+      "std_dev": 0.4455044216434436,
       "ucl": 1,
       "lcl": 0
     },
@@ -124,17 +124,17 @@
     {
       "metric": "rolling_success_rate",
       "latest": 1,
-      "mean": 0.7643128251810829,
-      "std_dev": 0.22103647037153293,
+      "mean": 0.7652689597645268,
+      "std_dev": 0.22109579907384785,
       "ucl": 1,
-      "lcl": 0.10120341406648414
+      "lcl": 0.10198156254298318
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.008146639511201625,
-      "std_dev": 0.018949086616320995,
-      "ucl": 0.0649938993601646,
+      "mean": 0.00811359026369168,
+      "std_dev": 0.01891769982855984,
+      "ucl": 0.0648666897493712,
       "lcl": 0
     },
     {
