@@ -343,12 +343,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		}
 		r.recordPhaseMetric(bc, "green", cycleNumber, greenPhaseStart, true)
 
-		if bc.StartCommit != "" {
-			diff, err := r.getDiff(bc.StartCommit)
-			if err == nil && diff != "" {
-				bc.TouchedPackages = methodology.DetectTouchedPackages(diff)
-			}
-		}
+		r.refreshTouchedPackagesFromStartCommit(bc)
 
 		// In methodology mode, this validation is an intermediate gate before refactor.
 		// Defer post-success stages (review/learning) until final validation completes.
@@ -447,12 +442,7 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		// is always wrapped and returned as a terminal failure. The deadline
 		// guard above cannot suppress real validation failures.
 		if !skipRevalidation {
-			if bc.StartCommit != "" {
-				diff, err := r.getDiff(bc.StartCommit)
-				if err == nil && diff != "" {
-					bc.TouchedPackages = methodology.DetectTouchedPackages(diff)
-				}
-			}
+			r.refreshTouchedPackagesFromStartCommit(bc)
 
 			valTimeoutSec := r.cfg.Validation.ResolvePhaseTimeoutSeconds(int(bc.BeadTimeout.Seconds()))
 			validationCtx, validationCancel, valMeta := newPhaseContext(bc, "validation", valTimeoutSec)
@@ -494,4 +484,15 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	}
 
 	return false, nil
+}
+
+func (r *Runner) refreshTouchedPackagesFromStartCommit(bc *runtypes.BeadContext) {
+	if r == nil || bc == nil || bc.StartCommit == "" {
+		return
+	}
+	diff, err := r.getDiff(bc.StartCommit)
+	if err != nil || diff == "" {
+		return
+	}
+	bc.TouchedPackages = methodology.DetectTouchedPackages(diff)
 }
