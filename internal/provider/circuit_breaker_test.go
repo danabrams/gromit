@@ -112,6 +112,7 @@ func TestCircuitBreakerEffectiveRatio(t *testing.T) {
 		cb              *CircuitBreaker
 		provider        string
 		configuredRatio int
+		seedDegraded    bool
 		want            int
 	}{
 		{
@@ -141,6 +142,7 @@ func TestCircuitBreakerEffectiveRatio(t *testing.T) {
 			},
 			provider:        "claude",
 			configuredRatio: 60,
+			seedDegraded:    true,
 			want:            20,
 		},
 		{
@@ -152,6 +154,7 @@ func TestCircuitBreakerEffectiveRatio(t *testing.T) {
 			},
 			provider:        "claude",
 			configuredRatio: 10,
+			seedDegraded:    true,
 			want:            20,
 		},
 	}
@@ -161,7 +164,7 @@ func TestCircuitBreakerEffectiveRatio(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if tc.cb != nil && tc.name != "healthy_provider_passes_through" {
+			if tc.cb != nil && tc.seedDegraded {
 				tc.cb.Record(tc.provider, FailureCategoryTransportDisconnect)
 			}
 

@@ -72,10 +72,12 @@ func (cb *CircuitBreaker) Record(providerName string, failureCategory string) {
 	defer cb.mu.Unlock()
 
 	window := cb.ensureProvider(providerName)
-	window.record(failureCategory == FailureCategoryTransportDisconnect)
+	isTransportDisconnect := failureCategory == FailureCategoryTransportDisconnect
+	isSuccess := failureCategory == FailureCategoryNone
+	window.record(isTransportDisconnect)
 
 	if cb.degraded[providerName] {
-		if failureCategory == FailureCategoryNone {
+		if isSuccess {
 			cb.consecutiveSuccesses[providerName]++
 			if cb.consecutiveSuccesses[providerName] >= cb.effectiveRecoverySuccesses() {
 				cb.degraded[providerName] = false
