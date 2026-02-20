@@ -377,7 +377,7 @@ type RunbookConfig struct {
 }
 
 type SpecGateConfig struct {
-	Enabled     bool   `yaml:"enabled"`
+	Enabled     *bool  `yaml:"enabled"`
 	MaxCycles   int    `yaml:"max_cycles"`
 	Model       string `yaml:"model"`
 	AutoTrigger *bool  `yaml:"auto_trigger"`

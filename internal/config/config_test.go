@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestAgentsConfigUnmarshal(t *testing.T) {
@@ -4336,7 +4338,10 @@ spec_gate:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if !cfg.SpecGate.Enabled {
+	if cfg.SpecGate.Enabled == nil {
+		t.Fatal("SpecGate.Enabled is nil, want non-nil pointer")
+	}
+	if !*cfg.SpecGate.Enabled {
 		t.Errorf("SpecGate.Enabled = false, want true")
 	}
 	if cfg.SpecGate.MaxCycles != 5 {
@@ -4353,14 +4358,62 @@ spec_gate:
 	}
 }
 
+func TestSpecGateConfigYAMLRoundTrip(t *testing.T) {
+	enabled := false
+	autoTrigger := false
+
+	in := Config{
+		SpecGate: SpecGateConfig{
+			Enabled:     &enabled,
+			MaxCycles:   7,
+			Model:       ModelOpus,
+			AutoTrigger: &autoTrigger,
+		},
+	}
+
+	data, err := yaml.Marshal(in)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error = %v", err)
+	}
+
+	var out Config
+	if err := yaml.Unmarshal(data, &out); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+	out.SetDefaults()
+
+	if out.SpecGate.Enabled == nil {
+		t.Fatal("out.SpecGate.Enabled is nil, want non-nil pointer")
+	}
+	if *out.SpecGate.Enabled {
+		t.Errorf("*out.SpecGate.Enabled = true, want false")
+	}
+	if out.SpecGate.MaxCycles != 7 {
+		t.Errorf("out.SpecGate.MaxCycles = %d, want 7", out.SpecGate.MaxCycles)
+	}
+	if out.SpecGate.Model != ModelOpus {
+		t.Errorf("out.SpecGate.Model = %q, want %q", out.SpecGate.Model, ModelOpus)
+	}
+	if out.SpecGate.AutoTrigger == nil {
+		t.Fatal("out.SpecGate.AutoTrigger is nil, want non-nil pointer")
+	}
+	if *out.SpecGate.AutoTrigger {
+		t.Errorf("*out.SpecGate.AutoTrigger = true, want false")
+	}
+}
+
 func TestSpecGateIsEnabled(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
 	tests := []struct {
 		name    string
-		enabled bool
+		enabled *bool
 		want    bool
 	}{
-		{"enabled true", true, true},
-		{"enabled false", false, false},
+		{"nil defaults to true", nil, true},
+		{"enabled true", &trueVal, true},
+		{"enabled false", &falseVal, false},
 	}
 
 	for _, tt := range tests {
@@ -4408,6 +4461,12 @@ func assertSpecGateDefaults(t *testing.T, cfg *Config, context string) {
 	}
 	if cfg.SpecGate.Model != ModelSonnet {
 		t.Errorf("SpecGate.Model = %q, want %q%s", cfg.SpecGate.Model, ModelSonnet, context)
+	}
+	if cfg.SpecGate.Enabled == nil {
+		t.Fatalf("SpecGate.Enabled is nil, want non-nil pointer%s", context)
+	}
+	if !*cfg.SpecGate.Enabled {
+		t.Errorf("*SpecGate.Enabled = false, want true%s", context)
 	}
 	if cfg.SpecGate.AutoTrigger == nil {
 		t.Fatalf("SpecGate.AutoTrigger is nil, want non-nil pointer%s", context)

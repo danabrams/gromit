@@ -284,6 +284,9 @@ func (c *Config) SetDefaults() {
 	if c.SpecGate.Model == "" {
 		c.SpecGate.Model = ModelSonnet
 	}
+	if c.SpecGate.Enabled == nil {
+		c.SpecGate.Enabled = boolPtr(true)
+	}
 	if c.SpecGate.AutoTrigger == nil {
 		c.SpecGate.AutoTrigger = boolPtr(true)
 	}

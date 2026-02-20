@@ -266,8 +266,9 @@ func TestNewRunnerWithDepsInitializesSpecOrchestratorWhenGranularitySpec(t *test
 }
 
 func TestNewRunnerWithDepsInitializesSpecGateWhenEnabled(t *testing.T) {
+	enabled := true
 	cfg := &config.Config{
-		SpecGate: config.SpecGateConfig{Enabled: true},
+		SpecGate: config.SpecGateConfig{Enabled: &enabled},
 	}
 
 	r, err := NewRunnerWithDeps(cfg, io.Discard, t.TempDir(), Deps{

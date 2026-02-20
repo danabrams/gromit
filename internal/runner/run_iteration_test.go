@@ -43,8 +43,9 @@ func TestMaybeRunSpecGate_DisabledSkips(t *testing.T) {
 		MaxCycles: 1,
 	}
 
+	enabled := false
 	r := &Runner{
-		cfg:   &config.Config{SpecGate: config.SpecGateConfig{Enabled: false}},
+		cfg:   &config.Config{SpecGate: config.SpecGateConfig{Enabled: &enabled}},
 		beads: beads,
 		// specGate should be ignored because the feature is disabled
 		specGate: gate,
@@ -102,10 +103,11 @@ func TestMaybeRunSpecGate_OpenBeadsSkip(t *testing.T) {
 	}
 
 	auto := true
+	enabled := true
 	r := &Runner{
 		cfg: &config.Config{
 			Paths:    config.PathsConfig{Specs: specsDir},
-			SpecGate: config.SpecGateConfig{Enabled: true, AutoTrigger: &auto, MaxCycles: 1},
+			SpecGate: config.SpecGateConfig{Enabled: &enabled, AutoTrigger: &auto, MaxCycles: 1},
 		},
 		beads:    beads,
 		specGate: gate,
@@ -172,10 +174,11 @@ func TestMaybeRunSpecGate_RunsAndIncrements(t *testing.T) {
 	}
 
 	auto := true
+	enabled := true
 	r := &Runner{
 		cfg: &config.Config{
 			Paths:    config.PathsConfig{Specs: specsDir},
-			SpecGate: config.SpecGateConfig{Enabled: true, AutoTrigger: &auto, MaxCycles: 2},
+			SpecGate: config.SpecGateConfig{Enabled: &enabled, AutoTrigger: &auto, MaxCycles: 2},
 		},
 		beads:    beads,
 		specGate: gate,
@@ -246,10 +249,11 @@ func TestHandleSuccessfulIteration_RunsSpecGateAfterSync(t *testing.T) {
 	}
 
 	auto := true
+	enabled := true
 	r := &Runner{
 		cfg: &config.Config{
 			Paths:    config.PathsConfig{Specs: specsDir},
-			SpecGate: config.SpecGateConfig{Enabled: true, AutoTrigger: &auto, MaxCycles: 2},
+			SpecGate: config.SpecGateConfig{Enabled: &enabled, AutoTrigger: &auto, MaxCycles: 2},
 		},
 		beads:    beads,
 		specGate: gate,

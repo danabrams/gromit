@@ -283,9 +283,12 @@ func (w WorktreeConfig) IsAutoMergeEnabled() bool {
 	return *w.AutoMerge
 }
 
-// IsEnabled returns whether spec gate is enabled.
+// IsEnabled returns whether spec gate is enabled (defaults to true).
 func (s SpecGateConfig) IsEnabled() bool {
-	return s.Enabled
+	if s.Enabled == nil {
+		return true
+	}
+	return *s.Enabled
 }
 
 // IsAutoTrigger returns whether spec gate auto-trigger is enabled (defaults to true).

@@ -255,7 +255,7 @@ paths:
 
 # Spec Gate - validates spec quality before allowing work to proceed
 # spec_gate:
-#   enabled: false             # Enable spec gate validation (default: false)
+#   enabled: true              # Enable spec gate validation (default: true)
 #   max_cycles: 3              # Max validation cycles before giving up (default: 3)
 #   model: sonnet              # Model to use for spec validation (default: sonnet)
-#   auto_trigger: true         # Automatically trigger spec gate on new beads (default: true)
+#   auto_trigger: true         # Run spec gate automatically after successful spec beads (default: true)
