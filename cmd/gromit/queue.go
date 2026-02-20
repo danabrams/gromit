@@ -176,52 +176,10 @@ func getReadyBeads(bc *bead.Client) ([]*bead.Bead, error) {
 	if bc == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-
-	// Note: bd ready doesn't have a way to get all ready beads at once,
-	// only the next one. We can use bd list with a filter to get all open
-	// beads, then filter for ready ones by checking which don't have parent
-	// relationships blocking them. For now, we'll just use the list and
-	// identify the ones that would be ready.
-
-	// Get all open beads sorted by priority
-	allOpen, err := bc.List()
+	readyBeads, err := bc.ListReady()
 	if err != nil {
-		return nil, fmt.Errorf("getting all open beads: %w", err)
+		return nil, fmt.Errorf("getting ready beads: %w", err)
 	}
-
-	readyBeads := []*bead.Bead{}
-	parentMap := make(map[string]bool)
-
-	// Build a map of beads that are parents (not yet closed)
-	for _, b := range allOpen {
-		if b.Parent != "" {
-			parentMap[b.Parent] = true
-		}
-	}
-
-	// Filter: a bead is ready if it has no parent, or its parent is closed
-	for _, b := range allOpen {
-		// If no parent, it's ready
-		if b.Parent == "" {
-			readyBeads = append(readyBeads, b)
-			continue
-		}
-
-		// If parent exists in open beads, this is blocked
-		isBlocked := false
-		for _, openB := range allOpen {
-			if openB.ID == b.Parent {
-				isBlocked = true
-				break
-			}
-		}
-
-		if !isBlocked {
-			// Parent is closed, so this is ready
-			readyBeads = append(readyBeads, b)
-		}
-	}
-
 	return readyBeads, nil
 }
 

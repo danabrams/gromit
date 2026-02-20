@@ -276,6 +276,9 @@ func (s ScopeCheckConfig) ShouldBlockOversized() bool {
 
 // HasProviders returns true when providers section is non-empty.
 func (c *Config) HasProviders() bool {
+	if c == nil {
+		return false
+	}
 	return len(c.Providers) > 0
 }
 

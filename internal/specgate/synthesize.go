@@ -27,7 +27,7 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []Criteri
 		return nil, errors.New("bead creator is required")
 	}
 
-	ids := make([]string, 0, len(failures))
+	ids := make([]string, 0, min(len(failures), maxSynthesizedFixBeads))
 	limit := len(failures)
 	if limit > maxSynthesizedFixBeads {
 		limit = maxSynthesizedFixBeads

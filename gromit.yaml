@@ -259,4 +259,3 @@ paths:
 #   max_cycles: 3              # Max validation cycles before giving up (default: 3)
 #   model: sonnet              # Model to use for spec validation (default: sonnet)
 #   auto_trigger: true         # Trigger spec gate automatically before work (default: true)
-#   auto_trigger: true         # Run spec gate automatically after successful spec beads (default: true)

@@ -55,3 +55,31 @@ func TestColorizeLine(t *testing.T) {
 		t.Fatalf("plain = %q, want %q", plain, line)
 	}
 }
+
+func TestGetReadyBeads_UsesReadyStatusFromBD(t *testing.T) {
+	c := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			want := []string{"list", "--json", "--status", "ready", "--sort", "priority", "--limit", "0"}
+			if len(args) != len(want) {
+				t.Fatalf("run args len = %d, want %d (%v)", len(args), len(want), args)
+			}
+			for i := range want {
+				if args[i] != want[i] {
+					t.Fatalf("run args[%d] = %q, want %q", i, args[i], want[i])
+				}
+			}
+			return `[{"id":"task-ready","title":"Ready","priority":1,"issue_type":"task","status":"ready"}]`, nil
+		},
+	}
+
+	ready, err := getReadyBeads(c)
+	if err != nil {
+		t.Fatalf("getReadyBeads() error = %v", err)
+	}
+	if len(ready) != 1 {
+		t.Fatalf("len(ready) = %d, want 1", len(ready))
+	}
+	if ready[0].ID != "task-ready" {
+		t.Fatalf("ready[0].ID = %q, want task-ready", ready[0].ID)
+	}
+}

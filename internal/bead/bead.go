@@ -536,6 +536,37 @@ func (c *Client) List() ([]*Bead, error) {
 	return result, nil
 }
 
+// ListReady returns all ready (unblocked) beads, sorted by priority (P0 first).
+func (c *Client) ListReady() ([]*Bead, error) {
+	if c == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
+	out, err := c.run("list", "--json", "--status", "ready", "--sort", "priority", "--limit", "0")
+	if err != nil {
+		return nil, fmt.Errorf("bd list ready: %w", err)
+	}
+
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
+		return []*Bead{}, nil
+	}
+
+	var beads []Bead
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
+		return nil, fmt.Errorf("parsing bd list ready output: %w", err)
+	}
+
+	result := make([]*Bead, len(beads))
+	for i := range beads {
+		beads[i].normalizeNilFields()
+		if err := beads[i].Validate(); err != nil {
+			return nil, fmt.Errorf("invalid ready bead data at index %d: %w", i, err)
+		}
+		result[i] = &beads[i]
+	}
+
+	return result, nil
+}
+
 // ListAll returns all beads (both open and closed), grouped by status
 func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
 	if c == nil {
