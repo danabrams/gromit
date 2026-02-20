@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/review"
@@ -345,21 +346,41 @@ func (p *Pipeline) validateReviewDeps() error {
 		return fmt.Errorf("pipeline: nil dependencies")
 	}
 
-	requiredDeps := map[string]interface{}{
-		"ClaudeClient":     p.deps.ClaudeClient,
-		"PromptRenderer":   p.deps.PromptRenderer,
-		"BeadClient":       p.deps.BeadClient,
-		"BacklogClient":    p.deps.BacklogClient,
-		"LearningsManager": p.deps.LearningsManager,
-		"LogWriter":        p.deps.LogWriter,
-		"StateManager":     p.deps.StateManager,
+	if p.deps.ClaudeClient == nil || isTypedNil(p.deps.ClaudeClient) {
+		return fmt.Errorf("pipeline: nil ClaudeClient")
 	}
-
-	for name, dep := range requiredDeps {
-		if dep == nil {
-			return fmt.Errorf("pipeline: nil %s", name)
-		}
+	if p.deps.PromptRenderer == nil || isTypedNil(p.deps.PromptRenderer) {
+		return fmt.Errorf("pipeline: nil PromptRenderer")
+	}
+	if p.deps.BeadClient == nil || isTypedNil(p.deps.BeadClient) {
+		return fmt.Errorf("pipeline: nil BeadClient")
+	}
+	if p.deps.BacklogClient == nil || isTypedNil(p.deps.BacklogClient) {
+		return fmt.Errorf("pipeline: nil BacklogClient")
+	}
+	if p.deps.LearningsManager == nil || isTypedNil(p.deps.LearningsManager) {
+		return fmt.Errorf("pipeline: nil LearningsManager")
+	}
+	if p.deps.LogWriter == nil || isTypedNil(p.deps.LogWriter) {
+		return fmt.Errorf("pipeline: nil LogWriter")
+	}
+	if p.deps.StateManager == nil || isTypedNil(p.deps.StateManager) {
+		return fmt.Errorf("pipeline: nil StateManager")
 	}
 
 	return nil
+}
+
+func isTypedNil(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

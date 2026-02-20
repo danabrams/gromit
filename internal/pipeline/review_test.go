@@ -519,6 +519,126 @@ func TestReviewNonInteractiveWorkflow_NilDependenciesError(t *testing.T) {
 	}
 }
 
+func TestPipeline_validateReviewDeps(t *testing.T) {
+	newValidDeps := func() *Deps {
+		return &Deps{
+			ClaudeClient:     &reviewAcceptanceMockClaudeClient{},
+			PromptRenderer:   &reviewAcceptanceMockPromptRenderer{},
+			BeadClient:       &reviewAcceptanceMockBeadClient{},
+			BacklogClient:    &reviewAcceptanceMockBacklogClient{},
+			LearningsManager: &reviewAcceptanceMockLearningsManager{},
+			LogWriter:        &reviewAcceptanceMockLogWriter{},
+			StateManager:     &reviewAcceptanceMockStateManager{},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		deps    *Deps
+		wantErr string
+	}{
+		{
+			name: "nil ClaudeClient",
+			deps: func() *Deps {
+				d := newValidDeps()
+				d.ClaudeClient = nil
+				return d
+			}(),
+			wantErr: "pipeline: nil ClaudeClient",
+		},
+		{
+			name: "nil PromptRenderer",
+			deps: func() *Deps {
+				d := newValidDeps()
+				d.PromptRenderer = nil
+				return d
+			}(),
+			wantErr: "pipeline: nil PromptRenderer",
+		},
+		{
+			name: "nil BeadClient",
+			deps: func() *Deps {
+				d := newValidDeps()
+				d.BeadClient = nil
+				return d
+			}(),
+			wantErr: "pipeline: nil BeadClient",
+		},
+		{
+			name: "nil BacklogClient",
+			deps: func() *Deps {
+				d := newValidDeps()
+				d.BacklogClient = nil
+				return d
+			}(),
+			wantErr: "pipeline: nil BacklogClient",
+		},
+		{
+			name: "nil LearningsManager",
+			deps: func() *Deps {
+				d := newValidDeps()
+				d.LearningsManager = nil
+				return d
+			}(),
+			wantErr: "pipeline: nil LearningsManager",
+		},
+		{
+			name: "nil LogWriter",
+			deps: func() *Deps {
+				d := newValidDeps()
+				d.LogWriter = nil
+				return d
+			}(),
+			wantErr: "pipeline: nil LogWriter",
+		},
+		{
+			name: "nil StateManager",
+			deps: func() *Deps {
+				d := newValidDeps()
+				d.StateManager = nil
+				return d
+			}(),
+			wantErr: "pipeline: nil StateManager",
+		},
+		{
+			name: "typed nil ClaudeClient",
+			deps: func() *Deps {
+				d := newValidDeps()
+				d.ClaudeClient = (*reviewAcceptanceMockClaudeClient)(nil)
+				return d
+			}(),
+			wantErr: "pipeline: nil ClaudeClient",
+		},
+		{
+			name:    "all deps present",
+			deps:    newValidDeps(),
+			wantErr: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := New(tc.deps, &Paths{})
+			err := p.validateReviewDeps()
+
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Errorf("validateReviewDeps() = %v, want nil", err)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Fatalf("validateReviewDeps() = nil, want %q", tc.wantErr)
+			}
+
+			if err.Error() != tc.wantErr {
+				t.Errorf("validateReviewDeps() error = %q, want %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
 // Mock types for review acceptance tests
 
 type reviewAcceptanceMockAgent struct {
