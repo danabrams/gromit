@@ -201,12 +201,7 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 		e.log("Warning: refactor phase failed")
 		return nil
 	}
-	if bc.Result != nil && stats != nil {
-		costUSD, inputTokens, outputTokens := stats.CostData()
-		bc.Result.CostUSD += costUSD
-		bc.Result.InputTokens += inputTokens
-		bc.Result.OutputTokens += outputTokens
-	}
+	e.applyRefactorStreamStats(bc, stats)
 
 	e.log("Refactor phase complete, re-validating...")
 
@@ -240,6 +235,17 @@ func (e *Executor) RunRefactorPhase(ctx context.Context, bc *runtypes.BeadContex
 
 	e.log("Refactor re-validation passed")
 	return nil
+}
+
+func (e *Executor) applyRefactorStreamStats(bc *runtypes.BeadContext, stats *logger.StreamStats) {
+	if bc == nil || bc.Result == nil || stats == nil {
+		return
+	}
+
+	costUSD, inputTokens, outputTokens := stats.CostData()
+	bc.Result.CostUSD += costUSD
+	bc.Result.InputTokens += inputTokens
+	bc.Result.OutputTokens += outputTokens
 }
 
 // handleRefactorValidationFailure reverts the refactor changes and retries once.
