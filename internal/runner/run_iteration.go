@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/tmux"
 )
 
@@ -120,6 +121,93 @@ func (r *Runner) maybeAuthorSpecAcceptance(ctx context.Context, b *bead.Bead, st
 	}
 	st.testsAuthoredBySpec[specName] = true
 	return nil
+}
+
+func (r *Runner) maybeRunSpecGate(ctx context.Context, b *bead.Bead, st *runLoopState) error {
+	if r == nil || r.cfg == nil || b == nil || st == nil {
+		return nil
+	}
+	if !r.cfg.SpecGate.IsEnabled() || !r.cfg.SpecGate.IsAutoTrigger() {
+		return nil
+	}
+	if r.specGate == nil || r.beads == nil {
+		return nil
+	}
+
+	specName := bead.FindSpecLabel(b.Labels)
+	if specName == "" {
+		return nil
+	}
+
+	specsDir := r.cfg.Paths.Specs
+	if err := scope.ValidateSpec(specsDir, specName); err != nil {
+		return err
+	}
+
+	specLabels := scope.ResolveSpec(specName)
+	if len(specLabels) == 0 {
+		return fmt.Errorf("no label found for spec %q", specName)
+	}
+	specLabel := specLabels[0]
+	if !isScopedRunLabel(r.labelFilters, specLabel) {
+		return nil
+	}
+
+	labeledBeads, err := r.beads.ListWithLabel(specLabel)
+	if err != nil {
+		return err
+	}
+	if hasOpenBeads(labeledBeads) {
+		return nil
+	}
+
+	currentCycles := st.specGateCycles[specName]
+	if r.cfg.SpecGate.MaxCycles > 0 && currentCycles >= r.cfg.SpecGate.MaxCycles {
+		return nil
+	}
+
+	criteria, _, _, err := loadSpecGateInputs(specsDir, specName)
+	if err != nil {
+		return err
+	}
+
+	verdict, err := r.specGate.Run(ctx, specName, criteria)
+	if err != nil {
+		return err
+	}
+	if st.specGateCycles == nil {
+		st.specGateCycles = make(map[string]int)
+	}
+	st.specGateCycles[specName] = currentCycles + 1
+
+	if verdict != nil && !verdict.Passed {
+		if _, err := SynthesizeFixBeads(ctx, specName, convertFailedCriteria(verdict.FailedCriteria()), r.beads); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func hasOpenBeads(beads []*bead.Bead) bool {
+	for _, b := range beads {
+		if b != nil && strings.EqualFold(b.Status, "open") {
+			return true
+		}
+	}
+	return false
+}
+
+func isScopedRunLabel(filters []string, label string) bool {
+	if len(filters) == 0 {
+		return false
+	}
+	for _, filter := range filters {
+		if strings.EqualFold(strings.TrimSpace(filter), label) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Runner) processSingleBead(
@@ -269,7 +357,7 @@ func (r *Runner) handleSuccessfulIteration(ctx context.Context, b *bead.Bead, st
 		r.log("Warning: failed to sync beads: %v", err)
 	}
 
-	if err := r.maybeRunSpecGate(ctx, bead.FindSpecLabel(b.Labels)); err != nil {
+	if err := r.maybeRunSpecGate(ctx, b, st); err != nil {
 		return err
 	}
 

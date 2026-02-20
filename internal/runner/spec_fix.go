@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/specgate"
 )
 
 const (
@@ -15,6 +17,13 @@ const (
 	specLabelPrefix            = "spec:"
 	fixBeadTitlePrefix         = "Fix: "
 )
+
+// GateFailure is a structured spec gate failure consumed by fix-bead synthesis.
+type GateFailure struct {
+	TestName     string `json:"test_name"`
+	Message      string `json:"message"`
+	SuggestedFix string `json:"suggested_fix"`
+}
 
 // SynthesizeFixBeads creates up to five P0 fix beads for gate failures.
 func SynthesizeFixBeads(ctx context.Context, specName string, failures []GateFailure, beadClient BeadClient) ([]string, error) {
@@ -91,4 +100,19 @@ func failureName(failure GateFailure) string {
 
 func specLabel(specName string) string {
 	return fmt.Sprintf("%s%s", specLabelPrefix, strings.TrimSpace(specName))
+}
+
+func convertFailedCriteria(failures []specgate.CriterionResult) []GateFailure {
+	if len(failures) == 0 {
+		return []GateFailure{}
+	}
+
+	converted := make([]GateFailure, 0, len(failures))
+	for _, failure := range failures {
+		converted = append(converted, GateFailure{
+			TestName: failure.Criterion,
+			Message:  failure.Evidence,
+		})
+	}
+	return converted
 }

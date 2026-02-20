@@ -2,38 +2,35 @@ package runner
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
-type mockSpecGateValidationRunner struct {
-	runDirectFn func(ctx context.Context, commands []string, workDir string) (*claude.Result, error)
-}
-
-func (m *mockSpecGateValidationRunner) RunDirect(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-	if m.runDirectFn != nil {
-		return m.runDirectFn(ctx, commands, workDir)
-	}
-	return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
-}
-
 func TestBuildSpecGate_UsesRunnerDependencies(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
+	cfg.Validation.FullCommands = []string{"go test ./..."}
+	cfg.SpecGate.Model = "sonnet"
+	cfg.SpecGate.MaxCycles = 4
 
+	var gotCommand string
+	var gotWorkDir string
 	r := &Runner{
-		cfg:              cfg,
-		renderer:         &mockPromptRenderer{},
-		router:           provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{}),
-		validationRunner: validation.NewRunner(cfg, nil, nil, nil),
+		cfg:       cfg,
+		renderer:  &mockPromptRenderer{},
+		router:    provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{}),
+		gromitDir: "/tmp/gromit",
+		validationRunner: validation.NewRunner(cfg, func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			gotCommand = command
+			gotWorkDir = workDir
+			return "ok", "", 0, nil
+		}, nil, nil),
 	}
 
 	gate, err := r.buildSpecGate()
@@ -43,152 +40,118 @@ func TestBuildSpecGate_UsesRunnerDependencies(t *testing.T) {
 	if gate == nil {
 		t.Fatal("buildSpecGate() returned nil gate")
 	}
-	if gate.cfg != cfg {
-		t.Fatal("expected gate cfg to reference runner cfg")
+	if gate.Model != "sonnet" {
+		t.Fatalf("gate.Model = %q, want sonnet", gate.Model)
 	}
-	if gate.validationRunner == nil {
-		t.Fatal("expected gate validation runner to be wired")
+	if gate.MaxCycles != 4 {
+		t.Fatalf("gate.MaxCycles = %d, want 4", gate.MaxCycles)
+	}
+
+	if _, err := gate.RunTests(context.Background()); err != nil {
+		t.Fatalf("RunTests() error: %v", err)
+	}
+	if gotCommand != "go test ./..." {
+		t.Fatalf("validation command = %q, want %q", gotCommand, "go test ./...")
+	}
+	if gotWorkDir != "/tmp/gromit" {
+		t.Fatalf("validation workdir = %q, want %q", gotWorkDir, "/tmp/gromit")
 	}
 }
 
-func TestSpecGateVerify_ReturnsPassedWhenValidationSucceeds(t *testing.T) {
+func TestBuildSpecGate_RenderPromptUsesSpecGateContext(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
-	cfg.Validation.FullCommands = []string{"go test ./..."}
 
-	renderCalls := 0
-	validationCalls := 0
-	gate := &SpecGate{
+	var gotCtx *prompt.SpecGateContext
+	r := &Runner{
 		cfg: cfg,
-		validationRunner: &mockSpecGateValidationRunner{runDirectFn: func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-			validationCalls++
-			if strings.Join(commands, " ") != "go test ./..." {
-				t.Fatalf("commands = %v, want [go test ./...]", commands)
-			}
-			return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
-		}},
 		renderer: &mockPromptRenderer{RenderSpecGateFn: func(ctx *prompt.SpecGateContext) (string, error) {
-			renderCalls++
-			return "unused", nil
+			gotCtx = ctx
+			return "rendered", nil
 		}},
 		router: provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{}),
+		validationRunner: validation.NewRunner(cfg, func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
+		}, nil, nil),
 	}
 
-	result, err := gate.Verify(context.Background(), "demo-spec", "## Acceptance Criteria\n- works")
+	gate, err := r.buildSpecGate()
 	if err != nil {
-		t.Fatalf("Verify() error: %v", err)
+		t.Fatalf("buildSpecGate() error: %v", err)
 	}
-	if !result.Passed {
-		t.Fatalf("result.Passed = false, want true")
+
+	criteria := []string{"works", "is deterministic"}
+	promptText, err := gate.RenderPrompt(context.Background(), "demo-spec", "test output", "diff output", criteria)
+	if err != nil {
+		t.Fatalf("RenderPrompt() error: %v", err)
 	}
-	if len(result.Failures) != 0 {
-		t.Fatalf("result.Failures = %v, want empty", result.Failures)
+	if promptText != "rendered" {
+		t.Fatalf("RenderPrompt() = %q, want rendered", promptText)
 	}
-	if validationCalls != 1 {
-		t.Fatalf("validation calls = %d, want 1", validationCalls)
+	if gotCtx == nil {
+		t.Fatal("expected SpecGateContext to be captured")
 	}
-	if renderCalls != 0 {
-		t.Fatalf("renderer calls = %d, want 0", renderCalls)
+	if gotCtx.SpecCriteria != "spec:demo-spec" {
+		t.Fatalf("SpecCriteria = %q, want %q", gotCtx.SpecCriteria, "spec:demo-spec")
+	}
+	if gotCtx.TestOutput != "test output" {
+		t.Fatalf("TestOutput = %q, want %q", gotCtx.TestOutput, "test output")
+	}
+	if gotCtx.CumulativeDiff != "diff output" {
+		t.Fatalf("CumulativeDiff = %q, want %q", gotCtx.CumulativeDiff, "diff output")
+	}
+	if !strings.Contains(gotCtx.AcceptanceCriteria, "- works") {
+		t.Fatalf("AcceptanceCriteria = %q, expected formatted criteria", gotCtx.AcceptanceCriteria)
 	}
 }
 
-func TestSpecGateVerify_ParsesStructuredFailures(t *testing.T) {
+func TestBuildSpecGate_InvokeLLMUsesConfiguredTier(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
+	cfg.SpecGate.Model = "sonnet"
 
-	var renderedFailureOutput string
-	var renderedSpec string
-	providerRuns := 0
-	gate := &SpecGate{
-		cfg: cfg,
-		validationRunner: &mockSpecGateValidationRunner{runDirectFn: func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-			return &claude.Result{Success: false, Output: "failing test output"}, nil
-		}},
-		renderer: &mockPromptRenderer{RenderSpecGateFn: func(ctx *prompt.SpecGateContext) (string, error) {
-			renderedFailureOutput = ctx.FailureOutput
-			renderedSpec = ctx.SpecCriteria
-			return "rendered gate prompt", nil
-		}},
+	var gotTier string
+	r := &Runner{
+		cfg:      cfg,
+		renderer: &mockPromptRenderer{},
 		router: provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
-			providerRuns++
-			if prompt != "rendered gate prompt" {
-				t.Fatalf("prompt = %q, want rendered gate prompt", prompt)
-			}
-			return &provider.Result{Success: true, Output: `{"passed":false,"failures":[{"test_name":"TestSpecBehavior","message":"expected 200 got 500","suggested_fix":"handle nil response"}]}`}, nil
+			gotTier = tier
+			return &provider.Result{Success: true, Output: "{}"}, nil
 		}}),
+		validationRunner: validation.NewRunner(cfg, func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			return "ok", "", 0, nil
+		}, nil, nil),
 	}
 
-	result, err := gate.Verify(context.Background(), "demo-spec", "## Acceptance Criteria\n- returns 200")
+	gate, err := r.buildSpecGate()
 	if err != nil {
-		t.Fatalf("Verify() error: %v", err)
+		t.Fatalf("buildSpecGate() error: %v", err)
 	}
-	if result.Passed {
-		t.Fatal("result.Passed = true, want false")
+
+	result, err := gate.InvokeLLM(context.Background(), "sonnet", "prompt")
+	if err != nil {
+		t.Fatalf("InvokeLLM() error: %v", err)
 	}
-	if len(result.Failures) != 1 {
-		t.Fatalf("len(result.Failures) = %d, want 1", len(result.Failures))
+	if string(result) != "{}" {
+		t.Fatalf("InvokeLLM() output = %q, want {}", string(result))
 	}
-	if result.Failures[0].TestName != "TestSpecBehavior" {
-		t.Fatalf("TestName = %q, want TestSpecBehavior", result.Failures[0].TestName)
-	}
-	if renderedFailureOutput != "failing test output" {
-		t.Fatalf("FailureOutput = %q, want failing test output", renderedFailureOutput)
-	}
-	if !strings.Contains(renderedSpec, "Acceptance Criteria") {
-		t.Fatalf("SpecCriteria = %q, want spec content", renderedSpec)
-	}
-	if providerRuns != 1 {
-		t.Fatalf("provider runs = %d, want 1", providerRuns)
+	if gotTier != "medium" {
+		t.Fatalf("provider tier = %q, want medium", gotTier)
 	}
 }
 
-func TestSpecGateVerify_ProviderErrorsReturnStructuredFailure(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.SetDefaults()
-	cfg.NormalizeNilFields()
-
-	gate := &SpecGate{
-		cfg: cfg,
-		validationRunner: &mockSpecGateValidationRunner{runDirectFn: func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-			return &claude.Result{Success: false, Output: "validation failed"}, nil
-		}},
-		renderer: &mockPromptRenderer{RenderSpecGateFn: func(ctx *prompt.SpecGateContext) (string, error) {
-			return "rendered prompt", nil
-		}},
-		router: provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
-			return nil, errors.New("provider unavailable")
-		}}),
+func TestExtractAcceptanceCriteria_ParsesBulletsAndNumbers(t *testing.T) {
+	body := "## Acceptance Criteria\n- first\n2. second\n* third\n\n## Notes\nignored"
+	criteria, block := extractAcceptanceCriteria(body)
+	if len(criteria) != 3 {
+		t.Fatalf("len(criteria) = %d, want 3", len(criteria))
 	}
-
-	result, err := gate.Verify(context.Background(), "demo-spec", "## Acceptance Criteria\n- works")
-	if err != nil {
-		t.Fatalf("Verify() error: %v", err)
+	if criteria[0] != "first" || criteria[1] != "second" || criteria[2] != "third" {
+		t.Fatalf("criteria = %v, want [first second third]", criteria)
 	}
-	if result.Passed {
-		t.Fatal("result.Passed = true, want false")
-	}
-	if len(result.Failures) != 1 {
-		t.Fatalf("len(result.Failures) = %d, want 1", len(result.Failures))
-	}
-	if !strings.Contains(result.Failures[0].Message, "provider invocation failed") {
-		t.Fatalf("failure message = %q, want provider invocation failure", result.Failures[0].Message)
-	}
-}
-
-func TestParseGateResult_ConvertsLegacyGateVerdict(t *testing.T) {
-	result, err := parseGateResult([]byte(`{"passed":false,"results":[{"criterion":"criterion-1","passed":false,"evidence":"failing evidence"}]}`))
-	if err != nil {
-		t.Fatalf("parseGateResult() error: %v", err)
-	}
-	if result.Passed {
-		t.Fatal("result.Passed = true, want false")
-	}
-	if len(result.Failures) != 1 {
-		t.Fatalf("len(result.Failures) = %d, want 1", len(result.Failures))
-	}
-	if result.Failures[0].TestName != "criterion-1" {
-		t.Fatalf("TestName = %q, want criterion-1", result.Failures[0].TestName)
+	if !strings.Contains(block, "2. second") {
+		t.Fatalf("block = %q, expected acceptance section", block)
 	}
 }

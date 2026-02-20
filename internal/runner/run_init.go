@@ -18,6 +18,7 @@ type runLoopState struct {
 	consecutiveSkips    int
 	beadStats           map[string]logger.BeadStats
 	skippedBeads        map[string]bool
+	specGateCycles      map[string]int
 	testsAuthoredBySpec map[string]bool
 	sf                  *state.File
 	interactiveFile     *state.InteractiveFile
@@ -48,7 +49,6 @@ func (r *Runner) resetPerRunState() {
 	r.touchedPackages = make(map[string]bool)
 	r.successfulBeads = 0
 	r.successesSinceFull = 0
-	r.specGateCycles = make(map[string]int)
 	if r.validationRunner != nil {
 		r.validationRunner.ResetFailures()
 	}
@@ -57,6 +57,7 @@ func (r *Runner) resetPerRunState() {
 func (r *Runner) initRunLoopState(deadline time.Time) (*runLoopState, func(), error) {
 	st := &runLoopState{
 		skippedBeads:        make(map[string]bool),
+		specGateCycles:      make(map[string]int),
 		testsAuthoredBySpec: make(map[string]bool),
 	}
 

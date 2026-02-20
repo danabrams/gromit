@@ -8,10 +8,8 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/specgate"
 )
 
 func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
@@ -21,34 +19,56 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 		name              string
 		enabled           bool
 		autoTrigger       bool
+		beadLabels        []string
 		labelFilters      []string
 		openSpecBeads     bool
 		maxCycles         int
 		initialCycles     int
+		hasGate           bool
+		hasBeadsClient    bool
 		wantListCalls     int
 		wantRunTestsCalls int
 		wantCycles        int
 	}{
 		{
-			name:              "runs when scoped, auto-trigger enabled, no open beads, cycles available",
+			name:              "runs when enabled scoped no open beads and cycle budget remains",
 			enabled:           true,
 			autoTrigger:       true,
+			beadLabels:        []string{"spec:demo-spec"},
 			labelFilters:      []string{"spec:demo-spec"},
 			openSpecBeads:     false,
 			maxCycles:         2,
 			initialCycles:     0,
+			hasGate:           true,
+			hasBeadsClient:    true,
 			wantListCalls:     1,
 			wantRunTestsCalls: 1,
 			wantCycles:        1,
 		},
 		{
+			name:              "skips when bead has no spec label",
+			enabled:           true,
+			autoTrigger:       true,
+			beadLabels:        []string{"priority:p1"},
+			labelFilters:      []string{"spec:demo-spec"},
+			maxCycles:         2,
+			initialCycles:     0,
+			hasGate:           true,
+			hasBeadsClient:    true,
+			wantListCalls:     0,
+			wantRunTestsCalls: 0,
+			wantCycles:        0,
+		},
+		{
 			name:              "skips when run is not scoped",
 			enabled:           true,
 			autoTrigger:       true,
+			beadLabels:        []string{"spec:demo-spec"},
 			labelFilters:      nil,
-			openSpecBeads:     false,
 			maxCycles:         2,
 			initialCycles:     0,
+			hasGate:           true,
+			hasBeadsClient:    true,
 			wantListCalls:     0,
 			wantRunTestsCalls: 0,
 			wantCycles:        0,
@@ -57,10 +77,12 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when auto-trigger disabled",
 			enabled:           true,
 			autoTrigger:       false,
+			beadLabels:        []string{"spec:demo-spec"},
 			labelFilters:      []string{"spec:demo-spec"},
-			openSpecBeads:     false,
 			maxCycles:         2,
 			initialCycles:     0,
+			hasGate:           true,
+			hasBeadsClient:    true,
 			wantListCalls:     0,
 			wantRunTestsCalls: 0,
 			wantCycles:        0,
@@ -69,10 +91,12 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when spec gate disabled",
 			enabled:           false,
 			autoTrigger:       true,
+			beadLabels:        []string{"spec:demo-spec"},
 			labelFilters:      []string{"spec:demo-spec"},
-			openSpecBeads:     false,
 			maxCycles:         2,
 			initialCycles:     0,
+			hasGate:           true,
+			hasBeadsClient:    true,
 			wantListCalls:     0,
 			wantRunTestsCalls: 0,
 			wantCycles:        0,
@@ -81,10 +105,13 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when open beads remain",
 			enabled:           true,
 			autoTrigger:       true,
+			beadLabels:        []string{"spec:demo-spec"},
 			labelFilters:      []string{"spec:demo-spec"},
 			openSpecBeads:     true,
 			maxCycles:         2,
 			initialCycles:     0,
+			hasGate:           true,
+			hasBeadsClient:    true,
 			wantListCalls:     1,
 			wantRunTestsCalls: 0,
 			wantCycles:        0,
@@ -93,13 +120,43 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			name:              "skips when max cycles exhausted",
 			enabled:           true,
 			autoTrigger:       true,
+			beadLabels:        []string{"spec:demo-spec"},
 			labelFilters:      []string{"spec:demo-spec"},
-			openSpecBeads:     false,
 			maxCycles:         2,
 			initialCycles:     2,
+			hasGate:           true,
+			hasBeadsClient:    true,
 			wantListCalls:     1,
 			wantRunTestsCalls: 0,
 			wantCycles:        2,
+		},
+		{
+			name:              "skips when gate is not wired",
+			enabled:           true,
+			autoTrigger:       true,
+			beadLabels:        []string{"spec:demo-spec"},
+			labelFilters:      []string{"spec:demo-spec"},
+			maxCycles:         2,
+			initialCycles:     0,
+			hasGate:           false,
+			hasBeadsClient:    true,
+			wantListCalls:     0,
+			wantRunTestsCalls: 0,
+			wantCycles:        0,
+		},
+		{
+			name:              "skips when bead client is not wired",
+			enabled:           true,
+			autoTrigger:       true,
+			beadLabels:        []string{"spec:demo-spec"},
+			labelFilters:      []string{"spec:demo-spec"},
+			maxCycles:         2,
+			initialCycles:     0,
+			hasGate:           true,
+			hasBeadsClient:    false,
+			wantListCalls:     0,
+			wantRunTestsCalls: 0,
+			wantCycles:        0,
 		},
 	}
 
@@ -118,38 +175,39 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 				},
 			}
 
-			gate := &SpecGate{
-				cfg: &config.Config{
-					SpecGate: config.SpecGateConfig{Model: "sonnet"},
-				},
-				validationRunner: &mockSpecGateValidationRunner{
-					runDirectFn: func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-						runTestsCalls++
-						return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
-					},
-				},
-				renderer: &mockPromptRenderer{
-					RenderSpecGateFn: func(ctx *prompt.SpecGateContext) (string, error) {
-						return "prompt", nil
-					},
-				},
-				router: provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{}),
-			}
-
-			auto := tt.autoTrigger
-			enabled := tt.enabled
 			r := &Runner{
 				cfg: &config.Config{
 					Paths:    config.PathsConfig{Specs: specsDir},
-					SpecGate: config.SpecGateConfig{Enabled: &enabled, AutoTrigger: &auto, MaxCycles: tt.maxCycles},
+					SpecGate: config.SpecGateConfig{Enabled: &tt.enabled, AutoTrigger: &tt.autoTrigger, MaxCycles: tt.maxCycles},
 				},
-				beads:          beads,
-				specGate:       gate,
-				labelFilters:   tt.labelFilters,
-				specGateCycles: map[string]int{"demo-spec": tt.initialCycles},
+				labelFilters: tt.labelFilters,
+			}
+			if tt.hasBeadsClient {
+				r.beads = beads
+			}
+			if tt.hasGate {
+				r.specGate = &specgate.Gate{
+					RunTests: func(ctx context.Context) (string, error) {
+						runTestsCalls++
+						return "VALIDATION_PASSED", nil
+					},
+					GetDiff: func(ctx context.Context) (string, error) {
+						return "", nil
+					},
+					RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
+						return "prompt", nil
+					},
+					InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
+						return []byte(`{"passed":true,"results":[]}`), nil
+					},
+					Model: "sonnet",
+				}
 			}
 
-			if err := r.maybeRunSpecGate(context.Background(), "demo-spec"); err != nil {
+			st := &runLoopState{specGateCycles: map[string]int{"demo-spec": tt.initialCycles}}
+			b := &bead.Bead{ID: "b1", Title: "Spec bead", Labels: tt.beadLabels}
+
+			if err := r.maybeRunSpecGate(context.Background(), b, st); err != nil {
 				t.Fatalf("maybeRunSpecGate() error: %v", err)
 			}
 			if listCalls != tt.wantListCalls {
@@ -158,7 +216,7 @@ func TestMaybeRunSpecGate_AutoTriggerDecisionMatrix(t *testing.T) {
 			if runTestsCalls != tt.wantRunTestsCalls {
 				t.Fatalf("RunTests calls = %d, want %d", runTestsCalls, tt.wantRunTestsCalls)
 			}
-			if got := r.specGateCycles["demo-spec"]; got != tt.wantCycles {
+			if got := st.specGateCycles["demo-spec"]; got != tt.wantCycles {
 				t.Fatalf("specGateCycles[demo-spec] = %d, want %d", got, tt.wantCycles)
 			}
 		})
@@ -179,30 +237,6 @@ func TestMaybeRunSpecGate_FailedVerdictSynthesizesSpecLabeledFixBeads(t *testing
 		},
 	}
 
-	gate := &SpecGate{
-		cfg: &config.Config{
-			SpecGate: config.SpecGateConfig{Model: "sonnet"},
-		},
-		validationRunner: &mockSpecGateValidationRunner{
-			runDirectFn: func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-				return &claude.Result{Success: false, Output: "tests failing"}, nil
-			},
-		},
-		renderer: &mockPromptRenderer{
-			RenderSpecGateFn: func(ctx *prompt.SpecGateContext) (string, error) {
-				return "prompt", nil
-			},
-		},
-		router: provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{
-			runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
-				return &provider.Result{
-					Success: true,
-					Output:  `{"passed":false,"failures":[{"test_name":"works","message":"failed","suggested_fix":"fix it"}]}`,
-				}, nil
-			},
-		}),
-	}
-
 	auto := true
 	enabled := true
 	r := &Runner{
@@ -210,13 +244,28 @@ func TestMaybeRunSpecGate_FailedVerdictSynthesizesSpecLabeledFixBeads(t *testing
 			Paths:    config.PathsConfig{Specs: specsDir},
 			SpecGate: config.SpecGateConfig{Enabled: &enabled, AutoTrigger: &auto, MaxCycles: 2},
 		},
-		beads:          beads,
-		specGate:       gate,
-		labelFilters:   []string{"spec:demo-spec"},
-		specGateCycles: map[string]int{},
+		beads:        beads,
+		labelFilters: []string{"spec:demo-spec"},
+		specGate: &specgate.Gate{
+			RunTests: func(ctx context.Context) (string, error) {
+				return "tests failing", nil
+			},
+			GetDiff: func(ctx context.Context) (string, error) {
+				return "", nil
+			},
+			RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
+				return "prompt", nil
+			},
+			InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
+				return []byte(`{"passed":false,"results":[{"criterion":"works","passed":false,"evidence":"failed"}]}`), nil
+			},
+			Model: "sonnet",
+		},
 	}
 
-	if err := r.maybeRunSpecGate(context.Background(), "demo-spec"); err != nil {
+	st := &runLoopState{specGateCycles: map[string]int{}}
+	b := &bead.Bead{ID: "b1", Title: "Spec bead", Labels: []string{"spec:demo-spec"}}
+	if err := r.maybeRunSpecGate(context.Background(), b, st); err != nil {
 		t.Fatalf("maybeRunSpecGate() error: %v", err)
 	}
 	if len(createdLabels) != 1 || createdLabels[0] != "spec:demo-spec" {
@@ -241,34 +290,7 @@ func TestHandleSuccessfulIteration_RunsSpecGateAfterSync(t *testing.T) {
 		},
 	}
 
-	gate := &SpecGate{
-		cfg: &config.Config{
-			SpecGate: config.SpecGateConfig{Model: "sonnet"},
-		},
-		validationRunner: &mockSpecGateValidationRunner{
-			runDirectFn: func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-				if !syncCalled {
-					t.Fatalf("expected sync to occur before spec gate")
-				}
-				runTestsCalls++
-				return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
-			},
-		},
-		renderer: &mockPromptRenderer{
-			RenderSpecGateFn: func(ctx *prompt.SpecGateContext) (string, error) {
-				return "prompt", nil
-			},
-		},
-		router: provider.NewSingleProviderRouter(&mockProviderWithRouterTracking{}),
-	}
-
-	specsDir := t.TempDir()
-	specBody := "## Acceptance Criteria\n- works\n"
-	specPath := filepath.Join(specsDir, "demo-spec.md")
-	if err := os.WriteFile(specPath, []byte(specBody), 0644); err != nil {
-		t.Fatalf("WriteFile() error: %v", err)
-	}
-
+	specsDir := writeSpecGateTestSpec(t, "demo-spec")
 	auto := true
 	enabled := true
 	r := &Runner{
@@ -276,13 +298,30 @@ func TestHandleSuccessfulIteration_RunsSpecGateAfterSync(t *testing.T) {
 			Paths:    config.PathsConfig{Specs: specsDir},
 			SpecGate: config.SpecGateConfig{Enabled: &enabled, AutoTrigger: &auto, MaxCycles: 2},
 		},
-		beads:          beads,
-		specGate:       gate,
-		labelFilters:   []string{"spec:demo-spec"},
-		specGateCycles: map[string]int{},
+		beads:        beads,
+		labelFilters: []string{"spec:demo-spec"},
+		specGate: &specgate.Gate{
+			RunTests: func(ctx context.Context) (string, error) {
+				if !syncCalled {
+					t.Fatalf("expected sync to occur before spec gate")
+				}
+				runTestsCalls++
+				return "VALIDATION_PASSED", nil
+			},
+			GetDiff: func(ctx context.Context) (string, error) {
+				return "", nil
+			},
+			RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
+				return "prompt", nil
+			},
+			InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
+				return []byte(`{"passed":true,"results":[]}`), nil
+			},
+			Model: "sonnet",
+		},
 	}
 
-	st := &runLoopState{}
+	st := &runLoopState{specGateCycles: map[string]int{}}
 	b := &bead.Bead{ID: "b1", Title: "Spec bead", Labels: []string{"spec:demo-spec"}}
 	result := &IterationResult{Model: "sonnet"}
 
@@ -300,7 +339,7 @@ func writeSpecGateTestSpec(t *testing.T, specName string) string {
 	specsDir := t.TempDir()
 	specBody := "## Acceptance Criteria\n- works\n"
 	specPath := filepath.Join(specsDir, specName+".md")
-	if err := os.WriteFile(specPath, []byte(specBody), 0644); err != nil {
+	if err := os.WriteFile(specPath, []byte(specBody), 0o644); err != nil {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 	return specsDir
