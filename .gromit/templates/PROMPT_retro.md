@@ -155,6 +155,12 @@ The following iterations exceeded 80% of their model's context window:
 - Avg cost: ${{ printf "%.4f" .ProcessTrend.LatestWindow.AvgCostUSD }}
 - Avg MTTR proxy: {{ printf "%.0f" .ProcessTrend.LatestWindow.AvgMTTRProxyMs }}ms
 
+### Failure Breakdown
+- Preflight failures: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.PreflightFailureRate 100) }}
+- Build failures: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.BuildFailureRate 100) }}
+- Validation failures: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.ValidationFailureRate 100) }}
+- Timeout failures: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.TimeoutFailureRate 100) }}
+
 {{- if .ProcessTrend.ControlLimits }}
 ### Control Limits
 | Metric | Latest | Mean | Std Dev | LCL | UCL |

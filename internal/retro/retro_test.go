@@ -2,6 +2,7 @@ package retro
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1251,6 +1252,80 @@ func TestRenderPromptWithProviderFamiliesInRealTemplate(t *testing.T) {
 	}
 	if !contains(prompt, "Mixed providers") {
 		t.Error("rendered prompt should label mixed-provider aggregates")
+	}
+}
+
+func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	realTemplatePath := "../../.gromit/templates/PROMPT_retro.md"
+	templateContent, err := os.ReadFile(realTemplatePath)
+	if err != nil {
+		t.Fatalf("failed to read real template: %v", err)
+	}
+
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, templateContent, 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	tmpGromitDir := t.TempDir()
+	metricsDir := filepath.Join(tmpGromitDir, "metrics")
+	if err := os.MkdirAll(metricsDir, 0755); err != nil {
+		t.Fatalf("failed to create metrics dir: %v", err)
+	}
+
+	trend := logger.ProcessTrend{
+		GeneratedAt:     time.Date(2026, time.February, 18, 12, 0, 0, 0, time.UTC),
+		TotalIterations: 12,
+		WindowSize:      5,
+		LatestWindow: logger.ProcessTrendWindow{
+			SuccessRate:           0.4,
+			FailureRate:           0.6,
+			FirstPassSuccess:      0.3,
+			EscalationRate:        0.2,
+			AvgDurationMs:         2500,
+			P95DurationMs:         4000,
+			AvgCostUSD:            0.125,
+			AvgMTTRProxyMs:        1900,
+			PreflightFailureRate:  0.1,
+			BuildFailureRate:      0.2,
+			ValidationFailureRate: 0.3,
+			TimeoutFailureRate:    0.4,
+		},
+	}
+
+	data, err := json.Marshal(trend)
+	if err != nil {
+		t.Fatalf("failed to marshal process trend: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(metricsDir, "process_trend.json"), data, 0644); err != nil {
+		t.Fatalf("failed to write process trend: %v", err)
+	}
+
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+	r.templatePath = templatePath
+
+	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{Total: 1}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("renderPrompt with process trend failed: %v", err)
+	}
+
+	expected := []string{
+		"### Failure Breakdown",
+		"Preflight failures: 10.0%",
+		"Build failures: 20.0%",
+		"Validation failures: 30.0%",
+		"Timeout failures: 40.0%",
+	}
+	for _, want := range expected {
+		if !contains(prompt, want) {
+			t.Errorf("rendered prompt missing expected failure breakdown text: %q", want)
+		}
 	}
 }
 
