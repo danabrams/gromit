@@ -52,12 +52,12 @@ func setupInvocationTimeoutRunner(t *testing.T, cfg *config.Config, p provider.P
 
 // smoke-matrix: keep | rationale: Retains high-value E2E failure-path coverage for timeout-triggered retry with tier escalation behavior. | destination: internal/runner/invocation_timeout_acceptance_test.go:TestRunnerSmoke_ValidationFailureEscalatesTier
 func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
-	var tiers []string
+	callTiers := make(chan string, 3)
 	callCount := 0
 	mockProvider := &mockProviderWithRouterTracking{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-			tiers = append(tiers, tier)
 			callCount++
+			callTiers <- tier
 			if callCount == 1 {
 				return &provider.Result{Success: false, Model: "test-sonnet", Output: "timeout"}, context.DeadlineExceeded
 			}
@@ -84,8 +84,18 @@ func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
 	if err := r.Run(context.Background(), 0, time.Time{}, nil, false); err != nil {
 		t.Fatalf("Run() failed: %v", err)
 	}
-	if len(tiers) < 2 {
-		t.Fatalf("expected retry after invocation timeout, got %d invocation(s)", len(tiers))
+	close(callTiers)
+
+	var tiers []string
+	for tier := range callTiers {
+		tiers = append(tiers, tier)
+	}
+
+	if callCount != 2 {
+		t.Fatalf("expected exactly 2 invocations (initial + retry), got %d", callCount)
+	}
+	if len(tiers) != 2 {
+		t.Fatalf("expected exactly 2 recorded tiers, got %d (%v)", len(tiers), tiers)
 	}
 	if tiers[0] != provider.TierMedium || tiers[1] != provider.TierHigh {
 		t.Fatalf("invocation tiers = %v, want [%s %s]", tiers, provider.TierMedium, provider.TierHigh)
