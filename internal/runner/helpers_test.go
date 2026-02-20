@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"errors"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -70,5 +72,74 @@ func TestDefaultArgvRunnerSetsEnv(t *testing.T) {
 		if !strings.Contains(stdout, expected) {
 			t.Fatalf("stdout missing %q", expected)
 		}
+	}
+}
+
+func TestDefaultArgvRunnerSuccess(t *testing.T) {
+	workDir := t.TempDir()
+	stdout, stderr, exitCode, err := defaultArgvRunner(
+		context.Background(),
+		"sh",
+		[]string{"-c", "printf 'hello'"},
+		workDir,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stdout != "hello" {
+		t.Fatalf("stdout = %q, want %q", stdout, "hello")
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+}
+
+func TestDefaultArgvRunnerNonZeroExit(t *testing.T) {
+	workDir := t.TempDir()
+	stdout, stderr, exitCode, err := defaultArgvRunner(
+		context.Background(),
+		"sh",
+		[]string{"-c", "echo boom >&2; exit 23"},
+		workDir,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 23 {
+		t.Fatalf("exitCode = %d, want 23", exitCode)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if strings.TrimSpace(stderr) != "boom" {
+		t.Fatalf("stderr = %q, want %q", stderr, "boom")
+	}
+}
+
+func TestDefaultArgvRunnerExecFailure(t *testing.T) {
+	workDir := t.TempDir()
+	stdout, stderr, exitCode, err := defaultArgvRunner(
+		context.Background(),
+		"definitely-not-a-real-executable",
+		nil,
+		workDir,
+	)
+	if err == nil {
+		t.Fatalf("expected error for missing executable")
+	}
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Fatalf("error = %v, want ErrNotFound", err)
+	}
+	if exitCode != -1 {
+		t.Fatalf("exitCode = %d, want -1", exitCode)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 }
