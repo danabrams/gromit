@@ -47,6 +47,7 @@ const (
 	reviewGitDiffErrPrefix     = "git diff"
 	reviewGitDiffStatErrPrefix = "git diff --stat"
 	reviewGitHeadErrPrefix     = "git rev-parse HEAD"
+	reviewGitHashFormatArg     = "--format=%H"
 )
 
 func runReviewGitOutput(args ...string) ([]byte, error) {
@@ -269,7 +270,9 @@ func findFirstCommitForBead(beadID string) (string, error) {
 	if beadID == "" || strings.HasPrefix(beadID, "-") {
 		return "", fmt.Errorf("invalid bead ID %q: must not be empty or start with '-'", beadID)
 	}
-	out, err := runReviewGitOutput("log", "--all", "--format=%H", "--grep", beadID, "--fixed-strings")
+
+	// Keep beadID immediately after --grep so --fixed-strings is interpreted as a flag.
+	out, err := runReviewGitOutput("log", "--all", reviewGitHashFormatArg, "--grep", beadID, "--fixed-strings")
 	if err != nil {
 		return "", nil // No commits found - not an error, just no work yet
 	}
