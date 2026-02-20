@@ -81,7 +81,15 @@ var proactiveDecomposeKeywords = regexp.MustCompile(
 )
 
 var lowComplexityTitlePatterns = regexp.MustCompile(
-	`(?i)(\bmigrate\b.+\bto\b)|(\bwire\b.+\binto\b)|(\badd\s+(field|config)\b)|(\bdelete\b)|(\bdocument\b)|(\brename\b)|(\badd\s+t\.parallel\b)|(\badd\s+compile-time\s+check\b)`,
+	`(?i)` +
+		`(?:\bmigrate\b.+\bto\b)|` +
+		`(?:\bwire\b.+\binto\b)|` +
+		`(?:\badd\s+(?:field|config)\b)|` +
+		`(?:\bdelete\b)|` +
+		`(?:\bdocument\b)|` +
+		`(?:\brename\b)|` +
+		`(?:\badd\s+t\.parallel\b)|` +
+		`(?:\badd\s+compile-time\s+check\b)`,
 )
 
 // IsProactiveDecompositionCandidate returns true if the bead's title contains keywords
