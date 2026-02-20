@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -33,28 +34,28 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, specName string) error {
 	if err := scope.ValidateSpec(specsDir, specName); err != nil {
 		return err
 	}
-	labels := scope.ResolveSpec(specName)
-	if len(labels) == 0 {
+	specLabels := scope.ResolveSpec(specName)
+	if len(specLabels) == 0 {
 		return fmt.Errorf("no label found for spec %q", specName)
 	}
-	if !isScopedRunLabel(r.labelFilters, labels[0]) {
+	specLabel := specLabels[0]
+	if !isScopedRunLabel(r.labelFilters, specLabel) {
 		return nil
 	}
 
-	beads, err := r.beads.ListWithLabel(labels[0])
+	beads, err := r.beads.ListWithLabel(specLabel)
 	if err != nil {
 		return err
 	}
-	for _, b := range beads {
-		if b != nil && strings.EqualFold(b.Status, "open") {
-			return nil
-		}
+	if hasOpenBeads(beads) {
+		return nil
 	}
 
 	if r.specGateCycles == nil {
 		r.specGateCycles = make(map[string]int)
 	}
-	if r.cfg.SpecGate.MaxCycles > 0 && r.specGateCycles[specName] >= r.cfg.SpecGate.MaxCycles {
+	currentCycles := r.specGateCycles[specName]
+	if r.cfg.SpecGate.MaxCycles > 0 && currentCycles >= r.cfg.SpecGate.MaxCycles {
 		return nil
 	}
 
@@ -67,7 +68,7 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, specName string) error {
 	if err != nil {
 		return err
 	}
-	r.specGateCycles[specName]++
+	r.specGateCycles[specName] = currentCycles + 1
 
 	if verdict != nil && !verdict.Passed {
 		creator := &specGateBeadCreator{beads: r.beads}
@@ -76,6 +77,15 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, specName string) error {
 		}
 	}
 	return nil
+}
+
+func hasOpenBeads(beads []*bead.Bead) bool {
+	for _, b := range beads {
+		if b != nil && strings.EqualFold(b.Status, "open") {
+			return true
+		}
+	}
+	return false
 }
 
 func isScopedRunLabel(filters []string, label string) bool {
