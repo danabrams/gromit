@@ -212,3 +212,48 @@ func TestLaunchPlanSession_WorktreeDisabledUsesInPlaceLaunch(t *testing.T) {
 		t.Fatalf("launch dir = %q, want empty string", launchedDir)
 	}
 }
+
+func TestLaunchPlanSession_ConvertsPromptPathToAbsolute(t *testing.T) {
+	origLauncher := planSessionLauncherFn
+	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
+
+	enabled := false
+	cfg := &config.Config{}
+	cfg.Worktree.Enabled = &enabled
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() failed: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
+
+	relativePromptPath := filepath.Join(".gromit", "tmp", "plan-prompt.md")
+	if err := os.MkdirAll(filepath.Dir(relativePromptPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() failed: %v", err)
+	}
+	if err := os.WriteFile(relativePromptPath, []byte("prompt"), 0o644); err != nil {
+		t.Fatalf("WriteFile() failed: %v", err)
+	}
+
+	capturedPromptPath := ""
+	agent := &planLaunchTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			capturedPromptPath = promptPath
+			return nil
+		},
+	}
+
+	if err := launchPlanSession(cfg, ".gromit", agent, relativePromptPath); err != nil {
+		t.Fatalf("launchPlanSession() error = %v", err)
+	}
+
+	if !filepath.IsAbs(capturedPromptPath) {
+		t.Fatalf("prompt path = %q, want absolute path", capturedPromptPath)
+	}
+}

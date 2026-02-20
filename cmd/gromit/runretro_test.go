@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -148,5 +149,71 @@ func TestLaunchRetroInteractiveSession_ConflictHandoffPropagates(t *testing.T) {
 	}
 	if recordCalled {
 		t.Fatal("retro state should not be recorded when merge handoff occurs")
+	}
+}
+
+func TestLaunchRetroInteractiveSession_ConvertsPromptPathToAbsolute(t *testing.T) {
+	origResolve := retroResolveAgentFn
+	origLauncher := retroSessionLauncherFn
+	origRecord := retroRecordStateFn
+	t.Cleanup(func() {
+		retroResolveAgentFn = origResolve
+		retroSessionLauncherFn = origLauncher
+		retroRecordStateFn = origRecord
+	})
+
+	cfg := &config.Config{}
+	cfg.Paths.GromitDir = filepath.Join(t.TempDir(), ".gromit")
+	cmd := &cobra.Command{}
+	cmd.Flags().String("agent", "", "")
+	cmd.Flags().Bool("choose-agent", false, "")
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() failed: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
+
+	relativePromptPath := filepath.Join(".gromit", "tmp", "retro-prompt.md")
+	if err := os.MkdirAll(filepath.Dir(relativePromptPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() failed: %v", err)
+	}
+	if err := os.WriteFile(relativePromptPath, []byte("prompt"), 0o644); err != nil {
+		t.Fatalf("WriteFile() failed: %v", err)
+	}
+
+	capturedPromptPath := ""
+	retroResolveAgentFn = func(*config.Config, string, string, bool, io.Reader, io.Writer) (agent.Agent, error) {
+		return &retroTestAgent{
+			launchInDirFn: func(promptPath, dir string) error {
+				capturedPromptPath = promptPath
+				return nil
+			},
+		}, nil
+	}
+	retroSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		if err := callback(t.TempDir()); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{}, nil
+	}
+	retroRecordStateFn = func(gromitDir string) error { return nil }
+
+	if err := launchRetroInteractiveSession(cfg, cmd, cfg.Paths.GromitDir, relativePromptPath); err != nil {
+		t.Fatalf("launchRetroInteractiveSession() error = %v", err)
+	}
+	if !filepath.IsAbs(capturedPromptPath) {
+		t.Fatalf("prompt path = %q, want absolute path", capturedPromptPath)
 	}
 }
