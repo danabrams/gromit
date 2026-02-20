@@ -122,5 +122,11 @@ func writeTempPromptWithPattern(tmpDir, pattern, prompt string) (path string, cl
 		os.Remove(promptPath)
 	}
 
-	return promptPath, cleanup, nil
+	absPromptPath, err := filepath.Abs(promptPath)
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("resolving prompt path: %w", err)
+	}
+
+	return absPromptPath, cleanup, nil
 }

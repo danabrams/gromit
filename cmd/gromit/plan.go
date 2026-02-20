@@ -245,14 +245,18 @@ func launchPlanSession(cfg *config.Config, gromitDir string, selectedAgent agent
 	if selectedAgent == nil {
 		return fmt.Errorf("selected agent is nil")
 	}
+	absPromptPath, err := filepath.Abs(promptPath)
+	if err != nil {
+		return fmt.Errorf("resolving prompt path: %w", err)
+	}
 
 	if cfg != nil && !cfg.Worktree.IsEnabled() {
-		return selectedAgent.LaunchInDir(promptPath, "")
+		return selectedAgent.LaunchInDir(absPromptPath, "")
 	}
 
 	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	_, err := planSessionLauncherFn(gromitDir, planSessionCommand, conflictSettings, func(sessionDir string) error {
-		return selectedAgent.LaunchInDir(promptPath, sessionDir)
+	_, err = planSessionLauncherFn(gromitDir, planSessionCommand, conflictSettings, func(sessionDir string) error {
+		return selectedAgent.LaunchInDir(absPromptPath, sessionDir)
 	})
 	return err
 }

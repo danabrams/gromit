@@ -56,8 +56,9 @@ func TestRetroUsesAgentLaunchNotDirectExec(t *testing.T) {
 		t.Error("main.go does not call .LaunchInDir() - agent launch not integrated for retro")
 	}
 
-	if !strings.Contains(sourceStr, ".LaunchInDir(promptPath, sessionDir)") {
-		t.Error("main.go does not call .LaunchInDir(promptPath, sessionDir) in session callback")
+	if !strings.Contains(sourceStr, ".LaunchInDir(absPromptPath, sessionDir)") &&
+		!strings.Contains(sourceStr, ".LaunchInDir(promptPath, sessionDir)") {
+		t.Error("main.go does not call .LaunchInDir(<promptPath>, sessionDir) in session callback")
 	}
 
 	if strings.Contains(sourceStr, "selectedAgent.Launch(promptPath)") {

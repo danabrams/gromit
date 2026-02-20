@@ -214,6 +214,51 @@ func TestLaunchDebugSession_UsesRestoreDirWhenProvided(t *testing.T) {
 	}
 }
 
+func TestLaunchDebugSession_ConvertsPromptPathToAbsolute(t *testing.T) {
+	origLauncher := debugSessionLauncherFn
+	t.Cleanup(func() { debugSessionLauncherFn = origLauncher })
+
+	enabled := false
+	cfg := &config.Config{}
+	cfg.Worktree.Enabled = &enabled
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() failed: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
+
+	relativePromptPath := filepath.Join(".gromit", "tmp", "prompt.md")
+	if err := os.MkdirAll(filepath.Dir(relativePromptPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() failed: %v", err)
+	}
+	if err := os.WriteFile(relativePromptPath, []byte("prompt"), 0o644); err != nil {
+		t.Fatalf("WriteFile() failed: %v", err)
+	}
+
+	capturedPromptPath := ""
+	agent := &retroTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			capturedPromptPath = promptPath
+			return nil
+		},
+	}
+
+	if err := launchDebugSession(cfg, ".gromit", agent, relativePromptPath, ""); err != nil {
+		t.Fatalf("launchDebugSession() error = %v", err)
+	}
+
+	if !filepath.IsAbs(capturedPromptPath) {
+		t.Fatalf("prompt path = %q, want absolute path", capturedPromptPath)
+	}
+}
+
 func TestGetPlanFiles(t *testing.T) {
 	t.Run("finds markdown files", func(t *testing.T) {
 		tmpDir := t.TempDir()

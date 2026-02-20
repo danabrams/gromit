@@ -369,6 +369,10 @@ func resolveScopeLabels(specsDir, epicFlag, specFlag string) ([]string, error) {
 
 func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromitDir, promptPath string) error {
 	fmt.Println("\nLaunching interactive review session...")
+	absPromptPath, err := filepath.Abs(promptPath)
+	if err != nil {
+		return fmt.Errorf("resolving prompt path: %w", err)
+	}
 
 	agentFlag, _ := cmd.Flags().GetString("agent")
 	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
@@ -379,7 +383,7 @@ func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromi
 
 	conflictSettings := sessionConflictSettingsFromConfig(cfg)
 	_, err = retroSessionLauncherFn(gromitDir, retroSessionCommand, conflictSettings, func(sessionDir string) error {
-		if err := selectedAgent.LaunchInDir(promptPath, sessionDir); err != nil {
+		if err := selectedAgent.LaunchInDir(absPromptPath, sessionDir); err != nil {
 			return fmt.Errorf("launching interactive review session: %w", err)
 		}
 		return nil

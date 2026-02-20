@@ -191,18 +191,22 @@ func launchDebugSession(cfg *config.Config, gromitDir string, selectedAgent agen
 	if selectedAgent == nil {
 		return fmt.Errorf("selected agent is nil")
 	}
+	absPromptPath, err := filepath.Abs(promptPath)
+	if err != nil {
+		return fmt.Errorf("resolving prompt path: %w", err)
+	}
 
 	if cfg != nil && !cfg.Worktree.IsEnabled() {
-		return selectedAgent.LaunchInDir(promptPath, launchDir)
+		return selectedAgent.LaunchInDir(absPromptPath, launchDir)
 	}
 
 	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	_, err := debugSessionLauncherFn(gromitDir, debugSessionCommand, conflictSettings, func(sessionDir string) error {
+	_, err = debugSessionLauncherFn(gromitDir, debugSessionCommand, conflictSettings, func(sessionDir string) error {
 		effectiveDir := sessionDir
 		if strings.TrimSpace(launchDir) != "" {
 			effectiveDir = launchDir
 		}
-		return selectedAgent.LaunchInDir(promptPath, effectiveDir)
+		return selectedAgent.LaunchInDir(absPromptPath, effectiveDir)
 	})
 	return err
 }
