@@ -226,6 +226,8 @@ func (r *Runner) restoreTmuxTitle(restoreFn func() error) {
 	}
 }
 
+// processBead preserves the legacy call shape for tests and callers that
+// only need IterationResult while delegating execution to processBeadWithContext.
 func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, deadline time.Time, scopeEstimate *prompt.ScopeEstimate) *IterationResult {
 	_, result := r.processBeadWithContext(ctx, b, iteration, deadline, scopeEstimate)
 	return result
