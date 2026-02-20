@@ -11,6 +11,30 @@ import (
 	"github.com/danabrams/gromit/internal/specgate"
 )
 
+const (
+	verifySpecSingleCriterionSpec = `---
+id: my-spec
+---
+
+# My Spec
+
+## Acceptance Criteria
+
+- First criterion
+`
+	verifySpecTwoCriteriaSpec = `---
+id: my-spec
+---
+
+# My Spec
+
+## Acceptance Criteria
+
+- First criterion
+- Second criterion
+`
+)
+
 func TestVerifySpecCmd_Registration(t *testing.T) {
 	found := false
 	for _, cmd := range rootCmd.Commands() {
@@ -78,18 +102,7 @@ func TestExtractAcceptanceCriteria(t *testing.T) {
 }
 
 func TestVerifySpecCmd_OutputTableFormat(t *testing.T) {
-	specContent := `---
-id: my-spec
----
-
-# My Spec
-
-## Acceptance Criteria
-
-- First criterion
-- Second criterion
-`
-	setupVerifySpecTest(t, "my-spec", specContent)
+	setupVerifySpecTest(t, "my-spec", verifySpecTwoCriteriaSpec)
 
 	prevRunner := verifySpecGateRunner
 	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
@@ -121,17 +134,7 @@ id: my-spec
 }
 
 func TestRunVerifySpec_PassReturnsNil(t *testing.T) {
-	specContent := `---
-id: my-spec
----
-
-# My Spec
-
-## Acceptance Criteria
-
-- First criterion
-`
-	setupVerifySpecTest(t, "my-spec", specContent)
+	setupVerifySpecTest(t, "my-spec", verifySpecSingleCriterionSpec)
 
 	prevRunner := verifySpecGateRunner
 	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
@@ -157,17 +160,7 @@ id: my-spec
 }
 
 func TestVerifySpecCmd_ExitCodePassAndFail(t *testing.T) {
-	specContent := `---
-id: my-spec
----
-
-# My Spec
-
-## Acceptance Criteria
-
-- First criterion
-`
-	setupVerifySpecTest(t, "my-spec", specContent)
+	setupVerifySpecTest(t, "my-spec", verifySpecSingleCriterionSpec)
 
 	prevRunner := verifySpecGateRunner
 	t.Cleanup(func() {
@@ -201,17 +194,7 @@ id: my-spec
 }
 
 func TestRunVerifySpec_CreateBeadsOnFailure(t *testing.T) {
-	specContent := `---
-id: my-spec
----
-
-# My Spec
-
-## Acceptance Criteria
-
-- First criterion
-`
-	setupVerifySpecTest(t, "my-spec", specContent)
+	setupVerifySpecTest(t, "my-spec", verifySpecSingleCriterionSpec)
 
 	prevRunner := verifySpecGateRunner
 	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
@@ -243,17 +226,7 @@ id: my-spec
 }
 
 func TestRunVerifySpec_DoesNotCreateBeadsWithoutFlag(t *testing.T) {
-	specContent := `---
-id: my-spec
----
-
-# My Spec
-
-## Acceptance Criteria
-
-- First criterion
-`
-	setupVerifySpecTest(t, "my-spec", specContent)
+	setupVerifySpecTest(t, "my-spec", verifySpecSingleCriterionSpec)
 
 	prevRunner := verifySpecGateRunner
 	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
@@ -285,17 +258,7 @@ id: my-spec
 }
 
 func TestVerifySpecCmd_CreateBeadsPrintsIDs(t *testing.T) {
-	specContent := `---
-id: my-spec
----
-
-# My Spec
-
-## Acceptance Criteria
-
-- First criterion
-`
-	setupVerifySpecTest(t, "my-spec", specContent)
+	setupVerifySpecTest(t, "my-spec", verifySpecSingleCriterionSpec)
 
 	prevRunner := verifySpecGateRunner
 	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {

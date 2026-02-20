@@ -165,9 +165,9 @@ func printSpecGateVerdict(verdict *specgate.GateVerdict) {
 	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(writer, "CRITERION\tSTATUS\tEVIDENCE")
 	for _, result := range verdict.Results {
-		status := "PASS"
+		status := specGateStatusPass
 		if !result.Passed {
-			status = "FAIL"
+			status = specGateStatusFail
 		}
 		fmt.Fprintf(writer, "%s\t%s\t%s\n", result.Criterion, status, result.Evidence)
 	}
@@ -244,6 +244,8 @@ var verifySpecCmdRunner = defaultVerifySpecCmdRunner
 const (
 	specGateTestCommand = "go test -tags acceptance ./..."
 	specGateDiffCommand = "git diff"
+	specGateStatusPass  = "PASS"
+	specGateStatusFail  = "FAIL"
 )
 
 func runSpecGateTests(ctx context.Context, workDir string) (string, error) {
