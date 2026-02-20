@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-02-20T03:23:59.555102846Z",
-  "total_iterations": 508,
+  "generated_at": "2026-02-20T03:38:35.557671839Z",
+  "total_iterations": 512,
   "window_size": 30,
   "latest_window": {
     "success_rate": 1,
     "failure_rate": 0,
     "first_pass_success_rate": 1,
     "escalation_rate": 0,
-    "avg_duration_ms": 326636.63333333336,
-    "p95_duration_ms": 890440.3499999999,
-    "avg_cost_usd": 1.5662729333333332,
+    "avg_duration_ms": 296728.9666666667,
+    "p95_duration_ms": 749426.1999999994,
+    "avg_cost_usd": 1.2029012416666667,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -20,14 +20,14 @@
     "by_prompt_type": [
       {
         "prompt_type": "build",
-        "invocation_count": 26,
-        "avg_estimated_tokens": 3519.8846153846152
+        "invocation_count": 30,
+        "avg_estimated_tokens": 3418.366666666667
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 64727
+        "estimated_tokens": 74703
       },
       {
         "section": "spec",
@@ -35,19 +35,19 @@
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 3031
+        "estimated_tokens": 3499
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 2548
+        "estimated_tokens": 3126
       },
       {
         "section": "template_static",
-        "estimated_tokens": 52
+        "estimated_tokens": 60
       },
       {
         "section": "failure_context",
-        "estimated_tokens": 26
+        "estimated_tokens": 30
       },
       {
         "section": "confirmed_learnings",
@@ -67,27 +67,27 @@
       "truncate Spec": 3
     },
     "reconciliation_drift": {
-      "sample_count": 26,
-      "mean_abs_token_delta_pct": 2083.8282106339075,
-      "p95_abs_token_delta_pct": 12126.443357029408
+      "sample_count": 30,
+      "mean_abs_token_delta_pct": 1819.202499769632,
+      "p95_abs_token_delta_pct": 8919.36274853524
     }
   },
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 1.5662729333333332,
-      "mean": 1.4168825480093945,
-      "std_dev": 1.984370783144703,
-      "ucl": 7.369994897443504,
-      "lcl": -4.536229801424715
+      "latest": 1.2029012416666667,
+      "mean": 1.4160995828719514,
+      "std_dev": 1.976675859840453,
+      "ucl": 7.34612716239331,
+      "lcl": -4.513927996649407
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 326636.63333333336,
-      "mean": 584584.5948956679,
-      "std_dev": 295501.7097326575,
-      "ucl": 1471089.7240936402,
-      "lcl": -301920.5343023045
+      "latest": 296728.9666666667,
+      "mean": 582424.2671360662,
+      "std_dev": 295352.80984277686,
+      "ucl": 1468482.6966643967,
+      "lcl": -303634.16239226435
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -100,16 +100,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.04330708661417361,
-      "std_dev": 0.05550451978946403,
-      "ucl": 0.20982064598256572,
+      "mean": 0.042968750000000375,
+      "std_dev": 0.05541860017773585,
+      "ucl": 0.20922455053320793,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "latest": 1,
-      "mean": 0.4557086614173229,
-      "std_dev": 0.44902952705996757,
+      "mean": 0.45996093750000006,
+      "std_dev": 0.449831853463922,
       "ucl": 1,
       "lcl": 0
     },
@@ -124,17 +124,17 @@
     {
       "metric": "rolling_success_rate",
       "latest": 1,
-      "mean": 0.772199994417149,
-      "std_dev": 0.22140197837147726,
+      "mean": 0.773979681960765,
+      "std_dev": 0.22144552809881465,
       "ucl": 1,
-      "lcl": 0.10799405930271722
+      "lcl": 0.10964309766432112
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.007874015748031492,
-      "std_dev": 0.018686853030265186,
-      "ucl": 0.06393457483882706,
+      "mean": 0.0078124999999999965,
+      "std_dev": 0.018626619523174674,
+      "ucl": 0.06369235856952402,
       "lcl": 0
     },
     {
