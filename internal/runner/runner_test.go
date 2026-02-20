@@ -2293,11 +2293,12 @@ func TestRunSessionCompletion_SkipsStateCommitWhenNoChanges(t *testing.T) {
 // commands should use r.runArgv.
 func TestSubprocessCallSiteAudit(t *testing.T) {
 	const (
-		knownRunCmdCount       = 4
+		knownRunCmdCount       = 5
 		knownRunArgvCount      = 8
 		testCommandCallSite    = `r.runCmd(ctx, testCmd, "")`
 		compileCommandCallSite = `r.runCmd(buildCtx, r.cfg.Preflight.CompileCommand, ".")`
 		betweenIterationsFn    = "func (r *Runner) runBetweenIterationsCommand()"
+		endOfLoopFn            = "func (r *Runner) runEndOfLoopCommand() error"
 	)
 
 	entries, err := os.ReadDir(".")
@@ -2350,7 +2351,7 @@ func TestSubprocessCallSiteAudit(t *testing.T) {
 
 	if runCmdShellSiteCount != knownRunCmdCount {
 		t.Errorf("found %d user-configurable shell runCmd call-sites (known: %d). "+
-			"This audit only tracks BetweenIterationsCommand, TestCommand, and CompileCommand sites.",
+			"This audit only tracks BetweenIterationsCommand, EndOfLoopCommand, TestCommand, and CompileCommand sites.",
 			runCmdShellSiteCount, knownRunCmdCount)
 	}
 	if runArgvSiteCount != knownRunArgvCount {
@@ -2370,6 +2371,7 @@ func TestSubprocessCallSiteAudit(t *testing.T) {
 	}
 
 	betweenIterationsPattern := regexp.MustCompile(`func \(r \*Runner\) runBetweenIterationsCommand\(\)[\s\S]*?r\.runCmd\(`)
+	endOfLoopPattern := regexp.MustCompile(`func \(r \*Runner\) runEndOfLoopCommand\(\) error[\s\S]*?r\.runCmd\(`)
 	if runIterationContent, ok := fileContents["run_iteration.go"]; ok &&
 		strings.Contains(runIterationContent, betweenIterationsFn) {
 		if !betweenIterationsPattern.MatchString(runIterationContent) {
@@ -2379,6 +2381,9 @@ func TestSubprocessCallSiteAudit(t *testing.T) {
 		lifecycleContent := requireFileContent("lifecycle.go")
 		if !betweenIterationsPattern.MatchString(lifecycleContent) {
 			t.Error("lifecycle.go should keep BetweenIterationsCommand on r.runCmd")
+		}
+		if strings.Contains(lifecycleContent, endOfLoopFn) && !endOfLoopPattern.MatchString(lifecycleContent) {
+			t.Error("lifecycle.go should keep EndOfLoopCommand on r.runCmd")
 		}
 	}
 }

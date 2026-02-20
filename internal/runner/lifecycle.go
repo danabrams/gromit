@@ -421,6 +421,37 @@ func (r *Runner) runBetweenIterationsCommand() {
 	}
 }
 
+// runEndOfLoopCommand runs the user-configured command once after the loop completes.
+// If the command is empty, does nothing. Returns an error on command execution failure
+// or a non-zero exit status.
+func (r *Runner) runEndOfLoopCommand() error {
+	if r == nil || r.cfg == nil {
+		return nil
+	}
+	command := strings.TrimSpace(r.cfg.Loop.EndOfLoopCommand)
+	if command == "" {
+		return nil
+	}
+
+	r.log("Running end-of-loop command: %s", command)
+	stdout, stderr, exitCode, err := r.runCmd(context.Background(), command, "")
+	if r.output != nil {
+		if stdout != "" {
+			_, _ = fmt.Fprint(r.output, stdout)
+		}
+		if stderr != "" {
+			_, _ = fmt.Fprint(r.output, stderr)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("end-of-loop command failed: %w", err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("end-of-loop command failed (exit %d): %s", exitCode, strings.TrimSpace(stderr))
+	}
+	return nil
+}
+
 // SetLabelFilters sets optional spec labels to filter beads by
 func (r *Runner) SetLabelFilters(labels []string) {
 	r.labelFilters = labels
