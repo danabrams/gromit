@@ -2,6 +2,7 @@ package coverage
 
 import (
 	"strings"
+	"unicode"
 )
 
 // Criterion represents a single acceptance criterion from a spec.
@@ -24,12 +25,8 @@ func ParseCriteria(specContent string) ([]Criterion, error) {
 	lastCriterionIndex := -1
 	for _, line := range strings.Split(section, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "-") {
-			text := strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
-			if text == "" {
-				lastCriterionIndex = -1
-				continue
-			}
+		text, ok := parseListItem(trimmed)
+		if ok {
 			criteria = append(criteria, Criterion{Number: len(criteria) + 1, Text: text})
 			lastCriterionIndex = len(criteria) - 1
 			continue
@@ -64,4 +61,35 @@ func extractSection(content, header string) (string, bool) {
 
 func isIndented(line string) bool {
 	return strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
+}
+
+func parseListItem(line string) (string, bool) {
+	if line == "" {
+		return "", false
+	}
+
+	if strings.HasPrefix(line, "-") || strings.HasPrefix(line, "*") {
+		text := strings.TrimSpace(line[1:])
+		if text == "" {
+			return "", false
+		}
+		return text, true
+	}
+
+	i := 0
+	for i < len(line) && unicode.IsDigit(rune(line[i])) {
+		i++
+	}
+	if i == 0 || i >= len(line) {
+		return "", false
+	}
+	if line[i] != '.' && line[i] != ')' {
+		return "", false
+	}
+
+	text := strings.TrimSpace(line[i+1:])
+	if text == "" {
+		return "", false
+	}
+	return text, true
 }

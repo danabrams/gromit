@@ -79,3 +79,55 @@ No acceptance criteria here.
 		t.Fatalf("len(criteria) = %d, want 0", len(criteria))
 	}
 }
+
+func TestParseCriteria_ParsesAsteriskBullets(t *testing.T) {
+	spec := `# My Spec
+
+## Acceptance Criteria
+
+* Supports import mode
+* Supports export mode
+`
+
+	criteria, err := ParseCriteria(spec)
+	if err != nil {
+		t.Fatalf("ParseCriteria() error: %v", err)
+	}
+
+	if len(criteria) != 2 {
+		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
+	}
+
+	if criteria[0].Text != "Supports import mode" {
+		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, "Supports import mode")
+	}
+	if criteria[1].Text != "Supports export mode" {
+		t.Fatalf("criteria[1].Text = %q, want %q", criteria[1].Text, "Supports export mode")
+	}
+}
+
+func TestParseCriteria_ParsesNumberedList(t *testing.T) {
+	spec := `# My Spec
+
+## Acceptance Criteria
+
+1. Creates report files
+2) Uploads report files
+`
+
+	criteria, err := ParseCriteria(spec)
+	if err != nil {
+		t.Fatalf("ParseCriteria() error: %v", err)
+	}
+
+	if len(criteria) != 2 {
+		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
+	}
+
+	if criteria[0].Text != "Creates report files" {
+		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, "Creates report files")
+	}
+	if criteria[1].Text != "Uploads report files" {
+		t.Fatalf("criteria[1].Text = %q, want %q", criteria[1].Text, "Uploads report files")
+	}
+}
