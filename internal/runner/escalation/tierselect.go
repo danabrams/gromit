@@ -6,6 +6,12 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 )
 
+const (
+	lowComplexitySignalThreshold = 2
+	lowFileCountMin              = 1
+	lowFileCountMax              = 3
+)
+
 // SelectTier returns the abstract tier (high/medium/low) for a bead based on
 // its priority and labels. Routes test-only beads to low tier unless a
 // complexity label overrides the selection. Returns TierMedium as a safe
@@ -49,4 +55,34 @@ func SelectModel(cfg *config.Config, b *bead.Bead) string {
 		return "haiku"
 	}
 	return cfg.SelectModel(b.Priority, b.Labels)
+}
+
+func countLowComplexitySignals(cfg *config.Config, b *bead.Bead) int {
+	if b == nil {
+		return 0
+	}
+
+	count := 0
+	if bead.IsLowComplexityTitle(b.Title) {
+		count++
+	}
+	if bead.IsTestOnlyBead(b.Title) {
+		count++
+	}
+	if bead.HasLabel(b.Labels, "tdd:false") {
+		count++
+	}
+	fileCount := bead.EstimatedFileCount(b)
+	if fileCount >= lowFileCountMin && fileCount <= lowFileCountMax {
+		count++
+	}
+	if bead.IsLeafBead(b) {
+		count++
+	}
+
+	return count
+}
+
+func isLowComplexity(cfg *config.Config, b *bead.Bead) bool {
+	return countLowComplexitySignals(cfg, b) >= lowComplexitySignalThreshold
 }

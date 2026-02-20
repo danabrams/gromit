@@ -242,3 +242,125 @@ func TestSelectModel_NilConfigReturnsSonnet(t *testing.T) {
 		t.Errorf("SelectModel(nil config) = %q, want %q", result, "sonnet")
 	}
 }
+
+func TestCountLowComplexitySignals_EachSignal(t *testing.T) {
+	one := 1
+
+	tests := []struct {
+		name string
+		bead *bead.Bead
+		want int
+	}{
+		{
+			name: "title pattern",
+			bead: &bead.Bead{
+				Title:          "Rename config field to model tier",
+				DependentCount: &one,
+			},
+			want: 1,
+		},
+		{
+			name: "test-only title",
+			bead: &bead.Bead{
+				Title:          "Add tests for tier selection",
+				DependentCount: &one,
+			},
+			want: 1,
+		},
+		{
+			name: "tdd false label",
+			bead: &bead.Bead{
+				Title:          "Update escalation logic",
+				Labels:         []string{"tdd:false"},
+				DependentCount: &one,
+			},
+			want: 1,
+		},
+		{
+			name: "file count 1-3",
+			bead: &bead.Bead{
+				Title: "Update escalation logic",
+				ExpectedOutputs: []string{
+					"internal/runner/escalation/tierselect.go",
+					"internal/runner/escalation/tierselect_test.go",
+				},
+				DependentCount: &one,
+			},
+			want: 1,
+		},
+		{
+			name: "leaf bead",
+			bead: &bead.Bead{
+				Title: "Update escalation logic",
+			},
+			want: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := countLowComplexitySignals(&config.Config{}, tt.bead)
+			if got != tt.want {
+				t.Errorf("countLowComplexitySignals() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCountLowComplexitySignals_NilBead(t *testing.T) {
+	if got := countLowComplexitySignals(&config.Config{}, nil); got != 0 {
+		t.Errorf("countLowComplexitySignals(nil) = %d, want 0", got)
+	}
+}
+
+func TestIsLowComplexity_Threshold(t *testing.T) {
+	one := 1
+
+	tests := []struct {
+		name string
+		bead *bead.Bead
+		want bool
+	}{
+		{
+			name: "nil bead",
+			bead: nil,
+			want: false,
+		},
+		{
+			name: "one signal is not enough",
+			bead: &bead.Bead{
+				Title:          "Rename helper",
+				DependentCount: &one,
+			},
+			want: false,
+		},
+		{
+			name: "two signals is low complexity",
+			bead: &bead.Bead{
+				Title:  "Update escalation logic",
+				Labels: []string{"tdd:false"},
+			},
+			want: true,
+		},
+		{
+			name: "five signals are low complexity",
+			bead: &bead.Bead{
+				Title:  "Add tests for rename flow",
+				Labels: []string{"tdd:false"},
+				ExpectedOutputs: []string{
+					"internal/runner/escalation/tierselect.go",
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isLowComplexity(&config.Config{}, tt.bead)
+			if got != tt.want {
+				t.Errorf("isLowComplexity() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
