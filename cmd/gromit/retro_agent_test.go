@@ -6,6 +6,17 @@ import (
 	"testing"
 )
 
+func readMainSource(t *testing.T) string {
+	t.Helper()
+
+	mainSource, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("Reading main.go: %v", err)
+	}
+
+	return string(mainSource)
+}
+
 func TestRetroCommandHasAgentFlag(t *testing.T) {
 	flag := retroCmd.Flags().Lookup("agent")
 	if flag == nil {
@@ -27,12 +38,7 @@ func TestRetroCommandHasChooseAgentFlag(t *testing.T) {
 }
 
 func TestRetroUsesAgentLaunchNotDirectExec(t *testing.T) {
-	mainSource, err := os.ReadFile("main.go")
-	if err != nil {
-		t.Fatalf("Reading main.go: %v", err)
-	}
-
-	sourceStr := string(mainSource)
+	sourceStr := readMainSource(t)
 
 	if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agent"`) {
 		t.Error("main.go does not import agent package - retro migration not complete")
@@ -64,12 +70,7 @@ func TestRetroUsesAgentLaunchNotDirectExec(t *testing.T) {
 }
 
 func TestRetroUsesResolveSpecsDir(t *testing.T) {
-	mainSource, err := os.ReadFile("main.go")
-	if err != nil {
-		t.Fatalf("Reading main.go: %v", err)
-	}
-
-	sourceStr := string(mainSource)
+	sourceStr := readMainSource(t)
 
 	if strings.Contains(sourceStr, `filepath.Join(gromitDir, "specs")`) {
 		t.Error(`main.go contains hardcoded filepath.Join(gromitDir, "specs") - should use resolveSpecsDir(cfg)`)
@@ -77,12 +78,7 @@ func TestRetroUsesResolveSpecsDir(t *testing.T) {
 }
 
 func TestRetroWritesPromptToTempFile(t *testing.T) {
-	mainSource, err := os.ReadFile("main.go")
-	if err != nil {
-		t.Fatalf("Reading main.go: %v", err)
-	}
-
-	sourceStr := string(mainSource)
+	sourceStr := readMainSource(t)
 
 	if !strings.Contains(sourceStr, "retro.BuildClaudeCodePrompt") {
 		t.Error("main.go does not call retro.BuildClaudeCodePrompt - prompt building not separated from launch")
