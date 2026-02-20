@@ -753,6 +753,7 @@ func TestRun_CompletionBlockedWhenMandatoryFastGateMissing(t *testing.T) {
 		Validation: config.ValidationConfig{
 			Enabled:              true,
 			FastCommands:         []string{"go test ./...", "go vet ./..."},
+			MandatoryCommands:    []string{"go test", "go vet", "go build"},
 			FullValidationEveryN: 0,
 			RunFinalFullGate:     &runFinalFull,
 		},
@@ -797,6 +798,7 @@ func TestRun_FastGateAllowsMandatoryCoverageFromFullCommands(t *testing.T) {
 			Enabled:              true,
 			FastCommands:         []string{"GROMIT_TEST_TOUCHED_SHORT=1 ./scripts/test_touched.sh", "./scripts/vet_touched.sh"},
 			FullCommands:         []string{"go test ./...", "go vet ./...", "go build ./..."},
+			MandatoryCommands:    []string{"go test", "go vet", "go build"},
 			FullValidationEveryN: 0,
 			RunFinalFullGate:     &runFinalFull,
 		},
@@ -841,6 +843,7 @@ func TestRun_FastGateAllowsWrappedMandatoryGoCommands(t *testing.T) {
 				"mise exec -- go vet ./...",
 				"timeout 60s go build ./...",
 			},
+			MandatoryCommands:    []string{"go test", "go vet", "go build"},
 			FullValidationEveryN: 0,
 			RunFinalFullGate:     &runFinalFull,
 		},
@@ -882,6 +885,7 @@ func TestRun_CompletionBlockedWhenMandatoryFullGateMissing(t *testing.T) {
 			Enabled:              true,
 			FastCommands:         []string{"go test ./...", "go vet ./...", "go build ./..."},
 			FullCommands:         []string{"go test ./...", "go vet ./..."},
+			MandatoryCommands:    []string{"go test", "go vet", "go build"},
 			FullValidationEveryN: 1,
 			RunFinalFullGate:     &runFinalFull,
 		},
@@ -908,6 +912,46 @@ func TestRun_CompletionBlockedWhenMandatoryFullGateMissing(t *testing.T) {
 	}
 	if len(beads.ClosedIDs) != 0 {
 		t.Fatalf("expected bead to remain open when mandatory full quality gates are not satisfied, closed: %v", beads.ClosedIDs)
+	}
+}
+
+func TestRun_MandatoryQualityGateCoverageSkippedWhenNoMandatoryCommands(t *testing.T) {
+	precheckDisabled := false
+	runFinalFull := false
+	autoPushDisabled := false
+	cfg := &config.Config{
+		Loop: config.LoopConfig{
+			StopOnFailure: false,
+		},
+		Validation: config.ValidationConfig{
+			Enabled:              true,
+			FastCommands:         []string{"go test ./...", "go vet ./..."},
+			FullValidationEveryN: 0,
+			RunFinalFullGate:     &runFinalFull,
+		},
+		Precheck: config.PrecheckConfig{
+			Enabled: &precheckDisabled,
+		},
+		Preflight: config.PreflightConfig{},
+		Git: config.GitConfig{
+			AutoPush: &autoPushDisabled,
+		},
+	}
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "ok", "", 0, nil
+	}
+
+	r, beads, _, _ := setupQualityGateRunHarness(t, cfg, []*bead.Bead{
+		{ID: "qg-no-mandatory-1", Title: "no mandatory commands configured", Priority: 1},
+	}, &mockFailureAnalyzer{}, cmdRunner)
+
+	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false)
+	if err != nil {
+		t.Fatalf("expected run to succeed when mandatory commands are not configured: %v", err)
+	}
+	if len(beads.ClosedIDs) != 1 || beads.ClosedIDs[0] != "qg-no-mandatory-1" {
+		t.Fatalf("expected bead to close on success, closed: %v", beads.ClosedIDs)
 	}
 }
 

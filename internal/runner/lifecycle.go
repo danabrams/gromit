@@ -18,8 +18,6 @@ import (
 	"github.com/danabrams/gromit/internal/state"
 )
 
-var mandatoryQualityGateCommandPrefixes = []string{"go test", "go vet", "go build"}
-
 var (
 	readPipelineStatus = pipeline.ReadStatus
 	readModelStats     = logger.ReadModelStats
@@ -542,13 +540,18 @@ func (r *Runner) enforceMandatoryQualityGateCoverage(gateName string, commands [
 		return nil
 	}
 
-	missing := missingMandatoryQualityCommands(commands)
+	mandatoryPrefixes := r.cfg.Validation.MandatoryCommands
+	if len(mandatoryPrefixes) == 0 {
+		return nil
+	}
+
+	missing := missingMandatoryQualityCommands(commands, mandatoryPrefixes)
 
 	// Fast gates may intentionally use lightweight wrapper scripts. When fast
 	// commands do not expose direct go test/vet/build prefixes, allow coverage
 	// to come from the configured full/legacy validation command sets.
 	if gateName == "fast" && len(missing) > 0 {
-		if fallbackMissing := missingMandatoryQualityCommands(r.cfg.Validation.FullCommandsOrDefault()); len(fallbackMissing) == 0 {
+		if fallbackMissing := missingMandatoryQualityCommands(r.cfg.Validation.FullCommandsOrDefault(), mandatoryPrefixes); len(fallbackMissing) == 0 {
 			return nil
 		}
 	}
@@ -560,9 +563,9 @@ func (r *Runner) enforceMandatoryQualityGateCoverage(gateName string, commands [
 	return fmt.Errorf("%s quality gate missing mandatory commands: %s", gateName, strings.Join(missing, ", "))
 }
 
-func missingMandatoryQualityCommands(commands []string) []string {
-	missing := make([]string, 0, len(mandatoryQualityGateCommandPrefixes))
-	for _, required := range mandatoryQualityGateCommandPrefixes {
+func missingMandatoryQualityCommands(commands []string, mandatoryPrefixes []string) []string {
+	missing := make([]string, 0, len(mandatoryPrefixes))
+	for _, required := range mandatoryPrefixes {
 		if !hasCommandWithPrefix(commands, required) {
 			missing = append(missing, required)
 		}
