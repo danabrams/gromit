@@ -224,6 +224,7 @@ func (r *Runner) runSessionCompletion() error {
 	if !r.cfg.Git.IsAutoPushEnabled() {
 		return nil
 	}
+	stopOnPushFailure := r.cfg.Git.PushFailure == "stop"
 	networkCtx := func() (context.Context, context.CancelFunc) {
 		timeout := r.cfg.Git.PushTimeoutDuration()
 		if timeout == 0 {
@@ -247,7 +248,7 @@ func (r *Runner) runSessionCompletion() error {
 			} else {
 				errMsg = fmt.Sprintf("%s (exit %d): %s", errMsg, exitCode, stderr)
 			}
-			if r.cfg.Git.PushFailure == "stop" {
+			if stopOnPushFailure {
 				return fmt.Errorf("%s", errMsg)
 			}
 			r.log("Warning: %s", errMsg)
@@ -266,14 +267,14 @@ func (r *Runner) runSessionCompletion() error {
 	// Step 2.5: persist generated artifacts when present.
 	if err := r.commitGeneratedMetrics(); err != nil {
 		errMsg := fmt.Sprintf("metrics auto-commit failed: %v", err)
-		if r.cfg.Git.PushFailure == "stop" {
+		if stopOnPushFailure {
 			return fmt.Errorf("%s", errMsg)
 		}
 		r.log("Warning: %s", errMsg)
 	}
 	if err := r.commitGeneratedState(); err != nil {
 		errMsg := fmt.Sprintf("state auto-commit failed: %v", err)
-		if r.cfg.Git.PushFailure == "stop" {
+		if stopOnPushFailure {
 			return fmt.Errorf("%s", errMsg)
 		}
 		r.log("Warning: %s", errMsg)
@@ -290,7 +291,7 @@ func (r *Runner) runSessionCompletion() error {
 		} else {
 			errMsg = fmt.Sprintf("%s (exit %d): %s", errMsg, exitCode, stderr)
 		}
-		if r.cfg.Git.PushFailure == "stop" {
+		if stopOnPushFailure {
 			return fmt.Errorf("%s", errMsg)
 		}
 		r.log("Warning: %s", errMsg)

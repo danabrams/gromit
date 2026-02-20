@@ -2126,51 +2126,41 @@ func TestRunSessionCompletion(t *testing.T) {
 }
 
 func TestRunSessionCompletion_UsesTimeoutContextForPullAndPush(t *testing.T) {
-	autoPush := true
-	r := &Runner{
-		cfg: &config.Config{
-			Git: config.GitConfig{
-				AutoPush:    &autoPush,
-				PushFailure: "stop",
-				PushTimeout: 5,
-			},
-		},
-		output: &strings.Builder{},
-	}
-
-	var pullHasDeadline bool
-	var pushHasDeadline bool
-	r.argvRunnerFn = func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
-		if program == "git" && slices.Equal(args, sessionCompletionPullArgv) {
-			_, pullHasDeadline = ctx.Deadline()
-			return "", "", 0, nil
-		}
-		if program == "git" && slices.Equal(args, sessionCompletionPushArgv) {
-			_, pushHasDeadline = ctx.Deadline()
-			return "", "", 0, nil
-		}
-		return "", "", 0, nil
-	}
+	r, pullHasDeadline, pushHasDeadline := newSessionCompletionDeadlineProbeRunner(5)
 
 	if err := r.runSessionCompletion(); err != nil {
 		t.Fatalf("runSessionCompletion() error = %v", err)
 	}
-	if !pullHasDeadline {
+	if !*pullHasDeadline {
 		t.Fatal("expected git pull --rebase to use a context with deadline")
 	}
-	if !pushHasDeadline {
+	if !*pushHasDeadline {
 		t.Fatal("expected git push to use a context with deadline")
 	}
 }
 
 func TestRunSessionCompletion_TimeoutZeroDisablesNetworkDeadlines(t *testing.T) {
+	r, pullHasDeadline, pushHasDeadline := newSessionCompletionDeadlineProbeRunner(0)
+
+	if err := r.runSessionCompletion(); err != nil {
+		t.Fatalf("runSessionCompletion() error = %v", err)
+	}
+	if *pullHasDeadline {
+		t.Fatal("expected git pull --rebase to use background context when push_timeout=0")
+	}
+	if *pushHasDeadline {
+		t.Fatal("expected git push to use background context when push_timeout=0")
+	}
+}
+
+func newSessionCompletionDeadlineProbeRunner(pushTimeout int) (*Runner, *bool, *bool) {
 	autoPush := true
 	r := &Runner{
 		cfg: &config.Config{
 			Git: config.GitConfig{
 				AutoPush:    &autoPush,
 				PushFailure: "stop",
-				PushTimeout: 0,
+				PushTimeout: pushTimeout,
 			},
 		},
 		output: &strings.Builder{},
@@ -2190,15 +2180,7 @@ func TestRunSessionCompletion_TimeoutZeroDisablesNetworkDeadlines(t *testing.T) 
 		return "", "", 0, nil
 	}
 
-	if err := r.runSessionCompletion(); err != nil {
-		t.Fatalf("runSessionCompletion() error = %v", err)
-	}
-	if pullHasDeadline {
-		t.Fatal("expected git pull --rebase to use background context when push_timeout=0")
-	}
-	if pushHasDeadline {
-		t.Fatal("expected git push to use background context when push_timeout=0")
-	}
+	return r, &pullHasDeadline, &pushHasDeadline
 }
 
 func TestRunSessionCompletion_PushDeadlineExceededHonorsPushFailurePolicy(t *testing.T) {
