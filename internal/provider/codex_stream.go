@@ -356,50 +356,75 @@ func usageOutputTokens(usage *codexUsage) int {
 }
 
 func extractUsageFromResultEvent(event codexEvent) *codexUsage {
-	var usage codexUsage
-	found := false
-
-	if event.Usage != nil {
-		usage = *event.Usage
-		found = true
-	}
-	found = applyUsageScalars(&usage, event.InputTokens, event.OutputTokens, event.TotalCostUSD) || found
+	var nestedUsage *codexUsage
+	var nestedInputTokens, nestedOutputTokens int
+	var nestedTotalCostUSD float64
 	if event.Result != nil {
-		if event.Result.Usage != nil {
-			merged := mergeCodexUsage(&usage, event.Result.Usage)
-			if merged != nil {
-				usage = *merged
-			}
-			found = true
-		}
-		found = applyUsageScalars(&usage, event.Result.InputTokens, event.Result.OutputTokens, event.Result.TotalCostUSD) || found
+		nestedUsage = event.Result.Usage
+		nestedInputTokens = event.Result.InputTokens
+		nestedOutputTokens = event.Result.OutputTokens
+		nestedTotalCostUSD = event.Result.TotalCostUSD
 	}
-	if !found {
-		return nil
-	}
-	return &usage
+
+	return extractUsageFromFields(
+		event.Usage,
+		event.InputTokens,
+		event.OutputTokens,
+		event.TotalCostUSD,
+		nestedUsage,
+		nestedInputTokens,
+		nestedOutputTokens,
+		nestedTotalCostUSD,
+	)
 }
 
 func extractUsageFromResponseEvent(event codexEvent) *codexUsage {
+	var nestedUsage *codexUsage
+	var nestedInputTokens, nestedOutputTokens int
+	var nestedTotalCostUSD float64
+	if event.Response != nil {
+		nestedUsage = event.Response.Usage
+		nestedInputTokens = event.Response.InputTokens
+		nestedOutputTokens = event.Response.OutputTokens
+		nestedTotalCostUSD = event.Response.TotalCostUSD
+	}
+
+	return extractUsageFromFields(
+		event.Usage,
+		event.InputTokens,
+		event.OutputTokens,
+		event.TotalCostUSD,
+		nestedUsage,
+		nestedInputTokens,
+		nestedOutputTokens,
+		nestedTotalCostUSD,
+	)
+}
+
+func extractUsageFromFields(
+	topLevelUsage *codexUsage,
+	topLevelInputTokens, topLevelOutputTokens int,
+	topLevelTotalCostUSD float64,
+	nestedUsage *codexUsage,
+	nestedInputTokens, nestedOutputTokens int,
+	nestedTotalCostUSD float64,
+) *codexUsage {
 	var usage codexUsage
 	found := false
 
-	if event.Usage != nil {
-		usage = *event.Usage
+	if topLevelUsage != nil {
+		usage = *topLevelUsage
 		found = true
 	}
-	found = applyUsageScalars(&usage, event.InputTokens, event.OutputTokens, event.TotalCostUSD) || found
-
-	if event.Response != nil {
-		if event.Response.Usage != nil {
-			merged := mergeCodexUsage(&usage, event.Response.Usage)
-			if merged != nil {
-				usage = *merged
-			}
-			found = true
+	found = applyUsageScalars(&usage, topLevelInputTokens, topLevelOutputTokens, topLevelTotalCostUSD) || found
+	if nestedUsage != nil {
+		merged := mergeCodexUsage(&usage, nestedUsage)
+		if merged != nil {
+			usage = *merged
 		}
-		found = applyUsageScalars(&usage, event.Response.InputTokens, event.Response.OutputTokens, event.Response.TotalCostUSD) || found
+		found = true
 	}
+	found = applyUsageScalars(&usage, nestedInputTokens, nestedOutputTokens, nestedTotalCostUSD) || found
 	if !found {
 		return nil
 	}
