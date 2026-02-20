@@ -2078,8 +2078,8 @@ func TestRunSessionCompletion(t *testing.T) {
 			var r *Runner
 			pushCalled := false
 
-			mockCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-				if command == "git push" {
+			mockArgvRunner := func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+				if program == "git" && slices.Equal(args, sessionCompletionPushArgv) {
 					pushCalled = true
 					return "", "fatal: No configured push destination", 128, nil
 				}
@@ -2090,8 +2090,8 @@ func TestRunSessionCompletion(t *testing.T) {
 				r = nil
 			} else if tt.nilConfig {
 				r = &Runner{
-					output:      &buf,
-					cmdRunnerFn: mockCmdRunner,
+					output:       &buf,
+					argvRunnerFn: mockArgvRunner,
 				}
 			} else {
 				r = &Runner{
@@ -2101,8 +2101,8 @@ func TestRunSessionCompletion(t *testing.T) {
 							PushFailure: tt.pushFailure,
 						},
 					},
-					output:      &buf,
-					cmdRunnerFn: mockCmdRunner,
+					output:       &buf,
+					argvRunnerFn: mockArgvRunner,
 				}
 			}
 
@@ -2124,6 +2124,20 @@ func TestRunSessionCompletion(t *testing.T) {
 	}
 }
 
+type gitArgvCall struct {
+	program string
+	args    []string
+}
+
+func containsGitArgvCall(calls []gitArgvCall, program string, args []string) bool {
+	for _, call := range calls {
+		if call.program == program && slices.Equal(call.args, args) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestRunSessionCompletion_CommitsGeneratedMetricsWhenChanged(t *testing.T) {
 	autoPush := true
 	cfg := &config.Config{
@@ -2133,14 +2147,14 @@ func TestRunSessionCompletion_CommitsGeneratedMetricsWhenChanged(t *testing.T) {
 		},
 	}
 
-	var commands []string
+	var calls []gitArgvCall
 	r := &Runner{
 		cfg:    cfg,
 		output: &strings.Builder{},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			commands = append(commands, command)
-			switch command {
-			case metricsStatusCommand:
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			calls = append(calls, gitArgvCall{program: program, args: append([]string(nil), args...)})
+			switch {
+			case program == "git" && slices.Equal(args, metricsStatusArgv):
 				return " M .gromit/metrics/process_trend.json\n", "", 0, nil
 			default:
 				return "", "", 0, nil
@@ -2152,15 +2166,16 @@ func TestRunSessionCompletion_CommitsGeneratedMetricsWhenChanged(t *testing.T) {
 		t.Fatalf("runSessionCompletion() failed: %v", err)
 	}
 
-	mustContain := []string{
-		metricsStatusCommand,
-		metricsAddCommand,
-		metricsCommitCommand,
-		"git push",
+	mustContain := []gitArgvCall{
+		{program: "git", args: sessionCompletionPullArgv},
+		{program: "git", args: metricsStatusArgv},
+		{program: "git", args: metricsAddArgv},
+		{program: "git", args: metricsCommitArgv},
+		{program: "git", args: sessionCompletionPushArgv},
 	}
-	for _, cmd := range mustContain {
-		if !slices.Contains(commands, cmd) {
-			t.Fatalf("expected command %q, got %v", cmd, commands)
+	for _, call := range mustContain {
+		if !containsGitArgvCall(calls, call.program, call.args) {
+			t.Fatalf("expected argv call %s %v, got %v", call.program, call.args, calls)
 		}
 	}
 }
@@ -2174,13 +2189,13 @@ func TestRunSessionCompletion_SkipsMetricsCommitWhenNoChanges(t *testing.T) {
 		},
 	}
 
-	var commands []string
+	var calls []gitArgvCall
 	r := &Runner{
 		cfg:    cfg,
 		output: &strings.Builder{},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			commands = append(commands, command)
-			if command == metricsStatusCommand {
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			calls = append(calls, gitArgvCall{program: program, args: append([]string(nil), args...)})
+			if program == "git" && slices.Equal(args, metricsStatusArgv) {
 				return "", "", 0, nil
 			}
 			return "", "", 0, nil
@@ -2191,11 +2206,11 @@ func TestRunSessionCompletion_SkipsMetricsCommitWhenNoChanges(t *testing.T) {
 		t.Fatalf("runSessionCompletion() failed: %v", err)
 	}
 
-	if slices.Contains(commands, metricsAddCommand) {
-		t.Fatalf("did not expect %q when metrics are unchanged; got %v", metricsAddCommand, commands)
+	if containsGitArgvCall(calls, "git", metricsAddArgv) {
+		t.Fatalf("did not expect git %v when metrics are unchanged; got %v", metricsAddArgv, calls)
 	}
-	if slices.Contains(commands, metricsCommitCommand) {
-		t.Fatalf("did not expect %q when metrics are unchanged; got %v", metricsCommitCommand, commands)
+	if containsGitArgvCall(calls, "git", metricsCommitArgv) {
+		t.Fatalf("did not expect git %v when metrics are unchanged; got %v", metricsCommitArgv, calls)
 	}
 }
 
@@ -2208,14 +2223,14 @@ func TestRunSessionCompletion_CommitsGeneratedStateWhenChanged(t *testing.T) {
 		},
 	}
 
-	var commands []string
+	var calls []gitArgvCall
 	r := &Runner{
 		cfg:    cfg,
 		output: &strings.Builder{},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			commands = append(commands, command)
-			switch command {
-			case stateStatusCommand:
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			calls = append(calls, gitArgvCall{program: program, args: append([]string(nil), args...)})
+			switch {
+			case program == "git" && slices.Equal(args, stateStatusArgv):
 				return " M .gromit/state.json\n", "", 0, nil
 			default:
 				return "", "", 0, nil
@@ -2227,15 +2242,16 @@ func TestRunSessionCompletion_CommitsGeneratedStateWhenChanged(t *testing.T) {
 		t.Fatalf("runSessionCompletion() failed: %v", err)
 	}
 
-	mustContain := []string{
-		stateStatusCommand,
-		stateAddCommand,
-		stateCommitCommand,
-		"git push",
+	mustContain := []gitArgvCall{
+		{program: "git", args: sessionCompletionPullArgv},
+		{program: "git", args: stateStatusArgv},
+		{program: "git", args: stateAddArgv},
+		{program: "git", args: stateCommitArgv},
+		{program: "git", args: sessionCompletionPushArgv},
 	}
-	for _, cmd := range mustContain {
-		if !slices.Contains(commands, cmd) {
-			t.Fatalf("expected command %q, got %v", cmd, commands)
+	for _, call := range mustContain {
+		if !containsGitArgvCall(calls, call.program, call.args) {
+			t.Fatalf("expected argv call %s %v, got %v", call.program, call.args, calls)
 		}
 	}
 }
@@ -2249,12 +2265,12 @@ func TestRunSessionCompletion_SkipsStateCommitWhenNoChanges(t *testing.T) {
 		},
 	}
 
-	var commands []string
+	var calls []gitArgvCall
 	r := &Runner{
 		cfg:    cfg,
 		output: &strings.Builder{},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			commands = append(commands, command)
+		argvRunnerFn: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+			calls = append(calls, gitArgvCall{program: program, args: append([]string(nil), args...)})
 			return "", "", 0, nil
 		},
 	}
@@ -2263,11 +2279,11 @@ func TestRunSessionCompletion_SkipsStateCommitWhenNoChanges(t *testing.T) {
 		t.Fatalf("runSessionCompletion() failed: %v", err)
 	}
 
-	if slices.Contains(commands, stateAddCommand) {
-		t.Fatalf("did not expect %q when state is unchanged; got %v", stateAddCommand, commands)
+	if containsGitArgvCall(calls, "git", stateAddArgv) {
+		t.Fatalf("did not expect git %v when state is unchanged; got %v", stateAddArgv, calls)
 	}
-	if slices.Contains(commands, stateCommitCommand) {
-		t.Fatalf("did not expect %q when state is unchanged; got %v", stateCommitCommand, commands)
+	if containsGitArgvCall(calls, "git", stateCommitArgv) {
+		t.Fatalf("did not expect git %v when state is unchanged; got %v", stateCommitArgv, calls)
 	}
 }
 

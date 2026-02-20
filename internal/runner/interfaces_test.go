@@ -2619,6 +2619,17 @@ func setupSessionCompletionProtocolRunner(
 				}
 				return "", "", 0, nil
 			},
+			ArgvRunner: func(ctx context.Context, program string, args []string, workDir string) (string, string, int, error) {
+				command := program
+				if len(args) > 0 {
+					command = command + " " + strings.Join(args, " ")
+				}
+				events = append(events, command)
+				if cmdRunner != nil {
+					return cmdRunner(ctx, command, workDir)
+				}
+				return "", "", 0, nil
+			},
 		},
 	)
 	if err != nil {

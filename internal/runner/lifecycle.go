@@ -47,12 +47,20 @@ var AndonSessionCompletionRequiredSequence = []string{
 const (
 	validationFailedMessageFragment           = "validation failed"
 	defaultUnclearQualityFailureRootCauseText = "unresolved unclear post-recovery quality failure"
-	metricsStatusCommand                      = "git status --porcelain -- .gromit/metrics"
-	metricsAddCommand                         = "git add .gromit/metrics"
-	metricsCommitCommand                      = "git commit -m \"chore(metrics): update process trend artifacts\""
-	stateStatusCommand                        = "git status --porcelain -- .gromit/state.json"
-	stateAddCommand                           = "git add .gromit/state.json"
-	stateCommitCommand                        = "git commit -m \"chore(state): update run state\""
+	metricsCommitMessage                      = "chore(metrics): update process trend artifacts"
+	stateCommitMessage                        = "chore(state): update run state"
+)
+
+var (
+	sessionCompletionPullArgv   = []string{"pull", "--rebase"}
+	sessionCompletionPushArgv   = []string{"push"}
+	sessionCompletionStatusArgv = []string{"status", "--short", "--branch"}
+	metricsStatusArgv           = []string{"status", "--porcelain", "--", ".gromit/metrics"}
+	metricsAddArgv              = []string{"add", ".gromit/metrics"}
+	metricsCommitArgv           = []string{"commit", "-m", metricsCommitMessage}
+	stateStatusArgv             = []string{"status", "--porcelain", "--", ".gromit/state.json"}
+	stateAddArgv                = []string{"add", ".gromit/state.json"}
+	stateCommitArgv             = []string{"commit", "-m", stateCommitMessage}
 )
 
 // checkRetroSuggestion checks if a retro should be suggested and prints a message
@@ -212,7 +220,7 @@ func (r *Runner) runSessionCompletion() error {
 
 	// Step 1: git pull --rebase with retries
 	for attempt := 1; attempt <= SessionCompletionRebaseRetryCount; attempt++ {
-		_, stderr, exitCode, err := r.runCmd(context.Background(), "git pull --rebase", "")
+		_, stderr, exitCode, err := r.runArgv(context.Background(), "git", sessionCompletionPullArgv, "")
 		if err == nil && exitCode == 0 {
 			break
 		}
@@ -256,7 +264,7 @@ func (r *Runner) runSessionCompletion() error {
 	}
 
 	// Step 3: git push
-	_, stderr, exitCode, err := r.runCmd(context.Background(), "git push", "")
+	_, stderr, exitCode, err := r.runArgv(context.Background(), "git", sessionCompletionPushArgv, "")
 	if err != nil || exitCode != 0 {
 		errMsg := "git push failed"
 		if err != nil {
@@ -272,7 +280,7 @@ func (r *Runner) runSessionCompletion() error {
 	}
 
 	// Step 4: verify up-to-date
-	r.runCmd(context.Background(), SessionCompletionUpToDateCommand, "") //nolint:errcheck // verification is best-effort
+	r.runArgv(context.Background(), "git", sessionCompletionStatusArgv, "") //nolint:errcheck // verification is best-effort
 
 	return nil
 }
@@ -282,7 +290,7 @@ func (r *Runner) commitGeneratedMetrics() error {
 		return nil
 	}
 
-	stdout, stderr, exitCode, err := r.runCmd(context.Background(), metricsStatusCommand, "")
+	stdout, stderr, exitCode, err := r.runArgv(context.Background(), "git", metricsStatusArgv, "")
 	if err != nil {
 		return fmt.Errorf("checking generated metrics changes: %w", err)
 	}
@@ -293,7 +301,7 @@ func (r *Runner) commitGeneratedMetrics() error {
 		return nil
 	}
 
-	_, stderr, exitCode, err = r.runCmd(context.Background(), metricsAddCommand, "")
+	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", metricsAddArgv, "")
 	if err != nil {
 		return fmt.Errorf("staging generated metrics: %w", err)
 	}
@@ -301,7 +309,7 @@ func (r *Runner) commitGeneratedMetrics() error {
 		return fmt.Errorf("staging generated metrics (exit %d): %s", exitCode, stderr)
 	}
 
-	_, stderr, exitCode, err = r.runCmd(context.Background(), metricsCommitCommand, "")
+	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", metricsCommitArgv, "")
 	if err != nil {
 		return fmt.Errorf("committing generated metrics: %w", err)
 	}
@@ -320,7 +328,7 @@ func (r *Runner) commitGeneratedState() error {
 		return nil
 	}
 
-	stdout, stderr, exitCode, err := r.runCmd(context.Background(), stateStatusCommand, "")
+	stdout, stderr, exitCode, err := r.runArgv(context.Background(), "git", stateStatusArgv, "")
 	if err != nil {
 		return fmt.Errorf("checking generated state changes: %w", err)
 	}
@@ -331,7 +339,7 @@ func (r *Runner) commitGeneratedState() error {
 		return nil
 	}
 
-	_, stderr, exitCode, err = r.runCmd(context.Background(), stateAddCommand, "")
+	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", stateAddArgv, "")
 	if err != nil {
 		return fmt.Errorf("staging generated state: %w", err)
 	}
@@ -339,7 +347,7 @@ func (r *Runner) commitGeneratedState() error {
 		return fmt.Errorf("staging generated state (exit %d): %s", exitCode, stderr)
 	}
 
-	_, stderr, exitCode, err = r.runCmd(context.Background(), stateCommitCommand, "")
+	_, stderr, exitCode, err = r.runArgv(context.Background(), "git", stateCommitArgv, "")
 	if err != nil {
 		return fmt.Errorf("committing generated state: %w", err)
 	}
