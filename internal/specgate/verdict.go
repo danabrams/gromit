@@ -29,14 +29,11 @@ func (v *GateVerdict) normalizeNilFields() {
 
 // FailedCriteria returns the subset of Results where Passed is false.
 func (v *GateVerdict) FailedCriteria() []CriterionResult {
-	var failed []CriterionResult
+	failed := make([]CriterionResult, 0, len(v.Results))
 	for _, r := range v.Results {
 		if !r.Passed {
 			failed = append(failed, r)
 		}
-	}
-	if failed == nil {
-		failed = []CriterionResult{}
 	}
 	return failed
 }
