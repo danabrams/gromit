@@ -742,21 +742,15 @@ func setupQualityGateRunHarness(
 	return r, beads, mockClaude, &readyCalls
 }
 
-func TestRun_CompletionBlockedWhenMandatoryFastGateMissing(t *testing.T) {
+func newQualityGateTestConfig(validation config.ValidationConfig) *config.Config {
 	precheckDisabled := false
-	runFinalFull := false
 	autoPushDisabled := false
-	cfg := &config.Config{
+
+	return &config.Config{
 		Loop: config.LoopConfig{
 			StopOnFailure: false,
 		},
-		Validation: config.ValidationConfig{
-			Enabled:              true,
-			FastCommands:         []string{"go test ./...", "go vet ./..."},
-			MandatoryCommands:    []string{"go test", "go vet", "go build"},
-			FullValidationEveryN: 0,
-			RunFinalFullGate:     &runFinalFull,
-		},
+		Validation: validation,
 		Precheck: config.PrecheckConfig{
 			Enabled: &precheckDisabled,
 		},
@@ -765,6 +759,17 @@ func TestRun_CompletionBlockedWhenMandatoryFastGateMissing(t *testing.T) {
 			AutoPush: &autoPushDisabled,
 		},
 	}
+}
+
+func TestRun_CompletionBlockedWhenMandatoryFastGateMissing(t *testing.T) {
+	runFinalFull := false
+	cfg := newQualityGateTestConfig(config.ValidationConfig{
+		Enabled:              true,
+		FastCommands:         []string{"go test ./...", "go vet ./..."},
+		MandatoryCommands:    []string{"go test", "go vet", "go build"},
+		FullValidationEveryN: 0,
+		RunFinalFullGate:     &runFinalFull,
+	})
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		if command == "go build ./..." {
@@ -787,29 +792,15 @@ func TestRun_CompletionBlockedWhenMandatoryFastGateMissing(t *testing.T) {
 }
 
 func TestRun_FastGateAllowsMandatoryCoverageFromFullCommands(t *testing.T) {
-	precheckDisabled := false
 	runFinalFull := false
-	autoPushDisabled := false
-	cfg := &config.Config{
-		Loop: config.LoopConfig{
-			StopOnFailure: false,
-		},
-		Validation: config.ValidationConfig{
-			Enabled:              true,
-			FastCommands:         []string{"GROMIT_TEST_TOUCHED_SHORT=1 ./scripts/test_touched.sh", "./scripts/vet_touched.sh"},
-			FullCommands:         []string{"go test ./...", "go vet ./...", "go build ./..."},
-			MandatoryCommands:    []string{"go test", "go vet", "go build"},
-			FullValidationEveryN: 0,
-			RunFinalFullGate:     &runFinalFull,
-		},
-		Precheck: config.PrecheckConfig{
-			Enabled: &precheckDisabled,
-		},
-		Preflight: config.PreflightConfig{},
-		Git: config.GitConfig{
-			AutoPush: &autoPushDisabled,
-		},
-	}
+	cfg := newQualityGateTestConfig(config.ValidationConfig{
+		Enabled:              true,
+		FastCommands:         []string{"GROMIT_TEST_TOUCHED_SHORT=1 ./scripts/test_touched.sh", "./scripts/vet_touched.sh"},
+		FullCommands:         []string{"go test ./...", "go vet ./...", "go build ./..."},
+		MandatoryCommands:    []string{"go test", "go vet", "go build"},
+		FullValidationEveryN: 0,
+		RunFinalFullGate:     &runFinalFull,
+	})
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		return "ok", "", 0, nil
@@ -829,32 +820,18 @@ func TestRun_FastGateAllowsMandatoryCoverageFromFullCommands(t *testing.T) {
 }
 
 func TestRun_FastGateAllowsWrappedMandatoryGoCommands(t *testing.T) {
-	precheckDisabled := false
 	runFinalFull := false
-	autoPushDisabled := false
-	cfg := &config.Config{
-		Loop: config.LoopConfig{
-			StopOnFailure: false,
+	cfg := newQualityGateTestConfig(config.ValidationConfig{
+		Enabled: true,
+		FastCommands: []string{
+			"env GOMAXPROCS=4 go test -vet=off -p 4 -parallel 4 ./...",
+			"mise exec -- go vet ./...",
+			"timeout 60s go build ./...",
 		},
-		Validation: config.ValidationConfig{
-			Enabled: true,
-			FastCommands: []string{
-				"env GOMAXPROCS=4 go test -vet=off -p 4 -parallel 4 ./...",
-				"mise exec -- go vet ./...",
-				"timeout 60s go build ./...",
-			},
-			MandatoryCommands:    []string{"go test", "go vet", "go build"},
-			FullValidationEveryN: 0,
-			RunFinalFullGate:     &runFinalFull,
-		},
-		Precheck: config.PrecheckConfig{
-			Enabled: &precheckDisabled,
-		},
-		Preflight: config.PreflightConfig{},
-		Git: config.GitConfig{
-			AutoPush: &autoPushDisabled,
-		},
-	}
+		MandatoryCommands:    []string{"go test", "go vet", "go build"},
+		FullValidationEveryN: 0,
+		RunFinalFullGate:     &runFinalFull,
+	})
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		return "ok", "", 0, nil
@@ -874,29 +851,15 @@ func TestRun_FastGateAllowsWrappedMandatoryGoCommands(t *testing.T) {
 }
 
 func TestRun_CompletionBlockedWhenMandatoryFullGateMissing(t *testing.T) {
-	precheckDisabled := false
 	runFinalFull := false
-	autoPushDisabled := false
-	cfg := &config.Config{
-		Loop: config.LoopConfig{
-			StopOnFailure: false,
-		},
-		Validation: config.ValidationConfig{
-			Enabled:              true,
-			FastCommands:         []string{"go test ./...", "go vet ./...", "go build ./..."},
-			FullCommands:         []string{"go test ./...", "go vet ./..."},
-			MandatoryCommands:    []string{"go test", "go vet", "go build"},
-			FullValidationEveryN: 1,
-			RunFinalFullGate:     &runFinalFull,
-		},
-		Precheck: config.PrecheckConfig{
-			Enabled: &precheckDisabled,
-		},
-		Preflight: config.PreflightConfig{},
-		Git: config.GitConfig{
-			AutoPush: &autoPushDisabled,
-		},
-	}
+	cfg := newQualityGateTestConfig(config.ValidationConfig{
+		Enabled:              true,
+		FastCommands:         []string{"go test ./...", "go vet ./...", "go build ./..."},
+		FullCommands:         []string{"go test ./...", "go vet ./..."},
+		MandatoryCommands:    []string{"go test", "go vet", "go build"},
+		FullValidationEveryN: 1,
+		RunFinalFullGate:     &runFinalFull,
+	})
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		return "ok", "", 0, nil
@@ -916,27 +879,13 @@ func TestRun_CompletionBlockedWhenMandatoryFullGateMissing(t *testing.T) {
 }
 
 func TestRun_MandatoryQualityGateCoverageSkippedWhenNoMandatoryCommands(t *testing.T) {
-	precheckDisabled := false
 	runFinalFull := false
-	autoPushDisabled := false
-	cfg := &config.Config{
-		Loop: config.LoopConfig{
-			StopOnFailure: false,
-		},
-		Validation: config.ValidationConfig{
-			Enabled:              true,
-			FastCommands:         []string{"go test ./...", "go vet ./..."},
-			FullValidationEveryN: 0,
-			RunFinalFullGate:     &runFinalFull,
-		},
-		Precheck: config.PrecheckConfig{
-			Enabled: &precheckDisabled,
-		},
-		Preflight: config.PreflightConfig{},
-		Git: config.GitConfig{
-			AutoPush: &autoPushDisabled,
-		},
-	}
+	cfg := newQualityGateTestConfig(config.ValidationConfig{
+		Enabled:              true,
+		FastCommands:         []string{"go test ./...", "go vet ./..."},
+		FullValidationEveryN: 0,
+		RunFinalFullGate:     &runFinalFull,
+	})
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		return "ok", "", 0, nil

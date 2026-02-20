@@ -593,7 +593,8 @@ var (
 )
 
 func mandatoryCommandPattern(requiredPrefix string) *regexp.Regexp {
-	switch strings.TrimSpace(requiredPrefix) {
+	trimmedPrefix := strings.TrimSpace(requiredPrefix)
+	switch trimmedPrefix {
 	case "go test":
 		return goTestPattern
 	case "go vet":
@@ -601,7 +602,7 @@ func mandatoryCommandPattern(requiredPrefix string) *regexp.Regexp {
 	case "go build":
 		return goBuildPattern
 	default:
-		escaped := regexp.QuoteMeta(strings.TrimSpace(requiredPrefix))
+		escaped := regexp.QuoteMeta(trimmedPrefix)
 		return regexp.MustCompile(`(?:^|[;&|]\s*|\s)` + escaped + `(?:\s|$)`)
 	}
 }
