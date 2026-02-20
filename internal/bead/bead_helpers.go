@@ -80,6 +80,10 @@ var proactiveDecomposeKeywords = regexp.MustCompile(
 	`(?i)\b(infrastructure|e2e|consolidate|extract|shared|refactor)\b`,
 )
 
+var lowComplexityTitlePatterns = regexp.MustCompile(
+	`(?i)(\bmigrate\b.+\bto\b)|(\bwire\b.+\binto\b)|(\badd\s+(field|config)\b)|(\bdelete\b)|(\bdocument\b)|(\brename\b)|(\badd\s+t\.parallel\b)|(\badd\s+compile-time\s+check\b)`,
+)
+
 // IsProactiveDecompositionCandidate returns true if the bead's title contains keywords
 // that signal broad scope and should trigger proactive decomposition before first attempt.
 // Keywords must appear as whole words - "Refactor the auth system" matches but
@@ -102,6 +106,16 @@ func IsProactiveDecompositionCandidateWithDesc(title, description string) bool {
 	// Count "struct" occurrences in description as a proxy for new type definitions.
 	count := strings.Count(strings.ToLower(description), "struct")
 	return count >= proactiveStructThreshold
+}
+
+// IsLowComplexityTitle returns true if the title matches one of the
+// low-complexity mechanical-work patterns.
+func IsLowComplexityTitle(title string) bool {
+	t := strings.TrimSpace(title)
+	if t == "" {
+		return false
+	}
+	return lowComplexityTitlePatterns.MatchString(t)
 }
 
 // IsMethodologyActive checks if a methodology (e.g., "atdd", "tdd") is active for a bead.

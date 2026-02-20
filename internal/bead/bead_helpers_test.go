@@ -2,6 +2,103 @@ package bead
 
 import "testing"
 
+func TestIsLowComplexityTitle(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		title string
+		want  bool
+	}{
+		{
+			name:  "matches migrate to pattern",
+			title: "Migrate auth config to runtime settings",
+			want:  true,
+		},
+		{
+			name:  "matches wire into pattern",
+			title: "Wire router into middleware stack",
+			want:  true,
+		},
+		{
+			name:  "matches add field pattern",
+			title: "Add field retry_count to runner state",
+			want:  true,
+		},
+		{
+			name:  "matches add config pattern",
+			title: "Add config timeout_override",
+			want:  true,
+		},
+		{
+			name:  "matches delete pattern",
+			title: "Delete legacy route helper",
+			want:  true,
+		},
+		{
+			name:  "matches document pattern",
+			title: "Document escalation flow",
+			want:  true,
+		},
+		{
+			name:  "matches rename pattern",
+			title: "Rename tier selector helper",
+			want:  true,
+		},
+		{
+			name:  "matches add t parallel pattern",
+			title: "Add t.Parallel to bead helper tests",
+			want:  true,
+		},
+		{
+			name:  "matches add compile time check pattern mixed case",
+			title: "aDd CoMpIlE-TiMe ChEcK for interface compliance",
+			want:  true,
+		},
+		{
+			name:  "mixed case migrate still matches",
+			title: "mIgRaTe parser state TO new config format",
+			want:  true,
+		},
+		{
+			name:  "non matching title",
+			title: "Refactor tier selection for dynamic routing",
+			want:  false,
+		},
+		{
+			name:  "empty title",
+			title: "   ",
+			want:  false,
+		},
+		{
+			name:  "partial word does not match migrate",
+			title: "Migration plan for routing updates",
+			want:  false,
+		},
+		{
+			name:  "partial word does not match wire",
+			title: "Rewire routing stack for plugin support",
+			want:  false,
+		},
+		{
+			name:  "partial word does not match rename",
+			title: "Renamed helper methods for clarity",
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := IsLowComplexityTitle(tt.title)
+			if got != tt.want {
+				t.Errorf("IsLowComplexityTitle(%q) = %v, want %v", tt.title, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIsLeafBead(t *testing.T) {
 	t.Parallel()
 
