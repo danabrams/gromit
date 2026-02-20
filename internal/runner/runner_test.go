@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -2287,53 +2288,95 @@ func TestRunSessionCompletion_SkipsStateCommitWhenNoChanges(t *testing.T) {
 	}
 }
 
-// TestNoNewDirectExecCommand is a ratchet test that prevents new exec.Command calls
-// from being added to runner production code. All subprocess execution should go through
-// r.runCmd() (which delegates to the injectable cmdRunnerFn) so tests can mock it.
-// Direct exec.Command bypasses the mock and can cause real network calls in tests.
-func TestNoNewDirectExecCommand(t *testing.T) {
-	// Known exec.Command call sites in production code (not tests).
-	// These are legacy — ideally they'd all migrate to runCmd, but for now
-	// this test prevents the count from increasing.
-	//
-	// helpers.go: getGitHead, getGitDiffStat, getGitDiff (local git, safe)
-	// helpers.go: defaultCmdRunner (the one valid call site behind runCmd)
-	// helpers.go: defaultArgvRunner (the one valid call site behind runArgv)
-	// runner.go: runBetweenIterationsCommand (user-configured shell command)
-	// process.go: 2x git reset --hard (refactor rollback)
-	const knownCount = 8
+// TestSubprocessCallSiteAudit is a ratchet test that tracks runner subprocess call-sites.
+// User-configurable shell commands should remain on r.runCmd, while migrated internal
+// commands should use r.runArgv.
+func TestSubprocessCallSiteAudit(t *testing.T) {
+	const (
+		knownRunCmdCount  = 4
+		knownRunArgvCount = 8
+	)
 
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatalf("reading runner directory: %v", err)
 	}
 
-	total := 0
+	fileContents := make(map[string]string)
+	runCmdShellSiteCount := 0
+	runArgvSiteCount := 0
+
 	for _, entry := range entries {
 		name := entry.Name()
-		// Only scan production code, not test files
 		if strings.HasSuffix(name, "_test.go") || !strings.HasSuffix(name, ".go") {
 			continue
 		}
+
 		data, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatalf("reading %s: %v", name, err)
 		}
-		for _, line := range strings.Split(string(data), "\n") {
+		content := string(data)
+		fileContents[name] = content
+
+		for _, line := range strings.Split(content, "\n") {
 			trimmed := strings.TrimSpace(line)
 			if strings.HasPrefix(trimmed, "//") {
-				continue // skip comments
+				continue
 			}
-			if strings.Contains(line, "exec.Command(") || strings.Contains(line, "exec.CommandContext(") {
-				total++
+			if strings.Contains(line, "r.runArgv(") {
+				runArgvSiteCount++
+			}
+			if strings.Contains(line, "r.runCmd(") &&
+				(strings.Contains(line, "testCmd") ||
+					strings.Contains(line, "r.cfg.Preflight.CompileCommand") ||
+					strings.Contains(line, "runCmd(context.Background(), command, \"\")")) {
+				runCmdShellSiteCount++
 			}
 		}
 	}
 
-	if total > knownCount {
-		t.Errorf("found %d exec.Command calls in runner production code (known: %d). "+
-			"New subprocess calls should use r.runCmd() so tests can mock them via cmdRunnerFn. "+
-			"If this is intentional, update knownCount after review.", total, knownCount)
+	if runCmdShellSiteCount != knownRunCmdCount {
+		t.Errorf("found %d user-configurable shell runCmd call-sites (known: %d). "+
+			"This audit only tracks BetweenIterationsCommand, TestCommand, and CompileCommand sites.",
+			runCmdShellSiteCount, knownRunCmdCount)
+	}
+	if runArgvSiteCount != knownRunArgvCount {
+		t.Errorf("found %d runArgv call-sites in runner production code (known: %d). "+
+			"If a migrated internal command was added/removed intentionally, update knownRunArgvCount after review.",
+			runArgvSiteCount, knownRunArgvCount)
+	}
+
+	epilogueContent, ok := fileContents["epilogue.go"]
+	if !ok {
+		t.Fatalf("missing epilogue.go in runner package")
+	}
+	if count := strings.Count(epilogueContent, `r.runCmd(ctx, testCmd, "")`); count != 2 {
+		t.Errorf("epilogue.go should keep both TestCommand sites on r.runCmd; got %d sites", count)
+	}
+
+	processContent, ok := fileContents["process.go"]
+	if !ok {
+		t.Fatalf("missing process.go in runner package")
+	}
+	if !strings.Contains(processContent, `r.runCmd(buildCtx, r.cfg.Preflight.CompileCommand, ".")`) {
+		t.Error("process.go should keep CompileCommand on r.runCmd")
+	}
+
+	betweenIterationsPattern := regexp.MustCompile(`func \(r \*Runner\) runBetweenIterationsCommand\(\)[\s\S]*?r\.runCmd\(`)
+	if runIterationContent, ok := fileContents["run_iteration.go"]; ok &&
+		strings.Contains(runIterationContent, "func (r *Runner) runBetweenIterationsCommand()") {
+		if !betweenIterationsPattern.MatchString(runIterationContent) {
+			t.Error("run_iteration.go should keep BetweenIterationsCommand on r.runCmd")
+		}
+	} else {
+		lifecycleContent, exists := fileContents["lifecycle.go"]
+		if !exists {
+			t.Fatalf("missing lifecycle.go in runner package")
+		}
+		if !betweenIterationsPattern.MatchString(lifecycleContent) {
+			t.Error("lifecycle.go should keep BetweenIterationsCommand on r.runCmd")
+		}
 	}
 }
 
