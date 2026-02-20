@@ -42,6 +42,7 @@ const (
 	maxLabelLength       = 128
 	maxLabelCount        = 64
 	defaultBDBinary      = "bd"
+	labelMetaChars       = ";\n|$`&<>(){}[]'\"\\"
 )
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
@@ -134,6 +135,16 @@ func rejectControlChars(s, fieldName string) error {
 		if unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t' {
 			return fmt.Errorf("bead %s contains control character at position %d", fieldName, i)
 		}
+	}
+	return nil
+}
+
+func validateLabel(label string) error {
+	if label == "" {
+		return fmt.Errorf("label cannot be empty")
+	}
+	if strings.ContainsAny(label, labelMetaChars) {
+		return fmt.Errorf("invalid label: contains shell metacharacters")
 	}
 	return nil
 }
@@ -339,12 +350,8 @@ func (c *Client) ReadyWithLabel(label string) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	if label == "" {
-		return nil, fmt.Errorf("label cannot be empty")
-	}
-	// Validate label doesn't contain shell metacharacters
-	if strings.ContainsAny(label, ";\n|$`&<>(){}[]'\"\\") {
-		return nil, fmt.Errorf("invalid label: contains shell metacharacters")
+	if err := validateLabel(label); err != nil {
+		return nil, err
 	}
 
 	// Fetch a batch of beads with the specified label and filter out epics client-side
@@ -591,12 +598,8 @@ func (c *Client) ListWithLabel(label string) ([]*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	if label == "" {
-		return nil, fmt.Errorf("label cannot be empty")
-	}
-	// Validate label doesn't contain shell metacharacters
-	if strings.ContainsAny(label, ";\n|$`&<>(){}[]'\"\\") {
-		return nil, fmt.Errorf("invalid label: contains shell metacharacters")
+	if err := validateLabel(label); err != nil {
+		return nil, err
 	}
 
 	out, err := c.run("list", "--json", "--label", label, "--sort", "priority", "--all", "--limit", "0")
