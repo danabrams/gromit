@@ -51,6 +51,7 @@ var interactiveWorktreeCleanupSessionFn = func(mainDir, sessionDir string) error
 const (
 	conflictPolicyManual = "manual"
 	conflictPolicyAgent  = "agent"
+	defaultRetryCap      = 3
 )
 
 type sessionConflictSettings struct {
@@ -160,51 +161,67 @@ func attemptMergeWithConflictPolicy(
 	session *worktree.SessionWorktree,
 	conflictSettings sessionConflictSettings,
 ) error {
-	if err := manager.MergeBack(session.BranchName); err == nil {
+	mergeErr := manager.MergeBack(session.BranchName)
+	if mergeErr == nil {
 		return clearMergedState(mainDir, session, stateFile)
-	} else {
-		policy, normalizeErr := normalizeConflictPolicy(conflictSettings.Policy)
-		if normalizeErr != nil {
-			return normalizeErr
-		}
-		if policy != conflictPolicyAgent {
-			return &mergeConflictHandoffError{
-				Policy:     conflictPolicyManual,
-				Branch:     session.BranchName,
-				SessionDir: session.WorktreeDir,
-				MergeErr:   err,
-			}
-		}
+	}
 
-		retryCap := normalizeRetryCap(conflictSettings.RetryCap)
-		lastMergeErr := err
-		var lastResolverErr error
+	policy, normalizeErr := normalizeConflictPolicy(conflictSettings.Policy)
+	if normalizeErr != nil {
+		return normalizeErr
+	}
+	if policy != conflictPolicyAgent {
+		return newManualConflictHandoffError(session, mergeErr)
+	}
 
-		for attempt := 1; attempt <= retryCap; attempt++ {
-			if conflictSettings.AgentConflictResolver != nil {
-				if resolveErr := conflictSettings.AgentConflictResolver(session.WorktreeDir, session.BranchName, attempt); resolveErr != nil {
-					lastResolverErr = resolveErr
-					continue
-				}
-			}
+	retryCap := normalizeRetryCap(conflictSettings.RetryCap)
+	lastMergeErr := mergeErr
+	var lastResolverErr error
 
-			lastResolverErr = nil
-			if mergeErr := manager.MergeBack(session.BranchName); mergeErr != nil {
-				lastMergeErr = mergeErr
+	for attempt := 1; attempt <= retryCap; attempt++ {
+		if conflictSettings.AgentConflictResolver != nil {
+			resolveErr := conflictSettings.AgentConflictResolver(session.WorktreeDir, session.BranchName, attempt)
+			if resolveErr != nil {
+				lastResolverErr = resolveErr
 				continue
 			}
-
-			return clearMergedState(mainDir, session, stateFile)
 		}
 
-		return &mergeConflictHandoffError{
-			Policy:      conflictPolicyAgent,
-			Branch:      session.BranchName,
-			SessionDir:  session.WorktreeDir,
-			RetryCap:    retryCap,
-			MergeErr:    lastMergeErr,
-			ResolverErr: lastResolverErr,
+		lastResolverErr = nil
+		mergeErr = manager.MergeBack(session.BranchName)
+		if mergeErr != nil {
+			lastMergeErr = mergeErr
+			continue
 		}
+
+		return clearMergedState(mainDir, session, stateFile)
+	}
+
+	return newAgentConflictHandoffError(session, retryCap, lastMergeErr, lastResolverErr)
+}
+
+func newManualConflictHandoffError(session *worktree.SessionWorktree, mergeErr error) *mergeConflictHandoffError {
+	return &mergeConflictHandoffError{
+		Policy:     conflictPolicyManual,
+		Branch:     session.BranchName,
+		SessionDir: session.WorktreeDir,
+		MergeErr:   mergeErr,
+	}
+}
+
+func newAgentConflictHandoffError(
+	session *worktree.SessionWorktree,
+	retryCap int,
+	mergeErr error,
+	resolverErr error,
+) *mergeConflictHandoffError {
+	return &mergeConflictHandoffError{
+		Policy:      conflictPolicyAgent,
+		Branch:      session.BranchName,
+		SessionDir:  session.WorktreeDir,
+		RetryCap:    retryCap,
+		MergeErr:    mergeErr,
+		ResolverErr: resolverErr,
 	}
 }
 
@@ -232,7 +249,7 @@ func normalizeConflictPolicy(policy string) (string, error) {
 
 func normalizeRetryCap(retryCap int) int {
 	if retryCap <= 0 {
-		return 3
+		return defaultRetryCap
 	}
 	return retryCap
 }
