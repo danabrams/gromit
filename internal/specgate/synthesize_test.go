@@ -12,6 +12,8 @@ type fakeBeadCreator struct {
 	createFn func(ctx context.Context, title, description, priority string, labels []string) (string, error)
 }
 
+var _ BeadCreator = (*fakeBeadCreator)(nil)
+
 func (f *fakeBeadCreator) Create(ctx context.Context, title, description, priority string, labels []string) (string, error) {
 	if f.createFn == nil {
 		return "", nil

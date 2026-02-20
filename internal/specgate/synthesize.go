@@ -10,6 +10,7 @@ import (
 
 const (
 	maxSynthesizedFixBeads = 5
+	defaultCriterionName   = "unnamed criterion"
 )
 
 // BeadCreator creates beads for spec fixes.
@@ -57,18 +58,11 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []Criteri
 }
 
 func formatFailureTitle(failure CriterionResult) string {
-	criterion := strings.TrimSpace(failure.Criterion)
-	if criterion == "" {
-		criterion = "unnamed criterion"
-	}
-	return fmt.Sprintf("Fix: %s", criterion)
+	return fmt.Sprintf("Fix: %s", criterionName(failure))
 }
 
 func formatFailureDescription(failure CriterionResult) string {
-	criterion := strings.TrimSpace(failure.Criterion)
-	if criterion == "" {
-		criterion = "unnamed criterion"
-	}
+	criterion := criterionName(failure)
 
 	parts := []string{
 		fmt.Sprintf("Criterion: %s", criterion),
@@ -76,4 +70,12 @@ func formatFailureDescription(failure CriterionResult) string {
 		fmt.Sprintf("Fix direction: Implement changes so '%s' passes in verify-spec.", criterion),
 	}
 	return strings.Join(parts, "\n")
+}
+
+func criterionName(failure CriterionResult) string {
+	criterion := strings.TrimSpace(failure.Criterion)
+	if criterion == "" {
+		return defaultCriterionName
+	}
+	return criterion
 }
