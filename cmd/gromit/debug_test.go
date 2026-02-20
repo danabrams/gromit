@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runbook"
+	"github.com/danabrams/gromit/internal/worktree"
 )
 
 func TestGetReportFiles(t *testing.T) {
@@ -95,6 +97,121 @@ func TestGetReportFiles(t *testing.T) {
 			t.Errorf("expected empty slice for empty dir, got %d reports", len(reports))
 		}
 	})
+}
+
+func TestLaunchDebugSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
+	origLauncher := debugSessionLauncherFn
+	t.Cleanup(func() { debugSessionLauncherFn = origLauncher })
+
+	sessionDir := t.TempDir()
+	launcherCalled := false
+	launchedDir := ""
+
+	debugSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		launcherCalled = true
+		if command != debugSessionCommand {
+			t.Fatalf("command = %q, want %q", command, debugSessionCommand)
+		}
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "gromit/debug-test", WorktreeDir: sessionDir}, nil
+	}
+
+	agent := &retroTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			launchedDir = dir
+			return nil
+		},
+	}
+
+	if err := launchDebugSession(&config.Config{}, ".gromit", agent, "prompt.md", ""); err != nil {
+		t.Fatalf("launchDebugSession() error = %v", err)
+	}
+	if !launcherCalled {
+		t.Fatal("expected session launcher to be called")
+	}
+	if launchedDir != sessionDir {
+		t.Fatalf("launch dir = %q, want %q", launchedDir, sessionDir)
+	}
+}
+
+func TestLaunchDebugSession_WorktreeDisabledUsesInPlaceLaunchDir(t *testing.T) {
+	origLauncher := debugSessionLauncherFn
+	t.Cleanup(func() { debugSessionLauncherFn = origLauncher })
+
+	launcherCalled := false
+	debugSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		launcherCalled = true
+		return nil, nil
+	}
+
+	enabled := false
+	cfg := &config.Config{}
+	cfg.Worktree.Enabled = &enabled
+
+	launchedDir := ""
+	agent := &retroTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			launchedDir = dir
+			return nil
+		},
+	}
+
+	if err := launchDebugSession(cfg, ".gromit", agent, "prompt.md", "/tmp/debug-restore"); err != nil {
+		t.Fatalf("launchDebugSession() error = %v", err)
+	}
+	if launcherCalled {
+		t.Fatal("session launcher should not be called when worktree is disabled")
+	}
+	if launchedDir != "/tmp/debug-restore" {
+		t.Fatalf("launch dir = %q, want %q", launchedDir, "/tmp/debug-restore")
+	}
+}
+
+func TestLaunchDebugSession_UsesRestoreDirWhenProvided(t *testing.T) {
+	origLauncher := debugSessionLauncherFn
+	t.Cleanup(func() { debugSessionLauncherFn = origLauncher })
+
+	restoreDir := t.TempDir()
+	sessionDir := t.TempDir()
+	launchedDir := ""
+
+	debugSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "gromit/debug-test", WorktreeDir: sessionDir}, nil
+	}
+
+	agent := &retroTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			launchedDir = dir
+			return nil
+		},
+	}
+
+	if err := launchDebugSession(&config.Config{}, ".gromit", agent, "prompt.md", restoreDir); err != nil {
+		t.Fatalf("launchDebugSession() error = %v", err)
+	}
+	if launchedDir != restoreDir {
+		t.Fatalf("launch dir = %q, want restore dir %q (session dir was %q)", launchedDir, restoreDir, sessionDir)
+	}
 }
 
 func TestGetPlanFiles(t *testing.T) {

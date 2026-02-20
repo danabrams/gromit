@@ -60,7 +60,7 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult
 	}
 
 	// Launch agent (blocks until complete)
-	if err := agent.Launch(promptPath); err != nil {
+	if err := agent.LaunchInDir(promptPath, ""); err != nil {
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}
 

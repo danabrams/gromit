@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/worktree"
 )
 
 // setupExploreTest creates a temp directory with the standard explore test
@@ -117,5 +119,179 @@ func TestExplorePromptRenderer_RenderExploreBuildsPromptDiagnostics(t *testing.T
 		if _, ok := diagnostics.SectionTokens[key]; !ok {
 			t.Fatalf("SectionTokens missing key %q", key)
 		}
+	}
+}
+
+type exploreSessionTestAgent struct {
+	launchInDirFn func(promptPath, dir string) error
+}
+
+func (a *exploreSessionTestAgent) Name() string { return "explore-test-agent" }
+
+func (a *exploreSessionTestAgent) Launch(promptPath string) error {
+	return a.LaunchInDir(promptPath, "")
+}
+
+func (a *exploreSessionTestAgent) LaunchInDir(promptPath, dir string) error {
+	if a != nil && a.launchInDirFn != nil {
+		return a.launchInDirFn(promptPath, dir)
+	}
+	return nil
+}
+
+type exploreSessionTestResolver struct {
+	agent pipeline.Agent
+}
+
+func (r *exploreSessionTestResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
+	return r.agent, nil
+}
+
+type exploreSessionTestRenderer struct{}
+
+func (r *exploreSessionTestRenderer) RenderExplore(input *pipeline.ExplorePromptInput) (string, error) {
+	return "explore prompt", nil
+}
+
+type exploreSessionTestBacklog struct{}
+
+func (b *exploreSessionTestBacklog) List() ([]*pipeline.Idea, error) { return []*pipeline.Idea{}, nil }
+func (b *exploreSessionTestBacklog) Get(id string) (*pipeline.Idea, error) {
+	return nil, nil
+}
+func (b *exploreSessionTestBacklog) Add(item *pipeline.Idea) error { return nil }
+func (b *exploreSessionTestBacklog) Update(id string, fn func(*pipeline.Idea)) error {
+	return nil
+}
+
+func TestRunExploreInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
+	origLauncher := exploreSessionLauncherFn
+	origRunInDir := exploreRunInDirFn
+	t.Cleanup(func() {
+		exploreSessionLauncherFn = origLauncher
+		exploreRunInDirFn = origRunInDir
+	})
+
+	baseDir := t.TempDir()
+	t.Chdir(baseDir)
+	gromitDir := filepath.Join(baseDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	epicsDir := filepath.Join(gromitDir, "epics")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatalf("mkdir epics: %v", err)
+	}
+
+	sessionDir := t.TempDir()
+	launcherCalled := false
+	runInDirArg := ""
+	agentWD := ""
+
+	exploreSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		launcherCalled = true
+		if command != exploreSessionCommand {
+			t.Fatalf("command = %q, want %q", command, exploreSessionCommand)
+		}
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "gromit/explore-test", WorktreeDir: sessionDir}, nil
+	}
+	exploreRunInDirFn = func(dir string, fn func() error) error {
+		runInDirArg = dir
+		return runInDir(dir, fn)
+	}
+
+	agent := &exploreSessionTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			wd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			agentWD = wd
+			return nil
+		},
+	}
+	p := pipeline.New(&pipeline.Deps{
+		AgentResolver:   &exploreSessionTestResolver{agent: agent},
+		ExploreRenderer: &exploreSessionTestRenderer{},
+		BacklogClient:   &exploreSessionTestBacklog{},
+	}, &pipeline.Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+		EpicsDir:  epicsDir,
+	})
+
+	result, err := runExploreInSession(context.Background(), &config.Config{}, gromitDir, p, pipeline.ExploreInput{Topic: "topic"})
+	if err != nil {
+		t.Fatalf("runExploreInSession() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("runExploreInSession() returned nil result")
+	}
+	if !launcherCalled {
+		t.Fatal("expected session launcher to be called")
+	}
+	if runInDirArg != sessionDir {
+		t.Fatalf("runInDir called with %q, want %q", runInDirArg, sessionDir)
+	}
+	if agentWD != sessionDir {
+		t.Fatalf("agent launched from %q, want %q", agentWD, sessionDir)
+	}
+}
+
+func TestRunExploreInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) {
+	origLauncher := exploreSessionLauncherFn
+	t.Cleanup(func() { exploreSessionLauncherFn = origLauncher })
+
+	baseDir := t.TempDir()
+	t.Chdir(baseDir)
+	gromitDir := filepath.Join(baseDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	epicsDir := filepath.Join(gromitDir, "epics")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatalf("mkdir epics: %v", err)
+	}
+
+	launcherCalled := false
+	exploreSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		launcherCalled = true
+		return nil, nil
+	}
+
+	enabled := false
+	cfg := &config.Config{}
+	cfg.Worktree.Enabled = &enabled
+
+	p := pipeline.New(&pipeline.Deps{
+		AgentResolver:   &exploreSessionTestResolver{agent: &exploreSessionTestAgent{}},
+		ExploreRenderer: &exploreSessionTestRenderer{},
+		BacklogClient:   &exploreSessionTestBacklog{},
+	}, &pipeline.Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+		EpicsDir:  epicsDir,
+	})
+
+	if _, err := runExploreInSession(context.Background(), cfg, gromitDir, p, pipeline.ExploreInput{Topic: "topic"}); err != nil {
+		t.Fatalf("runExploreInSession() error = %v", err)
+	}
+	if launcherCalled {
+		t.Fatal("session launcher should not be called when worktree is disabled")
 	}
 }

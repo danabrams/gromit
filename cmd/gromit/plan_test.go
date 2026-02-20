@@ -1,10 +1,36 @@
 package main
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/worktree"
 )
+
+type planLaunchTestAgent struct {
+	launchInDirFn func(promptPath, dir string) error
+}
+
+func (a *planLaunchTestAgent) Name() string { return "plan-test-agent" }
+
+func (a *planLaunchTestAgent) Launch(promptPath string) error {
+	return a.LaunchInDir(promptPath, "")
+}
+
+func (a *planLaunchTestAgent) LaunchInDir(promptPath, dir string) error {
+	if a != nil && a.launchInDirFn != nil {
+		return a.launchInDirFn(promptPath, dir)
+	}
+	return nil
+}
+
+func (a *planLaunchTestAgent) Command(promptPath string) (*exec.Cmd, error) {
+	return nil, errors.New("not implemented")
+}
 
 func TestFilterUnplannedSpecs(t *testing.T) {
 	tests := []struct {
@@ -104,5 +130,85 @@ func TestFilterUnplannedSpecs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLaunchPlanSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
+	origLauncher := planSessionLauncherFn
+	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
+
+	sessionDir := t.TempDir()
+	var launchedDir string
+	launcherCalled := false
+
+	planSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		launcherCalled = true
+		if command != planSessionCommand {
+			t.Fatalf("command = %q, want %q", command, planSessionCommand)
+		}
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "gromit/plan-test", WorktreeDir: sessionDir}, nil
+	}
+
+	agent := &planLaunchTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			launchedDir = dir
+			return nil
+		},
+	}
+
+	if err := launchPlanSession(&config.Config{}, ".gromit", agent, "prompt.md"); err != nil {
+		t.Fatalf("launchPlanSession() error = %v", err)
+	}
+	if !launcherCalled {
+		t.Fatal("expected session launcher to be called")
+	}
+	if launchedDir != sessionDir {
+		t.Fatalf("launch dir = %q, want %q", launchedDir, sessionDir)
+	}
+}
+
+func TestLaunchPlanSession_WorktreeDisabledUsesInPlaceLaunch(t *testing.T) {
+	origLauncher := planSessionLauncherFn
+	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
+
+	enabled := false
+	cfg := &config.Config{}
+	cfg.Worktree.Enabled = &enabled
+
+	launcherCalled := false
+	planSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		launcherCalled = true
+		return nil, nil
+	}
+
+	var launchedDir string
+	agent := &planLaunchTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			launchedDir = dir
+			return nil
+		},
+	}
+
+	if err := launchPlanSession(cfg, ".gromit", agent, "prompt.md"); err != nil {
+		t.Fatalf("launchPlanSession() error = %v", err)
+	}
+	if launcherCalled {
+		t.Fatal("session launcher should not be called when worktree is disabled")
+	}
+	if launchedDir != "" {
+		t.Fatalf("launch dir = %q, want empty string", launchedDir)
 	}
 }

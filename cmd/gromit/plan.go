@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/skills"
 	"github.com/spf13/cobra"
@@ -18,6 +19,10 @@ var (
 	planForce   bool
 	planNoChain bool
 )
+
+const planSessionCommand = "plan"
+
+var planSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 
 var planCmd = &cobra.Command{
 	Use:   "plan [spec-name]",
@@ -217,7 +222,7 @@ Plan output path: %s
 	}
 
 	// Launch the agent with the prompt file
-	if err := selectedAgent.Launch(promptPath); err != nil {
+	if err := launchPlanSession(cfg, gromitDir, selectedAgent, promptPath); err != nil {
 		return fmt.Errorf("launching agent: %w", err)
 	}
 
@@ -234,6 +239,22 @@ Plan output path: %s
 	}
 
 	return nil
+}
+
+func launchPlanSession(cfg *config.Config, gromitDir string, selectedAgent agent.Agent, promptPath string) error {
+	if selectedAgent == nil {
+		return fmt.Errorf("selected agent is nil")
+	}
+
+	if cfg != nil && !cfg.Worktree.IsEnabled() {
+		return selectedAgent.LaunchInDir(promptPath, "")
+	}
+
+	conflictSettings := sessionConflictSettingsFromConfig(cfg)
+	_, err := planSessionLauncherFn(gromitDir, planSessionCommand, conflictSettings, func(sessionDir string) error {
+		return selectedAgent.LaunchInDir(promptPath, sessionDir)
+	})
+	return err
 }
 
 // filterUnplannedSpecs returns only specs that don't have a corresponding plan file

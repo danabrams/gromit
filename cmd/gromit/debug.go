@@ -48,6 +48,7 @@ const (
 	debugAgentFlag       = "agent"
 	debugChooseAgentFlag = "choose-agent"
 	debugRestoreFlag     = "restore"
+	debugSessionCommand  = "debug"
 	debugKeepPrompt      = "Keep worktree?"
 	debugWorktreesDir    = "worktrees"
 	debugWorktreePrefix  = "debug-"
@@ -62,6 +63,7 @@ type debugGitRunFn func(dir string, args ...string) (string, error)
 
 var debugGitRun debugGitRunFn = runDebugGit
 var debugConfirmPromptFn = confirmPrompt
+var debugSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 
 func init() {
 	debugCmd.Flags().StringVar(&debugModel, debugModelFlag, "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
@@ -175,7 +177,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		selectedAgent = agent.New(claudeAgentName, binary, flags, agent.FileRef, "", nil)
 	}
 
-	if err := selectedAgent.LaunchInDir(promptPath, launchDir); err != nil {
+	if err := launchDebugSession(cfg, gromitDir, selectedAgent, promptPath, launchDir); err != nil {
 		return fmt.Errorf("launching agent: %w", err)
 	}
 
@@ -183,6 +185,26 @@ func runDebug(cmd *cobra.Command, args []string) error {
 
 	// Post-session artifact detection
 	return detectAndReportArtifacts(reportsDir, plansDir, existingReports, existingPlans, existingBacklogItems, bf, cfg)
+}
+
+func launchDebugSession(cfg *config.Config, gromitDir string, selectedAgent agent.Agent, promptPath, launchDir string) error {
+	if selectedAgent == nil {
+		return fmt.Errorf("selected agent is nil")
+	}
+
+	if cfg != nil && !cfg.Worktree.IsEnabled() {
+		return selectedAgent.LaunchInDir(promptPath, launchDir)
+	}
+
+	conflictSettings := sessionConflictSettingsFromConfig(cfg)
+	_, err := debugSessionLauncherFn(gromitDir, debugSessionCommand, conflictSettings, func(sessionDir string) error {
+		effectiveDir := sessionDir
+		if strings.TrimSpace(launchDir) != "" {
+			effectiveDir = launchDir
+		}
+		return selectedAgent.LaunchInDir(promptPath, effectiveDir)
+	})
+	return err
 }
 
 func shouldOverrideDebugModel(cmd *cobra.Command, selectedAgent agent.Agent) bool {

@@ -227,10 +227,10 @@ agents:
 	t.Log("agents.prompt: true picker triggering will be tested via integration test")
 }
 
-// TestRefineUsesAgentLaunchNotDirectExec verifies refine uses agent.Launch() not exec.Command directly
+// TestRefineUsesAgentLaunchNotDirectExec verifies refine uses agent.LaunchInDir() not exec.Command directly
 func TestRefineUsesAgentLaunchNotDirectExec(t *testing.T) {
 	// This acceptance test verifies that the refine workflow has been refactored
-	// to use agent.Launch() instead of constructing exec.Command directly
+	// to use agent.LaunchInDir() instead of constructing exec.Command directly
 	// The agent integration now lives in internal/pipeline/refine.go
 
 	// Read the pipeline refine.go source code
@@ -248,11 +248,11 @@ func TestRefineUsesAgentLaunchNotDirectExec(t *testing.T) {
 		t.Error("pipeline/refine.go does not call .Resolve() - agent selection not integrated")
 	}
 
-	// Check that agent.Launch is called
-	// After getting the agent, refine should call agent.Launch(promptPath)
+	// Check that agent.LaunchInDir is called
+	// After getting the agent, refine should call agent.LaunchInDir(promptPath, ...)
 	// instead of constructing exec.Command directly
-	if !strings.Contains(sourceStr, ".Launch(") {
-		t.Error("pipeline/refine.go does not call .Launch() - agent launch not integrated")
+	if !strings.Contains(sourceStr, ".LaunchInDir(") {
+		t.Error("pipeline/refine.go does not call .LaunchInDir() - agent launch not integrated")
 	}
 }
 
@@ -342,8 +342,8 @@ func TestRefineAgentSelectionIntegration(t *testing.T) {
 
 		// Verify key integration points in pipeline package
 		integrationChecks := map[string]string{
-			"calls agent.Resolve": ".Resolve(",
-			"calls agent.Launch":  ".Launch(",
+			"calls agent.Resolve":     ".Resolve(",
+			"calls agent.LaunchInDir": ".LaunchInDir(",
 		}
 
 		for check, pattern := range integrationChecks {

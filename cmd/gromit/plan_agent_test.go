@@ -225,10 +225,10 @@ agents:
 	t.Log("agents.prompt: true picker triggering will be tested via integration test")
 }
 
-// TestPlanUsesAgentLaunchNotDirectExec verifies plan uses agent.Launch() not exec.Command directly
+// TestPlanUsesAgentLaunchNotDirectExec verifies plan uses agent.LaunchInDir() via session launcher, not exec.Command directly
 func TestPlanUsesAgentLaunchNotDirectExec(t *testing.T) {
 	// This acceptance test verifies that the plan command has been refactored
-	// to use agent.Launch() instead of constructing exec.Command directly
+	// to use agent.LaunchInDir() instead of constructing exec.Command directly
 
 	// Read the plan.go source code
 	planSource, err := os.ReadFile("plan.go")
@@ -250,11 +250,11 @@ func TestPlanUsesAgentLaunchNotDirectExec(t *testing.T) {
 		t.Error("plan.go does not call agent.Resolve - agent selection not integrated")
 	}
 
-	// Check that agent.Launch is called
-	// After getting the agent, plan should call agent.Launch(promptPath)
+	// Check that agent.LaunchInDir is called
+	// After getting the agent, plan should call agent.LaunchInDir(promptPath, ...)
 	// instead of constructing exec.Command directly
-	if !strings.Contains(sourceStr, ".Launch(") {
-		t.Error("plan.go does not call .Launch() - agent launch not integrated")
+	if !strings.Contains(sourceStr, ".LaunchInDir(") {
+		t.Error("plan.go does not call .LaunchInDir() - agent launch not integrated")
 	}
 
 	// Check that the old exec.Command pattern for Claude is removed
@@ -329,7 +329,7 @@ func TestPlanAgentSelectionIntegration(t *testing.T) {
 	// This test verifies the complete integration flow:
 	// 1. Flags exist and are parsed
 	// 2. agent.Resolve is called with correct parameters
-	// 3. agent.Launch is called with prompt file path
+	// 3. agent.LaunchInDir is called with prompt file path
 	// 4. Prompt building and artifact detection remain unchanged
 
 	t.Run("flags are defined", func(t *testing.T) {
@@ -354,9 +354,9 @@ func TestPlanAgentSelectionIntegration(t *testing.T) {
 
 		// Verify key integration points
 		integrationChecks := map[string]string{
-			"imports agent package": `"github.com/danabrams/gromit/internal/agent"`,
-			"calls agent.Resolve":   "agent.Resolve",
-			"calls agent.Launch":    ".Launch(",
+			"imports agent package":   `"github.com/danabrams/gromit/internal/agent"`,
+			"calls agent.Resolve":     "agent.Resolve",
+			"calls agent.LaunchInDir": ".LaunchInDir(",
 		}
 
 		for check, pattern := range integrationChecks {
@@ -391,7 +391,7 @@ func TestPlanAgentSelectionIntegration(t *testing.T) {
 		}
 
 		if len(foundOldPatterns) > 0 {
-			t.Errorf("Old exec.Command patterns still present (should be replaced by agent.Launch): %v", foundOldPatterns)
+			t.Errorf("Old exec.Command patterns still present (should be replaced by agent.LaunchInDir): %v", foundOldPatterns)
 		}
 	})
 }

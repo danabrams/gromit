@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -36,6 +37,10 @@ After the session exits, scans for new spec files and marks backlog items as ref
 }
 
 var createRefinePipelineFn = createRefinePipeline
+var refineSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
+var refineRunInDirFn = runInDir
+
+const refineSessionCommand = "refine"
 
 func init() {
 	rootCmd.AddCommand(refineCmd)
@@ -66,13 +71,47 @@ func runRefine(cmd *cobra.Command, args []string) error {
 	}
 
 	// Execute refine
-	result, err := p.Refine(cmd.Context(), *input)
+	result, err := runRefineInSession(cmd.Context(), cfg, gromitDir, p, *input)
 	if err != nil {
 		return err
 	}
 
 	// Output results and chain
 	return handleRefineOutput(result, specsDir, plansDir)
+}
+
+func runRefineInSession(
+	ctx context.Context,
+	cfg *config.Config,
+	gromitDir string,
+	p *pipeline.Pipeline,
+	input pipeline.RefineInput,
+) (*pipeline.RefineResult, error) {
+	if p == nil {
+		return nil, fmt.Errorf("pipeline is nil")
+	}
+
+	if cfg != nil && !cfg.Worktree.IsEnabled() {
+		return p.Refine(ctx, input)
+	}
+
+	conflictSettings := sessionConflictSettingsFromConfig(cfg)
+	var result *pipeline.RefineResult
+	_, err := refineSessionLauncherFn(gromitDir, refineSessionCommand, conflictSettings, func(sessionDir string) error {
+		return refineRunInDirFn(sessionDir, func() error {
+			runResult, runErr := p.Refine(ctx, input)
+			if runErr != nil {
+				return runErr
+			}
+			result = runResult
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (*pipeline.RefineInput, error) {

@@ -59,7 +59,7 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	}
 
 	// Launch agent
-	if err := agent.Launch(promptPath); err != nil {
+	if err := agent.LaunchInDir(promptPath, ""); err != nil {
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}
 

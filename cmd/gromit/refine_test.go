@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/worktree"
 	"github.com/spf13/cobra"
 )
 
@@ -135,5 +137,149 @@ func TestRunRefineReturnsErrorWhenPipelineCreationFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "factory failed") {
 		t.Fatalf("expected error to include factory failure, got %v", err)
+	}
+}
+
+type refineSessionTestAgent struct {
+	launchInDirFn func(promptPath, dir string) error
+}
+
+func (a *refineSessionTestAgent) Name() string { return "refine-test-agent" }
+
+func (a *refineSessionTestAgent) Launch(promptPath string) error {
+	return a.LaunchInDir(promptPath, "")
+}
+
+func (a *refineSessionTestAgent) LaunchInDir(promptPath, dir string) error {
+	if a != nil && a.launchInDirFn != nil {
+		return a.launchInDirFn(promptPath, dir)
+	}
+	return nil
+}
+
+type refineSessionTestResolver struct {
+	agent pipeline.Agent
+}
+
+func (r *refineSessionTestResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
+	return r.agent, nil
+}
+
+func TestRunRefineInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
+	origLauncher := refineSessionLauncherFn
+	origRunInDir := refineRunInDirFn
+	t.Cleanup(func() {
+		refineSessionLauncherFn = origLauncher
+		refineRunInDirFn = origRunInDir
+	})
+
+	baseDir := t.TempDir()
+	t.Chdir(baseDir)
+	gromitDir := filepath.Join(baseDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+
+	sessionDir := t.TempDir()
+	launcherCalled := false
+	runInDirArg := ""
+	agentWD := ""
+
+	refineSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		launcherCalled = true
+		if command != refineSessionCommand {
+			t.Fatalf("command = %q, want %q", command, refineSessionCommand)
+		}
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "gromit/refine-test", WorktreeDir: sessionDir}, nil
+	}
+	refineRunInDirFn = func(dir string, fn func() error) error {
+		runInDirArg = dir
+		return runInDir(dir, fn)
+	}
+
+	agent := &refineSessionTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			wd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			agentWD = wd
+			return nil
+		},
+	}
+	p := pipeline.New(&pipeline.Deps{
+		AgentResolver: &refineSessionTestResolver{agent: agent},
+	}, &pipeline.Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+	})
+
+	result, err := runRefineInSession(context.Background(), &config.Config{}, gromitDir, p, pipeline.RefineInput{IdeaText: "idea"})
+	if err != nil {
+		t.Fatalf("runRefineInSession() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("runRefineInSession() returned nil result")
+	}
+	if !launcherCalled {
+		t.Fatal("expected session launcher to be called")
+	}
+	if runInDirArg != sessionDir {
+		t.Fatalf("runInDir called with %q, want %q", runInDirArg, sessionDir)
+	}
+	if agentWD != sessionDir {
+		t.Fatalf("agent launched from %q, want %q", agentWD, sessionDir)
+	}
+}
+
+func TestRunRefineInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) {
+	origLauncher := refineSessionLauncherFn
+	t.Cleanup(func() { refineSessionLauncherFn = origLauncher })
+
+	baseDir := t.TempDir()
+	t.Chdir(baseDir)
+	gromitDir := filepath.Join(baseDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+
+	launcherCalled := false
+	refineSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		launcherCalled = true
+		return nil, nil
+	}
+
+	enabled := false
+	cfg := &config.Config{}
+	cfg.Worktree.Enabled = &enabled
+
+	agent := &refineSessionTestAgent{}
+	p := pipeline.New(&pipeline.Deps{
+		AgentResolver: &refineSessionTestResolver{agent: agent},
+	}, &pipeline.Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+	})
+
+	if _, err := runRefineInSession(context.Background(), cfg, gromitDir, p, pipeline.RefineInput{IdeaText: "idea"}); err != nil {
+		t.Fatalf("runRefineInSession() error = %v", err)
+	}
+	if launcherCalled {
+		t.Fatal("session launcher should not be called when worktree is disabled")
 	}
 }

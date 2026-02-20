@@ -38,6 +38,8 @@ Examples:
 }
 
 var exploreModel string
+var exploreSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
+var exploreRunInDirFn = runInDir
 
 const exploreCodexHelpExample = `  gromit explore --agent codex "Audit onboarding flow" # Use Codex for the session`
 const exploreChooseAgentHelpExample = `  gromit explore --choose-agent "Audit onboarding flow" # Pick an agent interactively`
@@ -48,6 +50,7 @@ const (
 	exploreSectionTopic        = "topic"
 	exploreSectionLearnings    = "learnings"
 	exploreSectionInstructions = "instructions"
+	exploreSessionCommand      = "explore"
 )
 
 func init() {
@@ -90,7 +93,7 @@ func runExplore(cmd *cobra.Command, args []string) error {
 		Model:       exploreModel,
 	}
 
-	result, err := p.Explore(ctx, input)
+	result, err := runExploreInSession(ctx, cfg, resolveGromitDir(cfg), p, input)
 	if err != nil {
 		return fmt.Errorf("explore workflow: %w", err)
 	}
@@ -115,6 +118,40 @@ func runExplore(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func runExploreInSession(
+	ctx context.Context,
+	cfg *config.Config,
+	gromitDir string,
+	p *pipeline.Pipeline,
+	input pipeline.ExploreInput,
+) (*pipeline.ExploreResult, error) {
+	if p == nil {
+		return nil, fmt.Errorf("pipeline is nil")
+	}
+
+	if cfg != nil && !cfg.Worktree.IsEnabled() {
+		return p.Explore(ctx, input)
+	}
+
+	conflictSettings := sessionConflictSettingsFromConfig(cfg)
+	var result *pipeline.ExploreResult
+	_, err := exploreSessionLauncherFn(gromitDir, exploreSessionCommand, conflictSettings, func(sessionDir string) error {
+		return exploreRunInDirFn(sessionDir, func() error {
+			runResult, runErr := p.Explore(ctx, input)
+			if runErr != nil {
+				return runErr
+			}
+			result = runResult
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // buildExplorePipeline constructs a Pipeline configured for the explore workflow

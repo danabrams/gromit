@@ -233,6 +233,54 @@ func TestPipeline_ExploreRecordsExistingArtifacts(t *testing.T) {
 	}
 }
 
+func TestPipeline_ExploreLaunchesAgentWithLaunchInDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	epicsDir := filepath.Join(gromitDir, "epics")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("failed to create specs dir: %v", err)
+	}
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatalf("failed to create epics dir: %v", err)
+	}
+
+	launchInDirCalled := false
+	launchDir := "unexpected"
+	mockAgent := &mockAgent{
+		LaunchInDirFn: func(promptPath, dir string) error {
+			launchInDirCalled = true
+			launchDir = dir
+			return nil
+		},
+	}
+	mockAgentResolver := &mockAgentResolver{
+		ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+			return mockAgent, nil
+		},
+	}
+
+	p := New(&Deps{
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: &testExploreRenderer{},
+		BacklogClient:   &testBacklogClient{},
+	}, &Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+		EpicsDir:  epicsDir,
+	})
+
+	if _, err := p.Explore(context.Background(), ExploreInput{Topic: "topic"}); err != nil {
+		t.Fatalf("Explore() failed: %v", err)
+	}
+	if !launchInDirCalled {
+		t.Fatal("expected LaunchInDir to be called")
+	}
+	if launchDir != "" {
+		t.Fatalf("launch dir = %q, want empty string", launchDir)
+	}
+}
+
 // TestPipeline_ExploreBuildsPromptWithContext verifies that Explore builds a prompt
 // including CLAUDE.md, rules, learnings, and topic.
 func TestPipeline_ExploreBuildsPromptWithContext(t *testing.T) {
