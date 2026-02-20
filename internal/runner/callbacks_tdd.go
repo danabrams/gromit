@@ -47,6 +47,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 			var pendingCoverageCriterion *coverage.Criterion
 			var lastSelfReport *coverage.SelfReport
 			var lastFailingTestCode string
+			invokeFn := r.makeInvokeFn()
 			criteriaByNumber := make(map[int]coverage.Criterion, len(criteria))
 			for _, criterion := range criteria {
 				criteriaByNumber[criterion.Number] = criterion
@@ -106,7 +107,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 						return fmt.Errorf("escalation handler not configured")
 					}
 					activeBC.Tier = tier
-					invResult, err := r.makeInvokeFn()(ctx, activeBC, promptText)
+					invResult, err := invokeFn(ctx, activeBC, promptText)
 					if err != nil {
 						return err
 					}
