@@ -54,7 +54,7 @@ func NewCodexProvider(binaryPath string, flags []string, tierToModel map[string]
 
 // SetReasoningEffort configures per-tier reasoning effort (for example:
 // {"high":"high","medium":"medium"}), which is forwarded to Codex via
-// `-c model_reasoning_effort="<value>"` when the tier is invoked.
+// `-c model_reasoning_effort=<value>` when the tier is invoked.
 func (cp *CodexProvider) SetReasoningEffort(tierToReasoning map[string]string) {
 	if cp == nil {
 		return
@@ -586,7 +586,7 @@ func (cp *CodexProvider) buildExecCommandArgs(model, tier, colorMode string, jso
 	args = append(args, "--color", colorMode)
 	args = append(args, "--model", model)
 	if effort, ok := cp.reasoningEffortForTier(tier); ok && !hasReasoningEffortConfig(cp.flags) {
-		args = append(args, "-c", fmt.Sprintf("model_reasoning_effort=%q", effort))
+		args = append(args, "-c", fmt.Sprintf("model_reasoning_effort=%s", effort))
 	}
 	if jsonMode {
 		args = append(args, "--json")
