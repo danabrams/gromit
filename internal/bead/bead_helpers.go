@@ -5,11 +5,27 @@ import (
 	"strings"
 )
 
+const (
+	specLabelPrefix          = "spec:"
+	proactiveStructThreshold = 3
+)
+
+var testOnlyTitlePrefixes = []string{
+	"add tests for",
+	"add unit tests for",
+	"add acceptance tests for",
+	"add integration tests for",
+	"write tests for",
+	"write unit tests for",
+	"write acceptance tests for",
+	"write integration tests for",
+}
+
 // FindSpecLabel returns the spec name from labels (spec:<name>) or empty string.
 func FindSpecLabel(labels []string) string {
 	for _, label := range labels {
-		if strings.HasPrefix(label, "spec:") {
-			return strings.TrimPrefix(label, "spec:")
+		if strings.HasPrefix(label, specLabelPrefix) {
+			return strings.TrimPrefix(label, specLabelPrefix)
 		}
 	}
 	return ""
@@ -33,18 +49,7 @@ func IsTestOnlyBead(title string) bool {
 	if t == "" {
 		return false
 	}
-	// Match titles where the primary verb is about writing/adding tests.
-	prefixes := []string{
-		"add tests for",
-		"add unit tests for",
-		"add acceptance tests for",
-		"add integration tests for",
-		"write tests for",
-		"write unit tests for",
-		"write acceptance tests for",
-		"write integration tests for",
-	}
-	for _, prefix := range prefixes {
+	for _, prefix := range testOnlyTitlePrefixes {
 		if strings.HasPrefix(t, prefix) {
 			return true
 		}
@@ -80,7 +85,7 @@ func IsProactiveDecompositionCandidateWithDesc(title, description string) bool {
 	}
 	// Count "struct" occurrences in description as a proxy for new type definitions.
 	count := strings.Count(strings.ToLower(description), "struct")
-	return count >= 3
+	return count >= proactiveStructThreshold
 }
 
 // IsMethodologyActive checks if a methodology (e.g., "atdd", "tdd") is active for a bead.

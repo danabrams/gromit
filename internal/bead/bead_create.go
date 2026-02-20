@@ -7,6 +7,13 @@ import (
 	"github.com/danabrams/gromit/internal/jsonutil"
 )
 
+func validateReferencedBeadID(id, idType string) error {
+	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
+		return fmt.Errorf("invalid %s %q", idType, id)
+	}
+	return nil
+}
+
 // Create creates a new bead via the bd CLI and returns the created bead.
 func (c *Client) Create(title string, priority int, labels []string, expectedOutputs []string) (*Bead, error) {
 	return c.CreateWithParentAndDescription(title, priority, labels, expectedOutputs, "", "")
@@ -26,8 +33,8 @@ func (c *Client) CreateWithParentAndDescription(title string, priority int, labe
 	// Add parent if specified.
 	var extra []string
 	if parentID != "" {
-		if !validBeadID.MatchString(parentID) || len(parentID) > maxIDLength {
-			return nil, fmt.Errorf("invalid parent ID %q", parentID)
+		if err := validateReferencedBeadID(parentID, "parent ID"); err != nil {
+			return nil, err
 		}
 		extra = append(extra, "--parent", parentID)
 	}
@@ -46,8 +53,8 @@ func (c *Client) CreateWithDepsAndDescription(title string, priority int, labels
 	if len(dependencies) > 0 {
 		// Validate all dependency IDs.
 		for _, depID := range dependencies {
-			if !validBeadID.MatchString(depID) || len(depID) > maxIDLength {
-				return nil, fmt.Errorf("invalid dependency ID %q", depID)
+			if err := validateReferencedBeadID(depID, "dependency ID"); err != nil {
+				return nil, err
 			}
 		}
 		// bd --deps accepts comma-separated list or multiple IDs.
