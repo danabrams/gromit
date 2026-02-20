@@ -4,12 +4,12 @@ package retro
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
-	"time"
 
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/state"
@@ -18,7 +18,6 @@ import (
 // hashEvictionEnv holds the test environment for filtered hash eviction tests.
 type hashEvictionEnv struct {
 	tmpDir       string
-	cfg          *config.Config
 	provisionals []learnings.Learning
 }
 
@@ -30,33 +29,23 @@ func setupHashEviction(t *testing.T, learningsContent string) hashEvictionEnv {
 
 	tmpDir := t.TempDir()
 
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Binary:  "claude",
-			Timeout: 60,
-		},
-	}
-
 	var provisionals []learnings.Learning
 
+	learningsPath := filepath.Join(tmpDir, "LEARNINGS.md")
+	lf, err := learnings.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("creating learnings file: %v", err)
+	}
+
 	if learningsContent != "" {
-		learningsPath := filepath.Join(tmpDir, "LEARNINGS.md")
 		if err := os.WriteFile(learningsPath, []byte(learningsContent), 0644); err != nil {
 			t.Fatalf("writing learnings file: %v", err)
-		}
-		lf, err := learnings.NewFile(tmpDir)
-		if err != nil {
-			t.Fatalf("creating learnings file: %v", err)
 		}
 		if err := lf.Load(); err != nil {
 			t.Fatalf("loading learnings: %v", err)
 		}
 		provisionals = lf.GetProvisional()
 	} else {
-		lf, err := learnings.NewFile(tmpDir)
-		if err != nil {
-			t.Fatalf("creating learnings file: %v", err)
-		}
 		if err := lf.Save(); err != nil {
 			t.Fatalf("saving empty learnings: %v", err)
 		}
@@ -64,7 +53,6 @@ func setupHashEviction(t *testing.T, learningsContent string) hashEvictionEnv {
 
 	return hashEvictionEnv{
 		tmpDir:       tmpDir,
-		cfg:          cfg,
 		provisionals: provisionals,
 	}
 }
@@ -100,7 +88,9 @@ func (env hashEvictionEnv) runRetro(t *testing.T) map[string]bool {
 		t.Fatalf("creating retro: %v", err)
 	}
 	ctx := context.Background()
-	_, _ = r.Run(ctx, nil)
+	if _, err := r.Run(ctx, nil); err != nil {
+		t.Fatalf("running retro: %v", err)
+	}
 
 	sf, err := state.NewFile(env.tmpDir)
 	if err != nil {
@@ -110,6 +100,52 @@ func (env hashEvictionEnv) runRetro(t *testing.T) map[string]bool {
 		t.Fatalf("loading state for verification: %v", err)
 	}
 	return sf.GetFilteredHashes()
+}
+
+func assertHashesUnchanged(t *testing.T, initialHashes, finalHashes []string) {
+	t.Helper()
+
+	if len(initialHashes) != len(finalHashes) {
+		t.Fatalf("state.json should not change filtered_learning_hashes when no hashes need to be added or pruned; initial=%v final=%v", initialHashes, finalHashes)
+	}
+	for i, hash := range initialHashes {
+		if finalHashes[i] != hash {
+			t.Fatalf("state.json should not change filtered_learning_hashes when no hashes need to be added or pruned; initial=%v final=%v", initialHashes, finalHashes)
+		}
+	}
+}
+
+func mustHaveProvisionals(t *testing.T, got, want int) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("expected %d provisional learnings, got %d", want, got)
+	}
+}
+
+type stateFixture struct {
+	FilteredLearningHashes []string `json:"filtered_learning_hashes"`
+}
+
+func readFilteredHashesFromState(t *testing.T, statePath string) []string {
+	t.Helper()
+
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatalf("reading state file: %v", err)
+	}
+
+	var sf stateFixture
+	if err := json.Unmarshal(data, &sf); err != nil {
+		t.Fatalf("decoding state file: %v", err)
+	}
+	return sf.FilteredLearningHashes
+}
+
+func sortedCopy(values []string) []string {
+	out := make([]string, len(values))
+	copy(out, values)
+	sort.Strings(out)
+	return out
 }
 
 // TestFilteredHashEviction_RemovesStaleHashesAfterRetroRun verifies that after retro.Run()
@@ -140,9 +176,7 @@ Third provisional learning content
 *No archived learnings.*
 `)
 
-	if len(env.provisionals) != 3 {
-		t.Fatalf("expected 3 provisional learnings, got %d", len(env.provisionals))
-	}
+	mustHaveProvisionals(t, len(env.provisionals), 3)
 
 	hash1 := env.provisionals[0].Hash
 	hash2 := env.provisionals[1].Hash
@@ -196,46 +230,21 @@ Second learning
 *No archived learnings.*
 `)
 
-	if len(env.provisionals) != 2 {
-		t.Fatalf("expected 2 provisional learnings, got %d", len(env.provisionals))
-	}
+	mustHaveProvisionals(t, len(env.provisionals), 2)
 
 	hash1 := env.provisionals[0].Hash
 	hash2 := env.provisionals[1].Hash
 
 	env.addFilteredHashes(t, []string{hash1, hash2})
 
-	// Record initial state content and modification time
+	// Record initial state content for deterministic comparison.
 	statePath := filepath.Join(env.tmpDir, "state.json")
-	initialContent, err := os.ReadFile(statePath)
-	if err != nil {
-		t.Fatalf("reading initial state: %v", err)
-	}
-	initialStat, err := os.Stat(statePath)
-	if err != nil {
-		t.Fatalf("stat initial state file: %v", err)
-	}
-	initialModTime := initialStat.ModTime()
-
-	time.Sleep(10 * time.Millisecond)
+	initialHashes := sortedCopy(readFilteredHashesFromState(t, statePath))
 
 	hashes := env.runRetro(t)
+	finalHashes := sortedCopy(readFilteredHashesFromState(t, statePath))
 
-	finalStat, err := os.Stat(statePath)
-	if err != nil {
-		t.Fatalf("stat final state file: %v", err)
-	}
-	finalContent, err := os.ReadFile(statePath)
-	if err != nil {
-		t.Fatalf("reading final state: %v", err)
-	}
-
-	if finalStat.ModTime().After(initialModTime) {
-		t.Error("state.json should NOT be modified when no hashes need to be added or pruned")
-	}
-	if string(finalContent) != string(initialContent) {
-		t.Error("state.json content should be unchanged when no hashes need to be added or pruned")
-	}
+	assertHashesUnchanged(t, initialHashes, finalHashes)
 	if len(hashes) != 2 {
 		t.Errorf("expected 2 hashes (unchanged), got %d", len(hashes))
 	}
