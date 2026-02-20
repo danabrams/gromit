@@ -9,6 +9,12 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
+const (
+	successLearningCategoryConventions = "conventions"
+	successLearningCategoryGotchas     = "gotchas"
+	successLearningCategoryPatterns    = "patterns"
+)
+
 func formatTaskIdentity(b *bead.Bead, parent *bead.Bead, iteration int, model string) string {
 	if b == nil {
 		return ""
@@ -93,13 +99,16 @@ func ParseSuccessLearning(output string) (*SuccessLearning, error) {
 		return nil, fmt.Errorf("parsing success learning JSON: %w", err)
 	}
 
-	// Validate category
-	switch learning.Category {
-	case "conventions", "gotchas", "patterns":
-		// Valid
-	default:
-		learning.Category = "gotchas" // Default
-	}
+	learning.Category = normalizeSuccessLearningCategory(learning.Category)
 
 	return &learning, nil
+}
+
+func normalizeSuccessLearningCategory(category string) string {
+	switch category {
+	case successLearningCategoryConventions, successLearningCategoryGotchas, successLearningCategoryPatterns:
+		return category
+	default:
+		return successLearningCategoryGotchas
+	}
 }
