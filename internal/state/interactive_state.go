@@ -9,12 +9,19 @@ import (
 	"time"
 )
 
+const (
+	interactiveDirPerm  os.FileMode = 0755
+	interactiveFilePerm os.FileMode = 0644
+)
+
+var errNilInteractiveStateFile = fmt.Errorf("interactive state file is nil")
+
 // withFileLock acquires an exclusive advisory lock on a lock file adjacent to path,
 // executes fn, then releases the lock. This prevents concurrent processes from
 // reading/writing the state file simultaneously.
 func withFileLock(path string, fn func() error) error {
 	lockPath := path + ".lock"
-	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, interactiveFilePerm)
 	if err != nil {
 		return fmt.Errorf("opening lock file: %w", err)
 	}
@@ -53,8 +60,8 @@ func NewInteractiveFile(gromitDir string) (*InteractiveFile, error) {
 
 // Load reads the interactive state from disk under an advisory file lock.
 func (f *InteractiveFile) Load() error {
-	if f == nil {
-		return fmt.Errorf("interactive state file is nil")
+	if err := f.ensureReceiver(); err != nil {
+		return err
 	}
 	return withFileLock(f.path, func() error {
 		data, err := os.ReadFile(f.path)
@@ -76,11 +83,11 @@ func (f *InteractiveFile) Load() error {
 
 // Save writes the interactive state to disk under an advisory file lock.
 func (f *InteractiveFile) Save() error {
-	if f == nil {
-		return fmt.Errorf("interactive state file is nil")
+	if err := f.ensureReceiver(); err != nil {
+		return err
 	}
 	dir := filepath.Dir(f.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, interactiveDirPerm); err != nil {
 		return fmt.Errorf("creating interactive state directory: %w", err)
 	}
 
@@ -99,8 +106,8 @@ func (f *InteractiveFile) LastRetro() time.Time {
 
 // RecordRetro updates the last retro time to now
 func (f *InteractiveFile) RecordRetro() error {
-	if f == nil {
-		return fmt.Errorf("interactive state file is nil")
+	if err := f.ensureReceiver(); err != nil {
+		return err
 	}
 	return f.mutateAndSaveLocked(func(s *InteractiveState) {
 		s.LastRetro = time.Now()
@@ -125,8 +132,8 @@ func (f *InteractiveFile) LastReviewIteration() int {
 
 // RecordReview updates the last review commit and iteration, and saves
 func (f *InteractiveFile) RecordReview(commit string, iteration int) error {
-	if f == nil {
-		return fmt.Errorf("interactive state file is nil")
+	if err := f.ensureReceiver(); err != nil {
+		return err
 	}
 	return f.mutateAndSaveLocked(func(s *InteractiveState) {
 		s.LastReviewCommit = commit
@@ -152,8 +159,8 @@ func (f *InteractiveFile) AddFilteredHashes(hashes []string) {
 
 // AddPendingWorktreeBranch adds a branch to the pending list and persists it.
 func (f *InteractiveFile) AddPendingWorktreeBranch(branch string) error {
-	if f == nil {
-		return fmt.Errorf("interactive state file is nil")
+	if err := f.ensureReceiver(); err != nil {
+		return err
 	}
 	return f.mutateAndSaveLocked(func(s *InteractiveState) {
 		s.PendingWorktreeBranches = mergeHashes(s.PendingWorktreeBranches, []string{branch})
@@ -162,8 +169,8 @@ func (f *InteractiveFile) AddPendingWorktreeBranch(branch string) error {
 
 // RemovePendingWorktreeBranch removes a branch from the pending list and persists it.
 func (f *InteractiveFile) RemovePendingWorktreeBranch(branch string) error {
-	if f == nil {
-		return fmt.Errorf("interactive state file is nil")
+	if err := f.ensureReceiver(); err != nil {
+		return err
 	}
 	return f.mutateAndSaveLocked(func(s *InteractiveState) {
 		kept := s.PendingWorktreeBranches[:0]
@@ -178,8 +185,8 @@ func (f *InteractiveFile) RemovePendingWorktreeBranch(branch string) error {
 
 // ListPendingWorktreeBranches returns the pending branches persisted in state.
 func (f *InteractiveFile) ListPendingWorktreeBranches() ([]string, error) {
-	if f == nil {
-		return nil, fmt.Errorf("interactive state file is nil")
+	if err := f.ensureReceiver(); err != nil {
+		return nil, err
 	}
 	var branches []string
 	err := withFileLock(f.path, func() error {
@@ -207,12 +214,12 @@ func (s *InteractiveState) NormalizeNilFields() {
 }
 
 func (f *InteractiveFile) mutateAndSaveLocked(mutateFn func(*InteractiveState)) error {
-	if f == nil {
-		return fmt.Errorf("interactive state file is nil")
+	if err := f.ensureReceiver(); err != nil {
+		return err
 	}
 
 	dir := filepath.Dir(f.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, interactiveDirPerm); err != nil {
 		return fmt.Errorf("creating interactive state directory: %w", err)
 	}
 
@@ -248,5 +255,12 @@ func (f *InteractiveFile) writeLocked() error {
 	if err != nil {
 		return fmt.Errorf("marshalling interactive state: %w", err)
 	}
-	return os.WriteFile(f.path, data, 0644)
+	return os.WriteFile(f.path, data, interactiveFilePerm)
+}
+
+func (f *InteractiveFile) ensureReceiver() error {
+	if f == nil {
+		return errNilInteractiveStateFile
+	}
+	return nil
 }
