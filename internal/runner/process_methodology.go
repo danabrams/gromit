@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,7 +16,10 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-const coverageTrackerMaxRejections = 2
+const (
+	coverageTrackerMaxRejections              = 2
+	tddFreshContextCoverageIncompleteErrorMsg = "tdd fresh-context stopped with unchecked coverage criteria"
+)
 
 func (r *Runner) ensureMethodologyPolicy() {
 	if r == nil {
@@ -128,7 +132,7 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		r.log("TDD coverage tracker reports unchecked criteria after cycle pass %d; injecting additional cycles", pass+1)
 	}
 	if coverageTracker != nil && !coverageTracker.IsComplete() {
-		bc.Result.Error = fmt.Errorf("tdd fresh-context stopped with unchecked coverage criteria")
+		bc.Result.Error = errors.New(tddFreshContextCoverageIncompleteErrorMsg)
 		return true
 	}
 	if r.cfg.Validation.Enabled && r.validationRunner != nil {

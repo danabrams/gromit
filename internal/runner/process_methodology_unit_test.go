@@ -17,6 +17,18 @@ import (
 const atddSkipLogMessage = "Skipping ATDD: bead is test-only"
 const atddSpecGranularitySkipLogMessage = "Skipping ATDD: spec granularity active for spec:"
 
+const (
+	authSpecOneCriterion = `# Auth
+
+## Acceptance Criteria
+- Criterion one`
+	authSpecTwoCriteria = `# Auth
+
+## Acceptance Criteria
+- Criterion one
+- Criterion two`
+)
+
 // newMinimalRunnerForMethodology creates the smallest possible Runner for
 // testing prepareMethodologyForBead without needing a full Deps setup.
 // Returns the runner and a pointer to the log buffer for output inspection.
@@ -53,6 +65,40 @@ func newBeadContextForMethodology(b *bead.Bead) *runtypes.BeadContext {
 		Result:    &runtypes.IterationResult{},
 		PromptCtx: &prompt.Context{},
 	}
+}
+
+func newTDDFreshContextCoverageHarness(
+	t *testing.T,
+	runCyclesFn func(context.Context, *runtypes.BeadContext, *coverage.CoverageTracker, []coverage.Criterion) error,
+	addCommentFn func(id, comment string) error,
+) (*Runner, *strings.Builder, *mockBeadClient) {
+	t.Helper()
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+			MaxTDDCycles:         1,
+		},
+	}
+	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	beads := &mockBeadClient{AddCommentFn: addCommentFn}
+	r.beads = beads
+	if runCyclesFn == nil {
+		runCyclesFn = func(context.Context, *runtypes.BeadContext, *coverage.CoverageTracker, []coverage.Criterion) error {
+			return nil
+		}
+	}
+	r.tddOrchestrator = &tddOrchestrator{runCyclesFn: runCyclesFn}
+	return r, buf, beads
+}
+
+func newCoverageBeadContext(id, title, spec string) (*bead.Bead, *runtypes.BeadContext) {
+	b := newTestBead(id, title)
+	b.Labels = []string{"spec:auth"}
+	b.ExpectedOutputs = []string{"implement feature X"}
+	bc := newBeadContextForMethodology(b)
+	bc.PromptCtx.Spec = spec
+	return b, bc
 }
 
 // --- ATDD skip tests ---
@@ -754,31 +800,8 @@ func TestUpdateIterationCoverageMetrics_UsesFinalTrackerState(t *testing.T) {
 }
 
 func TestRunTDDFreshContextCycles_AddsCoverageCommentForIncompleteCoverage(t *testing.T) {
-	cfg := &config.Config{
-		Methodology: config.MethodologyConfig{
-			TDD:                  true,
-			FreshContextPerCycle: true,
-			MaxTDDCycles:         1,
-		},
-	}
-	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
-	beads := &mockBeadClient{}
-	r.beads = beads
-	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
-			return nil
-		},
-	}
-
-	b := newTestBead("tdd-comment-1", "Implement feature with incomplete coverage")
-	b.Labels = []string{"spec:auth"}
-	b.ExpectedOutputs = []string{"implement feature X"}
-	bc := newBeadContextForMethodology(b)
-	bc.PromptCtx.Spec = `# Auth
-
-## Acceptance Criteria
-- Criterion one
-- Criterion two`
+	r, buf, beads := newTDDFreshContextCoverageHarness(t, nil, nil)
+	b, bc := newCoverageBeadContext("tdd-comment-1", "Implement feature with incomplete coverage", authSpecTwoCriteria)
 
 	handled := r.runTDDFreshContextCycles(context.Background(), bc)
 
@@ -815,34 +838,12 @@ func TestRunTDDFreshContextCycles_AddsCoverageCommentForIncompleteCoverage(t *te
 }
 
 func TestRunTDDFreshContextCycles_CoverageCommentFailureLogsWarning(t *testing.T) {
-	cfg := &config.Config{
-		Methodology: config.MethodologyConfig{
-			TDD:                  true,
-			FreshContextPerCycle: true,
-			MaxTDDCycles:         1,
-		},
-	}
-	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
-	beads := &mockBeadClient{
-		AddCommentFn: func(id, comment string) error {
-			return errors.New("comment add failed")
-		},
-	}
-	r.beads = beads
-	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
-			return nil
-		},
-	}
-
-	b := newTestBead("tdd-comment-2", "Implement feature with comment failure")
-	b.Labels = []string{"spec:auth"}
-	b.ExpectedOutputs = []string{"implement feature X"}
-	bc := newBeadContextForMethodology(b)
-	bc.PromptCtx.Spec = `# Auth
-
-## Acceptance Criteria
-- Criterion one`
+	r, buf, _ := newTDDFreshContextCoverageHarness(
+		t,
+		nil,
+		func(id, comment string) error { return errors.New("comment add failed") },
+	)
+	_, bc := newCoverageBeadContext("tdd-comment-2", "Implement feature with comment failure", authSpecOneCriterion)
 
 	r.runTDDFreshContextCycles(context.Background(), bc)
 
@@ -852,34 +853,18 @@ func TestRunTDDFreshContextCycles_CoverageCommentFailureLogsWarning(t *testing.T
 }
 
 func TestRunTDDFreshContextCycles_AddsCoverageCommentForUntestableCriteria(t *testing.T) {
-	cfg := &config.Config{
-		Methodology: config.MethodologyConfig{
-			TDD:                  true,
-			FreshContextPerCycle: true,
-			MaxTDDCycles:         1,
-		},
-	}
-	r, buf := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
-	beads := &mockBeadClient{}
-	r.beads = beads
-	r.tddOrchestrator = &tddOrchestrator{
-		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
+	r, buf, beads := newTDDFreshContextCoverageHarness(
+		t,
+		func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			if tracker != nil && len(criteria) > 0 {
 				tracker.RecordRejection(criteria[0].Number)
 				tracker.RecordRejection(criteria[0].Number)
 			}
 			return nil
 		},
-	}
-
-	b := newTestBead("tdd-comment-untestable-1", "Implement feature with untestable criterion")
-	b.Labels = []string{"spec:auth"}
-	b.ExpectedOutputs = []string{"implement feature X"}
-	bc := newBeadContextForMethodology(b)
-	bc.PromptCtx.Spec = `# Auth
-
-## Acceptance Criteria
-- Criterion one`
+		nil,
+	)
+	_, bc := newCoverageBeadContext("tdd-comment-untestable-1", "Implement feature with untestable criterion", authSpecOneCriterion)
 
 	handled := r.runTDDFreshContextCycles(context.Background(), bc)
 	if !handled {
