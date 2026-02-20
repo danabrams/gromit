@@ -159,7 +159,6 @@ func verifyRunnerSplitPhase1Layout(t *testing.T) string {
 	mustHaveMethod(t, callbacksDecls, "Runner", "makeMethodologyExec", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "context", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "fmt", "callbacks.go")
-	mustHaveImport(t, callbacksDecls, "os/exec", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/bead", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/claude", "callbacks.go")
 	mustHaveImport(t, callbacksDecls, "github.com/danabrams/gromit/internal/provider", "callbacks.go")

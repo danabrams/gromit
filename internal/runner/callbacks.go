@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -527,10 +526,16 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		r.runRefactorWithRouter,
 		validateFn,
 		func(commit string) error {
-			resetCmd := exec.Command("git", "reset", "--hard", commit)
-			return resetCmd.Run()
+			_, stderr, exitCode, err := r.runCmd(context.Background(), "git reset --hard "+commit, ".")
+			if err != nil {
+				return err
+			}
+			if exitCode != 0 {
+				return fmt.Errorf("git reset failed: %s", strings.TrimSpace(stderr))
+			}
+			return nil
 		},
-		getGitHead,
+		r.getHead,
 	))
 
 	return methExec
@@ -765,10 +770,16 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 					}
 					return r.getDiff(activeBC.StartCommit)
 				},
-				GetGitHeadFn: r.gitHeadFn,
+				GetGitHeadFn: r.getHead,
 				GitResetFn: func(commit string) error {
-					resetCmd := exec.Command("git", "reset", "--hard", commit)
-					return resetCmd.Run()
+					_, stderr, exitCode, err := r.runCmd(context.Background(), "git reset --hard "+commit, ".")
+					if err != nil {
+						return err
+					}
+					if exitCode != 0 {
+						return fmt.Errorf("git reset failed: %s", strings.TrimSpace(stderr))
+					}
+					return nil
 				},
 			})
 
