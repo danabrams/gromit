@@ -34,6 +34,7 @@ type mockBeadClient struct {
 	SyncFn                           func() error
 	AddCommentFn                     func(id, comment string) error
 	GetParentFn                      func(b *bead.Bead) (*bead.Bead, error)
+	CreateFn                         func(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error)
 	CreateWithParentFn               func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
 	CreateWithParentAndDescriptionFn func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
 	HasOpenChildrenFn                func(parentID string) (bool, error)
@@ -123,6 +124,13 @@ func (m *mockBeadClient) GetParent(b *bead.Bead) (*bead.Bead, error) {
 		return m.GetParentFn(b)
 	}
 	return nil, nil
+}
+
+func (m *mockBeadClient) Create(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error) {
+	if m.CreateFn != nil {
+		return m.CreateFn(title, priority, labels, expectedOutputs)
+	}
+	return &bead.Bead{ID: "mock-create-1", Title: title, Labels: []string{}, ExpectedOutputs: []string{}}, nil
 }
 
 func (m *mockBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {

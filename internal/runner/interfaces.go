@@ -31,6 +31,7 @@ type BeadClient interface {
 	Sync() error
 	AddComment(id, comment string) error
 	GetParent(b *bead.Bead) (*bead.Bead, error)
+	Create(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error)
 	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
 	CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
 	HasOpenChildren(parentID string) (bool, error)

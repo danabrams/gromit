@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -273,39 +272,11 @@ func (r *Runner) maybeRunSpecGate(ctx context.Context, specName string) error {
 	r.specGateCycles[specName] = currentCycles + 1
 
 	if result != nil && !result.Passed {
-		creator := &specGateBeadCreator{beads: r.beads}
-		failures := gateFailuresToCriteria(result.Failures)
-		if _, err := specgate.SynthesizeFixBeads(ctx, specName, failures, "P1", creator); err != nil {
+		if _, err := SynthesizeFixBeads(ctx, specName, result.Failures, r.beads); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func gateFailuresToCriteria(failures []GateFailure) []specgate.CriterionResult {
-	if len(failures) == 0 {
-		return []specgate.CriterionResult{}
-	}
-	results := make([]specgate.CriterionResult, 0, len(failures))
-	for _, failure := range failures {
-		testName := strings.TrimSpace(failure.TestName)
-		if testName == "" {
-			testName = specGateInvocationFailureName
-		}
-		evidenceParts := make([]string, 0, 2)
-		if msg := strings.TrimSpace(failure.Message); msg != "" {
-			evidenceParts = append(evidenceParts, msg)
-		}
-		if fix := strings.TrimSpace(failure.SuggestedFix); fix != "" {
-			evidenceParts = append(evidenceParts, "Suggested fix: "+fix)
-		}
-		results = append(results, specgate.CriterionResult{
-			Criterion: testName,
-			Passed:    false,
-			Evidence:  strings.TrimSpace(strings.Join(evidenceParts, "\n")),
-		})
-	}
-	return results
 }
 
 func hasOpenBeads(beads []*bead.Bead) bool {
@@ -417,48 +388,3 @@ func formatAcceptanceCriteria(criteria []string) string {
 	}
 	return strings.Join(lines, "\n")
 }
-
-type specGateBeadCreator struct {
-	beads BeadClient
-}
-
-func (c *specGateBeadCreator) Create(ctx context.Context, title, description, priority string, labels []string) (string, error) {
-	if c == nil || c.beads == nil {
-		return "", fmt.Errorf("bead client is nil")
-	}
-
-	priorityInt, err := parseBeadPriority(priority)
-	if err != nil {
-		return "", err
-	}
-
-	expectedOutputs := []string{}
-	if strings.TrimSpace(title) != "" {
-		expectedOutputs = []string{strings.TrimSpace(title)}
-	}
-	b, err := c.beads.CreateWithParentAndDescription(title, priorityInt, labels, expectedOutputs, "", description)
-	if err != nil {
-		return "", err
-	}
-	if b == nil {
-		return "", fmt.Errorf("bead creation returned nil")
-	}
-	return b.ID, nil
-}
-
-func parseBeadPriority(priority string) (int, error) {
-	trimmed := strings.TrimSpace(priority)
-	if trimmed == "" {
-		return 0, fmt.Errorf("priority is empty")
-	}
-	if strings.HasPrefix(strings.ToUpper(trimmed), "P") {
-		trimmed = strings.TrimSpace(trimmed[1:])
-	}
-	value, err := strconv.Atoi(trimmed)
-	if err != nil {
-		return 0, fmt.Errorf("invalid priority %q", priority)
-	}
-	return value, nil
-}
-
-var _ specgate.BeadCreator = (*specGateBeadCreator)(nil)

@@ -173,7 +173,7 @@ func TestMaybeRunSpecGate_FailedVerdictSynthesizesSpecLabeledFixBeads(t *testing
 		ListWithLabelFn: func(label string) ([]*bead.Bead, error) {
 			return []*bead.Bead{{ID: "bead-1", Status: "closed"}}, nil
 		},
-		CreateWithParentAndDescriptionFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+		CreateFn: func(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error) {
 			createdLabels = append(createdLabels, labels...)
 			return &bead.Bead{ID: "fix-1"}, nil
 		},
