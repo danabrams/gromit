@@ -22,6 +22,26 @@ const (
 	FailureCategoryOther               = "other"
 )
 
+var legacyModelToTier = map[string]string{
+	// Claude models
+	"opus":   TierHigh,
+	"sonnet": TierMedium,
+	"haiku":  TierLow,
+	// OpenAI models
+	"o3":          TierHigh,
+	"gpt-4o":      TierMedium,
+	"gpt-4o-mini": TierLow,
+	// Codex models
+	"gpt-5.3-codex":       TierMedium,
+	"gpt-5.3-codex-spark": TierLow,
+}
+
+var tierToLegacyModel = map[string]string{
+	TierHigh:   "opus",
+	TierMedium: "sonnet",
+	TierLow:    "haiku",
+}
+
 // Result represents the outcome of a provider invocation
 type Result struct {
 	Success           bool          `json:"success"`
@@ -78,21 +98,6 @@ type Provider interface {
 // Unrecognized model names are returned unchanged for forward compatibility.
 // Case-insensitive matching allows for flexible config formats (e.g., "Opus" or "OPUS").
 func TierFromLegacyModel(modelName string) string {
-	// Map of known model names (lowercase) to tiers
-	legacyModelToTier := map[string]string{
-		// Claude models
-		"opus":   TierHigh,
-		"sonnet": TierMedium,
-		"haiku":  TierLow,
-		// OpenAI models
-		"o3":          TierHigh,
-		"gpt-4o":      TierMedium,
-		"gpt-4o-mini": TierLow,
-		// Codex models
-		"gpt-5.3-codex":       TierMedium,
-		"gpt-5.3-codex-spark": TierLow,
-	}
-
 	// Check for known model (case-insensitive)
 	if tier, ok := legacyModelToTier[strings.ToLower(modelName)]; ok {
 		return tier
@@ -107,12 +112,6 @@ func TierFromLegacyModel(modelName string) string {
 // Returns "opus" for high, "sonnet" for medium, "haiku" for low.
 // Unrecognized tier values are passed through unchanged.
 func TierToLegacyModel(tier string) string {
-	tierToLegacyModel := map[string]string{
-		TierHigh:   "opus",
-		TierMedium: "sonnet",
-		TierLow:    "haiku",
-	}
-
 	if model, ok := tierToLegacyModel[tier]; ok {
 		return model
 	}
