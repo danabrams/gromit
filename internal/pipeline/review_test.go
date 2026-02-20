@@ -534,91 +534,64 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		deps    *Deps
+		mutate  func(*Deps)
 		wantErr string
 	}{
 		{
-			name: "nil ClaudeClient",
-			deps: func() *Deps {
-				d := newValidDeps()
-				d.ClaudeClient = nil
-				return d
-			}(),
+			name:    "nil ClaudeClient",
+			mutate:  func(d *Deps) { d.ClaudeClient = nil },
 			wantErr: "pipeline: nil ClaudeClient",
 		},
 		{
-			name: "nil PromptRenderer",
-			deps: func() *Deps {
-				d := newValidDeps()
-				d.PromptRenderer = nil
-				return d
-			}(),
+			name:    "nil PromptRenderer",
+			mutate:  func(d *Deps) { d.PromptRenderer = nil },
 			wantErr: "pipeline: nil PromptRenderer",
 		},
 		{
-			name: "nil BeadClient",
-			deps: func() *Deps {
-				d := newValidDeps()
-				d.BeadClient = nil
-				return d
-			}(),
+			name:    "nil BeadClient",
+			mutate:  func(d *Deps) { d.BeadClient = nil },
 			wantErr: "pipeline: nil BeadClient",
 		},
 		{
-			name: "nil BacklogClient",
-			deps: func() *Deps {
-				d := newValidDeps()
-				d.BacklogClient = nil
-				return d
-			}(),
+			name:    "nil BacklogClient",
+			mutate:  func(d *Deps) { d.BacklogClient = nil },
 			wantErr: "pipeline: nil BacklogClient",
 		},
 		{
-			name: "nil LearningsManager",
-			deps: func() *Deps {
-				d := newValidDeps()
-				d.LearningsManager = nil
-				return d
-			}(),
+			name:    "nil LearningsManager",
+			mutate:  func(d *Deps) { d.LearningsManager = nil },
 			wantErr: "pipeline: nil LearningsManager",
 		},
 		{
-			name: "nil LogWriter",
-			deps: func() *Deps {
-				d := newValidDeps()
-				d.LogWriter = nil
-				return d
-			}(),
+			name:    "nil LogWriter",
+			mutate:  func(d *Deps) { d.LogWriter = nil },
 			wantErr: "pipeline: nil LogWriter",
 		},
 		{
-			name: "nil StateManager",
-			deps: func() *Deps {
-				d := newValidDeps()
-				d.StateManager = nil
-				return d
-			}(),
+			name:    "nil StateManager",
+			mutate:  func(d *Deps) { d.StateManager = nil },
 			wantErr: "pipeline: nil StateManager",
 		},
 		{
-			name: "typed nil ClaudeClient",
-			deps: func() *Deps {
-				d := newValidDeps()
-				d.ClaudeClient = (*reviewAcceptanceMockClaudeClient)(nil)
-				return d
-			}(),
+			name:    "typed nil ClaudeClient",
+			mutate:  func(d *Deps) { d.ClaudeClient = (*reviewAcceptanceMockClaudeClient)(nil) },
 			wantErr: "pipeline: nil ClaudeClient",
 		},
 		{
 			name:    "all deps present",
-			deps:    newValidDeps(),
+			mutate:  nil,
 			wantErr: "",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			p := New(tc.deps, &Paths{})
+			deps := newValidDeps()
+			if tc.mutate != nil {
+				tc.mutate(deps)
+			}
+
+			p := New(deps, &Paths{})
 			err := p.validateReviewDeps()
 
 			if tc.wantErr == "" {
