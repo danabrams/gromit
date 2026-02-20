@@ -70,7 +70,7 @@ func TestRunRefactorAndPostChecks_ValidationUsesParentContext(t *testing.T) {
 	beadCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -112,7 +112,7 @@ func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesParentContext(t *tes
 	beadCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, true)
+	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, true, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -163,7 +163,7 @@ func TestRunRefactorAndPostChecks_RefactorUsesPhaseContext(t *testing.T) {
 	beadCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	r.runRefactorAndPostChecks(beadCtx, bc, false)
+	r.runRefactorAndPostChecks(beadCtx, bc, false, 1)
 
 	// The refactor invocation should have received a live context (no error)
 	// derived from ParentCtx, not from the canceled beadCtx.
@@ -222,7 +222,7 @@ func TestRunRefactorAndPostChecks_ValidationGetsFreshContextAfterRefactorTimeout
 	beadCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -285,7 +285,7 @@ func TestRunRefactorAndPostChecks_AcceptanceVerificationUsesPhaseContext(t *test
 	beadCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, true)
+	retry, terminal := r.runRefactorAndPostChecks(beadCtx, bc, true, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -463,7 +463,7 @@ func TestRunRefactorAndPostChecks_ValidationPhaseClampedByRunDeadline(t *testing
 		Result: &IterationResult{},
 	}
 
-	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -593,6 +593,62 @@ func TestRunATDDPreBuildPhases_SetsRedPhaseAttributionOnTimeout(t *testing.T) {
 	}
 }
 
+func TestRunATDDPreBuildPhases_RecordsRedPhaseMetric(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			ATDD: true,
+		},
+	}
+	cfg.SetDefaults()
+
+	r, _, _ := setupDirectValidationRunner(t, cfg, nil)
+	r.methodologyExec = methodology.NewExecutorWithEscalation(
+		r.cfg,
+		r.output,
+		func(ctx *prompt.Context) (string, error) { return "acceptance prompt", nil },
+		func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+			bc.Result.InputTokens = 41
+			bc.Result.OutputTokens = 19
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-red-metric", Title: "Red Metric"},
+		Model:       "sonnet",
+		Tier:        provider.TierMedium,
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	if ok := r.runATDDPreBuildPhases(context.Background(), bc); !ok {
+		t.Fatal("expected runATDDPreBuildPhases to succeed")
+	}
+
+	if len(bc.Result.PhaseMetrics) != 1 {
+		t.Fatalf("PhaseMetrics length = %d, want 1", len(bc.Result.PhaseMetrics))
+	}
+	metric := bc.Result.PhaseMetrics[0]
+	if metric.Phase != "red" {
+		t.Fatalf("Phase = %q, want %q", metric.Phase, "red")
+	}
+	if metric.CycleNumber != 1 {
+		t.Fatalf("CycleNumber = %d, want 1", metric.CycleNumber)
+	}
+	if metric.InputTokens != 41 || metric.OutputTokens != 19 {
+		t.Fatalf("tokens = (%d,%d), want (41,19)", metric.InputTokens, metric.OutputTokens)
+	}
+	if !metric.Success {
+		t.Fatal("red phase metric should be marked successful")
+	}
+}
+
 func TestExecuteBuildAndMethodologyLoop_SetsValidationGatePhaseAttributionOnTimeout(t *testing.T) {
 	// When the intermediate validation gate times out, TimeoutPhase should be
 	// "validation_gate" to attribute the timeout to that phase.
@@ -668,7 +724,7 @@ func TestRunRefactorAndPostChecks_RefactorTimeoutThenValidationSucceeds_NoTermin
 		Result: &IterationResult{},
 	}
 
-	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -680,6 +736,55 @@ func TestRunRefactorAndPostChecks_RefactorTimeoutThenValidationSucceeds_NoTermin
 	}
 	if bc.Result.TimeoutPhase != "" {
 		t.Fatalf("TimeoutPhase = %q, want empty (refactor timeout is non-terminal and validation succeeded)", bc.Result.TimeoutPhase)
+	}
+}
+
+func TestRunRefactorAndPostChecks_RecordsRefactorAndVerificationMetrics(t *testing.T) {
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Refactor.MinFilesChanged = 0
+	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		return &claude.Result{Success: true}, nil, nil
+	})
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-phase-metrics-refactor", Title: "Refactor Metrics"},
+		Model:       "sonnet",
+		Tier:        provider.TierMedium,
+		StartCommit: testStartCommit,
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, true, 3)
+	if retry {
+		t.Fatal("expected retry=false")
+	}
+	if terminal != nil {
+		t.Fatalf("expected terminal=nil, got %+v", terminal)
+	}
+
+	if len(bc.Result.PhaseMetrics) != 2 {
+		t.Fatalf("PhaseMetrics length = %d, want 2", len(bc.Result.PhaseMetrics))
+	}
+	if bc.Result.PhaseMetrics[0].Phase != "refactor" {
+		t.Fatalf("phase[0] = %q, want %q", bc.Result.PhaseMetrics[0].Phase, "refactor")
+	}
+	if bc.Result.PhaseMetrics[1].Phase != "verification" {
+		t.Fatalf("phase[1] = %q, want %q", bc.Result.PhaseMetrics[1].Phase, "verification")
+	}
+	if bc.Result.PhaseMetrics[0].CycleNumber != 3 || bc.Result.PhaseMetrics[1].CycleNumber != 3 {
+		t.Fatalf("cycle numbers = (%d,%d), want (3,3)", bc.Result.PhaseMetrics[0].CycleNumber, bc.Result.PhaseMetrics[1].CycleNumber)
+	}
+	if !bc.Result.PhaseMetrics[0].Success || !bc.Result.PhaseMetrics[1].Success {
+		t.Fatal("expected both refactor and verification metrics to be successful")
 	}
 }
 
@@ -722,7 +827,7 @@ func TestRunRefactorAndPostChecks_ValidationTimeoutIndependentOfRefactorTimeout(
 		Result: &IterationResult{},
 	}
 
-	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -773,7 +878,7 @@ func TestRunRefactorAndPostChecks_DefaultFallbackWhenPhaseTimeoutsOmitted(t *tes
 		Result: &IterationResult{},
 	}
 
-	r.runRefactorAndPostChecks(context.Background(), bc, false)
+	r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 
 	// Refactor should get a deadline derived from bead timeout (~200s).
 	if !refactorCtxHadDeadline {
@@ -834,7 +939,7 @@ func TestRunRefactorAndPostChecks_SetsValidationPhaseAttributionOnTimeout(t *tes
 		Result: &IterationResult{},
 	}
 
-	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}

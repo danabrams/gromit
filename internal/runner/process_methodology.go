@@ -254,11 +254,14 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 	redCtx, redCancel, redMeta := newPhaseContext(bc, "red", redTimeoutSec)
 	defer redCancel()
 	r.log("Red phase context: timeout=%s source=%s", redMeta.EffectiveTimeout.Round(time.Second), redMeta.TimeoutSource)
+	redPhaseStart := time.Now()
 	if err := r.methodologyExec.RunAcceptanceTestsWithRetry(redCtx, bc); err != nil {
+		r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
 		setPhaseAttribution(bc.Result, "red", err)
 		bc.Result.Error = fmt.Errorf("acceptance tests phase failed: %w", err)
 		return false
 	}
+	r.recordPhaseMetric(bc, "red", 1, redPhaseStart, true)
 
 	bc.PromptCtx.IsRetry = false
 	bc.PromptCtx.PrevFailure = ""
@@ -275,9 +278,48 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 	return true
 }
 
+func (r *Runner) recordPhaseMetric(
+	bc *runtypes.BeadContext,
+	phase string,
+	cycleNumber int,
+	phaseStart time.Time,
+	success bool,
+) {
+	if bc == nil || bc.Result == nil || bc.Bead == nil {
+		return
+	}
+	durationMs := int64(0)
+	if !phaseStart.IsZero() {
+		durationMs = time.Since(phaseStart).Milliseconds()
+		if durationMs < 0 {
+			durationMs = 0
+		}
+	}
+	if cycleNumber < 1 {
+		cycleNumber = 1
+	}
+	bc.Result.PhaseMetrics = append(bc.Result.PhaseMetrics, runtypes.PhaseMetric{
+		Phase:              phase,
+		CycleNumber:        cycleNumber,
+		BeadID:             bc.Bead.ID,
+		Model:              bc.Model,
+		Tier:               bc.Tier,
+		InputTokens:        bc.Result.InputTokens,
+		OutputTokens:       bc.Result.OutputTokens,
+		DurationMs:         durationMs,
+		Success:            success,
+		Escalated:          bc.Result.Escalated,
+		CriteriaTotal:      bc.Result.CriteriaTotal,
+		CriteriaCovered:    bc.Result.CriteriaCovered,
+		CriteriaUntestable: bc.Result.CriteriaUntestable,
+	})
+}
+
 func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtypes.BeadContext, atddActive bool, tddActive bool, executeWithRetry func() bool) *IterationResult {
 	r.ensureMethodologyPolicy()
+	cycleNumber := 0
 	for {
+		cycleNumber++
 		bc.Result.Error = nil
 		bc.Result.AcceptanceFailureSummary = ""
 		bc.Result.AcceptanceFailureOutput = ""
@@ -287,7 +329,9 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		// build-phase agent runs tests only on touched packages instead of ./...
 		injectScopedTestCommand(bc)
 
+		greenPhaseStart := time.Now()
 		if !executeWithRetry() {
+			r.recordPhaseMetric(bc, "green", cycleNumber, greenPhaseStart, false)
 			if bc.Result.FailurePhase == "" {
 				if bc.Result.TimeoutType != "" || isTimeoutOrCanceledError(bc.Result.Error) {
 					bc.Result.FailurePhase = failurephase.Timeout
@@ -297,6 +341,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 			}
 			return bc.Result
 		}
+		r.recordPhaseMetric(bc, "green", cycleNumber, greenPhaseStart, true)
 
 		if bc.StartCommit != "" {
 			diff, err := r.getDiff(bc.StartCommit)
@@ -332,7 +377,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		}
 
 		if atddActive || tddActive {
-			retry, terminal := r.runRefactorAndPostChecks(ctx, bc, atddActive)
+			retry, terminal := r.runRefactorAndPostChecks(ctx, bc, atddActive, cycleNumber)
 			if retry {
 				continue
 			}
@@ -347,60 +392,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 	}
 }
 
-// deadlineGuard holds the result of a deadline check for an optional phase.
-type deadlineGuard struct {
-	Skip       bool
-	Remaining  time.Duration
-	Needed     time.Duration
-	SkipReason string
-}
-
-const (
-	skipReasonDeadlineExpired           = "deadline_expired"
-	skipReasonInsufficientTimeRemaining = "insufficient_time_remaining"
-)
-
-// checkDeadlineGuard inspects ctx.Deadline() and determines whether enough time
-// remains to run a phase that requires the given needed duration. If the context
-// has no deadline, the phase is allowed to run (Skip=false). If the deadline has
-// passed or insufficient time remains, Skip=true with a reason set.
-func checkDeadlineGuard(ctx context.Context, needed time.Duration) deadlineGuard {
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		return deadlineGuard{Skip: false, Needed: needed}
-	}
-	return checkRemainingGuard(time.Until(deadline), needed)
-}
-
-func checkRemainingGuard(remaining time.Duration, needed time.Duration) deadlineGuard {
-	if remaining <= 0 {
-		return deadlineGuard{
-			Skip:       true,
-			Remaining:  remaining,
-			Needed:     needed,
-			SkipReason: skipReasonDeadlineExpired,
-		}
-	}
-	if remaining < needed {
-		return deadlineGuard{
-			Skip:       true,
-			Remaining:  remaining,
-			Needed:     needed,
-			SkipReason: skipReasonInsufficientTimeRemaining,
-		}
-	}
-	return deadlineGuard{Skip: false, Remaining: remaining, Needed: needed}
-}
-
-func beadRemaining(bc *runtypes.BeadContext) (remaining time.Duration, elapsed time.Duration, ok bool) {
-	if bc == nil || bc.BeadTimeout <= 0 || bc.BeadStartTime.IsZero() {
-		return 0, 0, false
-	}
-	elapsed = time.Since(bc.BeadStartTime)
-	return bc.BeadTimeout - elapsed, elapsed, true
-}
-
-func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.BeadContext, atddActive bool) (retry bool, terminal *IterationResult) {
+func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.BeadContext, atddActive bool, cycleNumber int) (retry bool, terminal *IterationResult) {
 	r.ensureMethodologyPolicy()
 	r.log("Running refactor phase...")
 	if r.methodologyExec == nil {
@@ -427,8 +419,12 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	defer refactorCancel()
 	r.log("Refactor phase context: timeout=%s source=%s", refactorMeta.EffectiveTimeout.Round(time.Second), refactorMeta.TimeoutSource)
 
+	refactorPhaseStart := time.Now()
 	if err := r.methodologyExec.RunRefactorPhase(refactorCtx, bc); err != nil {
+		r.recordPhaseMetric(bc, "refactor", cycleNumber, refactorPhaseStart, false)
 		r.log("Warning: refactor phase encountered issues: %v", err)
+	} else {
+		r.recordPhaseMetric(bc, "refactor", cycleNumber, refactorPhaseStart, true)
 	}
 
 	if r.cfg.Validation.Enabled {
@@ -485,13 +481,16 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		acceptanceCtx, acceptanceCancel, acceptMeta := newPhaseContext(bc, "acceptance_verification", acceptTimeoutSec)
 		defer acceptanceCancel()
 		r.log("Acceptance verification phase context: timeout=%s source=%s", acceptMeta.EffectiveTimeout.Round(time.Second), acceptMeta.TimeoutSource)
+		verificationPhaseStart := time.Now()
 		if err := r.methodologyExec.VerifyAcceptanceTestsPass(acceptanceCtx, bc); err != nil {
+			r.recordPhaseMetric(bc, "verification", cycleNumber, verificationPhaseStart, false)
 			setPhaseAttribution(bc.Result, "acceptance_verification", err)
 			if r.handleAcceptanceVerificationFailure(ctx, bc, "acceptance verification failed after refactoring", err) {
 				return true, nil
 			}
 			return false, bc.Result
 		}
+		r.recordPhaseMetric(bc, "verification", cycleNumber, verificationPhaseStart, true)
 	}
 
 	return false, nil

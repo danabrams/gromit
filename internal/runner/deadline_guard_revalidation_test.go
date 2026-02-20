@@ -58,7 +58,7 @@ func TestDeadlineGuard_JustAboveMinRevalidation_NonTimeoutErrorIsTerminal(t *tes
 		Result: &IterationResult{},
 	}
 
-	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 
 	if retry {
 		t.Fatal("expected retry=false")

@@ -189,7 +189,7 @@ func TestRunRefactorAndPostChecks_UsesMethodologyPolicyMinRefactorBudget(t *test
 		Result: &IterationResult{},
 	}
 
-	r.runRefactorAndPostChecks(beadCtx, bc, false)
+	r.runRefactorAndPostChecks(beadCtx, bc, false, 1)
 
 	if !refactorInvoked {
 		t.Fatal("expected refactor phase to run with reduced min refactor budget")
@@ -230,7 +230,7 @@ func TestRunRefactorAndPostChecks_UsesMethodologyPolicyMinRevalidationBudget(t *
 		},
 		Result: &IterationResult{},
 	}
-	r.runRefactorAndPostChecks(context.Background(), bc, false)
+	r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 
 	if commandCalls == 0 {
 		t.Fatal("expected re-validation to run with zero min revalidation budget")
@@ -342,7 +342,7 @@ func TestRunRefactorAndPostChecks_UsesMethodologyPolicyPhaseTimeout(t *testing.T
 		Result: &IterationResult{},
 	}
 
-	r.runRefactorAndPostChecks(context.Background(), bc, false)
+	r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 
 	if !refactorDeadlineSet {
 		t.Fatal("expected refactor invoke to receive deadline context")

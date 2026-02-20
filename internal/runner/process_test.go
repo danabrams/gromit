@@ -2588,7 +2588,7 @@ func TestRunRefactorAndPostChecks_RevalidationSkippedWhenUnderThreshold(t *testi
 		Result: &IterationResult{},
 	}
 
-	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -2626,7 +2626,7 @@ func TestRunRefactorAndPostChecks_RefactorSkippedWhenTimeExpired(t *testing.T) {
 		Result: &IterationResult{},
 	}
 
-	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -2663,7 +2663,7 @@ func TestRunRefactorAndPostChecks_RefactorSkippedWhenDeadlineInsufficient(t *tes
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
 	defer cancel()
 
-	retry, terminal := r.runRefactorAndPostChecks(ctx, bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(ctx, bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -2708,7 +2708,7 @@ func TestRunRefactorAndPostChecks_RevalidationSkippedWhenTimeExpired(t *testing.
 		Result: &IterationResult{},
 	}
 
-	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}
@@ -2744,7 +2744,7 @@ func TestRunRefactorAndPostChecks_NonTimeoutValidationFailure(t *testing.T) {
 		Result: &IterationResult{},
 	}
 
-	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false)
+	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, false, 1)
 	if retry {
 		t.Fatal("expected retry=false")
 	}

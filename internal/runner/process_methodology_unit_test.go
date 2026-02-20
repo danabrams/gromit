@@ -612,6 +612,56 @@ func TestExecuteBuildLoop_FirstPassSuccess_NoRetriesNoEscalation(t *testing.T) {
 	}
 }
 
+func TestExecuteBuildLoop_RecordsGreenPhaseMetric(t *testing.T) {
+	cfg := &config.Config{}
+	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
+	b := newTestBead("green-metric-1", "Implement feature")
+	bc := newBeadContextForMethodology(b)
+	bc.Model = "sonnet"
+	bc.Tier = "medium"
+
+	result := r.executeBuildAndMethodologyLoop(
+		context.Background(),
+		bc,
+		false,
+		false,
+		func() bool {
+			bc.Result.InputTokens = 111
+			bc.Result.OutputTokens = 37
+			return true
+		},
+	)
+
+	if len(result.PhaseMetrics) != 1 {
+		t.Fatalf("PhaseMetrics length = %d, want 1", len(result.PhaseMetrics))
+	}
+	metric := result.PhaseMetrics[0]
+	if metric.Phase != "green" {
+		t.Fatalf("Phase = %q, want %q", metric.Phase, "green")
+	}
+	if metric.CycleNumber != 1 {
+		t.Fatalf("CycleNumber = %d, want 1", metric.CycleNumber)
+	}
+	if metric.BeadID != "green-metric-1" {
+		t.Fatalf("BeadID = %q, want %q", metric.BeadID, "green-metric-1")
+	}
+	if metric.Model != "sonnet" {
+		t.Fatalf("Model = %q, want %q", metric.Model, "sonnet")
+	}
+	if metric.Tier != "medium" {
+		t.Fatalf("Tier = %q, want %q", metric.Tier, "medium")
+	}
+	if metric.InputTokens != 111 || metric.OutputTokens != 37 {
+		t.Fatalf("tokens = (%d,%d), want (111,37)", metric.InputTokens, metric.OutputTokens)
+	}
+	if !metric.Success {
+		t.Fatal("Success should be true for successful green phase")
+	}
+	if metric.DurationMs < 0 {
+		t.Fatalf("DurationMs = %d, want >= 0", metric.DurationMs)
+	}
+}
+
 // TestExecuteBuildLoop_FirstPassSuccess_FalseAfterRetry verifies that
 // FirstPassSuccess remains false when the build succeeded but required retries.
 func TestExecuteBuildLoop_FirstPassSuccess_FalseAfterRetry(t *testing.T) {
