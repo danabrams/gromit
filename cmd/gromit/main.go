@@ -165,17 +165,9 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	}()
 
 	specsDir := resolveSpecsDir(cfg)
-	var labels []string
-	if runSpecFlag != "" {
-		if err := scope.ValidateSpec(specsDir, runSpecFlag); err != nil {
-			return fmt.Errorf("validating spec: %w", err)
-		}
-		labels = scope.ResolveSpec(runSpecFlag)
-	} else if runEpicFlag != "" {
-		labels, err = scope.ResolveEpic(runEpicFlag, specsDir)
-		if err != nil {
-			return fmt.Errorf("resolving epic scope: %w", err)
-		}
+	labels, err := resolveScopeLabels(specsDir, runEpicFlag, runSpecFlag)
+	if err != nil {
+		return err
 	}
 
 	// Override max iterations from flag if set
@@ -239,20 +231,10 @@ func runRetro(cmd *cobra.Command, args []string) error {
 
 	// Build bead filter from flags
 	var beadFilter map[string]bool
-	var labels []string
 	specsDir := resolveSpecsDir(cfg)
-
-	if retroSpecFlag != "" {
-		if err := scope.ValidateSpec(specsDir, retroSpecFlag); err != nil {
-			return fmt.Errorf("validating spec: %w", err)
-		}
-		labels = scope.ResolveSpec(retroSpecFlag)
-	} else if retroEpicFlag != "" {
-		var err error
-		labels, err = scope.ResolveEpic(retroEpicFlag, specsDir)
-		if err != nil {
-			return fmt.Errorf("resolving epic scope: %w", err)
-		}
+	labels, err := resolveScopeLabels(specsDir, retroEpicFlag, retroSpecFlag)
+	if err != nil {
+		return err
 	}
 
 	if len(labels) > 0 {
@@ -362,6 +344,27 @@ func buildBeadFilter(ctx context.Context, labels []string) (map[string]bool, err
 	}
 
 	return filter, nil
+}
+
+// resolveScopeLabels validates and resolves spec/epic scope flags into bead labels.
+// It assumes mutual exclusivity has already been enforced by scope.ValidateFlags.
+func resolveScopeLabels(specsDir, epicFlag, specFlag string) ([]string, error) {
+	if specFlag != "" {
+		if err := scope.ValidateSpec(specsDir, specFlag); err != nil {
+			return nil, fmt.Errorf("validating spec: %w", err)
+		}
+		return scope.ResolveSpec(specFlag), nil
+	}
+
+	if epicFlag != "" {
+		labels, err := scope.ResolveEpic(epicFlag, specsDir)
+		if err != nil {
+			return nil, fmt.Errorf("resolving epic scope: %w", err)
+		}
+		return labels, nil
+	}
+
+	return nil, nil
 }
 
 func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromitDir, promptPath string) error {
