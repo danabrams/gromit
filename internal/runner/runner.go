@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -89,6 +90,8 @@ type Runner struct {
 	autoFixFn          func(startCommit string) error                                                                                    // injectable: runs gofmt/goimports on changed files; nil means no auto-fix
 	lookupHostFn       func(ctx context.Context, host string) ([]string, error)                                                          // injectable DNS lookup for codex preflight
 	lookPathFn         func(file string) (string, error)                                                                                 // injectable binary lookup for codex preflight
+	stdinStatFn        func() (os.FileInfo, error)                                                                                       // injectable stdin stat for interactivity checks
+	promptYesNoFn      func(question string) (bool, error)                                                                               // injectable yes/no prompt for early-exit flow
 	labelFilters       []string                                                                                                          // optional spec labels to filter beads
 	validationFailures []string                                                                                                          // recent validation failure summaries from current run, injected into build prompts
 	touchedPackages    map[string]bool                                                                                                   // packages touched in the current run, used to filter learning extraction
@@ -119,7 +122,7 @@ func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, d
 // Run executes the Gromit loop.
 func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time, stopCh <-chan struct{}, dryRun bool) error {
 	if err := r.validateRunPrerequisites(); err != nil {
-		return err
+		return r.handleRunError(err)
 	}
 
 	// session.iterations overrides loop.max_iterations when set (> 0)
@@ -151,12 +154,12 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	}
 
 	if err := r.preflightCodex(ctx); err != nil {
-		return err
+		return r.handleRunError(err)
 	}
 
 	st, cleanup, err := r.initRunLoopState(deadline)
 	if err != nil {
-		return err
+		return r.handleRunError(err)
 	}
 	defer cleanup()
 
@@ -172,7 +175,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 	for {
 		stop, loopErr := r.shouldStopLoop(ctx, stopCh, st, effectiveMaxIterations, deadline)
 		if loopErr != nil {
-			return loopErr
+			return r.handleRunError(loopErr)
 		}
 		if stop {
 			break
@@ -180,7 +183,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 		b, err := r.getNextBead(st.skippedBeads)
 		if err != nil {
-			return fmt.Errorf("getting next bead: %w", err)
+			return r.handleRunError(fmt.Errorf("getting next bead: %w", err))
 		}
 		if b == nil {
 			if len(st.skippedBeads) > 0 {
@@ -193,7 +196,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 
 		stop, err = r.processSingleBead(ctx, b, st, effectiveMaxIterations, deadline, dryRun, tmuxMgr, runThoroughReview)
 		if err != nil {
-			return err
+			return r.handleRunError(err)
 		}
 		if stop {
 			break

@@ -1,9 +1,11 @@
 package runner
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -190,6 +192,22 @@ func isInteractiveStdin(statFn func() (os.FileInfo, error)) bool {
 func parseYesNoResponse(input string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(input))
 	return normalized == "y" || normalized == "yes"
+}
+
+func promptYesNo(input io.Reader, output io.Writer, question string) (bool, error) {
+	if output != nil {
+		if _, err := fmt.Fprint(output, question); err != nil {
+			return false, err
+		}
+	}
+	if input == nil {
+		return false, nil
+	}
+	line, err := bufio.NewReader(input).ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+	return parseYesNoResponse(line), nil
 }
 
 // extractExpectedFiles parses a bead description for file creation patterns

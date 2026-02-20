@@ -3017,6 +3017,133 @@ func TestRunNilStopChProcessesUntilQueueEmpty(t *testing.T) {
 	}
 }
 
+func TestRun_EarlyExitEndOfLoopPromptFlowOnError(t *testing.T) {
+	runErr := errors.New("ready failed")
+	tests := []struct {
+		name             string
+		command          string
+		interactive      bool
+		promptAnswer     bool
+		promptErr        error
+		cmdExit          int
+		cmdErr           error
+		cmdStderr        string
+		wantPromptCalls  int
+		wantCommandCalls int
+		wantErrContains  []string
+	}{
+		{
+			name:             "command absent skips prompt and command",
+			command:          "",
+			interactive:      true,
+			wantPromptCalls:  0,
+			wantCommandCalls: 0,
+			wantErrContains:  []string{"getting next bead: ready failed"},
+		},
+		{
+			name:             "command empty after trim skips prompt and command",
+			command:          "   ",
+			interactive:      true,
+			wantPromptCalls:  0,
+			wantCommandCalls: 0,
+			wantErrContains:  []string{"getting next bead: ready failed"},
+		},
+		{
+			name:             "non-interactive skips prompt and command",
+			command:          "echo done",
+			interactive:      false,
+			wantPromptCalls:  0,
+			wantCommandCalls: 0,
+			wantErrContains:  []string{"getting next bead: ready failed"},
+		},
+		{
+			name:             "interactive prompt no skips command",
+			command:          "echo done",
+			interactive:      true,
+			promptAnswer:     false,
+			wantPromptCalls:  1,
+			wantCommandCalls: 0,
+			wantErrContains:  []string{"getting next bead: ready failed"},
+		},
+		{
+			name:             "interactive prompt yes runs command",
+			command:          "echo done",
+			interactive:      true,
+			promptAnswer:     true,
+			wantPromptCalls:  1,
+			wantCommandCalls: 1,
+			wantErrContains:  []string{"getting next bead: ready failed"},
+		},
+		{
+			name:             "interactive prompt yes propagates command failure",
+			command:          "echo done",
+			interactive:      true,
+			promptAnswer:     true,
+			cmdExit:          12,
+			cmdStderr:        "boom",
+			wantPromptCalls:  1,
+			wantCommandCalls: 1,
+			wantErrContains: []string{
+				"getting next bead: ready failed",
+				"early-exit end-of-loop command: end-of-loop command failed (exit 12): boom",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			beads := &mockBeadClient{
+				ReadyExcludingFn: func(excludeIDs map[string]bool) (*bead.Bead, error) {
+					return nil, runErr
+				},
+			}
+			r := setupRunStopChTestRunner(t, beads)
+			r.cfg.Loop.EndOfLoopCommand = tt.command
+
+			promptCalls := 0
+			r.promptYesNoFn = func(question string) (bool, error) {
+				promptCalls++
+				if question != earlyExitPrompt {
+					t.Fatalf("prompt question = %q, want %q", question, earlyExitPrompt)
+				}
+				return tt.promptAnswer, tt.promptErr
+			}
+
+			r.stdinStatFn = func() (os.FileInfo, error) {
+				if tt.interactive {
+					return staticFileInfo{mode: os.ModeCharDevice}, nil
+				}
+				return staticFileInfo{mode: 0}, nil
+			}
+
+			commandCalls := 0
+			r.cmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+				commandCalls++
+				if command != strings.TrimSpace(tt.command) {
+					t.Fatalf("command = %q, want %q", command, strings.TrimSpace(tt.command))
+				}
+				return "", tt.cmdStderr, tt.cmdExit, tt.cmdErr
+			}
+
+			err := r.Run(context.Background(), 1, time.Time{}, nil, false)
+			if err == nil {
+				t.Fatal("Run() error = nil, want error")
+			}
+			for _, want := range tt.wantErrContains {
+				if !strings.Contains(err.Error(), want) {
+					t.Fatalf("Run() error = %q, want to contain %q", err.Error(), want)
+				}
+			}
+			if promptCalls != tt.wantPromptCalls {
+				t.Fatalf("prompt calls = %d, want %d", promptCalls, tt.wantPromptCalls)
+			}
+			if commandCalls != tt.wantCommandCalls {
+				t.Fatalf("command calls = %d, want %d", commandCalls, tt.wantCommandCalls)
+			}
+		})
+	}
+}
+
 func setupL3StopLineAcceptanceRunner(
 	t *testing.T,
 	beads *mockBeadClient,
