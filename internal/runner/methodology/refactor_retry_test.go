@@ -56,6 +56,20 @@ func newTestBeadContextWithTier(tier string) *runtypes.BeadContext {
 	}
 }
 
+func assertResultCostData(t *testing.T, result *runtypes.IterationResult, wantCost float64, wantInput, wantOutput int) {
+	t.Helper()
+
+	if result.CostUSD != wantCost {
+		t.Fatalf("CostUSD = %v, want %v", result.CostUSD, wantCost)
+	}
+	if result.InputTokens != wantInput {
+		t.Fatalf("InputTokens = %d, want %d", result.InputTokens, wantInput)
+	}
+	if result.OutputTokens != wantOutput {
+		t.Fatalf("OutputTokens = %d, want %d", result.OutputTokens, wantOutput)
+	}
+}
+
 // --- ShouldRunRefactor tests ---
 
 func TestShouldRunRefactor(t *testing.T) {
@@ -139,16 +153,7 @@ func TestApplyRefactorStreamStats_AddsCostDataOntoExistingResult(t *testing.T) {
 	stats.MergeCostData(0.30, 200, 120)
 
 	exec.applyRefactorStreamStats(bc, stats)
-
-	if bc.Result.CostUSD != 1.50 {
-		t.Fatalf("CostUSD = %v, want 1.50", bc.Result.CostUSD)
-	}
-	if bc.Result.InputTokens != 1200 {
-		t.Fatalf("InputTokens = %d, want 1200", bc.Result.InputTokens)
-	}
-	if bc.Result.OutputTokens != 520 {
-		t.Fatalf("OutputTokens = %d, want 520", bc.Result.OutputTokens)
-	}
+	assertResultCostData(t, bc.Result, 1.50, 1200, 520)
 }
 
 func TestApplyRefactorStreamStats_ZeroCostDataLeavesExistingResultUnchanged(t *testing.T) {
@@ -166,16 +171,7 @@ func TestApplyRefactorStreamStats_ZeroCostDataLeavesExistingResultUnchanged(t *t
 	}
 
 	exec.applyRefactorStreamStats(bc, stats)
-
-	if bc.Result.CostUSD != 1.20 {
-		t.Fatalf("CostUSD = %v, want 1.20", bc.Result.CostUSD)
-	}
-	if bc.Result.InputTokens != 1000 {
-		t.Fatalf("InputTokens = %d, want 1000", bc.Result.InputTokens)
-	}
-	if bc.Result.OutputTokens != 400 {
-		t.Fatalf("OutputTokens = %d, want 400", bc.Result.OutputTokens)
-	}
+	assertResultCostData(t, bc.Result, 1.20, 1000, 400)
 }
 
 func TestRunRefactorPhase_SkipsWhenNoDiff(t *testing.T) {
@@ -354,15 +350,7 @@ func TestRunRefactorPhase_AccumulatesRefactorStreamStatsOntoExistingResult(t *te
 		t.Fatalf("RunRefactorPhase should return nil on success, got: %v", err)
 	}
 
-	if bc.Result.CostUSD != 1.50 {
-		t.Fatalf("CostUSD = %v, want 1.50", bc.Result.CostUSD)
-	}
-	if bc.Result.InputTokens != 1200 {
-		t.Fatalf("InputTokens = %d, want 1200", bc.Result.InputTokens)
-	}
-	if bc.Result.OutputTokens != 520 {
-		t.Fatalf("OutputTokens = %d, want 520", bc.Result.OutputTokens)
-	}
+	assertResultCostData(t, bc.Result, 1.50, 1200, 520)
 }
 
 func TestRunRefactorPhase_PreservesExistingResultWhenRefactorStatsNil(t *testing.T) {
@@ -409,15 +397,7 @@ func TestRunRefactorPhase_PreservesExistingResultWhenRefactorStatsNil(t *testing
 		t.Fatalf("RunRefactorPhase should return nil on success, got: %v", err)
 	}
 
-	if bc.Result.CostUSD != 1.20 {
-		t.Fatalf("CostUSD = %v, want 1.20", bc.Result.CostUSD)
-	}
-	if bc.Result.InputTokens != 1000 {
-		t.Fatalf("InputTokens = %d, want 1000", bc.Result.InputTokens)
-	}
-	if bc.Result.OutputTokens != 400 {
-		t.Fatalf("OutputTokens = %d, want 400", bc.Result.OutputTokens)
-	}
+	assertResultCostData(t, bc.Result, 1.20, 1000, 400)
 }
 
 func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
