@@ -7,6 +7,9 @@
   "primary_concern": "any",
   "started_at": "2026-02-20T12:59:16Z",
   "status": "doing",
+  "study_summary": "Zero iterations collected since experiment started on 2026-02-20. Cannot evaluate hypothesis — need 20+ test-only bead iterations before deciding keep/revert.",
+  "act_decision": "extend",
+  "act_date": "2026-02-20",
   "baseline_metrics": {
     "avg_cost_per_bead": 1.71752058,
     "avg_duration_ms": 340425.63,

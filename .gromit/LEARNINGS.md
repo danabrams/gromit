@@ -35,20 +35,10 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-20 | gpt-5.3-codex Cost Parity with 5.2 | patterns
-*Related to: Codex Cost Opacity (archived), token reporting fix (gromit-h5ktw)*
-
-gpt-5.3-codex and gpt-5.2-codex have comparable per-token pricing (5.3 may be slightly cheaper). Early retro data showing a 3x-9x cost multiplier was based on ~100 iterations with miscalculated cost metrics. With token reporting fixed (82/82 iterations reporting non-zero tokens on Feb 19), actual costs are comparable. Model selection between 5.2 and 5.3 should be based on capability and success rate, not cost.
-
 ### 2026-02-19 | Agent Resolver Adapter Duplication | patterns
 *Related to: code-review*
 
 Agent resolver adapters (cliAgentResolver, agentResolverAdapter, exploreAgentResolver) are copy-pasted across cmd/gromit files — any interface change requires updating 3+ places.
-
-### 2026-02-19 | Debug Command Model Flag Override | gotchas
-*Related to: code-review*
-
-The debug command's --model flag defaults to opus so the model override block always executes for the Claude agent, silently discarding any resolved agent configuration.
 
 ### 2026-02-20 | Runner argv injection propagates through spec orchestration | conventions
 *Related to: successful bead*
@@ -70,44 +60,14 @@ PhaseMetric cost/token tracking needs a clear convention: record per-phase delta
 
 Codex stream event handling uses two different patterns for usage accumulation: overwrite (turn.completed) vs merge (response.completed, result). Multi-turn sessions need consistent merge semantics.
 
-### 2026-02-20 | Environment Variables Require Absolute Paths | gotchas
-When setting GOPATH or similar environment variables that require absolute paths, always convert relative paths using filepath.Abs() or similar absolute path resolution
-
 ### 2026-02-20 | Phase-Specific Renderer Interfaces Eliminate Stub Methods | patterns
 *Related to: code-review*
 
 Splitting a monolithic PromptRenderer into five phase-specific interfaces (RefineRenderer, PlanRenderer, DecomposeRenderer, ReviewRenderer, ExploreRenderer) eliminates stub not-implemented methods from adapters and enables compile-time single-responsibility enforcement. Each adapter only implements the method its pipeline needs.
 
-### 2026-02-20 | CircuitBreaker Nil-Receiver Safety Across All Public Methods | patterns
-*Related to: code-review*
-
-CircuitBreaker implementation follows nil-receiver safety consistently across Record(), EffectiveRatio(), and IsDegraded(). This allows callers to pass nil when the feature is disabled without nil-check boilerplate at every call site.
-
-### 2026-02-20 | Legacy Cost Normalization Guard Pattern Prevents False Positives | patterns
-*Related to: code-review*
-
-Cost normalization for legacy Codex 5.3 pricing uses a nearlyEqual check against the legacy estimate before rewriting. This guard prevents false positives on entries already at correct pricing — worth reusing for future pricing migrations.
-
-### 2026-02-20 | Validation Duration Metrics Thread With Zero-Exclusion | conventions
-*Related to: code-review*
-
-Validation duration metrics properly thread through summarizeWindow → buildIterationMetrics → buildProcessTrend with zero-exclusion for entries without validation data. This prevents entries that skipped validation from diluting the average.
-
 ---
 
 ## Archived
 
-*No longer relevant or superseded.*
-
-### 2026-02-19 | SetDefaults Zero-Value Sentinel Limitation | gotchas
-*Archived 2026-02-20: Redundant with Process rule ('use *int/-1 when zero is meaningful'). Documents a specific PushTimeout violation rather than a new constraint.*
-
-### 2026-02-19 | Define Shared Helpers Before Wiring Call Sites | conventions
-*Archived 2026-02-20: Generic DRY advice. The specific expectedOutputsOrTitle duplication is a backlog item, not a durable pattern.*
-
-### 2026-02-20 | Config Migration From Hardcoded Defaults Requires YAML Update | gotchas
-*Archived 2026-02-20: Redundant with Process rule ('When adding new config types or fields, update the actual gromit.yaml to match').*
-
-### 2026-02-20 | runCmd-to-runArgv Migration Must Cover All Git Call Sites | conventions
-*Archived 2026-02-20: Fix applied (callbacks.go, callbacks_tdd.go converted to runArgv). Now codified as Safety rule.*
+*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
 

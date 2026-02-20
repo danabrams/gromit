@@ -4,6 +4,58 @@ Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-20.
 
 ---
 
+### 2026-02-20 | Debug Command Model Flag Override | gotchas
+*Related to: code-review*
+
+The debug command's --model flag defaults to opus so the model override block always executes for the Claude agent, silently discarding any resolved agent configuration.
+
+*Archived 2026-02-20: Factually incorrect. The code uses cmd.Flags().Changed() (debug.go:197) which correctly returns false when the user doesn't explicitly pass --model. The override does NOT always execute.*
+
+### 2026-02-20 | CircuitBreaker Nil-Receiver Safety Across All Public Methods | patterns
+*Related to: code-review*
+
+CircuitBreaker implementation follows nil-receiver safety consistently across Record(), EffectiveRatio(), and IsDegraded(). This allows callers to pass nil when the feature is disabled without nil-check boilerplate at every call site.
+
+*Archived 2026-02-20: Documents existing code behavior in circuit_breaker.go. The broader nil-safe pattern is already codified in RULES.md Code Style (FnField nil-safe defaults, nil-safe receiver checks at method entry).*
+
+### 2026-02-20 | Legacy Cost Normalization Guard Pattern Prevents False Positives | patterns
+*Related to: code-review*
+
+Cost normalization for legacy Codex 5.3 pricing uses a nearlyEqual check against the legacy estimate before rewriting. This guard prevents false positives on entries already at correct pricing — worth reusing for future pricing migrations.
+
+*Archived 2026-02-20: One-time pricing migration guard for legacy Codex 5.3 pricing. Point-in-time solution; the nearlyEqual pattern is standard engineering, and the specific migration is complete.*
+
+### 2026-02-20 | Validation Duration Metrics Thread With Zero-Exclusion | conventions
+*Related to: code-review*
+
+Validation duration metrics properly thread through summarizeWindow → buildIterationMetrics → buildProcessTrend with zero-exclusion for entries without validation data. This prevents entries that skipped validation from diluting the average.
+
+*Archived 2026-02-20: Documents existing metric threading implementation. Describes how code works, not a constraint to follow. Visible in the code itself.*
+
+### 2026-02-19 | SetDefaults Zero-Value Sentinel Limitation | gotchas
+*Archived 2026-02-20: Redundant with Process rule ('use *int/-1 when zero is meaningful'). Documents a specific PushTimeout violation rather than a new constraint.*
+
+### 2026-02-19 | Define Shared Helpers Before Wiring Call Sites | conventions
+*Archived 2026-02-20: Generic DRY advice. The specific expectedOutputsOrTitle duplication is a backlog item, not a durable pattern.*
+
+### 2026-02-20 | Config Migration From Hardcoded Defaults Requires YAML Update | gotchas
+*Archived 2026-02-20: Redundant with Process rule ('When adding new config types or fields, update the actual gromit.yaml to match').*
+
+### 2026-02-20 | runCmd-to-runArgv Migration Must Cover All Git Call Sites | conventions
+*Archived 2026-02-20: Fix applied (callbacks.go, callbacks_tdd.go converted to runArgv). Now codified as Safety rule.*
+
+### 2026-02-20 | Environment Variables Require Absolute Paths | gotchas
+When setting GOPATH or similar environment variables that require absolute paths, always convert relative paths using filepath.Abs() or similar absolute path resolution
+
+*Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-20 | gpt-5.3-codex Cost Parity with 5.2 | patterns
+*Related to: Codex Cost Opacity (archived), token reporting fix (gromit-h5ktw)*
+
+gpt-5.3-codex and gpt-5.2-codex have comparable per-token pricing (5.3 may be slightly cheaper). Early retro data showing a 3x-9x cost multiplier was based on ~100 iterations with miscalculated cost metrics. With token reporting fixed (82/82 iterations reporting non-zero tokens on Feb 19), actual costs are comparable. Model selection between 5.2 and 5.3 should be based on capability and success rate, not cost.
+
+*Archived from provisional: filtered: generic engineering advice*
+
 ### 2026-02-19 | normalizeNilFields Single Responsibility | conventions
 *Related to: gromit-176m0*
 normalizeNilFields() should remain a pure nil-to-empty-slice converter. Data transformations between fields (like AcceptanceCriteria to ExpectedOutputs mapping) belong in a separate resolution step to preserve single-responsibility and avoid surprising side effects during normalization.
