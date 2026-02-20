@@ -68,6 +68,60 @@ func TestResultStructDoesNotExposeStdout(t *testing.T) {
 	}
 }
 
+func TestResultAndToolEventJSONTags(t *testing.T) {
+	t.Parallel()
+
+	type fieldTag struct {
+		name string
+		tag  string
+	}
+
+	resultWant := []fieldTag{
+		{name: "Success", tag: "success"},
+		{name: "Output", tag: "output"},
+		{name: "Stderr", tag: "stderr"},
+		{name: "Diagnostics", tag: "diagnostics"},
+		{name: "FailureCategory", tag: "failure_category"},
+		{name: "ExitCode", tag: "exit_code"},
+		{name: "Duration", tag: "duration"},
+		{name: "Model", tag: "model"},
+		{name: "CostUSD", tag: "cost_usd"},
+		{name: "InputTokens", tag: "input_tokens"},
+		{name: "CachedInputTokens", tag: "cached_input_tokens"},
+		{name: "OutputTokens", tag: "output_tokens"},
+	}
+
+	resultType := reflect.TypeOf(Result{})
+	for _, field := range resultWant {
+		sf, ok := resultType.FieldByName(field.name)
+		if !ok {
+			t.Fatalf("missing field %q on Result", field.name)
+		}
+
+		if got := sf.Tag.Get("json"); got != field.tag {
+			t.Fatalf("Result.%s json tag = %q, want %q", field.name, got, field.tag)
+		}
+	}
+
+	eventWant := []fieldTag{
+		{name: "ToolName", tag: "tool_name"},
+		{name: "FilePath", tag: "file_path"},
+		{name: "Timestamp", tag: "timestamp"},
+	}
+
+	eventType := reflect.TypeOf(ToolEvent{})
+	for _, field := range eventWant {
+		sf, ok := eventType.FieldByName(field.name)
+		if !ok {
+			t.Fatalf("missing field %q on ToolEvent", field.name)
+		}
+
+		if got := sf.Tag.Get("json"); got != field.tag {
+			t.Fatalf("ToolEvent.%s json tag = %q, want %q", field.name, got, field.tag)
+		}
+	}
+}
+
 // TestTierConstants verifies that the tier constants TierHigh, TierMedium, TierLow
 // are defined as strings with the expected values.
 func TestTierConstants(t *testing.T) {

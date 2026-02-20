@@ -24,25 +24,25 @@ const (
 
 // Result represents the outcome of a provider invocation
 type Result struct {
-	Success           bool
-	Output            string
-	Stderr            string
-	Diagnostics       string
-	FailureCategory   string
-	ExitCode          int
-	Duration          time.Duration
-	Model             string
-	CostUSD           float64
-	InputTokens       int
-	CachedInputTokens int
-	OutputTokens      int
+	Success           bool          `json:"success"`
+	Output            string        `json:"output"`
+	Stderr            string        `json:"stderr"`
+	Diagnostics       string        `json:"diagnostics"`
+	FailureCategory   string        `json:"failure_category"`
+	ExitCode          int           `json:"exit_code"`
+	Duration          time.Duration `json:"duration"`
+	Model             string        `json:"model"`
+	CostUSD           float64       `json:"cost_usd"`
+	InputTokens       int           `json:"input_tokens"`
+	CachedInputTokens int           `json:"cached_input_tokens"`
+	OutputTokens      int           `json:"output_tokens"`
 }
 
 // ToolEvent represents a tool call event from the provider
 type ToolEvent struct {
-	ToolName  string
-	FilePath  string
-	Timestamp time.Time
+	ToolName  string    `json:"tool_name"`
+	FilePath  string    `json:"file_path"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // EventHandler is called for each line of streaming JSON output
