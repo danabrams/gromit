@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	lowComplexitySignalThreshold = 2
-	lowFileCountMin              = 1
-	lowFileCountMax              = 3
+	lowComplexitySignalThreshold  = 2
+	lowFileCountMin               = 1
+	lowFileCountMax               = 3
+	lowComplexityTDDDisabledLabel = "tdd:false"
 )
 
 // SelectTier returns the abstract tier (high/medium/low) for a bead based on
@@ -57,7 +58,7 @@ func SelectModel(cfg *config.Config, b *bead.Bead) string {
 	return cfg.SelectModel(b.Priority, b.Labels)
 }
 
-func countLowComplexitySignals(cfg *config.Config, b *bead.Bead) int {
+func countLowComplexitySignals(_ *config.Config, b *bead.Bead) int {
 	if b == nil {
 		return 0
 	}
@@ -69,7 +70,7 @@ func countLowComplexitySignals(cfg *config.Config, b *bead.Bead) int {
 	if bead.IsTestOnlyBead(b.Title) {
 		count++
 	}
-	if bead.HasLabel(b.Labels, "tdd:false") {
+	if bead.HasLabel(b.Labels, lowComplexityTDDDisabledLabel) {
 		count++
 	}
 	fileCount := bead.EstimatedFileCount(b)

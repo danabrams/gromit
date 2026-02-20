@@ -271,7 +271,7 @@ func TestCountLowComplexitySignals_EachSignal(t *testing.T) {
 			name: "tdd false label",
 			bead: &bead.Bead{
 				Title:          "Update escalation logic",
-				Labels:         []string{"tdd:false"},
+				Labels:         []string{lowComplexityTDDDisabledLabel},
 				DependentCount: &one,
 			},
 			want: 1,
@@ -338,7 +338,7 @@ func TestIsLowComplexity_Threshold(t *testing.T) {
 			name: "two signals is low complexity",
 			bead: &bead.Bead{
 				Title:  "Update escalation logic",
-				Labels: []string{"tdd:false"},
+				Labels: []string{lowComplexityTDDDisabledLabel},
 			},
 			want: true,
 		},
@@ -346,7 +346,7 @@ func TestIsLowComplexity_Threshold(t *testing.T) {
 			name: "five signals are low complexity",
 			bead: &bead.Bead{
 				Title:  "Add tests for rename flow",
-				Labels: []string{"tdd:false"},
+				Labels: []string{lowComplexityTDDDisabledLabel},
 				ExpectedOutputs: []string{
 					"internal/runner/escalation/tierselect.go",
 				},
