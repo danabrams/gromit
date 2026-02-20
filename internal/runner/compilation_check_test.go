@@ -9,24 +9,40 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-func TestRunCompilationCheck_ErrorsAppendedToPrompt(t *testing.T) {
-	const compileCommand = "go build ./cmd/gromit"
-	executedCommand := ""
+func newCompilationCheckRunner(
+	t *testing.T,
+	compileCommand string,
+	runCmd func(ctx context.Context, command string, workDir string) (string, string, int, error),
+) (*Runner, *runtypes.BeadContext) {
+	t.Helper()
 
 	r := &Runner{
 		cfg: &config.Config{
 			Preflight: config.PreflightConfig{CompileCommand: compileCommand},
 		},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
-			executedCommand = command
-			return "", "internal/foo/bar.go:10: undefined: SomeSymbol", 1, nil
-		},
+		cmdRunnerFn: runCmd,
 	}
 
 	bc := &runtypes.BeadContext{
 		BuildPrompt: "original prompt",
 		Result:      &runtypes.IterationResult{},
 	}
+
+	return r, bc
+}
+
+func TestRunCompilationCheck_ErrorsAppendedToPrompt(t *testing.T) {
+	const compileCommand = "go build ./cmd/gromit"
+	executedCommand := ""
+
+	r, bc := newCompilationCheckRunner(
+		t,
+		compileCommand,
+		func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+			executedCommand = command
+			return "", "internal/foo/bar.go:10: undefined: SomeSymbol", 1, nil
+		},
+	)
 
 	r.runCompilationCheck(context.Background(), bc)
 
@@ -48,20 +64,14 @@ func TestRunCompilationCheck_NoErrors(t *testing.T) {
 	const compileCommand = "go build ./..."
 	executedCommand := ""
 
-	r := &Runner{
-		cfg: &config.Config{
-			Preflight: config.PreflightConfig{CompileCommand: compileCommand},
-		},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+	r, bc := newCompilationCheckRunner(
+		t,
+		compileCommand,
+		func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			executedCommand = command
 			return "", "", 0, nil
 		},
-	}
-
-	bc := &runtypes.BeadContext{
-		BuildPrompt: "original prompt",
-		Result:      &runtypes.IterationResult{},
-	}
+	)
 
 	r.runCompilationCheck(context.Background(), bc)
 
@@ -77,20 +87,14 @@ func TestRunCompilationCheck_NoErrors(t *testing.T) {
 }
 
 func TestRunCompilationCheck_Disabled(t *testing.T) {
-	r := &Runner{
-		cfg: &config.Config{
-			Preflight: config.PreflightConfig{CompileCommand: ""},
-		},
-		cmdRunnerFn: func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+	r, bc := newCompilationCheckRunner(
+		t,
+		"",
+		func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			t.Fatal("should not be called when disabled")
 			return "", "", 0, nil
 		},
-	}
-
-	bc := &runtypes.BeadContext{
-		BuildPrompt: "original prompt",
-		Result:      &runtypes.IterationResult{},
-	}
+	)
 
 	r.runCompilationCheck(context.Background(), bc)
 
