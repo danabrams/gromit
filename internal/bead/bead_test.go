@@ -920,7 +920,11 @@ func TestReadyExcludesEpics(t *testing.T) {
 
 // TestClientShowValidation tests that Show() validates bead IDs before execution
 func TestClientShowValidation(t *testing.T) {
-	c, _ := NewClient()
+	c := &Client{
+		RunFn: func(args ...string) (string, error) {
+			return "", fmt.Errorf("run should not be called for invalid bead IDs")
+		},
+	}
 
 	tests := []struct {
 		name    string
@@ -971,7 +975,11 @@ func TestClientShowValidation(t *testing.T) {
 
 // TestClientCloseValidation tests that Close() validates bead IDs before execution
 func TestClientCloseValidation(t *testing.T) {
-	c, _ := NewClient()
+	c := &Client{
+		RunFn: func(args ...string) (string, error) {
+			return "", fmt.Errorf("run should not be called for invalid bead IDs")
+		},
+	}
 
 	tests := []struct {
 		name string
@@ -1012,7 +1020,11 @@ func TestClientCloseValidation(t *testing.T) {
 
 // TestClientAddCommentValidation tests that AddComment() validates bead IDs
 func TestClientAddCommentValidation(t *testing.T) {
-	c, _ := NewClient()
+	c := &Client{
+		RunFn: func(args ...string) (string, error) {
+			return "", fmt.Errorf("run should not be called for invalid bead IDs")
+		},
+	}
 
 	tests := []struct {
 		name    string
