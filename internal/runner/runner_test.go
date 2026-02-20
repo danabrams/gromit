@@ -2293,8 +2293,11 @@ func TestRunSessionCompletion_SkipsStateCommitWhenNoChanges(t *testing.T) {
 // commands should use r.runArgv.
 func TestSubprocessCallSiteAudit(t *testing.T) {
 	const (
-		knownRunCmdCount  = 4
-		knownRunArgvCount = 8
+		knownRunCmdCount       = 4
+		knownRunArgvCount      = 8
+		testCommandCallSite    = `r.runCmd(ctx, testCmd, "")`
+		compileCommandCallSite = `r.runCmd(buildCtx, r.cfg.Preflight.CompileCommand, ".")`
+		betweenIterationsFn    = "func (r *Runner) runBetweenIterationsCommand()"
 	)
 
 	entries, err := os.ReadDir(".")
@@ -2336,6 +2339,15 @@ func TestSubprocessCallSiteAudit(t *testing.T) {
 		}
 	}
 
+	requireFileContent := func(name string) string {
+		t.Helper()
+		content, ok := fileContents[name]
+		if !ok {
+			t.Fatalf("missing %s in runner package", name)
+		}
+		return content
+	}
+
 	if runCmdShellSiteCount != knownRunCmdCount {
 		t.Errorf("found %d user-configurable shell runCmd call-sites (known: %d). "+
 			"This audit only tracks BetweenIterationsCommand, TestCommand, and CompileCommand sites.",
@@ -2347,33 +2359,24 @@ func TestSubprocessCallSiteAudit(t *testing.T) {
 			runArgvSiteCount, knownRunArgvCount)
 	}
 
-	epilogueContent, ok := fileContents["epilogue.go"]
-	if !ok {
-		t.Fatalf("missing epilogue.go in runner package")
-	}
-	if count := strings.Count(epilogueContent, `r.runCmd(ctx, testCmd, "")`); count != 2 {
+	epilogueContent := requireFileContent("epilogue.go")
+	if count := strings.Count(epilogueContent, testCommandCallSite); count != 2 {
 		t.Errorf("epilogue.go should keep both TestCommand sites on r.runCmd; got %d sites", count)
 	}
 
-	processContent, ok := fileContents["process.go"]
-	if !ok {
-		t.Fatalf("missing process.go in runner package")
-	}
-	if !strings.Contains(processContent, `r.runCmd(buildCtx, r.cfg.Preflight.CompileCommand, ".")`) {
+	processContent := requireFileContent("process.go")
+	if !strings.Contains(processContent, compileCommandCallSite) {
 		t.Error("process.go should keep CompileCommand on r.runCmd")
 	}
 
 	betweenIterationsPattern := regexp.MustCompile(`func \(r \*Runner\) runBetweenIterationsCommand\(\)[\s\S]*?r\.runCmd\(`)
 	if runIterationContent, ok := fileContents["run_iteration.go"]; ok &&
-		strings.Contains(runIterationContent, "func (r *Runner) runBetweenIterationsCommand()") {
+		strings.Contains(runIterationContent, betweenIterationsFn) {
 		if !betweenIterationsPattern.MatchString(runIterationContent) {
 			t.Error("run_iteration.go should keep BetweenIterationsCommand on r.runCmd")
 		}
 	} else {
-		lifecycleContent, exists := fileContents["lifecycle.go"]
-		if !exists {
-			t.Fatalf("missing lifecycle.go in runner package")
-		}
+		lifecycleContent := requireFileContent("lifecycle.go")
 		if !betweenIterationsPattern.MatchString(lifecycleContent) {
 			t.Error("lifecycle.go should keep BetweenIterationsCommand on r.runCmd")
 		}
