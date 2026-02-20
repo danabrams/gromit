@@ -352,13 +352,8 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 	}
 	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
 
-	series := make(map[string][]float64, len(trendControlLimitSeries))
 	for _, metric := range trendControlLimitSeries {
-		series[metric.name] = extractMetric(metrics, metric.pick)
-	}
-
-	for metricName, values := range series {
-		limit := computeControlLimit(metricName, values)
+		limit := computeControlLimit(metric.name, extractMetric(metrics, metric.pick))
 		trend.ControlLimits = append(trend.ControlLimits, limit)
 		if anomaly, ok := detectAnomaly(limit); ok {
 			trend.Anomalies = append(trend.Anomalies, anomaly)
