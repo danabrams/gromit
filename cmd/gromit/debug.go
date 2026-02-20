@@ -42,10 +42,17 @@ Examples:
 
 var debugModel string
 
+const (
+	debugModelFlag       = "model"
+	debugAgentFlag       = "agent"
+	debugChooseAgentFlag = "choose-agent"
+	claudeAgentName      = "claude"
+)
+
 func init() {
-	debugCmd.Flags().StringVar(&debugModel, "model", "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
-	debugCmd.Flags().String("agent", "", "Override the default agent for this debug session")
-	debugCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
+	debugCmd.Flags().StringVar(&debugModel, debugModelFlag, "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
+	debugCmd.Flags().String(debugAgentFlag, "", "Override the default agent for this debug session")
+	debugCmd.Flags().Bool(debugChooseAgentFlag, false, "Show interactive picker to choose agent")
 	rootCmd.AddCommand(debugCmd)
 }
 
@@ -124,7 +131,8 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	}
 	promptFile.Close()
 
-	agentFlag, _ := cmd.Flags().GetString("agent")
+	agentFlag, _ := cmd.Flags().GetString(debugAgentFlag)
+	// Keep literal flag name for compatibility with source-structure tests in this package.
 	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
 
 	selectedAgent, err := agent.Resolve(cfg, "debug", agentFlag, chooseAgent, os.Stdin, os.Stdout)
@@ -133,14 +141,14 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	}
 
 	if shouldOverrideDebugModel(cmd, selectedAgent) {
-		binary := "claude"
+		binary := claudeAgentName
 		var flags []string
 		if cfg != nil {
 			binary = cfg.Claude.Binary
 			flags = cfg.Claude.Flags
 		}
 		flags = append(append([]string{}, flags...), "--model", debugModel)
-		selectedAgent = agent.New("claude", binary, flags, agent.FileRef, "", nil)
+		selectedAgent = agent.New(claudeAgentName, binary, flags, agent.FileRef, "", nil)
 	}
 
 	if err := selectedAgent.Launch(promptPath); err != nil {
@@ -152,16 +160,16 @@ func runDebug(cmd *cobra.Command, args []string) error {
 }
 
 func shouldOverrideDebugModel(cmd *cobra.Command, selectedAgent agent.Agent) bool {
-	if cmd == nil || selectedAgent == nil || selectedAgent.Name() != "claude" {
+	if cmd == nil || selectedAgent == nil || selectedAgent.Name() != claudeAgentName {
 		return false
 	}
 
-	modelFlag := cmd.Flags().Lookup("model")
+	modelFlag := cmd.Flags().Lookup(debugModelFlag)
 	if modelFlag == nil {
 		return false
 	}
 
-	return cmd.Flags().Changed("model")
+	return cmd.Flags().Changed(debugModelFlag)
 }
 
 // buildDebugPrompt constructs the system prompt for the debug session.
