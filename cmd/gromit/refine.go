@@ -99,12 +99,9 @@ func runRefineInSession(
 	var result *pipeline.RefineResult
 	_, err := refineSessionLauncherFn(gromitDir, refineSessionCommand, conflictSettings, func(sessionDir string) error {
 		return refineRunInDirFn(sessionDir, func() error {
-			runResult, runErr := p.Refine(ctx, input)
-			if runErr != nil {
-				return runErr
-			}
-			result = runResult
-			return nil
+			var runErr error
+			result, runErr = p.Refine(ctx, input)
+			return runErr
 		})
 	})
 	if err != nil {

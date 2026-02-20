@@ -139,12 +139,9 @@ func runExploreInSession(
 	var result *pipeline.ExploreResult
 	_, err := exploreSessionLauncherFn(gromitDir, exploreSessionCommand, conflictSettings, func(sessionDir string) error {
 		return exploreRunInDirFn(sessionDir, func() error {
-			runResult, runErr := p.Explore(ctx, input)
-			if runErr != nil {
-				return runErr
-			}
-			result = runResult
-			return nil
+			var runErr error
+			result, runErr = p.Explore(ctx, input)
+			return runErr
 		})
 	})
 	if err != nil {
