@@ -15,28 +15,9 @@ Some intro.
 ## Next Section
 `
 
-	criteria, err := ParseCriteria(spec)
-	if err != nil {
-		t.Fatalf("ParseCriteria() error: %v", err)
-	}
-
-	if len(criteria) != 2 {
-		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
-	}
-
-	if criteria[0].Number != 1 {
-		t.Fatalf("criteria[0].Number = %d, want 1", criteria[0].Number)
-	}
-	if criteria[0].Text != "Accept valid input" {
-		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, "Accept valid input")
-	}
-
-	if criteria[1].Number != 2 {
-		t.Fatalf("criteria[1].Number = %d, want 2", criteria[1].Number)
-	}
-	if criteria[1].Text != "Reject invalid input" {
-		t.Fatalf("criteria[1].Text = %q, want %q", criteria[1].Text, "Reject invalid input")
-	}
+	criteria := mustParseCriteria(t, spec)
+	assertCriterion(t, criteria, 0, 1, "Accept valid input")
+	assertCriterion(t, criteria, 1, 2, "Reject invalid input")
 }
 
 func TestParseCriteria_CompoundCriteria(t *testing.T) {
@@ -49,11 +30,7 @@ func TestParseCriteria_CompoundCriteria(t *testing.T) {
 - Allows retries
 `
 
-	criteria, err := ParseCriteria(spec)
-	if err != nil {
-		t.Fatalf("ParseCriteria() error: %v", err)
-	}
-
+	criteria := mustParseCriteria(t, spec)
 	if len(criteria) != 2 {
 		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
 	}
@@ -70,64 +47,79 @@ func TestParseCriteria_MissingSection(t *testing.T) {
 No acceptance criteria here.
 `
 
-	criteria, err := ParseCriteria(spec)
-	if err != nil {
-		t.Fatalf("ParseCriteria() error: %v", err)
-	}
+	criteria := mustParseCriteria(t, spec)
 
 	if len(criteria) != 0 {
 		t.Fatalf("len(criteria) = %d, want 0", len(criteria))
 	}
 }
 
-func TestParseCriteria_ParsesAsteriskBullets(t *testing.T) {
-	spec := `# My Spec
+func TestParseCriteria_ParsesListFormats(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		spec string
+		want []string
+	}{
+		{
+			name: "asterisk bullets",
+			spec: `# My Spec
 
 ## Acceptance Criteria
 
 * Supports import mode
 * Supports export mode
-`
-
-	criteria, err := ParseCriteria(spec)
-	if err != nil {
-		t.Fatalf("ParseCriteria() error: %v", err)
-	}
-
-	if len(criteria) != 2 {
-		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
-	}
-
-	if criteria[0].Text != "Supports import mode" {
-		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, "Supports import mode")
-	}
-	if criteria[1].Text != "Supports export mode" {
-		t.Fatalf("criteria[1].Text = %q, want %q", criteria[1].Text, "Supports export mode")
-	}
-}
-
-func TestParseCriteria_ParsesNumberedList(t *testing.T) {
-	spec := `# My Spec
+`,
+			want: []string{"Supports import mode", "Supports export mode"},
+		},
+		{
+			name: "numbered list",
+			spec: `# My Spec
 
 ## Acceptance Criteria
 
 1. Creates report files
 2) Uploads report files
-`
+`,
+			want: []string{"Creates report files", "Uploads report files"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			criteria := mustParseCriteria(t, tt.spec)
+			if len(criteria) != len(tt.want) {
+				t.Fatalf("len(criteria) = %d, want %d", len(criteria), len(tt.want))
+			}
+			for i, want := range tt.want {
+				assertCriterion(t, criteria, i, i+1, want)
+			}
+		})
+	}
+}
+
+func mustParseCriteria(t *testing.T, spec string) []Criterion {
+	t.Helper()
 
 	criteria, err := ParseCriteria(spec)
 	if err != nil {
 		t.Fatalf("ParseCriteria() error: %v", err)
 	}
+	return criteria
+}
 
-	if len(criteria) != 2 {
-		t.Fatalf("len(criteria) = %d, want 2", len(criteria))
-	}
+func assertCriterion(t *testing.T, criteria []Criterion, index int, wantNumber int, wantText string) {
+	t.Helper()
 
-	if criteria[0].Text != "Creates report files" {
-		t.Fatalf("criteria[0].Text = %q, want %q", criteria[0].Text, "Creates report files")
+	if len(criteria) <= index {
+		t.Fatalf("criteria[%d] missing; len(criteria) = %d", index, len(criteria))
 	}
-	if criteria[1].Text != "Uploads report files" {
-		t.Fatalf("criteria[1].Text = %q, want %q", criteria[1].Text, "Uploads report files")
+	if criteria[index].Number != wantNumber {
+		t.Fatalf("criteria[%d].Number = %d, want %d", index, criteria[index].Number, wantNumber)
+	}
+	if criteria[index].Text != wantText {
+		t.Fatalf("criteria[%d].Text = %q, want %q", index, criteria[index].Text, wantText)
 	}
 }

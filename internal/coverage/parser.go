@@ -11,7 +11,10 @@ type Criterion struct {
 	Text   string
 }
 
-const acceptanceCriteriaHeader = "## Acceptance Criteria"
+const (
+	acceptanceCriteriaHeader = "## Acceptance Criteria"
+	nextSectionPrefix        = "\n##"
+)
 
 // ParseCriteria extracts acceptance criteria from the "## Acceptance Criteria"
 // section of a spec document.
@@ -31,6 +34,8 @@ func ParseCriteria(specContent string) ([]Criterion, error) {
 			lastCriterionIndex = len(criteria) - 1
 			continue
 		}
+
+		// Only append continuation text to an existing criterion for indented lines.
 		if lastCriterionIndex == -1 || !isIndented(line) {
 			continue
 		}
@@ -51,8 +56,7 @@ func extractSection(content, header string) (string, bool) {
 	}
 	rest := content[idx+len(header):]
 
-	// Find next ## heading
-	nextIdx := strings.Index(rest, "\n##")
+	nextIdx := strings.Index(rest, nextSectionPrefix)
 	if nextIdx != -1 {
 		rest = rest[:nextIdx]
 	}
@@ -68,12 +72,9 @@ func parseListItem(line string) (string, bool) {
 		return "", false
 	}
 
-	if strings.HasPrefix(line, "-") || strings.HasPrefix(line, "*") {
-		text := strings.TrimSpace(line[1:])
-		if text == "" {
-			return "", false
-		}
-		return text, true
+	switch line[0] {
+	case '-', '*':
+		return parseItemText(line[1:])
 	}
 
 	i := 0
@@ -87,7 +88,11 @@ func parseListItem(line string) (string, bool) {
 		return "", false
 	}
 
-	text := strings.TrimSpace(line[i+1:])
+	return parseItemText(line[i+1:])
+}
+
+func parseItemText(raw string) (string, bool) {
+	text := strings.TrimSpace(raw)
 	if text == "" {
 		return "", false
 	}
