@@ -334,16 +334,16 @@ func (e *Executor) CheckTestsFailWithDiagnostic(ctx context.Context, bc *runtype
 
 	e.refreshTouchedPackages(bc)
 	acceptanceCommands := AcceptanceCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
-	valResult, err := e.validateFn(ctx, acceptanceCommands, bc.PromptCtx.WorkDir)
+	validationResult, err := e.validateFn(ctx, acceptanceCommands, bc.PromptCtx.WorkDir)
 	if err != nil {
 		return fmt.Errorf("validation invocation: %w", err)
 	}
-	if valResult == nil {
+	if validationResult == nil {
 		return fmt.Errorf("validation returned no result")
 	}
 
 	// Expected red-phase behavior.
-	if !claude.IsValidationPassed(valResult) {
+	if !claude.IsValidationPassed(validationResult) {
 		return nil
 	}
 
@@ -358,14 +358,7 @@ func (e *Executor) CheckTestsFailWithDiagnostic(ctx context.Context, bc *runtype
 	if e.renderDiagnosticFn == nil {
 		return fmt.Errorf("render diagnostic function not configured")
 	}
-	diagnosticCtx := &prompt.DiagnosticContext{
-		BeadTitle:          bc.Bead.Title,
-		BeadDescription:    bc.Bead.Description,
-		AcceptanceCriteria: bc.Bead.AcceptanceCriteria,
-		TestDiff:           testDiff,
-		TestOutput:         valResult.Output,
-	}
-	diagnosticPrompt, err := e.renderDiagnosticFn(diagnosticCtx)
+	diagnosticPrompt, err := e.renderDiagnosticFn(buildDiagnosticContext(bc, testDiff, validationResult.Output))
 	if err != nil {
 		return fmt.Errorf("rendering diagnostic prompt: %w", err)
 	}
@@ -386,6 +379,16 @@ func (e *Executor) CheckTestsFailWithDiagnostic(ctx context.Context, bc *runtype
 		return &ErrATDDRewrite{Feedback: feedback}
 	}
 	return ErrATDDAlreadyDone
+}
+
+func buildDiagnosticContext(bc *runtypes.BeadContext, testDiff string, testOutput string) *prompt.DiagnosticContext {
+	return &prompt.DiagnosticContext{
+		BeadTitle:          bc.Bead.Title,
+		BeadDescription:    bc.Bead.Description,
+		AcceptanceCriteria: bc.Bead.AcceptanceCriteria,
+		TestDiff:           testDiff,
+		TestOutput:         testOutput,
+	}
 }
 
 func summarizeAcceptanceFailureOutput(output string) string {
