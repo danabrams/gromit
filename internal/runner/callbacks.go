@@ -598,6 +598,14 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			recordFallbackOutcome(bc.Result, fallbackErr == nil && fallbackResult != nil && fallbackResult.Success)
 			return p2, modelName2, fallbackResult, fallbackErr, true
 		}
+		handleTransientFallback := func(failureClass, primaryInfo string, p2 provider.Provider, modelName2 string, fallbackResult *provider.Result, fallbackErr error) error {
+			fallbackInfo := formatATDDFallbackInfo(p2, modelName2, fallbackResult, fallbackErr)
+			if fallbackFailureErr := fallbackErrorResult(failureClass, primaryInfo, fallbackInfo, fallbackResult, fallbackErr); fallbackFailureErr != nil {
+				return fallbackFailureErr
+			}
+			setSelectedModel(modelName2)
+			return nil
+		}
 		if err != nil {
 			if p.IsUsageLimitError(result, err) {
 				r.router.MarkUnavailable(p.Name())
@@ -618,12 +626,10 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 					p2, modelName2, fallbackResult, fallbackErr, attempted := runTransientFallback(failureClass, atddFallbackReasonError)
 					if attempted {
 						primaryInfo := fmt.Sprintf("primary_err=%v", err)
-						fallbackInfo := formatATDDFallbackInfo(p2, modelName2, fallbackResult, fallbackErr)
-						if fallbackFailureErr := fallbackErrorResult(failureClass, primaryInfo, fallbackInfo, fallbackResult, fallbackErr); fallbackFailureErr != nil {
-							return fallbackFailureErr
+						if fallbackHandledErr := handleTransientFallback(failureClass, primaryInfo, p2, modelName2, fallbackResult, fallbackErr); fallbackHandledErr != nil {
+							return fallbackHandledErr
 						}
-						if fallbackResult.Success {
-							setSelectedModel(modelName2)
+						if fallbackResult != nil && fallbackResult.Success {
 							return nil
 						}
 					}
@@ -642,12 +648,10 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				p2, modelName2, fallbackResult, fallbackErr, attempted := runTransientFallback(failureClass, atddFallbackReasonResult)
 				if attempted {
 					primaryInfo := fmt.Sprintf("primary={%s}", formatATDDProviderFailure(p, modelName, result))
-					fallbackInfo := formatATDDFallbackInfo(p2, modelName2, fallbackResult, fallbackErr)
-					if fallbackFailureErr := fallbackErrorResult(failureClass, primaryInfo, fallbackInfo, fallbackResult, fallbackErr); fallbackFailureErr != nil {
-						return fallbackFailureErr
+					if fallbackHandledErr := handleTransientFallback(failureClass, primaryInfo, p2, modelName2, fallbackResult, fallbackErr); fallbackHandledErr != nil {
+						return fallbackHandledErr
 					}
-					if fallbackResult.Success {
-						setSelectedModel(modelName2)
+					if fallbackResult != nil && fallbackResult.Success {
 						return nil
 					}
 				}
