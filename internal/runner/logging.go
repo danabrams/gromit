@@ -168,39 +168,32 @@ func resultBeadIDFromMetrics(metrics []runtypes.PhaseMetric) string {
 
 func newIterationLogEntry(iteration int, result *IterationResult, errStr, outcome, artifactPath string) *logger.IterationLog {
 	return &logger.IterationLog{
-		Timestamp:         time.Now(),
-		Iteration:         iteration,
-		BeadID:            result.BeadID,
-		BeadTitle:         result.BeadTitle,
-		SpecID:            result.SpecID,
-		Model:             result.Model,
-		ReasoningEffort:   result.ReasoningEffort,
-		Provider:          result.Provider,
-		FailurePhase:      result.FailurePhase,
-		FailureCategory:   result.FailureCategory,
-		Success:           result.Success,
-		Validated:         result.Validated,
-		Escalated:         result.Escalated,
-		EscalatedTo:       result.EscalatedTo,
-		OriginalTier:      result.OriginalTier,
-		ActualTier:        result.ActualTier,
-		DurationMs:        result.Duration.Milliseconds(),
-		CostUSD:           result.CostUSD,
-		InputTokens:       result.InputTokens,
-		OutputTokens:      result.OutputTokens,
-		Error:             errStr,
-		Outcome:           outcome,
-		ValidationRetried: result.ValidationRetried,
-		TrivialAutoFixed:  result.TrivialAutoFixed,
-		ReviewFixesNeeded: result.ReviewFixesNeeded,
-		QualityScore: logger.ComputeQualityScore(
-			result.CriteriaTotal,
-			result.CriteriaCovered,
-			result.ValidationRetried,
-			result.TrivialAutoFixed,
-			result.Escalated,
-			result.ReviewFixesNeeded,
-		),
+		Timestamp:                 time.Now(),
+		Iteration:                 iteration,
+		BeadID:                    result.BeadID,
+		BeadTitle:                 result.BeadTitle,
+		SpecID:                    result.SpecID,
+		Model:                     result.Model,
+		ReasoningEffort:           result.ReasoningEffort,
+		Provider:                  result.Provider,
+		FailurePhase:              result.FailurePhase,
+		FailureCategory:           result.FailureCategory,
+		Success:                   result.Success,
+		Validated:                 result.Validated,
+		Escalated:                 result.Escalated,
+		EscalatedTo:               result.EscalatedTo,
+		OriginalTier:              result.OriginalTier,
+		ActualTier:                result.ActualTier,
+		DurationMs:                result.Duration.Milliseconds(),
+		CostUSD:                   result.CostUSD,
+		InputTokens:               result.InputTokens,
+		OutputTokens:              result.OutputTokens,
+		Error:                     errStr,
+		Outcome:                   outcome,
+		ValidationRetried:         result.ValidationRetried,
+		TrivialAutoFixed:          result.TrivialAutoFixed,
+		ReviewFixesNeeded:         result.ReviewFixesNeeded,
+		QualityScore:              iterationQualityScore(result),
 		UsageLimited:              result.UsageLimited,
 		ValidationMode:            result.ValidationMode,
 		EstimatedFiles:            result.EstimatedFiles,
@@ -242,6 +235,20 @@ func newIterationLogEntry(iteration int, result *IterationResult, errStr, outcom
 		UncoveredCriteria:         result.UncoveredCriteria,
 		PromptDiagnostics:         result.PromptDiagnostics,
 	}
+}
+
+func iterationQualityScore(result *IterationResult) float64 {
+	if result == nil {
+		return 0
+	}
+	return logger.ComputeQualityScore(
+		result.CriteriaTotal,
+		result.CriteriaCovered,
+		result.ValidationRetried,
+		result.TrivialAutoFixed,
+		result.Escalated,
+		result.ReviewFixesNeeded,
+	)
 }
 
 func ensureFailureAndonEnvelope(result *IterationResult) {

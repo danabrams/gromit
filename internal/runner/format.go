@@ -10,6 +10,15 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
+const (
+	spcMetricRollingSuccessRate   = "rolling_success_rate"
+	spcMetricRollingEscalateRate  = "rolling_escalation_rate"
+	spcMetricRollingQualityScore  = "rolling_quality_score"
+	spcMetricRollingAvgDurationMs = "rolling_avg_duration_ms"
+	spcMetricFirstPassSuccessRate = "rolling_first_pass_success_rate"
+	spcMetricRollingAvgCostUSD    = "rolling_avg_cost_usd"
+)
+
 // formatPipeline formats pipeline status for display
 func formatPipeline(ps *pipeline.PipelineStatus) string {
 	if ps == nil {
@@ -314,10 +323,10 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 	var lines []string
 	lines = append(lines, "SPC:")
 	lines = append(lines, fmt.Sprintf("  Window:   %d iterations (%d total)", trend.WindowSize, trend.TotalIterations))
-	lines = append(lines, formatSPCLine("Success", limits["rolling_success_rate"], true))
-	lines = append(lines, formatSPCLine("Escalate", limits["rolling_escalation_rate"], true))
-	lines = append(lines, formatSPCLine("Quality", limits["rolling_quality_score"], true))
-	lines = append(lines, formatSPCLine("Duration", limits["rolling_avg_duration_ms"], false))
+	lines = append(lines, formatSPCLine("Success", limits[spcMetricRollingSuccessRate], true))
+	lines = append(lines, formatSPCLine("Escalate", limits[spcMetricRollingEscalateRate], true))
+	lines = append(lines, formatSPCLine("Quality", limits[spcMetricRollingQualityScore], true))
+	lines = append(lines, formatSPCLine("Duration", limits[spcMetricRollingAvgDurationMs], false))
 
 	if len(trend.Anomalies) == 0 {
 		lines = append(lines, "  Anomaly:  none")
@@ -359,17 +368,17 @@ func formatSPCValue(v float64, asPercent bool) string {
 
 func simplifySPCMetric(metric string) string {
 	switch metric {
-	case "rolling_success_rate":
+	case spcMetricRollingSuccessRate:
 		return "success"
-	case "rolling_first_pass_success_rate":
+	case spcMetricFirstPassSuccessRate:
 		return "first-pass"
-	case "rolling_escalation_rate":
+	case spcMetricRollingEscalateRate:
 		return "escalation"
-	case "rolling_quality_score":
+	case spcMetricRollingQualityScore:
 		return "quality"
-	case "rolling_avg_duration_ms":
+	case spcMetricRollingAvgDurationMs:
 		return "duration"
-	case "rolling_avg_cost_usd":
+	case spcMetricRollingAvgCostUSD:
 		return "cost"
 	default:
 		return metric
