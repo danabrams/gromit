@@ -390,7 +390,10 @@ func (r *Runner) processSingleBead(
 		return false, err
 	}
 
+	r.syncArchivedHashesFromState(st)
+
 	bc, result := r.processBeadWithContext(ctx, b, st.iteration, deadline, scopeEstimate)
+	r.persistArchivedHashesToState(st)
 	r.log("")
 	r.logResult(result)
 	r.writeIterationLog(st.iteration, result)

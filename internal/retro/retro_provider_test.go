@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 // TestNewRetro_AcceptsProvider verifies that NewRetro can accept a Provider for learnings filtering and analysis
@@ -60,6 +62,87 @@ func TestRetro_Run_UsesProviderForLearningsFilter(t *testing.T) {
 	// Verify provider was called
 	if !mockProvider.runCalled {
 		t.Error("expected provider.Run to be called")
+	}
+}
+
+func TestRetroRun_PersistsArchivedHashesToState(t *testing.T) {
+	tmpDir := t.TempDir()
+	createMinimalRetroFilesForProvider(t, tmpDir)
+
+	learningsPath := filepath.Join(tmpDir, "LEARNINGS.md")
+	content := `# Learnings
+
+## Confirmed
+
+*No confirmed learnings yet.*
+
+## Provisional
+
+### 2026-02-10 | bead-1 | patterns
+
+Generic learning content
+
+## Archived
+
+*No archived learnings.*
+`
+	if err := os.WriteFile(learningsPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("writing learnings file: %v", err)
+	}
+
+	lf, err := learnings.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("creating learnings file: %v", err)
+	}
+	if err := lf.Load(); err != nil {
+		t.Fatalf("loading learnings file: %v", err)
+	}
+	provisionals := lf.GetProvisional()
+	if len(provisionals) != 1 {
+		t.Fatalf("expected 1 provisional learning, got %d", len(provisionals))
+	}
+	provisionalHash := provisionals[0].Hash
+
+	sf, err := state.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("creating state file: %v", err)
+	}
+	if err := sf.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+	sf.AddArchivedHashes([]string{"existing-archived-hash"})
+	if err := sf.Save(); err != nil {
+		t.Fatalf("saving initial state: %v", err)
+	}
+
+	mockProvider := &mockProvider{
+		runResult: &provider.Result{
+			Success: true,
+			Output:  "generic",
+		},
+	}
+
+	r, err := NewRetroWithProvider(mockProvider, tmpDir)
+	if err != nil {
+		t.Fatalf("creating retro: %v", err)
+	}
+	if _, err := r.Run(context.Background(), nil); err != nil {
+		t.Fatalf("running retro: %v", err)
+	}
+
+	sfVerify, err := state.NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("creating verify state file: %v", err)
+	}
+	if err := sfVerify.Load(); err != nil {
+		t.Fatalf("loading verify state: %v", err)
+	}
+	archivedHashes := sfVerify.GetArchivedHashes()
+	if !archivedHashes["existing-archived-hash"] {
+		t.Fatalf("expected existing archived hash to remain, got %#v", archivedHashes)
+	}
+	if !archivedHashes[provisionalHash] {
+		t.Fatalf("expected provisional learning hash to be persisted as archived, got %#v", archivedHashes)
 	}
 }
 
