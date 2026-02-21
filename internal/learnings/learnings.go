@@ -56,6 +56,8 @@ const (
 // pattern (promoting from provisional to confirmed).
 const FuzzyMatchThreshold = 0.7
 
+const archiveFileHeader = "# Learnings Archive\n\n---\n\n## Archived\n\n"
+
 // NewFile creates a new learnings file manager
 func NewFile(dir string) (*File, error) {
 	return &File{
@@ -135,9 +137,15 @@ func (f *File) appendToArchiveFile(learning Learning) error {
 		return fmt.Errorf("creating archive directory: %w", err)
 	}
 
-	existing, err := os.ReadFile(f.archivePath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("reading archive file: %w", err)
+	needsHeader := false
+	info, err := os.Stat(f.archivePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("stat archive file: %w", err)
+		}
+		needsHeader = true
+	} else if info.Size() == 0 {
+		needsHeader = true
 	}
 
 	file, err := os.OpenFile(f.archivePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -146,8 +154,8 @@ func (f *File) appendToArchiveFile(learning Learning) error {
 	}
 	defer file.Close()
 
-	if len(existing) == 0 {
-		if _, err := file.WriteString("# Learnings Archive\n\n---\n\n## Archived\n\n"); err != nil {
+	if needsHeader {
+		if _, err := file.WriteString(archiveFileHeader); err != nil {
 			return fmt.Errorf("writing archive header: %w", err)
 		}
 	}
@@ -158,6 +166,11 @@ func (f *File) appendToArchiveFile(learning Learning) error {
 		return fmt.Errorf("writing archive file: %w", err)
 	}
 	return nil
+}
+
+func (f *File) trackArchivedLearning(learning Learning) {
+	f.archived = append(f.archived, learning)
+	f.archivedHashes[learning.Hash] = true
 }
 
 // hashExists checks if a hash already exists in any section (confirmed, provisional, or archived)
@@ -235,8 +248,7 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 			if err := f.appendToArchiveFile(learning); err != nil {
 				return nil, err
 			}
-			f.archived = append(f.archived, learning)
-			f.archivedHashes[learning.Hash] = true
+			f.trackArchivedLearning(learning)
 			return nil, f.Save()
 		}
 	}
@@ -523,8 +535,7 @@ func (f *File) Archive(hash, reason string) error {
 	if err := f.appendToArchiveFile(*learning); err != nil {
 		return err
 	}
-	f.archived = append(f.archived, *learning)
-	f.archivedHashes[learning.Hash] = true
+	f.trackArchivedLearning(*learning)
 
 	if f.autoSaveOff {
 		return nil

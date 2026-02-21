@@ -9,6 +9,15 @@ import (
 	"time"
 )
 
+func readArchiveFileForTest(t *testing.T, dir string) string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(dir, "LEARNINGS_ARCHIVE.md"))
+	if err != nil {
+		t.Fatalf("failed to read archive file: %v", err)
+	}
+	return string(content)
+}
+
 // TestAddNewLearning tests adding a new learning to an empty file
 func TestAddNewLearning(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -695,11 +704,7 @@ func TestArchive(t *testing.T) {
 		t.Fatal("expected archived hash to be tracked")
 	}
 
-	archiveContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS_ARCHIVE.md"))
-	if err != nil {
-		t.Fatalf("failed to read archive file: %v", err)
-	}
-	archiveStr := string(archiveContent)
+	archiveStr := readArchiveFileForTest(t, tmpDir)
 	if !strings.Contains(archiveStr, "no longer relevant") {
 		t.Error("expected archived learning to contain reason")
 	}
@@ -746,11 +751,7 @@ func TestArchiveFromConfirmed(t *testing.T) {
 		t.Fatal("expected archived hash to be tracked")
 	}
 
-	archiveContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS_ARCHIVE.md"))
-	if err != nil {
-		t.Fatalf("failed to read archive file: %v", err)
-	}
-	if !strings.Contains(string(archiveContent), "Archived from confirmed") {
+	if !strings.Contains(readArchiveFileForTest(t, tmpDir), "Archived from confirmed") {
 		t.Error("expected archived learning to indicate confirmed source")
 	}
 }
@@ -1008,11 +1009,7 @@ func TestLoadAndSaveWithArchived(t *testing.T) {
 	if len(f2.provisional) != 0 {
 		t.Errorf("expected 0 provisional after load, got %d", len(f2.provisional))
 	}
-	archiveContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS_ARCHIVE.md"))
-	if err != nil {
-		t.Fatalf("failed to read archive file: %v", err)
-	}
-	if !strings.Contains(string(archiveContent), "test archive") {
+	if !strings.Contains(readArchiveFileForTest(t, tmpDir), "test archive") {
 		t.Error("archived reason should persist in archive file")
 	}
 }
@@ -1046,11 +1043,7 @@ func TestFilterFuncGeneric(t *testing.T) {
 		t.Errorf("expected 1 archived hash, got %d", len(archivedHashes))
 	}
 
-	archiveContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS_ARCHIVE.md"))
-	if err != nil {
-		t.Fatalf("failed to read archive file: %v", err)
-	}
-	if !strings.Contains(string(archiveContent), "filtered: generic engineering advice") {
+	if !strings.Contains(readArchiveFileForTest(t, tmpDir), "filtered: generic engineering advice") {
 		t.Error("expected archived content to contain filter reason")
 	}
 }

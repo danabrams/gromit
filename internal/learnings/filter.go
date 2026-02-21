@@ -180,8 +180,7 @@ func (f *File) FilterProvisional(fn FilterFunc, alreadyFiltered map[string]bool)
 		}
 
 		// Keep in-memory archived list populated for existing call sites/tests.
-		f.archived = append(f.archived, learning)
-		f.archivedHashes[learning.Hash] = true
+		f.trackArchivedLearning(learning)
 	}
 
 	// Save if any changes were made
