@@ -2,7 +2,9 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -17,6 +19,15 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
+
+func readStreamLog(t *testing.T, sl *logger.StreamLogger) string {
+	t.Helper()
+	data, err := os.ReadFile(sl.Path())
+	if err != nil {
+		t.Fatalf("reading stream log: %v", err)
+	}
+	return string(data)
+}
 
 func assertPromptDiagnosticsReconciled(t *testing.T, diag *prompt.PromptDiagnostics, reportedTokens, tokenDelta int) {
 	t.Helper()
@@ -215,6 +226,102 @@ func TestMakeInvokeFn_RecordsOutcomeWithProviderAndFailureCategory(t *testing.T)
 	}
 }
 
+func TestMakeInvokeFn_EmitsInvocationMarkersOnSuccess(t *testing.T) {
+	streamLogger, err := logger.NewStreamLogger(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewStreamLogger: %v", err)
+	}
+	defer func() {
+		_ = streamLogger.Close()
+	}()
+
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "marker-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{Success: true, Model: "marker-model"}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(mockProvider)
+	r := &Runner{
+		cfg:          &config.Config{},
+		router:       router,
+		invoker:      newInvokerForTest(router, io.Discard, streamLogger),
+		output:       io.Discard,
+		streamLogger: streamLogger,
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-markers-success"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+		ParentCtx: context.Background(),
+	}
+
+	_, err = r.makeInvokeFn()(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("makeInvokeFn returned error: %v", err)
+	}
+
+	logText := readStreamLog(t, streamLogger)
+	if !strings.Contains(logText, "INVOCATION_START provider=") {
+		t.Fatalf("expected INVOCATION_START marker, got:\n%s", logText)
+	}
+	if !strings.Contains(logText, "INVOCATION_END provider=marker-provider model=test-haiku tier=low success=true duration=") {
+		t.Fatalf("expected INVOCATION_END marker with provider/model/tier/success, got:\n%s", logText)
+	}
+	if !strings.Contains(logText, "failure_category=") {
+		t.Fatalf("expected INVOCATION_END marker with failure_category field, got:\n%s", logText)
+	}
+}
+
+func TestMakeInvokeFn_EmitsInvocationMarkersOnFailureWithoutProviderEvents(t *testing.T) {
+	streamLogger, err := logger.NewStreamLogger(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewStreamLogger: %v", err)
+	}
+	defer func() {
+		_ = streamLogger.Close()
+	}()
+
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "marker-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return nil, errors.New("provider boom")
+		},
+	}
+	router := provider.NewSingleProviderRouter(mockProvider)
+	r := &Runner{
+		cfg:          &config.Config{},
+		router:       router,
+		invoker:      newInvokerForTest(router, io.Discard, streamLogger),
+		output:       io.Discard,
+		streamLogger: streamLogger,
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-markers-failure"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+		ParentCtx: context.Background(),
+	}
+
+	_, err = r.makeInvokeFn()(context.Background(), bc, "prompt")
+	if err == nil {
+		t.Fatal("expected invocation error")
+	}
+
+	logText := readStreamLog(t, streamLogger)
+	if !strings.Contains(logText, "INVOCATION_START provider=") {
+		t.Fatalf("expected INVOCATION_START marker, got:\n%s", logText)
+	}
+	if !strings.Contains(logText, "INVOCATION_END provider=marker-provider model=test-haiku tier=low success=false duration=") {
+		t.Fatalf("expected INVOCATION_END failure marker, got:\n%s", logText)
+	}
+	if !strings.Contains(logText, "failure_category=") {
+		t.Fatalf("expected INVOCATION_END marker with failure_category field, got:\n%s", logText)
+	}
+}
+
 func TestMakeMethodologyExec_ATDDRecordsSuccessOutcomeWithEmptyFailureCategory(t *testing.T) {
 	cb := &provider.CircuitBreaker{}
 	invocations := 0
@@ -278,6 +385,105 @@ func TestMakeMethodologyExec_ATDDRecordsSuccessOutcomeWithEmptyFailureCategory(t
 	}
 	if cb.IsDegraded("test-provider") {
 		t.Fatal("expected five successful ATDD outcomes with empty failure category to recover degraded provider")
+	}
+}
+
+func TestMakeMethodologyExec_EmitsATDDInvocationMarkersOnSuccess(t *testing.T) {
+	streamLogger, err := logger.NewStreamLogger(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewStreamLogger: %v", err)
+	}
+	defer func() {
+		_ = streamLogger.Close()
+	}()
+
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "test-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{Success: true}, nil
+		},
+	}
+	r := &Runner{
+		router:       provider.NewSingleProviderRouter(mockProvider),
+		output:       io.Discard,
+		streamLogger: streamLogger,
+		renderer: &mockPromptRenderer{
+			RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+				return "acceptance prompt", nil
+			},
+		},
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-atdd-markers-success"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+	}
+
+	if err := r.makeMethodologyExec().RunAcceptanceTests(context.Background(), bc); err != nil {
+		t.Fatalf("RunAcceptanceTests returned error: %v", err)
+	}
+
+	logText := readStreamLog(t, streamLogger)
+	if !strings.Contains(logText, "ATDD_INVOCATION_START provider=test-provider model=test-haiku tier=low") {
+		t.Fatalf("expected ATDD_INVOCATION_START marker, got:\n%s", logText)
+	}
+	if !strings.Contains(logText, "ATDD_INVOCATION_END provider=test-provider model=test-haiku tier=low success=true duration=") {
+		t.Fatalf("expected ATDD_INVOCATION_END success marker, got:\n%s", logText)
+	}
+	if !strings.Contains(logText, "failure_category=") {
+		t.Fatalf("expected ATDD_INVOCATION_END marker with failure_category field, got:\n%s", logText)
+	}
+}
+
+func TestMakeMethodologyExec_EmitsATDDInvocationMarkersOnFailureWithoutProviderEvents(t *testing.T) {
+	streamLogger, err := logger.NewStreamLogger(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewStreamLogger: %v", err)
+	}
+	defer func() {
+		_ = streamLogger.Close()
+	}()
+
+	mockProvider := &mockProviderWithRouterTracking{
+		name: "test-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:         false,
+				FailureCategory: provider.FailureCategoryTransportDisconnect,
+			}, nil
+		},
+	}
+	r := &Runner{
+		router:       provider.NewSingleProviderRouter(mockProvider),
+		output:       io.Discard,
+		streamLogger: streamLogger,
+		renderer: &mockPromptRenderer{
+			RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+				return "acceptance prompt", nil
+			},
+		},
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-atdd-markers-failure"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+	}
+
+	if err := r.makeMethodologyExec().RunAcceptanceTests(context.Background(), bc); err == nil {
+		t.Fatal("expected RunAcceptanceTests to fail")
+	}
+
+	logText := readStreamLog(t, streamLogger)
+	if !strings.Contains(logText, "ATDD_INVOCATION_START provider=test-provider model=test-haiku tier=low") {
+		t.Fatalf("expected ATDD_INVOCATION_START marker, got:\n%s", logText)
+	}
+	if !strings.Contains(logText, "ATDD_INVOCATION_END provider=test-provider model=test-haiku tier=low success=false duration=") {
+		t.Fatalf("expected ATDD_INVOCATION_END failure marker, got:\n%s", logText)
+	}
+	if !strings.Contains(logText, "failure_category=transport_disconnect") {
+		t.Fatalf("expected ATDD_INVOCATION_END failure_category=transport_disconnect, got:\n%s", logText)
 	}
 }
 

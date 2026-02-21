@@ -74,7 +74,10 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		r.log("Running Claude with model: %s", bc.Model)
 
+		startedAt := time.Now()
+		r.logInvocationStartMarker(bc)
 		invResult, err := r.executeClaudeInvocation(ctx, bc)
+		r.logInvocationEndMarker(bc, invResult, err, time.Since(startedAt))
 
 		if err != nil {
 			return r.handleInvokeError(ctx, bc, invResult, err)
@@ -124,6 +127,54 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		return invResult, nil
 	}
+}
+
+func (r *Runner) logInvocationStartMarker(bc *runtypes.BeadContext) {
+	if bc == nil {
+		return
+	}
+	r.streamLogger.LogEvent("INVOCATION_START provider=%s model=%s tier=%s", bc.BuildProvider, bc.Model, bc.Tier)
+}
+
+func (r *Runner) logInvocationEndMarker(bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, err error, elapsed time.Duration) {
+	tier := ""
+	providerName := ""
+	modelName := ""
+	success := false
+	failureCategory := ""
+
+	if bc != nil {
+		tier = bc.Tier
+		providerName = bc.BuildProvider
+		modelName = bc.Model
+	}
+	if invResult != nil {
+		if invResult.ProviderName != "" {
+			providerName = invResult.ProviderName
+		}
+		if invResult.ModelName != "" {
+			modelName = invResult.ModelName
+		}
+		if invResult.Result != nil {
+			success = invResult.Result.Success
+		}
+		if invResult.ProviderResult != nil {
+			failureCategory = invResult.ProviderResult.FailureCategory
+		}
+	}
+	if err != nil {
+		success = false
+	}
+
+	r.streamLogger.LogEvent(
+		"INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s",
+		providerName,
+		modelName,
+		tier,
+		success,
+		elapsed.Round(time.Millisecond),
+		failureCategory,
+	)
 }
 
 func (r *Runner) estimatedCostUSD(providerName, model string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
@@ -247,12 +298,35 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			bc.Result.OutputTokens = outputTokens
 			reconcilePromptDiagnostics(bc.Result.PromptDiagnostics, inputTokens)
 		}
-		streamInvoke := func(p provider.Provider, modelName string, attempt string) (*provider.Result, *logger.StreamStats, error) {
+		streamInvoke := func(p provider.Provider, modelName string, attempt string) (result *provider.Result, stats *logger.StreamStats, err error) {
 			startedAt := time.Now()
+			r.streamLogger.LogEvent("ATDD_INVOCATION_START provider=%s model=%s tier=%s", p.Name(), modelName, bc.Tier)
+			defer func() {
+				failureCategory := ""
+				success := false
+				if result != nil {
+					failureCategory = result.FailureCategory
+					success = result.Success
+				}
+				if err != nil {
+					success = false
+				}
+				r.streamLogger.LogEvent(
+					"ATDD_INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s",
+					p.Name(),
+					modelName,
+					bc.Tier,
+					success,
+					time.Since(startedAt).Round(time.Millisecond),
+					failureCategory,
+				)
+			}()
+
 			var eventCount int64
 			var lastEventUnixNano = startedAt.UnixNano()
 			heartbeatStop := make(chan struct{})
-			stats, statsErr := logger.NewStreamStats()
+			var statsErr error
+			stats, statsErr = logger.NewStreamStats()
 			if statsErr != nil {
 				r.log("Warning: could not create stream stats for ATDD: %v", statsErr)
 			}
@@ -305,7 +379,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				bc.Tier,
 				len(promptText),
 			)
-			result, err := p.StreamRun(ctx, promptText, bc.Tier, r.output, streamHandler, nil)
+			result, err = p.StreamRun(ctx, promptText, bc.Tier, r.output, streamHandler, nil)
 			elapsed := time.Since(startedAt).Round(time.Millisecond)
 			if stats != nil && result != nil {
 				stats.MergeCostData(result.CostUSD, result.InputTokens, result.OutputTokens)
