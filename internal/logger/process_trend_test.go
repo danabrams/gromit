@@ -84,6 +84,9 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 	if got.FailurePhase != failurephase.Validation {
 		t.Errorf("FailurePhase = %q, want %q", got.FailurePhase, failurephase.Validation)
 	}
+	if got.DefectOriginPhase != failurephase.Validation {
+		t.Errorf("DefectOriginPhase = %q, want %q", got.DefectOriginPhase, failurephase.Validation)
+	}
 	if got.FailureCategory != "rate_limited" {
 		t.Errorf("FailureCategory = %q, want %q", got.FailureCategory, "rate_limited")
 	}
@@ -92,6 +95,33 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 	}
 	if got.ReasoningEffort != "medium" {
 		t.Errorf("ReasoningEffort = %q, want %q", got.ReasoningEffort, "medium")
+	}
+}
+
+func TestBuildIterationMetrics_DefectOriginPhaseBuildForCompilationErrors(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Timestamp:         time.Now(),
+			Iteration:         1,
+			BeadID:            "b-1",
+			Model:             "sonnet",
+			FailurePhase:      failurephase.Validation,
+			CompilationErrors: true,
+			Success:           false,
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 10)
+	if len(metrics) != 1 {
+		t.Fatalf("expected 1 metric, got %d", len(metrics))
+	}
+
+	got := metrics[0]
+	if got.FailurePhase != failurephase.Validation {
+		t.Errorf("FailurePhase = %q, want %q", got.FailurePhase, failurephase.Validation)
+	}
+	if got.DefectOriginPhase != failurephase.Build {
+		t.Errorf("DefectOriginPhase = %q, want %q", got.DefectOriginPhase, failurephase.Build)
 	}
 }
 

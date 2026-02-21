@@ -175,6 +175,7 @@ type IterationMetric struct {
 	ReasoningEffort              string                    `json:"reasoning_effort,omitempty"`
 	Provider                     string                    `json:"provider,omitempty"`
 	FailurePhase                 string                    `json:"failure_phase,omitempty"`
+	DefectOriginPhase            string                    `json:"defect_origin_phase,omitempty"`
 	FailureCategory              string                    `json:"failure_category,omitempty"`
 	FailureAttribution           string                    `json:"failure_attribution,omitempty"`
 	Success                      bool                      `json:"success"`
@@ -510,14 +511,15 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 		hasPrevious = true
 
 		metrics = append(metrics, IterationMetric{
-			Timestamp:       entry.Timestamp,
-			Iteration:       entry.Iteration,
-			BeadID:          entry.BeadID,
-			Model:           entry.Model,
-			ReasoningEffort: entry.ReasoningEffort,
-			Provider:        entry.Provider,
-			FailurePhase:    entry.FailurePhase,
-			FailureCategory: entry.FailureCategory,
+			Timestamp:         entry.Timestamp,
+			Iteration:         entry.Iteration,
+			BeadID:            entry.BeadID,
+			Model:             entry.Model,
+			ReasoningEffort:   entry.ReasoningEffort,
+			Provider:          entry.Provider,
+			FailurePhase:      entry.FailurePhase,
+			DefectOriginPhase: deriveDefectOriginPhase(entry),
+			FailureCategory:   entry.FailureCategory,
 			FailureAttribution: classifyFailureAttribution(
 				entries,
 				beadIndices[entry.BeadID],
@@ -600,6 +602,16 @@ func classifyFailureAttribution(entries []IterationLog, beadSeries []int, idx in
 		return failureAttributionSystem
 	}
 	return failureAttributionModel
+}
+
+func deriveDefectOriginPhase(entry IterationLog) string {
+	if entry.Success {
+		return ""
+	}
+	if entry.CompilationErrors {
+		return failurephase.Build
+	}
+	return entry.FailurePhase
 }
 
 func isTransientFailureSignal(entry IterationLog) bool {
