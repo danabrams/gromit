@@ -172,6 +172,7 @@ claude:
   stall_timeout_active: 600  # seconds with no output after tool activity (longer, allows thinking)
   bead_timeout: 2700     # seconds max per bead (all retries + analysis + validation)
   analysis_timeout: 180  # seconds max per failure analysis invocation
+  pipeline_timeout: 1800 # seconds max per decompose/review pipeline phase (defaults to 1800)
   flags:
     - "--dangerously-skip-permissions"
   # Per-model timeout overrides (non-zero values override the defaults above)
