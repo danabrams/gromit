@@ -296,13 +296,16 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 			return false
 		}
 	}
-	redCostUSD, redInputTokens, redOutputTokens := phaseUsageDelta(
-		bc.Result,
+	r.recordPhaseMetricFromSnapshot(
+		bc,
+		"red",
+		1,
+		redPhaseStart,
+		true,
 		redBeforeCostUSD,
 		redBeforeInputTokens,
 		redBeforeOutputTokens,
 	)
-	r.recordPhaseMetricWithUsage(bc, "red", 1, redPhaseStart, true, redCostUSD, redInputTokens, redOutputTokens)
 
 	bc.PromptCtx.IsRetry = false
 	bc.PromptCtx.PrevFailure = ""
@@ -327,13 +330,16 @@ func (r *Runner) failATDDRedPhase(
 	phaseErr error,
 	message string,
 ) bool {
-	redCostUSD, redInputTokens, redOutputTokens := phaseUsageDelta(
-		bc.Result,
+	r.recordPhaseMetricFromSnapshot(
+		bc,
+		"red",
+		1,
+		redPhaseStart,
+		false,
 		beforeCostUSD,
 		beforeInputTokens,
 		beforeOutputTokens,
 	)
-	r.recordPhaseMetricWithUsage(bc, "red", 1, redPhaseStart, false, redCostUSD, redInputTokens, redOutputTokens)
 	setPhaseAttribution(bc.Result, "red", phaseErr)
 	bc.Result.Error = fmt.Errorf("%s: %w", message, phaseErr)
 	return false
@@ -378,13 +384,16 @@ func (r *Runner) runATDDRewriteRetryCheck(
 		)
 	}
 	if validationResult == nil {
-		redCostUSD, redInputTokens, redOutputTokens := phaseUsageDelta(
-			bc.Result,
+		r.recordPhaseMetricFromSnapshot(
+			bc,
+			"red",
+			1,
+			redPhaseStart,
+			false,
 			beforeCostUSD,
 			beforeInputTokens,
 			beforeOutputTokens,
 		)
-		r.recordPhaseMetricWithUsage(bc, "red", 1, redPhaseStart, false, redCostUSD, redInputTokens, redOutputTokens)
 		bc.Result.Error = fmt.Errorf("post-rewrite acceptance validation returned no result")
 		return false
 	}
@@ -486,6 +495,34 @@ func phaseUsageDelta(
 		outputTokens = 0
 	}
 	return costUSD, inputTokens, outputTokens
+}
+
+func (r *Runner) recordPhaseMetricFromSnapshot(
+	bc *runtypes.BeadContext,
+	phase string,
+	cycleNumber int,
+	phaseStart time.Time,
+	success bool,
+	beforeCostUSD float64,
+	beforeInputTokens int,
+	beforeOutputTokens int,
+) {
+	costUSD, inputTokens, outputTokens := phaseUsageDelta(
+		bc.Result,
+		beforeCostUSD,
+		beforeInputTokens,
+		beforeOutputTokens,
+	)
+	r.recordPhaseMetricWithUsage(
+		bc,
+		phase,
+		cycleNumber,
+		phaseStart,
+		success,
+		costUSD,
+		inputTokens,
+		outputTokens,
+	)
 }
 
 func (r *Runner) recordGreenPhaseMetric(
@@ -605,36 +642,30 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	refactorPhaseStart := time.Now()
 	refactorBeforeCostUSD, refactorBeforeInputTokens, refactorBeforeOutputTokens := snapshotIterationUsage(bc.Result)
 	refactorResult := r.methodologyExec.RunRefactorPhaseWithResult(refactorCtx, bc)
-	refactorCostUSD, refactorInputTokens, refactorOutputTokens := phaseUsageDelta(
-		bc.Result,
-		refactorBeforeCostUSD,
-		refactorBeforeInputTokens,
-		refactorBeforeOutputTokens,
-	)
 	if !refactorResult.Successful {
-		r.recordPhaseMetricWithUsage(
+		r.recordPhaseMetricFromSnapshot(
 			bc,
 			"refactor",
 			cycleNumber,
 			refactorPhaseStart,
 			false,
-			refactorCostUSD,
-			refactorInputTokens,
-			refactorOutputTokens,
+			refactorBeforeCostUSD,
+			refactorBeforeInputTokens,
+			refactorBeforeOutputTokens,
 		)
 		bc.Result.FailurePhase = failurephase.Build
 		bc.Result.Error = fmt.Errorf("refactor phase failed: %s", refactorResult.Reason)
 		return false, bc.Result
 	}
-	r.recordPhaseMetricWithUsage(
+	r.recordPhaseMetricFromSnapshot(
 		bc,
 		"refactor",
 		cycleNumber,
 		refactorPhaseStart,
 		true,
-		refactorCostUSD,
-		refactorInputTokens,
-		refactorOutputTokens,
+		refactorBeforeCostUSD,
+		refactorBeforeInputTokens,
+		refactorBeforeOutputTokens,
 	)
 
 	if r.cfg.Validation.Enabled {
