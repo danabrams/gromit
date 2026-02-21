@@ -179,13 +179,9 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("red validation: %w", err)
 	}
 	if passed {
-		// Tests pass unexpectedly — nothing left to implement.
-		// Skip refactor: no implementation was written in this cycle.
-		if err := o.runFinalValidation(ctx); err != nil {
-			return err
-		}
-
-		state.Done = true
+		// Tests pass — criterion is already implemented.
+		// Advance to next remaining criterion instead of stopping.
+		// AssembleCycleState sets Done=true when Remaining is empty.
 		*state = AssembleCycleState(*state, "")
 		return nil
 	}

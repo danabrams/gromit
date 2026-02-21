@@ -138,6 +138,17 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 						return "", false, fmt.Errorf("validation returned nil result")
 					}
 					passed := provider.IsValidationPassed(result)
+
+					// When red-phase tests pass unexpectedly, the implementation already
+					// covers the pending criterion. Mark it covered so the tracker advances
+					// instead of looping with no progress.
+					if passed && tracker != nil && lastRenderedPhase == tddPhaseRed && pendingCoverageCriterion != nil {
+						tracker.MarkCovered(pendingCoverageCriterion.Number)
+						updateIterationCoverageMetrics(activeBC.Result, tracker)
+						pendingCoverageCriterion = nil
+						lastRenderedPhase = ""
+					}
+
 					if !passed || tracker == nil || r.methodologyExec == nil || lastRenderedPhase != tddPhaseGreen {
 						return result.Output, passed, nil
 					}
