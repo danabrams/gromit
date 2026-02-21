@@ -55,15 +55,22 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Resolve absolute paths to fakes and fixtures directories
+	// Validate tagged harness invocation context and resolve shared helper paths.
 	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get working directory: %v\n", err)
 		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
-	fakesDir = filepath.Join(wd, "..", "fakes")
-	fixturesDir = filepath.Join(wd, "..", "fixtures")
+	harnessCtx, err := testutil.ResolveTaggedHarnessContext(wd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid contract harness invocation context: %v\n", err)
+		fmt.Fprintln(os.Stderr, "Run via: go test -tags=contract ./test/contracts")
+		os.RemoveAll(tmpDir)
+		os.Exit(1)
+	}
+	fakesDir = harnessCtx.FakesDir
+	fixturesDir = harnessCtx.FixturesDir
 
 	// Run the tests
 	exitCode := m.Run()

@@ -99,6 +99,9 @@ make test-parallel-safe-top5  # Guard shared-state calls and run top-5 packages 
 ```bash
 make test-unit        # Fast deterministic tests (default go test tags)
 make test-acceptance  # Deterministic acceptance tests (-tags acceptance)
+make test-contract    # Tagged contract harness suite (-tags=contract ./test/contracts)
+make test-e2e         # Tagged e2e harness suite (-tags=e2e ./test/e2e)
+make test-tagged-harness # Fail-fast smoke command that runs contract + e2e tagged harness suites
 make test-e2e-live    # Live external integration tests in e2e_live-tagged packages only
 ```
 

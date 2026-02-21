@@ -58,15 +58,22 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Resolve absolute paths to fakes and fixtures directories
+	// Validate tagged harness invocation context and resolve shared helper paths.
 	wd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get working directory: %v\n", err)
 		os.RemoveAll(tmpDir)
 		os.Exit(1)
 	}
-	fakesDir = filepath.Join(wd, "..", "fakes")
-	fixturesDir = filepath.Join(wd, "..", "fixtures")
+	harnessCtx, err := testutil.ResolveTaggedHarnessContext(wd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid e2e harness invocation context: %v\n", err)
+		fmt.Fprintln(os.Stderr, "Run via: go test -tags=e2e ./test/e2e")
+		os.RemoveAll(tmpDir)
+		os.Exit(1)
+	}
+	fakesDir = harnessCtx.FakesDir
+	fixturesDir = harnessCtx.FixturesDir
 
 	// Create scaffold directory by running gromit init
 	scaffoldDir = filepath.Join(tmpDir, "scaffold")
@@ -138,7 +145,6 @@ type e2eEnv struct {
 	// Env is the full environment to pass to gromit
 	Env []string
 }
-
 
 // setupE2E creates a fresh test environment for E2E tests by:
 // - Creating a temp directory

@@ -1,4 +1,4 @@
-.PHONY: build install install-skill lint install-hooks shared-state-guard test-parallel-safe-top5 test-touched test-timing test-acceptance-timing test-profile test-unit test-acceptance test-e2e-live test-ci
+.PHONY: build install install-skill lint install-hooks shared-state-guard test-parallel-safe-top5 test-touched test-timing test-acceptance-timing test-profile test-unit test-acceptance test-contract test-e2e test-tagged-harness test-e2e-live test-ci
 
 GOLANGCI_LINT_VERSION := $(shell cat .golangci-version)
 
@@ -44,6 +44,15 @@ test-unit:
 
 test-acceptance:
 	go test -tags acceptance ./...
+
+test-contract:
+	go test -tags=contract ./test/contracts
+
+test-e2e:
+	go test -tags=e2e ./test/e2e
+
+test-tagged-harness:
+	./scripts/test_tagged_harness.sh
 
 test-e2e-live:
 	./scripts/test_e2e_live.sh
