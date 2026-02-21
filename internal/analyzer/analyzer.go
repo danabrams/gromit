@@ -250,6 +250,11 @@ func parseAnalysisOutputHeuristic(output string) *Analysis {
 func inferCategoryFromText(text string) Category {
 	lower := strings.ToLower(text)
 	switch {
+	case strings.Contains(lower, "hard_stop_action"),
+		strings.Contains(lower, "hard stop action"),
+		strings.Contains(lower, "hard_stop"),
+		strings.Contains(lower, "hard stop"):
+		return CategoryHardStopAction
 	case strings.Contains(lower, "task_too_complex"), strings.Contains(lower, "task too complex"):
 		return CategoryTaskTooComplex
 	case strings.Contains(lower, "unclear_spec"), strings.Contains(lower, "unclear spec"):

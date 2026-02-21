@@ -229,6 +229,7 @@ func TestParseAnalysisOutputAllCategories(t *testing.T) {
 		CategoryMissingContext,
 		CategoryTestFlake,
 		CategoryTaskTooComplex,
+		CategoryHardStopAction,
 	}
 
 	for _, category := range categories {
@@ -531,6 +532,32 @@ suggestion: split into smaller tasks
 		t.Fatalf("unexpected RootCause: %q", analysis.RootCause)
 	}
 	if analysis.Suggestion != "split into smaller tasks" {
+		t.Fatalf("unexpected Suggestion: %q", analysis.Suggestion)
+	}
+}
+
+func TestParseAnalysisOutputHeuristicHardStopAction(t *testing.T) {
+	output := `
+Category: hard_stop_action
+recoverable=false
+root cause: attempted destructive command
+suggestion: require explicit approval
+`
+
+	analysis := parseAnalysisOutputHeuristic(output)
+	if analysis == nil {
+		t.Fatal("expected heuristic parse result")
+	}
+	if analysis.Category != CategoryHardStopAction {
+		t.Fatalf("expected CategoryHardStopAction, got %q", analysis.Category)
+	}
+	if analysis.Recoverable {
+		t.Fatal("expected Recoverable=false")
+	}
+	if analysis.RootCause != "attempted destructive command" {
+		t.Fatalf("unexpected RootCause: %q", analysis.RootCause)
+	}
+	if analysis.Suggestion != "require explicit approval" {
 		t.Fatalf("unexpected Suggestion: %q", analysis.Suggestion)
 	}
 }
