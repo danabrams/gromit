@@ -1,0 +1,334 @@
+package execute_test
+
+import (
+	"context"
+	"io"
+	"testing"
+	"time"
+
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/pipeline/execute"
+	"github.com/danabrams/gromit/internal/provider"
+)
+
+// fakeInvoker is a test double for execute.Invoker.
+// Run panics to prove the Build stage never calls it; only StreamRun is used.
+type fakeInvoker struct {
+	streamRunFn func(ctx context.Context, prompt, tier string, w io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
+	streamCalls []streamCall
+}
+
+type streamCall struct {
+	prompt string
+	tier   string
+}
+
+func (f *fakeInvoker) Run(_ context.Context, _, _ string) (*provider.Result, error) {
+	panic("Build stage must not call Run; use StreamRun instead")
+}
+
+func (f *fakeInvoker) StreamRun(ctx context.Context, prompt, tier string, w io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	f.streamCalls = append(f.streamCalls, streamCall{prompt: prompt, tier: tier})
+	if f.streamRunFn != nil {
+		return f.streamRunFn(ctx, prompt, tier, w, handler, onToolCall)
+	}
+	return &provider.Result{Success: true}, nil
+}
+
+// fakePromptRenderer is a test double for execute.PromptRenderer.
+type fakePromptRenderer struct {
+	renderBuildFn         func(title, desc string, failures []string) (string, error)
+	renderTDDBuildFn      func(title, desc string, failures []string) (string, error)
+	renderRefactorBuildFn func(title, desc string, failures []string) (string, error)
+	lastMethodology       string
+}
+
+func (f *fakePromptRenderer) RenderBuild(title, desc string, failures []string) (string, error) {
+	f.lastMethodology = "standard"
+	if f.renderBuildFn != nil {
+		return f.renderBuildFn(title, desc, failures)
+	}
+	return "standard build prompt", nil
+}
+
+func (f *fakePromptRenderer) RenderTDDBuild(title, desc string, failures []string) (string, error) {
+	f.lastMethodology = "tdd"
+	if f.renderTDDBuildFn != nil {
+		return f.renderTDDBuildFn(title, desc, failures)
+	}
+	return "tdd build prompt", nil
+}
+
+func (f *fakePromptRenderer) RenderRefactorBuild(title, desc string, failures []string) (string, error) {
+	f.lastMethodology = "refactor"
+	if f.renderRefactorBuildFn != nil {
+		return f.renderRefactorBuildFn(title, desc, failures)
+	}
+	return "refactor build prompt", nil
+}
+
+func makeBead(id, title string) *bead.Bead {
+	return &bead.Bead{ID: id, Title: title, Labels: []string{}}
+}
+
+func makeBeadWithLabels(id, title string, labels []string) *bead.Bead {
+	return &bead.Bead{ID: id, Title: title, Labels: labels}
+}
+
+func makeInput(b *bead.Bead, cfg *config.Config) pipeline.Input {
+	return pipeline.Input{
+		Bead:      b,
+		Config:    cfg,
+		Iteration: 1,
+		Deadline:  time.Now().Add(time.Minute),
+	}
+}
+
+func defaultConfig() *config.Config {
+	return &config.Config{
+		Models: config.ModelsConfig{
+			P0: "high",
+			P1: "medium",
+			P2: "low",
+		},
+	}
+}
+
+// TestBuildStage_UsesStreamRun_NotRun verifies that the Build stage invokes the
+// provider via StreamRun and never via Run (which panics on the fake).
+func TestBuildStage_UsesStreamRun_NotRun(t *testing.T) {
+	invoker := &fakeInvoker{}
+	renderer := &fakePromptRenderer{}
+	stage := execute.New(invoker, renderer, io.Discard)
+
+	in := makeInput(makeBead("bead-1", "Implement feature X"), defaultConfig())
+
+	// Run must not panic (which it would if Run were called on the fake).
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Errorf("Decision = %v, want Proceed", out.Decision)
+	}
+
+	// StreamRun must have been called exactly once.
+	if len(invoker.streamCalls) != 1 {
+		t.Errorf("StreamRun called %d times, want 1", len(invoker.streamCalls))
+	}
+}
+
+// TestBuildStage_SelectMethodology_Standard verifies that a bead with no methodology
+// labels and no TDD config uses the standard methodology.
+func TestBuildStage_SelectMethodology_Standard(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = false
+
+	b := makeBead("bead-1", "Fix bug")
+	m := execute.SelectMethodology(b, cfg)
+	if m != execute.MethodologyStandard {
+		t.Errorf("SelectMethodology = %v, want Standard", m)
+	}
+}
+
+// TestBuildStage_SelectMethodology_TDD_FromConfig verifies that when the global TDD
+// config flag is true, SelectMethodology returns TDD for a bead with no label override.
+func TestBuildStage_SelectMethodology_TDD_FromConfig(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+
+	b := makeBead("bead-1", "Add tests")
+	m := execute.SelectMethodology(b, cfg)
+	if m != execute.MethodologyTDD {
+		t.Errorf("SelectMethodology = %v, want TDD", m)
+	}
+}
+
+// TestBuildStage_SelectMethodology_TDD_FromLabel verifies that a bead with label
+// "tdd:true" uses TDD methodology even when global TDD config is false.
+func TestBuildStage_SelectMethodology_TDD_FromLabel(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = false
+
+	b := makeBeadWithLabels("bead-1", "Implement service", []string{"tdd:true"})
+	m := execute.SelectMethodology(b, cfg)
+	if m != execute.MethodologyTDD {
+		t.Errorf("SelectMethodology = %v, want TDD", m)
+	}
+}
+
+// TestBuildStage_SelectMethodology_TDD_DisabledByLabel verifies that a bead with label
+// "tdd:false" uses standard methodology even when global TDD config is true.
+func TestBuildStage_SelectMethodology_TDD_DisabledByLabel(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+
+	b := makeBeadWithLabels("bead-1", "Quick fix", []string{"tdd:false"})
+	m := execute.SelectMethodology(b, cfg)
+	if m != execute.MethodologyStandard {
+		t.Errorf("SelectMethodology = %v, want Standard (tdd:false label should override)", m)
+	}
+}
+
+// TestBuildStage_SelectMethodology_Refactor verifies that a bead with label
+// "refactor:true" uses the refactor methodology.
+func TestBuildStage_SelectMethodology_Refactor(t *testing.T) {
+	cfg := defaultConfig()
+
+	b := makeBeadWithLabels("bead-1", "Refactor auth module", []string{"refactor:true"})
+	m := execute.SelectMethodology(b, cfg)
+	if m != execute.MethodologyRefactor {
+		t.Errorf("SelectMethodology = %v, want Refactor", m)
+	}
+}
+
+// TestBuildStage_Run_UsesStandardPrompt verifies that the standard methodology uses
+// the RenderBuild renderer.
+func TestBuildStage_Run_UsesStandardPrompt(t *testing.T) {
+	invoker := &fakeInvoker{}
+	renderer := &fakePromptRenderer{}
+	stage := execute.New(invoker, renderer, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = false
+	in := makeInput(makeBead("bead-1", "Fix bug"), cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if renderer.lastMethodology != "standard" {
+		t.Errorf("renderer called with methodology %q, want %q", renderer.lastMethodology, "standard")
+	}
+}
+
+// TestBuildStage_Run_UsesTDDPrompt verifies that when TDD is active, the Build stage
+// uses the TDD-specific prompt renderer.
+func TestBuildStage_Run_UsesTDDPrompt(t *testing.T) {
+	invoker := &fakeInvoker{}
+	renderer := &fakePromptRenderer{}
+	stage := execute.New(invoker, renderer, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+	in := makeInput(makeBead("bead-1", "Implement service"), cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if renderer.lastMethodology != "tdd" {
+		t.Errorf("renderer called with methodology %q, want %q", renderer.lastMethodology, "tdd")
+	}
+}
+
+// TestBuildStage_Run_UsesRefactorPrompt verifies that when refactor label is set,
+// the Build stage uses the refactor-specific prompt renderer.
+func TestBuildStage_Run_UsesRefactorPrompt(t *testing.T) {
+	invoker := &fakeInvoker{}
+	renderer := &fakePromptRenderer{}
+	stage := execute.New(invoker, renderer, io.Discard)
+
+	cfg := defaultConfig()
+	in := makeInput(makeBeadWithLabels("bead-1", "Refactor auth", []string{"refactor:true"}), cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if renderer.lastMethodology != "refactor" {
+		t.Errorf("renderer called with methodology %q, want %q", renderer.lastMethodology, "refactor")
+	}
+}
+
+// TestBuildStage_Run_PassesValidationFailuresToRenderer verifies that ValidationFailures
+// from the input are forwarded to the prompt renderer.
+func TestBuildStage_Run_PassesValidationFailuresToRenderer(t *testing.T) {
+	var gotFailures []string
+	invoker := &fakeInvoker{}
+	renderer := &fakePromptRenderer{
+		renderBuildFn: func(title, desc string, failures []string) (string, error) {
+			gotFailures = failures
+			return "prompt", nil
+		},
+	}
+	stage := execute.New(invoker, renderer, io.Discard)
+
+	cfg := defaultConfig()
+	in := makeInput(makeBead("bead-1", "Fix"), cfg)
+	in.ValidationFailures = []string{"test failed: foo_test.go:42", "vet error: unused import"}
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(gotFailures) != 2 {
+		t.Errorf("renderer got %d failures, want 2", len(gotFailures))
+	}
+}
+
+// TestShouldRunPostSuccess_Standard returns true for standard methodology.
+func TestShouldRunPostSuccess_Standard(t *testing.T) {
+	stage := execute.New(&fakeInvoker{}, &fakePromptRenderer{}, io.Discard)
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = false
+
+	b := makeBead("bead-1", "Fix bug")
+	if !stage.ShouldRunPostSuccess(b, cfg) {
+		t.Error("ShouldRunPostSuccess = false, want true for standard methodology")
+	}
+}
+
+// TestShouldRunPostSuccess_Refactor returns true for refactor methodology.
+func TestShouldRunPostSuccess_Refactor(t *testing.T) {
+	stage := execute.New(&fakeInvoker{}, &fakePromptRenderer{}, io.Discard)
+	cfg := defaultConfig()
+
+	b := makeBeadWithLabels("bead-1", "Refactor", []string{"refactor:true"})
+	if !stage.ShouldRunPostSuccess(b, cfg) {
+		t.Error("ShouldRunPostSuccess = false, want true for refactor methodology")
+	}
+}
+
+// TestShouldRunPostSuccess_TDD returns false for TDD methodology because the
+// refactor phase must complete before post-success stages run.
+func TestShouldRunPostSuccess_TDD(t *testing.T) {
+	stage := execute.New(&fakeInvoker{}, &fakePromptRenderer{}, io.Discard)
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+
+	b := makeBead("bead-1", "Implement feature")
+	if stage.ShouldRunPostSuccess(b, cfg) {
+		t.Error("ShouldRunPostSuccess = true, want false for TDD methodology")
+	}
+}
+
+// TestBuildStage_Run_StreamRunReceivesTier verifies that StreamRun is called with the
+// tier derived from the bead's priority.
+func TestBuildStage_Run_StreamRunReceivesTier(t *testing.T) {
+	invoker := &fakeInvoker{}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Models.P1 = "medium"
+	b := &bead.Bead{ID: "bead-1", Title: "feature", Priority: 1, Labels: []string{}}
+	in := makeInput(b, cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(invoker.streamCalls) != 1 {
+		t.Fatalf("StreamRun called %d times, want 1", len(invoker.streamCalls))
+	}
+	if invoker.streamCalls[0].tier != "medium" {
+		t.Errorf("StreamRun tier = %q, want %q", invoker.streamCalls[0].tier, "medium")
+	}
+}
