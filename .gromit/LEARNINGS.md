@@ -35,6 +35,16 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
+### 2026-02-21 | Validation Auto-Fix Pattern with Soft Failures | patterns
+*Related to: 9980dae8*
+
+The Validate stage uses a soft-failure pattern where unresolved validation failures don't block the pipeline—instead, ValidationFailures are populated and fed into the next Build stage input. This enables iterative improvement: auto-fix attempts gofmt/goimports on changed files, re-validates, and returns Proceed regardless of outcome. Periodic full validation is gated via modulo arithmetic (`iteration % FullValidationEveryN == 0`) to balance speed on fast iterations with thorough checks at configured boundaries. Mandatory command prefix policy enforcement happens upfront via checkMandatoryPrefixes() before running any commands, preventing silent misconfiguration. The stage uses local dependency interfaces (CommandRunner, AutoFixer) injected via builder pattern methods (WithAutoFixer, WithWorkDir), allowing optional composition and graceful degradation when auto-fix is nil. Compile-time check (`var _ pipeline.Stage = (*Validate)(nil)`) enforces the architectural contract. Table-driven tests cover auto-fix success, auto-fix+still-failing, periodic gate boundary transitions, mandatory prefix violations, validation disabled, and nil auto-fixer scenarios.
+
+### 2026-02-21 | Pipeline Stage Patterns: Dependency Injection with Optional Interfaces | patterns
+*Related to: gromit-22nrv*
+
+Pipeline stages use local dependency interfaces (Prechecker, StuckDetector) injected via builder pattern methods (WithPrechecker, WithStuckDetector), allowing optional composition. Nil checks in Run() enable graceful degradation when a dependency isn't configured. Errors from dependencies are logged as warnings but don't block execution—this prevents checker failures from breaking the pipeline. Decision ordering matters: precheck (Skip) runs before stuck detection (Block) to ensure already-completed work is closed promptly, even if the bead has exceeded the failure threshold. Table-driven tests comprehensively cover all paths (Proceed, Skip, Block), nil components, optional configurations, and error handling. Compile-time interface checks (`var _ pipeline.Stage = (*Gate)(nil)`) verify architectural invariants.
+
 ### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
 *Related to: code-review*
 
