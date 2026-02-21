@@ -143,8 +143,8 @@ func TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete(t *testing.T) {
 	}
 	runnerFiles := []string{
 		"internal/runner/validation_extraction_acceptance_test.go",
-		"internal/runner/invocation_timeout_acceptance_test.go",
-		"internal/runner/worktree_merge_acceptance_test.go",
+		"internal/runner/acceptance/invocation_timeout_acceptance_test.go",
+		"internal/runner/acceptance/worktree_merge_acceptance_test.go",
 	}
 
 	cases := append(
@@ -191,12 +191,12 @@ func TestSmokeCoverageMatrix_KeepSetIsMinimalHighValue(t *testing.T) {
 	entries := loadConsolidatedSmokeMatrix(t, projectRoot)
 
 	expectedKeep := map[string]bool{
-		"cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd":                  true,
-		"cmd/gromit/explore_codex_help_acceptance_test.go:TestCmdSmoke_ExploreAgentSelectionEndToEnd":          true,
-		"cmd/gromit/review_spec_validation_acceptance_test.go:TestCmdSmoke_ReviewSpecValidationEndToEnd":       true,
-		"internal/runner/validation_extraction_acceptance_test.go:TestRunnerSmoke_RunSingleBeadHappyPath":      true,
-		"internal/runner/invocation_timeout_acceptance_test.go:TestRunnerSmoke_ValidationFailureEscalatesTier": true,
-		"internal/runner/worktree_merge_acceptance_test.go:TestRunnerSmoke_WorktreeMergeModesEndToEnd":         true,
+		"cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd":                             true,
+		"cmd/gromit/explore_codex_help_acceptance_test.go:TestCmdSmoke_ExploreAgentSelectionEndToEnd":                     true,
+		"cmd/gromit/review_spec_validation_acceptance_test.go:TestCmdSmoke_ReviewSpecValidationEndToEnd":                  true,
+		"internal/runner/validation_extraction_acceptance_test.go:TestRunnerSmoke_RunSingleBeadHappyPath":                 true,
+		"internal/runner/acceptance/invocation_timeout_acceptance_test.go:TestRunnerSmoke_ValidationFailureEscalatesTier": true,
+		"internal/runner/acceptance/worktree_merge_acceptance_test.go:TestRunnerSmoke_WorktreeMergeModesEndToEnd":         true,
 	}
 
 	actualKeep := make(map[string]bool)
