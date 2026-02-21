@@ -30,7 +30,6 @@ func TestClientCreate(t *testing.T) {
 		priority        int
 		labels          []string
 		expectedOutputs []string
-		description     string
 	}{
 		{
 			name:            "basic creation",
@@ -38,7 +37,6 @@ func TestClientCreate(t *testing.T) {
 			priority:        1,
 			labels:          []string{"label1"},
 			expectedOutputs: []string{"file.go"},
-			description:     "Creates task with all fields",
 		},
 		{
 			name:            "empty labels and outputs",
@@ -46,7 +44,6 @@ func TestClientCreate(t *testing.T) {
 			priority:        2,
 			labels:          []string{},
 			expectedOutputs: []string{},
-			description:     "Creates task with minimal fields",
 		},
 		{
 			name:            "nil labels and outputs",
@@ -54,7 +51,6 @@ func TestClientCreate(t *testing.T) {
 			priority:        0,
 			labels:          nil,
 			expectedOutputs: nil,
-			description:     "Creates task with nil slices",
 		},
 		{
 			name:            "multiple labels",
@@ -62,7 +58,6 @@ func TestClientCreate(t *testing.T) {
 			priority:        0,
 			labels:          []string{"spec:auth", "complexity:high", "priority:p0"},
 			expectedOutputs: []string{"auth.go", "auth_test.go"},
-			description:     "Creates task with multiple labels and outputs",
 		},
 	}
 
@@ -123,7 +118,6 @@ func TestClientCreateWithParent(t *testing.T) {
 		expectedOutputs    []string
 		parentID           string
 		shouldValidateFail bool
-		description        string
 	}{
 		{
 			name:            "create with valid parent",
@@ -132,7 +126,6 @@ func TestClientCreateWithParent(t *testing.T) {
 			labels:          []string{"label1"},
 			expectedOutputs: []string{},
 			parentID:        "parent-123",
-			description:     "Creates child bead with valid parent ID",
 		},
 		{
 			name:            "create with empty parent",
@@ -141,7 +134,6 @@ func TestClientCreateWithParent(t *testing.T) {
 			labels:          []string{},
 			expectedOutputs: []string{},
 			parentID:        "",
-			description:     "Creates bead with no parent (empty string)",
 		},
 		{
 			name:               "invalid parent ID with spaces",
@@ -149,7 +141,6 @@ func TestClientCreateWithParent(t *testing.T) {
 			priority:           1,
 			parentID:           "parent 123",
 			shouldValidateFail: true,
-			description:        "Should reject parent ID with spaces",
 		},
 		{
 			name:               "invalid parent ID with shell chars",
@@ -157,7 +148,6 @@ func TestClientCreateWithParent(t *testing.T) {
 			priority:           1,
 			parentID:           "parent; rm -rf /",
 			shouldValidateFail: true,
-			description:        "Should reject parent ID with shell metacharacters",
 		},
 		{
 			name:               "parent ID too long",
@@ -165,7 +155,6 @@ func TestClientCreateWithParent(t *testing.T) {
 			priority:           1,
 			parentID:           strings.Repeat("a", maxIDLength+1),
 			shouldValidateFail: true,
-			description:        "Should reject overly long parent ID",
 		},
 	}
 
@@ -274,7 +263,6 @@ func TestClientCreateWithDeps(t *testing.T) {
 			dependencies:       []string{"dep 1"},
 			shouldValidateFail: true,
 			expectedErrMsg:     "invalid dependency ID",
-			description:        "Should reject dependency ID with spaces",
 		},
 		{
 			name:               "invalid dependency ID with shell chars",
@@ -283,7 +271,6 @@ func TestClientCreateWithDeps(t *testing.T) {
 			dependencies:       []string{"dep-1", "dep; rm -rf /"},
 			shouldValidateFail: true,
 			expectedErrMsg:     "invalid dependency ID",
-			description:        "Should reject dependency ID with shell metacharacters",
 		},
 		{
 			name:               "dependency ID too long",
@@ -292,7 +279,6 @@ func TestClientCreateWithDeps(t *testing.T) {
 			dependencies:       []string{strings.Repeat("a", maxIDLength+1)},
 			shouldValidateFail: true,
 			expectedErrMsg:     "invalid dependency ID",
-			description:        "Should reject overly long dependency ID",
 		},
 	}
 
