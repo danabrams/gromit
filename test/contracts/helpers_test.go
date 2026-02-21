@@ -37,14 +37,6 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	gromitBinary = filepath.Join(tmpDir, "gromit")
-	buildCmd := exec.Command("go", "build", "-o", gromitBinary, "../../cmd/gromit")
-	buildCmd.Stdout = os.Stdout
-	buildCmd.Stderr = os.Stderr
-	if err := buildCmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to build gromit binary: %v\n", err)
-		os.RemoveAll(tmpDir)
-		os.Exit(1)
-	}
 
 	// Resolve real git path by looking in common locations
 	// We need to find git before we manipulate PATH to include the fake
@@ -71,6 +63,15 @@ func TestMain(m *testing.M) {
 	}
 	fakesDir = harnessCtx.FakesDir
 	fixturesDir = harnessCtx.FixturesDir
+
+	buildCmd := exec.Command("go", "build", "-o", gromitBinary, harnessCtx.CmdGromitDir)
+	buildCmd.Stdout = os.Stdout
+	buildCmd.Stderr = os.Stderr
+	if err := buildCmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to build gromit binary: %v\n", err)
+		os.RemoveAll(tmpDir)
+		os.Exit(1)
+	}
 
 	// Run the tests
 	exitCode := m.Run()
