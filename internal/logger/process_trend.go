@@ -33,6 +33,7 @@ const (
 	processTrendFilename           = "process_trend.json"
 	metricRollingSuccessRate       = "rolling_success_rate"
 	metricRollingFirstPassSuccess  = "rolling_first_pass_success_rate"
+	metricRollingReworkRate        = "rolling_rework_rate"
 	metricRollingEscalationRate    = "rolling_escalation_rate"
 	metricRollingAvgDurationMs     = "rolling_avg_duration_ms"
 	metricRollingAvgValidationMs   = "rolling_avg_validation_ms"
@@ -80,6 +81,11 @@ var trendControlLimitSeries = []metricSeriesDefinition{
 		name:          metricRollingFirstPassSuccess,
 		latestSample:  func(m IterationMetric) float64 { return m.RollingFirstPassSuccess },
 		historySample: func(m IterationMetric) float64 { return m.RollingFirstPassSuccess },
+	},
+	{
+		name:          metricRollingReworkRate,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingReworkRate },
+		historySample: func(m IterationMetric) float64 { return boolToFloat64(!m.FirstPassSuccess) },
 	},
 	{
 		name:          metricRollingEscalationRate,
@@ -165,6 +171,7 @@ type IterationMetric struct {
 	RollingSuccessRate           float64                   `json:"rolling_success_rate"`
 	RollingFailureRate           float64                   `json:"rolling_failure_rate"`
 	RollingFirstPassSuccess      float64                   `json:"rolling_first_pass_success_rate"`
+	RollingReworkRate            float64                   `json:"rolling_rework_rate"`
 	RollingEscalationRate        float64                   `json:"rolling_escalation_rate"`
 	RollingAvgDurationMs         float64                   `json:"rolling_avg_duration_ms"`
 	RollingP95DurationMs         float64                   `json:"rolling_p95_duration_ms"`
@@ -229,6 +236,7 @@ type ProcessTrendWindow struct {
 	SuccessRate           float64 `json:"success_rate"`
 	FailureRate           float64 `json:"failure_rate"`
 	FirstPassSuccess      float64 `json:"first_pass_success_rate"`
+	ReworkRate            float64 `json:"rework_rate"`
 	EscalationRate        float64 `json:"escalation_rate"`
 	AvgDurationMs         float64 `json:"avg_duration_ms"`
 	P95DurationMs         float64 `json:"p95_duration_ms"`
@@ -487,6 +495,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingSuccessRate:           w.SuccessRate,
 			RollingFailureRate:           w.FailureRate,
 			RollingFirstPassSuccess:      w.FirstPassSuccess,
+			RollingReworkRate:            w.ReworkRate,
 			RollingEscalationRate:        w.EscalationRate,
 			RollingAvgDurationMs:         w.AvgDurationMs,
 			RollingP95DurationMs:         w.P95DurationMs,
@@ -532,6 +541,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		SuccessRate:           latestMetric.RollingSuccessRate,
 		FailureRate:           latestMetric.RollingFailureRate,
 		FirstPassSuccess:      latestMetric.RollingFirstPassSuccess,
+		ReworkRate:            latestMetric.RollingReworkRate,
 		EscalationRate:        latestMetric.RollingEscalationRate,
 		AvgDurationMs:         latestMetric.RollingAvgDurationMs,
 		P95DurationMs:         latestMetric.RollingP95DurationMs,
@@ -1026,7 +1036,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		return ProcessTrendWindow{}
 	}
 
-	var successes, firstPasses, escalations int
+	var successes, firstPasses, reworkIterations, escalations int
 	var preflightFailures, buildFailures, validationFailures, timeoutFailures int
 	var durationTotal int64
 	var validationDurationTotal int64
@@ -1044,6 +1054,8 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		}
 		if e.FirstPassSuccess {
 			firstPasses++
+		} else {
+			reworkIterations++
 		}
 		if e.Escalated {
 			escalations++
@@ -1096,6 +1108,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		SuccessRate:           float64(successes) / count,
 		FailureRate:           float64(len(window)-successes) / count,
 		FirstPassSuccess:      float64(firstPasses) / count,
+		ReworkRate:            float64(reworkIterations) / count,
 		EscalationRate:        float64(escalations) / count,
 		AvgDurationMs:         avgDuration,
 		P95DurationMs:         percentileInt64(durations, p95Percentile),

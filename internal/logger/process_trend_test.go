@@ -227,6 +227,19 @@ func TestSummarizeWindow_MixedPhaseRates(t *testing.T) {
 	assertFloatNear(t, summary.TimeoutFailureRate, 0.2, "TimeoutFailureRate")
 }
 
+func TestSummarizeWindow_ComputesReworkRateFromFirstPassFailures(t *testing.T) {
+	window := []IterationLog{
+		{FirstPassSuccess: true},
+		{FirstPassSuccess: false},
+		{FirstPassSuccess: false},
+		{FirstPassSuccess: true},
+	}
+
+	summary := summarizeWindow(window)
+	assertFloatNear(t, summary.FirstPassSuccess, 0.5, "FirstPassSuccess")
+	assertFloatNear(t, summary.ReworkRate, 0.5, "ReworkRate")
+}
+
 func TestSummarizeWindow_ValidationDurationExcludesZeroEntries(t *testing.T) {
 	window := []IterationLog{
 		{Success: true, ValidationDurationMs: 0},
@@ -305,25 +318,31 @@ func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *test
 	metrics := []IterationMetric{
 		{
 			Success:              true,
+			FirstPassSuccess:     true,
 			DurationMs:           100,
 			CostUSD:              1,
 			RollingSuccessRate:   0.6,
+			RollingReworkRate:    0.25,
 			RollingAvgDurationMs: 275,
 			RollingAvgCostUSD:    3.5,
 		},
 		{
 			Success:              false,
+			FirstPassSuccess:     false,
 			DurationMs:           300,
 			CostUSD:              4,
 			RollingSuccessRate:   0.6,
+			RollingReworkRate:    0.25,
 			RollingAvgDurationMs: 275,
 			RollingAvgCostUSD:    3.5,
 		},
 		{
 			Success:              true,
+			FirstPassSuccess:     false,
 			DurationMs:           500,
 			CostUSD:              7,
 			RollingSuccessRate:   0.6,
+			RollingReworkRate:    0.25,
 			RollingAvgDurationMs: 275,
 			RollingAvgCostUSD:    3.5,
 		},
@@ -354,6 +373,14 @@ func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *test
 	assertFloatNear(t, costLimit.Latest, 3.5, "CostLatest")
 	assertFloatNear(t, costLimit.Mean, 4, "CostMean")
 	assertFloatNear(t, costLimit.StdDev, 2.449489743, "CostStdDev")
+
+	reworkLimit, ok := findControlLimit(trend.ControlLimits, metricRollingReworkRate)
+	if !ok {
+		t.Fatalf("control limits missing %q", metricRollingReworkRate)
+	}
+	assertFloatNear(t, reworkLimit.Latest, 0.25, "ReworkLatest")
+	assertFloatNear(t, reworkLimit.Mean, 2.0/3.0, "ReworkMean")
+	assertFloatNear(t, reworkLimit.StdDev, 0.4714045208, "ReworkStdDev")
 }
 
 func TestBuildIterationMetrics_ComputesEWMAStateForCoreMetrics(t *testing.T) {
@@ -438,6 +465,39 @@ func TestBuildProcessTrend_IncludesRollingAvgValidationControlLimit(t *testing.T
 	if _, ok := findControlLimit(trend.ControlLimits, metricRollingAvgValidationMs); !ok {
 		t.Fatalf("control limits missing %q", metricRollingAvgValidationMs)
 	}
+}
+
+func TestBuildIterationMetrics_ComputesRollingReworkRate(t *testing.T) {
+	entries := []IterationLog{
+		{Timestamp: time.Now(), FirstPassSuccess: true},
+		{Timestamp: time.Now().Add(time.Second), FirstPassSuccess: false},
+		{Timestamp: time.Now().Add(2 * time.Second), FirstPassSuccess: false},
+	}
+
+	metrics := buildIterationMetrics(entries, 3)
+	if len(metrics) != 3 {
+		t.Fatalf("len(metrics) = %d, want 3", len(metrics))
+	}
+
+	assertFloatNear(t, metrics[0].RollingReworkRate, 0.0, "RollingReworkRate[0]")
+	assertFloatNear(t, metrics[1].RollingReworkRate, 0.5, "RollingReworkRate[1]")
+	assertFloatNear(t, metrics[2].RollingReworkRate, 2.0/3.0, "RollingReworkRate[2]")
+}
+
+func TestBuildProcessTrend_IncludesRollingReworkRateControlLimitAndLatestWindow(t *testing.T) {
+	entries := []IterationLog{
+		{Timestamp: time.Now(), FirstPassSuccess: true},
+		{Timestamp: time.Now().Add(time.Second), FirstPassSuccess: false},
+		{Timestamp: time.Now().Add(2 * time.Second), FirstPassSuccess: false},
+	}
+
+	metrics := buildIterationMetrics(entries, 3)
+	trend := buildProcessTrend(metrics, 3)
+
+	if _, ok := findControlLimit(trend.ControlLimits, metricRollingReworkRate); !ok {
+		t.Fatalf("control limits missing %q", metricRollingReworkRate)
+	}
+	assertFloatNear(t, trend.LatestWindow.ReworkRate, 2.0/3.0, "LatestWindow.ReworkRate")
 }
 
 func TestBuildProcessTrend_ValidationDurationSpikeTriggersHighSeverityAnomaly(t *testing.T) {
