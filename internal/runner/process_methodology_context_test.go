@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -723,8 +724,9 @@ func TestRunATDDPreBuildPhases_RecordsRedPhaseMetric(t *testing.T) {
 		r.output,
 		func(ctx *prompt.Context) (string, error) { return "acceptance prompt", nil },
 		func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
-			bc.Result.InputTokens = 41
-			bc.Result.OutputTokens = 19
+			bc.Result.CostUSD += 0.75
+			bc.Result.InputTokens += 41
+			bc.Result.OutputTokens += 19
 			return nil
 		},
 		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
@@ -742,7 +744,11 @@ func TestRunATDDPreBuildPhases_RecordsRedPhaseMetric(t *testing.T) {
 		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
 		},
-		Result: &IterationResult{},
+		Result: &IterationResult{
+			CostUSD:      1.10,
+			InputTokens:  100,
+			OutputTokens: 50,
+		},
 	}
 
 	if ok := r.runATDDPreBuildPhases(context.Background(), bc); !ok {
@@ -758,6 +764,9 @@ func TestRunATDDPreBuildPhases_RecordsRedPhaseMetric(t *testing.T) {
 	}
 	if metric.CycleNumber != 1 {
 		t.Fatalf("CycleNumber = %d, want 1", metric.CycleNumber)
+	}
+	if metric.CostUSD != 0.75 {
+		t.Fatalf("CostUSD = %f, want 0.75", metric.CostUSD)
 	}
 	if metric.InputTokens != 41 || metric.OutputTokens != 19 {
 		t.Fatalf("tokens = (%d,%d), want (41,19)", metric.InputTokens, metric.OutputTokens)
@@ -862,11 +871,17 @@ func TestRunRefactorAndPostChecks_RecordsRefactorAndVerificationMetrics(t *testi
 	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
 
 	r.cfg.Refactor.MinFilesChanged = 0
+	var bc *runtypes.BeadContext
 	setTestRefactorDeps(r, func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+		if bc != nil && bc.Result != nil {
+			bc.Result.CostUSD += 0.33
+			bc.Result.InputTokens += 12
+			bc.Result.OutputTokens += 7
+		}
 		return &claude.Result{Success: true}, nil, nil
 	})
 
-	bc := &runtypes.BeadContext{
+	bc = &runtypes.BeadContext{
 		Bead:        &bead.Bead{ID: "test-phase-metrics-refactor", Title: "Refactor Metrics"},
 		Model:       "sonnet",
 		Tier:        provider.TierMedium,
@@ -876,7 +891,11 @@ func TestRunRefactorAndPostChecks_RecordsRefactorAndVerificationMetrics(t *testi
 		PromptCtx: &prompt.Context{
 			WorkDir: t.TempDir(),
 		},
-		Result: &IterationResult{},
+		Result: &IterationResult{
+			CostUSD:      1.20,
+			InputTokens:  50,
+			OutputTokens: 21,
+		},
 	}
 
 	retry, terminal := r.runRefactorAndPostChecks(context.Background(), bc, true, 3)
@@ -898,6 +917,12 @@ func TestRunRefactorAndPostChecks_RecordsRefactorAndVerificationMetrics(t *testi
 	}
 	if bc.Result.PhaseMetrics[0].CycleNumber != 3 || bc.Result.PhaseMetrics[1].CycleNumber != 3 {
 		t.Fatalf("cycle numbers = (%d,%d), want (3,3)", bc.Result.PhaseMetrics[0].CycleNumber, bc.Result.PhaseMetrics[1].CycleNumber)
+	}
+	if math.Abs(bc.Result.PhaseMetrics[0].CostUSD-0.33) > 1e-9 {
+		t.Fatalf("refactor cost = %f, want 0.33", bc.Result.PhaseMetrics[0].CostUSD)
+	}
+	if bc.Result.PhaseMetrics[0].InputTokens != 12 || bc.Result.PhaseMetrics[0].OutputTokens != 7 {
+		t.Fatalf("refactor tokens = (%d,%d), want (12,7)", bc.Result.PhaseMetrics[0].InputTokens, bc.Result.PhaseMetrics[0].OutputTokens)
 	}
 	if !bc.Result.PhaseMetrics[0].Success || !bc.Result.PhaseMetrics[1].Success {
 		t.Fatal("expected both refactor and verification metrics to be successful")

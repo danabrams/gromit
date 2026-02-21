@@ -251,8 +251,17 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 	defer redCancel()
 	r.log("Red phase context: timeout=%s source=%s", redMeta.EffectiveTimeout.Round(time.Second), redMeta.TimeoutSource)
 	redPhaseStart := time.Now()
+	redBeforeCostUSD, redBeforeInputTokens, redBeforeOutputTokens := snapshotIterationUsage(bc.Result)
 	if err := r.methodologyExec.RunAcceptanceTestsWithRetry(redCtx, bc); err != nil {
-		return r.failATDDRedPhase(bc, redPhaseStart, err, "acceptance tests phase failed")
+		return r.failATDDRedPhase(
+			bc,
+			redPhaseStart,
+			redBeforeCostUSD,
+			redBeforeInputTokens,
+			redBeforeOutputTokens,
+			err,
+			"acceptance tests phase failed",
+		)
 	}
 
 	checkErr := r.methodologyExec.CheckTestsFailWithDiagnostic(redCtx, bc)
@@ -265,13 +274,35 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 
 		rewrite, ok := methodology.AsATDDRewrite(checkErr)
 		if !ok {
-			return r.failATDDRedPhase(bc, redPhaseStart, checkErr, "acceptance tests diagnostic check failed")
+			return r.failATDDRedPhase(
+				bc,
+				redPhaseStart,
+				redBeforeCostUSD,
+				redBeforeInputTokens,
+				redBeforeOutputTokens,
+				checkErr,
+				"acceptance tests diagnostic check failed",
+			)
 		}
-		if !r.runATDDRewriteRetryCheck(redCtx, bc, redPhaseStart, rewrite) {
+		if !r.runATDDRewriteRetryCheck(
+			redCtx,
+			bc,
+			redPhaseStart,
+			redBeforeCostUSD,
+			redBeforeInputTokens,
+			redBeforeOutputTokens,
+			rewrite,
+		) {
 			return false
 		}
 	}
-	r.recordPhaseMetric(bc, "red", 1, redPhaseStart, true)
+	redCostUSD, redInputTokens, redOutputTokens := phaseUsageDelta(
+		bc.Result,
+		redBeforeCostUSD,
+		redBeforeInputTokens,
+		redBeforeOutputTokens,
+	)
+	r.recordPhaseMetricWithUsage(bc, "red", 1, redPhaseStart, true, redCostUSD, redInputTokens, redOutputTokens)
 
 	bc.PromptCtx.IsRetry = false
 	bc.PromptCtx.PrevFailure = ""
@@ -287,8 +318,22 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 	return true
 }
 
-func (r *Runner) failATDDRedPhase(bc *runtypes.BeadContext, redPhaseStart time.Time, phaseErr error, message string) bool {
-	r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
+func (r *Runner) failATDDRedPhase(
+	bc *runtypes.BeadContext,
+	redPhaseStart time.Time,
+	beforeCostUSD float64,
+	beforeInputTokens int,
+	beforeOutputTokens int,
+	phaseErr error,
+	message string,
+) bool {
+	redCostUSD, redInputTokens, redOutputTokens := phaseUsageDelta(
+		bc.Result,
+		beforeCostUSD,
+		beforeInputTokens,
+		beforeOutputTokens,
+	)
+	r.recordPhaseMetricWithUsage(bc, "red", 1, redPhaseStart, false, redCostUSD, redInputTokens, redOutputTokens)
 	setPhaseAttribution(bc.Result, "red", phaseErr)
 	bc.Result.Error = fmt.Errorf("%s: %w", message, phaseErr)
 	return false
@@ -298,23 +343,48 @@ func (r *Runner) runATDDRewriteRetryCheck(
 	redCtx context.Context,
 	bc *runtypes.BeadContext,
 	redPhaseStart time.Time,
+	beforeCostUSD float64,
+	beforeInputTokens int,
+	beforeOutputTokens int,
 	rewrite *methodology.ErrATDDRewrite,
 ) bool {
 	bc.PromptCtx.FailureContext = rewrite.Feedback
 	bc.PromptCtx.IsRetry = true
 
 	if err := r.methodologyExec.RunAcceptanceTests(redCtx, bc); err != nil {
-		return r.failATDDRedPhase(bc, redPhaseStart, err, "acceptance tests rewrite phase failed")
+		return r.failATDDRedPhase(
+			bc,
+			redPhaseStart,
+			beforeCostUSD,
+			beforeInputTokens,
+			beforeOutputTokens,
+			err,
+			"acceptance tests rewrite phase failed",
+		)
 	}
 
 	r.refreshTouchedPackagesFromStartCommit(bc)
 	acceptanceCommands := methodology.AcceptanceCommands(r.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
 	validationResult, err := r.runDirectValidationCheck(redCtx, acceptanceCommands, bc.PromptCtx.WorkDir)
 	if err != nil {
-		return r.failATDDRedPhase(bc, redPhaseStart, err, "post-rewrite acceptance validation invocation")
+		return r.failATDDRedPhase(
+			bc,
+			redPhaseStart,
+			beforeCostUSD,
+			beforeInputTokens,
+			beforeOutputTokens,
+			err,
+			"post-rewrite acceptance validation invocation",
+		)
 	}
 	if validationResult == nil {
-		r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
+		redCostUSD, redInputTokens, redOutputTokens := phaseUsageDelta(
+			bc.Result,
+			beforeCostUSD,
+			beforeInputTokens,
+			beforeOutputTokens,
+		)
+		r.recordPhaseMetricWithUsage(bc, "red", 1, redPhaseStart, false, redCostUSD, redInputTokens, redOutputTokens)
 		bc.Result.Error = fmt.Errorf("post-rewrite acceptance validation returned no result")
 		return false
 	}
@@ -394,6 +464,28 @@ func snapshotIterationUsage(result *runtypes.IterationResult) (costUSD float64, 
 		return 0, 0, 0
 	}
 	return result.CostUSD, result.InputTokens, result.OutputTokens
+}
+
+func phaseUsageDelta(
+	result *runtypes.IterationResult,
+	beforeCostUSD float64,
+	beforeInputTokens int,
+	beforeOutputTokens int,
+) (costUSD float64, inputTokens int, outputTokens int) {
+	afterCostUSD, afterInputTokens, afterOutputTokens := snapshotIterationUsage(result)
+	costUSD = afterCostUSD - beforeCostUSD
+	inputTokens = afterInputTokens - beforeInputTokens
+	outputTokens = afterOutputTokens - beforeOutputTokens
+	if costUSD < 0 {
+		costUSD = 0
+	}
+	if inputTokens < 0 {
+		inputTokens = 0
+	}
+	if outputTokens < 0 {
+		outputTokens = 0
+	}
+	return costUSD, inputTokens, outputTokens
 }
 
 func (r *Runner) recordGreenPhaseMetric(
@@ -511,14 +603,39 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 	r.log("Refactor phase context: timeout=%s source=%s", refactorMeta.EffectiveTimeout.Round(time.Second), refactorMeta.TimeoutSource)
 
 	refactorPhaseStart := time.Now()
+	refactorBeforeCostUSD, refactorBeforeInputTokens, refactorBeforeOutputTokens := snapshotIterationUsage(bc.Result)
 	refactorResult := r.methodologyExec.RunRefactorPhaseWithResult(refactorCtx, bc)
+	refactorCostUSD, refactorInputTokens, refactorOutputTokens := phaseUsageDelta(
+		bc.Result,
+		refactorBeforeCostUSD,
+		refactorBeforeInputTokens,
+		refactorBeforeOutputTokens,
+	)
 	if !refactorResult.Successful {
-		r.recordPhaseMetric(bc, "refactor", cycleNumber, refactorPhaseStart, false)
+		r.recordPhaseMetricWithUsage(
+			bc,
+			"refactor",
+			cycleNumber,
+			refactorPhaseStart,
+			false,
+			refactorCostUSD,
+			refactorInputTokens,
+			refactorOutputTokens,
+		)
 		bc.Result.FailurePhase = failurephase.Build
 		bc.Result.Error = fmt.Errorf("refactor phase failed: %s", refactorResult.Reason)
 		return false, bc.Result
 	}
-	r.recordPhaseMetric(bc, "refactor", cycleNumber, refactorPhaseStart, true)
+	r.recordPhaseMetricWithUsage(
+		bc,
+		"refactor",
+		cycleNumber,
+		refactorPhaseStart,
+		true,
+		refactorCostUSD,
+		refactorInputTokens,
+		refactorOutputTokens,
+	)
 
 	if r.cfg.Validation.Enabled {
 		// --- Deadline guard: skip decision only ---
