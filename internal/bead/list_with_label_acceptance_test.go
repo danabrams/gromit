@@ -17,7 +17,7 @@ func TestListWithLabel_ReturnsUnlimitedResults(t *testing.T) {
 	for i := 0; i < beadCount; i++ {
 		_, err := c.Create(fmt.Sprintf("Unlimited bead %02d", i), 1, []string{testLabel}, []string{})
 		if err != nil {
-			t.Skipf("Cannot create test bead %d: %v", i, err)
+			t.Fatalf("Cannot create test bead %d: %v", i, err)
 		}
 	}
 

@@ -17,7 +17,7 @@ func newIsolatedClient(t *testing.T) *Client {
 	cmd := exec.Command("bd", "init")
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Skipf("bd init not available: %v: %s", err, out)
+		t.Fatalf("bd init not available: %v: %s", err, out)
 	}
 	return &Client{binary: "bd", Dir: dir}
 }

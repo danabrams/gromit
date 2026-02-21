@@ -1,3 +1,5 @@
+//go:build acceptance
+
 package main
 
 import (
@@ -40,30 +42,30 @@ func TestEpicBeadCountsReclassified_ClosedCountsIncludeAllStatuses(t *testing.T)
 	// Create multiple beads with the test label
 	openBead1, err := client.Create("Open task 1", 1, []string{testLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create first open bead: %v", err)
+		t.Fatalf("Cannot create first open bead: %v", err)
 	}
 
 	closedBead1, err := client.Create("Closed task 1", 1, []string{testLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create first closed bead: %v", err)
+		t.Fatalf("Cannot create first closed bead: %v", err)
 	}
 
 	closedBead2, err := client.Create("Closed task 2", 1, []string{testLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create second closed bead: %v", err)
+		t.Fatalf("Cannot create second closed bead: %v", err)
 	}
 
 	openBead2, err := client.Create("Open task 2", 1, []string{testLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create second open bead: %v", err)
+		t.Fatalf("Cannot create second open bead: %v", err)
 	}
 
 	// Close two beads
 	if err := client.Close(closedBead1.ID); err != nil {
-		t.Skipf("Cannot close first bead: %v", err)
+		t.Fatalf("Cannot close first bead: %v", err)
 	}
 	if err := client.Close(closedBead2.ID); err != nil {
-		t.Skipf("Cannot close second bead: %v", err)
+		t.Fatalf("Cannot close second bead: %v", err)
 	}
 
 	// Call getBeadCounts
@@ -107,10 +109,10 @@ func TestEpicBeadCountsReclassified_AllClosedBeadsCounted(t *testing.T) {
 	for i := 0; i < beadCount; i++ {
 		bead, err := client.Create("Task to be closed", 1, []string{testLabel}, []string{})
 		if err != nil {
-			t.Skipf("Cannot create bead %d: %v", i, err)
+			t.Fatalf("Cannot create bead %d: %v", i, err)
 		}
 		if err := client.Close(bead.ID); err != nil {
-			t.Skipf("Cannot close bead %d: %v", i, err)
+			t.Fatalf("Cannot close bead %d: %v", i, err)
 		}
 	}
 
@@ -142,7 +144,7 @@ func TestGetBeadCounts_HandlesOnlyOpenBeads(t *testing.T) {
 	for i := 0; i < beadCount; i++ {
 		_, err := client.Create("Open task", 1, []string{testLabel}, []string{})
 		if err != nil {
-			t.Skipf("Cannot create bead %d: %v", i, err)
+			t.Fatalf("Cannot create bead %d: %v", i, err)
 		}
 	}
 

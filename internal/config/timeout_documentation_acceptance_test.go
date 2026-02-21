@@ -87,7 +87,7 @@ func TestProjectGromitYAML_ModelTimeoutComments(t *testing.T) {
 		if lineContent == "" {
 			if !strings.Contains(content[opusIdx:], "stall_timeout:") &&
 				!strings.Contains(content[opusIdx:], "bead_timeout:") {
-				t.Skip("opus entry has no timeout overrides, skipping comment check")
+				t.Fatal("opus entry has no timeout overrides, skipping comment check")
 			}
 			return
 		}
@@ -113,7 +113,7 @@ func TestProjectGromitYAML_ModelTimeoutComments(t *testing.T) {
 		// Check stall_timeout comment (haiku's primary override)
 		lineContent := extractLineWithField(content, haikuIdx, "stall_timeout:")
 		if lineContent == "" {
-			t.Skip("haiku has no stall_timeout override, skipping comment check")
+			t.Fatal("haiku has no stall_timeout override, skipping comment check")
 		}
 
 		if !strings.Contains(lineContent, "#") {

@@ -598,10 +598,6 @@ func TestMergeHookSettingsJSONFormatting(t *testing.T) {
 // TestInstallSkillIntegrationFullCommand tests running the full install-skill command
 // in a temp directory and verifying all artifacts are created correctly.
 func TestInstallSkillIntegrationFullCommand(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
 	tmpDir := t.TempDir()
 
 	// Create a test project directory
@@ -731,10 +727,6 @@ func TestInstallSkillIntegrationFullCommand(t *testing.T) {
 // TestInstallSkillIntegrationIdempotency verifies that running install-skill
 // multiple times doesn't duplicate hooks and preserves existing files.
 func TestInstallSkillIntegrationIdempotency(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
 	tmpDir := t.TempDir()
 
 	// Create a test project directory
@@ -837,10 +829,6 @@ func TestInstallSkillIntegrationIdempotency(t *testing.T) {
 // TestInstallSkillIntegrationForceFlag verifies that the --force flag
 // overwrites existing files when specified.
 func TestInstallSkillIntegrationForceFlag(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
 	tmpDir := t.TempDir()
 
 	// Create a test project directory
@@ -924,10 +912,6 @@ func TestInstallSkillIntegrationForceFlag(t *testing.T) {
 // TestInstallSkillIntegrationPreservesExistingHooks verifies that install-skill
 // preserves existing hooks in settings.json when adding the gromit hook.
 func TestInstallSkillIntegrationPreservesExistingHooks(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
 	tmpDir := t.TempDir()
 
 	// Create a test project directory

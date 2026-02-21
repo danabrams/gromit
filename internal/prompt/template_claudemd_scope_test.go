@@ -10,7 +10,7 @@ import (
 func TestTemplateClaudeMDScope(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	if _, err := os.Stat(filepath.Join(templatesDir, "PROMPT_build.md")); os.IsNotExist(err) {
-		t.Skipf("skipping: real templates not found at %s", templatesDir)
+		t.Fatalf("skipping: real templates not found at %s", templatesDir)
 	}
 
 	assertTemplateClaudeMDMarkers := func(t *testing.T, templateNames []string, wantConditional, wantInsertion bool) {

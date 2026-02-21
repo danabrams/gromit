@@ -17,7 +17,7 @@ func TestReadyWithLabel_IntegrationCallsBdWithLabelFlag(t *testing.T) {
 	testLabel := "spec:integration-test"
 	_, err := c.Create("Test task for label filtering", 1, []string{testLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create test bead: %v", err)
+		t.Fatalf("Cannot create test bead: %v", err)
 	}
 
 	// Call ReadyWithLabel - this should invoke bd with --label flag
@@ -49,12 +49,12 @@ func TestReadyWithLabel_IntegrationExcludesBeadsWithoutLabel(t *testing.T) {
 
 	_, err := c.Create("Task with label1", 1, []string{label1}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create first test bead: %v", err)
+		t.Fatalf("Cannot create first test bead: %v", err)
 	}
 
 	_, err = c.Create("Task with label2", 1, []string{label2}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create second test bead: %v", err)
+		t.Fatalf("Cannot create second test bead: %v", err)
 	}
 
 	// Request beads with label1 only
@@ -86,7 +86,7 @@ func TestListWithLabel_IntegrationCallsBdWithLabelFlag(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		_, err := c.Create("Test task for list filtering", 1, []string{testLabel}, []string{})
 		if err != nil {
-			t.Skipf("Cannot create test bead %d: %v", i, err)
+			t.Fatalf("Cannot create test bead %d: %v", i, err)
 		}
 	}
 
@@ -120,12 +120,12 @@ func TestListWithLabel_IntegrationExcludesBeadsWithoutLabel(t *testing.T) {
 
 	_, err := c.Create("Task with labelA", 1, []string{labelA}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create first test bead: %v", err)
+		t.Fatalf("Cannot create first test bead: %v", err)
 	}
 
 	_, err = c.Create("Task with labelB", 1, []string{labelB}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create second test bead: %v", err)
+		t.Fatalf("Cannot create second test bead: %v", err)
 	}
 
 	// Request beads with labelA only
@@ -198,7 +198,7 @@ func TestReadyWithLabel_IntegrationExcludesEpics(t *testing.T) {
 	// First create a regular task with the label
 	_, err := c.Create("Regular task", 1, []string{testLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create test task: %v", err)
+		t.Fatalf("Cannot create test task: %v", err)
 	}
 
 	// Call ReadyWithLabel
@@ -307,7 +307,7 @@ func TestReadyWithLabel_IntegrationWithSpecialCharacters(t *testing.T) {
 			// Create a bead with the label
 			_, err := c.Create("Test task", 1, []string{tt.label}, []string{})
 			if err != nil {
-				t.Skipf("Cannot create test bead with label %q: %v", tt.label, err)
+				t.Fatalf("Cannot create test bead with label %q: %v", tt.label, err)
 			}
 
 			// Call ReadyWithLabel
@@ -340,7 +340,7 @@ func TestListWithLabel_IntegrationReturnsMultipleBeadsInOrder(t *testing.T) {
 	for _, title := range titles {
 		bead, err := c.Create(title, 1, []string{testLabel}, []string{})
 		if err != nil {
-			t.Skipf("Cannot create test bead %q: %v", title, err)
+			t.Fatalf("Cannot create test bead %q: %v", title, err)
 		}
 		createdIDs = append(createdIDs, bead.ID)
 	}
@@ -379,7 +379,7 @@ func TestListWithLabel_IntegrationExcludesEpics(t *testing.T) {
 	// Create a regular task with the label
 	_, err := c.Create("Regular task", 1, []string{testLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create test task: %v", err)
+		t.Fatalf("Cannot create test task: %v", err)
 	}
 
 	// List beads with the label
@@ -399,7 +399,7 @@ func TestListWithLabel_IntegrationExcludesEpics(t *testing.T) {
 // TestReadyWithLabel_CommandContract verifies the exact bd command contract
 func TestReadyWithLabel_CommandContract(t *testing.T) {
 	if os.Getenv("BD_AVAILABLE") != "true" {
-		t.Skip("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
+		t.Fatal("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
 	}
 
 	c := newIsolatedClient(t)
@@ -409,7 +409,7 @@ func TestReadyWithLabel_CommandContract(t *testing.T) {
 	// Create a test bead
 	_, err := c.Create("Contract test bead", 1, []string{testLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create test bead: %v", err)
+		t.Fatalf("Cannot create test bead: %v", err)
 	}
 
 	// Manually execute the exact command we expect ReadyWithLabel to use
@@ -440,7 +440,7 @@ func TestReadyWithLabel_CommandContract(t *testing.T) {
 // ReadyWithLabel keeps honoring both the label filter behavior and the bd command contract.
 func TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract(t *testing.T) {
 	if os.Getenv("BD_AVAILABLE") != "true" {
-		t.Skip("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
+		t.Fatal("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
 	}
 
 	c := newIsolatedClient(t)
@@ -456,12 +456,12 @@ func TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract(t *t
 	// Higher-priority non-matching bead should not be returned for requestedLabel.
 	nonMatchingBead, err := c.Create("Higher priority non-matching bead", nonMatchPriority, []string{otherLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create non-matching test bead: %v", err)
+		t.Fatalf("Cannot create non-matching test bead: %v", err)
 	}
 
 	matchingBead, err := c.Create("Lower priority matching bead", matchPriority, []string{requestedLabel}, []string{})
 	if err != nil {
-		t.Skipf("Cannot create matching test bead: %v", err)
+		t.Fatalf("Cannot create matching test bead: %v", err)
 	}
 
 	expectedCmd := []string{"bd", "ready", "--json", "--limit", readyLimit, "--label", requestedLabel}
@@ -505,7 +505,7 @@ func TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract(t *t
 // TestListWithLabel_CommandContract verifies the exact bd command contract
 func TestListWithLabel_CommandContract(t *testing.T) {
 	if os.Getenv("BD_AVAILABLE") != "true" {
-		t.Skip("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
+		t.Fatal("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
 	}
 
 	c := newIsolatedClient(t)
@@ -516,12 +516,12 @@ func TestListWithLabel_CommandContract(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		bead, err := c.Create("List contract test bead", 1, []string{testLabel}, []string{})
 		if err != nil {
-			t.Skipf("Cannot create test bead %d: %v", i, err)
+			t.Fatalf("Cannot create test bead %d: %v", i, err)
 		}
 		// Close the first bead to test --all flag behavior
 		if i == 0 {
 			if err := c.Close(bead.ID); err != nil {
-				t.Skipf("Cannot close test bead: %v", err)
+				t.Fatalf("Cannot close test bead: %v", err)
 			}
 		}
 	}

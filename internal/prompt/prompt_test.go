@@ -1173,7 +1173,7 @@ func TestRenderDecomposeAntiOverlapGuidance(t *testing.T) {
 	// Verify template exists
 	templatePath := filepath.Join(templatesDir, "PROMPT_decompose.md")
 	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		t.Skipf("skipping: real template not found at %s", templatePath)
+		t.Fatalf("skipping: real template not found at %s", templatePath)
 	}
 
 	r := &Renderer{templatesDir: templatesDir}
@@ -1494,7 +1494,7 @@ ImplFiles: {{len .ImplFileContents}}`
 func TestMethodologyPhaseShaping_TemplateCompatibility(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	if _, err := os.Stat(filepath.Join(templatesDir, "PROMPT_acceptance_tests.md")); os.IsNotExist(err) {
-		t.Skipf("skipping: real templates not found at %s", templatesDir)
+		t.Fatalf("skipping: real templates not found at %s", templatesDir)
 	}
 
 	r := &Renderer{templatesDir: templatesDir}
@@ -1862,7 +1862,7 @@ func TestRenderATDDDiagnosticRealTemplateIncludesVerdictContract(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	templatePath := filepath.Join(templatesDir, "PROMPT_atdd_diagnostic.md")
 	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		t.Skipf("skipping: real template not found at %s", templatePath)
+		t.Fatalf("skipping: real template not found at %s", templatePath)
 	}
 
 	r := &Renderer{templatesDir: templatesDir}
@@ -1894,7 +1894,7 @@ func TestRenderCoverageValidationRealTemplateIncludesInputs(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	templatePath := filepath.Join(templatesDir, "PROMPT_coverage_validation.md")
 	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		t.Skipf("skipping: real template not found at %s", templatePath)
+		t.Fatalf("skipping: real template not found at %s", templatePath)
 	}
 
 	r := &Renderer{templatesDir: templatesDir}
@@ -1930,7 +1930,7 @@ func TestRenderTestFixRealTemplateContainsRequiredSections(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	templatePath := filepath.Join(templatesDir, "PROMPT_test_fix.md")
 	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		t.Skipf("skipping: real template not found at %s", templatePath)
+		t.Fatalf("skipping: real template not found at %s", templatePath)
 	}
 
 	r := &Renderer{templatesDir: templatesDir}
