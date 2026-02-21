@@ -443,7 +443,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	}
 
 	// Create adapters
-	promptRendererAdapter := &cliPromptRenderer{
+	reviewRendererAdapter := &cliPromptRenderer{
 		renderer: renderer,
 	}
 
@@ -477,7 +477,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	}
 
 	deps := &pipeline.Deps{
-		ReviewRenderer:   promptRendererAdapter,
+		ReviewRenderer:   reviewRendererAdapter,
 		ClaudeClient:     claudeAdapter,
 		BeadClient:       beadAdapter,
 		BacklogClient:    backlogAdapter,
