@@ -419,6 +419,127 @@ func TestExecuteBuildLoop_MethodologyValidationPhaseClampedByRunDeadline(t *test
 	}
 }
 
+func TestExecuteBuildAndMethodologyLoop_ATDDOnlySkipsRefactor(t *testing.T) {
+	refactorInvoked := false
+	validationCalls := 0
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		validationCalls++
+		return "ok", "", 0, nil
+	}
+	r, _, _ := setupDirectValidationRunner(t, nil, cmdRunner)
+
+	r.cfg.Methodology.ATDD = true
+	r.cfg.Methodology.TDD = false
+	r.cfg.Refactor.MinFilesChanged = 0
+
+	r.methodologyExec = r.makeMethodologyExec()
+	r.methodologyExec.SetRefactorDeps(methodology.NewRefactorDeps(
+		func(startCommit string) (string, error) {
+			refactorInvoked = true
+			return testRefactorDiff, nil
+		},
+		func(ctx *prompt.Context) (string, error) { return testRefactorPrompt, nil },
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, *logger.StreamStats, error) {
+			return &claude.Result{Success: true}, nil, nil
+		},
+		nil,
+		func(commit string) error { return nil },
+		func() (string, error) { return testStartCommit, nil },
+	))
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-atdd-only", Title: "ATDD only"},
+		Tier:        provider.TierMedium,
+		StartCommit: testStartCommit,
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir: t.TempDir(),
+		},
+		Result: &IterationResult{},
+	}
+
+	result := r.executeBuildAndMethodologyLoop(context.Background(), bc, true, false, func() bool { return true })
+	if result.Error != nil {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+	if !result.Success {
+		t.Fatal("expected success")
+	}
+	if refactorInvoked {
+		t.Fatal("expected refactor phase to be skipped when only ATDD is active")
+	}
+	if validationCalls == 0 {
+		t.Fatal("expected intermediate validation to run in methodology mode")
+	}
+}
+
+func TestRunATDDPreBuildPhases_PreservesFailureContextBeforeATDDBuild(t *testing.T) {
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			ATDD: true,
+		},
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+	}
+	cfg.SetDefaults()
+
+	r, _, _ := setupDirectValidationRunner(t, cfg, nil)
+	r.methodologyExec = methodology.NewExecutorWithEscalation(
+		r.cfg,
+		r.output,
+		func(ctx *prompt.Context) (string, error) { return "acceptance prompt", nil },
+		func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error { return nil },
+		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "expected pre-build test failure", ExitCode: 1}, nil
+		},
+		nil,
+	)
+
+	var renderedCtx prompt.Context
+	r.renderer = &mockPromptRenderer{
+		RenderATDDBuildFn: func(ctx *prompt.Context) (string, error) {
+			renderedCtx = *ctx
+			return "atdd build prompt", nil
+		},
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:        &bead.Bead{ID: "test-atdd-failure-context", Title: "ATDD context"},
+		Tier:        provider.TierMedium,
+		StartCommit: testStartCommit,
+		ParentCtx:   context.Background(),
+		BeadTimeout: 300 * time.Second,
+		PromptCtx: &prompt.Context{
+			WorkDir:         t.TempDir(),
+			FailureContext:  "keep-this-context",
+			IsRetry:         true,
+			PrevFailure:     "previous validation failure",
+			RecentLearnings: nil,
+		},
+		Result: &IterationResult{},
+	}
+
+	if ok := r.runATDDPreBuildPhases(context.Background(), bc); !ok {
+		t.Fatal("expected runATDDPreBuildPhases to succeed")
+	}
+	if renderedCtx.FailureContext != "keep-this-context" {
+		t.Fatalf("rendered FailureContext = %q, want %q", renderedCtx.FailureContext, "keep-this-context")
+	}
+	if renderedCtx.IsRetry {
+		t.Fatal("rendered IsRetry should be false for ATDD build prompt")
+	}
+	if renderedCtx.PrevFailure != "" {
+		t.Fatalf("rendered PrevFailure = %q, want empty", renderedCtx.PrevFailure)
+	}
+	if bc.PromptCtx.FailureContext != "keep-this-context" {
+		t.Fatalf("bead FailureContext = %q, want %q", bc.PromptCtx.FailureContext, "keep-this-context")
+	}
+}
+
 func TestRunRefactorAndPostChecks_ValidationPhaseClampedByRunDeadline(t *testing.T) {
 	var validationCtxDeadline time.Time
 	var validationCtxHadDeadline bool
