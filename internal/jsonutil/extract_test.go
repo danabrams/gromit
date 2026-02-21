@@ -286,11 +286,25 @@ func TestExtractBracketedJSON(t *testing.T) {
 			expected: `{"text": "He said \"hello\""}`,
 		},
 		{
+			name:     "escaped backslash before quote in string",
+			input:    `{"text": "C:\\\\temp\\\"quoted\\\" file"}`,
+			open:     '{',
+			close:    '}',
+			expected: `{"text": "C:\\\\temp\\\"quoted\\\" file"}`,
+		},
+		{
 			name:     "braces in string",
 			input:    `{"text": "Contains {nested}"}`,
 			open:     '{',
 			close:    '}',
 			expected: `{"text": "Contains {nested}"}`,
+		},
+		{
+			name:     "array brackets in object string",
+			input:    `{"text": "Contains [array] markers"}`,
+			open:     '{',
+			close:    '}',
+			expected: `{"text": "Contains [array] markers"}`,
 		},
 		{
 			name:     "simple array",

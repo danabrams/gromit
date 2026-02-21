@@ -182,12 +182,12 @@ func extractBracketedJSON(text string, openBracket, closeBracket byte) string {
 			continue
 		}
 
-		if char == '\\' {
+		if inString && char == '\\' {
 			escapeNext = true
 			continue
 		}
 
-		if char == '"' && (i == 0 || text[i-1] != '\\') {
+		if char == '"' {
 			inString = !inString
 			continue
 		}
