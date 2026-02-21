@@ -1,7 +1,9 @@
 package main
 
 import (
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -80,5 +82,36 @@ func TestExplorePhaseConfigSelectsAgent_Reclassified(t *testing.T) {
 	}
 	if !strings.Contains(sourceStr, "agent.Resolve(r.cfg, phase, flagOverride, choosePicker") {
 		t.Fatal("explore agent resolver must pass through phase for phase-config selection")
+	}
+}
+
+func TestExploreResolverAdapterSingleSource(t *testing.T) {
+	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		contentStr := string(content)
+
+		if path != "adapters.go" && strings.Contains(contentStr, "agent.Resolve(") {
+			t.Errorf("%s must not call agent.Resolve directly; use cmdAgentResolver from adapters.go", path)
+		}
+		if path != "adapters.go" && strings.Contains(contentStr, "type exploreAgentResolver struct") {
+			t.Errorf("%s must not define exploreAgentResolver; resolver adapters are centralized in adapters.go", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk cmd/gromit files: %v", err)
 	}
 }
