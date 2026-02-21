@@ -15,7 +15,7 @@ import (
 
 // TestBDContract_SingleBeadRun verifies that gromit passes the correct arguments
 // to bd for ready, close, and sync subcommands during a single-bead run.
-// Note: bd show is not called during normal run - Ready returns full bead details.
+// Note: run flow calls bd show after bd ready to re-check status and backfill parent.
 func TestBDContract_SingleBeadRun(t *testing.T) {
 	env := setupTestEnv(t)
 
@@ -322,8 +322,8 @@ paths:
 		t.Fatalf("Failed to write gromit.yaml: %v", err)
 	}
 
-	// Run gromit status (which calls bd ready)
-	stdout, stderr, exitCode, err := runGromitWithEnv(env, "status")
+	// Run gromit queue (which calls bd ready to fetch actionable beads)
+	stdout, stderr, exitCode, err := runGromitWithEnv(env, "queue")
 	if err != nil {
 		t.Fatalf("Failed to run gromit: %v", err)
 	}
@@ -338,16 +338,13 @@ paths:
 		t.Fatalf("Failed to read call log: %v", err)
 	}
 
-	// Verify bd ready was called with limit 3 (optimized from 10 for performance)
+	// Verify bd ready was called.
+	// Queue uses the list-style ready query (sorted, unbounded) rather than Ready()'s --limit 3 path.
 	foundReady := false
 	for _, call := range calls {
-		if strings.Contains(call, "bd ready --json --limit") {
+		if strings.Contains(call, "bd ready --json") {
 			foundReady = true
-			// Verify it's limit 3 specifically
-			if !strings.Contains(call, "--limit 3") && !strings.Contains(call, "--limit 1") {
-				t.Errorf("Expected 'bd ready --json --limit 3' or '--limit 1', got: %s", call)
-			}
-			t.Logf("✓ Found ready call with limit: %s", call)
+			t.Logf("✓ Found ready call: %s", call)
 		}
 	}
 
@@ -357,7 +354,7 @@ paths:
 }
 
 // TestBDContract_ShowReturnsArrayWrappedJSON verifies that gromit handles
-// bd show's array-wrapped JSON format correctly
+// bd show's array-wrapped JSON format correctly during run preparation.
 func TestBDContract_ShowReturnsArrayWrappedJSON(t *testing.T) {
 	env := setupTestEnv(t)
 
@@ -405,9 +402,8 @@ paths:
 		t.Fatalf("Failed to write gromit.yaml: %v", err)
 	}
 
-	// Run gromit status - it calls bd ready but NOT bd show
-	// (show is only called during actual run, not during status)
-	stdout, stderr, exitCode, err := runGromitWithEnv(env, "status")
+	// Run one dry-run iteration so we exercise: bd ready -> bd show.
+	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1", "--dry-run")
 	if err != nil {
 		t.Fatalf("Failed to run gromit: %v", err)
 	}
@@ -416,27 +412,44 @@ paths:
 	t.Logf("Stdout: %s", stdout)
 	t.Logf("Stderr: %s", stderr)
 
-	// Verify bd ready was called (status calls ready, not show)
+	// Verify bd ready and bd show were both called, and in that order.
 	calls, err := filterCalls(env, "bd")
 	if err != nil {
 		t.Fatalf("Failed to read call log: %v", err)
 	}
 
 	foundReady := false
+	foundShow := false
+	readyIndex := -1
+	showIndex := -1
 	for _, call := range calls {
 		if strings.Contains(call, "bd ready") {
 			foundReady = true
 			t.Logf("✓ Found ready call: %s", call)
-			break
+		}
+	}
+	for i, call := range calls {
+		if readyIndex == -1 && strings.Contains(call, "bd ready") {
+			readyIndex = i
+		}
+		if showIndex == -1 && strings.Contains(call, "bd show test-bead-1 --json") {
+			showIndex = i
+			foundShow = true
+			t.Logf("✓ Found show call: %s", call)
 		}
 	}
 
 	if !foundReady {
 		t.Errorf("Expected 'bd ready' call. Calls: %v", calls)
 	}
+	if !foundShow {
+		t.Errorf("Expected 'bd show test-bead-1 --json' call. Calls: %v", calls)
+	}
+	if readyIndex >= 0 && showIndex >= 0 && readyIndex > showIndex {
+		t.Errorf("Expected bd ready to happen before bd show. Calls: %v", calls)
+	}
 
-	// Verify the output contains bead information
-	// gromit status should display the bead details from ready output
+	// Verify dry-run output references the selected bead.
 	if !strings.Contains(stdout, "test-bead-1") {
 		t.Errorf("Expected stdout to contain bead ID 'test-bead-1', got: %s", stdout)
 	}
@@ -592,9 +605,12 @@ Create a test file and commit it.
 		t.Logf("  %d: %s", i+1, call)
 	}
 
-	// Verify the sequence: ready, close, sync
+	// Verify the sequence: ready, show, close, sync.
+	// Intentional order: run uses `bd show` after `bd ready` to re-check status
+	// and backfill parent data before deciding whether to close the bead.
 	expectedSequence := []string{
 		"bd ready --json --limit 3",
+		"bd show test-bead-1 --json",
 		"bd close test-bead-1",
 		"bd sync",
 	}
