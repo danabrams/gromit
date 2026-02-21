@@ -714,6 +714,7 @@ func TestFormatSPCSummary(t *testing.T) {
 			ControlLimits: []logger.TrendControlLimit{
 				{Metric: "rolling_success_rate", Latest: 0.8, LCL: 0.5, UCL: 0.9},
 				{Metric: "rolling_escalation_rate", Latest: 0.1, LCL: 0.0, UCL: 0.2},
+				{Metric: "rolling_quality_score", Latest: 0.74, LCL: 0.6, UCL: 0.9},
 				{Metric: "rolling_avg_duration_ms", Latest: 90000, LCL: 30000, UCL: 180000},
 			},
 			Anomalies: []logger.TrendAnomaly{
@@ -727,6 +728,7 @@ func TestFormatSPCSummary(t *testing.T) {
 			"Window:   30 iterations (120 total)",
 			"Success: 80% (limits 50%..90%)",
 			"Escalate: 10% (limits 0%..20%)",
+			"Quality: 74% (limits 60%..90%)",
 			"Duration: 1m (limits 30s..3m)",
 			"Anomaly:  1 (escalation, moderate)",
 		}

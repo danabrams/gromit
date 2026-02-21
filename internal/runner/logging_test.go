@@ -198,6 +198,38 @@ func TestWriteIterationLog_PropagatesTierFieldsToJSONL(t *testing.T) {
 	}
 }
 
+func TestWriteIterationLog_ComputesQualityScore(t *testing.T) {
+	mockLog := &mockIterationLogger{}
+	r := &Runner{
+		logger: mockLog,
+		output: &strings.Builder{},
+	}
+
+	result := &runtypes.IterationResult{
+		BeadID:            "bead-quality-1",
+		BeadTitle:         "Quality scoring test",
+		Model:             "haiku",
+		Success:           true,
+		CriteriaTotal:     10,
+		CriteriaCovered:   8,
+		ValidationRetried: true,
+		Escalated:         true,
+		ReviewFixesNeeded: 1,
+	}
+
+	r.writeIterationLog(1, result)
+
+	if len(mockLog.Logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(mockLog.Logs))
+	}
+	if mockLog.Logs[0].ReviewFixesNeeded != 1 {
+		t.Fatalf("ReviewFixesNeeded = %d, want 1", mockLog.Logs[0].ReviewFixesNeeded)
+	}
+	if mockLog.Logs[0].QualityScore != 0.5 {
+		t.Fatalf("QualityScore = %v, want 0.5", mockLog.Logs[0].QualityScore)
+	}
+}
+
 func TestWriteIterationLog_WritesTDDMetricsToJSONL(t *testing.T) {
 	r, tmpDir := newTestRunnerWithLogger(t, false)
 	result := &IterationResult{

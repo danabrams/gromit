@@ -797,6 +797,7 @@ func TestWriteIterationLog_PropagatesCoverageFields(t *testing.T) {
 		CriteriaCovered:    6,
 		CriteriaUntestable: 2,
 		UncoveredCriteria:  []string{"criterion X", "criterion Y"},
+		ReviewFixesNeeded:  2,
 	}
 
 	r.writeIterationLog(1, result)
@@ -835,6 +836,12 @@ func TestWriteIterationLog_PropagatesCoverageFields(t *testing.T) {
 	}
 	if uncovered[0] != "criterion X" || uncovered[1] != "criterion Y" {
 		t.Fatalf("uncovered_criteria = %v, want [criterion X criterion Y]", uncovered)
+	}
+	if got := entry["review_fixes_needed"]; got != float64(2) {
+		t.Fatalf("review_fixes_needed = %v, want 2", got)
+	}
+	if got := entry["quality_score"]; got != 0.65 {
+		t.Fatalf("quality_score = %v, want 0.65", got)
 	}
 }
 

@@ -37,6 +37,8 @@ type IterationLog struct {
 	Outcome                 string    `json:"outcome,omitempty"`
 	ValidationRetried       bool      `json:"validation_retried,omitempty"`
 	TrivialAutoFixed        bool      `json:"trivial_auto_fixed,omitempty"`
+	ReviewFixesNeeded       int       `json:"review_fixes_needed,omitempty"`
+	QualityScore            float64   `json:"quality_score"`
 	UsageLimited            bool      `json:"usage_limited,omitempty"`
 	ValidationMode          string    `json:"validation_mode,omitempty"`
 	EstimatedFiles          int       `json:"estimated_files,omitempty"`

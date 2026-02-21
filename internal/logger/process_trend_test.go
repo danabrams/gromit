@@ -362,6 +362,14 @@ func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *test
 	assertFloatNear(t, reworkLimit.Latest, 0.25, "ReworkLatest")
 	assertFloatNear(t, reworkLimit.Mean, 2.0/3.0, "ReworkMean")
 	assertFloatNear(t, reworkLimit.StdDev, 0.4714045208, "ReworkStdDev")
+
+	qualityLimit, ok := findControlLimit(trend.ControlLimits, metricRollingQualityScore)
+	if !ok {
+		t.Fatalf("control limits missing %q", metricRollingQualityScore)
+	}
+	assertFloatNear(t, qualityLimit.Latest, 0.70, "QualityLatest")
+	assertFloatNear(t, qualityLimit.Mean, 0.40, "QualityMean")
+	assertFloatNear(t, qualityLimit.StdDev, 0, "QualityStdDev")
 }
 
 func TestBuildIterationMetrics_ComputesEWMAStateForCoreMetrics(t *testing.T) {
@@ -1200,6 +1208,8 @@ func makeCoreMetricForControlLimitTest(success, firstPassSuccess bool, durationM
 		InputTokens:           inputTokens,
 		RollingSuccessRate:    0.6,
 		RollingReworkRate:     0.25,
+		QualityScore:          0.4,
+		RollingQualityScore:   0.7,
 		RollingAvgDurationMs:  275,
 		RollingAvgCostUSD:     3.5,
 		RollingAvgInputTokens: 275,

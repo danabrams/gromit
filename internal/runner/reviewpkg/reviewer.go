@@ -474,6 +474,9 @@ func (r *Reviewer) RunPostSuccess(ctx context.Context, bc *runtypes.BeadContext)
 	}
 
 	r.log("Review: %s", reviewResult.Summary)
+	if bc.Result != nil {
+		bc.Result.ReviewFixesNeeded = len(reviewResult.FixesApplied)
+	}
 
 	// If fixes were applied, re-validate
 	if len(reviewResult.FixesApplied) > 0 && r.cfg.Validation.Enabled && r.validateFn != nil {

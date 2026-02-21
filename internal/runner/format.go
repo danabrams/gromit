@@ -316,6 +316,7 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 	lines = append(lines, fmt.Sprintf("  Window:   %d iterations (%d total)", trend.WindowSize, trend.TotalIterations))
 	lines = append(lines, formatSPCLine("Success", limits["rolling_success_rate"], true))
 	lines = append(lines, formatSPCLine("Escalate", limits["rolling_escalation_rate"], true))
+	lines = append(lines, formatSPCLine("Quality", limits["rolling_quality_score"], true))
 	lines = append(lines, formatSPCLine("Duration", limits["rolling_avg_duration_ms"], false))
 
 	if len(trend.Anomalies) == 0 {
@@ -364,6 +365,8 @@ func simplifySPCMetric(metric string) string {
 		return "first-pass"
 	case "rolling_escalation_rate":
 		return "escalation"
+	case "rolling_quality_score":
+		return "quality"
 	case "rolling_avg_duration_ms":
 		return "duration"
 	case "rolling_avg_cost_usd":

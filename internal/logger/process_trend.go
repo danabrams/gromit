@@ -35,6 +35,7 @@ const (
 	metricRollingFirstPassSuccess  = "rolling_first_pass_success_rate"
 	metricRollingReworkRate        = "rolling_rework_rate"
 	metricRollingEscalationRate    = "rolling_escalation_rate"
+	metricRollingQualityScore      = "rolling_quality_score"
 	metricRollingAvgDurationMs     = "rolling_avg_duration_ms"
 	metricRollingAvgValidationMs   = "rolling_avg_validation_ms"
 	metricRollingAvgCostUSD        = "rolling_avg_cost_usd"
@@ -93,6 +94,11 @@ var trendControlLimitSeries = []metricSeriesDefinition{
 		name:          metricRollingEscalationRate,
 		latestSample:  func(m IterationMetric) float64 { return m.RollingEscalationRate },
 		historySample: func(m IterationMetric) float64 { return m.RollingEscalationRate },
+	},
+	{
+		name:          metricRollingQualityScore,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingQualityScore },
+		historySample: func(m IterationMetric) float64 { return m.QualityScore },
 	},
 	{
 		name:          metricRollingAvgDurationMs,
@@ -173,6 +179,7 @@ type IterationMetric struct {
 	Success                      bool                      `json:"success"`
 	FirstPassSuccess             bool                      `json:"first_pass_success"`
 	Escalated                    bool                      `json:"escalated"`
+	QualityScore                 float64                   `json:"quality_score"`
 	DurationMs                   int64                     `json:"duration_ms"`
 	ValidationDurationMs         int64                     `json:"validation_duration_ms,omitempty"`
 	CostUSD                      float64                   `json:"cost_usd"`
@@ -184,6 +191,7 @@ type IterationMetric struct {
 	RollingFirstPassSuccess      float64                   `json:"rolling_first_pass_success_rate"`
 	RollingReworkRate            float64                   `json:"rolling_rework_rate"`
 	RollingEscalationRate        float64                   `json:"rolling_escalation_rate"`
+	RollingQualityScore          float64                   `json:"rolling_quality_score"`
 	RollingAvgDurationMs         float64                   `json:"rolling_avg_duration_ms"`
 	RollingP95DurationMs         float64                   `json:"rolling_p95_duration_ms"`
 	RollingAvgValidationMs       float64                   `json:"rolling_avg_validation_ms"`
@@ -251,6 +259,7 @@ type ProcessTrendWindow struct {
 	FirstPassSuccess      float64 `json:"first_pass_success_rate"`
 	ReworkRate            float64 `json:"rework_rate"`
 	EscalationRate        float64 `json:"escalation_rate"`
+	QualityScore          float64 `json:"quality_score"`
 	AvgDurationMs         float64 `json:"avg_duration_ms"`
 	P95DurationMs         float64 `json:"p95_duration_ms"`
 	AvgValidationMs       float64 `json:"avg_validation_ms"`
@@ -493,17 +502,25 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 		hasPrevious = true
 
 		metrics = append(metrics, IterationMetric{
-			Timestamp:                    entry.Timestamp,
-			Iteration:                    entry.Iteration,
-			BeadID:                       entry.BeadID,
-			Model:                        entry.Model,
-			ReasoningEffort:              entry.ReasoningEffort,
-			Provider:                     entry.Provider,
-			FailurePhase:                 entry.FailurePhase,
-			FailureCategory:              entry.FailureCategory,
-			Success:                      entry.Success,
-			FirstPassSuccess:             entry.FirstPassSuccess,
-			Escalated:                    entry.Escalated,
+			Timestamp:        entry.Timestamp,
+			Iteration:        entry.Iteration,
+			BeadID:           entry.BeadID,
+			Model:            entry.Model,
+			ReasoningEffort:  entry.ReasoningEffort,
+			Provider:         entry.Provider,
+			FailurePhase:     entry.FailurePhase,
+			FailureCategory:  entry.FailureCategory,
+			Success:          entry.Success,
+			FirstPassSuccess: entry.FirstPassSuccess,
+			Escalated:        entry.Escalated,
+			QualityScore: ComputeQualityScore(
+				entry.CriteriaTotal,
+				entry.CriteriaCovered,
+				entry.ValidationRetried,
+				entry.TrivialAutoFixed,
+				entry.Escalated,
+				entry.ReviewFixesNeeded,
+			),
 			DurationMs:                   entry.DurationMs,
 			ValidationDurationMs:         entry.ValidationDurationMs,
 			CostUSD:                      entry.CostUSD,
@@ -517,6 +534,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingFirstPassSuccess:      w.FirstPassSuccess,
 			RollingReworkRate:            w.ReworkRate,
 			RollingEscalationRate:        w.EscalationRate,
+			RollingQualityScore:          w.QualityScore,
 			RollingAvgDurationMs:         w.AvgDurationMs,
 			RollingP95DurationMs:         w.P95DurationMs,
 			RollingAvgValidationMs:       w.AvgValidationMs,
@@ -565,6 +583,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		FirstPassSuccess:      latestMetric.RollingFirstPassSuccess,
 		ReworkRate:            latestMetric.RollingReworkRate,
 		EscalationRate:        latestMetric.RollingEscalationRate,
+		QualityScore:          latestMetric.RollingQualityScore,
 		AvgDurationMs:         latestMetric.RollingAvgDurationMs,
 		P95DurationMs:         latestMetric.RollingP95DurationMs,
 		AvgValidationMs:       latestMetric.RollingAvgValidationMs,
@@ -1065,6 +1084,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 	var validationDurationTotal int64
 	var validationDurationCount int
 	var costTotal float64
+	var qualityTotal float64
 	var inputTokenTotal int64
 	var mttrTotal int64
 	var mttrCount int
@@ -1102,6 +1122,14 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 			validationDurations = append(validationDurations, e.ValidationDurationMs)
 		}
 		costTotal += e.CostUSD
+		qualityTotal += ComputeQualityScore(
+			e.CriteriaTotal,
+			e.CriteriaCovered,
+			e.ValidationRetried,
+			e.TrivialAutoFixed,
+			e.Escalated,
+			e.ReviewFixesNeeded,
+		)
 		inputTokenTotal += int64(e.InputTokens)
 		durations = append(durations, e.DurationMs)
 
@@ -1136,6 +1164,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		FirstPassSuccess:      float64(firstPasses) / count,
 		ReworkRate:            float64(reworkIterations) / count,
 		EscalationRate:        float64(escalations) / count,
+		QualityScore:          qualityTotal / count,
 		AvgDurationMs:         avgDuration,
 		P95DurationMs:         percentileInt64(durations, p95Percentile),
 		AvgValidationMs:       avgValidationDuration,

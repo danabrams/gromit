@@ -80,6 +80,7 @@ type IterationResult struct {
 	InputTokens             int
 	OutputTokens            int
 	ReviewBrokeValidation   bool   // true when review fixes broke previously-passing validation
+	ReviewFixesNeeded       int    // number of review fixes required in post-success review
 	AlreadyDone             bool   // true when ATDD detected work was already complete
 	ValidationRetried       bool   // true when validation recovery was attempted
 	TrivialAutoFixed        bool   // true when auto-fix resolved validation without Claude
