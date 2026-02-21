@@ -2,7 +2,10 @@ package escalation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -406,9 +410,9 @@ func TestAnalyzeAndHandleFailure_RecoverableRetryTruncatesFailureContextTail(t *
 	}
 }
 
-func TestAnalyzeAndHandleFailure_AnalysisErrorEscalates(t *testing.T) {
-	// When the analyzer returns an error, the handler should fall back to
-	// HandleEscalation logic (escalate tier or decompose).
+func TestAnalyzeAndHandleFailure_AnalysisErrorRetriesCommonCauseFirst(t *testing.T) {
+	// Analyzer outages are treated as common-cause by default, so the first
+	// failure should retry at the same tier before escalation.
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return nil, fmt.Errorf("analysis service unavailable")
@@ -423,12 +427,100 @@ func TestAnalyzeAndHandleFailure_AnalysisErrorEscalates(t *testing.T) {
 	claudeResult := &claude.Result{Output: "failed build output"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
-	// Should escalate from low->medium tier
 	if !continueLoop {
-		t.Error("AnalyzeAndHandleFailure should escalate when analysis fails and higher tier available")
+		t.Error("AnalyzeAndHandleFailure should retry when analysis fails on first common-cause failure")
+	}
+	if bc.Tier != provider.TierLow {
+		t.Errorf("Tier = %q, want %q for same-tier retry", bc.Tier, provider.TierLow)
+	}
+	if bc.RetriesThisModel != 1 {
+		t.Errorf("RetriesThisModel = %d, want 1", bc.RetriesThisModel)
+	}
+}
+
+func TestAnalyzeAndHandleFailure_NonRecoverableCommonCauseRetriesSameTier(t *testing.T) {
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: false,
+				RootCause:   "unexpected edge case",
+				Suggestion:  "tighten parser branch",
+			}, nil
+		},
+	}
+	cfg := newTestConfig()
+	cfg.Paths.GromitDir = t.TempDir()
+	writeModelBuildFailureLimit(t, cfg.Paths.GromitDir, "sonnet", 0.20, 0.00, 0.40)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierMedium
+	bc.Model = "sonnet"
+	claudeResult := &claude.Result{Output: "failed build output"}
+
+	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
+	if !continueLoop {
+		t.Fatal("AnalyzeAndHandleFailure should retry same tier for common-cause non-recoverable failure")
 	}
 	if bc.Tier != provider.TierMedium {
-		t.Errorf("Tier = %q, want %q after escalation on analysis failure", bc.Tier, provider.TierMedium)
+		t.Fatalf("Tier = %q, want %q (no escalation on common-cause)", bc.Tier, provider.TierMedium)
+	}
+	if bc.RetriesThisModel != 1 {
+		t.Fatalf("RetriesThisModel = %d, want 1", bc.RetriesThisModel)
+	}
+}
+
+func TestAnalyzeAndHandleFailure_NonRecoverableConsecutiveFailureEscalates(t *testing.T) {
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: false,
+				RootCause:   "edge case still failing",
+			}, nil
+		},
+	}
+	cfg := newTestConfig()
+	cfg.Paths.GromitDir = t.TempDir()
+	writeModelBuildFailureLimit(t, cfg.Paths.GromitDir, "sonnet", 0.20, 0.00, 0.40)
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierMedium
+	bc.Model = "sonnet"
+	bc.RetriesThisModel = 1 // consecutive failure on same bead => special cause
+	claudeResult := &claude.Result{Output: "failed again"}
+
+	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
+	if !continueLoop {
+		t.Fatal("AnalyzeAndHandleFailure should escalate for consecutive non-recoverable failure")
+	}
+	if bc.Tier != provider.TierHigh {
+		t.Fatalf("Tier = %q, want %q after special-cause escalation", bc.Tier, provider.TierHigh)
+	}
+}
+
+func writeModelBuildFailureLimit(t *testing.T, gromitDir, model string, latest, lcl, ucl float64) {
+	t.Helper()
+	metricsDir := filepath.Join(gromitDir, "metrics")
+	if err := os.MkdirAll(metricsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	trend := logger.ProcessTrend{
+		StratifiedControlLimits: map[string][]logger.TrendControlLimit{
+			"model:" + model: {
+				{Metric: "rolling_build_failure_rate", Latest: latest, LCL: lcl, UCL: ucl},
+			},
+		},
+	}
+	data, err := json.Marshal(trend)
+	if err != nil {
+		t.Fatalf("Marshal process trend: %v", err)
+	}
+	path := filepath.Join(metricsDir, "process_trend.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("WriteFile process trend: %v", err)
 	}
 }
 
@@ -642,8 +734,8 @@ func TestExecuteWithRetryWithEscalation_DisabledSkipsTierEscalation(t *testing.T
 	if success {
 		t.Fatal("expected ExecuteWithRetryWithEscalation to return false when escalation disabled")
 	}
-	if invocations != 1 {
-		t.Fatalf("expected single invocation with escalation disabled, got %d", invocations)
+	if invocations <= 1 {
+		t.Fatalf("expected at least one same-tier retry with escalation disabled, got %d invocations", invocations)
 	}
 	if bc.Tier != provider.TierLow {
 		t.Fatalf("expected tier to remain %q, got %q", provider.TierLow, bc.Tier)
@@ -673,7 +765,7 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 			return &runtypes.InvocationResult{
 				StallFired: true,
 				Result:     &claude.Result{Success: false},
-			}, nil
+			}, context.Canceled
 		}
 		// Second call: success after escalation
 		return &runtypes.InvocationResult{

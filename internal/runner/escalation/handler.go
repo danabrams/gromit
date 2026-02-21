@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
@@ -11,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/failurephase"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -36,6 +39,8 @@ const failureContextTruncatedPrefix = "[truncated] "
 const (
 	triageSubCategoryBadPrompt = "bad_prompt"
 	triageSubCategoryBadBead   = "bad_bead"
+	modelStratumPrefix         = "model:"
+	metricBuildFailureRate     = "rolling_build_failure_rate"
 )
 
 // InvokeFn executes a single Claude invocation. The facade wraps
@@ -353,6 +358,66 @@ func (h *Handler) HandleEscalation(ctx context.Context, bc *runtypes.BeadContext
 	return true
 }
 
+func (h *Handler) shouldEscalateAsSpecialCause(bc *runtypes.BeadContext) bool {
+	if bc == nil {
+		return true
+	}
+	// Repeated failures on the same bead are treated as special cause.
+	if bc.RetriesThisModel > 0 {
+		return true
+	}
+	limit, ok := h.readModelBuildFailureControlLimit(bc.Model)
+	if !ok {
+		return false
+	}
+	return limit.Latest > limit.UCL || limit.Latest < limit.LCL
+}
+
+func (h *Handler) readModelBuildFailureControlLimit(model string) (logger.TrendControlLimit, bool) {
+	if h == nil || h.cfg == nil {
+		return logger.TrendControlLimit{}, false
+	}
+	trendPath := filepath.Join(h.cfg.Paths.GromitDir, "metrics", "process_trend.json")
+	trend, err := logger.ReadProcessTrend(trendPath)
+	if err != nil || trend == nil {
+		return logger.TrendControlLimit{}, false
+	}
+	modelKey := modelStratumPrefix + strings.ToLower(strings.TrimSpace(model))
+	limits, ok := trend.StratifiedControlLimits[modelKey]
+	if !ok {
+		return logger.TrendControlLimit{}, false
+	}
+	for _, limit := range limits {
+		if limit.Metric == metricBuildFailureRate {
+			return limit, true
+		}
+	}
+	return logger.TrendControlLimit{}, false
+}
+
+func (h *Handler) retryCommonCauseFailure(bc *runtypes.BeadContext, failureContext string) bool {
+	if bc == nil || bc.Result == nil {
+		return false
+	}
+	l1RetryCap := h.resolveL1RetryCap(bc)
+	if bc.RetriesThisModel >= l1RetryCap {
+		return false
+	}
+	bc.RetriesThisModel++
+	bc.TotalRetriesThisBead++
+	if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
+		h.log("Max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
+		bc.Result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
+		return false
+	}
+	if bc.PromptCtx != nil {
+		bc.PromptCtx.IsRetry = true
+		bc.PromptCtx.FailureContext = h.truncateFailureContext(failureContext)
+	}
+	h.log("Common-cause failure: retrying on same tier (attempt %d/%d)", bc.RetriesThisModel, l1RetryCap)
+	return true
+}
+
 // AnalyzeAndHandleFailure runs failure analysis and decides whether to retry, escalate, or stop.
 // Returns true if the retry loop should continue, false if processBead should return.
 func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) (continueLoop bool) {
@@ -360,10 +425,16 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 	analysis, err := h.analyzer.Analyze(ctx, bc.Bead, claudeResult.Output)
 	if err != nil {
 		h.log("Warning: failure analysis failed: %v", err)
+		if !h.shouldEscalateAsSpecialCause(bc) && h.retryCommonCauseFailure(bc, claudeResult.Output) {
+			return true
+		}
 		return h.HandleEscalation(ctx, bc, claudeResult)
 	}
 	if analysis == nil {
 		h.log("Warning: failure analysis returned no result")
+		if !h.shouldEscalateAsSpecialCause(bc) && h.retryCommonCauseFailure(bc, claudeResult.Output) {
+			return true
+		}
 		return h.HandleEscalation(ctx, bc, claudeResult)
 	}
 
@@ -439,6 +510,9 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 		return false
 	}
 
+	if !h.shouldEscalateAsSpecialCause(bc) && h.retryCommonCauseFailure(bc, analysis.Suggestion) {
+		return true
+	}
 	return h.HandleEscalation(ctx, bc, claudeResult)
 }
 
