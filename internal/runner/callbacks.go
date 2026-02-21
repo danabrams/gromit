@@ -289,6 +289,35 @@ func (r *Runner) logATDDFallbackOutcome(failureClass, primaryProvider, primaryMo
 	)
 }
 
+func fallbackErrorResult(failureClass, primaryInfo, fallbackInfo string, fallbackResult *provider.Result, fallbackErr error) error {
+	if fallbackErr != nil {
+		return fmt.Errorf(
+			"acceptance tests failed after transient fallback class=%s (%s): %s fallback_err=%v",
+			failureClass,
+			fallbackInfo,
+			primaryInfo,
+			fallbackErr,
+		)
+	}
+	if fallbackResult == nil {
+		return fmt.Errorf(
+			"acceptance tests failed after transient fallback class=%s (%s): %s fallback=nil result",
+			failureClass,
+			fallbackInfo,
+			primaryInfo,
+		)
+	}
+	if !fallbackResult.Success {
+		return fmt.Errorf(
+			"acceptance tests failed after transient fallback class=%s: %s fallback={%s}",
+			failureClass,
+			primaryInfo,
+			fallbackInfo,
+		)
+	}
+	return nil
+}
+
 func (r *Runner) estimatedCostUSD(providerName, model string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
 	if reportedCostUSD != 0 || (inputTokens == 0 && outputTokens == 0) {
 		return reportedCostUSD
@@ -580,35 +609,18 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				if isATDDFallbackEligible(failureClass) {
 					p2, modelName2, fallbackResult, fallbackErr, attempted := runTransientFallback(failureClass, atddFallbackReasonError)
 					if attempted {
-						if fallbackErr != nil {
-							return fmt.Errorf(
-								"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary_err=%v fallback_err=%v",
-								failureClass,
-								p2.Name(),
-								modelName2,
-								err,
-								fallbackErr,
-							)
+						primaryInfo := fmt.Sprintf("primary_err=%v", err)
+						fallbackInfo := fmt.Sprintf("provider=%s model=%s", p2.Name(), modelName2)
+						if fallbackErr == nil && fallbackResult != nil {
+							fallbackInfo = formatATDDProviderFailure(p2, modelName2, fallbackResult)
 						}
-						if fallbackResult == nil {
-							return fmt.Errorf(
-								"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary_err=%v fallback=nil result",
-								failureClass,
-								p2.Name(),
-								modelName2,
-								err,
-							)
+						if fallbackFailureErr := fallbackErrorResult(failureClass, primaryInfo, fallbackInfo, fallbackResult, fallbackErr); fallbackFailureErr != nil {
+							return fallbackFailureErr
 						}
 						if fallbackResult.Success {
 							setSelectedModel(modelName2)
 							return nil
 						}
-						return fmt.Errorf(
-							"acceptance tests failed after transient fallback class=%s: primary_err=%v fallback={%s}",
-							failureClass,
-							err,
-							formatATDDProviderFailure(p2, modelName2, fallbackResult),
-						)
 					}
 				}
 			}
@@ -624,35 +636,18 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			if isATDDFallbackEligible(failureClass) {
 				p2, modelName2, fallbackResult, fallbackErr, attempted := runTransientFallback(failureClass, atddFallbackReasonResult)
 				if attempted {
-					if fallbackErr != nil {
-						return fmt.Errorf(
-							"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary={%s} fallback_err=%v",
-							failureClass,
-							p2.Name(),
-							modelName2,
-							formatATDDProviderFailure(p, modelName, result),
-							fallbackErr,
-						)
+					primaryInfo := fmt.Sprintf("primary={%s}", formatATDDProviderFailure(p, modelName, result))
+					fallbackInfo := fmt.Sprintf("provider=%s model=%s", p2.Name(), modelName2)
+					if fallbackErr == nil && fallbackResult != nil {
+						fallbackInfo = formatATDDProviderFailure(p2, modelName2, fallbackResult)
 					}
-					if fallbackResult == nil {
-						return fmt.Errorf(
-							"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary={%s} fallback=nil result",
-							failureClass,
-							p2.Name(),
-							modelName2,
-							formatATDDProviderFailure(p, modelName, result),
-						)
+					if fallbackFailureErr := fallbackErrorResult(failureClass, primaryInfo, fallbackInfo, fallbackResult, fallbackErr); fallbackFailureErr != nil {
+						return fallbackFailureErr
 					}
 					if fallbackResult.Success {
 						setSelectedModel(modelName2)
 						return nil
 					}
-					return fmt.Errorf(
-						"acceptance tests failed after transient fallback class=%s: primary={%s} fallback={%s}",
-						failureClass,
-						formatATDDProviderFailure(p, modelName, result),
-						formatATDDProviderFailure(p2, modelName2, fallbackResult),
-					)
 				}
 			}
 		}
