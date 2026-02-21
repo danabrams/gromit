@@ -1,12 +1,35 @@
 package runner
 
 import (
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+func parseImports(t *testing.T, path string) map[string]bool {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+
+	imports := make(map[string]bool)
+	for _, imp := range file.Imports {
+		pathValue := imp.Path.Value
+		if len(pathValue) < 2 {
+			continue
+		}
+		imports[pathValue[1:len(pathValue)-1]] = true
+	}
+
+	return imports
+}
 
 func lineCount(t *testing.T, path string) int {
 	t.Helper()

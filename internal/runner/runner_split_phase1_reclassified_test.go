@@ -10,6 +10,74 @@ import (
 	"testing"
 )
 
+// splitDecls holds parsed top-level declarations without import tracking.
+// Used by split-phase verification tests to check that declarations were
+// moved to the correct files.
+type splitDecls struct {
+	types   map[string]bool
+	funcs   map[string]bool
+	methods map[string]map[string]bool
+}
+
+func parseDecls(t *testing.T, path string) splitDecls {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+
+	decls := splitDecls{
+		types:   make(map[string]bool),
+		funcs:   make(map[string]bool),
+		methods: make(map[string]map[string]bool),
+	}
+
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *ast.GenDecl:
+			if d.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range d.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+					decls.types[typeSpec.Name.Name] = true
+				}
+			}
+		case *ast.FuncDecl:
+			if d.Recv == nil {
+				decls.funcs[d.Name.Name] = true
+				continue
+			}
+			if len(d.Recv.List) == 0 {
+				continue
+			}
+			recv := receiverName(d.Recv.List[0].Type)
+			if recv == "" {
+				continue
+			}
+			if decls.methods[recv] == nil {
+				decls.methods[recv] = make(map[string]bool)
+			}
+			decls.methods[recv][d.Name.Name] = true
+		}
+	}
+
+	return decls
+}
+
+func receiverName(expr ast.Expr) string {
+	switch e := expr.(type) {
+	case *ast.StarExpr:
+		return receiverName(e.X)
+	case *ast.Ident:
+		return e.Name
+	default:
+		return ""
+	}
+}
+
 type splitFileDecls struct {
 	types   map[string]bool
 	funcs   map[string]bool
