@@ -318,6 +318,14 @@ func fallbackErrorResult(failureClass, primaryInfo, fallbackInfo string, fallbac
 	return nil
 }
 
+func formatATDDFallbackInfo(p provider.Provider, modelName string, fallbackResult *provider.Result, fallbackErr error) string {
+	fallbackInfo := fmt.Sprintf("provider=%s model=%s", p.Name(), modelName)
+	if fallbackErr == nil && fallbackResult != nil {
+		fallbackInfo = formatATDDProviderFailure(p, modelName, fallbackResult)
+	}
+	return fallbackInfo
+}
+
 func (r *Runner) estimatedCostUSD(providerName, model string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
 	if reportedCostUSD != 0 || (inputTokens == 0 && outputTokens == 0) {
 		return reportedCostUSD
@@ -610,10 +618,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 					p2, modelName2, fallbackResult, fallbackErr, attempted := runTransientFallback(failureClass, atddFallbackReasonError)
 					if attempted {
 						primaryInfo := fmt.Sprintf("primary_err=%v", err)
-						fallbackInfo := fmt.Sprintf("provider=%s model=%s", p2.Name(), modelName2)
-						if fallbackErr == nil && fallbackResult != nil {
-							fallbackInfo = formatATDDProviderFailure(p2, modelName2, fallbackResult)
-						}
+						fallbackInfo := formatATDDFallbackInfo(p2, modelName2, fallbackResult, fallbackErr)
 						if fallbackFailureErr := fallbackErrorResult(failureClass, primaryInfo, fallbackInfo, fallbackResult, fallbackErr); fallbackFailureErr != nil {
 							return fallbackFailureErr
 						}
@@ -637,10 +642,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				p2, modelName2, fallbackResult, fallbackErr, attempted := runTransientFallback(failureClass, atddFallbackReasonResult)
 				if attempted {
 					primaryInfo := fmt.Sprintf("primary={%s}", formatATDDProviderFailure(p, modelName, result))
-					fallbackInfo := fmt.Sprintf("provider=%s model=%s", p2.Name(), modelName2)
-					if fallbackErr == nil && fallbackResult != nil {
-						fallbackInfo = formatATDDProviderFailure(p2, modelName2, fallbackResult)
-					}
+					fallbackInfo := formatATDDFallbackInfo(p2, modelName2, fallbackResult, fallbackErr)
 					if fallbackFailureErr := fallbackErrorResult(failureClass, primaryInfo, fallbackInfo, fallbackResult, fallbackErr); fallbackFailureErr != nil {
 						return fallbackFailureErr
 					}
