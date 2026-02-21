@@ -10,6 +10,11 @@ import (
 	"github.com/danabrams/gromit/internal/review"
 )
 
+const (
+	backlogTypeReviewFinding = "review-finding"
+	logTypeReview            = "review"
+)
+
 // Paths contains filesystem paths used by the pipeline.
 type Paths struct {
 	GromitDir string
@@ -266,16 +271,16 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	}
 
 	// Invoke the configured non-interactive review runner.
-	claudeResult, err := p.deps.ReviewInvoker.Run(renderedPrompt, input.Model)
+	invocationResult, err := p.deps.ReviewInvoker.Run(renderedPrompt, input.Model)
 	if err != nil {
 		return nil, fmt.Errorf("review invocation: %w", err)
 	}
 
-	// Check result from Claude
-	if !claudeResult.Success {
-		return nil, fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", claudeResult.ExitCode, claudeResult.Output)
+	// Check invocation result.
+	if !invocationResult.Success {
+		return nil, fmt.Errorf("Claude invocation failed (exit code %d)\nOutput:\n%s", invocationResult.ExitCode, invocationResult.Output)
 	}
-	output := claudeResult.Output
+	output := invocationResult.Output
 
 	// Parse result via review.ParseReviewResult
 	reviewResult, err := review.ParseReviewResult(output)
@@ -299,7 +304,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	for _, bi := range reviewResult.BacklogItems {
 		idea := &Idea{
 			Text: bi.Title,
-			Type: "review-finding",
+			Type: backlogTypeReviewFinding,
 		}
 		if err := p.deps.BacklogClient.Add(idea); err != nil {
 			return nil, fmt.Errorf("creating backlog item: %w", err)
@@ -316,7 +321,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 
 	// Log review
 	logEntry := &LogEntry{
-		Type:           "review",
+		Type:           logTypeReview,
 		Passed:         reviewResult.Passed,
 		FixesApplied:   len(reviewResult.FixesApplied),
 		BeadsCreated:   beadsCreated,

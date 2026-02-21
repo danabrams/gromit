@@ -60,10 +60,7 @@ func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipelin
 	defer cancel()
 
 	tier := provider.TierFromLegacyModel(model)
-	phase := a.Phase
-	if phase == "" {
-		phase = reviewSessionCommand
-	}
+	phase := resolveProviderReviewPhase(a.Phase)
 
 	selectedProvider, _ := a.Router.Select(phase, tier)
 	if selectedProvider == nil {
@@ -90,6 +87,13 @@ func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipelin
 		ExitCode: result.ExitCode,
 		Output:   result.Output,
 	}, nil
+}
+
+func resolveProviderReviewPhase(phase string) string {
+	if phase == "" {
+		return reviewSessionCommand
+	}
+	return phase
 }
 
 // beadClientAdapter adapts bead.Client to pipeline.BeadClient interface.
