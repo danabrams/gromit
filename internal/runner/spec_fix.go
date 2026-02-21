@@ -4,18 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 
-	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/specgate"
 )
 
 const (
 	defaultGateFailureName = "unnamed gate failure"
 	fixBeadPriority        = 0
-	specLabelPrefix        = "spec:"
-	fixBeadTitlePrefix     = "Fix: "
+	fixBeadPriorityLabel   = "P0"
 )
 
 // GateFailure is a structured spec gate failure consumed by fix-bead synthesis.
@@ -34,60 +31,9 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []GateFai
 		return nil, errors.New("bead client is required")
 	}
 
-	limit := len(failures)
-	if limit > runtypes.MaxSynthesizedSpecFixBeads {
-		limit = runtypes.MaxSynthesizedSpecFixBeads
-		log.Printf(
-			"runner: capped fix bead synthesis for spec %q at %d failures (%d remaining)",
-			specName,
-			runtypes.MaxSynthesizedSpecFixBeads,
-			len(failures)-limit,
-		)
-	}
-
-	ids := make([]string, 0, limit)
-	createErrors := make([]error, 0, limit)
-	label := specLabel(specName)
-
-	for i := 0; i < limit; i++ {
-		failure := failures[i]
-		title := gateFailureTitle(failure)
-		description := gateFailureDescription(failure)
-		b, err := beadClient.Create(title, fixBeadPriority, []string{label}, []string{description})
-		if err != nil {
-			createErrors = append(createErrors, fmt.Errorf("create bead for %q: %w", failureName(failure), err))
-			continue
-		}
-		if b == nil {
-			createErrors = append(createErrors, fmt.Errorf("create bead for %q: returned nil bead", failureName(failure)))
-			continue
-		}
-		ids = append(ids, b.ID)
-	}
-
-	if len(createErrors) > 0 {
-		return ids, errors.Join(createErrors...)
-	}
-	return ids, nil
-}
-
-func gateFailureTitle(failure GateFailure) string {
-	return fmt.Sprintf("%s%s", fixBeadTitlePrefix, failureName(failure))
-}
-
-func gateFailureDescription(failure GateFailure) string {
-	name := failureName(failure)
-	message := strings.TrimSpace(failure.Message)
-	suggestedFix := strings.TrimSpace(failure.SuggestedFix)
-
-	parts := []string{
-		fmt.Sprintf("Gate failure: %s", name),
-		fmt.Sprintf("Message: %s", message),
-	}
-	if suggestedFix != "" {
-		parts = append(parts, fmt.Sprintf("Suggested fix: %s", suggestedFix))
-	}
-	return strings.Join(parts, "\n")
+	return specgate.SynthesizeFixBeads(ctx, specName, toCriterionResults(failures), fixBeadPriorityLabel, &runnerBeadCreator{
+		beadClient: beadClient,
+	})
 }
 
 func failureName(failure GateFailure) string {
@@ -98,8 +44,51 @@ func failureName(failure GateFailure) string {
 	return name
 }
 
-func specLabel(specName string) string {
-	return fmt.Sprintf("%s%s", specLabelPrefix, strings.TrimSpace(specName))
+type runnerBeadCreator struct {
+	beadClient BeadClient
+}
+
+var _ specgate.BeadCreator = (*runnerBeadCreator)(nil)
+
+func (r *runnerBeadCreator) Create(ctx context.Context, title, description, priority string, labels []string) (string, error) {
+	_ = ctx
+	_ = priority
+
+	b, err := r.beadClient.Create(title, fixBeadPriority, labels, []string{description})
+	if err != nil {
+		return "", err
+	}
+	if b == nil {
+		return "", errors.New("returned nil bead")
+	}
+	return b.ID, nil
+}
+
+func toCriterionResults(failures []GateFailure) []specgate.CriterionResult {
+	if len(failures) == 0 {
+		return []specgate.CriterionResult{}
+	}
+
+	results := make([]specgate.CriterionResult, 0, len(failures))
+	for _, failure := range failures {
+		results = append(results, specgate.CriterionResult{
+			Criterion: failureName(failure),
+			Evidence:  failureEvidence(failure),
+		})
+	}
+	return results
+}
+
+func failureEvidence(failure GateFailure) string {
+	message := strings.TrimSpace(failure.Message)
+	suggestedFix := strings.TrimSpace(failure.SuggestedFix)
+	if suggestedFix == "" {
+		return message
+	}
+	if message == "" {
+		return fmt.Sprintf("Suggested fix: %s", suggestedFix)
+	}
+	return fmt.Sprintf("%s\nSuggested fix: %s", message, suggestedFix)
 }
 
 func convertFailedCriteria(failures []specgate.CriterionResult) []GateFailure {

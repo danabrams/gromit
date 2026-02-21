@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 func TestSynthesizeFixBeads_ZeroFailures(t *testing.T) {
@@ -65,14 +66,17 @@ func TestSynthesizeFixBeads_SingleFailure(t *testing.T) {
 		t.Fatalf("Create expectedOutputs = %v, want 1 item", gotExpectedOutputs)
 	}
 	description := gotExpectedOutputs[0]
-	if !strings.Contains(description, "Gate failure: TestSpecGate") {
-		t.Fatalf("description = %q, missing failure name", description)
+	if !strings.Contains(description, "Criterion: TestSpecGate") {
+		t.Fatalf("description = %q, missing criterion name", description)
 	}
-	if !strings.Contains(description, "Message: expected 200 got 500") {
-		t.Fatalf("description = %q, missing message", description)
+	if !strings.Contains(description, "Evidence: expected 200 got 500") {
+		t.Fatalf("description = %q, missing evidence", description)
 	}
 	if !strings.Contains(description, "Suggested fix: handle nil response") {
 		t.Fatalf("description = %q, missing suggested fix", description)
+	}
+	if !strings.Contains(description, "Fix direction:") {
+		t.Fatalf("description = %q, missing fix direction", description)
 	}
 }
 
@@ -100,11 +104,11 @@ func TestSynthesizeFixBeads_CapsAtFive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SynthesizeFixBeads() error = %v", err)
 	}
-	if createCalls != 5 {
-		t.Fatalf("Create calls = %d, want 5", createCalls)
+	if createCalls != runtypes.MaxSynthesizedSpecFixBeads {
+		t.Fatalf("Create calls = %d, want %d", createCalls, runtypes.MaxSynthesizedSpecFixBeads)
 	}
-	if len(ids) != 5 {
-		t.Fatalf("SynthesizeFixBeads() ids = %v, want 5 ids", ids)
+	if len(ids) != runtypes.MaxSynthesizedSpecFixBeads {
+		t.Fatalf("SynthesizeFixBeads() ids = %v, want %d ids", ids, runtypes.MaxSynthesizedSpecFixBeads)
 	}
 }
 
@@ -134,7 +138,7 @@ func TestSynthesizeFixBeads_ReturnsCreateErrors(t *testing.T) {
 	if len(ids) != 1 || ids[0] != "fix-1" {
 		t.Fatalf("SynthesizeFixBeads() ids = %v, want [fix-1]", ids)
 	}
-	if !strings.Contains(err.Error(), "create bead for \"two\"") {
+	if !strings.Contains(err.Error(), "create bead for criterion \"two\"") {
 		t.Fatalf("error = %v, want criterion context", err)
 	}
 }
