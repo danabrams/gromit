@@ -714,41 +714,31 @@ func detectPatternViolations(metric string, values []float64, centerLine float64
 
 	runAbove := trailingRunLength(values, func(v float64) bool { return v > centerLine })
 	if runAbove >= nelsonRule2MinRunLength {
-		return []PatternViolation{
-			{
-				Metric:     metric,
-				Rule:       nelsonRule2Name,
-				Direction:  anomalyDirectionAbove,
-				RunLength:  runAbove,
-				CenterLine: centerLine,
-				Message: fmt.Sprintf(
-					"latest %d points are above center line %.4f (Nelson Rule 2)",
-					runAbove,
-					centerLine,
-				),
-			},
-		}
+		return []PatternViolation{newRule2Violation(metric, anomalyDirectionAbove, runAbove, centerLine)}
 	}
 
 	runBelow := trailingRunLength(values, func(v float64) bool { return v < centerLine })
 	if runBelow >= nelsonRule2MinRunLength {
-		return []PatternViolation{
-			{
-				Metric:     metric,
-				Rule:       nelsonRule2Name,
-				Direction:  anomalyDirectionBelow,
-				RunLength:  runBelow,
-				CenterLine: centerLine,
-				Message: fmt.Sprintf(
-					"latest %d points are below center line %.4f (Nelson Rule 2)",
-					runBelow,
-					centerLine,
-				),
-			},
-		}
+		return []PatternViolation{newRule2Violation(metric, anomalyDirectionBelow, runBelow, centerLine)}
 	}
 
 	return []PatternViolation{}
+}
+
+func newRule2Violation(metric, direction string, runLength int, centerLine float64) PatternViolation {
+	return PatternViolation{
+		Metric:     metric,
+		Rule:       nelsonRule2Name,
+		Direction:  direction,
+		RunLength:  runLength,
+		CenterLine: centerLine,
+		Message: fmt.Sprintf(
+			"latest %d points are %s center line %.4f (Nelson Rule 2)",
+			runLength,
+			direction,
+			centerLine,
+		),
+	}
 }
 
 func trailingRunLength(values []float64, match func(float64) bool) int {
