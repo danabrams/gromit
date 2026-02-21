@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 const (
-	maxSynthesizedFixBeads = 5
-	defaultCriterionName   = "unnamed criterion"
+	defaultCriterionName = "unnamed criterion"
 )
 
 // BeadCreator creates beads for spec fixes.
@@ -18,7 +19,8 @@ type BeadCreator interface {
 	Create(ctx context.Context, title, description, priority string, labels []string) (string, error)
 }
 
-// SynthesizeFixBeads creates fix beads for failed criteria, capped at five beads.
+// SynthesizeFixBeads creates fix beads for failed criteria, capped at
+// runtypes.MaxSynthesizedSpecFixBeads.
 func SynthesizeFixBeads(ctx context.Context, specName string, failures []CriterionResult, priority string, creator BeadCreator) ([]string, error) {
 	if len(failures) == 0 {
 		return []string{}, nil
@@ -27,14 +29,14 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []Criteri
 		return nil, errors.New("bead creator is required")
 	}
 
-	ids := make([]string, 0, min(len(failures), maxSynthesizedFixBeads))
+	ids := make([]string, 0, min(len(failures), runtypes.MaxSynthesizedSpecFixBeads))
 	limit := len(failures)
-	if limit > maxSynthesizedFixBeads {
-		limit = maxSynthesizedFixBeads
+	if limit > runtypes.MaxSynthesizedSpecFixBeads {
+		limit = runtypes.MaxSynthesizedSpecFixBeads
 		log.Printf(
 			"specgate: capped fix bead synthesis for spec %q at %d failures (%d remaining)",
 			specName,
-			maxSynthesizedFixBeads,
+			runtypes.MaxSynthesizedSpecFixBeads,
 			len(failures)-limit,
 		)
 	}

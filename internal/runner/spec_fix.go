@@ -7,15 +7,15 @@ import (
 	"log"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/specgate"
 )
 
 const (
-	maxSynthesizedSpecFixBeads = 5
-	defaultGateFailureName     = "unnamed gate failure"
-	fixBeadPriority            = 0
-	specLabelPrefix            = "spec:"
-	fixBeadTitlePrefix         = "Fix: "
+	defaultGateFailureName = "unnamed gate failure"
+	fixBeadPriority        = 0
+	specLabelPrefix        = "spec:"
+	fixBeadTitlePrefix     = "Fix: "
 )
 
 // GateFailure is a structured spec gate failure consumed by fix-bead synthesis.
@@ -25,7 +25,7 @@ type GateFailure struct {
 	SuggestedFix string `json:"suggested_fix"`
 }
 
-// SynthesizeFixBeads creates up to five P0 fix beads for gate failures.
+// SynthesizeFixBeads creates up to MaxSynthesizedSpecFixBeads P0 fix beads for gate failures.
 func SynthesizeFixBeads(ctx context.Context, specName string, failures []GateFailure, beadClient BeadClient) ([]string, error) {
 	if len(failures) == 0 {
 		return []string{}, nil
@@ -35,12 +35,12 @@ func SynthesizeFixBeads(ctx context.Context, specName string, failures []GateFai
 	}
 
 	limit := len(failures)
-	if limit > maxSynthesizedSpecFixBeads {
-		limit = maxSynthesizedSpecFixBeads
+	if limit > runtypes.MaxSynthesizedSpecFixBeads {
+		limit = runtypes.MaxSynthesizedSpecFixBeads
 		log.Printf(
 			"runner: capped fix bead synthesis for spec %q at %d failures (%d remaining)",
 			specName,
-			maxSynthesizedSpecFixBeads,
+			runtypes.MaxSynthesizedSpecFixBeads,
 			len(failures)-limit,
 		)
 	}

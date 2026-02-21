@@ -201,3 +201,8 @@ type ArgvRunnerFn func(ctx context.Context, program string, args []string, workD
 
 // AutoFixFn runs auto-fix tools (gofmt/goimports) on changed files since a commit.
 type AutoFixFn func(startCommit string) error
+
+// MaxSynthesizedSpecFixBeads is the sole source of truth for the maximum
+// number of synthesized spec-fix beads. It is consumed by both
+// runner.SynthesizeFixBeads and specgate.SynthesizeFixBeads.
+const MaxSynthesizedSpecFixBeads = 5
