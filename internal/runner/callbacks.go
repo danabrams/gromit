@@ -27,6 +27,10 @@ const (
 	invocationEndMarkerFormat   = "INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s"
 	atddStartMarkerFormat       = "ATDD_INVOCATION_START provider=%s model=%s tier=%s"
 	atddEndMarkerFormat         = "ATDD_INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s"
+	atddFallbackDecisionFormat  = "ATDD_FALLBACK_DECISION class=%s primary_provider=%s primary_model=%s fallback_provider=auto fallback_model=auto reason=%s"
+	atddFallbackAttemptFormat   = "ATDD_FALLBACK_ATTEMPT class=%s primary_provider=%s primary_model=%s fallback_provider=%s fallback_model=%s"
+	atddFallbackReasonError     = "primary_error"
+	atddFallbackReasonResult    = "primary_result"
 )
 
 const (
@@ -246,6 +250,14 @@ func containsAny(haystack string, signals []string) bool {
 
 func isATDDFallbackEligible(failureClass string) bool {
 	return failureClass == atddFailureClassTransport || failureClass == atddFailureClassStartup
+}
+
+func (r *Runner) logATDDFallbackDecision(failureClass, providerName, modelName, reason string) {
+	r.log(atddFallbackDecisionFormat, failureClass, providerName, modelName, reason)
+}
+
+func (r *Runner) logATDDFallbackAttempt(failureClass, primaryProvider, primaryModel, fallbackProvider, fallbackModel string) {
+	r.log(atddFallbackAttemptFormat, failureClass, primaryProvider, primaryModel, fallbackProvider, fallbackModel)
 }
 
 func (r *Runner) estimatedCostUSD(providerName, model string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
@@ -520,23 +532,11 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			if err != nil {
 				failureClass := classifyATDDFailure(result, err)
 				if isATDDFallbackEligible(failureClass) {
-					r.log(
-						"ATDD_FALLBACK_DECISION class=%s primary_provider=%s primary_model=%s fallback_provider=auto fallback_model=auto reason=primary_error",
-						failureClass,
-						p.Name(),
-						modelName,
-					)
+					r.logATDDFallbackDecision(failureClass, p.Name(), modelName, atddFallbackReasonError)
 					r.router.MarkUnavailable(p.Name())
 					p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
 					if p2 != nil && p2.Name() != p.Name() {
-						r.log(
-							"ATDD_FALLBACK_ATTEMPT class=%s primary_provider=%s primary_model=%s fallback_provider=%s fallback_model=%s",
-							failureClass,
-							p.Name(),
-							modelName,
-							p2.Name(),
-							modelName2,
-						)
+						r.logATDDFallbackAttempt(failureClass, p.Name(), modelName, p2.Name(), modelName2)
 						fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
 						applyCostData(fallbackStats)
 						if fallbackErr != nil {
@@ -581,23 +581,11 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if !result.Success {
 			failureClass := classifyATDDFailure(result, nil)
 			if isATDDFallbackEligible(failureClass) {
-				r.log(
-					"ATDD_FALLBACK_DECISION class=%s primary_provider=%s primary_model=%s fallback_provider=auto fallback_model=auto reason=primary_result",
-					failureClass,
-					p.Name(),
-					modelName,
-				)
+				r.logATDDFallbackDecision(failureClass, p.Name(), modelName, atddFallbackReasonResult)
 				r.router.MarkUnavailable(p.Name())
 				p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
 				if p2 != nil && p2.Name() != p.Name() {
-					r.log(
-						"ATDD_FALLBACK_ATTEMPT class=%s primary_provider=%s primary_model=%s fallback_provider=%s fallback_model=%s",
-						failureClass,
-						p.Name(),
-						modelName,
-						p2.Name(),
-						modelName2,
-					)
+					r.logATDDFallbackAttempt(failureClass, p.Name(), modelName, p2.Name(), modelName2)
 					fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
 					applyCostData(fallbackStats)
 					if fallbackErr != nil {
