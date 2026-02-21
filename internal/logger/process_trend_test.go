@@ -297,6 +297,61 @@ func TestBuildProcessTrend_HasExpectedControlLimitsWithPhaseRates(t *testing.T) 
 	assertAllPhaseRateMetricsFound(t, phaseRateNames, "control limit")
 }
 
+func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *testing.T) {
+	metrics := []IterationMetric{
+		{
+			Success:              true,
+			DurationMs:           100,
+			CostUSD:              1,
+			RollingSuccessRate:   0.6,
+			RollingAvgDurationMs: 275,
+			RollingAvgCostUSD:    3.5,
+		},
+		{
+			Success:              false,
+			DurationMs:           300,
+			CostUSD:              4,
+			RollingSuccessRate:   0.6,
+			RollingAvgDurationMs: 275,
+			RollingAvgCostUSD:    3.5,
+		},
+		{
+			Success:              true,
+			DurationMs:           500,
+			CostUSD:              7,
+			RollingSuccessRate:   0.6,
+			RollingAvgDurationMs: 275,
+			RollingAvgCostUSD:    3.5,
+		},
+	}
+
+	trend := buildProcessTrend(metrics, 30)
+
+	successLimit, ok := findControlLimit(trend.ControlLimits, metricRollingSuccessRate)
+	if !ok {
+		t.Fatalf("control limits missing %q", metricRollingSuccessRate)
+	}
+	assertFloatNear(t, successLimit.Latest, 0.6, "SuccessLatest")
+	assertFloatNear(t, successLimit.Mean, 2.0/3.0, "SuccessMean")
+	assertFloatNear(t, successLimit.StdDev, 0.4714045208, "SuccessStdDev")
+
+	durationLimit, ok := findControlLimit(trend.ControlLimits, metricRollingAvgDurationMs)
+	if !ok {
+		t.Fatalf("control limits missing %q", metricRollingAvgDurationMs)
+	}
+	assertFloatNear(t, durationLimit.Latest, 275, "DurationLatest")
+	assertFloatNear(t, durationLimit.Mean, 300, "DurationMean")
+	assertFloatNear(t, durationLimit.StdDev, 163.2993162, "DurationStdDev")
+
+	costLimit, ok := findControlLimit(trend.ControlLimits, metricRollingAvgCostUSD)
+	if !ok {
+		t.Fatalf("control limits missing %q", metricRollingAvgCostUSD)
+	}
+	assertFloatNear(t, costLimit.Latest, 3.5, "CostLatest")
+	assertFloatNear(t, costLimit.Mean, 4, "CostMean")
+	assertFloatNear(t, costLimit.StdDev, 2.449489743, "CostStdDev")
+}
+
 func TestBuildProcessTrend_IncludesRollingAvgValidationControlLimit(t *testing.T) {
 	entries := []IterationLog{
 		{Success: true, ValidationDurationMs: 50},

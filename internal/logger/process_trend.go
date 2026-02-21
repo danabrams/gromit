@@ -49,54 +49,71 @@ var phaseRateMetrics = []string{
 }
 
 type metricSeriesDefinition struct {
-	name string
-	pick func(IterationMetric) float64
+	name          string
+	latestSample  func(IterationMetric) float64
+	historySample func(IterationMetric) float64
 }
 
 var trendControlLimitSeries = []metricSeriesDefinition{
 	{
-		name: metricRollingSuccessRate,
-		pick: func(m IterationMetric) float64 { return m.RollingSuccessRate },
+		name:         metricRollingSuccessRate,
+		latestSample: func(m IterationMetric) float64 { return m.RollingSuccessRate },
+		historySample: func(m IterationMetric) float64 {
+			if m.Success {
+				return 1
+			}
+			return 0
+		},
 	},
 	{
-		name: metricRollingFirstPassSuccess,
-		pick: func(m IterationMetric) float64 { return m.RollingFirstPassSuccess },
+		name:          metricRollingFirstPassSuccess,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingFirstPassSuccess },
+		historySample: func(m IterationMetric) float64 { return m.RollingFirstPassSuccess },
 	},
 	{
-		name: metricRollingEscalationRate,
-		pick: func(m IterationMetric) float64 { return m.RollingEscalationRate },
+		name:          metricRollingEscalationRate,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingEscalationRate },
+		historySample: func(m IterationMetric) float64 { return m.RollingEscalationRate },
 	},
 	{
-		name: metricRollingAvgDurationMs,
-		pick: func(m IterationMetric) float64 { return m.RollingAvgDurationMs },
+		name:          metricRollingAvgDurationMs,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingAvgDurationMs },
+		historySample: func(m IterationMetric) float64 { return float64(m.DurationMs) },
 	},
 	{
-		name: metricRollingAvgValidationMs,
-		pick: func(m IterationMetric) float64 { return m.RollingAvgValidationMs },
+		name:          metricRollingAvgValidationMs,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingAvgValidationMs },
+		historySample: func(m IterationMetric) float64 { return m.RollingAvgValidationMs },
 	},
 	{
-		name: metricRollingAvgCostUSD,
-		pick: func(m IterationMetric) float64 { return m.RollingAvgCostUSD },
+		name:          metricRollingAvgCostUSD,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingAvgCostUSD },
+		historySample: func(m IterationMetric) float64 { return m.CostUSD },
 	},
 	{
-		name: metricRollingAvgCostPerBeadUSD,
-		pick: func(m IterationMetric) float64 { return m.RollingAvgCostPerBeadUSD },
+		name:          metricRollingAvgCostPerBeadUSD,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingAvgCostPerBeadUSD },
+		historySample: func(m IterationMetric) float64 { return m.RollingAvgCostPerBeadUSD },
 	},
 	{
-		name: metricRollingPreflightFailure,
-		pick: func(m IterationMetric) float64 { return m.RollingPreflightFailureRate },
+		name:          metricRollingPreflightFailure,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingPreflightFailureRate },
+		historySample: func(m IterationMetric) float64 { return m.RollingPreflightFailureRate },
 	},
 	{
-		name: metricRollingBuildFailure,
-		pick: func(m IterationMetric) float64 { return m.RollingBuildFailureRate },
+		name:          metricRollingBuildFailure,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingBuildFailureRate },
+		historySample: func(m IterationMetric) float64 { return m.RollingBuildFailureRate },
 	},
 	{
-		name: metricRollingValidationFailure,
-		pick: func(m IterationMetric) float64 { return m.RollingValidationFailureRate },
+		name:          metricRollingValidationFailure,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingValidationFailureRate },
+		historySample: func(m IterationMetric) float64 { return m.RollingValidationFailureRate },
 	},
 	{
-		name: metricRollingTimeoutFailure,
-		pick: func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate },
+		name:          metricRollingTimeoutFailure,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate },
+		historySample: func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate },
 	},
 }
 
@@ -375,29 +392,30 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		return trend
 	}
 
-	latest := metrics[len(metrics)-1]
+	latestMetric := metrics[len(metrics)-1]
 	trend.LatestWindow = ProcessTrendWindow{
-		SuccessRate:           latest.RollingSuccessRate,
-		FailureRate:           latest.RollingFailureRate,
-		FirstPassSuccess:      latest.RollingFirstPassSuccess,
-		EscalationRate:        latest.RollingEscalationRate,
-		AvgDurationMs:         latest.RollingAvgDurationMs,
-		P95DurationMs:         latest.RollingP95DurationMs,
-		AvgValidationMs:       latest.RollingAvgValidationMs,
-		P95ValidationMs:       latest.RollingP95ValidationMs,
-		AvgCostUSD:            latest.RollingAvgCostUSD,
-		AvgCostPerBeadUSD:     latest.RollingAvgCostPerBeadUSD,
-		AvgMTTRProxyMs:        latest.RollingAvgMTTRProxyMs,
-		PreflightFailureRate:  latest.RollingPreflightFailureRate,
-		BuildFailureRate:      latest.RollingBuildFailureRate,
-		ValidationFailureRate: latest.RollingValidationFailureRate,
-		TimeoutFailureRate:    latest.RollingTimeoutFailureRate,
+		SuccessRate:           latestMetric.RollingSuccessRate,
+		FailureRate:           latestMetric.RollingFailureRate,
+		FirstPassSuccess:      latestMetric.RollingFirstPassSuccess,
+		EscalationRate:        latestMetric.RollingEscalationRate,
+		AvgDurationMs:         latestMetric.RollingAvgDurationMs,
+		P95DurationMs:         latestMetric.RollingP95DurationMs,
+		AvgValidationMs:       latestMetric.RollingAvgValidationMs,
+		P95ValidationMs:       latestMetric.RollingP95ValidationMs,
+		AvgCostUSD:            latestMetric.RollingAvgCostUSD,
+		AvgCostPerBeadUSD:     latestMetric.RollingAvgCostPerBeadUSD,
+		AvgMTTRProxyMs:        latestMetric.RollingAvgMTTRProxyMs,
+		PreflightFailureRate:  latestMetric.RollingPreflightFailureRate,
+		BuildFailureRate:      latestMetric.RollingBuildFailureRate,
+		ValidationFailureRate: latestMetric.RollingValidationFailureRate,
+		TimeoutFailureRate:    latestMetric.RollingTimeoutFailureRate,
 	}
 	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
 	trend.ProviderMetrics = computeProviderMetrics(metrics)
 
 	for _, metric := range trendControlLimitSeries {
-		limit := computeControlLimit(metric.name, extractMetric(metrics, metric.pick))
+		latestValue := metric.latestSample(latestMetric)
+		limit := computeControlLimit(metric.name, latestValue, extractMetric(metrics, metric.historySample))
 		trend.ControlLimits = append(trend.ControlLimits, limit)
 		if anomaly, ok := detectAnomaly(limit); ok {
 			trend.Anomalies = append(trend.Anomalies, anomaly)
@@ -585,11 +603,7 @@ func summarizePromptTokens(metrics []IterationMetric, windowSize int) PromptToke
 	return summary
 }
 
-func computeControlLimit(metric string, values []float64) TrendControlLimit {
-	latest := 0.0
-	if len(values) > 0 {
-		latest = values[len(values)-1]
-	}
+func computeControlLimit(metric string, latest float64, values []float64) TrendControlLimit {
 	mean, stddev := meanAndStdDev(values)
 	ucl := mean + controlLimitSigmaMultiplier*stddev
 	lcl := mean - controlLimitSigmaMultiplier*stddev
