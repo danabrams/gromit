@@ -45,4 +45,18 @@ func AssertCodexHarnessAcceptanceBuildTagsApplied(t *testing.T) {
 			t.Errorf("%s must include //go:build %s", expect.relPath, expect.tag)
 		}
 	}
+
+	removedArtifacts := []string{
+		filepath.Join("test", "contracts", "codex_harness_acceptance_test.go"),
+		filepath.Join("test", "e2e", "codex_harness_acceptance_test.go"),
+	}
+
+	for _, relPath := range removedArtifacts {
+		fullPath := filepath.Join(projectRoot, relPath)
+		if _, err := os.Stat(fullPath); err == nil {
+			t.Errorf("%s should be removed; coverage now lives in codex_harness_test.go under contract/e2e build tags", relPath)
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("stat %s: %v", relPath, err)
+		}
+	}
 }
