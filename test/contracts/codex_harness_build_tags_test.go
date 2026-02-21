@@ -4,20 +4,25 @@ package contracts
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
+const (
+	contractHarnessTestFile        = "codex_harness_test.go"
+	contractAcceptanceArtifactFile = "codex_harness_acceptance_test.go"
+	buildTagHeaderScanLineLimit    = 10
+)
+
 func TestCodexHarnessContractBuildTagCoverage(t *testing.T) {
-	path := filepath.Join("codex_harness_test.go")
+	path := contractHarnessTestFile
 	if !fileHasBuildTag(t, path, "contract") {
 		t.Fatalf("%s must include //go:build contract", path)
 	}
 }
 
 func TestCodexHarnessContractAcceptanceArtifactRemoved(t *testing.T) {
-	path := filepath.Join("codex_harness_acceptance_test.go")
+	path := contractAcceptanceArtifactFile
 	if _, err := os.Stat(path); err == nil {
 		t.Fatalf("%s should not exist; contract coverage is in codex_harness_test.go", path)
 	} else if !os.IsNotExist(err) {
@@ -34,7 +39,7 @@ func fileHasBuildTag(t *testing.T, path string, tag string) bool {
 	}
 
 	lines := strings.Split(string(src), "\n")
-	for i := 0; i < len(lines) && i < 10; i++ {
+	for i := 0; i < len(lines) && i < buildTagHeaderScanLineLimit; i++ {
 		line := strings.TrimSpace(lines[i])
 		if line == "//go:build "+tag || strings.HasPrefix(line, "//go:build "+tag+" ") {
 			return true
