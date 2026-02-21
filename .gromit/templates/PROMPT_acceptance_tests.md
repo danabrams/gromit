@@ -130,11 +130,13 @@ Acceptance tests verify **user-visible behavior**, not implementation details. A
 - **Extract shared setup into helpers.** If two or more tests create the same directory structure, config, or mock setup, extract it into a `setupXxx(t *testing.T)` helper. Keep helpers in the same package as the tests.
 - **Keep tests concise.** A 100-line test function with 30 lines of setup, 5 lines of action, and 65 lines of assertions is too long. Extract setup, use helpers, and trust that stdlib works.
 - **No skipped tests.** Do not write tests with `t.Skip()` for features that don't exist yet or can't run in the test environment. Every test you write must be runnable and must fail for the right reason (missing implementation, not missing infrastructure).
-- **Use build tags for test tiers.** Deterministic acceptance tests use `//go:build acceptance`. If a test requires real external dependencies (real binaries, auth, network, live services), use `//go:build e2e_live` so it runs outside the default acceptance loop.
+- **Keep ATDD tests in the default Go test run.** Write ATDD coverage in regular `*_test.go` files and do **not** use `//go:build acceptance` on those tests. ATDD tests must run under `go test ./...` during normal verification.
+- **Reserve acceptance-tier isolation for true E2E only.** Use `*_acceptance_test.go` (with `//go:build acceptance`) only for tests that require external binaries, live network, auth, or similar non-default infrastructure. Use `//go:build e2e_live` for even heavier live-service tiers.
 
 ## Anti-Patterns to Avoid
 
 Do NOT write tests that:
+- Put ATDD tests in `*_acceptance_test.go` or behind `//go:build acceptance` — that hides required behavior checks from `go test ./...`; reserve those only for true external E2E acceptance coverage
 - Test Go standard library behavior (file creation, temp files, JSON marshaling)
 - Call private/internal helper functions directly instead of the public API
 - Duplicate 10+ lines of identical setup across multiple test functions
