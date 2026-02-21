@@ -46,6 +46,8 @@ type Output struct {
 	// ValidationFailures holds failure summaries produced by the validate stage
 	// to be fed into the next execute stage Input.
 	ValidationFailures []string
+	// ReviewBeadIDs holds IDs of beads created by the review stage from findings.
+	ReviewBeadIDs []string
 }
 
 // Stage is the interface that each pipeline stage implements.
