@@ -3,6 +3,7 @@ package validate
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/runner/validation"
@@ -18,14 +19,16 @@ type CommandRunner interface {
 // or Block with structured summaries on failure.
 type Validate struct {
 	runner CommandRunner
+	output io.Writer
 }
 
 // Compile-time check: *Validate must implement pipeline.Stage.
 var _ pipeline.Stage = (*Validate)(nil)
 
-// New creates a Validate stage with the given command runner.
-func New(runner CommandRunner, output interface{}) *Validate {
-	return &Validate{runner: runner}
+// New creates a Validate stage with the given command runner and output writer.
+// output receives diagnostic messages; pass io.Discard to suppress.
+func New(runner CommandRunner, output io.Writer) *Validate {
+	return &Validate{runner: runner, output: output}
 }
 
 // Run executes the validate stage:
