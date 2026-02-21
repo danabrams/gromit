@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -156,13 +157,11 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 1)
+	sigCh := make(chan os.Signal, 2)
+	stopCh := make(chan struct{})
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		fmt.Fprintln(os.Stderr, "\nReceived interrupt, stopping after current iteration...")
-		cancel()
-	}()
+	defer signal.Stop(sigCh)
+	go handleRunSignals(sigCh, stopCh, cancel, os.Stderr)
 
 	specsDir := resolveSpecsDir(cfg)
 	labels, err := resolveScopeLabels(specsDir, runEpicFlag, runSpecFlag)
@@ -187,7 +186,27 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create runner: %w", err)
 	}
 	r.SetLabelFilters(labels)
-	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, nil, dryRun)
+	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh, dryRun)
+}
+
+func handleRunSignals(sigCh <-chan os.Signal, stopCh chan struct{}, cancel context.CancelFunc, stderr io.Writer) {
+	firstInterrupt := true
+	for sig := range sigCh {
+		switch sig {
+		case syscall.SIGINT:
+			if firstInterrupt {
+				firstInterrupt = false
+				fmt.Fprintln(stderr, "\nReceived interrupt, stopping after current iteration (Ctrl+C again to force stop)...")
+				close(stopCh)
+				continue
+			}
+			cancel()
+			return
+		default:
+			cancel()
+			return
+		}
+	}
 }
 
 func showStatus(cmd *cobra.Command, args []string) error {
