@@ -172,17 +172,7 @@ func (r *Runner) initRunLoopState(deadline time.Time) (*runLoopState, func(), er
 	return st, cleanup, nil
 }
 
-func (r *Runner) shouldStopLoop(ctx context.Context, stopCh <-chan struct{}, st *runLoopState, maxIterations int, deadline time.Time) (bool, error) {
-	select {
-	case <-ctx.Done():
-		r.log("Context cancelled, stopping")
-		return true, ctx.Err()
-	case <-stopCh:
-		r.log("Graceful stop requested, exiting after current bead")
-		return true, nil
-	default:
-	}
-
+func (r *Runner) shouldStopLoop(st *runLoopState, maxIterations int, deadline time.Time) (bool, error) {
 	if maxIterations > 0 && st.iteration >= maxIterations {
 		r.log("Reached max iterations (%d), stopping", maxIterations)
 		return true, nil

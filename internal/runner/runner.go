@@ -176,13 +176,24 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 		}
 	}
 
+runLoop:
 	for {
-		stop, loopErr := r.shouldStopLoop(ctx, stopCh, st, effectiveMaxIterations, deadline)
+		select {
+		case <-ctx.Done():
+			r.log("Context cancelled, stopping")
+			return r.handleRunError(ctx.Err())
+		case <-stopCh:
+			r.log("Graceful stop requested, exiting after current bead")
+			break runLoop
+		default:
+		}
+
+		stop, loopErr := r.shouldStopLoop(st, effectiveMaxIterations, deadline)
 		if loopErr != nil {
 			return r.handleRunError(loopErr)
 		}
 		if stop {
-			break
+			break runLoop
 		}
 
 		b, err := r.getNextBead(st.skippedBeads)
@@ -212,7 +223,7 @@ func (r *Runner) Run(ctx context.Context, maxIterations int, deadline time.Time,
 			return r.handleRunError(err)
 		}
 		if stop {
-			break
+			break runLoop
 		}
 	}
 
