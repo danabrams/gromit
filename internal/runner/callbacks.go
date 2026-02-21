@@ -537,6 +537,20 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		setSelectedModel(modelName)
 		result, stats, err := streamInvoke(p, modelName, "primary")
 		applyCostData(stats)
+		runTransientFallback := func(failureClass, reason string) (provider.Provider, string, *provider.Result, error, bool) {
+			r.logATDDFallbackDecision(failureClass, p.Name(), modelName, reason)
+			r.router.MarkUnavailable(p.Name())
+			p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
+			if p2 == nil || p2.Name() == p.Name() {
+				return nil, "", nil, nil, false
+			}
+
+			r.logATDDFallbackAttempt(failureClass, p.Name(), modelName, p2.Name(), modelName2)
+			fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
+			applyCostData(fallbackStats)
+			r.logATDDFallbackOutcome(failureClass, p.Name(), modelName, p2.Name(), modelName2, fallbackResult, fallbackErr)
+			return p2, modelName2, fallbackResult, fallbackErr, true
+		}
 		if err != nil {
 			if p.IsUsageLimitError(result, err) {
 				r.router.MarkUnavailable(p.Name())
@@ -552,14 +566,8 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			if err != nil {
 				failureClass := classifyATDDFailure(result, err)
 				if isATDDFallbackEligible(failureClass) {
-					r.logATDDFallbackDecision(failureClass, p.Name(), modelName, atddFallbackReasonError)
-					r.router.MarkUnavailable(p.Name())
-					p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
-					if p2 != nil && p2.Name() != p.Name() {
-						r.logATDDFallbackAttempt(failureClass, p.Name(), modelName, p2.Name(), modelName2)
-						fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
-						applyCostData(fallbackStats)
-						r.logATDDFallbackOutcome(failureClass, p.Name(), modelName, p2.Name(), modelName2, fallbackResult, fallbackErr)
+					p2, modelName2, fallbackResult, fallbackErr, attempted := runTransientFallback(failureClass, atddFallbackReasonError)
+					if attempted {
 						if fallbackErr != nil {
 							return fmt.Errorf(
 								"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary_err=%v fallback_err=%v",
@@ -602,14 +610,8 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if !result.Success {
 			failureClass := classifyATDDFailure(result, nil)
 			if isATDDFallbackEligible(failureClass) {
-				r.logATDDFallbackDecision(failureClass, p.Name(), modelName, atddFallbackReasonResult)
-				r.router.MarkUnavailable(p.Name())
-				p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
-				if p2 != nil && p2.Name() != p.Name() {
-					r.logATDDFallbackAttempt(failureClass, p.Name(), modelName, p2.Name(), modelName2)
-					fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
-					applyCostData(fallbackStats)
-					r.logATDDFallbackOutcome(failureClass, p.Name(), modelName, p2.Name(), modelName2, fallbackResult, fallbackErr)
+				p2, modelName2, fallbackResult, fallbackErr, attempted := runTransientFallback(failureClass, atddFallbackReasonResult)
+				if attempted {
 					if fallbackErr != nil {
 						return fmt.Errorf(
 							"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary={%s} fallback_err=%v",
