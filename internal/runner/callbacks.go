@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/logger"
@@ -662,21 +661,6 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		}
 	}
 
-	// AnalyzeFn wraps the failure analyzer, extracting the suggestion string
-	var analyzeFn methodology.AnalyzeFn
-	if r.analyzer != nil {
-		analyzeFn = func(ctx context.Context, b *bead.Bead, failureOutput string) (string, error) {
-			analysis, err := r.analyzer.Analyze(ctx, b, failureOutput)
-			if err != nil {
-				return "", err
-			}
-			if analysis == nil {
-				return "", fmt.Errorf("analysis returned nil")
-			}
-			return analysis.Suggestion, nil
-		}
-	}
-
 	// GetDiffFn wraps the runner's git diff
 	getDiffFn := func(startCommit string) (string, error) {
 		return r.getDiff(startCommit)
@@ -725,8 +709,6 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 	// Create the base executor with ATDD callbacks
 	methExec := methodology.NewExecutorWithEscalation(r.cfg, r.output, renderFn, invokeFn, validateFn, escalateTierFn)
 
-	// Wire analysis support for VerifyTestsFailWithRetry
-	methExec.SetAnalyzeFn(analyzeFn)
 	methExec.SetGetDiffFn(getDiffFn)
 	methExec.SetCoverageValidateFn(r.makeCoverageValidateFn())
 	methExec.SetDiagnosticDeps(diagnosticInvokeFn, renderDiagnosticFn)

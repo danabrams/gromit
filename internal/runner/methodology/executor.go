@@ -45,7 +45,6 @@ type Executor struct {
 	validateFn         ValidateDirectFn
 	coverageValidateFn CoverageValidateFn
 	escalateTierFn     EscalateTierFn
-	analyzeFn          AnalyzeFn
 	getDiffFn          GetDiffFn
 	renderRefactorFn   RenderRefactorFn
 	refactorInvokeFn   RefactorInvokeFn
@@ -80,11 +79,6 @@ func NewExecutor(cfg *config.Config, output io.Writer, renderFn RenderFn, invoke
 		invokeFn:   invokeFn,
 		validateFn: validateFn,
 	}
-}
-
-// SetAnalyzeFn sets the analysis callback for VerifyTestsFailWithRetry.
-func (e *Executor) SetAnalyzeFn(fn AnalyzeFn) {
-	e.analyzeFn = fn
 }
 
 // SetGetDiffFn sets the git diff callback.
@@ -243,47 +237,6 @@ func (e *Executor) RunAcceptanceTests(ctx context.Context, bc *runtypes.BeadCont
 		return err
 	}
 	e.log("ATDD acceptance generation completed in %s", time.Since(start).Round(time.Millisecond))
-	return nil
-}
-
-// VerifyTestsFail runs validation and returns nil when validation fails (expected)
-// or an error when validation passes (unexpected - tests should fail before implementation).
-func (e *Executor) VerifyTestsFail(ctx context.Context, bc *runtypes.BeadContext) error {
-	if !e.cfg.Validation.Enabled {
-		return fmt.Errorf("validation is not enabled - cannot verify tests fail")
-	}
-
-	if e.validateFn == nil {
-		return fmt.Errorf("validate function not configured")
-	}
-
-	e.log("Verifying acceptance tests fail (as expected)...")
-	e.refreshTouchedPackages(bc)
-
-	acceptanceCommands := AcceptanceCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
-	e.log("ATDD verify command set: %s", strings.Join(acceptanceCommands, " && "))
-	start := time.Now()
-
-	valResult, err := e.validateFn(ctx, acceptanceCommands, bc.PromptCtx.WorkDir)
-	if err != nil {
-		e.log("ATDD verify invocation failed after %s: %v", time.Since(start).Round(time.Millisecond), err)
-		return fmt.Errorf("validation invocation: %w", err)
-	}
-	if valResult == nil {
-		e.log("ATDD verify invocation failed after %s: nil validation result", time.Since(start).Round(time.Millisecond))
-		return fmt.Errorf("validation returned no result")
-	}
-	e.log("ATDD verify invocation completed in %s (exit_code=%d)", time.Since(start).Round(time.Millisecond), valResult.ExitCode)
-
-	// In ATDD, we expect tests to FAIL before implementation
-	if claude.IsValidationPassed(valResult) {
-		e.log("Unexpected: acceptance tests passed before implementation")
-		e.log("Tests should fail until implementation makes them pass")
-		e.log("Validation output on unexpected pass: %s", summarizeAcceptanceFailureOutput(valResult.Output))
-		return fmt.Errorf("acceptance tests passed before implementation - tests may not be covering new behavior")
-	}
-
-	e.log("Acceptance tests failed as expected")
 	return nil
 }
 

@@ -129,7 +129,7 @@ func TestProcessBead_ATDD_DelegatesToMethodologyExec(t *testing.T) {
 	validateCallCount := 0
 
 	// Create a methodology.Executor with tracking callbacks
-	exec := methodology.NewExecutorWithAnalysis(
+	exec := methodology.NewExecutor(
 		cfg,
 		&buf,
 		func(ctx *prompt.Context) (string, error) {
@@ -148,8 +148,6 @@ func TestProcessBead_ATDD_DelegatesToMethodologyExec(t *testing.T) {
 			// End-of-cycle acceptance verification passes.
 			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
-		nil, // analyzeFn
-		nil, // getDiffFn
 	)
 
 	mockProv := &mockProviderWithRouterTracking{
@@ -202,7 +200,7 @@ func TestProcessBead_ATDD_MarksAlreadyDoneWhenDiagnosticReturnsAlreadyDone(t *te
 	var buf strings.Builder
 
 	diagnosticCalls := 0
-	exec := methodology.NewExecutorWithAnalysis(
+	exec := methodology.NewExecutor(
 		cfg,
 		&buf,
 		func(ctx *prompt.Context) (string, error) {
@@ -215,9 +213,10 @@ func TestProcessBead_ATDD_MarksAlreadyDoneWhenDiagnosticReturnsAlreadyDone(t *te
 			// Pre-build ATDD check sees an unexpected pass.
 			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
-		nil,
-		func(startCommit string) (string, error) { return "diff --git a/a_test.go b/a_test.go", nil },
 	)
+	exec.SetGetDiffFn(func(startCommit string) (string, error) {
+		return "diff --git a/a_test.go b/a_test.go", nil
+	})
 	exec.SetDiagnosticDeps(
 		func(ctx context.Context, promptText string, tier string) (*claude.Result, error) {
 			diagnosticCalls++
@@ -1121,7 +1120,7 @@ func TestProcessBead_ATDD_SwitchesToATDDBuildPrompt(t *testing.T) {
 	var buf strings.Builder
 
 	// Create executor where ATDD phases succeed.
-	exec := methodology.NewExecutorWithAnalysis(
+	exec := methodology.NewExecutor(
 		cfg,
 		&buf,
 		func(ctx *prompt.Context) (string, error) {
@@ -1136,7 +1135,6 @@ func TestProcessBead_ATDD_SwitchesToATDDBuildPrompt(t *testing.T) {
 			}
 			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
-		nil, nil,
 	)
 
 	// Track whether RenderATDDBuild is called and what FailureContext it receives
@@ -1204,7 +1202,7 @@ func TestProcessBead_ATDD_RetriesWhenAcceptanceVerificationFailsAfterRefactor(t 
 	var buf strings.Builder
 
 	validateCallCount := 0
-	exec := methodology.NewExecutorWithAnalysis(
+	exec := methodology.NewExecutor(
 		cfg,
 		&buf,
 		func(ctx *prompt.Context) (string, error) {
@@ -1229,7 +1227,6 @@ func TestProcessBead_ATDD_RetriesWhenAcceptanceVerificationFailsAfterRefactor(t 
 				return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 			}
 		},
-		nil, nil,
 	)
 
 	streamRunCalls := 0
