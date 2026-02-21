@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/danabrams/gromit/internal/claude"
 )
@@ -170,15 +169,7 @@ func (cp *ClaudeProvider) IsUsageLimitError(result *Result, err error) bool {
 	if result.ExitCode != 2 {
 		return false
 	}
-	// Check for usage limit keywords (case-insensitive)
-	outputLower := strings.ToLower(result.Output)
-	keywords := []string{"usage limit", "rate limit", "quota exceeded"}
-	for _, keyword := range keywords {
-		if strings.Contains(outputLower, keyword) {
-			return true
-		}
-	}
-	return false
+	return containsAnyKeywordCaseInsensitive(result.Output, usageLimitKeywords)
 }
 
 // IsValidationPassed checks if the result indicates validation passed.

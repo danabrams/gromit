@@ -11,6 +11,8 @@ const (
 	maxCommandLength       = 1024
 )
 
+var usageLimitKeywords = []string{"usage limit", "rate limit", "quota exceeded"}
+
 // IsValidationPassed is a shared pure output-matching helper used by all providers.
 // It detects successful validation by looking for the VALIDATION_PASSED marker.
 func IsValidationPassed(result *Result) bool {
@@ -86,6 +88,16 @@ func findStartOfLineMarker(s string) int {
 		}
 		start = abs + len(scopeTooLargeMarker)
 	}
+}
+
+func containsAnyKeywordCaseInsensitive(text string, keywords []string) bool {
+	textLower := strings.ToLower(text)
+	for _, keyword := range keywords {
+		if strings.Contains(textLower, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateCommands validates that commands are safe and well-formed.

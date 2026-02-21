@@ -390,17 +390,7 @@ func (cp *CodexProvider) IsUsageLimitError(result *Result, err error) bool {
 	if result.Success {
 		return false
 	}
-
-	// Check for usage limit keywords (case-insensitive)
-	outputLower := strings.ToLower(result.Output)
-	keywords := []string{"usage limit", "rate limit", "quota exceeded"}
-	for _, keyword := range keywords {
-		if strings.Contains(outputLower, keyword) {
-			return true
-		}
-	}
-
-	return false
+	return containsAnyKeywordCaseInsensitive(result.Output, usageLimitKeywords)
 }
 
 // IsValidationPassed delegates to the shared helper function.
