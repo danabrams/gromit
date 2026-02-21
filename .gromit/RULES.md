@@ -44,7 +44,7 @@ These are non-negotiable constraints for this project.
 
 ## Architecture <!-- phases: build, review -->
 
-- `internal/runner/*/` sub-packages must not import siblings in production or test files; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
+- `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
 - Interactive commands use the session worktree lifecycle: package-level launcher fn var, session command const, `cfg.Worktree.IsEnabled()` opt-out, `sessionConflictSettingsFromConfig`, `runWithSessionWorktreeWithConflictSettings`. Lifecycle: create worktree → callback → record pending branch → merge attempt → cleanup or conflict handoff
 
 ## Build Process <!-- phases: build -->

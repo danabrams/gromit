@@ -41,7 +41,13 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
 
 ### 2026-02-21 | Architectural Invariant Enforcement Pattern | conventions
-*Related to: code-review*
+*Related to: f668688fead2f958, 5912b9aee59cce5e, code-review*
 
-Enforce architectural invariants via compile-time `var _ Interface = (*Impl)(nil)` checks as package-level declarations in production (non-test) .go files, NOT inside test function bodies (which only gate test compilation). For cross-package rules (e.g., sibling import prohibition), use `go vet` or CI checks, not `os.ReadFile`+`strings.Contains` source-reading tests — these break silently on rename/move and skip when the working directory is wrong. Behavioral integration tests that exercise the actual behavior are preferable to source-text assertions.
+Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently when functions are renamed or files move, skip when the working directory is wrong, and only gate test compilation rather than production builds. Replace source-reading tests with compile-time var checks or behavioral integration tests that exercise the actual behavior being guarded.
+
+---
+
+## Archived
+
+*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
 
