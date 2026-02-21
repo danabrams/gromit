@@ -338,7 +338,7 @@ func TestReadGlobalStats_EmptyModels(t *testing.T) {
 // Expected failure: ReadGlobalStats does not handle read permission errors correctly
 func TestReadGlobalStats_UnreadableFile(t *testing.T) {
 	if os.Getuid() == 0 {
-		t.Skip("Skipping permission test when running as root")
+		t.Fatal("Skipping permission test when running as root")
 	}
 
 	dir := t.TempDir()

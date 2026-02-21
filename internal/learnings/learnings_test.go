@@ -133,7 +133,7 @@ func TestAddFuzzyMatchPromotion(t *testing.T) {
 	// Check similarity to verify it's actually > FuzzyMatchThreshold
 	sim := similarity(content1, content2)
 	if sim <= FuzzyMatchThreshold {
-		t.Skipf("similarity %f is too low for promotion test, need > %f", sim, FuzzyMatchThreshold)
+		t.Fatalf("similarity %f is too low for promotion test, need > %f", sim, FuzzyMatchThreshold)
 	}
 
 	// Add similar learning - should promote (remove from provisional, add to confirmed)
@@ -177,7 +177,7 @@ func TestAddFuzzyMatchNonPromotion(t *testing.T) {
 	// Check similarity to verify it's actually > FuzzyMatchThreshold
 	sim := similarity(content1, content2)
 	if sim <= FuzzyMatchThreshold {
-		t.Skipf("similarity %f is too low for test, need > %f", sim, FuzzyMatchThreshold)
+		t.Fatalf("similarity %f is too low for test, need > %f", sim, FuzzyMatchThreshold)
 	}
 
 	// Add similar learning - should mark as related but stay in provisional

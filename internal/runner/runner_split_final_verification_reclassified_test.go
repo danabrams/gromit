@@ -227,7 +227,7 @@ func TestSplitRunnerFinalVerification_LayoutAndIsolation(t *testing.T) {
 // `RunnerSplitFinalVerificationTestReentry` is not part of the codebase yet.
 func TestSplitRunnerFinalVerification_RunnerPackageTestsPass(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skip recursive runner package verification in short mode")
+		t.Fatal("skip recursive runner package verification in short mode")
 	}
 
 	if os.Getenv("GROMIT_SPLIT_FINAL_VERIFICATION_REENTRY") == "1" {

@@ -910,7 +910,7 @@ func TestCodexProviderModelForTierReturnsCorrectModel(t *testing.T) {
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunWithContextCancellation(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping context cancellation test in short mode")
+		t.Fatal("skipping context cancellation test in short mode")
 	}
 
 	tempDir := t.TempDir()
@@ -948,7 +948,7 @@ func TestCodexProviderRunWithContextCancellation(t *testing.T) {
 // error when the invocation context expires.
 func TestCodexProviderStreamRunWithContextCancellationJSONMode(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping context cancellation test in short mode")
+		t.Fatal("skipping context cancellation test in short mode")
 	}
 
 	tempDir := t.TempDir()
@@ -1516,7 +1516,7 @@ exit 0
 // Expected failure: CodexProvider struct and methods do not exist yet
 func TestCodexProviderIntegrationWithRealBinary(t *testing.T) {
 	if _, err := exec.LookPath("bash"); err != nil {
-		t.Skip("bash not available for integration test")
+		t.Fatal("bash not available for integration test")
 	}
 
 	tempDir := t.TempDir()

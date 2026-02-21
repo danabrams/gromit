@@ -15,7 +15,7 @@ func setupRealTemplateRenderer(t *testing.T) *Renderer {
 	t.Helper()
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	if _, err := os.Stat(filepath.Join(templatesDir, "PROMPT_build.md")); os.IsNotExist(err) {
-		t.Skipf("skipping: real templates not found at %s", templatesDir)
+		t.Fatalf("skipping: real templates not found at %s", templatesDir)
 	}
 	return &Renderer{templatesDir: templatesDir}
 }

@@ -1129,7 +1129,7 @@ func TestGetGitDiffStatSameCommit(t *testing.T) {
 	// Diffing a commit against itself should produce empty output
 	head, err := getGitHead()
 	if err != nil {
-		t.Skip("git not available")
+		t.Fatal("git not available")
 	}
 
 	stat, err := getGitDiffStat(head)
@@ -1147,7 +1147,7 @@ func TestGetGitDiff(t *testing.T) {
 	// Use the project's own repo for testing
 	head, err := getGitHead()
 	if err != nil {
-		t.Skip("not in a git repo")
+		t.Fatal("not in a git repo")
 	}
 
 	// Get diff from HEAD to HEAD (should be empty for committed state)
