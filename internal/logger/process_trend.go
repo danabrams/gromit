@@ -46,6 +46,8 @@ const (
 	metricEWMACostUSD              = "ewma_cost_usd"
 	metricEWMADurationMs           = "ewma_duration_ms"
 	transportDisconnectFailure     = "transport_disconnect"
+	stratumProviderPrefix          = "provider:"
+	stratumModelPrefix             = "model:"
 )
 
 var phaseRateMetrics = []string{
@@ -747,13 +749,21 @@ func partitionMetricsByStratum(metrics []IterationMetric) map[string][]Iteration
 	byStratum := map[string][]IterationMetric{}
 	for _, m := range metrics {
 		provider := resolveProviderName(m.Provider, m.Model)
-		providerKey := "provider:" + provider
+		providerKey := providerStratumKey(provider)
 		byStratum[providerKey] = append(byStratum[providerKey], m)
 
-		modelKey := "model:" + resolveModelStratumName(m.Model)
+		modelKey := modelStratumKey(resolveModelStratumName(m.Model))
 		byStratum[modelKey] = append(byStratum[modelKey], m)
 	}
 	return byStratum
+}
+
+func providerStratumKey(providerName string) string {
+	return stratumProviderPrefix + providerName
+}
+
+func modelStratumKey(modelName string) string {
+	return stratumModelPrefix + modelName
 }
 
 func resolveModelStratumName(modelName string) string {
