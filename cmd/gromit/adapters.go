@@ -32,11 +32,7 @@ func (a *claudeClientAdapter) Run(prompt string, model string) (*pipeline.Claude
 	if err != nil {
 		return nil, err
 	}
-	return &pipeline.ClaudeRunResult{
-		Success:  result.Success,
-		ExitCode: result.ExitCode,
-		Output:   result.Output,
-	}, nil
+	return toClaudeRunResult(result.Success, result.ExitCode, result.Output), nil
 }
 
 type routerSelector interface {
@@ -85,11 +81,7 @@ func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipelin
 		return nil, fmt.Errorf("provider returned nil result")
 	}
 
-	return &pipeline.ClaudeRunResult{
-		Success:  result.Success,
-		ExitCode: result.ExitCode,
-		Output:   result.Output,
-	}, nil
+	return toClaudeRunResult(result.Success, result.ExitCode, result.Output), nil
 }
 
 // cmdAgentResolver adapts agent.Resolve to pipeline.AgentResolver.
@@ -108,6 +100,14 @@ func resolveProviderReviewPhase(phase string) string {
 		return reviewSessionCommand
 	}
 	return phase
+}
+
+func toClaudeRunResult(success bool, exitCode int, output string) *pipeline.ClaudeRunResult {
+	return &pipeline.ClaudeRunResult{
+		Success:  success,
+		ExitCode: exitCode,
+		Output:   output,
+	}
 }
 
 // beadClientAdapter adapts bead.Client to pipeline.BeadClient interface.
