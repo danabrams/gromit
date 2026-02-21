@@ -121,6 +121,6 @@ func (m *testStateManager) SetLastReviewCommit(commit string) error {
 // testLogWriter is a mock for unit tests
 type testLogWriter struct{}
 
-func (m *testLogWriter) Write(entry any) error {
+func (m *testLogWriter) Write(entry *LogEntry) error {
 	return nil
 }

@@ -167,10 +167,8 @@ func TestDecomposeWorkflow_NoTypeAssertions(t *testing.T) {
 	}
 }
 
-// TestLogWriter_AcceptsAny verifies LogWriter.Write uses 'any' per Decision 3 in spec
-func TestLogWriter_AcceptsAny(t *testing.T) {
-	// This test verifies the design decision to keep LogWriter.Write(entry any)
-	// rather than using a typed LogEntry, since it's a write-only sink
+// TestLogWriter_UsesTypedEntry verifies LogWriter.Write uses typed LogEntry.
+func TestLogWriter_UsesTypedEntry(t *testing.T) {
 	pipelinePath := filepath.Join("..", "..", "internal", "pipeline", "pipeline.go")
 	content, err := os.ReadFile(pipelinePath)
 	if err != nil {
@@ -185,11 +183,8 @@ func TestLogWriter_AcceptsAny(t *testing.T) {
 		t.Fatal("Could not find LogWriter interface in pipeline.go")
 	}
 
-	// Verify it uses 'any' (which is acceptable per spec Decision 3)
-	if !strings.Contains(logWriterSection, "Write(entry any)") {
-		// This is actually fine - it could use a typed entry if that's better
-		// But the test documents the decision
-		t.Log("LogWriter.Write uses a typed parameter - this is fine if log entries are constructed by pipeline")
+	if !strings.Contains(logWriterSection, "Write(entry *LogEntry)") {
+		t.Fatal("LogWriter.Write should use typed *LogEntry parameter")
 	}
 }
 

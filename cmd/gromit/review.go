@@ -751,20 +751,15 @@ type cliLogWriter struct {
 
 var _ pipeline.LogWriter = (*cliLogWriter)(nil)
 
-func (w *cliLogWriter) Write(entry any) error {
+func (w *cliLogWriter) Write(entry *pipeline.LogEntry) error {
 	log, err := logger.NewLogger(w.logsDir)
 	if err != nil {
 		return err
 	}
 	defer log.Close()
 
-	logEntry, ok := entry.(*pipeline.LogEntry)
-	if !ok {
-		return fmt.Errorf("unexpected entry type")
-	}
-
 	// Use model from entry or default to opus
-	model := logEntry.Model
+	model := entry.Model
 	if model == "" {
 		model = reviewDefaultModel // Default for thorough reviews
 	}
@@ -775,10 +770,10 @@ func (w *cliLogWriter) Write(entry any) error {
 		ReviewType:     reviewLogReviewType,
 		Iteration:      0,
 		Model:          model,
-		Passed:         logEntry.Passed,
-		FixesApplied:   logEntry.FixesApplied,
-		BeadsCreated:   logEntry.BeadsCreated,
-		BacklogCreated: logEntry.BacklogCreated,
+		Passed:         entry.Passed,
+		FixesApplied:   entry.FixesApplied,
+		BeadsCreated:   entry.BeadsCreated,
+		BacklogCreated: entry.BacklogCreated,
 		DurationMs:     0, // Duration tracked by caller if needed
 	}
 	if w.promptDiagnosticsProvider != nil {

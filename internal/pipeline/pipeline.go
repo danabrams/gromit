@@ -198,7 +198,7 @@ type StateManager interface {
 
 // LogWriter abstracts log writing operations.
 type LogWriter interface {
-	Write(entry any) error
+	Write(entry *LogEntry) error
 }
 
 // Plan executes the plan workflow.
