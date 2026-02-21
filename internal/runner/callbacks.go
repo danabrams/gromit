@@ -21,6 +21,12 @@ import (
 )
 
 const atddProgressLogInterval = 15 * time.Second
+const (
+	invocationStartMarkerFormat = "INVOCATION_START provider=%s model=%s tier=%s"
+	invocationEndMarkerFormat   = "INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s"
+	atddStartMarkerFormat       = "ATDD_INVOCATION_START provider=%s model=%s tier=%s"
+	atddEndMarkerFormat         = "ATDD_INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s"
+)
 
 func newSpecGate(r *Runner) (*specgate.Gate, error) {
 	if r == nil {
@@ -133,16 +139,23 @@ func (r *Runner) logInvocationStartMarker(bc *runtypes.BeadContext) {
 	if bc == nil {
 		return
 	}
-	r.streamLogger.LogEvent("INVOCATION_START provider=%s model=%s tier=%s", bc.BuildProvider, bc.Model, bc.Tier)
+	r.logLifecycleStartMarker(invocationStartMarkerFormat, bc.BuildProvider, bc.Model, bc.Tier)
 }
 
 func (r *Runner) logInvocationEndMarker(bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, err error, elapsed time.Duration) {
-	tier := ""
-	providerName := ""
-	modelName := ""
-	success := false
-	failureCategory := ""
+	providerName, modelName, tier, success, failureCategory := invocationLifecycleFields(bc, invResult, err)
+	r.logLifecycleEndMarker(invocationEndMarkerFormat, providerName, modelName, tier, success, elapsed, failureCategory)
+}
 
+func (r *Runner) logLifecycleStartMarker(format, providerName, modelName, tier string) {
+	r.streamLogger.LogEvent(format, providerName, modelName, tier)
+}
+
+func (r *Runner) logLifecycleEndMarker(format, providerName, modelName, tier string, success bool, elapsed time.Duration, failureCategory string) {
+	r.streamLogger.LogEvent(format, providerName, modelName, tier, success, elapsed.Round(time.Millisecond), failureCategory)
+}
+
+func invocationLifecycleFields(bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, err error) (providerName, modelName, tier string, success bool, failureCategory string) {
 	if bc != nil {
 		tier = bc.Tier
 		providerName = bc.BuildProvider
@@ -165,16 +178,7 @@ func (r *Runner) logInvocationEndMarker(bc *runtypes.BeadContext, invResult *run
 	if err != nil {
 		success = false
 	}
-
-	r.streamLogger.LogEvent(
-		"INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s",
-		providerName,
-		modelName,
-		tier,
-		success,
-		elapsed.Round(time.Millisecond),
-		failureCategory,
-	)
+	return providerName, modelName, tier, success, failureCategory
 }
 
 func (r *Runner) estimatedCostUSD(providerName, model string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
@@ -300,7 +304,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		}
 		streamInvoke := func(p provider.Provider, modelName string, attempt string) (result *provider.Result, stats *logger.StreamStats, err error) {
 			startedAt := time.Now()
-			r.streamLogger.LogEvent("ATDD_INVOCATION_START provider=%s model=%s tier=%s", p.Name(), modelName, bc.Tier)
+			r.logLifecycleStartMarker(atddStartMarkerFormat, p.Name(), modelName, bc.Tier)
 			defer func() {
 				failureCategory := ""
 				success := false
@@ -311,15 +315,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				if err != nil {
 					success = false
 				}
-				r.streamLogger.LogEvent(
-					"ATDD_INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s",
-					p.Name(),
-					modelName,
-					bc.Tier,
-					success,
-					time.Since(startedAt).Round(time.Millisecond),
-					failureCategory,
-				)
+				r.logLifecycleEndMarker(atddEndMarkerFormat, p.Name(), modelName, bc.Tier, success, time.Since(startedAt), failureCategory)
 			}()
 
 			var eventCount int64
