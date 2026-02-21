@@ -136,7 +136,7 @@ Acceptance tests verify **user-visible behavior**, not implementation details. A
 ## Anti-Patterns to Avoid
 
 Do NOT write tests that:
-- Put ATDD tests in `*_acceptance_test.go` or behind `//go:build acceptance` — that hides required behavior checks from `go test ./...`; reserve those only for true external E2E acceptance coverage
+- Put ATDD tests in `*_acceptance_test.go` or behind `//go:build acceptance` — ATDD behavior checks belong in regular `*_test.go` files so `go test ./...` runs them; reserve `*_acceptance_test.go` + `//go:build acceptance` for true external E2E coverage only
 - Test Go standard library behavior (file creation, temp files, JSON marshaling)
 - Call private/internal helper functions directly instead of the public API
 - Duplicate 10+ lines of identical setup across multiple test functions
