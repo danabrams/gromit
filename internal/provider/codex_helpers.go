@@ -13,17 +13,13 @@ import (
 
 func prepareCodexEnv() ([]string, string, error) {
 	env := os.Environ()
-	codexHome, ok := os.LookupEnv("CODEX_HOME")
-	if !ok || strings.TrimSpace(codexHome) == "" {
+	_, ok := os.LookupEnv("CODEX_HOME")
+	if !ok {
 		return env, "", nil
 	}
-	codexHome = strings.TrimSpace(codexHome)
-	if isUnderTempDir(codexHome) {
-		safeHome, err := resolveSafeCodexHome()
-		if err != nil {
-			return nil, "", fmt.Errorf("resolving safe CODEX_HOME from temp path (%s): %w", codexHome, err)
-		}
-		codexHome = safeHome
+	codexHome, err := ResolveCodexHome()
+	if err != nil {
+		return nil, "", fmt.Errorf("resolving CODEX_HOME: %w", err)
 	}
 	if err := os.MkdirAll(codexHome, 0755); err != nil {
 		fallback, resolveErr := resolveSafeCodexHome()

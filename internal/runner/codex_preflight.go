@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // preflightCodex validates Codex runtime prerequisites before the run loop starts.
@@ -63,6 +65,26 @@ func (r *Runner) preflightCodex(ctx context.Context) error {
 		}
 		return fmt.Errorf("codex preflight failed: codex is not logged in for CODEX_HOME=%s; run `codex login` (or unset CODEX_HOME if it points to an uninitialized directory)", homeHint)
 	}
+
+	codexHome, err := provider.ResolveCodexHome()
+	if err != nil {
+		return fmt.Errorf("codex preflight failed: resolving CODEX_HOME: %w", err)
+	}
+	if err := os.MkdirAll(codexHome, 0755); err != nil {
+		return fmt.Errorf("codex preflight failed: CODEX_HOME path %q does not exist and could not be created: %w", codexHome, err)
+	}
+	probeFile, err := os.CreateTemp(codexHome, ".gromit-codex-home-writecheck-*")
+	if err != nil {
+		return fmt.Errorf("codex preflight failed: CODEX_HOME path %q is not writable: %w", codexHome, err)
+	}
+	probePath := probeFile.Name()
+	if closeErr := probeFile.Close(); closeErr != nil {
+		return fmt.Errorf("codex preflight failed: CODEX_HOME writability check failed to close probe file %q: %w", probePath, closeErr)
+	}
+	if removeErr := os.Remove(probePath); removeErr != nil && !os.IsNotExist(removeErr) {
+		return fmt.Errorf("codex preflight failed: CODEX_HOME writability check failed to clean up probe file %q: %w", probePath, removeErr)
+	}
+	r.log("Codex preflight resolved CODEX_HOME=%s", codexHome)
 
 	r.log("Codex preflight passed (providers=%s)", strings.Join(codexBinaries, ","))
 	return nil

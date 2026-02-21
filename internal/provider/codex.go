@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -35,6 +37,25 @@ const (
 
 // Compile-time check to verify CodexProvider implements Provider interface
 var _ Provider = (*CodexProvider)(nil)
+
+// ResolveCodexHome returns the effective CODEX_HOME path.
+// If CODEX_HOME is unset/empty or points under the system temp directory, a
+// safe fallback path is resolved.
+func ResolveCodexHome() (string, error) {
+	codexHome := strings.TrimSpace(os.Getenv("CODEX_HOME"))
+	if codexHome == "" || isUnderTempDir(codexHome) {
+		safeHome, err := resolveSafeCodexHome()
+		if err != nil {
+			return "", err
+		}
+		codexHome = safeHome
+	}
+	cleaned := filepath.Clean(codexHome)
+	if isUnderTempDir(cleaned) {
+		return "", fmt.Errorf("resolved CODEX_HOME is unsafe (under temp directory): %s", cleaned)
+	}
+	return cleaned, nil
+}
 
 // NewCodexProvider creates a new CodexProvider with the given configuration
 func NewCodexProvider(binaryPath string, flags []string, tierToModel map[string]string) *CodexProvider {
