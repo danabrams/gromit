@@ -40,33 +40,10 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
 
-### 2026-02-21 | Clean Exit False With Successful Iterations Suggests Post-Loop Failure | gotchas
-When analyzing Gromit failures, check both the run logs and state.json. A clean_exit=false with successful recorded iterations suggests the failure occurred during post-iteration cleanup or during the final validation gate itself, possibly a timeout or signal interruption.
+### 2026-02-21 | Architectural Invariant Enforcement Pattern | conventions
+*Related to: f668688fead2f958, 5912b9aee59cce5e, code-review*
 
-### 2026-02-21 | t.Chdir Migration Must Include New Test Code Not Just Existing | conventions
-*Related to: code-review*
-
-When migrating tests from manual os.Getwd/os.Chdir/defer patterns to t.Chdir(), apply the migration uniformly to all new test code in the same changeset, not just existing tests being modified. New tests using the old pattern create inconsistency that compounds over time.
-
-### 2026-02-21 | Source-Reading Tests Are A Brittle Architectural Invariant Check Pattern | gotchas
-*Related to: code-review*
-
-Tests that use os.ReadFile+strings.Contains on .go source files to verify architectural invariants (e.g., verifying agent.Resolve usage, checking that certain function names exist) cluster around rule-enforcement use cases. These tests break silently when functions are renamed or files move, and they t.Skip when the working directory is wrong. Replace with compile-time var _ interface checks or behavioral integration tests that exercise the actual behavior being guarded.
-
-### 2026-02-21 | Compile-Time Interface Checks Must Live In Production Files, Not Test Bodies | conventions
-*Related to: code-review*
-
-A var _ Interface = (*Impl)(nil) check inside a test function body gates compilation of tests only — it does not gate production builds. The project rule requires the check to be a package-level var declaration in a non-test .go file. When auditing interface compliance, look for production-file package-level vars, not checks inside TestXxx functions.
-
-### 2026-02-21 | Runner Sibling Import Rule Applies To Test Files Too | conventions
-*Related to: code-review*
-
-The prohibition on internal/runner/* sub-packages importing each other (escalation, methodology, tdd, policy, validation) is well-enforced in production code but can drift in test files. Test files are compiled and linked — a sibling import in a _test.go file violates the rule just as much as one in a production file. Audits should grep test files for sibling imports, not just production files.
-
-### 2026-02-21 | Learnings Filter Fail-Open Silently Discards Errors | gotchas
-*Related to: code-review*
-
-learnings.File.Add uses intentional fail-open behavior when filterFunc errors: it logs nothing and falls through to normal placement logic to ensure filter unavailability never blocks learning capture. This design is correct for resilience but creates an observability gap — persistent filter failures are invisible without at least a stderr warning. When implementing fail-open error handling, always pair it with a diagnostic signal (log, metric, or stderr output) so operators can detect the degraded state.
+Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently when functions are renamed or files move, skip when the working directory is wrong, and only gate test compilation rather than production builds. Replace source-reading tests with compile-time var checks or behavioral integration tests that exercise the actual behavior being guarded.
 
 ---
 
