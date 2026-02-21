@@ -269,6 +269,12 @@ func TestValidateCommandsRejectsInvalidCommands(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "empty command list",
+			commands:    []string{},
+			expectError: true,
+			errorText:   "at least one command",
+		},
+		{
 			name:        "valid multiple commands",
 			commands:    []string{"go test ./...", "go vet ./...", "golangci-lint run"},
 			expectError: false,
