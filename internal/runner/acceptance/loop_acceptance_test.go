@@ -1,6 +1,6 @@
 //go:build acceptance
 
-package runner
+package acceptance_test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/runner"
 )
 
 // TestRunner_UsesLabelFiltersInLoop tests that Runner calls ReadyWithLabel for each label
@@ -53,7 +54,7 @@ func TestRunner_UsesLabelFiltersInLoop(t *testing.T) {
 		},
 	}
 
-	deps := Deps{
+	deps := runner.Deps{
 		Beads:    mock,
 		Router:   newMockRouterFromClaudeClient(mockClaude),
 		Analyzer: &mockFailureAnalyzer{},
@@ -61,7 +62,7 @@ func TestRunner_UsesLabelFiltersInLoop(t *testing.T) {
 		Logger:   &mockIterationLogger{},
 	}
 
-	r, err := NewRunnerWithDeps(cfg, io.Discard, "/tmp/gromit", deps)
+	r, err := runner.NewRunnerWithDeps(cfg, io.Discard, "/tmp/gromit", deps)
 	if err != nil {
 		t.Fatalf("NewRunnerWithDeps() error = %v", err)
 	}
@@ -165,8 +166,8 @@ func TestScopedRun_FullLoopWithLabelFilters(t *testing.T) {
 	}
 
 	var buf strings.Builder
-	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-		Deps{
+	r, err := runner.NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+		runner.Deps{
 			Beads:    mockBeads,
 			Router:   newMockRouterFromClaudeClient(mockClaude),
 			Analyzer: &mockFailureAnalyzer{},

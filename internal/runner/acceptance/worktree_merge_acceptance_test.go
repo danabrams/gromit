@@ -1,6 +1,6 @@
 //go:build acceptance
 
-package runner
+package acceptance_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// smoke-matrix: keep | rationale: Covers critical end-to-end merge-failure warning path to ensure run loop continues under configured warn mode. | destination: internal/runner/worktree_merge_acceptance_test.go:TestRunnerSmoke_WorktreeMergeModesEndToEnd
+// smoke-matrix: keep | rationale: Covers critical end-to-end merge-failure warning path to ensure run loop continues under configured warn mode. | destination: internal/runner/acceptance/worktree_merge_acceptance_test.go:TestRunnerSmoke_WorktreeMergeModesEndToEnd
 func TestRunnerSmoke_WorktreeMergeModesEndToEnd(t *testing.T) {
 	cfg := baseWorktreeMergeConfig()
 	configureWorktreeMerge(cfg, true, "warn")
@@ -26,8 +26,7 @@ func TestRunnerSmoke_WorktreeMergeModesEndToEnd(t *testing.T) {
 		},
 	}
 
-	r := setupRunnerForWorktreeMerge(t, cfg)
-	r.worktreeManager = mockWorktrees
+	r := setupRunnerForWorktreeMerge(t, cfg, mockWorktrees)
 
 	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false)
 	if err != nil {

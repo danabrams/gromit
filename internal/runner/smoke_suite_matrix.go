@@ -22,7 +22,8 @@ func RunnerSmokeApprovedMatrixCases() map[string]bool {
 // runner-level acceptance tests in the smoke suite.
 func RunnerSmokeSuiteApprovedRoots() map[string]bool {
 	return map[string]bool{
-		"internal/runner": true,
+		"internal/runner":            true,
+		"internal/runner/acceptance": true,
 	}
 }
 

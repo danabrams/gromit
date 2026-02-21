@@ -43,13 +43,13 @@ func TestRunnerAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 	}
 
 	allowedFiles := map[string]bool{
-		"internal/runner/validation_extraction_acceptance_test.go": true,
-		"internal/runner/invocation_timeout_acceptance_test.go":    true,
-		"internal/runner/worktree_merge_acceptance_test.go":        true,
-		"internal/runner/runner_pipeline_acceptance_test.go":       true,
-		"internal/runner/status_integration_acceptance_test.go":    true,
-		"internal/runner/status_acceptance_test.go":                true,
-		"internal/runner/loop_acceptance_test.go":                  true,
+		"internal/runner/validation_extraction_acceptance_test.go":         true,
+		"internal/runner/acceptance/invocation_timeout_acceptance_test.go": true,
+		"internal/runner/acceptance/worktree_merge_acceptance_test.go":     true,
+		"internal/runner/runner_pipeline_acceptance_test.go":               true,
+		"internal/runner/status_integration_acceptance_test.go":            true,
+		"internal/runner/status_acceptance_test.go":                        true,
+		"internal/runner/acceptance/loop_acceptance_test.go":               true,
 	}
 
 	for _, abs := range matches {
@@ -67,10 +67,10 @@ func TestRunnerAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 		"internal/runner/validation_extraction_acceptance_test.go": {
 			"func TestRunnerSmoke_RunSingleBeadHappyPath",
 		},
-		"internal/runner/invocation_timeout_acceptance_test.go": {
+		"internal/runner/acceptance/invocation_timeout_acceptance_test.go": {
 			"func TestRunnerSmoke_ValidationFailureEscalatesTier",
 		},
-		"internal/runner/worktree_merge_acceptance_test.go": {
+		"internal/runner/acceptance/worktree_merge_acceptance_test.go": {
 			"func TestRunnerSmoke_WorktreeMergeModesEndToEnd",
 		},
 	}

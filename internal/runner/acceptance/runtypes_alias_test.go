@@ -1,11 +1,12 @@
 //go:build acceptance
 
-package runner
+package acceptance_test
 
 import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/runner"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -24,7 +25,7 @@ func TestIterationResult_AliasesRuntypes(t *testing.T) {
 	}
 
 	// This assignment only compiles if IterationResult is `type IterationResult = runtypes.IterationResult`
-	var runnerResult IterationResult = rtResult
+	var runnerResult runner.IterationResult = rtResult
 
 	if runnerResult.BeadID != "alias-test" {
 		t.Errorf("BeadID = %q, want %q", runnerResult.BeadID, "alias-test")
@@ -47,7 +48,7 @@ func TestSubTask_AliasesRuntypes(t *testing.T) {
 	}
 
 	// This assignment only compiles if SubTask is `type SubTask = runtypes.SubTask`
-	var runnerTask SubTask = rtTask
+	var runnerTask runner.SubTask = rtTask
 
 	if runnerTask.Title != "Alias compat task" {
 		t.Errorf("Title = %q, want %q", runnerTask.Title, "Alias compat task")

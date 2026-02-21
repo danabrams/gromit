@@ -111,9 +111,9 @@ func listRunnerSmokeAcceptanceFiles(t *testing.T, projectRoot string) []string {
 	t.Helper()
 
 	smokeFiles := map[string]bool{
-		"internal/runner/validation_extraction_acceptance_test.go": true,
-		"internal/runner/invocation_timeout_acceptance_test.go":    true,
-		"internal/runner/worktree_merge_acceptance_test.go":        true,
+		"internal/runner/validation_extraction_acceptance_test.go":         true,
+		"internal/runner/acceptance/invocation_timeout_acceptance_test.go": true,
+		"internal/runner/acceptance/worktree_merge_acceptance_test.go":     true,
 	}
 
 	all := listRunnerAcceptanceFiles(t, projectRoot)

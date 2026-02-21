@@ -29,6 +29,7 @@ type Deps struct {
 	MethodologyPolicy policy.MethodologyPolicy
 	ValidationPolicy  policy.ValidationPolicy
 	StuckPolicy       policy.StuckPolicy
+	WorktreeManager   WorktreeManager
 	CmdRunner         func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error)
 	ArgvRunner        ArgvRunnerFn
 }
@@ -110,6 +111,9 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 		lookPathFn:    exec.LookPath,
 		stdinStatFn:   os.Stdin.Stat,
 		promptYesNoFn: func(question string) (bool, error) { return promptYesNo(os.Stdin, syncOut, question) },
+	}
+	if deps.WorktreeManager != nil {
+		r.worktreeManager = deps.WorktreeManager
 	}
 	r.escalationHandler = escalation.NewHandler(cfg, deps.Analyzer, deps.Beads, r.DecomposeTask, r.CreateSubBeads, r.log, r.showPartialProgress)
 	r.validationRunner = validation.NewRunner(cfg, cmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
