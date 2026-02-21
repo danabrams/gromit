@@ -141,7 +141,11 @@ func TestProcessBead_ATDD_DelegatesToMethodologyExec(t *testing.T) {
 		},
 		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
 			validateCallCount++
-			// Acceptance verification runs once at the end of the cycle.
+			if validateCallCount == 1 {
+				// Pre-build ATDD check expects tests to fail.
+				return &claude.Result{Success: true, Output: "acceptance tests failing", ExitCode: 1}, nil
+			}
+			// End-of-cycle acceptance verification passes.
 			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
 		nil, // analyzeFn
@@ -192,17 +196,12 @@ func TestProcessBead_ATDD_DelegatesToMethodologyExec(t *testing.T) {
 	}
 }
 
-// --- processBead does not short-circuit to already-done in ATDD pre-build phases ---
-
-// Expected failure: processBead currently checks against the local errATDDAlreadyDone sentinel.
-// After implementation, it will check against methodology.ErrATDDAlreadyDone (or use
-// methodology.IsATDDAlreadyDone) since the sentinel now lives in the methodology package.
-func TestProcessBead_ATDD_DoesNotMarkAlreadyDoneWithoutVerifyFailPhase(t *testing.T) {
+func TestProcessBead_ATDD_MarksAlreadyDoneWhenDiagnosticReturnsAlreadyDone(t *testing.T) {
 	cfg := newMethodologyWiringConfig()
 	cfg.Methodology.ATDD = true
 	var buf strings.Builder
 
-	// Acceptance verification passes at end-of-cycle.
+	diagnosticCalls := 0
 	exec := methodology.NewExecutorWithAnalysis(
 		cfg,
 		&buf,
@@ -213,10 +212,18 @@ func TestProcessBead_ATDD_DoesNotMarkAlreadyDoneWithoutVerifyFailPhase(t *testin
 			return nil // acceptance tests succeed
 		},
 		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+			// Pre-build ATDD check sees an unexpected pass.
 			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
 		nil,
-		nil, // getDiffFn
+		func(startCommit string) (string, error) { return "diff --git a/a_test.go b/a_test.go", nil },
+	)
+	exec.SetDiagnosticDeps(
+		func(ctx context.Context, promptText string, tier string) (*claude.Result, error) {
+			diagnosticCalls++
+			return &claude.Result{Success: true, Output: "VERDICT: ALREADY_DONE", ExitCode: 0}, nil
+		},
+		func(ctx *prompt.DiagnosticContext) (string, error) { return "diagnostic prompt", nil },
 	)
 
 	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
@@ -243,11 +250,14 @@ func TestProcessBead_ATDD_DoesNotMarkAlreadyDoneWithoutVerifyFailPhase(t *testin
 
 	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
-	if result.AlreadyDone {
-		t.Error("processBead should not mark AlreadyDone when verify-fail phase is disabled")
+	if !result.AlreadyDone {
+		t.Error("processBead should mark AlreadyDone when ATDD diagnostic returns ALREADY_DONE")
 	}
 	if !result.Success {
-		t.Error("processBead should succeed when acceptance verification passes")
+		t.Error("processBead should return success for ALREADY_DONE ATDD diagnostic")
+	}
+	if diagnosticCalls != 1 {
+		t.Errorf("expected exactly one diagnostic call, got %d", diagnosticCalls)
 	}
 }
 
@@ -261,6 +271,7 @@ func TestProcessBead_ATDD_DoesNotMarkAlreadyDoneWithoutVerifyFailPhase(t *testin
 func TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec(t *testing.T) {
 	cfg := newMethodologyWiringConfig()
 	cfg.Methodology.ATDD = true
+	cfg.Methodology.TDD = true
 	var buf strings.Builder
 
 	var refactorPromptRendered string
@@ -280,6 +291,10 @@ func TestProcessBead_FullFlow_RefactorDelegatesToMethodologyExec(t *testing.T) {
 		},
 		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
 			fullFlowValidateCallCount++
+			if fullFlowValidateCallCount == 1 {
+				// Pre-build ATDD check expects tests to fail.
+				return &claude.Result{Success: true, Output: "acceptance tests failing", ExitCode: 1}, nil
+			}
 			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
 		func(bc *runtypes.BeadContext, nextTier string) {
@@ -1116,6 +1131,9 @@ func TestProcessBead_ATDD_SwitchesToATDDBuildPrompt(t *testing.T) {
 			return nil
 		},
 		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+			if strings.Contains(strings.Join(commands, " "), "-tags acceptance") {
+				return &claude.Result{Success: true, Output: "acceptance tests failing", ExitCode: 1}, nil
+			}
 			return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 		},
 		nil, nil,
@@ -1171,16 +1189,16 @@ func TestProcessBead_ATDD_SwitchesToATDDBuildPrompt(t *testing.T) {
 		t.Error("after ATDD phases, processBead should call RenderATDDBuild (not RenderBuild) " +
 			"for the main build prompt")
 	}
-	// Verify the FailureContext indicates acceptance tests are ready
-	if !strings.Contains(failureContextReceived, "Acceptance tests") {
-		t.Errorf("processBead should set FailureContext indicating acceptance tests are ready; "+
-			"got %q", failureContextReceived)
+	// ATDD build prompt should not force an acceptance-ready failure context string.
+	if failureContextReceived != "" {
+		t.Errorf("processBead should not set a synthetic ATDD FailureContext before RenderATDDBuild; got %q", failureContextReceived)
 	}
 }
 
 func TestProcessBead_ATDD_RetriesWhenAcceptanceVerificationFailsAfterRefactor(t *testing.T) {
 	cfg := newMethodologyWiringConfig()
 	cfg.Methodology.ATDD = true
+	cfg.Methodology.TDD = true
 	cfg.Escalation.MaxRetriesPerModel = 1
 	cfg.Escalation.MaxRetriesPerBead = 3
 	var buf strings.Builder
@@ -1199,9 +1217,12 @@ func TestProcessBead_ATDD_RetriesWhenAcceptanceVerificationFailsAfterRefactor(t 
 			validateCallCount++
 			switch validateCallCount {
 			case 1:
+				// Pre-build ATDD check: tests fail as expected.
+				return &claude.Result{Success: true, Output: "acceptance tests failing", ExitCode: 1}, nil
+			case 2:
 				// First post-refactor acceptance verification: fail and trigger retry.
 				return &claude.Result{Success: true, Output: "FAIL after refactor", ExitCode: 1}, nil
-			case 2:
+			case 3:
 				// Retry post-refactor acceptance verification: pass.
 				return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
 			default:

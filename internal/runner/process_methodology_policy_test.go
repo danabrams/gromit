@@ -129,9 +129,15 @@ func TestRunATDDPreBuildPhases_UsesMethodologyPolicyPhaseTimeout(t *testing.T) {
 	renderFn := func(ctx *prompt.Context) (string, error) {
 		return "acceptance prompt", nil
 	}
-	exec := methodology.NewExecutor(&config.Config{
+	exec := methodology.NewExecutorWithEscalation(&config.Config{
 		Escalation: config.EscalationConfig{MaxRetriesPerModel: 0},
-	}, &bytes.Buffer{}, renderFn, invokeFn, nil)
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+	}, &bytes.Buffer{}, renderFn, invokeFn, func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{Success: true, Output: "expected pre-build test failure", ExitCode: 1}, nil
+	}, nil)
 	r.methodologyExec = exec
 
 	bc := &runtypes.BeadContext{

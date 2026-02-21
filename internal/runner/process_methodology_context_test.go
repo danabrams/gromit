@@ -589,6 +589,10 @@ func TestRunATDDPreBuildPhases_RecordsRedPhaseMetric(t *testing.T) {
 		Methodology: config.MethodologyConfig{
 			ATDD: true,
 		},
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
 	}
 	cfg.SetDefaults()
 
@@ -602,7 +606,9 @@ func TestRunATDDPreBuildPhases_RecordsRedPhaseMetric(t *testing.T) {
 			bc.Result.OutputTokens = 19
 			return nil
 		},
-		nil,
+		func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+			return &claude.Result{Success: true, Output: "expected pre-build test failure", ExitCode: 1}, nil
+		},
 		nil,
 	)
 

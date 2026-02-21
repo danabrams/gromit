@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/failurephase"
@@ -256,11 +257,57 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 		bc.Result.Error = fmt.Errorf("acceptance tests phase failed: %w", err)
 		return false
 	}
+
+	checkErr := r.methodologyExec.CheckTestsFailWithDiagnostic(redCtx, bc)
+	if checkErr != nil {
+		switch {
+		case methodology.IsATDDAlreadyDone(checkErr):
+			bc.Result.Success = true
+			bc.Result.AlreadyDone = true
+			return false
+		default:
+			if rewrite, ok := methodology.AsATDDRewrite(checkErr); ok {
+				bc.PromptCtx.FailureContext = rewrite.Feedback
+				bc.PromptCtx.IsRetry = true
+
+				if err := r.methodologyExec.RunAcceptanceTests(redCtx, bc); err != nil {
+					r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
+					setPhaseAttribution(bc.Result, "red", err)
+					bc.Result.Error = fmt.Errorf("acceptance tests rewrite phase failed: %w", err)
+					return false
+				}
+
+				r.refreshTouchedPackagesFromStartCommit(bc)
+				acceptanceCommands := methodology.AcceptanceCommands(r.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+				validationResult, err := r.runDirectValidationCheck(redCtx, acceptanceCommands, bc.PromptCtx.WorkDir)
+				if err != nil {
+					r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
+					setPhaseAttribution(bc.Result, "red", err)
+					bc.Result.Error = fmt.Errorf("post-rewrite acceptance validation invocation: %w", err)
+					return false
+				}
+				if validationResult == nil {
+					r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
+					bc.Result.Error = fmt.Errorf("post-rewrite acceptance validation returned no result")
+					return false
+				}
+				if claude.IsValidationPassed(validationResult) {
+					bc.Result.Success = true
+					bc.Result.AlreadyDone = true
+					return false
+				}
+			} else {
+				r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
+				setPhaseAttribution(bc.Result, "red", checkErr)
+				bc.Result.Error = fmt.Errorf("acceptance tests diagnostic check failed: %w", checkErr)
+				return false
+			}
+		}
+	}
 	r.recordPhaseMetric(bc, "red", 1, redPhaseStart, true)
 
 	bc.PromptCtx.IsRetry = false
 	bc.PromptCtx.PrevFailure = ""
-	bc.PromptCtx.FailureContext = "Acceptance tests have been written and committed. Your job is to make them pass."
 	buildPrompt, err := r.renderer.RenderATDDBuild(bc.PromptCtx)
 	if err != nil {
 		bc.Result.Error = fmt.Errorf("rendering ATDD build prompt: %w", err)
@@ -422,7 +469,7 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 			return bc.Result
 		}
 
-		if atddActive || tddActive {
+		if tddActive {
 			retry, terminal := r.runRefactorAndPostChecks(ctx, bc, atddActive, cycleNumber)
 			if retry {
 				continue

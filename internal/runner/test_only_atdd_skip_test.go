@@ -134,6 +134,9 @@ func TestProcessBead_FileCreationBeadNotMarkedAlreadyDone(t *testing.T) {
 
 	var buf strings.Builder
 	noopCmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		if strings.Contains(command, "-tags acceptance") {
+			return "expected pre-build acceptance failure", "", 1, nil
+		}
 		return "VALIDATION_PASSED", "", 0, nil
 	}
 
