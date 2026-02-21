@@ -23,8 +23,9 @@ import (
 )
 
 const (
-	compilationCheckTimeout = 30 * time.Second
-	compilationErrorsPrompt = "\n\n<compilation-errors>\nThe codebase currently has compilation errors. You must fix these as part of your work:\n\n%s\n</compilation-errors>"
+	compilationCheckTimeout   = 30 * time.Second
+	compilationErrorsPrompt   = "\n\n<compilation-errors>\nThe codebase currently has compilation errors. You must fix these as part of your work:\n\n%s\n</compilation-errors>"
+	estimatedFilesLabelPrefix = "estimated-files:"
 )
 
 // setupBeadContext validates runner state, sets up timeouts, captures git state,
@@ -106,10 +107,10 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 
 func parseEstimatedFilesLabel(labels []string) int {
 	for _, label := range labels {
-		if !strings.HasPrefix(label, "estimated-files:") {
+		if !strings.HasPrefix(label, estimatedFilesLabelPrefix) {
 			continue
 		}
-		estimatedFiles, err := strconv.Atoi(strings.TrimPrefix(label, "estimated-files:"))
+		estimatedFiles, err := strconv.Atoi(strings.TrimPrefix(label, estimatedFilesLabelPrefix))
 		if err != nil {
 			return 0
 		}
