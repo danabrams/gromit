@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/skills"
 )
 
@@ -58,28 +59,59 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	// Build prompt with embedded skill content
 	promptText, promptDiagnostics := buildDecomposePrompt(input.PlanName, planBody, skills.DecomposeSkill)
 
-	// Run provider non-interactively
-	claudeResult, err := p.deps.ClaudeClient.Run(promptText, "sonnet")
-	if err != nil {
-		return nil, fmt.Errorf("invoking provider: %w", err)
+	maxRetries := input.MaxValidationRetries
+	if maxRetries < 0 {
+		maxRetries = 0
 	}
+	currentPrompt := promptText
 
-	// Extract output from typed result
-	if !claudeResult.Success {
-		return nil, fmt.Errorf("provider invocation failed (exit code %d)\nOutput:\n%s", claudeResult.ExitCode, claudeResult.Output)
-	}
-	output := strings.TrimSpace(claudeResult.Output)
-	if output == "" {
-		return nil, fmt.Errorf("provider returned empty output for decompose; check CLI connectivity and retry")
-	}
 	var beadDefs []beadDef
-	if err := jsonutil.ExtractJSON(output, &beadDefs); err != nil {
-		// Include truncated output in error for diagnostics
-		preview := output
-		if len(preview) > 500 {
-			preview = preview[:500] + "... (truncated)"
+	for attempt := 0; ; attempt++ {
+		// Run provider non-interactively
+		claudeResult, err := p.deps.ClaudeClient.Run(currentPrompt, "sonnet")
+		if err != nil {
+			return nil, fmt.Errorf("invoking provider: %w", err)
 		}
-		return nil, fmt.Errorf("parsing bead definitions: %w\n\nProvider output:\n%s", err, preview)
+
+		// Extract output from typed result
+		if !claudeResult.Success {
+			return nil, fmt.Errorf("provider invocation failed (exit code %d)\nOutput:\n%s", claudeResult.ExitCode, claudeResult.Output)
+		}
+		output := strings.TrimSpace(claudeResult.Output)
+		if output == "" {
+			return nil, fmt.Errorf("provider returned empty output for decompose; check CLI connectivity and retry")
+		}
+		if err := jsonutil.ExtractJSON(output, &beadDefs); err != nil {
+			// Include truncated output in error for diagnostics
+			preview := output
+			if len(preview) > 500 {
+				preview = preview[:500] + "... (truncated)"
+			}
+			return nil, fmt.Errorf("parsing bead definitions: %w\n\nProvider output:\n%s", err, preview)
+		}
+
+		if input.SkipValidation {
+			break
+		}
+
+		candidates := toBeadCandidates(beadDefs)
+		violations := validate.CheckBeads(candidates)
+		if len(violations) == 0 {
+			break
+		}
+
+		fmt.Printf("Validation found %d violation(s) in decomposed beads.\n", len(violations))
+		for _, violation := range violations {
+			fmt.Printf("  - bead %d [%s]: %s\n", violation.BeadIndex, violation.Rule, violation.Message)
+		}
+
+		if attempt >= maxRetries {
+			fmt.Printf("Warning: validation still failing after %d retr%s; proceeding with current output.\n", maxRetries, pluralizeRetry(maxRetries))
+			break
+		}
+
+		fmt.Printf("Retrying decomposition with validation feedback (%d/%d)...\n", attempt+1, maxRetries)
+		currentPrompt = validate.BuildReprompt(promptText, candidates, violations)
 	}
 
 	if len(beadDefs) == 0 {
@@ -233,4 +265,23 @@ func buildDecomposeLabels(planName string, estimatedFiles int) []string {
 		labels = append(labels, fmt.Sprintf(estimatedFilesLabelFormat, estimatedFiles))
 	}
 	return labels
+}
+
+func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
+	candidates := make([]validate.BeadCandidate, len(defs))
+	for i, def := range defs {
+		candidates[i] = validate.BeadCandidate{
+			Title:              def.Title,
+			Description:        def.Description,
+			AcceptanceCriteria: def.AcceptanceCriteria,
+		}
+	}
+	return candidates
+}
+
+func pluralizeRetry(count int) string {
+	if count == 1 {
+		return "y"
+	}
+	return "ies"
 }

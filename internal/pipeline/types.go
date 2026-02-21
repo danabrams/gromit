@@ -70,9 +70,11 @@ func NewPlanResult() PlanResult {
 
 // DecomposeInput contains parameters for the Decompose workflow.
 type DecomposeInput struct {
-	PlanName string // Name of plan to decompose
-	Force    bool   // Re-decompose even if already done
-	Review   bool   // Return proposed beads for review before creating
+	PlanName             string // Name of plan to decompose
+	Force                bool   // Re-decompose even if already done
+	Review               bool   // Return proposed beads for review before creating
+	SkipValidation       bool   // Skip validation checks on decomposed bead candidates
+	MaxValidationRetries int    // Max retries after validation failures
 }
 
 // CreatedBead contains information about a bead that was created.

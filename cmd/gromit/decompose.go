@@ -19,9 +19,10 @@ import (
 )
 
 var (
-	decomposeReview  bool
-	decomposeForce   bool
-	decomposeNoChain bool
+	decomposeReview         bool
+	decomposeForce          bool
+	decomposeNoChain        bool
+	decomposeSkipValidation bool
 )
 
 const decomposeSessionCommand = "decompose"
@@ -61,6 +62,7 @@ Each bead is created with:
 func init() {
 	decomposeCmd.Flags().BoolVar(&decomposeReview, "review", false, "Show proposed beads before creating")
 	decomposeCmd.Flags().BoolVar(&decomposeForce, "force", false, "Re-decompose even if already done")
+	decomposeCmd.Flags().BoolVar(&decomposeSkipValidation, "skip-validation", false, "Skip bead validation and retry loop")
 	decomposeCmd.Flags().BoolVar(&decomposeNoChain, "no-chain", false, "Skip offering to run next command in pipeline")
 	decomposeCmd.Flags().MarkHidden("no-chain")
 	rootCmd.AddCommand(decomposeCmd)
@@ -208,9 +210,11 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	fmt.Printf("Decomposing plan '%s' into beads...\n", planName)
 	ctx := context.Background()
 	input := pipeline.DecomposeInput{
-		PlanName: planName,
-		Force:    decomposeForce,
-		Review:   decomposeReview,
+		PlanName:             planName,
+		Force:                decomposeForce,
+		Review:               decomposeReview,
+		SkipValidation:       decomposeSkipValidation,
+		MaxValidationRetries: cfg.Validation.MaxValidationRetries,
 	}
 
 	result, err := p.Decompose(ctx, input)

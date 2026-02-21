@@ -231,8 +231,9 @@ func TestCLIContract_Flags(t *testing.T) {
 		{
 			name: "decompose",
 			flags: map[string]string{
-				"review": "bool", // --review
-				"force":  "bool", // --force
+				"review":          "bool", // --review
+				"force":           "bool", // --force
+				"skip-validation": "bool", // --skip-validation
 			},
 		},
 		{

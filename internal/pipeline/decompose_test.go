@@ -196,6 +196,169 @@ func TestDecomposeWorkflow_ProviderReturnsEmptyOutput(t *testing.T) {
 	}
 }
 
+func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	planPath := filepath.Join(plansDir, "retry-plan.md")
+	if err := os.WriteFile(planPath, []byte("# Retry Plan"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			if runCount == 2 && !strings.Contains(prompt, "Violations By Flagged Bead") {
+				t.Fatalf("second prompt should be validation reprompt, got: %q", prompt)
+			}
+
+			if runCount == 1 {
+				return &ClaudeRunResult{
+					Success:  true,
+					ExitCode: 0,
+					Output: `[{
+						"title": "Bad task",
+						"description": "Too many criteria",
+						"priority": "P1",
+						"acceptance_criteria": ["a", "b", "c", "d"],
+						"depends_on_index": []
+					}]`,
+				}, nil
+			}
+
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
+					"title": "Fixed task",
+					"description": "Valid",
+					"priority": "P1",
+					"acceptance_criteria": ["a", "b", "c"],
+					"depends_on_index": []
+				}]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "retry-plan",
+		MaxValidationRetries: 2,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+	if runCount != 2 {
+		t.Fatalf("Run() call count = %d, want 2", runCount)
+	}
+}
+
+func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	planPath := filepath.Join(plansDir, "retry-exhausted.md")
+	if err := os.WriteFile(planPath, []byte("# Retry Exhausted"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
+					"title": "Still bad task",
+					"description": "Too many criteria",
+					"priority": "P1",
+					"acceptance_criteria": ["a", "b", "c", "d"],
+					"depends_on_index": []
+				}]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "retry-exhausted",
+		MaxValidationRetries: 1,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+	if runCount != 2 {
+		t.Fatalf("Run() call count = %d, want 2", runCount)
+	}
+}
+
+func TestDecomposeWorkflow_SkipValidationDisablesRetryLoop(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	planPath := filepath.Join(plansDir, "skip-validation.md")
+	if err := os.WriteFile(planPath, []byte("# Skip Validation"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
+					"title": "Bad task",
+					"description": "Too many criteria",
+					"priority": "P1",
+					"acceptance_criteria": ["a", "b", "c", "d"],
+					"depends_on_index": []
+				}]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "skip-validation",
+		SkipValidation:       true,
+		MaxValidationRetries: 4,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+	if runCount != 1 {
+		t.Fatalf("Run() call count = %d, want 1", runCount)
+	}
+}
+
 // TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels verifies beads get spec:<name> label
 // Expected failure: Pipeline.Decompose() does not add spec label to created beads
 func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
