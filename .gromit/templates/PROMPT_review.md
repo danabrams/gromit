@@ -105,6 +105,10 @@ Return a JSON object with this exact structure:
     "Added nil check in handler.go line 45",
     "Removed unused import from service.go"
   ],
+  "fix_categories": [
+    "nil_checks",
+    "error_handling"
+  ],
   "beads_to_create": [
     {
       "title": "Add input validation for email field",
@@ -131,6 +135,7 @@ Return a JSON object with this exact structure:
 **Notes:**
 - `passed`: true if no blocking issues found, false if major problems exist
 - `fixes_applied`: List of fixes you made directly (empty array if none)
+- `fix_categories`: Category labels for recurring review issues (prefer: `error_handling`, `test_quality`, `nil_checks`)
 - `beads_to_create`: Issues that need dedicated work (empty array if none)
 - `backlog_items`: Issues needing discussion/decision (empty array if none)
 - `learnings`: Codebase patterns, conventions, or gotchas observed during review (empty array if none)

@@ -633,6 +633,7 @@ func TestLogReview(t *testing.T) {
 		Model:          "sonnet",
 		Passed:         true,
 		FixesApplied:   1,
+		FixCategories:  []string{"error_handling"},
 		BeadsCreated:   2,
 		BacklogCreated: 0,
 		DurationMs:     25000,
@@ -655,6 +656,9 @@ func TestLogReview(t *testing.T) {
 	}
 	if !contains(content, `"fixes_applied":1`) {
 		t.Errorf("log should contain fixes_applied field")
+	}
+	if !contains(content, `"fix_categories":["error_handling"]`) {
+		t.Errorf("log should contain fix_categories field")
 	}
 	if !contains(content, `"beads_created":2`) {
 		t.Errorf("log should contain beads_created field")

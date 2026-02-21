@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -246,6 +248,66 @@ func TestBuildPromptForBeadPopulatesRecentValidationFailures(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestBuildPromptForBeadPopulatesCommonReviewFindings(t *testing.T) {
+	logsDir := t.TempDir()
+	logContent := `{"timestamp":"2026-02-21T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","spec_id":"spec:test","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-21T12:01:00Z","type":"review","review_type":"light","iteration":1,"bead_id":"b1","model":"sonnet","passed":true,"fixes_applied":1,"fix_categories":["error_handling"],"beads_created":0,"backlog_created":0,"duration_ms":100}
+{"timestamp":"2026-02-21T12:02:00Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","spec_id":"spec:test","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-02-21T12:03:00Z","type":"review","review_type":"light","iteration":2,"bead_id":"b2","model":"sonnet","passed":true,"fixes_applied":1,"fix_categories":["error_handling","nil_checks"],"beads_created":0,"backlog_created":0,"duration_ms":100}
+`
+	if err := os.WriteFile(filepath.Join(logsDir, "run-20260221-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var capturedCtx *prompt.Context
+	renderer := &mockPromptRenderer{
+		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+			return &prompt.Context{
+				Bead:               b,
+				ParentBead:         parent,
+				Iteration:          iteration,
+				Model:              model,
+				WorkDir:            t.TempDir(),
+				SpecName:           "spec:test",
+				ConfirmedLearnings: []learnings.Learning{},
+				RecentLearnings:    []learnings.Learning{},
+			}, nil
+		},
+		RenderBuildFn: func(ctx *prompt.Context) (string, error) {
+			capturedCtx = ctx
+			return "build prompt", nil
+		},
+	}
+
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{BeadTimeout: 300},
+		Paths:  config.PathsConfig{Logs: logsDir},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	r := &Runner{
+		cfg:      cfg,
+		renderer: renderer,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-current", Title: "Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}},
+		Model:     "test-model",
+		Iteration: 1,
+	}
+
+	if err := r.buildPromptForBead(context.Background(), bc, 1); err != nil {
+		t.Fatalf("buildPromptForBead() error = %v", err)
+	}
+	if capturedCtx == nil {
+		t.Fatal("RenderBuild was not called")
+	}
+	if len(capturedCtx.CommonReviewFindings) != 1 || capturedCtx.CommonReviewFindings[0] != "error_handling" {
+		t.Fatalf("CommonReviewFindings = %v, want [error_handling]", capturedCtx.CommonReviewFindings)
 	}
 }
 

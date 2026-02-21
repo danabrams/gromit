@@ -34,6 +34,16 @@ The following validation failures occurred in recent beads during this run. Avoi
 {{end}}
 {{end}}
 
+{{if .CommonReviewFindings}}
+## Common Review Findings To Avoid
+
+Recent reviews repeatedly found these categories. Proactively check your changes for them before finishing:
+
+{{range .CommonReviewFindings}}
+- {{.}}
+{{end}}
+{{end}}
+
 ## Project Context
 
 {{if .ClaudeMD}}

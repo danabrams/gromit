@@ -3,6 +3,7 @@ package review
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -10,6 +11,7 @@ import (
 type ReviewResult struct {
 	Passed        bool           `json:"passed"`
 	FixesApplied  []string       `json:"fixes_applied"`
+	FixCategories []string       `json:"fix_categories"`
 	BeadsToCreate []BeadProposal `json:"beads_to_create"`
 	BacklogItems  []BacklogItem  `json:"backlog_items"`
 	Summary       string         `json:"summary"`
@@ -42,6 +44,9 @@ func (r *ReviewResult) normalizeNilFields() {
 	}
 	if r.FixesApplied == nil {
 		r.FixesApplied = []string{}
+	}
+	if r.FixCategories == nil {
+		r.FixCategories = []string{}
 	}
 	if r.BeadsToCreate == nil {
 		r.BeadsToCreate = []BeadProposal{}
@@ -91,6 +96,60 @@ func ParseReviewResult(output string) (*ReviewResult, error) {
 		return nil, fmt.Errorf("parsing review JSON: %w", err)
 	}
 
+	if len(result.FixCategories) == 0 {
+		result.FixCategories = CategorizeFixes(result.FixesApplied)
+	}
 	result.normalizeNilFields()
 	return &result, nil
+}
+
+// CategorizeFixes maps review fix descriptions to stable category labels.
+func CategorizeFixes(fixes []string) []string {
+	if len(fixes) == 0 {
+		return []string{}
+	}
+
+	categories := make(map[string]struct{})
+	for _, fix := range fixes {
+		label := categorizeFix(fix)
+		if label == "" {
+			continue
+		}
+		categories[label] = struct{}{}
+	}
+
+	if len(categories) == 0 {
+		return []string{}
+	}
+	result := make([]string, 0, len(categories))
+	for category := range categories {
+		result = append(result, category)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func categorizeFix(fix string) string {
+	text := strings.ToLower(strings.TrimSpace(fix))
+	if text == "" {
+		return ""
+	}
+
+	if strings.Contains(text, "nil") {
+		return "nil_checks"
+	}
+
+	if strings.Contains(text, "assert") ||
+		strings.Contains(text, "test") ||
+		strings.Contains(text, "coverage") {
+		return "test_quality"
+	}
+
+	if strings.Contains(text, "error") ||
+		strings.Contains(text, "panic") ||
+		strings.Contains(text, "recover") {
+		return "error_handling"
+	}
+
+	return ""
 }

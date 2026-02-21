@@ -98,6 +98,7 @@ type ReviewLog struct {
 	Model             string                    `json:"model"`
 	Passed            bool                      `json:"passed"`
 	FixesApplied      int                       `json:"fixes_applied"`
+	FixCategories     []string                  `json:"fix_categories"`
 	BeadsCreated      int                       `json:"beads_created"`
 	BacklogCreated    int                       `json:"backlog_created"`
 	DurationMs        int64                     `json:"duration_ms"`

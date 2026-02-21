@@ -138,6 +138,18 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 		}
 		bc.PromptCtx.RecentValidationFailures = r.validationFailures[start:]
 	}
+	commonReviewFindings, err := logger.ReadRecurringReviewFixCategories(
+		r.cfg.Paths.Logs,
+		bc.Bead.ID,
+		bc.PromptCtx.SpecName,
+		2, // recurring threshold
+		3, // top categories to include in build prompt
+	)
+	if err != nil {
+		r.log("Warning: could not load recurring review findings: %v", err)
+	} else {
+		bc.PromptCtx.CommonReviewFindings = commonReviewFindings
+	}
 
 	if r.cfg.ScopeCheck.Enabled {
 		// Use cached scope estimate if available (from scope gate), otherwise call checkScope

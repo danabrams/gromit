@@ -151,6 +151,60 @@ func TestBuildTemplatesValidationFailuresSectionPlacement(t *testing.T) {
 	}
 }
 
+func TestBuildTemplatesRenderCommonReviewFindingsSection(t *testing.T) {
+	r := setupRealTemplateRenderer(t)
+
+	type renderFunc func(*Context) (string, error)
+	templates := []struct {
+		name   string
+		render renderFunc
+	}{
+		{"PROMPT_build.md", r.RenderBuild},
+		{"PROMPT_atdd_build.md", r.RenderATDDBuild},
+		{"PROMPT_tdd_build.md", r.RenderTDDBuild},
+	}
+
+	findings := []string{"error_handling", "nil_checks"}
+	for _, tmpl := range templates {
+		t.Run(tmpl.name+" with findings", func(t *testing.T) {
+			ctx := &Context{
+				Bead:                 testBead(),
+				Model:                "sonnet",
+				Iteration:            1,
+				CommonReviewFindings: findings,
+			}
+			result, err := tmpl.render(ctx)
+			if err != nil {
+				t.Fatalf("render error: %v", err)
+			}
+			if !strings.Contains(result, "Common Review Findings To Avoid") {
+				t.Fatalf("%s: expected common findings section", tmpl.name)
+			}
+			for _, finding := range findings {
+				if !strings.Contains(result, finding) {
+					t.Fatalf("%s: missing finding %q", tmpl.name, finding)
+				}
+			}
+		})
+
+		t.Run(tmpl.name+" without findings", func(t *testing.T) {
+			ctx := &Context{
+				Bead:                 testBead(),
+				Model:                "sonnet",
+				Iteration:            1,
+				CommonReviewFindings: []string{},
+			}
+			result, err := tmpl.render(ctx)
+			if err != nil {
+				t.Fatalf("render error: %v", err)
+			}
+			if strings.Contains(result, "Common Review Findings To Avoid") {
+				t.Fatalf("%s: section should be omitted when no findings", tmpl.name)
+			}
+		})
+	}
+}
+
 // TestBuildTemplatesScopedTestCommand verifies that when ScopedTestCommand is set
 // on the Context, all three build templates render that exact command in the
 // Instructions section instead of the generic "./..." form.

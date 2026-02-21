@@ -28,6 +28,9 @@ func TestParseReviewResult(t *testing.T) {
 	if len(result.FixesApplied) != 1 {
 		t.Errorf("expected 1 fix, got %d", len(result.FixesApplied))
 	}
+	if len(result.FixCategories) != 1 || result.FixCategories[0] != "error_handling" {
+		t.Errorf("expected fix_categories [error_handling], got %v", result.FixCategories)
+	}
 	if len(result.BeadsToCreate) != 1 {
 		t.Errorf("expected 1 bead, got %d", len(result.BeadsToCreate))
 	}
@@ -42,6 +45,42 @@ func TestParseReviewResult(t *testing.T) {
 	}
 	if result.Summary != "Implementation matches spec" {
 		t.Errorf("unexpected summary: %q", result.Summary)
+	}
+}
+
+func TestParseReviewResultPrefersExplicitFixCategories(t *testing.T) {
+	input := `{
+		"passed": true,
+		"fixes_applied": ["added missing error check"],
+		"fix_categories": ["nil_checks"],
+		"beads_to_create": [],
+		"backlog_items": [],
+		"summary": "Implementation matches spec"
+	}`
+
+	result, err := ParseReviewResult(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.FixCategories) != 1 || result.FixCategories[0] != "nil_checks" {
+		t.Fatalf("FixCategories = %v, want [nil_checks]", result.FixCategories)
+	}
+}
+
+func TestCategorizeFixes(t *testing.T) {
+	got := CategorizeFixes([]string{
+		"Added missing error check in handler",
+		"Improved test assertions for edge cases",
+		"Added nil guard before dereference",
+	})
+	want := []string{"error_handling", "nil_checks", "test_quality"}
+	if len(got) != len(want) {
+		t.Fatalf("len(CategorizeFixes()) = %d, want %d (values=%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("CategorizeFixes()[%d] = %q, want %q (all=%v)", i, got[i], want[i], got)
+		}
 	}
 }
 
