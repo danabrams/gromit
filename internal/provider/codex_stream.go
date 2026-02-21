@@ -256,7 +256,7 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 		case "turn.completed":
 			// Extract usage data.
 			if event.Usage != nil {
-				usage = event.Usage
+				usage = mergeCodexUsage(usage, event.Usage)
 				// Prefer cost nested in usage, but accept top-level for compatibility.
 				if usage.TotalCostUSD == 0 && event.TotalCostUSD > 0 {
 					usage.TotalCostUSD = event.TotalCostUSD

@@ -137,6 +137,39 @@ func TestProcessCodexStreamExtractsUsageFromResponseCompleted(t *testing.T) {
 	}
 }
 
+// TestProcessCodexStreamMergesUsageAcrossTurnCompletedEvents verifies usage is
+// merged across multiple turn.completed events rather than overwritten.
+func TestProcessCodexStreamMergesUsageAcrossTurnCompletedEvents(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"turn.completed","usage":{"input_tokens":2100,"cached_input_tokens":180}}`,
+		`{"type":"turn.completed","usage":{"output_tokens":520,"total_cost_usd":0.036}}`,
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+
+	_, usage, _, err := processCodexStream(reader, &output, nil, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if usage == nil {
+		t.Fatal("usage is nil, want non-nil when turn.completed events include usage data")
+	}
+	if usage.InputTokens != 2100 {
+		t.Errorf("usage.InputTokens = %d, want 2100", usage.InputTokens)
+	}
+	if usage.CachedInputTokens != 180 {
+		t.Errorf("usage.CachedInputTokens = %d, want 180", usage.CachedInputTokens)
+	}
+	if usage.OutputTokens != 520 {
+		t.Errorf("usage.OutputTokens = %d, want 520", usage.OutputTokens)
+	}
+	if usage.TotalCostUSD != 0.036 {
+		t.Errorf("usage.TotalCostUSD = %f, want 0.036", usage.TotalCostUSD)
+	}
+}
+
 // TestProcessCodexStreamReturnsCostWithNilHandler verifies that cost data is
 // extracted from turn.completed events even when EventHandler is nil.
 // This is the core of the cost tracking bug: preserve_provider_output mode
