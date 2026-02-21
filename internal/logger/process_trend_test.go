@@ -717,42 +717,52 @@ func TestBuildProcessTrend_IncludesProviderMetrics(t *testing.T) {
 	}
 }
 
-func TestSummarizeWindow_AvgCostPerBead_SumsRetriesPerBead(t *testing.T) {
-	// Bead A: 3 iterations at $2 each, 3rd is successful → total $6
-	// Bead B: 1 iteration at $3, successful → total $3
-	// Expected: avg = ($6 + $3) / 2 = $4.50
-	window := []IterationLog{
-		{BeadID: "bead-a", CostUSD: 2.0, Success: false},
-		{BeadID: "bead-a", CostUSD: 2.0, Success: false},
-		{BeadID: "bead-a", CostUSD: 2.0, Success: true},
-		{BeadID: "bead-b", CostUSD: 3.0, Success: true},
+func TestSummarizeWindow_AvgCostPerBead(t *testing.T) {
+	testCases := []struct {
+		name     string
+		window   []IterationLog
+		expected float64
+	}{
+		{
+			name: "sums retries for completed beads",
+			// Bead A: 3 iterations at $2 each, 3rd is successful -> total $6.
+			// Bead B: 1 iteration at $3, successful -> total $3.
+			// Expected avg: ($6 + $3) / 2 = $4.50.
+			window: []IterationLog{
+				{BeadID: "bead-a", CostUSD: 2.0, Success: false},
+				{BeadID: "bead-a", CostUSD: 2.0, Success: false},
+				{BeadID: "bead-a", CostUSD: 2.0, Success: true},
+				{BeadID: "bead-b", CostUSD: 3.0, Success: true},
+			},
+			expected: 4.50,
+		},
+		{
+			name: "excludes incomplete beads",
+			// Bead A: 1 successful iteration at $5 -> total $5.
+			// Bead B: 2 failed iterations at $2 each -> not counted (no success in window).
+			// Expected avg: $5 / 1 = $5.
+			window: []IterationLog{
+				{BeadID: "bead-a", CostUSD: 5.0, Success: true},
+				{BeadID: "bead-b", CostUSD: 2.0, Success: false},
+				{BeadID: "bead-b", CostUSD: 2.0, Success: false},
+			},
+			expected: 5.0,
+		},
+		{
+			name: "returns zero when no completed beads",
+			window: []IterationLog{
+				{BeadID: "bead-a", CostUSD: 2.0, Success: false},
+			},
+			expected: 0.0,
+		},
 	}
 
-	summary := summarizeWindow(window)
-	assertFloatNear(t, summary.AvgCostPerBeadUSD, 4.50, "AvgCostPerBeadUSD")
-}
-
-func TestSummarizeWindow_AvgCostPerBead_ExcludesIncompleteBeads(t *testing.T) {
-	// Bead A: 1 successful iteration at $5 → total $5
-	// Bead B: 2 failed iterations at $2 each → not counted (no success in window)
-	// Expected: avg = $5 / 1 = $5
-	window := []IterationLog{
-		{BeadID: "bead-a", CostUSD: 5.0, Success: true},
-		{BeadID: "bead-b", CostUSD: 2.0, Success: false},
-		{BeadID: "bead-b", CostUSD: 2.0, Success: false},
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			summary := summarizeWindow(tc.window)
+			assertFloatNear(t, summary.AvgCostPerBeadUSD, tc.expected, "AvgCostPerBeadUSD")
+		})
 	}
-
-	summary := summarizeWindow(window)
-	assertFloatNear(t, summary.AvgCostPerBeadUSD, 5.0, "AvgCostPerBeadUSD")
-}
-
-func TestSummarizeWindow_AvgCostPerBead_ZeroWhenNoCompletedBeads(t *testing.T) {
-	window := []IterationLog{
-		{BeadID: "bead-a", CostUSD: 2.0, Success: false},
-	}
-
-	summary := summarizeWindow(window)
-	assertFloatNear(t, summary.AvgCostPerBeadUSD, 0.0, "AvgCostPerBeadUSD")
 }
 
 func TestBuildIterationMetrics_RollingAvgCostPerBeadUSD(t *testing.T) {

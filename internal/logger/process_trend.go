@@ -709,12 +709,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 	var mttrCount int
 	durations := make([]int64, 0, len(window))
 	validationDurations := make([]int64, 0, len(window))
-
-	type beadAccum struct {
-		totalCost  float64
-		hasSuccess bool
-	}
-	beadCosts := map[string]*beadAccum{}
+	beadCosts := map[string]beadCostAccum{}
 
 	for _, e := range window {
 		if e.Success {
@@ -748,17 +743,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		costTotal += e.CostUSD
 		durations = append(durations, e.DurationMs)
 
-		if e.BeadID != "" {
-			accum := beadCosts[e.BeadID]
-			if accum == nil {
-				accum = &beadAccum{}
-				beadCosts[e.BeadID] = accum
-			}
-			accum.totalCost += e.CostUSD
-			if e.Success {
-				accum.hasSuccess = true
-			}
-		}
+		updateBeadCostAccum(beadCosts, e)
 
 		if e.MTTRProxyMs > 0 {
 			mttrTotal += e.MTTRProxyMs
@@ -778,18 +763,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		avgMTTR = float64(mttrTotal) / float64(mttrCount)
 	}
 
-	var completedBeadCostSum float64
-	var completedBeadCount int
-	for _, accum := range beadCosts {
-		if accum.hasSuccess {
-			completedBeadCostSum += accum.totalCost
-			completedBeadCount++
-		}
-	}
-	avgCostPerBead := 0.0
-	if completedBeadCount > 0 {
-		avgCostPerBead = completedBeadCostSum / float64(completedBeadCount)
-	}
+	avgCostPerBead := averageCompletedBeadCost(beadCosts)
 
 	return ProcessTrendWindow{
 		SuccessRate:           float64(successes) / count,
@@ -808,6 +782,39 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		ValidationFailureRate: float64(validationFailures) / count,
 		TimeoutFailureRate:    float64(timeoutFailures) / count,
 	}
+}
+
+type beadCostAccum struct {
+	totalCost  float64
+	hasSuccess bool
+}
+
+func updateBeadCostAccum(beadCosts map[string]beadCostAccum, entry IterationLog) {
+	if entry.BeadID == "" {
+		return
+	}
+	accum := beadCosts[entry.BeadID]
+	accum.totalCost += entry.CostUSD
+	if entry.Success {
+		accum.hasSuccess = true
+	}
+	beadCosts[entry.BeadID] = accum
+}
+
+// averageCompletedBeadCost returns average total bead cost for beads completed in the window.
+func averageCompletedBeadCost(beadCosts map[string]beadCostAccum) float64 {
+	var completedBeadCostSum float64
+	var completedBeadCount int
+	for _, accum := range beadCosts {
+		if accum.hasSuccess {
+			completedBeadCostSum += accum.totalCost
+			completedBeadCount++
+		}
+	}
+	if completedBeadCount == 0 {
+		return 0
+	}
+	return completedBeadCostSum / float64(completedBeadCount)
 }
 
 func isRateMetric(metric string) bool {
