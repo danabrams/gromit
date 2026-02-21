@@ -70,37 +70,37 @@ Previous output:
 Please analyze the failure and try a different approach.
 {{end}}
 
+## CRITICAL CONSTRAINT
+
+You are in the **REFACTOR phase** of TDD. All tests are passing. You may improve code structure but you MUST NOT change behavior.
+
+**After you finish, the orchestrator will run tests automatically. Tests MUST still PASS.** If any test fails, your refactoring is reverted.
+
+**What you CAN do:**
+- Rename variables, functions, or types for clarity
+- Extract helpers or reduce duplication
+- Simplify control flow or error handling
+- Add constants for magic values
+- Reorganize code within files
+
+**What you MUST NOT do:**
+- Add new features or new test cases — that's the next red phase
+- Change what any function returns for a given input
+- Delete or skip tests
+- Make large rewrites — keep changes small and safe
+
 ## Instructions
 
-**All tests are passing.** Your job is to review the implementation for quality improvements without changing behavior.
-
-1. **Review the implementation** looking for:
-   - Code duplication or unnecessary complexity
-   - Unclear variable or function names
-   - Missing or misleading comments/documentation
-   - Opportunities to follow established project patterns better
-   - Error handling that could be clearer
-   - Long functions that could be decomposed
-   - Magic numbers or strings that should be constants
-
-2. **Make refactoring changes** that:
-   - Improve readability and maintainability
-   - Do NOT change external behavior (tests must still pass)
-   - Follow existing project conventions and patterns
-   - Are small, focused improvements (not large rewrites)
-   - Make the code clearer, not just different
-
-3. **Do NOT refactor if the code is already clear and follows project conventions** - refactoring for its own sake adds no value
-
-4. **Commit your changes** with a clear commit message like "refactor: improve clarity in [component/function]" - keep refactoring commits separate from implementation commits
+1. **Review** the implementation for readability, duplication, naming, and adherence to project patterns
+2. **Refactor** only what genuinely improves clarity — if the code is already clean, make no changes and say so
+3. **Verify** by running scoped tests: `go test` and `go vet` on touched packages only (not `./...`)
+4. **Commit** with message: `refactor: <what you improved>`
 
 ## Important Notes
 
-- Refactoring must preserve all existing behavior - verify by running `go test` and `go vet` scoped to the packages you touched, not the full suite. The separate validation phase runs `go test ./...` to catch cross-package regressions
-- Only refactor the code touched by this task, not the entire codebase
-- If the implementation is already clear and well-structured, say so and make no changes
-- Focus on readability and maintainability, not premature optimization
-- Follow the project's existing patterns - don't introduce new styles or conventions
+- Only refactor code touched by this task, not the entire codebase
+- Follow the project's existing patterns — don't introduce new conventions
+- Small, safe improvements only — not wholesale rewrites
 
 ## Completion
 

@@ -101,30 +101,42 @@ Previous output:
 Please analyze the failure and try a different approach.
 {{end}}
 
-## Instructions
+## Instructions — Red-Green-Refactor Discipline
 
-Follow the **red-green-refactor** cycle strictly. Work in small increments.
+You MUST follow red-green-refactor strictly. Each cycle is small and committed separately.
 
-1. **Red** — Write ONE small failing unit test that addresses a piece of the bead's requirements
-2. **Green** — Write the minimum code to make that test pass
-3. **Commit** — Commit the test + implementation together with a message describing what was tested and implemented
-4. **Repeat** — Move to the next piece of the requirement
+### The Cycle (repeat for each requirement)
 
-**Critical rules:**
-- Write ONE test at a time, then implement to make it pass
-- Do NOT write multiple tests before implementing
-- Focus each test on a single behavior or requirement from the bead
-- Commit after each red-green cycle
-- Write minimum code to pass - no gold plating
-- Before completing, run `go test` and `go vet` scoped to the packages you touched{{if .ScopedTestCommand}} using this exact command: `{{.ScopedTestCommand}}`{{else}} (e.g., `go test ./internal/foo/... ./internal/bar/...`), not the full suite. The separate validation phase runs `go test ./...` to catch cross-package regressions{{end}}. Fix failures before committing
-- After all requirements are covered, stop - refactoring will happen in a separate phase
+**1. RED — Write ONE failing test**
+- Write a single test function or test case that calls code which doesn't exist yet or doesn't behave correctly yet
+- Run tests: they MUST fail (compilation errors count as failing)
+- Commit: `red: test for <what the test verifies>`
+- Do NOT write any production code in this step
+
+**2. GREEN — Write minimum production code**
+- Write only enough production code to make the failing test pass
+- Do NOT modify the test you just wrote
+- Do NOT add anything beyond what this one test requires
+- Run tests: they MUST pass
+- Commit: `green: implement <what you added>`
+
+**3. COMMIT and move to next requirement** — refactoring happens in a separate phase
+
+### Non-Negotiable Rules
+
+- ONE test per red step. Stop after writing it.
+- MINIMUM code per green step. No "while I'm here" additions.
+- SEPARATE commits for red and green. Each commit message starts with `red:` or `green:`.
+- Do NOT batch multiple requirements into one cycle.
+- Before completing, run `go test` and `go vet` scoped to touched packages{{if .ScopedTestCommand}} using: `{{.ScopedTestCommand}}`{{else}} (e.g., `go test ./internal/foo/...`), not `./...`{{end}}.
+- After all requirements are covered, stop — refactoring happens in a separate phase.
 
 ## Completion
 
-When the task is complete:
-- All code changes are committed (in multiple small commits, one per red-green cycle)
+When complete:
+- Multiple small commits exist, alternating `red:` and `green:` prefixes
 - All tests pass
-- Each commit shows the red-green discipline: test + minimal implementation
-- The implementation covers all acceptance criteria
+- Each requirement has a corresponding test
+- No gold plating — minimum viable implementation only
 
 Do NOT output any special completion markers - just complete the task and exit.
