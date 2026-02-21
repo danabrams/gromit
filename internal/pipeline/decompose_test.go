@@ -156,6 +156,20 @@ created: 2026-02-11
 	if !strings.Contains(planStr, "decomposed_at:") {
 		t.Error("Plan frontmatter missing 'decomposed_at' timestamp")
 	}
+
+	// Verify ValidationStats for clean first attempt (no retries)
+	if result.ValidationStats == nil {
+		t.Fatal("ValidationStats = nil, want populated")
+	}
+	if result.ValidationStats.Attempts != 1 {
+		t.Errorf("ValidationStats.Attempts = %d, want 1", result.ValidationStats.Attempts)
+	}
+	if result.ValidationStats.ViolationCount != 0 {
+		t.Errorf("ValidationStats.ViolationCount = %d, want 0", result.ValidationStats.ViolationCount)
+	}
+	if result.ValidationStats.Improved {
+		t.Error("ValidationStats.Improved = true, want false (no retries needed)")
+	}
 }
 
 func TestDecomposeWorkflow_ProviderReturnsEmptyOutput(t *testing.T) {
@@ -250,7 +264,7 @@ func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 	}
 
 	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
-	_, err := p.Decompose(context.Background(), DecomposeInput{
+	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-plan",
 		MaxValidationRetries: 2,
 	})
@@ -259,6 +273,20 @@ func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 	}
 	if runCount != 2 {
 		t.Fatalf("Run() call count = %d, want 2", runCount)
+	}
+
+	// Verify ValidationStats
+	if result.ValidationStats == nil {
+		t.Fatal("ValidationStats = nil, want populated")
+	}
+	if result.ValidationStats.Attempts != 2 {
+		t.Errorf("ValidationStats.Attempts = %d, want 2", result.ValidationStats.Attempts)
+	}
+	if result.ValidationStats.ViolationCount != 1 {
+		t.Errorf("ValidationStats.ViolationCount = %d, want 1", result.ValidationStats.ViolationCount)
+	}
+	if !result.ValidationStats.Improved {
+		t.Error("ValidationStats.Improved = false, want true (retry fixed violations)")
 	}
 }
 
@@ -298,7 +326,7 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 	}
 
 	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
-	_, err := p.Decompose(context.Background(), DecomposeInput{
+	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-exhausted",
 		MaxValidationRetries: 1,
 	})
@@ -307,6 +335,21 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 	}
 	if runCount != 2 {
 		t.Fatalf("Run() call count = %d, want 2", runCount)
+	}
+
+	// Verify ValidationStats when retries exhausted without improvement
+	if result.ValidationStats == nil {
+		t.Fatal("ValidationStats = nil, want populated")
+	}
+	if result.ValidationStats.Attempts != 2 {
+		t.Errorf("ValidationStats.Attempts = %d, want 2", result.ValidationStats.Attempts)
+	}
+	// 1 violation per attempt = 2 total
+	if result.ValidationStats.ViolationCount != 2 {
+		t.Errorf("ValidationStats.ViolationCount = %d, want 2", result.ValidationStats.ViolationCount)
+	}
+	if result.ValidationStats.Improved {
+		t.Error("ValidationStats.Improved = true, want false (violations unchanged)")
 	}
 }
 

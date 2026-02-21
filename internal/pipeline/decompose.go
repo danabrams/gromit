@@ -65,7 +65,10 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	currentPrompt := promptText
 
 	var beadDefs []beadDef
+	stats := &ValidationStats{}
+	firstViolationCount := 0
 	for attempt := 0; ; attempt++ {
+		stats.Attempts++
 		// Run provider non-interactively
 		claudeResult, err := p.deps.ClaudeClient.Run(currentPrompt, decomposeModel)
 		if err != nil {
@@ -95,13 +98,23 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 
 		candidates := toBeadCandidates(beadDefs)
 		violations := validate.CheckBeads(candidates)
+		stats.ViolationCount += len(violations)
+		if attempt == 0 {
+			firstViolationCount = len(violations)
+		}
 		if len(violations) == 0 {
+			if attempt > 0 {
+				stats.Improved = true
+			}
 			break
 		}
 
 		logValidationViolations(violations)
 
 		if attempt >= maxRetries {
+			if len(violations) < firstViolationCount {
+				stats.Improved = true
+			}
 			fmt.Printf("Warning: validation still failing after %d retr%s; proceeding with current output.\n", maxRetries, pluralizeRetry(maxRetries))
 			break
 		}
@@ -118,6 +131,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	if input.Review {
 		result := NewDecomposeResult()
 		result.PromptDiagnostics = promptDiagnostics
+		result.ValidationStats = stats
 		for _, def := range beadDefs {
 			bead := newCreatedBeadFromDef(def, input.PlanName, "")
 			result.CreatedBeads = append(result.CreatedBeads, bead)
@@ -129,6 +143,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	// Create beads
 	result := NewDecomposeResult()
 	result.PromptDiagnostics = promptDiagnostics
+	result.ValidationStats = stats
 	createdIDs := []string{}
 
 	for i, def := range beadDefs {

@@ -126,14 +126,14 @@ func TestCheckBeads_SiblingOverlap_CaseInsensitive(t *testing.T) {
 			Title:       "Bead 1",
 			Description: "First bead",
 			AcceptanceCriteria: []string{
-				"Add Database Migration",
+				"Add database migration scripts for users table",
 			},
 		},
 		{
 			Title:       "Bead 2",
 			Description: "Second bead",
 			AcceptanceCriteria: []string{
-				"add database migration script",
+				"add database migration scripts for users table and sessions",
 			},
 		},
 	}
@@ -439,6 +439,34 @@ func TestCheckBeads_SiblingOverlap_SingleBead(t *testing.T) {
 	for _, v := range violations {
 		if v.Rule == "sibling_overlap" {
 			t.Errorf("unexpected sibling_overlap violation for single bead: %s", v.Message)
+		}
+	}
+}
+
+// TestCheckBeads_SiblingOverlap_ShortMatchBelowThreshold tests that short shared phrases don't trigger false positives
+func TestCheckBeads_SiblingOverlap_ShortMatchBelowThreshold(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:       "Bead 1",
+			Description: "First bead",
+			AcceptanceCriteria: []string{
+				"Add database migration",
+			},
+		},
+		{
+			Title:       "Bead 2",
+			Description: "Second bead",
+			AcceptanceCriteria: []string{
+				"add database migration for sessions",
+			},
+		},
+	}
+
+	violations := CheckBeads(beads)
+
+	for _, v := range violations {
+		if v.Rule == "sibling_overlap" {
+			t.Errorf("unexpected sibling_overlap for short criterion (%d chars < 25 threshold): %s", len("add database migration"), v.Message)
 		}
 	}
 }

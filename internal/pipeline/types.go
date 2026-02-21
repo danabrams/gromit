@@ -93,12 +93,20 @@ func NewCreatedBead() CreatedBead {
 	}
 }
 
+// ValidationStats tracks validation retry metrics for a decompose run.
+type ValidationStats struct {
+	Attempts       int  `json:"attempts"`        // Total provider invocations (1 = no retries)
+	ViolationCount int  `json:"violation_count"` // Total violations found across all attempts
+	Improved       bool `json:"improved"`        // True if retry reduced violations vs first attempt
+}
+
 // DecomposeResult contains the output from the Decompose workflow.
 // Use NewDecomposeResult() to create instances with properly initialized slices.
 type DecomposeResult struct {
 	CreatedBeads      []CreatedBead             `json:"created_beads"`
 	PlanUpdated       bool                      `json:"plan_updated"`
 	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
+	ValidationStats   *ValidationStats          `json:"validation_stats,omitempty"`
 }
 
 // NewDecomposeResult creates a DecomposeResult with initialized slices.

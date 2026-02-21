@@ -23,6 +23,7 @@ var (
 	decomposeForce          bool
 	decomposeNoChain        bool
 	decomposeSkipValidation bool
+	decomposeMaxRetries     int
 )
 
 const decomposeSessionCommand = "decompose"
@@ -63,6 +64,7 @@ func init() {
 	decomposeCmd.Flags().BoolVar(&decomposeReview, "review", false, "Show proposed beads before creating")
 	decomposeCmd.Flags().BoolVar(&decomposeForce, "force", false, "Re-decompose even if already done")
 	decomposeCmd.Flags().BoolVar(&decomposeSkipValidation, "skip-validation", false, "Skip bead validation and retry loop")
+	decomposeCmd.Flags().IntVar(&decomposeMaxRetries, "max-retries", -1, "Max validation retries (overrides gromit.yaml)")
 	decomposeCmd.Flags().BoolVar(&decomposeNoChain, "no-chain", false, "Skip offering to run next command in pipeline")
 	decomposeCmd.Flags().MarkHidden("no-chain")
 	rootCmd.AddCommand(decomposeCmd)
@@ -209,12 +211,16 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	// Execute decompose workflow
 	fmt.Printf("Decomposing plan '%s' into beads...\n", planName)
 	ctx := context.Background()
+	maxRetries := cfg.Validation.MaxValidationRetries
+	if decomposeMaxRetries >= 0 {
+		maxRetries = decomposeMaxRetries
+	}
 	input := pipeline.DecomposeInput{
 		PlanName:             planName,
 		Force:                decomposeForce,
 		Review:               decomposeReview,
 		SkipValidation:       decomposeSkipValidation,
-		MaxValidationRetries: cfg.Validation.MaxValidationRetries,
+		MaxValidationRetries: maxRetries,
 	}
 
 	result, err := p.Decompose(ctx, input)
@@ -245,6 +251,15 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	}
 
 	fmt.Printf("\n✓ Created %d bead(s) from plan '%s'\n", len(result.CreatedBeads), planName)
+
+	if result.ValidationStats != nil && result.ValidationStats.Attempts > 1 {
+		stats := result.ValidationStats
+		improved := ""
+		if stats.Improved {
+			improved = " (improved)"
+		}
+		fmt.Printf("  Validation: %d attempt(s), %d violation(s)%s\n", stats.Attempts, stats.ViolationCount, improved)
+	}
 
 	// Offer to chain to 'gromit run' if chaining is enabled
 	if !decomposeNoChain && len(result.CreatedBeads) > 0 {
