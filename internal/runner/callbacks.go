@@ -33,7 +33,21 @@ const (
 	atddFailureClassTransport = provider.FailureCategoryTransportDisconnect
 	atddFailureClassStartup   = "startup_error"
 	atddFailureClassOther     = provider.FailureCategoryOther
+	atddBuildPhase            = "build"
 )
+
+var atddTransportFailureSignals = []string{
+	"stream disconnected",
+	"connection reset",
+	"broken pipe",
+}
+
+var atddStartupFailureSignals = []string{
+	"failed to start",
+	"startup",
+	"initializ",
+	"timed out waiting for first event",
+}
 
 func newSpecGate(r *Runner) (*specgate.Gate, error) {
 	if r == nil {
@@ -207,13 +221,22 @@ func classifyATDDFailure(result *provider.Result, err error) string {
 	}
 	content := strings.ToLower(failureText.String())
 
-	if strings.Contains(content, "stream disconnected") || strings.Contains(content, "connection reset") || strings.Contains(content, "broken pipe") {
+	if containsAny(content, atddTransportFailureSignals) {
 		return atddFailureClassTransport
 	}
-	if strings.Contains(content, "failed to start") || strings.Contains(content, "startup") || strings.Contains(content, "initializ") || strings.Contains(content, "timed out waiting for first event") {
+	if containsAny(content, atddStartupFailureSignals) {
 		return atddFailureClassStartup
 	}
 	return atddFailureClassOther
+}
+
+func containsAny(haystack string, signals []string) bool {
+	for _, signal := range signals {
+		if strings.Contains(haystack, signal) {
+			return true
+		}
+	}
+	return false
 }
 
 func isATDDTransientFailureClass(failureClass string) bool {
@@ -464,9 +487,9 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			return result, stats, nil
 		}
 
-		p, modelName := r.router.Select("build", bc.Tier)
+		p, modelName := r.router.Select(atddBuildPhase, bc.Tier)
 		if p == nil {
-			return fmt.Errorf("no providers available for phase=build tier=%s", bc.Tier)
+			return fmt.Errorf("no providers available for phase=%s tier=%s", atddBuildPhase, bc.Tier)
 		}
 		setSelectedModel := func(selectedModel string) {
 			bc.Model = selectedModel
@@ -480,7 +503,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if err != nil {
 			if p.IsUsageLimitError(result, err) {
 				r.router.MarkUnavailable(p.Name())
-				p2, modelName2 := r.router.Select("build", bc.Tier)
+				p2, modelName2 := r.router.Select(atddBuildPhase, bc.Tier)
 				if p2 != nil {
 					setSelectedModel(modelName2)
 					result, stats, err = streamInvoke(p2, modelName2, "usage-limit-fallback")
