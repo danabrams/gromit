@@ -4,8 +4,10 @@ import "strings"
 
 const (
 	// minOverlapLength is the minimum number of characters required for a
-	// substantial overlap between acceptance criteria to be considered a violation
-	minOverlapLength = 15
+	// substantial overlap between acceptance criteria to be considered a violation.
+	// Set to 25 to reduce false positives from short common phrases while still
+	// catching genuine duplication between sibling beads.
+	minOverlapLength = 25
 )
 
 // scopeSignals contains keywords that may indicate over-scoping
