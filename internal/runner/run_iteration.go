@@ -325,7 +325,9 @@ func (r *Runner) processSingleBead(
 
 	latest, err := r.beads.Show(b.ID)
 	if err != nil {
-		r.log("Warning: failed to re-check bead status for %s: %v", b.ID, err)
+		r.log("Warning: failed to re-check bead status for %s: %v; skipping as precaution", b.ID, err)
+		st.skippedBeads[b.ID] = true
+		return false, nil
 	} else if latest != nil {
 		if strings.EqualFold(latest.Status, "closed") {
 			r.log("Bead %s is already closed; skipping", b.ID)

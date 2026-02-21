@@ -37,6 +37,11 @@ type Context struct {
 	// SiblingTouchedPackages lists package paths touched by completed sibling beads.
 	SiblingTouchedPackages []string
 
+	// MethodologyGranularity indicates whether per-bead or per-spec methodology
+	// tracking is active ("bead" or "spec"). When "spec", per-bead coverage
+	// tracking is skipped because the spec gate handles system-level criteria.
+	MethodologyGranularity string
+
 	// Iteration info
 	Iteration      int
 	Model          string
