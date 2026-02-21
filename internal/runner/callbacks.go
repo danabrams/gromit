@@ -312,13 +312,6 @@ func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext
 
 	switch classification.TimeoutType {
 	case "stall":
-		if invResult != nil {
-			if invResult.ProviderResult == nil {
-				invResult.ProviderResult = providerResult
-			}
-			invResult.TimeoutType = "stall"
-			return invResult, err
-		}
 		return stampTimeoutType(invResult, providerResult, "stall"), err
 	case "bead":
 		bc.Result.TimeoutType = "bead"

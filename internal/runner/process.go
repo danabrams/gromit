@@ -163,13 +163,10 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *runtypes.BeadC
 	}
 
 	invResult, err := r.invoker.Execute(ctx, bc, bc.BuildPrompt)
-	if err != nil && invResult == nil {
-		return nil, nil, err
-	}
-
 	if invResult == nil {
 		return nil, nil, err
 	}
+
 	return invResult, invResult.ProviderResult, err
 }
 
