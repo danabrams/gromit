@@ -25,7 +25,7 @@ type GateFailure struct {
 	SuggestedFix string `json:"suggested_fix"`
 }
 
-// SynthesizeFixBeads creates up to MaxSynthesizedSpecFixBeads P0 fix beads for gate failures.
+// SynthesizeFixBeads creates up to runtypes.MaxSynthesizedSpecFixBeads P0 fix beads for gate failures.
 func SynthesizeFixBeads(ctx context.Context, specName string, failures []GateFailure, beadClient BeadClient) ([]string, error) {
 	if len(failures) == 0 {
 		return []string{}, nil
