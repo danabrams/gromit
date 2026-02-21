@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-02-21T01:57:19.84398105Z",
-  "total_iterations": 663,
+  "generated_at": "2026-02-21T02:04:55.844290757Z",
+  "total_iterations": 665,
   "window_size": 30,
   "latest_window": {
     "success_rate": 0.8333333333333334,
     "failure_rate": 0.16666666666666666,
     "first_pass_success_rate": 0.8333333333333334,
     "escalation_rate": 0,
-    "avg_duration_ms": 607993.3666666667,
+    "avg_duration_ms": 602214.5666666667,
     "p95_duration_ms": 1349254.0499999998,
-    "avg_validation_ms": 38835.12,
+    "avg_validation_ms": 38835.08,
     "p95_validation_ms": 122450.59999999993,
-    "avg_cost_usd": 2.3108563443333328,
+    "avg_cost_usd": 2.222043144333333,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -23,25 +23,25 @@
       {
         "prompt_type": "build",
         "invocation_count": 29,
-        "avg_estimated_tokens": 2265.0689655172414
+        "avg_estimated_tokens": 2151.655172413793
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 54056
-      },
-      {
-        "section": "spec",
-        "estimated_tokens": 5416
+        "estimated_tokens": 54230
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 3556
+        "estimated_tokens": 3444
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 2572
+        "estimated_tokens": 2517
+      },
+      {
+        "section": "spec",
+        "estimated_tokens": 2120
       },
       {
         "section": "template_static",
@@ -63,7 +63,7 @@
     "budget_action_frequency": {},
     "reconciliation_drift": {
       "sample_count": 27,
-      "mean_abs_token_delta_pct": 109.48443149019027,
+      "mean_abs_token_delta_pct": 109.4741434276485,
       "p95_abs_token_delta_pct": 99.9708693377344
     }
   },
@@ -83,16 +83,16 @@
     },
     {
       "name": "codex",
-      "total_invocations": 254,
-      "successes": 247,
-      "success_rate": 0.9724409448818898,
+      "total_invocations": 256,
+      "successes": 249,
+      "success_rate": 0.97265625,
       "transport_failures": 0,
       "transport_failure_rate": 0,
       "fallbacks_triggered": 3,
-      "avg_duration_ms": 417489.56692913384,
-      "total_cost_usd": 553.4426758300001,
-      "total_input_tokens": 345709880,
-      "total_output_tokens": 2117562
+      "avg_duration_ms": 415915.91796875,
+      "total_cost_usd": 555.3190030800001,
+      "total_input_tokens": 347481065,
+      "total_output_tokens": 2132581
     },
     {
       "name": "openai",
@@ -111,27 +111,27 @@
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 2.3108563443333328,
-      "mean": 1.1392202934104163,
-      "std_dev": 0.8610375105491861,
-      "ucl": 3.7223328250579746,
-      "lcl": -1.443892238237142
+      "latest": 2.222043144333333,
+      "mean": 1.1425603697164501,
+      "std_dev": 0.861891193965349,
+      "ucl": 3.7282339516124967,
+      "lcl": -1.4431132121795966
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 607993.3666666667,
-      "mean": 539918.4556163889,
-      "std_dev": 275963.99457809835,
-      "ucl": 1367810.439350684,
-      "lcl": -287973.52811790607
+      "latest": 602214.5666666667,
+      "mean": 540109.6831182945,
+      "std_dev": 275570.70341722097,
+      "ucl": 1366821.7933699572,
+      "lcl": -286602.42713336844
     },
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 38835.12,
-      "mean": 925.9524724496113,
-      "std_dev": 5641.835614972471,
-      "ucl": 17851.459317367026,
-      "lcl": -15999.554372467803
+      "latest": 38835.08,
+      "mean": 1039.9675928332215,
+      "std_dev": 6003.656865651129,
+      "ucl": 19050.938189786608,
+      "lcl": -16971.003004120164
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -144,16 +144,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.03469079939668211,
-      "std_dev": 0.05142351764904677,
-      "ucl": 0.18896135234382244,
+      "mean": 0.034586466165413894,
+      "std_dev": 0.051381257946163376,
+      "ucl": 0.188730240003904,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "latest": 0.8333333333333334,
-      "mean": 0.5730015082956238,
-      "std_dev": 0.4474871730747549,
+      "mean": 0.5737844611528801,
+      "std_dev": 0.44704109955073645,
       "ucl": 1,
       "lcl": 0
     },
@@ -168,17 +168,17 @@
     {
       "metric": "rolling_success_rate",
       "latest": 0.8333333333333334,
-      "mean": 0.8155016548475285,
-      "std_dev": 0.21064103137562265,
+      "mean": 0.8155552839557566,
+      "std_dev": 0.21032630596593743,
       "ucl": 1,
-      "lcl": 0.18357856072066048
+      "lcl": 0.18457636605794436
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0.1,
-      "mean": 0.01000502765208646,
-      "std_dev": 0.022017787076384,
-      "ucl": 0.07605838888123846,
+      "mean": 0.010275689223057625,
+      "std_dev": 0.02253019921843531,
+      "ucl": 0.07786628687836356,
       "lcl": 0
     },
     {
@@ -193,19 +193,19 @@
   "anomalies": [
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 38835.12,
-      "ucl": 17851.459317367026,
-      "lcl": -15999.554372467803,
+      "latest": 38835.08,
+      "ucl": 19050.938189786608,
+      "lcl": -16971.003004120164,
       "severity": "high",
-      "message": "latest value 38835.1200 is above control limits [-15999.5544, 17851.4593]"
+      "message": "latest value 38835.0800 is above control limits [-16971.0030, 19050.9382]"
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0.1,
-      "ucl": 0.07605838888123846,
+      "ucl": 0.07786628687836356,
       "lcl": 0,
-      "severity": "high",
-      "message": "latest value 0.1000 is above control limits [0.0000, 0.0761]"
+      "severity": "moderate",
+      "message": "latest value 0.1000 is above control limits [0.0000, 0.0779]"
     }
   ]
 }

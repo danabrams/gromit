@@ -197,17 +197,8 @@ func TestWriteTempPrompt_CleanupRemovesFile(t *testing.T) {
 }
 
 func TestWriteTempPrompt_ReturnsAbsolutePathForRelativeTmpDir(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() failed: %v", err)
-	}
 	baseDir := t.TempDir()
-	if err := os.Chdir(baseDir); err != nil {
-		t.Fatalf("Chdir(%q) failed: %v", baseDir, err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(cwd)
-	})
+	t.Chdir(baseDir)
 
 	path, cleanup, err := WriteTempPrompt(filepath.Join(".gromit", "tmp"), "prompt")
 	if err != nil {

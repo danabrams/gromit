@@ -9,14 +9,12 @@ import (
 	"testing"
 )
 
-// TestSetupBeadContextCallsEscalationPolicySelectInitialTier verifies that
-// setupBeadContext calls r.escalationPolicy.SelectInitialTier() rather than
-// the escalation.SelectTier package helper.
-//
-// Expected failure: setupBeadContext (process.go:42) currently calls
-// escalation.SelectTier(r.cfg, b). After implementation, it should call
-// r.escalationPolicy.SelectInitialTier(b.Priority, b.Labels) instead.
-func TestSetupBeadContextCallsEscalationPolicySelectInitialTier(t *testing.T) {
+// TestSetupBeadContextCallsEscalationSelectTier verifies that
+// setupBeadContext calls escalation.SelectTier() (the package-level function)
+// rather than r.escalationPolicy.SelectInitialTier(). The package-level
+// function correctly routes low-complexity and test-only beads, which the
+// policy method does not.
+func TestSetupBeadContextCallsEscalationSelectTier(t *testing.T) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filepath.Join("process.go"), nil, parser.ParseComments)
 	if err != nil {
@@ -35,7 +33,6 @@ func TestSetupBeadContextCallsEscalationPolicySelectInitialTier(t *testing.T) {
 			continue
 		}
 
-		// Walk the AST of setupBeadContext looking for call patterns
 		hasEscalationSelectTier := false
 		hasPolicySelectInitialTier := false
 		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
@@ -47,13 +44,11 @@ func TestSetupBeadContextCallsEscalationPolicySelectInitialTier(t *testing.T) {
 			if !ok {
 				return true
 			}
-			// Check for escalation.SelectTier (package-level call)
 			if sel.Sel.Name == "SelectTier" {
 				if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "escalation" {
 					hasEscalationSelectTier = true
 				}
 			}
-			// Check for r.escalationPolicy.SelectInitialTier (policy method call)
 			if sel.Sel.Name == "SelectInitialTier" {
 				if innerSel, ok := sel.X.(*ast.SelectorExpr); ok {
 					if ident, ok := innerSel.X.(*ast.Ident); ok && ident.Name == "r" && innerSel.Sel.Name == "escalationPolicy" {
@@ -64,11 +59,11 @@ func TestSetupBeadContextCallsEscalationPolicySelectInitialTier(t *testing.T) {
 			return true
 		})
 
-		if hasEscalationSelectTier {
-			t.Error("setupBeadContext still calls escalation.SelectTier() — should call r.escalationPolicy.SelectInitialTier(...) instead")
+		if !hasEscalationSelectTier {
+			t.Error("setupBeadContext does not call escalation.SelectTier() — must use the package-level function for correct low-complexity and test-only bead routing")
 		}
-		if !hasPolicySelectInitialTier {
-			t.Error("setupBeadContext does not call r.escalationPolicy.SelectInitialTier() — tier selection should be delegated to the escalation policy")
+		if hasPolicySelectInitialTier {
+			t.Error("setupBeadContext calls r.escalationPolicy.SelectInitialTier() — this does not handle low-complexity routing; use escalation.SelectTier(r.cfg, b) instead")
 		}
 		return
 	}

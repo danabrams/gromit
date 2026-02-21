@@ -45,9 +45,29 @@ When migrating inline routing logic (e.g., manual test-only tier override in set
 
 Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
 
+### 2026-02-21 | Clean Exit False With Successful Iterations Suggests Post-Loop Failure | gotchas
+When analyzing Gromit failures, check both the run logs and state.json. A clean_exit=false with successful recorded iterations suggests the failure occurred during post-iteration cleanup or during the final validation gate itself, possibly a timeout or signal interruption.
+
+### 2026-02-21 | ATDD Fallback Generalization Uses Classification-Policy-Execution Separation | patterns
+*Related to: code-review*
+
+classifyATDDFailure + isATDDFallbackEligible + runTransientFallback cleanly separates failure classification from eligibility policy from fallback execution. Adding new transient failure categories (beyond transport_disconnect and startup_error) requires only adding signals to the classification function and updating isATDDFallbackEligible, without touching the fallback execution flow.
+
+### 2026-02-21 | Scoped Spec Orchestration Decouples Per-Bead ATDD From Spec-Level Verification | patterns
+*Related to: code-review*
+
+Scoped spec orchestration (author before loop, verify after bead exhaustion with retry budget) correctly separates per-bead build work from spec-level acceptance verification. When granularity=spec, per-bead ATDD is always skipped regardless of spec label presence because acceptance testing happens at the spec boundary via verifyScopedSpecAcceptance.
+
+### 2026-02-21 | t.Chdir Migration Must Include New Test Code Not Just Existing | conventions
+*Related to: code-review*
+
+When migrating tests from manual os.Getwd/os.Chdir/defer patterns to t.Chdir(), apply the migration uniformly to all new test code in the same changeset, not just existing tests being modified. New tests using the old pattern create inconsistency that compounds over time.
+
 ---
 
 ## Archived
 
-*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
+*No longer relevant or superseded.*
+
+*No archived learnings.*
 

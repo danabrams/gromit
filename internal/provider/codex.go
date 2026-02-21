@@ -15,8 +15,6 @@ import (
 const (
 	// providerNameCodex is the name identifier for the Codex provider
 	providerNameCodex = "codex"
-	// FailureCategoryStartupError identifies startup failures before stream transport is established.
-	FailureCategoryStartupError = "startup_error"
 )
 
 // CodexProvider wraps the Codex CLI and implements the Provider interface

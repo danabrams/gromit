@@ -19,6 +19,7 @@ const (
 	FailureCategoryTransportDisconnect = "transport_disconnect"
 	FailureCategoryRateLimited         = "rate_limited"
 	FailureCategoryAuth                = "auth"
+	FailureCategoryStartupError        = "startup_error"
 	FailureCategoryOther               = "other"
 )
 

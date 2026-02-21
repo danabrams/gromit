@@ -222,17 +222,8 @@ func TestLaunchDebugSession_ConvertsPromptPathToAbsolute(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Worktree.Enabled = &enabled
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() failed: %v", err)
-	}
 	tmpDir := t.TempDir()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(cwd)
-	})
+	t.Chdir(tmpDir)
 
 	relativePromptPath := filepath.Join(".gromit", "tmp", "prompt.md")
 	if err := os.MkdirAll(filepath.Dir(relativePromptPath), 0o755); err != nil {
