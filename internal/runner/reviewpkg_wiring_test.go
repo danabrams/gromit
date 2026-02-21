@@ -128,12 +128,12 @@ func TestNewRunnerWithDepsWiresReviewer(t *testing.T) {
 }
 
 // TestNewRunnerWiresReviewer verifies that the production NewRunner constructor
-// also creates and assigns a reviewer field.
+// returns an Orchestrator with a properly wired Review stage for code review.
 func TestNewRunnerWiresReviewer(t *testing.T) {
 	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, filepath.Join("runner.go"), nil, parser.ParseComments)
+	node, err := parser.ParseFile(fset, filepath.Join("constructor.go"), nil, parser.ParseComments)
 	if err != nil {
-		t.Fatalf("failed to parse runner.go: %v", err)
+		t.Fatalf("failed to parse constructor.go: %v", err)
 	}
 
 	for _, decl := range node.Decls {
@@ -141,42 +141,45 @@ func TestNewRunnerWiresReviewer(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if funcDecl.Name.Name != "NewRunner" {
-			continue
-		}
-		// Skip methods (NewRunner is package-level)
-		if funcDecl.Recv != nil {
+		if funcDecl.Name.Name != "newRunnerImpl" {
 			continue
 		}
 
-		hasReviewerAssignment := false
+		hasReviewStageCreation := false
+		hasReviewStageInConfig := false
 		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
-			assign, ok := n.(*ast.AssignStmt)
+			// Check for review.New(...) call to create the Review stage
+			call, ok := n.(*ast.CallExpr)
 			if ok {
-				for _, lhs := range assign.Lhs {
-					sel, ok := lhs.(*ast.SelectorExpr)
-					if ok && sel.Sel.Name == "reviewer" {
-						hasReviewerAssignment = true
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if ok && sel.Sel.Name == "New" {
+					if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "review" {
+						hasReviewStageCreation = true
 					}
 				}
 			}
+			// Check for Review field assignment in OrchestratorConfig struct literal
 			kv, ok := n.(*ast.KeyValueExpr)
 			if ok {
 				ident, ok := kv.Key.(*ast.Ident)
-				if ok && ident.Name == "reviewer" {
-					hasReviewerAssignment = true
+				if ok && ident.Name == "Review" {
+					hasReviewStageInConfig = true
 				}
 			}
 			return true
 		})
 
-		if !hasReviewerAssignment {
-			t.Error("NewRunner does not assign the reviewer field — " +
-				"should create a reviewpkg.Reviewer and assign it to r.reviewer")
+		if !hasReviewStageCreation {
+			t.Error("newRunnerImpl does not call review.New() — " +
+				"should create a review.Stage for LLM code review")
+		}
+		if !hasReviewStageInConfig {
+			t.Error("newRunnerImpl does not assign Review stage to OrchestratorConfig — " +
+				"Review stage should be part of the orchestrator configuration")
 		}
 		return
 	}
-	t.Fatal("NewRunner not found in runner.go")
+	t.Fatal("newRunnerImpl not found in constructor.go")
 }
 
 // --- Local review methods removed from runner.go ---
