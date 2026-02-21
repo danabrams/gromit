@@ -385,7 +385,7 @@ func defaultVerifySpecCodexTierToModelMap() map[string]string {
 	return map[string]string{
 		provider.TierHigh:   "gpt-5.3-codex",
 		provider.TierMedium: "gpt-5.3-codex",
-		provider.TierLow:    "gpt-5.3-codex-spark",
+		provider.TierLow:    "gpt-5.3-codex",
 	}
 }
 
