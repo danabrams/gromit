@@ -24,9 +24,7 @@ func parseBeadOutput(out string) (*Bead, error) {
 		return nil, nil
 	}
 
-	beads[0].normalizeNilFields()
-
-	if err := beads[0].Validate(); err != nil {
+	if err := prepareBeadForUse(&beads[0]); err != nil {
 		return nil, fmt.Errorf("invalid bead data: %w", err)
 	}
 
@@ -49,8 +47,7 @@ func parseBeadOutputExcluding(out string, excludeType string) (*Bead, error) {
 		if beads[i].Type == excludeType {
 			continue
 		}
-		beads[i].normalizeNilFields()
-		if err := beads[i].Validate(); err != nil {
+		if err := prepareBeadForUse(&beads[i]); err != nil {
 			return nil, fmt.Errorf("invalid bead data: %w", err)
 		}
 		return &beads[i], nil
@@ -102,8 +99,7 @@ func (c *Client) ReadyExcluding(excludeIDs map[string]bool) (*Bead, error) {
 		if beads[i].Type == "epic" || excludeIDs[beads[i].ID] {
 			continue
 		}
-		beads[i].normalizeNilFields()
-		if err := beads[i].Validate(); err != nil {
+		if err := prepareBeadForUse(&beads[i]); err != nil {
 			return nil, fmt.Errorf("invalid bead data: %w", err)
 		}
 		return &beads[i], nil
@@ -247,8 +243,7 @@ func (c *Client) listByStatus(status string) ([]*Bead, error) {
 	// Convert to pointers and normalize
 	result := make([]*Bead, len(beads))
 	for i := range beads {
-		beads[i].normalizeNilFields()
-		if err := beads[i].Validate(); err != nil {
+		if err := prepareBeadForUse(&beads[i]); err != nil {
 			return nil, fmt.Errorf("invalid bead data at index %d: %w", i, err)
 		}
 		result[i] = &beads[i]
@@ -291,8 +286,7 @@ func (c *Client) ListReady() ([]*Bead, error) {
 
 	result := make([]*Bead, len(beads))
 	for i := range beads {
-		beads[i].normalizeNilFields()
-		if err := beads[i].Validate(); err != nil {
+		if err := prepareBeadForUse(&beads[i]); err != nil {
 			return nil, fmt.Errorf("invalid ready bead data at index %d: %w", i, err)
 		}
 		result[i] = &beads[i]
@@ -322,8 +316,7 @@ func (c *Client) ListReadyWork() ([]*Bead, error) {
 
 	result := make([]*Bead, len(beads))
 	for i := range beads {
-		beads[i].normalizeNilFields()
-		if err := beads[i].Validate(); err != nil {
+		if err := prepareBeadForUse(&beads[i]); err != nil {
 			return nil, fmt.Errorf("invalid ready bead data at index %d: %w", i, err)
 		}
 		result[i] = &beads[i]
@@ -356,8 +349,7 @@ func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
 
 		open = make([]*Bead, len(beads))
 		for i := range beads {
-			beads[i].normalizeNilFields()
-			if err := beads[i].Validate(); err != nil {
+			if err := prepareBeadForUse(&beads[i]); err != nil {
 				return nil, nil, fmt.Errorf("invalid open bead data at index %d: %w", i, err)
 			}
 			open[i] = &beads[i]
@@ -378,8 +370,7 @@ func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
 
 		closed = make([]*Bead, len(beads))
 		for i := range beads {
-			beads[i].normalizeNilFields()
-			if err := beads[i].Validate(); err != nil {
+			if err := prepareBeadForUse(&beads[i]); err != nil {
 				return nil, nil, fmt.Errorf("invalid closed bead data at index %d: %w", i, err)
 			}
 			closed[i] = &beads[i]
@@ -415,8 +406,7 @@ func (c *Client) ListWithLabel(label string) ([]*Bead, error) {
 	// Convert to pointers and normalize
 	result := make([]*Bead, len(beads))
 	for i := range beads {
-		beads[i].normalizeNilFields()
-		if err := beads[i].Validate(); err != nil {
+		if err := prepareBeadForUse(&beads[i]); err != nil {
 			return nil, fmt.Errorf("invalid bead data at index %d: %w", i, err)
 		}
 		result[i] = &beads[i]

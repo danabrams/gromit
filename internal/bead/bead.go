@@ -54,6 +54,8 @@ const (
 	maxDescriptionLength = 16384
 	maxLabelLength       = 128
 	maxLabelCount        = 64
+	minPriority          = 0
+	maxPriority          = 4
 	defaultBDBinary      = "bd"
 	labelMetaChars       = ";\n|$`&<>(){}[]'\"\\"
 )
@@ -69,15 +71,6 @@ func (b *Bead) normalizeNilFields() {
 	if b.Labels == nil {
 		b.Labels = []string{}
 	}
-	if len(b.ExpectedOutputs) == 0 && strings.TrimSpace(b.AcceptanceCriteria) != "" {
-		for _, line := range strings.Split(b.AcceptanceCriteria, "\n") {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "" {
-				continue
-			}
-			b.ExpectedOutputs = append(b.ExpectedOutputs, trimmed)
-		}
-	}
 	if b.ExpectedOutputs == nil {
 		b.ExpectedOutputs = []string{}
 	}
@@ -90,6 +83,33 @@ func (b *Bead) normalizeNilFields() {
 	if b.DependsOn == nil {
 		b.DependsOn = []Dependency{}
 	}
+}
+
+// resolveExpectedOutputsFromAcceptanceCriteria maps legacy acceptance_criteria
+// values into expected_outputs when expected_outputs is empty.
+func (b *Bead) resolveExpectedOutputsFromAcceptanceCriteria() {
+	if b == nil || len(b.ExpectedOutputs) > 0 || strings.TrimSpace(b.AcceptanceCriteria) == "" {
+		return
+	}
+
+	for _, line := range strings.Split(b.AcceptanceCriteria, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		b.ExpectedOutputs = append(b.ExpectedOutputs, trimmed)
+	}
+}
+
+func prepareBeadForUse(b *Bead) error {
+	if b == nil {
+		return fmt.Errorf("bead is nil")
+	}
+
+	b.normalizeNilFields()
+	b.resolveExpectedOutputsFromAcceptanceCriteria()
+
+	return b.Validate()
 }
 
 // Validate checks that bead fields are safe for use in prompts, commands, and logging.
@@ -216,9 +236,7 @@ func (c *Client) Show(id string) (*Bead, error) {
 		}
 	}
 
-	b.normalizeNilFields()
-
-	if err := b.Validate(); err != nil {
+	if err := prepareBeadForUse(&b); err != nil {
 		return nil, fmt.Errorf("invalid bead data: %w", err)
 	}
 
@@ -316,8 +334,8 @@ func (c *Client) UpdatePriority(id string, priority int) error {
 	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
 		return fmt.Errorf("invalid bead ID %q", id)
 	}
-	if priority < 0 || priority > 4 {
-		return fmt.Errorf("invalid priority %d (must be 0-4)", priority)
+	if priority < minPriority || priority > maxPriority {
+		return fmt.Errorf("invalid priority %d (must be %d-%d)", priority, minPriority, maxPriority)
 	}
 
 	_, err := c.run("update", id, "--priority", fmt.Sprintf("%d", priority))

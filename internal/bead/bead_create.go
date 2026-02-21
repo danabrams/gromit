@@ -99,9 +99,7 @@ func (c *Client) runCreate(title string, priority int, labels []string, expected
 		return nil, fmt.Errorf("parsing bd create output: %w", err)
 	}
 
-	b.normalizeNilFields()
-
-	if err := b.Validate(); err != nil {
+	if err := prepareBeadForUse(&b); err != nil {
 		return nil, fmt.Errorf("invalid bead data: %w", err)
 	}
 
