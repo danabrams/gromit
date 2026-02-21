@@ -66,15 +66,19 @@ func TestExploreCommand_WiresAgentFlagsIntoExploreInput(t *testing.T) {
 }
 
 func TestExplorePhaseConfigSelectsAgent_Reclassified(t *testing.T) {
-	source := readExploreSource(t)
+	source, err := os.ReadFile("adapters.go")
+	if err != nil {
+		t.Fatalf("failed to read adapters.go: %v", err)
+	}
+	sourceStr := string(source)
 
-	if !strings.Contains(source, "type exploreAgentResolver struct") {
-		t.Fatal("explore.go missing exploreAgentResolver adapter")
+	if !strings.Contains(sourceStr, "type cmdAgentResolver struct") {
+		t.Fatal("adapters.go missing cmdAgentResolver adapter")
 	}
-	if !strings.Contains(source, "func (r *exploreAgentResolver) Resolve(phase string") {
-		t.Fatal("exploreAgentResolver.Resolve missing")
+	if !strings.Contains(sourceStr, "func (r *cmdAgentResolver) Resolve(phase string") {
+		t.Fatal("cmdAgentResolver.Resolve missing")
 	}
-	if !strings.Contains(source, "agent.Resolve(r.cfg, phase, flagOverride, choosePicker") {
+	if !strings.Contains(sourceStr, "agent.Resolve(r.cfg, phase, flagOverride, choosePicker") {
 		t.Fatal("explore agent resolver must pass through phase for phase-config selection")
 	}
 }

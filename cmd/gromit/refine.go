@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -201,7 +200,7 @@ func createRefinePipeline(cfg *config.Config, gromitDir, specsDir, plansDir stri
 	}
 
 	deps := &pipeline.Deps{
-		AgentResolver: &agentResolverAdapter{cfg: cfg},
+		AgentResolver: &cmdAgentResolver{cfg: cfg},
 		BacklogClient: &backlogAdapter{file: bf},
 	}
 
@@ -236,16 +235,6 @@ func handleRefineOutput(result *pipeline.RefineResult, specsDir, plansDir string
 	}
 
 	return nil
-}
-
-// Adapters to bridge old interfaces to new
-
-type agentResolverAdapter struct {
-	cfg *config.Config
-}
-
-func (a *agentResolverAdapter) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
-	return agent.Resolve(a.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
 }
 
 type backlogAdapter struct {

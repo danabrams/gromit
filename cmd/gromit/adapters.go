@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
 )
@@ -87,6 +90,17 @@ func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipelin
 		ExitCode: result.ExitCode,
 		Output:   result.Output,
 	}, nil
+}
+
+// cmdAgentResolver adapts agent.Resolve to pipeline.AgentResolver.
+type cmdAgentResolver struct {
+	cfg *config.Config
+}
+
+var _ pipeline.AgentResolver = (*cmdAgentResolver)(nil)
+
+func (r *cmdAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
+	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
 }
 
 func resolveProviderReviewPhase(phase string) string {

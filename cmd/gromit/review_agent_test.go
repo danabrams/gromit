@@ -199,16 +199,17 @@ func TestReviewUsesAgentLaunchNotDirectExec(t *testing.T) {
 
 	sourceStr := string(reviewSource)
 
-	// Check that agent package is imported (used in cliAgentResolver adapter)
-	if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agent"`) {
-		t.Error("review.go does not import agent package - integration not complete")
+	// Shared resolver adapter now owns agent.Resolve integration.
+	adaptersSource, err := os.ReadFile("adapters.go")
+	if err != nil {
+		t.Fatalf("Reading adapters.go: %v", err)
 	}
-
-	// Check that agent.Resolve is called (in cliAgentResolver adapter)
-	// This is the key integration point - review adapter should call agent.Resolve
-	// to get the appropriate agent based on config and flags
-	if !strings.Contains(sourceStr, "agent.Resolve") {
-		t.Error("review.go does not call agent.Resolve - agent selection not integrated")
+	adaptersStr := string(adaptersSource)
+	if !strings.Contains(adaptersStr, `"github.com/danabrams/gromit/internal/agent"`) {
+		t.Error("adapters.go does not import agent package - resolver integration not complete")
+	}
+	if !strings.Contains(adaptersStr, "agent.Resolve") {
+		t.Error("adapters.go does not call agent.Resolve - resolver integration not complete")
 	}
 
 	// Check that pipeline.ReviewInteractive is called
@@ -359,10 +360,8 @@ func TestReviewAgentSelectionIntegration(t *testing.T) {
 
 		sourceStr := string(reviewSource)
 
-		// Verify key integration points in review.go (adapter layer)
+		// Verify key integration points in review.go and shared adapter layer.
 		integrationChecks := map[string]string{
-			"imports agent package":            `"github.com/danabrams/gromit/internal/agent"`,
-			"calls agent.Resolve":              "agent.Resolve",
 			"calls pipeline.ReviewInteractive": "p.ReviewInteractive",
 		}
 
@@ -370,6 +369,18 @@ func TestReviewAgentSelectionIntegration(t *testing.T) {
 			if !strings.Contains(sourceStr, pattern) {
 				t.Errorf("Integration check failed: %s (missing pattern %q)", check, pattern)
 			}
+		}
+
+		adaptersSource, err := os.ReadFile("adapters.go")
+		if err != nil {
+			t.Skipf("Cannot read adapters.go: %v", err)
+		}
+		adaptersStr := string(adaptersSource)
+		if !strings.Contains(adaptersStr, `"github.com/danabrams/gromit/internal/agent"`) {
+			t.Error("Integration check failed: shared adapter missing agent import")
+		}
+		if !strings.Contains(adaptersStr, "agent.Resolve") {
+			t.Error("Integration check failed: shared adapter missing agent.Resolve call")
 		}
 
 		// Verify pipeline has agent.LaunchInDir integration

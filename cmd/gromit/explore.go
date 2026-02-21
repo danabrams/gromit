@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
@@ -187,7 +186,7 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 	}
 
 	// Create adapters
-	agentResolver := &exploreAgentResolver{cfg: cfg}
+	agentResolver := &cmdAgentResolver{cfg: cfg}
 	promptRenderer := &explorePromptRenderer{renderer: renderer}
 	backlogClient := &exploreBacklogClient{file: backlogFile}
 
@@ -207,17 +206,6 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 }
 
 // Adapter types
-
-// exploreAgentResolver adapts agent.Resolve to pipeline.AgentResolver
-type exploreAgentResolver struct {
-	cfg *config.Config
-}
-
-var _ pipeline.AgentResolver = (*exploreAgentResolver)(nil)
-
-func (r *exploreAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
-	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
-}
 
 // explorePromptRenderer adapts prompt.Renderer to pipeline.ExploreRenderer
 type explorePromptRenderer struct {

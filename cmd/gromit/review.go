@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -390,7 +389,7 @@ func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff strin
 	}
 
 	// Create agent resolver adapter
-	agentResolver := &cliAgentResolver{
+	agentResolver := &cmdAgentResolver{
 		cfg: cfg,
 	}
 
@@ -619,16 +618,6 @@ func recordInteractiveReviewCompletion(gromitDir, fromCommit string) error {
 		return fmt.Errorf("recording review completion: %w", err)
 	}
 	return nil
-}
-
-// cliAgentResolver adapts agent.Resolve to the pipeline.AgentResolver interface
-type cliAgentResolver struct {
-	cfg *config.Config
-}
-
-func (r *cliAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
-	// Use the CLI's agent.Resolve which handles stdin/stdout
-	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
 }
 
 // cliPromptRenderer adapts prompt.Renderer to pipeline.ReviewRenderer interface
