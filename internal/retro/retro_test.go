@@ -1293,6 +1293,15 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 			ValidationFailureRate: 0.3,
 			TimeoutFailureRate:    0.4,
 		},
+		PatternViolations: []logger.PatternViolation{
+			{
+				Metric:    "rolling_success_rate",
+				Rule:      "nelson_rule_2",
+				Direction: "below",
+				RunLength: 9,
+				Message:   "latest 9 points are below center line 0.9550 (Nelson Rule 2)",
+			},
+		},
 	}
 
 	data, err := json.Marshal(trend)
@@ -1321,6 +1330,9 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 		"Build failures: 20.0%",
 		"Validation failures: 30.0%",
 		"Timeout failures: 40.0%",
+		"### Pattern Signals",
+		"rolling_success_rate",
+		"nelson_rule_2",
 	}
 	for _, want := range expected {
 		if !contains(prompt, want) {

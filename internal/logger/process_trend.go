@@ -20,6 +20,8 @@ const (
 	p95Percentile                  = 95
 	promptSectionTopLimit          = 10
 	controlLimitSigmaMultiplier    = 3
+	nelsonRule2MinRunLength        = 9
+	nelsonRule2Name                = "nelson_rule_2"
 	highSeveritySigmaThreshold     = 4
 	anomalySeverityModerate        = "moderate"
 	anomalySeverityHigh            = "high"
@@ -218,6 +220,16 @@ type TrendAnomaly struct {
 	Message  string  `json:"message"`
 }
 
+// PatternViolation captures Nelson-rule pattern signals.
+type PatternViolation struct {
+	Metric     string  `json:"metric"`
+	Rule       string  `json:"rule"`
+	Direction  string  `json:"direction"`
+	RunLength  int     `json:"run_length"`
+	CenterLine float64 `json:"center_line"`
+	Message    string  `json:"message"`
+}
+
 // ProviderMetrics captures provider-level aggregates from iteration metrics.
 type ProviderMetrics struct {
 	Name                 string  `json:"name"`
@@ -243,6 +255,7 @@ type ProcessTrend struct {
 	ProviderMetrics    []ProviderMetrics   `json:"provider_metrics"`
 	ControlLimits      []TrendControlLimit `json:"control_limits"`
 	Anomalies          []TrendAnomaly      `json:"anomalies"`
+	PatternViolations  []PatternViolation  `json:"pattern_violations"`
 }
 
 func newPromptTokenSummary() PromptTokenSummary {
@@ -290,7 +303,35 @@ func ReadProcessTrend(path string) (*ProcessTrend, error) {
 	if err := json.Unmarshal(data, &trend); err != nil {
 		return nil, fmt.Errorf("parsing process trend: %w", err)
 	}
+	trend.normalizeNilFields()
 	return &trend, nil
+}
+
+func (t *ProcessTrend) normalizeNilFields() {
+	if t == nil {
+		return
+	}
+	if t.ProviderMetrics == nil {
+		t.ProviderMetrics = []ProviderMetrics{}
+	}
+	if t.ControlLimits == nil {
+		t.ControlLimits = []TrendControlLimit{}
+	}
+	if t.Anomalies == nil {
+		t.Anomalies = []TrendAnomaly{}
+	}
+	if t.PatternViolations == nil {
+		t.PatternViolations = []PatternViolation{}
+	}
+	if t.PromptTokenSummary.ByPromptType == nil {
+		t.PromptTokenSummary.ByPromptType = []PromptTypeSummary{}
+	}
+	if t.PromptTokenSummary.BySectionTop10 == nil {
+		t.PromptTokenSummary.BySectionTop10 = []PromptSectionSummary{}
+	}
+	if t.PromptTokenSummary.BudgetActionFrequency == nil {
+		t.PromptTokenSummary.BudgetActionFrequency = map[string]int{}
+	}
 }
 
 func readAllIterationLogsSorted(logsDir string) ([]IterationLog, error) {
@@ -384,6 +425,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		ProviderMetrics:    []ProviderMetrics{},
 		ControlLimits:      []TrendControlLimit{},
 		Anomalies:          []TrendAnomaly{},
+		PatternViolations:  []PatternViolation{},
 	}
 	if len(metrics) == 0 {
 		return trend
@@ -412,15 +454,24 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 
 	for _, metric := range trendControlLimitSeries {
 		latestValue := metric.latestSample(latestMetric)
-		limit := computeControlLimit(metric.name, latestValue, extractMetric(metrics, metric.historySample))
+		historyValues := extractMetric(metrics, metric.historySample)
+		limit := computeControlLimit(metric.name, latestValue, historyValues)
 		trend.ControlLimits = append(trend.ControlLimits, limit)
 		if anomaly, ok := detectAnomaly(limit); ok {
 			trend.Anomalies = append(trend.Anomalies, anomaly)
 		}
+		latestSeries := extractMetric(metrics, metric.latestSample)
+		trend.PatternViolations = append(trend.PatternViolations, detectPatternViolations(metric.name, latestSeries, limit.Mean)...)
 	}
 
 	sort.Slice(trend.ControlLimits, func(i, j int) bool { return trend.ControlLimits[i].Metric < trend.ControlLimits[j].Metric })
 	sort.Slice(trend.Anomalies, func(i, j int) bool { return trend.Anomalies[i].Metric < trend.Anomalies[j].Metric })
+	sort.Slice(trend.PatternViolations, func(i, j int) bool {
+		if trend.PatternViolations[i].Metric == trend.PatternViolations[j].Metric {
+			return trend.PatternViolations[i].Rule < trend.PatternViolations[j].Rule
+		}
+		return trend.PatternViolations[i].Metric < trend.PatternViolations[j].Metric
+	})
 	return trend
 }
 
@@ -654,6 +705,61 @@ func detectAnomaly(limit TrendControlLimit) (TrendAnomaly, bool) {
 		Severity: severity,
 		Message:  fmt.Sprintf("latest value %.4f is %s control limits [%.4f, %.4f]", limit.Latest, dir, limit.LCL, limit.UCL),
 	}, true
+}
+
+func detectPatternViolations(metric string, values []float64, centerLine float64) []PatternViolation {
+	if len(values) < nelsonRule2MinRunLength {
+		return []PatternViolation{}
+	}
+
+	runAbove := trailingRunLength(values, func(v float64) bool { return v > centerLine })
+	if runAbove >= nelsonRule2MinRunLength {
+		return []PatternViolation{
+			{
+				Metric:     metric,
+				Rule:       nelsonRule2Name,
+				Direction:  anomalyDirectionAbove,
+				RunLength:  runAbove,
+				CenterLine: centerLine,
+				Message: fmt.Sprintf(
+					"latest %d points are above center line %.4f (Nelson Rule 2)",
+					runAbove,
+					centerLine,
+				),
+			},
+		}
+	}
+
+	runBelow := trailingRunLength(values, func(v float64) bool { return v < centerLine })
+	if runBelow >= nelsonRule2MinRunLength {
+		return []PatternViolation{
+			{
+				Metric:     metric,
+				Rule:       nelsonRule2Name,
+				Direction:  anomalyDirectionBelow,
+				RunLength:  runBelow,
+				CenterLine: centerLine,
+				Message: fmt.Sprintf(
+					"latest %d points are below center line %.4f (Nelson Rule 2)",
+					runBelow,
+					centerLine,
+				),
+			},
+		}
+	}
+
+	return []PatternViolation{}
+}
+
+func trailingRunLength(values []float64, match func(float64) bool) int {
+	runLength := 0
+	for i := len(values) - 1; i >= 0; i-- {
+		if !match(values[i]) {
+			break
+		}
+		runLength++
+	}
+	return runLength
 }
 
 func writeIterationMetrics(metricsDir string, metrics []IterationMetric) error {

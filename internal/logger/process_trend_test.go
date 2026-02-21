@@ -411,6 +411,83 @@ func TestBuildProcessTrend_BuildRateSpikeTriggersHighSeverityAnomaly(t *testing.
 	}
 }
 
+func TestDetectPatternViolations_NelsonRule2Above(t *testing.T) {
+	values := []float64{0.49, 0.48, 0.51, 0.52, 0.53, 0.54, 0.56, 0.55, 0.57, 0.58, 0.59, 0.60}
+	violations := detectPatternViolations(metricRollingFirstPassSuccess, values, 0.5)
+
+	if len(violations) != 1 {
+		t.Fatalf("len(violations) = %d, want 1", len(violations))
+	}
+	if violations[0].Rule != nelsonRule2Name {
+		t.Errorf("Rule = %q, want %q", violations[0].Rule, nelsonRule2Name)
+	}
+	if violations[0].Direction != anomalyDirectionAbove {
+		t.Errorf("Direction = %q, want %q", violations[0].Direction, anomalyDirectionAbove)
+	}
+	if violations[0].RunLength != 10 {
+		t.Errorf("RunLength = %d, want 10", violations[0].RunLength)
+	}
+}
+
+func TestDetectPatternViolations_NelsonRule2Below(t *testing.T) {
+	values := []float64{0.55, 0.56, 0.49, 0.48, 0.47, 0.45, 0.44, 0.43, 0.42, 0.41, 0.40}
+	violations := detectPatternViolations(metricRollingFirstPassSuccess, values, 0.5)
+
+	if len(violations) != 1 {
+		t.Fatalf("len(violations) = %d, want 1", len(violations))
+	}
+	if violations[0].Direction != anomalyDirectionBelow {
+		t.Errorf("Direction = %q, want %q", violations[0].Direction, anomalyDirectionBelow)
+	}
+	if violations[0].RunLength != 9 {
+		t.Errorf("RunLength = %d, want 9", violations[0].RunLength)
+	}
+}
+
+func TestDetectPatternViolations_NoViolationWhenRunInterrupted(t *testing.T) {
+	values := []float64{0.51, 0.52, 0.53, 0.54, 0.55, 0.56, 0.57, 0.58, 0.50, 0.59, 0.60}
+	violations := detectPatternViolations(metricRollingFirstPassSuccess, values, 0.5)
+	if len(violations) != 0 {
+		t.Fatalf("len(violations) = %d, want 0", len(violations))
+	}
+}
+
+func TestBuildProcessTrend_DetectsRule2ShiftWithoutRule1Anomaly(t *testing.T) {
+	metrics := []IterationMetric{
+		{RollingFirstPassSuccess: 0.97},
+		{RollingFirstPassSuccess: 0.97},
+		{RollingFirstPassSuccess: 0.97},
+		{RollingFirstPassSuccess: 0.94},
+		{RollingFirstPassSuccess: 0.94},
+		{RollingFirstPassSuccess: 0.94},
+		{RollingFirstPassSuccess: 0.94},
+		{RollingFirstPassSuccess: 0.94},
+		{RollingFirstPassSuccess: 0.94},
+		{RollingFirstPassSuccess: 0.94},
+		{RollingFirstPassSuccess: 0.94},
+		{RollingFirstPassSuccess: 0.94},
+	}
+
+	trend := buildProcessTrend(metrics, 30)
+
+	var rule2Found bool
+	for _, violation := range trend.PatternViolations {
+		if violation.Metric == metricRollingFirstPassSuccess && violation.Rule == nelsonRule2Name {
+			rule2Found = true
+			break
+		}
+	}
+	if !rule2Found {
+		t.Fatalf("expected %s pattern violation for %s", nelsonRule2Name, metricRollingFirstPassSuccess)
+	}
+
+	for _, anomaly := range trend.Anomalies {
+		if anomaly.Metric == metricRollingFirstPassSuccess {
+			t.Fatalf("did not expect rule 1 anomaly for %s, got %+v", metricRollingFirstPassSuccess, anomaly)
+		}
+	}
+}
+
 func TestBuildProcessTrend_PhaseRateControlLimitsClampedToZeroOne(t *testing.T) {
 	// High-variance data: alternating 0/1 build failure rates produce UCL>1 and LCL<0 before clamping.
 	metrics := make([]IterationMetric, 10)
