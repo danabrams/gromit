@@ -17,6 +17,8 @@ import (
 const (
 	decomposePromptType         = "decompose"
 	specLabelFormat             = "spec:%s"
+	complexityHighLabel         = "complexity:high"
+	estimatedFilesLabelFormat   = "estimated-files:%d"
 	highComplexityFileThreshold = 5
 )
 
@@ -225,10 +227,10 @@ func specLabel(planName string) string {
 func buildDecomposeLabels(planName string, estimatedFiles int) []string {
 	labels := []string{specLabel(planName)}
 	if estimatedFiles > highComplexityFileThreshold {
-		labels = append(labels, "complexity:high")
+		labels = append(labels, complexityHighLabel)
 	}
 	if estimatedFiles > 0 {
-		labels = append(labels, fmt.Sprintf("estimated-files:%d", estimatedFiles))
+		labels = append(labels, fmt.Sprintf(estimatedFilesLabelFormat, estimatedFiles))
 	}
 	return labels
 }
