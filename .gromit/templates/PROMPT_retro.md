@@ -179,6 +179,15 @@ The following iterations exceeded 80% of their model's context window:
 *No out-of-control signals detected in latest metrics.*
 {{- end }}
 
+{{- if .ProcessTrend.EWMAAnomalies }}
+### EWMA Signals
+{{- range .ProcessTrend.EWMAAnomalies }}
+- **{{ .Metric }}** ({{ .Severity }}): {{ .Message }}
+{{- end }}
+{{- else }}
+*No EWMA signals detected in latest metrics.*
+{{- end }}
+
 {{- if .ProcessTrend.PatternViolations }}
 ### Pattern Signals
 {{- range .ProcessTrend.PatternViolations }}

@@ -352,6 +352,75 @@ func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *test
 	assertFloatNear(t, costLimit.StdDev, 2.449489743, "CostStdDev")
 }
 
+func TestBuildIterationMetrics_ComputesEWMAStateForCoreMetrics(t *testing.T) {
+	entries := []IterationLog{
+		{Timestamp: time.Now(), Success: true, DurationMs: 100, CostUSD: 1},
+		{Timestamp: time.Now().Add(time.Second), Success: false, DurationMs: 300, CostUSD: 4},
+		{Timestamp: time.Now().Add(2 * time.Second), Success: true, DurationMs: 500, CostUSD: 7},
+	}
+
+	metrics := buildIterationMetrics(entries, 30)
+	if len(metrics) != 3 {
+		t.Fatalf("len(metrics) = %d, want 3", len(metrics))
+	}
+
+	last := metrics[len(metrics)-1]
+	assertFloatNear(t, last.EWMASuccessRate.Lambda, ewmaLambda, "SuccessEWMALambda")
+	assertFloatNear(t, last.EWMASuccessRate.L, ewmaSigmaMultiplier, "SuccessEWMAL")
+	assertFloatNear(t, last.EWMASuccessRate.Z, 0.8725, "SuccessEWMAZ")
+	assertFloatNear(t, last.EWMASuccessRate.Mean, 2.0/3.0, "SuccessEWMAMean")
+	assertFloatNear(t, last.EWMASuccessRate.StdDev, 0.4714045208, "SuccessEWMAStdDev")
+
+	assertFloatNear(t, last.EWMACostUSD.Z, 2.2825, "CostEWMAZ")
+	assertFloatNear(t, last.EWMADurationMs.Z, 185.5, "DurationEWMAZ")
+}
+
+func TestBuildProcessTrend_IncludesEWMAAnomalies(t *testing.T) {
+	metrics := []IterationMetric{
+		{
+			EWMASuccessRate: EWMAMetricState{
+				Z:      0.50,
+				Mean:   0.50,
+				StdDev: 0.10,
+				UCL:    0.60,
+				LCL:    0.40,
+			},
+		},
+		{
+			EWMASuccessRate: EWMAMetricState{
+				Z:      0.90,
+				Mean:   0.50,
+				StdDev: 0.10,
+				UCL:    0.60,
+				LCL:    0.40,
+			},
+			EWMACostUSD: EWMAMetricState{
+				Z:      1.00,
+				Mean:   1.00,
+				StdDev: 0.25,
+				UCL:    2.00,
+				LCL:    0.00,
+			},
+			EWMADurationMs: EWMAMetricState{
+				Z:      1000,
+				Mean:   1000,
+				StdDev: 10,
+				UCL:    1200,
+				LCL:    800,
+			},
+		},
+	}
+
+	trend := buildProcessTrend(metrics, 30)
+	anomaly, ok := findTrendAnomaly(trend.EWMAAnomalies, metricEWMASuccessRate)
+	if !ok {
+		t.Fatalf("expected EWMA anomaly for %q", metricEWMASuccessRate)
+	}
+	if anomaly.Severity != anomalySeverityHigh {
+		t.Fatalf("anomaly severity = %q, want %q", anomaly.Severity, anomalySeverityHigh)
+	}
+}
+
 func TestBuildProcessTrend_IncludesRollingAvgValidationControlLimit(t *testing.T) {
 	entries := []IterationLog{
 		{Success: true, ValidationDurationMs: 50},
@@ -962,6 +1031,15 @@ func findControlLimit(controlLimits []TrendControlLimit, metric string) (TrendCo
 		}
 	}
 	return TrendControlLimit{}, false
+}
+
+func findTrendAnomaly(anomalies []TrendAnomaly, metric string) (TrendAnomaly, bool) {
+	for _, anomaly := range anomalies {
+		if anomaly.Metric == metric {
+			return anomaly, true
+		}
+	}
+	return TrendAnomaly{}, false
 }
 
 func assertFloatNear(t *testing.T, got, want float64, label string) {

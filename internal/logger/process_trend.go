@@ -20,6 +20,8 @@ const (
 	p95Percentile                  = 95
 	promptSectionTopLimit          = 10
 	controlLimitSigmaMultiplier    = 3
+	ewmaLambda                     = 0.15
+	ewmaSigmaMultiplier            = 2.7
 	nelsonRule2MinRunLength        = 9
 	nelsonRule2Name                = "nelson_rule_2"
 	highSeveritySigmaThreshold     = 4
@@ -40,6 +42,9 @@ const (
 	metricRollingValidationFailure = "rolling_validation_failure_rate"
 	metricRollingTimeoutFailure    = "rolling_timeout_failure_rate"
 	metricRollingAvgCostPerBeadUSD = "rolling_avg_cost_per_bead_usd"
+	metricEWMASuccessRate          = "ewma_success_rate"
+	metricEWMACostUSD              = "ewma_cost_usd"
+	metricEWMADurationMs           = "ewma_duration_ms"
 	transportDisconnectFailure     = "transport_disconnect"
 )
 
@@ -149,8 +154,23 @@ type IterationMetric struct {
 	RollingBuildFailureRate      float64                   `json:"rolling_build_failure_rate"`
 	RollingValidationFailureRate float64                   `json:"rolling_validation_failure_rate"`
 	RollingTimeoutFailureRate    float64                   `json:"rolling_timeout_failure_rate"`
+	EWMASuccessRate              EWMAMetricState           `json:"ewma_success_rate"`
+	EWMACostUSD                  EWMAMetricState           `json:"ewma_cost_usd"`
+	EWMADurationMs               EWMAMetricState           `json:"ewma_duration_ms"`
 	FilesTouched                 int                       `json:"files_touched,omitempty"`
 	PromptDiagnostics            *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
+}
+
+// EWMAMetricState captures exponential moving-average state for one metric.
+type EWMAMetricState struct {
+	Lambda float64 `json:"lambda"`
+	L      float64 `json:"l"`
+	Value  float64 `json:"value"`
+	Z      float64 `json:"z"`
+	Mean   float64 `json:"mean"`
+	StdDev float64 `json:"std_dev"`
+	UCL    float64 `json:"ucl"`
+	LCL    float64 `json:"lcl"`
 }
 
 // PromptTypeSummary captures aggregate token usage for one prompt type.
@@ -255,6 +275,7 @@ type ProcessTrend struct {
 	ProviderMetrics    []ProviderMetrics   `json:"provider_metrics"`
 	ControlLimits      []TrendControlLimit `json:"control_limits"`
 	Anomalies          []TrendAnomaly      `json:"anomalies"`
+	EWMAAnomalies      []TrendAnomaly      `json:"ewma_anomalies"`
 	PatternViolations  []PatternViolation  `json:"pattern_violations"`
 }
 
@@ -320,6 +341,9 @@ func (t *ProcessTrend) normalizeNilFields() {
 	if t.Anomalies == nil {
 		t.Anomalies = []TrendAnomaly{}
 	}
+	if t.EWMAAnomalies == nil {
+		t.EWMAAnomalies = []TrendAnomaly{}
+	}
 	if t.PatternViolations == nil {
 		t.PatternViolations = []PatternViolation{}
 	}
@@ -367,6 +391,15 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 	}
 
 	metrics := make([]IterationMetric, 0, len(entries))
+	successValues := make([]float64, 0, len(entries))
+	costValues := make([]float64, 0, len(entries))
+	durationValues := make([]float64, 0, len(entries))
+	var (
+		prevSuccessZ  float64
+		prevCostZ     float64
+		prevDurationZ float64
+		hasPrevious   bool
+	)
 	for idx, entry := range entries {
 		windowStart := idx - windowSize + 1
 		if windowStart < 0 {
@@ -374,6 +407,20 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 		}
 		window := entries[windowStart : idx+1]
 		w := summarizeWindow(window)
+		successValue := boolToFloat64(entry.Success)
+		costValue := entry.CostUSD
+		durationValue := float64(entry.DurationMs)
+		successValues = append(successValues, successValue)
+		costValues = append(costValues, costValue)
+		durationValues = append(durationValues, durationValue)
+
+		successEWMA := computeEWMAState(metricEWMASuccessRate, successValue, successValues, prevSuccessZ, hasPrevious)
+		costEWMA := computeEWMAState(metricEWMACostUSD, costValue, costValues, prevCostZ, hasPrevious)
+		durationEWMA := computeEWMAState(metricEWMADurationMs, durationValue, durationValues, prevDurationZ, hasPrevious)
+		prevSuccessZ = successEWMA.Z
+		prevCostZ = costEWMA.Z
+		prevDurationZ = durationEWMA.Z
+		hasPrevious = true
 
 		metrics = append(metrics, IterationMetric{
 			Timestamp:                    entry.Timestamp,
@@ -409,6 +456,9 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingBuildFailureRate:      w.BuildFailureRate,
 			RollingValidationFailureRate: w.ValidationFailureRate,
 			RollingTimeoutFailureRate:    w.TimeoutFailureRate,
+			EWMASuccessRate:              successEWMA,
+			EWMACostUSD:                  costEWMA,
+			EWMADurationMs:               durationEWMA,
 		})
 	}
 
@@ -425,6 +475,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		ProviderMetrics:    []ProviderMetrics{},
 		ControlLimits:      []TrendControlLimit{},
 		Anomalies:          []TrendAnomaly{},
+		EWMAAnomalies:      []TrendAnomaly{},
 		PatternViolations:  []PatternViolation{},
 	}
 	if len(metrics) == 0 {
@@ -463,9 +514,31 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		latestSeries := extractMetric(metrics, metric.latestSample)
 		trend.PatternViolations = append(trend.PatternViolations, detectPatternViolations(metric.name, latestSeries, limit.Mean)...)
 	}
+	ewmaStates := []struct {
+		metric string
+		state  EWMAMetricState
+	}{
+		{metric: metricEWMASuccessRate, state: latestMetric.EWMASuccessRate},
+		{metric: metricEWMACostUSD, state: latestMetric.EWMACostUSD},
+		{metric: metricEWMADurationMs, state: latestMetric.EWMADurationMs},
+	}
+	for _, ewma := range ewmaStates {
+		limit := TrendControlLimit{
+			Metric: ewma.metric,
+			Latest: ewma.state.Z,
+			Mean:   ewma.state.Mean,
+			StdDev: ewma.state.StdDev,
+			UCL:    ewma.state.UCL,
+			LCL:    ewma.state.LCL,
+		}
+		if anomaly, ok := detectAnomaly(limit); ok {
+			trend.EWMAAnomalies = append(trend.EWMAAnomalies, anomaly)
+		}
+	}
 
 	sort.Slice(trend.ControlLimits, func(i, j int) bool { return trend.ControlLimits[i].Metric < trend.ControlLimits[j].Metric })
 	sort.Slice(trend.Anomalies, func(i, j int) bool { return trend.Anomalies[i].Metric < trend.Anomalies[j].Metric })
+	sort.Slice(trend.EWMAAnomalies, func(i, j int) bool { return trend.EWMAAnomalies[i].Metric < trend.EWMAAnomalies[j].Metric })
 	sort.Slice(trend.PatternViolations, func(i, j int) bool {
 		if trend.PatternViolations[i].Metric == trend.PatternViolations[j].Metric {
 			return trend.PatternViolations[i].Rule < trend.PatternViolations[j].Rule
@@ -473,6 +546,31 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		return trend.PatternViolations[i].Metric < trend.PatternViolations[j].Metric
 	})
 	return trend
+}
+
+func computeEWMAState(metric string, value float64, values []float64, previousZ float64, hasPrevious bool) EWMAMetricState {
+	z := value
+	if hasPrevious {
+		z = ewmaLambda*value + (1-ewmaLambda)*previousZ
+	}
+	mean, stddev := meanAndStdDev(values)
+	scale := math.Sqrt(ewmaLambda / (2 - ewmaLambda))
+	ucl := mean + ewmaSigmaMultiplier*stddev*scale
+	lcl := mean - ewmaSigmaMultiplier*stddev*scale
+	if isRateMetric(metric) {
+		ucl = clamp(ucl, 0, 1)
+		lcl = clamp(lcl, 0, 1)
+	}
+	return EWMAMetricState{
+		Lambda: ewmaLambda,
+		L:      ewmaSigmaMultiplier,
+		Value:  value,
+		Z:      z,
+		Mean:   mean,
+		StdDev: stddev,
+		UCL:    ucl,
+		LCL:    lcl,
+	}
 }
 
 func computeProviderMetrics(entries []IterationMetric) []ProviderMetrics {

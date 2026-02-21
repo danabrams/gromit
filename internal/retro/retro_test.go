@@ -1302,6 +1302,13 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 				Message:   "latest 9 points are below center line 0.9550 (Nelson Rule 2)",
 			},
 		},
+		EWMAAnomalies: []logger.TrendAnomaly{
+			{
+				Metric:   "ewma_cost_usd",
+				Severity: "moderate",
+				Message:  "latest value 1.2300 is above control limits [0.4000, 1.1000]",
+			},
+		},
 	}
 
 	data, err := json.Marshal(trend)
@@ -1333,6 +1340,8 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 		"### Pattern Signals",
 		"rolling_success_rate",
 		"nelson_rule_2",
+		"### EWMA Signals",
+		"ewma_cost_usd",
 	}
 	for _, want := range expected {
 		if !contains(prompt, want) {
