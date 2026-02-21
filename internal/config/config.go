@@ -136,17 +136,21 @@ func normalizeTouchedPackages(touchedPackages []string) []string {
 
 	for _, pkg := range touchedPackages {
 		trimmed := strings.TrimSpace(pkg)
-		normalized := strings.Trim(strings.TrimPrefix(trimmed, "./"), "/")
-		if trimmed == "." || normalized == "." {
-			normalized = "."
+		normalizedPkg := strings.Trim(strings.TrimPrefix(trimmed, "./"), "/")
+		if trimmed == "." || normalizedPkg == "." {
+			normalizedPkg = "."
 		}
 
-		if _, exists := seen[normalized]; normalized == "" || exists {
+		if normalizedPkg == "" {
 			continue
 		}
 
-		seen[normalized] = struct{}{}
-		uniqueTouched = append(uniqueTouched, normalized)
+		if _, exists := seen[normalizedPkg]; exists {
+			continue
+		}
+
+		seen[normalizedPkg] = struct{}{}
+		uniqueTouched = append(uniqueTouched, normalizedPkg)
 	}
 
 	return uniqueTouched
