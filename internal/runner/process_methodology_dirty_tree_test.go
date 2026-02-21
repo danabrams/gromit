@@ -42,32 +42,34 @@ func TestRunTDDFreshContextCycles_ResetsOnRunCyclesError(t *testing.T) {
 	}
 }
 
-// TestRunTDDFreshContextCycles_ResetsOnCoverageIncomplete verifies that when
-// the coverage tracker reports incomplete coverage after max passes,
-// resetHard is called with bc.StartCommit.
-func TestRunTDDFreshContextCycles_ResetsOnCoverageIncomplete(t *testing.T) {
-	// RunCycles succeeds but never marks criteria covered, leaving tracker incomplete.
+// TestRunTDDFreshContextCycles_SucceedsWithNilTracker verifies that when
+// the coverage tracker is nil (spec-level criteria disabled for per-bead),
+// the loop completes successfully without resetting.
+func TestRunTDDFreshContextCycles_SucceedsWithNilTracker(t *testing.T) {
 	r, _, _ := newTDDFreshContextCoverageHarness(t, nil, nil)
 
-	var resetCommit string
+	resetCalled := false
 	r.resetHardFn = func(commit string) error {
-		resetCommit = commit
+		resetCalled = true
 		return nil
 	}
 
-	_, bc := newCoverageBeadContext("tdd-dirty-tree-2", "Implement feature with incomplete coverage", authSpecOneCriterion)
+	_, bc := newCoverageBeadContext("tdd-dirty-tree-2", "Implement feature with spec criteria", authSpecOneCriterion)
 	bc.StartCommit = "def456"
 
 	handled := r.runTDDFreshContextCycles(context.Background(), bc)
 
 	if !handled {
-		t.Fatal("expected runTDDFreshContextCycles to return handled=true on coverage incomplete")
+		t.Fatal("expected runTDDFreshContextCycles to return handled=true")
 	}
-	if bc.Result.Error == nil {
-		t.Fatal("expected bc.Result.Error to be set when coverage is incomplete")
+	if bc.Result.Error != nil {
+		t.Fatalf("expected no error with nil tracker, got %v", bc.Result.Error)
 	}
-	if resetCommit != "def456" {
-		t.Errorf("resetHard called with %q, want %q", resetCommit, "def456")
+	if !bc.Result.Success {
+		t.Fatal("expected Success=true with nil tracker")
+	}
+	if resetCalled {
+		t.Error("resetHard should not be called when tracker is nil (no coverage incomplete)")
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	epiloguepkg "github.com/danabrams/gromit/internal/pipeline/epilogue"
 )
@@ -354,5 +355,253 @@ func TestEpilogue_CommandFailureIsWarning(t *testing.T) {
 	}
 	if out.Decision != pipeline.Proceed {
 		t.Errorf("Decision = %v, want Proceed even after command failure", out.Decision)
+	}
+}
+
+// fakeFailureLearner is a test double for epilogue.FailureLearner.
+type fakeFailureLearner struct {
+	called bool
+	beadID string
+	callFn func(ctx context.Context, beadID, beadTitle string) error
+}
+
+func (f *fakeFailureLearner) ExtractFailureLearning(ctx context.Context, beadID, beadTitle string) error {
+	f.called = true
+	f.beadID = beadID
+	if f.callFn != nil {
+		return f.callFn(ctx, beadID, beadTitle)
+	}
+	return nil
+}
+
+// TestEpilogue_FailurePath_CallsFailureLearner verifies that failure-path learning is extracted
+// unconditionally when the build did not succeed.
+func TestEpilogue_FailurePath_CallsFailureLearner(t *testing.T) {
+	learner := &fakeFailureLearner{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithFailureLearner(learner)
+
+	in := makeInput("bead-1", "Implement feature", false) // failure path
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !learner.called {
+		t.Error("FailureLearner.ExtractFailureLearning() was not called; want failure-path learning extracted unconditionally")
+	}
+	if learner.beadID != "bead-1" {
+		t.Errorf("FailureLearner.ExtractFailureLearning() beadID = %q, want %q", learner.beadID, "bead-1")
+	}
+}
+
+// TestEpilogue_SuccessPath_DoesNotCallFailureLearner verifies that failure-path learning
+// is not extracted on the success path.
+func TestEpilogue_SuccessPath_DoesNotCallFailureLearner(t *testing.T) {
+	learner := &fakeFailureLearner{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithFailureLearner(learner)
+
+	in := makeInput("bead-1", "Implement feature", true) // success path
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if learner.called {
+		t.Error("FailureLearner.ExtractFailureLearning() was called on success path; want no failure-path learning")
+	}
+}
+
+// TestEpilogue_FailureLearner_CalledRegardlessOfTierOrPackageNovelty verifies that the
+// failure learner is called even for low-tier beads touching previously-seen packages.
+func TestEpilogue_FailureLearner_CalledRegardlessOfTierOrPackageNovelty(t *testing.T) {
+	learner := &fakeFailureLearner{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithFailureLearner(learner)
+
+	in := makeInput("bead-2", "Low-tier bead", false)
+	// Simulate low-tier bead with previously-seen packages via TouchedPackages
+	in.TouchedPackages = []string{"internal/pipeline"} // packages already seen
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !learner.called {
+		t.Error("FailureLearner.ExtractFailureLearning() was not called; want failure-path learning regardless of tier/novelty")
+	}
+}
+
+// TestEpilogue_OutputContainsTouchedPackages verifies that the Epilogue returns
+// Input.TouchedPackages in Output.TouchedPackages for orchestrator accumulation.
+func TestEpilogue_OutputContainsTouchedPackages(t *testing.T) {
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard)
+
+	in := makeInput("bead-1", "Test", true)
+	in.TouchedPackages = []string{"internal/pipeline", "internal/runner"}
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(out.TouchedPackages) != 2 {
+		t.Errorf("Output.TouchedPackages: want 2 items, got %d", len(out.TouchedPackages))
+	}
+	if len(out.TouchedPackages) > 0 && out.TouchedPackages[0] != "internal/pipeline" {
+		t.Errorf("Output.TouchedPackages[0]: want %q, got %q", "internal/pipeline", out.TouchedPackages[0])
+	}
+}
+
+// TestEpilogue_NilFailureLearner_NoopOnFailure verifies that a nil FailureLearner
+// does not panic when the build fails.
+func TestEpilogue_NilFailureLearner_NoopOnFailure(t *testing.T) {
+	// No WithFailureLearner call — nil by default
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard)
+
+	in := makeInput("bead-1", "Test", false)
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Errorf("Decision = %v, want Proceed", out.Decision)
+	}
+}
+
+// fakeIterationLogWriter is a test double for epilogue.IterationLogWriter.
+type fakeIterationLogWriter struct {
+	called  bool
+	lastLog *logger.IterationLog
+	err     error
+}
+
+func (f *fakeIterationLogWriter) Write(log *logger.IterationLog) error {
+	f.called = true
+	f.lastLog = log
+	return f.err
+}
+
+// TestEpilogue_WritesIterationLog_WhenResultPresent verifies that the iteration log
+// is written when Input.Result is set.
+func TestEpilogue_WritesIterationLog_WhenResultPresent(t *testing.T) {
+	logWriter := &fakeIterationLogWriter{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithIterationLogWriter(logWriter)
+
+	in := makeInput("bead-1", "Test", true)
+	in.Result = &logger.IterationLog{
+		BeadID:  "bead-1",
+		Model:   "sonnet",
+		Success: true,
+	}
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if !logWriter.called {
+		t.Error("IterationLogWriter.Write was not called; want iteration log written when Result is present")
+	}
+}
+
+// TestEpilogue_WritesIterationLog_UsageLimitedTrue verifies that when
+// Input.Result.UsageLimited=true, the log writer receives an entry with UsageLimited=true.
+func TestEpilogue_WritesIterationLog_UsageLimitedTrue(t *testing.T) {
+	logWriter := &fakeIterationLogWriter{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithIterationLogWriter(logWriter)
+
+	in := makeInput("bead-1", "Test usage limit", false)
+	in.Result = &logger.IterationLog{
+		BeadID:       "bead-1",
+		Model:        "sonnet",
+		Success:      false,
+		UsageLimited: true,
+	}
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if !logWriter.called {
+		t.Error("IterationLogWriter.Write was not called")
+	}
+	if logWriter.lastLog == nil || !logWriter.lastLog.UsageLimited {
+		t.Error("expected UsageLimited=true in written log entry")
+	}
+}
+
+// TestEpilogue_WritesIterationLog_UsageLimitedFalse verifies that when
+// Input.Result.UsageLimited=false, the log writer receives an entry with UsageLimited=false.
+func TestEpilogue_WritesIterationLog_UsageLimitedFalse(t *testing.T) {
+	logWriter := &fakeIterationLogWriter{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithIterationLogWriter(logWriter)
+
+	in := makeInput("bead-1", "Test no usage limit", true)
+	in.Result = &logger.IterationLog{
+		BeadID:       "bead-1",
+		Model:        "sonnet",
+		Success:      true,
+		UsageLimited: false,
+	}
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if !logWriter.called {
+		t.Error("IterationLogWriter.Write was not called")
+	}
+	if logWriter.lastLog != nil && logWriter.lastLog.UsageLimited {
+		t.Error("expected UsageLimited=false in written log entry")
+	}
+}
+
+// TestEpilogue_SkipsIterationLog_WhenNoResult verifies that the log writer is not
+// called when Input.Result is nil.
+func TestEpilogue_SkipsIterationLog_WhenNoResult(t *testing.T) {
+	logWriter := &fakeIterationLogWriter{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithIterationLogWriter(logWriter)
+
+	in := makeInput("bead-1", "Test", true)
+	// in.Result is nil — no log entry to write
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if logWriter.called {
+		t.Error("IterationLogWriter.Write was called; want no call when Result is nil")
+	}
+}
+
+// TestEpilogue_SkipsIterationLog_WhenNoWriter verifies that when no log writer is
+// configured, epilogue does not panic when Result is present.
+func TestEpilogue_SkipsIterationLog_WhenNoWriter(t *testing.T) {
+	// WithIterationLogWriter is not called — no log writer configured
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard)
+
+	in := makeInput("bead-1", "Test", true)
+	in.Result = &logger.IterationLog{
+		BeadID:       "bead-1",
+		Model:        "sonnet",
+		UsageLimited: true,
+	}
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil (log write skipped when no writer configured)", err)
 	}
 }
