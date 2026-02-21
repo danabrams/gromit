@@ -191,6 +191,8 @@ claude:
     # gpt-5.3-codex-spark timeout reverted: matched high-tier codex revert
 
 # Agent selection for interactive sessions
+# Note: `gromit review --non-interactive` uses `providers` + `routing.phase_preferences.review`,
+# not `agents.phases.review`.
 agents:
   prompt: false
   phases:

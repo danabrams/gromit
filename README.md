@@ -187,6 +187,32 @@ agents:
 
 Use `--choose-agent` on interactive commands to open a picker at launch time.
 
+### Non-Interactive Review Provider Selection
+
+`gromit review --non-interactive` uses provider routing (`providers` + `routing.phase_preferences.review`), not `agents.phases.review`.
+
+```yaml
+providers:
+  claude:
+    binary: claude
+    models: {high: opus, medium: sonnet, low: haiku}
+  openai:
+    binary: codex
+    models: {high: gpt-5.3-codex, medium: gpt-5.3-codex, low: gpt-5.3-codex}
+
+routing:
+  phase_preferences:
+    review: openai   # force Codex for non-interactive review
+
+review:
+  thorough:
+    model: sonnet    # tier hint: low|medium|high by legacy model alias
+
+agents:
+  phases:
+    review: claude   # interactive `gromit review` default only
+```
+
 ## How It Works
 
 ### The Execution Loop

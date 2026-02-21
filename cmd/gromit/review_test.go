@@ -443,6 +443,63 @@ func TestResolveReviewNonInteractiveTimeout_Defaults(t *testing.T) {
 	}
 }
 
+func TestBuildReviewNonInteractiveClient_ClaudeFallbackPath(t *testing.T) {
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:          "claude",
+			Timeout:         123,
+			PipelineTimeout: 456,
+		},
+	}
+
+	client, err := buildReviewNonInteractiveClient(cfg)
+	if err != nil {
+		t.Fatalf("buildReviewNonInteractiveClient() error = %v", err)
+	}
+
+	typedClient, ok := client.(*claudeClientAdapter)
+	if !ok {
+		t.Fatalf("client type = %T, want *claudeClientAdapter", client)
+	}
+	if typedClient.Timeout != 456*time.Second {
+		t.Fatalf("timeout = %v, want %v", typedClient.Timeout, 456*time.Second)
+	}
+}
+
+func TestBuildReviewNonInteractiveClient_CodexProviderPath(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"openai": {
+				Binary: "codex",
+				Models: map[string]string{
+					provider.TierHigh:   "gpt-5.3-codex",
+					provider.TierMedium: "gpt-5.3-codex",
+					provider.TierLow:    "gpt-5.3-codex",
+				},
+			},
+		},
+		Claude: config.ClaudeConfig{
+			PipelineTimeout: 789,
+		},
+	}
+
+	client, err := buildReviewNonInteractiveClient(cfg)
+	if err != nil {
+		t.Fatalf("buildReviewNonInteractiveClient() error = %v", err)
+	}
+
+	typedClient, ok := client.(*providerRouterClientAdapter)
+	if !ok {
+		t.Fatalf("client type = %T, want *providerRouterClientAdapter", client)
+	}
+	if typedClient.Timeout != 789*time.Second {
+		t.Fatalf("timeout = %v, want %v", typedClient.Timeout, 789*time.Second)
+	}
+	if typedClient.Phase != reviewSessionCommand {
+		t.Fatalf("phase = %q, want %q", typedClient.Phase, reviewSessionCommand)
+	}
+}
+
 func TestProviderRouterClientAdapterRun_ClaudePath(t *testing.T) {
 	var gotPhase, gotTier string
 	mockProvider := &reviewProviderStub{
