@@ -436,6 +436,67 @@ func TestReadyWithLabel_CommandContract(t *testing.T) {
 	}
 }
 
+// TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract verifies
+// ReadyWithLabel keeps honoring both the label filter behavior and the bd command contract.
+func TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract(t *testing.T) {
+	if os.Getenv("BD_AVAILABLE") != "true" {
+		t.Skip("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
+	}
+
+	c := newIsolatedClient(t)
+
+	requestedLabel := "spec:ready-regression-match"
+	otherLabel := "spec:ready-regression-other"
+
+	// Higher-priority non-matching bead should not be returned for requestedLabel.
+	nonMatch, err := c.Create("Higher priority non-matching bead", 0, []string{otherLabel}, []string{})
+	if err != nil {
+		t.Skipf("Cannot create non-matching test bead: %v", err)
+	}
+
+	match, err := c.Create("Lower priority matching bead", 2, []string{requestedLabel}, []string{})
+	if err != nil {
+		t.Skipf("Cannot create matching test bead: %v", err)
+	}
+
+	expectedCmd := []string{"bd", "ready", "--json", "--limit", "3", "--label", requestedLabel}
+	cmd := exec.Command(expectedCmd[0], expectedCmd[1:]...)
+	cmd.Dir = c.Dir
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("expected command failed: %v\nOutput: %s", err, string(out))
+	}
+
+	expectedBead, err := parseBeadOutputExcluding(string(out), "epic")
+	if err != nil {
+		t.Fatalf("failed to parse expected command output: %v", err)
+	}
+	if expectedBead == nil {
+		t.Fatal("expected command returned no ready bead for requested label")
+	}
+	if expectedBead.ID != match.ID {
+		t.Fatalf("expected command selected bead %s, want %s", expectedBead.ID, match.ID)
+	}
+	if expectedBead.ID == nonMatch.ID {
+		t.Fatalf("expected command incorrectly selected non-matching bead %s", nonMatch.ID)
+	}
+
+	got, err := c.ReadyWithLabel(requestedLabel)
+	if err != nil {
+		t.Fatalf("ReadyWithLabel() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("ReadyWithLabel() returned nil, expected matching bead")
+	}
+	if got.ID != expectedBead.ID {
+		t.Fatalf("ReadyWithLabel() returned %s, expected %s from command contract", got.ID, expectedBead.ID)
+	}
+	if got.ID == nonMatch.ID {
+		t.Fatalf("ReadyWithLabel() returned non-matching bead %s", nonMatch.ID)
+	}
+}
+
 // TestListWithLabel_CommandContract verifies the exact bd command contract
 func TestListWithLabel_CommandContract(t *testing.T) {
 	if os.Getenv("BD_AVAILABLE") != "true" {
