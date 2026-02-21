@@ -224,7 +224,17 @@ func shouldOverrideDebugModel(cmd *cobra.Command, selectedAgent agent.Agent) boo
 }
 
 func resolveDebugAgent(cfg *config.Config, agentFlag string, chooseAgent bool) (agent.Agent, error) {
-	return agent.Resolve(cfg, debugSessionCommand, agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	resolvedAgent, err := (&cmdAgentResolver{cfg: cfg}).Resolve(debugSessionCommand, agentFlag, chooseAgent)
+	if err != nil {
+		return nil, err
+	}
+
+	selectedAgent, ok := resolvedAgent.(agent.Agent)
+	if !ok {
+		return nil, fmt.Errorf("resolved agent does not implement agent.Agent")
+	}
+
+	return selectedAgent, nil
 }
 
 func runDebugGit(dir string, args ...string) (string, error) {

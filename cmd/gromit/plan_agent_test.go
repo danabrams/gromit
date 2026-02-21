@@ -236,11 +236,12 @@ func TestPlanUsesAgentLaunchNotDirectExec(t *testing.T) {
 		t.Error("plan.go does not import agent package - integration not complete")
 	}
 
-	// Check that agent.Resolve is called
-	// This is the key integration point - plan should call agent.Resolve
-	// to get the appropriate agent based on config and flags
-	if !strings.Contains(sourceStr, "agent.Resolve") {
-		t.Error("plan.go does not call agent.Resolve - agent selection not integrated")
+	// Check that plan uses the shared command resolver adapter.
+	if !strings.Contains(sourceStr, "cmdAgentResolver") {
+		t.Error("plan.go does not use cmdAgentResolver - shared resolver adapter not integrated")
+	}
+	if !strings.Contains(sourceStr, "resolvePlanAgent") {
+		t.Error("plan.go does not call resolvePlanAgent - plan agent selection not integrated")
 	}
 
 	// Check that agent.LaunchInDir is called
@@ -321,7 +322,7 @@ func TestPlanPreservesArtifactDetection(t *testing.T) {
 func TestPlanAgentSelectionIntegration(t *testing.T) {
 	// This test verifies the complete integration flow:
 	// 1. Flags exist and are parsed
-	// 2. agent.Resolve is called with correct parameters
+	// 2. shared cmdAgentResolver is used with correct parameters
 	// 3. agent.LaunchInDir is called with prompt file path
 	// 4. Prompt building and artifact detection remain unchanged
 
@@ -340,7 +341,7 @@ func TestPlanAgentSelectionIntegration(t *testing.T) {
 	t.Run("source code has agent integration", func(t *testing.T) {
 		planSource, err := os.ReadFile("plan.go")
 		if err != nil {
-			t.Skipf("Cannot read plan.go: %v", err)
+			t.Fatalf("Cannot read plan.go: %v", err)
 		}
 
 		sourceStr := string(planSource)
@@ -348,7 +349,8 @@ func TestPlanAgentSelectionIntegration(t *testing.T) {
 		// Verify key integration points
 		integrationChecks := map[string]string{
 			"imports agent package":   `"github.com/danabrams/gromit/internal/agent"`,
-			"calls agent.Resolve":     "agent.Resolve",
+			"uses shared resolver":    "cmdAgentResolver",
+			"calls resolvePlanAgent":  "resolvePlanAgent(",
 			"calls agent.LaunchInDir": ".LaunchInDir(",
 		}
 
@@ -362,7 +364,7 @@ func TestPlanAgentSelectionIntegration(t *testing.T) {
 	t.Run("old exec.Command pattern removed", func(t *testing.T) {
 		planSource, err := os.ReadFile("plan.go")
 		if err != nil {
-			t.Skipf("Cannot read plan.go: %v", err)
+			t.Fatalf("Cannot read plan.go: %v", err)
 		}
 
 		sourceStr := string(planSource)

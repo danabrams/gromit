@@ -216,7 +216,7 @@ Plan output path: %s
 	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
 
 	// Resolve which agent to use
-	selectedAgent, err := agent.Resolve(cfg, "plan", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	selectedAgent, err := resolvePlanAgent(cfg, agentFlag, chooseAgent)
 	if err != nil {
 		return fmt.Errorf("resolving agent: %w", err)
 	}
@@ -239,6 +239,20 @@ Plan output path: %s
 	}
 
 	return nil
+}
+
+func resolvePlanAgent(cfg *config.Config, agentFlag string, chooseAgent bool) (agent.Agent, error) {
+	resolvedAgent, err := (&cmdAgentResolver{cfg: cfg}).Resolve(planSessionCommand, agentFlag, chooseAgent)
+	if err != nil {
+		return nil, err
+	}
+
+	selectedAgent, ok := resolvedAgent.(agent.Agent)
+	if !ok {
+		return nil, fmt.Errorf("resolved agent does not implement agent.Agent")
+	}
+
+	return selectedAgent, nil
 }
 
 func launchPlanSession(cfg *config.Config, gromitDir string, selectedAgent agent.Agent, promptPath string) error {
