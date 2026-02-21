@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
@@ -189,8 +190,11 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 
 	// Create pipeline
 	deps := &pipeline.Deps{
-		ClaudeClient: &claudeClientAdapter{Client: claudeClient},
-		BeadClient:   &beadClientAdapter{Client: beadClient},
+		ClaudeClient: &claudeClientAdapter{
+			Client:  claudeClient,
+			Timeout: time.Duration(cfg.Claude.Timeout) * time.Second,
+		},
+		BeadClient: &beadClientAdapter{Client: beadClient},
 	}
 	paths := &pipeline.Paths{
 		GromitDir: resolveGromitDir(cfg),

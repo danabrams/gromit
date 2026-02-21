@@ -11,12 +11,13 @@ import (
 
 // claudeClientAdapter adapts claude.Client to pipeline.ClaudeClient interface.
 type claudeClientAdapter struct {
-	Client *claude.Client
+	Client  *claude.Client
+	Timeout time.Duration
 }
 
 func (a *claudeClientAdapter) Run(prompt string, model string) (*pipeline.ClaudeRunResult, error) {
 	// Use a long timeout context since the pipeline doesn't expose timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), a.Timeout)
 	defer cancel()
 
 	result, err := a.Client.Run(ctx, prompt, model)

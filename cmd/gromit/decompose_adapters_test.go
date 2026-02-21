@@ -28,6 +28,47 @@ func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
 	}
 }
 
+// TestClaudeClientAdapter_UsesConfigTimeout verifies that the adapter uses configurable timeout
+// sourced from config instead of a hardcoded duration.
+func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
+	decomposePath := filepath.Join(".", "decompose.go")
+	decomposeContent, err := os.ReadFile(decomposePath)
+	if err != nil {
+		t.Fatalf("reading decompose.go: %v", err)
+	}
+
+	reviewPath := filepath.Join(".", "review.go")
+	reviewContent, err := os.ReadFile(reviewPath)
+	if err != nil {
+		t.Fatalf("reading review.go: %v", err)
+	}
+
+	decomposeStr := string(decomposeContent)
+	reviewStr := string(reviewContent)
+
+	if !adapterTestContainsString(decomposeStr, "time.Duration(cfg.Claude.Timeout) * time.Second") {
+		t.Error("decompose should pass config timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.Timeout) * time.Second")
+	}
+
+	if !adapterTestContainsString(reviewStr, "time.Duration(cfg.Claude.Timeout) * time.Second") {
+		t.Error("review should pass config timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.Timeout) * time.Second")
+	}
+}
+
+// TestClaudeClientAdapter_NoHardcodedTimeout verifies the adapter no longer uses a fixed timeout.
+func TestClaudeClientAdapter_NoHardcodedTimeout(t *testing.T) {
+	adapterPath := filepath.Join(".", "adapters.go")
+	content, err := os.ReadFile(adapterPath)
+	if err != nil {
+		t.Fatalf("reading adapters.go: %v", err)
+	}
+
+	contentStr := string(content)
+	if adapterTestContainsString(contentStr, "30*time.Minute") {
+		t.Error("claudeClientAdapter should not use hardcoded 30*time.Minute timeout")
+	}
+}
+
 // TestBeadClientAdapter_ConstructsTypedStruct verifies beadClientAdapter methods return typed structs
 func TestBeadClientAdapter_ConstructsTypedStruct(t *testing.T) {
 	adapterPath := filepath.Join(".", "adapters.go")
