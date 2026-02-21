@@ -194,13 +194,13 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh, dryRun)
 }
 
-func handleRunSignals(sigCh <-chan os.Signal, stopCh chan struct{}, cancel context.CancelFunc, stderr io.Writer) {
-	gracefulStopRequested := false
+func handleRunSignals(sigCh <-chan os.Signal, stopCh chan<- struct{}, cancel context.CancelFunc, stderr io.Writer) {
+	gracefulStopTriggered := false
 	for sig := range sigCh {
 		switch sig {
 		case syscall.SIGINT:
-			if !gracefulStopRequested {
-				gracefulStopRequested = true
+			if !gracefulStopTriggered {
+				gracefulStopTriggered = true
 				fmt.Fprintln(stderr, gracefulStopMessage)
 				close(stopCh)
 				continue
