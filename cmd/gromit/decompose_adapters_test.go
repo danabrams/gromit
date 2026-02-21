@@ -30,19 +30,10 @@ func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
 // sourced from config instead of a hardcoded duration.
 func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
 	slowScript := adapterTestCreateSleepScript(t, 2*time.Second, "done")
-
-	client, err := claude.NewClient(slowScript, nil, 30)
-	if err != nil {
-		t.Fatalf("creating claude client: %v", err)
-	}
-
-	adapter := &claudeClientAdapter{
-		Client:  client,
-		Timeout: 50 * time.Millisecond,
-	}
+	adapter := adapterTestNewClaudeAdapter(t, slowScript, 50*time.Millisecond)
 
 	start := time.Now()
-	_, err = adapter.Run("prompt", "haiku")
+	_, err := adapter.Run("prompt", "haiku")
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -56,20 +47,8 @@ func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
 // TestClaudeClientAdapter_NoHardcodedTimeout verifies the adapter no longer uses a fixed timeout.
 func TestClaudeClientAdapter_NoHardcodedTimeout(t *testing.T) {
 	slowScript := adapterTestCreateSleepScript(t, 200*time.Millisecond, "ok")
-
-	client, err := claude.NewClient(slowScript, nil, 30)
-	if err != nil {
-		t.Fatalf("creating claude client: %v", err)
-	}
-
-	shortTimeoutAdapter := &claudeClientAdapter{
-		Client:  client,
-		Timeout: 50 * time.Millisecond,
-	}
-	longTimeoutAdapter := &claudeClientAdapter{
-		Client:  client,
-		Timeout: 2 * time.Second,
-	}
+	shortTimeoutAdapter := adapterTestNewClaudeAdapter(t, slowScript, 50*time.Millisecond)
+	longTimeoutAdapter := adapterTestNewClaudeAdapter(t, slowScript, 2*time.Second)
 
 	if _, err := shortTimeoutAdapter.Run("prompt", "haiku"); err == nil {
 		t.Fatal("expected short timeout adapter to fail")
@@ -220,4 +199,18 @@ func adapterTestCreateSleepScript(t *testing.T, sleep time.Duration, output stri
 		t.Fatalf("writing mock claude script: %v", err)
 	}
 	return scriptPath
+}
+
+func adapterTestNewClaudeAdapter(t *testing.T, scriptPath string, timeout time.Duration) *claudeClientAdapter {
+	t.Helper()
+
+	client, err := claude.NewClient(scriptPath, nil, 30)
+	if err != nil {
+		t.Fatalf("creating claude client: %v", err)
+	}
+
+	return &claudeClientAdapter{
+		Client:  client,
+		Timeout: timeout,
+	}
 }
