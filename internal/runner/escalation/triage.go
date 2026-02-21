@@ -35,89 +35,72 @@ var (
 // Triage classifies invocation failures using a deterministic waterfall.
 func Triage(inv *runtypes.InvocationResult, bc *runtypes.BeadContext) *TriageResult {
 	if inv != nil && inv.ProviderResult != nil {
-		switch inv.ProviderResult.FailureCategory {
-		case provider.FailureCategoryTransportDisconnect:
-			return &TriageResult{
-				Layer:       LayerProviderTransport,
-				SubCategory: "disconnect",
-				Detail:      provider.FailureCategoryTransportDisconnect,
-				Retryable:   true,
-			}
-		case provider.FailureCategoryRateLimited:
-			return &TriageResult{
-				Layer:       LayerProviderTransport,
-				SubCategory: "rate_limit",
-				Detail:      provider.FailureCategoryRateLimited,
-				Retryable:   true,
-			}
-		case provider.FailureCategoryAuth:
-			return &TriageResult{
-				Layer:       LayerProviderTransport,
-				SubCategory: "auth",
-				Detail:      provider.FailureCategoryAuth,
-				Retryable:   false,
-			}
+		if result := triageProviderTransport(inv.ProviderResult); result != nil {
+			return result
 		}
-
-		detail := inv.ProviderResult.Stderr
-		if detail == "" {
-			detail = inv.ProviderResult.Output
-		}
-		switch {
-		case missingToolPattern.MatchString(detail):
-			return &TriageResult{
-				Layer:       LayerEnvironment,
-				SubCategory: "missing_tool",
-				Detail:      detail,
-				Retryable:   false,
-			}
-		case goVersionMismatchPattern.MatchString(detail):
-			return &TriageResult{
-				Layer:       LayerEnvironment,
-				SubCategory: "version_mismatch",
-				Detail:      detail,
-				Retryable:   false,
-			}
-		case noSpacePattern.MatchString(detail):
-			return &TriageResult{
-				Layer:       LayerEnvironment,
-				SubCategory: "resource_exhausted",
-				Detail:      detail,
-				Retryable:   false,
-			}
-		case permissionDeniedPattern.MatchString(detail):
-			return &TriageResult{
-				Layer:       LayerEnvironment,
-				SubCategory: "permission",
-				Detail:      detail,
-				Retryable:   false,
-			}
+		if result := triageEnvironment(inv.ProviderResult); result != nil {
+			return result
 		}
 	}
 
-	if bc != nil {
-		if bc.BuildPrompt == "" {
-			return &TriageResult{
-				Layer:       LayerOrchestration,
-				SubCategory: "bad_prompt",
-				Detail:      "build prompt is empty",
-				Retryable:   false,
-			}
-		}
-		if bc.Bead != nil && bc.Bead.Description == "" {
-			return &TriageResult{
-				Layer:       LayerOrchestration,
-				SubCategory: "bad_bead",
-				Detail:      "bead description is empty",
-				Retryable:   false,
-			}
-		}
+	if result := triageOrchestration(bc); result != nil {
+		return result
 	}
 
+	return triageResult(LayerCode, "default", "code-level or unknown failure", true)
+}
+
+func triageProviderTransport(result *provider.Result) *TriageResult {
+	switch result.FailureCategory {
+	case provider.FailureCategoryTransportDisconnect:
+		return triageResult(LayerProviderTransport, "disconnect", provider.FailureCategoryTransportDisconnect, true)
+	case provider.FailureCategoryRateLimited:
+		return triageResult(LayerProviderTransport, "rate_limit", provider.FailureCategoryRateLimited, true)
+	case provider.FailureCategoryAuth:
+		return triageResult(LayerProviderTransport, "auth", provider.FailureCategoryAuth, false)
+	default:
+		return nil
+	}
+}
+
+func triageEnvironment(result *provider.Result) *TriageResult {
+	detail := result.Stderr
+	if detail == "" {
+		detail = result.Output
+	}
+
+	switch {
+	case missingToolPattern.MatchString(detail):
+		return triageResult(LayerEnvironment, "missing_tool", detail, false)
+	case goVersionMismatchPattern.MatchString(detail):
+		return triageResult(LayerEnvironment, "version_mismatch", detail, false)
+	case noSpacePattern.MatchString(detail):
+		return triageResult(LayerEnvironment, "resource_exhausted", detail, false)
+	case permissionDeniedPattern.MatchString(detail):
+		return triageResult(LayerEnvironment, "permission", detail, false)
+	default:
+		return nil
+	}
+}
+
+func triageOrchestration(bc *runtypes.BeadContext) *TriageResult {
+	if bc == nil {
+		return nil
+	}
+	if bc.BuildPrompt == "" {
+		return triageResult(LayerOrchestration, "bad_prompt", "build prompt is empty", false)
+	}
+	if bc.Bead != nil && bc.Bead.Description == "" {
+		return triageResult(LayerOrchestration, "bad_bead", "bead description is empty", false)
+	}
+	return nil
+}
+
+func triageResult(layer FailureLayer, subCategory, detail string, retryable bool) *TriageResult {
 	return &TriageResult{
-		Layer:       LayerCode,
-		SubCategory: "default",
-		Detail:      "code-level or unknown failure",
-		Retryable:   true,
+		Layer:       layer,
+		SubCategory: subCategory,
+		Detail:      detail,
+		Retryable:   retryable,
 	}
 }
