@@ -250,18 +250,15 @@ func parseAnalysisOutputHeuristic(output string) *Analysis {
 func inferCategoryFromText(text string) Category {
 	lower := strings.ToLower(text)
 	switch {
-	case strings.Contains(lower, "hard_stop_action"),
-		strings.Contains(lower, "hard stop action"),
-		strings.Contains(lower, "hard_stop"),
-		strings.Contains(lower, "hard stop"):
+	case containsAny(lower, "hard_stop_action", "hard stop action", "hard_stop", "hard stop"):
 		return CategoryHardStopAction
-	case strings.Contains(lower, "task_too_complex"), strings.Contains(lower, "task too complex"):
+	case containsAny(lower, "task_too_complex", "task too complex"):
 		return CategoryTaskTooComplex
-	case strings.Contains(lower, "unclear_spec"), strings.Contains(lower, "unclear spec"):
+	case containsAny(lower, "unclear_spec", "unclear spec"):
 		return CategoryUnclearSpec
-	case strings.Contains(lower, "missing_context"), strings.Contains(lower, "missing context"):
+	case containsAny(lower, "missing_context", "missing context"):
 		return CategoryMissingContext
-	case strings.Contains(lower, "test_flake"), strings.Contains(lower, "test flake"):
+	case containsAny(lower, "test_flake", "test flake"):
 		return CategoryTestFlake
 	case strings.Contains(lower, "environment"):
 		return CategoryEnvironment
@@ -277,17 +274,22 @@ func inferCategoryFromText(text string) Category {
 func inferRecoverableFromText(text string) (recoverable bool, found bool) {
 	lower := strings.ToLower(text)
 	switch {
-	case strings.Contains(lower, "recoverable=true"),
-		strings.Contains(lower, "recoverable: true"),
-		strings.Contains(lower, "recoverable = true"):
+	case containsAny(lower, "recoverable=true", "recoverable: true", "recoverable = true"):
 		return true, true
-	case strings.Contains(lower, "recoverable=false"),
-		strings.Contains(lower, "recoverable: false"),
-		strings.Contains(lower, "recoverable = false"):
+	case containsAny(lower, "recoverable=false", "recoverable: false", "recoverable = false"):
 		return false, true
 	default:
 		return false, false
 	}
+}
+
+func containsAny(text string, needles ...string) bool {
+	for _, needle := range needles {
+		if strings.Contains(text, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func extractPrefixedLineValue(text string, prefixes ...string) string {
