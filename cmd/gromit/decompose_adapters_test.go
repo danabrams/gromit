@@ -28,12 +28,12 @@ func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
 	decomposeStr := adapterTestReadFile(t, "decompose.go")
 	reviewStr := adapterTestReadFile(t, "review.go")
 
-	if !adapterTestContainsString(decomposeStr, "time.Duration(cfg.Claude.Timeout) * time.Second") {
-		t.Error("decompose should pass config timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.Timeout) * time.Second")
+	if !adapterTestContainsString(decomposeStr, "time.Duration(cfg.Claude.PipelineTimeout) * time.Second") {
+		t.Error("decompose should pass pipeline timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.PipelineTimeout) * time.Second")
 	}
 
-	if !adapterTestContainsString(reviewStr, "time.Duration(cfg.Claude.Timeout) * time.Second") {
-		t.Error("review should pass config timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.Timeout) * time.Second")
+	if !adapterTestContainsString(reviewStr, "time.Duration(cfg.Claude.PipelineTimeout) * time.Second") {
+		t.Error("review should pass pipeline timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.PipelineTimeout) * time.Second")
 	}
 }
 

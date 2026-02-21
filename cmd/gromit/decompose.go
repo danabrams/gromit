@@ -192,7 +192,7 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	deps := &pipeline.Deps{
 		ClaudeClient: &claudeClientAdapter{
 			Client:  claudeClient,
-			Timeout: time.Duration(cfg.Claude.Timeout) * time.Second,
+			Timeout: time.Duration(cfg.Claude.PipelineTimeout) * time.Second,
 		},
 		BeadClient: &beadClientAdapter{Client: beadClient},
 	}

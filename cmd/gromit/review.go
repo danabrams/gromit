@@ -449,7 +449,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 
 	claudeAdapter := &claudeClientAdapter{
 		Client:  claudeClient,
-		Timeout: time.Duration(cfg.Claude.Timeout) * time.Second,
+		Timeout: time.Duration(cfg.Claude.PipelineTimeout) * time.Second,
 	}
 
 	beadAdapter := &beadClientAdapter{
