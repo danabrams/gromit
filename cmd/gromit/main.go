@@ -42,6 +42,11 @@ var retroRecordStateFn = recordRetroState
 
 const retroSessionCommand = "retro"
 
+const (
+	runSignalBufferSize = 2
+	gracefulStopMessage = "\nReceived interrupt, stopping after current iteration (Ctrl+C again to force stop)..."
+)
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -157,7 +162,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 2)
+	sigCh := make(chan os.Signal, runSignalBufferSize)
 	stopCh := make(chan struct{})
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
@@ -190,13 +195,13 @@ func runLoop(cmd *cobra.Command, args []string) error {
 }
 
 func handleRunSignals(sigCh <-chan os.Signal, stopCh chan struct{}, cancel context.CancelFunc, stderr io.Writer) {
-	firstInterrupt := true
+	gracefulStopRequested := false
 	for sig := range sigCh {
 		switch sig {
 		case syscall.SIGINT:
-			if firstInterrupt {
-				firstInterrupt = false
-				fmt.Fprintln(stderr, "\nReceived interrupt, stopping after current iteration (Ctrl+C again to force stop)...")
+			if !gracefulStopRequested {
+				gracefulStopRequested = true
+				fmt.Fprintln(stderr, gracefulStopMessage)
 				close(stopCh)
 				continue
 			}
