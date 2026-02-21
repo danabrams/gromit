@@ -2,6 +2,7 @@ package execute_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -330,5 +331,102 @@ func TestBuildStage_Run_StreamRunReceivesTier(t *testing.T) {
 	}
 	if invoker.streamCalls[0].tier != "medium" {
 		t.Errorf("StreamRun tier = %q, want %q", invoker.streamCalls[0].tier, "medium")
+	}
+}
+
+// TestBuildStage_EscalationDisabled_DoesNotRetryOnFailure verifies that when
+// EscalationEnabled is false, a failed invocation is not retried on a higher tier.
+func TestBuildStage_EscalationDisabled_DoesNotRetryOnFailure(t *testing.T) {
+	callCount := 0
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			callCount++
+			return nil, fmt.Errorf("invocation failed")
+		},
+	}
+	renderer := &fakePromptRenderer{}
+	stage := execute.New(invoker, renderer, io.Discard)
+
+	in := makeInput(makeBead("bead-1", "Fix bug"), defaultConfig())
+	in.EscalationEnabled = false
+
+	_, err := stage.Run(context.Background(), in)
+	if err == nil {
+		t.Fatal("Run() error = nil, want error on failed invocation")
+	}
+	if callCount != 1 {
+		t.Errorf("StreamRun called %d times, want 1 (no escalation when disabled)", callCount)
+	}
+}
+
+// TestBuildStage_EscalationEnabled_RetriesWithNextTierOnFailure verifies that when
+// EscalationEnabled is true and the initial tier fails, the Build stage escalates
+// to the next tier in the chain.
+func TestBuildStage_EscalationEnabled_RetriesWithNextTierOnFailure(t *testing.T) {
+	var calledTiers []string
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, tier string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			calledTiers = append(calledTiers, tier)
+			if tier == "low" {
+				return nil, fmt.Errorf("low tier failed")
+			}
+			return &provider.Result{Success: true}, nil
+		},
+	}
+	renderer := &fakePromptRenderer{}
+	stage := execute.New(invoker, renderer, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Escalation.Enabled = true
+	cfg.Escalation.Chain = []string{"low", "medium", "high"}
+	cfg.Models.P2 = "low"
+
+	b := &bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2, Labels: []string{}}
+	in := makeInput(b, cfg)
+	in.EscalationEnabled = true
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil (should succeed after escalation)", err)
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Errorf("Decision = %v, want Proceed", out.Decision)
+	}
+	if len(calledTiers) != 2 {
+		t.Errorf("StreamRun called with tiers %v, want 2 calls (low, medium)", calledTiers)
+	}
+	if len(calledTiers) == 2 && (calledTiers[0] != "low" || calledTiers[1] != "medium") {
+		t.Errorf("StreamRun tiers = %v, want [low medium]", calledTiers)
+	}
+}
+
+// TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted verifies that when
+// EscalationEnabled is true but all tiers in the chain fail, the stage returns an error.
+func TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted(t *testing.T) {
+	callCount := 0
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			callCount++
+			return nil, fmt.Errorf("always fails")
+		},
+	}
+	renderer := &fakePromptRenderer{}
+	stage := execute.New(invoker, renderer, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Escalation.Enabled = true
+	cfg.Escalation.Chain = []string{"low", "medium"}
+	cfg.Models.P2 = "low"
+
+	b := &bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2, Labels: []string{}}
+	in := makeInput(b, cfg)
+	in.EscalationEnabled = true
+
+	_, err := stage.Run(context.Background(), in)
+	if err == nil {
+		t.Fatal("Run() error = nil, want error when all tiers fail")
+	}
+	if callCount != 2 {
+		t.Errorf("StreamRun called %d times, want 2 (low + medium)", callCount)
 	}
 }

@@ -37,6 +37,10 @@ type Input struct {
 	// ValidationFailures holds summaries of recent validation failures
 	// from the previous validate stage, fed into the next execute stage.
 	ValidationFailures []string
+	// EscalationEnabled controls whether the Build stage may escalate to higher
+	// tiers (haiku→sonnet→opus) on invocation failure. When false, a single
+	// attempt is made at the bead's configured tier with no retry.
+	EscalationEnabled bool
 	// BuildSucceeded is true when the build and validate stages both passed
 	// for this iteration. Set by the orchestrator before calling Epilogue.
 	BuildSucceeded bool

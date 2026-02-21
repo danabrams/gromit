@@ -111,6 +111,19 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 	}
 
 	_, err = b.invoker.StreamRun(ctx, prompt, tier, w, nil, nil)
+	if err != nil && in.EscalationEnabled {
+		for {
+			nextTier := in.Config.NextEscalationTier(tier)
+			if nextTier == "" {
+				break
+			}
+			tier = nextTier
+			_, err = b.invoker.StreamRun(ctx, prompt, tier, w, nil, nil)
+			if err == nil {
+				break
+			}
+		}
+	}
 	if err != nil {
 		return pipeline.Output{}, fmt.Errorf("build: LLM invocation: %w", err)
 	}
