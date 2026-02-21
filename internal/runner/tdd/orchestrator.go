@@ -179,8 +179,9 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("red validation: %w", err)
 	}
 	if passed {
-		// Tests pass unexpectedly — nothing left to implement
-		if err := o.runRefactorAndFinalValidation(ctx, bc); err != nil {
+		// Tests pass unexpectedly — nothing left to implement.
+		// Skip refactor: no implementation was written in this cycle.
+		if err := o.runFinalValidation(ctx); err != nil {
 			return err
 		}
 
