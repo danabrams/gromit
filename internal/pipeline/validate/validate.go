@@ -2,6 +2,7 @@ package validate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -35,8 +36,10 @@ func New(runner CommandRunner, output io.Writer) *Validate {
 //  1. Returns Proceed immediately when validation is disabled or bead is nil.
 //  2. Retrieves fast validation commands from config.
 //  3. Executes commands via CommandRunner; returns Proceed on success.
-//  4. On any command failure, formats summaries using ExtractValidationSummary
+//  4. Enforces wall-clock deadline via Input.Deadline if set.
+//  5. On any command failure, formats summaries using ExtractValidationSummary
 //     and returns Block with ValidationFailures.
+//  6. Stops at first failure (does not run remaining commands).
 func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
 	if in.Bead == nil {
 		return pipeline.Output{Decision: pipeline.Proceed}, nil
@@ -45,6 +48,13 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	cfg := in.Config
 	if cfg == nil || !cfg.Validation.Enabled {
 		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}
+
+	// Apply the wall-clock deadline if set.
+	if !in.Deadline.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, in.Deadline)
+		defer cancel()
 	}
 
 	// Get fast validation commands from config.
@@ -56,6 +66,17 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	// Run validation commands and collect failures.
 	for _, cmd := range commands {
 		stdout, stderr, exitCode, err := v.runner.Run(ctx, cmd, "")
+
+		// Handle timeout errors as validation failures.
+		if errors.Is(err, context.DeadlineExceeded) {
+			summary := formatTimeoutMessage(cmd)
+			return pipeline.Output{
+				Decision:           pipeline.Block,
+				ValidationFailures: []string{summary},
+			}, nil
+		}
+
+		// Other errors are propagated.
 		if err != nil {
 			return pipeline.Output{}, err
 		}
@@ -84,4 +105,9 @@ func formatCommandFailure(command string, exitCode int, stdout, stderr string) s
 		msg += "\n" + stderr
 	}
 	return msg
+}
+
+// formatTimeoutMessage formats a timeout error message for a command.
+func formatTimeoutMessage(command string) string {
+	return fmt.Sprintf("Command timeout: %s exceeded configured timeout limit", command)
 }
