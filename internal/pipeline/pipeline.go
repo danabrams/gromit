@@ -75,6 +75,7 @@ type LogEntry struct {
 type Deps struct {
 	AgentResolver     AgentResolver
 	ClaudeClient      ClaudeClient
+	ReviewInvoker     ReviewInvoker
 	BeadClient        BeadClient
 	BacklogClient     BacklogClient
 	RefineRenderer    RefineRenderer
@@ -116,6 +117,11 @@ type Agent interface {
 
 // ClaudeClient abstracts Claude CLI operations for non-interactive workflows.
 type ClaudeClient interface {
+	Run(prompt string, model string) (*ClaudeRunResult, error)
+}
+
+// ReviewInvoker abstracts non-interactive review invocation.
+type ReviewInvoker interface {
 	Run(prompt string, model string) (*ClaudeRunResult, error)
 }
 
@@ -245,7 +251,7 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 }
 
 // ReviewNonInteractive executes the non-interactive review workflow.
-// It validates deps, builds and renders prompt, calls ClaudeClient.Run with timeout,
+// It validates deps, builds and renders prompt, calls ReviewInvoker.Run with timeout,
 // parses result via review.ParseReviewResult, creates beads from findings with from-review label,
 // creates backlog items with from-review and backlog labels, persists learnings, logs review,
 // updates state, and returns ReviewResult.
@@ -259,8 +265,8 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 		return nil, err
 	}
 
-	// Call Claude
-	claudeResult, err := p.deps.ClaudeClient.Run(renderedPrompt, input.Model)
+	// Invoke the configured non-interactive review runner.
+	claudeResult, err := p.deps.ReviewInvoker.Run(renderedPrompt, input.Model)
 	if err != nil {
 		return nil, fmt.Errorf("review invocation: %w", err)
 	}
@@ -368,7 +374,7 @@ func (p *Pipeline) validateReviewDeps() error {
 	}
 
 	return validateRequiredDeps([]namedDependency{
-		{name: "ClaudeClient", dep: p.deps.ClaudeClient},
+		{name: "ReviewInvoker", dep: p.deps.ReviewInvoker},
 		{name: "ReviewRenderer", dep: p.deps.ReviewRenderer},
 		{name: "BeadClient", dep: p.deps.BeadClient},
 		{name: "BacklogClient", dep: p.deps.BacklogClient},

@@ -123,11 +123,11 @@ func TestDecomposeAcceptanceMocks_UseTypedReturns(t *testing.T) {
 // TestReviewAcceptanceMocks_UseTypedReturns verifies review test mocks use typed returns
 func TestReviewAcceptanceMocks_UseTypedReturns(t *testing.T) {
 	// Compile-time checks
-	var _ ClaudeClient = (*reviewAcceptanceMockClaudeClient)(nil)
+	var _ ReviewInvoker = (*reviewAcceptanceMockReviewInvoker)(nil)
 	var _ BeadClient = (*reviewAcceptanceMockBeadClient)(nil)
 
-	t.Run("reviewAcceptanceMockClaudeClient returns ClaudeRunResult", func(t *testing.T) {
-		mock := &reviewAcceptanceMockClaudeClient{
+	t.Run("reviewAcceptanceMockReviewInvoker returns ClaudeRunResult", func(t *testing.T) {
+		mock := &reviewAcceptanceMockReviewInvoker{
 			runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
 				return &ClaudeRunResult{
 					Success:  true,

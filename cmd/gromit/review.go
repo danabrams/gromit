@@ -439,9 +439,9 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		return fmt.Errorf("creating renderer: %w", err)
 	}
 
-	reviewClient, err := buildReviewNonInteractiveClient(cfg)
+	reviewInvoker, err := buildReviewNonInteractiveClient(cfg)
 	if err != nil {
-		return fmt.Errorf("creating review client: %w", err)
+		return fmt.Errorf("creating review invoker: %w", err)
 	}
 
 	beadsClient, err := bead.NewClient()
@@ -465,7 +465,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	learningsAdapter := &cliLearningsManager{
 		gromitDir: gromitDir,
 		runner: &pipelineLearningsRunnerAdapter{
-			client: reviewClient,
+			client: reviewInvoker,
 		},
 	}
 
@@ -482,7 +482,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 
 	deps := &pipeline.Deps{
 		ReviewRenderer:   reviewRendererAdapter,
-		ClaudeClient:     reviewClient,
+		ReviewInvoker:    reviewInvoker,
 		BeadClient:       beadAdapter,
 		BacklogClient:    backlogAdapter,
 		LearningsManager: learningsAdapter,
@@ -538,7 +538,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	return nil
 }
 
-func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.ClaudeClient, error) {
+func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.ReviewInvoker, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -716,15 +716,15 @@ func (m *cliLearningsManager) Add(content string) error {
 	return err
 }
 
-// pipelineLearningsRunnerAdapter implements learnings.ClaudeRunner using pipeline.ClaudeClient.
+// pipelineLearningsRunnerAdapter implements learnings.ClaudeRunner using pipeline.ReviewInvoker.
 type pipelineLearningsRunnerAdapter struct {
-	client pipeline.ClaudeClient
+	client pipeline.ReviewInvoker
 }
 
 func (r *pipelineLearningsRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
-	_ = ctx // pipeline.ClaudeClient handles its own timeout/context.
+	_ = ctx // pipeline.ReviewInvoker handles its own timeout/context.
 	if r == nil || r.client == nil {
-		return nil, fmt.Errorf("claude client is nil")
+		return nil, fmt.Errorf("review invoker is nil")
 	}
 
 	runResult, err := r.client.Run(prompt, model)
@@ -733,7 +733,7 @@ func (r *pipelineLearningsRunnerAdapter) Run(ctx context.Context, prompt string,
 	}
 
 	if runResult == nil {
-		return nil, fmt.Errorf("claude returned nil result")
+		return nil, fmt.Errorf("review invoker returned nil result")
 	}
 
 	// Convert invocation result to learnings.Result

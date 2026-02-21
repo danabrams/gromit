@@ -431,7 +431,7 @@ func TestReviewNonInteractive_UsesTypedClaudeResult(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient:     mockClaude,
+		ReviewInvoker:    mockClaude,
 		BeadClient:       mockBead,
 		BacklogClient:    mockBacklog,
 		LearningsManager: mockLearnings,

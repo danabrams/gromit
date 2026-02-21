@@ -101,7 +101,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 		},
 	}
 
-	mockClaude := &reviewAcceptanceMockClaudeClient{
+	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
 		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
 			// Return Claude output with JSON review result
 			jsonOutput := `{
@@ -182,7 +182,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
-		ClaudeClient:     mockClaude,
+		ReviewInvoker:    mockReviewInvoker,
 		BeadClient:       mockBead,
 		BacklogClient:    mockBacklog,
 		LearningsManager: mockLearnings,
@@ -283,7 +283,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 		},
 	}
 
-	mockClaude := &reviewAcceptanceMockClaudeClient{
+	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
 		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
 			jsonOutput := `{
 				"passed": true,
@@ -316,7 +316,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
-		ClaudeClient:     mockClaude,
+		ReviewInvoker:    mockReviewInvoker,
 		BeadClient:       mockBead,
 		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
@@ -371,7 +371,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 		},
 	}
 
-	mockClaude := &reviewAcceptanceMockClaudeClient{
+	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
 		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
 			jsonOutput := `{
 				"passed": true,
@@ -403,7 +403,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
-		ClaudeClient:     mockClaude,
+		ReviewInvoker:    mockReviewInvoker,
 		BeadClient:       &reviewAcceptanceMockBeadClient{},
 		BacklogClient:    mockBacklog,
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
@@ -442,7 +442,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 }
 
 // TestReviewNonInteractiveWorkflow_RespectsTimeout verifies ReviewInput.Timeout field is provided
-// Note: The ClaudeClient interface doesn't expose timeout directly; timeout handling
+// Note: The ReviewInvoker interface doesn't expose timeout directly; timeout handling
 // is expected to be managed via context at a higher level (e.g., in the CLI adapter)
 func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
 	mockRenderer := &reviewAcceptanceMockReviewRenderer{
@@ -451,7 +451,7 @@ func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
 		},
 	}
 
-	mockClaude := &reviewAcceptanceMockClaudeClient{
+	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
 		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
 			jsonOutput := `{"passed": true, "summary": "OK", "fixes_applied": [], "beads_to_create": [], "backlog_items": []}`
 			return &ClaudeRunResult{
@@ -463,7 +463,7 @@ func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
 
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
-		ClaudeClient:     mockClaude,
+		ReviewInvoker:    mockReviewInvoker,
 		BeadClient:       &reviewAcceptanceMockBeadClient{},
 		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
@@ -522,7 +522,7 @@ func TestReviewNonInteractiveWorkflow_NilDependenciesError(t *testing.T) {
 func TestPipeline_validateReviewDeps(t *testing.T) {
 	newValidDeps := func() *Deps {
 		return &Deps{
-			ClaudeClient:     &reviewAcceptanceMockClaudeClient{},
+			ReviewInvoker:    &reviewAcceptanceMockReviewInvoker{},
 			ReviewRenderer:   &reviewAcceptanceMockReviewRenderer{},
 			BeadClient:       &reviewAcceptanceMockBeadClient{},
 			BacklogClient:    &reviewAcceptanceMockBacklogClient{},
@@ -538,9 +538,9 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "nil ClaudeClient",
-			mutate:  func(d *Deps) { d.ClaudeClient = nil },
-			wantErr: "pipeline: nil ClaudeClient",
+			name:    "nil ReviewInvoker",
+			mutate:  func(d *Deps) { d.ReviewInvoker = nil },
+			wantErr: "pipeline: nil ReviewInvoker",
 		},
 		{
 			name:    "nil ReviewRenderer",
@@ -573,9 +573,9 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 			wantErr: "pipeline: nil StateManager",
 		},
 		{
-			name:    "typed nil ClaudeClient",
-			mutate:  func(d *Deps) { d.ClaudeClient = (*reviewAcceptanceMockClaudeClient)(nil) },
-			wantErr: "pipeline: nil ClaudeClient",
+			name:    "typed nil ReviewInvoker",
+			mutate:  func(d *Deps) { d.ReviewInvoker = (*reviewAcceptanceMockReviewInvoker)(nil) },
+			wantErr: "pipeline: nil ReviewInvoker",
 		},
 		{
 			name:    "all deps present",
@@ -664,12 +664,12 @@ func (m *reviewAcceptanceMockReviewRenderer) RenderThoroughReview(input *Thoroug
 	return "", fmt.Errorf("not implemented")
 }
 
-type reviewAcceptanceMockClaudeClient struct {
+type reviewAcceptanceMockReviewInvoker struct {
 	runFunc func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error)
 }
 
-func (m *reviewAcceptanceMockClaudeClient) Run(prompt string, model string) (*ClaudeRunResult, error) {
-	// Call runFunc with a zero timeout since the ClaudeClient interface doesn't expose timeout
+func (m *reviewAcceptanceMockReviewInvoker) Run(prompt string, model string) (*ClaudeRunResult, error) {
+	// Call runFunc with a zero timeout since the ReviewInvoker interface doesn't expose timeout
 	// The timeout should be handled via context at a higher level
 	if m.runFunc != nil {
 		return m.runFunc(prompt, model, 0)

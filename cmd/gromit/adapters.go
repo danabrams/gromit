@@ -11,13 +11,14 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 )
 
-// claudeClientAdapter adapts claude.Client to pipeline.ClaudeClient interface.
+// claudeClientAdapter adapts claude.Client to pipeline invocation interfaces.
 type claudeClientAdapter struct {
 	Client  *claude.Client
 	Timeout time.Duration
 }
 
 var _ pipeline.ClaudeClient = (*claudeClientAdapter)(nil)
+var _ pipeline.ReviewInvoker = (*claudeClientAdapter)(nil)
 
 func (a *claudeClientAdapter) Run(prompt string, model string) (*pipeline.ClaudeRunResult, error) {
 	// Timeout is configured by the caller when constructing the adapter.
@@ -40,7 +41,7 @@ type routerSelector interface {
 	MarkUnavailable(name string)
 }
 
-// providerRouterClientAdapter adapts provider router invocation to pipeline.ClaudeClient.
+// providerRouterClientAdapter adapts provider router invocation to pipeline.ReviewInvoker.
 type providerRouterClientAdapter struct {
 	Router  routerSelector
 	Timeout time.Duration
@@ -48,6 +49,7 @@ type providerRouterClientAdapter struct {
 }
 
 var _ pipeline.ClaudeClient = (*providerRouterClientAdapter)(nil)
+var _ pipeline.ReviewInvoker = (*providerRouterClientAdapter)(nil)
 
 func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipeline.ClaudeRunResult, error) {
 	if a == nil || a.Router == nil {
