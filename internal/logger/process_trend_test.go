@@ -316,42 +316,9 @@ func TestBuildProcessTrend_HasExpectedControlLimitsWithPhaseRates(t *testing.T) 
 
 func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *testing.T) {
 	metrics := []IterationMetric{
-		{
-			Success:               true,
-			FirstPassSuccess:      true,
-			DurationMs:            100,
-			CostUSD:               1,
-			InputTokens:           100,
-			RollingSuccessRate:    0.6,
-			RollingReworkRate:     0.25,
-			RollingAvgDurationMs:  275,
-			RollingAvgCostUSD:     3.5,
-			RollingAvgInputTokens: 275,
-		},
-		{
-			Success:               false,
-			FirstPassSuccess:      false,
-			DurationMs:            300,
-			CostUSD:               4,
-			InputTokens:           300,
-			RollingSuccessRate:    0.6,
-			RollingReworkRate:     0.25,
-			RollingAvgDurationMs:  275,
-			RollingAvgCostUSD:     3.5,
-			RollingAvgInputTokens: 275,
-		},
-		{
-			Success:               true,
-			FirstPassSuccess:      false,
-			DurationMs:            500,
-			CostUSD:               7,
-			InputTokens:           500,
-			RollingSuccessRate:    0.6,
-			RollingReworkRate:     0.25,
-			RollingAvgDurationMs:  275,
-			RollingAvgCostUSD:     3.5,
-			RollingAvgInputTokens: 275,
-		},
+		makeCoreMetricForControlLimitTest(true, true, 100, 1, 100),
+		makeCoreMetricForControlLimitTest(false, false, 300, 4, 300),
+		makeCoreMetricForControlLimitTest(true, false, 500, 7, 500),
 	}
 
 	trend := buildProcessTrend(metrics, 30)
@@ -1221,6 +1188,21 @@ func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,
 		FailurePhase: phase,
+	}
+}
+
+func makeCoreMetricForControlLimitTest(success, firstPassSuccess bool, durationMs int64, costUSD float64, inputTokens int) IterationMetric {
+	return IterationMetric{
+		Success:               success,
+		FirstPassSuccess:      firstPassSuccess,
+		DurationMs:            durationMs,
+		CostUSD:               costUSD,
+		InputTokens:           inputTokens,
+		RollingSuccessRate:    0.6,
+		RollingReworkRate:     0.25,
+		RollingAvgDurationMs:  275,
+		RollingAvgCostUSD:     3.5,
+		RollingAvgInputTokens: 275,
 	}
 }
 
