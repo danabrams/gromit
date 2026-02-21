@@ -1,19 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/worktree"
@@ -22,6 +26,91 @@ import (
 type gitCommandCapture struct {
 	name string
 	args []string
+}
+
+type reviewRouterStub struct {
+	SelectFn          func(phase string, tier string) (provider.Provider, string)
+	MarkUnavailableFn func(name string)
+}
+
+func (s *reviewRouterStub) Select(phase string, tier string) (provider.Provider, string) {
+	if s != nil && s.SelectFn != nil {
+		return s.SelectFn(phase, tier)
+	}
+	return nil, ""
+}
+
+func (s *reviewRouterStub) MarkUnavailable(name string) {
+	if s != nil && s.MarkUnavailableFn != nil {
+		s.MarkUnavailableFn(name)
+	}
+}
+
+type reviewProviderStub struct {
+	NameFn               func() string
+	ModelForTierFn       func(tier string) string
+	RunFn                func(ctx context.Context, prompt string, tier string) (*provider.Result, error)
+	StreamRunFn          func(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
+	RunValidationFn      func(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error)
+	IsUsageLimitErrorFn  func(result *provider.Result, err error) bool
+	IsValidationPassedFn func(result *provider.Result) bool
+	IsScopeTooLargeFn    func(result *provider.Result) (bool, string)
+}
+
+func (s *reviewProviderStub) Name() string {
+	if s != nil && s.NameFn != nil {
+		return s.NameFn()
+	}
+	return "stub"
+}
+
+func (s *reviewProviderStub) ModelForTier(tier string) string {
+	if s != nil && s.ModelForTierFn != nil {
+		return s.ModelForTierFn(tier)
+	}
+	return tier
+}
+
+func (s *reviewProviderStub) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	if s != nil && s.RunFn != nil {
+		return s.RunFn(ctx, prompt, tier)
+	}
+	return &provider.Result{Success: true}, nil
+}
+
+func (s *reviewProviderStub) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	if s != nil && s.StreamRunFn != nil {
+		return s.StreamRunFn(ctx, prompt, tier, output, handler, onToolCall)
+	}
+	return &provider.Result{Success: true}, nil
+}
+
+func (s *reviewProviderStub) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	if s != nil && s.RunValidationFn != nil {
+		return s.RunValidationFn(ctx, commands, tier, workDir)
+	}
+	return &provider.Result{Success: true}, nil
+}
+
+func (s *reviewProviderStub) IsUsageLimitError(result *provider.Result, err error) bool {
+	if s != nil && s.IsUsageLimitErrorFn != nil {
+		return s.IsUsageLimitErrorFn(result, err)
+	}
+	return false
+}
+
+func (s *reviewProviderStub) IsValidationPassed(result *provider.Result) bool {
+	if s != nil && s.IsValidationPassedFn != nil {
+		return s.IsValidationPassedFn(result)
+	}
+	return true
+}
+
+func (s *reviewProviderStub) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	if s != nil && s.IsScopeTooLargeFn != nil {
+		return s.IsScopeTooLargeFn(result)
+	}
+	return false, ""
 }
 
 func stubReviewGit(t *testing.T, output []byte, outputErr error) *gitCommandCapture {
@@ -351,6 +440,80 @@ func TestResolveReviewNonInteractiveTimeout_Defaults(t *testing.T) {
 
 	if timeout != 900 {
 		t.Errorf("expected default thorough review timeout 900, got %d", timeout)
+	}
+}
+
+func TestProviderRouterClientAdapterRun_ClaudePath(t *testing.T) {
+	var gotPhase, gotTier string
+	mockProvider := &reviewProviderStub{
+		NameFn: func() string { return "claude" },
+		RunFn: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+			gotTier = tier
+			return &provider.Result{Success: true, Output: "ok-claude", ExitCode: 0}, nil
+		},
+	}
+	mockRouter := &reviewRouterStub{
+		SelectFn: func(phase string, tier string) (provider.Provider, string) {
+			gotPhase = phase
+			return mockProvider, "opus"
+		},
+	}
+	adapter := &providerRouterClientAdapter{
+		Router:  mockRouter,
+		Timeout: 2 * time.Second,
+		Phase:   "review",
+	}
+
+	result, err := adapter.Run("prompt", "opus")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("Run() result is nil")
+	}
+	if gotPhase != "review" {
+		t.Fatalf("phase = %q, want review", gotPhase)
+	}
+	if gotTier != provider.TierHigh {
+		t.Fatalf("tier = %q, want %q", gotTier, provider.TierHigh)
+	}
+	if result.Output != "ok-claude" {
+		t.Fatalf("output = %q, want ok-claude", result.Output)
+	}
+}
+
+func TestProviderRouterClientAdapterRun_CodexPath(t *testing.T) {
+	var gotTier string
+	mockProvider := &reviewProviderStub{
+		NameFn: func() string { return "codex" },
+		RunFn: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+			gotTier = tier
+			return &provider.Result{Success: true, Output: "ok-codex", ExitCode: 0}, nil
+		},
+	}
+	mockRouter := &reviewRouterStub{
+		SelectFn: func(phase string, tier string) (provider.Provider, string) {
+			return mockProvider, "gpt-5.3-codex"
+		},
+	}
+	adapter := &providerRouterClientAdapter{
+		Router:  mockRouter,
+		Timeout: 2 * time.Second,
+		Phase:   "review",
+	}
+
+	result, err := adapter.Run("prompt", "sonnet")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("Run() result is nil")
+	}
+	if gotTier != provider.TierMedium {
+		t.Fatalf("tier = %q, want %q", gotTier, provider.TierMedium)
+	}
+	if result.Output != "ok-codex" {
+		t.Fatalf("output = %q, want ok-codex", result.Output)
 	}
 }
 

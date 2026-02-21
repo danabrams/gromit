@@ -301,9 +301,9 @@ func TestReviewInteractiveOnlyUsesAgentSelection(t *testing.T) {
 		t.Error("runReviewNonInteractive contains agent.LaunchInDir - should remain unchanged (only interactive mode uses agents)")
 	}
 
-	// runReviewNonInteractive should still use claude.Client (unchanged)
-	if !strings.Contains(nonInteractiveFn, "claude.NewClient") {
-		t.Error("runReviewNonInteractive missing claude.NewClient - non-interactive path may be broken")
+	// runReviewNonInteractive should use provider-neutral client builder.
+	if !strings.Contains(nonInteractiveFn, "buildReviewNonInteractiveClient") {
+		t.Error("runReviewNonInteractive missing buildReviewNonInteractiveClient call")
 	}
 }
 
@@ -417,7 +417,7 @@ func TestReviewAgentSelectionIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("non-interactive path unchanged", func(t *testing.T) {
+	t.Run("non-interactive path stays agent-neutral", func(t *testing.T) {
 		reviewSource, err := os.ReadFile("review.go")
 		if err != nil {
 			t.Skipf("Cannot read review.go: %v", err)
@@ -430,9 +430,9 @@ func TestReviewAgentSelectionIntegration(t *testing.T) {
 			t.Skip("Cannot find runReviewNonInteractive function")
 		}
 
-		// Verify non-interactive path still uses claude.Client
-		if !strings.Contains(nonInteractiveFn, "claude.NewClient") {
-			t.Error("runReviewNonInteractive should still use claude.NewClient (non-interactive path should be unchanged)")
+		// Verify non-interactive path routes through provider-neutral client wiring.
+		if !strings.Contains(nonInteractiveFn, "buildReviewNonInteractiveClient") {
+			t.Error("runReviewNonInteractive should use buildReviewNonInteractiveClient")
 		}
 
 		// Verify non-interactive path doesn't use agent.Launch

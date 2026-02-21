@@ -32,8 +32,8 @@ func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
 		t.Error("decompose should pass pipeline timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.PipelineTimeout) * time.Second")
 	}
 
-	if !adapterTestContainsString(reviewStr, "time.Duration(cfg.Claude.PipelineTimeout) * time.Second") {
-		t.Error("review should pass pipeline timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.PipelineTimeout) * time.Second")
+	if !adapterTestContainsString(reviewStr, "buildReviewNonInteractiveClient") {
+		t.Error("review should build a non-interactive client via buildReviewNonInteractiveClient")
 	}
 }
 

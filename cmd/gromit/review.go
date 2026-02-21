@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/spf13/cobra"
@@ -432,9 +433,9 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		return fmt.Errorf("creating renderer: %w", err)
 	}
 
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	reviewClient, err := buildReviewNonInteractiveClient(cfg)
 	if err != nil {
-		return fmt.Errorf("creating claude client: %w", err)
+		return fmt.Errorf("creating review client: %w", err)
 	}
 
 	beadsClient, err := bead.NewClient()
@@ -447,11 +448,6 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		renderer: renderer,
 	}
 
-	claudeAdapter := &claudeClientAdapter{
-		Client:  claudeClient,
-		Timeout: time.Duration(cfg.Claude.PipelineTimeout) * time.Second,
-	}
-
 	beadAdapter := &beadClientAdapter{
 		Client: beadsClient,
 	}
@@ -461,8 +457,10 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	}
 
 	learningsAdapter := &cliLearningsManager{
-		gromitDir:    gromitDir,
-		claudeClient: claudeClient,
+		gromitDir: gromitDir,
+		runner: &pipelineLearningsRunnerAdapter{
+			client: reviewClient,
+		},
 	}
 
 	logAdapter := &cliLogWriter{
@@ -478,7 +476,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 
 	deps := &pipeline.Deps{
 		ReviewRenderer:   reviewRendererAdapter,
-		ClaudeClient:     claudeAdapter,
+		ClaudeClient:     reviewClient,
 		BeadClient:       beadAdapter,
 		BacklogClient:    backlogAdapter,
 		LearningsManager: learningsAdapter,
@@ -532,6 +530,53 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 
 	fmt.Println("\nReview complete!")
 	return nil
+}
+
+func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.ClaudeClient, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
+	timeout := time.Duration(cfg.Claude.PipelineTimeout) * time.Second
+	if cfg.HasProviders() {
+		router, err := buildReviewRouter(cfg)
+		if err != nil {
+			return nil, err
+		}
+		return &providerRouterClientAdapter{
+			Router:  router,
+			Timeout: timeout,
+			Phase:   "review",
+		}, nil
+	}
+
+	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return &claudeClientAdapter{
+		Client:  claudeClient,
+		Timeout: timeout,
+	}, nil
+}
+
+func buildReviewRouter(cfg *config.Config) (*provider.Router, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	providers, err := buildVerifySpecProviders(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return provider.NewRouter(
+		providers,
+		cfg.Routing.PhasePreferences,
+		cfg.Routing.Ratio,
+		parseVerifySpecFallbackCooldown(cfg),
+		nil,
+		nil,
+	), nil
 }
 
 func getGitHeadForReview() (string, error) {
@@ -638,8 +683,8 @@ func (c *cliBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
 
 // cliLearningsManager adapts learnings operations to pipeline.LearningsManager interface
 type cliLearningsManager struct {
-	gromitDir    string
-	claudeClient *claude.Client
+	gromitDir string
+	runner    learnings.ClaudeRunner
 }
 
 func (m *cliLearningsManager) Add(content string) error {
@@ -649,9 +694,8 @@ func (m *cliLearningsManager) Add(content string) error {
 	}
 
 	// Wire filter into learnings file
-	if m.claudeClient != nil {
-		claudeRunner := &cliClaudeRunner{client: m.claudeClient}
-		learningsFile.SetFilter(learnings.NewLLMFilter(claudeRunner, "gromit", learnings.ProjectDescriptions.Gromit))
+	if m.runner != nil {
+		learningsFile.SetFilter(learnings.NewLLMFilter(m.runner, "gromit", learnings.ProjectDescriptions.Gromit))
 	}
 
 	if err := learningsFile.Load(); err != nil {
@@ -662,29 +706,30 @@ func (m *cliLearningsManager) Add(content string) error {
 	return err
 }
 
-// cliClaudeRunner implements learnings.ClaudeRunner interface for the Claude client
-type cliClaudeRunner struct {
-	client *claude.Client
+// pipelineLearningsRunnerAdapter implements learnings.ClaudeRunner using pipeline.ClaudeClient.
+type pipelineLearningsRunnerAdapter struct {
+	client pipeline.ClaudeClient
 }
 
-func (r *cliClaudeRunner) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
-	if r.client == nil {
+func (r *pipelineLearningsRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
+	_ = ctx // pipeline.ClaudeClient handles its own timeout/context.
+	if r == nil || r.client == nil {
 		return nil, fmt.Errorf("claude client is nil")
 	}
 
-	claudeResult, err := r.client.Run(ctx, prompt, model)
+	runResult, err := r.client.Run(prompt, model)
 	if err != nil {
 		return nil, err
 	}
 
-	if claudeResult == nil {
+	if runResult == nil {
 		return nil, fmt.Errorf("claude returned nil result")
 	}
 
-	// Convert claude.Result to learnings.Result
+	// Convert invocation result to learnings.Result
 	return &learnings.Result{
-		Success: claudeResult.Success,
-		Output:  claudeResult.Output,
+		Success: runResult.Success,
+		Output:  runResult.Output,
 	}, nil
 }
 
