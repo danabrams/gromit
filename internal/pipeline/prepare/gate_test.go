@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -26,6 +27,16 @@ type fakeStuckDetector struct {
 
 func (f *fakeStuckDetector) IsStuck(_ context.Context, _ *bead.Bead) (bool, error) {
 	return f.stuck, f.err
+}
+
+type fakeDecomposer struct {
+	err    error
+	called bool
+}
+
+func (f *fakeDecomposer) Decompose(_ context.Context, _ *bead.Bead) error {
+	f.called = true
+	return f.err
 }
 
 func TestGateRun(t *testing.T) {
@@ -117,5 +128,133 @@ func TestGateRunNilBead(t *testing.T) {
 	}
 	if out.Decision != pipeline.Proceed {
 		t.Errorf("nil bead: decision = %v, want Proceed", out.Decision)
+	}
+}
+
+func TestGateRunScopeGate(t *testing.T) {
+	blockTrue := true
+	blockFalse := false
+
+	tests := []struct {
+		name            string
+		expectedOutputs []string
+		cfg             *config.Config
+		wantDecision    pipeline.Decision
+	}{
+		{
+			name:            "block oversized bead when scope check enabled",
+			expectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			cfg: &config.Config{ScopeCheck: config.ScopeCheckConfig{
+				Enabled: true, BlockOversized: &blockTrue}},
+			wantDecision: pipeline.Block,
+		},
+		{
+			name:            "proceed bead within threshold",
+			expectedOutputs: []string{"f1", "f2", "f3", "f4", "f5"},
+			cfg: &config.Config{ScopeCheck: config.ScopeCheckConfig{
+				Enabled: true, BlockOversized: &blockTrue}},
+			wantDecision: pipeline.Proceed,
+		},
+		{
+			name:            "proceed when scope check disabled",
+			expectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			cfg:             &config.Config{ScopeCheck: config.ScopeCheckConfig{Enabled: false}},
+			wantDecision:    pipeline.Proceed,
+		},
+		{
+			name:            "proceed when block_oversized false",
+			expectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			cfg: &config.Config{ScopeCheck: config.ScopeCheckConfig{
+				Enabled: true, BlockOversized: &blockFalse}},
+			wantDecision: pipeline.Proceed,
+		},
+		{
+			name:            "proceed when no config",
+			expectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			cfg:             nil,
+			wantDecision:    pipeline.Proceed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &bead.Bead{ID: "test-1", Title: "test bead", ExpectedOutputs: tt.expectedOutputs}
+			gate := New(io.Discard)
+			in := pipeline.Input{Bead: b, Config: tt.cfg}
+			out, err := gate.Run(context.Background(), in)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if out.Decision != tt.wantDecision {
+				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
+			}
+		})
+	}
+}
+
+func TestGateRunProactiveDecomposition(t *testing.T) {
+	tests := []struct {
+		name         string
+		title        string
+		parent       string
+		decomposeErr error
+		wantDecision pipeline.Decision
+		wantCalled   bool
+	}{
+		{
+			name:         "skip keyword candidate bead with no parent",
+			title:        "Refactor config loading to use interfaces",
+			parent:       "",
+			decomposeErr: nil,
+			wantDecision: pipeline.Skip,
+			wantCalled:   true,
+		},
+		{
+			name:         "proceed keyword candidate bead with parent (child bead)",
+			title:        "Refactor config validation helpers",
+			parent:       "parent-1",
+			decomposeErr: nil,
+			wantDecision: pipeline.Proceed,
+			wantCalled:   false,
+		},
+		{
+			name:         "proceed non-keyword bead",
+			title:        "Add retry count to iteration log",
+			parent:       "",
+			decomposeErr: nil,
+			wantDecision: pipeline.Proceed,
+			wantCalled:   false,
+		},
+		{
+			name:         "proceed when decompose fails (non-blocking)",
+			title:        "Refactor config loading",
+			parent:       "",
+			decomposeErr: errors.New("decompose failed"),
+			wantDecision: pipeline.Proceed,
+			wantCalled:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &bead.Bead{
+				ID:     "test-1",
+				Title:  tt.title,
+				Parent: tt.parent,
+			}
+			d := &fakeDecomposer{err: tt.decomposeErr}
+			gate := New(io.Discard).WithDecomposer(d)
+			in := pipeline.Input{Bead: b}
+			out, err := gate.Run(context.Background(), in)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if out.Decision != tt.wantDecision {
+				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
+			}
+			if d.called != tt.wantCalled {
+				t.Errorf("decomposer called = %v, want %v", d.called, tt.wantCalled)
+			}
+		})
 	}
 }
