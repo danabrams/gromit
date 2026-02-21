@@ -1,6 +1,6 @@
 //go:build acceptance
 
-package runner
+package acceptance_test
 
 import (
 	"bufio"
@@ -8,12 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/runner"
 )
 
-func collectRunnerAcceptanceCases(t *testing.T, projectRoot string) []string {
+func collectAcceptanceCases(t *testing.T, projectRoot string) []string {
 	t.Helper()
 
-	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
+	files := listSmokeAcceptanceFiles(t, projectRoot)
 	cases := make([]string, 0, len(files))
 
 	for _, rel := range files {
@@ -25,7 +27,7 @@ func collectRunnerAcceptanceCases(t *testing.T, projectRoot string) []string {
 		scanner := bufio.NewScanner(strings.NewReader(string(data)))
 		for scanner.Scan() {
 			line := scanner.Text()
-			if m := runnerSmokeFuncRe.FindStringSubmatch(line); m != nil {
+			if m := smokeFuncRe.FindStringSubmatch(line); m != nil {
 				cases = append(cases, rel+":"+strings.TrimSpace(m[1]))
 			}
 		}
@@ -38,14 +40,14 @@ func collectRunnerAcceptanceCases(t *testing.T, projectRoot string) []string {
 }
 
 func TestRunnerSmokeMatrix_DocumentedCasesCoverAcceptanceSuite(t *testing.T) {
-	projectRoot := runnerSmokeSuiteRepoRoot(t)
+	projectRoot := repoRoot(t)
 
-	matrix, err := LoadRunnerSmokeMatrix(projectRoot)
+	matrix, err := runner.LoadRunnerSmokeMatrix(projectRoot)
 	if err != nil {
 		t.Fatalf("LoadRunnerSmokeMatrix: %v", err)
 	}
 
-	cases := collectRunnerAcceptanceCases(t, projectRoot)
+	cases := collectAcceptanceCases(t, projectRoot)
 	for _, caseID := range cases {
 		entry, ok := matrix[caseID]
 		if !ok {
@@ -61,9 +63,9 @@ func TestRunnerSmokeMatrix_DocumentedCasesCoverAcceptanceSuite(t *testing.T) {
 }
 
 func TestRunnerSmokeMatrix_DocumentedKeepSetIsExact(t *testing.T) {
-	projectRoot := runnerSmokeSuiteRepoRoot(t)
+	projectRoot := repoRoot(t)
 
-	matrix, err := LoadRunnerSmokeMatrix(projectRoot)
+	matrix, err := runner.LoadRunnerSmokeMatrix(projectRoot)
 	if err != nil {
 		t.Fatalf("LoadRunnerSmokeMatrix: %v", err)
 	}
@@ -92,9 +94,9 @@ func TestRunnerSmokeMatrix_DocumentedKeepSetIsExact(t *testing.T) {
 }
 
 func TestRunnerSmokeMatrix_DocumentedMoveCasesMapToUnitDestinations(t *testing.T) {
-	projectRoot := runnerSmokeSuiteRepoRoot(t)
+	projectRoot := repoRoot(t)
 
-	matrix, err := LoadRunnerSmokeMatrix(projectRoot)
+	matrix, err := runner.LoadRunnerSmokeMatrix(projectRoot)
 	if err != nil {
 		t.Fatalf("LoadRunnerSmokeMatrix: %v", err)
 	}
@@ -110,7 +112,7 @@ func TestRunnerSmokeMatrix_DocumentedMoveCasesMapToUnitDestinations(t *testing.T
 		"internal/runner/andon/types_acceptance_test.go:TestDefaultThresholdDefinition_IsPureAndPolicyConsumable_Acceptance":                                  "internal/runner/andon/types_test.go:TestDefaultThresholdDefinition_IsPureAndPolicyConsumable",
 	}
 
-	unitTests := listRunnerUnitTests(t, projectRoot)
+	unitTests := listUnitTests(t, projectRoot, "internal/runner")
 
 	for caseID, expectedDestination := range expectedMoved {
 		entry, ok := matrix[caseID]

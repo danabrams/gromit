@@ -1,6 +1,6 @@
 //go:build acceptance
 
-package runner
+package acceptance_test
 
 import (
 	"os"

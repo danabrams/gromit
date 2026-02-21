@@ -1,25 +1,27 @@
 //go:build acceptance
 // +build acceptance
 
-package runner
+package acceptance_test
 
 import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/runner"
 )
 
 func TestRunnerSmokeSuite_ApprovedMatrixCasesOnly(t *testing.T) {
-	approved := RunnerSmokeApprovedMatrixCases()
+	approved := runner.RunnerSmokeApprovedMatrixCases()
 	if len(approved) == 0 {
 		t.Fatalf("approved smoke matrix is empty")
 	}
 
-	projectRoot := runnerSmokeSuiteRepoRoot(t)
-	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
+	projectRoot := repoRoot(t)
+	files := listSmokeAcceptanceFiles(t, projectRoot)
 
 	for _, rel := range files {
-		entries, tests := parseRunnerSmokeMatrixForFile(t, projectRoot, rel)
+		entries, tests := parseSmokeMatrixForFile(t, projectRoot, rel)
 		for _, testName := range tests {
 			entry, ok := entries[testName]
 			if !ok {
@@ -36,9 +38,9 @@ func TestRunnerSmokeSuite_ApprovedMatrixCasesOnly(t *testing.T) {
 }
 
 func TestRunnerSmokeSuite_NoSubpackageAcceptanceFiles(t *testing.T) {
-	allowedRoots := RunnerSmokeSuiteApprovedRoots()
-	projectRoot := runnerSmokeSuiteRepoRoot(t)
-	files := listRunnerSmokeAcceptanceFiles(t, projectRoot)
+	allowedRoots := runner.RunnerSmokeSuiteApprovedRoots()
+	projectRoot := repoRoot(t)
+	files := listAcceptanceFiles(t, projectRoot)
 
 	for _, rel := range files {
 		subdir := filepath.Dir(rel)
@@ -52,13 +54,13 @@ func TestRunnerSmokeSuite_NoSubpackageAcceptanceFiles(t *testing.T) {
 }
 
 func TestRunnerSmokeSuite_MovedBehaviorHasUnitCoverage(t *testing.T) {
-	moved := RunnerSmokeMatrixMovedCases()
+	moved := runner.RunnerSmokeMatrixMovedCases()
 	if len(moved) == 0 {
 		t.Fatalf("moved smoke cases list is empty")
 	}
 
-	projectRoot := runnerSmokeSuiteRepoRoot(t)
-	unitTests := listRunnerUnitTests(t, projectRoot)
+	projectRoot := repoRoot(t)
+	unitTests := listUnitTests(t, projectRoot, "internal/runner")
 
 	for source, destination := range moved {
 		if destination == "" {

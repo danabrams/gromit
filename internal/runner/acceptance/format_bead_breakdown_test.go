@@ -1,17 +1,18 @@
 //go:build acceptance
 
-package runner
+package acceptance_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/runner"
 )
 
-// TestFormatPipeline_ExpandedBeadBreakdown verifies formatPipeline shows all bead status counts
+// TestFormatPipeline_ExpandedBeadBreakdown verifies runner.FormatPipeline shows all bead status counts
 func TestFormatPipeline_ExpandedBeadBreakdown(t *testing.T) {
-	// Expected failure: formatPipeline does not format expanded bead breakdown yet
+	// Expected failure: runner.FormatPipeline does not format expanded bead breakdown yet
 
 	tests := []struct {
 		name   string
@@ -126,9 +127,9 @@ func TestFormatPipeline_ExpandedBeadBreakdown(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatPipeline(tt.status)
+			got := runner.FormatPipeline(tt.status)
 			if !strings.Contains(got, tt.want) {
-				t.Errorf("formatPipeline() missing expected Beads line:\n  want: %q\n  got:\n%s", tt.want, got)
+				t.Errorf("runner.FormatPipeline() missing expected Beads line:\n  want: %q\n  got:\n%s", tt.want, got)
 			}
 		})
 	}
@@ -136,7 +137,7 @@ func TestFormatPipeline_ExpandedBeadBreakdown(t *testing.T) {
 
 // TestFormatPipeline_BeadBreakdownOrder verifies status order is always consistent
 func TestFormatPipeline_BeadBreakdownOrder(t *testing.T) {
-	// Expected failure: formatPipeline does not format bead breakdown in fixed order yet
+	// Expected failure: runner.FormatPipeline does not format bead breakdown in fixed order yet
 
 	status := &pipeline.PipelineStatus{
 		ReadyBeadCount:  14,
@@ -147,7 +148,7 @@ func TestFormatPipeline_BeadBreakdownOrder(t *testing.T) {
 		HasRunInfo:      false,
 	}
 
-	got := formatPipeline(status)
+	got := runner.FormatPipeline(status)
 
 	// The order must always be: ready, in-progress, blocked, deferred, closed
 	// Find the positions of each status in the output
@@ -158,7 +159,7 @@ func TestFormatPipeline_BeadBreakdownOrder(t *testing.T) {
 	closedPos := strings.Index(got, "closed")
 
 	if readyPos == -1 || inProgressPos == -1 || blockedPos == -1 || deferredPos == -1 || closedPos == -1 {
-		t.Fatalf("formatPipeline() missing one or more status labels in output:\n%s", got)
+		t.Fatalf("runner.FormatPipeline() missing one or more status labels in output:\n%s", got)
 	}
 
 	// Verify order
@@ -178,7 +179,7 @@ func TestFormatPipeline_BeadBreakdownOrder(t *testing.T) {
 
 // TestFormatPipeline_ReadyBeadIDsStillShown verifies ready bead ID list is preserved
 func TestFormatPipeline_ReadyBeadIDsStillShown(t *testing.T) {
-	// Expected failure: formatPipeline may not preserve ready bead ID list with new format
+	// Expected failure: runner.FormatPipeline may not preserve ready bead ID list with new format
 
 	status := &pipeline.PipelineStatus{
 		ReadyBeadCount:  5,
@@ -195,11 +196,11 @@ func TestFormatPipeline_ReadyBeadIDsStillShown(t *testing.T) {
 		HasRunInfo: false,
 	}
 
-	got := formatPipeline(status)
+	got := runner.FormatPipeline(status)
 
 	// Verify the Beads line has expanded format
 	if !strings.Contains(got, "5 ready") {
-		t.Errorf("formatPipeline() missing ready count in Beads line")
+		t.Errorf("runner.FormatPipeline() missing ready count in Beads line")
 	}
 
 	// Verify the ready bead IDs are still shown below the Beads line
@@ -211,19 +212,19 @@ func TestFormatPipeline_ReadyBeadIDsStillShown(t *testing.T) {
 
 	for _, id := range expectedIDs {
 		if !strings.Contains(got, id) {
-			t.Errorf("formatPipeline() missing expected ready bead ID:\n  want: %q\n  got:\n%s", id, got)
+			t.Errorf("runner.FormatPipeline() missing expected ready bead ID:\n  want: %q\n  got:\n%s", id, got)
 		}
 	}
 
 	// Verify overflow message is shown (5 beads, 3 shown)
 	if !strings.Contains(got, "(and 2 more)") {
-		t.Errorf("formatPipeline() missing overflow message for ready beads")
+		t.Errorf("runner.FormatPipeline() missing overflow message for ready beads")
 	}
 }
 
 // TestFormatPipeline_ThisRunParenthetical verifies "(X this run)" formatting
 func TestFormatPipeline_ThisRunParenthetical(t *testing.T) {
-	// Expected failure: formatPipeline does not add "(X this run)" parenthetical yet
+	// Expected failure: runner.FormatPipeline does not add "(X this run)" parenthetical yet
 
 	tests := []struct {
 		name       string
@@ -268,14 +269,14 @@ func TestFormatPipeline_ThisRunParenthetical(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatPipeline(tt.status)
+			got := runner.FormatPipeline(tt.status)
 
 			if !strings.Contains(got, tt.wantInLine) {
-				t.Errorf("formatPipeline() missing expected text:\n  want: %q\n  got:\n%s", tt.wantInLine, got)
+				t.Errorf("runner.FormatPipeline() missing expected text:\n  want: %q\n  got:\n%s", tt.wantInLine, got)
 			}
 
 			if tt.notInLine != "" && strings.Contains(got, tt.notInLine) {
-				t.Errorf("formatPipeline() should not contain:\n  unwanted: %q\n  got:\n%s", tt.notInLine, got)
+				t.Errorf("runner.FormatPipeline() should not contain:\n  unwanted: %q\n  got:\n%s", tt.notInLine, got)
 			}
 		})
 	}
@@ -283,7 +284,7 @@ func TestFormatPipeline_ThisRunParenthetical(t *testing.T) {
 
 // TestFormatPipeline_BackwardCompatibility verifies old status structs still work
 func TestFormatPipeline_BackwardCompatibility(t *testing.T) {
-	// Expected failure: formatPipeline may require new fields to be present
+	// Expected failure: runner.FormatPipeline may require new fields to be present
 
 	// Old-style PipelineStatus without new fields should still format correctly
 	// (new fields will be zero-valued)
@@ -297,11 +298,11 @@ func TestFormatPipeline_BackwardCompatibility(t *testing.T) {
 		Recommendation:    "Run 5 ready bead(s)",
 	}
 
-	got := formatPipeline(status)
+	got := runner.FormatPipeline(status)
 
 	// Should not panic or error, and should include at minimum the ready count
 	if !strings.Contains(got, "5 ready") {
-		t.Errorf("formatPipeline() with old-style status missing ready count")
+		t.Errorf("runner.FormatPipeline() with old-style status missing ready count")
 	}
 
 	// When new fields are zero, they should be omitted from output
@@ -311,7 +312,7 @@ func TestFormatPipeline_BackwardCompatibility(t *testing.T) {
 
 // TestFormatPipeline_NoneWhenAllZero verifies "none" is shown when all bead counts are zero
 func TestFormatPipeline_NoneWhenAllZero(t *testing.T) {
-	// Expected failure: formatPipeline does not show "none" for all-zero bead counts yet
+	// Expected failure: runner.FormatPipeline does not show "none" for all-zero bead counts yet
 
 	status := &pipeline.PipelineStatus{
 		ReadyBeadCount:  0,
@@ -322,10 +323,10 @@ func TestFormatPipeline_NoneWhenAllZero(t *testing.T) {
 		HasRunInfo:      false,
 	}
 
-	got := formatPipeline(status)
+	got := runner.FormatPipeline(status)
 
 	if !strings.Contains(got, "Beads:    none") {
-		t.Errorf("formatPipeline() should show 'none' when all bead counts are zero:\n%s", got)
+		t.Errorf("runner.FormatPipeline() should show 'none' when all bead counts are zero:\n%s", got)
 	}
 
 	// Should not show any status labels like "ready", "blocked", etc.
@@ -336,7 +337,7 @@ func TestFormatPipeline_NoneWhenAllZero(t *testing.T) {
 		lines := strings.Split(got, "\n")
 		for _, line := range lines {
 			if strings.Contains(line, "Beads:") && strings.Contains(line, label) && !strings.Contains(line, "none") {
-				t.Errorf("formatPipeline() Beads line should not contain %q when showing 'none':\n%s", label, line)
+				t.Errorf("runner.FormatPipeline() Beads line should not contain %q when showing 'none':\n%s", label, line)
 			}
 		}
 	}
@@ -344,7 +345,7 @@ func TestFormatPipeline_NoneWhenAllZero(t *testing.T) {
 
 // TestFormatPipeline_SingleStatusShown verifies output when only one status has non-zero count
 func TestFormatPipeline_SingleStatusShown(t *testing.T) {
-	// Expected failure: formatPipeline does not handle single-status output correctly yet
+	// Expected failure: runner.FormatPipeline does not handle single-status output correctly yet
 
 	tests := []struct {
 		name   string
@@ -390,9 +391,9 @@ func TestFormatPipeline_SingleStatusShown(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatPipeline(tt.status)
+			got := runner.FormatPipeline(tt.status)
 			if !strings.Contains(got, tt.want) {
-				t.Errorf("formatPipeline() missing expected line:\n  want: %q\n  got:\n%s", tt.want, got)
+				t.Errorf("runner.FormatPipeline() missing expected line:\n  want: %q\n  got:\n%s", tt.want, got)
 			}
 
 			// Verify no other status labels appear in the Beads line
@@ -406,13 +407,13 @@ func TestFormatPipeline_SingleStatusShown(t *testing.T) {
 			}
 
 			if beadsLine == "" {
-				t.Fatalf("formatPipeline() missing Beads line in output")
+				t.Fatalf("runner.FormatPipeline() missing Beads line in output")
 			}
 
 			// Count commas - there should be 0 commas for a single status
 			commaCount := strings.Count(beadsLine, ",")
 			if commaCount > 0 {
-				t.Errorf("formatPipeline() should show single status without commas, got %d commas in: %q", commaCount, beadsLine)
+				t.Errorf("runner.FormatPipeline() should show single status without commas, got %d commas in: %q", commaCount, beadsLine)
 			}
 		})
 	}

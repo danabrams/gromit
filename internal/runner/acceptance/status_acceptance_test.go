@@ -1,8 +1,9 @@
 //go:build acceptance
 
-package runner
+package acceptance_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,11 +13,19 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/runner"
 )
 
-func TestRunnerStatusWithLiveRun(t *testing.T) {
-	withFastStatusReaders(t)
+// writeStatusFile marshals a runner.Status to status.json in gromitDir.
+func writeStatusFile(gromitDir string, status runner.Status) error {
+	data, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644)
+}
 
+func TestRunnerStatusWithLiveRun(t *testing.T) {
 	tests := []struct {
 		name              string
 		setupStatus       func(gromitDir string) error
@@ -39,7 +48,7 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 				return true
 			},
 			setupStatus: func(gromitDir string) error {
-				status := Status{
+				status := runner.Status{
 					Running:   true,
 					Iteration: 1,
 					BeadID:    "bead-123",
@@ -60,7 +69,7 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 				return false
 			},
 			setupStatus: func(gromitDir string) error {
-				status := Status{
+				status := runner.Status{
 					Running:   true,
 					Iteration: 2,
 					BeadID:    "bead-456",
@@ -105,18 +114,19 @@ func TestRunnerStatusWithLiveRun(t *testing.T) {
 			cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
 			cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
 			var buf strings.Builder
-			r, err := NewRunnerWithDeps(cfg, &buf, gromitDir, Deps{
+			deps := runner.Deps{
 				Beads:    mockBeads,
 				Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 				Analyzer: &mockFailureAnalyzer{},
 				Renderer: &mockPromptRenderer{},
 				Logger:   &mockIterationLogger{},
-			})
-			if err != nil {
-				t.Fatalf("NewRunnerWithDeps failed: %v", err)
 			}
 			if tt.processChecker != nil {
-				r.processChecker = tt.processChecker
+				deps.ProcessChecker = tt.processChecker
+			}
+			r, err := runner.NewRunnerWithDeps(cfg, &buf, gromitDir, deps)
+			if err != nil {
+				t.Fatalf("NewRunnerWithDeps failed: %v", err)
 			}
 
 			if err = r.Status(); err != nil {
@@ -151,7 +161,7 @@ func getDeadPID(t *testing.T) int {
 
 	// Probe a high PID range to avoid shelling out for a throwaway subprocess.
 	for pid := 1 << 20; pid < (1<<20)+100000; pid++ {
-		if !IsProcessAlive(pid) {
+		if !runner.IsProcessAlive(pid) {
 			return pid
 		}
 	}
@@ -160,12 +170,17 @@ func getDeadPID(t *testing.T) int {
 }
 
 func TestRunner_Status_LivePID(t *testing.T) {
-	withFastStatusReaders(t)
-
 	// Setup
 	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
 	var buf strings.Builder
 	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
 
 	mockBeads := &mockBeadClient{
 		ReadyFn: func() (*bead.Bead, error) {
@@ -178,7 +193,7 @@ func TestRunner_Status_LivePID(t *testing.T) {
 		},
 	}
 
-	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
+	r, err := runner.NewRunnerWithDeps(cfg, &buf, gromitDir, runner.Deps{
 		Beads:    mockBeads,
 		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
@@ -190,7 +205,7 @@ func TestRunner_Status_LivePID(t *testing.T) {
 	}
 
 	// Write a status file with live PID (current process)
-	sw, _ := NewStatusWriter(tmpDir)
+	sw, _ := runner.NewStatusWriter(gromitDir)
 	err = sw.Write(3, "running-bead-789", "Running Bead Title", "opus", true, 0, 0)
 	if err != nil {
 		t.Fatalf("Failed to write status file: %v", err)
@@ -229,19 +244,24 @@ func TestRunner_Status_LivePID(t *testing.T) {
 	}
 
 	// Verify status file still exists (not deleted for live run)
-	statusPath := filepath.Join(tmpDir, "status.json")
+	statusPath := filepath.Join(gromitDir, "status.json")
 	if _, err := os.Stat(statusPath); err != nil {
 		t.Errorf("Status file should still exist for live run: %v", err)
 	}
 }
 
 func TestRunner_Status_DeadPID(t *testing.T) {
-	withFastStatusReaders(t)
-
 	// Setup
 	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
 	var buf strings.Builder
 	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
 
 	mockBeads := &mockBeadClient{
 		ReadyFn: func() (*bead.Bead, error) {
@@ -254,7 +274,7 @@ func TestRunner_Status_DeadPID(t *testing.T) {
 		},
 	}
 
-	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
+	r, err := runner.NewRunnerWithDeps(cfg, &buf, gromitDir, runner.Deps{
 		Beads:    mockBeads,
 		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
@@ -265,11 +285,11 @@ func TestRunner_Status_DeadPID(t *testing.T) {
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 
-	// Get a dead PID by spawning a subprocess and waiting for it to exit
+	// Get a dead PID by probing high PID range
 	deadPID := getDeadPID(t)
 
 	// Write a status file with the dead PID
-	statusPath := filepath.Join(tmpDir, "status.json")
+	statusPath := filepath.Join(gromitDir, "status.json")
 	statusData := fmt.Sprintf(`{
   "running": true,
   "iteration": 5,
@@ -324,11 +344,16 @@ func TestRunner_Status_DeadPID(t *testing.T) {
 
 func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
 	var buf strings.Builder
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			Specs: filepath.Join(tmpDir, "specs"),
-			Plans: filepath.Join(tmpDir, "plans"),
+			Specs: filepath.Join(gromitDir, "specs"),
+			Plans: filepath.Join(gromitDir, "plans"),
 		},
 	}
 
@@ -343,7 +368,7 @@ func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 		},
 	}
 
-	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
+	r, err := runner.NewRunnerWithDeps(cfg, &buf, gromitDir, runner.Deps{
 		Beads:    mockBeads,
 		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
@@ -355,7 +380,7 @@ func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 	}
 
 	// Create backlog.jsonl with some items
-	backlogPath := filepath.Join(tmpDir, "backlog.jsonl")
+	backlogPath := filepath.Join(gromitDir, "backlog.jsonl")
 	backlogContent := `{"id":"idea-1","text":"Add rate limiting"}
 {"id":"idea-2","text":"Support webhooks"}`
 	err = os.WriteFile(backlogPath, []byte(backlogContent), 0644)
@@ -364,7 +389,7 @@ func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 	}
 
 	// Create a running status file with limits
-	sw, _ := NewStatusWriter(tmpDir)
+	sw, _ := runner.NewStatusWriter(gromitDir)
 	err = sw.Write(12, "active-bead-456", "Build user profiles", "sonnet", true, 50, 30)
 	if err != nil {
 		t.Fatalf("Failed to write status: %v", err)
@@ -374,7 +399,7 @@ func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 	stateContent := `{
 		"iterations_since_review": 5
 	}`
-	err = os.WriteFile(filepath.Join(tmpDir, "state.json"), []byte(stateContent), 0644)
+	err = os.WriteFile(filepath.Join(gromitDir, "state.json"), []byte(stateContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write state.json: %v", err)
 	}
@@ -382,7 +407,7 @@ func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 	interactiveContent := fmt.Sprintf(`{
 		"last_retro": "%s"
 	}`, time.Now().Add(-2*time.Hour).Format(time.RFC3339))
-	err = os.WriteFile(filepath.Join(tmpDir, "interactive-state.json"), []byte(interactiveContent), 0644)
+	err = os.WriteFile(filepath.Join(gromitDir, "interactive-state.json"), []byte(interactiveContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write interactive-state.json: %v", err)
 	}

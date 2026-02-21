@@ -1,6 +1,6 @@
 //go:build acceptance
 
-package runner
+package acceptance_test
 
 import (
 	"os"
@@ -11,15 +11,21 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/runner"
 )
 
 func TestRunner_Status_Integration_IdleWithHistory(t *testing.T) {
 	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
 	var buf strings.Builder
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
-			Specs: filepath.Join(tmpDir, "specs"),
-			Plans: filepath.Join(tmpDir, "plans"),
+			Specs: filepath.Join(gromitDir, "specs"),
+			Plans: filepath.Join(gromitDir, "plans"),
 		},
 	}
 
@@ -34,7 +40,7 @@ func TestRunner_Status_Integration_IdleWithHistory(t *testing.T) {
 		},
 	}
 
-	r, err := NewRunnerWithDeps(cfg, &buf, tmpDir, Deps{
+	r, err := runner.NewRunnerWithDeps(cfg, &buf, gromitDir, runner.Deps{
 		Beads:    mockBeads,
 		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 		Analyzer: &mockFailureAnalyzer{},
@@ -46,15 +52,15 @@ func TestRunner_Status_Integration_IdleWithHistory(t *testing.T) {
 	}
 
 	// Create backlog.jsonl
-	backlogPath := filepath.Join(tmpDir, "backlog.jsonl")
+	backlogPath := filepath.Join(gromitDir, "backlog.jsonl")
 	err = os.WriteFile(backlogPath, []byte(`{"id":"idea-1","text":"Idea one"}`), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write backlog: %v", err)
 	}
 
 	// Create a completed status file (running: false) from 3 hours ago
-	sw, _ := NewStatusWriter(tmpDir)
-	sw.startTime = time.Now().Add(-3 * time.Hour)
+	sw, _ := runner.NewStatusWriter(gromitDir)
+	sw.SetStartTime(time.Now().Add(-3 * time.Hour))
 	err = sw.WriteFinal(25)
 	if err != nil {
 		t.Fatalf("Failed to write final status: %v", err)
@@ -64,7 +70,7 @@ func TestRunner_Status_Integration_IdleWithHistory(t *testing.T) {
 	stateContent := `{
 		"iterations_since_review": 10
 	}`
-	err = os.WriteFile(filepath.Join(tmpDir, "state.json"), []byte(stateContent), 0644)
+	err = os.WriteFile(filepath.Join(gromitDir, "state.json"), []byte(stateContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write state.json: %v", err)
 	}

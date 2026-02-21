@@ -19,6 +19,12 @@ const (
 	spcMetricRollingAvgCostUSD    = "rolling_avg_cost_usd"
 )
 
+// FormatPipeline formats pipeline status for display.
+// Exported for acceptance tests in internal/runner/acceptance/.
+func FormatPipeline(ps *pipeline.PipelineStatus) string {
+	return formatPipeline(ps)
+}
+
 // formatPipeline formats pipeline status for display
 func formatPipeline(ps *pipeline.PipelineStatus) string {
 	if ps == nil {

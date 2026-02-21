@@ -32,6 +32,7 @@ type Deps struct {
 	WorktreeManager   WorktreeManager
 	CmdRunner         func(ctx context.Context, command string, workDir string) (stdout string, stderr string, exitCode int, err error)
 	ArgvRunner        ArgvRunnerFn
+	ProcessChecker    func(int) bool
 }
 
 // newRunnerWithDepsImpl creates a runner with explicitly provided dependencies.
@@ -104,7 +105,7 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 		gitHeadFn:         getGitHead,
 		cmdRunnerFn:       cmdRunner,
 		argvRunnerFn:      argvRunner,
-		processChecker:    IsProcessAlive,
+		processChecker:    deps.processCheckerOrDefault(),
 		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
 			return net.DefaultResolver.LookupHost(ctx, host)
 		},
@@ -127,6 +128,14 @@ func newRunnerWithDepsImpl(cfg *config.Config, output io.Writer, gromitDir strin
 	r.reviewer.SetLogFn(r.log)
 	r.reviewer.SetValidateFn(r.makeReviewValidateFn())
 	return r, nil
+}
+
+// processCheckerOrDefault returns the ProcessChecker from deps, or IsProcessAlive if nil.
+func (d Deps) processCheckerOrDefault() func(int) bool {
+	if d.ProcessChecker != nil {
+		return d.ProcessChecker
+	}
+	return IsProcessAlive
 }
 
 // IterationResult captures the outcome of one loop iteration.

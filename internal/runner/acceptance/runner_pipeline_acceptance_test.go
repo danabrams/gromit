@@ -1,6 +1,6 @@
 //go:build acceptance
 
-package runner
+package acceptance_test
 
 import (
 	"context"
@@ -10,12 +10,11 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/runner"
 )
 
 func TestTDDPromptSelection(t *testing.T) {
-	buildContextFn := testPromptContext
 	tests := []struct {
 		name                 string
 		globalTDD            bool
@@ -58,11 +57,10 @@ func TestTDDPromptSelection(t *testing.T) {
 			tddBuildCalled := false
 
 			mockRenderer := &mockPromptRenderer{
-				BuildContextFn: buildContextFn,
-				RenderBuildFn: func(ctx *prompt.Context) (string, error) {
+				RenderBuildFn: func(_ *prompt.Context) (string, error) {
 					return "standard build prompt", nil
 				},
-				RenderTDDBuildFn: func(ctx *prompt.Context) (string, error) {
+				RenderTDDBuildFn: func(_ *prompt.Context) (string, error) {
 					tddBuildCalled = true
 					return "tdd build prompt", nil
 				},
@@ -78,9 +76,24 @@ func TestTDDPromptSelection(t *testing.T) {
 			}
 
 			var buf strings.Builder
-			r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-				Deps{
-					Beads:    &mockBeadClient{},
+			beadReady := false
+			r, err := runner.NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+				runner.Deps{
+					Beads: &mockBeadClient{
+						ReadyFn: func() (*bead.Bead, error) {
+							if beadReady {
+								return nil, nil
+							}
+							beadReady = true
+							return &bead.Bead{
+								ID:              "test-bead-1",
+								Title:           "Test bead",
+								Priority:        1,
+								Labels:          tt.beadLabels,
+								ExpectedOutputs: []string{},
+							}, nil
+						},
+					},
 					Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 					Analyzer: &mockFailureAnalyzer{},
 					Renderer: mockRenderer,
@@ -90,15 +103,8 @@ func TestTDDPromptSelection(t *testing.T) {
 				t.Fatalf("Failed to create runner: %v", err)
 			}
 
-			testBead := &bead.Bead{
-				ID:       "test-bead-1",
-				Title:    "Test bead",
-				Priority: 1,
-				Labels:   tt.beadLabels,
-			}
-
-			// Call processBead - we don't care about the result, just whether RenderTDDBuild was called
-			_ = r.processBead(context.Background(), testBead, 1, time.Time{}, nil)
+			// Run the loop with one bead - it will process the bead then stop
+			_ = r.Run(context.Background(), 0, time.Time{}, nil, false)
 
 			// Verify expectations
 			if tt.expectTDDBuildCalled && !tddBuildCalled {
@@ -117,7 +123,6 @@ func TestTDDPromptSelection(t *testing.T) {
 // - AC2: Beads whose title matches test-only heuristic skip ATDD
 // - AC3: When ATDD is skipped for a test-only bead, log the reason
 func TestATDDSkippedForTestOnlyBead(t *testing.T) {
-	buildContextFn := testPromptContext
 	tests := []struct {
 		name                        string
 		beadTitle                   string
@@ -179,15 +184,14 @@ func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 			acceptanceTestsCalled := false
 
 			mockRend := &mockPromptRenderer{
-				BuildContextFn: buildContextFn,
-				RenderBuildFn: func(ctx *prompt.Context) (string, error) {
+				RenderBuildFn: func(_ *prompt.Context) (string, error) {
 					return "standard build prompt", nil
 				},
-				RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+				RenderAcceptanceTestsFn: func(_ *prompt.Context) (string, error) {
 					acceptanceTestsCalled = true
 					return "acceptance tests prompt", nil
 				},
-				RenderATDDBuildFn: func(ctx *prompt.Context) (string, error) {
+				RenderATDDBuildFn: func(_ *prompt.Context) (string, error) {
 					return "atdd build prompt", nil
 				},
 			}
@@ -202,9 +206,24 @@ func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 			}
 
 			var buf strings.Builder
-			r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-				Deps{
-					Beads:    &mockBeadClient{},
+			beadReady := false
+			r, err := runner.NewRunnerWithDeps(cfg, &buf, t.TempDir(),
+				runner.Deps{
+					Beads: &mockBeadClient{
+						ReadyFn: func() (*bead.Bead, error) {
+							if beadReady {
+								return nil, nil
+							}
+							beadReady = true
+							return &bead.Bead{
+								ID:              "test-bead-1",
+								Title:           tt.beadTitle,
+								Priority:        1,
+								Labels:          tt.beadLabels,
+								ExpectedOutputs: []string{},
+							}, nil
+						},
+					},
 					Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
 					Analyzer: &mockFailureAnalyzer{},
 					Renderer: mockRend,
@@ -214,14 +233,7 @@ func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 				t.Fatalf("Failed to create runner: %v", err)
 			}
 
-			testBead := &bead.Bead{
-				ID:       "test-bead-1",
-				Title:    tt.beadTitle,
-				Priority: 1,
-				Labels:   tt.beadLabels,
-			}
-
-			_ = r.processBead(context.Background(), testBead, 1, time.Time{}, nil)
+			_ = r.Run(context.Background(), 0, time.Time{}, nil, false)
 
 			output := buf.String()
 
@@ -245,15 +257,4 @@ func TestATDDSkippedForTestOnlyBead(t *testing.T) {
 			}
 		})
 	}
-}
-
-func testPromptContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
-	return &prompt.Context{
-		Bead:               b,
-		ParentBead:         parent,
-		Iteration:          iteration,
-		Model:              model,
-		ConfirmedLearnings: []learnings.Learning{},
-		RecentLearnings:    []learnings.Learning{},
-	}, nil
 }

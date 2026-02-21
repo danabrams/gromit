@@ -48,6 +48,13 @@ func NewStatusWriter(gromitDir string) (*StatusWriter, error) {
 	}, nil
 }
 
+// SetStartTime overrides the start time. Used in tests to simulate elapsed time.
+func (sw *StatusWriter) SetStartTime(t time.Time) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	sw.startTime = t
+}
+
 // Write writes the current status to status.json
 func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, running bool, maxIterations, timeBudgetMinutes int) error {
 	if sw == nil {
