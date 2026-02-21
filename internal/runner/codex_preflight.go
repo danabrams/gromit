@@ -11,6 +11,13 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 )
 
+const (
+	codexPreflightDNSHost      = "api.openai.com"
+	codexPreflightDNSTimeout   = 4 * time.Second
+	codexPreflightLoginTimeout = 8 * time.Second
+	codexPreflightProbePattern = ".gromit-codex-home-writecheck-*"
+)
+
 // preflightCodex validates Codex runtime prerequisites before the run loop starts.
 // It only runs when a Codex-backed provider is configured.
 func (r *Runner) preflightCodex(ctx context.Context) error {
@@ -32,10 +39,10 @@ func (r *Runner) preflightCodex(ctx context.Context) error {
 		return fmt.Errorf("codex preflight failed: DNS lookup function not configured")
 	}
 
-	dnsCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	dnsCtx, cancel := context.WithTimeout(ctx, codexPreflightDNSTimeout)
 	defer cancel()
-	if _, err := lookupHost(dnsCtx, "api.openai.com"); err != nil {
-		return fmt.Errorf("codex preflight failed: cannot resolve api.openai.com: %w", err)
+	if _, err := lookupHost(dnsCtx, codexPreflightDNSHost); err != nil {
+		return fmt.Errorf("codex preflight failed: cannot resolve %s: %w", codexPreflightDNSHost, err)
 	}
 
 	lookPath := r.lookPathFn
@@ -48,7 +55,7 @@ func (r *Runner) preflightCodex(ctx context.Context) error {
 		}
 	}
 
-	loginCtx, loginCancel := context.WithTimeout(ctx, 8*time.Second)
+	loginCtx, loginCancel := context.WithTimeout(ctx, codexPreflightLoginTimeout)
 	defer loginCancel()
 	stdout, stderr, exitCode, statusErr := r.runArgv(loginCtx, "codex", []string{"login", "status"}, "")
 	combined := strings.TrimSpace(strings.TrimSpace(stdout) + "\n" + strings.TrimSpace(stderr))
@@ -73,16 +80,8 @@ func (r *Runner) preflightCodex(ctx context.Context) error {
 	if err := os.MkdirAll(codexHome, 0755); err != nil {
 		return fmt.Errorf("codex preflight failed: CODEX_HOME path %q does not exist and could not be created: %w", codexHome, err)
 	}
-	probeFile, err := os.CreateTemp(codexHome, ".gromit-codex-home-writecheck-*")
-	if err != nil {
-		return fmt.Errorf("codex preflight failed: CODEX_HOME path %q is not writable: %w", codexHome, err)
-	}
-	probePath := probeFile.Name()
-	if closeErr := probeFile.Close(); closeErr != nil {
-		return fmt.Errorf("codex preflight failed: CODEX_HOME writability check failed to close probe file %q: %w", probePath, closeErr)
-	}
-	if removeErr := os.Remove(probePath); removeErr != nil && !os.IsNotExist(removeErr) {
-		return fmt.Errorf("codex preflight failed: CODEX_HOME writability check failed to clean up probe file %q: %w", probePath, removeErr)
+	if err := probeCodexHomeWrite(codexHome); err != nil {
+		return err
 	}
 	r.log("Codex preflight resolved CODEX_HOME=%s", codexHome)
 
@@ -113,6 +112,21 @@ func (r *Runner) codexProviderBinaries() []string {
 		bins = append(bins, bin)
 	}
 	return bins
+}
+
+func probeCodexHomeWrite(codexHome string) error {
+	probeFile, err := os.CreateTemp(codexHome, codexPreflightProbePattern)
+	if err != nil {
+		return fmt.Errorf("codex preflight failed: CODEX_HOME path %q is not writable: %w", codexHome, err)
+	}
+	probePath := probeFile.Name()
+	if closeErr := probeFile.Close(); closeErr != nil {
+		return fmt.Errorf("codex preflight failed: CODEX_HOME writability check failed to close probe file %q: %w", probePath, closeErr)
+	}
+	if removeErr := os.Remove(probePath); removeErr != nil && !os.IsNotExist(removeErr) {
+		return fmt.Errorf("codex preflight failed: CODEX_HOME writability check failed to clean up probe file %q: %w", probePath, removeErr)
+	}
+	return nil
 }
 
 func summarizeCodexPreflightOutput(s string) string {
