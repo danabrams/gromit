@@ -6,7 +6,7 @@ import (
 )
 
 // TestClaudeProviderIsValidationPassedHelper verifies that ClaudeProvider
-// has an IsValidationPassed() helper that delegates to claude.IsValidationPassed().
+// has an IsValidationPassed() helper that delegates to shared provider helpers.
 func TestClaudeProviderIsValidationPassedHelper(t *testing.T) {
 	cp := &ClaudeProvider{}
 
@@ -60,7 +60,7 @@ func TestClaudeProviderIsValidationPassedHelper(t *testing.T) {
 }
 
 // TestClaudeProviderIsScopeTooLargeHelper verifies that ClaudeProvider
-// has an IsScopeTooLarge() helper that delegates to claude.IsScopeTooLarge().
+// has an IsScopeTooLarge() helper that delegates to shared provider helpers.
 func TestClaudeProviderIsScopeTooLargeHelper(t *testing.T) {
 	cp := &ClaudeProvider{}
 
