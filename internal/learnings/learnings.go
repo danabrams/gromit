@@ -210,7 +210,18 @@ func (f *File) Load() error {
 		}
 	} else {
 		_, _, archivedFromFile := parseLearnings(string(archiveContent))
-		f.archived = append(f.archived, archivedFromFile...)
+		// Deduplicate: only add archived learnings from the archive file
+		// if they are not already present (by hash) from LEARNINGS.md.
+		seenHashes := make(map[string]bool, len(f.archived))
+		for _, l := range f.archived {
+			seenHashes[l.Hash] = true
+		}
+		for _, l := range archivedFromFile {
+			if !seenHashes[l.Hash] {
+				f.archived = append(f.archived, l)
+				seenHashes[l.Hash] = true
+			}
+		}
 	}
 	f.normalizeNilFields()
 	for _, learning := range f.archived {
@@ -319,6 +330,15 @@ func (f *File) Save() error {
 		sb.WriteString("*No provisional learnings.*\n\n")
 	} else {
 		for _, l := range f.provisional {
+			writeLearning(&sb, l)
+		}
+	}
+
+	// Write archived learnings
+	if len(f.archived) > 0 {
+		sb.WriteString("---\n\n## Archived\n\n")
+		sb.WriteString("*Previously archived learnings.*\n\n")
+		for _, l := range f.archived {
 			writeLearning(&sb, l)
 		}
 	}

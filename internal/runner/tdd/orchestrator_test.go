@@ -402,6 +402,10 @@ func TestRunCycles_EarlyGreen_AdvancesToDone(t *testing.T) {
 		}
 		return nil
 	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		refactorCalls++
+		return nil
+	}
 	validateCall := 0
 	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
 		validateCall++
@@ -414,10 +418,6 @@ func TestRunCycles_EarlyGreen_AdvancesToDone(t *testing.T) {
 			t.Fatalf("unexpected additional validation call %d", validateCall)
 			return "", false, nil
 		}
-	}
-	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
-		refactorCalls++
-		return nil
 	}
 
 	bc := &runtypes.BeadContext{
@@ -916,6 +916,46 @@ func TestRunCycles_EarlyGreen_FinalValidationFailure_ReturnsError(t *testing.T) 
 	}
 	if !strings.Contains(err.Error(), "final validation") {
 		t.Fatalf("expected error to mention 'final validation', got %q", err.Error())
+	}
+}
+
+func TestRunCycles_EarlyGreen_NoRefactorCalledOnUnexpectedPass(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	refactorCalls := 0
+	validateCall := 0
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		// Both calls return passed=true: first is unexpected RED pass, second is final validation
+		return "PASS", true, nil
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		refactorCalls++
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if refactorCalls != 0 {
+		t.Fatalf("expected refactor to not be called when RED passes unexpectedly, got %d calls", refactorCalls)
+	}
+	if validateCall != 2 {
+		t.Fatalf("expected validateFn called twice (initial RED + final), got %d", validateCall)
 	}
 }
 

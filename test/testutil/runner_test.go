@@ -132,10 +132,33 @@ exit ${1:-0}
 
 func createTempShellScript(t *testing.T, dir, name, content string) string {
 	t.Helper()
-
 	scriptPath := filepath.Join(dir, name)
-	if err := os.WriteFile(scriptPath, []byte(content), 0755); err != nil {
-		t.Fatalf("failed to create test shell script %s: %v", scriptPath, err)
+	// Write to a temp file then rename atomically to avoid ETXTBSY on Linux:
+	// when parallel subtests write+exec concurrently, os.WriteFile may have
+	// O_WRONLY open on an inode that another goroutine's fork() inherits.
+	// The rename ensures the final path has no open write fd at exec time.
+	f, err := os.CreateTemp(dir, name+".*.tmp")
+	if err != nil {
+		t.Fatalf("failed to create temp file for script %s: %v", name, err)
+	}
+	tmpPath := f.Name()
+	if _, err := f.WriteString(content); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		t.Fatalf("failed to write test shell script %s: %v", name, err)
+	}
+	if err := f.Chmod(0755); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		t.Fatalf("failed to chmod test shell script %s: %v", name, err)
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmpPath)
+		t.Fatalf("failed to close test shell script %s: %v", name, err)
+	}
+	if err := os.Rename(tmpPath, scriptPath); err != nil {
+		os.Remove(tmpPath)
+		t.Fatalf("failed to rename test shell script to %s: %v", scriptPath, err)
 	}
 	return scriptPath
 }
@@ -148,15 +171,12 @@ func TestRunGromitWithStdin_EmptyDirNotSet(t *testing.T) {
 	// the command runs in the current directory by checking the working directory
 
 	tmpDir := t.TempDir()
-	testBinary := filepath.Join(tmpDir, "pwd-script")
 
 	// Write a script that prints the current working directory
 	scriptContent := `#!/bin/bash
 pwd
 `
-	if err := os.WriteFile(testBinary, []byte(scriptContent), 0755); err != nil {
-		t.Fatalf("Failed to create test binary: %v", err)
-	}
+	testBinary := createTempShellScript(t, tmpDir, "pwd-script", scriptContent)
 
 	// Get current working directory
 	cwd, err := os.Getwd()
@@ -187,15 +207,12 @@ func TestRunGromitWithStdin_DirIsSet(t *testing.T) {
 	// This test verifies that when dir is non-empty, cmd.Dir is set correctly
 
 	tmpDir := t.TempDir()
-	testBinary := filepath.Join(tmpDir, "pwd-script")
 
 	// Write a script that prints the current working directory
 	scriptContent := `#!/bin/bash
 pwd
 `
-	if err := os.WriteFile(testBinary, []byte(scriptContent), 0755); err != nil {
-		t.Fatalf("Failed to create test binary: %v", err)
-	}
+	testBinary := createTempShellScript(t, tmpDir, "pwd-script", scriptContent)
 
 	// Run with tmpDir set as dir
 	stdout, _, exitCode, err := RunGromitWithStdin(testBinary, tmpDir, nil, "")
@@ -218,7 +235,6 @@ func TestRunGromitHelperProcessWithStdin(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	testBinary := filepath.Join(tmpDir, "helper-script")
 
 	scriptContent := `#!/bin/bash
 if [[ "$1" == "-test.run=TestGromitHelperProcess" && "$2" == "--" ]]; then
@@ -227,9 +243,7 @@ fi
 echo "helper:$*"
 cat
 `
-	if err := os.WriteFile(testBinary, []byte(scriptContent), 0755); err != nil {
-		t.Fatalf("Failed to create helper script: %v", err)
-	}
+	testBinary := createTempShellScript(t, tmpDir, "helper-script", scriptContent)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -256,14 +270,11 @@ func TestRunGromitHelperProcessWithStdin_Timeout(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	testBinary := filepath.Join(tmpDir, "sleep-script")
 
 	scriptContent := `#!/bin/bash
 sleep 5
 `
-	if err := os.WriteFile(testBinary, []byte(scriptContent), 0755); err != nil {
-		t.Fatalf("Failed to create sleep script: %v", err)
-	}
+	testBinary := createTempShellScript(t, tmpDir, "sleep-script", scriptContent)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -282,7 +293,6 @@ sleep 5
 
 func TestRunGromitHelperProcessWithStdin_TimeoutKillsProcessGroup(t *testing.T) {
 	tmpDir := t.TempDir()
-	testBinary := filepath.Join(tmpDir, "sleep-with-child")
 	childPIDPath := filepath.Join(tmpDir, "child.pid")
 
 	scriptContent := `#!/bin/bash
@@ -295,9 +305,7 @@ child=$!
 echo "$child" > "$child_pid_file"
 sleep 5
 `
-	if err := os.WriteFile(testBinary, []byte(scriptContent), 0755); err != nil {
-		t.Fatalf("Failed to create child script: %v", err)
-	}
+	testBinary := createTempShellScript(t, tmpDir, "sleep-with-child", scriptContent)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
