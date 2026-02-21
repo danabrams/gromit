@@ -591,6 +591,113 @@ func TestMakeMethodologyExec_ATDDFallbacksOnStartupErrorAndLogsStructuredDecisio
 	}
 }
 
+func TestMakeMethodologyExec_ATDDFallbackErrorFromPrimaryErrUsesSharedFormatter(t *testing.T) {
+	primary := &mockProviderWithRouterTracking{
+		name: "primary-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return nil, errors.New("failed to start codex command")
+		},
+	}
+	fallback := &mockProviderWithRouterTracking{
+		name: "fallback-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return nil, errors.New("stream reset")
+		},
+	}
+	router := provider.NewRouter(
+		map[string]provider.Provider{
+			primary.Name():  primary,
+			fallback.Name(): fallback,
+		},
+		map[string]string{"build": primary.Name()},
+		map[string]int{primary.Name(): 100, fallback.Name(): 100},
+		time.Minute,
+		nil,
+		&provider.CircuitBreaker{},
+	)
+	r := &Runner{
+		router: router,
+		output: io.Discard,
+		renderer: &mockPromptRenderer{
+			RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+				return "acceptance prompt", nil
+			},
+		},
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-atdd-startup-fallback-error"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+	}
+
+	err := r.makeMethodologyExec().RunAcceptanceTests(context.Background(), bc)
+	if err == nil {
+		t.Fatal("expected RunAcceptanceTests to fail")
+	}
+	want := "acceptance tests failed after transient fallback class=startup_error (provider=fallback-provider model=test-haiku): primary_err=failed to start codex command fallback_err=stream reset"
+	if got := err.Error(); got != want {
+		t.Fatalf("error mismatch\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestMakeMethodologyExec_ATDDFallbackErrorFromPrimaryResultUsesSharedFormatter(t *testing.T) {
+	primary := &mockProviderWithRouterTracking{
+		name: "primary-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:         false,
+				FailureCategory: provider.FailureCategoryStartupError,
+			}, nil
+		},
+	}
+	fallback := &mockProviderWithRouterTracking{
+		name: "fallback-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:         false,
+				ExitCode:        7,
+				FailureCategory: provider.FailureCategoryStartupError,
+			}, nil
+		},
+	}
+	router := provider.NewRouter(
+		map[string]provider.Provider{
+			primary.Name():  primary,
+			fallback.Name(): fallback,
+		},
+		map[string]string{"build": primary.Name()},
+		map[string]int{primary.Name(): 100, fallback.Name(): 100},
+		time.Minute,
+		nil,
+		&provider.CircuitBreaker{},
+	)
+	r := &Runner{
+		router: router,
+		output: io.Discard,
+		renderer: &mockPromptRenderer{
+			RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+				return "acceptance prompt", nil
+			},
+		},
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-atdd-startup-fallback-result"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+	}
+
+	err := r.makeMethodologyExec().RunAcceptanceTests(context.Background(), bc)
+	if err == nil {
+		t.Fatal("expected RunAcceptanceTests to fail")
+	}
+	want := "acceptance tests failed after transient fallback class=startup_error: primary={provider=primary-provider model=test-haiku exit_code=0 failure_category=startup_error stderr=no provider output output=no provider output diagnostics=no provider output} fallback={provider=fallback-provider model=test-haiku exit_code=7 failure_category=startup_error stderr=no provider output output=no provider output diagnostics=no provider output}"
+	if got := err.Error(); got != want {
+		t.Fatalf("error mismatch\n got: %q\nwant: %q", got, want)
+	}
+}
+
 func TestMakeMethodologyExec_ATDDStartupFailureMarksProviderUnavailable(t *testing.T) {
 	cb := &provider.CircuitBreaker{}
 	primary := &mockProviderWithRouterTracking{
