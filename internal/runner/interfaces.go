@@ -57,6 +57,7 @@ type PromptRenderer interface {
 	RenderThoroughReview(ctx *prompt.ThoroughReviewContext) (string, error)
 	RenderAcceptanceTests(ctx *prompt.Context) (string, error)
 	RenderATDDBuild(ctx *prompt.Context) (string, error)
+	RenderATDDDiagnostic(ctx *prompt.DiagnosticContext) (string, error)
 	RenderTDDBuild(ctx *prompt.Context) (string, error)
 	RenderTDDRed(ctx *prompt.TDDRedContext) (string, error)
 	RenderTDDGreen(ctx *prompt.TDDGreenContext) (string, error)

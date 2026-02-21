@@ -362,6 +362,10 @@ func TestRenderNilRenderer(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for nil renderer in RenderATDDBuild")
 	}
+	_, err = r.RenderATDDDiagnostic(nil)
+	if err == nil {
+		t.Error("expected error for nil renderer in RenderATDDDiagnostic")
+	}
 	_, err = r.RenderRefactor(nil)
 	if err == nil {
 		t.Error("expected error for nil renderer in RenderRefactor")
@@ -1074,6 +1078,49 @@ Model: {{.Model}}`
 	}
 	if !strings.Contains(result, "opus") {
 		t.Error("expected model in output")
+	}
+}
+
+func TestRenderATDDDiagnostic(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `ATDD Diagnostic
+Title: {{.BeadTitle}}
+Description: {{.BeadDescription}}
+Acceptance: {{.AcceptanceCriteria}}
+Diff: {{.TestDiff}}
+Output: {{.TestOutput}}`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_atdd_diagnostic.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &DiagnosticContext{
+		BeadTitle:          "Add ATDD diagnostic template",
+		BeadDescription:    "Determine if tests already pass before build",
+		AcceptanceCriteria: "Emit ALREADY_DONE when no implementation changes required",
+		TestDiff:           "+func TestATDDDiagnostic(t *testing.T) {}",
+		TestOutput:         "ok  github.com/danabrams/gromit/internal/prompt",
+	}
+
+	result, err := r.RenderATDDDiagnostic(ctx)
+	if err != nil {
+		t.Fatalf("RenderATDDDiagnostic() error = %v", err)
+	}
+	if !strings.Contains(result, ctx.BeadTitle) {
+		t.Error("expected bead title in output")
+	}
+	if !strings.Contains(result, ctx.BeadDescription) {
+		t.Error("expected bead description in output")
+	}
+	if !strings.Contains(result, ctx.AcceptanceCriteria) {
+		t.Error("expected acceptance criteria in output")
+	}
+	if !strings.Contains(result, ctx.TestDiff) {
+		t.Error("expected test diff in output")
+	}
+	if !strings.Contains(result, ctx.TestOutput) {
+		t.Error("expected test output in output")
 	}
 }
 
@@ -1808,6 +1855,38 @@ func TestRenderCoverageValidationNilRenderer(t *testing.T) {
 	_, err := r.RenderCoverageValidation(nil)
 	if err == nil {
 		t.Error("expected error for nil renderer in RenderCoverageValidation")
+	}
+}
+
+func TestRenderATDDDiagnosticRealTemplateIncludesVerdictContract(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	templatePath := filepath.Join(templatesDir, "PROMPT_atdd_diagnostic.md")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		t.Skipf("skipping: real template not found at %s", templatePath)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+	result, err := r.RenderATDDDiagnostic(&DiagnosticContext{
+		BeadTitle:          "bead",
+		BeadDescription:    "desc",
+		AcceptanceCriteria: "criteria",
+		TestDiff:           "+added test",
+		TestOutput:         "PASS",
+	})
+	if err != nil {
+		t.Fatalf("RenderATDDDiagnostic() error = %v", err)
+	}
+
+	wantContains := []string{
+		"VERDICT: ALREADY_DONE",
+		"VERDICT: REWRITE",
+		"on its own line",
+		"feedback",
+	}
+	for _, want := range wantContains {
+		if !strings.Contains(result, want) {
+			t.Errorf("expected %q in output", want)
+		}
 	}
 }
 

@@ -185,6 +185,7 @@ type mockPromptRenderer struct {
 	RenderThoroughReviewFn  func(ctx *prompt.ThoroughReviewContext) (string, error)
 	RenderAcceptanceTestsFn func(ctx *prompt.Context) (string, error)
 	RenderATDDBuildFn       func(ctx *prompt.Context) (string, error)
+	RenderATDDDiagnosticFn  func(ctx *prompt.DiagnosticContext) (string, error)
 	RenderTDDBuildFn        func(ctx *prompt.Context) (string, error)
 	RenderTDDRedFn          func(ctx *prompt.TDDRedContext) (string, error)
 	RenderTDDGreenFn        func(ctx *prompt.TDDGreenContext) (string, error)
@@ -341,6 +342,13 @@ func (m *mockPromptRenderer) RenderATDDBuild(ctx *prompt.Context) (string, error
 		return m.RenderATDDBuildFn(ctx)
 	}
 	return "mock atdd build prompt", nil
+}
+
+func (m *mockPromptRenderer) RenderATDDDiagnostic(ctx *prompt.DiagnosticContext) (string, error) {
+	if m.RenderATDDDiagnosticFn != nil {
+		return m.RenderATDDDiagnosticFn(ctx)
+	}
+	return "mock atdd diagnostic prompt", nil
 }
 
 func (m *mockPromptRenderer) RenderTDDBuild(ctx *prompt.Context) (string, error) {
@@ -503,6 +511,10 @@ func (m *mockRenderer) RenderATDDBuild(ctx *prompt.Context) (string, error) {
 	return "mock atdd build prompt", nil
 }
 
+func (m *mockRenderer) RenderATDDDiagnostic(ctx *prompt.DiagnosticContext) (string, error) {
+	return "mock atdd diagnostic prompt", nil
+}
+
 func (m *mockRenderer) RenderTDDBuild(ctx *prompt.Context) (string, error) {
 	return "mock tdd build prompt", nil
 }
@@ -592,6 +604,24 @@ func TestPromptRendererInterfaceIncludesRenderCoverageValidation(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("RenderCoverageValidation() error = %v", err)
+	}
+	if output == "" {
+		t.Fatal("expected non-empty output")
+	}
+}
+
+func TestPromptRendererInterfaceIncludesRenderATDDDiagnostic(t *testing.T) {
+	var r PromptRenderer = &mockPromptRenderer{}
+
+	output, err := r.RenderATDDDiagnostic(&prompt.DiagnosticContext{
+		BeadTitle:          "Add diagnostic render method",
+		BeadDescription:    "Render a pass-before-build verdict prompt",
+		AcceptanceCriteria: "Return clear verdict line",
+		TestDiff:           "+func TestRenderATDDDiagnostic(t *testing.T) {}",
+		TestOutput:         "PASS",
+	})
+	if err != nil {
+		t.Fatalf("RenderATDDDiagnostic() error = %v", err)
 	}
 	if output == "" {
 		t.Fatal("expected non-empty output")

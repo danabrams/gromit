@@ -179,6 +179,28 @@ func (r *Renderer) RenderATDDBuild(ctx *Context) (string, error) {
 	return r.renderBuildPrompt("atdd_build", "PROMPT_atdd_build.md", ctx)
 }
 
+// RenderATDDDiagnostic renders the pass-before-build diagnostic prompt.
+func (r *Renderer) RenderATDDDiagnostic(ctx *DiagnosticContext) (string, error) {
+	const diagnosticTemplate = "PROMPT_atdd_diagnostic.md"
+	if r != nil {
+		taskIdentity := ""
+		failureAndTestOutput := ""
+		diffAndCriteria := ""
+		if ctx != nil {
+			taskIdentity = ctx.BeadTitle + "\n" + ctx.BeadDescription
+			failureAndTestOutput = ctx.TestOutput
+			diffAndCriteria = ctx.AcceptanceCriteria + "\n" + ctx.TestDiff
+		}
+		r.lastDiagnostics = r.computeDiagnostics("atdd_diagnostic", map[string]string{
+			SectionTaskIdentity:   taskIdentity,
+			SectionSpec:           diffAndCriteria,
+			SectionFailureContext: failureAndTestOutput,
+			SectionTemplateStatic: diagnosticTemplate,
+		})
+	}
+	return r.render(diagnosticTemplate, ctx)
+}
+
 // RenderRefactor renders the refactor prompt for code quality improvements.
 func (r *Renderer) RenderRefactor(ctx *Context) (string, error) {
 	return r.renderBuildPrompt("refactor", "PROMPT_refactor.md", ctx)

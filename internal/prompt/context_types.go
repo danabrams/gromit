@@ -119,6 +119,15 @@ type SpecGateContext struct {
 	AcceptanceCriteria string // Acceptance criteria from the spec file
 }
 
+// DiagnosticContext holds data for the ATDD pass-before-build diagnostic template.
+type DiagnosticContext struct {
+	BeadTitle          string
+	BeadDescription    string
+	AcceptanceCriteria string
+	TestDiff           string
+	TestOutput         string
+}
+
 // TestFixContext holds data for test-fix prompt template
 type TestFixContext struct {
 	ClaudeMD          string
