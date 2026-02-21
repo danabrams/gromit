@@ -185,7 +185,8 @@ func TestCLIContract_Flags(t *testing.T) {
 		{
 			name: "queue",
 			flags: map[string]string{
-				"by-spec": "bool", // --by-spec
+				"by-spec":          "bool", // --by-spec
+				"completion-order": "bool", // --completion-order
 			},
 		},
 		{

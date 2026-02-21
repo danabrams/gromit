@@ -526,14 +526,13 @@ func (c *Client) GetComments(id string) ([]Comment, error) {
 	return comments, nil
 }
 
-// List returns all open beads, sorted by priority (P0 first)
-func (c *Client) List() ([]*Bead, error) {
+func (c *Client) listByStatus(status string) ([]*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	out, err := c.run("list", "--json", "--status", "open", "--sort", "priority", "--limit", "0")
+	out, err := c.run("list", "--json", "--status", status, "--sort", "priority", "--limit", "0")
 	if err != nil {
-		return nil, fmt.Errorf("bd list: %w", err)
+		return nil, fmt.Errorf("bd list (%s): %w", status, err)
 	}
 
 	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "[]" {
@@ -556,6 +555,19 @@ func (c *Client) List() ([]*Bead, error) {
 	}
 
 	return result, nil
+}
+
+// List returns all open beads, sorted by priority (P0 first)
+func (c *Client) List() ([]*Bead, error) {
+	return c.listByStatus("open")
+}
+
+// ListByStatus returns all beads with the given status, sorted by priority (P0 first).
+func (c *Client) ListByStatus(status string) ([]*Bead, error) {
+	if strings.TrimSpace(status) == "" {
+		return nil, fmt.Errorf("status cannot be empty")
+	}
+	return c.listByStatus(status)
 }
 
 // ListReady returns all ready (unblocked) beads, sorted by priority (P0 first).

@@ -6,8 +6,9 @@ Usage:
   gromit queue [flags]
 
 Flags:
-      --by-spec       Group queue output by spec label
-  -h, --help   help for queue
+      --by-spec            Group queue output by spec label
+      --completion-order   Show projected spec and bead completion order
+  -h, --help               help for queue
 
 Global Flags:
   -c, --config string   Path to config file (default "gromit.yaml")

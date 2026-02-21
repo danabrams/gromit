@@ -20,6 +20,7 @@ const (
 )
 
 var queueBySpec bool
+var queueCompletionOrder bool
 
 var queueCmd = &cobra.Command{
 	Use:   "queue",
@@ -32,6 +33,7 @@ Also shows any blocked beads and the reason they can't be processed yet.`,
 
 func init() {
 	queueCmd.Flags().BoolVar(&queueBySpec, "by-spec", false, "Group queue output by spec label")
+	queueCmd.Flags().BoolVar(&queueCompletionOrder, "completion-order", false, "Show projected spec and bead completion order")
 	rootCmd.AddCommand(queueCmd)
 }
 
@@ -52,12 +54,17 @@ func showQueue(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("getting ready beads: %w", err)
 	}
 
-	// Get all open beads to identify blocked ones
-	allBeads, err := bc.List()
+	// Get all active beads (open + in_progress) to identify blocked ones.
+	allBeads, err := getActiveBeads(bc)
 	if err != nil {
 		return fmt.Errorf("getting all beads: %w", err)
 	}
 	readyBeads = enrichReadyBeads(readyBeads, allBeads)
+
+	if queueCompletionOrder {
+		printCompletionOrder(cfg, readyBeads, allBeads)
+		return nil
+	}
 
 	var beadStats map[string]logger.BeadStats
 	beadStats, err = logger.ReadPerBeadStats(cfg.Paths.Logs)
@@ -74,6 +81,31 @@ func showQueue(cmd *cobra.Command, args []string) error {
 
 	printQueueByStatus(cfg, readyBeads, blockedBeads, stuckBeads, allBeads, queueBySpec, isColorEnabled())
 	return nil
+}
+
+func getActiveBeads(bc *bead.Client) ([]*bead.Bead, error) {
+	if bc == nil {
+		return nil, fmt.Errorf("bead client is nil")
+	}
+	openBeads, err := bc.List()
+	if err != nil {
+		return nil, err
+	}
+	inProgressBeads, err := bc.ListByStatus("in_progress")
+	if err != nil {
+		return nil, err
+	}
+	all := append(openBeads, inProgressBeads...)
+	seen := make(map[string]bool, len(all))
+	deduped := make([]*bead.Bead, 0, len(all))
+	for _, b := range all {
+		if b == nil || strings.TrimSpace(b.ID) == "" || seen[b.ID] {
+			continue
+		}
+		seen[b.ID] = true
+		deduped = append(deduped, b)
+	}
+	return deduped, nil
 }
 
 func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, bySpec bool, useColor bool) {
@@ -122,6 +154,180 @@ func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckB
 
 type queueModelSelector interface {
 	SelectModel(priority int, labels []string) string
+}
+
+type projectedSpecCompletion struct {
+	Name            string
+	CompletionIndex int
+	Beads           []*bead.Bead
+}
+
+type completionKey struct {
+	statusRank int
+	unresolved int
+	priority   int
+	id         string
+}
+
+func printCompletionOrder(cfg queueModelSelector, readyBeads, allBeads []*bead.Bead) {
+	order := projectBeadCompletionOrder(readyBeads, allBeads)
+	specs := projectSpecCompletionOrder(order, allBeads)
+
+	fmt.Println("Projected completion order (assuming no failures):")
+	fmt.Println()
+	fmt.Println("Specs:")
+	for i, spec := range specs {
+		fmt.Printf("  %d. %s (completes at bead #%d)\n", i+1, formatSpecGroupName(spec.Name), spec.CompletionIndex)
+	}
+	fmt.Println()
+	fmt.Println("Beads:")
+	for i, b := range order {
+		model := cfg.SelectModel(b.Priority, b.Labels)
+		spec := formatSpecGroupName(bead.FindSpecLabel(b.Labels))
+		fmt.Printf("  %d. [%s] [P%d] %s  %s  → %s\n", i+1, spec, b.Priority, b.ID, truncateTitle(b.Title, 30), model)
+	}
+}
+
+func projectSpecCompletionOrder(order, allBeads []*bead.Bead) []projectedSpecCompletion {
+	remainingBySpec := make(map[string]int)
+	specBeads := make(map[string][]*bead.Bead)
+	for _, b := range allBeads {
+		if b == nil {
+			continue
+		}
+		spec := bead.FindSpecLabel(b.Labels)
+		remainingBySpec[spec]++
+	}
+
+	completions := make([]projectedSpecCompletion, 0, len(remainingBySpec))
+	completed := make(map[string]bool, len(remainingBySpec))
+	for i, b := range order {
+		if b == nil {
+			continue
+		}
+		spec := bead.FindSpecLabel(b.Labels)
+		specBeads[spec] = append(specBeads[spec], b)
+		remainingBySpec[spec]--
+		if remainingBySpec[spec] == 0 && !completed[spec] {
+			completed[spec] = true
+			completions = append(completions, projectedSpecCompletion{
+				Name:            spec,
+				CompletionIndex: i + 1,
+				Beads:           specBeads[spec],
+			})
+		}
+	}
+
+	sort.Slice(completions, func(i, j int) bool {
+		if completions[i].CompletionIndex != completions[j].CompletionIndex {
+			return completions[i].CompletionIndex < completions[j].CompletionIndex
+		}
+		return completions[i].Name < completions[j].Name
+	})
+	return completions
+}
+
+func projectBeadCompletionOrder(readyBeads, allBeads []*bead.Bead) []*bead.Bead {
+	readyNow := make(map[string]bool, len(readyBeads))
+	for _, b := range readyBeads {
+		if b != nil && strings.TrimSpace(b.ID) != "" {
+			readyNow[b.ID] = true
+		}
+	}
+
+	remaining := make(map[string]*bead.Bead, len(allBeads))
+	for _, b := range allBeads {
+		if b == nil || strings.TrimSpace(b.ID) == "" {
+			continue
+		}
+		remaining[b.ID] = b
+	}
+
+	order := make([]*bead.Bead, 0, len(remaining))
+	for len(remaining) > 0 {
+		candidates := make([]*bead.Bead, 0, len(remaining))
+		for _, b := range remaining {
+			if unresolvedDepsCount(b, remaining) == 0 {
+				candidates = append(candidates, b)
+			}
+		}
+		if len(candidates) == 0 {
+			for _, b := range remaining {
+				candidates = append(candidates, b)
+			}
+		}
+
+		sort.Slice(candidates, func(i, j int) bool {
+			left := completionSortKey(candidates[i], remaining, readyNow)
+			right := completionSortKey(candidates[j], remaining, readyNow)
+			if left.statusRank != right.statusRank {
+				return left.statusRank < right.statusRank
+			}
+			if left.unresolved != right.unresolved {
+				return left.unresolved < right.unresolved
+			}
+			if left.priority != right.priority {
+				return left.priority < right.priority
+			}
+			return left.id < right.id
+		})
+
+		next := candidates[0]
+		order = append(order, next)
+		delete(remaining, next.ID)
+	}
+
+	return order
+}
+
+func completionSortKey(b *bead.Bead, remaining map[string]*bead.Bead, readyNow map[string]bool) completionKey {
+	statusRank := 2
+	if strings.EqualFold(b.Status, "in_progress") {
+		statusRank = 0
+	} else if readyNow[b.ID] {
+		statusRank = 1
+	}
+	return completionKey{
+		statusRank: statusRank,
+		unresolved: unresolvedDepsCount(b, remaining),
+		priority:   b.Priority,
+		id:         b.ID,
+	}
+}
+
+func unresolvedDepsCount(b *bead.Bead, remaining map[string]*bead.Bead) int {
+	if b == nil {
+		return 0
+	}
+	seen := make(map[string]bool)
+	addDep := func(depID string) {
+		depID = strings.TrimSpace(depID)
+		if depID == "" || seen[depID] {
+			return
+		}
+		seen[depID] = true
+	}
+
+	if b.Parent != "" {
+		addDep(b.Parent)
+	}
+	for _, depID := range dependencyIDs(b.BlockedBy) {
+		addDep(depID)
+	}
+	for _, depID := range dependencyIDs(b.DependsOn) {
+		addDep(depID)
+	}
+	for _, depID := range dependencyIDs(b.Dependencies) {
+		addDep(depID)
+	}
+
+	unresolved := 0
+	for depID := range seen {
+		if _, ok := remaining[depID]; ok {
+			unresolved++
+		}
+	}
+	return unresolved
 }
 
 func printBeadsBySpec(beads []*bead.Bead, bySpec bool, printFn func(queueIndex int, b *bead.Bead)) {
