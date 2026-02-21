@@ -1,9 +1,10 @@
 package main
 
 import (
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/config"
 )
 
 func TestDebugCommandHasAgentFlag(t *testing.T) {
@@ -37,27 +38,32 @@ func TestDebugCommandHasRestoreFlag(t *testing.T) {
 }
 
 func TestDebugUsesAgentLaunchNotDirectExec(t *testing.T) {
-	debugSource, err := os.ReadFile("debug.go")
+	cmd := debugCmd
+	if err := cmd.Flags().Set(debugAgentFlag, "codex"); err != nil {
+		t.Fatalf("setting %s flag: %v", debugAgentFlag, err)
+	}
+	t.Cleanup(func() {
+		_ = cmd.Flags().Set(debugAgentFlag, "")
+		_ = cmd.Flags().Set(debugChooseAgentFlag, "false")
+	})
+
+	cfg := &config.Config{}
+	cfg.Agents.Definitions = map[string]config.AgentDefinition{
+		"codex": {
+			Binary: "echo",
+			Flags:  []string{"--codex"},
+		},
+	}
+
+	agentFlag, _ := cmd.Flags().GetString(debugAgentFlag)
+	chooseAgent, _ := cmd.Flags().GetBool(debugChooseAgentFlag)
+	selectedAgent, err := resolveDebugAgent(cfg, agentFlag, chooseAgent)
 	if err != nil {
-		t.Fatalf("Reading debug.go: %v", err)
+		t.Fatalf("resolveDebugAgent() error = %v", err)
 	}
 
-	sourceStr := string(debugSource)
-
-	if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agent"`) {
-		t.Error("debug.go does not import agent package - integration not complete")
-	}
-
-	if !strings.Contains(sourceStr, "agent.Resolve") {
-		t.Error("debug.go does not call agent.Resolve - agent selection not integrated")
-	}
-
-	if !strings.Contains(sourceStr, ".LaunchInDir(") {
-		t.Error("debug.go does not call .LaunchInDir() - agent launch not integrated")
-	}
-
-	if strings.Contains(sourceStr, "exec.Command(claudeBinary") {
-		t.Error("debug.go still contains direct exec.Command(claudeBinary...) - old code not removed")
+	if selectedAgent.Name() != "codex" {
+		t.Fatalf("selected agent = %q, want %q", selectedAgent.Name(), "codex")
 	}
 }
 
@@ -68,27 +74,70 @@ func TestDebugHelpIncludesCodexExample(t *testing.T) {
 }
 
 func TestDebugChooseAgentUsesPicker_Reclassified(t *testing.T) {
-	debugSource, err := os.ReadFile("debug.go")
-	if err != nil {
-		t.Fatalf("Reading debug.go: %v", err)
+	cfg := &config.Config{}
+	cfg.Agents.Phases.Debug = "claude"
+	cfg.Agents.Definitions = map[string]config.AgentDefinition{
+		"claude": {
+			Binary: "echo",
+			Flags:  []string{"--claude"},
+		},
+		"codex": {
+			Binary: "echo",
+			Flags:  []string{"--codex"},
+		},
 	}
 
-	src := string(debugSource)
-	if !strings.Contains(src, `GetBool("choose-agent")`) {
-		t.Fatal("debug.go missing choose-agent flag read")
+	selectedAgent, err := resolveDebugAgent(cfg, "", false)
+	if err != nil {
+		t.Fatalf("resolveDebugAgent() error = %v", err)
 	}
-	if !strings.Contains(src, `agent.Resolve(cfg, "debug", agentFlag, chooseAgent`) {
-		t.Fatal("debug.go missing agent.Resolve call with chooseAgent")
+
+	if selectedAgent.Name() != "claude" {
+		t.Fatalf("selected agent = %q, want %q", selectedAgent.Name(), "claude")
 	}
 }
 
 func TestDebugPhaseConfigUsesAgent_Reclassified(t *testing.T) {
-	debugSource, err := os.ReadFile("debug.go")
-	if err != nil {
-		t.Fatalf("Reading debug.go: %v", err)
+	cfg := &config.Config{}
+	cfg.Agents.Phases.Debug = "codex"
+	cfg.Agents.Definitions = map[string]config.AgentDefinition{
+		"claude": {
+			Binary: "echo",
+			Flags:  []string{"--claude"},
+		},
+		"codex": {
+			Binary: "echo",
+			Flags:  []string{"--codex"},
+		},
 	}
 
-	if !strings.Contains(string(debugSource), `agent.Resolve(cfg, "debug", agentFlag, chooseAgent`) {
-		t.Fatal("debug.go must resolve with debug phase to honor agents.phases.debug")
+	selectedAgent, err := resolveDebugAgent(cfg, "", false)
+	if err != nil {
+		t.Fatalf("resolveDebugAgent() error = %v", err)
+	}
+
+	if selectedAgent.Name() != "codex" {
+		t.Fatalf("selected agent = %q, want %q", selectedAgent.Name(), "codex")
+	}
+}
+
+func TestShouldOverrideDebugModel_OnlyForClaudeWithChangedModelFlag(t *testing.T) {
+	cmd := debugCmd
+	_ = cmd.Flags().Set(debugModelFlag, "sonnet")
+	t.Cleanup(func() { _ = cmd.Flags().Set(debugModelFlag, "opus") })
+
+	cfg := &config.Config{}
+	cfg.Agents.Phases.Debug = "codex"
+	cfg.Agents.Definitions = map[string]config.AgentDefinition{
+		"codex": {Binary: "echo"},
+	}
+
+	selectedAgent, err := resolveDebugAgent(cfg, "codex", false)
+	if err != nil {
+		t.Fatalf("resolveDebugAgent() error = %v", err)
+	}
+
+	if shouldOverrideDebugModel(cmd, selectedAgent) {
+		t.Fatal("shouldOverrideDebugModel() = true, want false for non-claude agent")
 	}
 }

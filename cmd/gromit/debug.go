@@ -158,10 +158,9 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	promptFile.Close()
 
 	agentFlag, _ := cmd.Flags().GetString(debugAgentFlag)
-	// Keep literal flag name for compatibility with source-structure tests in this package.
-	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
+	chooseAgent, _ := cmd.Flags().GetBool(debugChooseAgentFlag)
 
-	selectedAgent, err := agent.Resolve(cfg, "debug", agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	selectedAgent, err := resolveDebugAgent(cfg, agentFlag, chooseAgent)
 	if err != nil {
 		return fmt.Errorf("resolving agent: %w", err)
 	}
@@ -222,6 +221,10 @@ func shouldOverrideDebugModel(cmd *cobra.Command, selectedAgent agent.Agent) boo
 	}
 
 	return cmd.Flags().Changed(debugModelFlag)
+}
+
+func resolveDebugAgent(cfg *config.Config, agentFlag string, chooseAgent bool) (agent.Agent, error) {
+	return agent.Resolve(cfg, debugSessionCommand, agentFlag, chooseAgent, os.Stdin, os.Stdout)
 }
 
 func runDebugGit(dir string, args ...string) (string, error) {
