@@ -85,3 +85,14 @@ func TestOutputHoldsValidationFailures(t *testing.T) {
 		t.Errorf("Output.ValidationFailures: want 1 item, got %d", len(out.ValidationFailures))
 	}
 }
+
+func TestInputBuildSucceededField(t *testing.T) {
+	in := pipeline.Input{BuildSucceeded: true}
+	if !in.BuildSucceeded {
+		t.Error("Input.BuildSucceeded: want true, got false")
+	}
+	var zero pipeline.Input
+	if zero.BuildSucceeded {
+		t.Error("Input.BuildSucceeded zero value: want false, got true")
+	}
+}

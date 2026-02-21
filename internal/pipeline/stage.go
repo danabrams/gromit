@@ -36,6 +36,9 @@ type Input struct {
 	// ValidationFailures holds summaries of recent validation failures
 	// from the previous validate stage, fed into the next execute stage.
 	ValidationFailures []string
+	// BuildSucceeded is true when the build and validate stages both passed
+	// for this iteration. Set by the orchestrator before calling Epilogue.
+	BuildSucceeded bool
 }
 
 // Output is the result returned by every stage after its execution.
