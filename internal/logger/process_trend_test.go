@@ -717,6 +717,78 @@ func TestBuildProcessTrend_IncludesProviderMetrics(t *testing.T) {
 	}
 }
 
+func TestSummarizeWindow_AvgCostPerBead_SumsRetriesPerBead(t *testing.T) {
+	// Bead A: 3 iterations at $2 each, 3rd is successful → total $6
+	// Bead B: 1 iteration at $3, successful → total $3
+	// Expected: avg = ($6 + $3) / 2 = $4.50
+	window := []IterationLog{
+		{BeadID: "bead-a", CostUSD: 2.0, Success: false},
+		{BeadID: "bead-a", CostUSD: 2.0, Success: false},
+		{BeadID: "bead-a", CostUSD: 2.0, Success: true},
+		{BeadID: "bead-b", CostUSD: 3.0, Success: true},
+	}
+
+	summary := summarizeWindow(window)
+	assertFloatNear(t, summary.AvgCostPerBeadUSD, 4.50, "AvgCostPerBeadUSD")
+}
+
+func TestSummarizeWindow_AvgCostPerBead_ExcludesIncompleteBeads(t *testing.T) {
+	// Bead A: 1 successful iteration at $5 → total $5
+	// Bead B: 2 failed iterations at $2 each → not counted (no success in window)
+	// Expected: avg = $5 / 1 = $5
+	window := []IterationLog{
+		{BeadID: "bead-a", CostUSD: 5.0, Success: true},
+		{BeadID: "bead-b", CostUSD: 2.0, Success: false},
+		{BeadID: "bead-b", CostUSD: 2.0, Success: false},
+	}
+
+	summary := summarizeWindow(window)
+	assertFloatNear(t, summary.AvgCostPerBeadUSD, 5.0, "AvgCostPerBeadUSD")
+}
+
+func TestSummarizeWindow_AvgCostPerBead_ZeroWhenNoCompletedBeads(t *testing.T) {
+	window := []IterationLog{
+		{BeadID: "bead-a", CostUSD: 2.0, Success: false},
+	}
+
+	summary := summarizeWindow(window)
+	assertFloatNear(t, summary.AvgCostPerBeadUSD, 0.0, "AvgCostPerBeadUSD")
+}
+
+func TestBuildIterationMetrics_RollingAvgCostPerBeadUSD(t *testing.T) {
+	// Window of 3: bead-a has 2 retries + success ($1+$1+$1=$3), bead-b succeeds once ($2)
+	// AvgCostPerBeadUSD = ($3 + $2) / 2 = $2.50
+	entries := []IterationLog{
+		{Timestamp: time.Now(), BeadID: "bead-a", CostUSD: 1.0, Success: false},
+		{Timestamp: time.Now().Add(time.Second), BeadID: "bead-a", CostUSD: 1.0, Success: false},
+		{Timestamp: time.Now().Add(2 * time.Second), BeadID: "bead-a", CostUSD: 1.0, Success: true},
+		{Timestamp: time.Now().Add(3 * time.Second), BeadID: "bead-b", CostUSD: 2.0, Success: true},
+	}
+
+	metrics := buildIterationMetrics(entries, 10)
+	if len(metrics) != 4 {
+		t.Fatalf("len(metrics) = %d, want 4", len(metrics))
+	}
+
+	last := metrics[len(metrics)-1]
+	assertFloatNear(t, last.RollingAvgCostPerBeadUSD, 2.50, "RollingAvgCostPerBeadUSD")
+}
+
+func TestBuildProcessTrend_IncludesRollingAvgCostPerBeadControlLimit(t *testing.T) {
+	entries := []IterationLog{
+		{BeadID: "b1", CostUSD: 1.0, Success: true},
+		{BeadID: "b2", CostUSD: 2.0, Success: true},
+		{BeadID: "b3", CostUSD: 3.0, Success: true},
+	}
+
+	metrics := buildIterationMetrics(entries, 3)
+	trend := buildProcessTrend(metrics, 3)
+
+	if _, ok := findControlLimit(trend.ControlLimits, metricRollingAvgCostPerBeadUSD); !ok {
+		t.Fatalf("control limits missing %q", metricRollingAvgCostPerBeadUSD)
+	}
+}
+
 func makeIterationLog(success bool, phase string) IterationLog {
 	return IterationLog{
 		Success:      success,

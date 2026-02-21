@@ -37,6 +37,7 @@ const (
 	metricRollingBuildFailure      = "rolling_build_failure_rate"
 	metricRollingValidationFailure = "rolling_validation_failure_rate"
 	metricRollingTimeoutFailure    = "rolling_timeout_failure_rate"
+	metricRollingAvgCostPerBeadUSD = "rolling_avg_cost_per_bead_usd"
 	transportDisconnectFailure     = "transport_disconnect"
 )
 
@@ -76,6 +77,10 @@ var trendControlLimitSeries = []metricSeriesDefinition{
 	{
 		name: metricRollingAvgCostUSD,
 		pick: func(m IterationMetric) float64 { return m.RollingAvgCostUSD },
+	},
+	{
+		name: metricRollingAvgCostPerBeadUSD,
+		pick: func(m IterationMetric) float64 { return m.RollingAvgCostPerBeadUSD },
 	},
 	{
 		name: metricRollingPreflightFailure,
@@ -122,6 +127,7 @@ type IterationMetric struct {
 	RollingAvgValidationMs       float64                   `json:"rolling_avg_validation_ms"`
 	RollingP95ValidationMs       float64                   `json:"rolling_p95_validation_ms"`
 	RollingAvgCostUSD            float64                   `json:"rolling_avg_cost_usd"`
+	RollingAvgCostPerBeadUSD     float64                   `json:"rolling_avg_cost_per_bead_usd"`
 	RollingAvgMTTRProxyMs        float64                   `json:"rolling_avg_mttr_proxy_ms"`
 	RollingPreflightFailureRate  float64                   `json:"rolling_preflight_failure_rate"`
 	RollingBuildFailureRate      float64                   `json:"rolling_build_failure_rate"`
@@ -170,6 +176,7 @@ type ProcessTrendWindow struct {
 	AvgValidationMs       float64 `json:"avg_validation_ms"`
 	P95ValidationMs       float64 `json:"p95_validation_ms"`
 	AvgCostUSD            float64 `json:"avg_cost_usd"`
+	AvgCostPerBeadUSD     float64 `json:"avg_cost_per_bead_usd"`
 	AvgMTTRProxyMs        float64 `json:"avg_mttr_proxy_ms"`
 	PreflightFailureRate  float64 `json:"preflight_failure_rate"`
 	BuildFailureRate      float64 `json:"build_failure_rate"`
@@ -341,6 +348,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingAvgValidationMs:       w.AvgValidationMs,
 			RollingP95ValidationMs:       w.P95ValidationMs,
 			RollingAvgCostUSD:            w.AvgCostUSD,
+			RollingAvgCostPerBeadUSD:     w.AvgCostPerBeadUSD,
 			RollingAvgMTTRProxyMs:        w.AvgMTTRProxyMs,
 			RollingPreflightFailureRate:  w.PreflightFailureRate,
 			RollingBuildFailureRate:      w.BuildFailureRate,
@@ -378,6 +386,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		AvgValidationMs:       latest.RollingAvgValidationMs,
 		P95ValidationMs:       latest.RollingP95ValidationMs,
 		AvgCostUSD:            latest.RollingAvgCostUSD,
+		AvgCostPerBeadUSD:     latest.RollingAvgCostPerBeadUSD,
 		AvgMTTRProxyMs:        latest.RollingAvgMTTRProxyMs,
 		PreflightFailureRate:  latest.RollingPreflightFailureRate,
 		BuildFailureRate:      latest.RollingBuildFailureRate,
@@ -701,6 +710,12 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 	durations := make([]int64, 0, len(window))
 	validationDurations := make([]int64, 0, len(window))
 
+	type beadAccum struct {
+		totalCost  float64
+		hasSuccess bool
+	}
+	beadCosts := map[string]*beadAccum{}
+
 	for _, e := range window {
 		if e.Success {
 			successes++
@@ -733,6 +748,18 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		costTotal += e.CostUSD
 		durations = append(durations, e.DurationMs)
 
+		if e.BeadID != "" {
+			accum := beadCosts[e.BeadID]
+			if accum == nil {
+				accum = &beadAccum{}
+				beadCosts[e.BeadID] = accum
+			}
+			accum.totalCost += e.CostUSD
+			if e.Success {
+				accum.hasSuccess = true
+			}
+		}
+
 		if e.MTTRProxyMs > 0 {
 			mttrTotal += e.MTTRProxyMs
 			mttrCount++
@@ -751,6 +778,19 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		avgMTTR = float64(mttrTotal) / float64(mttrCount)
 	}
 
+	var completedBeadCostSum float64
+	var completedBeadCount int
+	for _, accum := range beadCosts {
+		if accum.hasSuccess {
+			completedBeadCostSum += accum.totalCost
+			completedBeadCount++
+		}
+	}
+	avgCostPerBead := 0.0
+	if completedBeadCount > 0 {
+		avgCostPerBead = completedBeadCostSum / float64(completedBeadCount)
+	}
+
 	return ProcessTrendWindow{
 		SuccessRate:           float64(successes) / count,
 		FailureRate:           float64(len(window)-successes) / count,
@@ -761,6 +801,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		AvgValidationMs:       avgValidationDuration,
 		P95ValidationMs:       percentileInt64(validationDurations, p95Percentile),
 		AvgCostUSD:            avgCost,
+		AvgCostPerBeadUSD:     avgCostPerBead,
 		AvgMTTRProxyMs:        avgMTTR,
 		PreflightFailureRate:  float64(preflightFailures) / count,
 		BuildFailureRate:      float64(buildFailures) / count,
