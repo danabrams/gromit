@@ -252,10 +252,7 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 	r.log("Red phase context: timeout=%s source=%s", redMeta.EffectiveTimeout.Round(time.Second), redMeta.TimeoutSource)
 	redPhaseStart := time.Now()
 	if err := r.methodologyExec.RunAcceptanceTestsWithRetry(redCtx, bc); err != nil {
-		r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
-		setPhaseAttribution(bc.Result, "red", err)
-		bc.Result.Error = fmt.Errorf("acceptance tests phase failed: %w", err)
-		return false
+		return r.failATDDRedPhase(bc, redPhaseStart, err, "acceptance tests phase failed")
 	}
 
 	checkErr := r.methodologyExec.CheckTestsFailWithDiagnostic(redCtx, bc)
@@ -268,10 +265,7 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 
 		rewrite, ok := methodology.AsATDDRewrite(checkErr)
 		if !ok {
-			r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
-			setPhaseAttribution(bc.Result, "red", checkErr)
-			bc.Result.Error = fmt.Errorf("acceptance tests diagnostic check failed: %w", checkErr)
-			return false
+			return r.failATDDRedPhase(bc, redPhaseStart, checkErr, "acceptance tests diagnostic check failed")
 		}
 		if !r.runATDDRewriteRetryCheck(redCtx, bc, redPhaseStart, rewrite) {
 			return false
@@ -293,6 +287,13 @@ func (r *Runner) runATDDPreBuildPhases(ctx context.Context, bc *runtypes.BeadCon
 	return true
 }
 
+func (r *Runner) failATDDRedPhase(bc *runtypes.BeadContext, redPhaseStart time.Time, phaseErr error, message string) bool {
+	r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
+	setPhaseAttribution(bc.Result, "red", phaseErr)
+	bc.Result.Error = fmt.Errorf("%s: %w", message, phaseErr)
+	return false
+}
+
 func (r *Runner) runATDDRewriteRetryCheck(
 	redCtx context.Context,
 	bc *runtypes.BeadContext,
@@ -303,20 +304,14 @@ func (r *Runner) runATDDRewriteRetryCheck(
 	bc.PromptCtx.IsRetry = true
 
 	if err := r.methodologyExec.RunAcceptanceTests(redCtx, bc); err != nil {
-		r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
-		setPhaseAttribution(bc.Result, "red", err)
-		bc.Result.Error = fmt.Errorf("acceptance tests rewrite phase failed: %w", err)
-		return false
+		return r.failATDDRedPhase(bc, redPhaseStart, err, "acceptance tests rewrite phase failed")
 	}
 
 	r.refreshTouchedPackagesFromStartCommit(bc)
 	acceptanceCommands := methodology.AcceptanceCommands(r.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
 	validationResult, err := r.runDirectValidationCheck(redCtx, acceptanceCommands, bc.PromptCtx.WorkDir)
 	if err != nil {
-		r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
-		setPhaseAttribution(bc.Result, "red", err)
-		bc.Result.Error = fmt.Errorf("post-rewrite acceptance validation invocation: %w", err)
-		return false
+		return r.failATDDRedPhase(bc, redPhaseStart, err, "post-rewrite acceptance validation invocation")
 	}
 	if validationResult == nil {
 		r.recordPhaseMetric(bc, "red", 1, redPhaseStart, false)
