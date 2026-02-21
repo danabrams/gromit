@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
-	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -24,6 +25,12 @@ type InvokeFn func(ctx context.Context, bc *runtypes.BeadContext, prompt string)
 
 // ValidateDirectFn runs validation commands directly and returns the result.
 type ValidateDirectFn func(ctx context.Context, commands []string, workDir string) (*claude.Result, error)
+
+// DiagnosticInvokeFn executes a diagnostic Claude invocation with a prompt and tier.
+type DiagnosticInvokeFn func(ctx context.Context, prompt string, tier string) (*claude.Result, error)
+
+// RenderDiagnosticFn renders the ATDD diagnostic prompt from a prompt context.
+type RenderDiagnosticFn func(ctx *prompt.DiagnosticContext) (string, error)
 
 // CoverageValidateFn validates coverage for a test code snippet and criterion.
 type CoverageValidateFn func(ctx context.Context, testCode string, criterion coverage.Criterion) (*coverage.ValidationResponse, error)
@@ -42,6 +49,8 @@ type Executor struct {
 	getDiffFn          GetDiffFn
 	renderRefactorFn   RenderRefactorFn
 	refactorInvokeFn   RefactorInvokeFn
+	diagnosticInvokeFn DiagnosticInvokeFn
+	renderDiagnosticFn RenderDiagnosticFn
 	gitResetFn         GitResetFn
 	getGitHeadFn       GetGitHeadFn
 }
@@ -86,6 +95,12 @@ func (e *Executor) SetGetDiffFn(fn GetDiffFn) {
 // SetCoverageValidateFn sets the coverage validation callback.
 func (e *Executor) SetCoverageValidateFn(fn CoverageValidateFn) {
 	e.coverageValidateFn = fn
+}
+
+// SetDiagnosticDeps sets the diagnostic-phase dependencies.
+func (e *Executor) SetDiagnosticDeps(diagnosticInvokeFn DiagnosticInvokeFn, renderDiagnosticFn RenderDiagnosticFn) {
+	e.diagnosticInvokeFn = diagnosticInvokeFn
+	e.renderDiagnosticFn = renderDiagnosticFn
 }
 
 // SetRefactorDeps sets the refactor-phase dependencies.
@@ -305,6 +320,72 @@ func (e *Executor) VerifyAcceptanceTestsPass(ctx context.Context, bc *runtypes.B
 
 	e.log("Acceptance tests passed")
 	return nil
+}
+
+// CheckTestsFailWithDiagnostic verifies tests fail before implementation and,
+// when they unexpectedly pass, runs a diagnostic prompt to classify the result.
+func (e *Executor) CheckTestsFailWithDiagnostic(ctx context.Context, bc *runtypes.BeadContext) error {
+	if !e.cfg.Validation.Enabled {
+		return fmt.Errorf("validation is not enabled - cannot verify tests fail")
+	}
+	if e.validateFn == nil {
+		return fmt.Errorf("validate function not configured")
+	}
+
+	e.refreshTouchedPackages(bc)
+	acceptanceCommands := AcceptanceCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+	valResult, err := e.validateFn(ctx, acceptanceCommands, bc.PromptCtx.WorkDir)
+	if err != nil {
+		return fmt.Errorf("validation invocation: %w", err)
+	}
+	if valResult == nil {
+		return fmt.Errorf("validation returned no result")
+	}
+
+	// Expected red-phase behavior.
+	if !claude.IsValidationPassed(valResult) {
+		return nil
+	}
+
+	if e.getDiffFn == nil {
+		return fmt.Errorf("get diff function not configured")
+	}
+	testDiff, err := e.getDiffFn(bc.StartCommit)
+	if err != nil {
+		return fmt.Errorf("getting test diff: %w", err)
+	}
+
+	if e.renderDiagnosticFn == nil {
+		return fmt.Errorf("render diagnostic function not configured")
+	}
+	diagnosticCtx := &prompt.DiagnosticContext{
+		BeadTitle:          bc.Bead.Title,
+		BeadDescription:    bc.Bead.Description,
+		AcceptanceCriteria: bc.Bead.AcceptanceCriteria,
+		TestDiff:           testDiff,
+		TestOutput:         valResult.Output,
+	}
+	diagnosticPrompt, err := e.renderDiagnosticFn(diagnosticCtx)
+	if err != nil {
+		return fmt.Errorf("rendering diagnostic prompt: %w", err)
+	}
+
+	if e.diagnosticInvokeFn == nil {
+		return fmt.Errorf("diagnostic invoke function not configured")
+	}
+	diagnosticResult, err := e.diagnosticInvokeFn(ctx, diagnosticPrompt, provider.TierLow)
+	if err != nil {
+		return ErrATDDAlreadyDone
+	}
+	if diagnosticResult == nil {
+		return ErrATDDAlreadyDone
+	}
+
+	verdict, feedback := parseDiagnosticVerdict(diagnosticResult.Output)
+	if verdict == diagnosticVerdictRewrite {
+		return &ErrATDDRewrite{Feedback: feedback}
+	}
+	return ErrATDDAlreadyDone
 }
 
 func summarizeAcceptanceFailureOutput(output string) string {

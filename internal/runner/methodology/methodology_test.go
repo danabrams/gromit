@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -863,6 +864,198 @@ func TestParseDiagnosticVerdict(t *testing.T) {
 				t.Fatalf("parseDiagnosticVerdict() feedback = %q, want %q", gotFeedback, tt.wantFeedback)
 			}
 		})
+	}
+}
+
+func TestCheckTestsFailWithDiagnostic_ReturnsNilWhenTestsFail(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	getDiffCalled := false
+	renderCalled := false
+	invokeCalled := false
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{
+			Success:  true,
+			Output:   "FAIL: TestSomething",
+			ExitCode: 1,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	exec.SetGetDiffFn(func(startCommit string) (string, error) {
+		getDiffCalled = true
+		return "diff --git a/a_test.go b/a_test.go", nil
+	})
+	exec.SetDiagnosticDeps(
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			invokeCalled = true
+			return &claude.Result{Success: true, Output: "VERDICT: ALREADY_DONE", ExitCode: 0}, nil
+		},
+		func(ctx *prompt.DiagnosticContext) (string, error) {
+			renderCalled = true
+			return "diagnostic prompt", nil
+		},
+	)
+
+	bc := newTestBeadContext()
+	if err := exec.CheckTestsFailWithDiagnostic(context.Background(), bc); err != nil {
+		t.Fatalf("CheckTestsFailWithDiagnostic returned unexpected error: %v", err)
+	}
+	if getDiffCalled {
+		t.Fatal("getDiffFn should not be called when tests already fail")
+	}
+	if renderCalled {
+		t.Fatal("renderDiagnosticFn should not be called when tests already fail")
+	}
+	if invokeCalled {
+		t.Fatal("diagnosticInvokeFn should not be called when tests already fail")
+	}
+}
+
+func TestCheckTestsFailWithDiagnostic_ReturnsAlreadyDoneFromDiagnosticVerdict(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{
+			Success:  true,
+			Output:   "VALIDATION_PASSED",
+			ExitCode: 0,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	exec.SetGetDiffFn(func(startCommit string) (string, error) {
+		return "diff --git a/internal/runner/foo_test.go b/internal/runner/foo_test.go\n+new assertion", nil
+	})
+
+	var capturedCtx *prompt.DiagnosticContext
+	var capturedTier string
+	exec.SetDiagnosticDeps(
+		func(ctx context.Context, diagnosticPrompt string, tier string) (*claude.Result, error) {
+			capturedTier = tier
+			if diagnosticPrompt != "diagnostic prompt" {
+				t.Fatalf("diagnostic prompt = %q, want %q", diagnosticPrompt, "diagnostic prompt")
+			}
+			return &claude.Result{
+				Success:  true,
+				Output:   "VERDICT: ALREADY_DONE",
+				ExitCode: 0,
+			}, nil
+		},
+		func(ctx *prompt.DiagnosticContext) (string, error) {
+			capturedCtx = ctx
+			return "diagnostic prompt", nil
+		},
+	)
+
+	bc := newTestBeadContext()
+	bc.Bead.Description = "Bead details"
+	bc.Bead.AcceptanceCriteria = "must support scenario A"
+	bc.StartCommit = "abc123"
+
+	err := exec.CheckTestsFailWithDiagnostic(context.Background(), bc)
+	if !IsATDDAlreadyDone(err) {
+		t.Fatalf("expected ErrATDDAlreadyDone, got: %v", err)
+	}
+	if capturedCtx == nil {
+		t.Fatal("expected diagnostic context to be passed to render function")
+	}
+	if capturedCtx.BeadTitle != bc.Bead.Title {
+		t.Fatalf("BeadTitle = %q, want %q", capturedCtx.BeadTitle, bc.Bead.Title)
+	}
+	if capturedCtx.BeadDescription != bc.Bead.Description {
+		t.Fatalf("BeadDescription = %q, want %q", capturedCtx.BeadDescription, bc.Bead.Description)
+	}
+	if capturedCtx.AcceptanceCriteria != bc.Bead.AcceptanceCriteria {
+		t.Fatalf("AcceptanceCriteria = %q, want %q", capturedCtx.AcceptanceCriteria, bc.Bead.AcceptanceCriteria)
+	}
+	if capturedCtx.TestOutput != "VALIDATION_PASSED" {
+		t.Fatalf("TestOutput = %q, want %q", capturedCtx.TestOutput, "VALIDATION_PASSED")
+	}
+	if !strings.Contains(capturedCtx.TestDiff, "foo_test.go") {
+		t.Fatalf("expected test diff in diagnostic context, got %q", capturedCtx.TestDiff)
+	}
+	if capturedTier != provider.TierLow {
+		t.Fatalf("diagnostic invoke tier = %q, want %q", capturedTier, provider.TierLow)
+	}
+}
+
+func TestCheckTestsFailWithDiagnostic_ReturnsRewriteFromDiagnosticVerdict(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{
+			Success:  true,
+			Output:   "VALIDATION_PASSED",
+			ExitCode: 0,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	exec.SetGetDiffFn(func(startCommit string) (string, error) {
+		return "diff --git a/internal/runner/foo_test.go b/internal/runner/foo_test.go\n+new assertion", nil
+	})
+	exec.SetDiagnosticDeps(
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			return &claude.Result{
+				Success:  true,
+				Output:   "VERDICT: REWRITE\nStrengthen assertions for missing behavior.",
+				ExitCode: 0,
+			}, nil
+		},
+		func(ctx *prompt.DiagnosticContext) (string, error) {
+			return "diagnostic prompt", nil
+		},
+	)
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	err := exec.CheckTestsFailWithDiagnostic(context.Background(), bc)
+	rewriteErr, ok := AsATDDRewrite(err)
+	if !ok {
+		t.Fatalf("expected ErrATDDRewrite, got: %v", err)
+	}
+	if rewriteErr.Feedback != "Strengthen assertions for missing behavior." {
+		t.Fatalf("rewrite feedback = %q, want %q", rewriteErr.Feedback, "Strengthen assertions for missing behavior.")
+	}
+}
+
+func TestCheckTestsFailWithDiagnostic_FallsBackToAlreadyDoneWhenDiagnosticInvokeFails(t *testing.T) {
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{
+			Success:  true,
+			Output:   "VALIDATION_PASSED",
+			ExitCode: 0,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	exec.SetGetDiffFn(func(startCommit string) (string, error) {
+		return "diff --git a/internal/runner/foo_test.go b/internal/runner/foo_test.go\n+new assertion", nil
+	})
+	exec.SetDiagnosticDeps(
+		func(ctx context.Context, prompt string, tier string) (*claude.Result, error) {
+			return nil, fmt.Errorf("diagnostic invocation failed")
+		},
+		func(ctx *prompt.DiagnosticContext) (string, error) {
+			return "diagnostic prompt", nil
+		},
+	)
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	err := exec.CheckTestsFailWithDiagnostic(context.Background(), bc)
+	if !IsATDDAlreadyDone(err) {
+		t.Fatalf("expected ErrATDDAlreadyDone fallback, got: %v", err)
 	}
 }
 
