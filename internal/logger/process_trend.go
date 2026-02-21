@@ -1036,7 +1036,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		return ProcessTrendWindow{}
 	}
 
-	var successes, firstPasses, reworkIterations, escalations int
+	var successes, firstPasses, escalations int
 	var preflightFailures, buildFailures, validationFailures, timeoutFailures int
 	var durationTotal int64
 	var validationDurationTotal int64
@@ -1054,8 +1054,6 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		}
 		if e.FirstPassSuccess {
 			firstPasses++
-		} else {
-			reworkIterations++
 		}
 		if e.Escalated {
 			escalations++
@@ -1090,7 +1088,9 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		}
 	}
 
-	count := float64(len(window))
+	totalIterations := len(window)
+	count := float64(totalIterations)
+	reworkIterations := totalIterations - firstPasses
 	avgDuration := float64(durationTotal) / count
 	avgValidationDuration := 0.0
 	if validationDurationCount > 0 {
