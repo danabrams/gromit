@@ -768,6 +768,37 @@ func TestRunFullValidationGate_ResetsElapsedBeforeValidation(t *testing.T) {
 	}
 }
 
+func TestRunValidationCommandsWithElapsed_IncrementsValidationTimeouts(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:      true,
+			FastCommands: []string{"go test ./..."},
+		},
+		Preflight: config.PreflightConfig{},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "timed out", 1, context.DeadlineExceeded
+	}
+
+	r := &Runner{
+		cfg:              cfg,
+		output:           &strings.Builder{},
+		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
+	}
+	bc := newValidationDurationBeadContext(t, 0)
+
+	err := r.runValidationCommandsWithElapsed(context.Background(), bc, cfg.Validation.FastCommandsOrDefault(), "fast")
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if got := bc.Result.ValidationTimeouts; got != 1 {
+		t.Fatalf("ValidationTimeouts = %d, want 1", got)
+	}
+}
+
 func TestMaybeRunPeriodicFullValidation_UsesCadenceAndFullCommands(t *testing.T) {
 	cfg := &config.Config{
 		Validation: config.ValidationConfig{

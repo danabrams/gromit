@@ -28,6 +28,7 @@ func TestIterationLog_ValidationDurationMsJSONTag(t *testing.T) {
 		BeadID:               "test-1",
 		Model:                "sonnet",
 		ValidationDurationMs: 1800,
+		ValidationTimeouts:   1,
 	}
 
 	data, err := json.Marshal(log)
@@ -37,6 +38,9 @@ func TestIterationLog_ValidationDurationMsJSONTag(t *testing.T) {
 	if !strings.Contains(string(data), "\"validation_duration_ms\":1800") {
 		t.Fatalf("expected validation_duration_ms in JSON, got %s", string(data))
 	}
+	if !strings.Contains(string(data), "\"validation_timeouts\":1") {
+		t.Fatalf("expected validation_timeouts in JSON, got %s", string(data))
+	}
 
 	emptyData, err := json.Marshal(IterationLog{})
 	if err != nil {
@@ -44,6 +48,34 @@ func TestIterationLog_ValidationDurationMsJSONTag(t *testing.T) {
 	}
 	if strings.Contains(string(emptyData), "validation_duration_ms") {
 		t.Fatalf("expected validation_duration_ms to be omitted, got %s", string(emptyData))
+	}
+	if strings.Contains(string(emptyData), "validation_timeouts") {
+		t.Fatalf("expected validation_timeouts to be omitted, got %s", string(emptyData))
+	}
+}
+
+func TestIterationLog_FallbackCountersJSONTags(t *testing.T) {
+	log := &IterationLog{
+		BeadID:            "bead-fallback",
+		Model:             "sonnet",
+		FallbackAttempts:  2,
+		FallbackSuccesses: 1,
+		FallbackFailures:  1,
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"fallback_attempts\":2") {
+		t.Fatalf("expected fallback_attempts in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"fallback_successes\":1") {
+		t.Fatalf("expected fallback_successes in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"fallback_failures\":1") {
+		t.Fatalf("expected fallback_failures in JSON, got %s", s)
 	}
 }
 

@@ -164,6 +164,7 @@ func TestWriteIterationLog_PropagatesValidationDurationMs(t *testing.T) {
 		Model:                "sonnet",
 		Success:              true,
 		ValidationDurationMs: 1450,
+		ValidationTimeouts:   2,
 		Duration:             1 * time.Second,
 	}
 
@@ -174,6 +175,39 @@ func TestWriteIterationLog_PropagatesValidationDurationMs(t *testing.T) {
 
 	if logEntry.ValidationDurationMs != 1450 {
 		t.Errorf("expected ValidationDurationMs=1450, got %d", logEntry.ValidationDurationMs)
+	}
+	if logEntry.ValidationTimeouts != 2 {
+		t.Errorf("expected ValidationTimeouts=2, got %d", logEntry.ValidationTimeouts)
+	}
+}
+
+func TestWriteIterationLog_PropagatesFallbackCounters(t *testing.T) {
+	r, tmpDir := newTestRunnerWithLogger(t, false)
+
+	result := &IterationResult{
+		BeadID:            "test-fallback-counters",
+		BeadTitle:         "Fallback counters",
+		Model:             "sonnet",
+		Success:           false,
+		FallbackAttempts:  3,
+		FallbackSuccesses: 1,
+		FallbackFailures:  2,
+		Duration:          1 * time.Second,
+	}
+
+	r.writeIterationLog(2, result)
+
+	var logEntry logger.IterationLog
+	unmarshalSingleIterationLogInto(t, tmpDir, &logEntry)
+
+	if logEntry.FallbackAttempts != 3 {
+		t.Errorf("expected FallbackAttempts=3, got %d", logEntry.FallbackAttempts)
+	}
+	if logEntry.FallbackSuccesses != 1 {
+		t.Errorf("expected FallbackSuccesses=1, got %d", logEntry.FallbackSuccesses)
+	}
+	if logEntry.FallbackFailures != 2 {
+		t.Errorf("expected FallbackFailures=2, got %d", logEntry.FallbackFailures)
 	}
 }
 

@@ -572,6 +572,15 @@ func TestMakeMethodologyExec_ATDDFallbacksOnStartupErrorAndLogsStructuredDecisio
 	if fallbackCalls != 1 {
 		t.Fatalf("fallback calls = %d, want 1", fallbackCalls)
 	}
+	if got := bc.Result.FallbackAttempts; got != 1 {
+		t.Fatalf("FallbackAttempts = %d, want 1", got)
+	}
+	if got := bc.Result.FallbackSuccesses; got != 1 {
+		t.Fatalf("FallbackSuccesses = %d, want 1", got)
+	}
+	if got := bc.Result.FallbackFailures; got != 0 {
+		t.Fatalf("FallbackFailures = %d, want 0", got)
+	}
 
 	logText := output.String()
 	if !strings.Contains(logText, "ATDD_FALLBACK_DECISION class=startup_error primary_provider=primary-provider primary_model=test-haiku fallback_provider=auto fallback_model=auto reason=primary_error") {

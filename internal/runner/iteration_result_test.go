@@ -1,6 +1,9 @@
 package runner
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 // TestIterationResult_HasRateLimitRecoveryMsField verifies that IterationResult
 // struct has a RateLimitRecoveryMs field for tracking rate limit recovery time.
@@ -43,5 +46,30 @@ func TestIterationResult_HasProviderAndFailureCategoryFields(t *testing.T) {
 	}
 	if result.FailureCategory != "rate_limited" {
 		t.Errorf("expected FailureCategory=%q, got %q", "rate_limited", result.FailureCategory)
+	}
+}
+
+func TestIterationResult_HasFallbackAndValidationTimeoutFields(t *testing.T) {
+	result := &IterationResult{}
+
+	recordFallbackAttempt(result)
+	recordFallbackOutcome(result, true)
+	recordFallbackAttempt(result)
+	recordFallbackOutcome(result, false)
+	recordValidationTimeout(result, context.DeadlineExceeded)
+	recordValidationTimeout(result, context.Canceled)
+	recordValidationTimeout(result, nil)
+
+	if result.FallbackAttempts != 2 {
+		t.Errorf("expected FallbackAttempts=2, got %d", result.FallbackAttempts)
+	}
+	if result.FallbackSuccesses != 1 {
+		t.Errorf("expected FallbackSuccesses=1, got %d", result.FallbackSuccesses)
+	}
+	if result.FallbackFailures != 1 {
+		t.Errorf("expected FallbackFailures=1, got %d", result.FallbackFailures)
+	}
+	if result.ValidationTimeouts != 2 {
+		t.Errorf("expected ValidationTimeouts=2, got %d", result.ValidationTimeouts)
 	}
 }

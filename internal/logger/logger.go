@@ -40,6 +40,7 @@ type IterationLog struct {
 	UsageLimited            bool      `json:"usage_limited,omitempty"`
 	ValidationMode          string    `json:"validation_mode,omitempty"`
 	ValidationDurationMs    int64     `json:"validation_duration_ms,omitempty"`
+	ValidationTimeouts      int       `json:"validation_timeouts,omitempty"`
 	CompilationErrors       bool      `json:"compilation_errors,omitempty"`
 	HardStopPendingApproval bool      `json:"hard_stop_pending_approval,omitempty"`
 
@@ -52,6 +53,9 @@ type IterationLog struct {
 	StallTier           string `json:"stall_tier,omitempty"`             // "initial" or "active"
 	RateLimitHits       int    `json:"rate_limit_hits,omitempty"`        // rate limit events detected
 	RateLimitRecoveryMs int64  `json:"rate_limit_recovery_ms,omitempty"` // ms to recover from most recent rate limit
+	FallbackAttempts    int    `json:"fallback_attempts,omitempty"`      // fallback attempts in this iteration
+	FallbackSuccesses   int    `json:"fallback_successes,omitempty"`     // successful fallback outcomes
+	FallbackFailures    int    `json:"fallback_failures,omitempty"`      // failed fallback outcomes
 
 	AcceptanceFailureSummary  string `json:"acceptance_failure_summary,omitempty"`
 	AcceptanceFailureOutput   string `json:"acceptance_failure_output,omitempty"`

@@ -372,6 +372,37 @@ func setPhaseAttribution(result *IterationResult, phase string, err error) {
 	}
 }
 
+func recordFallbackAttempt(result *IterationResult) {
+	if result == nil {
+		return
+	}
+	result.FallbackAttempts++
+}
+
+func recordFallbackOutcome(result *IterationResult, success bool) {
+	if result == nil {
+		return
+	}
+	if success {
+		result.FallbackSuccesses++
+		return
+	}
+	result.FallbackFailures++
+}
+
+func recordValidationTimeout(result *IterationResult, err error) {
+	if result == nil || err == nil {
+		return
+	}
+	if isTimeoutOrCanceledError(err) {
+		result.ValidationTimeouts++
+		return
+	}
+	if errors.Is(err, errValidationFailed) && strings.Contains(strings.ToLower(result.Output), "timed out") {
+		result.ValidationTimeouts++
+	}
+}
+
 // wrapPhaseError wraps an error with phase attribution for timeout and cancellation errors.
 func wrapPhaseError(phase string, err error) error {
 	if err == nil {

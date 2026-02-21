@@ -85,6 +85,7 @@ type IterationResult struct {
 	UsageLimited            bool   // true when invocation failed due to usage/rate limit
 	ValidationMode          string // "direct" when validation ran via shell commands
 	ValidationDurationMs    int64  // time spent in validation in milliseconds
+	ValidationTimeouts      int    // count of validation command timeouts/cancellations
 	CompilationErrors       bool   // true when pre-build compilation check found errors
 	HardStopPendingApproval bool   // true when hard-stop action requires explicit human approval
 
@@ -97,6 +98,9 @@ type IterationResult struct {
 	StallTier           string // "initial" or "active"
 	RateLimitHits       int
 	RateLimitRecoveryMs int64 // ms to recover from most recent rate limit
+	FallbackAttempts    int   // number of fallback attempts triggered this iteration
+	FallbackSuccesses   int   // successful fallback outcomes this iteration
+	FallbackFailures    int   // failed fallback outcomes this iteration
 
 	AcceptanceFailureSummary  string // short summary for JSONL
 	AcceptanceFailureOutput   string // captured validation output from failed acceptance verification

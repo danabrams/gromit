@@ -545,9 +545,11 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			}
 
 			r.logATDDFallbackAttempt(failureClass, p.Name(), modelName, p2.Name(), modelName2)
+			recordFallbackAttempt(bc.Result)
 			fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
 			applyCostData(fallbackStats)
 			r.logATDDFallbackOutcome(failureClass, p.Name(), modelName, p2.Name(), modelName2, fallbackResult, fallbackErr)
+			recordFallbackOutcome(bc.Result, fallbackErr == nil && fallbackResult != nil && fallbackResult.Success)
 			return p2, modelName2, fallbackResult, fallbackErr, true
 		}
 		if err != nil {
@@ -555,9 +557,11 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				r.router.MarkUnavailable(p.Name())
 				p2, modelName2 := r.router.Select(atddBuildPhase, bc.Tier)
 				if p2 != nil {
+					recordFallbackAttempt(bc.Result)
 					setSelectedModel(modelName2)
 					result, stats, err = streamInvoke(p2, modelName2, "usage-limit-fallback")
 					applyCostData(stats)
+					recordFallbackOutcome(bc.Result, err == nil && result != nil && result.Success)
 					p = p2
 					modelName = modelName2
 				}

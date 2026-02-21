@@ -543,5 +543,6 @@ func (r *Runner) runValidationCommandsWithElapsed(ctx context.Context, bc *runty
 	r.validationRunner.ResetElapsed()
 	valErr := r.validationRunner.RunWithRecoveryForCommands(ctx, bc, commands, stage)
 	bc.Result.ValidationDurationMs += r.validationRunner.ElapsedMs()
+	recordValidationTimeout(bc.Result, valErr)
 	return valErr
 }
