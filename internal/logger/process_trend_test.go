@@ -317,34 +317,40 @@ func TestBuildProcessTrend_HasExpectedControlLimitsWithPhaseRates(t *testing.T) 
 func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *testing.T) {
 	metrics := []IterationMetric{
 		{
-			Success:              true,
-			FirstPassSuccess:     true,
-			DurationMs:           100,
-			CostUSD:              1,
-			RollingSuccessRate:   0.6,
-			RollingReworkRate:    0.25,
-			RollingAvgDurationMs: 275,
-			RollingAvgCostUSD:    3.5,
+			Success:               true,
+			FirstPassSuccess:      true,
+			DurationMs:            100,
+			CostUSD:               1,
+			InputTokens:           100,
+			RollingSuccessRate:    0.6,
+			RollingReworkRate:     0.25,
+			RollingAvgDurationMs:  275,
+			RollingAvgCostUSD:     3.5,
+			RollingAvgInputTokens: 275,
 		},
 		{
-			Success:              false,
-			FirstPassSuccess:     false,
-			DurationMs:           300,
-			CostUSD:              4,
-			RollingSuccessRate:   0.6,
-			RollingReworkRate:    0.25,
-			RollingAvgDurationMs: 275,
-			RollingAvgCostUSD:    3.5,
+			Success:               false,
+			FirstPassSuccess:      false,
+			DurationMs:            300,
+			CostUSD:               4,
+			InputTokens:           300,
+			RollingSuccessRate:    0.6,
+			RollingReworkRate:     0.25,
+			RollingAvgDurationMs:  275,
+			RollingAvgCostUSD:     3.5,
+			RollingAvgInputTokens: 275,
 		},
 		{
-			Success:              true,
-			FirstPassSuccess:     false,
-			DurationMs:           500,
-			CostUSD:              7,
-			RollingSuccessRate:   0.6,
-			RollingReworkRate:    0.25,
-			RollingAvgDurationMs: 275,
-			RollingAvgCostUSD:    3.5,
+			Success:               true,
+			FirstPassSuccess:      false,
+			DurationMs:            500,
+			CostUSD:               7,
+			InputTokens:           500,
+			RollingSuccessRate:    0.6,
+			RollingReworkRate:     0.25,
+			RollingAvgDurationMs:  275,
+			RollingAvgCostUSD:     3.5,
+			RollingAvgInputTokens: 275,
 		},
 	}
 
@@ -374,6 +380,14 @@ func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *test
 	assertFloatNear(t, costLimit.Mean, 4, "CostMean")
 	assertFloatNear(t, costLimit.StdDev, 2.449489743, "CostStdDev")
 
+	inputTokensLimit, ok := findControlLimit(trend.ControlLimits, metricRollingAvgInputTokens)
+	if !ok {
+		t.Fatalf("control limits missing %q", metricRollingAvgInputTokens)
+	}
+	assertFloatNear(t, inputTokensLimit.Latest, 275, "InputTokensLatest")
+	assertFloatNear(t, inputTokensLimit.Mean, 300, "InputTokensMean")
+	assertFloatNear(t, inputTokensLimit.StdDev, 163.2993162, "InputTokensStdDev")
+
 	reworkLimit, ok := findControlLimit(trend.ControlLimits, metricRollingReworkRate)
 	if !ok {
 		t.Fatalf("control limits missing %q", metricRollingReworkRate)
@@ -385,9 +399,9 @@ func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *test
 
 func TestBuildIterationMetrics_ComputesEWMAStateForCoreMetrics(t *testing.T) {
 	entries := []IterationLog{
-		{Timestamp: time.Now(), Success: true, DurationMs: 100, CostUSD: 1},
-		{Timestamp: time.Now().Add(time.Second), Success: false, DurationMs: 300, CostUSD: 4},
-		{Timestamp: time.Now().Add(2 * time.Second), Success: true, DurationMs: 500, CostUSD: 7},
+		{Timestamp: time.Now(), Success: true, DurationMs: 100, CostUSD: 1, InputTokens: 1000},
+		{Timestamp: time.Now().Add(time.Second), Success: false, DurationMs: 300, CostUSD: 4, InputTokens: 2000},
+		{Timestamp: time.Now().Add(2 * time.Second), Success: true, DurationMs: 500, CostUSD: 7, InputTokens: 5000},
 	}
 
 	metrics := buildIterationMetrics(entries, 30)
@@ -404,6 +418,7 @@ func TestBuildIterationMetrics_ComputesEWMAStateForCoreMetrics(t *testing.T) {
 
 	assertFloatNear(t, last.EWMACostUSD.Z, 2.2825, "CostEWMAZ")
 	assertFloatNear(t, last.EWMADurationMs.Z, 185.5, "DurationEWMAZ")
+	assertFloatNear(t, last.EWMAInputTokens.Z, 1727.5, "InputTokensEWMAZ")
 }
 
 func TestBuildProcessTrend_IncludesEWMAAnomalies(t *testing.T) {
@@ -465,6 +480,22 @@ func TestBuildProcessTrend_IncludesRollingAvgValidationControlLimit(t *testing.T
 	if _, ok := findControlLimit(trend.ControlLimits, metricRollingAvgValidationMs); !ok {
 		t.Fatalf("control limits missing %q", metricRollingAvgValidationMs)
 	}
+}
+
+func TestBuildProcessTrend_IncludesRollingAvgInputTokensControlLimitAndLatestWindow(t *testing.T) {
+	entries := []IterationLog{
+		{Timestamp: time.Now(), InputTokens: 1000, Success: true},
+		{Timestamp: time.Now().Add(time.Second), InputTokens: 2000, Success: true},
+		{Timestamp: time.Now().Add(2 * time.Second), InputTokens: 4000, Success: true},
+	}
+
+	metrics := buildIterationMetrics(entries, 3)
+	trend := buildProcessTrend(metrics, 3)
+
+	if _, ok := findControlLimit(trend.ControlLimits, metricRollingAvgInputTokens); !ok {
+		t.Fatalf("control limits missing %q", metricRollingAvgInputTokens)
+	}
+	assertFloatNear(t, trend.LatestWindow.AvgInputTokens, 2333.3333333, "LatestWindow.AvgInputTokens")
 }
 
 func TestBuildIterationMetrics_ComputesRollingReworkRate(t *testing.T) {

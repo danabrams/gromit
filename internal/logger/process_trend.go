@@ -38,6 +38,7 @@ const (
 	metricRollingAvgDurationMs     = "rolling_avg_duration_ms"
 	metricRollingAvgValidationMs   = "rolling_avg_validation_ms"
 	metricRollingAvgCostUSD        = "rolling_avg_cost_usd"
+	metricRollingAvgInputTokens    = "rolling_avg_input_tokens"
 	metricRollingPreflightFailure  = "rolling_preflight_failure_rate"
 	metricRollingBuildFailure      = "rolling_build_failure_rate"
 	metricRollingValidationFailure = "rolling_validation_failure_rate"
@@ -46,6 +47,7 @@ const (
 	metricEWMASuccessRate          = "ewma_success_rate"
 	metricEWMACostUSD              = "ewma_cost_usd"
 	metricEWMADurationMs           = "ewma_duration_ms"
+	metricEWMAInputTokens          = "ewma_input_tokens"
 	transportDisconnectFailure     = "transport_disconnect"
 	stratumProviderPrefix          = "provider:"
 	stratumModelPrefix             = "model:"
@@ -108,6 +110,11 @@ var trendControlLimitSeries = []metricSeriesDefinition{
 		historySample: func(m IterationMetric) float64 { return m.CostUSD },
 	},
 	{
+		name:          metricRollingAvgInputTokens,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingAvgInputTokens },
+		historySample: func(m IterationMetric) float64 { return float64(m.InputTokens) },
+	},
+	{
 		name:          metricRollingAvgCostPerBeadUSD,
 		latestSample:  func(m IterationMetric) float64 { return m.RollingAvgCostPerBeadUSD },
 		historySample: func(m IterationMetric) float64 { return m.RollingAvgCostPerBeadUSD },
@@ -147,6 +154,10 @@ var trendEWMASeries = []ewmaSeriesDefinition{
 		name:  metricEWMADurationMs,
 		state: func(m IterationMetric) EWMAMetricState { return m.EWMADurationMs },
 	},
+	{
+		name:  metricEWMAInputTokens,
+		state: func(m IterationMetric) EWMAMetricState { return m.EWMAInputTokens },
+	},
 }
 
 // IterationMetric stores a single iteration with rolling-window process metrics.
@@ -178,6 +189,7 @@ type IterationMetric struct {
 	RollingAvgValidationMs       float64                   `json:"rolling_avg_validation_ms"`
 	RollingP95ValidationMs       float64                   `json:"rolling_p95_validation_ms"`
 	RollingAvgCostUSD            float64                   `json:"rolling_avg_cost_usd"`
+	RollingAvgInputTokens        float64                   `json:"rolling_avg_input_tokens"`
 	RollingAvgCostPerBeadUSD     float64                   `json:"rolling_avg_cost_per_bead_usd"`
 	RollingAvgMTTRProxyMs        float64                   `json:"rolling_avg_mttr_proxy_ms"`
 	RollingPreflightFailureRate  float64                   `json:"rolling_preflight_failure_rate"`
@@ -187,6 +199,7 @@ type IterationMetric struct {
 	EWMASuccessRate              EWMAMetricState           `json:"ewma_success_rate"`
 	EWMACostUSD                  EWMAMetricState           `json:"ewma_cost_usd"`
 	EWMADurationMs               EWMAMetricState           `json:"ewma_duration_ms"`
+	EWMAInputTokens              EWMAMetricState           `json:"ewma_input_tokens"`
 	FilesTouched                 int                       `json:"files_touched,omitempty"`
 	PromptDiagnostics            *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 }
@@ -243,6 +256,7 @@ type ProcessTrendWindow struct {
 	AvgValidationMs       float64 `json:"avg_validation_ms"`
 	P95ValidationMs       float64 `json:"p95_validation_ms"`
 	AvgCostUSD            float64 `json:"avg_cost_usd"`
+	AvgInputTokens        float64 `json:"avg_input_tokens"`
 	AvgCostPerBeadUSD     float64 `json:"avg_cost_per_bead_usd"`
 	AvgMTTRProxyMs        float64 `json:"avg_mttr_proxy_ms"`
 	PreflightFailureRate  float64 `json:"preflight_failure_rate"`
@@ -444,10 +458,12 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 	successValues := make([]float64, 0, len(entries))
 	costValues := make([]float64, 0, len(entries))
 	durationValues := make([]float64, 0, len(entries))
+	inputTokenValues := make([]float64, 0, len(entries))
 	var (
 		prevSuccessZ  float64
 		prevCostZ     float64
 		prevDurationZ float64
+		prevInputZ    float64
 		hasPrevious   bool
 	)
 	for idx, entry := range entries {
@@ -460,16 +476,20 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 		successValue := boolToFloat64(entry.Success)
 		costValue := entry.CostUSD
 		durationValue := float64(entry.DurationMs)
+		inputTokenValue := float64(entry.InputTokens)
 		successValues = append(successValues, successValue)
 		costValues = append(costValues, costValue)
 		durationValues = append(durationValues, durationValue)
+		inputTokenValues = append(inputTokenValues, inputTokenValue)
 
 		successEWMA := computeEWMAState(metricEWMASuccessRate, successValue, successValues, prevSuccessZ, hasPrevious)
 		costEWMA := computeEWMAState(metricEWMACostUSD, costValue, costValues, prevCostZ, hasPrevious)
 		durationEWMA := computeEWMAState(metricEWMADurationMs, durationValue, durationValues, prevDurationZ, hasPrevious)
+		inputTokenEWMA := computeEWMAState(metricEWMAInputTokens, inputTokenValue, inputTokenValues, prevInputZ, hasPrevious)
 		prevSuccessZ = successEWMA.Z
 		prevCostZ = costEWMA.Z
 		prevDurationZ = durationEWMA.Z
+		prevInputZ = inputTokenEWMA.Z
 		hasPrevious = true
 
 		metrics = append(metrics, IterationMetric{
@@ -502,6 +522,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingAvgValidationMs:       w.AvgValidationMs,
 			RollingP95ValidationMs:       w.P95ValidationMs,
 			RollingAvgCostUSD:            w.AvgCostUSD,
+			RollingAvgInputTokens:        w.AvgInputTokens,
 			RollingAvgCostPerBeadUSD:     w.AvgCostPerBeadUSD,
 			RollingAvgMTTRProxyMs:        w.AvgMTTRProxyMs,
 			RollingPreflightFailureRate:  w.PreflightFailureRate,
@@ -511,6 +532,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			EWMASuccessRate:              successEWMA,
 			EWMACostUSD:                  costEWMA,
 			EWMADurationMs:               durationEWMA,
+			EWMAInputTokens:              inputTokenEWMA,
 		})
 	}
 
@@ -548,6 +570,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		AvgValidationMs:       latestMetric.RollingAvgValidationMs,
 		P95ValidationMs:       latestMetric.RollingP95ValidationMs,
 		AvgCostUSD:            latestMetric.RollingAvgCostUSD,
+		AvgInputTokens:        latestMetric.RollingAvgInputTokens,
 		AvgCostPerBeadUSD:     latestMetric.RollingAvgCostPerBeadUSD,
 		AvgMTTRProxyMs:        latestMetric.RollingAvgMTTRProxyMs,
 		PreflightFailureRate:  latestMetric.RollingPreflightFailureRate,
@@ -1042,6 +1065,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 	var validationDurationTotal int64
 	var validationDurationCount int
 	var costTotal float64
+	var inputTokenTotal int64
 	var mttrTotal int64
 	var mttrCount int
 	durations := make([]int64, 0, len(window))
@@ -1078,6 +1102,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 			validationDurations = append(validationDurations, e.ValidationDurationMs)
 		}
 		costTotal += e.CostUSD
+		inputTokenTotal += int64(e.InputTokens)
 		durations = append(durations, e.DurationMs)
 
 		updateBeadCostAccum(beadCosts, e)
@@ -1097,6 +1122,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		avgValidationDuration = float64(validationDurationTotal) / float64(validationDurationCount)
 	}
 	avgCost := costTotal / count
+	avgInputTokens := float64(inputTokenTotal) / count
 	avgMTTR := 0.0
 	if mttrCount > 0 {
 		avgMTTR = float64(mttrTotal) / float64(mttrCount)
@@ -1115,6 +1141,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		AvgValidationMs:       avgValidationDuration,
 		P95ValidationMs:       percentileInt64(validationDurations, p95Percentile),
 		AvgCostUSD:            avgCost,
+		AvgInputTokens:        avgInputTokens,
 		AvgCostPerBeadUSD:     avgCostPerBead,
 		AvgMTTRProxyMs:        avgMTTR,
 		PreflightFailureRate:  float64(preflightFailures) / count,
