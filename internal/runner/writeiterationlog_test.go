@@ -248,7 +248,7 @@ func TestWriteIterationLog_PropagatesPromptDiagnostics(t *testing.T) {
 	}
 }
 
-func TestWriteIterationLog_PropagatesProviderAndFailureCategory(t *testing.T) {
+func TestWriteIterationLog_PropagatesProviderAndFailureClassificationFields(t *testing.T) {
 	r, tmpDir := newTestRunnerWithLogger(t, false)
 	result := &IterationResult{
 		BeadID:          "test-provider-category",
@@ -257,6 +257,8 @@ func TestWriteIterationLog_PropagatesProviderAndFailureCategory(t *testing.T) {
 		ReasoningEffort: "low",
 		Provider:        "codex",
 		FailureCategory: "transport_disconnect",
+		FailureLayer:    "execution",
+		FailureSubCat:   "provider_transport",
 		Success:         false,
 		Duration:        1 * time.Second,
 		Error:           fmt.Errorf("invoke failed"),
@@ -274,6 +276,12 @@ func TestWriteIterationLog_PropagatesProviderAndFailureCategory(t *testing.T) {
 	}
 	if got := entry["failure_category"]; got != "transport_disconnect" {
 		t.Fatalf("failure_category = %v, want %q", got, "transport_disconnect")
+	}
+	if got := entry["failure_layer"]; got != "execution" {
+		t.Fatalf("failure_layer = %v, want %q", got, "execution")
+	}
+	if got := entry["failure_sub_cat"]; got != "provider_transport" {
+		t.Fatalf("failure_sub_cat = %v, want %q", got, "provider_transport")
 	}
 }
 

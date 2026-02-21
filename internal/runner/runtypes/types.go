@@ -101,6 +101,8 @@ type IterationResult struct {
 	FallbackAttempts    int   // number of fallback attempts triggered this iteration
 	FallbackSuccesses   int   // successful fallback outcomes this iteration
 	FallbackFailures    int   // failed fallback outcomes this iteration
+	FailureLayer        string
+	FailureSubCat       string
 
 	AcceptanceFailureSummary  string // short summary for JSONL
 	AcceptanceFailureOutput   string // captured validation output from failed acceptance verification

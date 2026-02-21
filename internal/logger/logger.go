@@ -56,6 +56,8 @@ type IterationLog struct {
 	FallbackAttempts    int    `json:"fallback_attempts,omitempty"`      // fallback attempts in this iteration
 	FallbackSuccesses   int    `json:"fallback_successes,omitempty"`     // successful fallback outcomes
 	FallbackFailures    int    `json:"fallback_failures,omitempty"`      // failed fallback outcomes
+	FailureLayer        string `json:"failure_layer,omitempty"`
+	FailureSubCat       string `json:"failure_sub_cat,omitempty"`
 
 	AcceptanceFailureSummary  string `json:"acceptance_failure_summary,omitempty"`
 	AcceptanceFailureOutput   string `json:"acceptance_failure_output,omitempty"`

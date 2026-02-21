@@ -209,6 +209,8 @@ func newIterationLogEntry(iteration int, result *IterationResult, errStr, outcom
 		FallbackAttempts:          result.FallbackAttempts,
 		FallbackSuccesses:         result.FallbackSuccesses,
 		FallbackFailures:          result.FallbackFailures,
+		FailureLayer:              result.FailureLayer,
+		FailureSubCat:             result.FailureSubCat,
 		AcceptanceFailureSummary:  result.AcceptanceFailureSummary,
 		AcceptanceFailureOutput:   result.AcceptanceFailureOutput,
 		AcceptanceFailureArtifact: artifactPath,
