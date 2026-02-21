@@ -170,6 +170,23 @@ Gromit separates **planning** (human-guided) from **execution** (autonomous):
 
 For simple projects, you can also manage tasks directly and skip straight to `gromit run`.
 
+### Interactive Agent Selection
+
+Interactive commands (`refine`, `plan`, `review`, `explore`, `debug`) support agent selection by CLI flag or config phase defaults.
+
+```bash
+# One-off override for a debug session
+gromit debug --agent codex "Cache miss flapping in production"
+```
+
+```yaml
+agents:
+  phases:
+    debug: codex
+```
+
+Use `--choose-agent` on interactive commands to open a picker at launch time.
+
 ## How It Works
 
 ### The Execution Loop
