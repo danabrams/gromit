@@ -60,7 +60,7 @@ func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipelin
 	tier := provider.TierFromLegacyModel(model)
 	phase := a.Phase
 	if phase == "" {
-		phase = "review"
+		phase = reviewSessionCommand
 	}
 
 	selectedProvider, _ := a.Router.Select(phase, tier)
@@ -94,6 +94,8 @@ func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipelin
 type beadClientAdapter struct {
 	Client *bead.Client
 }
+
+var _ pipeline.BeadClient = (*beadClientAdapter)(nil)
 
 // toBeadInfo converts a bead.Bead to pipeline.BeadInfo.
 func toBeadInfo(b *bead.Bead) *pipeline.BeadInfo {

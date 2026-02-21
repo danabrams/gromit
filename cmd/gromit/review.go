@@ -546,7 +546,7 @@ func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.ClaudeClient,
 		return &providerRouterClientAdapter{
 			Router:  router,
 			Timeout: timeout,
-			Phase:   "review",
+			Phase:   reviewSessionCommand,
 		}, nil
 	}
 
@@ -658,6 +658,8 @@ type cliBacklogClient struct {
 	beadClient *bead.Client
 }
 
+var _ pipeline.BacklogClient = (*cliBacklogClient)(nil)
+
 func (c *cliBacklogClient) List() ([]*pipeline.Idea, error) {
 	return nil, fmt.Errorf("not implemented")
 }
@@ -687,6 +689,8 @@ type cliLearningsManager struct {
 	runner    learnings.ClaudeRunner
 }
 
+var _ pipeline.LearningsManager = (*cliLearningsManager)(nil)
+
 func (m *cliLearningsManager) Add(content string) error {
 	learningsFile, err := learnings.NewFile(m.gromitDir)
 	if err != nil {
@@ -702,7 +706,7 @@ func (m *cliLearningsManager) Add(content string) error {
 		return err
 	}
 
-	_, err = learningsFile.Add("review", content, learnings.CategoryPatterns)
+	_, err = learningsFile.Add(reviewSessionCommand, content, learnings.CategoryPatterns)
 	return err
 }
 
@@ -738,6 +742,8 @@ type cliLogWriter struct {
 	logsDir                   string
 	promptDiagnosticsProvider func() *prompt.PromptDiagnostics
 }
+
+var _ pipeline.LogWriter = (*cliLogWriter)(nil)
 
 func (w *cliLogWriter) Write(entry any) error {
 	log, err := logger.NewLogger(w.logsDir)
@@ -780,6 +786,8 @@ func (w *cliLogWriter) Write(entry any) error {
 type cliStateManager struct {
 	gromitDir string
 }
+
+var _ pipeline.StateManager = (*cliStateManager)(nil)
 
 func (m *cliStateManager) GetLastReviewCommit() (string, error) {
 	sf, err := state.NewInteractiveFile(m.gromitDir)
