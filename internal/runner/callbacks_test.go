@@ -666,6 +666,101 @@ func TestMakeMethodologyExec_WiresCoverageValidationCallbackAtLowTier(t *testing
 	}
 }
 
+func TestMakeMethodologyExec_WiresDiagnosticDepsWithRendererAndLowTierRouterInvoke(t *testing.T) {
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./internal/runner/..."},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	workDir := t.TempDir()
+	var validateCommand string
+	var validateWorkDir string
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		validateCommand = command
+		validateWorkDir = workDir
+		return "ok", "", 0, nil
+	}
+
+	var gotDiagnosticCtx *prompt.DiagnosticContext
+	const renderedDiagnosticPrompt = "diagnostic prompt text"
+	var gotInvokeTier string
+	var gotInvokePrompt string
+	mockProvider := &mockProviderWithRouterTracking{
+		runFn: func(ctx context.Context, promptText, tier string) (*provider.Result, error) {
+			gotInvokeTier = tier
+			gotInvokePrompt = promptText
+			return &provider.Result{
+				Success: true,
+				Output:  "VERDICT: ALREADY_DONE",
+			}, nil
+		},
+	}
+
+	r := &Runner{
+		cfg:              cfg,
+		router:           provider.NewSingleProviderRouter(mockProvider),
+		output:           io.Discard,
+		validationRunner: validation.NewRunner(cfg, cmdRunner, nil, nil),
+		gitDiffFn: func(fromCommit string) (string, error) {
+			return "diff --git a/internal/runner/runner_test.go b/internal/runner/runner_test.go\n+new test", nil
+		},
+		renderer: &mockPromptRenderer{
+			RenderATDDDiagnosticFn: func(ctx *prompt.DiagnosticContext) (string, error) {
+				gotDiagnosticCtx = ctx
+				return renderedDiagnosticPrompt, nil
+			},
+		},
+	}
+
+	methExec := r.makeMethodologyExec()
+	if methExec == nil {
+		t.Fatal("expected makeMethodologyExec to return executor")
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
+			ID:                 "b-diag-wiring",
+			Title:              "Diagnostic wiring",
+			Description:        "ensure diagnostic callback wiring",
+			AcceptanceCriteria: "criterion 1",
+		},
+		StartCommit: "abc123",
+		Tier:        provider.TierMedium,
+		Result:      &runtypes.IterationResult{},
+		PromptCtx:   &prompt.Context{WorkDir: workDir},
+	}
+
+	err := methExec.CheckTestsFailWithDiagnostic(context.Background(), bc)
+	if !methodology.IsATDDAlreadyDone(err) {
+		t.Fatalf("CheckTestsFailWithDiagnostic() error = %v, want ErrATDDAlreadyDone", err)
+	}
+	if gotDiagnosticCtx == nil {
+		t.Fatal("expected RenderATDDDiagnostic callback to be invoked")
+	}
+	if gotDiagnosticCtx.BeadTitle != bc.Bead.Title {
+		t.Fatalf("DiagnosticContext.BeadTitle = %q, want %q", gotDiagnosticCtx.BeadTitle, bc.Bead.Title)
+	}
+	if gotDiagnosticCtx.TestOutput != "VALIDATION_PASSED" {
+		t.Fatalf("DiagnosticContext.TestOutput = %q, want %q", gotDiagnosticCtx.TestOutput, "VALIDATION_PASSED")
+	}
+	if gotInvokeTier != provider.TierLow {
+		t.Fatalf("diagnostic invoke tier = %q, want %q", gotInvokeTier, provider.TierLow)
+	}
+	if gotInvokePrompt != renderedDiagnosticPrompt {
+		t.Fatalf("diagnostic invoke prompt = %q, want %q", gotInvokePrompt, renderedDiagnosticPrompt)
+	}
+	if !strings.Contains(validateCommand, "-tags acceptance") {
+		t.Fatalf("expected acceptance tags in validation command, got %q", validateCommand)
+	}
+	if validateWorkDir != workDir {
+		t.Fatalf("validation workDir = %q, want %q", validateWorkDir, workDir)
+	}
+}
+
 func TestMakeTDDOrchestrator_CoverageTrackerFlow(t *testing.T) {
 	t.Parallel()
 

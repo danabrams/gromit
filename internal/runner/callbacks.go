@@ -682,6 +682,46 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		return r.getDiff(startCommit)
 	}
 
+	diagnosticInvokeFn := func(ctx context.Context, promptText string, tier string) (*claude.Result, error) {
+		if r.router == nil {
+			return nil, fmt.Errorf("router not configured")
+		}
+		p, modelName := r.router.Select("build", tier)
+		if p == nil {
+			return nil, fmt.Errorf("no providers available for phase=%s tier=%s", "build", tier)
+		}
+		result, err := p.Run(ctx, promptText, tier)
+		if err != nil && p.IsUsageLimitError(result, err) {
+			r.router.MarkUnavailable(p.Name())
+			p2, modelName2 := r.router.Select("build", tier)
+			if p2 != nil {
+				result, err = p2.Run(ctx, promptText, tier)
+				p = p2
+				modelName = modelName2
+			}
+		}
+		if err != nil {
+			return nil, fmt.Errorf("atdd diagnostic provider invocation failed (provider=%s model=%s): %w", p.Name(), modelName, err)
+		}
+		if result == nil {
+			return nil, fmt.Errorf("atdd diagnostic returned nil result")
+		}
+		return &claude.Result{
+			Success:  result.Success,
+			Output:   result.Output,
+			ExitCode: result.ExitCode,
+			Duration: result.Duration,
+			Model:    modelName,
+		}, nil
+	}
+
+	renderDiagnosticFn := func(ctx *prompt.DiagnosticContext) (string, error) {
+		if r.renderer == nil {
+			return "", fmt.Errorf("renderer not configured")
+		}
+		return r.renderer.RenderATDDDiagnostic(ctx)
+	}
+
 	// Create the base executor with ATDD callbacks
 	methExec := methodology.NewExecutorWithEscalation(r.cfg, r.output, renderFn, invokeFn, validateFn, escalateTierFn)
 
@@ -689,6 +729,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 	methExec.SetAnalyzeFn(analyzeFn)
 	methExec.SetGetDiffFn(getDiffFn)
 	methExec.SetCoverageValidateFn(r.makeCoverageValidateFn())
+	methExec.SetDiagnosticDeps(diagnosticInvokeFn, renderDiagnosticFn)
 
 	// Wire refactor deps
 	methExec.SetRefactorDeps(methodology.NewRefactorDeps(
