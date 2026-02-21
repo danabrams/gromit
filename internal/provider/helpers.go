@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// IsValidationPassed checks if the result contains the VALIDATION_PASSED marker.
-// This is a shared helper used by all providers to detect successful validation.
+// IsValidationPassed is a shared pure output-matching helper used by all providers.
+// It detects successful validation by looking for the VALIDATION_PASSED marker.
 func IsValidationPassed(result *Result) bool {
 	if result == nil {
 		return false
@@ -14,8 +14,8 @@ func IsValidationPassed(result *Result) bool {
 	return result.Success && strings.Contains(result.Output, "VALIDATION_PASSED")
 }
 
-// IsScopeTooLarge checks if the result contains SCOPE_TOO_LARGE marker at the start of a line.
-// Returns true and the explanation text if the scope is too large, false otherwise.
+// IsScopeTooLarge is a shared pure output-matching helper.
+// It detects SCOPE_TOO_LARGE at line start and returns its first-paragraph explanation.
 func IsScopeTooLarge(result *Result) (bool, string) {
 	if result == nil {
 		return false, ""
@@ -49,7 +49,7 @@ func IsScopeTooLarge(result *Result) (bool, string) {
 	return true, explanation
 }
 
-// GetScopeTooLargeBreakdown extracts the full breakdown text after SCOPE_TOO_LARGE marker.
+// GetScopeTooLargeBreakdown returns all content after a SCOPE_TOO_LARGE line-start marker.
 func GetScopeTooLargeBreakdown(result *Result) string {
 	if result == nil {
 		return ""
