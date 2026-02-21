@@ -7,22 +7,35 @@ import (
 	"testing"
 )
 
-func TestResolveTaggedHarnessContext(t *testing.T) {
-	t.Parallel()
+func mustMkdirAll(t *testing.T, dirs ...string) {
+	t.Helper()
 
-	root := t.TempDir()
-	testDir := filepath.Join(root, "test")
-	contractsDir := filepath.Join(testDir, "contracts")
-	e2eDir := filepath.Join(testDir, "e2e")
-	fakesDir := filepath.Join(testDir, "fakes")
-	fixturesDir := filepath.Join(testDir, "fixtures")
-	cmdDir := filepath.Join(root, "cmd", "gromit")
-
-	for _, dir := range []string{contractsDir, e2eDir, fakesDir, fixturesDir, cmdDir} {
+	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("mkdir %s: %v", dir, err)
 		}
 	}
+}
+
+func setupTaggedHarnessLayout(t *testing.T) (root, contractsDir, e2eDir, fakesDir, fixturesDir, cmdDir string) {
+	t.Helper()
+
+	root = t.TempDir()
+	testDir := filepath.Join(root, "test")
+	contractsDir = filepath.Join(testDir, "contracts")
+	e2eDir = filepath.Join(testDir, "e2e")
+	fakesDir = filepath.Join(testDir, "fakes")
+	fixturesDir = filepath.Join(testDir, "fixtures")
+	cmdDir = filepath.Join(root, "cmd", "gromit")
+
+	mustMkdirAll(t, contractsDir, e2eDir, fakesDir, fixturesDir, cmdDir)
+	return root, contractsDir, e2eDir, fakesDir, fixturesDir, cmdDir
+}
+
+func TestResolveTaggedHarnessContext(t *testing.T) {
+	t.Parallel()
+
+	_, contractsDir, _, fakesDir, fixturesDir, cmdDir := setupTaggedHarnessLayout(t)
 
 	ctx, err := ResolveTaggedHarnessContext(contractsDir)
 	if err != nil {
@@ -45,19 +58,7 @@ func TestResolveTaggedHarnessContext(t *testing.T) {
 func TestResolveTaggedHarnessContext_FromRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	testDir := filepath.Join(root, "test")
-	contractsDir := filepath.Join(testDir, "contracts")
-	e2eDir := filepath.Join(testDir, "e2e")
-	fakesDir := filepath.Join(testDir, "fakes")
-	fixturesDir := filepath.Join(testDir, "fixtures")
-	cmdDir := filepath.Join(root, "cmd", "gromit")
-
-	for _, dir := range []string{contractsDir, e2eDir, fakesDir, fixturesDir, cmdDir} {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatalf("mkdir %s: %v", dir, err)
-		}
-	}
+	root, _, _, fakesDir, fixturesDir, cmdDir := setupTaggedHarnessLayout(t)
 
 	ctx, err := ResolveTaggedHarnessContext(root)
 	if err != nil {
@@ -104,12 +105,7 @@ func TestResolveTaggedHarnessContext_ValidatesRequiredDirs(t *testing.T) {
 	root := t.TempDir()
 	e2eDir := filepath.Join(root, "test", "e2e")
 	contractsDir := filepath.Join(root, "test", "contracts")
-	if err := os.MkdirAll(e2eDir, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", e2eDir, err)
-	}
-	if err := os.MkdirAll(contractsDir, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", contractsDir, err)
-	}
+	mustMkdirAll(t, e2eDir, contractsDir)
 
 	_, err := ResolveTaggedHarnessContext(e2eDir)
 	if err == nil {

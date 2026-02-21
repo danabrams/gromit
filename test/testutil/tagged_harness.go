@@ -11,6 +11,10 @@ const (
 	testDirName      = "test"
 	contractsDirName = "contracts"
 	e2eDirName       = "e2e"
+	fakesDirName     = "fakes"
+	fixturesDirName  = "fixtures"
+	cmdDirName       = "cmd"
+	gromitDirName    = "gromit"
 )
 
 // TaggedHarnessContext captures required paths for contract/e2e harness execution.
@@ -41,9 +45,9 @@ func ResolveTaggedHarnessContext(workingDir string) (TaggedHarnessContext, error
 
 	ctx := TaggedHarnessContext{
 		WorkingDir:   absWorkingDir,
-		FakesDir:     filepath.Join(testDir, "fakes"),
-		FixturesDir:  filepath.Join(testDir, "fixtures"),
-		CmdGromitDir: filepath.Join(repoRoot, "cmd", "gromit"),
+		FakesDir:     filepath.Join(testDir, fakesDirName),
+		FixturesDir:  filepath.Join(testDir, fixturesDirName),
+		CmdGromitDir: filepath.Join(repoRoot, cmdDirName, gromitDirName),
 	}
 
 	if err := assertExistingDir(ctx.FakesDir, "fakes dir"); err != nil {
@@ -91,20 +95,16 @@ func hasTaggedHarnessLayout(root string) bool {
 	if !isExistingDir(filepath.Join(testDir, e2eDirName)) {
 		return false
 	}
-	if !isExistingDir(filepath.Join(testDir, "fakes")) {
+	if !isExistingDir(filepath.Join(testDir, fakesDirName)) {
 		return false
 	}
-	if !isExistingDir(filepath.Join(testDir, "fixtures")) {
+	if !isExistingDir(filepath.Join(testDir, fixturesDirName)) {
 		return false
 	}
-	if !isExistingDir(filepath.Join(root, "cmd", "gromit")) {
+	if !isExistingDir(filepath.Join(root, cmdDirName, gromitDirName)) {
 		return false
 	}
 	return true
-}
-
-func isTaggedHarnessLeaf(leaf string) bool {
-	return leaf == contractsDirName || leaf == e2eDirName
 }
 
 func assertExistingDir(path, label string) error {
