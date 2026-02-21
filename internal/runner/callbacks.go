@@ -119,6 +119,15 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 			setFailurePhaseIfResult(bc, failurephase.Build)
 			return nil, fmt.Errorf("claude returned nil result")
 		}
+		if providerResult == nil {
+			providerResult = &provider.Result{
+				Success:  invResult.Result.Success,
+				Output:   invResult.Result.Output,
+				ExitCode: invResult.Result.ExitCode,
+				Duration: invResult.Result.Duration,
+				Model:    invResult.Result.Model,
+			}
+		}
 
 		bc.Result.Provider = invResult.ProviderName
 		if invResult.ProviderResult != nil {
@@ -137,8 +146,8 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		}
 
 		// Check scope-too-large
-		if isTooLarge, explanation := claude.IsScopeTooLarge(invResult.Result); isTooLarge {
-			r.handleScopeTooLarge(bc, invResult.Result, explanation)
+		if isTooLarge, explanation := provider.IsScopeTooLarge(providerResult); isTooLarge {
+			r.handleScopeTooLarge(bc, providerResult, explanation)
 			setFailurePhaseIfResult(bc, failurephase.Build)
 			return invResult, bc.Result.Error
 		}
@@ -655,7 +664,17 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 
 	// ValidateDirectFn wraps the validation runner's direct validation
 	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
-		return r.runDirectValidationCheck(ctx, commands, workDir)
+		result, err := r.runDirectValidationCheck(ctx, commands, workDir)
+		if err != nil || result == nil {
+			return nil, err
+		}
+		return &claude.Result{
+			Success:  result.Success,
+			Output:   result.Output,
+			ExitCode: result.ExitCode,
+			Duration: result.Duration,
+			Model:    result.Model,
+		}, nil
 	}
 
 	// EscalateTierFn wraps escalation.Handler.EscalateTier

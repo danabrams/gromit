@@ -13,6 +13,8 @@ import (
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
+var _ = claude.Result{}
+
 // makeValidationExecuteFn creates a validation.ExecuteFn callback that wraps
 // the escalation handler's ExecuteWithRetry for Claude-based validation fix attempts.
 func (r *Runner) makeValidationExecuteFn() validation.ExecuteFn {
@@ -89,7 +91,7 @@ func (r *Runner) makeReviewValidateFn() reviewpkg.ValidateFn {
 		if err != nil {
 			return false, err
 		}
-		return result != nil && claude.IsValidationPassed(result), nil
+		return result != nil && provider.IsValidationPassed(result), nil
 	}
 }
 

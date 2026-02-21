@@ -189,8 +189,8 @@ func (r *Runner) executeClaudeInvocation(ctx context.Context, bc *runtypes.BeadC
 
 // handleScopeTooLarge processes the scope-too-large signal from Claude.
 // Always sets bc.Result.Error and returns false (stop processing).
-func (r *Runner) handleScopeTooLarge(bc *runtypes.BeadContext, claudeResult *claude.Result, explanation string) {
-	breakdown := claude.GetScopeTooLargeBreakdown(claudeResult)
+func (r *Runner) handleScopeTooLarge(bc *runtypes.BeadContext, result *provider.Result, explanation string) {
+	breakdown := provider.GetScopeTooLargeBreakdown(result)
 	if breakdown == "" {
 		breakdown = explanation
 	}
@@ -247,11 +247,24 @@ func injectScopedTestCommand(bc *runtypes.BeadContext) {
 }
 
 // runDirectValidationCheck delegates to the validation.Runner's RunDirect method.
-func (r *Runner) runDirectValidationCheck(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+func (r *Runner) runDirectValidationCheck(ctx context.Context, commands []string, workDir string) (*provider.Result, error) {
 	if r.validationRunner == nil {
 		return nil, fmt.Errorf("validationRunner not wired — all constructors must wire validationRunner")
 	}
-	return r.validationRunner.RunDirect(ctx, commands, workDir)
+	validationResult, err := r.validationRunner.RunDirect(ctx, commands, workDir)
+	if err != nil {
+		return nil, err
+	}
+	if validationResult == nil {
+		return nil, fmt.Errorf("validation returned nil result")
+	}
+	return &provider.Result{
+		Success:  validationResult.Success,
+		Output:   validationResult.Output,
+		ExitCode: validationResult.ExitCode,
+		Duration: validationResult.Duration,
+		Model:    validationResult.Model,
+	}, nil
 }
 
 // runRefactorWithRouter executes a refactor invocation using the router with automatic fallback.

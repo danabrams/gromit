@@ -102,10 +102,10 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	// Set up heartbeat for progress display and stall detection.
 	// When preserving provider-native terminal streams, disable heartbeat so
 	// progress lines don't interfere with provider-owned terminal rendering.
-	var toolCallEvents chan claude.ToolEvent
+	var toolCallEvents chan provider.ToolEvent
 	var stopHeartbeat func()
 	if inv.overwriteOut != nil && !preserveProviderTerminalStream {
-		toolCallEvents = make(chan claude.ToolEvent, toolCallEventBufferSize)
+		toolCallEvents = make(chan provider.ToolEvent, toolCallEventBufferSize)
 		var stallTimeout, stallTimeoutActive time.Duration
 		if inv.stallTimeoutFn != nil {
 			stallTimeout, stallTimeoutActive = inv.stallTimeoutFn(modelName)
@@ -135,10 +135,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		providerToolHandler = func(event provider.ToolEvent) {
 			if toolCallEvents != nil {
 				select {
-				case toolCallEvents <- claude.ToolEvent{
-					ToolName: event.ToolName,
-					FilePath: event.FilePath,
-				}:
+				case toolCallEvents <- event:
 				default:
 				}
 			}

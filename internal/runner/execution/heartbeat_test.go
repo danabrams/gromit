@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // --- OverwriteWriter mock ---
@@ -183,14 +183,14 @@ func TestStartHeartbeat_ToolCallEventsUpdateDisplay(t *testing.T) {
 	}
 
 	out := &mockOverwriteWriter{}
-	toolCallEvents := make(chan claude.ToolEvent, 10)
+	toolCallEvents := make(chan provider.ToolEvent, 10)
 
 	stop := StartHeartbeatWithConfig(stats, 0, 0, nil, cfg, toolCallEvents, out)
 
 	// Send tool call events
 	for i := 0; i < 3; i++ {
 		stats.RecordToolCall("Edit", "/tmp/file.go")
-		toolCallEvents <- claude.ToolEvent{
+		toolCallEvents <- provider.ToolEvent{
 			ToolName:  "Edit",
 			FilePath:  "/tmp/file.go",
 			Timestamp: time.Now(),

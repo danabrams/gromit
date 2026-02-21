@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/failurephase"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -318,7 +318,7 @@ func (r *Runner) runATDDRewriteRetryCheck(
 		bc.Result.Error = fmt.Errorf("post-rewrite acceptance validation returned no result")
 		return false
 	}
-	if claude.IsValidationPassed(validationResult) {
+	if provider.IsValidationPassed(validationResult) {
 		bc.Result.Success = true
 		bc.Result.AlreadyDone = true
 		return false

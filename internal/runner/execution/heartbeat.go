@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/provider"
 )
 
 // HeartbeatConfig holds timing parameters for the heartbeat goroutine.
@@ -26,7 +26,7 @@ var DefaultHeartbeatConfig = HeartbeatConfig{
 
 // StartHeartbeat launches a heartbeat goroutine with default timing config.
 // Returns a function to stop the heartbeat.
-func StartHeartbeat(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), toolCallEvents <-chan claude.ToolEvent, out OverwriteWriter) func() {
+func StartHeartbeat(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), toolCallEvents <-chan provider.ToolEvent, out OverwriteWriter) func() {
 	return StartHeartbeatWithConfig(stats, stallTimeout, stallTimeoutActive, onStall, DefaultHeartbeatConfig, toolCallEvents, out)
 }
 
@@ -37,7 +37,7 @@ func StartHeartbeat(stats *logger.StreamStats, stallTimeout, stallTimeoutActive 
 //
 // The toolCallEvents channel (optional, can be nil) feeds real-time tool call notifications.
 // Returns a function to stop the heartbeat.
-func StartHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), cfg HeartbeatConfig, toolCallEvents <-chan claude.ToolEvent, out OverwriteWriter) func() {
+func StartHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), cfg HeartbeatConfig, toolCallEvents <-chan provider.ToolEvent, out OverwriteWriter) func() {
 	if stats == nil {
 		return func() {}
 	}

@@ -1070,7 +1070,7 @@ func TestHeartbeatWritesNewlineAfterOverwrite(t *testing.T) {
 		StallCheckRate: 10 * time.Millisecond,
 	}
 
-	toolCallEvents := make(chan claude.ToolEvent, 1)
+	toolCallEvents := make(chan provider.ToolEvent, 1)
 	stop := r.startHeartbeatWithConfig(stats, 0, 0, nil, cfg, toolCallEvents)
 
 	waitUntil(t, 500*time.Millisecond, 10*time.Millisecond, func() bool {
@@ -1078,7 +1078,7 @@ func TestHeartbeatWritesNewlineAfterOverwrite(t *testing.T) {
 	}, "expected initial heartbeat output")
 
 	// Send a tool call event to trigger overwrite mode
-	toolCallEvents <- claude.ToolEvent{}
+	toolCallEvents <- provider.ToolEvent{}
 
 	waitUntil(t, 500*time.Millisecond, 10*time.Millisecond, func() bool {
 		return strings.HasSuffix(buf.String(), "\n")

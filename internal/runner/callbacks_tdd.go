@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/tdd"
@@ -137,7 +137,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 					if result == nil {
 						return "", false, fmt.Errorf("validation returned nil result")
 					}
-					passed := claude.IsValidationPassed(result)
+					passed := provider.IsValidationPassed(result)
 					if !passed || tracker == nil || r.methodologyExec == nil || lastRenderedPhase != tddPhaseGreen {
 						return result.Output, passed, nil
 					}

@@ -293,7 +293,7 @@ func TestHandleScopeTooLarge(t *testing.T) {
 		Result: &IterationResult{},
 	}
 
-	result := &claude.Result{
+	result := &provider.Result{
 		Output: "SCOPE_TOO_LARGE: This task is too big\nBreakdown suggestion here",
 	}
 

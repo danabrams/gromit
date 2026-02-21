@@ -7,7 +7,10 @@ import (
 
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/provider"
 )
+
+var _ = claude.ToolEvent{}
 
 // heartbeatInterval is the interval at which Claude's progress is checked and heartbeat status is printed.
 const heartbeatInterval = 30 * time.Second
@@ -35,11 +38,11 @@ var _ = (*Runner).startHeartbeat
 //
 // The toolCallEvents channel (optional, can be nil) feeds real-time tool call notifications.
 // Returns a function to stop the heartbeat.
-func (r *Runner) startHeartbeat(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), toolCallEvents <-chan claude.ToolEvent) func() {
+func (r *Runner) startHeartbeat(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), toolCallEvents <-chan provider.ToolEvent) func() {
 	return r.startHeartbeatWithConfig(stats, stallTimeout, stallTimeoutActive, onStall, defaultHeartbeatConfig, toolCallEvents)
 }
 
-func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), cfg heartbeatConfig, toolCallEvents <-chan claude.ToolEvent) func() {
+func (r *Runner) startHeartbeatWithConfig(stats *logger.StreamStats, stallTimeout, stallTimeoutActive time.Duration, onStall func(), cfg heartbeatConfig, toolCallEvents <-chan provider.ToolEvent) func() {
 	if r == nil || stats == nil {
 		return func() {}
 	}

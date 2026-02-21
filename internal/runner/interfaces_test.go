@@ -1404,9 +1404,9 @@ func TestHandleScopeTooLargeWithMocks(t *testing.T) {
 		Bead:   &bead.Bead{ID: "big-1", Title: "Big Task", Labels: []string{}, ExpectedOutputs: []string{}},
 		Result: &IterationResult{},
 	}
-	claudeResult := &claude.Result{Output: "SCOPE_TOO_LARGE: This task needs to be split"}
+	providerResult := &provider.Result{Output: "SCOPE_TOO_LARGE: This task needs to be split"}
 
-	r.handleScopeTooLarge(bc, claudeResult, "needs split")
+	r.handleScopeTooLarge(bc, providerResult, "needs split")
 
 	if bc.Result.Error == nil || !strings.Contains(bc.Result.Error.Error(), "scope too large") {
 		t.Errorf("expected scope too large error, got: %v", bc.Result.Error)
