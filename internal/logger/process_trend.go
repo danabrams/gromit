@@ -63,6 +63,11 @@ type metricSeriesDefinition struct {
 	historySample func(IterationMetric) float64
 }
 
+type ewmaSeriesDefinition struct {
+	name  string
+	state func(IterationMetric) EWMAMetricState
+}
+
 var trendControlLimitSeries = []metricSeriesDefinition{
 	{
 		name:          metricRollingSuccessRate,
@@ -118,6 +123,21 @@ var trendControlLimitSeries = []metricSeriesDefinition{
 		name:          metricRollingTimeoutFailure,
 		latestSample:  func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate },
 		historySample: func(m IterationMetric) float64 { return m.RollingTimeoutFailureRate },
+	},
+}
+
+var trendEWMASeries = []ewmaSeriesDefinition{
+	{
+		name:  metricEWMASuccessRate,
+		state: func(m IterationMetric) EWMAMetricState { return m.EWMASuccessRate },
+	},
+	{
+		name:  metricEWMACostUSD,
+		state: func(m IterationMetric) EWMAMetricState { return m.EWMACostUSD },
+	},
+	{
+		name:  metricEWMADurationMs,
+		state: func(m IterationMetric) EWMAMetricState { return m.EWMADurationMs },
 	},
 }
 
@@ -514,23 +534,8 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		latestSeries := extractMetric(metrics, metric.latestSample)
 		trend.PatternViolations = append(trend.PatternViolations, detectPatternViolations(metric.name, latestSeries, limit.Mean)...)
 	}
-	ewmaStates := []struct {
-		metric string
-		state  EWMAMetricState
-	}{
-		{metric: metricEWMASuccessRate, state: latestMetric.EWMASuccessRate},
-		{metric: metricEWMACostUSD, state: latestMetric.EWMACostUSD},
-		{metric: metricEWMADurationMs, state: latestMetric.EWMADurationMs},
-	}
-	for _, ewma := range ewmaStates {
-		limit := TrendControlLimit{
-			Metric: ewma.metric,
-			Latest: ewma.state.Z,
-			Mean:   ewma.state.Mean,
-			StdDev: ewma.state.StdDev,
-			UCL:    ewma.state.UCL,
-			LCL:    ewma.state.LCL,
-		}
+	for _, ewma := range trendEWMASeries {
+		limit := controlLimitFromEWMAState(ewma.name, ewma.state(latestMetric))
 		if anomaly, ok := detectAnomaly(limit); ok {
 			trend.EWMAAnomalies = append(trend.EWMAAnomalies, anomaly)
 		}
@@ -548,15 +553,26 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 	return trend
 }
 
+func controlLimitFromEWMAState(metric string, state EWMAMetricState) TrendControlLimit {
+	return TrendControlLimit{
+		Metric: metric,
+		Latest: state.Z,
+		Mean:   state.Mean,
+		StdDev: state.StdDev,
+		UCL:    state.UCL,
+		LCL:    state.LCL,
+	}
+}
+
 func computeEWMAState(metric string, value float64, values []float64, previousZ float64, hasPrevious bool) EWMAMetricState {
 	z := value
 	if hasPrevious {
 		z = ewmaLambda*value + (1-ewmaLambda)*previousZ
 	}
 	mean, stddev := meanAndStdDev(values)
-	scale := math.Sqrt(ewmaLambda / (2 - ewmaLambda))
-	ucl := mean + ewmaSigmaMultiplier*stddev*scale
-	lcl := mean - ewmaSigmaMultiplier*stddev*scale
+	ewmaControlLimitScale := math.Sqrt(ewmaLambda / (2 - ewmaLambda))
+	ucl := mean + ewmaSigmaMultiplier*stddev*ewmaControlLimitScale
+	lcl := mean - ewmaSigmaMultiplier*stddev*ewmaControlLimitScale
 	if isRateMetric(metric) {
 		ucl = clamp(ucl, 0, 1)
 		lcl = clamp(lcl, 0, 1)
