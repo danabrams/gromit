@@ -33,6 +33,10 @@ type CreateSubFn func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTas
 
 const integrityUnsafeStateCategory analyzer.Category = "integrity_unsafe_state"
 const failureContextTruncatedPrefix = "[truncated] "
+const (
+	triageSubCategoryBadPrompt = "bad_prompt"
+	triageSubCategoryBadBead   = "bad_bead"
+)
 
 // InvokeFn executes a single Claude invocation. The facade wraps
 // execution.Invoker.Execute and returns a runtypes.InvocationResult.
@@ -258,6 +262,60 @@ func (h *Handler) addInvocationTokensToCumulative(bc *runtypes.BeadContext) {
 	}
 	bc.CumulativeInputTokens += bc.Result.InputTokens
 	bc.CumulativeOutputTokens += bc.Result.OutputTokens
+}
+
+func (h *Handler) applyTriageClassification(bc *runtypes.BeadContext, triageResult *TriageResult) {
+	if bc == nil || bc.Result == nil || triageResult == nil {
+		return
+	}
+	bc.Result.FailureLayer = string(triageResult.Layer)
+	bc.Result.FailureSubCat = triageResult.SubCategory
+}
+
+func (h *Handler) handleTriageResult(bc *runtypes.BeadContext, triageResult *TriageResult) (continueLoop bool, handled bool) {
+	if triageResult == nil {
+		return false, false
+	}
+	h.applyTriageClassification(bc, triageResult)
+	switch triageResult.Layer {
+	case LayerProviderTransport:
+		return h.handleProviderTransportTriage(bc, triageResult)
+	case LayerEnvironment:
+		bc.Result.Error = fmt.Errorf("environment error: %s", triageResult.Detail)
+		h.setBuildFailurePhase(bc)
+		return false, true
+	case LayerOrchestration:
+		bc.Result.Error = h.orchestrationTriageError(triageResult)
+		h.setBuildFailurePhase(bc)
+		return false, true
+	case LayerCode:
+		// Fall through to existing analyzer flow for code-level failures.
+		return false, false
+	default:
+		return false, false
+	}
+}
+
+func (h *Handler) handleProviderTransportTriage(bc *runtypes.BeadContext, triageResult *TriageResult) (continueLoop bool, handled bool) {
+	if triageResult.Retryable {
+		bc.RetriesThisModel++
+		bc.TotalRetriesThisBead++
+		return true, true
+	}
+	bc.Result.Error = fmt.Errorf("provider authentication failed: check API credentials and provider access")
+	h.setBuildFailurePhase(bc)
+	return false, true
+}
+
+func (h *Handler) orchestrationTriageError(triageResult *TriageResult) error {
+	switch triageResult.SubCategory {
+	case triageSubCategoryBadPrompt:
+		return fmt.Errorf("orchestration error: build prompt is empty")
+	case triageSubCategoryBadBead:
+		return fmt.Errorf("orchestration error: bead description is empty")
+	default:
+		return fmt.Errorf("orchestration error: %s", triageResult.Detail)
+	}
 }
 
 func (h *Handler) truncateFailureContext(failureContext string) string {
@@ -517,37 +575,11 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		}
 
 		triageResult := Triage(invResult, bc)
-		if triageResult != nil {
-			bc.Result.FailureLayer = string(triageResult.Layer)
-			bc.Result.FailureSubCat = triageResult.SubCategory
-			switch triageResult.Layer {
-			case LayerProviderTransport:
-				if triageResult.Retryable {
-					bc.RetriesThisModel++
-					bc.TotalRetriesThisBead++
-					continue
-				}
-				bc.Result.Error = fmt.Errorf("provider authentication failed: check API credentials and provider access")
-				h.setBuildFailurePhase(bc)
-				return false
-			case LayerEnvironment:
-				bc.Result.Error = fmt.Errorf("environment error: %s", triageResult.Detail)
-				h.setBuildFailurePhase(bc)
-				return false
-			case LayerOrchestration:
-				switch triageResult.SubCategory {
-				case "bad_prompt":
-					bc.Result.Error = fmt.Errorf("orchestration error: build prompt is empty")
-				case "bad_bead":
-					bc.Result.Error = fmt.Errorf("orchestration error: bead description is empty")
-				default:
-					bc.Result.Error = fmt.Errorf("orchestration error: %s", triageResult.Detail)
-				}
-				h.setBuildFailurePhase(bc)
-				return false
-			case LayerCode:
-				// Fall through to existing analyzer flow for code-level failures.
+		if continueLoop, handled := h.handleTriageResult(bc, triageResult); handled {
+			if continueLoop {
+				continue
 			}
+			return false
 		}
 
 		// Analyze failure and decide: retry, escalate, or stop
