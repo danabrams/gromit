@@ -192,3 +192,167 @@ func TestEpilogue_ReturnsProceed(t *testing.T) {
 		t.Errorf("Decision = %v, want Proceed", out.Decision)
 	}
 }
+
+// fakeWorktreeMerger is a test double for epilogue.WorktreeMerger.
+type fakeWorktreeMerger struct {
+	branches       []string
+	pendingErr     error
+	mergeErr       error
+	pendingCalled  bool
+	mergedBranches []string
+}
+
+func (f *fakeWorktreeMerger) PendingBranches() ([]string, error) {
+	f.pendingCalled = true
+	return f.branches, f.pendingErr
+}
+
+func (f *fakeWorktreeMerger) MergeBack(branch string) error {
+	f.mergedBranches = append(f.mergedBranches, branch)
+	return f.mergeErr
+}
+
+// fakeCommandRunner is a test double for epilogue.CommandRunner.
+type fakeCommandRunner struct {
+	called      bool
+	lastCommand string
+	stdout      string
+	stderr      string
+	exitCode    int
+	err         error
+}
+
+func (f *fakeCommandRunner) Run(_ context.Context, command string) (string, string, int, error) {
+	f.called = true
+	f.lastCommand = command
+	return f.stdout, f.stderr, f.exitCode, f.err
+}
+
+func boolPtr(b bool) *bool { return &b }
+
+// TestEpilogue_MergesWorktreeBranches verifies that pending worktree branches are merged when
+// worktree is enabled and auto-merge is enabled.
+func TestEpilogue_MergesWorktreeBranches(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"interactive/branch-1", "interactive/branch-2"},
+	}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger)
+
+	// Config zero-value: Worktree.Enabled=nil → IsEnabled()=true, AutoMerge=nil → IsAutoMergeEnabled()=true
+	in := makeInput("bead-1", "Test", true)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !merger.pendingCalled {
+		t.Error("PendingBranches() was not called; want worktree merge attempted")
+	}
+	if len(merger.mergedBranches) != 2 {
+		t.Errorf("merged branches = %v, want 2 branches merged", merger.mergedBranches)
+	}
+}
+
+// TestEpilogue_SkipsMergeWhenWorktreeDisabled verifies that merge is skipped when worktree is disabled.
+func TestEpilogue_SkipsMergeWhenWorktreeDisabled(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"interactive/branch-1"},
+	}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger)
+
+	in := makeInput("bead-1", "Test", true)
+	in.Config.Worktree.Enabled = boolPtr(false)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if merger.pendingCalled {
+		t.Error("PendingBranches() was called; want no merge when worktree disabled")
+	}
+}
+
+// TestEpilogue_SkipsMergeWhenAutoMergeDisabled verifies that merge is skipped when auto-merge is
+// disabled.
+func TestEpilogue_SkipsMergeWhenAutoMergeDisabled(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"interactive/branch-1"},
+	}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger)
+
+	in := makeInput("bead-1", "Test", true)
+	in.Config.Worktree.AutoMerge = boolPtr(false)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if merger.pendingCalled {
+		t.Error("PendingBranches() was called; want no merge when auto-merge disabled")
+	}
+}
+
+// TestEpilogue_RunsBetweenIterationsCommand verifies the between-iterations command is executed.
+func TestEpilogue_RunsBetweenIterationsCommand(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithCommandRunner(runner)
+
+	in := makeInput("bead-1", "Test", true)
+	in.Config.Loop.BetweenIterationsCommand = "echo done"
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !runner.called {
+		t.Error("CommandRunner.Run() was not called; want between-iterations command executed")
+	}
+	if runner.lastCommand != "echo done" {
+		t.Errorf("command = %q, want %q", runner.lastCommand, "echo done")
+	}
+}
+
+// TestEpilogue_SkipsCommandWhenEmpty verifies no command runs when BetweenIterationsCommand is empty.
+func TestEpilogue_SkipsCommandWhenEmpty(t *testing.T) {
+	runner := &fakeCommandRunner{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithCommandRunner(runner)
+
+	in := makeInput("bead-1", "Test", true)
+	// BetweenIterationsCommand defaults to ""
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if runner.called {
+		t.Error("CommandRunner.Run() was called; want no command when BetweenIterationsCommand is empty")
+	}
+}
+
+// TestEpilogue_CommandFailureIsWarning verifies that between-iterations command failure is non-fatal.
+func TestEpilogue_CommandFailureIsWarning(t *testing.T) {
+	runner := &fakeCommandRunner{exitCode: 1, stderr: "something failed"}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithCommandRunner(runner)
+
+	in := makeInput("bead-1", "Test", true)
+	in.Config.Loop.BetweenIterationsCommand = "failing-cmd"
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() returned error %v; want nil (command failures are warnings)", err)
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Errorf("Decision = %v, want Proceed even after command failure", out.Decision)
+	}
+}
