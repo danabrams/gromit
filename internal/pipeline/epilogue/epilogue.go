@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -53,6 +54,12 @@ type FailureLearner interface {
 	ExtractFailureLearning(ctx context.Context, beadID, beadTitle string) error
 }
 
+// IterationLogWriter writes a pre-built iteration log entry to persistent storage.
+// When the entry has UsageLimited=true, the JSONL record includes usage_limited:true.
+type IterationLogWriter interface {
+	Write(log *logger.IterationLog) error
+}
+
 // Epilogue implements pipeline.Stage for Stage 5: bead lifecycle and cleanup.
 // It closes and syncs the bead on the success path, evaluates the spec gate when
 // spec-level methodology is active, merges interactive worktree branches, writes
@@ -62,12 +69,13 @@ type Epilogue struct {
 	beads          BeadLifecycle
 	status         StatusWriter
 	output         io.Writer
-	worktree       WorktreeMerger   // optional; nil means skip worktree merge
-	cmd            CommandRunner    // optional; nil means skip between-iterations command
-	specgate       SpecGateRunner   // optional; nil means skip spec gate
-	review         ThoroughReviewer // optional; nil means skip thorough review
-	epic           EpicChecker      // optional; used with review for epic completion detection
-	failureLearner FailureLearner   // optional; nil means skip failure-path learning
+	worktree       WorktreeMerger     // optional; nil means skip worktree merge
+	cmd            CommandRunner      // optional; nil means skip between-iterations command
+	specgate       SpecGateRunner     // optional; nil means skip spec gate
+	review         ThoroughReviewer   // optional; nil means skip thorough review
+	epic           EpicChecker        // optional; used with review for epic completion detection
+	failureLearner FailureLearner     // optional; nil means skip failure-path learning
+	logWriter      IterationLogWriter // optional; nil means skip iteration log write
 }
 
 // Compile-time check: *Epilogue must implement pipeline.Stage.
@@ -113,6 +121,14 @@ func (e *Epilogue) WithThoroughReview(r ThoroughReviewer, ec EpicChecker) *Epilo
 // When set, it is called unconditionally on every failed iteration.
 func (e *Epilogue) WithFailureLearner(fl FailureLearner) *Epilogue {
 	e.failureLearner = fl
+	return e
+}
+
+// WithIterationLogWriter configures an optional IterationLogWriter for persisting the
+// iteration log entry. When Input.Result is non-nil and a writer is configured, the
+// entry is written; UsageLimited=true is preserved in the JSONL output.
+func (e *Epilogue) WithIterationLogWriter(w IterationLogWriter) *Epilogue {
+	e.logWriter = w
 	return e
 }
 
@@ -175,7 +191,14 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		}
 	}
 
-	// 5. Thorough review: trigger by frequency or epic completion.
+	// 5. Iteration log: write when a result and writer are both present.
+	if e.logWriter != nil && in.Result != nil {
+		if err := e.logWriter.Write(in.Result); err != nil {
+			fmt.Fprintf(w, "Warning: failed to write iteration log: %v\n", err)
+		}
+	}
+
+	// 6. Thorough review: trigger by frequency or epic completion.
 	if e.review != nil && in.Config != nil && in.Config.Review.Thorough.Enabled {
 		shouldRun := false
 		n := in.Config.Review.Thorough.EveryNIterations
@@ -198,7 +221,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		}
 	}
 
-	// 6. Between-iterations command: run when configured.
+	// 7. Between-iterations command: run when configured.
 	if e.cmd != nil && in.Config != nil {
 		command := in.Config.Loop.BetweenIterationsCommand
 		if command != "" {

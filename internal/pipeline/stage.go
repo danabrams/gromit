@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 )
 
 // Decision indicates how the pipeline should proceed after a stage runs.
@@ -44,6 +45,11 @@ type Input struct {
 	// The Epilogue returns an updated set in Output.TouchedPackages for the orchestrator to
 	// accumulate across iterations and use for success-learning gating.
 	TouchedPackages []string
+	// Result is the pre-built iteration log entry populated by the orchestrator.
+	// The Epilogue stage writes this entry to the iteration log JSONL file.
+	// When Result.UsageLimited is true, the JSONL entry includes usage_limited:true.
+	// Nil when no log entry should be written (e.g. bead was skipped).
+	Result *logger.IterationLog
 }
 
 // Output is the result returned by every stage after its execution.
