@@ -142,8 +142,7 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	if err := stateFile.Load(); err != nil {
 		return nil, fmt.Errorf("loading state: %w", err)
 	}
-	stateArchivedHashes := stateFile.GetArchivedHashes()
-	r.learningsFile.SetArchivedHashes(sortedRetroHashList(stateArchivedHashes))
+	stateArchivedHashes := r.syncArchivedHashesFromState(stateFile)
 
 	// Run batch filter on provisional learnings
 	alreadyFiltered := stateFile.GetFilteredHashes()
@@ -167,11 +166,7 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 		currentHashes[l.Hash] = true
 	}
 	hasPrunedHashes := stateFile.ReconcileFilteredHashes(currentHashes)
-	newArchivedHashes := diffRetroHashSet(r.learningsFile.GetArchivedHashes(), stateArchivedHashes)
-	hasNewArchivedHashes := len(newArchivedHashes) > 0
-	if hasNewArchivedHashes {
-		stateFile.AddArchivedHashes(newArchivedHashes)
-	}
+	hasNewArchivedHashes := r.persistArchivedHashesToState(stateFile, stateArchivedHashes)
 
 	// Save state once if either filtered or archived hashes changed.
 	if hasNewHashes || hasPrunedHashes || hasNewArchivedHashes {
@@ -265,6 +260,29 @@ func diffRetroHashSet(candidate, existing map[string]bool) []string {
 	}
 	sort.Strings(diff)
 	return diff
+}
+
+func (r *Retro) syncArchivedHashesFromState(stateFile *state.File) map[string]bool {
+	if r == nil || stateFile == nil || r.learningsFile == nil {
+		return map[string]bool{}
+	}
+
+	stateArchivedHashes := stateFile.GetArchivedHashes()
+	r.learningsFile.SetArchivedHashes(sortedRetroHashList(stateArchivedHashes))
+	return stateArchivedHashes
+}
+
+func (r *Retro) persistArchivedHashesToState(stateFile *state.File, stateArchivedHashes map[string]bool) bool {
+	if r == nil || stateFile == nil || r.learningsFile == nil {
+		return false
+	}
+
+	newArchivedHashes := diffRetroHashSet(r.learningsFile.GetArchivedHashes(), stateArchivedHashes)
+	if len(newArchivedHashes) == 0 {
+		return false
+	}
+	stateFile.AddArchivedHashes(newArchivedHashes)
+	return true
 }
 
 // createLearningsAdapter creates the appropriate adapter for learnings filtering
