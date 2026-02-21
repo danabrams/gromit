@@ -87,8 +87,104 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 	if got.FailureCategory != "rate_limited" {
 		t.Errorf("FailureCategory = %q, want %q", got.FailureCategory, "rate_limited")
 	}
+	if got.FailureAttribution != failureAttributionTransient {
+		t.Errorf("FailureAttribution = %q, want %q", got.FailureAttribution, failureAttributionTransient)
+	}
 	if got.ReasoningEffort != "medium" {
 		t.Errorf("ReasoningEffort = %q, want %q", got.ReasoningEffort, "medium")
+	}
+}
+
+func TestBuildIterationMetrics_FailureAttribution_SystemOnCrossTierRepeatedFailures(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Timestamp:  time.Now(),
+			Iteration:  1,
+			BeadID:     "b-1",
+			Model:      "haiku",
+			ActualTier: "low",
+			Success:    false,
+		},
+		{
+			Timestamp:  time.Now().Add(time.Second),
+			Iteration:  2,
+			BeadID:     "b-1",
+			Model:      "sonnet",
+			ActualTier: "medium",
+			Success:    false,
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 10)
+	if len(metrics) != 2 {
+		t.Fatalf("expected 2 metrics, got %d", len(metrics))
+	}
+	if metrics[0].FailureAttribution != failureAttributionSystem {
+		t.Errorf("metrics[0].FailureAttribution = %q, want %q", metrics[0].FailureAttribution, failureAttributionSystem)
+	}
+	if metrics[1].FailureAttribution != failureAttributionSystem {
+		t.Errorf("metrics[1].FailureAttribution = %q, want %q", metrics[1].FailureAttribution, failureAttributionSystem)
+	}
+}
+
+func TestBuildIterationMetrics_FailureAttribution_TransientOnSameTierRetrySuccess(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Timestamp:  time.Now(),
+			Iteration:  1,
+			BeadID:     "b-1",
+			Model:      "sonnet",
+			ActualTier: "medium",
+			Success:    false,
+		},
+		{
+			Timestamp:  time.Now().Add(time.Second),
+			Iteration:  2,
+			BeadID:     "b-1",
+			Model:      "sonnet",
+			ActualTier: "medium",
+			Success:    true,
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 10)
+	if len(metrics) != 2 {
+		t.Fatalf("expected 2 metrics, got %d", len(metrics))
+	}
+	if metrics[0].FailureAttribution != failureAttributionTransient {
+		t.Errorf("metrics[0].FailureAttribution = %q, want %q", metrics[0].FailureAttribution, failureAttributionTransient)
+	}
+	if metrics[1].FailureAttribution != "" {
+		t.Errorf("metrics[1].FailureAttribution = %q, want empty for success", metrics[1].FailureAttribution)
+	}
+}
+
+func TestBuildIterationMetrics_FailureAttribution_ModelDefault(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Timestamp:  time.Now(),
+			Iteration:  1,
+			BeadID:     "b-1",
+			Model:      "sonnet",
+			ActualTier: "medium",
+			Success:    false,
+		},
+		{
+			Timestamp:  time.Now().Add(time.Second),
+			Iteration:  2,
+			BeadID:     "b-1",
+			Model:      "opus",
+			ActualTier: "high",
+			Success:    true,
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 10)
+	if len(metrics) != 2 {
+		t.Fatalf("expected 2 metrics, got %d", len(metrics))
+	}
+	if metrics[0].FailureAttribution != failureAttributionModel {
+		t.Errorf("metrics[0].FailureAttribution = %q, want %q", metrics[0].FailureAttribution, failureAttributionModel)
 	}
 }
 

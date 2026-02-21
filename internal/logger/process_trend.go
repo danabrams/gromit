@@ -176,6 +176,7 @@ type IterationMetric struct {
 	Provider                     string                    `json:"provider,omitempty"`
 	FailurePhase                 string                    `json:"failure_phase,omitempty"`
 	FailureCategory              string                    `json:"failure_category,omitempty"`
+	FailureAttribution           string                    `json:"failure_attribution,omitempty"`
 	Success                      bool                      `json:"success"`
 	FirstPassSuccess             bool                      `json:"first_pass_success"`
 	Escalated                    bool                      `json:"escalated"`
@@ -211,6 +212,12 @@ type IterationMetric struct {
 	FilesTouched                 int                       `json:"files_touched,omitempty"`
 	PromptDiagnostics            *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 }
+
+const (
+	failureAttributionSystem    = "system"
+	failureAttributionModel     = "model"
+	failureAttributionTransient = "transient"
+)
 
 // EWMAMetricState captures exponential moving-average state for one metric.
 type EWMAMetricState struct {
@@ -462,6 +469,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 	if len(entries) == 0 {
 		return []IterationMetric{}
 	}
+	beadIndices := buildBeadEntryIndices(entries)
 
 	metrics := make([]IterationMetric, 0, len(entries))
 	successValues := make([]float64, 0, len(entries))
@@ -502,14 +510,19 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 		hasPrevious = true
 
 		metrics = append(metrics, IterationMetric{
-			Timestamp:        entry.Timestamp,
-			Iteration:        entry.Iteration,
-			BeadID:           entry.BeadID,
-			Model:            entry.Model,
-			ReasoningEffort:  entry.ReasoningEffort,
-			Provider:         entry.Provider,
-			FailurePhase:     entry.FailurePhase,
-			FailureCategory:  entry.FailureCategory,
+			Timestamp:       entry.Timestamp,
+			Iteration:       entry.Iteration,
+			BeadID:          entry.BeadID,
+			Model:           entry.Model,
+			ReasoningEffort: entry.ReasoningEffort,
+			Provider:        entry.Provider,
+			FailurePhase:    entry.FailurePhase,
+			FailureCategory: entry.FailureCategory,
+			FailureAttribution: classifyFailureAttribution(
+				entries,
+				beadIndices[entry.BeadID],
+				idx,
+			),
 			Success:          entry.Success,
 			FirstPassSuccess: entry.FirstPassSuccess,
 			Escalated:        entry.Escalated,
@@ -555,6 +568,109 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 	}
 
 	return metrics
+}
+
+func buildBeadEntryIndices(entries []IterationLog) map[string][]int {
+	indices := make(map[string][]int, len(entries))
+	for i := range entries {
+		indices[entries[i].BeadID] = append(indices[entries[i].BeadID], i)
+	}
+	return indices
+}
+
+func classifyFailureAttribution(entries []IterationLog, beadSeries []int, idx int) string {
+	if idx < 0 || idx >= len(entries) {
+		return ""
+	}
+	entry := entries[idx]
+	if entry.Success {
+		return ""
+	}
+	if isTransientFailureSignal(entry) {
+		return failureAttributionTransient
+	}
+	seriesPos := indexInSeries(beadSeries, idx)
+	if seriesPos < 0 {
+		return failureAttributionModel
+	}
+	if isSingleFailureThenSameTierSuccess(entries, beadSeries, seriesPos) {
+		return failureAttributionTransient
+	}
+	if hasRepeatedCrossTierFailures(entries, beadSeries, seriesPos) {
+		return failureAttributionSystem
+	}
+	return failureAttributionModel
+}
+
+func isTransientFailureSignal(entry IterationLog) bool {
+	if entry.FailurePhase == failurephase.Timeout || entry.TimeoutType != "" {
+		return true
+	}
+	switch entry.FailureCategory {
+	case transportDisconnectFailure, "rate_limited", "startup_error":
+		return true
+	default:
+		return false
+	}
+}
+
+func indexInSeries(series []int, idx int) int {
+	for pos, entryIdx := range series {
+		if entryIdx == idx {
+			return pos
+		}
+	}
+	return -1
+}
+
+func isSingleFailureThenSameTierSuccess(entries []IterationLog, series []int, pos int) bool {
+	if pos < 0 || pos >= len(series) {
+		return false
+	}
+	if pos+1 >= len(series) {
+		return false
+	}
+	current := entries[series[pos]]
+	next := entries[series[pos+1]]
+	if !next.Success {
+		return false
+	}
+	currentTier := resolvedTier(current)
+	nextTier := resolvedTier(next)
+	return currentTier != "" && currentTier == nextTier
+}
+
+func hasRepeatedCrossTierFailures(entries []IterationLog, series []int, pos int) bool {
+	if pos < 0 || pos >= len(series) {
+		return false
+	}
+	runStart := pos
+	for runStart > 0 && !entries[series[runStart-1]].Success {
+		runStart--
+	}
+	runEnd := pos
+	for runEnd+1 < len(series) && !entries[series[runEnd+1]].Success {
+		runEnd++
+	}
+	if runEnd-runStart < 1 {
+		return false
+	}
+	tiers := map[string]struct{}{}
+	for i := runStart; i <= runEnd; i++ {
+		tier := resolvedTier(entries[series[i]])
+		if tier == "" {
+			continue
+		}
+		tiers[tier] = struct{}{}
+	}
+	return len(tiers) > 1
+}
+
+func resolvedTier(entry IterationLog) string {
+	if entry.ActualTier != "" {
+		return entry.ActualTier
+	}
+	return entry.Model
 }
 
 func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend {
