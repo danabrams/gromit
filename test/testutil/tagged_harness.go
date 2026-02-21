@@ -6,6 +6,12 @@ import (
 	"path/filepath"
 )
 
+const (
+	testDirName      = "test"
+	contractsDirName = "contracts"
+	e2eDirName       = "e2e"
+)
+
 // TaggedHarnessContext captures required paths for contract/e2e harness execution.
 type TaggedHarnessContext struct {
 	WorkingDir   string
@@ -28,7 +34,7 @@ func ResolveTaggedHarnessContext(workingDir string) (TaggedHarnessContext, error
 
 	leaf := filepath.Base(absWorkingDir)
 	parent := filepath.Base(filepath.Dir(absWorkingDir))
-	if parent != "test" || (leaf != "contracts" && leaf != "e2e") {
+	if parent != testDirName || !isTaggedHarnessLeaf(leaf) {
 		return TaggedHarnessContext{}, fmt.Errorf("unexpected working directory %q (expected .../test/contracts or .../test/e2e)", absWorkingDir)
 	}
 
@@ -50,6 +56,10 @@ func ResolveTaggedHarnessContext(workingDir string) (TaggedHarnessContext, error
 	}
 
 	return ctx, nil
+}
+
+func isTaggedHarnessLeaf(leaf string) bool {
+	return leaf == contractsDirName || leaf == e2eDirName
 }
 
 func assertExistingDir(path, label string) error {
