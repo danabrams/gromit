@@ -1,10 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/danabrams/gromit/internal/claude"
 )
 
 // TestClaudeClientAdapter_ConstructsTypedStruct verifies claudeClientAdapter.Run returns typed struct
@@ -25,23 +29,58 @@ func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
 // TestClaudeClientAdapter_UsesConfigTimeout verifies that the adapter uses configurable timeout
 // sourced from config instead of a hardcoded duration.
 func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
-	decomposeStr := adapterTestReadFile(t, "decompose.go")
-	reviewStr := adapterTestReadFile(t, "review.go")
+	slowScript := adapterTestCreateSleepScript(t, 2*time.Second, "done")
 
-	if !adapterTestContainsString(decomposeStr, "time.Duration(cfg.Claude.PipelineTimeout) * time.Second") {
-		t.Error("decompose should pass pipeline timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.PipelineTimeout) * time.Second")
+	client, err := claude.NewClient(slowScript, nil, 30)
+	if err != nil {
+		t.Fatalf("creating claude client: %v", err)
 	}
 
-	if !adapterTestContainsString(reviewStr, "buildReviewNonInteractiveClient") {
-		t.Error("review should build a non-interactive client via buildReviewNonInteractiveClient")
+	adapter := &claudeClientAdapter{
+		Client:  client,
+		Timeout: 50 * time.Millisecond,
+	}
+
+	start := time.Now()
+	_, err = adapter.Run("prompt", "haiku")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if elapsed >= time.Second {
+		t.Fatalf("adapter did not honor configured timeout; elapsed=%v", elapsed)
 	}
 }
 
 // TestClaudeClientAdapter_NoHardcodedTimeout verifies the adapter no longer uses a fixed timeout.
 func TestClaudeClientAdapter_NoHardcodedTimeout(t *testing.T) {
-	contentStr := adapterTestReadFile(t, "adapters.go")
-	if adapterTestContainsString(contentStr, "30*time.Minute") {
-		t.Error("claudeClientAdapter should not use hardcoded 30*time.Minute timeout")
+	slowScript := adapterTestCreateSleepScript(t, 200*time.Millisecond, "ok")
+
+	client, err := claude.NewClient(slowScript, nil, 30)
+	if err != nil {
+		t.Fatalf("creating claude client: %v", err)
+	}
+
+	shortTimeoutAdapter := &claudeClientAdapter{
+		Client:  client,
+		Timeout: 50 * time.Millisecond,
+	}
+	longTimeoutAdapter := &claudeClientAdapter{
+		Client:  client,
+		Timeout: 2 * time.Second,
+	}
+
+	if _, err := shortTimeoutAdapter.Run("prompt", "haiku"); err == nil {
+		t.Fatal("expected short timeout adapter to fail")
+	}
+
+	result, err := longTimeoutAdapter.Run("prompt", "haiku")
+	if err != nil {
+		t.Fatalf("long timeout adapter unexpectedly failed: %v", err)
+	}
+	if result == nil || !result.Success {
+		t.Fatalf("long timeout adapter result = %#v, want success", result)
 	}
 }
 
@@ -169,4 +208,16 @@ func adapterTestReadFile(t *testing.T, name string) string {
 	}
 
 	return string(content)
+}
+
+func adapterTestCreateSleepScript(t *testing.T, sleep time.Duration, output string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "mock-claude.sh")
+	content := fmt.Sprintf("#!/bin/sh\nsleep %.3f\necho %q\n", sleep.Seconds(), output)
+	if err := os.WriteFile(scriptPath, []byte(content), 0o755); err != nil {
+		t.Fatalf("writing mock claude script: %v", err)
+	}
+	return scriptPath
 }
