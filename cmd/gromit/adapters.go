@@ -101,6 +101,10 @@ func resolveCommandAgent(cfg *config.Config, phase, flagOverride string, chooseP
 		return nil, err
 	}
 
+	return commandAgentFromResolved(resolvedAgent)
+}
+
+func commandAgentFromResolved(resolvedAgent pipeline.Agent) (agent.Agent, error) {
 	selectedAgent, ok := resolvedAgent.(agent.Agent)
 	if !ok {
 		return nil, fmt.Errorf("resolved agent does not implement agent.Agent")

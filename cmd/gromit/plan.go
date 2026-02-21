@@ -247,12 +247,7 @@ func resolvePlanAgent(cfg *config.Config, agentFlag string, chooseAgent bool) (a
 		return nil, err
 	}
 
-	selectedAgent, ok := resolvedAgent.(agent.Agent)
-	if !ok {
-		return nil, fmt.Errorf("resolved agent does not implement agent.Agent")
-	}
-
-	return selectedAgent, nil
+	return commandAgentFromResolved(resolvedAgent)
 }
 
 func launchPlanSession(cfg *config.Config, gromitDir string, selectedAgent agent.Agent, promptPath string) error {
