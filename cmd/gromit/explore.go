@@ -46,6 +46,8 @@ const exploreChooseAgentHelpExample = `  gromit explore --choose-agent "Audit on
 const exploreAgentSelectionHelpSentence = "Agent selection priority: --agent, --choose-agent, agents.phases.explore, then the configured default agent."
 const exploreAgentOverrideFlag = "--from-override"
 const explorePhaseConfigFlag = "--from-phase-config"
+const exploreAgentFlagName = "agent"
+const exploreChooseAgentFlagName = "choose-agent"
 const (
 	exploreSectionTopic        = "topic"
 	exploreSectionLearnings    = "learnings"
@@ -55,8 +57,8 @@ const (
 
 func init() {
 	exploreCmd.Flags().StringVar(&exploreModel, "model", "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
-	exploreCmd.Flags().String("agent", "", "Override the default agent for this explore session")
-	exploreCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
+	exploreCmd.Flags().String(exploreAgentFlagName, "", "Override the default agent for this explore session")
+	exploreCmd.Flags().Bool(exploreChooseAgentFlagName, false, "Show interactive picker to choose agent")
 	rootCmd.AddCommand(exploreCmd)
 }
 
@@ -211,6 +213,8 @@ type exploreAgentResolver struct {
 	cfg *config.Config
 }
 
+var _ pipeline.AgentResolver = (*exploreAgentResolver)(nil)
+
 func (r *exploreAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
 	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
 }
@@ -356,13 +360,15 @@ type exploreBacklogClient struct {
 	file *backlog.File
 }
 
+var _ pipeline.BacklogClient = (*exploreBacklogClient)(nil)
+
 func (c *exploreBacklogClient) List() ([]*pipeline.Idea, error) {
 	items, err := c.file.List()
 	if err != nil {
 		return nil, err
 	}
 
-	var ideas []*pipeline.Idea
+	ideas := make([]*pipeline.Idea, 0, len(items))
 	for _, item := range items {
 		ideas = append(ideas, &pipeline.Idea{
 			ID:       item.ID,
