@@ -184,17 +184,17 @@ func (r *Renderer) RenderATDDDiagnostic(ctx *DiagnosticContext) (string, error) 
 	const diagnosticTemplate = "PROMPT_atdd_diagnostic.md"
 	if r != nil {
 		taskIdentity := ""
-		failureAndTestOutput := ""
-		diffAndCriteria := ""
+		testOutput := ""
+		acceptanceCriteriaAndTestDiff := ""
 		if ctx != nil {
 			taskIdentity = ctx.BeadTitle + "\n" + ctx.BeadDescription
-			failureAndTestOutput = ctx.TestOutput
-			diffAndCriteria = ctx.AcceptanceCriteria + "\n" + ctx.TestDiff
+			testOutput = ctx.TestOutput
+			acceptanceCriteriaAndTestDiff = ctx.AcceptanceCriteria + "\n" + ctx.TestDiff
 		}
 		r.lastDiagnostics = r.computeDiagnostics("atdd_diagnostic", map[string]string{
 			SectionTaskIdentity:   taskIdentity,
-			SectionSpec:           diffAndCriteria,
-			SectionFailureContext: failureAndTestOutput,
+			SectionSpec:           acceptanceCriteriaAndTestDiff,
+			SectionFailureContext: testOutput,
 			SectionTemplateStatic: diagnosticTemplate,
 		})
 	}
