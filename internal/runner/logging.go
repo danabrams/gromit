@@ -174,6 +174,7 @@ func newIterationLogEntry(iteration int, result *IterationResult, errStr, outcom
 		BeadTitle:                 result.BeadTitle,
 		SpecID:                    result.SpecID,
 		Model:                     result.Model,
+		ReasoningEffort:           result.ReasoningEffort,
 		Provider:                  result.Provider,
 		FailurePhase:              result.FailurePhase,
 		FailureCategory:           result.FailureCategory,

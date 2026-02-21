@@ -124,6 +124,7 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 		bc.Result.Provider = invResult.ProviderName
 		if invResult.ProviderResult != nil {
 			bc.Result.FailureCategory = invResult.ProviderResult.FailureCategory
+			bc.Result.ReasoningEffort = invResult.ProviderResult.ReasoningEffort
 		}
 		r.router.RecordOutcome(bc.Result.Provider, bc.Result.FailureCategory)
 

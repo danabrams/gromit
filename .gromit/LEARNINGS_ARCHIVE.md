@@ -1,6 +1,29 @@
 # Learnings Archive
 
-Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-20.
+Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-21.
+
+---
+
+### 2026-02-20 | Package-Level Routing Consolidation Leaves Dead Helpers | gotchas
+*Related to: code-review*
+
+When migrating inline routing logic (e.g., manual test-only tier override in setupBeadContext) to a package-level function (escalation.SelectTier), check for helper functions at the old call site that become dead code. escalation.SelectTier() consolidates low-complexity signal counting, test-only routing, complexity:high bypass, and config fallback into one function, eliminating the need for hasComplexityLabelOverride and similar inline helpers.
+
+*Archived 2026-02-21: One-time observation about dead helpers after routing consolidation into escalation.SelectTier(). Migration is complete. Remaining advice ('check for dead code after refactoring') is generic engineering practice.*
+
+### 2026-02-21 | ATDD Fallback Generalization Uses Classification-Policy-Execution Separation | patterns
+*Related to: code-review*
+
+classifyATDDFailure + isATDDFallbackEligible + runTransientFallback cleanly separates failure classification from eligibility policy from fallback execution. Adding new transient failure categories (beyond transport_disconnect and startup_error) requires only adding signals to the classification function and updating isATDDFallbackEligible, without touching the fallback execution flow.
+
+*Archived 2026-02-21: Documents existing architecture pattern (classifyATDDFailure + isATDDFallbackEligible + runTransientFallback). Describes how code works, not a constraint to follow. Architecture is visible in the code itself.*
+
+### 2026-02-21 | Scoped Spec Orchestration Decouples Per-Bead ATDD From Spec-Level Verification | patterns
+*Related to: code-review*
+
+Scoped spec orchestration (author before loop, verify after bead exhaustion with retry budget) correctly separates per-bead build work from spec-level acceptance verification. When granularity=spec, per-bead ATDD is always skipped regardless of spec label presence because acceptance testing happens at the spec boundary via verifyScopedSpecAcceptance.
+
+*Archived 2026-02-21: Documents existing behavior (per-bead ATDD skip when granularity=spec, acceptance testing at spec boundary via verifyScopedSpecAcceptance). Describes how code works, not a constraint. Visible in the code itself.*
 
 ---
 

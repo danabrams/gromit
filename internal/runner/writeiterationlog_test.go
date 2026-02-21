@@ -220,6 +220,7 @@ func TestWriteIterationLog_PropagatesProviderAndFailureCategory(t *testing.T) {
 		BeadID:          "test-provider-category",
 		BeadTitle:       "Provider category propagation",
 		Model:           "high",
+		ReasoningEffort: "low",
 		Provider:        "codex",
 		FailureCategory: "transport_disconnect",
 		Success:         false,
@@ -233,6 +234,9 @@ func TestWriteIterationLog_PropagatesProviderAndFailureCategory(t *testing.T) {
 
 	if got := entry["provider"]; got != "codex" {
 		t.Fatalf("provider = %v, want %q", got, "codex")
+	}
+	if got := entry["reasoning_effort"]; got != "low" {
+		t.Fatalf("reasoning_effort = %v, want %q", got, "low")
 	}
 	if got := entry["failure_category"]; got != "transport_disconnect" {
 		t.Fatalf("failure_category = %v, want %q", got, "transport_disconnect")

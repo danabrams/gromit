@@ -491,6 +491,44 @@ func TestCodexProviderBuildCommandArgsDoesNotOverrideUserReasoningEffort(t *test
 	}
 }
 
+func TestReasoningEffortFromArgs(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "short config split arg",
+			args: []string{"exec", "-c", "model_reasoning_effort=high"},
+			want: "high",
+		},
+		{
+			name: "long config split arg",
+			args: []string{"exec", "--config", "model_reasoning_effort=medium"},
+			want: "medium",
+		},
+		{
+			name: "inline config arg",
+			args: []string{"exec", "--config=model_reasoning_effort=low"},
+			want: "low",
+		},
+		{
+			name: "missing config",
+			args: []string{"exec", "--model", "gpt-5.3-codex"},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := reasoningEffortFromArgs(tt.args)
+			if got != tt.want {
+				t.Fatalf("reasoningEffortFromArgs(%v) = %q, want %q", tt.args, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestCodexProviderStreamRunWithJSONFlagAndStdin verifies that when EventHandler
 // is present, StreamRun adds --json flag AND uses stdin for prompt delivery.
 func TestCodexProviderStreamRunWithJSONFlagAndStdin(t *testing.T) {

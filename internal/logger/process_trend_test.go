@@ -68,6 +68,7 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 			Iteration:       1,
 			BeadID:          "b-1",
 			Model:           "sonnet",
+			ReasoningEffort: "medium",
 			FailurePhase:    failurephase.Validation,
 			FailureCategory: "rate_limited",
 			Success:         false,
@@ -85,6 +86,9 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 	}
 	if got.FailureCategory != "rate_limited" {
 		t.Errorf("FailureCategory = %q, want %q", got.FailureCategory, "rate_limited")
+	}
+	if got.ReasoningEffort != "medium" {
+		t.Errorf("ReasoningEffort = %q, want %q", got.ReasoningEffort, "medium")
 	}
 }
 

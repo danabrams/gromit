@@ -61,6 +61,7 @@ type IterationResult struct {
 	BeadTitle               string
 	SpecID                  string
 	Model                   string
+	ReasoningEffort         string
 	Provider                string `json:"provider,omitempty"`
 	FailurePhase            string `json:"failure_phase,omitempty"`
 	FailureCategory         string `json:"failure_category,omitempty"`

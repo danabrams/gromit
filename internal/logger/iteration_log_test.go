@@ -171,6 +171,30 @@ func TestIterationLog_ProviderAndFailureCategoryJSONTags(t *testing.T) {
 	}
 }
 
+func TestIterationLog_ReasoningEffortJSONTag(t *testing.T) {
+	log := &IterationLog{
+		BeadID:          "test-1",
+		Model:           "gpt-5.3-codex",
+		ReasoningEffort: "low",
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	if !strings.Contains(string(data), "\"reasoning_effort\":\"low\"") {
+		t.Fatalf("expected reasoning_effort in JSON, got %s", string(data))
+	}
+
+	emptyData, err := json.Marshal(IterationLog{})
+	if err != nil {
+		t.Fatalf("marshal empty log: %v", err)
+	}
+	if strings.Contains(string(emptyData), "reasoning_effort") {
+		t.Fatalf("expected reasoning_effort to be omitted, got %s", string(emptyData))
+	}
+}
+
 func TestIterationLog_TierFieldsJSONTags(t *testing.T) {
 	log := &IterationLog{
 		BeadID:       "test-1",

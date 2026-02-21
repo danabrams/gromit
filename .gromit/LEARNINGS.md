@@ -35,11 +35,6 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-20 | Package-Level Routing Consolidation Leaves Dead Helpers | gotchas
-*Related to: code-review*
-
-When migrating inline routing logic (e.g., manual test-only tier override in setupBeadContext) to a package-level function (escalation.SelectTier), check for helper functions at the old call site that become dead code. escalation.SelectTier() consolidates low-complexity signal counting, test-only routing, complexity:high bypass, and config fallback into one function, eliminating the need for hasComplexityLabelOverride and similar inline helpers.
-
 ### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
 *Related to: code-review*
 
@@ -47,16 +42,6 @@ Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric rec
 
 ### 2026-02-21 | Clean Exit False With Successful Iterations Suggests Post-Loop Failure | gotchas
 When analyzing Gromit failures, check both the run logs and state.json. A clean_exit=false with successful recorded iterations suggests the failure occurred during post-iteration cleanup or during the final validation gate itself, possibly a timeout or signal interruption.
-
-### 2026-02-21 | ATDD Fallback Generalization Uses Classification-Policy-Execution Separation | patterns
-*Related to: code-review*
-
-classifyATDDFailure + isATDDFallbackEligible + runTransientFallback cleanly separates failure classification from eligibility policy from fallback execution. Adding new transient failure categories (beyond transport_disconnect and startup_error) requires only adding signals to the classification function and updating isATDDFallbackEligible, without touching the fallback execution flow.
-
-### 2026-02-21 | Scoped Spec Orchestration Decouples Per-Bead ATDD From Spec-Level Verification | patterns
-*Related to: code-review*
-
-Scoped spec orchestration (author before loop, verify after bead exhaustion with retry budget) correctly separates per-bead build work from spec-level acceptance verification. When granularity=spec, per-bead ATDD is always skipped regardless of spec label presence because acceptance testing happens at the spec boundary via verifyScopedSpecAcceptance.
 
 ### 2026-02-21 | t.Chdir Migration Must Include New Test Code Not Just Existing | conventions
 *Related to: code-review*
@@ -67,7 +52,5 @@ When migrating tests from manual os.Getwd/os.Chdir/defer patterns to t.Chdir(), 
 
 ## Archived
 
-*No longer relevant or superseded.*
-
-*No archived learnings.*
+*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
 

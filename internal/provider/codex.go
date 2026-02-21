@@ -146,6 +146,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	model := cp.ModelForTier(tier)
 	args := cp.buildStreamCommandArgsForTier(model, tier, handler != nil)
+	reasoningEffort := reasoningEffortFromArgs(args)
 	cmd := execCommandContext(ctx, cp.binaryPath, args...)
 	cmd.WaitDelay = codexCommandWaitDelay
 	if output != nil {
@@ -218,6 +219,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 			ExitCode:          exitCode,
 			Duration:          duration,
 			Model:             model,
+			ReasoningEffort:   reasoningEffort,
 			CostUSD:           usageCost(usage),
 			InputTokens:       usageInputTokens(usage),
 			CachedInputTokens: usageCachedInputTokens(usage),
@@ -238,6 +240,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 			ExitCode:          0,
 			Duration:          duration,
 			Model:             model,
+			ReasoningEffort:   reasoningEffort,
 			CostUSD:           usageCost(usage),
 			InputTokens:       usageInputTokens(usage),
 			CachedInputTokens: usageCachedInputTokens(usage),
@@ -252,6 +255,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 		ExitCode:          0,
 		Duration:          duration,
 		Model:             model,
+		ReasoningEffort:   reasoningEffort,
 		CostUSD:           usageCost(usage),
 		InputTokens:       usageInputTokens(usage),
 		CachedInputTokens: usageCachedInputTokens(usage),
@@ -284,6 +288,7 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 	cmd := execCommandContext(ctx, cp.binaryPath, args...)
 	cmd.WaitDelay = codexCommandWaitDelay
 	cmd.Env = env
+	reasoningEffort := reasoningEffortFromArgs(args)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -327,6 +332,7 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 		ExitCode:          exitCode,
 		Duration:          duration,
 		Model:             model,
+		ReasoningEffort:   reasoningEffort,
 		CostUSD:           usageCost(usage),
 		InputTokens:       usageInputTokens(usage),
 		CachedInputTokens: usageCachedInputTokens(usage),
@@ -485,6 +491,44 @@ func hasReasoningEffortConfig(flags []string) bool {
 		}
 	}
 	return false
+}
+
+func reasoningEffortFromArgs(args []string) string {
+	for i, arg := range args {
+		if effort, ok := extractReasoningEffortValue(arg); ok {
+			return effort
+		}
+		if (arg == "-c" || arg == "--config") && i+1 < len(args) {
+			if effort, ok := extractReasoningEffortValue(args[i+1]); ok {
+				return effort
+			}
+		}
+	}
+	return ""
+}
+
+func extractReasoningEffortValue(value string) (string, bool) {
+	const key = "model_reasoning_effort="
+
+	idx := strings.Index(value, key)
+	if idx < 0 {
+		return "", false
+	}
+
+	effort := value[idx+len(key):]
+	if effort == "" {
+		return "", false
+	}
+
+	if delim := strings.IndexAny(effort, ", \t\r\n\"'"); delim >= 0 {
+		effort = effort[:delim]
+	}
+	effort = strings.TrimSpace(effort)
+	if effort == "" {
+		return "", false
+	}
+
+	return effort, true
 }
 
 // extractExitCode extracts the exit code from a command execution error.

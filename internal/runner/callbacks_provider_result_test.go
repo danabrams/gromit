@@ -49,13 +49,14 @@ func setupInvokeFnWithProvider(t *testing.T, streamRunFn func(ctx context.Contex
 // Expected failure: escalation.InvocationResult.ProviderResult does not exist yet
 func TestMakeInvokeFn_PropagatesProviderResult(t *testing.T) {
 	expected := &provider.Result{
-		Success:      true,
-		Output:       "provider output",
-		ExitCode:     0,
-		Model:        "test-model",
-		CostUSD:      1.5,
-		InputTokens:  12,
-		OutputTokens: 34,
+		Success:         true,
+		Output:          "provider output",
+		ExitCode:        0,
+		Model:           "test-model",
+		ReasoningEffort: "low",
+		CostUSD:         1.5,
+		InputTokens:     12,
+		OutputTokens:    34,
 	}
 
 	invokeFn, bc := setupInvokeFnWithProvider(t, func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
@@ -80,6 +81,9 @@ func TestMakeInvokeFn_PropagatesProviderResult(t *testing.T) {
 	}
 	if bc.Result.FailureCategory != "" {
 		t.Fatalf("bc.Result.FailureCategory = %q, want empty on success", bc.Result.FailureCategory)
+	}
+	if bc.Result.ReasoningEffort != "low" {
+		t.Fatalf("bc.Result.ReasoningEffort = %q, want %q", bc.Result.ReasoningEffort, "low")
 	}
 }
 

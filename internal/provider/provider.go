@@ -53,6 +53,7 @@ type Result struct {
 	ExitCode          int           `json:"exit_code"`
 	Duration          time.Duration `json:"duration"`
 	Model             string        `json:"model"`
+	ReasoningEffort   string        `json:"reasoning_effort,omitempty"`
 	CostUSD           float64       `json:"cost_usd"`
 	InputTokens       int           `json:"input_tokens"`
 	CachedInputTokens int           `json:"cached_input_tokens"`
