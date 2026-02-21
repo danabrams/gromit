@@ -7,11 +7,20 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/validation"
 	"github.com/danabrams/gromit/internal/specgate"
 )
+
+// SpecGateValidationRunner abstracts direct validation execution used by spec gate.
+type SpecGateValidationRunner interface {
+	RunDirect(ctx context.Context, commands []string, workDir string) (*claude.Result, error)
+}
+
+var _ SpecGateValidationRunner = (*validation.Runner)(nil)
 
 func (r *Runner) buildSpecGate() (*specgate.Gate, error) {
 	if r == nil || r.cfg == nil {
