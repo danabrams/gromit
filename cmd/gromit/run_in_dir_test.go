@@ -7,6 +7,24 @@ import (
 	"testing"
 )
 
+func currentDir(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() failed: %v", err)
+	}
+	return dir
+}
+
+func assertCurrentDir(t *testing.T, want string) {
+	t.Helper()
+
+	if got := currentDir(t); got != want {
+		t.Fatalf("working directory = %q, want %q", got, want)
+	}
+}
+
 func TestRunInDir_NilCallback(t *testing.T) {
 	err := runInDir("", nil)
 	if err == nil {
@@ -18,13 +36,10 @@ func TestRunInDir_NilCallback(t *testing.T) {
 }
 
 func TestRunInDir_EmptyDirRunsInCurrentDirectory(t *testing.T) {
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() failed: %v", err)
-	}
+	originalDir := currentDir(t)
 
 	called := false
-	err = runInDir("", func() error {
+	err := runInDir("", func() error {
 		called = true
 		wd, err := os.Getwd()
 		if err != nil {
@@ -44,14 +59,11 @@ func TestRunInDir_EmptyDirRunsInCurrentDirectory(t *testing.T) {
 }
 
 func TestRunInDir_NonexistentDirectory(t *testing.T) {
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() failed: %v", err)
-	}
+	originalDir := currentDir(t)
 
 	nonexistent := filepath.Join(t.TempDir(), "does-not-exist")
 	called := false
-	err = runInDir(nonexistent, func() error {
+	err := runInDir(nonexistent, func() error {
 		called = true
 		return nil
 	})
@@ -62,13 +74,7 @@ func TestRunInDir_NonexistentDirectory(t *testing.T) {
 		t.Fatal("callback was called for nonexistent directory")
 	}
 
-	currentDir, getErr := os.Getwd()
-	if getErr != nil {
-		t.Fatalf("Getwd() after runInDir failed: %v", getErr)
-	}
-	if currentDir != originalDir {
-		t.Fatalf("working directory after runInDir = %q, want %q", currentDir, originalDir)
-	}
+	assertCurrentDir(t, originalDir)
 }
 
 func TestRunInDir_PropagatesCallbackError(t *testing.T) {
@@ -84,15 +90,12 @@ func TestRunInDir_PropagatesCallbackError(t *testing.T) {
 }
 
 func TestRunInDir_RestoresOriginalDirectoryOnCallbackError(t *testing.T) {
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() failed: %v", err)
-	}
+	originalDir := currentDir(t)
 
 	targetDir := t.TempDir()
 	wantErr := errors.New("callback failed")
 
-	err = runInDir(targetDir, func() error {
+	err := runInDir(targetDir, func() error {
 		wd, err := os.Getwd()
 		if err != nil {
 			return err
@@ -106,11 +109,5 @@ func TestRunInDir_RestoresOriginalDirectoryOnCallbackError(t *testing.T) {
 		t.Fatalf("error = %v, want %v", err, wantErr)
 	}
 
-	currentDir, getErr := os.Getwd()
-	if getErr != nil {
-		t.Fatalf("Getwd() after runInDir failed: %v", getErr)
-	}
-	if currentDir != originalDir {
-		t.Fatalf("working directory after runInDir = %q, want %q", currentDir, originalDir)
-	}
+	assertCurrentDir(t, originalDir)
 }

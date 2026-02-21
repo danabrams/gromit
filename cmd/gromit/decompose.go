@@ -271,6 +271,7 @@ func runInDir(dir string, fn func() error) error {
 	if err := os.Chdir(dir); err != nil {
 		return fmt.Errorf("changing directory to %q: %w", dir, err)
 	}
+	// Best-effort restore; callback return value remains the function result.
 	defer os.Chdir(originalDir)
 
 	return fn()
