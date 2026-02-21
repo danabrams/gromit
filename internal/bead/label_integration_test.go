@@ -445,21 +445,26 @@ func TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract(t *t
 
 	c := newIsolatedClient(t)
 
-	requestedLabel := "spec:ready-regression-match"
-	otherLabel := "spec:ready-regression-other"
+	const (
+		requestedLabel   = "spec:ready-regression-match"
+		otherLabel       = "spec:ready-regression-other"
+		nonMatchPriority = 0
+		matchPriority    = 2
+		readyLimit       = "3"
+	)
 
 	// Higher-priority non-matching bead should not be returned for requestedLabel.
-	nonMatch, err := c.Create("Higher priority non-matching bead", 0, []string{otherLabel}, []string{})
+	nonMatchingBead, err := c.Create("Higher priority non-matching bead", nonMatchPriority, []string{otherLabel}, []string{})
 	if err != nil {
 		t.Skipf("Cannot create non-matching test bead: %v", err)
 	}
 
-	match, err := c.Create("Lower priority matching bead", 2, []string{requestedLabel}, []string{})
+	matchingBead, err := c.Create("Lower priority matching bead", matchPriority, []string{requestedLabel}, []string{})
 	if err != nil {
 		t.Skipf("Cannot create matching test bead: %v", err)
 	}
 
-	expectedCmd := []string{"bd", "ready", "--json", "--limit", "3", "--label", requestedLabel}
+	expectedCmd := []string{"bd", "ready", "--json", "--limit", readyLimit, "--label", requestedLabel}
 	cmd := exec.Command(expectedCmd[0], expectedCmd[1:]...)
 	cmd.Dir = c.Dir
 
@@ -475,11 +480,11 @@ func TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract(t *t
 	if expectedBead == nil {
 		t.Fatal("expected command returned no ready bead for requested label")
 	}
-	if expectedBead.ID != match.ID {
-		t.Fatalf("expected command selected bead %s, want %s", expectedBead.ID, match.ID)
+	if expectedBead.ID != matchingBead.ID {
+		t.Fatalf("expected command selected bead %s, want %s", expectedBead.ID, matchingBead.ID)
 	}
-	if expectedBead.ID == nonMatch.ID {
-		t.Fatalf("expected command incorrectly selected non-matching bead %s", nonMatch.ID)
+	if expectedBead.ID == nonMatchingBead.ID {
+		t.Fatalf("expected command incorrectly selected non-matching bead %s", nonMatchingBead.ID)
 	}
 
 	got, err := c.ReadyWithLabel(requestedLabel)
@@ -492,8 +497,8 @@ func TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract(t *t
 	if got.ID != expectedBead.ID {
 		t.Fatalf("ReadyWithLabel() returned %s, expected %s from command contract", got.ID, expectedBead.ID)
 	}
-	if got.ID == nonMatch.ID {
-		t.Fatalf("ReadyWithLabel() returned non-matching bead %s", nonMatch.ID)
+	if got.ID == nonMatchingBead.ID {
+		t.Fatalf("ReadyWithLabel() returned non-matching bead %s", nonMatchingBead.ID)
 	}
 }
 
