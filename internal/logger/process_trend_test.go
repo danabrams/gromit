@@ -736,6 +736,44 @@ func TestBuildContinuousMetrics_ValidationDurationControlLimitInProcessTrendFile
 	}
 }
 
+func TestReadProcessTrend_NormalizesStratifiedFields(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, processTrendFilename)
+
+	raw := ProcessTrend{
+		StratifiedControlLimits: map[string][]TrendControlLimit{
+			"provider:claude": nil,
+		},
+		StratifiedAnomalies: map[string][]TrendAnomaly{
+			"provider:claude": nil,
+		},
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatalf("marshal trend: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write process trend file: %v", err)
+	}
+
+	trend, err := ReadProcessTrend(path)
+	if err != nil {
+		t.Fatalf("ReadProcessTrend: %v", err)
+	}
+	if trend.StratifiedControlLimits == nil {
+		t.Fatal("StratifiedControlLimits should be initialized")
+	}
+	if trend.StratifiedAnomalies == nil {
+		t.Fatal("StratifiedAnomalies should be initialized")
+	}
+	if trend.StratifiedControlLimits["provider:claude"] == nil {
+		t.Fatal("StratifiedControlLimits[provider:claude] should be empty slice, got nil")
+	}
+	if trend.StratifiedAnomalies["provider:claude"] == nil {
+		t.Fatal("StratifiedAnomalies[provider:claude] should be empty slice, got nil")
+	}
+}
+
 func TestComputeProviderMetrics(t *testing.T) {
 	testCases := []struct {
 		name    string
@@ -915,6 +953,90 @@ func TestBuildProcessTrend_IncludesProviderMetrics(t *testing.T) {
 	}
 	if !foundClaude {
 		t.Error("ProviderMetrics missing inferred claude entry")
+	}
+}
+
+func TestBuildProcessTrend_ComputesStratifiedControlLimits(t *testing.T) {
+	metrics := []IterationMetric{
+		{
+			Model:              "haiku",
+			Provider:           "claude",
+			Success:            true,
+			DurationMs:         100,
+			CostUSD:            1,
+			RollingSuccessRate: 1,
+		},
+		{
+			Model:              "haiku",
+			Provider:           "claude",
+			Success:            false,
+			DurationMs:         300,
+			CostUSD:            3,
+			RollingSuccessRate: 0.5,
+		},
+		{
+			Model:              "gpt-5.3-codex",
+			Provider:           "openai",
+			Success:            true,
+			DurationMs:         50,
+			CostUSD:            0.5,
+			RollingSuccessRate: 1,
+		},
+	}
+
+	trend := buildProcessTrend(metrics, 30)
+
+	providerLimits, ok := trend.StratifiedControlLimits["provider:claude"]
+	if !ok {
+		t.Fatalf("StratifiedControlLimits missing %q key", "provider:claude")
+	}
+	successLimit, ok := findControlLimit(providerLimits, metricRollingSuccessRate)
+	if !ok {
+		t.Fatalf("provider:claude limits missing %q", metricRollingSuccessRate)
+	}
+	assertFloatNear(t, successLimit.Latest, 0.5, "provider:claude latest rolling_success_rate")
+	assertFloatNear(t, successLimit.Mean, 0.5, "provider:claude mean rolling_success_rate")
+
+	modelLimits, ok := trend.StratifiedControlLimits["model:haiku"]
+	if !ok {
+		t.Fatalf("StratifiedControlLimits missing %q key", "model:haiku")
+	}
+	if _, ok := findControlLimit(modelLimits, metricRollingAvgDurationMs); !ok {
+		t.Fatalf("model:haiku limits missing %q", metricRollingAvgDurationMs)
+	}
+}
+
+func TestBuildProcessTrend_ComputesStratifiedAnomalies(t *testing.T) {
+	metrics := make([]IterationMetric, 30)
+	for i := range metrics {
+		metrics[i] = IterationMetric{
+			Model:                    "haiku",
+			Provider:                 "claude",
+			Success:                  true,
+			RollingBuildFailureRate:  0,
+			RollingSuccessRate:       1,
+			RollingFirstPassSuccess:  1,
+			RollingEscalationRate:    0,
+			RollingAvgDurationMs:     100,
+			RollingAvgValidationMs:   0,
+			RollingAvgCostUSD:        0.1,
+			RollingAvgCostPerBeadUSD: 0.1,
+		}
+	}
+	metrics[len(metrics)-1].RollingBuildFailureRate = 1
+
+	trend := buildProcessTrend(metrics, 30)
+	anomalies, ok := trend.StratifiedAnomalies["provider:claude"]
+	if !ok {
+		t.Fatalf("StratifiedAnomalies missing %q key", "provider:claude")
+	}
+
+	anomaly, ok := findTrendAnomaly(anomalies, metricRollingBuildFailure)
+	if !ok {
+		t.Fatalf("expected stratified anomaly for %q", metricRollingBuildFailure)
+	}
+	if anomaly.Severity != anomalySeverityHigh {
+		t.Fatalf("stratified anomaly severity = %q, want %q", anomaly.Severity, anomalySeverityHigh)
 	}
 }
 

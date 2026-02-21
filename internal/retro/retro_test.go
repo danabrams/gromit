@@ -1309,6 +1309,15 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 				Message:  "latest value 1.2300 is above control limits [0.4000, 1.1000]",
 			},
 		},
+		StratifiedAnomalies: map[string][]logger.TrendAnomaly{
+			"provider:claude": {
+				{
+					Metric:   "rolling_success_rate",
+					Severity: "high",
+					Message:  "latest value 0.4000 is below control limits [0.6500, 0.9500]",
+				},
+			},
+		},
 	}
 
 	data, err := json.Marshal(trend)
@@ -1342,6 +1351,8 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 		"nelson_rule_2",
 		"### EWMA Signals",
 		"ewma_cost_usd",
+		"### Stratified Out-Of-Control Signals",
+		"provider:claude",
 	}
 	for _, want := range expected {
 		if !contains(prompt, want) {

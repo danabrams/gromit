@@ -179,6 +179,17 @@ The following iterations exceeded 80% of their model's context window:
 *No out-of-control signals detected in latest metrics.*
 {{- end }}
 
+{{- if .ProcessTrend.StratifiedAnomalies }}
+### Stratified Out-Of-Control Signals
+| Stratum | Metric | Severity | Message |
+|---------|--------|----------|---------|
+{{- range $stratum, $anomalies := .ProcessTrend.StratifiedAnomalies }}
+{{- range $anomalies }}
+| {{ $stratum }} | {{ .Metric }} | {{ .Severity }} | {{ .Message }} |
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{- if .ProcessTrend.EWMAAnomalies }}
 ### EWMA Signals
 {{- range .ProcessTrend.EWMAAnomalies }}

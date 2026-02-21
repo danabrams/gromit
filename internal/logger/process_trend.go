@@ -287,16 +287,18 @@ type ProviderMetrics struct {
 
 // ProcessTrend is a continuously regenerated trend snapshot.
 type ProcessTrend struct {
-	GeneratedAt        time.Time           `json:"generated_at"`
-	TotalIterations    int                 `json:"total_iterations"`
-	WindowSize         int                 `json:"window_size"`
-	LatestWindow       ProcessTrendWindow  `json:"latest_window"`
-	PromptTokenSummary PromptTokenSummary  `json:"prompt_token_summary"`
-	ProviderMetrics    []ProviderMetrics   `json:"provider_metrics"`
-	ControlLimits      []TrendControlLimit `json:"control_limits"`
-	Anomalies          []TrendAnomaly      `json:"anomalies"`
-	EWMAAnomalies      []TrendAnomaly      `json:"ewma_anomalies"`
-	PatternViolations  []PatternViolation  `json:"pattern_violations"`
+	GeneratedAt             time.Time                      `json:"generated_at"`
+	TotalIterations         int                            `json:"total_iterations"`
+	WindowSize              int                            `json:"window_size"`
+	LatestWindow            ProcessTrendWindow             `json:"latest_window"`
+	PromptTokenSummary      PromptTokenSummary             `json:"prompt_token_summary"`
+	ProviderMetrics         []ProviderMetrics              `json:"provider_metrics"`
+	ControlLimits           []TrendControlLimit            `json:"control_limits"`
+	StratifiedControlLimits map[string][]TrendControlLimit `json:"stratified_control_limits"`
+	Anomalies               []TrendAnomaly                 `json:"anomalies"`
+	StratifiedAnomalies     map[string][]TrendAnomaly      `json:"stratified_anomalies"`
+	EWMAAnomalies           []TrendAnomaly                 `json:"ewma_anomalies"`
+	PatternViolations       []PatternViolation             `json:"pattern_violations"`
 }
 
 func newPromptTokenSummary() PromptTokenSummary {
@@ -358,8 +360,14 @@ func (t *ProcessTrend) normalizeNilFields() {
 	if t.ControlLimits == nil {
 		t.ControlLimits = []TrendControlLimit{}
 	}
+	if t.StratifiedControlLimits == nil {
+		t.StratifiedControlLimits = map[string][]TrendControlLimit{}
+	}
 	if t.Anomalies == nil {
 		t.Anomalies = []TrendAnomaly{}
+	}
+	if t.StratifiedAnomalies == nil {
+		t.StratifiedAnomalies = map[string][]TrendAnomaly{}
 	}
 	if t.EWMAAnomalies == nil {
 		t.EWMAAnomalies = []TrendAnomaly{}
@@ -375,6 +383,17 @@ func (t *ProcessTrend) normalizeNilFields() {
 	}
 	if t.PromptTokenSummary.BudgetActionFrequency == nil {
 		t.PromptTokenSummary.BudgetActionFrequency = map[string]int{}
+	}
+
+	for key, limits := range t.StratifiedControlLimits {
+		if limits == nil {
+			t.StratifiedControlLimits[key] = []TrendControlLimit{}
+		}
+	}
+	for key, anomalies := range t.StratifiedAnomalies {
+		if anomalies == nil {
+			t.StratifiedAnomalies[key] = []TrendAnomaly{}
+		}
 	}
 }
 
@@ -487,16 +506,18 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 
 func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend {
 	trend := &ProcessTrend{
-		GeneratedAt:        time.Now().UTC(),
-		TotalIterations:    len(metrics),
-		WindowSize:         windowSize,
-		LatestWindow:       ProcessTrendWindow{},
-		PromptTokenSummary: newPromptTokenSummary(),
-		ProviderMetrics:    []ProviderMetrics{},
-		ControlLimits:      []TrendControlLimit{},
-		Anomalies:          []TrendAnomaly{},
-		EWMAAnomalies:      []TrendAnomaly{},
-		PatternViolations:  []PatternViolation{},
+		GeneratedAt:             time.Now().UTC(),
+		TotalIterations:         len(metrics),
+		WindowSize:              windowSize,
+		LatestWindow:            ProcessTrendWindow{},
+		PromptTokenSummary:      newPromptTokenSummary(),
+		ProviderMetrics:         []ProviderMetrics{},
+		ControlLimits:           []TrendControlLimit{},
+		StratifiedControlLimits: map[string][]TrendControlLimit{},
+		Anomalies:               []TrendAnomaly{},
+		StratifiedAnomalies:     map[string][]TrendAnomaly{},
+		EWMAAnomalies:           []TrendAnomaly{},
+		PatternViolations:       []PatternViolation{},
 	}
 	if len(metrics) == 0 {
 		return trend
@@ -540,6 +561,9 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 			trend.EWMAAnomalies = append(trend.EWMAAnomalies, anomaly)
 		}
 	}
+	stratifiedLimits, stratifiedAnomalies := buildStratifiedControlLimits(metrics)
+	trend.StratifiedControlLimits = stratifiedLimits
+	trend.StratifiedAnomalies = stratifiedAnomalies
 
 	sort.Slice(trend.ControlLimits, func(i, j int) bool { return trend.ControlLimits[i].Metric < trend.ControlLimits[j].Metric })
 	sort.Slice(trend.Anomalies, func(i, j int) bool { return trend.Anomalies[i].Metric < trend.Anomalies[j].Metric })
@@ -675,6 +699,69 @@ func resolveProviderName(providerName, modelName string) string {
 		return "unknown"
 	}
 	return "claude"
+}
+
+func buildStratifiedControlLimits(metrics []IterationMetric) (map[string][]TrendControlLimit, map[string][]TrendAnomaly) {
+	limitsByStratum := map[string][]TrendControlLimit{}
+	anomaliesByStratum := map[string][]TrendAnomaly{}
+	if len(metrics) == 0 {
+		return limitsByStratum, anomaliesByStratum
+	}
+
+	byStratum := partitionMetricsByStratum(metrics)
+	strata := make([]string, 0, len(byStratum))
+	for key := range byStratum {
+		strata = append(strata, key)
+	}
+	sort.Strings(strata)
+
+	for _, key := range strata {
+		stratumMetrics := byStratum[key]
+		if len(stratumMetrics) == 0 {
+			continue
+		}
+
+		latestMetric := stratumMetrics[len(stratumMetrics)-1]
+		limits := make([]TrendControlLimit, 0, len(trendControlLimitSeries))
+		anomalies := []TrendAnomaly{}
+		for _, metric := range trendControlLimitSeries {
+			latestValue := metric.latestSample(latestMetric)
+			historyValues := extractMetric(stratumMetrics, metric.historySample)
+			limit := computeControlLimit(metric.name, latestValue, historyValues)
+			limits = append(limits, limit)
+			if anomaly, ok := detectAnomaly(limit); ok {
+				anomalies = append(anomalies, anomaly)
+			}
+		}
+
+		sort.Slice(limits, func(i, j int) bool { return limits[i].Metric < limits[j].Metric })
+		sort.Slice(anomalies, func(i, j int) bool { return anomalies[i].Metric < anomalies[j].Metric })
+		limitsByStratum[key] = limits
+		anomaliesByStratum[key] = anomalies
+	}
+
+	return limitsByStratum, anomaliesByStratum
+}
+
+func partitionMetricsByStratum(metrics []IterationMetric) map[string][]IterationMetric {
+	byStratum := map[string][]IterationMetric{}
+	for _, m := range metrics {
+		provider := resolveProviderName(m.Provider, m.Model)
+		providerKey := "provider:" + provider
+		byStratum[providerKey] = append(byStratum[providerKey], m)
+
+		modelKey := "model:" + resolveModelStratumName(m.Model)
+		byStratum[modelKey] = append(byStratum[modelKey], m)
+	}
+	return byStratum
+}
+
+func resolveModelStratumName(modelName string) string {
+	normalized := strings.ToLower(strings.TrimSpace(modelName))
+	if normalized == "" {
+		return "unknown"
+	}
+	return normalized
 }
 
 func extractMetric(metrics []IterationMetric, pick func(IterationMetric) float64) []float64 {
