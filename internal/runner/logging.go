@@ -194,6 +194,7 @@ func newIterationLogEntry(iteration int, result *IterationResult, errStr, outcom
 		TrivialAutoFixed:          result.TrivialAutoFixed,
 		UsageLimited:              result.UsageLimited,
 		ValidationMode:            result.ValidationMode,
+		EstimatedFiles:            result.EstimatedFiles,
 		ValidationDurationMs:      result.ValidationDurationMs,
 		ValidationTimeouts:        result.ValidationTimeouts,
 		CompilationErrors:         result.CompilationErrors,

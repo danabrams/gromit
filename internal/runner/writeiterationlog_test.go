@@ -181,6 +181,28 @@ func TestWriteIterationLog_PropagatesValidationDurationMs(t *testing.T) {
 	}
 }
 
+func TestWriteIterationLog_PropagatesEstimatedFiles(t *testing.T) {
+	r, tmpDir := newTestRunnerWithLogger(t, false)
+
+	result := &IterationResult{
+		BeadID:         "test-estimated-files",
+		BeadTitle:      "Estimated files propagation",
+		Model:          "sonnet",
+		Success:        true,
+		EstimatedFiles: 6,
+		Duration:       1 * time.Second,
+	}
+
+	r.writeIterationLog(2, result)
+
+	var logEntry logger.IterationLog
+	unmarshalSingleIterationLogInto(t, tmpDir, &logEntry)
+
+	if logEntry.EstimatedFiles != 6 {
+		t.Errorf("expected EstimatedFiles=6, got %d", logEntry.EstimatedFiles)
+	}
+}
+
 func TestWriteIterationLog_PropagatesFallbackCounters(t *testing.T) {
 	r, tmpDir := newTestRunnerWithLogger(t, false)
 

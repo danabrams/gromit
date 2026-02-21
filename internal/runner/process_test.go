@@ -107,6 +107,9 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 	if bc.Result.OriginalTier != bc.Tier {
 		t.Errorf("expected OriginalTier %q, got %q", bc.Tier, bc.Result.OriginalTier)
 	}
+	if bc.Result.EstimatedFiles != 0 {
+		t.Errorf("expected EstimatedFiles=0, got %d", bc.Result.EstimatedFiles)
+	}
 	if bc.MaxRetries != 2 {
 		t.Errorf("expected maxRetries=2, got %d", bc.MaxRetries)
 	}
@@ -118,6 +121,86 @@ func TestSetupBeadContext_SetsFields(t *testing.T) {
 	}
 	if beadCtx == nil {
 		t.Error("beadCtx should not be nil")
+	}
+}
+
+func TestSetupBeadContext_SetsEstimatedFilesFromLabel(t *testing.T) {
+	r := &Runner{
+		cfg: &config.Config{
+			Escalation: config.EscalationConfig{
+				MaxRetriesPerModel: 1,
+				MaxRetriesPerBead:  1,
+			},
+			Claude: config.ClaudeConfig{
+				BeadTimeout: 60,
+			},
+		},
+		beads:    &mockBeadClient{},
+		renderer: &mockRenderer{},
+		output:   &strings.Builder{},
+		router:   newMockRouter(),
+	}
+	b := &bead.Bead{
+		ID:     "test-estimated-files",
+		Title:  "Estimated files from labels",
+		Labels: []string{"spec:test", "estimated-files:8"},
+	}
+
+	bc, _, cancel, err := r.setupBeadContext(context.Background(), b, 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer cancel()
+
+	if bc.Result.EstimatedFiles != 8 {
+		t.Fatalf("expected EstimatedFiles=8, got %d", bc.Result.EstimatedFiles)
+	}
+}
+
+func TestParseEstimatedFilesLabel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		labels []string
+		want   int
+	}{
+		{
+			name:   "no labels",
+			labels: nil,
+			want:   0,
+		},
+		{
+			name:   "no estimated files label",
+			labels: []string{"spec:test", "priority:p1"},
+			want:   0,
+		},
+		{
+			name:   "valid estimated files label",
+			labels: []string{"spec:test", "estimated-files:13"},
+			want:   13,
+		},
+		{
+			name:   "invalid estimated files label returns zero",
+			labels: []string{"estimated-files:not-a-number"},
+			want:   0,
+		},
+		{
+			name:   "first estimated files label wins",
+			labels: []string{"estimated-files:5", "estimated-files:9"},
+			want:   5,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := parseEstimatedFilesLabel(tt.labels); got != tt.want {
+				t.Fatalf("parseEstimatedFilesLabel() = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }
 

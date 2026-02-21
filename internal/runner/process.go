@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,11 +65,12 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 
 	specID := bead.FindSpecLabel(b.Labels)
 	result := &IterationResult{
-		BeadID:       b.ID,
-		BeadTitle:    b.Title,
-		Model:        model,
-		SpecID:       specID,
-		OriginalTier: tier,
+		BeadID:         b.ID,
+		BeadTitle:      b.Title,
+		Model:          model,
+		SpecID:         specID,
+		EstimatedFiles: parseEstimatedFilesLabel(b.Labels),
+		OriginalTier:   tier,
 	}
 
 	bc := &runtypes.BeadContext{
@@ -100,6 +102,20 @@ func (r *Runner) setupBeadContext(ctx context.Context, b *bead.Bead, iteration i
 	}
 
 	return bc, beadCtx, beadCancel, nil
+}
+
+func parseEstimatedFilesLabel(labels []string) int {
+	for _, label := range labels {
+		if !strings.HasPrefix(label, "estimated-files:") {
+			continue
+		}
+		estimatedFiles, err := strconv.Atoi(strings.TrimPrefix(label, "estimated-files:"))
+		if err != nil {
+			return 0
+		}
+		return estimatedFiles
+	}
+	return 0
 }
 
 // buildPromptForBead performs scope checking (if enabled) and renders the build prompt.
