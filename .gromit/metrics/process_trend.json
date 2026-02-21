@@ -1,47 +1,47 @@
 {
-  "generated_at": "2026-02-20T21:18:52.325267915Z",
-  "total_iterations": 641,
+  "generated_at": "2026-02-21T01:57:19.84398105Z",
+  "total_iterations": 663,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 0.9666666666666667,
-    "failure_rate": 0.03333333333333333,
-    "first_pass_success_rate": 0.9666666666666667,
+    "success_rate": 0.8333333333333334,
+    "failure_rate": 0.16666666666666666,
+    "first_pass_success_rate": 0.8333333333333334,
     "escalation_rate": 0,
-    "avg_duration_ms": 446226.2,
-    "p95_duration_ms": 1041772.4999999993,
-    "avg_validation_ms": 37.06896551724138,
-    "p95_validation_ms": 67,
-    "avg_cost_usd": 2.7481577,
+    "avg_duration_ms": 607993.3666666667,
+    "p95_duration_ms": 1349254.0499999998,
+    "avg_validation_ms": 38835.12,
+    "p95_validation_ms": 122450.59999999993,
+    "avg_cost_usd": 2.3108563443333328,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
     "validation_failure_rate": 0,
-    "timeout_failure_rate": 0
+    "timeout_failure_rate": 0.1
   },
   "prompt_token_summary": {
     "by_prompt_type": [
       {
         "prompt_type": "build",
         "invocation_count": 29,
-        "avg_estimated_tokens": 2575.1724137931033
+        "avg_estimated_tokens": 2265.0689655172414
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 52229
+        "estimated_tokens": 54056
       },
       {
         "section": "spec",
-        "estimated_tokens": 13424
-      },
-      {
-        "section": "claude_md",
-        "estimated_tokens": 4838
+        "estimated_tokens": 5416
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 4102
+        "estimated_tokens": 3556
+      },
+      {
+        "section": "claude_md",
+        "estimated_tokens": 2572
       },
       {
         "section": "template_static",
@@ -62,37 +62,37 @@
     ],
     "budget_action_frequency": {},
     "reconciliation_drift": {
-      "sample_count": 29,
-      "mean_abs_token_delta_pct": 1110.3010096111022,
-      "p95_abs_token_delta_pct": 7231.784921763845
+      "sample_count": 27,
+      "mean_abs_token_delta_pct": 109.48443149019027,
+      "p95_abs_token_delta_pct": 99.9708693377344
     }
   },
   "provider_metrics": [
     {
       "name": "claude",
-      "total_invocations": 278,
+      "total_invocations": 279,
       "successes": 197,
-      "success_rate": 0.7086330935251799,
+      "success_rate": 0.7060931899641577,
       "transport_failures": 0,
       "transport_failure_rate": 0,
       "fallbacks_triggered": 12,
-      "avg_duration_ms": 484094.5323741007,
+      "avg_duration_ms": 482359.4265232975,
       "total_cost_usd": 218.24062750000002,
       "total_input_tokens": 1552020,
       "total_output_tokens": 638953
     },
     {
       "name": "codex",
-      "total_invocations": 233,
-      "successes": 230,
-      "success_rate": 0.9871244635193133,
+      "total_invocations": 254,
+      "successes": 247,
+      "success_rate": 0.9724409448818898,
       "transport_failures": 0,
       "transport_failure_rate": 0,
       "fallbacks_triggered": 3,
-      "avg_duration_ms": 392118.56652360514,
-      "total_cost_usd": 515.6637885000001,
-      "total_input_tokens": 305486536,
-      "total_output_tokens": 1837395
+      "avg_duration_ms": 417489.56692913384,
+      "total_cost_usd": 553.4426758300001,
+      "total_input_tokens": 345709880,
+      "total_output_tokens": 2117562
     },
     {
       "name": "openai",
@@ -111,27 +111,27 @@
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 2.7481577,
-      "mean": 1.0922289901280906,
-      "std_dev": 0.8346502393350382,
-      "ucl": 3.596179708133205,
-      "lcl": -1.411721727877024
+      "latest": 2.3108563443333328,
+      "mean": 1.1392202934104163,
+      "std_dev": 0.8610375105491861,
+      "ucl": 3.7223328250579746,
+      "lcl": -1.443892238237142
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 446226.2,
-      "mean": 537686.7671976066,
-      "std_dev": 280126.84126397525,
-      "ucl": 1378067.2909895324,
-      "lcl": -302693.75659431913
+      "latest": 607993.3666666667,
+      "mean": 539918.4556163889,
+      "std_dev": 275963.99457809835,
+      "ucl": 1367810.439350684,
+      "lcl": -287973.52811790607
     },
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 37.06896551724138,
-      "mean": 1.4339690703508998,
-      "std_dev": 6.692478833223039,
-      "ucl": 21.51140557002002,
-      "lcl": -18.643467429318218
+      "latest": 38835.12,
+      "mean": 925.9524724496113,
+      "std_dev": 5641.835614972471,
+      "ucl": 17851.459317367026,
+      "lcl": -15999.554372467803
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -144,16 +144,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.03588143525741067,
-      "std_dev": 0.051888487479428445,
-      "ucl": 0.191546897695696,
+      "mean": 0.03469079939668211,
+      "std_dev": 0.05142351764904677,
+      "ucl": 0.18896135234382244,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 0.9666666666666667,
-      "mean": 0.5631825273010903,
-      "std_dev": 0.45182934896065163,
+      "latest": 0.8333333333333334,
+      "mean": 0.5730015082956238,
+      "std_dev": 0.4474871730747549,
       "ucl": 1,
       "lcl": 0
     },
@@ -167,18 +167,18 @@
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 0.9666666666666667,
-      "mean": 0.8140056118001735,
-      "std_dev": 0.2139225456303979,
+      "latest": 0.8333333333333334,
+      "mean": 0.8155016548475285,
+      "std_dev": 0.21064103137562265,
       "ucl": 1,
-      "lcl": 0.17223797490897985
+      "lcl": 0.18357856072066048
     },
     {
       "metric": "rolling_timeout_failure_rate",
-      "latest": 0,
-      "mean": 0.007800312012480491,
-      "std_dev": 0.017805530445507603,
-      "ucl": 0.0612169033490033,
+      "latest": 0.1,
+      "mean": 0.01000502765208646,
+      "std_dev": 0.022017787076384,
+      "ucl": 0.07605838888123846,
       "lcl": 0
     },
     {
@@ -193,11 +193,19 @@
   "anomalies": [
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 37.06896551724138,
-      "ucl": 21.51140557002002,
-      "lcl": -18.643467429318218,
+      "latest": 38835.12,
+      "ucl": 17851.459317367026,
+      "lcl": -15999.554372467803,
       "severity": "high",
-      "message": "latest value 37.0690 is above control limits [-18.6435, 21.5114]"
+      "message": "latest value 38835.1200 is above control limits [-15999.5544, 17851.4593]"
+    },
+    {
+      "metric": "rolling_timeout_failure_rate",
+      "latest": 0.1,
+      "ucl": 0.07605838888123846,
+      "lcl": 0,
+      "severity": "high",
+      "message": "latest value 0.1000 is above control limits [0.0000, 0.0761]"
     }
   ]
 }
