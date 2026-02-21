@@ -20,7 +20,7 @@ func TestRenderDecomposeGuidelinesStructure(t *testing.T) {
 	// Verify template exists
 	templatePath := filepath.Join(templatesDir, "PROMPT_decompose.md")
 	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		t.Skipf("skipping: real template not found at %s", templatePath)
+		t.Fatalf("skipping: real template not found at %s", templatePath)
 	}
 
 	r := &Renderer{templatesDir: templatesDir}
@@ -140,7 +140,7 @@ func TestRenderDecomposeGuidelinesOrdering(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	templatePath := filepath.Join(templatesDir, "PROMPT_decompose.md")
 	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		t.Skipf("skipping: real template not found at %s", templatePath)
+		t.Fatalf("skipping: real template not found at %s", templatePath)
 	}
 
 	r := &Renderer{templatesDir: templatesDir}
@@ -197,7 +197,7 @@ func TestRenderDecomposeGuidelinesNoOldPhrasing(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	templatePath := filepath.Join(templatesDir, "PROMPT_decompose.md")
 	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		t.Skipf("skipping: real template not found at %s", templatePath)
+		t.Fatalf("skipping: real template not found at %s", templatePath)
 	}
 
 	r := &Renderer{templatesDir: templatesDir}
@@ -247,7 +247,7 @@ func TestRenderDecomposeExampleIntegrity(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	templatePath := filepath.Join(templatesDir, "PROMPT_decompose.md")
 	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		t.Skipf("skipping: real template not found at %s", templatePath)
+		t.Fatalf("skipping: real template not found at %s", templatePath)
 	}
 
 	r := &Renderer{templatesDir: templatesDir}

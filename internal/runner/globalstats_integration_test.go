@@ -120,7 +120,7 @@ func TestRun_UpdatesGlobalStatsAfterCompletion(t *testing.T) {
 // This test verifies that UpdateGlobalStats failures are logged but don't halt the run
 func TestRun_LogsWarningOnGlobalStatsUpdateFailure(t *testing.T) {
 	if os.Getuid() == 0 {
-		t.Skip("Skipping permission test when running as root")
+		t.Fatal("Skipping permission test when running as root")
 	}
 
 	tmpDir := t.TempDir()

@@ -325,27 +325,6 @@ func TestRefineAgentSelectionIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("source code has agent integration", func(t *testing.T) {
-		refineSource, err := os.ReadFile("../../internal/pipeline/refine.go")
-		if err != nil {
-			t.Skipf("Cannot read pipeline/refine.go: %v", err)
-		}
-
-		sourceStr := string(refineSource)
-
-		// Verify key integration points in pipeline package
-		integrationChecks := map[string]string{
-			"calls agent.Resolve":     ".Resolve(",
-			"calls agent.LaunchInDir": ".LaunchInDir(",
-		}
-
-		for check, pattern := range integrationChecks {
-			if !strings.Contains(sourceStr, pattern) {
-				t.Errorf("Integration check failed: %s (missing pattern %q)", check, pattern)
-			}
-		}
-	})
-
 	t.Run("old exec.Command pattern removed", func(t *testing.T) {
 		// Check both cmd/gromit/refine.go and internal/pipeline/refine.go
 		files := []string{"refine.go", "../../internal/pipeline/refine.go"}

@@ -93,7 +93,7 @@ func TestGromitYamlDocumentsCodexProvider(t *testing.T) {
 		codexIndex := strings.Index(text, "# codex:")
 
 		if codexIndex == -1 {
-			t.Skip("Codex example not found, skipping position test")
+			t.Fatal("Codex example not found, skipping position test")
 		}
 
 		// Verify codex comes after routing (around line 30)

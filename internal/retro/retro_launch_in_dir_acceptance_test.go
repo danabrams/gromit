@@ -13,7 +13,7 @@ import (
 func requireInteractiveLaunch(t *testing.T) {
 	t.Helper()
 	if os.Getenv("GROMIT_RUN_INTERACTIVE_ACCEPTANCE") != "1" {
-		t.Skip("set GROMIT_RUN_INTERACTIVE_ACCEPTANCE=1 to run interactive launch acceptance tests")
+		t.Fatal("set GROMIT_RUN_INTERACTIVE_ACCEPTANCE=1 to run interactive launch acceptance tests")
 	}
 }
 

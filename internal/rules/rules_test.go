@@ -663,7 +663,7 @@ func TestLoadRealRulesFile(t *testing.T) {
 	// Test loading the actual RULES.md file from the project
 	r, err := Load("../../.gromit/RULES.md")
 	if err != nil {
-		t.Skipf("skipping test, RULES.md not found: %v", err)
+		t.Fatalf("skipping test, RULES.md not found: %v", err)
 	}
 
 	// Verify we got some sections
