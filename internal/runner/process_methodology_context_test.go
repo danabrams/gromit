@@ -924,6 +924,12 @@ func TestRunRefactorAndPostChecks_RecordsRefactorAndVerificationMetrics(t *testi
 	if bc.Result.PhaseMetrics[0].InputTokens != 12 || bc.Result.PhaseMetrics[0].OutputTokens != 7 {
 		t.Fatalf("refactor tokens = (%d,%d), want (12,7)", bc.Result.PhaseMetrics[0].InputTokens, bc.Result.PhaseMetrics[0].OutputTokens)
 	}
+	if bc.Result.PhaseMetrics[1].CostUSD != 0 {
+		t.Fatalf("verification cost = %f, want 0", bc.Result.PhaseMetrics[1].CostUSD)
+	}
+	if bc.Result.PhaseMetrics[1].InputTokens != 0 || bc.Result.PhaseMetrics[1].OutputTokens != 0 {
+		t.Fatalf("verification tokens = (%d,%d), want (0,0)", bc.Result.PhaseMetrics[1].InputTokens, bc.Result.PhaseMetrics[1].OutputTokens)
+	}
 	if !bc.Result.PhaseMetrics[0].Success || !bc.Result.PhaseMetrics[1].Success {
 		t.Fatal("expected both refactor and verification metrics to be successful")
 	}

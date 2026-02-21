@@ -743,6 +743,47 @@ func TestExecuteBuildLoop_RecordsGreenPhaseMetric(t *testing.T) {
 	}
 }
 
+func TestExecuteBuildLoop_RecordsGreenPhaseMetricDeltaFromSnapshot(t *testing.T) {
+	var bc *runtypes.BeadContext
+	r, _, _ := setupDirectValidationRunner(t, nil, func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "ok", "", 0, nil
+	})
+	b := newTestBead("green-metric-delta-1", "Implement feature")
+	bc = newBeadContextForMethodology(b)
+	bc.Model = "sonnet"
+	bc.Tier = "medium"
+	bc.Result.CostUSD = 5.00
+	bc.Result.InputTokens = 200
+	bc.Result.OutputTokens = 120
+
+	result := r.executeBuildAndMethodologyLoop(
+		context.Background(),
+		bc,
+		false,
+		false,
+		func() bool {
+			bc.Result.CostUSD += 0.75
+			bc.Result.InputTokens += 41
+			bc.Result.OutputTokens += 19
+			return true
+		},
+	)
+
+	if len(result.PhaseMetrics) != 1 {
+		t.Fatalf("PhaseMetrics length = %d, want 1", len(result.PhaseMetrics))
+	}
+	metric := result.PhaseMetrics[0]
+	if metric.Phase != "green" {
+		t.Fatalf("Phase = %q, want %q", metric.Phase, "green")
+	}
+	if metric.CostUSD != 0.75 {
+		t.Fatalf("CostUSD = %f, want 0.75", metric.CostUSD)
+	}
+	if metric.InputTokens != 41 || metric.OutputTokens != 19 {
+		t.Fatalf("tokens = (%d,%d), want (41,19)", metric.InputTokens, metric.OutputTokens)
+	}
+}
+
 // TestExecuteBuildLoop_FirstPassSuccess_FalseAfterRetry verifies that
 // FirstPassSuccess remains false when the build succeeded but required retries.
 func TestExecuteBuildLoop_FirstPassSuccess_FalseAfterRetry(t *testing.T) {

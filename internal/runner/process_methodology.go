@@ -405,28 +405,6 @@ func (r *Runner) runATDDRewriteRetryCheck(
 	return true
 }
 
-func (r *Runner) recordPhaseMetric(
-	bc *runtypes.BeadContext,
-	phase string,
-	cycleNumber int,
-	phaseStart time.Time,
-	success bool,
-) {
-	if bc == nil || bc.Result == nil {
-		return
-	}
-	r.recordPhaseMetricWithUsage(
-		bc,
-		phase,
-		cycleNumber,
-		phaseStart,
-		success,
-		bc.Result.CostUSD,
-		bc.Result.InputTokens,
-		bc.Result.OutputTokens,
-	)
-}
-
 func (r *Runner) recordPhaseMetricWithUsage(
 	bc *runtypes.BeadContext,
 	phase string,
@@ -525,27 +503,6 @@ func (r *Runner) recordPhaseMetricFromSnapshot(
 	)
 }
 
-func (r *Runner) recordGreenPhaseMetric(
-	bc *runtypes.BeadContext,
-	cycleNumber int,
-	phaseStart time.Time,
-	success bool,
-	costUSD float64,
-	inputTokens int,
-	outputTokens int,
-) {
-	r.recordPhaseMetricWithUsage(
-		bc,
-		"green",
-		cycleNumber,
-		phaseStart,
-		success,
-		costUSD,
-		inputTokens,
-		outputTokens,
-	)
-}
-
 func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtypes.BeadContext, atddActive bool, tddActive bool, executeWithRetry func() bool) *IterationResult {
 	r.ensureMethodologyPolicy()
 	cycleNumber := 0
@@ -561,10 +518,19 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 		injectScopedTestCommand(bc)
 
 		greenPhaseStart := time.Now()
+		greenBeforeCostUSD, greenBeforeInputTokens, greenBeforeOutputTokens := snapshotIterationUsage(bc.Result)
 		greenSuccess := executeWithRetry()
-		greenCostUSD, greenInputTokens, greenOutputTokens := snapshotIterationUsage(bc.Result)
 		if !greenSuccess {
-			r.recordGreenPhaseMetric(bc, cycleNumber, greenPhaseStart, false, greenCostUSD, greenInputTokens, greenOutputTokens)
+			r.recordPhaseMetricFromSnapshot(
+				bc,
+				"green",
+				cycleNumber,
+				greenPhaseStart,
+				false,
+				greenBeforeCostUSD,
+				greenBeforeInputTokens,
+				greenBeforeOutputTokens,
+			)
 			if bc.Result.FailurePhase == "" {
 				if bc.Result.TimeoutType != "" || isTimeoutOrCanceledError(bc.Result.Error) {
 					bc.Result.FailurePhase = failurephase.Timeout
@@ -574,7 +540,16 @@ func (r *Runner) executeBuildAndMethodologyLoop(ctx context.Context, bc *runtype
 			}
 			return bc.Result
 		}
-		r.recordGreenPhaseMetric(bc, cycleNumber, greenPhaseStart, true, greenCostUSD, greenInputTokens, greenOutputTokens)
+		r.recordPhaseMetricFromSnapshot(
+			bc,
+			"green",
+			cycleNumber,
+			greenPhaseStart,
+			true,
+			greenBeforeCostUSD,
+			greenBeforeInputTokens,
+			greenBeforeOutputTokens,
+		)
 
 		r.refreshTouchedPackagesFromStartCommit(bc)
 
@@ -714,15 +689,34 @@ func (r *Runner) runRefactorAndPostChecks(ctx context.Context, bc *runtypes.Bead
 		defer acceptanceCancel()
 		r.log("Acceptance verification phase context: timeout=%s source=%s", acceptMeta.EffectiveTimeout.Round(time.Second), acceptMeta.TimeoutSource)
 		verificationPhaseStart := time.Now()
+		verificationBeforeCostUSD, verificationBeforeInputTokens, verificationBeforeOutputTokens := snapshotIterationUsage(bc.Result)
 		if err := r.methodologyExec.VerifyAcceptanceTestsPass(acceptanceCtx, bc); err != nil {
-			r.recordPhaseMetric(bc, "verification", cycleNumber, verificationPhaseStart, false)
+			r.recordPhaseMetricFromSnapshot(
+				bc,
+				"verification",
+				cycleNumber,
+				verificationPhaseStart,
+				false,
+				verificationBeforeCostUSD,
+				verificationBeforeInputTokens,
+				verificationBeforeOutputTokens,
+			)
 			setPhaseAttribution(bc.Result, "acceptance_verification", err)
 			if r.handleAcceptanceVerificationFailure(ctx, bc, "acceptance verification failed after refactoring", err) {
 				return true, nil
 			}
 			return false, bc.Result
 		}
-		r.recordPhaseMetric(bc, "verification", cycleNumber, verificationPhaseStart, true)
+		r.recordPhaseMetricFromSnapshot(
+			bc,
+			"verification",
+			cycleNumber,
+			verificationPhaseStart,
+			true,
+			verificationBeforeCostUSD,
+			verificationBeforeInputTokens,
+			verificationBeforeOutputTokens,
+		)
 	}
 
 	return false, nil
