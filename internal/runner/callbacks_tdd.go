@@ -254,6 +254,11 @@ func resolveInitialCycleState(expectedOutputs []string, tracker *coverage.Covera
 	}
 
 	uncovered := tracker.UncoveredCriteria()
+	if len(uncovered) == 0 {
+		// All criteria covered/untestable — preserve original expected outputs
+		// so at least one cycle runs to verify the implementation
+		return remaining, tracker.IsComplete()
+	}
 	remaining = make([]string, 0, len(uncovered))
 	for _, criterion := range uncovered {
 		remaining = append(remaining, criterion.Text)

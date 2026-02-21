@@ -24,8 +24,8 @@ type RefactorHandoff struct {
 
 // CycleState tracks TDD cycle progress across iterations.
 type CycleState struct {
-	CycleNumber int
-	MaxCycles   int
+	CycleNumber  int
+	MaxCycles    int
 	CoveredSoFar []string
 	Remaining    []string
 	TouchedFiles []string
@@ -34,5 +34,15 @@ type CycleState struct {
 
 // IsComplete reports whether the cycle is finished.
 func (c CycleState) IsComplete() bool {
-	return c.Done || c.CycleNumber >= c.MaxCycles || len(c.Remaining) == 0
+	if c.Done {
+		return true
+	}
+	if c.CycleNumber >= c.MaxCycles {
+		return true
+	}
+	// Only treat empty remaining as complete if at least one cycle ran
+	if c.CycleNumber > 0 && len(c.Remaining) == 0 {
+		return true
+	}
+	return false
 }

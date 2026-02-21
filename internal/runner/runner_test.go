@@ -3732,8 +3732,8 @@ func setupL3StopLineAcceptanceRunner(
 
 func TestRun_L3StopLine_HaltsMutationAndStopsFurtherBeadProcessing(t *testing.T) {
 	beadQueue := []*bead.Bead{
-		{ID: "bead-l3-1", Title: "first stop-line candidate", Priority: 1},
-		{ID: "bead-l3-2", Title: "should not run after L3", Priority: 1},
+		{ID: "bead-l3-1", Title: "first stop-line candidate", Description: "Check repository integrity before proceeding", Priority: 1},
+		{ID: "bead-l3-2", Title: "should not run after L3", Description: "Secondary task that should be skipped after L3 stop-line", Priority: 1},
 	}
 
 	beads := &mockBeadClient{
@@ -3785,7 +3785,7 @@ func TestRun_L3StopLine_HaltsMutationAndStopsFurtherBeadProcessing(t *testing.T)
 func TestRun_L4Output_IncludesPacketAndThreeDecisionOptionsWithTradeoffs(t *testing.T) {
 	beads := &mockBeadClient{
 		ReadyFn: makeReadyFromQueue([]*bead.Bead{
-			{ID: "bead-l4-1", Title: "surface escalation choices", Priority: 1},
+			{ID: "bead-l4-1", Title: "surface escalation choices", Description: "Surface L4 escalation decision options to the operator", Priority: 1},
 		}),
 	}
 
@@ -3834,7 +3834,7 @@ func TestRun_L4Output_IncludesPacketAndThreeDecisionOptionsWithTradeoffs(t *test
 func TestRun_L3StopLine_LogsMutationHaltAndSkipsPushMerge(t *testing.T) {
 	beads := &mockBeadClient{
 		ReadyFn: makeReadyFromQueue([]*bead.Bead{
-			{ID: "bead-l3-halt", Title: "halt mutation actions", Priority: 1},
+			{ID: "bead-l3-halt", Title: "halt mutation actions", Description: "Halt all state-changing mutation actions on L3 stop-line", Priority: 1},
 		}),
 	}
 

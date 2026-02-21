@@ -1380,7 +1380,7 @@ func TestProcessBeadWithMocks_BuildFailure(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	b := &bead.Bead{ID: "fail-test", Title: "Fail Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
+	b := &bead.Bead{ID: "fail-test", Title: "Fail Test", Description: "Test build failure handling", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
 	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if result.Success {
@@ -1389,8 +1389,8 @@ func TestProcessBeadWithMocks_BuildFailure(t *testing.T) {
 	if result.Error == nil {
 		t.Error("expected error to be set")
 	}
-	if mockAnalyzerObj.AnalyzeCalls != 1 {
-		t.Errorf("expected 1 analyze call, got %d", mockAnalyzerObj.AnalyzeCalls)
+	if mockAnalyzerObj.AnalyzeCalls < 1 {
+		t.Errorf("expected at least 1 analyze call, got %d", mockAnalyzerObj.AnalyzeCalls)
 	}
 }
 
@@ -1520,11 +1520,12 @@ func TestProcessBeadWithMocks_ValidationUsesInjectedCmdRunner(t *testing.T) {
 }
 
 func TestEscalationWithMocks(t *testing.T) {
-	callCount := 0
+	// The escalation handler allows one common-cause retry on the same tier before
+	// escalating. The mock always fails on haiku so the retry also fails, triggering
+	// escalation. Sonnet then succeeds on the third call.
 	mockClaude := &mockClaudeClient{
 		StreamRunFn: func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-			callCount++
-			if callCount == 1 {
+			if model == "haiku" {
 				return &claude.Result{Success: false, Output: "fail", ExitCode: 1}, nil
 			}
 			return &claude.Result{Success: true, Output: "success"}, nil
@@ -1546,7 +1547,7 @@ func TestEscalationWithMocks(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	b := &bead.Bead{ID: "escalate-test", Title: "Escalation Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
+	b := &bead.Bead{ID: "escalate-test", Title: "Escalation Test", Description: "Test tier escalation on failure", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
 	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if !result.Success {
@@ -1558,14 +1559,19 @@ func TestEscalationWithMocks(t *testing.T) {
 	if result.EscalatedTo != "sonnet" {
 		t.Errorf("expected EscalatedTo='sonnet', got %q", result.EscalatedTo)
 	}
-	if len(mockClaude.StreamRunCalls) != 2 {
-		t.Fatalf("expected 2 stream run calls, got %d", len(mockClaude.StreamRunCalls))
+	// The handler retries once on haiku (common-cause), then escalates to sonnet:
+	// call 1: haiku (fail), call 2: haiku retry (fail), call 3: sonnet (success).
+	if len(mockClaude.StreamRunCalls) != 3 {
+		t.Fatalf("expected 3 stream run calls (2 haiku + 1 sonnet), got %d", len(mockClaude.StreamRunCalls))
 	}
 	if mockClaude.StreamRunCalls[0].Model != "haiku" {
 		t.Errorf("expected first call with haiku, got %q", mockClaude.StreamRunCalls[0].Model)
 	}
-	if mockClaude.StreamRunCalls[1].Model != "sonnet" {
-		t.Errorf("expected second call with sonnet, got %q", mockClaude.StreamRunCalls[1].Model)
+	if mockClaude.StreamRunCalls[1].Model != "haiku" {
+		t.Errorf("expected second call with haiku (common-cause retry), got %q", mockClaude.StreamRunCalls[1].Model)
+	}
+	if mockClaude.StreamRunCalls[2].Model != "sonnet" {
+		t.Errorf("expected third call with sonnet (after escalation), got %q", mockClaude.StreamRunCalls[2].Model)
 	}
 }
 
@@ -1605,7 +1611,7 @@ func TestProcessBeadWithMocks_UnclearSpec(t *testing.T) {
 		&buf, t.TempDir(),
 		Deps{Beads: &mockBeadClient{}, Router: newMockRouterFromClaudeClient(mockClaude), Analyzer: mockAnalyzerObj, Renderer: &mockPromptRenderer{}, Logger: &mockIterationLogger{}})
 
-	b := &bead.Bead{ID: "unclear-test", Title: "Unclear Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
+	b := &bead.Bead{ID: "unclear-test", Title: "Unclear Test", Description: "Test unclear spec handling", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
 	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if result.Success {

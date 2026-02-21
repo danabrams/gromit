@@ -4,16 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/failurephase"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -191,94 +186,6 @@ func (h *Handler) HandleBeadTimeout(bc *runtypes.BeadContext) (continueLoop bool
 	return h.AttemptDecomposition(decomposeCtx, bc, failureReason)
 }
 
-func firstNonNilContext(contexts ...context.Context) context.Context {
-	for _, ctx := range contexts {
-		if ctx != nil {
-			return ctx
-		}
-	}
-	return context.Background()
-}
-
-func (h *Handler) checkRetryBudgetBeforeAttempt(ctx context.Context, bc *runtypes.BeadContext) (handled bool, err error) {
-	if bc == nil {
-		return false, fmt.Errorf("bead context is nil")
-	}
-	if bc.MaxAttemptsPerBead > 0 && bc.AttemptsThisBead >= bc.MaxAttemptsPerBead {
-		return false, fmt.Errorf("retry budget exceeded: attempts %d/%d", bc.AttemptsThisBead, bc.MaxAttemptsPerBead)
-	}
-	if bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
-		elapsed := time.Since(bc.BeadStartTime)
-		if elapsed >= bc.BeadTimeout {
-			return false, fmt.Errorf("retry budget exceeded: bead wall-clock %s reached (timeout=%s)", elapsed.Round(time.Second), bc.BeadTimeout)
-		}
-	}
-	if h != nil && h.cfg != nil {
-		tokenBudgetCap := h.cfg.Claude.TokenBudgetForModel(bc.Model)
-		if tokenBudgetCap > 0 && bc.CumulativeInputTokens > tokenBudgetCap {
-			failureReason := fmt.Sprintf(
-				"retry budget exceeded: cumulative input tokens %d/%d",
-				bc.CumulativeInputTokens,
-				tokenBudgetCap,
-			)
-			decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
-			if decomposeCtx.Err() != nil {
-				return false, fmt.Errorf("%s (decomposition skipped: parent context canceled: %w)", failureReason, decomposeCtx.Err())
-			}
-			h.AttemptDecomposition(decomposeCtx, bc, failureReason)
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (h *Handler) checkRetryBudgetAfterFailure(bc *runtypes.BeadContext) error {
-	if bc == nil {
-		return fmt.Errorf("bead context is nil")
-	}
-	if bc.MaxAttemptsPerBead > 0 && bc.AttemptsThisBead >= bc.MaxAttemptsPerBead {
-		return fmt.Errorf("retry budget exceeded after failed attempt: %d/%d", bc.AttemptsThisBead, bc.MaxAttemptsPerBead)
-	}
-	if bc.BeadTimeout > 0 && !bc.BeadStartTime.IsZero() {
-		elapsed := time.Since(bc.BeadStartTime)
-		if elapsed >= bc.BeadTimeout {
-			return fmt.Errorf("retry budget exceeded after failed attempt: bead wall-clock %s reached (timeout=%s)", elapsed.Round(time.Second), bc.BeadTimeout)
-		}
-	}
-	return nil
-}
-
-func (h *Handler) setBuildFailurePhase(bc *runtypes.BeadContext) {
-	if bc == nil || bc.Result == nil {
-		return
-	}
-	bc.Result.FailurePhase = failurephase.Build
-}
-
-func (h *Handler) setBuildTimeoutFailurePhase(bc *runtypes.BeadContext) {
-	if bc == nil || bc.Result == nil {
-		return
-	}
-	bc.Result.FailurePhase = failurephase.Timeout
-	bc.Result.TimeoutPhase = "build"
-}
-
-func (h *Handler) addInvocationTokensToCumulative(bc *runtypes.BeadContext) {
-	if bc == nil || bc.Result == nil {
-		return
-	}
-	bc.CumulativeInputTokens += bc.Result.InputTokens
-	bc.CumulativeOutputTokens += bc.Result.OutputTokens
-}
-
-func (h *Handler) applyTriageClassification(bc *runtypes.BeadContext, triageResult *TriageResult) {
-	if bc == nil || bc.Result == nil || triageResult == nil {
-		return
-	}
-	bc.Result.FailureLayer = string(triageResult.Layer)
-	bc.Result.FailureSubCat = triageResult.SubCategory
-}
-
 func (h *Handler) handleTriageResult(bc *runtypes.BeadContext, triageResult *TriageResult) (continueLoop bool, handled bool) {
 	if triageResult == nil {
 		return false, false
@@ -357,78 +264,6 @@ func (h *Handler) HandleEscalation(ctx context.Context, bc *runtypes.BeadContext
 
 	h.log("Escalating from tier %s to %s", bc.Tier, nextTier)
 	h.EscalateTier(bc, nextTier)
-	return true
-}
-
-func (h *Handler) shouldEscalateAsSpecialCause(bc *runtypes.BeadContext) bool {
-	if bc == nil {
-		return true
-	}
-	// Repeated failures on the same bead are treated as special cause.
-	if bc.RetriesThisModel > 0 {
-		return true
-	}
-	limit, ok := h.readModelBuildFailureControlLimit(bc.Model)
-	if !ok {
-		return false
-	}
-	return limit.Latest > limit.UCL || limit.Latest < limit.LCL
-}
-
-func (h *Handler) readModelBuildFailureControlLimit(model string) (logger.TrendControlLimit, bool) {
-	if h == nil || h.cfg == nil {
-		return logger.TrendControlLimit{}, false
-	}
-	trendPath := filepath.Join(h.cfg.Paths.GromitDir, processTrendMetricsDir, processTrendFileName)
-	trend, err := logger.ReadProcessTrend(trendPath)
-	if err != nil || trend == nil {
-		return logger.TrendControlLimit{}, false
-	}
-	modelKey := modelStratumPrefix + strings.ToLower(strings.TrimSpace(model))
-	limits, ok := trend.StratifiedControlLimits[modelKey]
-	if !ok {
-		return logger.TrendControlLimit{}, false
-	}
-	for _, limit := range limits {
-		if limit.Metric == metricBuildFailureRate {
-			return limit, true
-		}
-	}
-	return logger.TrendControlLimit{}, false
-}
-
-func (h *Handler) incrementRetryCounters(bc *runtypes.BeadContext) bool {
-	bc.RetriesThisModel++
-	bc.TotalRetriesThisBead++
-	if bc.TotalRetriesThisBead > bc.MaxRetriesPerBead {
-		h.log("Max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
-		bc.Result.Error = fmt.Errorf("build failed: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
-		return false
-	}
-	return true
-}
-
-func (h *Handler) setRetryPromptContext(bc *runtypes.BeadContext, failureContext string) {
-	if bc.PromptCtx == nil {
-		return
-	}
-	bc.PromptCtx.IsRetry = true
-	bc.PromptCtx.FailureContext = h.truncateFailureContext(failureContext)
-}
-
-func (h *Handler) retryCommonCauseFailure(bc *runtypes.BeadContext, failureContext string) bool {
-	if bc == nil || bc.Result == nil {
-		return false
-	}
-	l1RetryCap := h.resolveL1RetryCap(bc)
-	if bc.RetriesThisModel >= l1RetryCap {
-		return false
-	}
-	if !h.incrementRetryCounters(bc) {
-		return false
-	}
-	h.setRetryPromptContext(bc, failureContext)
-	h.log("Common-cause failure: retrying on same tier (attempt %d/%d)", bc.RetriesThisModel, l1RetryCap)
 	return true
 }
 

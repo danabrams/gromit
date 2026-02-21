@@ -219,7 +219,7 @@ func TestProcessBead_RetryPromptIncludesFailureContext(t *testing.T) {
 			Logger:   &mockIterationLogger{},
 		})
 
-	b := &bead.Bead{ID: "retry-ctx-test", Title: "Retry Context Test", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
+	b := &bead.Bead{ID: "retry-ctx-test", Title: "Retry Context Test", Description: "Add missing import and retry", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}}
 	result := r.processBead(context.Background(), b, 1, time.Time{}, nil)
 
 	if !result.Success {

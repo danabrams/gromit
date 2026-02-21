@@ -26,7 +26,7 @@ func TestCycleStateIsCompleteWhenCycleReachesMax(t *testing.T) {
 	}
 }
 
-func TestCycleStateIsCompleteWhenNoRemainingRequirements(t *testing.T) {
+func TestCycleStateIsNotCompleteWhenZeroCyclesAndEmptyRemaining(t *testing.T) {
 	state := CycleState{
 		CycleNumber: 0,
 		MaxCycles:   3,
@@ -34,8 +34,47 @@ func TestCycleStateIsCompleteWhenNoRemainingRequirements(t *testing.T) {
 		Remaining:   []string{},
 	}
 
+	if state.IsComplete() {
+		t.Fatalf("expected IsComplete to be false when no cycles have run, even with empty remaining")
+	}
+}
+
+func TestCycleStateIsCompleteWhenOneCycleAndEmptyRemaining(t *testing.T) {
+	state := CycleState{
+		CycleNumber: 1,
+		MaxCycles:   3,
+		Done:        false,
+		Remaining:   []string{},
+	}
+
 	if !state.IsComplete() {
-		t.Fatalf("expected IsComplete to be true when no requirements remain")
+		t.Fatalf("expected IsComplete to be true when at least one cycle ran and no requirements remain")
+	}
+}
+
+func TestCycleStateIsCompleteWhenDoneRegardlessOfState(t *testing.T) {
+	state := CycleState{
+		CycleNumber: 0,
+		MaxCycles:   5,
+		Done:        true,
+		Remaining:   []string{"something"},
+	}
+
+	if !state.IsComplete() {
+		t.Fatalf("expected IsComplete to be true when Done is true, regardless of other state")
+	}
+}
+
+func TestCycleStateIsNotCompleteWhenZeroCyclesWithRemaining(t *testing.T) {
+	state := CycleState{
+		CycleNumber: 0,
+		MaxCycles:   3,
+		Done:        false,
+		Remaining:   []string{"implement feature X"},
+	}
+
+	if state.IsComplete() {
+		t.Fatalf("expected IsComplete to be false when no cycles have run and requirements remain")
 	}
 }
 
