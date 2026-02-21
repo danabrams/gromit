@@ -7,9 +7,9 @@
   "primary_concern": "any",
   "started_at": "2026-02-20T18:00:00Z",
   "status": "study",
-  "study_summary": "Experiment generated insufficient data to evaluate hypothesis. Post-experiment: 10 iterations, all gpt-5.3-codex (medium tier), zero haiku or codex-spark (low tier). Root cause: process.go used escalationPolicy.SelectModel (priority-based) instead of escalation.SelectModel (test-only-bead-aware), causing model/tier mismatch for test-only beads. Fix applied. The rolling_avg_validation_ms UCL anomaly (37.3 vs 20.0) is a metrics baseline artifact from previously-zero validation tracking, unrelated to the experiment.",
+  "study_summary": "Extension 1 (2026-02-20): Routing bug fixed (process.go now uses escalation.SelectModel). Extension 2 (2026-02-21): 35 low-tier data points collected. Haiku: 20/20 actual builds succeeded (100% first-pass, exceeds >=90% threshold). 8 zero-duration haiku 'failures' are scope gate rejections, not model failures — the gate is working correctly. Codex-spark: 5/6 successes (83%), one failure retried successfully. Cost data for haiku was $0 due to a MergeCostData bug (fixed in c15ba8c3, Feb 15); a regression test added. Going forward, haiku cost will be tracked correctly. Cost reduction vs baseline not yet measurable for haiku (historical $0 entries are artifacts). Codex-spark avg ~$1.57/success vs $1.72 baseline (~9% savings, below 50% target but small sample). Continuing to accumulate clean cost data.",
   "act_decision": "extend",
-  "act_date": "2026-02-20",
+  "act_date": "2026-02-21",
   "baseline_metrics": {
     "avg_cost_per_bead": 1.71752058,
     "avg_duration_ms": 340425.63,
