@@ -71,6 +71,7 @@ For each task in the plan:
 - `priority`: `P1` (use plan's default priority — P1 for most features)
 - `acceptance_criteria`: Array of 1-3 concrete, testable criteria
 - `depends_on_index`: Array of zero-based indices of beads this depends on (or empty array if no dependencies)
+- `estimated_files`: Integer estimate of how many files this bead will touch
 
 **Title Guidelines:**
 - Start with a verb: "Add", "Implement", "Create", "Update", "Fix", "Refactor"
@@ -83,6 +84,7 @@ For each task in the plan:
 - Second sentence: Which files to modify/create
 - Optional third sentence: Key implementation notes
 - Reference specific functions, types, or APIs if helpful
+- Ensure the described scope aligns with a realistic `estimated_files` value
 - DO NOT include rationale or background — keep it action-oriented
 
 **Acceptance Criteria Guidelines:**
@@ -113,7 +115,8 @@ Output a JSON array of bead definitions. **DO NOT** output any markdown, explana
       "Fields have appropriate JSON tags for serialization",
       "Struct includes validation tags for required fields"
     ],
-    "depends_on_index": []
+    "depends_on_index": [],
+    "estimated_files": 2
   },
   {
     "title": "Implement profile storage interface",
@@ -124,7 +127,8 @@ Output a JSON array of bead definitions. **DO NOT** output any markdown, explana
       "Error types defined for common failure cases",
       "Method signatures include context.Context for cancellation"
     ],
-    "depends_on_index": [0]
+    "depends_on_index": [0],
+    "estimated_files": 2
   },
   {
     "title": "Add profile update endpoint",
@@ -135,7 +139,8 @@ Output a JSON array of bead definitions. **DO NOT** output any markdown, explana
       "Validates user owns the profile being updated",
       "Returns 200 with updated profile on success"
     ],
-    "depends_on_index": [0, 1]
+    "depends_on_index": [0, 1],
+    "estimated_files": 1
   }
 ]
 ```
@@ -151,10 +156,10 @@ Output a JSON array of bead definitions. **DO NOT** output any markdown, explana
 
 The beads will be created with additional metadata by the CLI command:
 - `spec:<spec-name>` label — extracted from plan frontmatter
-- `complexity:high` or `complexity:low` labels — determined by the CLI based on bead content
+- `complexity:high` is auto-applied when `estimated_files > 5`; otherwise `complexity:low` is used
 - Proper bd dependencies based on `depends_on_index`
 
-You do NOT need to include these in the JSON output. Focus only on the five fields listed above.
+You do NOT need to include labels in the JSON output. Focus only on the six bead fields listed above.
 
 ## Bead Splitting Examples
 
