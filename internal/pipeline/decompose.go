@@ -17,10 +17,12 @@ import (
 
 const (
 	decomposePromptType         = "decompose"
+	decomposeModel              = "sonnet"
 	specLabelFormat             = "spec:%s"
 	complexityHighLabel         = "complexity:high"
 	estimatedFilesLabelFormat   = "estimated-files:%d"
 	highComplexityFileThreshold = 5
+	providerOutputPreviewLimit  = 500
 )
 
 // beadDef represents a bead definition from the provider's JSON output.
@@ -59,16 +61,13 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	// Build prompt with embedded skill content
 	promptText, promptDiagnostics := buildDecomposePrompt(input.PlanName, planBody, skills.DecomposeSkill)
 
-	maxRetries := input.MaxValidationRetries
-	if maxRetries < 0 {
-		maxRetries = 0
-	}
+	maxRetries := normalizeMaxValidationRetries(input.MaxValidationRetries)
 	currentPrompt := promptText
 
 	var beadDefs []beadDef
 	for attempt := 0; ; attempt++ {
 		// Run provider non-interactively
-		claudeResult, err := p.deps.ClaudeClient.Run(currentPrompt, "sonnet")
+		claudeResult, err := p.deps.ClaudeClient.Run(currentPrompt, decomposeModel)
 		if err != nil {
 			return nil, fmt.Errorf("invoking provider: %w", err)
 		}
@@ -84,8 +83,8 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		if err := jsonutil.ExtractJSON(output, &beadDefs); err != nil {
 			// Include truncated output in error for diagnostics
 			preview := output
-			if len(preview) > 500 {
-				preview = preview[:500] + "... (truncated)"
+			if len(preview) > providerOutputPreviewLimit {
+				preview = preview[:providerOutputPreviewLimit] + "... (truncated)"
 			}
 			return nil, fmt.Errorf("parsing bead definitions: %w\n\nProvider output:\n%s", err, preview)
 		}
@@ -100,10 +99,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			break
 		}
 
-		fmt.Printf("Validation found %d violation(s) in decomposed beads.\n", len(violations))
-		for _, violation := range violations {
-			fmt.Printf("  - bead %d [%s]: %s\n", violation.BeadIndex, violation.Rule, violation.Message)
-		}
+		logValidationViolations(violations)
 
 		if attempt >= maxRetries {
 			fmt.Printf("Warning: validation still failing after %d retr%s; proceeding with current output.\n", maxRetries, pluralizeRetry(maxRetries))
@@ -277,6 +273,20 @@ func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
 		}
 	}
 	return candidates
+}
+
+func normalizeMaxValidationRetries(maxRetries int) int {
+	if maxRetries < 0 {
+		return 0
+	}
+	return maxRetries
+}
+
+func logValidationViolations(violations []validate.Violation) {
+	fmt.Printf("Validation found %d violation(s) in decomposed beads.\n", len(violations))
+	for _, violation := range violations {
+		fmt.Printf("  - bead %d [%s]: %s\n", violation.BeadIndex, violation.Rule, violation.Message)
+	}
 }
 
 func pluralizeRetry(count int) string {
