@@ -96,3 +96,33 @@ func TestInputBuildSucceededField(t *testing.T) {
 		t.Error("Input.BuildSucceeded zero value: want false, got true")
 	}
 }
+
+func TestInputTouchedPackagesField(t *testing.T) {
+	pkgs := []string{"internal/pipeline", "internal/runner"}
+	in := pipeline.Input{TouchedPackages: pkgs}
+	if len(in.TouchedPackages) != 2 {
+		t.Errorf("Input.TouchedPackages: want 2 items, got %d", len(in.TouchedPackages))
+	}
+	if in.TouchedPackages[0] != "internal/pipeline" {
+		t.Errorf("Input.TouchedPackages[0]: want %q, got %q", "internal/pipeline", in.TouchedPackages[0])
+	}
+	var zero pipeline.Input
+	if zero.TouchedPackages != nil {
+		t.Error("Input.TouchedPackages zero value: want nil, got non-nil")
+	}
+}
+
+func TestOutputTouchedPackagesField(t *testing.T) {
+	pkgs := []string{"internal/pipeline", "internal/runner"}
+	out := pipeline.Output{TouchedPackages: pkgs}
+	if len(out.TouchedPackages) != 2 {
+		t.Errorf("Output.TouchedPackages: want 2 items, got %d", len(out.TouchedPackages))
+	}
+	if out.TouchedPackages[1] != "internal/runner" {
+		t.Errorf("Output.TouchedPackages[1]: want %q, got %q", "internal/runner", out.TouchedPackages[1])
+	}
+	var zero pipeline.Output
+	if zero.TouchedPackages != nil {
+		t.Error("Output.TouchedPackages zero value: want nil, got non-nil")
+	}
+}

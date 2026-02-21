@@ -356,3 +356,119 @@ func TestEpilogue_CommandFailureIsWarning(t *testing.T) {
 		t.Errorf("Decision = %v, want Proceed even after command failure", out.Decision)
 	}
 }
+
+// fakeFailureLearner is a test double for epilogue.FailureLearner.
+type fakeFailureLearner struct {
+	called bool
+	beadID string
+	callFn func(ctx context.Context, beadID, beadTitle string) error
+}
+
+func (f *fakeFailureLearner) ExtractFailureLearning(ctx context.Context, beadID, beadTitle string) error {
+	f.called = true
+	f.beadID = beadID
+	if f.callFn != nil {
+		return f.callFn(ctx, beadID, beadTitle)
+	}
+	return nil
+}
+
+// TestEpilogue_FailurePath_CallsFailureLearner verifies that failure-path learning is extracted
+// unconditionally when the build did not succeed.
+func TestEpilogue_FailurePath_CallsFailureLearner(t *testing.T) {
+	learner := &fakeFailureLearner{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithFailureLearner(learner)
+
+	in := makeInput("bead-1", "Implement feature", false) // failure path
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !learner.called {
+		t.Error("FailureLearner.ExtractFailureLearning() was not called; want failure-path learning extracted unconditionally")
+	}
+	if learner.beadID != "bead-1" {
+		t.Errorf("FailureLearner.ExtractFailureLearning() beadID = %q, want %q", learner.beadID, "bead-1")
+	}
+}
+
+// TestEpilogue_SuccessPath_DoesNotCallFailureLearner verifies that failure-path learning
+// is not extracted on the success path.
+func TestEpilogue_SuccessPath_DoesNotCallFailureLearner(t *testing.T) {
+	learner := &fakeFailureLearner{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithFailureLearner(learner)
+
+	in := makeInput("bead-1", "Implement feature", true) // success path
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if learner.called {
+		t.Error("FailureLearner.ExtractFailureLearning() was called on success path; want no failure-path learning")
+	}
+}
+
+// TestEpilogue_FailureLearner_CalledRegardlessOfTierOrPackageNovelty verifies that the
+// failure learner is called even for low-tier beads touching previously-seen packages.
+func TestEpilogue_FailureLearner_CalledRegardlessOfTierOrPackageNovelty(t *testing.T) {
+	learner := &fakeFailureLearner{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithFailureLearner(learner)
+
+	in := makeInput("bead-2", "Low-tier bead", false)
+	// Simulate low-tier bead with previously-seen packages via TouchedPackages
+	in.TouchedPackages = []string{"internal/pipeline"} // packages already seen
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !learner.called {
+		t.Error("FailureLearner.ExtractFailureLearning() was not called; want failure-path learning regardless of tier/novelty")
+	}
+}
+
+// TestEpilogue_OutputContainsTouchedPackages verifies that the Epilogue returns
+// Input.TouchedPackages in Output.TouchedPackages for orchestrator accumulation.
+func TestEpilogue_OutputContainsTouchedPackages(t *testing.T) {
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard)
+
+	in := makeInput("bead-1", "Test", true)
+	in.TouchedPackages = []string{"internal/pipeline", "internal/runner"}
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(out.TouchedPackages) != 2 {
+		t.Errorf("Output.TouchedPackages: want 2 items, got %d", len(out.TouchedPackages))
+	}
+	if len(out.TouchedPackages) > 0 && out.TouchedPackages[0] != "internal/pipeline" {
+		t.Errorf("Output.TouchedPackages[0]: want %q, got %q", "internal/pipeline", out.TouchedPackages[0])
+	}
+}
+
+// TestEpilogue_NilFailureLearner_NoopOnFailure verifies that a nil FailureLearner
+// does not panic when the build fails.
+func TestEpilogue_NilFailureLearner_NoopOnFailure(t *testing.T) {
+	// No WithFailureLearner call — nil by default
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard)
+
+	in := makeInput("bead-1", "Test", false)
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Errorf("Decision = %v, want Proceed", out.Decision)
+	}
+}

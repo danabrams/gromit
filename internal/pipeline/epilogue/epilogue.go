@@ -47,20 +47,27 @@ type EpicChecker interface {
 	HasOpenChildren(parentID string) (bool, error)
 }
 
+// FailureLearner extracts learnings from failed iterations.
+// It is called unconditionally on every failure, regardless of tier or package novelty.
+type FailureLearner interface {
+	ExtractFailureLearning(ctx context.Context, beadID, beadTitle string) error
+}
+
 // Epilogue implements pipeline.Stage for Stage 5: bead lifecycle and cleanup.
 // It closes and syncs the bead on the success path, evaluates the spec gate when
 // spec-level methodology is active, merges interactive worktree branches, writes
 // status after every iteration, triggers thorough reviews, and runs the
 // between-iterations command.
 type Epilogue struct {
-	beads    BeadLifecycle
-	status   StatusWriter
-	output   io.Writer
-	worktree WorktreeMerger   // optional; nil means skip worktree merge
-	cmd      CommandRunner    // optional; nil means skip between-iterations command
-	specgate SpecGateRunner   // optional; nil means skip spec gate
-	review   ThoroughReviewer // optional; nil means skip thorough review
-	epic     EpicChecker      // optional; used with review for epic completion detection
+	beads          BeadLifecycle
+	status         StatusWriter
+	output         io.Writer
+	worktree       WorktreeMerger   // optional; nil means skip worktree merge
+	cmd            CommandRunner    // optional; nil means skip between-iterations command
+	specgate       SpecGateRunner   // optional; nil means skip spec gate
+	review         ThoroughReviewer // optional; nil means skip thorough review
+	epic           EpicChecker      // optional; used with review for epic completion detection
+	failureLearner FailureLearner   // optional; nil means skip failure-path learning
 }
 
 // Compile-time check: *Epilogue must implement pipeline.Stage.
@@ -102,6 +109,13 @@ func (e *Epilogue) WithThoroughReview(r ThoroughReviewer, ec EpicChecker) *Epilo
 	return e
 }
 
+// WithFailureLearner configures an optional FailureLearner for failure-path learning extraction.
+// When set, it is called unconditionally on every failed iteration.
+func (e *Epilogue) WithFailureLearner(fl FailureLearner) *Epilogue {
+	e.failureLearner = fl
+	return e
+}
+
 // Run executes the epilogue stage.
 // On the success path (in.BuildSucceeded == true), it closes the bead and syncs.
 // After every iteration, it writes status.
@@ -118,6 +132,14 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		}
 		if err := e.beads.Sync(); err != nil {
 			fmt.Fprintf(w, "Warning: failed to sync beads: %v\n", err)
+		}
+	}
+
+	// 1a. Failure-path learning: extract unconditionally on every failure,
+	// regardless of tier or package novelty.
+	if !in.BuildSucceeded && e.failureLearner != nil {
+		if err := e.failureLearner.ExtractFailureLearning(ctx, in.Bead.ID, in.Bead.Title); err != nil {
+			fmt.Fprintf(w, "Warning: failed to extract failure learning: %v\n", err)
 		}
 	}
 
@@ -192,5 +214,8 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		}
 	}
 
-	return pipeline.Output{Decision: pipeline.Proceed}, nil
+	return pipeline.Output{
+		Decision:        pipeline.Proceed,
+		TouchedPackages: in.TouchedPackages,
+	}, nil
 }

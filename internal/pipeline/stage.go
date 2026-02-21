@@ -39,6 +39,11 @@ type Input struct {
 	// BuildSucceeded is true when the build and validate stages both passed
 	// for this iteration. Set by the orchestrator before calling Epilogue.
 	BuildSucceeded bool
+	// TouchedPackages holds the Go package paths touched by this iteration.
+	// Set by the orchestrator before calling Epilogue.
+	// The Epilogue returns an updated set in Output.TouchedPackages for the orchestrator to
+	// accumulate across iterations and use for success-learning gating.
+	TouchedPackages []string
 }
 
 // Output is the result returned by every stage after its execution.
@@ -51,6 +56,9 @@ type Output struct {
 	ValidationFailures []string
 	// ReviewBeadIDs holds IDs of beads created by the review stage from findings.
 	ReviewBeadIDs []string
+	// TouchedPackages is the updated set of Go package paths touched across iterations,
+	// returned by the Epilogue for the orchestrator to accumulate.
+	TouchedPackages []string
 }
 
 // Stage is the interface that each pipeline stage implements.
