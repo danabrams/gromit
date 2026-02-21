@@ -29,8 +29,10 @@ const (
 	atddEndMarkerFormat         = "ATDD_INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s"
 	atddFallbackDecisionFormat  = "ATDD_FALLBACK_DECISION class=%s primary_provider=%s primary_model=%s fallback_provider=auto fallback_model=auto reason=%s"
 	atddFallbackAttemptFormat   = "ATDD_FALLBACK_ATTEMPT class=%s primary_provider=%s primary_model=%s fallback_provider=%s fallback_model=%s"
+	atddFallbackOutcomeFormat   = "ATDD_FALLBACK_OUTCOME class=%s primary_provider=%s primary_model=%s fallback_provider=%s fallback_model=%s success=%t fallback_failure_class=%s"
 	atddFallbackReasonError     = "primary_error"
 	atddFallbackReasonResult    = "primary_result"
+	atddFallbackClassNone       = "none"
 )
 
 const (
@@ -258,6 +260,24 @@ func (r *Runner) logATDDFallbackDecision(failureClass, providerName, modelName, 
 
 func (r *Runner) logATDDFallbackAttempt(failureClass, primaryProvider, primaryModel, fallbackProvider, fallbackModel string) {
 	r.log(atddFallbackAttemptFormat, failureClass, primaryProvider, primaryModel, fallbackProvider, fallbackModel)
+}
+
+func (r *Runner) logATDDFallbackOutcome(failureClass, primaryProvider, primaryModel, fallbackProvider, fallbackModel string, fallbackResult *provider.Result, fallbackErr error) {
+	success := fallbackErr == nil && fallbackResult != nil && fallbackResult.Success
+	fallbackFailureClass := atddFallbackClassNone
+	if !success {
+		fallbackFailureClass = classifyATDDFailure(fallbackResult, fallbackErr)
+	}
+	r.log(
+		atddFallbackOutcomeFormat,
+		failureClass,
+		primaryProvider,
+		primaryModel,
+		fallbackProvider,
+		fallbackModel,
+		success,
+		fallbackFailureClass,
+	)
 }
 
 func (r *Runner) estimatedCostUSD(providerName, model string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
@@ -539,6 +559,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 						r.logATDDFallbackAttempt(failureClass, p.Name(), modelName, p2.Name(), modelName2)
 						fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
 						applyCostData(fallbackStats)
+						r.logATDDFallbackOutcome(failureClass, p.Name(), modelName, p2.Name(), modelName2, fallbackResult, fallbackErr)
 						if fallbackErr != nil {
 							return fmt.Errorf(
 								"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary_err=%v fallback_err=%v",
@@ -588,6 +609,7 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 					r.logATDDFallbackAttempt(failureClass, p.Name(), modelName, p2.Name(), modelName2)
 					fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
 					applyCostData(fallbackStats)
+					r.logATDDFallbackOutcome(failureClass, p.Name(), modelName, p2.Name(), modelName2, fallbackResult, fallbackErr)
 					if fallbackErr != nil {
 						return fmt.Errorf(
 							"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary={%s} fallback_err=%v",
