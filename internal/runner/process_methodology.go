@@ -152,26 +152,9 @@ func buildCoverageTrackerFromSpec(bc *runtypes.BeadContext) (*coverage.CoverageT
 	if bc == nil || bc.Bead == nil || bc.PromptCtx == nil {
 		return nil, nil, nil
 	}
-	// Skip per-bead coverage tracking when spec-granularity is active —
-	// the spec gate handles system-level criteria after all beads complete.
-	if bc.PromptCtx.MethodologyGranularity == config.MethodologyGranularitySpec {
-		return nil, nil, nil
-	}
-	if bead.FindSpecLabel(bc.Bead.Labels) == "" {
-		return nil, nil, nil
-	}
-	specContent := strings.TrimSpace(bc.PromptCtx.Spec)
-	if specContent == "" {
-		return nil, nil, nil
-	}
-	criteria, err := coverage.ParseCriteria(specContent)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(criteria) == 0 {
-		return nil, nil, nil
-	}
-	return coverage.NewTracker(criteria, coverageTrackerMaxRejections), criteria, nil
+	// Spec-level criteria can't be satisfied by individual beads and waste
+	// 30-40 min per bead. The spec gate handles them after all beads complete.
+	return nil, nil, nil
 }
 
 func resolveMaxTDDCycles(cfg *config.Config) int {

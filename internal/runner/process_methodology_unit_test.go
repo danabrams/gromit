@@ -448,15 +448,10 @@ func TestRunTDDFreshContextCycles_InitializesCoverageTrackerFromSpec(t *testing.
 	}
 	r, _ := newMinimalRunnerForMethodology(t, cfg, &mockPromptRenderer{})
 
-	var gotCriteria []coverage.Criterion
 	var trackerObserved bool
 	r.tddOrchestrator = &tddOrchestrator{
 		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			trackerObserved = tracker != nil
-			gotCriteria = append([]coverage.Criterion(nil), criteria...)
-			for _, criterion := range criteria {
-				tracker.MarkCovered(criterion.Number)
-			}
 			return nil
 		},
 	}
@@ -475,20 +470,17 @@ func TestRunTDDFreshContextCycles_InitializesCoverageTrackerFromSpec(t *testing.
 	if !handled {
 		t.Fatal("expected runTDDFreshContextCycles to handle fresh-context path")
 	}
-	if !trackerObserved {
-		t.Fatal("expected a coverage tracker to be initialized when spec criteria are present")
-	}
-	if len(gotCriteria) != 2 {
-		t.Fatalf("expected 2 parsed coverage criteria, got %d", len(gotCriteria))
+	if trackerObserved {
+		t.Fatal("expected nil coverage tracker — spec-level criteria are handled by the spec gate, not per-bead")
 	}
 	if bc.Result.Error != nil {
 		t.Fatalf("expected no error, got %v", bc.Result.Error)
 	}
-	if bc.Result.CriteriaTotal != 2 {
-		t.Fatalf("CriteriaTotal = %d, want 2", bc.Result.CriteriaTotal)
+	if bc.Result.CriteriaTotal != 0 {
+		t.Fatalf("CriteriaTotal = %d, want 0", bc.Result.CriteriaTotal)
 	}
-	if bc.Result.CriteriaCovered != 2 {
-		t.Fatalf("CriteriaCovered = %d, want 2", bc.Result.CriteriaCovered)
+	if bc.Result.CriteriaCovered != 0 {
+		t.Fatalf("CriteriaCovered = %d, want 0", bc.Result.CriteriaCovered)
 	}
 }
 
@@ -506,13 +498,6 @@ func TestRunTDDFreshContextCycles_RerunsUntilCoverageTrackerComplete(t *testing.
 	r.tddOrchestrator = &tddOrchestrator{
 		runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 			orchestratorCalls++
-			if orchestratorCalls == 1 {
-				// Simulate Claude self-reporting completion while tracker still has unchecked criteria.
-				return nil
-			}
-			if tracker != nil && len(criteria) > 0 {
-				tracker.MarkCovered(criteria[0].Number)
-			}
 			return nil
 		},
 	}
@@ -533,8 +518,8 @@ func TestRunTDDFreshContextCycles_RerunsUntilCoverageTrackerComplete(t *testing.
 	if bc.Result.Error != nil {
 		t.Fatalf("expected no error, got %v", bc.Result.Error)
 	}
-	if orchestratorCalls != 2 {
-		t.Fatalf("expected 2 orchestrator passes when tracker remains incomplete, got %d", orchestratorCalls)
+	if orchestratorCalls != 1 {
+		t.Fatalf("expected 1 orchestrator pass with nil tracker (breaks immediately), got %d", orchestratorCalls)
 	}
 }
 
@@ -863,40 +848,25 @@ func TestUpdateIterationCoverageMetrics_UsesFinalTrackerState(t *testing.T) {
 }
 
 func TestRunTDDFreshContextCycles_AddsCoverageCommentForIncompleteCoverage(t *testing.T) {
-	r, buf, beads := newTDDFreshContextCoverageHarness(t, nil, nil)
-	b, bc := newCoverageBeadContext("tdd-comment-1", "Implement feature with incomplete coverage", authSpecTwoCriteria)
+	r, _, beads := newTDDFreshContextCoverageHarness(t, nil, nil)
+	_, bc := newCoverageBeadContext("tdd-comment-1", "Implement feature with incomplete coverage", authSpecTwoCriteria)
 
 	handled := r.runTDDFreshContextCycles(context.Background(), bc)
 
 	if !handled {
 		t.Fatal("expected runTDDFreshContextCycles to handle fresh-context path")
 	}
-	if bc.Result.Error == nil {
-		t.Fatal("expected error when coverage remains incomplete after max cycles")
+	if bc.Result.Error != nil {
+		t.Fatalf("expected no error with nil tracker (spec-level criteria skipped), got %v", bc.Result.Error)
 	}
-	if bc.Result.CriteriaTotal != 2 {
-		t.Fatalf("CriteriaTotal = %d, want 2", bc.Result.CriteriaTotal)
+	if bc.Result.CriteriaTotal != 0 {
+		t.Fatalf("CriteriaTotal = %d, want 0", bc.Result.CriteriaTotal)
 	}
 	if bc.Result.CriteriaCovered != 0 {
 		t.Fatalf("CriteriaCovered = %d, want 0", bc.Result.CriteriaCovered)
 	}
-	if bc.Result.CriteriaUntestable != 0 {
-		t.Fatalf("CriteriaUntestable = %d, want 0", bc.Result.CriteriaUntestable)
-	}
-	if len(bc.Result.UncoveredCriteria) != 2 {
-		t.Fatalf("UncoveredCriteria len = %d, want 2", len(bc.Result.UncoveredCriteria))
-	}
-	if len(beads.Comments) != 1 {
-		t.Fatalf("expected 1 bead comment, got %d", len(beads.Comments))
-	}
-	if beads.Comments[0].ID != b.ID {
-		t.Fatalf("comment bead id = %q, want %q", beads.Comments[0].ID, b.ID)
-	}
-	if !strings.Contains(beads.Comments[0].Comment, "Coverage: 0/2 criteria covered") {
-		t.Fatalf("comment %q missing coverage summary", beads.Comments[0].Comment)
-	}
-	if !strings.Contains(buf.String(), "TDD coverage summary for bead tdd-comment-1") {
-		t.Fatalf("expected coverage summary log, got:\n%s", buf.String())
+	if len(beads.Comments) != 0 {
+		t.Fatalf("expected 0 bead comments with nil tracker, got %d", len(beads.Comments))
 	}
 }
 
@@ -910,21 +880,16 @@ func TestRunTDDFreshContextCycles_CoverageCommentFailureLogsWarning(t *testing.T
 
 	r.runTDDFreshContextCycles(context.Background(), bc)
 
-	if !strings.Contains(buf.String(), "Warning: failed to add coverage summary comment: comment add failed") {
-		t.Fatalf("expected warning log when AddComment fails, got:\n%s", buf.String())
+	// With nil tracker, no coverage comment is attempted, so no warning should appear.
+	if strings.Contains(buf.String(), "Warning: failed to add coverage summary comment") {
+		t.Fatalf("expected no coverage comment warning with nil tracker, got:\n%s", buf.String())
 	}
 }
 
 func TestRunTDDFreshContextCycles_AddsCoverageCommentForUntestableCriteria(t *testing.T) {
-	r, buf, beads := newTDDFreshContextCoverageHarness(
+	r, _, beads := newTDDFreshContextCoverageHarness(
 		t,
-		func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
-			if tracker != nil && len(criteria) > 0 {
-				tracker.RecordRejection(criteria[0].Number)
-				tracker.RecordRejection(criteria[0].Number)
-			}
-			return nil
-		},
+		nil,
 		nil,
 	)
 	_, bc := newCoverageBeadContext("tdd-comment-untestable-1", "Implement feature with untestable criterion", authSpecOneCriterion)
@@ -934,31 +899,16 @@ func TestRunTDDFreshContextCycles_AddsCoverageCommentForUntestableCriteria(t *te
 		t.Fatal("expected runTDDFreshContextCycles to handle fresh-context path")
 	}
 	if bc.Result.Error != nil {
-		t.Fatalf("expected no error when only criterion is marked untestable, got %v", bc.Result.Error)
+		t.Fatalf("expected no error with nil tracker, got %v", bc.Result.Error)
 	}
-	if bc.Result.CriteriaTotal != 1 {
-		t.Fatalf("CriteriaTotal = %d, want 1", bc.Result.CriteriaTotal)
+	if bc.Result.CriteriaTotal != 0 {
+		t.Fatalf("CriteriaTotal = %d, want 0", bc.Result.CriteriaTotal)
 	}
-	if bc.Result.CriteriaCovered != 0 {
-		t.Fatalf("CriteriaCovered = %d, want 0", bc.Result.CriteriaCovered)
+	if bc.Result.CriteriaUntestable != 0 {
+		t.Fatalf("CriteriaUntestable = %d, want 0", bc.Result.CriteriaUntestable)
 	}
-	if bc.Result.CriteriaUntestable != 1 {
-		t.Fatalf("CriteriaUntestable = %d, want 1", bc.Result.CriteriaUntestable)
-	}
-	if len(bc.Result.UncoveredCriteria) != 0 {
-		t.Fatalf("UncoveredCriteria len = %d, want 0", len(bc.Result.UncoveredCriteria))
-	}
-	if len(beads.Comments) != 1 {
-		t.Fatalf("expected 1 bead comment, got %d", len(beads.Comments))
-	}
-	if !strings.Contains(beads.Comments[0].Comment, "Coverage: 0/1 criteria covered") {
-		t.Fatalf("comment %q missing coverage summary", beads.Comments[0].Comment)
-	}
-	if !strings.Contains(beads.Comments[0].Comment, "Untestable: #1") {
-		t.Fatalf("comment %q missing untestable criterion summary", beads.Comments[0].Comment)
-	}
-	if !strings.Contains(buf.String(), "TDD coverage summary for bead tdd-comment-untestable-1") {
-		t.Fatalf("expected coverage summary log, got:\n%s", buf.String())
+	if len(beads.Comments) != 0 {
+		t.Fatalf("expected 0 bead comments with nil tracker, got %d", len(beads.Comments))
 	}
 }
 
@@ -988,7 +938,7 @@ func TestBuildCoverageTrackerFromSpec_SkipsWhenGranularityIsSpec(t *testing.T) {
 // TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsBead verifies
 // that buildCoverageTrackerFromSpec creates a coverage tracker when granularity
 // is explicitly set to "bead".
-func TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsBead(t *testing.T) {
+func TestBuildCoverageTrackerFromSpec_ReturnsNilWhenGranularityIsBead(t *testing.T) {
 	_, bc := newCoverageBeadContext("cov-gran-bead-1", "Implement feature", authSpecTwoCriteria)
 	bc.PromptCtx.MethodologyGranularity = config.MethodologyGranularityBead
 
@@ -997,18 +947,18 @@ func TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsBead(t *tes
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if tracker == nil {
-		t.Fatal("expected non-nil tracker when granularity is bead")
+	if tracker != nil {
+		t.Fatal("expected nil tracker — spec-level criteria are handled by the spec gate, not per-bead")
 	}
-	if len(criteria) != 2 {
-		t.Fatalf("expected 2 criteria, got %d", len(criteria))
+	if criteria != nil {
+		t.Fatal("expected nil criteria when tracker is nil")
 	}
 }
 
 // TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsEmpty verifies
 // that buildCoverageTrackerFromSpec creates a coverage tracker when granularity
 // is empty (the default), preserving backward compatibility.
-func TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsEmpty(t *testing.T) {
+func TestBuildCoverageTrackerFromSpec_ReturnsNilWhenGranularityIsEmpty(t *testing.T) {
 	_, bc := newCoverageBeadContext("cov-gran-empty-1", "Implement feature", authSpecTwoCriteria)
 	bc.PromptCtx.MethodologyGranularity = ""
 
@@ -1017,10 +967,10 @@ func TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsEmpty(t *te
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if tracker == nil {
-		t.Fatal("expected non-nil tracker when granularity is empty (default)")
+	if tracker != nil {
+		t.Fatal("expected nil tracker — spec-level criteria are handled by the spec gate, not per-bead")
 	}
-	if len(criteria) != 2 {
-		t.Fatalf("expected 2 criteria, got %d", len(criteria))
+	if criteria != nil {
+		t.Fatal("expected nil criteria when tracker is nil")
 	}
 }
