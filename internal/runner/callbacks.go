@@ -109,11 +109,11 @@ func (r *Runner) makeInvokeFn() escalation.InvokeFn {
 
 		startedAt := time.Now()
 		r.logInvocationStartMarker(bc)
-		invResult, err := r.executeClaudeInvocation(ctx, bc)
+		invResult, providerResult, err := r.executeClaudeInvocation(ctx, bc)
 		r.logInvocationEndMarker(bc, invResult, err, time.Since(startedAt))
 
 		if err != nil {
-			return r.handleInvokeError(ctx, bc, invResult, err)
+			return r.handleInvokeError(ctx, bc, invResult, providerResult, err)
 		}
 
 		if invResult == nil || invResult.Result == nil {
@@ -306,26 +306,29 @@ func costProviderCandidates(providerName string) []string {
 	}
 }
 
-func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, err error) (*runtypes.InvocationResult, error) {
+func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext, invResult *runtypes.InvocationResult, providerResult *provider.Result, err error) (*runtypes.InvocationResult, error) {
 	r.ensureEscalationPolicy()
 	classification := r.escalationPolicy.ClassifyTimeout(ctx.Err(), bc.ParentCtx.Err(), invResult != nil && invResult.StallFired)
 
 	switch classification.TimeoutType {
 	case "stall":
 		if invResult != nil {
+			if invResult.ProviderResult == nil {
+				invResult.ProviderResult = providerResult
+			}
 			invResult.TimeoutType = "stall"
 			return invResult, err
 		}
-		return stampTimeoutType(invResult, "stall"), err
+		return stampTimeoutType(invResult, providerResult, "stall"), err
 	case "bead":
 		bc.Result.TimeoutType = "bead"
 		if r.renderer != nil {
 			escalation.ExtractTimeoutLearning(bc, r.renderer.GetLearningsFile())
 		}
-		return stampTimeoutType(invResult, "bead"), fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+		return stampTimeoutType(invResult, providerResult, "bead"), fmt.Errorf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 	case "invocation":
 		bc.Result.TimeoutType = "invocation"
-		return stampTimeoutType(invResult, "invocation"), fmt.Errorf("claude invocation: %w", err)
+		return stampTimeoutType(invResult, providerResult, "invocation"), fmt.Errorf("claude invocation: %w", err)
 	}
 
 	if classification.ParentCanceled {
@@ -337,15 +340,18 @@ func (r *Runner) handleInvokeError(ctx context.Context, bc *runtypes.BeadContext
 	}
 
 	bc.Result.TimeoutType = "invocation"
-	return stampTimeoutType(invResult, "invocation"), fmt.Errorf("claude invocation: %w", err)
+	return stampTimeoutType(invResult, providerResult, "invocation"), fmt.Errorf("claude invocation: %w", err)
 }
 
-func stampTimeoutType(invResult *runtypes.InvocationResult, timeoutType string) *runtypes.InvocationResult {
+func stampTimeoutType(invResult *runtypes.InvocationResult, providerResult *provider.Result, timeoutType string) *runtypes.InvocationResult {
 	if invResult != nil {
+		if invResult.ProviderResult == nil {
+			invResult.ProviderResult = providerResult
+		}
 		invResult.TimeoutType = timeoutType
 		return invResult
 	}
-	return &runtypes.InvocationResult{TimeoutType: timeoutType}
+	return &runtypes.InvocationResult{TimeoutType: timeoutType, ProviderResult: providerResult}
 }
 
 func (r *Runner) shapeMethodologyPromptContext(phase string, ctx *prompt.Context) *prompt.Context {

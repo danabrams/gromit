@@ -102,7 +102,7 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 	bc := newRateLimitBeadContext("test-1")
 
 	ctx := context.Background()
-	invResult, err := r.executeClaudeInvocation(ctx, bc)
+	invResult, providerResult, err := r.executeClaudeInvocation(ctx, bc)
 	if err != nil {
 		t.Fatalf("executeClaudeInvocation failed: %v", err)
 	}
@@ -110,6 +110,9 @@ func TestExecuteClaudeInvocation_CapturesRateLimitRecoveryMs(t *testing.T) {
 	// Verify stats captured rate limit recovery
 	if invResult == nil || invResult.Stats == nil {
 		t.Fatal("expected invResult.Stats to be non-nil")
+	}
+	if providerResult == nil {
+		t.Fatal("expected providerResult to be non-nil")
 	}
 	stats := invResult.Stats
 
@@ -158,7 +161,7 @@ func TestExecuteClaudeInvocation_ZeroRecoveryMsWhenNoRateLimit(t *testing.T) {
 	bc := newRateLimitBeadContext("test-2")
 
 	ctx := context.Background()
-	_, err := r.executeClaudeInvocation(ctx, bc)
+	_, _, err := r.executeClaudeInvocation(ctx, bc)
 	if err != nil {
 		t.Fatalf("executeClaudeInvocation failed: %v", err)
 	}

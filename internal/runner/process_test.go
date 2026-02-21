@@ -2289,12 +2289,15 @@ func TestExecuteClaudeInvocation_PopulatesDiagnostics(t *testing.T) {
 		BuildPrompt: "test prompt",
 	}
 
-	invResult, err := r.executeClaudeInvocation(context.Background(), bc)
+	invResult, providerResult, err := r.executeClaudeInvocation(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if invResult == nil || invResult.Result == nil {
 		t.Fatal("expected non-nil result")
+	}
+	if providerResult == nil {
+		t.Fatal("expected non-nil provider result")
 	}
 	if invResult.StallFired {
 		t.Error("expected stallFired=false")

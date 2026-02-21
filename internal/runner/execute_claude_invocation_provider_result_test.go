@@ -41,7 +41,7 @@ func TestExecuteClaudeInvocation_ReturnsProviderResult(t *testing.T) {
 		ParentCtx:   context.Background(),
 	}
 
-	invResult, err := r.executeClaudeInvocation(context.Background(), bc)
+	invResult, providerResult, err := r.executeClaudeInvocation(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -62,5 +62,8 @@ func TestExecuteClaudeInvocation_ReturnsProviderResult(t *testing.T) {
 	}
 	if invResult.ProviderResult != expected {
 		t.Fatalf("provider result = %+v, want %+v", invResult.ProviderResult, expected)
+	}
+	if providerResult != expected {
+		t.Fatalf("returned providerResult = %+v, want %+v", providerResult, expected)
 	}
 }

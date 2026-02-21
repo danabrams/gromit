@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/failurephase"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -92,7 +93,7 @@ func TestHandleInvokeError_UsesEscalationPolicyClassification(t *testing.T) {
 		Result:      &IterationResult{},
 	}
 
-	_, err := r.handleInvokeError(ctx, bc, nil, context.DeadlineExceeded)
+	_, err := r.handleInvokeError(ctx, bc, nil, nil, context.DeadlineExceeded)
 	if err == nil || !strings.Contains(err.Error(), "bead timeout") {
 		t.Fatalf("expected bead timeout error, got %v", err)
 	}
@@ -127,7 +128,7 @@ func TestHandleInvokeError_ParentCanceledSetsTimeoutFailurePhase(t *testing.T) {
 		Result:    &IterationResult{},
 	}
 
-	_, err := r.handleInvokeError(context.Background(), bc, nil, context.Canceled)
+	_, err := r.handleInvokeError(context.Background(), bc, nil, nil, context.Canceled)
 	if err == nil {
 		t.Fatal("expected context cancelled error")
 	}
@@ -136,5 +137,35 @@ func TestHandleInvokeError_ParentCanceledSetsTimeoutFailurePhase(t *testing.T) {
 	}
 	if bc.Result.TimeoutPhase != "build" {
 		t.Fatalf("TimeoutPhase = %q, want %q", bc.Result.TimeoutPhase, "build")
+	}
+}
+
+func TestHandleInvokeError_SetsProviderResultOnStampedTimeout(t *testing.T) {
+	expected := &provider.Result{Success: false, Output: "partial"}
+	mockPolicy := &mockEscalationPolicy{
+		ClassifyTimeoutFn: func(ctxErr, parentErr error, stallFired bool) policy.TimeoutClassification {
+			return policy.TimeoutClassification{TimeoutType: "invocation"}
+		},
+	}
+
+	r := &Runner{escalationPolicy: mockPolicy}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "bead-3", Title: "Provider Timeout Context"},
+		ParentCtx: context.Background(),
+		Result:    &IterationResult{},
+	}
+
+	invResult, err := r.handleInvokeError(context.Background(), bc, nil, expected, context.DeadlineExceeded)
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if invResult == nil {
+		t.Fatal("expected non-nil invocation result")
+	}
+	if invResult.ProviderResult != expected {
+		t.Fatalf("ProviderResult = %+v, want %+v", invResult.ProviderResult, expected)
+	}
+	if invResult.TimeoutType != "invocation" {
+		t.Fatalf("TimeoutType = %q, want %q", invResult.TimeoutType, "invocation")
 	}
 }

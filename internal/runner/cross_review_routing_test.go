@@ -67,7 +67,7 @@ func TestExecuteClaudeInvocationSetsBuildProvider(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, _ = r.executeClaudeInvocation(ctx, bc)
+	_, _, _ = r.executeClaudeInvocation(ctx, bc)
 
 	if bc.BuildProvider != "test-claude" {
 		t.Errorf("bc.BuildProvider = %q after executeClaudeInvocation, want %q",
