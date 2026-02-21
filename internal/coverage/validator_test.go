@@ -138,3 +138,29 @@ func TestParseValidationResponse_SkipsUnrelatedJSON(t *testing.T) {
 		t.Fatalf("Reason = %q, want %q", resp.Reason, "ok")
 	}
 }
+
+func TestParseValidationResponse_EmbeddedJSONWithEscapes(t *testing.T) {
+	output := `prefix {"covers": true, "reason": "C:\\temp\\\"quoted\\\" {ok}"} suffix`
+
+	resp, err := ParseValidationResponse(output)
+	if err != nil {
+		t.Fatalf("ParseValidationResponse() error: %v", err)
+	}
+
+	if !resp.Covers {
+		t.Fatal("Covers = false, want true")
+	}
+
+	if resp.Reason != `C:\temp\"quoted\" {ok}` {
+		t.Fatalf("Reason = %q, want %q", resp.Reason, `C:\temp\"quoted\" {ok}`)
+	}
+}
+
+func TestParseSelfReport_UnbalancedBracketedJSON(t *testing.T) {
+	output := `noise {"targeting": 1, "remaining": [2, 3]`
+
+	_, err := ParseSelfReport(output)
+	if err == nil {
+		t.Fatal("ParseSelfReport() expected error, got nil")
+	}
+}

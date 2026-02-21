@@ -37,6 +37,12 @@ func ExtractArray(text string, target any) error {
 	return extractByBrackets(strings.TrimSpace(text), target, '[', ']', "extract array", arrayMissingOpeningErr)
 }
 
+// ExtractBracketedObject returns the first balanced JSON object from text.
+// The text must start with '{'. Returns empty string when malformed or absent.
+func ExtractBracketedObject(text string) string {
+	return extractBracketedJSON(text, '{', '}')
+}
+
 // ExtractCodeBlock extracts JSON from a ```json code block.
 // Matches patterns like:
 //

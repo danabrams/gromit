@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/jsonutil"
 )
 
 const (
@@ -48,7 +50,7 @@ func parseEmbeddedJSON(output string, label string, expectedKeys []string, dest 
 		}
 		start += searchFrom
 
-		jsonBlock := extractBracketedJSON(output[start:])
+		jsonBlock := jsonutil.ExtractBracketedObject(output[start:])
 		if jsonBlock == "" {
 			searchFrom = start + 1
 			continue
@@ -91,55 +93,6 @@ func hasExpectedKeys(jsonBlock string, expectedKeys []string) bool {
 	}
 
 	return true
-}
-
-// extractBracketedJSON finds the first balanced JSON object starting at the
-// beginning of text and returns the full object including braces.
-func extractBracketedJSON(text string) string {
-	if len(text) == 0 || text[0] != '{' {
-		return ""
-	}
-
-	depth := 0
-	inString := false
-	escapeNext := false
-
-	for i := 0; i < len(text); i++ {
-		char := text[i]
-
-		if escapeNext {
-			escapeNext = false
-			continue
-		}
-
-		if char == '\\' {
-			escapeNext = true
-			continue
-		}
-
-		if char == '"' {
-			inString = !inString
-			continue
-		}
-
-		if inString {
-			continue
-		}
-
-		if char == '{' {
-			depth++
-			continue
-		}
-
-		if char == '}' {
-			depth--
-			if depth == 0 {
-				return text[:i+1]
-			}
-		}
-	}
-
-	return ""
 }
 
 func ParseSelfReport(output string) (*SelfReport, error) {
