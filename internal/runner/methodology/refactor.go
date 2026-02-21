@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
@@ -22,6 +23,55 @@ var ErrATDDAlreadyDone = errors.New("atdd: acceptance tests pass — work alread
 // IsATDDAlreadyDone returns true if the error is the ATDD already-done sentinel.
 func IsATDDAlreadyDone(err error) bool {
 	return errors.Is(err, ErrATDDAlreadyDone)
+}
+
+const (
+	diagnosticVerdictAlreadyDone = "ALREADY_DONE"
+	diagnosticVerdictRewrite     = "REWRITE"
+)
+
+// ErrATDDRewrite is returned when diagnostic analysis says acceptance tests
+// should be rewritten instead of treating the bead as already done.
+type ErrATDDRewrite struct {
+	Feedback string
+}
+
+// Error implements the error interface.
+func (e *ErrATDDRewrite) Error() string {
+	if e == nil || strings.TrimSpace(e.Feedback) == "" {
+		return "atdd: acceptance tests need rewrite"
+	}
+	return fmt.Sprintf("atdd: acceptance tests need rewrite: %s", strings.TrimSpace(e.Feedback))
+}
+
+// AsATDDRewrite extracts an ErrATDDRewrite from err, if present.
+func AsATDDRewrite(err error) (*ErrATDDRewrite, bool) {
+	var rewriteErr *ErrATDDRewrite
+	if !errors.As(err, &rewriteErr) {
+		return nil, false
+	}
+	return rewriteErr, true
+}
+
+func parseDiagnosticVerdict(output string) (verdict string, feedback string) {
+	lines := strings.Split(output, "\n")
+	for idx, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "VERDICT:") {
+			continue
+		}
+
+		marker := strings.TrimSpace(strings.TrimPrefix(trimmed, "VERDICT:"))
+		switch marker {
+		case diagnosticVerdictAlreadyDone:
+			return diagnosticVerdictAlreadyDone, ""
+		case diagnosticVerdictRewrite:
+			remainder := strings.TrimSpace(strings.Join(lines[idx+1:], "\n"))
+			return diagnosticVerdictRewrite, remainder
+		}
+	}
+
+	return diagnosticVerdictAlreadyDone, ""
 }
 
 // RefactorInvokeFn executes a refactor Claude invocation with a prompt and tier.

@@ -10,8 +10,8 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
-	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -758,6 +758,109 @@ func TestParseDiffFiles(t *testing.T) {
 						t.Errorf("ParseDiffFiles()[%d] = %q, want %q", i, got[i], wantFile)
 					}
 				}
+			}
+		})
+	}
+}
+
+// --- ATDD diagnostic verdict tests ---
+
+func TestAsATDDRewrite(t *testing.T) {
+	base := &ErrATDDRewrite{Feedback: "assert new behavior"}
+	wrapped := fmt.Errorf("wrapped: %w", base)
+
+	got, ok := AsATDDRewrite(wrapped)
+	if !ok {
+		t.Fatal("AsATDDRewrite should match wrapped ErrATDDRewrite")
+	}
+	if got != base {
+		t.Fatalf("AsATDDRewrite returned %p, want %p", got, base)
+	}
+}
+
+func TestAsATDDRewrite_ReturnsFalseForNonRewriteError(t *testing.T) {
+	got, ok := AsATDDRewrite(errors.New("not a rewrite error"))
+	if ok {
+		t.Fatalf("AsATDDRewrite ok = true, want false (got %#v)", got)
+	}
+	if got != nil {
+		t.Fatalf("AsATDDRewrite returned %#v, want nil", got)
+	}
+}
+
+func TestErrATDDRewrite_Error(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *ErrATDDRewrite
+		want string
+	}{
+		{
+			name: "includes feedback",
+			err:  &ErrATDDRewrite{Feedback: "add negative case"},
+			want: "atdd: acceptance tests need rewrite: add negative case",
+		},
+		{
+			name: "falls back when feedback empty",
+			err:  &ErrATDDRewrite{},
+			want: "atdd: acceptance tests need rewrite",
+		},
+		{
+			name: "handles nil receiver",
+			err:  nil,
+			want: "atdd: acceptance tests need rewrite",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.err.Error(); got != tt.want {
+				t.Fatalf("ErrATDDRewrite.Error() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseDiagnosticVerdict(t *testing.T) {
+	tests := []struct {
+		name         string
+		output       string
+		wantVerdict  string
+		wantFeedback string
+	}{
+		{
+			name:         "already done marker",
+			output:       "some context\nVERDICT: ALREADY_DONE\nmore text",
+			wantVerdict:  diagnosticVerdictAlreadyDone,
+			wantFeedback: "",
+		},
+		{
+			name:         "rewrite marker with single-line feedback",
+			output:       "heading\nVERDICT: REWRITE\nStrengthen assertions.",
+			wantVerdict:  diagnosticVerdictRewrite,
+			wantFeedback: "Strengthen assertions.",
+		},
+		{
+			name:         "rewrite marker trims surrounding blank lines",
+			output:       "VERDICT: REWRITE\n\nAdd integration case.\nKeep negative case too.\n\n",
+			wantVerdict:  diagnosticVerdictRewrite,
+			wantFeedback: "Add integration case.\nKeep negative case too.",
+		},
+		{
+			name:         "defaults to already done when no marker",
+			output:       "no explicit verdict here",
+			wantVerdict:  diagnosticVerdictAlreadyDone,
+			wantFeedback: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotVerdict, gotFeedback := parseDiagnosticVerdict(tt.output)
+			if gotVerdict != tt.wantVerdict {
+				t.Fatalf("parseDiagnosticVerdict() verdict = %q, want %q", gotVerdict, tt.wantVerdict)
+			}
+			if gotFeedback != tt.wantFeedback {
+				t.Fatalf("parseDiagnosticVerdict() feedback = %q, want %q", gotFeedback, tt.wantFeedback)
 			}
 		})
 	}
