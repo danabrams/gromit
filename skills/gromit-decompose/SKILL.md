@@ -159,7 +159,7 @@ The beads will be created with additional metadata by the CLI command:
 - `complexity:high` is auto-applied when `estimated_files > 5`; otherwise `complexity:low` is used
 - Proper bd dependencies based on `depends_on_index`
 
-You do NOT need to include labels in the JSON output. Focus only on the six bead fields listed above.
+You do NOT need to include labels in the JSON output. Focus only on the seven bead fields listed above.
 
 ## Bead Splitting Examples
 
