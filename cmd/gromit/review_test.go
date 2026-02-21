@@ -438,8 +438,8 @@ func TestResolveReviewNonInteractiveTimeout_Defaults(t *testing.T) {
 
 	timeout := resolveReviewNonInteractiveTimeout(cfg)
 
-	if timeout != 900 {
-		t.Errorf("expected default thorough review timeout 900, got %d", timeout)
+	if timeout != defaultThoroughReviewTimeoutSeconds {
+		t.Errorf("expected default thorough review timeout %d, got %d", defaultThoroughReviewTimeoutSeconds, timeout)
 	}
 }
 

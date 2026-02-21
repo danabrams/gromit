@@ -50,6 +50,12 @@ const (
 	reviewGitDiffStatErrPrefix = "git diff --stat"
 	reviewGitHeadErrPrefix     = "git rev-parse HEAD"
 	reviewGitHashFormatArg     = "--format=%H"
+	reviewSummaryBannerWidth   = 80
+	reviewSummaryTitle         = "REVIEW SUMMARY"
+	reviewCompletionMessage    = "Review complete!"
+	reviewLogType              = "review"
+	reviewLogReviewType        = "thorough-cli"
+	reviewDefaultModel         = "opus"
 )
 
 func runReviewGitOutput(args ...string) ([]byte, error) {
@@ -510,9 +516,9 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	}
 
 	// Display output
-	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Println("REVIEW SUMMARY")
-	fmt.Println(strings.Repeat("=", 80))
+	fmt.Println("\n" + strings.Repeat("=", reviewSummaryBannerWidth))
+	fmt.Println(reviewSummaryTitle)
+	fmt.Println(strings.Repeat("=", reviewSummaryBannerWidth))
 	fmt.Println(result.Summary)
 	fmt.Println()
 
@@ -528,7 +534,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		fmt.Printf("Created %d backlog items\n", result.BacklogCreated)
 	}
 
-	fmt.Println("\nReview complete!")
+	fmt.Println("\n" + reviewCompletionMessage)
 	return nil
 }
 
@@ -760,13 +766,13 @@ func (w *cliLogWriter) Write(entry any) error {
 	// Use model from entry or default to opus
 	model := logEntry.Model
 	if model == "" {
-		model = "opus" // Default for thorough reviews
+		model = reviewDefaultModel // Default for thorough reviews
 	}
 
 	reviewLog := &logger.ReviewLog{
 		Timestamp:      time.Now(),
-		Type:           "review",
-		ReviewType:     "thorough-cli",
+		Type:           reviewLogType,
+		ReviewType:     reviewLogReviewType,
 		Iteration:      0,
 		Model:          model,
 		Passed:         logEntry.Passed,
