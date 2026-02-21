@@ -65,6 +65,9 @@ func (r *Runner) getDiff(fromCommit string) (string, error) {
 
 // resetHard updates working tree and index to the provided commit.
 func (r *Runner) resetHard(commit string) error {
+	if r.resetHardFn != nil {
+		return r.resetHardFn(commit)
+	}
 	_, stderr, exitCode, err := r.runArgv(context.Background(), "git", []string{"reset", "--hard", commit}, ".")
 	if err != nil {
 		return err

@@ -114,6 +114,11 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 
 	for pass := 0; pass < maxOrchestratorPasses; pass++ {
 		if err := r.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria); err != nil {
+			if bc.StartCommit != "" {
+				if resetErr := r.resetHard(bc.StartCommit); resetErr != nil {
+					r.log("Warning: failed to reset to %s after TDD failure: %v", bc.StartCommit, resetErr)
+				}
+			}
 			bc.Result.Error = err
 			return true
 		}
@@ -124,6 +129,11 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		r.log("TDD coverage tracker reports unchecked criteria after cycle pass %d; injecting additional cycles", pass+1)
 	}
 	if coverageTracker != nil && !coverageTracker.IsComplete() {
+		if bc.StartCommit != "" {
+			if resetErr := r.resetHard(bc.StartCommit); resetErr != nil {
+				r.log("Warning: failed to reset to %s after TDD coverage incomplete: %v", bc.StartCommit, resetErr)
+			}
+		}
 		bc.Result.Error = errors.New(tddFreshContextCoverageIncompleteErrorMsg)
 		return true
 	}
