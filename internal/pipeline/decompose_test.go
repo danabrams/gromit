@@ -220,6 +220,7 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 					"title": "Add cache interface",
 					"description": "Define cache interface",
 					"priority": "P1",
+					"estimated_files": 6,
 					"acceptance_criteria": ["Interface defined"],
 					"depends_on_index": []
 				}]`,
@@ -255,16 +256,14 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 		t.Fatalf("Decompose() failed: %v", err)
 	}
 
-	// Verify spec label was added
-	foundSpecLabel := false
-	for _, label := range capturedLabels {
-		if label == "spec:caching" {
-			foundSpecLabel = true
-			break
-		}
-	}
-	if !foundSpecLabel {
+	if !containsString(capturedLabels, "spec:caching") {
 		t.Errorf("Labels = %v, want to include 'spec:caching'", capturedLabels)
+	}
+	if !containsString(capturedLabels, "complexity:high") {
+		t.Errorf("Labels = %v, want to include 'complexity:high'", capturedLabels)
+	}
+	if !containsString(capturedLabels, "estimated-files:6") {
+		t.Errorf("Labels = %v, want to include 'estimated-files:6'", capturedLabels)
 	}
 }
 
@@ -549,6 +548,7 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 					"title": "Test task",
 					"description": "Test",
 					"priority": "P1",
+					"estimated_files": 2,
 					"acceptance_criteria": ["Done"],
 					"depends_on_index": []
 				}]`,
@@ -588,6 +588,9 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 	// Verify beads are returned but not created
 	if len(result.CreatedBeads) != 1 {
 		t.Errorf("CreatedBeads count = %d, want 1 (proposed beads)", len(result.CreatedBeads))
+	}
+	if !containsString(result.CreatedBeads[0].Labels, "estimated-files:2") {
+		t.Errorf("Review labels = %v, want to include 'estimated-files:2'", result.CreatedBeads[0].Labels)
 	}
 
 	// Verify bead client was NOT called
@@ -1002,4 +1005,13 @@ func (m *decomposeAcceptanceBeadClient) CreateWithDepsAndDescription(title strin
 
 func (m *decomposeAcceptanceBeadClient) Close(id string) error {
 	return nil
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }

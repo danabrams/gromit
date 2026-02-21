@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	decomposePromptType = "decompose"
-	specLabelFormat     = "spec:%s"
+	decomposePromptType         = "decompose"
+	specLabelFormat             = "spec:%s"
+	highComplexityFileThreshold = 5
 )
 
 // beadDef represents a bead definition from the provider's JSON output.
@@ -24,6 +25,7 @@ type beadDef struct {
 	Title              string   `json:"title"`
 	Description        string   `json:"description"`
 	Priority           string   `json:"priority"`
+	EstimatedFiles     int      `json:"estimated_files,omitempty"`
 	AcceptanceCriteria []string `json:"acceptance_criteria"`
 	DependsOnIndex     []int    `json:"depends_on_index"`
 }
@@ -103,8 +105,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		// Map priority string to int
 		priority := parsePriority(def.Priority)
 
-		// Build labels: always include spec:<name>
-		labels := []string{specLabel(input.PlanName)}
+		labels := buildDecomposeLabels(input.PlanName, def.EstimatedFiles)
 
 		// Resolve dependencies from depends_on_index
 		var dependencies []string
@@ -213,10 +214,21 @@ func newCreatedBeadFromDef(def beadDef, planName, beadID string) CreatedBead {
 	bead.ID = beadID
 	bead.Title = def.Title
 	bead.Priority = parsePriority(def.Priority)
-	bead.Labels = []string{specLabel(planName)}
+	bead.Labels = buildDecomposeLabels(planName, def.EstimatedFiles)
 	return bead
 }
 
 func specLabel(planName string) string {
 	return fmt.Sprintf(specLabelFormat, planName)
+}
+
+func buildDecomposeLabels(planName string, estimatedFiles int) []string {
+	labels := []string{specLabel(planName)}
+	if estimatedFiles > highComplexityFileThreshold {
+		labels = append(labels, "complexity:high")
+	}
+	if estimatedFiles > 0 {
+		labels = append(labels, fmt.Sprintf("estimated-files:%d", estimatedFiles))
+	}
+	return labels
 }
