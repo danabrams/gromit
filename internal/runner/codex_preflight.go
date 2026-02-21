@@ -16,7 +16,10 @@ const (
 	codexPreflightDNSTimeout   = 4 * time.Second
 	codexPreflightLoginTimeout = 8 * time.Second
 	codexPreflightProbePattern = ".gromit-codex-home-writecheck-*"
+	codexLoginProgram          = "codex"
 )
+
+var codexLoginStatusArgs = []string{"login", "status"}
 
 // preflightCodex validates Codex runtime prerequisites before the run loop starts.
 // It only runs when a Codex-backed provider is configured.
@@ -63,7 +66,7 @@ func (r *Runner) preflightCodex(ctx context.Context) error {
 
 	loginCtx, loginCancel := context.WithTimeout(ctx, codexPreflightLoginTimeout)
 	defer loginCancel()
-	stdout, stderr, exitCode, statusErr := r.runArgv(loginCtx, "codex", []string{"login", "status"}, "")
+	stdout, stderr, exitCode, statusErr := r.runArgv(loginCtx, codexLoginProgram, codexLoginStatusArgs, "")
 	combined := strings.TrimSpace(strings.TrimSpace(stdout) + "\n" + strings.TrimSpace(stderr))
 	if statusErr != nil {
 		return fmt.Errorf("codex preflight failed: checking login status: %w (output: %s)", statusErr, summarizeCodexPreflightOutput(combined))
