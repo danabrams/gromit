@@ -28,6 +28,8 @@ func IsATDDAlreadyDone(err error) bool {
 const (
 	diagnosticVerdictAlreadyDone = "ALREADY_DONE"
 	diagnosticVerdictRewrite     = "REWRITE"
+	diagnosticVerdictPrefix      = "VERDICT:"
+	rewriteErrorMessage          = "atdd: acceptance tests need rewrite"
 )
 
 // ErrATDDRewrite is returned when diagnostic analysis says acceptance tests
@@ -38,10 +40,14 @@ type ErrATDDRewrite struct {
 
 // Error implements the error interface.
 func (e *ErrATDDRewrite) Error() string {
-	if e == nil || strings.TrimSpace(e.Feedback) == "" {
-		return "atdd: acceptance tests need rewrite"
+	if e == nil {
+		return rewriteErrorMessage
 	}
-	return fmt.Sprintf("atdd: acceptance tests need rewrite: %s", strings.TrimSpace(e.Feedback))
+	feedback := strings.TrimSpace(e.Feedback)
+	if feedback == "" {
+		return rewriteErrorMessage
+	}
+	return fmt.Sprintf("%s: %s", rewriteErrorMessage, feedback)
 }
 
 // AsATDDRewrite extracts an ErrATDDRewrite from err, if present.
@@ -57,11 +63,11 @@ func parseDiagnosticVerdict(output string) (verdict string, feedback string) {
 	lines := strings.Split(output, "\n")
 	for idx, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "VERDICT:") {
+		if !strings.HasPrefix(trimmed, diagnosticVerdictPrefix) {
 			continue
 		}
 
-		marker := strings.TrimSpace(strings.TrimPrefix(trimmed, "VERDICT:"))
+		marker := strings.TrimSpace(strings.TrimPrefix(trimmed, diagnosticVerdictPrefix))
 		switch marker {
 		case diagnosticVerdictAlreadyDone:
 			return diagnosticVerdictAlreadyDone, ""
