@@ -6,6 +6,8 @@ import (
 	"log"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 type fakeBeadCreator struct {
@@ -105,11 +107,11 @@ func TestSynthesizeFixBeads_fiveFailures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SynthesizeFixBeads() error = %v", err)
 	}
-	if callCount != 5 {
-		t.Fatalf("Create call count = %d, want 5", callCount)
+	if callCount != runtypes.MaxSynthesizedSpecFixBeads {
+		t.Fatalf("Create call count = %d, want %d", callCount, runtypes.MaxSynthesizedSpecFixBeads)
 	}
-	if len(ids) != 5 {
-		t.Fatalf("SynthesizeFixBeads() ids = %v, want 5 ids", ids)
+	if len(ids) != runtypes.MaxSynthesizedSpecFixBeads {
+		t.Fatalf("SynthesizeFixBeads() ids = %v, want %d ids", ids, runtypes.MaxSynthesizedSpecFixBeads)
 	}
 }
 
@@ -147,11 +149,11 @@ func TestSynthesizeFixBeads_sixPlusFailures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SynthesizeFixBeads() error = %v", err)
 	}
-	if callCount != 5 {
-		t.Fatalf("Create call count = %d, want 5", callCount)
+	if callCount != runtypes.MaxSynthesizedSpecFixBeads {
+		t.Fatalf("Create call count = %d, want %d", callCount, runtypes.MaxSynthesizedSpecFixBeads)
 	}
-	if len(ids) != 5 {
-		t.Fatalf("SynthesizeFixBeads() ids = %v, want 5 ids", ids)
+	if len(ids) != runtypes.MaxSynthesizedSpecFixBeads {
+		t.Fatalf("SynthesizeFixBeads() ids = %v, want %d ids", ids, runtypes.MaxSynthesizedSpecFixBeads)
 	}
 	logged := logBuf.String()
 	if !strings.Contains(logged, "capped fix bead synthesis") || !strings.Contains(logged, "1 remaining") {
