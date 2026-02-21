@@ -32,12 +32,14 @@ type Learning struct {
 
 // File manages the LEARNINGS.md file
 type File struct {
-	path        string
-	confirmed   []Learning
-	provisional []Learning
-	archived    []Learning
-	filterFunc  FilterFunc
-	autoSaveOff bool
+	path           string
+	archivePath    string
+	confirmed      []Learning
+	provisional    []Learning
+	archived       []Learning
+	archivedHashes map[string]bool
+	filterFunc     FilterFunc
+	autoSaveOff    bool
 }
 
 // Category constants
@@ -57,10 +59,12 @@ const FuzzyMatchThreshold = 0.7
 // NewFile creates a new learnings file manager
 func NewFile(dir string) (*File, error) {
 	return &File{
-		path:        filepath.Join(dir, "LEARNINGS.md"),
-		confirmed:   []Learning{},
-		provisional: []Learning{},
-		archived:    []Learning{},
+		path:           filepath.Join(dir, "LEARNINGS.md"),
+		archivePath:    filepath.Join(dir, "LEARNINGS_ARCHIVE.md"),
+		confirmed:      []Learning{},
+		provisional:    []Learning{},
+		archived:       []Learning{},
+		archivedHashes: map[string]bool{},
 	}, nil
 }
 
@@ -94,6 +98,66 @@ func (f *File) normalizeNilFields() {
 	if f.archived == nil {
 		f.archived = []Learning{}
 	}
+	if f.archivedHashes == nil {
+		f.archivedHashes = map[string]bool{}
+	}
+}
+
+// SetArchivedHashes replaces the archived hash set.
+func (f *File) SetArchivedHashes(hashes []string) {
+	if f == nil {
+		return
+	}
+	next := make(map[string]bool, len(hashes))
+	for _, hash := range hashes {
+		next[hash] = true
+	}
+	f.archivedHashes = next
+}
+
+// GetArchivedHashes returns a copy of archived hash set.
+func (f *File) GetArchivedHashes() map[string]bool {
+	if f == nil {
+		return map[string]bool{}
+	}
+	result := make(map[string]bool, len(f.archivedHashes))
+	for hash := range f.archivedHashes {
+		result[hash] = true
+	}
+	return result
+}
+
+func (f *File) appendToArchiveFile(learning Learning) error {
+	if f == nil {
+		return fmt.Errorf("learnings file is nil")
+	}
+	if err := os.MkdirAll(filepath.Dir(f.archivePath), 0755); err != nil {
+		return fmt.Errorf("creating archive directory: %w", err)
+	}
+
+	existing, err := os.ReadFile(f.archivePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reading archive file: %w", err)
+	}
+
+	file, err := os.OpenFile(f.archivePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("opening archive file: %w", err)
+	}
+	defer file.Close()
+
+	if len(existing) == 0 {
+		if _, err := file.WriteString("# Learnings Archive\n\n---\n\n## Archived\n\n"); err != nil {
+			return fmt.Errorf("writing archive header: %w", err)
+		}
+	}
+
+	var sb strings.Builder
+	writeLearning(&sb, learning)
+	if _, err := file.WriteString(sb.String()); err != nil {
+		return fmt.Errorf("writing archive file: %w", err)
+	}
+	return nil
 }
 
 // hashExists checks if a hash already exists in any section (confirmed, provisional, or archived)
@@ -108,12 +172,7 @@ func (f *File) hashExists(hash string) bool {
 			return true
 		}
 	}
-	for _, l := range f.archived {
-		if l.Hash == hash {
-			return true
-		}
-	}
-	return false
+	return f.archivedHashes[hash]
 }
 
 // Load reads and parses the LEARNINGS.md file
@@ -131,7 +190,19 @@ func (f *File) Load() error {
 	}
 
 	f.confirmed, f.provisional, f.archived = parseLearnings(string(content))
+	archiveContent, err := os.ReadFile(f.archivePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("reading archive file: %w", err)
+		}
+	} else {
+		_, _, archivedFromFile := parseLearnings(string(archiveContent))
+		f.archived = append(f.archived, archivedFromFile...)
+	}
 	f.normalizeNilFields()
+	for _, learning := range f.archived {
+		f.archivedHashes[learning.Hash] = true
+	}
 	return nil
 }
 
@@ -161,7 +232,11 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 				Category: category,
 				Hash:     hash,
 			}
+			if err := f.appendToArchiveFile(learning); err != nil {
+				return nil, err
+			}
 			f.archived = append(f.archived, learning)
+			f.archivedHashes[learning.Hash] = true
 			return nil, f.Save()
 		}
 	}
@@ -232,17 +307,6 @@ func (f *File) Save() error {
 		sb.WriteString("*No provisional learnings.*\n\n")
 	} else {
 		for _, l := range f.provisional {
-			writeLearning(&sb, l)
-		}
-	}
-
-	// Write archived learnings
-	sb.WriteString("---\n\n## Archived\n\n")
-	sb.WriteString("*No longer relevant or superseded.*\n\n")
-	if len(f.archived) == 0 {
-		sb.WriteString("*No archived learnings.*\n\n")
-	} else {
-		for _, l := range f.archived {
 			writeLearning(&sb, l)
 		}
 	}
@@ -456,8 +520,11 @@ func (f *File) Archive(hash, reason string) error {
 		learning.Content = fmt.Sprintf("%s\n\n*Archived from %s*", learning.Content, fromSection)
 	}
 
-	// Add to archived
+	if err := f.appendToArchiveFile(*learning); err != nil {
+		return err
+	}
 	f.archived = append(f.archived, *learning)
+	f.archivedHashes[learning.Hash] = true
 
 	if f.autoSaveOff {
 		return nil

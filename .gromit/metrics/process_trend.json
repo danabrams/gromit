@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-02-21T07:16:21.228813586Z",
-  "total_iterations": 703,
+  "generated_at": "2026-02-21T07:27:20.860060075Z",
+  "total_iterations": 706,
   "window_size": 30,
   "latest_window": {
     "success_rate": 0.9333333333333333,
     "failure_rate": 0.06666666666666667,
     "first_pass_success_rate": 0.9333333333333333,
     "escalation_rate": 0,
-    "avg_duration_ms": 384106.73333333334,
+    "avg_duration_ms": 369511.06666666665,
     "p95_duration_ms": 893470.7499999991,
-    "avg_validation_ms": 33.07142857142857,
+    "avg_validation_ms": 32.92857142857143,
     "p95_validation_ms": 68,
-    "avg_cost_usd": 2.185114921666667,
+    "avg_cost_usd": 2.1600226050000004,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -23,7 +23,7 @@
       {
         "prompt_type": "build",
         "invocation_count": 28,
-        "avg_estimated_tokens": 2428.714285714286
+        "avg_estimated_tokens": 2442.285714285714
       }
     ],
     "by_section_top_10": [
@@ -32,16 +32,16 @@
         "estimated_tokens": 52612
       },
       {
+        "section": "claude_md",
+        "estimated_tokens": 5644
+      },
+      {
         "section": "spec",
         "estimated_tokens": 5538
       },
       {
-        "section": "claude_md",
-        "estimated_tokens": 5490
-      },
-      {
         "section": "task_identity",
-        "estimated_tokens": 4280
+        "estimated_tokens": 4506
       },
       {
         "section": "template_static",
@@ -63,7 +63,7 @@
     "budget_action_frequency": {},
     "reconciliation_drift": {
       "sample_count": 28,
-      "mean_abs_token_delta_pct": 181.38497147767677,
+      "mean_abs_token_delta_pct": 181.36958658668507,
       "p95_abs_token_delta_pct": 99.93740095740526
     }
   },
@@ -83,16 +83,16 @@
     },
     {
       "name": "codex",
-      "total_invocations": 290,
-      "successes": 283,
-      "success_rate": 0.9758620689655172,
+      "total_invocations": 293,
+      "successes": 286,
+      "success_rate": 0.9761092150170648,
       "transport_failures": 0,
       "transport_failure_rate": 0,
       "fallbacks_triggered": 3,
-      "avg_duration_ms": 415526.02068965515,
-      "total_cost_usd": 641.91769883,
-      "total_input_tokens": 409551735,
-      "total_output_tokens": 2498369
+      "avg_duration_ms": 413343.31399317406,
+      "total_cost_usd": 646.33633858,
+      "total_input_tokens": 412728436,
+      "total_output_tokens": 2520280
     },
     {
       "name": "openai",
@@ -111,27 +111,27 @@
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 2.185114921666667,
-      "mean": 1.1948718797422087,
-      "std_dev": 0.8684673487448684,
-      "ucl": 3.800273925976814,
-      "lcl": -1.4105301664923966
+      "latest": 2.1600226050000004,
+      "mean": 1.1989717476021329,
+      "std_dev": 0.8688901304477179,
+      "ucl": 3.8056421389452866,
+      "lcl": -1.4076986437410208
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 384106.73333333334,
-      "mean": 533760.2947467981,
-      "std_dev": 270314.7488965287,
-      "ucl": 1344704.541436384,
-      "lcl": -277183.95194278785
+      "latest": 369511.06666666665,
+      "mean": 533087.000057128,
+      "std_dev": 269936.79508828843,
+      "ucl": 1342897.3853219934,
+      "lcl": -276723.38520773733
     },
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 33.07142857142857,
-      "mean": 1636.4596878721281,
-      "std_dev": 7372.748925819227,
-      "ucl": 23754.706465329808,
-      "lcl": -20481.787089585552
+      "latest": 32.92857142857143,
+      "mean": 1629.646423314193,
+      "std_dev": 7357.807013249867,
+      "ucl": 23703.06746306379,
+      "lcl": -20443.774616435407
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -144,16 +144,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.0327169274537699,
-      "std_dev": 0.0505815649019425,
-      "ucl": 0.18446162215959744,
+      "mean": 0.032577903682719886,
+      "std_dev": 0.05051882837525783,
+      "ucl": 0.18413438880849337,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "latest": 0.9333333333333333,
-      "mean": 0.5922238027501159,
-      "std_dev": 0.4417226739398416,
+      "mean": 0.5936732766761069,
+      "std_dev": 0.44134128726161065,
       "ucl": 1,
       "lcl": 0
     },
@@ -168,17 +168,17 @@
     {
       "metric": "rolling_success_rate",
       "latest": 0.9333333333333333,
-      "mean": 0.8209259324285131,
-      "std_dev": 0.20609757555326844,
+      "mean": 0.8214035842737174,
+      "std_dev": 0.20578916464952865,
       "ucl": 1,
-      "lcl": 0.2026332057687078
+      "lcl": 0.20403609032513148
     },
     {
       "metric": "rolling_timeout_failure_rate",
       "latest": 0,
-      "mean": 0.011379800853485042,
-      "std_dev": 0.024315033482513255,
-      "ucl": 0.08432490130102481,
+      "mean": 0.011331444759206777,
+      "std_dev": 0.024274606644642923,
+      "ucl": 0.08415526469313554,
       "lcl": 0
     },
     {

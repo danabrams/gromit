@@ -680,9 +680,6 @@ func TestArchive(t *testing.T) {
 	if len(f.provisional) != 1 {
 		t.Errorf("expected 1 provisional, got %d", len(f.provisional))
 	}
-	if len(f.archived) != 0 {
-		t.Errorf("expected 0 archived, got %d", len(f.archived))
-	}
 
 	// Archive it with reason
 	err := f.Archive(l1.Hash, "no longer relevant")
@@ -690,19 +687,23 @@ func TestArchive(t *testing.T) {
 		t.Fatalf("failed to archive: %v", err)
 	}
 
-	// Verify it moved to archived
+	// Verify it moved out of LEARNINGS.md and into archive file
 	if len(f.provisional) != 0 {
 		t.Errorf("expected 0 provisional after archive, got %d", len(f.provisional))
 	}
-	if len(f.archived) != 1 {
-		t.Errorf("expected 1 archived after archive, got %d", len(f.archived))
+	if !f.GetArchivedHashes()[l1.Hash] {
+		t.Fatal("expected archived hash to be tracked")
 	}
 
-	// Check that reason was added to content
-	if !strings.Contains(f.archived[0].Content, "no longer relevant") {
+	archiveContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS_ARCHIVE.md"))
+	if err != nil {
+		t.Fatalf("failed to read archive file: %v", err)
+	}
+	archiveStr := string(archiveContent)
+	if !strings.Contains(archiveStr, "no longer relevant") {
 		t.Error("expected archived learning to contain reason")
 	}
-	if !strings.Contains(f.archived[0].Content, "Archived from provisional") {
+	if !strings.Contains(archiveStr, "Archived from provisional") {
 		t.Error("expected archived learning to indicate source section")
 	}
 
@@ -737,14 +738,19 @@ func TestArchiveFromConfirmed(t *testing.T) {
 		t.Fatalf("failed to archive: %v", err)
 	}
 
-	// Verify it moved from confirmed to archived
+	// Verify it moved from confirmed into archive file
 	if len(f.confirmed) != 0 {
 		t.Errorf("expected 0 confirmed after archive, got %d", len(f.confirmed))
 	}
-	if len(f.archived) != 1 {
-		t.Errorf("expected 1 archived after archive, got %d", len(f.archived))
+	if !f.GetArchivedHashes()[l1.Hash] {
+		t.Fatal("expected archived hash to be tracked")
 	}
-	if !strings.Contains(f.archived[0].Content, "Archived from confirmed") {
+
+	archiveContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS_ARCHIVE.md"))
+	if err != nil {
+		t.Fatalf("failed to read archive file: %v", err)
+	}
+	if !strings.Contains(string(archiveContent), "Archived from confirmed") {
 		t.Error("expected archived learning to indicate confirmed source")
 	}
 }
@@ -998,15 +1004,16 @@ func TestLoadAndSaveWithArchived(t *testing.T) {
 		t.Fatalf("failed to load: %v", err)
 	}
 
-	// Verify archived section persisted
-	if len(f2.archived) != 1 {
-		t.Errorf("expected 1 archived after load, got %d", len(f2.archived))
-	}
+	// Verify archived learning persisted in archive file and LEARNINGS.md has no provisional entries
 	if len(f2.provisional) != 0 {
 		t.Errorf("expected 0 provisional after load, got %d", len(f2.provisional))
 	}
-	if !strings.Contains(f2.archived[0].Content, "test archive") {
-		t.Error("archived reason should persist across save/load")
+	archiveContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS_ARCHIVE.md"))
+	if err != nil {
+		t.Fatalf("failed to read archive file: %v", err)
+	}
+	if !strings.Contains(string(archiveContent), "test archive") {
+		t.Error("archived reason should persist in archive file")
 	}
 }
 
@@ -1030,16 +1037,20 @@ func TestFilterFuncGeneric(t *testing.T) {
 		t.Error("expected nil learning for generic content")
 	}
 
-	// Should be archived, not provisional
+	// Should be archived to file, not provisional
 	if len(f.provisional) != 0 {
 		t.Errorf("expected 0 provisional, got %d", len(f.provisional))
 	}
-	if len(f.archived) != 1 {
-		t.Errorf("expected 1 archived, got %d", len(f.archived))
+	archivedHashes := f.GetArchivedHashes()
+	if len(archivedHashes) != 1 {
+		t.Errorf("expected 1 archived hash, got %d", len(archivedHashes))
 	}
 
-	// Check archived content has filter reason
-	if !strings.Contains(f.archived[0].Content, "filtered: generic engineering advice") {
+	archiveContent, err := os.ReadFile(filepath.Join(tmpDir, "LEARNINGS_ARCHIVE.md"))
+	if err != nil {
+		t.Fatalf("failed to read archive file: %v", err)
+	}
+	if !strings.Contains(string(archiveContent), "filtered: generic engineering advice") {
 		t.Error("expected archived content to contain filter reason")
 	}
 }
@@ -1165,15 +1176,8 @@ func TestAddArchivedDuplicateReturnsNil(t *testing.T) {
 	tmpDir := t.TempDir()
 	f, _ := NewFile(tmpDir)
 
-	// Manually add a learning to archived section
-	archivedLearning := Learning{
-		Date:     time.Now(),
-		BeadID:   "bead-1",
-		Content:  "Archived learning content",
-		Category: CategoryPatterns,
-		Hash:     hashContent("Archived learning content"),
-	}
-	f.archived = append(f.archived, archivedLearning)
+	archivedHash := hashContent("Archived learning content")
+	f.SetArchivedHashes([]string{archivedHash})
 
 	// Try to add the same content
 	learning, err := f.Add("bead-2", "Archived learning content", CategoryPatterns)
@@ -1193,8 +1197,8 @@ func TestAddArchivedDuplicateReturnsNil(t *testing.T) {
 	if len(f.confirmed) != 0 {
 		t.Errorf("expected 0 confirmed, got %d", len(f.confirmed))
 	}
-	if len(f.archived) != 1 {
-		t.Errorf("expected 1 archived (unchanged), got %d", len(f.archived))
+	if len(f.GetArchivedHashes()) != 1 {
+		t.Errorf("expected 1 archived hash (unchanged), got %d", len(f.GetArchivedHashes()))
 	}
 }
 
@@ -1210,15 +1214,8 @@ func TestAddArchivedDuplicateDoesNotCallFilter(t *testing.T) {
 		return true, nil
 	})
 
-	// Manually add a learning to archived section
-	archivedLearning := Learning{
-		Date:     time.Now(),
-		BeadID:   "bead-1",
-		Content:  "Archived learning content",
-		Category: CategoryPatterns,
-		Hash:     hashContent("Archived learning content"),
-	}
-	f.archived = append(f.archived, archivedLearning)
+	archivedHash := hashContent("Archived learning content")
+	f.SetArchivedHashes([]string{archivedHash})
 
 	// Try to add the same content
 	learning, err := f.Add("bead-2", "Archived learning content", CategoryPatterns)
@@ -1237,7 +1234,7 @@ func TestAddArchivedDuplicateDoesNotCallFilter(t *testing.T) {
 	}
 
 	// State should not change
-	if len(f.archived) != 1 {
-		t.Errorf("expected 1 archived (unchanged), got %d", len(f.archived))
+	if len(f.GetArchivedHashes()) != 1 {
+		t.Errorf("expected 1 archived hash (unchanged), got %d", len(f.GetArchivedHashes()))
 	}
 }

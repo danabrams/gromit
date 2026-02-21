@@ -175,8 +175,13 @@ func (f *File) FilterProvisional(fn FilterFunc, alreadyFiltered map[string]bool)
 		// Remove from provisional
 		f.provisional = append(f.provisional[:idx], f.provisional[idx+1:]...)
 
-		// Add to archived
+		if err := f.appendToArchiveFile(learning); err != nil {
+			return evaluatedHashes, fmt.Errorf("appending to archive file: %w", err)
+		}
+
+		// Keep in-memory archived list populated for existing call sites/tests.
 		f.archived = append(f.archived, learning)
+		f.archivedHashes[learning.Hash] = true
 	}
 
 	// Save if any changes were made
