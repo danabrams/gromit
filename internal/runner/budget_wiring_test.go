@@ -35,7 +35,7 @@ func TestNewRunnerWiresBudgetConfigIntoRenderer(t *testing.T) {
 
 	var bufWriter bytes.Buffer
 
-	r, err := NewRunner(cfg, &bufWriter)
+	r, err := NewRunnerLegacy(cfg, &bufWriter)
 	if err != nil {
 		t.Fatalf("NewRunner() failed: %v", err)
 	}

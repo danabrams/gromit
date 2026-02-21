@@ -76,7 +76,7 @@ func TestNewRunnerWithProvidersBuildsMultiProviderRouter(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -133,7 +133,7 @@ func TestNewRunnerWithProvidersSelectsCorrectProviderForPhase(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -181,7 +181,7 @@ func TestNewRunnerWithProvidersCodexTierMapping(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -260,7 +260,7 @@ func TestNewRunnerEmptyModelsUsesDefaults(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -334,7 +334,7 @@ func TestNewRunnerWithProvidersStateFileReusedInRun(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -395,7 +395,7 @@ func TestNewRunnerWithProvidersNoRoutingUsesDefaults(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -471,7 +471,7 @@ func TestNewRunnerWithProvidersCooldownParsed(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -519,7 +519,7 @@ func TestNewRunnerSingleProviderInProvidersSection(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -577,7 +577,7 @@ func TestNewRunnerWithProvidersLearningsUsesClaudeProvider(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -644,7 +644,7 @@ func TestNewRunnerPhasePreferencesPassedToRouter(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}

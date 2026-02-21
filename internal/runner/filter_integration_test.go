@@ -31,7 +31,7 @@ func TestNewRunnerWiresFilterIntoLearningsFile(t *testing.T) {
 	bufWriter := &byteWriter{buf: &buf}
 
 	// Create a new runner
-	r, err := NewRunner(cfg, bufWriter)
+	r, err := NewRunnerLegacy(cfg, bufWriter)
 	if err != nil {
 		t.Fatalf("NewRunner() failed: %v", err)
 	}

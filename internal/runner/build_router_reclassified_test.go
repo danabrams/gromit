@@ -52,7 +52,7 @@ func TestBuildRouterReclassified_PhasePreferenceRouting(t *testing.T) {
 		Claude: config.ClaudeConfig{Binary: "claude"},
 	}
 
-	r, err := NewRunner(cfg, nil)
+	r, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -127,7 +127,7 @@ func TestBuildRouterReclassified_CooldownParsing(t *testing.T) {
 		Claude: config.ClaudeConfig{Binary: "claude"},
 	}
 
-	r, err := NewRunner(cfg, nil)
+	r, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}

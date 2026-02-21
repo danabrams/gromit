@@ -92,7 +92,7 @@ func TestNewRunnerCreatesRouterWhenNoProviders(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
@@ -128,7 +128,7 @@ func TestNewRunnerWithProvidersConfigLeavesTodo(t *testing.T) {
 		},
 	}
 
-	runner, err := NewRunner(cfg, nil)
+	runner, err := NewRunnerLegacy(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}

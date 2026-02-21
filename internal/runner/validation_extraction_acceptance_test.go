@@ -71,7 +71,7 @@ func copyRunnerTemplates(t *testing.T, templatesDir string) {
 // smoke-matrix: keep | rationale: Preserves core end-to-end success path that validates runner wiring from construction through a full run invocation. | destination: internal/runner/validation_extraction_acceptance_test.go:TestRunnerSmoke_RunSingleBeadHappyPath
 func TestRunnerSmoke_RunSingleBeadHappyPath(t *testing.T) {
 	cfg := validationAcceptanceConfig(t)
-	runner, err := NewRunner(cfg, os.Stdout)
+	runner, err := NewRunnerLegacy(cfg, os.Stdout)
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}

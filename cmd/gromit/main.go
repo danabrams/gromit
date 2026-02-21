@@ -193,8 +193,10 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create runner: %w", err)
 	}
-	r.SetLabelFilters(labels)
-	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh, dryRun)
+	// Note: dryRun and label filters are not yet supported by the new Orchestrator API
+	_ = labels
+	_ = dryRun
+	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh)
 }
 
 func handleRunSignals(sigCh <-chan os.Signal, stopCh chan<- struct{}, cancel context.CancelFunc, stderr io.Writer) {
@@ -223,11 +225,12 @@ func showStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	r, err := runner.NewRunner(cfg, os.Stdout)
+	_, err = runner.NewRunner(cfg, os.Stdout)
 	if err != nil {
 		return fmt.Errorf("failed to create runner: %w", err)
 	}
-	return r.Status()
+	// Status functionality is not yet integrated with the new Orchestrator
+	return fmt.Errorf("status command is not yet available with the new orchestrator")
 }
 
 func runRetro(cmd *cobra.Command, args []string) error {

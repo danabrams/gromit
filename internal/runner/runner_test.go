@@ -740,7 +740,7 @@ func TestNilGuards(t *testing.T) {
 		{
 			name: "NewRunnerNilConfig",
 			fn: func() error {
-				r, err := NewRunner(nil, os.Stdout)
+				r, err := NewRunnerLegacy(nil, os.Stdout)
 				if r != nil {
 					return fmt.Errorf("expected nil Runner for nil config")
 				}

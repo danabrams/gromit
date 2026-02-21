@@ -77,7 +77,7 @@ func TestNewRunnerWiresMaxLearningCharsIntoRenderer(t *testing.T) {
 			}
 
 			var out bytes.Buffer
-			r, err := NewRunner(cfg, &out)
+			r, err := NewRunnerLegacy(cfg, &out)
 			if err != nil {
 				t.Fatalf("NewRunner() failed: %v", err)
 			}
