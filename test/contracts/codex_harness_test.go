@@ -9,8 +9,8 @@ import (
 )
 
 func TestContractHarness_CodexUsesSharedFixtureAndCallLogHelpers(t *testing.T) {
-	// Expected failure: ApplyCodexFixtureEnv and FilterToolCalls do not exist in the shared contract harness yet,
-	// so fake Codex cannot be configured/filterable the same way as fake Claude/Git/BD.
+	// Ensure the shared contract helpers configure the codex fixture and
+	// provide consistent call-log filtering across fake tools.
 	env := setupTestEnv(t)
 
 	fixture := filepath.Join(fixturesDir, "codex_success.txt")
@@ -34,8 +34,7 @@ func TestContractHarness_CodexUsesSharedFixtureAndCallLogHelpers(t *testing.T) {
 }
 
 func TestContractHarness_SharedFilterKeepsNonCodexBehavior(t *testing.T) {
-	// Expected failure: FilterToolCalls and ToolCallClaude/ToolCallBD do not exist yet,
-	// so non-Codex tests are not yet backed by the new shared filtering API.
+	// Ensure shared filtering keeps expected behavior for non-codex tools too.
 	env := setupTestEnv(t)
 
 	callLog := "claude -p --model sonnet\n" +
