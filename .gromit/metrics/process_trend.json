@@ -1,51 +1,51 @@
 {
-  "generated_at": "2026-02-21T03:58:16.37386814Z",
-  "total_iterations": 674,
+  "generated_at": "2026-02-21T04:34:21.150195254Z",
+  "total_iterations": 680,
   "window_size": 30,
   "latest_window": {
     "success_rate": 0.9,
     "failure_rate": 0.1,
     "first_pass_success_rate": 0.9,
     "escalation_rate": 0,
-    "avg_duration_ms": 536824.7333333333,
-    "p95_duration_ms": 1349254.0499999998,
-    "avg_validation_ms": 35958.333333333336,
-    "p95_validation_ms": 120070.9,
-    "avg_cost_usd": 1.8565911240000001,
+    "avg_duration_ms": 416694.1,
+    "p95_duration_ms": 1131276.399999999,
+    "avg_validation_ms": 7688.740740740741,
+    "p95_validation_ms": 72327.09999999993,
+    "avg_cost_usd": 1.8611314983333331,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
     "validation_failure_rate": 0,
-    "timeout_failure_rate": 0.06666666666666667
+    "timeout_failure_rate": 0.03333333333333333
   },
   "prompt_token_summary": {
     "by_prompt_type": [
       {
         "prompt_type": "build",
-        "invocation_count": 29,
-        "avg_estimated_tokens": 2148.5862068965516
+        "invocation_count": 28,
+        "avg_estimated_tokens": 2195.5
       }
     ],
     "by_section_top_10": [
       {
         "section": "rules",
-        "estimated_tokens": 54491
+        "estimated_tokens": 52612
       },
       {
         "section": "claude_md",
-        "estimated_tokens": 3967
+        "estimated_tokens": 5128
       },
       {
         "section": "task_identity",
-        "estimated_tokens": 3764
+        "estimated_tokens": 3650
       },
       {
         "section": "template_static",
-        "estimated_tokens": 58
+        "estimated_tokens": 56
       },
       {
         "section": "failure_context",
-        "estimated_tokens": 29
+        "estimated_tokens": 28
       },
       {
         "section": "confirmed_learnings",
@@ -63,36 +63,36 @@
     "budget_action_frequency": {},
     "reconciliation_drift": {
       "sample_count": 27,
-      "mean_abs_token_delta_pct": 99.98640848963815,
-      "p95_abs_token_delta_pct": 99.96804340937295
+      "mean_abs_token_delta_pct": 99.93350067069808,
+      "p95_abs_token_delta_pct": 99.9280549924925
     }
   },
   "provider_metrics": [
     {
       "name": "claude",
-      "total_invocations": 280,
+      "total_invocations": 281,
       "successes": 198,
-      "success_rate": 0.7071428571428572,
+      "success_rate": 0.7046263345195729,
       "transport_failures": 0,
       "transport_failure_rate": 0,
       "fallbacks_triggered": 12,
-      "avg_duration_ms": 482135.1892857143,
+      "avg_duration_ms": 480419.4056939502,
       "total_cost_usd": 219.9765197,
       "total_input_tokens": 2261447,
       "total_output_tokens": 655978
     },
     {
       "name": "codex",
-      "total_invocations": 264,
-      "successes": 257,
-      "success_rate": 0.9734848484848485,
+      "total_invocations": 269,
+      "successes": 262,
+      "success_rate": 0.9739776951672863,
       "transport_failures": 0,
       "transport_failure_rate": 0,
       "fallbacks_triggered": 3,
-      "avg_duration_ms": 414332.57954545453,
-      "total_cost_usd": 578.2415303300002,
-      "total_input_tokens": 364643234,
-      "total_output_tokens": 2230883
+      "avg_duration_ms": 413657.79182156135,
+      "total_cost_usd": 586.2472255800001,
+      "total_input_tokens": 371199545,
+      "total_output_tokens": 2283575
     },
     {
       "name": "openai",
@@ -111,27 +111,27 @@
   "control_limits": [
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 1.8565911240000001,
-      "mean": 1.152660615321621,
-      "std_dev": 0.8606395535934865,
-      "ucl": 3.734579276102081,
-      "lcl": -1.4292580454588386
+      "latest": 1.8611314983333331,
+      "mean": 1.1588368130545676,
+      "std_dev": 0.8593336242663826,
+      "ucl": 3.7368376858537156,
+      "lcl": -1.4191640597445803
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 536824.7333333333,
-      "mean": 540578.3594070215,
-      "std_dev": 273765.06067750545,
-      "ucl": 1361873.541439538,
-      "lcl": -280716.8226254948
+      "latest": 416694.1,
+      "mean": 539952.0405004891,
+      "std_dev": 272653.38433611824,
+      "ucl": 1357912.193508844,
+      "lcl": -278008.11250786565
     },
     {
       "metric": "rolling_avg_validation_ms",
-      "latest": 35958.333333333336,
-      "mean": 1538.1477098124324,
-      "std_dev": 7342.548663436431,
-      "ucl": 23565.79370012172,
-      "lcl": -20489.49828049686
+      "latest": 7688.740740740741,
+      "mean": 1674.4600104791618,
+      "std_dev": 7487.288739001293,
+      "ucl": 24136.32622748304,
+      "lcl": -20787.40620652472
     },
     {
       "metric": "rolling_build_failure_rate",
@@ -144,16 +144,16 @@
     {
       "metric": "rolling_escalation_rate",
       "latest": 0,
-      "mean": 0.034124629080119054,
-      "std_dev": 0.05119122007012212,
-      "ucl": 0.18769828929048543,
+      "mean": 0.033823529411765065,
+      "std_dev": 0.05106469274419993,
+      "ucl": 0.18701760764436484,
       "lcl": 0
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "latest": 0.9,
-      "mean": 0.5773986152324407,
-      "std_dev": 0.44513921444360816,
+      "mean": 0.580147058823527,
+      "std_dev": 0.4441298071096414,
       "ucl": 1,
       "lcl": 0
     },
@@ -168,17 +168,17 @@
     {
       "metric": "rolling_success_rate",
       "latest": 0.9,
-      "mean": 0.8159410442590184,
-      "std_dev": 0.20895942367575085,
+      "mean": 0.8165847017116348,
+      "std_dev": 0.20815255841170865,
       "ucl": 1,
-      "lcl": 0.1890627732317658
+      "lcl": 0.1921270264765088
     },
     {
       "metric": "rolling_timeout_failure_rate",
-      "latest": 0.06666666666666667,
-      "mean": 0.011374876360039542,
-      "std_dev": 0.024344805539076673,
-      "ucl": 0.08440929297726957,
+      "latest": 0.03333333333333333,
+      "mean": 0.011764705882352918,
+      "std_dev": 0.024631072545007352,
+      "ucl": 0.08565792351737497,
       "lcl": 0
     },
     {
@@ -190,14 +190,5 @@
       "lcl": 0
     }
   ],
-  "anomalies": [
-    {
-      "metric": "rolling_avg_validation_ms",
-      "latest": 35958.333333333336,
-      "ucl": 23565.79370012172,
-      "lcl": -20489.49828049686,
-      "severity": "high",
-      "message": "latest value 35958.3333 is above control limits [-20489.4983, 23565.7937]"
-    }
-  ]
+  "anomalies": []
 }
