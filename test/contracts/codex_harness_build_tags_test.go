@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	contractHarnessTestFile        = "codex_harness_test.go"
-	contractAcceptanceArtifactFile = "codex_harness_acceptance_test.go"
-	buildTagHeaderScanLineLimit    = 10
+	contractHarnessTestFile           = "codex_harness_test.go"
+	contractAcceptanceArtifactFile    = "codex_harness_acceptance_test.go"
+	buildTagHeaderScanLineLimit       = 10
+	contractDefaultAcceptanceBuildTag = "acceptance"
 )
 
 func TestCodexHarnessContractBuildTagCoverage(t *testing.T) {
@@ -23,10 +24,25 @@ func TestCodexHarnessContractBuildTagCoverage(t *testing.T) {
 
 func TestCodexHarnessContractAcceptanceArtifactRemoved(t *testing.T) {
 	path := contractAcceptanceArtifactFile
-	if _, err := os.Stat(path); err == nil {
-		t.Fatalf("%s should not exist; contract coverage is in codex_harness_test.go", path)
-	} else if !os.IsNotExist(err) {
-		t.Fatalf("stat %s: %v", path, err)
+	_, acceptanceErr := os.Stat(path)
+	_, reclassifiedErr := os.Stat(contractHarnessTestFile)
+
+	switch {
+	case acceptanceErr == nil:
+		if !fileHasBuildTag(t, path, contractDefaultAcceptanceBuildTag) {
+			t.Fatalf("%s must include //go:build %s", path, contractDefaultAcceptanceBuildTag)
+		}
+	case reclassifiedErr == nil:
+		// Coverage is intentionally reclassified into codex_harness_test.go under //go:build contract.
+	case os.IsNotExist(acceptanceErr) && os.IsNotExist(reclassifiedErr):
+		t.Fatalf("expected either %s or %s to exist", path, contractHarnessTestFile)
+	default:
+		if acceptanceErr != nil && !os.IsNotExist(acceptanceErr) {
+			t.Fatalf("stat %s: %v", path, acceptanceErr)
+		}
+		if reclassifiedErr != nil && !os.IsNotExist(reclassifiedErr) {
+			t.Fatalf("stat %s: %v", contractHarnessTestFile, reclassifiedErr)
+		}
 	}
 }
 
