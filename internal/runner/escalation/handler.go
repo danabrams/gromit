@@ -516,6 +516,40 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		default:
 		}
 
+		triageResult := Triage(invResult, bc)
+		if triageResult != nil {
+			bc.Result.FailureLayer = string(triageResult.Layer)
+			bc.Result.FailureSubCat = triageResult.SubCategory
+			switch triageResult.Layer {
+			case LayerProviderTransport:
+				if triageResult.Retryable {
+					bc.RetriesThisModel++
+					bc.TotalRetriesThisBead++
+					continue
+				}
+				bc.Result.Error = fmt.Errorf("provider authentication failed: check API credentials and provider access")
+				h.setBuildFailurePhase(bc)
+				return false
+			case LayerEnvironment:
+				bc.Result.Error = fmt.Errorf("environment error: %s", triageResult.Detail)
+				h.setBuildFailurePhase(bc)
+				return false
+			case LayerOrchestration:
+				switch triageResult.SubCategory {
+				case "bad_prompt":
+					bc.Result.Error = fmt.Errorf("orchestration error: build prompt is empty")
+				case "bad_bead":
+					bc.Result.Error = fmt.Errorf("orchestration error: bead description is empty")
+				default:
+					bc.Result.Error = fmt.Errorf("orchestration error: %s", triageResult.Detail)
+				}
+				h.setBuildFailurePhase(bc)
+				return false
+			case LayerCode:
+				// Fall through to existing analyzer flow for code-level failures.
+			}
+		}
+
 		// Analyze failure and decide: retry, escalate, or stop
 		if h.AnalyzeAndHandleFailure(ctx, bc, claudeResult) {
 			continue

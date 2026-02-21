@@ -21,10 +21,12 @@ import (
 
 // mockFailureAnalyzer implements the FailureAnalyzer interface for escalation tests.
 type mockFailureAnalyzer struct {
-	analyzeFn func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error)
+	analyzeFn    func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error)
+	analyzeCalls int
 }
 
 func (m *mockFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+	m.analyzeCalls++
 	if m.analyzeFn != nil {
 		return m.analyzeFn(ctx, b, failureOutput)
 	}
@@ -53,7 +55,7 @@ func (m *mockBeadClient) AddComment(id, comment string) error {
 
 func newTestBeadContext() *runtypes.BeadContext {
 	return &runtypes.BeadContext{
-		Bead:              &bead.Bead{ID: "test-001", Title: "Test bead", Priority: 1},
+		Bead:              &bead.Bead{ID: "test-001", Title: "Test bead", Description: "Test description", Priority: 1},
 		Tier:              provider.TierMedium,
 		Model:             "sonnet",
 		BuildPrompt:       "test prompt",
@@ -1421,6 +1423,172 @@ func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 	}
 	if callCount != 2 {
 		t.Errorf("invokeFn called %d times, want 2", callCount)
+	}
+}
+
+func TestExecuteWithRetry_TriageTransportDisconnectRetriesWithoutAnalyzer(t *testing.T) {
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			t.Fatal("analyzer should not run for retryable provider transport triage")
+			return nil, nil
+		},
+	}
+	cfg := newTestConfig()
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	invokeCalls := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invokeCalls++
+		if invokeCalls == 1 {
+			return &runtypes.InvocationResult{
+				Result: &claude.Result{Success: false, Output: "transport disconnected"},
+				ProviderResult: &provider.Result{
+					FailureCategory: provider.FailureCategoryTransportDisconnect,
+				},
+			}, nil
+		}
+		return &runtypes.InvocationResult{Result: &claude.Result{Success: true, Output: "ok"}}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if !success {
+		t.Fatal("expected retryable transport disconnect to continue and succeed on retry")
+	}
+	if invokeCalls != 2 {
+		t.Fatalf("invoke calls=%d, want 2", invokeCalls)
+	}
+	if mfa.analyzeCalls != 0 {
+		t.Fatalf("Analyze calls=%d, want 0", mfa.analyzeCalls)
+	}
+	if bc.Result.FailureLayer != string(LayerProviderTransport) {
+		t.Fatalf("FailureLayer=%q, want %q", bc.Result.FailureLayer, LayerProviderTransport)
+	}
+	if bc.Result.FailureSubCat != "disconnect" {
+		t.Fatalf("FailureSubCat=%q, want %q", bc.Result.FailureSubCat, "disconnect")
+	}
+}
+
+func TestExecuteWithRetry_TriageTransportAuthStopsWithoutAnalyzer(t *testing.T) {
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			t.Fatal("analyzer should not run for auth triage")
+			return nil, nil
+		},
+	}
+	cfg := newTestConfig()
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
+			Result: &claude.Result{Success: false, Output: "auth failed"},
+			ProviderResult: &provider.Result{
+				FailureCategory: provider.FailureCategoryAuth,
+			},
+		}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected auth failure to stop loop")
+	}
+	if mfa.analyzeCalls != 0 {
+		t.Fatalf("Analyze calls=%d, want 0", mfa.analyzeCalls)
+	}
+	if bc.Result.Error == nil || !strings.Contains(strings.ToLower(bc.Result.Error.Error()), "authentication") {
+		t.Fatalf("expected actionable auth error, got %v", bc.Result.Error)
+	}
+	if bc.Result.FailureLayer != string(LayerProviderTransport) {
+		t.Fatalf("FailureLayer=%q, want %q", bc.Result.FailureLayer, LayerProviderTransport)
+	}
+	if bc.Result.FailureSubCat != "auth" {
+		t.Fatalf("FailureSubCat=%q, want %q", bc.Result.FailureSubCat, "auth")
+	}
+}
+
+func TestExecuteWithRetry_TriageEnvironmentStopsWithActionableErrorWithoutAnalyzer(t *testing.T) {
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			t.Fatal("analyzer should not run for environment triage")
+			return nil, nil
+		},
+	}
+	cfg := newTestConfig()
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
+			Result: &claude.Result{Success: false, Output: "go not found"},
+			ProviderResult: &provider.Result{
+				Stderr: "exec: go: executable file not found in $PATH",
+			},
+		}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected environment failure to stop loop")
+	}
+	if mfa.analyzeCalls != 0 {
+		t.Fatalf("Analyze calls=%d, want 0", mfa.analyzeCalls)
+	}
+	if bc.Result.Error == nil || !strings.Contains(strings.ToLower(bc.Result.Error.Error()), "environment error") {
+		t.Fatalf("expected actionable environment error, got %v", bc.Result.Error)
+	}
+	if bc.Result.Error == nil || !strings.Contains(strings.ToLower(bc.Result.Error.Error()), "go") {
+		t.Fatalf("expected environment error to include command detail, got %v", bc.Result.Error)
+	}
+	if bc.Result.FailureLayer != string(LayerEnvironment) {
+		t.Fatalf("FailureLayer=%q, want %q", bc.Result.FailureLayer, LayerEnvironment)
+	}
+	if bc.Result.FailureSubCat != "missing_tool" {
+		t.Fatalf("FailureSubCat=%q, want %q", bc.Result.FailureSubCat, "missing_tool")
+	}
+}
+
+func TestExecuteWithRetry_TriageCodeLayerCallsAnalyzer(t *testing.T) {
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				RootCause:   "missing guard",
+				Suggestion:  "add guard",
+			}, nil
+		},
+	}
+	cfg := newTestConfig()
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	invokeCalls := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invokeCalls++
+		if invokeCalls == 1 {
+			return &runtypes.InvocationResult{
+				Result: &claude.Result{Success: false, Output: "compile failed"},
+				ProviderResult: &provider.Result{
+					FailureCategory: provider.FailureCategoryOther,
+				},
+			}, nil
+		}
+		return &runtypes.InvocationResult{Result: &claude.Result{Success: true, Output: "fixed"}}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if !success {
+		t.Fatal("expected code-layer failure to recover via analyzer path")
+	}
+	if mfa.analyzeCalls != 1 {
+		t.Fatalf("Analyze calls=%d, want 1", mfa.analyzeCalls)
+	}
+	if bc.Result.FailureLayer != string(LayerCode) {
+		t.Fatalf("FailureLayer=%q, want %q", bc.Result.FailureLayer, LayerCode)
+	}
+	if bc.Result.FailureSubCat != "default" {
+		t.Fatalf("FailureSubCat=%q, want %q", bc.Result.FailureSubCat, "default")
 	}
 }
 
