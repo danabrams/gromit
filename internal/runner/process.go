@@ -23,9 +23,12 @@ import (
 )
 
 const (
-	compilationCheckTimeout   = 30 * time.Second
-	compilationErrorsPrompt   = "\n\n<compilation-errors>\nThe codebase currently has compilation errors. You must fix these as part of your work:\n\n%s\n</compilation-errors>"
-	estimatedFilesLabelPrefix = "estimated-files:"
+	compilationCheckTimeout       = 30 * time.Second
+	compilationErrorsPrompt       = "\n\n<compilation-errors>\nThe codebase currently has compilation errors. You must fix these as part of your work:\n\n%s\n</compilation-errors>"
+	estimatedFilesLabelPrefix     = "estimated-files:"
+	recentValidationFailureLimit  = 3
+	recurringReviewMinOccurrences = 2
+	recurringReviewCategoryLimit  = 3
 )
 
 // setupBeadContext validates runner state, sets up timeouts, captures git state,
@@ -133,8 +136,8 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 	// Inject recent validation failure summaries (last 3) into prompt context
 	if n := len(r.validationFailures); n > 0 {
 		start := 0
-		if n > 3 {
-			start = n - 3
+		if n > recentValidationFailureLimit {
+			start = n - recentValidationFailureLimit
 		}
 		bc.PromptCtx.RecentValidationFailures = r.validationFailures[start:]
 	}
@@ -142,8 +145,8 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 		r.cfg.Paths.Logs,
 		bc.Bead.ID,
 		bc.PromptCtx.SpecName,
-		2, // recurring threshold
-		3, // top categories to include in build prompt
+		recurringReviewMinOccurrences,
+		recurringReviewCategoryLimit,
 	)
 	if err != nil {
 		r.log("Warning: could not load recurring review findings: %v", err)

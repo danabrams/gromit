@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+const (
+	fixCategoryNilChecks     = "nil_checks"
+	fixCategoryTestQuality   = "test_quality"
+	fixCategoryErrorHandling = "error_handling"
+)
+
 // ReviewResult represents the structured output from a code review
 type ReviewResult struct {
 	Passed        bool           `json:"passed"`
@@ -135,21 +141,26 @@ func categorizeFix(fix string) string {
 		return ""
 	}
 
-	if strings.Contains(text, "nil") {
-		return "nil_checks"
+	if containsAny(text, "nil") {
+		return fixCategoryNilChecks
 	}
 
-	if strings.Contains(text, "assert") ||
-		strings.Contains(text, "test") ||
-		strings.Contains(text, "coverage") {
-		return "test_quality"
+	if containsAny(text, "assert", "test", "coverage") {
+		return fixCategoryTestQuality
 	}
 
-	if strings.Contains(text, "error") ||
-		strings.Contains(text, "panic") ||
-		strings.Contains(text, "recover") {
-		return "error_handling"
+	if containsAny(text, "error", "panic", "recover") {
+		return fixCategoryErrorHandling
 	}
 
 	return ""
+}
+
+func containsAny(text string, needles ...string) bool {
+	for _, needle := range needles {
+		if strings.Contains(text, needle) {
+			return true
+		}
+	}
+	return false
 }

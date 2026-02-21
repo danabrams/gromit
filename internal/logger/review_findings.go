@@ -9,6 +9,11 @@ import (
 	"sort"
 )
 
+const (
+	reviewRecordType    = "review"
+	reviewRunLogPattern = "run-*.jsonl"
+)
+
 type reviewLogRecord struct {
 	Type          string   `json:"type"`
 	ReviewType    string   `json:"review_type"`
@@ -31,7 +36,7 @@ func ReadRecurringReviewFixCategories(logsDir, currentBeadID, specID string, min
 		minOccurrences = 1
 	}
 
-	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	files, err := filepath.Glob(filepath.Join(logsDir, reviewRunLogPattern))
 	if err != nil {
 		return nil, fmt.Errorf("globbing log files: %w", err)
 	}
@@ -123,7 +128,7 @@ func decodeReviewLogs(dec *json.Decoder) []reviewLogRecord {
 		if err := json.Unmarshal(raw, &candidate); err != nil {
 			continue
 		}
-		if candidate.Type != "review" {
+		if candidate.Type != reviewRecordType {
 			continue
 		}
 		if candidate.FixCategories == nil {
