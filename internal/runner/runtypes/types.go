@@ -71,6 +71,7 @@ type IterationResult struct {
 	Error                   error
 	Escalated               bool
 	EscalatedTo             string
+	EstimatedFiles          int
 	OriginalTier            string
 	ActualTier              string
 	Decomposed              bool

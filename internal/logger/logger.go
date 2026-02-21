@@ -39,6 +39,7 @@ type IterationLog struct {
 	TrivialAutoFixed        bool      `json:"trivial_auto_fixed,omitempty"`
 	UsageLimited            bool      `json:"usage_limited,omitempty"`
 	ValidationMode          string    `json:"validation_mode,omitempty"`
+	EstimatedFiles          int       `json:"estimated_files,omitempty"`
 	ValidationDurationMs    int64     `json:"validation_duration_ms,omitempty"`
 	ValidationTimeouts      int       `json:"validation_timeouts,omitempty"`
 	CompilationErrors       bool      `json:"compilation_errors,omitempty"`
