@@ -13,11 +13,11 @@ import (
 
 func prepareCodexEnv() ([]string, string, error) {
 	env := os.Environ()
-	_, ok := os.LookupEnv("CODEX_HOME")
+	configuredCodexHome, ok := os.LookupEnv("CODEX_HOME")
 	if !ok {
 		return env, "", nil
 	}
-	codexHome, err := ResolveCodexHome()
+	codexHome, err := ResolveCodexHomePath(configuredCodexHome)
 	if err != nil {
 		return nil, "", fmt.Errorf("resolving CODEX_HOME: %w", err)
 	}

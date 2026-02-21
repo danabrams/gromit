@@ -40,11 +40,11 @@ const (
 // Compile-time check to verify CodexProvider implements Provider interface
 var _ Provider = (*CodexProvider)(nil)
 
-// ResolveCodexHome returns the effective CODEX_HOME path.
-// If CODEX_HOME is unset/empty or points under the system temp directory, a
-// safe fallback path is resolved.
-func ResolveCodexHome() (string, error) {
-	codexHome := strings.TrimSpace(os.Getenv("CODEX_HOME"))
+// ResolveCodexHomePath returns the effective CODEX_HOME path for the provided
+// CODEX_HOME value. Empty values or values under the system temp directory are
+// rewritten to a safe fallback path.
+func ResolveCodexHomePath(codexHome string) (string, error) {
+	codexHome = strings.TrimSpace(codexHome)
 	if codexHome == "" || isUnderTempDir(codexHome) {
 		safeHome, err := resolveSafeCodexHome()
 		if err != nil {
@@ -57,6 +57,11 @@ func ResolveCodexHome() (string, error) {
 		return "", fmt.Errorf("resolved CODEX_HOME is unsafe (under temp directory): %s", cleaned)
 	}
 	return cleaned, nil
+}
+
+// ResolveCodexHome returns the effective CODEX_HOME path from environment.
+func ResolveCodexHome() (string, error) {
+	return ResolveCodexHomePath(os.Getenv("CODEX_HOME"))
 }
 
 // NewCodexProvider creates a new CodexProvider with the given configuration

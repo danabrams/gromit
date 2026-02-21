@@ -55,6 +55,12 @@ func (r *Runner) preflightCodex(ctx context.Context) error {
 		}
 	}
 
+	codexHome, err := validatePreflightCodexHome()
+	if err != nil {
+		return err
+	}
+	r.log("Codex preflight resolved CODEX_HOME=%s", codexHome)
+
 	loginCtx, loginCancel := context.WithTimeout(ctx, codexPreflightLoginTimeout)
 	defer loginCancel()
 	stdout, stderr, exitCode, statusErr := r.runArgv(loginCtx, "codex", []string{"login", "status"}, "")
@@ -66,27 +72,26 @@ func (r *Runner) preflightCodex(ctx context.Context) error {
 		return fmt.Errorf("codex preflight failed: checking login status exited %d (output: %s)", exitCode, summarizeCodexPreflightOutput(combined))
 	}
 	if strings.Contains(combined, "Not logged in") {
-		homeHint := strings.TrimSpace(os.Getenv("CODEX_HOME"))
-		if homeHint == "" {
-			homeHint = "~/.codex"
-		}
-		return fmt.Errorf("codex preflight failed: codex is not logged in for CODEX_HOME=%s; run `codex login` (or unset CODEX_HOME if it points to an uninitialized directory)", homeHint)
+		return fmt.Errorf("codex preflight failed: codex is not logged in for effective CODEX_HOME=%s; run `codex login` (or set CODEX_HOME to your initialized codex profile directory)", codexHome)
 	}
-
-	codexHome, err := provider.ResolveCodexHome()
-	if err != nil {
-		return fmt.Errorf("codex preflight failed: resolving CODEX_HOME: %w", err)
-	}
-	if err := os.MkdirAll(codexHome, 0755); err != nil {
-		return fmt.Errorf("codex preflight failed: CODEX_HOME path %q does not exist and could not be created: %w", codexHome, err)
-	}
-	if err := probeCodexHomeWrite(codexHome); err != nil {
-		return err
-	}
-	r.log("Codex preflight resolved CODEX_HOME=%s", codexHome)
 
 	r.log("Codex preflight passed (providers=%s)", strings.Join(codexBinaries, ","))
 	return nil
+}
+
+func validatePreflightCodexHome() (string, error) {
+	configuredCodexHome := strings.TrimSpace(os.Getenv("CODEX_HOME"))
+	codexHome, err := provider.ResolveCodexHomePath(configuredCodexHome)
+	if err != nil {
+		return "", fmt.Errorf("codex preflight failed: resolving effective CODEX_HOME from CODEX_HOME=%q: %w. Remediation: unset CODEX_HOME or set it to a writable directory outside %q", configuredCodexHome, err, os.TempDir())
+	}
+	if err := os.MkdirAll(codexHome, 0755); err != nil {
+		return "", fmt.Errorf("codex preflight failed: effective CODEX_HOME=%q could not be created: %w. Remediation: set CODEX_HOME to a writable directory (for example %q) and rerun `codex login`", codexHome, err, codexHome)
+	}
+	if err := probeCodexHomeWrite(codexHome); err != nil {
+		return "", fmt.Errorf("%w. Remediation: set CODEX_HOME to a writable directory (resolved effective CODEX_HOME=%q)", err, codexHome)
+	}
+	return codexHome, nil
 }
 
 func (r *Runner) codexProviderBinaries() []string {
