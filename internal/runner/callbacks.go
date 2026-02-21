@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,6 +27,12 @@ const (
 	invocationEndMarkerFormat   = "INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s"
 	atddStartMarkerFormat       = "ATDD_INVOCATION_START provider=%s model=%s tier=%s"
 	atddEndMarkerFormat         = "ATDD_INVOCATION_END provider=%s model=%s tier=%s success=%t duration=%s failure_category=%s"
+)
+
+const (
+	atddFailureClassTransport = provider.FailureCategoryTransportDisconnect
+	atddFailureClassStartup   = "startup_error"
+	atddFailureClassOther     = provider.FailureCategoryOther
 )
 
 func newSpecGate(r *Runner) (*specgate.Gate, error) {
@@ -179,6 +186,38 @@ func invocationLifecycleFields(bc *runtypes.BeadContext, invResult *runtypes.Inv
 		success = false
 	}
 	return providerName, modelName, tier, success, failureCategory
+}
+
+func classifyATDDFailure(result *provider.Result, err error) string {
+	if result != nil && result.FailureCategory == provider.FailureCategoryTransportDisconnect {
+		return atddFailureClassTransport
+	}
+
+	var failureText strings.Builder
+	if err != nil {
+		failureText.WriteString(err.Error())
+		failureText.WriteString("\n")
+	}
+	if result != nil {
+		failureText.WriteString(result.Stderr)
+		failureText.WriteString("\n")
+		failureText.WriteString(result.Output)
+		failureText.WriteString("\n")
+		failureText.WriteString(result.Diagnostics)
+	}
+	content := strings.ToLower(failureText.String())
+
+	if strings.Contains(content, "stream disconnected") || strings.Contains(content, "connection reset") || strings.Contains(content, "broken pipe") {
+		return atddFailureClassTransport
+	}
+	if strings.Contains(content, "failed to start") || strings.Contains(content, "startup") || strings.Contains(content, "initializ") || strings.Contains(content, "timed out waiting for first event") {
+		return atddFailureClassStartup
+	}
+	return atddFailureClassOther
+}
+
+func isATDDTransientFailureClass(failureClass string) bool {
+	return failureClass == atddFailureClassTransport || failureClass == atddFailureClassStartup
 }
 
 func (r *Runner) estimatedCostUSD(providerName, model string, reportedCostUSD float64, inputTokens, outputTokens int) float64 {
@@ -429,10 +468,13 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if p == nil {
 			return fmt.Errorf("no providers available for phase=build tier=%s", bc.Tier)
 		}
-		bc.Model = modelName
-		if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
-			bc.Result.EscalatedTo = modelName
+		setSelectedModel := func(selectedModel string) {
+			bc.Model = selectedModel
+			if bc.Result.Escalated && bc.Result.EscalatedTo != "" {
+				bc.Result.EscalatedTo = selectedModel
+			}
 		}
+		setSelectedModel(modelName)
 		result, stats, err := streamInvoke(p, modelName, "primary")
 		applyCostData(stats)
 		if err != nil {
@@ -440,9 +482,52 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 				r.router.MarkUnavailable(p.Name())
 				p2, modelName2 := r.router.Select("build", bc.Tier)
 				if p2 != nil {
-					bc.Model = modelName2
+					setSelectedModel(modelName2)
 					result, stats, err = streamInvoke(p2, modelName2, "usage-limit-fallback")
 					applyCostData(stats)
+					p = p2
+					modelName = modelName2
+				}
+			}
+			if err != nil {
+				failureClass := classifyATDDFailure(result, err)
+				if isATDDTransientFailureClass(failureClass) {
+					r.log("ATDD fallback: transient failure class=%s on provider=%s, retrying with alternate provider", failureClass, p.Name())
+					r.router.MarkUnavailable(p.Name())
+					p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
+					if p2 != nil && p2.Name() != p.Name() {
+						fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
+						applyCostData(fallbackStats)
+						if fallbackErr != nil {
+							return fmt.Errorf(
+								"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary_err=%v fallback_err=%v",
+								failureClass,
+								p2.Name(),
+								modelName2,
+								err,
+								fallbackErr,
+							)
+						}
+						if fallbackResult == nil {
+							return fmt.Errorf(
+								"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary_err=%v fallback=nil result",
+								failureClass,
+								p2.Name(),
+								modelName2,
+								err,
+							)
+						}
+						if fallbackResult.Success {
+							setSelectedModel(modelName2)
+							return nil
+						}
+						return fmt.Errorf(
+							"acceptance tests failed after transient fallback class=%s: primary_err=%v fallback={%s}",
+							failureClass,
+							err,
+							formatATDDProviderFailure(p2, modelName2, fallbackResult),
+						)
+					}
 				}
 			}
 			if err != nil {
@@ -452,39 +537,45 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		if result == nil {
 			return fmt.Errorf("acceptance tests failed (provider=%s model=%s): nil result", p.Name(), modelName)
 		}
-		if !result.Success && p.Name() == "codex" && result.FailureCategory == provider.FailureCategoryTransportDisconnect {
-			r.log("ATDD fallback: codex transport failure, retrying with alternate provider")
-			r.router.MarkUnavailable(p.Name())
-			p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
-			if p2 != nil && p2.Name() != p.Name() {
-				fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "codex-transport-fallback")
-				applyCostData(fallbackStats)
-				if fallbackErr != nil {
+		if !result.Success {
+			failureClass := classifyATDDFailure(result, nil)
+			if isATDDTransientFailureClass(failureClass) {
+				r.log("ATDD fallback: transient failure class=%s on provider=%s, retrying with alternate provider", failureClass, p.Name())
+				r.router.MarkUnavailable(p.Name())
+				p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
+				if p2 != nil && p2.Name() != p.Name() {
+					fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
+					applyCostData(fallbackStats)
+					if fallbackErr != nil {
+						return fmt.Errorf(
+							"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary={%s} fallback_err=%v",
+							failureClass,
+							p2.Name(),
+							modelName2,
+							formatATDDProviderFailure(p, modelName, result),
+							fallbackErr,
+						)
+					}
+					if fallbackResult == nil {
+						return fmt.Errorf(
+							"acceptance tests failed after transient fallback class=%s (provider=%s model=%s): primary={%s} fallback=nil result",
+							failureClass,
+							p2.Name(),
+							modelName2,
+							formatATDDProviderFailure(p, modelName, result),
+						)
+					}
+					if fallbackResult.Success {
+						setSelectedModel(modelName2)
+						return nil
+					}
 					return fmt.Errorf(
-						"acceptance tests failed after codex transport fallback (provider=%s model=%s): primary={%s} fallback_err=%v",
-						p2.Name(),
-						modelName2,
+						"acceptance tests failed after transient fallback class=%s: primary={%s} fallback={%s}",
+						failureClass,
 						formatATDDProviderFailure(p, modelName, result),
-						fallbackErr,
+						formatATDDProviderFailure(p2, modelName2, fallbackResult),
 					)
 				}
-				if fallbackResult == nil {
-					return fmt.Errorf(
-						"acceptance tests failed after codex transport fallback (provider=%s model=%s): primary={%s} fallback=nil result",
-						p2.Name(),
-						modelName2,
-						formatATDDProviderFailure(p, modelName, result),
-					)
-				}
-				if fallbackResult.Success {
-					bc.Model = modelName2
-					return nil
-				}
-				return fmt.Errorf(
-					"acceptance tests failed after codex transport fallback: primary={%s} fallback={%s}",
-					formatATDDProviderFailure(p, modelName, result),
-					formatATDDProviderFailure(p2, modelName2, fallbackResult),
-				)
 			}
 		}
 		if !result.Success {

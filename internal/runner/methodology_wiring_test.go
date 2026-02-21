@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -773,6 +774,154 @@ func TestMethodologyExec_InvokeFn_CodexTransportFailureFallsBackToAlternateProvi
 	}
 	if bc.Model == "haiku" {
 		t.Fatalf("expected fallback to update bead context model, got %q", bc.Model)
+	}
+}
+
+func TestMethodologyExec_InvokeFn_StartupErrorFallsBackToAlternateProvider(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	cfg.Escalation.MaxRetriesPerModel = 0
+	cfg.Escalation.Chain = []string{provider.TierLow}
+	var buf strings.Builder
+
+	primaryCalls := 0
+	fallbackCalls := 0
+
+	primary := &mockProviderWithRouterTracking{name: "primary"}
+	primary.streamRunFn = func(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		primaryCalls++
+		return nil, errors.New("failed to start provider process: timed out waiting for first event")
+	}
+
+	fallback := &mockProviderWithRouterTracking{name: "fallback"}
+	fallback.streamRunFn = func(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		fallbackCalls++
+		return &provider.Result{
+			Success: true,
+			Model:   "fallback-model",
+			Output:  "ok",
+		}, nil
+	}
+
+	router := provider.NewRouter(
+		map[string]provider.Provider{
+			"primary":  primary,
+			"fallback": fallback,
+		},
+		map[string]string{"build": "primary"},
+		map[string]int{"primary": 100, "fallback": 100},
+		time.Minute,
+		&crossReviewMockStateFile{},
+		nil,
+	)
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   router,
+		Renderer: &mockRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+	if r.methodologyExec == nil {
+		t.Fatal("methodologyExec must be wired")
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "test-invoke-startup-fallback-001", Title: "Invoke startup fallback test"},
+		Tier:      provider.TierLow,
+		Model:     "haiku",
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{WorkDir: t.TempDir()},
+	}
+
+	err = r.methodologyExec.RunAcceptanceTestsWithRetry(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("RunAcceptanceTestsWithRetry should succeed via startup fallback, got error: %v", err)
+	}
+	if primaryCalls != 1 {
+		t.Fatalf("expected primary provider to be called once, got %d", primaryCalls)
+	}
+	if fallbackCalls != 1 {
+		t.Fatalf("expected fallback provider to be called once, got %d", fallbackCalls)
+	}
+	if bc.Model == "haiku" {
+		t.Fatalf("expected startup fallback to update bead context model, got %q", bc.Model)
+	}
+}
+
+func TestMethodologyExec_InvokeFn_OtherFailureDoesNotFallback(t *testing.T) {
+	cfg := newMethodologyWiringConfig()
+	cfg.Escalation.Enabled = false
+	cfg.Escalation.MaxRetriesPerModel = -1
+	cfg.Escalation.Chain = []string{provider.TierLow}
+	var buf strings.Builder
+
+	primaryCalls := 0
+	fallbackCalls := 0
+
+	primary := &mockProviderWithRouterTracking{name: "primary"}
+	primary.streamRunFn = func(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		primaryCalls++
+		return &provider.Result{
+			Success:         false,
+			Model:           "primary-model",
+			FailureCategory: provider.FailureCategoryOther,
+			ExitCode:        1,
+			Output:          "application-level failure",
+		}, nil
+	}
+
+	fallback := &mockProviderWithRouterTracking{name: "fallback"}
+	fallback.streamRunFn = func(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+		fallbackCalls++
+		return &provider.Result{
+			Success: true,
+			Model:   "fallback-model",
+			Output:  "ok",
+		}, nil
+	}
+
+	router := provider.NewRouter(
+		map[string]provider.Provider{
+			"primary":  primary,
+			"fallback": fallback,
+		},
+		map[string]string{"build": "primary"},
+		map[string]int{"primary": 100, "fallback": 100},
+		time.Minute,
+		&crossReviewMockStateFile{},
+		nil,
+	)
+
+	r, err := NewRunnerWithDeps(cfg, &buf, t.TempDir(), Deps{
+		Beads:    &mockBeadClient{},
+		Router:   router,
+		Renderer: &mockRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps returned error: %v", err)
+	}
+	if r.methodologyExec == nil {
+		t.Fatal("methodologyExec must be wired")
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "test-invoke-other-no-fallback-001", Title: "Invoke other no fallback test"},
+		Tier:      provider.TierLow,
+		Model:     "haiku",
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{WorkDir: t.TempDir()},
+	}
+
+	err = r.methodologyExec.RunAcceptanceTestsWithRetry(context.Background(), bc)
+	if err == nil {
+		t.Fatal("RunAcceptanceTestsWithRetry should fail for non-transient ATDD failures")
+	}
+	if primaryCalls != 1 {
+		t.Fatalf("expected primary provider to be called once, got %d", primaryCalls)
+	}
+	if fallbackCalls != 0 {
+		t.Fatalf("expected fallback provider not to be called, got %d", fallbackCalls)
 	}
 }
 
