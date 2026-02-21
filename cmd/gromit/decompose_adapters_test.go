@@ -3,19 +3,13 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 // TestClaudeClientAdapter_ConstructsTypedStruct verifies claudeClientAdapter.Run returns typed struct
 func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
-	// Adapters are now in adapters.go
-	adapterPath := filepath.Join(".", "adapters.go")
-	content, err := os.ReadFile(adapterPath)
-	if err != nil {
-		t.Fatalf("reading adapters.go: %v", err)
-	}
-
-	contentStr := string(content)
+	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	// Check that claudeClientAdapter.Run constructs &pipeline.ClaudeRunResult{...}
 	if !adapterTestContainsString(contentStr, "&pipeline.ClaudeRunResult{") {
@@ -31,20 +25,8 @@ func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
 // TestClaudeClientAdapter_UsesConfigTimeout verifies that the adapter uses configurable timeout
 // sourced from config instead of a hardcoded duration.
 func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
-	decomposePath := filepath.Join(".", "decompose.go")
-	decomposeContent, err := os.ReadFile(decomposePath)
-	if err != nil {
-		t.Fatalf("reading decompose.go: %v", err)
-	}
-
-	reviewPath := filepath.Join(".", "review.go")
-	reviewContent, err := os.ReadFile(reviewPath)
-	if err != nil {
-		t.Fatalf("reading review.go: %v", err)
-	}
-
-	decomposeStr := string(decomposeContent)
-	reviewStr := string(reviewContent)
+	decomposeStr := adapterTestReadFile(t, "decompose.go")
+	reviewStr := adapterTestReadFile(t, "review.go")
 
 	if !adapterTestContainsString(decomposeStr, "time.Duration(cfg.Claude.Timeout) * time.Second") {
 		t.Error("decompose should pass config timeout to claudeClientAdapter: Timeout: time.Duration(cfg.Claude.Timeout) * time.Second")
@@ -57,13 +39,7 @@ func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
 
 // TestClaudeClientAdapter_NoHardcodedTimeout verifies the adapter no longer uses a fixed timeout.
 func TestClaudeClientAdapter_NoHardcodedTimeout(t *testing.T) {
-	adapterPath := filepath.Join(".", "adapters.go")
-	content, err := os.ReadFile(adapterPath)
-	if err != nil {
-		t.Fatalf("reading adapters.go: %v", err)
-	}
-
-	contentStr := string(content)
+	contentStr := adapterTestReadFile(t, "adapters.go")
 	if adapterTestContainsString(contentStr, "30*time.Minute") {
 		t.Error("claudeClientAdapter should not use hardcoded 30*time.Minute timeout")
 	}
@@ -71,13 +47,7 @@ func TestClaudeClientAdapter_NoHardcodedTimeout(t *testing.T) {
 
 // TestBeadClientAdapter_ConstructsTypedStruct verifies beadClientAdapter methods return typed structs
 func TestBeadClientAdapter_ConstructsTypedStruct(t *testing.T) {
-	adapterPath := filepath.Join(".", "adapters.go")
-	content, err := os.ReadFile(adapterPath)
-	if err != nil {
-		t.Fatalf("reading adapters.go: %v", err)
-	}
-
-	contentStr := string(content)
+	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	// Check that adapter constructs &pipeline.BeadInfo{...}
 	if !adapterTestContainsString(contentStr, "&pipeline.BeadInfo{") {
@@ -101,13 +71,7 @@ func TestBeadClientAdapter_ConstructsTypedStruct(t *testing.T) {
 
 // TestAdapterFile_ImportsTypedPipeline verifies adapters.go imports pipeline package properly
 func TestAdapterFile_ImportsTypedPipeline(t *testing.T) {
-	adapterPath := filepath.Join(".", "adapters.go")
-	content, err := os.ReadFile(adapterPath)
-	if err != nil {
-		t.Fatalf("reading adapters.go: %v", err)
-	}
-
-	contentStr := string(content)
+	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	// Verify file imports pipeline package
 	if !adapterTestContainsImport(contentStr, "github.com/danabrams/gromit/internal/pipeline") {
@@ -126,13 +90,7 @@ func TestAdapterFile_ImportsTypedPipeline(t *testing.T) {
 
 // TestAdapterSimplification_NoMapConstruction verifies adapters don't construct intermediate maps
 func TestAdapterSimplification_NoMapConstruction(t *testing.T) {
-	adapterPath := filepath.Join(".", "adapters.go")
-	content, err := os.ReadFile(adapterPath)
-	if err != nil {
-		t.Fatalf("reading adapters.go: %v", err)
-	}
-
-	contentStr := string(content)
+	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	// Extract claude adapter section (between claudeClientAdapter type and beadClientAdapter type)
 	claudeAdapterSection := adapterTestExtractBetween(contentStr,
@@ -160,16 +118,11 @@ func TestAdapterSimplification_NoMapConstruction(t *testing.T) {
 // Helper functions for string analysis
 
 func adapterTestContainsString(content, substr string) bool {
-	return len(content) > 0 && len(substr) > 0 && adapterTestIndexString(content, substr) >= 0
+	return strings.Contains(content, substr)
 }
 
 func adapterTestIndexString(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
+	return strings.Index(s, substr)
 }
 
 func adapterTestContainsImport(content, pkg string) bool {
@@ -194,10 +147,26 @@ func adapterTestExtractBetween(content, start, end string) string {
 		return ""
 	}
 
+	if end == "" {
+		return content[startIdx:]
+	}
+
 	endIdx := adapterTestIndexString(content[startIdx:], end)
 	if endIdx < 0 {
 		return content[startIdx:]
 	}
 
 	return content[startIdx : startIdx+endIdx]
+}
+
+func adapterTestReadFile(t *testing.T, name string) string {
+	t.Helper()
+
+	path := filepath.Join(".", name)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", name, err)
+	}
+
+	return string(content)
 }

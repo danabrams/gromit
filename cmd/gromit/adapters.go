@@ -16,7 +16,7 @@ type claudeClientAdapter struct {
 }
 
 func (a *claudeClientAdapter) Run(prompt string, model string) (*pipeline.ClaudeRunResult, error) {
-	// Use a long timeout context since the pipeline doesn't expose timeout
+	// Timeout is configured by the caller when constructing the adapter.
 	ctx, cancel := context.WithTimeout(context.Background(), a.Timeout)
 	defer cancel()
 
