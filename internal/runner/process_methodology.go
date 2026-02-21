@@ -152,6 +152,11 @@ func buildCoverageTrackerFromSpec(bc *runtypes.BeadContext) (*coverage.CoverageT
 	if bc == nil || bc.Bead == nil || bc.PromptCtx == nil {
 		return nil, nil, nil
 	}
+	// Skip per-bead coverage tracking when spec-granularity is active —
+	// the spec gate handles system-level criteria after all beads complete.
+	if bc.PromptCtx.MethodologyGranularity == config.MethodologyGranularitySpec {
+		return nil, nil, nil
+	}
 	if bead.FindSpecLabel(bc.Bead.Labels) == "" {
 		return nil, nil, nil
 	}

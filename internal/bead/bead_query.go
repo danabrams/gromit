@@ -47,6 +47,9 @@ func parseBeadOutputExcluding(out string, excludeType string) (*Bead, error) {
 		if beads[i].Type == excludeType {
 			continue
 		}
+		if strings.EqualFold(beads[i].Status, "closed") {
+			continue
+		}
 		if err := prepareBeadForUse(&beads[i]); err != nil {
 			return nil, fmt.Errorf("invalid bead data: %w", err)
 		}
@@ -97,6 +100,9 @@ func (c *Client) ReadyExcluding(excludeIDs map[string]bool) (*Bead, error) {
 
 	for i := range beads {
 		if beads[i].Type == "epic" || excludeIDs[beads[i].ID] {
+			continue
+		}
+		if strings.EqualFold(beads[i].Status, "closed") {
 			continue
 		}
 		if err := prepareBeadForUse(&beads[i]); err != nil {
@@ -212,6 +218,9 @@ func (c *Client) ReadyWithLabel(label string) (*Bead, error) {
 		full, err := c.Show(bead.ID)
 		if err != nil {
 			return nil, err
+		}
+		if full != nil && strings.EqualFold(full.Status, "closed") {
+			return nil, nil
 		}
 		if full != nil && HasLabel(full.Labels, label) {
 			return full, nil

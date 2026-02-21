@@ -961,3 +961,66 @@ func TestRunTDDFreshContextCycles_AddsCoverageCommentForUntestableCriteria(t *te
 		t.Fatalf("expected coverage summary log, got:\n%s", buf.String())
 	}
 }
+
+// --- Coverage tracker granularity tests ---
+
+// TestBuildCoverageTrackerFromSpec_SkipsWhenGranularityIsSpec verifies that
+// buildCoverageTrackerFromSpec returns nil tracker, nil criteria, nil error
+// when the methodology granularity is "spec", because the spec gate handles
+// system-level criteria after all beads complete.
+func TestBuildCoverageTrackerFromSpec_SkipsWhenGranularityIsSpec(t *testing.T) {
+	_, bc := newCoverageBeadContext("cov-gran-spec-1", "Implement stage", authSpecTwoCriteria)
+	bc.PromptCtx.MethodologyGranularity = config.MethodologyGranularitySpec
+
+	tracker, criteria, err := buildCoverageTrackerFromSpec(bc)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if tracker != nil {
+		t.Fatal("expected nil tracker when granularity is spec")
+	}
+	if criteria != nil {
+		t.Fatal("expected nil criteria when granularity is spec")
+	}
+}
+
+// TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsBead verifies
+// that buildCoverageTrackerFromSpec creates a coverage tracker when granularity
+// is explicitly set to "bead".
+func TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsBead(t *testing.T) {
+	_, bc := newCoverageBeadContext("cov-gran-bead-1", "Implement feature", authSpecTwoCriteria)
+	bc.PromptCtx.MethodologyGranularity = config.MethodologyGranularityBead
+
+	tracker, criteria, err := buildCoverageTrackerFromSpec(bc)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if tracker == nil {
+		t.Fatal("expected non-nil tracker when granularity is bead")
+	}
+	if len(criteria) != 2 {
+		t.Fatalf("expected 2 criteria, got %d", len(criteria))
+	}
+}
+
+// TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsEmpty verifies
+// that buildCoverageTrackerFromSpec creates a coverage tracker when granularity
+// is empty (the default), preserving backward compatibility.
+func TestBuildCoverageTrackerFromSpec_ReturnsTrackerWhenGranularityIsEmpty(t *testing.T) {
+	_, bc := newCoverageBeadContext("cov-gran-empty-1", "Implement feature", authSpecTwoCriteria)
+	bc.PromptCtx.MethodologyGranularity = ""
+
+	tracker, criteria, err := buildCoverageTrackerFromSpec(bc)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if tracker == nil {
+		t.Fatal("expected non-nil tracker when granularity is empty (default)")
+	}
+	if len(criteria) != 2 {
+		t.Fatalf("expected 2 criteria, got %d", len(criteria))
+	}
+}

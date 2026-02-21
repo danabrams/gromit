@@ -133,6 +133,11 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 	}
 	bc.PromptCtx = promptCtx
 
+	// Propagate methodology granularity so downstream functions (e.g.
+	// buildCoverageTrackerFromSpec) can skip per-bead tracking when
+	// spec-level granularity is active.
+	bc.PromptCtx.MethodologyGranularity = r.cfg.Methodology.Granularity
+
 	// Inject recent validation failure summaries (last 3) into prompt context
 	if n := len(r.validationFailures); n > 0 {
 		start := 0
