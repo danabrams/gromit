@@ -49,21 +49,18 @@ var phaseRateMetrics = []string{
 }
 
 type metricSeriesDefinition struct {
-	name          string
-	latestSample  func(IterationMetric) float64
+	// latestSample is the most recent rolling value shown in process_trend.json.
+	name         string
+	latestSample func(IterationMetric) float64
+	// historySample is the per-iteration series used to compute mean/stddev control limits.
 	historySample func(IterationMetric) float64
 }
 
 var trendControlLimitSeries = []metricSeriesDefinition{
 	{
-		name:         metricRollingSuccessRate,
-		latestSample: func(m IterationMetric) float64 { return m.RollingSuccessRate },
-		historySample: func(m IterationMetric) float64 {
-			if m.Success {
-				return 1
-			}
-			return 0
-		},
+		name:          metricRollingSuccessRate,
+		latestSample:  func(m IterationMetric) float64 { return m.RollingSuccessRate },
+		historySample: func(m IterationMetric) float64 { return boolToFloat64(m.Success) },
 	},
 	{
 		name:          metricRollingFirstPassSuccess,
@@ -521,6 +518,13 @@ func extractMetric(metrics []IterationMetric, pick func(IterationMetric) float64
 		values = append(values, pick(m))
 	}
 	return values
+}
+
+func boolToFloat64(v bool) float64 {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 func summarizePromptTokens(metrics []IterationMetric, windowSize int) PromptTokenSummary {
