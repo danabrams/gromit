@@ -97,12 +97,12 @@ type IterationResult struct {
 	StallCount          int
 	StallTier           string // "initial" or "active"
 	RateLimitHits       int
-	RateLimitRecoveryMs int64 // ms to recover from most recent rate limit
-	FallbackAttempts    int   // number of fallback attempts triggered this iteration
-	FallbackSuccesses   int   // successful fallback outcomes this iteration
-	FallbackFailures    int   // failed fallback outcomes this iteration
-	FailureLayer        string
-	FailureSubCat       string
+	RateLimitRecoveryMs int64  // ms to recover from most recent rate limit
+	FallbackAttempts    int    // number of fallback attempts triggered this iteration
+	FallbackSuccesses   int    // successful fallback outcomes this iteration
+	FallbackFailures    int    // failed fallback outcomes this iteration
+	FailureLayer        string // top-level failure taxonomy bucket (e.g. execution, validation)
+	FailureSubCat       string // lower-level failure taxonomy value within FailureLayer
 
 	AcceptanceFailureSummary  string // short summary for JSONL
 	AcceptanceFailureOutput   string // captured validation output from failed acceptance verification
