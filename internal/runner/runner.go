@@ -35,6 +35,7 @@ var errValidationFailed = validation.ErrValidationFailed
 
 const (
 	l3StopLineMarker                 = "l3 stop-line"
+	validationTimedOutMarker         = "timed out"
 	l3EscalationFailedCommand        = "build iteration"
 	l3MutationHaltMessage            = "halting state-changing actions (close/sync/push/merge) until human decision"
 	l4DecisionRequiredMessage        = "L4 decision required"
@@ -398,7 +399,7 @@ func recordValidationTimeout(result *IterationResult, err error) {
 		result.ValidationTimeouts++
 		return
 	}
-	if errors.Is(err, errValidationFailed) && strings.Contains(strings.ToLower(result.Output), "timed out") {
+	if errors.Is(err, errValidationFailed) && strings.Contains(strings.ToLower(result.Output), validationTimedOutMarker) {
 		result.ValidationTimeouts++
 	}
 }
