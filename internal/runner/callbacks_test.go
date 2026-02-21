@@ -1,12 +1,14 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -58,6 +60,26 @@ func TestSummarizeATDDProviderOutput(t *testing.T) {
 	}
 	if len(got) >= len(long) {
 		t.Fatalf("expected summarized output shorter than input, got len=%d input=%d", len(got), len(long))
+	}
+}
+
+func TestIsATDDFallbackEligible(t *testing.T) {
+	tests := []struct {
+		name         string
+		failureClass string
+		want         bool
+	}{
+		{name: "transport disconnect", failureClass: provider.FailureCategoryTransportDisconnect, want: true},
+		{name: "startup error", failureClass: provider.FailureCategoryStartupError, want: true},
+		{name: "other", failureClass: provider.FailureCategoryOther, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isATDDFallbackEligible(tc.failureClass); got != tc.want {
+				t.Fatalf("isATDDFallbackEligible(%q) = %t, want %t", tc.failureClass, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -484,6 +506,121 @@ func TestMakeMethodologyExec_EmitsATDDInvocationMarkersOnFailureWithoutProviderE
 	}
 	if !strings.Contains(logText, "failure_category=transport_disconnect") {
 		t.Fatalf("expected ATDD_INVOCATION_END failure_category=transport_disconnect, got:\n%s", logText)
+	}
+}
+
+func TestMakeMethodologyExec_ATDDFallbacksOnStartupErrorAndLogsStructuredDecision(t *testing.T) {
+	streamLogger, err := logger.NewStreamLogger(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewStreamLogger: %v", err)
+	}
+	defer func() {
+		_ = streamLogger.Close()
+	}()
+
+	primaryCalls := 0
+	primary := &mockProviderWithRouterTracking{
+		name: "primary-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			primaryCalls++
+			return nil, errors.New("failed to start codex command")
+		},
+	}
+	fallbackCalls := 0
+	fallback := &mockProviderWithRouterTracking{
+		name: "fallback-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			fallbackCalls++
+			return &provider.Result{Success: true}, nil
+		},
+	}
+	router := provider.NewRouter(
+		map[string]provider.Provider{
+			primary.Name():  primary,
+			fallback.Name(): fallback,
+		},
+		map[string]string{"build": primary.Name()},
+		map[string]int{primary.Name(): 100, fallback.Name(): 100},
+		time.Minute,
+		nil,
+		&provider.CircuitBreaker{},
+	)
+	var output bytes.Buffer
+	r := &Runner{
+		router:       router,
+		output:       &output,
+		streamLogger: streamLogger,
+		renderer: &mockPromptRenderer{
+			RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+				return "acceptance prompt", nil
+			},
+		},
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-atdd-startup-fallback"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+	}
+
+	if err := r.makeMethodologyExec().RunAcceptanceTests(context.Background(), bc); err != nil {
+		t.Fatalf("RunAcceptanceTests returned error: %v", err)
+	}
+	if primaryCalls != 1 {
+		t.Fatalf("primary calls = %d, want 1", primaryCalls)
+	}
+	if fallbackCalls != 1 {
+		t.Fatalf("fallback calls = %d, want 1", fallbackCalls)
+	}
+
+	logText := output.String()
+	if !strings.Contains(logText, "ATDD_FALLBACK_DECISION class=startup_error primary_provider=primary-provider primary_model=test-haiku fallback_provider=auto fallback_model=auto reason=primary_error") {
+		t.Fatalf("expected structured fallback decision log, got:\n%s", logText)
+	}
+	if !strings.Contains(logText, "ATDD_FALLBACK_ATTEMPT class=startup_error primary_provider=primary-provider primary_model=test-haiku fallback_provider=fallback-provider fallback_model=test-haiku") {
+		t.Fatalf("expected structured fallback attempt log, got:\n%s", logText)
+	}
+}
+
+func TestMakeMethodologyExec_ATDDStartupFailureMarksProviderUnavailable(t *testing.T) {
+	cb := &provider.CircuitBreaker{}
+	primary := &mockProviderWithRouterTracking{
+		name: "primary-provider",
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return nil, errors.New("failed to start codex command")
+		},
+	}
+	router := provider.NewRouter(
+		map[string]provider.Provider{primary.Name(): primary},
+		map[string]string{"build": primary.Name()},
+		map[string]int{primary.Name(): 100},
+		time.Minute,
+		nil,
+		cb,
+	)
+	r := &Runner{
+		router: router,
+		output: io.Discard,
+		renderer: &mockPromptRenderer{
+			RenderAcceptanceTestsFn: func(ctx *prompt.Context) (string, error) {
+				return "acceptance prompt", nil
+			},
+		},
+	}
+	bc := &runtypes.BeadContext{
+		Bead:      &bead.Bead{ID: "b-atdd-startup-unavailable"},
+		Tier:      provider.TierLow,
+		Result:    &runtypes.IterationResult{},
+		PromptCtx: &prompt.Context{},
+	}
+
+	if err := r.makeMethodologyExec().RunAcceptanceTests(context.Background(), bc); err == nil {
+		t.Fatal("expected RunAcceptanceTests to fail")
+	}
+
+	selected, _ := router.Select(atddBuildPhase, provider.TierLow)
+	if selected != nil {
+		t.Fatal("expected provider to be unavailable during cooldown after startup failure")
 	}
 }
 

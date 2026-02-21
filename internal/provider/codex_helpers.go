@@ -90,6 +90,19 @@ func classifyCodexFailure(exitCode int, stdout, stderr string) string {
 			return FailureCategoryAuth
 		}
 	}
+	startupPatterns := []string{
+		"failed to start",
+		"failed to create stdin pipe",
+		"failed to create stdout pipe",
+		"timed out waiting for first event",
+		"startup",
+		"initializ",
+	}
+	for _, p := range startupPatterns {
+		if strings.Contains(text, p) {
+			return FailureCategoryStartupError
+		}
+	}
 	transportPatterns := []string{
 		"stream disconnected",
 		"could not resolve host",

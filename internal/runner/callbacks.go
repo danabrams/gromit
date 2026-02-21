@@ -31,7 +31,7 @@ const (
 
 const (
 	atddFailureClassTransport = provider.FailureCategoryTransportDisconnect
-	atddFailureClassStartup   = "startup_error"
+	atddFailureClassStartup   = provider.FailureCategoryStartupError
 	atddFailureClassOther     = provider.FailureCategoryOther
 	atddBuildPhase            = "build"
 )
@@ -203,8 +203,13 @@ func invocationLifecycleFields(bc *runtypes.BeadContext, invResult *runtypes.Inv
 }
 
 func classifyATDDFailure(result *provider.Result, err error) string {
-	if result != nil && result.FailureCategory == provider.FailureCategoryTransportDisconnect {
-		return atddFailureClassTransport
+	if result != nil {
+		if result.FailureCategory == provider.FailureCategoryTransportDisconnect {
+			return atddFailureClassTransport
+		}
+		if result.FailureCategory == provider.FailureCategoryStartupError {
+			return atddFailureClassStartup
+		}
 	}
 
 	var failureText strings.Builder
@@ -239,7 +244,7 @@ func containsAny(haystack string, signals []string) bool {
 	return false
 }
 
-func isATDDTransientFailureClass(failureClass string) bool {
+func isATDDFallbackEligible(failureClass string) bool {
 	return failureClass == atddFailureClassTransport || failureClass == atddFailureClassStartup
 }
 
@@ -514,11 +519,24 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 			}
 			if err != nil {
 				failureClass := classifyATDDFailure(result, err)
-				if isATDDTransientFailureClass(failureClass) {
-					r.log("ATDD fallback: transient failure class=%s on provider=%s, retrying with alternate provider", failureClass, p.Name())
+				if isATDDFallbackEligible(failureClass) {
+					r.log(
+						"ATDD_FALLBACK_DECISION class=%s primary_provider=%s primary_model=%s fallback_provider=auto fallback_model=auto reason=primary_error",
+						failureClass,
+						p.Name(),
+						modelName,
+					)
 					r.router.MarkUnavailable(p.Name())
 					p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
 					if p2 != nil && p2.Name() != p.Name() {
+						r.log(
+							"ATDD_FALLBACK_ATTEMPT class=%s primary_provider=%s primary_model=%s fallback_provider=%s fallback_model=%s",
+							failureClass,
+							p.Name(),
+							modelName,
+							p2.Name(),
+							modelName2,
+						)
 						fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
 						applyCostData(fallbackStats)
 						if fallbackErr != nil {
@@ -562,11 +580,24 @@ func (r *Runner) makeMethodologyExec() *methodology.Executor {
 		}
 		if !result.Success {
 			failureClass := classifyATDDFailure(result, nil)
-			if isATDDTransientFailureClass(failureClass) {
-				r.log("ATDD fallback: transient failure class=%s on provider=%s, retrying with alternate provider", failureClass, p.Name())
+			if isATDDFallbackEligible(failureClass) {
+				r.log(
+					"ATDD_FALLBACK_DECISION class=%s primary_provider=%s primary_model=%s fallback_provider=auto fallback_model=auto reason=primary_result",
+					failureClass,
+					p.Name(),
+					modelName,
+				)
 				r.router.MarkUnavailable(p.Name())
 				p2, modelName2 := r.router.SelectCross(p.Name(), bc.Tier)
 				if p2 != nil && p2.Name() != p.Name() {
+					r.log(
+						"ATDD_FALLBACK_ATTEMPT class=%s primary_provider=%s primary_model=%s fallback_provider=%s fallback_model=%s",
+						failureClass,
+						p.Name(),
+						modelName,
+						p2.Name(),
+						modelName2,
+					)
 					fallbackResult, fallbackStats, fallbackErr := streamInvoke(p2, modelName2, "transient-fallback")
 					applyCostData(fallbackStats)
 					if fallbackErr != nil {

@@ -381,6 +381,12 @@ func TestClassifyCodexFailure(t *testing.T) {
 			want:     FailureCategoryTransportDisconnect,
 		},
 		{
+			name:     "startup error",
+			exitCode: 1,
+			stderr:   "ERROR: failed to start codex command: exec format error",
+			want:     FailureCategoryStartupError,
+		},
+		{
 			name:     "dns resolution failure is transport",
 			exitCode: 1,
 			stderr:   "ERROR: could not resolve host: api.openai.com",
