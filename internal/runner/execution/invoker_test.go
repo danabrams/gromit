@@ -901,6 +901,57 @@ func TestInvocationResult_ConvertsClaudeResult(t *testing.T) {
 	}
 }
 
+// TestInvokerExecute_PreserveStreamModeStillPropagatesCostFromProviderResult verifies
+// that when preserve_provider_stream mode is active (nil event handler), cost data
+// reported by the provider result flows through MergeCostData into invResult.Stats.
+// This is the regression test for the haiku $0 cost bug: in preserve mode the stream
+// event handler is nil so ParseAndLogEvent never fires, meaning cost must come
+// solely from providerResult.CostUSD via MergeCostData.
+func TestInvokerExecute_PreserveStreamModeStillPropagatesCostFromProviderResult(t *testing.T) {
+	mp := &mockProvider{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			// In preserve mode the handler is nil — no stream events are parsed.
+			// Cost must come solely from the returned provider.Result.
+			if handler != nil {
+				t.Error("expected nil event handler in preserve-stream mode")
+			}
+			return &provider.Result{
+				Success:      true,
+				Model:        "claude-haiku-4-5",
+				CostUSD:      0.0432,
+				InputTokens:  8500,
+				OutputTokens: 420,
+			}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "claude-haiku-4-5"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil).WithPreserveProviderTerminalStream(true)
+	bc := newTestBeadContext()
+	invResult, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if invResult == nil || invResult.Stats == nil {
+		t.Fatal("expected non-nil invocation result with stats")
+	}
+
+	cost, inputTokens, outputTokens := invResult.Stats.CostData()
+	if cost != 0.0432 {
+		t.Errorf("CostData cost = %v, want 0.0432 (preserve mode must propagate provider result cost via MergeCostData)", cost)
+	}
+	if inputTokens != 8500 {
+		t.Errorf("CostData input tokens = %d, want 8500", inputTokens)
+	}
+	if outputTokens != 420 {
+		t.Errorf("CostData output tokens = %d, want 420", outputTokens)
+	}
+}
+
 func TestNewInvoker_AcceptsNarrowInterfaces(t *testing.T) {
 	// Verify that NewInvoker accepts the narrow Router interface (not *provider.Router),
 	// enabling mock injection without importing the provider package's concrete types.
