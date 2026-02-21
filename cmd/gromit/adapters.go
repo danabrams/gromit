@@ -95,6 +95,20 @@ func (r *cmdAgentResolver) Resolve(phase string, flagOverride string, choosePick
 	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
 }
 
+func resolveCommandAgent(cfg *config.Config, phase, flagOverride string, choosePicker bool) (agent.Agent, error) {
+	resolvedAgent, err := (&cmdAgentResolver{cfg: cfg}).Resolve(phase, flagOverride, choosePicker)
+	if err != nil {
+		return nil, err
+	}
+
+	selectedAgent, ok := resolvedAgent.(agent.Agent)
+	if !ok {
+		return nil, fmt.Errorf("resolved agent does not implement agent.Agent")
+	}
+
+	return selectedAgent, nil
+}
+
 func resolveProviderReviewPhase(phase string) string {
 	if phase == "" {
 		return reviewSessionCommand
