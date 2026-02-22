@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -26,6 +27,82 @@ func TestFormatDuration(t *testing.T) {
 			got := formatDuration(tt.duration)
 			if got != tt.want {
 				t.Errorf("formatDuration(%v) = %q, want %q", tt.duration, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatRun(t *testing.T) {
+	tests := []struct {
+		name   string
+		status *Status
+		want   []string // substrings that must appear in output
+	}{
+		{
+			name:   "nil status",
+			status: nil,
+			want:   []string{"Run: not running"},
+		},
+		{
+			name: "running with iteration and model",
+			status: &Status{
+				Running:   true,
+				Iteration: 3,
+				BeadID:    "beads-abc",
+				BeadTitle: "Add feature X",
+				Model:     "sonnet",
+				ElapsedS:  120,
+			},
+			want: []string{
+				"Run: iteration 3",
+				"2m elapsed",
+				"beads-abc",
+				"Add feature X",
+				"Model:    sonnet",
+			},
+		},
+		{
+			name: "running with max iterations and time budget",
+			status: &Status{
+				Running:           true,
+				Iteration:         2,
+				MaxIterations:     10,
+				TimeBudgetMinutes: 30,
+				BeadID:            "beads-xyz",
+				BeadTitle:         "Fix bug Y",
+				Model:             "haiku",
+				ElapsedS:          300,
+			},
+			want: []string{
+				"Run: iteration 2/10",
+				"5m of 30m elapsed",
+				"beads-xyz",
+				"Fix bug Y",
+				"Model:    haiku",
+			},
+		},
+		{
+			name: "not running with last run info",
+			status: &Status{
+				Running:   false,
+				Iteration: 5,
+				StartedAt: time.Now().Add(-10 * time.Minute),
+			},
+			want: []string{
+				"Run: not running",
+				"Last run:",
+				"5 iterations completed",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatRun(tt.status)
+			for _, substr := range tt.want {
+				if !strings.Contains(got, substr) {
+					t.Errorf("formatRun() = %q, want substring %q", got, substr)
+				}
 			}
 		})
 	}
