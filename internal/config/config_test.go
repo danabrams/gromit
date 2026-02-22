@@ -2200,6 +2200,36 @@ func TestReviewConfigLegacyModelAutoMappingTrimsWhitespace(t *testing.T) {
 	}
 }
 
+func TestReviewConfigMatchBuildModelDeprecationWarningMentionsIgnored(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `review:
+  match_build_model: true
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	var warning strings.Builder
+	originalWriter := configWarningWriter
+	configWarningWriter = &warning
+	t.Cleanup(func() {
+		configWarningWriter = originalWriter
+	})
+
+	if _, err := Load(cfgPath); err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	warningText := strings.ToLower(warning.String())
+	if !strings.Contains(warningText, "match_build_model") {
+		t.Fatalf("warning = %q, want mention of match_build_model", warning.String())
+	}
+	if !strings.Contains(warningText, "ignored") {
+		t.Fatalf("warning = %q, want mention that setting is ignored", warning.String())
+	}
+}
+
 func TestReviewConfigPartialExplicit(t *testing.T) {
 	// Test that explicit false values are preserved while unset values get defaults
 	dir := t.TempDir()
