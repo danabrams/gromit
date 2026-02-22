@@ -103,6 +103,8 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		bc.Bead.ExpectedOutputs = append([]string(nil), effectiveOutputs...)
 	}
 
+	r.log("TDD fresh-context: starting for bead %s (%d outputs)", bc.Bead.ID, len(bc.Bead.ExpectedOutputs))
+
 	coverageTracker, coverageCriteria, err := buildCoverageTrackerFromSpec(bc)
 	if err != nil {
 		bc.Result.Error = fmt.Errorf("building TDD coverage tracker: %w", err)
@@ -112,9 +114,12 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 	updateIterationCoverageMetrics(bc.Result, coverageTracker)
 
 	maxOrchestratorPasses := resolveMaxTDDCycles(r.cfg)
+	tddStart := time.Now()
 
 	for pass := 0; pass < maxOrchestratorPasses; pass++ {
+		r.log("TDD fresh-context: orchestrator pass %d/%d", pass+1, maxOrchestratorPasses)
 		if err := r.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria); err != nil {
+			r.log("TDD fresh-context: failed after %v — %v", time.Since(tddStart).Round(time.Second), err)
 			if bc.StartCommit != "" {
 				if resetErr := r.resetHard(bc.StartCommit); resetErr != nil {
 					r.log("Warning: failed to reset to %s after TDD failure: %v", bc.StartCommit, resetErr)
@@ -130,6 +135,7 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		r.log("TDD coverage tracker reports unchecked criteria after cycle pass %d; injecting additional cycles", pass+1)
 	}
 	if coverageTracker != nil && !coverageTracker.IsComplete() {
+		r.log("TDD fresh-context: coverage incomplete after %v", time.Since(tddStart).Round(time.Second))
 		if bc.StartCommit != "" {
 			if resetErr := r.resetHard(bc.StartCommit); resetErr != nil {
 				r.log("Warning: failed to reset to %s after TDD coverage incomplete: %v", bc.StartCommit, resetErr)
@@ -139,11 +145,14 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		return true
 	}
 	if r.cfg.Validation.Enabled && r.validationRunner != nil {
+		r.log("TDD fresh-context: running final validation")
 		if err := r.runValidationWithRecoveryForStage(ctx, bc, true); err != nil {
+			r.log("TDD fresh-context: final validation failed — %v", err)
 			bc.Result.Error = err
 			return true
 		}
 	}
+	r.log("TDD fresh-context: completed successfully in %v", time.Since(tddStart).Round(time.Second))
 	// Update diagnostics to reflect that TDD fresh-context was the actual
 	// methodology used, overriding the initial "build" prompt_type set by
 	// buildPromptForBead.

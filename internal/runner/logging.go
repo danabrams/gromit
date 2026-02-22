@@ -368,6 +368,25 @@ func (r *Runner) logResult(result *IterationResult) {
 			r.log("  acceptance output: %s", line)
 		}
 	}
+	if len(result.PhaseMetrics) > 0 {
+		r.log("  TDD phases: %d (%s)", len(result.PhaseMetrics), summarizePhaseMetrics(result.PhaseMetrics))
+	}
+}
+
+func summarizePhaseMetrics(metrics []runtypes.PhaseMetric) string {
+	counts := make(map[string]int, len(metrics))
+	for _, m := range metrics {
+		if m.Success {
+			counts[m.Phase+":ok"]++
+		} else {
+			counts[m.Phase+":fail"]++
+		}
+	}
+	parts := make([]string, 0, len(counts))
+	for k, v := range counts {
+		parts = append(parts, fmt.Sprintf("%s=%d", k, v))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func firstNonEmptyLine(s string) string {
