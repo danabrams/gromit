@@ -418,7 +418,7 @@ func TestTDDCycleRunner_InterfaceSatisfied(t *testing.T) {
 // per-phase metrics from multiple TDD cycle invocations.
 func TestTDDCycleResult_HoldsPhaseMetrics(t *testing.T) {
 	result := execute.TDDCycleResult{
-		PhaseMetrics: []pipeline.PhaseMetrics{
+		PhaseMetrics: []pipeline.PhaseMetric{
 			{Phase: "red"},
 			{Phase: "green"},
 		},
@@ -512,7 +512,7 @@ func TestBuildRun_TDD_FreshContext_DelegatesToTDDCycleRunner(t *testing.T) {
 // Build.Run() delegates to TDDCycleRunner, the returned Output.PhaseMetrics
 // contains the aggregated phase metrics from the TDDCycleResult.
 func TestBuildRun_TDD_FreshContext_ReturnsPhaseMetricsInOutput(t *testing.T) {
-	phases := []pipeline.PhaseMetrics{
+	phases := []pipeline.PhaseMetric{
 		{Phase: "red", DurationMs: 100, Model: "haiku"},
 		{Phase: "green", DurationMs: 200, Model: "haiku"},
 	}

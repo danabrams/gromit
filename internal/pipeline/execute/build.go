@@ -25,7 +25,7 @@ const (
 
 // TDDCycleResult holds the aggregated output from a TDDCycleRunner.
 type TDDCycleResult struct {
-	PhaseMetrics []pipeline.PhaseMetrics
+	PhaseMetrics []pipeline.PhaseMetric
 }
 
 // TDDCycleRunner runs multiple TDD cycles (red-green-refactor) for a bead,

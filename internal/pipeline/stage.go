@@ -61,10 +61,7 @@ type Input struct {
 }
 
 // PhaseMetric holds LLM invocation metrics for a single TDD phase (e.g. red, green, refactor).
-type PhaseMetric = PhaseMetrics
-
-// PhaseMetrics holds LLM invocation metrics for a single TDD phase (e.g. red, green, refactor).
-type PhaseMetrics struct {
+type PhaseMetric struct {
 	Phase        string
 	DurationMs   int64
 	CostUSD      float64
@@ -99,7 +96,7 @@ type Output struct {
 	OutputTokens int
 	// PhaseMetrics holds per-phase invocation metrics for TDD builds.
 	// Each entry corresponds to one TDD phase (red, green, refactor, etc.).
-	PhaseMetrics []PhaseMetrics
+	PhaseMetrics []PhaseMetric
 }
 
 // Stage is the interface that each pipeline stage implements.

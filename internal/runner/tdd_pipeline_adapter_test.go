@@ -24,7 +24,7 @@ func TestTDDPipelineAdapter_ImplementsInterface(t *testing.T) {
 
 // TestTDDPipelineAdapter_RunCycles_ConvertsPhaseMetricsToResult verifies that when
 // the underlying tdd orchestrator appends PhaseMetrics to the BeadContext,
-// RunCycles returns them converted to pipeline.PhaseMetrics in TDDCycleResult.
+// RunCycles returns them converted to pipeline.PhaseMetric in TDDCycleResult.
 func TestTDDPipelineAdapter_RunCycles_ConvertsPhaseMetricsToResult(t *testing.T) {
 	r := &Runner{
 		cfg: &config.Config{},

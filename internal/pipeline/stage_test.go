@@ -129,7 +129,7 @@ func TestOutputTouchedPackagesField(t *testing.T) {
 
 func TestOutputPhaseMetricsField(t *testing.T) {
 	out := pipeline.Output{}
-	out.PhaseMetrics = []pipeline.PhaseMetrics{
+	out.PhaseMetrics = []pipeline.PhaseMetric{
 		{Phase: "red"},
 		{Phase: "green"},
 	}

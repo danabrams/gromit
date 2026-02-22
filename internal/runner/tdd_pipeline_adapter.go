@@ -22,7 +22,7 @@ type TDDPipelineAdapter struct {
 // RunCycles implements execute.TDDCycleRunner. It applies Layer 1/3 expected
 // outputs logic, builds a coverage tracker, delegates to the runner's
 // tddOrchestrator, aggregates per-phase metrics, and returns them as
-// pipeline.PhaseMetrics.
+// pipeline.PhaseMetric.
 func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *config.Config) (execute.TDDCycleResult, error) {
 	// Apply Layer 1/3 expected outputs logic: when the bead has no
 	// ExpectedOutputs, derive them from description parsing or title fallback.
@@ -52,11 +52,11 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 	}, nil
 }
 
-// convertPhaseMetrics maps runtypes.PhaseMetric entries to pipeline.PhaseMetrics.
-func convertPhaseMetrics(metrics []runtypes.PhaseMetric) []pipeline.PhaseMetrics {
-	out := make([]pipeline.PhaseMetrics, len(metrics))
+// convertPhaseMetrics maps runtypes.PhaseMetric entries to pipeline.PhaseMetric.
+func convertPhaseMetrics(metrics []runtypes.PhaseMetric) []pipeline.PhaseMetric {
+	out := make([]pipeline.PhaseMetric, len(metrics))
 	for i, m := range metrics {
-		out[i] = pipeline.PhaseMetrics{
+		out[i] = pipeline.PhaseMetric{
 			Phase:        m.Phase,
 			DurationMs:   m.DurationMs,
 			CostUSD:      m.CostUSD,
