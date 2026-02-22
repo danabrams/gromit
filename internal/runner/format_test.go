@@ -369,6 +369,31 @@ func TestFormatModelPerformance(t *testing.T) {
 	}
 }
 
+func TestSPCMetricConstants(t *testing.T) {
+	// Verify runner-package SPC metric constants match the metric names
+	// used in ProcessTrend control limits from the logger package.
+	tests := []struct {
+		name     string
+		constant string
+		want     string
+	}{
+		{"success rate", spcMetricRollingSuccessRate, "rolling_success_rate"},
+		{"escalation rate", spcMetricRollingEscalateRate, "rolling_escalation_rate"},
+		{"quality score", spcMetricRollingQualityScore, "rolling_quality_score"},
+		{"avg duration", spcMetricRollingAvgDurationMs, "rolling_avg_duration_ms"},
+		{"first pass success", spcMetricFirstPassSuccessRate, "rolling_first_pass_success_rate"},
+		{"avg cost", spcMetricRollingAvgCostUSD, "rolling_avg_cost_usd"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.constant != tt.want {
+				t.Errorf("SPC metric constant = %q, want %q", tt.constant, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
