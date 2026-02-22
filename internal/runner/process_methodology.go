@@ -223,11 +223,29 @@ func hasCoverageGaps(tracker *coverage.CoverageTracker) bool {
 	return len(tracker.UncoveredCriteria()) > 0 || len(tracker.UntestableCriteria()) > 0
 }
 
+var requirementHeaders = []string{"Requirements:", "Includes:", "Delivers:"}
+
+func isRequirementHeader(line string) bool {
+	for _, h := range requirementHeaders {
+		if line == h {
+			return true
+		}
+	}
+	return false
+}
+
 func extractRequirementsFromDescription(description string) []string {
 	var results []string
+	inHeaderSection := false
 	for _, line := range strings.Split(description, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
+			inHeaderSection = false
+			continue
+		}
+		// Header-prefixed section: "Requirements:", "Includes:", "Delivers:"
+		if isRequirementHeader(line) {
+			inHeaderSection = true
 			continue
 		}
 		// Numbered list: "1. item"
@@ -239,6 +257,7 @@ func extractRequirementsFromDescription(description string) []string {
 			if i > 0 && i < len(line) && line[i] == '.' {
 				item := strings.TrimSpace(line[i+1:])
 				if item != "" {
+					inHeaderSection = false
 					results = append(results, item)
 					continue
 				}
@@ -248,9 +267,14 @@ func extractRequirementsFromDescription(description string) []string {
 		if len(line) >= 2 && (line[0] == '-' || line[0] == '*' || line[0] == '+') && line[1] == ' ' {
 			item := strings.TrimSpace(line[1:])
 			if item != "" {
+				inHeaderSection = false
 				results = append(results, item)
 				continue
 			}
+		}
+		// Plain line following a header
+		if inHeaderSection {
+			results = append(results, line)
 		}
 	}
 	return results
