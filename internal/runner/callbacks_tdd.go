@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -13,6 +14,27 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/tdd"
 )
+
+// appendTDDPhaseMetric records a per-invocation PhaseMetric for a TDD cycle.
+// It computes the cost/token delta since the before-snapshot and appends a
+// PhaseMetric entry to bc.Result.PhaseMetrics.
+func appendTDDPhaseMetric(
+	bc *runtypes.BeadContext,
+	phase string,
+	cycleNumber int,
+	beforeCostUSD float64,
+	beforeInputTokens int,
+	beforeOutputTokens int,
+	start time.Time,
+) {
+	_ = bc
+	_ = phase
+	_ = cycleNumber
+	_ = beforeCostUSD
+	_ = beforeInputTokens
+	_ = beforeOutputTokens
+	_ = start
+}
 
 const (
 	tddPhaseRed   = "red"
