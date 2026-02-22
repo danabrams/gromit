@@ -77,7 +77,7 @@ func (a *renderAdapter) RenderRefactorBuild(title, description string, validatio
 		},
 		RecentValidationFailures: validationFailures,
 	}
-	return a.r.RenderBuild(ctx)
+	return a.r.RenderRefactor(ctx)
 }
 
 // cmdRunnerAdapter wraps a command runner function to satisfy validate.CommandRunner.

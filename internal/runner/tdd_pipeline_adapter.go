@@ -10,6 +10,9 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+// Compile-time check: *TDDPipelineAdapter must implement execute.TDDCycleRunner.
+var _ execute.TDDCycleRunner = (*TDDPipelineAdapter)(nil)
+
 // TDDPipelineAdapter bridges the runner's TDD orchestration to the pipeline's
 // TDDCycleRunner interface.
 type TDDPipelineAdapter struct {
