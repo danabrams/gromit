@@ -18,7 +18,12 @@ func extractRequirementsViaLLM(ctx context.Context, title, description string, i
 	if len(desc) > maxDescLen {
 		desc = desc[:maxDescLen]
 	}
-	promptText := fmt.Sprintf("Extract the requirements from the following task.\nTitle: %s\nDescription: %s\n\nReturn each requirement on its own line.", title, desc)
+	promptText := fmt.Sprintf(`Extract the individual deliverables from the following task.
+Title: %s
+Description: %s
+
+List each function, component, or independently testable item as a separate line.
+Do not summarize. Do not group items. Return each individual requirement on its own line.`, title, desc)
 
 	invokeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -50,15 +55,64 @@ func buildCoverageTrackerFromSpec(bc *runtypes.BeadContext) (*coverage.CoverageT
 	return nil, nil, nil
 }
 
-var requirementHeaders = []string{"Requirements:", "Includes:", "Delivers:"}
-
+// isRequirementHeader returns true if line is a single word ending with ":"
+// (case-insensitive), e.g. "Requirements:", "Functions:", "delivers:".
 func isRequirementHeader(line string) bool {
-	for _, h := range requirementHeaders {
-		if line == h {
-			return true
+	if len(line) < 2 || line[len(line)-1] != ':' {
+		return false
+	}
+	word := line[:len(line)-1]
+	for _, c := range word {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+			return false
 		}
 	}
-	return false
+	return true
+}
+
+// extractInlineHeader checks if line matches "Header: rest" where Header is a
+// single word. Returns (rest, true) if matched or ("", false) otherwise.
+func extractInlineHeader(line string) (string, bool) {
+	idx := strings.Index(line, ":")
+	if idx < 1 || idx >= len(line)-1 {
+		return "", false
+	}
+	word := line[:idx]
+	for _, c := range word {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+			return "", false
+		}
+	}
+	rest := strings.TrimSpace(line[idx+1:])
+	if rest == "" {
+		return "", false
+	}
+	return rest, true
+}
+
+// splitCommaList splits text on commas, trims whitespace, and strips a leading
+// "and" from the last item (Oxford comma). Returns nil if fewer than 2 items.
+func splitCommaList(text string) []string {
+	if !strings.Contains(text, ",") {
+		return nil
+	}
+	parts := strings.Split(text, ",")
+	var items []string
+	for _, p := range parts {
+		item := strings.TrimSpace(p)
+		if item == "" || item == "and" {
+			continue
+		}
+		item = strings.TrimPrefix(item, "and ")
+		item = strings.TrimSpace(item)
+		if item != "" {
+			items = append(items, item)
+		}
+	}
+	if len(items) < 2 {
+		return nil
+	}
+	return items
 }
 
 func extractRequirementsFromDescription(description string) []string {
@@ -70,8 +124,19 @@ func extractRequirementsFromDescription(description string) []string {
 			inHeaderSection = false
 			continue
 		}
+		// Standalone header line (e.g. "Functions:")
 		if isRequirementHeader(line) {
 			inHeaderSection = true
+			continue
+		}
+		// Inline header with items (e.g. "Functions: X, Y, Z")
+		if rest, ok := extractInlineHeader(line); ok {
+			if commaItems := splitCommaList(rest); commaItems != nil {
+				results = append(results, commaItems...)
+			} else {
+				results = append(results, rest)
+			}
+			inHeaderSection = false
 			continue
 		}
 		if len(line) >= 3 {
@@ -103,6 +168,12 @@ func extractRequirementsFromDescription(description string) []string {
 					results = append(results, item)
 				}
 			}
+			inHeaderSection = false
+			continue
+		}
+		// Comma-separated list (e.g. "X, Y, Z")
+		if commaItems := splitCommaList(line); commaItems != nil {
+			results = append(results, commaItems...)
 			inHeaderSection = false
 			continue
 		}

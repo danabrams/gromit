@@ -222,7 +222,9 @@ You are decomposing an implementation plan into bd beads following the gromit-de
 ## Output
 
 Output ONLY a JSON array of bead definitions. No markdown, no explanations, no wrapper.
-Each bead must include: title, description, priority, acceptance_criteria, depends_on_index.
+Each bead must include: title, description, priority, acceptance_criteria, expected_outputs, depends_on_index.
+
+expected_outputs: list each individual deliverable, function, or independently testable item as a separate entry. These drive TDD RED-GREEN cycles — one cycle per entry. Do not summarize or group; enumerate fine-grained items.
 
 The spec label will be added automatically: spec:%s
 `

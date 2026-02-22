@@ -1348,6 +1348,17 @@ func TestBeadDef_ExpectedOutputsDeserializesFromJSON(t *testing.T) {
 	}
 }
 
+// TestDecomposePrompt_MentionsExpectedOutputs verifies the decompose prompt instructs
+// the LLM to populate expected_outputs with fine-grained deliverables for TDD cycles.
+func TestDecomposePrompt_MentionsExpectedOutputs(t *testing.T) {
+	promptText, _ := buildDecomposePrompt("test-plan", "# Plan body", "Skill content")
+	promptLower := strings.ToLower(promptText)
+
+	if !strings.Contains(promptLower, "expected_outputs") {
+		t.Errorf("decompose prompt should mention expected_outputs field.\nPrompt:\n%s", promptText)
+	}
+}
+
 func containsString(items []string, want string) bool {
 	for _, item := range items {
 		if item == want {

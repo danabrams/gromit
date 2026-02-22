@@ -252,6 +252,153 @@ func TestExtractRequirementsFromDescription_NumberedList(t *testing.T) {
 	}
 }
 
+func TestExtractRequirementsFromDescription_CommaSeparated(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "simple comma list",
+			input: "formatRun, formatDuration, formatHealth",
+			want:  []string{"formatRun", "formatDuration", "formatHealth"},
+		},
+		{
+			name:  "Oxford comma with and",
+			input: "formatRun, formatDuration, and formatHealth",
+			want:  []string{"formatRun", "formatDuration", "formatHealth"},
+		},
+		{
+			name:  "single item no comma should not split",
+			input: "formatRun",
+			want:  nil,
+		},
+		{
+			name:  "two items with comma",
+			input: "formatRun, formatDuration",
+			want:  []string{"formatRun", "formatDuration"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractRequirementsFromDescription(tc.input)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d items, want %d: %v", len(got), len(tc.want), got)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Errorf("item %d: got %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestExtractRequirementsFromDescription_HeaderWithCommasOnSameLine(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "Functions header with comma list",
+			input: "Functions: formatRun, formatDuration, formatHealth",
+			want:  []string{"formatRun", "formatDuration", "formatHealth"},
+		},
+		{
+			name:  "Requirements header with comma list",
+			input: "Requirements: auth, logging, caching",
+			want:  []string{"auth", "logging", "caching"},
+		},
+		{
+			name:  "Lowercase header with comma list",
+			input: "functions: formatRun, formatDuration",
+			want:  []string{"formatRun", "formatDuration"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractRequirementsFromDescription(tc.input)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d items, want %d: %v", len(got), len(tc.want), got)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Errorf("item %d: got %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestExtractRequirementsFromDescription_FunctionsHeader(t *testing.T) {
+	input := "Functions:\nformatRun\nformatDuration\nformatHealth"
+	got := extractRequirementsFromDescription(input)
+	want := []string{"formatRun", "formatDuration", "formatHealth"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("item %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestExtractRequirementsFromDescription_MixedBulletsAndCommas(t *testing.T) {
+	input := "- alpha\n- beta\nExtras: gamma, delta"
+	got := extractRequirementsFromDescription(input)
+	want := []string{"alpha", "beta", "gamma", "delta"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("item %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// TestExtractRequirementsViaLLM_PromptRequestsIndividualItems verifies that
+// the prompt sent to the LLM asks for individual, fine-grained items rather
+// than summaries, so haiku enumerates each deliverable separately.
+func TestExtractRequirementsViaLLM_PromptRequestsIndividualItems(t *testing.T) {
+	var capturedPrompt string
+	invoke := func(_ context.Context, prompt string, _ string) (*provider.Result, error) {
+		capturedPrompt = prompt
+		return &provider.Result{Success: true, Output: "item one\nitem two"}, nil
+	}
+	extractRequirementsViaLLM(context.Background(), "Title", "desc with formatRun, formatDuration", invoke)
+
+	requiredPhrases := []string{
+		"individual",
+		"do not summarize",
+		"each function",
+	}
+	promptLower := strings.ToLower(capturedPrompt)
+	for _, phrase := range requiredPhrases {
+		if !strings.Contains(promptLower, phrase) {
+			t.Errorf("prompt missing required phrase %q.\nPrompt was:\n%s", phrase, capturedPrompt)
+		}
+	}
+}
+
+// TestExtractRequirementsViaLLM_PromptDoesNotGroupItems verifies the prompt
+// explicitly instructs against grouping or summarizing.
+func TestExtractRequirementsViaLLM_PromptDoesNotGroupItems(t *testing.T) {
+	var capturedPrompt string
+	invoke := func(_ context.Context, prompt string, _ string) (*provider.Result, error) {
+		capturedPrompt = prompt
+		return &provider.Result{Success: true, Output: "a\nb"}, nil
+	}
+	extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+
+	promptLower := strings.ToLower(capturedPrompt)
+	if !strings.Contains(promptLower, "do not group") {
+		t.Errorf("prompt should instruct against grouping.\nPrompt was:\n%s", capturedPrompt)
+	}
+}
+
 // TestTddExpectedOutputsOrTitle_Layer2UsedWhenExpectedOutputsEmpty verifies
 // that when ExpectedOutputs is empty and the description contains parseable
 // requirements, those parsed requirements are returned instead of the title.
