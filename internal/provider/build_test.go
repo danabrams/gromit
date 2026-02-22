@@ -129,6 +129,30 @@ func TestBuildProvidersFromConfig_ClaudeBinaryPathEntry(t *testing.T) {
 	}
 }
 
+func TestBuildProvidersFromConfig_CodexBinaryPathEntry(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"secondary": {
+				Binary: "/usr/local/bin/codex",
+			},
+		},
+	}
+
+	providers, err := provider.BuildProvidersFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildProvidersFromConfig() error = %v", err)
+	}
+
+	codexProvider, ok := providers["secondary"]
+	if !ok {
+		t.Fatalf("providers missing %q entry", "secondary")
+	}
+
+	if got := codexProvider.Name(); got != "codex" {
+		t.Fatalf("provider name = %q, want %q", got, "codex")
+	}
+}
+
 func TestBuildProvidersFromConfig_NilConfig(t *testing.T) {
 	providers, err := provider.BuildProvidersFromConfig(nil)
 	if err == nil {
