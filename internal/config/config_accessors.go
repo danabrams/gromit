@@ -3,9 +3,24 @@ package config
 import (
 	"strings"
 	"time"
-
-	"github.com/danabrams/gromit/internal/provider"
 )
+
+const (
+	tierHigh   = "high"
+	tierMedium = "medium"
+	tierLow    = "low"
+)
+
+var legacyModelToTier = map[string]string{
+	"opus":          tierHigh,
+	"sonnet":        tierMedium,
+	"haiku":         tierLow,
+	"o3":            tierHigh,
+	"gpt-4o":        tierMedium,
+	"gpt-4o-mini":   tierLow,
+	"gpt-5.3-codex": tierMedium,
+	"gpt-5-mini":    tierLow,
+}
 
 func (f FallbackConfig) EnabledOrDefault(multiProvider bool) bool {
 	if f.Enabled == nil {
@@ -81,14 +96,14 @@ func (c *Config) IsTierName(s string) bool {
 // config contains model names instead of tier names.
 func (c *Config) SelectTier(priority int, labels []string) string {
 	if c == nil {
-		return provider.TierMedium
+		return tierMedium
 	}
 
 	// Check label overrides first (higher precedence)
 	for _, label := range labels {
 		if value, ok := c.Models.Labels[label]; ok {
 			// Auto-map legacy model names to tiers
-			return provider.TierFromLegacyModel(value)
+			return tierFromLegacyModel(value)
 		}
 	}
 
@@ -106,7 +121,7 @@ func (c *Config) SelectTier(priority int, labels []string) string {
 	}
 
 	// Auto-map legacy model names to tiers
-	return provider.TierFromLegacyModel(value)
+	return tierFromLegacyModel(value)
 }
 
 // SelectModel determines the appropriate model for a bead based on priority and labels.
@@ -142,16 +157,23 @@ func (c *Config) NextEscalationTier(currentTier string) string {
 		return ""
 	}
 
-	mappedCurrentTier := provider.TierFromLegacyModel(currentTier)
+	mappedCurrentTier := tierFromLegacyModel(currentTier)
 
 	for i, chainEntry := range c.Escalation.Chain {
-		mappedChainEntry := provider.TierFromLegacyModel(chainEntry)
+		mappedChainEntry := tierFromLegacyModel(chainEntry)
 
 		if mappedChainEntry == mappedCurrentTier && i+1 < len(c.Escalation.Chain) {
-			return provider.TierFromLegacyModel(c.Escalation.Chain[i+1])
+			return tierFromLegacyModel(c.Escalation.Chain[i+1])
 		}
 	}
 	return ""
+}
+
+func tierFromLegacyModel(modelName string) string {
+	if tier, ok := legacyModelToTier[strings.ToLower(modelName)]; ok {
+		return tier
+	}
+	return modelName
 }
 
 // NextEscalationModel returns the next model in the escalation chain, or empty if at end.
