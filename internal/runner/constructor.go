@@ -98,6 +98,9 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 
 	// Stage 2: Build (execute.New with Invoker and PromptRenderer)
 	buildStage := execute.New(&invokerAdapter{router: router, output: syncOut}, &renderAdapter{r: renderer}, syncOut)
+	if runner := optionalTDDCycleRunner(cfg, renderer, router, syncOut); runner != nil {
+		buildStage.WithTDDCycleRunner(runner)
+	}
 
 	// Stage 3: Validate (validate.New with CommandRunner)
 	validateStage := validate.New(&cmdRunnerAdapter{runner: defaultCmdRunner}, syncOut)
