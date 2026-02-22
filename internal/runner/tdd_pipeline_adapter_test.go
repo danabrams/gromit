@@ -83,3 +83,37 @@ func TestTDDPipelineAdapter_RunCycles_PropagatesOrchestratorError(t *testing.T) 
 		t.Errorf("error %q does not contain expected message %q", err.Error(), "orchestrator failed")
 	}
 }
+
+// TestTDDPipelineAdapter_RunCycles_AppliesLayer1_3WhenNoExpectedOutputs verifies
+// that when a bead has no ExpectedOutputs, RunCycles derives them from the title
+// (Layer 1/3 fallback logic) and populates bead.ExpectedOutputs before calling
+// the orchestrator.
+func TestTDDPipelineAdapter_RunCycles_AppliesLayer1_3WhenNoExpectedOutputs(t *testing.T) {
+	var capturedBead *bead.Bead
+	r := &Runner{
+		cfg: &config.Config{},
+		tddOrchestrator: &tddOrchestrator{
+			runCyclesFn: func(_ context.Context, bc *runtypes.BeadContext, _ *coverage.CoverageTracker, _ []coverage.Criterion) error {
+				capturedBead = bc.Bead
+				return nil
+			},
+		},
+	}
+	b := &bead.Bead{ID: "b1", Title: "Implement feature X"}
+	cfg := &config.Config{}
+
+	adapter := &TDDPipelineAdapter{runner: r}
+	_, err := adapter.RunCycles(context.Background(), b, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedBead == nil {
+		t.Fatal("orchestrator was not called")
+	}
+	if len(capturedBead.ExpectedOutputs) == 0 {
+		t.Fatal("want ExpectedOutputs populated from title, got empty")
+	}
+	if capturedBead.ExpectedOutputs[0] != "Implement feature X" {
+		t.Errorf("ExpectedOutputs[0] = %q, want title %q", capturedBead.ExpectedOutputs[0], "Implement feature X")
+	}
+}
