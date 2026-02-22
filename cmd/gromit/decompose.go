@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -180,10 +181,9 @@ func runDecomposeReviewInSession(planName string, cfg *config.Config) error {
 }
 
 func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error {
-	// Create Claude client
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	decomposeClient, err := buildDecomposeClient(cfg)
 	if err != nil {
-		return fmt.Errorf("creating Claude client: %w", err)
+		return fmt.Errorf("creating decompose client: %w", err)
 	}
 
 	// Create Bead client
@@ -194,10 +194,7 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 
 	// Create pipeline
 	deps := &pipeline.Deps{
-		ClaudeClient: &claudeClientAdapter{
-			Client:  claudeClient,
-			Timeout: time.Duration(cfg.Claude.PipelineTimeout) * time.Second,
-		},
+		ClaudeClient: decomposeClient,
 		BeadClient: &beadClientAdapter{Client: beadClient},
 	}
 	paths := &pipeline.Paths{
@@ -267,6 +264,34 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	}
 
 	return nil
+}
+
+func buildDecomposeClient(cfg *config.Config) (pipeline.ClaudeClient, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
+	timeout := time.Duration(cfg.Claude.PipelineTimeout) * time.Second
+	if cfg.HasProviders() {
+		router, err := provider.BuildRouterFromConfig(cfg)
+		if err != nil {
+			return nil, err
+		}
+		return &providerRouterClientAdapter{
+			Router:  router,
+			Timeout: timeout,
+			Phase:   decomposeSessionCommand,
+		}, nil
+	}
+
+	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &claudeClientAdapter{
+		Client:  claudeClient,
+		Timeout: timeout,
+	}, nil
 }
 
 func runInDir(dir string, fn func() error) error {
