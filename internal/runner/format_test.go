@@ -178,6 +178,67 @@ func TestFormatRecurrenceBreakdown(t *testing.T) {
 	}
 }
 
+func TestFormatHealth(t *testing.T) {
+	tests := []struct {
+		name                  string
+		lastRetro             time.Time
+		iterationsSinceReview int
+		wantSubstrings        []string
+	}{
+		{
+			name:                  "never had retro or review",
+			lastRetro:             time.Time{},
+			iterationsSinceReview: 0,
+			wantSubstrings: []string{
+				"Health:",
+				"Last retro:  never",
+				"Last review: never",
+			},
+		},
+		{
+			name:                  "retro done review never",
+			lastRetro:             time.Now().Add(-2 * time.Hour),
+			iterationsSinceReview: 0,
+			wantSubstrings: []string{
+				"Health:",
+				"Last retro:  2h 0m ago",
+				"Last review: never",
+			},
+		},
+		{
+			name:                  "retro never review done singular",
+			lastRetro:             time.Time{},
+			iterationsSinceReview: 1,
+			wantSubstrings: []string{
+				"Health:",
+				"Last retro:  never",
+				"Last review: 1 iteration ago",
+			},
+		},
+		{
+			name:                  "both done plural iterations",
+			lastRetro:             time.Now().Add(-30 * time.Minute),
+			iterationsSinceReview: 5,
+			wantSubstrings: []string{
+				"Health:",
+				"Last retro:  30m ago",
+				"Last review: 5 iterations ago",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatHealth(tt.lastRetro, tt.iterationsSinceReview)
+			for _, substr := range tt.wantSubstrings {
+				if !strings.Contains(got, substr) {
+					t.Errorf("formatHealth() = %q, want substring %q", got, substr)
+				}
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string

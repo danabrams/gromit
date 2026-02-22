@@ -177,6 +177,11 @@ func formatRecurrenceBreakdown(counters map[string]int) string {
 	return strings.Join(parts, " | ")
 }
 
+// formatHealth formats health status for display
+func formatHealth(lastRetro time.Time, iterationsSinceReview int) string {
+	panic("not implemented")
+}
+
 // formatItems formats a list of items, showing up to maxShow items and an overflow message
 func formatItems(items []string, maxShow int) []string {
 	if len(items) == 0 {
