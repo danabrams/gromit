@@ -1,0 +1,101 @@
+package main
+
+import (
+	"context"
+	"testing"
+
+	"github.com/danabrams/gromit/internal/provider"
+)
+
+func TestRetroRouterAdapterRun_RetriesOnUsageLimitResultWithoutError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	wantPrompt := "retro prompt"
+	wantTier := provider.TierMedium
+	wantPhase := "retro"
+	wantResult := &provider.Result{Success: true, ExitCode: 0, Output: "retro-ok"}
+
+	firstProviderRunCalls := 0
+	secondProviderRunCalls := 0
+	selectCalls := 0
+	markedUnavailable := ""
+
+	firstProvider := &reviewProviderStub{
+		NameFn: func() string { return "first" },
+		RunFn: func(runCtx context.Context, prompt string, tier string) (*provider.Result, error) {
+			firstProviderRunCalls++
+			if runCtx != ctx {
+				t.Fatalf("ctx mismatch")
+			}
+			if prompt != wantPrompt {
+				t.Fatalf("prompt = %q, want %q", prompt, wantPrompt)
+			}
+			if tier != wantTier {
+				t.Fatalf("tier = %q, want %q", tier, wantTier)
+			}
+			return &provider.Result{Success: false, Output: "usage limit exceeded"}, nil
+		},
+		IsUsageLimitErrorFn: func(result *provider.Result, err error) bool {
+			return err == nil && result != nil && !result.Success
+		},
+	}
+	secondProvider := &reviewProviderStub{
+		NameFn: func() string { return "second" },
+		RunFn: func(runCtx context.Context, prompt string, tier string) (*provider.Result, error) {
+			secondProviderRunCalls++
+			if runCtx != ctx {
+				t.Fatalf("ctx mismatch")
+			}
+			if prompt != wantPrompt {
+				t.Fatalf("prompt = %q, want %q", prompt, wantPrompt)
+			}
+			if tier != wantTier {
+				t.Fatalf("tier = %q, want %q", tier, wantTier)
+			}
+			return wantResult, nil
+		},
+	}
+	mockRouter := &reviewRouterStub{
+		SelectFn: func(phase string, tier string) (provider.Provider, string) {
+			if phase != wantPhase {
+				t.Fatalf("phase = %q, want %q", phase, wantPhase)
+			}
+			if tier != wantTier {
+				t.Fatalf("tier = %q, want %q", tier, wantTier)
+			}
+			selectCalls++
+			if selectCalls == 1 {
+				return firstProvider, "selected-first-model"
+			}
+			return secondProvider, "selected-second-model"
+		},
+		MarkUnavailableFn: func(name string) {
+			markedUnavailable = name
+		},
+	}
+	adapter := &retroRouterAdapter{
+		Router: mockRouter,
+		Phase:  wantPhase,
+	}
+
+	got, err := adapter.Run(ctx, wantPrompt, wantTier)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got != wantResult {
+		t.Fatalf("Run() result = %#v, want %#v", got, wantResult)
+	}
+	if firstProviderRunCalls != 1 {
+		t.Fatalf("first provider Run calls = %d, want 1", firstProviderRunCalls)
+	}
+	if secondProviderRunCalls != 1 {
+		t.Fatalf("second provider Run calls = %d, want 1", secondProviderRunCalls)
+	}
+	if selectCalls != 2 {
+		t.Fatalf("router Select calls = %d, want 2", selectCalls)
+	}
+	if markedUnavailable != "first" {
+		t.Fatalf("marked unavailable provider = %q, want %q", markedUnavailable, "first")
+	}
+}
