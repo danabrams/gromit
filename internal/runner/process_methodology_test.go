@@ -41,6 +41,48 @@ func TestExtractRequirementsFromDescription_BulletedList(t *testing.T) {
 	}
 }
 
+func TestExtractRequirementsFromDescription_HeaderPrefixedList(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "Requirements header",
+			input: "Requirements:\nfoo\nbar",
+			want:  []string{"foo", "bar"},
+		},
+		{
+			name:  "Includes header",
+			input: "Includes:\nalpha\nbeta",
+			want:  []string{"alpha", "beta"},
+		},
+		{
+			name:  "Delivers header",
+			input: "Delivers:\nfeature A\nfeature B",
+			want:  []string{"feature A", "feature B"},
+		},
+		{
+			name:  "header line itself is not included",
+			input: "Requirements:\nonly item",
+			want:  []string{"only item"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractRequirementsFromDescription(tc.input)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d items, want %d: %v", len(got), len(tc.want), got)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Errorf("item %d: got %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestExtractRequirementsFromDescription_NumberedList(t *testing.T) {
 	input := "Some preamble\n1. do this\n2. do that\n3. do the other thing"
 	got := extractRequirementsFromDescription(input)
