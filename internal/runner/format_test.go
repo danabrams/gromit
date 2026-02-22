@@ -79,6 +79,53 @@ func TestFormatRunningLine(t *testing.T) {
 	}
 }
 
+func TestFormatEscalationBreakdown(t *testing.T) {
+	tests := []struct {
+		name  string
+		rates map[string]float64
+		want  string
+	}{
+		{
+			name:  "nil map returns empty",
+			rates: nil,
+			want:  "",
+		},
+		{
+			name:  "empty map returns empty",
+			rates: map[string]float64{},
+			want:  "",
+		},
+		{
+			name:  "single class",
+			rates: map[string]float64{"timeout": 0.25},
+			want:  "timeout 25%",
+		},
+		{
+			name: "multiple classes sorted alphabetically",
+			rates: map[string]float64{
+				"timeout":    0.50,
+				"lint":       0.125,
+				"test-flake": 0.375,
+			},
+			want: "lint 13% | test-flake 38% | timeout 50%",
+		},
+		{
+			name:  "rounds half up",
+			rates: map[string]float64{"compile": 0.005},
+			want:  "compile 1%",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatEscalationBreakdown(tt.rates)
+			if got != tt.want {
+				t.Errorf("formatEscalationBreakdown() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
