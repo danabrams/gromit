@@ -222,6 +222,16 @@ func TestMethodologyConfigSupportsBuildStrategyField(t *testing.T) {
 	}
 }
 
+func TestSetDefaultsMethodologyBuildStrategy_DefaultsToSinglePass(t *testing.T) {
+	cfg := &Config{}
+
+	cfg.SetDefaults()
+
+	if cfg.Methodology.BuildStrategy != "single_pass" {
+		t.Fatalf("Methodology.BuildStrategy = %q, want %q", cfg.Methodology.BuildStrategy, "single_pass")
+	}
+}
+
 func TestMethodologyConfigSupportsPhaseModelsField(t *testing.T) {
 	cfg := Config{
 		Methodology: MethodologyConfig{
