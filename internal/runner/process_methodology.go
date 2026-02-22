@@ -272,6 +272,17 @@ func extractRequirementsFromDescription(description string) []string {
 				continue
 			}
 		}
+		// Semicolon-separated items
+		if strings.Contains(line, ";") {
+			for _, part := range strings.Split(line, ";") {
+				item := strings.TrimSpace(part)
+				if item != "" {
+					results = append(results, item)
+				}
+			}
+			inHeaderSection = false
+			continue
+		}
 		// Plain line following a header
 		if inHeaderSection {
 			results = append(results, line)
