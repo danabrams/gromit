@@ -89,6 +89,34 @@ func TestApplyReviewPhaseProfile_ReviewPrunesProjectContext(t *testing.T) {
 	}
 }
 
+func TestApplyReviewPhaseProfile_ThoroughReviewPreservesDeepReviewContext(t *testing.T) {
+	ctx := &ThoroughReviewContext{
+		Diff:           "diff",
+		CompletedBeads: []CompletedBeadSummary{{ID: "b1", Title: "title"}},
+		ClaudeMD:       "claude",
+		Rules:          "rules",
+		Model:          "opus",
+	}
+
+	ApplyReviewPhaseProfile(ctx, "thorough_review")
+
+	if ctx.Diff == "" {
+		t.Fatalf("Diff should be preserved for thorough_review")
+	}
+	if len(ctx.CompletedBeads) == 0 {
+		t.Fatalf("CompletedBeads should be preserved for thorough_review")
+	}
+	if ctx.ClaudeMD == "" {
+		t.Fatalf("ClaudeMD should be preserved for thorough_review")
+	}
+	if ctx.Rules == "" {
+		t.Fatalf("Rules should be preserved for thorough_review")
+	}
+	if ctx.Model == "" {
+		t.Fatalf("Model should be preserved for thorough_review")
+	}
+}
+
 func TestApplyPhaseProfile_RedPrunesToCriterionFocusedContext(t *testing.T) {
 	ctx := &Context{
 		Spec:                     "spec",
