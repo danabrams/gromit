@@ -22,8 +22,6 @@ func (s *stubFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, output 
 
 // TestFailureLearnerAdapter_CallsAnalyzer verifies that failureLearnerAdapter
 // calls the analyzer when ExtractFailureLearning is invoked on the failure path.
-// This test currently fails because the method is a placeholder that returns nil
-// without invoking the analyzer.
 func TestFailureLearnerAdapter_CallsAnalyzer(t *testing.T) {
 	called := false
 	stub := &stubFailureAnalyzer{
@@ -36,11 +34,34 @@ func TestFailureLearnerAdapter_CallsAnalyzer(t *testing.T) {
 		analyzer: stub,
 	}
 
-	err := a.ExtractFailureLearning(context.Background(), "bead-1", "Implement feature")
+	err := a.ExtractFailureLearning(context.Background(), "bead-1", "Implement feature", "FAIL: TestFoo")
 	if err != nil {
 		t.Fatalf("ExtractFailureLearning returned unexpected error: %v", err)
 	}
 	if !called {
 		t.Error("analyzer.Analyze was not called; want failure learning extraction to invoke the analyzer")
+	}
+}
+
+// TestFailureLearnerAdapter_ForwardsFailureOutput verifies that the failureOutput
+// string passed to ExtractFailureLearning reaches the analyzer.Analyze call.
+func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
+	var receivedOutput string
+	stub := &stubFailureAnalyzer{
+		fn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			receivedOutput = output
+			return nil, nil
+		},
+	}
+	a := &failureLearnerAdapter{
+		analyzer: stub,
+	}
+
+	err := a.ExtractFailureLearning(context.Background(), "bead-1", "Implement feature", "FAIL: TestFoo\nexpected 1 got 2")
+	if err != nil {
+		t.Fatalf("ExtractFailureLearning returned unexpected error: %v", err)
+	}
+	if receivedOutput != "FAIL: TestFoo\nexpected 1 got 2" {
+		t.Errorf("analyzer received output %q, want %q", receivedOutput, "FAIL: TestFoo\nexpected 1 got 2")
 	}
 }
