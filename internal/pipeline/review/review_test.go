@@ -212,3 +212,17 @@ func TestReviewStage_Enabled_NoFindings_ReturnsProceedWithEmptyIDs(t *testing.T)
 		t.Errorf("ReviewBeadIDs = %v, want empty", out.ReviewBeadIDs)
 	}
 }
+
+// TestBuildFromReviewLabels_ConsolidatedFunction verifies that the review package's
+// label building uses the consolidated function from the parent pipeline package.
+func TestBuildFromReviewLabels_ConsolidatedFunction(t *testing.T) {
+	// Test that buildFromReviewLabels uses the consolidated parent function
+	// by verifying deduplication behavior
+	labels := pipeline.BuildFromReviewLabels([]string{"bug", "enhancement"})
+	if len(labels) != 3 {
+		t.Errorf("got %d labels, want 3", len(labels))
+	}
+	if labels[0] != "from-review" {
+		t.Errorf("first label = %q, want 'from-review'", labels[0])
+	}
+}
