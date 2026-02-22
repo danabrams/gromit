@@ -282,6 +282,23 @@ func TestRenderDecomposeExpectedOutputs(t *testing.T) {
 			t.Error("expected output format instructions to mention '2-5' and 'independently testable'")
 		}
 	})
+
+	t.Run("expected_outputs field description mentions incremental TDD steps", func(t *testing.T) {
+		// Verify the expected_outputs field description explicitly mentions incremental TDD steps
+		// in the output format field list (not just in the example)
+		outputFormatIdx := strings.Index(result, "Respond with a JSON array")
+		exampleIdx := strings.Index(result, "Example format:")
+		if outputFormatIdx == -1 || exampleIdx == -1 {
+			t.Fatal("cannot find output format section")
+		}
+		outputFormatSection := result[outputFormatIdx:exampleIdx]
+		if !strings.Contains(outputFormatSection, "incremental TDD") && !strings.Contains(outputFormatSection, "TDD steps") {
+			t.Error("expected expected_outputs field description in output format section to mention incremental TDD steps")
+		}
+		if !strings.Contains(outputFormatSection, "definition of done") {
+			t.Error("expected acceptance_criteria field description in output format section to mention definition of done")
+		}
+	})
 }
 
 // TestRenderDecomposeExampleIntegrity verifies that the JSON example and
