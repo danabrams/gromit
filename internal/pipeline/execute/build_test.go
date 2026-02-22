@@ -462,6 +462,52 @@ func TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted(t *testing.T) {
 	}
 }
 
+// trackingTDDCycleRunner is a test double for TDDCycleRunner that records calls.
+type trackingTDDCycleRunner struct {
+	runCyclesFn func(ctx context.Context, b *bead.Bead, cfg *config.Config) (execute.TDDCycleResult, error)
+}
+
+func (f *trackingTDDCycleRunner) RunCycles(ctx context.Context, b *bead.Bead, cfg *config.Config) (execute.TDDCycleResult, error) {
+	if f.runCyclesFn != nil {
+		return f.runCyclesFn(ctx, b, cfg)
+	}
+	return execute.TDDCycleResult{}, nil
+}
+
+// TestBuildRun_TDD_FreshContext_DelegatesToTDDCycleRunner verifies that when
+// methodology=TDD and FreshContextPerCycle is true, Build.Run() delegates to
+// the injected TDDCycleRunner instead of calling StreamRun directly.
+func TestBuildRun_TDD_FreshContext_DelegatesToTDDCycleRunner(t *testing.T) {
+	var runCyclesCalled bool
+	runner := &trackingTDDCycleRunner{
+		runCyclesFn: func(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
+			runCyclesCalled = true
+			return execute.TDDCycleResult{}, nil
+		},
+	}
+
+	invoker := &fakeInvoker{}
+	renderer := &fakePromptRenderer{}
+	stage := execute.New(invoker, renderer, io.Discard).WithTDDCycleRunner(runner)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+	cfg.Methodology.FreshContextPerCycle = true
+	in := makeInput(makeBead("bead-1", "Implement TDD feature"), cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !runCyclesCalled {
+		t.Error("TDDCycleRunner.RunCycles was not called, but should have been")
+	}
+	if len(invoker.streamCalls) != 0 {
+		t.Errorf("StreamRun called %d times, want 0 (should delegate to TDDCycleRunner)", len(invoker.streamCalls))
+	}
+}
+
 // TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult verifies that the
 // Build stage copies Model, DurationMs, CostUSD, InputTokens, and OutputTokens
 // from the successful StreamRun provider result into the returned Output.
