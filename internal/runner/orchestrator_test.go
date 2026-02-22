@@ -150,6 +150,69 @@ func TestOrchestrator_SuccessPath_CarriesBuildModelToIterationLog(t *testing.T) 
 	}
 }
 
+// TestOrchestrator_SuccessPath_CarriesBuildCostAndTokensToIterationLog verifies that
+// DurationMs, CostUSD, InputTokens, and OutputTokens from the Build stage output
+// are propagated into the IterationLog on the success path for cost auditing.
+func TestOrchestrator_SuccessPath_CarriesBuildCostAndTokensToIterationLog(t *testing.T) {
+	var capturedResult *logger.IterationLog
+
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:     pipeline.Proceed,
+			DurationMs:   42000,
+			CostUSD:      0.123,
+			InputTokens:  1000,
+			OutputTokens: 500,
+		}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		if in.Result != nil {
+			capturedResult = in.Result
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-2", Title: "Cost test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if capturedResult == nil {
+		t.Fatal("Epilogue Result is nil; want IterationLog populated on success path")
+	}
+
+	if capturedResult.DurationMs != 42000 {
+		t.Errorf("IterationLog.DurationMs = %d, want 42000", capturedResult.DurationMs)
+	}
+	if capturedResult.CostUSD != 0.123 {
+		t.Errorf("IterationLog.CostUSD = %f, want 0.123", capturedResult.CostUSD)
+	}
+	if capturedResult.InputTokens != 1000 {
+		t.Errorf("IterationLog.InputTokens = %d, want 1000", capturedResult.InputTokens)
+	}
+	if capturedResult.OutputTokens != 500 {
+		t.Errorf("IterationLog.OutputTokens = %d, want 500", capturedResult.OutputTokens)
+	}
+}
+
 // TestOrchestrator_ValidationFailure_SetsFailureOutput verifies that when the
 // validate stage returns Block with ValidationFailures, the orchestrator sets
 // FailureOutput on the epilogue Input so the failure learner receives it.
