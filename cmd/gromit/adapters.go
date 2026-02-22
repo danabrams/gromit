@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/retro"
 )
 
 // claudeClientAdapter adapts claude.Client to pipeline invocation interfaces.
@@ -82,6 +84,23 @@ func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipelin
 	}
 
 	return toClaudeRunResult(result.Success, result.ExitCode, result.Output), nil
+}
+
+// retroRouterAdapter adapts provider routing to retro.ProviderRunner.
+type retroRouterAdapter struct {
+	Router  routerSelector
+	Timeout time.Duration
+	Phase   string
+}
+
+var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)
+
+func (a *retroRouterAdapter) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	return nil, fmt.Errorf("retro router adapter run not implemented")
+}
+
+func (a *retroRouterAdapter) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return nil, fmt.Errorf("retro router adapter stream run not implemented")
 }
 
 // cmdAgentResolver adapts agent.Resolve to pipeline.AgentResolver.
