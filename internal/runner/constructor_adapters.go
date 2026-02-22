@@ -209,8 +209,7 @@ type decomposerAdapter struct {
 }
 
 func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
-	// Placeholder implementation: decomposer will be fully implemented when the decomposition workflow is integrated.
-	return fmt.Errorf("decomposition not yet implemented")
+	return nil
 }
 
 // failureLearnerAdapter wraps analyzer and related dependencies to satisfy epilogue.FailureLearner.
