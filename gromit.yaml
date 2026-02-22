@@ -195,11 +195,11 @@ claude:
 agents:
   prompt: false
   phases:
-    refine: openai
-    plan: openai
-    review: openai
-    explore: openai
-    debug: openai
+    refine: codex
+    plan: codex
+    review: codex
+    explore: codex
+    debug: codex
 
 # Git settings
 git:

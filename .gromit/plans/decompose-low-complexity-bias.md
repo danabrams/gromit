@@ -1,8 +1,9 @@
 ---
+created: 2026-02-22T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-22T21:20:31Z"
 id: decompose-low-complexity-bias
 source_spec: decompose-low-complexity-bias
-created: 2026-02-22
-decomposed: false
 ---
 
 # Decompose Low Complexity Bias Implementation Plan

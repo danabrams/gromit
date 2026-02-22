@@ -1,8 +1,9 @@
 ---
+created: 2026-02-22T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-22T19:25:32Z"
 id: provider-parity-decompose-retro
 source_spec: provider-parity-decompose-retro
-created: 2026-02-22
-decomposed: false
 ---
 
 # Provider Parity for Decompose and Retro — Implementation Plan
