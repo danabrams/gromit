@@ -269,7 +269,6 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 		name                string
 		expectedOutputs     []string
 		decomposer          Decomposer
-		decomposerErr       error
 		wantDecision        pipeline.Decision
 		wantDecomposeCalled bool
 	}{
@@ -277,7 +276,6 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 			name:                "skip when scope decomposition succeeds",
 			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
 			decomposer:          &fakeDecomposer{err: nil},
-			decomposerErr:       nil,
 			wantDecision:        pipeline.Skip,
 			wantDecomposeCalled: true,
 		},
@@ -285,7 +283,6 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 			name:                "block when scope decomposition fails",
 			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
 			decomposer:          &fakeDecomposer{err: errors.New("decomposition failed")},
-			decomposerErr:       errors.New("decomposition failed"),
 			wantDecision:        pipeline.Block,
 			wantDecomposeCalled: true,
 		},
@@ -293,7 +290,6 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 			name:                "block when decomposer is nil",
 			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
 			decomposer:          nil,
-			decomposerErr:       nil,
 			wantDecision:        pipeline.Block,
 			wantDecomposeCalled: false,
 		},
@@ -335,14 +331,6 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 			}
 			in := pipeline.Input{Bead: b, Config: cfg}
 			out, err := gate.Run(context.Background(), in)
-			// If decomposition was attempted and failed, error is propagated
-			if tt.decomposerErr != nil {
-				if err == nil {
-					t.Fatalf("expected error from decomposition failure, got nil")
-				}
-				// Error is expected and has been propagated
-				return
-			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

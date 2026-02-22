@@ -153,7 +153,8 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Write
 		fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition\n",
 			in.Bead.ID, fileCount, maxScopeFiles)
 		if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {
-			return nil, err
+			fmt.Fprintf(out, "Warning: decomposition failed for bead %s: %v, falling back to block\n", in.Bead.ID, err)
+			return &pipeline.Output{Decision: pipeline.Block}, nil
 		}
 		return &pipeline.Output{Decision: pipeline.Skip}, nil
 	}
