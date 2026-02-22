@@ -258,6 +258,7 @@ type ThoroughReviewConfig struct {
 type MethodologyConfig struct {
 	ATDD                 bool                    `yaml:"atdd"`
 	TDD                  bool                    `yaml:"tdd"`
+	BuildStrategy        string                  `yaml:"build_strategy"`
 	MaxTDDCycles         int                     `yaml:"max_tdd_cycles"`
 	SpecGateMaxRetries   int                     `yaml:"spec_gate_max_retries"`
 	ATDDPrompt           ATDDPromptConfig        `yaml:"atdd_prompt"`
