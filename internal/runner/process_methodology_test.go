@@ -124,6 +124,19 @@ func TestBuildRun_BuildStrategyLabels_LastTDDWins(t *testing.T) {
 	}
 }
 
+func TestResolveBuildStrategy_LastSinglePassWins(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Methodology.BuildStrategy = "tdd"
+
+	b := &bead.Bead{
+		Labels: []string{"build_strategy:tdd", "build_strategy:single_pass"},
+	}
+
+	if got := resolveBuildStrategy(cfg, b); got != "single_pass" {
+		t.Fatalf("resolveBuildStrategy() = %q, want %q when single_pass is the last explicit override", got, "single_pass")
+	}
+}
+
 func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "item one\nitem two\nitem three"}, nil
