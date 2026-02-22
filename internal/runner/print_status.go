@@ -49,6 +49,13 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 		return fmt.Errorf("writing pipeline status: %w", err)
 	}
 
+	// Next action recommendation
+	if rec := formatRecommendation(ps.Recommendation); rec != "" {
+		if _, err := fmt.Fprintln(w, rec); err != nil {
+			return fmt.Errorf("writing recommendation: %w", err)
+		}
+	}
+
 	// Health section: read state.json and interactive-state.json
 	var iterationsSinceReview int
 	var lastRetro time.Time
