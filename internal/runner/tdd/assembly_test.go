@@ -258,6 +258,31 @@ func TestAssembleRedHandoffCycleSummaryIncludesTouchedFiles(t *testing.T) {
 	}
 }
 
+func TestAssembleRedHandoffPopulatesAPISurfaceWithFunctionSignatures(t *testing.T) {
+	state := CycleState{
+		CycleNumber: 2,
+		MaxCycles:   10,
+		Remaining:   []string{"users can reset password"},
+		TouchedFiles: []string{
+			"internal/auth/login.go",
+		},
+	}
+
+	readFile := fakeReadFile(map[string]string{
+		"internal/auth/login.go": "package auth\n\nfunc Login(username, password string) bool {\n\treturn false\n}\n",
+	})
+	getDiff := fakeGetDiff()
+
+	handoff, err := AssembleRedHandoff(state, readFile, getDiff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(handoff.APISurface, "func Login") {
+		t.Fatalf("expected APISurface to contain function signature, got %q", handoff.APISurface)
+	}
+}
+
 func TestAssembleRedHandoffPopulatesCycleSummaryWithCompletedRequirements(t *testing.T) {
 	state := CycleState{
 		CycleNumber:  2,
