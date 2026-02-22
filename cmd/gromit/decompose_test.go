@@ -464,3 +464,25 @@ func TestBuildDecomposeClient_CodexProviderPath(t *testing.T) {
 		t.Fatal("router = nil, want non-nil")
 	}
 }
+
+func TestBuildDecomposeClient_ClaudeFallbackPath(t *testing.T) {
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 123,
+		},
+	}
+
+	client, err := buildDecomposeClient(cfg)
+	if err != nil {
+		t.Fatalf("buildDecomposeClient() error = %v", err)
+	}
+
+	typedClient, ok := client.(*claudeClientAdapter)
+	if !ok {
+		t.Fatalf("client type = %T, want *claudeClientAdapter", client)
+	}
+	if typedClient.Timeout != time.Duration(config.DefaultPipelineTimeoutSeconds)*time.Second {
+		t.Fatalf("timeout = %v, want %v", typedClient.Timeout, time.Duration(config.DefaultPipelineTimeoutSeconds)*time.Second)
+	}
+}
