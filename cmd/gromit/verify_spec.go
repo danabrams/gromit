@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ import (
 var verifySpecCreateBeads bool
 var verifySpecGateRunner = runSpecGate
 var verifySpecFixBeadsFn = createSpecGateFixBeads
+var verifySpecBuildRouterFromConfig = provider.BuildRouterFromConfig
 
 var verifySpecCmd = &cobra.Command{
 	Use:   "verify-spec <spec>",
@@ -316,6 +318,9 @@ func invokeSpecGateLLM(ctx context.Context, router *provider.Router, model strin
 func buildVerifySpecRouter(cfg *config.Config) (*provider.Router, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
+	}
+	if reflect.ValueOf(verifySpecBuildRouterFromConfig).Pointer() != reflect.ValueOf(provider.BuildRouterFromConfig).Pointer() {
+		return verifySpecBuildRouterFromConfig(cfg)
 	}
 	return provider.BuildRouterFromConfig(cfg)
 }
