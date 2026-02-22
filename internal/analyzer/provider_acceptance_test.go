@@ -127,7 +127,7 @@ type mockRenderer struct {
 	FnRenderAnalyze func(ctx *prompt.AnalyzeContext) (string, error)
 }
 
-func (m *mockRenderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+func (m *mockRenderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string, phase string) (*prompt.Context, error) {
 	return &prompt.Context{}, nil
 }
 
