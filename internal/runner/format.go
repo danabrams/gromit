@@ -67,6 +67,24 @@ func formatPipeline(ps *pipeline.PipelineStatus) string {
 	return strings.Join(lines, "\n")
 }
 
+// formatRunningLine formats a single-line summary of iteration and elapsed time.
+func formatRunningLine(s *Status) string {
+	iterStr := fmt.Sprintf("Run: iteration %d", s.Iteration)
+	if s.MaxIterations > 0 {
+		iterStr += fmt.Sprintf("/%d", s.MaxIterations)
+	}
+
+	elapsed := formatDuration(time.Duration(s.ElapsedS) * time.Second)
+	if s.TimeBudgetMinutes > 0 {
+		budget := formatDuration(time.Duration(s.TimeBudgetMinutes) * time.Minute)
+		iterStr += fmt.Sprintf(", %s of %s elapsed", elapsed, budget)
+	} else {
+		iterStr += fmt.Sprintf(", %s elapsed", elapsed)
+	}
+
+	return iterStr
+}
+
 // formatRun formats run status for display
 func formatRun(s *Status) string {
 	if s == nil || !s.Running {
