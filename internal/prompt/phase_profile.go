@@ -11,6 +11,7 @@ func ApplyPhaseProfile(ctx *Context, phase string) {
 	if phase != "decompose" {
 		if phase == "red" {
 			ctx.ClaudeMD = ""
+			ctx.ConfirmedLearnings = []learnings.Learning{}
 		}
 		return
 	}
