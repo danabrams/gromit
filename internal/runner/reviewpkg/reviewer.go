@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
@@ -244,7 +245,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 
 	// Create regular beads from review proposals
 	for _, bp := range result.BeadsToCreate {
-		labels := buildReviewBeadLabels(bp.Labels)
+		labels := pipeline.BuildFromReviewLabels(bp.Labels)
 		expectedOutputs := expectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title)
 		_, err := r.beads.CreateWithParentAndDescription(
 			bp.Title,
@@ -291,17 +292,6 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 	}
 
 	return beadsCreated, backlogCreated
-}
-
-// buildReviewBeadLabels constructs the label list for a bead created from a review proposal.
-func buildReviewBeadLabels(proposalLabels []string) []string {
-	labels := []string{"from-review"}
-	for _, l := range proposalLabels {
-		if l != "from-review" {
-			labels = append(labels, l)
-		}
-	}
-	return labels
 }
 
 // buildBacklogLabels constructs the label list for a backlog item created from a review.
