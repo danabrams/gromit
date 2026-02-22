@@ -176,6 +176,65 @@ func TestOrchestrator_UsesLabelFiltersInLoop(t *testing.T) {
 	}
 }
 
+// TestOrchestratorScopedRun_FullLoopWithLabelFilters tests that OrchestratorTestHelper
+// processes only beads matching the label filters and never calls Ready().
+func TestOrchestratorScopedRun_FullLoopWithLabelFilters(t *testing.T) {
+	allBeads := []*bead.Bead{
+		{ID: "auth-1", Title: "Auth task 1", Priority: 1, Labels: []string{"spec:auth"}, ExpectedOutputs: []string{}},
+		{ID: "auth-2", Title: "Auth task 2", Priority: 0, Labels: []string{"spec:auth"}, ExpectedOutputs: []string{}},
+		{ID: "pay-1", Title: "Payment task 1", Priority: 1, Labels: []string{"spec:payments"}, ExpectedOutputs: []string{}},
+		{ID: "other-1", Title: "Other task", Priority: 0, Labels: []string{"spec:other"}, ExpectedOutputs: []string{}},
+	}
+
+	var processedBeads []string
+	closedBeads := make(map[string]bool)
+	var readyWithLabelCalls []string
+	readyCalled := false
+
+	mockBeads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			readyCalled = true
+			t.Error("Ready() should never be called when label filters are set")
+			return nil, nil
+		},
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			readyWithLabelCalls = append(readyWithLabelCalls, label)
+			return selectNextBeadWithLabel(allBeads, closedBeads, label), nil
+		},
+		CloseFn: func(id string) error {
+			closedBeads[id] = true
+			processedBeads = append(processedBeads, id)
+			return nil
+		},
+	}
+
+	cfg := &config.Config{}
+	h := NewOrchestratorTestHelperWithDeps(t, cfg, io.Discard, mockBeads, newMockRouter())
+	h.SetLabelFilters([]string{"spec:auth", "spec:payments"})
+
+	ctx := context.Background()
+	err := h.Run(ctx, 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() failed: %v", err)
+	}
+
+	if readyCalled {
+		t.Error("Ready() was called during execution, but should never be called when label filters are active")
+	}
+
+	if len(processedBeads) != 3 {
+		t.Errorf("Expected 3 beads to be processed, got %d: %v", len(processedBeads), processedBeads)
+	}
+
+	if slices.Contains(processedBeads, "other-1") {
+		t.Error("Bead 'other-1' should not have been processed as it doesn't match label filters")
+	}
+
+	if len(readyWithLabelCalls) == 0 {
+		t.Error("Expected ReadyWithLabel to be called, but it wasn't")
+	}
+}
+
 // selectNextBeadWithLabel returns the highest-priority unclosed bead matching the given label.
 func selectNextBeadWithLabel(allBeads []*bead.Bead, closedBeads map[string]bool, label string) *bead.Bead {
 	var bestBead *bead.Bead
