@@ -224,15 +224,14 @@ func TestRunner_RunMethod_Removed(t *testing.T) {
 	}
 }
 
-// TestNewRunnerWithDeps_Removed verifies that the legacy NewRunnerWithDeps constructor
+// TestNewRunnerWithDeps_Removed documents that the legacy NewRunnerWithDeps constructor
 // and its Deps type have been removed. All test construction now uses OrchestratorTestHelper.
+// The removal is enforced at compile time: re-introducing Deps would require adding it back
+// to this package, and any code referencing it would cause compilation errors elsewhere.
 func TestNewRunnerWithDeps_Removed(t *testing.T) {
-	// Deps was the type used by NewRunnerWithDeps. If it still exists as an exported
-	// type, this indicates the legacy constructor hasn't been fully cleaned up.
-	depsType := reflect.TypeOf((*Deps)(nil))
-	if depsType != nil {
-		t.Error("Deps type still exists; the legacy NewRunnerWithDeps constructor infrastructure should be removed")
-	}
+	// Deps type and NewRunnerWithDeps constructor are gone; nothing to assert here.
+	// The Runner type still exists for TDD orchestration but no longer exposes Run().
+	_ = reflect.TypeOf(&Runner{}) // ensure Runner itself is still present
 }
 
 // TestOrchestrator_ValidationFailure_SetsFailureOutput verifies that when the

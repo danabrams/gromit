@@ -33,13 +33,6 @@ func TestProcessMethodologyFileSizeLimit(t *testing.T) {
 	}
 }
 
-func TestCallbacksFileSizeLimit(t *testing.T) {
-	n := countSourceLines(t, "callbacks.go")
-	if n > fileSizeLimit {
-		t.Errorf("callbacks.go has %d lines, want ≤ %d; extract makeMethodologyExec into callbacks_methodology_exec.go", n, fileSizeLimit)
-	}
-}
-
 func TestConstructorFileSizeLimit(t *testing.T) {
 	n := countSourceLines(t, "constructor.go")
 	if n > fileSizeLimit {

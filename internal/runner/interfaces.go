@@ -8,6 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
@@ -90,3 +91,15 @@ type WorktreeManager interface {
 	PendingBranches() ([]string, error)
 	Cleanup() error
 }
+
+// IterationResult captures the outcome of one loop iteration.
+// Type alias for backward compatibility — canonical definition is in runtypes.
+type IterationResult = runtypes.IterationResult
+
+// SubTask represents a single sub-task from task decomposition.
+// Type alias for backward compatibility — canonical definition is in runtypes.
+type SubTask = runtypes.SubTask
+
+// ArgvRunnerFn runs an executable with argv and returns output plus exit metadata.
+// Type alias for backward compatibility — canonical definition is in runtypes.
+type ArgvRunnerFn = runtypes.ArgvRunnerFn

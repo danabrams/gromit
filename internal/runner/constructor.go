@@ -21,7 +21,6 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline/validate"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
-	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/worktree"
 )
@@ -187,16 +186,6 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	return NewOrchestrator(orchCfg), nil
 }
 
-func buildInvoker(router *provider.Router, output *syncWriter, stallTimeoutFn execution.StallTimeoutFunc, cfg *config.Config) *execution.Invoker {
-	var execRouter execution.Router
-	if router != nil {
-		execRouter = &routerAdapter{r: router}
-	}
-	return execution.NewInvoker(execRouter, output, nil).
-		WithHeartbeat(output, stallTimeoutFn).
-		WithPreserveProviderTerminalStream(cfg.Stream.PreserveProviderOutputEnabled())
-}
-
 func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, output io.Writer) (*provider.Router, provider.Provider, *state.File, map[string]config.ProviderDef, error) {
 	if cfg.HasProviders() {
 		cfg.SetDefaults()
@@ -234,23 +223,6 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 	}
 	claudeProvider := provider.NewClaudeProvider(claudeClient, defaultTierToModelMap)
 	return provider.NewSingleProviderRouter(claudeProvider), claudeProvider, nil, nil, nil
-}
-
-func initializeSpecOrchestration(cfg *config.Config, r *Runner) error {
-	if cfg == nil || r == nil {
-		return nil
-	}
-	if cfg.Methodology.Granularity != config.MethodologyGranularitySpec {
-		return nil
-	}
-
-	r.specOrchestrator = newSpecOrchestrator(r)
-	gate, err := newSpecGate(r)
-	if err != nil {
-		return err
-	}
-	r.specGate = gate
-	return nil
 }
 
 func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider, map[string]config.ProviderDef, error) {

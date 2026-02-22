@@ -90,18 +90,3 @@ func failureEvidence(failure GateFailure) string {
 	}
 	return fmt.Sprintf("%s\nSuggested fix: %s", message, suggestedFix)
 }
-
-func convertFailedCriteria(failures []specgate.CriterionResult) []GateFailure {
-	if len(failures) == 0 {
-		return []GateFailure{}
-	}
-
-	converted := make([]GateFailure, 0, len(failures))
-	for _, failure := range failures {
-		converted = append(converted, GateFailure{
-			TestName: failure.Criterion,
-			Message:  failure.Evidence,
-		})
-	}
-	return converted
-}
