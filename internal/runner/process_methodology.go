@@ -80,6 +80,19 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 	}
 	layer1Active := len(bc.Bead.ExpectedOutputs) > 0
 	effectiveOutputs := tddExpectedOutputsOrTitle(bc.Bead)
+	if len(effectiveOutputs) <= 1 && r.router != nil {
+		invoke := func(innerCtx context.Context, prompt, tier string) (*provider.Result, error) {
+			p, _ := r.router.Select("build", tier)
+			if p == nil {
+				return nil, fmt.Errorf("no provider available for tier %s", tier)
+			}
+			return p.Run(innerCtx, prompt, tier)
+		}
+		if updated, activated := applyLayer3Requirements(ctx, effectiveOutputs, bc.Bead.Title, bc.Bead.Description, invoke); activated {
+			r.log("TDD fresh-context: bead %s using layer3 (LLM extraction, %d outputs)", bc.Bead.ID, len(updated))
+			effectiveOutputs = updated
+		}
+	}
 	if len(effectiveOutputs) == 0 {
 		bc.Result.Error = fmt.Errorf("TDD fresh-context requires ExpectedOutputs or a non-empty bead title (bead=%s)", bc.Bead.ID)
 		return true
@@ -326,17 +339,6 @@ func extractRequirementsViaLLM(ctx context.Context, title, description string, i
 		return nil
 	}
 	return items
-}
-
-func applyLayer3Requirements(ctx context.Context, outputs []string, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) ([]string, bool) {
-	if len(outputs) > 1 {
-		return outputs, false
-	}
-	llmOutputs := extractRequirementsViaLLM(ctx, title, description, invoke)
-	if llmOutputs != nil {
-		return llmOutputs, true
-	}
-	return outputs, false
 }
 
 func tddExpectedOutputsOrTitle(b *bead.Bead) []string {
