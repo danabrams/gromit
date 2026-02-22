@@ -3,8 +3,10 @@ package runner
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
 )
 
 // PrintStatus reads status.json and writes a formatted status display to w.
@@ -33,6 +35,19 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 
 	if _, err := fmt.Fprintln(w, formatRun(status)); err != nil {
 		return fmt.Errorf("writing status: %w", err)
+	}
+
+	// Pipeline section
+	var startedAt *time.Time
+	if !status.StartedAt.IsZero() {
+		startedAt = &status.StartedAt
+	}
+	ps, err := pipeline.ReadStatus(gromitDir, cfg.Paths.Specs, cfg.Paths.Plans, startedAt)
+	if err != nil {
+		return fmt.Errorf("reading pipeline status: %w", err)
+	}
+	if _, err := fmt.Fprintln(w, formatPipeline(ps)); err != nil {
+		return fmt.Errorf("writing pipeline status: %w", err)
 	}
 	return nil
 }
