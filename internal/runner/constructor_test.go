@@ -2,11 +2,13 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
@@ -171,5 +173,54 @@ func TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle(t *
 	if !strings.Contains(err.Error(), "TDD cycle runner") {
 		t.Errorf("Build.Run() error = %q; want error containing %q (proves TDDCycleRunner was wired)",
 			err.Error(), "TDD cycle runner")
+	}
+}
+
+// TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline verifies that the
+// StatusWriter closure created by newRunnerImpl computes timeBudgetMinutes from the
+// deadline parameter instead of hardcoding 0. When the deadline is 30 minutes away,
+// the status.json should contain time_budget_minutes ≈ 30, not 0.
+func TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
+	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl: %v", err)
+	}
+
+	// Call the StatusWriter callback with a deadline 30 minutes from now.
+	deadline := time.Now().Add(30 * time.Minute)
+	orch.cfg.StatusWriter(1, "bead-1", "Test bead", deadline)
+
+	// Read the status.json that was written.
+	statusPath := filepath.Join(gromitDir, "status.json")
+	data, err := os.ReadFile(statusPath)
+	if err != nil {
+		t.Fatalf("reading status.json: %v", err)
+	}
+
+	var status Status
+	if err := json.Unmarshal(data, &status); err != nil {
+		t.Fatalf("unmarshaling status.json: %v", err)
+	}
+
+	// The constructor currently hardcodes 0. After the fix, it should compute
+	// timeBudgetMinutes from the deadline (~30 minutes from now).
+	if status.TimeBudgetMinutes == 0 {
+		t.Errorf("status.TimeBudgetMinutes = 0; want non-zero value computed from deadline (%v from now)",
+			time.Until(deadline).Round(time.Minute))
+	}
+	if status.TimeBudgetMinutes < 29 || status.TimeBudgetMinutes > 31 {
+		t.Errorf("status.TimeBudgetMinutes = %d; want approximately 30 (computed from deadline)",
+			status.TimeBudgetMinutes)
 	}
 }
