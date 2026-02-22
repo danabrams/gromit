@@ -257,12 +257,12 @@ type failureLearnerAdapter struct {
 	logFn    func(string, ...interface{})
 }
 
-func (a *failureLearnerAdapter) ExtractFailureLearning(ctx context.Context, beadID, beadTitle string) error {
+func (a *failureLearnerAdapter) ExtractFailureLearning(ctx context.Context, beadID, beadTitle, failureOutput string) error {
 	if a.analyzer == nil {
 		return nil
 	}
 	b := &bead.Bead{ID: beadID, Title: beadTitle}
-	analysis, err := a.analyzer.Analyze(ctx, b, "")
+	analysis, err := a.analyzer.Analyze(ctx, b, failureOutput)
 	if err != nil {
 		if a.logFn != nil {
 			a.logFn("Warning: failure analysis error: %v", err)

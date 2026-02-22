@@ -54,6 +54,10 @@ type Input struct {
 	// When Result.UsageLimited is true, the JSONL entry includes usage_limited:true.
 	// Nil when no log entry should be written (e.g. bead was skipped).
 	Result *logger.IterationLog
+	// FailureOutput is the raw failure text from the current iteration's validation,
+	// set by the orchestrator before calling Epilogue on the failure path.
+	// Used by FailureLearner to call the analyzer with meaningful failure context.
+	FailureOutput string
 }
 
 // Output is the result returned by every stage after its execution.

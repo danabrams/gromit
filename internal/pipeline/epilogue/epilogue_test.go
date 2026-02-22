@@ -366,16 +366,18 @@ func TestEpilogue_CommandFailureIsWarning(t *testing.T) {
 
 // fakeFailureLearner is a test double for epilogue.FailureLearner.
 type fakeFailureLearner struct {
-	called bool
-	beadID string
-	callFn func(ctx context.Context, beadID, beadTitle string) error
+	called        bool
+	beadID        string
+	failureOutput string
+	callFn        func(ctx context.Context, beadID, beadTitle, failureOutput string) error
 }
 
-func (f *fakeFailureLearner) ExtractFailureLearning(ctx context.Context, beadID, beadTitle string) error {
+func (f *fakeFailureLearner) ExtractFailureLearning(ctx context.Context, beadID, beadTitle, failureOutput string) error {
 	f.called = true
 	f.beadID = beadID
+	f.failureOutput = failureOutput
 	if f.callFn != nil {
-		return f.callFn(ctx, beadID, beadTitle)
+		return f.callFn(ctx, beadID, beadTitle, failureOutput)
 	}
 	return nil
 }
@@ -439,6 +441,29 @@ func TestEpilogue_FailureLearner_CalledRegardlessOfTierOrPackageNovelty(t *testi
 
 	if !learner.called {
 		t.Error("FailureLearner.ExtractFailureLearning() was not called; want failure-path learning regardless of tier/novelty")
+	}
+}
+
+// TestEpilogue_FailurePath_PassesFailureOutputToLearner verifies that the raw
+// FailureOutput from Input reaches the failure learner's failureOutput parameter.
+func TestEpilogue_FailurePath_PassesFailureOutputToLearner(t *testing.T) {
+	learner := &fakeFailureLearner{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithFailureLearner(learner)
+
+	in := makeInput("bead-1", "Implement feature", false)
+	in.FailureOutput = "--- FAIL: TestFoo\n    expected 1 got 2"
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !learner.called {
+		t.Fatal("FailureLearner was not called on failure path")
+	}
+	if learner.failureOutput != "--- FAIL: TestFoo\n    expected 1 got 2" {
+		t.Errorf("FailureLearner received failureOutput %q, want %q", learner.failureOutput, "--- FAIL: TestFoo\n    expected 1 got 2")
 	}
 }
 

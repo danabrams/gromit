@@ -51,8 +51,9 @@ type EpicChecker interface {
 
 // FailureLearner extracts learnings from failed iterations.
 // It is called unconditionally on every failure, regardless of tier or package novelty.
+// failureOutput is the raw validation failure text for the current iteration.
 type FailureLearner interface {
-	ExtractFailureLearning(ctx context.Context, beadID, beadTitle string) error
+	ExtractFailureLearning(ctx context.Context, beadID, beadTitle, failureOutput string) error
 }
 
 // IterationLogWriter writes a pre-built iteration log entry to persistent storage.
@@ -155,7 +156,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	// 1a. Failure-path learning: extract unconditionally on every failure,
 	// regardless of tier or package novelty.
 	if !in.BuildSucceeded && e.failureLearner != nil {
-		if err := e.failureLearner.ExtractFailureLearning(ctx, in.Bead.ID, in.Bead.Title); err != nil {
+		if err := e.failureLearner.ExtractFailureLearning(ctx, in.Bead.ID, in.Bead.Title, ""); err != nil {
 			fmt.Fprintf(w, "Warning: failed to extract failure learning: %v\n", err)
 		}
 	}
