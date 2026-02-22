@@ -24,7 +24,9 @@ const (
 )
 
 // TDDCycleResult holds the aggregated output from a TDDCycleRunner.
-type TDDCycleResult struct{}
+type TDDCycleResult struct {
+	PhaseMetrics []pipeline.PhaseMetrics
+}
 
 // TDDCycleRunner runs multiple TDD cycles (red-green-refactor) for a bead,
 // making a fresh LLM invocation for each phase.
