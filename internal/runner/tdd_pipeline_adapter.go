@@ -16,10 +16,18 @@ type TDDPipelineAdapter struct {
 	runner *Runner
 }
 
-// RunCycles implements execute.TDDCycleRunner. It constructs a BeadContext from
-// b and cfg, delegates to the runner's tddOrchestrator, aggregates per-phase
-// metrics, and returns them as pipeline.PhaseMetrics.
+// RunCycles implements execute.TDDCycleRunner. It applies Layer 1/3 expected
+// outputs logic, builds a coverage tracker, delegates to the runner's
+// tddOrchestrator, aggregates per-phase metrics, and returns them as
+// pipeline.PhaseMetrics.
 func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *config.Config) (execute.TDDCycleResult, error) {
+	// Apply Layer 1/3 expected outputs logic: when the bead has no
+	// ExpectedOutputs, derive them from description parsing or title fallback.
+	if len(b.ExpectedOutputs) == 0 {
+		effectiveOutputs := tddExpectedOutputsOrTitle(b)
+		b.ExpectedOutputs = append([]string(nil), effectiveOutputs...)
+	}
+
 	bc := &runtypes.BeadContext{
 		Bead:   b,
 		Result: &runtypes.IterationResult{},
