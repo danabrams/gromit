@@ -298,6 +298,9 @@ func tddExpectedOutputsOrTitle(b *bead.Bead) []string {
 	if len(b.ExpectedOutputs) > 0 {
 		return append([]string(nil), b.ExpectedOutputs...)
 	}
+	if parsed := extractRequirementsFromDescription(b.Description); len(parsed) > 0 {
+		return parsed
+	}
 	trimmedTitle := strings.TrimSpace(b.Title)
 	if trimmedTitle == "" {
 		return []string{}
