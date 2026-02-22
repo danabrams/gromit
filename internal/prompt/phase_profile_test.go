@@ -88,3 +88,51 @@ func TestApplyReviewPhaseProfile_ReviewPrunesProjectContext(t *testing.T) {
 		t.Fatalf("ValidationCommands should be pruned for review")
 	}
 }
+
+func TestApplyPhaseProfile_RedPrunesToCriterionFocusedContext(t *testing.T) {
+	ctx := &Context{
+		Spec:                     "spec",
+		Rules:                    "rules",
+		TargetCriterion:          "criterion",
+		CoverageState:            "coverage",
+		ClaudeMD:                 "claude",
+		ConfirmedLearnings:       []learnings.Learning{{Category: "c", Content: "confirmed"}},
+		RecentLearnings:          []learnings.Learning{{Category: "c", Content: "recent"}},
+		RecentValidationFailures: []string{"failure"},
+		PrevFailure:              "prev",
+		SiblingTouchedPackages:   []string{"internal/prompt"},
+	}
+
+	ApplyPhaseProfile(ctx, "red")
+
+	if ctx.Spec == "" {
+		t.Fatalf("Spec should be preserved for red")
+	}
+	if ctx.Rules == "" {
+		t.Fatalf("Rules should be preserved for red")
+	}
+	if ctx.TargetCriterion == "" {
+		t.Fatalf("TargetCriterion should be preserved for red")
+	}
+	if ctx.CoverageState == "" {
+		t.Fatalf("CoverageState should be preserved for red")
+	}
+	if ctx.ClaudeMD != "" {
+		t.Fatalf("ClaudeMD should be pruned for red")
+	}
+	if len(ctx.ConfirmedLearnings) != 0 {
+		t.Fatalf("ConfirmedLearnings should be pruned for red")
+	}
+	if len(ctx.RecentLearnings) != 0 {
+		t.Fatalf("RecentLearnings should be pruned for red")
+	}
+	if len(ctx.RecentValidationFailures) != 0 {
+		t.Fatalf("RecentValidationFailures should be pruned for red")
+	}
+	if ctx.PrevFailure != "" {
+		t.Fatalf("PrevFailure should be pruned for red")
+	}
+	if len(ctx.SiblingTouchedPackages) != 0 {
+		t.Fatalf("SiblingTouchedPackages should be pruned for red")
+	}
+}
