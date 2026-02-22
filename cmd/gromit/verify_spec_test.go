@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/specgate"
 )
 
@@ -301,6 +302,25 @@ func TestBuildVerifySpecRouter_UsesProviderBuildRouterFromConfig(t *testing.T) {
 
 	if !strings.Contains(buildRouterFn, "provider.BuildRouterFromConfig(cfg)") {
 		t.Error("buildVerifySpecRouter missing provider.BuildRouterFromConfig(cfg) call")
+	}
+}
+
+func TestBuildVerifySpecRouter_UsesInjectedProviderBuilder(t *testing.T) {
+	called := false
+	prevBuilder := verifySpecBuildRouterFromConfig
+	verifySpecBuildRouterFromConfig = func(cfg *config.Config) (*provider.Router, error) {
+		called = true
+		return nil, nil
+	}
+	t.Cleanup(func() {
+		verifySpecBuildRouterFromConfig = prevBuilder
+	})
+
+	if _, err := buildVerifySpecRouter(&config.Config{}); err != nil {
+		t.Fatalf("buildVerifySpecRouter returned error: %v", err)
+	}
+	if !called {
+		t.Fatal("expected verifySpecBuildRouterFromConfig to be called")
 	}
 }
 
