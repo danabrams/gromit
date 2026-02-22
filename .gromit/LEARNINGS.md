@@ -35,25 +35,20 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-21 | Validation Auto-Fix Pattern with Soft Failures | patterns
-*Related to: 9980dae8*
+### 2026-02-21 | Pipeline Stage Dependency Injection and Soft Failure Patterns | patterns
+*Related to: 9980dae8, gromit-22nrv*
 
-The Validate stage uses a soft-failure pattern where unresolved validation failures don't block the pipeline—instead, ValidationFailures are populated and fed into the next Build stage input. This enables iterative improvement: auto-fix attempts gofmt/goimports on changed files, re-validates, and returns Proceed regardless of outcome. Periodic full validation is gated via modulo arithmetic (`iteration % FullValidationEveryN == 0`) to balance speed on fast iterations with thorough checks at configured boundaries. Mandatory command prefix policy enforcement happens upfront via checkMandatoryPrefixes() before running any commands, preventing silent misconfiguration. The stage uses local dependency interfaces (CommandRunner, AutoFixer) injected via builder pattern methods (WithAutoFixer, WithWorkDir), allowing optional composition and graceful degradation when auto-fix is nil. Compile-time check (`var _ pipeline.Stage = (*Validate)(nil)`) enforces the architectural contract. Table-driven tests cover auto-fix success, auto-fix+still-failing, periodic gate boundary transitions, mandatory prefix violations, validation disabled, and nil auto-fixer scenarios.
-
-### 2026-02-21 | Pipeline Stage Patterns: Dependency Injection with Optional Interfaces | patterns
-*Related to: gromit-22nrv*
-
-Pipeline stages use local dependency interfaces (Prechecker, StuckDetector) injected via builder pattern methods (WithPrechecker, WithStuckDetector), allowing optional composition. Nil checks in Run() enable graceful degradation when a dependency isn't configured. Errors from dependencies are logged as warnings but don't block execution—this prevents checker failures from breaking the pipeline. Decision ordering matters: precheck (Skip) runs before stuck detection (Block) to ensure already-completed work is closed promptly, even if the bead has exceeded the failure threshold. Table-driven tests comprehensively cover all paths (Proceed, Skip, Block), nil components, optional configurations, and error handling. Compile-time interface checks (`var _ pipeline.Stage = (*Gate)(nil)`) verify architectural invariants.
+Pipeline stages use local dependency interfaces injected via builder pattern methods (WithAutoFixer, WithPrechecker, WithStuckDetector), allowing optional composition. Nil checks in Run() enable graceful degradation when a dependency isn't configured—errors from optional dependencies are logged as warnings, not pipeline blockers. Compile-time checks (`var _ pipeline.Stage = (*Impl)(nil)`) enforce architectural contracts. The Validate stage uses a soft-failure pattern: unresolved validation failures populate ValidationFailures for the next Build input rather than blocking the pipeline. Auto-fix (gofmt/goimports) runs first, re-validates, and returns Proceed regardless. Periodic full validation is gated via modulo arithmetic. Mandatory command prefix enforcement happens upfront via checkMandatoryPrefixes(). Decision ordering matters in Gate: precheck (Skip) runs before stuck detection (Block) to ensure already-completed work is closed promptly.
 
 ### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
 *Related to: code-review*
 
 Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
 
-### 2026-02-21 | Architectural Invariant Enforcement Pattern | conventions
+### 2026-02-21 | Compile-Time Invariant Enforcement vs Dead Code Patterns | conventions
 *Related to: f668688fead2f958, 5912b9aee59cce5e, code-review*
 
-Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently when functions are renamed or files move, skip when the working directory is wrong, and only gate test compilation rather than production builds. Replace source-reading tests with compile-time var checks or behavioral integration tests that exercise the actual behavior being guarded.
+Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
 
 ### 2026-02-21 | Multi-Stage Pipeline Orchestrator Pattern | patterns
 *Related to: 8d85f5d7*
@@ -65,27 +60,13 @@ Replace God Object pattern with pure orchestration: hold only stage references a
 
 *Newly observed — needs validation across more tasks.*
 
-### 2026-02-22 | Pipeline-to-Orchestrator Adapter Proliferation and Dual-Level Architecture | patterns
+### 2026-02-22 | Orchestrator Migration Adapter Patterns | patterns
+*Related to: code-review, review-1771733992016921570*
+
+The Orchestrator migration introduces adapter proliferation (12+ types in constructor.go) bridging stage interfaces to infrastructure — future stage interfaces should minimize this surface. Key patterns: (1) Consolidation — one exported function in the parent package (e.g., BuildFromReviewLabels), child packages import it; remove deprecated wrappers once callers migrate. (2) File extraction — enforced by file_size_test.go with a 550-line limit. (3) Dual-path risk — Orchestrator and legacy Runner have separate code for the same operations (cost tracking, state saving); features wired in one path may be silently missing in the other. (4) Asymmetric state — validationFailures clear on success while touchedPackages accumulate across the run (intentional but non-obvious). (5) Copy-paste bugs — adapters with similar methods (RenderBuild/RenderRefactor) need independent delegation target verification. (6) FnField mocks — nil-safe with explicit nil check, injected via deps struct. Always sort map keys in logging functions for deterministic output.
+
+### 2026-02-22 | Architectural Migration Safety Checklist | conventions
 *Related to: code-review*
 
-The migration from a monolithic Pipeline struct to a stage-based Orchestrator introduces structural friction that manifests in three ways: (1) Adapter proliferation — 12+ adapter types in constructor.go (invokerAdapter, renderAdapter, cmdRunnerAdapter, etc.) bridge pipeline stage interfaces to existing infrastructure interfaces, signaling that stage interfaces have diverged from the pre-existing contracts. Future stage interfaces should be designed to minimize adapter surface area. (2) Asymmetric inter-stage state — the Orchestrator correctly clears validationFailures on success but accumulates touchedPackages indefinitely across the run. This is intentional (packages stay touched for the full run) but the asymmetry is non-obvious; document it to prevent accidental "fix" attempts that reset touchedPackages. (3) Semantic duplicate helpers — pipeline review stage's buildFromReviewLabels and the parent pipeline's buildReviewBeadLabels perform overlapping label construction, arising from the dual-level architecture (stage sub-packages vs workflow methods on Pipeline struct). This dual-purpose design is reasonable during migration but needs inline documentation to prevent confusion about which function to call.
-
-### 2026-02-22 | Dead Code via Forced Import Keep-Alive Patterns | gotchas
-*Related to: code-review*
-
-The `var _ = Type{}` pattern in files like callbacks_validation.go is used as a forced-import keep-alive — it exists solely to prevent the Go compiler from removing an otherwise-unused import. This pattern indicates incomplete refactoring: the real usage was deleted but the artificial reference was left behind. When removing usage of a package, search for these keep-alive patterns (`var _ =`, `var _ Type`) in the same file and in files that previously consumed the package. Unlike compile-time interface checks (`var _ Interface = (*Impl)(nil)`), which enforce architectural invariants and should be preserved, bare forced-import patterns are dead code and should be removed.
-
-### 2026-02-22 | ORCHESTRATOR_DUAL_PATH_AND_CONSOLIDATION_PATTERNS | ARCHITECTURE
-*Related to: review-1771733992016921570*
-
-The BuildFromReviewLabels consolidation across pipeline, pipeline/review, and runner/reviewpkg is a clean pattern — one exported function in the parent package, callers in child packages import it. Deprecated wrappers should be removed once all callers migrate. File extraction pattern (callbacks.go → callbacks_methodology_exec.go, constructor.go → constructor_adapters.go, process_methodology.go → process_methodology_atdd.go) is enforced by file_size_test.go with a 550-line limit; size enforcement tests are a good guardrail against file bloat. The Orchestrator path and legacy Runner path have separate code for the same operations (cost tracking, state saving, failure learning) — features wired in one path may be silently missing in the other (e.g., Build stage Output fields not populated). TDD LogPhaseFn follows the FnField mock pattern correctly — nil-safe with explicit nil check before call, injected via deps struct. Non-deterministic map iteration in logging functions is easy to miss in Go; always sort keys when producing human-readable or machine-parseable output from maps.
-
-### 2026-02-22 | PUBLIC_API_REMOVAL_REQUIRES_SYSTEMATIC_MIGRATION | conventions
-When removing public APIs from core packages like runner/, must systematically find all call sites, complete migrations before deletion, and verify test coverage for new API patterns—interdependencies between orchestration components require careful refactoring order.
-
-### 2026-02-22 | BUILD_TAG_GATED_TESTS_INVISIBLE_DURING_MIGRATION | conventions
-When deleting large files during architectural migration, verify all exported symbols are either migrated or no longer referenced. Acceptance tests gated behind `//go:build` tags are invisible to normal `go test ./...` runs — always run `go test -tags acceptance -run '^$'` to verify compilation during migrations. The PrintStatus function was lost because lifecycle.go was deleted without checking acceptance test references gated behind build tags.
-
-### 2026-02-22 | ADAPTER_COPY_PASTE_BUGS | conventions
-The adapter pattern (renderAdapter, cmdRunnerAdapter, TDDPipelineAdapter) is effective for bridging runner internals to pipeline stage interfaces, but copy-paste between adapter methods introduces subtle bugs — RenderRefactorBuild was delegating to RenderBuild instead of RenderRefactor. When writing adapters with similar methods, verify each delegation target independently.
+When removing public APIs or deleting large files during migration: (1) Systematically find all call sites and complete migrations before deletion — interdependencies between orchestration components require careful refactoring order. (2) Verify all exported symbols are either migrated or unreferenced. (3) Run `go test -tags acceptance -run '^$'` to verify compilation of build-tag-gated tests — these are invisible to normal `go test ./...` and symbols can be silently lost (e.g., PrintStatus was lost when lifecycle.go was deleted). (4) Search for forced-import keep-alive patterns (`var _ = Type{}`) left behind by incomplete refactoring and remove them.
 

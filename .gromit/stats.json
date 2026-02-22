@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "updated": "2026-02-22T08:20:11Z",
+  "updated": "2026-02-22T12:32:21Z",
   "models": {
     "": {
-      "iterations": 27,
-      "successes": 26,
-      "failures": 1,
+      "iterations": 31,
+      "successes": 28,
+      "failures": 3,
       "total_cost_usd": 0,
       "escalations_from": 0,
       "escalations_to": 0
