@@ -67,72 +67,53 @@ func formatPipeline(ps *pipeline.PipelineStatus) string {
 	return strings.Join(lines, "\n")
 }
 
-// formatRunningLine formats a single-line summary of iteration and elapsed time.
-func formatRunningLine(s *Status) string {
-	iterStr := fmt.Sprintf("Run: iteration %d", s.Iteration)
+// formatIterationPrefix returns "Run: iteration N" or "Run: iteration N/M".
+func formatIterationPrefix(s *Status) string {
+	prefix := fmt.Sprintf("Run: iteration %d", s.Iteration)
 	if s.MaxIterations > 0 {
-		iterStr += fmt.Sprintf("/%d", s.MaxIterations)
+		prefix += fmt.Sprintf("/%d", s.MaxIterations)
 	}
+	return prefix
+}
 
+// formatElapsedSuffix returns an elapsed-time string like "2m elapsed" or "5m of 30m elapsed".
+func formatElapsedSuffix(s *Status) string {
 	elapsed := formatDuration(time.Duration(s.ElapsedS) * time.Second)
 	if s.TimeBudgetMinutes > 0 {
 		budget := formatDuration(time.Duration(s.TimeBudgetMinutes) * time.Minute)
-		iterStr += fmt.Sprintf(", %s of %s elapsed", elapsed, budget)
-	} else {
-		iterStr += fmt.Sprintf(", %s elapsed", elapsed)
+		return fmt.Sprintf("%s of %s elapsed", elapsed, budget)
 	}
+	return fmt.Sprintf("%s elapsed", elapsed)
+}
 
-	return iterStr
+// formatRunningLine formats a single-line summary of iteration and elapsed time.
+func formatRunningLine(s *Status) string {
+	return formatIterationPrefix(s) + ", " + formatElapsedSuffix(s)
 }
 
 // formatRun formats run status for display
 func formatRun(s *Status) string {
-	if s == nil || !s.Running {
-		return formatRunStopped(s)
-	}
-
-	var lines []string
-
-	// Iteration line
-	iterStr := fmt.Sprintf("Run: iteration %d", s.Iteration)
-	if s.MaxIterations > 0 {
-		iterStr += fmt.Sprintf("/%d", s.MaxIterations)
-	}
-	lines = append(lines, iterStr)
-
-	// Elapsed line
-	elapsed := formatDuration(time.Duration(s.ElapsedS) * time.Second)
-	if s.TimeBudgetMinutes > 0 {
-		budget := formatDuration(time.Duration(s.TimeBudgetMinutes) * time.Minute)
-		lines = append(lines, fmt.Sprintf("  %s of %s elapsed", elapsed, budget))
-	} else {
-		lines = append(lines, fmt.Sprintf("  %s elapsed", elapsed))
-	}
-
-	// Bead info
-	if s.BeadID != "" {
-		lines = append(lines, fmt.Sprintf("  Bead:     %s — %s", s.BeadID, s.BeadTitle))
-	}
-
-	// Model
-	if s.Model != "" {
-		lines = append(lines, fmt.Sprintf("  Model:    %s", s.Model))
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-// formatRunStopped formats display when not running
-func formatRunStopped(s *Status) string {
 	if s == nil {
 		return "Run: not running"
 	}
+	if !s.Running {
+		var lines []string
+		lines = append(lines, "Run: not running")
+		if s.Iteration > 0 {
+			lines = append(lines, fmt.Sprintf("  Last run: %d iterations completed", s.Iteration))
+		}
+		return strings.Join(lines, "\n")
+	}
 
 	var lines []string
-	lines = append(lines, "Run: not running")
+	lines = append(lines, formatIterationPrefix(s))
+	lines = append(lines, fmt.Sprintf("  %s", formatElapsedSuffix(s)))
 
-	if s.Iteration > 0 {
-		lines = append(lines, fmt.Sprintf("  Last run: %d iterations completed", s.Iteration))
+	if s.BeadID != "" {
+		lines = append(lines, fmt.Sprintf("  Bead:     %s — %s", s.BeadID, s.BeadTitle))
+	}
+	if s.Model != "" {
+		lines = append(lines, fmt.Sprintf("  Model:    %s", s.Model))
 	}
 
 	return strings.Join(lines, "\n")
