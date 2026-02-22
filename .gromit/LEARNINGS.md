@@ -100,3 +100,18 @@ Requirement extraction uses a 3-layer fallback: Layer 1 (ExpectedOutputs field f
 *Related to: review-1771784092725425988*
 
 Including expected_outputs in the decompose prompt template is high-leverage: decomposition quality determines downstream TDD cycle granularity (one red-green cycle per expected output). When the LLM doesn't produce expected_outputs, the system falls back to acceptance_criteria parsing, which may be coarser-grained. Explicitly instructing "list each individual deliverable as a separate entry — these drive TDD RED-GREEN cycles" produces fine-grained outputs that match the system's mechanical needs.
+
+### 2026-02-22 | SCOPE_GATE_ERROR_PROPAGATION_CHANGE | ARCHITECTURE
+*Related to: review-1771788120407657627*
+
+runScopeGate in gate.go now propagates decomposition failures as errors instead of falling through to Block decision. This is a deliberate semantic shift — transient decomposition failures (network, bd CLI) will error the gate rather than blocking the bead for retry. Callers should handle gate errors accordingly.
+
+### 2026-02-22 | DECOMPOSER_ADAPTER_MINIMAL_DECOMPOSITION | ARCHITECTURE
+*Related to: review-1771788120407657627*
+
+The decomposerAdapter implementation creates a single child bead with title "(decomposed)" suffix and closes the parent. This is a minimal decomposition — it doesn't split work into multiple sub-beads based on expected outputs. Real decomposition intelligence comes from the pipeline.Decompose() path (provider-parity-decompose-retro spec).
+
+### 2026-02-22 | TEST_HELPER_DUPLICATION_IN_GATE_TESTS | TEST_QUALITY
+*Related to: review-1771788120407657627*
+
+gate_test.go accumulated 6+ near-identical mock decomposer/bead-client types across iterative TDD work. When adding test doubles incrementally, check if existing mocks can be parameterized rather than creating new types. Per project rule: "2+ tests sharing 10+ lines of setup: extract a setup helper."
