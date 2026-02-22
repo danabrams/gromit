@@ -544,7 +544,7 @@ func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.ReviewInvoker
 
 	timeout := time.Duration(cfg.Claude.PipelineTimeout) * time.Second
 	if cfg.HasProviders() {
-		router, err := buildReviewRouter(cfg)
+		router, err := provider.BuildRouterFromConfig(cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -564,24 +564,6 @@ func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.ReviewInvoker
 		Client:  claudeClient,
 		Timeout: timeout,
 	}, nil
-}
-
-func buildReviewRouter(cfg *config.Config) (*provider.Router, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config is nil")
-	}
-	providers, err := buildVerifySpecProviders(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return provider.NewRouter(
-		providers,
-		cfg.Routing.PhasePreferences,
-		cfg.Routing.Ratio,
-		parseVerifySpecFallbackCooldown(cfg),
-		nil,
-		nil,
-	), nil
 }
 
 func getGitHeadForReview() (string, error) {
