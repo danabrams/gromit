@@ -55,15 +55,13 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 	var iterationsSinceReview int
 	var lastRetro time.Time
 
-	sf, err := state.NewFile(gromitDir)
-	if err == nil {
+	if sf, err := state.NewFile(gromitDir); err == nil {
 		if err := sf.Load(); err == nil {
 			iterationsSinceReview = sf.IterationsSinceReview()
 		}
 	}
 
-	isf, err := state.NewInteractiveFile(gromitDir)
-	if err == nil {
+	if isf, err := state.NewInteractiveFile(gromitDir); err == nil {
 		if err := isf.Load(); err == nil {
 			lastRetro = isf.LastRetro()
 		}
