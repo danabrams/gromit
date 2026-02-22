@@ -38,3 +38,33 @@ func TestParseFallbackCooldown_UsesConfiguredDuration(t *testing.T) {
 		t.Fatalf("ParseFallbackCooldown() = %v, want %v", got, 45*time.Minute)
 	}
 }
+
+func TestBuildProvidersFromConfig_CodexDefaults(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"codex": {
+				Binary: "codex",
+			},
+		},
+	}
+
+	providers, err := provider.BuildProvidersFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildProvidersFromConfig() error = %v", err)
+	}
+
+	codexProvider, ok := providers["codex"]
+	if !ok {
+		t.Fatalf("providers missing %q entry", "codex")
+	}
+
+	if got := codexProvider.ModelForTier(provider.TierHigh); got != "gpt-5.3-codex" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierHigh, got, "gpt-5.3-codex")
+	}
+	if got := codexProvider.ModelForTier(provider.TierMedium); got != "gpt-5.3-codex" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierMedium, got, "gpt-5.3-codex")
+	}
+	if got := codexProvider.ModelForTier(provider.TierLow); got != "gpt-5-mini" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierLow, got, "gpt-5-mini")
+	}
+}
