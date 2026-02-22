@@ -179,16 +179,41 @@ func readFiles(readFile ReadFileFn, paths []string) (map[string]string, error) {
 func extractAPISurface(implFiles map[string]string) string {
 	var lines []string
 	for _, content := range implFiles {
+		inInterface := false
 		for _, line := range strings.Split(content, "\n") {
+			trimmed := strings.TrimSpace(line)
+
+			// Track if we're inside an interface block
+			if strings.Contains(line, "interface {") {
+				inInterface = true
+			}
+			if inInterface && trimmed == "}" {
+				inInterface = false
+			}
+
+			// Capture top-level declarations
 			if strings.HasPrefix(line, "func ") || strings.HasPrefix(line, "type ") {
 				if idx := strings.Index(line, "{"); idx >= 0 {
 					line = strings.TrimSpace(line[:idx])
 				}
 				lines = append(lines, line)
+			} else if inInterface && isMethodSignature(trimmed) {
+				// Capture interface method signatures
+				lines = append(lines, trimmed)
 			}
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func isMethodSignature(line string) bool {
+	// Skip empty lines and comments
+	if line == "" || strings.HasPrefix(line, "//") {
+		return false
+	}
+	// Method signatures have the pattern: name(params)returntype
+	// Must contain parentheses
+	return strings.Contains(line, "(") && strings.Contains(line, ")")
 }
 
 func readAndJoinFiles(readFile ReadFileFn, paths []string) (string, error) {
