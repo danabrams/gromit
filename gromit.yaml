@@ -55,14 +55,14 @@ routing:
   phase_preferences:
     build: any
     validate: any
-    review: cross        # use opposite provider from build
+    review: any          # keep review on the selected provider
     analyze: any
     scope_check: any
     precheck: any
     decompose: any
   ratio:
-    claude: 100
-    openai: 0
+    claude: 0
+    openai: 100
   fallback:
     enabled: true
     cooldown: 30m
@@ -195,11 +195,11 @@ claude:
 agents:
   prompt: false
   phases:
-    refine: claude
-    plan: claude
-    review: claude
-    explore: claude
-    debug: claude
+    refine: openai
+    plan: openai
+    review: openai
+    explore: openai
+    debug: openai
 
 # Git settings
 git:
