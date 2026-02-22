@@ -187,6 +187,9 @@ func (c *Config) SetDefaults() {
 	if c.Methodology.Granularity == "" {
 		c.Methodology.Granularity = MethodologyGranularityBead
 	}
+	if c.Methodology.BuildStrategy == "" {
+		c.Methodology.BuildStrategy = "single_pass"
+	}
 	if !c.Methodology.ATDDPrompt.includeRulesSet {
 		c.Methodology.ATDDPrompt.IncludeRules = true
 	}
