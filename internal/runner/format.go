@@ -267,34 +267,30 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 	lines = append(lines, fmt.Sprintf("  Window:   %d iterations (%d total)", trend.WindowSize, trend.TotalIterations))
 
 	// Display known control limits with human-friendly labels.
-	labelMap := map[string]string{
-		spcMetricRollingSuccessRate:   "Success:",
-		spcMetricRollingEscalateRate:  "Escalate:",
-		spcMetricRollingQualityScore:  "Quality:",
-		spcMetricRollingAvgDurationMs: "Duration:",
-	}
-	displayOrder := []string{
-		spcMetricRollingSuccessRate,
-		spcMetricRollingEscalateRate,
-		spcMetricRollingQualityScore,
-		spcMetricRollingAvgDurationMs,
+	displayMetrics := []struct {
+		metric string
+		label  string
+	}{
+		{spcMetricRollingSuccessRate, "Success:"},
+		{spcMetricRollingEscalateRate, "Escalate:"},
+		{spcMetricRollingQualityScore, "Quality:"},
+		{spcMetricRollingAvgDurationMs, "Duration:"},
 	}
 	limitsByMetric := map[string]logger.TrendControlLimit{}
 	for _, cl := range trend.ControlLimits {
 		limitsByMetric[cl.Metric] = cl
 	}
-	for _, metric := range displayOrder {
-		cl, ok := limitsByMetric[metric]
+	for _, dm := range displayMetrics {
+		cl, ok := limitsByMetric[dm.metric]
 		if !ok {
 			continue
 		}
-		label := labelMap[metric]
-		if metric == spcMetricRollingAvgDurationMs {
+		if dm.metric == spcMetricRollingAvgDurationMs {
 			lines = append(lines, fmt.Sprintf("  %-10s %dms, limits %dms..%dms",
-				label, int(math.Round(cl.Latest)), int(math.Round(cl.LCL)), int(math.Round(cl.UCL))))
+				dm.label, int(math.Round(cl.Latest)), int(math.Round(cl.LCL)), int(math.Round(cl.UCL))))
 		} else {
 			lines = append(lines, fmt.Sprintf("  %-10s %d%%, limits %d%%..%d%%",
-				label, int(math.Round(cl.Latest*100)), int(math.Round(cl.LCL*100)), int(math.Round(cl.UCL*100))))
+				dm.label, int(math.Round(cl.Latest*100)), int(math.Round(cl.LCL*100)), int(math.Round(cl.UCL*100))))
 		}
 	}
 
