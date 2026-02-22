@@ -32,6 +32,53 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
+func TestFormatRunningLine(t *testing.T) {
+	tests := []struct {
+		name   string
+		status *Status
+		want   string
+	}{
+		{
+			name: "basic iteration no limits",
+			status: &Status{
+				Running:   true,
+				Iteration: 3,
+				ElapsedS:  120,
+			},
+			want: "Run: iteration 3, 2m elapsed",
+		},
+		{
+			name: "with max iterations and time budget",
+			status: &Status{
+				Running:           true,
+				Iteration:         2,
+				MaxIterations:     10,
+				TimeBudgetMinutes: 30,
+				ElapsedS:          300,
+			},
+			want: "Run: iteration 2/10, 5m of 30m elapsed",
+		},
+		{
+			name: "iteration 1 no limits short elapsed",
+			status: &Status{
+				Running:   true,
+				Iteration: 1,
+				ElapsedS:  45,
+			},
+			want: "Run: iteration 1, 45s elapsed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatRunningLine(tt.status)
+			if got != tt.want {
+				t.Errorf("formatRunningLine() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
