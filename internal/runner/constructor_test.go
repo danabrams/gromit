@@ -166,10 +166,10 @@ func TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle(t *
 	if err == nil {
 		t.Fatal("Build.Run() returned nil error; want TDD cycle runner error proving delegation")
 	}
-	// The placeholder runCyclesFn returns "TDD cycle execution not yet implemented".
-	// If wiring is missing, we'd get a different error (StreamRun failure or "not configured").
-	if !strings.Contains(err.Error(), "TDD cycle execution not yet implemented") {
+	// The real runCyclesFn delegates to the CycleOrchestrator which attempts
+	// red-phase rendering. The error proves Build delegated to TDDCycleRunner.
+	if !strings.Contains(err.Error(), "TDD cycle runner") {
 		t.Errorf("Build.Run() error = %q; want error containing %q (proves TDDCycleRunner was wired)",
-			err.Error(), "TDD cycle execution not yet implemented")
+			err.Error(), "TDD cycle runner")
 	}
 }

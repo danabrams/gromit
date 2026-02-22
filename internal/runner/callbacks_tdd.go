@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -12,20 +15,155 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/tdd"
 )
 
 // buildTDDCycleRunner creates a TDDCycleRunner adapter backed by a Runner with a
 // configured tddOrchestrator. Inject the result into execute.Build via WithTDDCycleRunner.
 func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer) execute.TDDCycleRunner {
+	orch := tdd.NewCycleOrchestrator(cfg, output, tdd.CycleOrchestratorDeps{
+		RenderRedFn:    buildRenderRedFn(renderer),
+		RenderGreenFn:  buildRenderGreenFn(renderer),
+		InvokeFn:       buildInvokeFn(router, output),
+		ValidateFn:     buildValidateFn(cfg),
+		RunRefactorFn:  buildRunRefactorFn(renderer, router, output),
+		EscalateTierFn: func(currentTier string) string { return cfg.NextEscalationTier(currentTier) },
+		GetDiffFn:      func() (string, error) { return getGitDiff("HEAD") },
+		ReadFileFn:     readFileAsString,
+		GetGitHeadFn:   gitHeadCommit,
+		GitResetFn:     gitResetHard,
+		LogPhaseFn: func(cycle int, phase, detail string) {
+			_, _ = fmt.Fprintf(output, "  [tdd] cycle %d %s: %s\n", cycle, phase, detail)
+		},
+	})
+
 	r := &Runner{
 		cfg: cfg,
 		tddOrchestrator: &tddOrchestrator{
 			runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
-				return fmt.Errorf("TDD cycle execution not yet implemented")
+				if bc.Tier == "" {
+					bc.Tier = cfg.SelectTier(bc.Bead.Priority, bc.Bead.Labels)
+				}
+				if bc.Model == "" {
+					bc.Model = provider.TierToLegacyModel(bc.Tier)
+				}
+				remaining := bc.Bead.ExpectedOutputs
+				if len(remaining) == 0 {
+					remaining = tddExpectedOutputsOrTitle(bc.Bead)
+				}
+				state := tdd.CycleState{
+					MaxCycles: cfg.Methodology.MaxTDDCycles,
+					Remaining: remaining,
+				}
+				return orch.RunCycles(ctx, bc, state)
 			},
 		},
 	}
 	return &TDDPipelineAdapter{runner: r}
+}
+
+func buildRenderRedFn(renderer *prompt.Renderer) tdd.RenderRedFn {
+	return func(handoff *tdd.RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		rules, _ := renderer.LoadRulesForPhase("build")
+		ctx := &prompt.TDDRedContext{
+			BeadID:           bc.Bead.ID,
+			BeadTitle:        bc.Bead.Title,
+			SpecExcerpt:      handoff.SpecExcerpt,
+			TestFileContents: handoff.TestFiles,
+			APISurface:       handoff.APISurface,
+			CycleSummary:     handoff.CycleSummary,
+			Rules:            rules,
+		}
+		return renderer.RenderTDDRed(ctx)
+	}
+}
+
+func buildRenderGreenFn(renderer *prompt.Renderer) tdd.RenderGreenFn {
+	return func(handoff *tdd.GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		rules, _ := renderer.LoadRulesForPhase("build")
+		ctx := &prompt.TDDGreenContext{
+			BeadID:            bc.Bead.ID,
+			BeadTitle:         bc.Bead.Title,
+			FailingTest:       handoff.FailingTest,
+			TestFailureOutput: handoff.TestFailureOutput,
+			ImplFileContents:  handoff.ImplFiles,
+			Rules:             rules,
+		}
+		return renderer.RenderTDDGreen(ctx)
+	}
+}
+
+func buildInvokeFn(router *provider.Router, output io.Writer) tdd.InvokeFn {
+	return func(ctx context.Context, promptText, tier string) error {
+		p, _ := router.Select("build", tier)
+		if p == nil {
+			return fmt.Errorf("no provider available for tier %s", tier)
+		}
+		_, err := p.StreamRun(ctx, promptText, tier, output, nil, nil)
+		return err
+	}
+}
+
+func buildValidateFn(cfg *config.Config) tdd.ValidateFn {
+	return func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		if len(commands) == 0 {
+			commands = cfg.Validation.Commands
+		}
+		if workDir == "" {
+			workDir = "."
+		}
+		var allOutput strings.Builder
+		for _, cmd := range commands {
+			stdout, stderr, exitCode, err := defaultCmdRunner(ctx, cmd, workDir)
+			allOutput.WriteString(stdout)
+			allOutput.WriteString(stderr)
+			if err != nil {
+				return allOutput.String(), false, err
+			}
+			if exitCode != 0 {
+				return allOutput.String(), false, nil
+			}
+		}
+		return allOutput.String(), true, nil
+	}
+}
+
+func buildRunRefactorFn(renderer *prompt.Renderer, router *provider.Router, output io.Writer) tdd.RunRefactorFn {
+	return func(ctx context.Context, bc *runtypes.BeadContext) error {
+		refactorCtx := &prompt.Context{
+			Bead: bc.Bead,
+		}
+		promptText, err := renderer.RenderRefactor(refactorCtx)
+		if err != nil {
+			return err
+		}
+		p, _ := router.Select("build", bc.Tier)
+		if p == nil {
+			return fmt.Errorf("no provider available for tier %s", bc.Tier)
+		}
+		_, err = p.StreamRun(ctx, promptText, bc.Tier, output, nil, nil)
+		return err
+	}
+}
+
+func readFileAsString(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
+}
+
+func gitHeadCommit() (string, error) {
+	out, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func gitResetHard(commit string) error {
+	return exec.Command("git", "reset", "--hard", commit).Run()
 }
 
 // optionalTDDCycleRunner returns a TDDCycleRunner when FreshContextPerCycle is
