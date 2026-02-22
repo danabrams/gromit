@@ -35,6 +35,12 @@ func Load(path string) (*Config, error) {
 func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
 	c.Review.Tier = normalizeConfiguredTier(c.Review.Tier)
 	c.Review.Thorough.Tier = normalizeConfiguredTier(c.Review.Thorough.Tier)
+	c.Methodology.BuildStrategy = strings.TrimSpace(c.Methodology.BuildStrategy)
+	c.Methodology.PhaseModels.Decompose = normalizeConfiguredTier(c.Methodology.PhaseModels.Decompose)
+	c.Methodology.PhaseModels.Build = normalizeConfiguredTier(c.Methodology.PhaseModels.Build)
+	c.Methodology.PhaseModels.Red = normalizeConfiguredTier(c.Methodology.PhaseModels.Red)
+	c.Methodology.PhaseModels.Green = normalizeConfiguredTier(c.Methodology.PhaseModels.Green)
+	c.Methodology.PhaseModels.Refactor = normalizeConfiguredTier(c.Methodology.PhaseModels.Refactor)
 
 	if c.Review.Tier == "" {
 		if normalizedTier := normalizedLegacyModelTier(c.Review.Model); normalizedTier != "" {
