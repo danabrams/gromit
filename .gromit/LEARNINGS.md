@@ -60,7 +60,6 @@ Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go
 
 Replace God Object pattern with pure orchestration: hold only stage references and config, no business logic. The Orchestrator struct contains just a config field; all per-stage logic lives in internal/pipeline/<stage>/. Enforce import discipline at the orchestrator level—import only internal/pipeline and internal/logger. Wire stages at construction time via OrchestratorConfig, making dependency graph explicit and mockable. Assign iteration numbers monotonically regardless of outcome (including beads blocked at Gate), preserving failure chains. Flow inter-stage outputs into subsequent iterations: ValidationFailures from Validate→Build Input, TouchedPackages from Epilogue→next iteration Input. Keep failed stages in Epilogue for logging/cleanup rather than early-exit—this ensures consistent logging and status updates. Handle optional stages (Review) via nil checks at runtime, not construction time. Merge global stats atomically at completion, preserving prior entries—use read-modify-write with idempotency checks. Benefit: stages become independently testable, sequencing is explicit and debuggable, and stage coupling is minimal.
 
----
 
 ## Emerging
 
@@ -81,9 +80,12 @@ The `var _ = Type{}` pattern in files like callbacks_validation.go is used as a 
 
 The BuildFromReviewLabels consolidation across pipeline, pipeline/review, and runner/reviewpkg is a clean pattern — one exported function in the parent package, callers in child packages import it. Deprecated wrappers should be removed once all callers migrate. File extraction pattern (callbacks.go → callbacks_methodology_exec.go, constructor.go → constructor_adapters.go, process_methodology.go → process_methodology_atdd.go) is enforced by file_size_test.go with a 550-line limit; size enforcement tests are a good guardrail against file bloat. The Orchestrator path and legacy Runner path have separate code for the same operations (cost tracking, state saving, failure learning) — features wired in one path may be silently missing in the other (e.g., Build stage Output fields not populated). TDD LogPhaseFn follows the FnField mock pattern correctly — nil-safe with explicit nil check before call, injected via deps struct. Non-deterministic map iteration in logging functions is easy to miss in Go; always sort keys when producing human-readable or machine-parseable output from maps.
 
----
+### 2026-02-22 | gromit-tt5qn | conventions
+When removing public APIs from core packages like runner/, must systematically find all call sites, complete migrations before deletion, and verify test coverage for new API patterns—interdependencies between orchestration components require careful refactoring order.
 
-## Archived
+### 2026-02-22 | BUILD_TAG_GATED_TESTS_INVISIBLE_DURING_MIGRATION | conventions
+When deleting large files during architectural migration, verify all exported symbols are either migrated or no longer referenced. Acceptance tests gated behind `//go:build` tags are invisible to normal `go test ./...` runs — always run `go test -tags acceptance -run '^$'` to verify compilation during migrations. The PrintStatus function was lost because lifecycle.go was deleted without checking acceptance test references gated behind build tags.
 
-*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
+### 2026-02-22 | ADAPTER_COPY_PASTE_BUGS | conventions
+The adapter pattern (renderAdapter, cmdRunnerAdapter, TDDPipelineAdapter) is effective for bridging runner internals to pipeline stage interfaces, but copy-paste between adapter methods introduces subtle bugs — RenderRefactorBuild was delegating to RenderBuild instead of RenderRefactor. When writing adapters with similar methods, verify each delegation target independently.
 
