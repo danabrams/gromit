@@ -58,6 +58,5 @@ func ApplyReviewPhaseProfile(ctx any, phase string) {
 		if v == nil || phase != "thorough_review" {
 			return
 		}
-		v.ClaudeMD = ""
 	}
 }
