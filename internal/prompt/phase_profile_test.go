@@ -136,3 +136,51 @@ func TestApplyPhaseProfile_RedPrunesToCriterionFocusedContext(t *testing.T) {
 		t.Fatalf("SiblingTouchedPackages should be pruned for red")
 	}
 }
+
+func TestApplyPhaseProfile_BuildPreservesImplementationContext(t *testing.T) {
+	ctx := &Context{
+		Spec:                     "spec",
+		ClaudeMD:                 "claude",
+		Rules:                    "rules",
+		ConfirmedLearnings:       []learnings.Learning{{Category: "c", Content: "confirmed"}},
+		RecentLearnings:          []learnings.Learning{{Category: "c", Content: "recent"}},
+		RecentValidationFailures: []string{"failure"},
+		CoverageState:            "coverage",
+		TargetCriterion:          "criterion",
+		PrevFailure:              "prev",
+		SiblingTouchedPackages:   []string{"internal/prompt"},
+	}
+
+	ApplyPhaseProfile(ctx, "build")
+
+	if ctx.Spec == "" {
+		t.Fatalf("Spec should be preserved for build")
+	}
+	if ctx.ClaudeMD == "" {
+		t.Fatalf("ClaudeMD should be preserved for build")
+	}
+	if ctx.Rules == "" {
+		t.Fatalf("Rules should be preserved for build")
+	}
+	if len(ctx.ConfirmedLearnings) == 0 {
+		t.Fatalf("ConfirmedLearnings should be preserved for build")
+	}
+	if len(ctx.RecentLearnings) != 0 {
+		t.Fatalf("RecentLearnings should be pruned for build")
+	}
+	if len(ctx.RecentValidationFailures) == 0 {
+		t.Fatalf("RecentValidationFailures should be preserved for build")
+	}
+	if ctx.CoverageState == "" {
+		t.Fatalf("CoverageState should be preserved for build")
+	}
+	if ctx.TargetCriterion == "" {
+		t.Fatalf("TargetCriterion should be preserved for build")
+	}
+	if ctx.PrevFailure == "" {
+		t.Fatalf("PrevFailure should be preserved for build")
+	}
+	if len(ctx.SiblingTouchedPackages) == 0 {
+		t.Fatalf("SiblingTouchedPackages should be preserved for build")
+	}
+}
