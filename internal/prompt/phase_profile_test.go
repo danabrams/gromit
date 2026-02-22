@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -295,5 +296,55 @@ func TestApplyPhaseProfile_RefactorKeepsRulesAndValidationFailures(t *testing.T)
 	}
 	if ctx.TargetCriterion != "" {
 		t.Fatalf("TargetCriterion should be pruned for refactor")
+	}
+}
+
+func TestApplyPhaseProfile_UnknownPhaseNoOp(t *testing.T) {
+	baseCtx := &Context{
+		Bead: &bead.Bead{
+			ID:              "b1",
+			ExpectedOutputs: []string{"criterion"},
+		},
+		Spec:                     "spec",
+		ClaudeMD:                 "claude",
+		Rules:                    "rules",
+		ConfirmedLearnings:       []learnings.Learning{{Category: "c", Content: "confirmed"}},
+		RecentLearnings:          []learnings.Learning{{Category: "c", Content: "recent"}},
+		RecentValidationFailures: []string{"failure"},
+		CoverageState:            "coverage",
+		TargetCriterion:          "criterion",
+		PrevFailure:              "prev",
+		SiblingTouchedPackages:   []string{"internal/prompt"},
+	}
+	originalCtx := *baseCtx
+	originalCtx.Bead = &bead.Bead{
+		ID:              baseCtx.Bead.ID,
+		ExpectedOutputs: append([]string{}, baseCtx.Bead.ExpectedOutputs...),
+	}
+	originalCtx.ConfirmedLearnings = append([]learnings.Learning{}, baseCtx.ConfirmedLearnings...)
+	originalCtx.RecentLearnings = append([]learnings.Learning{}, baseCtx.RecentLearnings...)
+	originalCtx.RecentValidationFailures = append([]string{}, baseCtx.RecentValidationFailures...)
+	originalCtx.SiblingTouchedPackages = append([]string{}, baseCtx.SiblingTouchedPackages...)
+
+	ApplyPhaseProfile(baseCtx, "unknown_phase")
+
+	if !reflect.DeepEqual(*baseCtx, originalCtx) {
+		t.Fatalf("ApplyPhaseProfile should leave unknown phases unchanged")
+	}
+
+	reviewCtx := &ReviewContext{
+		Spec:               "spec",
+		Diff:               "diff",
+		ClaudeMD:           "claude",
+		Rules:              "rules",
+		ValidationCommands: []string{"go test ./..."},
+	}
+	originalReview := *reviewCtx
+	originalReview.ValidationCommands = append([]string{}, reviewCtx.ValidationCommands...)
+
+	ApplyReviewPhaseProfile(reviewCtx, "unknown_phase")
+
+	if !reflect.DeepEqual(*reviewCtx, originalReview) {
+		t.Fatalf("ApplyReviewPhaseProfile should leave unknown phases unchanged")
 	}
 }
