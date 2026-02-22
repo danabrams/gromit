@@ -338,3 +338,25 @@ func TestAggregateTDDPhaseMetricsToResult_SumsCostAndTokens(t *testing.T) {
 		t.Errorf("OutputTokens = %d, want 125", bc.Result.OutputTokens)
 	}
 }
+
+// TestAggregateTDDPhaseMetricsToResult_SetsModelToHighestTierModel verifies that
+// aggregateTDDPhaseMetricsToResult sets bc.Result.Model to the model from the
+// highest-tier PhaseMetric, so the iteration log names the most capable model used.
+func TestAggregateTDDPhaseMetricsToResult_SetsModelToHighestTierModel(t *testing.T) {
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{
+			PhaseMetrics: []runtypes.PhaseMetric{
+				{Tier: "low", Model: "claude-haiku-4-5"},
+				{Tier: "medium", Model: "claude-sonnet-4-6"},
+				{Tier: "high", Model: "claude-opus-4-6"},
+				{Tier: "medium", Model: "claude-sonnet-4-6"},
+			},
+		},
+	}
+
+	aggregateTDDPhaseMetricsToResult(bc)
+
+	if bc.Result.Model != "claude-opus-4-6" {
+		t.Errorf("Model = %q, want %q (highest-tier model)", bc.Result.Model, "claude-opus-4-6")
+	}
+}
