@@ -55,11 +55,11 @@ routing:
   phase_preferences:
     build: any
     validate: any
-    review: any          # keep review on the selected provider
+    review: openai       # force review to Codex/OpenAI provider
     analyze: any
     scope_check: any
     precheck: any
-    decompose: any
+    decompose: openai    # force decompose to Codex/OpenAI provider
   ratio:
     claude: 0
     openai: 100
