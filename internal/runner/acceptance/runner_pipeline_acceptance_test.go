@@ -56,6 +56,50 @@ func TestOrchestratorHelper_TDDPromptSelection(t *testing.T) {
 	}
 }
 
+// TestOrchestratorHelper_ATDDSkippedForTestOnlyBead verifies that the orchestrator
+// loop runs each ATDD scenario bead to completion without error.
+func TestOrchestratorHelper_ATDDSkippedForTestOnlyBead(t *testing.T) {
+	tests := []struct {
+		name                        string
+		beadTitle                   string
+		globalATDD                  bool
+		expectAcceptanceTestsCalled bool
+	}{
+		{name: "test-only bead with global ATDD", beadTitle: "Add unit tests for config loading", globalATDD: true, expectAcceptanceTestsCalled: false},
+		{name: "regular bead with global ATDD", beadTitle: "Implement dark mode toggle", globalATDD: true, expectAcceptanceTestsCalled: true},
+		{name: "test-only bead with ATDD disabled", beadTitle: "Add unit tests for config loading", globalATDD: false, expectAcceptanceTestsCalled: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			acceptanceTestsCalled := false
+			cfg := &config.Config{
+				Methodology: config.MethodologyConfig{ATDD: tt.globalATDD},
+			}
+			beadReady := false
+			mockBeads := &mockBeadClient{
+				ReadyFn: func() (*bead.Bead, error) {
+					if beadReady {
+						return nil, nil
+					}
+					beadReady = true
+					return &bead.Bead{
+						ID:    "test-bead-1",
+						Title: tt.beadTitle,
+					}, nil
+				},
+			}
+			h := NewOrchestratorTestHelperWithDeps(t, cfg, io.Discard, mockBeads, newMockRouter())
+			if err := h.Run(context.Background(), 0, time.Time{}, nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if tt.expectAcceptanceTestsCalled && !acceptanceTestsCalled {
+				t.Errorf("%s: Expected RenderAcceptanceTests to be called but it wasn't", tt.name)
+			}
+		})
+	}
+}
+
 // TestATDDSkippedForTestOnlyBead verifies that when a bead's title matches the
 // test-only heuristic, the ATDD pre-pass is automatically skipped even when ATDD
 // is globally active. This covers acceptance criteria 2 and 3:
