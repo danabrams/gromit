@@ -234,6 +234,50 @@ func TestNewRunnerWithDeps_Removed(t *testing.T) {
 	_ = reflect.TypeOf(&Runner{}) // ensure Runner itself is still present
 }
 
+// TestOrchestrator_StatusWriter_ReceivesDeadline verifies that the orchestrator
+// passes the deadline to the StatusWriter function so the constructor's closure
+// can compute timeBudgetMinutes instead of hardcoding 0.
+func TestOrchestrator_StatusWriter_ReceivesDeadline(t *testing.T) {
+	var capturedDeadline time.Time
+
+	deadline := time.Now().Add(30 * time.Minute)
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
+			capturedDeadline = dl
+		},
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, deadline, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedDeadline.IsZero() {
+		t.Error("StatusWriter did not receive deadline; want deadline passed for time budget computation")
+	}
+	if !capturedDeadline.Equal(deadline) {
+		t.Errorf("StatusWriter deadline = %v, want %v", capturedDeadline, deadline)
+	}
+}
+
 // TestOrchestrator_ValidationFailure_SetsFailureOutput verifies that when the
 // validate stage returns Block with ValidationFailures, the orchestrator sets
 // FailureOutput on the epilogue Input so the failure learner receives it.
