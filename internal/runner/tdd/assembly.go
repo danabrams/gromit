@@ -180,6 +180,7 @@ func extractAPISurface(implFiles map[string]string) string {
 	var lines []string
 	for _, content := range implFiles {
 		inInterface := false
+		inConstVarBlock := false
 		for _, line := range strings.Split(content, "\n") {
 			trimmed := strings.TrimSpace(line)
 
@@ -191,6 +192,21 @@ func extractAPISurface(implFiles map[string]string) string {
 				inInterface = false
 			}
 
+			// Track if we're inside a const ( or var ( block
+			if strings.HasPrefix(line, "const (") || strings.HasPrefix(line, "var (") {
+				inConstVarBlock = true
+				lines = append(lines, trimmed)
+				continue
+			}
+			if inConstVarBlock {
+				if trimmed == ")" {
+					inConstVarBlock = false
+				} else if trimmed != "" && !strings.HasPrefix(trimmed, "//") {
+					lines = append(lines, trimmed)
+				}
+				continue
+			}
+
 			// Capture top-level declarations
 			if strings.HasPrefix(line, "func ") || strings.HasPrefix(line, "type ") {
 				if idx := strings.Index(line, "{"); idx >= 0 {
@@ -198,7 +214,7 @@ func extractAPISurface(implFiles map[string]string) string {
 				}
 				lines = append(lines, line)
 			} else if strings.HasPrefix(line, "const ") || strings.HasPrefix(line, "var ") {
-				// Capture const/var declarations
+				// Capture single-line const/var declarations
 				lines = append(lines, trimmed)
 			} else if inInterface && isMethodSignature(trimmed) {
 				// Capture interface method signatures
