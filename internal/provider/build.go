@@ -63,3 +63,21 @@ func BuildProvidersFromConfig(cfg *config.Config) (map[string]Provider, error) {
 	}
 	return providers, nil
 }
+
+func BuildRouterFromConfig(cfg *config.Config) (*Router, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
+	if len(cfg.Providers) > 0 {
+		return nil, fmt.Errorf("provider routing not implemented")
+	}
+
+	client, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	claudeProvider := NewClaudeProvider(client, DefaultTierToModelMap)
+	return NewSingleProviderRouter(claudeProvider), nil
+}
