@@ -241,6 +241,43 @@ func TestRenderDecomposeGuidelinesNoOldPhrasing(t *testing.T) {
 	})
 }
 
+// TestRenderDecomposeExpectedOutputs verifies that the decompose template
+// includes expected_outputs field in the JSON example and output format instructions.
+func TestRenderDecomposeExpectedOutputs(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	templatePath := filepath.Join(templatesDir, "PROMPT_decompose.md")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		t.Fatalf("skipping: real template not found at %s", templatePath)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	testBead := &bead.Bead{
+		ID:              "test-expected-outputs",
+		Title:           "Test expected_outputs field",
+		Priority:        1,
+		Description:     "Verify expected_outputs in decompose template",
+		Labels:          []string{},
+		ExpectedOutputs: []string{},
+	}
+
+	ctx := &DecomposeContext{
+		Bead:       testBead,
+		ATDDActive: false,
+	}
+
+	result, err := r.RenderDecompose(ctx)
+	if err != nil {
+		t.Fatalf("RenderDecompose() error = %v", err)
+	}
+
+	t.Run("example JSON includes expected_outputs field", func(t *testing.T) {
+		if !strings.Contains(result, `"expected_outputs":`) {
+			t.Error("expected JSON example to include 'expected_outputs' field")
+		}
+	})
+}
+
 // TestRenderDecomposeExampleIntegrity verifies that the JSON example and
 // instructions remain intact after guideline updates.
 func TestRenderDecomposeExampleIntegrity(t *testing.T) {
