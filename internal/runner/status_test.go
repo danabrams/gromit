@@ -262,3 +262,51 @@ func TestPrintStatus_ReadsStateFilesForHealthSection(t *testing.T) {
 		t.Errorf("PrintStatus output missing retro info; got:\n%s", output)
 	}
 }
+
+// TestPrintStatus_IncludesModelPerformanceSection verifies that PrintStatus
+// reads model stats from iteration logs and includes a "Model Performance:"
+// section in the output. The current implementation only outputs Run, Pipeline,
+// Health, and SPC sections — this test drives adding logger.ReadModelStats
+// integration so the output includes per-model success rates and costs.
+func TestPrintStatus_IncludesModelPerformanceSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Write a status.json so PrintStatus takes the active-run path.
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	if err := sw.Write(3, "bead-model", "Model perf test", "sonnet", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	// Create a logs directory with a JSONL file containing iteration entries.
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll logs: %v", err)
+	}
+	logLine := `{"timestamp":"2026-02-22T10:00:00Z","iteration":1,"bead_id":"bead-1","model":"sonnet","success":true,"duration_ms":5000,"cost_usd":0.05,"input_tokens":1000,"output_tokens":500}` + "\n" +
+		`{"timestamp":"2026-02-22T10:01:00Z","iteration":2,"bead_id":"bead-2","model":"haiku","success":false,"duration_ms":3000,"cost_usd":0.01,"input_tokens":800,"output_tokens":300}` + "\n"
+	if err := os.WriteFile(filepath.Join(logsDir, "run-2026-02-22.jsonl"), []byte(logLine), 0644); err != nil {
+		t.Fatalf("WriteFile log: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+	cfg.Paths.Logs = logsDir
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Model Performance:") {
+		t.Errorf("PrintStatus output missing Model Performance section; got:\n%s", output)
+	}
+}
