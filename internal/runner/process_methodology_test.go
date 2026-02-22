@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -21,6 +22,16 @@ func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("item %d: got %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestExtractRequirementsViaLLM_ReturnsNilOnError(t *testing.T) {
+	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
+		return nil, fmt.Errorf("provider unavailable")
+	}
+	got := extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+	if got != nil {
+		t.Fatalf("expected nil on error, got %v", got)
 	}
 }
 
