@@ -148,6 +148,14 @@ func TestBuildContextNilBead(t *testing.T) {
 	}
 }
 
+func TestBuildContextEmptyPhase(t *testing.T) {
+	r := &Renderer{}
+	_, err := r.BuildContext(&bead.Bead{ID: "b1", Title: "t"}, nil, 1, "sonnet", "")
+	if err == nil {
+		t.Error("expected error for empty phase")
+	}
+}
+
 func TestBuildContext_UsesPhaseScopedRules(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
