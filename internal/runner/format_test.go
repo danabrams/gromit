@@ -126,6 +126,48 @@ func TestFormatEscalationBreakdown(t *testing.T) {
 	}
 }
 
+func TestFormatRecurrenceBreakdown(t *testing.T) {
+	tests := []struct {
+		name     string
+		counters map[string]int
+		want     string
+	}{
+		{
+			name:     "nil map returns empty",
+			counters: nil,
+			want:     "",
+		},
+		{
+			name:     "empty map returns empty",
+			counters: map[string]int{},
+			want:     "",
+		},
+		{
+			name:     "single class",
+			counters: map[string]int{"timeout": 2},
+			want:     "timeout x2",
+		},
+		{
+			name: "multiple classes sorted alphabetically",
+			counters: map[string]int{
+				"timeout": 5,
+				"lint":    1,
+				"scope":   3,
+			},
+			want: "lint x1 | scope x3 | timeout x5",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatRecurrenceBreakdown(tt.counters)
+			if got != tt.want {
+				t.Errorf("formatRecurrenceBreakdown() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
