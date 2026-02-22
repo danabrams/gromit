@@ -136,14 +136,12 @@ type reviewRendererAdapter struct {
 	r *prompt.Renderer
 }
 
-func (a *reviewRendererAdapter) RenderReview(beadTitle, diff string) (string, error) {
-	ctx := &prompt.ReviewContext{
-		Bead: &bead.Bead{
-			Title: beadTitle,
-		},
-		Diff: diff,
-	}
+func (a *reviewRendererAdapter) RenderReview(ctx *prompt.ReviewContext) (string, error) {
 	return a.r.RenderReview(ctx)
+}
+
+func (a *reviewRendererAdapter) LoadRulesForPhase(phase string) (string, error) {
+	return a.r.LoadRulesForPhase(phase)
 }
 
 // beadLifecycleAdapter wraps bead.Client to satisfy epilogue.BeadLifecycle.

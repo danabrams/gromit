@@ -50,14 +50,22 @@ func (f *fakeBeadCreator) Create(title string, priority int, labels []string, ou
 
 // fakePromptRenderer is a test double for reviewstage.PromptRenderer.
 type fakePromptRenderer struct {
-	renderFn func(beadTitle, diff string) (string, error)
+	renderFn    func(ctx *prompt.ReviewContext) (string, error)
+	loadRulesFn func(phase string) (string, error)
 }
 
-func (f *fakePromptRenderer) RenderReview(beadTitle, diff string) (string, error) {
+func (f *fakePromptRenderer) RenderReview(ctx *prompt.ReviewContext) (string, error) {
 	if f.renderFn != nil {
-		return f.renderFn(beadTitle, diff)
+		return f.renderFn(ctx)
 	}
 	return "# Review Prompt", nil
+}
+
+func (f *fakePromptRenderer) LoadRulesForPhase(phase string) (string, error) {
+	if f.loadRulesFn != nil {
+		return f.loadRulesFn(phase)
+	}
+	return "# Rules", nil
 }
 
 type phaseAwarePromptRenderer struct {

@@ -9,6 +9,7 @@ import (
 	reviewpkg "github.com/danabrams/gromit/internal/review"
 
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // Invoker executes an LLM invocation via streaming and returns the collected output.
@@ -24,7 +25,8 @@ type BeadCreator interface {
 
 // PromptRenderer renders the review prompt from bead and diff context.
 type PromptRenderer interface {
-	RenderReview(beadTitle, diff string) (string, error)
+	RenderReview(ctx *prompt.ReviewContext) (string, error)
+	LoadRulesForPhase(phase string) (string, error)
 }
 
 // GitDiffFn returns the current git diff.
@@ -69,7 +71,15 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 		return pipeline.Output{}, fmt.Errorf("review: getting git diff: %w", err)
 	}
 
-	prompt, err := r.renderer.RenderReview(in.Bead.Title, diff)
+	reviewCtx := &prompt.ReviewContext{
+		Bead:               in.Bead,
+		Diff:               diff,
+		ValidationCommands: in.Config.Validation.FastCommandsOrDefault(),
+	}
+	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase("review")
+	prompt.ApplyReviewPhaseProfile(reviewCtx, "review")
+
+	promptText, err := r.renderer.RenderReview(reviewCtx)
 	if err != nil {
 		return pipeline.Output{}, fmt.Errorf("review: rendering prompt: %w", err)
 	}
@@ -80,7 +90,7 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 	}
 
 	var sb strings.Builder
-	llmOutput, err := r.invoker.StreamRun(ctx, prompt, in.Config.Review.Tier, io.MultiWriter(w, &sb))
+	llmOutput, err := r.invoker.StreamRun(ctx, promptText, in.Config.Review.Tier, io.MultiWriter(w, &sb))
 	if err != nil {
 		return pipeline.Output{}, fmt.Errorf("review: LLM invocation: %w", err)
 	}
