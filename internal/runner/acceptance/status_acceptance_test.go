@@ -191,45 +191,21 @@ func getDeadPID(t *testing.T) int {
 	return 0
 }
 
-func TestRunner_Status_DeadPID(t *testing.T) {
-	// Setup
+// TestOrchestratorHelper_StatusDeadPID tests that PrintStatus detects a stale
+// status file (dead PID), warns, and cleans up.
+func TestOrchestratorHelper_StatusDeadPID(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
 		t.Fatalf("Failed to create gromit dir: %v", err)
 	}
 
-	var buf strings.Builder
 	cfg := &config.Config{}
 	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
 	cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
 
-	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
-			return &bead.Bead{
-				ID:       "test-999",
-				Title:    "Next Available Bead",
-				Priority: 2,
-				Labels:   []string{},
-			}, nil
-		},
-	}
-
-	r, err := runner.NewRunnerWithDeps(cfg, &buf, gromitDir, runner.Deps{
-		Beads:    mockBeads,
-		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
-		Analyzer: &mockFailureAnalyzer{},
-		Renderer: &mockPromptRenderer{},
-		Logger:   &mockIterationLogger{},
-	})
-	if err != nil {
-		t.Fatalf("NewRunnerWithDeps failed: %v", err)
-	}
-
-	// Get a dead PID by probing high PID range
 	deadPID := getDeadPID(t)
 
-	// Write a status file with the dead PID
 	statusPath := filepath.Join(gromitDir, "status.json")
 	statusData := fmt.Sprintf(`{
   "running": true,
@@ -241,21 +217,18 @@ func TestRunner_Status_DeadPID(t *testing.T) {
   "elapsed_s": 120,
   "pid": %d
 }`, time.Now().Add(-2*time.Hour).Format(time.RFC3339), deadPID)
-	err = os.WriteFile(statusPath, []byte(statusData), 0644)
-	if err != nil {
+	if err := os.WriteFile(statusPath, []byte(statusData), 0644); err != nil {
 		t.Fatalf("Failed to write status file: %v", err)
 	}
 
-	// Execute
-	err = r.Status()
-	if err != nil {
-		t.Fatalf("Status() failed: %v", err)
+	var buf strings.Builder
+	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+		t.Fatalf("PrintStatus() failed: %v", err)
 	}
 
-	// Verify - should show stale run warning
 	output := buf.String()
 	if !strings.Contains(output, "stale run") {
-		t.Errorf("Expected 'stale run' message for dead PID, got: %s", output)
+		t.Errorf("Expected 'stale run' for dead PID, got: %s", output)
 	}
 	if !strings.Contains(output, "crashed-bead-999") {
 		t.Errorf("Expected bead ID in stale run warning, got: %s", output)
@@ -266,16 +239,13 @@ func TestRunner_Status_DeadPID(t *testing.T) {
 	if !strings.Contains(output, "Removing stale status file") {
 		t.Errorf("Expected file removal message, got: %s", output)
 	}
-
-	// Should show pipeline status after warning
 	if !strings.Contains(output, "Pipeline:") {
-		t.Errorf("Expected Pipeline section after stale run warning, got: %s", output)
+		t.Errorf("Expected Pipeline section, got: %s", output)
 	}
 	if !strings.Contains(output, "Run: not running") {
-		t.Errorf("Expected 'Run: not running' after cleaning stale status, got: %s", output)
+		t.Errorf("Expected 'Run: not running', got: %s", output)
 	}
 
-	// Verify status file was deleted
 	if _, err := os.Stat(statusPath); err == nil {
 		t.Error("Status file should have been deleted for dead PID")
 	} else if !os.IsNotExist(err) {
