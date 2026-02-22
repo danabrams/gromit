@@ -24,9 +24,9 @@ func resolveBuildStrategy(cfg *config.Config, b *bead.Bead) string {
 	for _, label := range b.Labels {
 		switch label {
 		case "build_strategy:tdd":
-			return "tdd"
+			strategy = "tdd"
 		case "build_strategy:single_pass":
-			return "single_pass"
+			strategy = "single_pass"
 		}
 	}
 	return strategy
