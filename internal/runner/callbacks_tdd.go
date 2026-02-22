@@ -16,8 +16,9 @@ import (
 
 // buildTDDCycleRunner creates a TDDCycleRunner adapter backed by a Runner with a
 // configured tddOrchestrator. Inject the result into execute.Build via WithTDDCycleRunner.
-func buildTDDCycleRunner(_ *config.Config, _ *prompt.Renderer, _ *provider.Router, _ io.Writer) execute.TDDCycleRunner {
-	return nil
+func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer) execute.TDDCycleRunner {
+	r := &Runner{cfg: cfg}
+	return &TDDPipelineAdapter{runner: r}
 }
 
 func snapshotIterationUsage(result *runtypes.IterationResult) (costUSD float64, inputTokens int, outputTokens int) {
