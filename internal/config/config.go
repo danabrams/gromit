@@ -2,11 +2,14 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+var configWarningWriter io.Writer = os.Stderr
 
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -19,12 +22,37 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
+	cfg.applyPostLoadNormalization()
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
 	}
 	return &cfg, nil
+}
+
+func (c *Config) applyPostLoadNormalization() {
+	if c.Review.Tier == "" {
+		if normalizedTier := normalizedLegacyModelTier(c.Review.Model); normalizedTier != "" {
+			c.Review.Tier = normalizedTier
+		}
+	}
+	if c.Review.Thorough.Tier == "" {
+		if normalizedTier := normalizedLegacyModelTier(c.Review.Thorough.Model); normalizedTier != "" {
+			c.Review.Thorough.Tier = normalizedTier
+		}
+	}
+}
+
+func normalizedLegacyModelTier(model string) string {
+	if model == "" {
+		return ""
+	}
+	tier := tierFromLegacyModel(model)
+	if tier == model {
+		return ""
+	}
+	return tier
 }
 
 // Validate ensures config values are within supported ranges.
