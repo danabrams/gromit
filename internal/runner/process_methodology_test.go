@@ -7,9 +7,21 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
+
+func TestResolveBuildStrategy_BeadLabelOverridesConfig(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Methodology.BuildStrategy = "single_pass"
+
+	b := &bead.Bead{Labels: []string{"build_strategy:tdd"}}
+
+	if got := resolveBuildStrategy(cfg, b); got != "tdd" {
+		t.Fatalf("resolveBuildStrategy() = %q, want %q", got, "tdd")
+	}
+}
 
 func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
