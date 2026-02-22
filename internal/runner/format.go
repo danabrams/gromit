@@ -256,6 +256,61 @@ func formatItems(items []string, maxShow int) []string {
 	return lines
 }
 
+// formatSPCSummary formats SPC (Statistical Process Control) trend data for display.
+func formatSPCSummary(trend *logger.ProcessTrend) string {
+	if trend == nil || trend.TotalIterations == 0 {
+		return "SPC: (no data)"
+	}
+
+	var lines []string
+	lines = append(lines, "SPC:")
+	lines = append(lines, fmt.Sprintf("  Window:   %d iterations (%d total)", trend.WindowSize, trend.TotalIterations))
+
+	// Display known control limits with human-friendly labels.
+	labelMap := map[string]string{
+		spcMetricRollingSuccessRate:   "Success:",
+		spcMetricRollingEscalateRate:  "Escalate:",
+		spcMetricRollingQualityScore:  "Quality:",
+		spcMetricRollingAvgDurationMs: "Duration:",
+	}
+	displayOrder := []string{
+		spcMetricRollingSuccessRate,
+		spcMetricRollingEscalateRate,
+		spcMetricRollingQualityScore,
+		spcMetricRollingAvgDurationMs,
+	}
+	limitsByMetric := map[string]logger.TrendControlLimit{}
+	for _, cl := range trend.ControlLimits {
+		limitsByMetric[cl.Metric] = cl
+	}
+	for _, metric := range displayOrder {
+		cl, ok := limitsByMetric[metric]
+		if !ok {
+			continue
+		}
+		label := labelMap[metric]
+		if metric == spcMetricRollingAvgDurationMs {
+			lines = append(lines, fmt.Sprintf("  %-10s %dms, limits %dms..%dms",
+				label, int(math.Round(cl.Latest)), int(math.Round(cl.LCL)), int(math.Round(cl.UCL))))
+		} else {
+			lines = append(lines, fmt.Sprintf("  %-10s %d%%, limits %d%%..%d%%",
+				label, int(math.Round(cl.Latest*100)), int(math.Round(cl.LCL*100)), int(math.Round(cl.UCL*100))))
+		}
+	}
+
+	// Anomaly summary.
+	if len(trend.Anomalies) == 0 {
+		lines = append(lines, "  Anomaly:  none")
+	} else {
+		lines = append(lines, fmt.Sprintf("  Anomaly:  %d", len(trend.Anomalies)))
+		for _, a := range trend.Anomalies {
+			lines = append(lines, fmt.Sprintf("    %s (%s)", a.Metric, a.Severity))
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 // formatModelPerformance formats per-model performance statistics for display.
 func formatModelPerformance(stats map[string]logger.ModelStats) string {
 	var lines []string
