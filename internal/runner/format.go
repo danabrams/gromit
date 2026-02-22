@@ -127,10 +127,7 @@ func formatItems(items []string, maxShow int) []string {
 	}
 
 	var lines []string
-	show := len(items)
-	if show > maxShow {
-		show = maxShow
-	}
+	show := min(len(items), maxShow)
 
 	for i := 0; i < show; i++ {
 		lines = append(lines, fmt.Sprintf("    - %s", items[i]))
