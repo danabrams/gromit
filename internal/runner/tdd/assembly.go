@@ -179,50 +179,57 @@ func readFiles(readFile ReadFileFn, paths []string) (map[string]string, error) {
 func extractAPISurface(implFiles map[string]string) string {
 	var lines []string
 	for _, content := range implFiles {
-		inInterface := false
-		inConstVarBlock := false
-		for _, line := range strings.Split(content, "\n") {
-			trimmed := strings.TrimSpace(line)
-
-			// Track if we're inside an interface block
-			if strings.Contains(line, "interface {") {
-				inInterface = true
-			}
-			if inInterface && trimmed == "}" {
-				inInterface = false
-			}
-
-			// Track if we're inside a const ( or var ( block
-			if strings.HasPrefix(line, "const (") || strings.HasPrefix(line, "var (") {
-				inConstVarBlock = true
-				lines = append(lines, trimmed)
-				continue
-			}
-			if inConstVarBlock {
-				if trimmed == ")" {
-					inConstVarBlock = false
-				} else if trimmed != "" && !strings.HasPrefix(trimmed, "//") {
-					lines = append(lines, trimmed)
-				}
-				continue
-			}
-
-			// Capture top-level declarations
-			if strings.HasPrefix(line, "func ") || strings.HasPrefix(line, "type ") {
-				if idx := strings.Index(line, "{"); idx >= 0 {
-					line = strings.TrimSpace(line[:idx])
-				}
-				lines = append(lines, line)
-			} else if strings.HasPrefix(line, "const ") || strings.HasPrefix(line, "var ") {
-				// Capture single-line const/var declarations
-				lines = append(lines, trimmed)
-			} else if inInterface && isMethodSignature(trimmed) {
-				// Capture interface method signatures
-				lines = append(lines, trimmed)
-			}
-		}
+		lines = append(lines, extractFileAPISurface(content)...)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func extractFileAPISurface(content string) []string {
+	var lines []string
+	inInterface := false
+	inConstVarBlock := false
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+
+		// Track if we're inside an interface block
+		if strings.Contains(line, "interface {") {
+			inInterface = true
+		}
+		if inInterface && trimmed == "}" {
+			inInterface = false
+		}
+
+		// Track if we're inside a const ( or var ( block
+		if strings.HasPrefix(line, "const (") || strings.HasPrefix(line, "var (") {
+			inConstVarBlock = true
+			lines = append(lines, trimmed)
+			continue
+		}
+		if inConstVarBlock {
+			if trimmed == ")" {
+				inConstVarBlock = false
+			} else if trimmed != "" && !strings.HasPrefix(trimmed, "//") {
+				lines = append(lines, trimmed)
+			}
+			continue
+		}
+
+		// Capture top-level declarations
+		if strings.HasPrefix(line, "func ") || strings.HasPrefix(line, "type ") {
+			decl := line
+			if idx := strings.Index(decl, "{"); idx >= 0 {
+				decl = strings.TrimSpace(decl[:idx])
+			}
+			lines = append(lines, decl)
+		} else if strings.HasPrefix(line, "const ") || strings.HasPrefix(line, "var ") {
+			// Capture single-line const/var declarations
+			lines = append(lines, trimmed)
+		} else if inInterface && isMethodSignature(trimmed) {
+			// Capture interface method signatures
+			lines = append(lines, trimmed)
+		}
+	}
+	return lines
 }
 
 func isMethodSignature(line string) bool {
