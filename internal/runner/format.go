@@ -201,6 +201,29 @@ func formatHealth(lastRetro time.Time, iterationsSinceReview int) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
+// formatRecommendation formats a recommendation string with a command hint.
+func formatRecommendation(rec string) string {
+	if rec == "" {
+		return ""
+	}
+	hint := ""
+	for _, mapping := range []struct {
+		prefix string
+		cmd    string
+	}{
+		{"Refine", "gromit refine"},
+		{"Plan", "gromit plan"},
+		{"Decompose", "gromit decompose"},
+		{"Run", "gromit run"},
+	} {
+		if strings.HasPrefix(rec, mapping.prefix) {
+			hint = " (" + mapping.cmd + ")"
+			break
+		}
+	}
+	return "Next action: " + rec + hint
+}
+
 // formatItems formats a list of items, showing up to maxShow items and an overflow message
 func formatItems(items []string, maxShow int) []string {
 	if len(items) == 0 {
