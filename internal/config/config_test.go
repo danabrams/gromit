@@ -2150,6 +2150,31 @@ func TestReviewConfigExplicit(t *testing.T) {
 	}
 }
 
+func TestReviewConfigTierParsingNormalizesCaseAndWhitespace(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `review:
+  tier: " LOW "
+  thorough:
+    tier: " HiGh "
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Review.Tier != "low" {
+		t.Fatalf("Review.Tier = %q, want %q", cfg.Review.Tier, "low")
+	}
+	if cfg.Review.Thorough.Tier != "high" {
+		t.Fatalf("Review.Thorough.Tier = %q, want %q", cfg.Review.Thorough.Tier, "high")
+	}
+}
+
 func TestReviewConfigPartialExplicit(t *testing.T) {
 	// Test that explicit false values are preserved while unset values get defaults
 	dir := t.TempDir()
