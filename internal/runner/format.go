@@ -307,6 +307,30 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 	return strings.Join(lines, "\n")
 }
 
+// formatSPCValue formats a single SPC metric value for display.
+// When asPercent is true, v is treated as a ratio (0.0–1.0) and formatted as a percentage.
+// When asPercent is false, v is treated as milliseconds and formatted as a duration.
+func formatSPCValue(v float64, asPercent bool) string {
+	if asPercent {
+		pct := v * 100
+		if pct < 0 {
+			pct = 0
+		} else if pct > 100 {
+			pct = 100
+		}
+		return fmt.Sprintf("%d%%", int(math.Round(pct)))
+	}
+	// Duration in milliseconds.
+	if v < 0 {
+		v = 0
+	}
+	d := time.Duration(v) * time.Millisecond
+	if d >= time.Minute {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	return fmt.Sprintf("%ds", int(d.Seconds()))
+}
+
 // formatModelPerformance formats per-model performance statistics for display.
 func formatModelPerformance(stats map[string]logger.ModelStats) string {
 	var lines []string
