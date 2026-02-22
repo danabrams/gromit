@@ -332,3 +332,18 @@ func TestAssembleRedHandoffPopulatesCycleSummaryWithCompletedRequirements(t *tes
 		t.Fatalf("expected CycleSummary to contain completed requirement, got %q", handoff.CycleSummary)
 	}
 }
+
+func TestExtractAPISurfaceIncludesInterfaceMethodSignatures(t *testing.T) {
+	implFiles := map[string]string{
+		"auth.go": "package auth\n\ntype Reader interface {\n\tRead(p []byte) (n int, err error)\n\tClose() error\n}\n",
+	}
+
+	surface := extractAPISurface(implFiles)
+
+	if !strings.Contains(surface, "Read(p []byte) (n int, err error)") {
+		t.Fatalf("expected APISurface to contain interface method Read, got %q", surface)
+	}
+	if !strings.Contains(surface, "Close() error") {
+		t.Fatalf("expected APISurface to contain interface method Close, got %q", surface)
+	}
+}
