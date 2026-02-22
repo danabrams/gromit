@@ -179,7 +179,13 @@ func (r *Runner) buildPromptForBead(ctx context.Context, bc *runtypes.BeadContex
 		}
 	}
 
-	buildPrompt, err := r.renderer.RenderBuild(bc.PromptCtx)
+	r.ensureMethodologyPolicy()
+	var buildPrompt string
+	if r.methodologyPolicy.IsActive(bc.Bead.Labels, methodologyTDD) {
+		buildPrompt, err = r.renderer.RenderTDDBuild(bc.PromptCtx)
+	} else {
+		buildPrompt, err = r.renderer.RenderBuild(bc.PromptCtx)
+	}
 	if err != nil {
 		return fmt.Errorf("rendering build prompt: %w", err)
 	}
