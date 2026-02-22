@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/failurephase"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
@@ -142,6 +143,12 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 			bc.Result.Error = err
 			return true
 		}
+	}
+	// Update diagnostics to reflect that TDD fresh-context was the actual
+	// methodology used, overriding the initial "build" prompt_type set by
+	// buildPromptForBead.
+	if bc.Result != nil {
+		bc.Result.PromptDiagnostics = prompt.NewDiagnostics("tdd_fresh_context", nil)
 	}
 	bc.Result.Success = true
 	bc.Result.FirstPassSuccess = true
