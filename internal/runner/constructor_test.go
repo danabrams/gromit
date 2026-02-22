@@ -77,6 +77,29 @@ func TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator(t *testing.T) {
 	}
 }
 
+// TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled verifies that
+// optionalTDDCycleRunner returns nil when FreshContextPerCycle is false, so the
+// Build stage falls back to single-invocation StreamRun.
+func TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled(t *testing.T) {
+	cfg := &config.Config{}
+	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard)
+	if result != nil {
+		t.Errorf("optionalTDDCycleRunner returned %T, want nil when FreshContextPerCycle is false", result)
+	}
+}
+
+// TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled verifies that
+// optionalTDDCycleRunner returns a non-nil TDDCycleRunner when FreshContextPerCycle
+// is true, so the Build stage can delegate to per-cycle TDD orchestration.
+func TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Methodology.FreshContextPerCycle = true
+	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard)
+	if result == nil {
+		t.Fatal("optionalTDDCycleRunner returned nil, want non-nil TDDCycleRunner when FreshContextPerCycle is true")
+	}
+}
+
 // TestFailureLearnerAdapter_ForwardsFailureOutput verifies that the failureOutput
 // string passed to ExtractFailureLearning reaches the analyzer.Analyze call.
 func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
