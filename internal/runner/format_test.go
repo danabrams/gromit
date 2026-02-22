@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/internal/logger"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -282,6 +284,86 @@ func TestFormatRecommendation(t *testing.T) {
 			got := formatRecommendation(tt.rec)
 			if got != tt.want {
 				t.Errorf("formatRecommendation(%q) = %q, want %q", tt.rec, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatModelPerformance(t *testing.T) {
+	tests := []struct {
+		name           string
+		stats          map[string]logger.ModelStats
+		wantSubstrings []string
+	}{
+		{
+			name:           "nil stats shows header",
+			stats:          nil,
+			wantSubstrings: []string{"Model Performance"},
+		},
+		{
+			name:           "empty stats shows header",
+			stats:          map[string]logger.ModelStats{},
+			wantSubstrings: []string{"Model Performance"},
+		},
+		{
+			name: "single model with success rate and cost",
+			stats: map[string]logger.ModelStats{
+				"opus": {
+					Model: "opus", Iterations: 10, Successes: 9, Failures: 1, TotalCostUSD: 20.40,
+				},
+			},
+			wantSubstrings: []string{"Model Performance", "opus", "90%", "(9/10)", "$2.04/iter"},
+		},
+		{
+			name: "multiple models all present",
+			stats: map[string]logger.ModelStats{
+				"opus":   {Model: "opus", Iterations: 11, Successes: 10, Failures: 1, TotalCostUSD: 22.44},
+				"sonnet": {Model: "sonnet", Iterations: 8, Successes: 3, Failures: 5, TotalCostUSD: 3.68},
+				"haiku":  {Model: "haiku", Iterations: 8, Successes: 6, Failures: 2, TotalCostUSD: 0.96},
+			},
+			wantSubstrings: []string{
+				"opus", "91%", "(10/11)", "$2.04/iter",
+				"sonnet", "38%", "(3/8)", "$0.46/iter",
+				"haiku", "75%", "(6/8)", "$0.12/iter",
+			},
+		},
+		{
+			name: "zero iterations no division by zero",
+			stats: map[string]logger.ModelStats{
+				"opus": {Model: "opus", Iterations: 0, Successes: 0, Failures: 0, TotalCostUSD: 0.0},
+			},
+			wantSubstrings: []string{"opus"},
+		},
+		{
+			name: "perfect success rate",
+			stats: map[string]logger.ModelStats{
+				"opus": {Model: "opus", Iterations: 5, Successes: 5, Failures: 0, TotalCostUSD: 10.00},
+			},
+			wantSubstrings: []string{"100%", "(5/5)", "$2.00/iter"},
+		},
+		{
+			name: "zero success rate",
+			stats: map[string]logger.ModelStats{
+				"sonnet": {Model: "sonnet", Iterations: 4, Successes: 0, Failures: 4, TotalCostUSD: 1.00},
+			},
+			wantSubstrings: []string{"0%", "(0/4)", "$0.25/iter"},
+		},
+		{
+			name: "fractional cent cost rounds to two decimals",
+			stats: map[string]logger.ModelStats{
+				"opus": {Model: "opus", Iterations: 3, Successes: 3, Failures: 0, TotalCostUSD: 1.00},
+			},
+			wantSubstrings: []string{"$0.33/iter"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatModelPerformance(tt.stats)
+			for _, substr := range tt.wantSubstrings {
+				if !strings.Contains(got, substr) {
+					t.Errorf("formatModelPerformance() = %q, want substring %q", got, substr)
+				}
 			}
 		})
 	}
