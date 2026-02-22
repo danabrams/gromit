@@ -111,6 +111,25 @@ func TestApplyLayer3Requirements_TriggersAndReplacesOutputsWhenOnlyOneItem(t *te
 	}
 }
 
+func TestApplyLayer3Requirements_DoesNotTriggerWhenOutputsHasMoreThanOneItem(t *testing.T) {
+	outputs := []string{"req one", "req two"}
+	called := false
+	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
+		called = true
+		return nil, nil
+	}
+	got, activated := applyLayer3Requirements(context.Background(), outputs, "Title", "desc", invoke)
+	if activated {
+		t.Fatal("expected layer3 NOT to be activated when outputs > 1")
+	}
+	if called {
+		t.Fatal("expected invoke NOT to be called when outputs > 1")
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected original outputs preserved, got %v", got)
+	}
+}
+
 func TestExtractRequirementsFromDescription_BulletedList(t *testing.T) {
 	cases := []struct {
 		name  string
