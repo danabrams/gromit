@@ -73,6 +73,15 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 		return fmt.Errorf("writing health status: %w", err)
 	}
 
+	// Model Performance section: read per-model stats from iteration logs
+	if cfg.Paths.Logs != "" {
+		if modelStats, err := logger.ReadModelStats(cfg.Paths.Logs); err == nil && len(modelStats) > 0 {
+			if _, err := fmt.Fprintln(w, formatModelPerformance(modelStats)); err != nil {
+				return fmt.Errorf("writing model performance: %w", err)
+			}
+		}
+	}
+
 	// SPC section: read process trend from logs directory
 	var trend *logger.ProcessTrend
 	if cfg.Paths.Logs != "" {
