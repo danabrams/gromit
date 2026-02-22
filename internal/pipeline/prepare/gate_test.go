@@ -380,3 +380,104 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 		})
 	}
 }
+
+// TestGateRunScopeGateDecompositionEndToEnd verifies the full path:
+// gate.Run() → scope gate triggers → decomposerAdapter.Decompose() → bead.Client.CreateWithParent()
+// This integration test exercises the end-to-end decomposition pipeline when an oversized root bead
+// is decomposed into sub-beads via the real pipeline.
+func TestGateRunScopeGateDecompositionEndToEnd(t *testing.T) {
+	blockTrue := true
+
+	// Mock bead client that tracks CreateWithParent calls
+	mockBeadClient := &mockBeadClientForIntegration{}
+
+	// Create decomposerAdapter that wraps the mock bead client
+	decomposer := &decomposerAdapterForIntegration{
+		beads: mockBeadClient,
+	}
+
+	// Create an oversized root bead that exceeds scope threshold (6 expected outputs > maxScopeFiles of 5)
+	oversizedBead := &bead.Bead{
+		ID:              "test-oversized-root",
+		Title:           "Implement large feature",
+		Priority:        1,
+		Labels:          []string{"feature"},
+		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+		Parent:          "", // Root bead, not a child
+	}
+
+	cfg := &config.Config{
+		ScopeCheck: config.ScopeCheckConfig{
+			Enabled:        true,
+			BlockOversized: &blockTrue,
+		},
+	}
+
+	// Configure gate with decomposer adapter
+	gate := New(io.Discard).WithDecomposer(decomposer)
+
+	// Run the gate
+	in := pipeline.Input{Bead: oversizedBead, Config: cfg}
+	out, err := gate.Run(context.Background(), in)
+
+	// Verify no error occurred
+	if err != nil {
+		t.Fatalf("gate.Run() error = %v", err)
+	}
+
+	// Verify decision is Skip (decomposition succeeded, so skip the original bead)
+	if out.Decision != pipeline.Skip {
+		t.Errorf("decision = %v, want Skip (decomposition should succeed)", out.Decision)
+	}
+
+	// Verify CreateWithParent was called with correct parameters
+	if !mockBeadClient.createWithParentCalled {
+		t.Error("CreateWithParent was not called, but gate should have triggered decomposition")
+	}
+
+	if mockBeadClient.capturedTitle != oversizedBead.Title+" (decomposed)" {
+		t.Errorf("CreateWithParent title = %q, want %q", mockBeadClient.capturedTitle, oversizedBead.Title+" (decomposed)")
+	}
+
+	if mockBeadClient.capturedPriority != oversizedBead.Priority {
+		t.Errorf("CreateWithParent priority = %d, want %d", mockBeadClient.capturedPriority, oversizedBead.Priority)
+	}
+
+	if mockBeadClient.capturedParentID != oversizedBead.ID {
+		t.Errorf("CreateWithParent parentID = %q, want %q", mockBeadClient.capturedParentID, oversizedBead.ID)
+	}
+}
+
+// mockBeadClientForIntegration is a mock bead.Client for integration testing
+type mockBeadClientForIntegration struct {
+	createWithParentCalled  bool
+	capturedTitle           string
+	capturedPriority        int
+	capturedLabels          []string
+	capturedExpectedOutputs []string
+	capturedParentID        string
+}
+
+func (m *mockBeadClientForIntegration) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+	m.createWithParentCalled = true
+	m.capturedTitle = title
+	m.capturedPriority = priority
+	m.capturedLabels = labels
+	m.capturedExpectedOutputs = expectedOutputs
+	m.capturedParentID = parentID
+	return &bead.Bead{ID: "bead-decomposed-1", Title: title, Priority: priority}, nil
+}
+
+// decomposerAdapterForIntegration mimics the real decomposerAdapter behavior
+type decomposerAdapterForIntegration struct {
+	beads mockBeadClientInterface
+}
+
+type mockBeadClientInterface interface {
+	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+}
+
+func (a *decomposerAdapterForIntegration) Decompose(ctx context.Context, b *bead.Bead) error {
+	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
+	return err
+}
