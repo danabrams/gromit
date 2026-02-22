@@ -110,7 +110,17 @@ func (a *retroRouterAdapter) Run(ctx context.Context, prompt string, tier string
 }
 
 func (a *retroRouterAdapter) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-	return nil, fmt.Errorf("retro router adapter stream run not implemented")
+	if a == nil || a.Router == nil {
+		return nil, fmt.Errorf("provider router adapter is nil")
+	}
+
+	phase := resolveProviderReviewPhase(a.Phase)
+	selectedProvider, _ := a.Router.Select(phase, tier)
+	if selectedProvider == nil {
+		return nil, fmt.Errorf("no providers available for phase %q and tier %q", phase, tier)
+	}
+
+	return selectedProvider.StreamRun(ctx, prompt, tier, output, handler, onToolCall)
 }
 
 // cmdAgentResolver adapts agent.Resolve to pipeline.AgentResolver.
