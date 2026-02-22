@@ -146,6 +146,67 @@ func TestPrintStatus_IncludesSPCSection(t *testing.T) {
 	}
 }
 
+// TestPrintStatus_StalePIDWarnsAndDeletesFile verifies that when status.json
+// says running:true but the processChecker reports the PID as dead, PrintStatus
+// outputs a stale-run warning with bead details, prints a removal message, and
+// deletes the status.json file from disk.
+func TestPrintStatus_StalePIDWarnsAndDeletesFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Write a status.json that claims to be running.
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	if err := sw.Write(4, "bead-stale-1", "Stale bead title", "sonnet", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	statusPath := filepath.Join(gromitDir, "status.json")
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+
+	var buf strings.Builder
+	// processChecker returns false → PID is dead → stale detection should trigger.
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return false }); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+
+	// Should warn about the stale run with bead details.
+	if !strings.Contains(output, "Warning: stale run detected") {
+		t.Errorf("expected stale-run warning; got:\n%s", output)
+	}
+	if !strings.Contains(output, "bead-stale-1") {
+		t.Errorf("expected bead ID in stale warning; got:\n%s", output)
+	}
+	if !strings.Contains(output, "Stale bead title") {
+		t.Errorf("expected bead title in stale warning; got:\n%s", output)
+	}
+
+	// Should announce file removal.
+	if !strings.Contains(output, "Removing stale status file") {
+		t.Errorf("expected removal message; got:\n%s", output)
+	}
+
+	// Should show "not running" after cleanup.
+	if !strings.Contains(output, "Run: not running") {
+		t.Errorf("expected 'Run: not running' after stale cleanup; got:\n%s", output)
+	}
+
+	// The status.json file must have been deleted from disk.
+	if _, err := os.Stat(statusPath); !os.IsNotExist(err) {
+		t.Errorf("expected status.json to be deleted; stat returned: %v", err)
+	}
+}
+
 // TestPrintStatus_ReadsStateFilesForHealthSection verifies that PrintStatus
 // reads state.json (for IterationsSinceReview) and interactive-state.json
 // (for LastRetro) and includes a Health section in the output. The current
