@@ -25,6 +25,18 @@ func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 	}
 }
 
+func TestExtractRequirementsViaLLM_InvokesAtTierLow(t *testing.T) {
+	var capturedTier string
+	invoke := func(_ context.Context, _ string, tier string) (*provider.Result, error) {
+		capturedTier = tier
+		return &provider.Result{Success: true, Output: "req one\nreq two"}, nil
+	}
+	extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+	if capturedTier != provider.TierLow {
+		t.Errorf("got tier %q, want %q", capturedTier, provider.TierLow)
+	}
+}
+
 func TestExtractRequirementsViaLLM_SkipsBlankLines(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "item one\n\n\nitem two\n\nitem three\n"}, nil
