@@ -148,8 +148,10 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Write
 		return nil, nil
 	}
 
-	// Bead exceeds scope limit. Try decomposition if available and bead is root.
-	if g.decomposer != nil && in.Bead.Parent == "" {
+	// Bead exceeds scope limit. Try decomposition if available.
+	// Unlike proactive (keyword) decomposition, scope-based decomposition applies to
+	// child beads too: the finite expected-outputs count bounds recursion depth naturally.
+	if g.decomposer != nil {
 		fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition\n",
 			in.Bead.ID, fileCount, maxScopeFiles)
 		if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {

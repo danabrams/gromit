@@ -303,11 +303,11 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 		wantDecomposeCalled bool
 	}{
 		{
-			name:                "block child bead without attempting decomposition",
+			name:                "decompose oversized child bead",
 			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
 			decomposer:          &fakeDecomposer{err: nil},
-			wantDecision:        pipeline.Block,
-			wantDecomposeCalled: false,
+			wantDecision:        pipeline.Skip,
+			wantDecomposeCalled: true,
 		},
 	}
 
@@ -347,7 +347,7 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 		})
 	}
 
-	// Test child beads (with parent): should block without attempting decomposition
+	// Test child beads (with parent): oversized children get decomposed too
 	for _, tt := range childBeadTests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &bead.Bead{
