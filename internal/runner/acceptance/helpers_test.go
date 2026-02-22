@@ -620,44 +620,5 @@ func setupRunnerForWorktreeMerge(t *testing.T, cfg *config.Config, wm runner.Wor
 	return r
 }
 
-// setupInvocationTimeoutRunner creates a Runner with a single bead and the given provider.
-func setupInvocationTimeoutRunner(t *testing.T, cfg *config.Config, p provider.Provider) (*runner.Runner, *mockIterationLogger) {
-	t.Helper()
-	beadReady := false
-	beads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
-			if beadReady {
-				return nil, nil
-			}
-			beadReady = true
-			return &bead.Bead{
-				ID:              "bead-timeout-1",
-				Title:           "Timeout bead",
-				Priority:        1,
-				Labels:          []string{},
-				ExpectedOutputs: []string{},
-			}, nil
-		},
-	}
-	mockLog := &mockIterationLogger{}
-	var buf strings.Builder
-	r, err := runner.NewRunnerWithDeps(
-		cfg,
-		&buf,
-		t.TempDir(),
-		runner.Deps{
-			Beads:    beads,
-			Router:   provider.NewSingleProviderRouter(p),
-			Analyzer: &mockFailureAnalyzer{},
-			Renderer: &mockPromptRenderer{},
-			Logger:   mockLog,
-		},
-	)
-	if err != nil {
-		t.Fatalf("NewRunnerWithDeps failed: %v", err)
-	}
-	return r, mockLog
-}
-
 // Ensure unused import is used (time is used in structs above).
 var _ = time.Now
