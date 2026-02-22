@@ -331,6 +331,27 @@ func formatSPCValue(v float64, asPercent bool) string {
 	return fmt.Sprintf("%ds", int(d.Seconds()))
 }
 
+// simplifySPCMetric returns a short human-friendly label for a known SPC metric
+// constant, or returns the metric string unchanged if unrecognized.
+func simplifySPCMetric(metric string) string {
+	switch metric {
+	case spcMetricRollingSuccessRate:
+		return "success"
+	case spcMetricFirstPassSuccessRate:
+		return "first-pass"
+	case spcMetricRollingEscalateRate:
+		return "escalation"
+	case spcMetricRollingQualityScore:
+		return "quality"
+	case spcMetricRollingAvgDurationMs:
+		return "duration"
+	case spcMetricRollingAvgCostUSD:
+		return "cost"
+	default:
+		return metric
+	}
+}
+
 // formatModelPerformance formats per-model performance statistics for display.
 func formatModelPerformance(stats map[string]logger.ModelStats) string {
 	var lines []string
