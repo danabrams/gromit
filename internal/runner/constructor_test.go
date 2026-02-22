@@ -242,6 +242,66 @@ func TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition(t *testing.T) {
 	}
 }
 
+func TestDecomposerAdapter_Decompose_InheritsBuildStrategyLabelFromParent(t *testing.T) {
+	stubRouter := provider.NewSingleProviderRouter(&stubRunProvider{
+		name: "test",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Part 1","expected_outputs":["f1","f2"]}]`,
+			}, nil
+		},
+	})
+
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+
+	var createArgs []string
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) == 0 {
+			return "", nil
+		}
+		switch args[0] {
+		case "show":
+			return `[{"id":"parent-1","title":"Oversized Feature","priority":1,"labels":["build_strategy:parallel"],"issue_type":"task","status":"open"}]`, nil
+		case "create":
+			createArgs = append([]string(nil), args...)
+			return `{"id":"child-1","title":"Part 1","priority":1,"labels":["build_strategy:parallel"],"issue_type":"task","status":"open"}`, nil
+		default:
+			return "", nil
+		}
+	}
+
+	adapter := &decomposerAdapter{beads: client, router: stubRouter}
+	b := &bead.Bead{
+		ID:              "parent-1",
+		Title:           "Oversized Feature",
+		Priority:        1,
+		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+	}
+
+	if err := adapter.Decompose(context.Background(), b); err != nil {
+		t.Fatalf("Decompose returned error: %v", err)
+	}
+	if len(createArgs) == 0 {
+		t.Fatal("create was not called")
+	}
+	if !hasCreateLabelArg(createArgs, "build_strategy:parallel") {
+		t.Fatalf("create args missing inherited build strategy label: %v", createArgs)
+	}
+}
+
+func hasCreateLabelArg(args []string, want string) bool {
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--label" && args[i+1] == want {
+			return true
+		}
+	}
+	return false
+}
+
 // stubFailureAnalyzer is a test double for FailureAnalyzer.
 type stubFailureAnalyzer struct {
 	fn func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error)
