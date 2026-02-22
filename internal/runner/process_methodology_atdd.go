@@ -193,6 +193,53 @@ func (r *Runner) runATDDRewriteRetryCheck(
 	return true
 }
 
+// runATDDPostRefactorVerification runs the ATDD acceptance verification phase
+// that follows a successful refactor. Returns (retry, terminal).
+func (r *Runner) runATDDPostRefactorVerification(ctx context.Context, bc *runtypes.BeadContext, cycleNumber int) (retry bool, terminal *IterationResult) {
+	if remaining, elapsed, ok := beadRemaining(bc); ok {
+		if remaining <= 0 {
+			r.log("Warning: bead timeout budget exhausted before post-refactor acceptance verification; using parent context fallback")
+		} else {
+			r.log("Post-refactor acceptance verification budget: %s remaining (elapsed %s of %s)", remaining.Round(time.Second), elapsed.Round(time.Second), bc.BeadTimeout.Round(time.Second))
+		}
+	}
+
+	acceptTimeoutSec := r.cfg.Validation.ResolvePhaseTimeoutSeconds(int(bc.BeadTimeout.Seconds()))
+	acceptanceCtx, acceptanceCancel, acceptMeta := newPhaseContext(bc, "acceptance_verification", acceptTimeoutSec)
+	defer acceptanceCancel()
+	r.log("Acceptance verification phase context: timeout=%s source=%s", acceptMeta.EffectiveTimeout.Round(time.Second), acceptMeta.TimeoutSource)
+	verificationPhaseStart := time.Now()
+	verificationBeforeCostUSD, verificationBeforeInputTokens, verificationBeforeOutputTokens := snapshotIterationUsage(bc.Result)
+	if err := r.methodologyExec.VerifyAcceptanceTestsPass(acceptanceCtx, bc); err != nil {
+		r.recordPhaseMetricFromSnapshot(
+			bc,
+			"verification",
+			cycleNumber,
+			verificationPhaseStart,
+			false,
+			verificationBeforeCostUSD,
+			verificationBeforeInputTokens,
+			verificationBeforeOutputTokens,
+		)
+		setPhaseAttribution(bc.Result, "acceptance_verification", err)
+		if r.handleAcceptanceVerificationFailure(ctx, bc, "acceptance verification failed after refactoring", err) {
+			return true, nil
+		}
+		return false, bc.Result
+	}
+	r.recordPhaseMetricFromSnapshot(
+		bc,
+		"verification",
+		cycleNumber,
+		verificationPhaseStart,
+		true,
+		verificationBeforeCostUSD,
+		verificationBeforeInputTokens,
+		verificationBeforeOutputTokens,
+	)
+	return false, nil
+}
+
 func (r *Runner) recordPhaseMetricWithUsage(
 	bc *runtypes.BeadContext,
 	phase string,
