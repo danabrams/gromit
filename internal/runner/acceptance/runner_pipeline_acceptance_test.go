@@ -4,6 +4,7 @@ package acceptance_test
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -112,6 +113,55 @@ func TestTDDPromptSelection(t *testing.T) {
 			}
 			if !tt.expectTDDBuildCalled && tddBuildCalled {
 				t.Errorf("%s: Expected RenderTDDBuild NOT to be called but it was", tt.description)
+			}
+		})
+	}
+}
+
+// TestOrchestratorHelper_TDDPromptSelection verifies that the orchestrator loop
+// runs a bead to completion for each TDD config scenario without error.
+func TestOrchestratorHelper_TDDPromptSelection(t *testing.T) {
+	tests := []struct {
+		name                 string
+		globalTDD            bool
+		beadLabels           []string
+		expectTDDBuildCalled bool
+	}{
+		{name: "TDD active via global config", globalTDD: true, beadLabels: []string{}, expectTDDBuildCalled: true},
+		{name: "TDD active via bead label", globalTDD: false, beadLabels: []string{"tdd:true"}, expectTDDBuildCalled: true},
+		{name: "TDD inactive globally, no label", globalTDD: false, beadLabels: []string{}, expectTDDBuildCalled: false},
+		{name: "TDD disabled via label overriding global", globalTDD: true, beadLabels: []string{"tdd:false"}, expectTDDBuildCalled: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tddBuildCalled := false
+			cfg := &config.Config{
+				Methodology: config.MethodologyConfig{TDD: tt.globalTDD},
+			}
+			beadReady := false
+			mockBeads := &mockBeadClient{
+				ReadyFn: func() (*bead.Bead, error) {
+					if beadReady {
+						return nil, nil
+					}
+					beadReady = true
+					return &bead.Bead{
+						ID:     "test-bead-1",
+						Title:  "Test bead",
+						Labels: tt.beadLabels,
+					}, nil
+				},
+			}
+			h := NewOrchestratorTestHelperWithDeps(t, cfg, io.Discard, mockBeads, newMockRouter())
+			if err := h.Run(context.Background(), 0, time.Time{}, nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if tt.expectTDDBuildCalled && !tddBuildCalled {
+				t.Errorf("%s: Expected RenderTDDBuild to be called but it wasn't", tt.name)
+			}
+			if !tt.expectTDDBuildCalled && tddBuildCalled {
+				t.Errorf("%s: Expected RenderTDDBuild NOT to be called but it was", tt.name)
 			}
 		})
 	}
