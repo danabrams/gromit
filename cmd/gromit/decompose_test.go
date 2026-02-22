@@ -486,3 +486,35 @@ func TestBuildDecomposeClient_ClaudeFallbackPath(t *testing.T) {
 		t.Fatalf("timeout = %v, want %v", typedClient.Timeout, time.Duration(config.DefaultPipelineTimeoutSeconds)*time.Second)
 	}
 }
+
+func TestBuildDecomposeClient_ProviderRouterPath_DefaultPipelineTimeout(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"openai": {
+				Binary: "codex",
+				Models: map[string]string{
+					"high":   "gpt-5.3-codex",
+					"medium": "gpt-5.3-codex",
+					"low":    "gpt-5-mini",
+				},
+			},
+		},
+		Claude: config.ClaudeConfig{},
+	}
+
+	client, err := buildDecomposeClient(cfg)
+	if err != nil {
+		t.Fatalf("buildDecomposeClient() error = %v", err)
+	}
+
+	typedClient, ok := client.(*providerRouterClientAdapter)
+	if !ok {
+		t.Fatalf("client type = %T, want *providerRouterClientAdapter", client)
+	}
+	if typedClient.Timeout != time.Duration(config.DefaultPipelineTimeoutSeconds)*time.Second {
+		t.Fatalf("timeout = %v, want %v", typedClient.Timeout, time.Duration(config.DefaultPipelineTimeoutSeconds)*time.Second)
+	}
+	if typedClient.Phase != decomposeSessionCommand {
+		t.Fatalf("phase = %q, want %q", typedClient.Phase, decomposeSessionCommand)
+	}
+}
