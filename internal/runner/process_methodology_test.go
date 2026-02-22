@@ -130,6 +130,20 @@ func TestApplyLayer3Requirements_DoesNotTriggerWhenOutputsHasMoreThanOneItem(t *
 	}
 }
 
+func TestApplyLayer3Requirements_TitleFallbackPreservedOnLayer3Failure(t *testing.T) {
+	outputs := []string{"My Title"}
+	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
+		return nil, fmt.Errorf("provider unavailable")
+	}
+	got, activated := applyLayer3Requirements(context.Background(), outputs, "My Title", "no parseable list", invoke)
+	if activated {
+		t.Fatal("expected layer3 NOT to be activated on invoke failure")
+	}
+	if len(got) != 1 || got[0] != "My Title" {
+		t.Fatalf("expected title fallback preserved, got %v", got)
+	}
+}
+
 func TestExtractRequirementsFromDescription_BulletedList(t *testing.T) {
 	cases := []struct {
 		name  string
