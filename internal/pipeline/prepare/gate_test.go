@@ -258,3 +258,60 @@ func TestGateRunProactiveDecomposition(t *testing.T) {
 		})
 	}
 }
+
+func TestGateRunScopeGateAttempsDecomposition(t *testing.T) {
+	blockTrue := true
+
+	tests := []struct {
+		name                string
+		expectedOutputs     []string
+		decomposerErr       error
+		wantDecision        pipeline.Decision
+		wantDecomposeCalled bool
+	}{
+		{
+			name:                "skip when scope decomposition succeeds",
+			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			decomposerErr:       nil,
+			wantDecision:        pipeline.Skip,
+			wantDecomposeCalled: true,
+		},
+		{
+			name:                "block when scope decomposition fails",
+			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			decomposerErr:       errors.New("decomposition failed"),
+			wantDecision:        pipeline.Block,
+			wantDecomposeCalled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &bead.Bead{
+				ID:              "test-oversized",
+				Title:           "test bead",
+				ExpectedOutputs: tt.expectedOutputs,
+				Parent:          "", // Root bead
+			}
+			d := &fakeDecomposer{err: tt.decomposerErr}
+			cfg := &config.Config{
+				ScopeCheck: config.ScopeCheckConfig{
+					Enabled:        true,
+					BlockOversized: &blockTrue,
+				},
+			}
+			gate := New(io.Discard).WithDecomposer(d)
+			in := pipeline.Input{Bead: b, Config: cfg}
+			out, err := gate.Run(context.Background(), in)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if out.Decision != tt.wantDecision {
+				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
+			}
+			if d.called != tt.wantDecomposeCalled {
+				t.Errorf("decomposer called = %v, want %v", d.called, tt.wantDecomposeCalled)
+			}
+		})
+	}
+}
