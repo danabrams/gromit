@@ -276,6 +276,12 @@ func TestRenderDecomposeExpectedOutputs(t *testing.T) {
 			t.Error("expected JSON example to include 'expected_outputs' field")
 		}
 	})
+
+	t.Run("output format instructs 2-5 independently testable requirements", func(t *testing.T) {
+		if !strings.Contains(result, "2-5") || !strings.Contains(result, "independently testable") {
+			t.Error("expected output format instructions to mention '2-5' and 'independently testable'")
+		}
+	})
 }
 
 // TestRenderDecomposeExampleIntegrity verifies that the JSON example and
