@@ -321,7 +321,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 
 	syncOut := newSyncWriter(output)
 
-	router, learningsProvider, _, _, err := buildRouterAndLearningsProvider(cfg, gromitDir, output)
+	router, learningsProvider, sf, _, err := buildRouterAndLearningsProvider(cfg, gromitDir, output)
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +329,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	wireLearningsFilter(renderer, learningsProvider)
 	wireSiblingEnrichmentResolver(renderer, cfg.Paths.Logs)
 
-	_, err = analyzer.NewAnalyzer(learningsProvider, cfg.Models.Validation, renderer)
+	analyzerObj, err := analyzer.NewAnalyzer(learningsProvider, cfg.Models.Validation, renderer)
 	if err != nil {
 		return nil, err
 	}
@@ -377,6 +377,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	epilogueStage.WithFailureLearner(&failureLearnerAdapter{
 		renderer: renderer,
 		router:   router,
+		analyzer: analyzerObj,
 		logFn:    func(msg string, args ...interface{}) { _, _ = fmt.Fprintf(syncOut, msg+"\n", args...) },
 	})
 
@@ -419,6 +420,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 				_ = statusWriter.Write(iteration, beadID, beadTitle, "", true, cfg.Loop.MaxIterations, 0)
 			}
 		},
+		StateSaver: sf,
 	}
 
 	return NewOrchestrator(orchCfg), nil
