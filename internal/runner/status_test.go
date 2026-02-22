@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 )
@@ -99,5 +100,61 @@ func TestPrintStatus_ShowsModelAndTimeBudget(t *testing.T) {
 	}
 	if !strings.Contains(output, "of 45m elapsed") {
 		t.Errorf("PrintStatus output missing time budget; got:\n%s", output)
+	}
+}
+
+// TestPrintStatus_ReadsStateFilesForHealthSection verifies that PrintStatus
+// reads state.json (for IterationsSinceReview) and interactive-state.json
+// (for LastRetro) and includes a Health section in the output. The current
+// implementation only reads status.json and pipeline — this test drives
+// adding state file reads so the output includes "Health:" with review and
+// retro data.
+func TestPrintStatus_ReadsStateFilesForHealthSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Write a status.json so PrintStatus takes the active-run path.
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	if err := sw.Write(2, "bead-health", "Health test", "sonnet", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	// Write state.json with iterations_since_review.
+	stateJSON := `{"iterations_since_review": 7}`
+	if err := os.WriteFile(filepath.Join(gromitDir, "state.json"), []byte(stateJSON), 0644); err != nil {
+		t.Fatalf("WriteFile state.json: %v", err)
+	}
+
+	// Write interactive-state.json with last_retro timestamp.
+	retroTime := time.Now().Add(-3 * time.Hour).Format(time.RFC3339)
+	interactiveJSON := `{"last_retro": "` + retroTime + `"}`
+	if err := os.WriteFile(filepath.Join(gromitDir, "interactive-state.json"), []byte(interactiveJSON), 0644); err != nil {
+		t.Fatalf("WriteFile interactive-state.json: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Health:") {
+		t.Errorf("PrintStatus output missing Health section; got:\n%s", output)
+	}
+	if !strings.Contains(output, "Last review: 7 iterations ago") {
+		t.Errorf("PrintStatus output missing review count; got:\n%s", output)
+	}
+	if !strings.Contains(output, "Last retro:") {
+		t.Errorf("PrintStatus output missing retro info; got:\n%s", output)
 	}
 }
