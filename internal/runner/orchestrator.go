@@ -111,6 +111,7 @@ runLoop:
 		// Iteration numbers are assigned monotonically, one per bead regardless
 		// of whether the bead proceeds through all stages or is blocked early.
 		iteration++
+		o.logf("Iteration %d: processing bead %s (%s)", iteration, b.ID, b.Title)
 
 		baseIn := o.buildInput(b, iteration, deadline, validationFailures, touchedPackages)
 
@@ -154,10 +155,13 @@ runLoop:
 		// Stage 5: Epilogue — close bead, sync, write status, write iteration log,
 		// run between-iterations command, trigger thorough review when due.
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
+		o.logf("Iteration %d: bead %s completed successfully", iteration, b.ID)
 		if len(epilogueOut.TouchedPackages) > 0 {
 			touchedPackages = epilogueOut.TouchedPackages
 		}
 	}
+
+	o.logf("Gromit loop complete. Processed %d iterations.", iteration)
 
 	// Merge per-run model stats into the global stats file without overwriting
 	// pre-existing entries from prior runs.

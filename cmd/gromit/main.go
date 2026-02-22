@@ -189,12 +189,10 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		deadline = time.Now().Add(time.Duration(totalMinutes) * time.Minute)
 	}
 
-	r, err := runner.NewRunner(cfg, os.Stdout)
+	r, err := runner.NewRunner(cfg, os.Stdout, labels...)
 	if err != nil {
 		return fmt.Errorf("failed to create runner: %w", err)
 	}
-	// Note: dryRun and label filters are not yet supported by the new Orchestrator API
-	_ = labels
 	_ = dryRun
 	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh)
 }

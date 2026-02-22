@@ -203,14 +203,16 @@ func (a *beadLifecycleAdapter) Sync() error {
 	return a.beads.Sync()
 }
 
-// statusWriterAdapter wraps an io.Writer to satisfy epilogue.StatusWriter.
+// statusWriterAdapter wraps runner.StatusWriter to satisfy epilogue.StatusWriter.
 type statusWriterAdapter struct {
-	output io.Writer
+	sw *StatusWriter
 }
 
 func (a *statusWriterAdapter) Write(iteration int, beadID, beadTitle string) error {
-	// Status writing logic placeholder - would typically write to a status file
-	return nil
+	if a.sw == nil {
+		return nil
+	}
+	return a.sw.Write(iteration, beadID, beadTitle, "", true, 0, 0)
 }
 
 // worktreeMergerAdapter wraps worktree.Manager to satisfy epilogue.WorktreeMerger.
@@ -248,7 +250,7 @@ func (a *failureLearnerAdapter) ExtractFailureLearning(ctx context.Context, bead
 	return nil
 }
 
-func newRunnerImpl(cfg *config.Config, output io.Writer) (*Orchestrator, error) {
+func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orchestrator, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -262,6 +264,11 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Orchestrator, error) 
 	}
 
 	gromitDir := filepath.Dir(cfg.Paths.Templates)
+
+	statusWriter, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		_, _ = fmt.Fprintf(output, "Warning: could not create status writer: %v\n", err)
+	}
 
 	renderer, err := prompt.NewRenderer(
 		cfg.Paths.Templates,
@@ -322,7 +329,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Orchestrator, error) 
 	// Stage 5: Epilogue (epilogue.New with BeadLifecycle and StatusWriter)
 	epilogueStage := epilogue.New(
 		&beadLifecycleAdapter{beads: beadsClient},
-		&statusWriterAdapter{output: syncOut},
+		&statusWriterAdapter{sw: statusWriter},
 		syncOut,
 	)
 
@@ -352,6 +359,9 @@ func newRunnerImpl(cfg *config.Config, output io.Writer) (*Orchestrator, error) 
 	}
 
 	getBeadFn := func(ctx context.Context) (*bead.Bead, error) {
+		if len(labels) > 0 {
+			return beadsClient.ReadyWithLabel(labels[0])
+		}
 		return beadsClient.Ready()
 	}
 
