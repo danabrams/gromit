@@ -156,7 +156,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	// 1a. Failure-path learning: extract unconditionally on every failure,
 	// regardless of tier or package novelty.
 	if !in.BuildSucceeded && e.failureLearner != nil {
-		if err := e.failureLearner.ExtractFailureLearning(ctx, in.Bead.ID, in.Bead.Title, ""); err != nil {
+		if err := e.failureLearner.ExtractFailureLearning(ctx, in.Bead.ID, in.Bead.Title, in.FailureOutput); err != nil {
 			fmt.Fprintf(w, "Warning: failed to extract failure learning: %v\n", err)
 		}
 	}
