@@ -273,21 +273,12 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println("Running retrospective analysis...")
 	fmt.Println("This may take a few minutes as it uses opus for quality analysis.")
 
-	// Create provider from config — use opus timeout since retro analysis runs on opus
-	opusTimeout, _, _, _ := cfg.Claude.TimeoutsForModel("opus")
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, opusTimeout)
+	runner, err := buildRetroProviderRunner(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to create claude client: %w", err)
+		return fmt.Errorf("failed to create retro provider runner: %w", err)
 	}
 
-	tierToModel := map[string]string{
-		provider.TierHigh:   "opus",
-		provider.TierMedium: "sonnet",
-		provider.TierLow:    "haiku",
-	}
-	claudeProvider := provider.NewClaudeProvider(claudeClient, tierToModel)
-
-	r, err := retro.NewRetroWithProviderAndBudget(claudeProvider, gromitDir, cfg.Prompt.Budget.MaxChars)
+	r, err := retro.NewRetroWithProviderAndBudget(runner, gromitDir, cfg.Prompt.Budget.MaxChars)
 	if err != nil {
 		return fmt.Errorf("failed to create retro analyzer: %w", err)
 	}
@@ -389,6 +380,28 @@ func resolveScopeLabels(specsDir, epicFlag, specFlag string) ([]string, error) {
 	}
 
 	return nil, nil
+}
+
+func buildRetroProviderRunner(cfg *config.Config) (retro.ProviderRunner, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
+	if cfg.HasProviders() {
+		router, err := provider.BuildRouterFromConfig(cfg)
+		if err != nil {
+			return nil, err
+		}
+		return &retroRouterAdapter{Router: router, Phase: retroSessionCommand}, nil
+	}
+
+	opusTimeout, _, _, _ := cfg.Claude.TimeoutsForModel("opus")
+	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, opusTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return provider.NewClaudeProvider(claudeClient, provider.DefaultTierToModelMap), nil
 }
 
 func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromitDir, promptPath string) error {
